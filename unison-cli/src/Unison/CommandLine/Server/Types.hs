@@ -39,7 +39,7 @@ data RunCommandResponse = RunCommandResponse
   }
 
 instance ToJSON RunCommandResponse where
-  toJSON (RunCommandResponse r) = either toJSON toJSON r
+  toJSON (RunCommandResponse r) = maybe Aeson.Null (either toJSON toJSON) r
 
 data Env = Env
   { rootVar :: TMVar (Branch IO),

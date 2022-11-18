@@ -292,7 +292,8 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion = UnliftIO.try $ Ki
         msg <- notifyUser dir o
         errOk <- readIORef allowErrors
         let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
-        output rendered
+        when (not (Pretty.isEmpty msg)) $ do
+          output rendered
         when (Output.isFailure o) $
           if errOk
             then writeIORef hasErrors True

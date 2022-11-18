@@ -246,7 +246,7 @@ handleInput e = do
             Cli.respond_ (TypeErrors currentPath text ppe tes)
           when (not (null cbs)) do
             Cli.respond_ (CompilerBugs text ppe cbs)
-          Cli.returnEarly NoOutput
+          Cli.returnEarlyWithoutOutput
 
       loadUnisonFile :: Text -> Text -> Cli CommandResponse
       loadUnisonFile sourceName text = do
@@ -280,7 +280,7 @@ handleInput e = do
       Cli.getLatestFile >>= \case
         Just (_, True) -> do
           (#latestFile . _Just . _2) .= False
-          Cli.respond NoOutput
+          Cli.noResponse
         _ -> loadUnisonFile sourceName text
     Right input ->
       let typeReferences :: [SearchResult] -> [Reference]
@@ -379,7 +379,7 @@ handleInput e = do
             ApiI -> do
               Cli.Env {serverBaseUrl} <- ask
               case serverBaseUrl of
-                Nothing -> Cli.respond NoOutput
+                Nothing -> Cli.noResponse
                 Just baseUrl ->
                   Cli.respond $
                     PrintMessage $
@@ -584,19 +584,19 @@ handleInput e = do
               #currentPathStack %= Nel.cons path
               if (not branchExists)
                 then (Cli.respond $ CreatedNewBranch path)
-                else (Cli.respond NoOutput)
+                else (Cli.noResponse)
             UpI -> do
               path0 <- Cli.getCurrentPath
               whenJust (unsnoc path0) \(path, _) ->
                 #currentPathStack %= Nel.cons path
-              Cli.respond NoOutput
+              Cli.noResponse
             PopBranchI -> do
               loopState <- State.get
               case Nel.uncons (loopState ^. #currentPathStack) of
                 (_, Nothing) -> Cli.respond StartOfCurrentPathHistory
                 (_, Just paths) -> do
                   State.put $! (loopState & #currentPathStack .~ paths)
-                  Cli.respond NoOutput
+                  Cli.noResponse
             HistoryI resultsCap diffCap from -> do
               branch <-
                 case from of
@@ -638,13 +638,13 @@ handleInput e = do
               whenJust serverBaseUrl \url -> do
                 _success <- liftIO (openBrowser (Server.urlFor Server.UI url))
                 pure ()
-              Cli.respond NoOutput
+              Cli.noResponse
             DocsToHtmlI namespacePath' sourceDirectory -> do
               Cli.Env {codebase, sandboxedRuntime} <- ask
               rootBranch <- Cli.getRootBranch
               absPath <- Path.unabsolute <$> Cli.resolvePath' namespacePath'
               liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase rootBranch absPath sourceDirectory)
-              Cli.respond NoOutput
+              Cli.noResponse
             AliasTermI src' dest' -> do
               Cli.Env {codebase} <- ask
               src <- traverseOf _Right Cli.resolveSplit' src'
@@ -2559,7 +2559,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     mergeBranch
     (loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest)
     ( case unchangedMessage of
-        Nothing -> Cli.respond NoOutput
+        Nothing -> Cli.noResponse
         Just output -> Cli.respond output
     )
   where
@@ -2581,7 +2581,7 @@ loadPropagateDiffDefaultPatch ::
   Path.Absolute ->
   Cli CommandResponse
 loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
-  Cli.time "loadPropagateDiffDefaultPatch" . fmap (fromMaybe (Left NoOutput)) . runMaybeT $ do
+  Cli.time "loadPropagateDiffDefaultPatch" . fmap join . runMaybeT $ do
     original <- lift $ Cli.getBranch0At dest
     patch <- liftIO $ Branch.getPatch Cli.defaultPatchNameSegment original
     patchDidChange <- lift $ propagatePatch inputDescription patch dest

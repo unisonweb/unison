@@ -27,7 +27,7 @@ module Unison.Cli.Monad
     label,
     returnEarly,
     returnEarlyNumbered,
-    -- returnEarlyWithoutOutput,
+    returnEarlyWithoutOutput,
     haltRepl,
 
     -- * Communicating output to the user
@@ -35,6 +35,7 @@ module Unison.Cli.Monad
     respond_,
     respondNumbered,
     respondNumbered_,
+    noResponse,
 
     -- * Debug-timing actions
     time,
@@ -259,9 +260,9 @@ returnEarlyNumbered x = do
   short (Continue response)
 
 -- -- | Variant of 'returnEarly' that doesn't take a final output message.
--- returnEarlyWithoutOutput :: Cli a
--- returnEarlyWithoutOutput =
---   short Continue
+returnEarlyWithoutOutput :: Cli a
+returnEarlyWithoutOutput =
+  short (Continue Nothing)
 
 -- | Stop processing inputs from the user.
 haltRepl :: Cli a
@@ -377,7 +378,7 @@ respond :: Output -> Cli CommandResponse
 respond output = do
   Env {notify} <- ask
   liftIO (notify output)
-  pure (Left output)
+  pure (Just $ Left output)
 
 respond_ :: Output -> Cli ()
 respond_ = void . respond
@@ -388,7 +389,10 @@ respondNumbered output = do
   args <- liftIO (notifyNumbered output)
   unless (null args) do
     #numberedArgs .= args
-  pure (Right output)
+  pure (Just $ Right output)
+
+noResponse :: Cli CommandResponse
+noResponse = pure Nothing
 
 respondNumbered_ :: NumberedOutput -> Cli ()
 respondNumbered_ = void . respondNumbered

@@ -1831,7 +1831,6 @@ notifyUser dir o = case o of
                     else ""
              in (isCompleteTxt, P.string (Completion.replacement comp))
         )
-  NoOutput -> pure ""
   ResponseNotImplemented -> pure ""
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"

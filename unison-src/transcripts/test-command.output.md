@@ -26,10 +26,6 @@ test1 = [Ok "test1"]
 
   ✅  
 
-  
-
-  
-
     New test results:
   
   ◉ test1   test1
@@ -79,10 +75,6 @@ test2 = [Ok "test2"]
     
     ✅  
 
-  
-
-  
-
     New test results:
   
   ◉ lib.test2   test2
@@ -121,10 +113,6 @@ test3 = [Ok "test3"]
     ✅ 1 test(s) passing
     
     ✅  
-
-  
-
-  
 
     New test results:
   

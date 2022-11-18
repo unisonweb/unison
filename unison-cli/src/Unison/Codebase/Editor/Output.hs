@@ -82,7 +82,7 @@ type NumberedArgs = [String]
 
 type HashLength = Int
 
-type CommandResponse = Either Output NumberedOutput
+type CommandResponse = Maybe (Either Output NumberedOutput)
 
 data NumberedOutput
   = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -282,7 +282,6 @@ data Output
   | IntegrityCheck IntegrityResult
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
-  | NoOutput
   | ResponseNotImplemented
 
 data ShareError
@@ -431,7 +430,6 @@ isFailure o = case o of
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
   DisplayDebugNameDiff {} -> False
-  NoOutput {} -> False
   -- This indicates that we simply haven't implemented the response yet, not that the command
   -- itself failed to run, so it's not a failure as such.
   ResponseNotImplemented {} -> False
@@ -568,7 +566,6 @@ instance ToJSON Output where
     IntegrityCheck {} -> notImplemented
     DisplayDebugNameDiff {} -> notImplemented
     DisplayDebugCompletions {} -> notImplemented
-    NoOutput {} -> notImplemented
     ResponseNotImplemented {} -> notImplemented
     where
       notImplemented = Aeson.String "This command is not yet supported"
