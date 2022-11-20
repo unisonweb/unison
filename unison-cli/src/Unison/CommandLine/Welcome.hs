@@ -12,6 +12,7 @@ import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
 import qualified Unison.Codebase.Verbosity as Verbosity
+import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Prelude
 import qualified Unison.Util.Pretty as P
@@ -21,7 +22,8 @@ data Welcome = Welcome
   { onboarding :: Onboarding, -- Onboarding States
     downloadBase :: DownloadBase,
     watchDir :: FilePath,
-    unisonVersion :: Text
+    unisonVersion :: Text,
+    shouldWatchFiles :: ShouldWatchFiles
   }
 
 data DownloadBase
@@ -47,9 +49,9 @@ data Onboarding
   | PreviouslyOnboarded
   deriving (Show, Eq)
 
-welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> Text -> Welcome
-welcome initStatus downloadBase filePath unisonVersion =
-  Welcome (Init initStatus) downloadBase filePath unisonVersion
+welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> Text -> ShouldWatchFiles -> Welcome
+welcome initStatus downloadBase filePath unisonVersion shouldWatchFiles =
+  Welcome (Init initStatus) downloadBase filePath unisonVersion shouldWatchFiles
 
 pullBase :: ReadShareRemoteNamespace -> Either Event Input
 pullBase ns =
@@ -66,7 +68,7 @@ pullBase ns =
    in Right pullRemote
 
 run :: Codebase IO v a -> Welcome -> IO [Either Event Input]
-run codebase Welcome {onboarding = onboarding, downloadBase = downloadBase, watchDir = dir, unisonVersion = version} = do
+run codebase Welcome {onboarding = onboarding, downloadBase = downloadBase, watchDir = dir, unisonVersion = version, shouldWatchFiles} = do
   go onboarding []
   where
     go :: Onboarding -> [Either Event Input] -> IO [Either Event Input]
@@ -91,10 +93,10 @@ run codebase Welcome {onboarding = onboarding, downloadBase = downloadBase, watc
             authorMsg = toInput authorSuggestion
         -- These are our two terminal Welcome conditions, at the end we reverse the order of the desired input commands otherwise they come out backwards
         Finished -> do
-          startMsg <- getStarted dir
+          startMsg <- getStarted shouldWatchFiles dir
           pure $ reverse (toInput startMsg : acc)
         PreviouslyOnboarded -> do
-          startMsg <- getStarted dir
+          startMsg <- getStarted shouldWatchFiles dir
           pure $ reverse (toInput startMsg : acc)
 
 toInput :: P.Pretty P.ColorText -> Either Event Input
@@ -103,11 +105,11 @@ toInput pretty =
 
 determineFirstStep :: DownloadBase -> Codebase IO v a -> IO Onboarding
 determineFirstStep downloadBase codebase = do
-  isEmptyCodebase <- Codebase.getRootBranchExists codebase
+  isEmptyCodebase <- Codebase.runTransaction codebase Codebase.getRootBranchExists
   case downloadBase of
     DownloadBase ns
       | isEmptyCodebase ->
-        pure $ DownloadingBase ns
+          pure $ DownloadingBase ns
     _ ->
       pure PreviouslyOnboarded
 
@@ -170,8 +172,8 @@ authorSuggestion =
         P.wrap $ P.blue "https://www.unison-lang.org/learn/tooling/configuration/"
       ]
 
-getStarted :: FilePath -> IO (P.Pretty P.ColorText)
-getStarted dir = do
+getStarted :: ShouldWatchFiles -> FilePath -> IO (P.Pretty P.ColorText)
+getStarted shouldWatchFiles dir = do
   earth <- (["🌎", "🌍", "🌏"] !!) <$> randomRIO (0, 2)
 
   pure $
@@ -179,10 +181,13 @@ getStarted dir = do
       [ P.wrap "Get started:",
         P.indentN 2 $
           P.column2
-            [ ("📖", "Type " <> P.hiBlue "help" <> " to list all commands, or " <> P.hiBlue "help <cmd>" <> " to view help for one command"),
-              ("🎨", "Type " <> P.hiBlue "ui" <> " to open the Codebase UI in your default browser"),
-              ("📚", "Read the official docs at " <> P.blue "https://www.unison-lang.org/learn/"),
-              (earth, "Visit Unison Share at " <> P.blue "https://share.unison-lang.org" <> " to discover libraries"),
-              ("👀", "I'm watching for changes to " <> P.bold ".u" <> " files under " <> (P.group . P.blue $ P.string dir))
-            ]
+            ( [ ("📖", "Type " <> P.hiBlue "help" <> " to list all commands, or " <> P.hiBlue "help <cmd>" <> " to view help for one command"),
+                ("🎨", "Type " <> P.hiBlue "ui" <> " to open the Codebase UI in your default browser"),
+                ("📚", "Read the official docs at " <> P.blue "https://www.unison-lang.org/learn/"),
+                (earth, "Visit Unison Share at " <> P.blue "https://share.unison-lang.org" <> " to discover libraries")
+              ]
+                <> case shouldWatchFiles of
+                  ShouldWatchFiles -> [("👀", "I'm watching for changes to " <> P.bold ".u" <> " files under " <> (P.group . P.blue $ P.string dir))]
+                  ShouldNotWatchFiles -> [("📝", "File watching is disabled, use the 'load' command to parse and typecheck unison files.")]
+            )
       ]

@@ -19,6 +19,7 @@ import Servant.Docs
     noSamples,
   )
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortCausalHash
@@ -124,7 +125,7 @@ serveDefinitions ::
   Backend.Backend IO DefinitionDisplayResults
 serveDefinitions rt codebase mayRoot relativePath hqns width suff =
   do
-    root <- traverse (Backend.expandShortCausalHash codebase) mayRoot
+    root <- traverse (Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.expandShortCausalHash) mayRoot
     hqns
       & foldMapM
         ( Backend.prettyDefinitionsForHQName

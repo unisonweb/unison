@@ -260,6 +260,21 @@ test> Bytes.tests.fromBase64UrlUnpadded =
 
 ```
 
+## `List` comparison
+
+```unison
+test> checks [
+        compare [] [1,2,3] == -1,
+        compare [1,2,3] [1,2,3,4] == -1,
+        compare [1,2,3,4] [1,2,3] == +1,
+        compare [1,2,3] [1,2,3] == +0,
+        compare [3] [1,2,3] == +1,
+        compare [1,2,3] [1,2,4] == -1,
+        compare [1,2,2] [1,2,1,2] == +1,
+        compare [1,2,3,4] [3,2,1] == -1
+      ]
+```
+
 ## `Any` functions
 
 ```unison
@@ -371,13 +386,14 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Sandbox.test1                       Passed
   ◉ Sandbox.test2                       Passed
   ◉ Sandbox.test3                       Passed
+  ◉ test.rtjqan7bcs                     Passed
   ◉ Text.tests.alignment                Passed
   ◉ Text.tests.literalsEq               Passed
   ◉ Text.tests.patterns                 Passed
   ◉ Text.tests.repeat                   Passed
   ◉ Text.tests.takeDropAppend           Passed
   
-  ✅ 22 test(s) passing
+  ✅ 23 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 

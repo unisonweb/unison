@@ -323,7 +323,8 @@ isFailure o = case o of
   BadMainFunction {} -> True
   CreatedNewBranch {} -> False
   BranchAlreadyExists {} -> True
-  FindNoLocalMatches {} -> True
+  -- we do a global search after finding no local matches, so let's not call this a failure yet
+  FindNoLocalMatches {} -> False
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True

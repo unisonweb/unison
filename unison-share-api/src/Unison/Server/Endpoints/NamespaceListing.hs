@@ -27,6 +27,7 @@ import Servant.OpenApi ()
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Causal
 import qualified U.Codebase.Causal as V2Causal
+import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -170,8 +171,11 @@ serve ::
   Backend.Backend IO NamespaceListing
 serve codebase maySCH mayRelativeTo mayNamespaceName = do
   useIndex <- asks Backend.useNamesIndex
-  mayRootHash <- traverse (Backend.expandShortCausalHash codebase) maySCH
-  codebaseRootHash <- liftIO $ Codebase.getRootCausalHash codebase
+  (mayRootHash, codebaseRootHash) <- 
+    Backend.hoistBackend (Codebase.runTransaction codebase) do
+      mayRootHash <- traverse Backend.expandShortCausalHash maySCH
+      codebaseRootHash <- lift Operations.expectRootCausalHash
+      pure (mayRootHash, codebaseRootHash)
 
   -- Relative and Listing Path resolution
   --
@@ -202,7 +206,7 @@ serve codebase maySCH mayRelativeTo mayNamespaceName = do
     (False, Just rh) -> do
       serveFromBranch codebase path' (Cv.causalHash1to2 rh)
     (False, Nothing) -> do
-      ch <- liftIO $ Codebase.getRootCausalHash codebase
+      ch <- liftIO $ Codebase.runTransaction codebase Operations.expectRootCausalHash
       serveFromBranch codebase path' ch
 
 serveFromBranch ::

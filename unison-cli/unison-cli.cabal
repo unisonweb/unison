@@ -67,6 +67,7 @@ library
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
+      Unison.CommandLine.Types
       Unison.CommandLine.Welcome
       Unison.LSP
       Unison.LSP.CancelRequest

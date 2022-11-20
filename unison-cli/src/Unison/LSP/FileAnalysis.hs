@@ -251,7 +251,7 @@ analyseNotes fileUri ppe src notes = do
           refs <- liftIO $ Codebase.termsOfType codebase cleanedTyp
           forMaybe (toList refs) $ \ref -> runMaybeT $ do
             hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
-            typ <- MaybeT . liftIO $ Codebase.getTypeOfReferent codebase ref
+            typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
             let prettyType = TypePrinter.prettyStr Nothing ppe typ
             let txtName = HQ'.toText hqNameSuggestion
             let ranges = (diags ^.. folded . range)
@@ -278,7 +278,7 @@ ppeForFile fileUri = do
   ppe <- PPE.suffixifiedPPE <$> globalPPE
   getFileAnalysis fileUri >>= \case
     Just (FileAnalysis {typecheckedFile = Just tf}) -> do
-      hl <- asks codebase >>= liftIO . Codebase.hashLength
+      hl <- asks codebase >>= \codebase -> liftIO (Codebase.runTransaction codebase Codebase.hashLength)
       let fileNames = UF.typecheckedToNames tf
       let filePPE = PPE.fromSuffixNames hl (NamesWithHistory.fromCurrentNames fileNames)
       pure (filePPE `PPE.addFallback` ppe)
