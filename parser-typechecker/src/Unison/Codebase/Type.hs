@@ -118,7 +118,7 @@ data Codebase m v a = Codebase
       Maybe BranchHash ->
       -- The new branch
       BranchHash ->
-      m (),
+      Sqlite.Transaction (),
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.
     withConnection :: forall x. (Sqlite.Connection -> m x) -> m x,
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.
