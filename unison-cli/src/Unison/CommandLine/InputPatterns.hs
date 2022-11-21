@@ -2172,13 +2172,14 @@ schemeLibgen =
     ( P.wrapColumn2
         [ ( makeExample schemeLibgen [],
             "Generates libraries necessary for scheme compilation.\n\n\
-            \There is no need to run this before" <>
-            P.group (makeExample compileScheme []) <> "as\
-            \ the latter will check if the libraries are missing and\
-            \ auto-generate them. However, this will generate the\
-            \ libraries even if their files already exist, so if the\
-            \ compiler has been upgraded, this can be used to ensure\
-            \ the generated libraries are up to date."
+            \There is no need to run this before"
+              <> P.group (makeExample compileScheme [])
+              <> "as\
+                 \ the latter will check if the libraries are missing and\
+                 \ auto-generate them. However, this will generate the\
+                 \ libraries even if their files already exist, so if the\
+                 \ compiler has been upgraded, this can be used to ensure\
+                 \ the generated libraries are up to date."
           )
         ]
     )
@@ -2197,11 +2198,12 @@ fetchScheme =
     ( P.wrapColumn2
         [ ( makeExample fetchScheme [],
             "Fetches the unison library for compiling to scheme.\n\n\
-            \This is done automatically when" <>
-            P.group (makeExample compileScheme []) <> "is run\
-            \ if the library is not already in the standard location\
-            \ (unison.internal). However, this command will force\
-            \ a pull even if the library already exists."
+            \This is done automatically when"
+              <> P.group (makeExample compileScheme [])
+              <> "is run\
+                 \ if the library is not already in the standard location\
+                 \ (unison.internal). However, this command will force\
+                 \ a pull even if the library already exists."
           )
         ]
     )

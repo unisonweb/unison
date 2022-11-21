@@ -20,7 +20,6 @@ import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
-import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
@@ -29,15 +28,15 @@ import qualified Data.Text as Text
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
-import System.Process (shell, readCreateProcess, callCommand)
-import System.Environment (withArgs)
 import System.Directory
-  ( createDirectoryIfMissing,
+  ( XdgDirectory (..),
+    createDirectoryIfMissing,
     doesFileExist,
-    XdgDirectory(..),
     getXdgDirectory,
   )
+import System.Environment (withArgs)
 import System.FilePath ((</>))
+import System.Process (callCommand, readCreateProcess, shell)
 import qualified Text.Megaparsec as P
 import qualified U.Codebase.Branch.Diff as V2Branch
 import qualified U.Codebase.Causal as V2Causal
@@ -54,11 +53,12 @@ import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
+import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
+import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
 import Unison.Cli.UnisonConfigUtils (gitUrlKey, remoteMappingKey)
 import Unison.Codebase (Codebase, Preprocessing (..), PushGitBranchOpts (..))
-import qualified Unison.Cli.MonadUtils as Cli
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
@@ -76,7 +76,10 @@ import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.TermResolution
-  (resolveTermRef, resolveMainRef, resolveCon)
+  ( resolveCon,
+    resolveMainRef,
+    resolveTermRef,
+  )
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
 import Unison.Codebase.Editor.Input
 import qualified Unison.Codebase.Editor.Input as Input
@@ -116,7 +119,6 @@ import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SyncMode as SyncMode
-import qualified Unison.Syntax.TermPrinter as TP
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
 import Unison.Codebase.Type (GitPushBehavior (..))
@@ -178,6 +180,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
+import qualified Unison.Syntax.TermPrinter as TP
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -385,7 +388,7 @@ loop e = do
               Cli.respond $ PrintMessage pretty
             ShowReflogI -> do
               let numEntriesToShow = 500
-              entries <- 
+              entries <-
                 Cli.runTransaction do
                   schLength <- Codebase.branchHashLength
                   Codebase.getReflog numEntriesToShow <&> fmap (first $ SCH.fromHash schLength)
@@ -1264,8 +1267,8 @@ loop e = do
               ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               Cli.respondNumbered $ ListEdits patch ppe
             PullRemoteBranchI mRepo path sMode pMode verbosity ->
-              inputDescription input >>=
-                doPullRemoteBranch mRepo path sMode pMode verbosity
+              inputDescription input
+                >>= doPullRemoteBranch mRepo path sMode pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> do
@@ -1378,14 +1381,14 @@ loop e = do
                 traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
               for_ (Relation.toList . Branch.deepTerms $ rootBranch0) \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
-            DebugClearWatchI {} -> 
+            DebugClearWatchI {} ->
               Cli.runTransaction Codebase.clearWatches
             DebugDoctorI {} -> do
               r <- Cli.runTransaction IntegrityCheck.integrityCheckFullCodebase
               Cli.respond (IntegrityCheck r)
             DebugNameDiffI fromSCH toSCH -> do
               Cli.Env {codebase} <- ask
-              (schLen, fromCHs, toCHs) <- 
+              (schLen, fromCHs, toCHs) <-
                 Cli.runTransaction do
                   schLen <- Codebase.branchHashLength
                   fromCHs <- Codebase.causalHashesByPrefix fromSCH
@@ -2487,62 +2490,67 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
 
 basicPPE :: Cli PPE.PrettyPrintEnv
 basicPPE = do
-  parseNames <- 
+  parseNames <-
     flip NamesWithHistory.NamesWithHistory mempty
       <$> basicParseNames
   suffixifiedPPE parseNames
 
 compilerPath :: Path.Path'
-compilerPath = Path.Path' { Path.unPath' = Left abs }
+compilerPath = Path.Path' {Path.unPath' = Left abs}
   where
-  segs = NameSegment <$> ["unison", "internal"]
-  rootPath = Path.Path { Path.toSeq = Seq.fromList segs }
-  abs = Path.Absolute { Path.unabsolute = rootPath }
+    segs = NameSegment <$> ["unison", "internal"]
+    rootPath = Path.Path {Path.toSeq = Seq.fromList segs}
+    abs = Path.Absolute {Path.unabsolute = rootPath}
 
 doFetchCompiler :: Cli ()
 doFetchCompiler =
-  inputDescription pullInput >>=
-    doPullRemoteBranch
-      repo compilerPath
-      SyncMode.Complete
-      Input.PullWithoutHistory
-      Verbosity.Silent
-  where
-  -- fetching info
-  ns = ReadShareRemoteNamespace
-     { server = RemoteRepo.DefaultCodeserver
-     , repo = "dolio"
-     , path =
-         Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
-     }
-  repo = Just $ ReadRemoteNamespaceShare ns
-
-  pullInput =
-    PullRemoteBranchI
+  inputDescription pullInput
+    >>= doPullRemoteBranch
       repo
       compilerPath
       SyncMode.Complete
       Input.PullWithoutHistory
       Verbosity.Silent
+  where
+    -- fetching info
+    ns =
+      ReadShareRemoteNamespace
+        { server = RemoteRepo.DefaultCodeserver,
+          repo = "dolio",
+          path =
+            Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
+        }
+    repo = Just $ ReadRemoteNamespaceShare ns
+
+    pullInput =
+      PullRemoteBranchI
+        repo
+        compilerPath
+        SyncMode.Complete
+        Input.PullWithoutHistory
+        Verbosity.Silent
 
 ensureCompilerExists :: Cli ()
 ensureCompilerExists =
-  Cli.branchExistsAtPath' compilerPath >>=
-    flip unless doFetchCompiler
+  Cli.branchExistsAtPath' compilerPath
+    >>= flip unless doFetchCompiler
 
 getCacheDir :: Cli String
 getCacheDir = liftIO $ getXdgDirectory XdgCache "unisonlanguage"
 
 getSchemeGenLibDir :: Cli String
-getSchemeGenLibDir = Cli.getConfig "SchemeLibs.Generated" >>= \case
-  Just dir -> pure dir
-  Nothing -> (</> "scheme-libs") <$> getCacheDir
+getSchemeGenLibDir =
+  Cli.getConfig "SchemeLibs.Generated" >>= \case
+    Just dir -> pure dir
+    Nothing -> (</> "scheme-libs") <$> getCacheDir
 
 getSchemeStaticLibDir :: Cli String
-getSchemeStaticLibDir = Cli.getConfig "SchemeLibs.Static" >>= \case
-  Just dir -> pure dir
-  Nothing -> liftIO $
-    getXdgDirectory XdgData ("unisonlanguage" </> "scheme-libs")
+getSchemeStaticLibDir =
+  Cli.getConfig "SchemeLibs.Static" >>= \case
+    Just dir -> pure dir
+    Nothing ->
+      liftIO $
+        getXdgDirectory XdgData ("unisonlanguage" </> "scheme-libs")
 
 doGenerateSchemeBoot :: Bool -> Maybe PPE.PrettyPrintEnv -> Cli ()
 doGenerateSchemeBoot force mppe = do
@@ -2556,20 +2564,20 @@ doGenerateSchemeBoot force mppe = do
   gen ppe saveBase bootf dirTm bootName
   gen ppe saveBase binf dirTm builtinName
   where
-  a = External
-  hq nm
-    | Just hqn <- HQ.fromString nm = hqn
-    | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
+    a = External
+    hq nm
+      | Just hqn <- HQ.fromString nm = hqn
+      | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
 
-  sbName = hq ".unison.internal.compiler.scheme.saveBaseFile"
-  bootName = hq ".unison.internal.compiler.scheme.bootSpec"
-  builtinName = hq ".unison.internal.compiler.scheme.builtinSpec"
+    sbName = hq ".unison.internal.compiler.scheme.saveBaseFile"
+    bootName = hq ".unison.internal.compiler.scheme.bootSpec"
+    builtinName = hq ".unison.internal.compiler.scheme.builtinSpec"
 
-  gen ppe save file dir nm =
-    liftIO (doesFileExist file) >>= \b -> when (not b || force) do
-      spec <- Term.ref a <$> resolveTermRef nm
-      let make = Term.apps' save [dir, spec]
-      typecheckAndEval ppe make
+    gen ppe save file dir nm =
+      liftIO (doesFileExist file) >>= \b -> when (not b || force) do
+        spec <- Term.ref a <$> resolveTermRef nm
+        let make = Term.apps' save [dir, spec]
+        typecheckAndEval ppe make
 
 typecheckAndEval :: PPE.PrettyPrintEnv -> Term Symbol Ann -> Cli ()
 typecheckAndEval ppe tm = do
@@ -2579,16 +2587,16 @@ typecheckAndEval ppe tm = do
     -- Type checking succeeded
     Result.Result _ (Just ty)
       | Typechecker.fitsScheme ty mty ->
-        () <$ evalUnisonTerm False ppe False tm
+          () <$ evalUnisonTerm False ppe False tm
       | otherwise ->
-        Cli.returnEarly $ BadMainFunction rendered ty ppe [mty]
+          Cli.returnEarly $ BadMainFunction rendered ty ppe [mty]
     Result.Result notes Nothing -> do
       currentPath <- Cli.getCurrentPath
-      let tes = [ err | Result.TypeError err <- toList notes ]
+      let tes = [err | Result.TypeError err <- toList notes]
       Cli.returnEarly (TypeErrors currentPath (Text.pack rendered) ppe tes)
   where
-  a = External
-  rendered = P.toPlainUnbroken $ TP.pretty ppe tm
+    a = External
+    rendered = P.toPlainUnbroken $ TP.pretty ppe tm
 
 runScheme :: String -> Cli ()
 runScheme file = do
@@ -2599,8 +2607,9 @@ runScheme file = do
       opt = "--optimize-level 3"
       cmd = "scheme -q " ++ opt ++ " " ++ lib ++ " --script " ++ file
   success <-
-    liftIO $ (True <$ callCommand cmd) `catch` \(_ :: IOException) ->
-      pure False
+    liftIO $
+      (True <$ callCommand cmd) `catch` \(_ :: IOException) ->
+        pure False
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
@@ -2611,23 +2620,23 @@ buildScheme main file = do
   let cmd = shell "scheme -q --optimize-level 3"
   void . liftIO $ readCreateProcess cmd (build statDir genDir)
   where
-  surround s = '"' : s ++ "\""
-  parens s = '(' : s ++ ")"
-  lns dir nms = surround . ln dir <$> nms
-  ln dir nm = dir </> "unison" </> (nm ++ ".ss")
+    surround s = '"' : s ++ "\""
+    parens s = '(' : s ++ ")"
+    lns dir nms = surround . ln dir <$> nms
+    ln dir nm = dir </> "unison" </> (nm ++ ".ss")
 
-  static = ["core", "cont", "bytevector", "string", "primops", "boot"]
-  gen = ["boot-generated", "builtin-generated"]
+    static = ["core", "cont", "bytevector", "string", "primops", "boot"]
+    gen = ["boot-generated", "builtin-generated"]
 
-  bootf = surround $ main ++ ".boot"
-  base = "'(\"scheme\" \"petite\")"
+    bootf = surround $ main ++ ".boot"
+    base = "'(\"scheme\" \"petite\")"
 
-  build sd gd = parens . List.intercalate " " $
-    ["make-boot-file",bootf,base] ++
-    lns sd static ++
-    lns gd gen ++
-    [surround file]
-
+    build sd gd =
+      parens . List.intercalate " " $
+        ["make-boot-file", bootf, base]
+          ++ lns sd static
+          ++ lns gd gen
+          ++ [surround file]
 
 doRunAsScheme :: HQ.HashQualified Name -> Cli ()
 doRunAsScheme main = do
@@ -2659,22 +2668,22 @@ generateSchemeFile out main = do
   typecheckAndEval ppe tm
   pure fullpath
   where
-  a = External
-  hq nm
-    | Just hqn <- HQ.fromString nm = hqn
-    | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
+    a = External
+    hq nm
+      | Just hqn <- HQ.fromString nm = hqn
+      | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
 
-  saveNm = hq ".unison.internal.compiler.saveScheme"
-  filePathNm = hq "FilePath.FilePath"
+    saveNm = hq ".unison.internal.compiler.saveScheme"
+    filePathNm = hq "FilePath.FilePath"
 
-doPullRemoteBranch
-  :: Maybe ReadRemoteNamespace
-  -> Path'
-  -> SyncMode.SyncMode
-  -> PullMode
-  -> Verbosity.Verbosity
-  -> Text
-  -> Cli ()
+doPullRemoteBranch ::
+  Maybe ReadRemoteNamespace ->
+  Path' ->
+  SyncMode.SyncMode ->
+  PullMode ->
+  Verbosity.Verbosity ->
+  Text ->
+  Cli ()
 doPullRemoteBranch mayRepo path syncMode pullMode verbosity description = do
   Cli.Env {codebase} <- ask
   let preprocess = case pullMode of

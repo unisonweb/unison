@@ -787,7 +787,8 @@ deserializeValue bs = runGetS (getVersion >>= getValue) bs
   where
     getVersion =
       getWord32be >>= \case
-        n | n < 1 -> fail $ "deserializeValue: unknown version: " ++ show n
+        n
+          | n < 1 -> fail $ "deserializeValue: unknown version: " ++ show n
           | n < 3 -> fail $ "deserializeValue: unsupported version: " ++ show n
           | n == 3 -> pure n
           | otherwise -> fail $ "deserializeValue: unknown version: " ++ show n

@@ -375,7 +375,7 @@ exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim2 CMPU i j) = do
   ustk <- bump ustk
   poke ustk . fromEnum $ universalCompare compare x y
   pure (denv, ustk, bstk, k)
-exec !_   !_    !_activeThreads !_    !bstk !k r (BPrim2 THRO i j) = do
+exec !_ !_ !_activeThreads !_ !bstk !k r (BPrim2 THRO i j) = do
   name <- peekOffBi @Util.Text.Text bstk i
   x <- peekOff bstk j
   throwIO (BU (traceK r k) (Util.Text.toText name) x)

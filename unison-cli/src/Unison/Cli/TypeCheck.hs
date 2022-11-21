@@ -2,7 +2,7 @@ module Unison.Cli.TypeCheck
   ( typecheck,
     typecheckHelper,
     typecheckFile,
-    typecheckTerm
+    typecheckTerm,
   )
 where
 
@@ -20,13 +20,13 @@ import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.Result as Result
 import qualified Unison.Sqlite as Sqlite
-import Unison.Symbol (Symbol(Symbol))
+import Unison.Symbol (Symbol (Symbol))
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
-import Unison.Type (Type)
 import Unison.Term (Term)
-import qualified Unison.Var as Var
+import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
+import qualified Unison.Var as Var
 
 typecheck ::
   [Type Symbol Ann] ->
@@ -78,15 +78,17 @@ typecheckTerm ::
   Cli
     ( Result.Result
         (Seq (Result.Note Symbol Ann))
-        (Type Symbol Ann))
+        (Type Symbol Ann)
+    )
 typecheckTerm tm = do
-  Cli.Env { codebase } <- ask
+  Cli.Env {codebase} <- ask
   let v = Symbol 0 (Var.Inference Var.Other)
-  liftIO $ fmap extract <$>
-    Codebase.runTransaction codebase (typecheckFile' codebase [] (UF.UnisonFileId mempty mempty [(v, tm)] mempty))
+  liftIO $
+    fmap extract
+      <$> Codebase.runTransaction codebase (typecheckFile' codebase [] (UF.UnisonFileId mempty mempty [(v, tm)] mempty))
   where
     extract tuf
-      | [[(_,_,ty)]] <- UF.topLevelComponents' tuf = ty
+      | [[(_, _, ty)]] <- UF.topLevelComponents' tuf = ty
       | otherwise = error "internal error: typecheckTerm"
 
 typecheckFile' ::
@@ -96,7 +98,8 @@ typecheckFile' ::
   Sqlite.Transaction
     ( Result.Result
         (Seq (Result.Note Symbol Ann))
-        (UF.TypecheckedUnisonFile Symbol Ann))
+        (UF.TypecheckedUnisonFile Symbol Ann)
+    )
 typecheckFile' codebase ambient file = do
   typeLookup <-
     (<> Builtin.typeLookup)
