@@ -732,7 +732,7 @@ printCase im doc ms0 = PP.lines . alignGrid <$> grid
     patLhs env vs pats =
       case pats of
         [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
-        pats -> PP.group . PP.sep ("," <> PP.softbreak)
+        pats -> PP.group . PP.sep (PP.indentAfterNewline "  " $ "," <> PP.softbreak)
           . (`evalState` vs)
           . for pats
           $ \pat -> do
