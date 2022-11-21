@@ -59,13 +59,13 @@ addDefaultMetadata adds =
             dm -> do
               traverse InputPatterns.parseHashQualifiedName dm & \case
                 Left err -> do
-                  Cli.respond $
+                  Cli.respond_ $
                     ConfiguredMetadataParseError
                       (Path.absoluteToPath' currentPath')
                       (show dm)
                       err
                 Right defaultMeta -> do
-                  manageLinks True addedNames defaultMeta Metadata.insert
+                  void $ manageLinks True addedNames defaultMeta Metadata.insert
 
 -- | Add/remove links between definitions and metadata.
 -- `silent` controls whether this produces any output to the user.
@@ -83,7 +83,7 @@ manageLinks ::
     Branch.Star r NameSegment ->
     Branch.Star r NameSegment
   ) ->
-  Cli ()
+  Cli CommandResponse
 manageLinks silent srcs' metadataNames op = do
   metadatas <- traverse resolveMetadata metadataNames
   before <- Cli.getRootBranch0
@@ -91,7 +91,7 @@ manageLinks silent srcs' metadataNames op = do
   srcle <- Monoid.foldMapM Cli.getTermsAt srcs
   srclt <- Monoid.foldMapM Cli.getTypesAt srcs
   for_ metadatas \case
-    Left errOutput -> Cli.respond errOutput
+    Left errOutput -> Cli.respond_ errOutput
     Right (mdType, mdValue) -> do
       let step =
             let tmUpdates terms = foldl' go terms srcle

@@ -9,11 +9,14 @@ module Unison.Codebase.Editor.Output
     TestReportStats (..),
     UndoFailureReason (..),
     ShareError (..),
+    CommandResponse,
     isFailure,
     isNumberedFailure,
   )
 where
 
+import Data.Aeson (ToJSON (..))
+import qualified Data.Aeson as Aeson
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
@@ -78,6 +81,8 @@ type SourceName = Text
 type NumberedArgs = [String]
 
 type HashLength = Int
+
+type CommandResponse = Maybe (Either Output NumberedOutput)
 
 data NumberedOutput
   = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -277,6 +282,7 @@ data Output
   | IntegrityCheck IntegrityResult
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
+  | ResponseNotImplemented
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -424,6 +430,9 @@ isFailure o = case o of
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
   DisplayDebugNameDiff {} -> False
+  -- This indicates that we simply haven't implemented the response yet, not that the command
+  -- itself failed to run, so it's not a failure as such.
+  ResponseNotImplemented {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
@@ -444,3 +453,141 @@ isNumberedFailure = \case
   History {} -> False
   DeletedDespiteDependents {} -> False
   ListEdits {} -> False
+
+instance ToJSON Output where
+  toJSON = \case
+    Success {} -> notImplemented
+    NoUnisonFile {} -> notImplemented
+    PrintMessage {} -> notImplemented
+    InvalidSourceName {} -> notImplemented
+    SourceLoadFailed {} -> notImplemented
+    NoMainFunction {} -> notImplemented
+    BadMainFunction {} -> notImplemented
+    BranchEmpty {} -> notImplemented
+    BranchNotEmpty {} -> notImplemented
+    LoadPullRequest {} -> notImplemented
+    CreatedNewBranch {} -> notImplemented
+    BranchAlreadyExists {} -> notImplemented
+    FindNoLocalMatches {} -> notImplemented
+    PatchAlreadyExists {} -> notImplemented
+    NoExactTypeMatches {} -> notImplemented
+    TypeAlreadyExists {} -> notImplemented
+    TypeParseError {} -> notImplemented
+    ParseResolutionFailures {} -> notImplemented
+    TypeHasFreeVars {} -> notImplemented
+    TermAlreadyExists {} -> notImplemented
+    LabeledReferenceAmbiguous {} -> notImplemented
+    LabeledReferenceNotFound {} -> notImplemented
+    DeleteNameAmbiguous {} -> notImplemented
+    TermAmbiguous {} -> notImplemented
+    HashAmbiguous {} -> notImplemented
+    BranchHashAmbiguous {} -> notImplemented
+    BadNamespace {} -> notImplemented
+    BranchNotFound {} -> notImplemented
+    EmptyPush {} -> notImplemented
+    NameNotFound {} -> notImplemented
+    PatchNotFound {} -> notImplemented
+    TypeNotFound {} -> notImplemented
+    TermNotFound {} -> notImplemented
+    TypeNotFound' {} -> notImplemented
+    TermNotFound' {} -> notImplemented
+    TypeTermMismatch {} -> notImplemented
+    NoLastRunResult {} -> notImplemented
+    SaveTermNameConflict {} -> notImplemented
+    SearchTermsNotFound {} -> notImplemented
+    SearchTermsNotFoundDetailed {} -> notImplemented
+    DeleteBranchConfirmation {} -> notImplemented
+    DeleteEverythingConfirmation {} -> notImplemented
+    MoveRootBranchConfirmation {} -> notImplemented
+    MovedOverExistingBranch {} -> notImplemented
+    DeletedEverything {} -> notImplemented
+    ListNames {} -> notImplemented
+    ListOfDefinitions {} -> notImplemented
+    ListOfLinks {} -> notImplemented
+    ListShallow {} -> notImplemented
+    ListOfPatches {} -> notImplemented
+    SlurpOutput {} -> notImplemented
+    ParseErrors {} -> notImplemented
+    TypeErrors {} -> notImplemented
+    CompilerBugs {} -> notImplemented
+    DisplayConflicts {} -> notImplemented
+    EvaluationFailure {} -> notImplemented
+    Evaluated {} -> notImplemented
+    RunResult {} -> notImplemented
+    Typechecked {} -> notImplemented
+    DisplayRendered {} -> notImplemented
+    DisplayDefinitions {} -> notImplemented
+    TestIncrementalOutputStart {} -> notImplemented
+    TestIncrementalOutputEnd {} -> notImplemented
+    TestResults {} -> notImplemented
+    CantUndo {} -> notImplemented
+    BustedBuiltins {} -> notImplemented
+    GitError {} -> notImplemented
+    ShareError {} -> notImplemented
+    ViewOnShare {} -> notImplemented
+    ConfiguredMetadataParseError {} -> notImplemented
+    NoConfiguredRemoteMapping {} -> notImplemented
+    ConfiguredRemoteMappingParseError {} -> notImplemented
+    MetadataMissingType {} -> notImplemented
+    TermMissingType {} -> notImplemented
+    MetadataAmbiguous {} -> notImplemented
+    NothingToPatch {} -> notImplemented
+    PatchNeedsToBeConflictFree {} -> notImplemented
+    PatchInvolvesExternalDependents {} -> notImplemented
+    WarnIncomingRootBranch {} -> notImplemented
+    StartOfCurrentPathHistory {} -> notImplemented
+    ShowReflog {} -> notImplemented
+    PullAlreadyUpToDate {} -> notImplemented
+    PullSuccessful {} -> notImplemented
+    MergeOverEmpty {} -> notImplemented
+    MergeAlreadyUpToDate {} -> notImplemented
+    PreviewMergeAlreadyUpToDate {} -> notImplemented
+    NoConflictsOrEdits {} -> notImplemented
+    NotImplemented {} -> notImplemented
+    NoBranchWithHash {} -> notImplemented
+    ListDependencies {} -> notImplemented
+    ListDependents {} -> notImplemented
+    ListNamespaceDependencies {} -> notImplemented
+    DumpNumberedArgs {} -> notImplemented
+    DumpBitBooster {} -> notImplemented
+    DumpUnisonFileHashes {} -> notImplemented
+    BadName {} -> notImplemented
+    DefaultMetadataNotification {} -> notImplemented
+    CouldntLoadBranch {} -> notImplemented
+    HelpMessage {} -> notImplemented
+    NamespaceEmpty {} -> notImplemented
+    NoOp {} -> notImplemented
+    RefusedToPush {} -> notImplemented
+    GistCreated {} -> notImplemented
+    InitiateAuthFlow {} -> notImplemented
+    UnknownCodeServer {} -> notImplemented
+    CredentialFailureMsg {} -> notImplemented
+    PrintVersion {} -> notImplemented
+    IntegrityCheck {} -> notImplemented
+    DisplayDebugNameDiff {} -> notImplemented
+    DisplayDebugCompletions {} -> notImplemented
+    ResponseNotImplemented {} -> notImplemented
+    where
+      notImplemented = Aeson.object ["error" Aeson..= Aeson.String "This command is not yet supported"]
+
+instance ToJSON NumberedOutput where
+  toJSON = \case
+    ShowDiffNamespace {} -> notImplemented
+    ShowDiffAfterUndo {} -> notImplemented
+    ShowDiffAfterDeleteDefinitions {} -> notImplemented
+    ShowDiffAfterDeleteBranch {} -> notImplemented
+    ShowDiffAfterModifyBranch {} -> notImplemented
+    ShowDiffAfterMerge {} -> notImplemented
+    ShowDiffAfterMergePropagate {} -> notImplemented
+    ShowDiffAfterMergePreview {} -> notImplemented
+    ShowDiffAfterPull {} -> notImplemented
+    ShowDiffAfterCreatePR {} -> notImplemented
+    ShowDiffAfterCreateAuthor {} -> notImplemented
+    TodoOutput {} -> notImplemented
+    CantDeleteDefinitions {} -> notImplemented
+    CantDeleteNamespace {} -> notImplemented
+    DeletedDespiteDependents {} -> notImplemented
+    History {} -> notImplemented
+    ListEdits {} -> notImplemented
+    where
+      notImplemented = Aeson.String "This command is not yet supported"

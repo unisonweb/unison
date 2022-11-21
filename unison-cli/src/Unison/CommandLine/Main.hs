@@ -1,5 +1,6 @@
 module Unison.CommandLine.Main
   ( main,
+    mkEnv,
   )
 where
 
@@ -19,10 +20,8 @@ import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
 import Text.Pretty.Simple (pShow)
 import qualified U.Codebase.Sqlite.Operations as Operations
-import Unison.Auth.CredentialManager (newCredentialManager)
+import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
-import qualified Unison.Auth.HTTPClient as AuthN
-import qualified Unison.Auth.Tokens as AuthN
 import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -31,9 +30,10 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
+import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Runtime
+import qualified Unison.Codebase.Runtime as RTI
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import qualified Unison.CommandLine.InputPatterns as IP
@@ -92,22 +92,72 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
     tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
 
+mkEnv ::
+  CredentialManager ->
+  AuthenticatedHttpClient ->
+  RTI.Runtime Symbol ->
+  RTI.Runtime Symbol ->
+  UCMVersion ->
+  Config ->
+  Codebase IO Symbol Ann ->
+  (Output -> IO ()) ->
+  ( Output.NumberedOutput ->
+    IO Output.NumberedArgs
+  ) ->
+  Maybe Server.BaseUrl ->
+  Cli.Env
+mkEnv credentialManager authHTTPClient runtime sbRuntime ucmVersion config codebase notify notifyNumbered serverBaseUrl = do
+  Cli.Env
+    { authHTTPClient,
+      codebase,
+      config,
+      credentialManager,
+      loadSource = loadSourceFile,
+      generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
+      notify,
+      notifyNumbered,
+      runtime,
+      sandboxedRuntime = sbRuntime,
+      serverBaseUrl,
+      ucmVersion
+    }
+
+loadSourceFile :: Text -> IO Cli.LoadSourceResult
+loadSourceFile fname =
+  if allow $ Text.unpack fname
+    then
+      let handle :: IOException -> IO Cli.LoadSourceResult
+          handle e =
+            case e of
+              _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
+              _ -> return Cli.LoadError
+          go = do
+            contents <- readUtf8 $ Text.unpack fname
+            return $ Cli.LoadSuccess contents
+       in catch go handle
+    else return Cli.InvalidSourceNameError
+
+-- let notify :: Output -> IO ()
+--     notify =
+--       notifyUser dir
+--         >=> ( \o ->
+--                 ifM
+--                   (readIORef pageOutput)
+--                   (putPrettyNonempty o)
+--                   (putPrettyLnUnpaged o)
+--             )
+
 main ::
   FilePath ->
   Welcome.Welcome ->
   Path.Absolute ->
-  (Config, IO ()) ->
   [Either Event Input] ->
-  Runtime.Runtime Symbol ->
-  Runtime.Runtime Symbol ->
-  Codebase IO Symbol Ann ->
-  Maybe Server.BaseUrl ->
-  UCMVersion ->
   (Branch IO -> STM ()) ->
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
+  Cli.Env ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
+main dir welcome initialPath initialInputs notifyBranchChange notifyPathChange shouldWatchFiles env@(Cli.Env {codebase, authHTTPClient}) = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   _ <- Ki.fork scope $ do
@@ -140,9 +190,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
   cancelFileSystemWatch <- case shouldWatchFiles of
     ShouldNotWatchFiles -> pure (pure ())
     ShouldWatchFiles -> watchFileSystem eventQueue dir
-  credentialManager <- newCredentialManager
-  let tokenProvider = AuthN.newTokenProvider credentialManager
-  authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
   let getInput :: Cli.LoopState -> IO Input
       getInput loopState = do
         getUserInput
@@ -151,22 +198,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
           (atomically . readTMVar $ loopState ^. #root)
           (loopState ^. #currentPath)
           (loopState ^. #numberedArgs)
-  let loadSourceFile :: Text -> IO Cli.LoadSourceResult
-      loadSourceFile fname =
-        if allow $ Text.unpack fname
-          then
-            let handle :: IOException -> IO Cli.LoadSourceResult
-                handle e =
-                  case e of
-                    _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
-                    _ -> return Cli.LoadError
-                go = do
-                  contents <- readUtf8 $ Text.unpack fname
-                  return $ Cli.LoadSuccess contents
-             in catch go handle
-          else return Cli.InvalidSourceNameError
-  let notify :: Output -> IO ()
-      notify =
+
+  let notifyStdout :: Output -> IO ()
+      notifyStdout =
         notifyUser dir
           >=> ( \o ->
                   ifM
@@ -175,12 +209,15 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     (putPrettyLnUnpaged o)
               )
 
-  let cleanup = do
-        Runtime.terminate runtime
-        Runtime.terminate sbRuntime
-        cancelConfig
-        cancelFileSystemWatch
-      awaitInput :: Cli.LoopState -> IO (Either Event Input)
+  let notifyNumberedStdout output = do
+        let (msg, args) = notifyNumbered output
+        putPrettyNonempty msg
+        pure args
+
+  let cleanup :: IO ()
+      cleanup = cancelFileSystemWatch
+
+  let awaitInput :: Cli.LoopState -> IO (Either Event Input)
       awaitInput loopState = do
         -- use up buffered input before consulting external events
         readIORef initialInputsRef >>= \case
@@ -196,24 +233,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                 writeIORef pageOutput True
                 pure x
 
-  let env =
-        Cli.Env
-          { authHTTPClient,
-            codebase,
-            config,
-            credentialManager,
-            loadSource = loadSourceFile,
-            generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
-            notify,
-            notifyNumbered = \o ->
-              let (p, args) = notifyNumbered o
-               in putPrettyNonempty p $> args,
-            runtime,
-            sandboxedRuntime = sbRuntime,
-            serverBaseUrl,
-            ucmVersion
-          }
-
   (onInterrupt, waitForInterrupt) <- buildInterruptHandler
 
   mask \restore -> do
@@ -222,7 +241,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
         loop0 s0 = do
           let step = do
                 input <- awaitInput s0
-                (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                (result, resultState) <- Cli.runCli (env {Cli.notify = notifyStdout, Cli.notifyNumbered = notifyNumberedStdout}) s0 (HandleInput.handleInput input)
                 let sNext = case input of
                       Left _ -> resultState
                       Right inp -> resultState & #lastInput ?~ inp
@@ -239,8 +258,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
             Right (Right (result, s1)) -> do
               when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
               case result of
-                Cli.Success () -> loop0 s1
-                Cli.Continue -> loop0 s1
+                Cli.Success _commandResponse -> loop0 s1
+                Cli.Continue _commandResponse -> loop0 s1
                 Cli.HaltRepl -> pure ()
 
     withInterruptHandler onInterrupt (loop0 initialState `finally` cleanup)
