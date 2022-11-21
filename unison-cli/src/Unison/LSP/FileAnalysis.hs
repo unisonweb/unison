@@ -10,6 +10,7 @@ import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Language.LSP.Types
   ( Diagnostic,
@@ -45,6 +46,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.PrintError as PrintError
+import qualified Unison.Reference as Reference
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
@@ -52,12 +54,19 @@ import qualified Unison.Symbol as Symbol
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
+import Unison.Term (Term)
+import Unison.Type (Type)
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
+import qualified Unison.Util.Relation as R
+import Unison.Util.Relation3 (Relation3)
+import qualified Unison.Util.Relation3 as R3
+import Unison.Util.Relation4 (Relation4)
+import qualified Unison.Util.Relation4 as R4
 import qualified Unison.Var as Var
 import Unison.WatchKind (pattern TestWatch)
 import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
@@ -110,9 +119,9 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
               Just _ -> (mempty, mempty, [(assertUserSym sym, Just ref, trm, Just typ)])
      in Just $
           FileSummary
-            { dataDeclSummary = dataDeclarationsId',
-              effectDeclSummary = effectDeclarationsId',
-              termSummary = trms,
+            { dataDeclSummary = map2ToR3 dataDeclarationsId',
+              effectDeclSummary = map2ToR3 effectDeclarationsId',
+              termSummary = termRelation trms,
               testWatchSummary = testWatches,
               exprWatchSummary = exprWatches
             }
@@ -128,28 +137,41 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
                 _ -> (mempty, [(assertUserSym v, Nothing, trm, Nothing)])
      in Just $
           FileSummary
-            { dataDeclSummary = dataDeclarationsId,
-              effectDeclSummary = effectDeclarationsId,
-              termSummary = trms,
+            { dataDeclSummary = map2ToR3 dataDeclarationsId,
+              effectDeclSummary = map2ToR3 effectDeclarationsId,
+              termSummary = termRelation trms,
               testWatchSummary = testWatches,
               exprWatchSummary = exprWatches
             }
+  where
+    termRelation :: Map Symbol (Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)) -> Relation4 Symbol (Maybe Reference.Id) (Term Symbol Ann) (Maybe (Type Symbol Ann))
+    termRelation m =
+      m
+        & Map.toList
+        & fmap (\(sym, (ref, trm, typ)) -> (sym, ref, trm, typ))
+        & R4.fromList
+    map2ToR3 :: (Ord k, Ord a, Ord b) => Map k (a, b) -> Relation3 k a b
+    map2ToR3 m =
+      m
+        & Map.toList
+        & fmap (\(k, (a, b)) -> (k, a, b))
+        & R3.fromList
 
-getFileDefLocations :: Uri -> MaybeT Lsp (Map Symbol Ann)
+getFileDefLocations :: Uri -> MaybeT Lsp (Map Symbol (Set Ann))
 getFileDefLocations uri = do
   fileDefLocations <$> getFileSummary uri
 
-fileDefLocations :: FileSummary -> Map Symbol Ann
+fileDefLocations :: FileSummary -> Map Symbol (Set Ann)
 fileDefLocations FileSummary {dataDeclSummary, effectDeclSummary, testWatchSummary, exprWatchSummary, termSummary} =
   fold
-    [ dataDeclSummary <&> (DD.annotation . snd),
-      effectDeclSummary <&> (DD.annotation . DD.toDataDecl . snd),
+    [ fmap (Set.map DD.annotation) . R.domain . R3.d13 $ dataDeclSummary,
+      fmap (Set.map (DD.annotation . DD.toDataDecl)) . R.domain . R3.d13 $ effectDeclSummary,
       (testWatchSummary <> exprWatchSummary)
         & foldMap \(maySym, _id, trm, _typ) ->
           case maySym of
             Nothing -> mempty
-            Just sym -> Map.singleton sym (ABT.annotation trm),
-      termSummary <&> \(_refId, trm, _typ) -> ABT.annotation trm
+            Just sym -> Map.singleton sym (Set.singleton $ ABT.annotation trm),
+      fmap (Set.map ABT.annotation) . R.domain . R4.d13 $ termSummary
     ]
 
 fileAnalysisWorker :: Lsp ()

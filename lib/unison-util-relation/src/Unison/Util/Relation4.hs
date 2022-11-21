@@ -93,11 +93,20 @@ keys :: Relation4 a b c d -> (Set a, Set b, Set c, Set d)
 keys Relation4 {d1, d2, d3, d4} =
   (Map.keysSet d1, Map.keysSet d2, Map.keysSet d3, Map.keysSet d4)
 
+lookupD1 :: (Ord a, Ord b, Ord c, Ord d) => a -> Relation4 a b c d -> Relation3 b c d
+lookupD1 a = fromMaybe mempty . Map.lookup a . d1
+
+lookupD2 :: (Ord a, Ord b, Ord c, Ord d) => b -> Relation4 a b c d -> Relation3 a c d
+lookupD2 b = fromMaybe mempty . Map.lookup b . d2
+
 d1set :: Ord a => Relation4 a b c d -> Set a
 d1set = Map.keysSet . d1
 
 d12 :: (Ord a, Ord b) => Relation4 a b c d -> Relation a b
 d12 = R.fromMultimap . fmap (Map.keysSet . R3.d1) . d1
+
+d13 :: (Ord a, Ord c) => Relation4 a b c d -> Relation a c
+d13 = R.fromMultimap . fmap (Map.keysSet . R3.d2) . d1
 
 d34 :: (Ord c, Ord d) => Relation4 a b c d -> Relation c d
 d34 = R.fromMultimap . fmap (Map.keysSet . R3.d3) . d3

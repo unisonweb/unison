@@ -47,6 +47,8 @@ import qualified Unison.Syntax.Lexer as Lexer
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
+import Unison.Util.Relation3 (Relation3)
+import Unison.Util.Relation4 (Relation4)
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
@@ -127,9 +129,9 @@ data FileAnalysis = FileAnalysis
 -- If the file typechecked then all the Ref Ids and types will be filled in, otherwise
 -- they will be Nothing.
 data FileSummary = FileSummary
-  { dataDeclSummary :: Map Symbol (Reference.Id, DD.DataDeclaration Symbol Ann),
-    effectDeclSummary :: Map Symbol (Reference.Id, DD.EffectDeclaration Symbol Ann),
-    termSummary :: Map Symbol (Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
+  { dataDeclSummary :: Relation3 Symbol Reference.Id (DD.DataDeclaration Symbol Ann),
+    effectDeclSummary :: Relation3 Symbol Reference.Id (DD.EffectDeclaration Symbol Ann),
+    termSummary :: Relation4 Symbol (Maybe Reference.Id) (Term Symbol Ann) (Maybe (Type Symbol Ann)),
     testWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
     exprWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))]
   }

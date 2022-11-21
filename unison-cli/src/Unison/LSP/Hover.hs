@@ -11,11 +11,11 @@ import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens hiding (only, to)
 import qualified Unison.ABT as ABT
-import qualified Unison.Codebase as Codebase
 import qualified Unison.ConstructorType as CT
 import qualified Unison.Debug as Debug
 import Unison.LSP.Conversions (annToInterval)
 import Unison.LSP.FileAnalysis (getFileAnalysis, getFileDefLocations, getFileSummary)
+import qualified Unison.LSP.Queries as LSPQ
 import Unison.LSP.Types
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPED
@@ -27,7 +27,8 @@ import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Term as Term
 import qualified Unison.UnisonFile as UF
-import Unison.Util.List (safeHead)
+import qualified Unison.Util.Relation3 as Relation3
+import qualified Unison.Util.Relation4 as Relation4
 
 -- | Hover help handler
 --
@@ -60,30 +61,28 @@ hoverInfo uri p = do
   Debug.debugM Debug.LSP "Matching" matchingHoverInfos
   ppe <- lift $ globalPPE
   let renderType typ = Text.pack $ TypePrinter.prettyStr (Just 40) (PPED.suffixifiedPPE ppe) typ
-  renderedTypes <- for matchingHoverInfos \info -> do
-    case info of
-      BuiltinType txt -> pure txt
-      LocalVar _v -> pure $ "<local>"
-      FileDef v ->
-        pure . maybe "<file>" renderType $
-          termSummary ^? ix v . _3 . _Just
-            <|> testWatchSummary ^? folded . filteredBy (_1 . _Just . only v) . _4 . _Just
-            <|> exprWatchSummary ^? folded . filteredBy (_1 . _Just . only v) . _4 . _Just
-      Ref ref -> do
-        Env {codebase} <- ask
-        typ <- MaybeT . liftIO $ Codebase.getTypeOfReferent codebase ref
-        pure $ renderType typ
-  Debug.debugM Debug.LSP "Rendered" renderedTypes
-  -- Due to the way hover info is computed, there should be at most one.
-  typ <- MaybeT . pure $ safeHead renderedTypes
+  renderedType <-
+    altSum $
+      matchingHoverInfos <&> \info -> do
+        case info of
+          BuiltinType txt -> pure txt
+          LocalVar _v -> pure $ "<local>"
+          FileDef v ->
+            pure . maybe "<file>" renderType $
+              Relation4.d1 termSummary ^? ix v . folding Relation3.d3s . _Just
+                <|> testWatchSummary ^? folded . filteredBy (_1 . _Just . only v) . _4 . _Just
+                <|> exprWatchSummary ^? folded . filteredBy (_1 . _Just . only v) . _4 . _Just
+          Ref ref -> do
+            typ <- LSPQ.getTypeOfReferent uri ref
+            pure $ renderType typ
   let typeSig = case listToMaybe matchingLexeme of
-        Just (Lex.WordyId n _) -> Text.pack n <> " : " <> typ
-        Just (Lex.SymbolyId n _) -> Text.pack n <> " : " <> typ
+        Just (Lex.WordyId n _) -> Text.pack n <> " : " <> renderedType
+        Just (Lex.SymbolyId n _) -> Text.pack n <> " : " <> renderedType
         -- TODO: add other lexemes
-        _ -> ": " <> typ
+        _ -> ": " <> renderedType
   pure $ Text.unlines ["```unison", typeSig, "```"]
 
-mkSubTermMap :: (Parser.Annotated a, Show a) => Map Symbol a -> UF.TypecheckedUnisonFile Symbol a -> IM.IntervalMap Position [HoverInfo]
+mkSubTermMap :: (Parser.Annotated a, Show a) => Map Symbol (Set a) -> UF.TypecheckedUnisonFile Symbol a -> IM.IntervalMap Position [HoverInfo]
 mkSubTermMap fileDefs (UF.TypecheckedUnisonFileId {hashTermsId}) =
   hashTermsId ^@.. (folded . _3 . subTerms . (reindexed ABT.annotation selfIndex) <. termHoverInfo fileDefs)
     & Debug.debug Debug.LSP "Cosmos'd"
@@ -104,7 +103,7 @@ data HoverInfo
   | Ref Referent
   deriving stock (Show, Eq, Ord)
 
-termHoverInfo :: (Map Symbol a) -> Fold (Term.Term Symbol a) HoverInfo
+termHoverInfo :: (Map Symbol (Set a)) -> Fold (Term.Term Symbol a) HoverInfo
 termHoverInfo fileDefs = folding \term ->
   case ABT.out term of
     ABT.Tm f -> case f of
@@ -133,6 +132,6 @@ termHoverInfo fileDefs = folding \term ->
       Term.TypeLink {} -> Nothing
     ABT.Var v ->
       case Map.lookup v fileDefs of
-        Nothing -> Just (LocalVar v)
-        Just _ -> Just (FileDef v)
+        Just xs | not . null $ xs -> Just (FileDef v)
+        _ -> Just (LocalVar v)
     _ -> Nothing
