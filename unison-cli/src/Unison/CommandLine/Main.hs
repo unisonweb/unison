@@ -138,16 +138,6 @@ loadSourceFile fname =
        in catch go handle
     else return Cli.InvalidSourceNameError
 
--- let notify :: Output -> IO ()
---     notify =
---       notifyUser dir
---         >=> ( \o ->
---                 ifM
---                   (readIORef pageOutput)
---                   (putPrettyNonempty o)
---                   (putPrettyLnUnpaged o)
---             )
-
 main ::
   FilePath ->
   Welcome.Welcome ->

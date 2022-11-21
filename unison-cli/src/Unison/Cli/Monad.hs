@@ -259,7 +259,7 @@ returnEarlyNumbered x = do
   response <- respondNumbered x
   short (Continue response)
 
--- -- | Variant of 'returnEarly' that doesn't take a final output message.
+-- | Variant of 'returnEarly' that doesn't take a final output message.
 returnEarlyWithoutOutput :: Cli a
 returnEarlyWithoutOutput =
   short (Continue Nothing)
@@ -380,6 +380,7 @@ respond output = do
   liftIO (notify output)
   pure (Just $ Left output)
 
+-- | Output additional context the user may want to know.
 note :: Output -> Cli ()
 note = void . respond
 
@@ -394,6 +395,7 @@ respondNumbered output = do
 noResponse :: Cli CommandResponse
 noResponse = pure Nothing
 
+-- | Output additional context the user may want to know, and update the 'numberedArgs' state.
 numberedNote :: NumberedOutput -> Cli ()
 numberedNote = void . respondNumbered
 
