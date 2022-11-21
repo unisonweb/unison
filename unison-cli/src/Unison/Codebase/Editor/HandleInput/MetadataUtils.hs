@@ -59,7 +59,7 @@ addDefaultMetadata adds =
             dm -> do
               traverse InputPatterns.parseHashQualifiedName dm & \case
                 Left err -> do
-                  Cli.respond_ $
+                  Cli.note $
                     ConfiguredMetadataParseError
                       (Path.absoluteToPath' currentPath')
                       (show dm)
@@ -91,7 +91,7 @@ manageLinks silent srcs' metadataNames op = do
   srcle <- Monoid.foldMapM Cli.getTermsAt srcs
   srclt <- Monoid.foldMapM Cli.getTypesAt srcs
   for_ metadatas \case
-    Left errOutput -> Cli.respond_ errOutput
+    Left errOutput -> Cli.note errOutput
     Right (mdType, mdValue) -> do
       let step =
             let tmUpdates terms = foldl' go terms srcle
