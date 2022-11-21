@@ -19,7 +19,6 @@ library:
     - fuzzyfind
     - generic-lens
     - lens
-    - prelude-extras
     - memory
     - mtl
     - rfc5051
