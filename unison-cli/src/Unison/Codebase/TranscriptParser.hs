@@ -61,7 +61,6 @@ import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import qualified Unison.CommandLine.Server.Impl as CommandLineServer
 import Unison.CommandLine.Welcome (asciiartUnison)
-import qualified Unison.Debug as Debug
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -356,7 +355,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion = UnliftIO.try $ Ki
 
   authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
-  let buildEnv baseUrl =
+  let buildTranscriptEnv baseUrl =
         Cli.Env
           { authHTTPClient = authenticatedHTTPClient,
             codebase,
@@ -373,9 +372,15 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion = UnliftIO.try $ Ki
             serverBaseUrl = baseUrl,
             ucmVersion
           }
-  let cliServer baseUrl = CommandLineServer.application buildEnv rootVar baseUrl
+  let buildServerEnv baseUrl =
+        --  The server output is captured separately by the 'api' fenced code blocks
+        (buildTranscriptEnv baseUrl)
+          { Cli.notify = const (pure ()),
+            Cli.notifyNumbered = const (pure [])
+          }
+  let cliServer baseUrl = CommandLineServer.application buildServerEnv rootVar baseUrl
   Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase cliServer $ \baseURL -> do
-    let env = buildEnv (Just baseURL)
+    let env = buildTranscriptEnv (Just baseURL)
     let apiRequest :: APIRequest -> IO ()
         apiRequest req = do
           output (show req <> "\n")
@@ -392,7 +397,6 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion = UnliftIO.try $ Ki
                   output . (<> "\n") . BL.unpack $ prettyBytes
                 Left err -> absurd <$> dieWithMsg ("Error decoding response from " <> show req <> ": " <> err <> "\n" <> BL.unpack respBytes)
             (PostRequest path payload) -> do
-              Debug.debugM Debug.Temp "Payload" payload
               req <- case HTTP.parseRequest (Text.unpack $ tShow baseURL <> path) of
                 Left err -> absurd <$> dieWithMsg (show err)
                 Right req -> pure (req {HTTP.method = "POST", HTTP.requestBody = HTTP.RequestBodyLBS . BL.fromStrict . Text.encodeUtf8 $ payload, HTTP.requestHeaders = [("Content-Type", "application/json")], HTTP.secure = False})
