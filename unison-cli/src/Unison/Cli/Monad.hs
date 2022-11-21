@@ -32,9 +32,9 @@ module Unison.Cli.Monad
 
     -- * Communicating output to the user
     respond,
-    respond_,
+    note,
     respondNumbered,
-    respondNumbered_,
+    numberedNote,
     noResponse,
 
     -- * Debug-timing actions
@@ -380,8 +380,8 @@ respond output = do
   liftIO (notify output)
   pure (Just $ Left output)
 
-respond_ :: Output -> Cli ()
-respond_ = void . respond
+note :: Output -> Cli ()
+note = void . respond
 
 respondNumbered :: NumberedOutput -> Cli CommandResponse
 respondNumbered output = do
@@ -394,8 +394,8 @@ respondNumbered output = do
 noResponse :: Cli CommandResponse
 noResponse = pure Nothing
 
-respondNumbered_ :: NumberedOutput -> Cli ()
-respondNumbered_ = void . respondNumbered
+numberedNote :: NumberedOutput -> Cli ()
+numberedNote = void . respondNumbered
 
 runTransaction :: Sqlite.Transaction a -> Cli a
 runTransaction action = do

@@ -95,9 +95,6 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
   -- Replace the default exception handler with one that pretty-prints.
   setUncaughtExceptionHandler (pHPrint stderr)
 
-  -- TODO: clean this up
-  let noopNotifier _msg = pure ()
-  let numberedNotifier _output = pure mempty
   interruptHandler <- defaultInterruptHandler
   withInterruptHandler interruptHandler $ do
     void $ Ki.fork scope initHTTPClient
@@ -146,7 +143,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                       let noOpPathNotifier _ = pure ()
                       let serverUrl = Nothing
                       let startPath = Nothing
-                      let cliEnv = CommandLine.mkEnv credentialManager authHTTPClient rt sbrt ucmVersion config theCodebase noopNotifier numberedNotifier serverUrl
+                      let cliEnv = CommandLine.mkEnv credentialManager authHTTPClient rt sbrt ucmVersion config theCodebase Nothing Nothing serverUrl
                       launch
                         currentDir
                         [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
@@ -169,7 +166,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                   let noOpPathNotifier _ = pure ()
                   let serverUrl = Nothing
                   let startPath = Nothing
-                  let cliEnv = CommandLine.mkEnv credentialManager authHTTPClient rt sbrt ucmVersion config theCodebase noopNotifier numberedNotifier serverUrl
+                  let cliEnv = CommandLine.mkEnv credentialManager authHTTPClient rt sbrt ucmVersion config theCodebase Nothing Nothing serverUrl
                   launch
                     currentDir
                     [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
@@ -266,7 +263,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
               when (not onWindows) . void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTMVar rootVar) (readTVar pathVar)
               Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
-                let cliEnv = CommandLine.mkEnv credentialManager authHTTPClient runtime sbRuntime ucmVersion config theCodebase noopNotifier numberedNotifier (Just baseUrl)
+                let cliEnv = CommandLine.mkEnv credentialManager authHTTPClient runtime sbRuntime ucmVersion config theCodebase Nothing Nothing (Just baseUrl)
                 case exitOption of
                   DoNotExit -> do
                     case isHeadless of

@@ -100,10 +100,11 @@ mkEnv ::
   UCMVersion ->
   Config ->
   Codebase IO Symbol Ann ->
-  (Output -> IO ()) ->
-  ( Output.NumberedOutput ->
-    IO Output.NumberedArgs
-  ) ->
+  Maybe (Output -> IO ()) ->
+  Maybe
+    ( Output.NumberedOutput ->
+      IO Output.NumberedArgs
+    ) ->
   Maybe Server.BaseUrl ->
   Cli.Env
 mkEnv credentialManager authHTTPClient runtime sbRuntime ucmVersion config codebase notify notifyNumbered serverBaseUrl = do
@@ -114,8 +115,8 @@ mkEnv credentialManager authHTTPClient runtime sbRuntime ucmVersion config codeb
       credentialManager,
       loadSource = loadSourceFile,
       generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
-      notify,
-      notifyNumbered,
+      notify = fromMaybe (const $ pure ()) notify,
+      notifyNumbered = fromMaybe ((const $ pure [])) notifyNumbered,
       runtime,
       sandboxedRuntime = sbRuntime,
       serverBaseUrl,

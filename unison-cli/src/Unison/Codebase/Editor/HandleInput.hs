@@ -230,9 +230,9 @@ handleInput e = do
                 ]
           when (not (null tes)) do
             currentPath <- Cli.getCurrentPath
-            Cli.respond_ (TypeErrors currentPath text ppe tes)
+            Cli.note (TypeErrors currentPath text ppe tes)
           when (not (null cbs)) do
-            Cli.respond_ (CompilerBugs text ppe cbs)
+            Cli.note (CompilerBugs text ppe cbs)
           Cli.returnEarlyWithoutOutput
 
       loadUnisonFile :: Text -> Text -> Cli CommandResponse
@@ -249,7 +249,7 @@ handleInput e = do
         let e' = Map.map go e
             go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
         when (not (null e')) do
-          Cli.respond_ $ Evaluated text ppe bindings e'
+          Cli.note $ Evaluated text ppe bindings e'
         #latestTypecheckedFile .= (Just unisonFile)
         Cli.respond ResponseNotImplemented
 
@@ -304,9 +304,9 @@ handleInput e = do
                         (const (if isTerm then termPatch else typePatch))
                     )
                   -- Say something
-                  Cli.respond_ Success
+                  Cli.note Success
             when (Set.null hits) do
-              Cli.respond_ (SearchTermsNotFoundDetailed isTerm misses (Set.toList opHits))
+              Cli.note (SearchTermsNotFoundDetailed isTerm misses (Set.toList opHits))
             description <- inputDescription input
             traverse_ (go description) (if isTerm then tmRefs else tpRefs)
             Cli.respond ResponseNotImplemented
@@ -547,7 +547,7 @@ handleInput e = do
                   (False, Force) -> do
                     ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                     pure do
-                      Cli.respond_ Success
+                      Cli.note Success
                       Cli.respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                   (False, Try) -> do
                     ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
@@ -707,7 +707,7 @@ handleInput e = do
               (ppe, diff) <- diffHelper old new
               response <- Cli.respondNumbered (ShowDiffAfterModifyBranch dest' destAbs ppe diff)
               when (not (null unknown)) do
-                Cli.respond_ . SearchTermsNotFound . fmap fixupOutput $ unknown
+                Cli.note . SearchTermsNotFound . fmap fixupOutput $ unknown
               pure response
               where
                 -- a list of missing sources (if any) and the actions that do the work
@@ -1155,7 +1155,7 @@ handleInput e = do
               patch <- Cli.getPatchAt patchPath
               scopePath <- Cli.resolvePath' scopePath'
               updated <- propagatePatch description patch scopePath
-              when (not updated) (Cli.respond_ $ NothingToPatch patchPath scopePath')
+              when (not updated) (Cli.note $ NothingToPatch patchPath scopePath')
               Cli.respond ResponseNotImplemented
             ExecuteI main args -> do
               (unisonFile, mainResType) <- do
@@ -1755,7 +1755,7 @@ handleFindI isVerbose fscope ws input = do
             matches <-
               if null matches
                 then do
-                  Cli.respond_ NoExactTypeMatches
+                  Cli.note NoExactTypeMatches
                   fmap (filter (`Set.member` named) . toList) $
                     liftIO (Codebase.termsMentioningType codebase typ)
                 else pure matches
@@ -1781,7 +1781,7 @@ handleFindI isVerbose fscope ws input = do
   results <- getResults (getNames fscope)
   case (results, fscope) of
     ([], FindLocal) -> do
-      Cli.respond_ FindNoLocalMatches
+      Cli.note FindNoLocalMatches
       respondResults =<< getResults (getNames FindLocalAndDeps)
     _ -> respondResults results
 
@@ -2040,8 +2040,8 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
     let ppe = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE
-    Cli.respond_ (DisplayDefinitions outputPath ppe types terms)
-  when (not (null misses)) (Cli.respond_ (SearchTermsNotFound misses))
+    Cli.note (DisplayDefinitions outputPath ppe types terms)
+  when (not (null misses)) (Cli.note (SearchTermsNotFound misses))
   for_ outputPath \p -> do
     -- We set latestFile to be programmatically generated, if we
     -- are viewing these definitions to a file - this will skip the
@@ -2105,7 +2105,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
       LD.referents testTerms
         <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
   ppe <- fqnPPE names
-  Cli.respond_ $
+  Cli.note $
     TestResults
       stats
       ppe
@@ -2140,7 +2140,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
         r -> error $ "unpossible, tests can't be builtins: " <> show r
 
     let m = Map.fromList computedTests
-    Cli.respond_ $ TestResults Output.NewlyComputed ppe showSuccesses showFailures (oks m) (fails m)
+    Cli.note $ TestResults Output.NewlyComputed ppe showSuccesses showFailures (oks m) (fails m)
   -- Need to combine both the cached and newly computed test results
   Cli.respond ResponseNotImplemented
   where
