@@ -568,7 +568,7 @@ instance ToJSON Output where
     DisplayDebugCompletions {} -> notImplemented
     ResponseNotImplemented {} -> notImplemented
     where
-      notImplemented = Aeson.String "This command is not yet supported"
+      notImplemented = Aeson.object ["error" Aeson..= Aeson.String "This command is not yet supported"]
 
 instance ToJSON NumberedOutput where
   toJSON = \case

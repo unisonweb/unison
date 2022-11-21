@@ -61,6 +61,7 @@ import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import qualified Unison.CommandLine.Server.Impl as CommandLineServer
 import Unison.CommandLine.Welcome (asciiartUnison)
+import qualified Unison.Debug as Debug
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -383,23 +384,24 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion = UnliftIO.try $ Ki
             (GetRequest path) -> do
               req <- case HTTP.parseRequest (Text.unpack $ tShow baseURL <> path) of
                 Left err -> absurd <$> dieWithMsg (show err)
-                Right req -> pure req
+                Right req -> pure req {HTTP.secure = False}
               respBytes <- HTTP.responseBody <$> HTTP.httpLbs req httpManager
               case Aeson.eitherDecode respBytes of
                 Right (v :: Aeson.Value) -> do
                   let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
                   output . (<> "\n") . BL.unpack $ prettyBytes
-                Left err -> absurd <$> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err <> "\n" <> BL.unpack respBytes)
+                Left err -> absurd <$> dieWithMsg ("Error decoding response from " <> show req <> ": " <> err <> "\n" <> BL.unpack respBytes)
             (PostRequest path payload) -> do
+              Debug.debugM Debug.Temp "Payload" payload
               req <- case HTTP.parseRequest (Text.unpack $ tShow baseURL <> path) of
                 Left err -> absurd <$> dieWithMsg (show err)
-                Right req -> pure (req {HTTP.method = "POST", HTTP.requestBody = HTTP.RequestBodyLBS . BL.fromStrict . Text.encodeUtf8 $ payload})
+                Right req -> pure (req {HTTP.method = "POST", HTTP.requestBody = HTTP.RequestBodyLBS . BL.fromStrict . Text.encodeUtf8 $ payload, HTTP.requestHeaders = [("Content-Type", "application/json")], HTTP.secure = False})
               respBytes <- HTTP.responseBody <$> HTTP.httpLbs req httpManager
               case Aeson.eitherDecode respBytes of
                 Right (v :: Aeson.Value) -> do
                   let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
                   output . (<> "\n") . BL.unpack $ prettyBytes
-                Left err -> absurd <$> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err <> "\n" <> BL.unpack respBytes)
+                Left err -> absurd <$> dieWithMsg ("Error decoding response from " <> show req <> ": " <> err <> "\n" <> BL.unpack respBytes)
 
     let awaitInput :: Cli.LoopState -> IO (Either Event Input)
         awaitInput loopState = do
@@ -542,15 +544,15 @@ apiRequest = do
     getRequest = do
       word "GET"
       spaces
-      path <- P.takeWhile1P Nothing (/= '\n')
+      path <- P.takeWhile1P (Just "path") (/= '\n')
       spaces
       pure (GetRequest path)
     postRequest = do
       word "POST"
       spaces
-      path <- P.takeWhile1P Nothing (not . Char.isSpace)
+      path <- P.takeWhile1P (Just "path") (not . Char.isSpace)
       spaces
-      payload <- P.takeWhileP Nothing (/= '\n')
+      payload <- P.takeWhileP (Just "payload") (/= '\n')
       pure (PostRequest path payload)
     apiComment = do
       word "--"
@@ -584,6 +586,7 @@ fenced = do
       "api" -> do
         _ <- spaces
         apiRequests <- many apiRequest
+        _ <- spaces
         pure $ API apiRequests
       _ -> UnprocessedFence fenceType <$> untilFence
   fence

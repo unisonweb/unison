@@ -79,16 +79,16 @@ authLogin host = do
         case result of
           Left err -> do
             Debug.debugM Debug.Auth "Auth Error" err
-            pure $ Wai.responseLBS internalServerError500 [] "Something went wrong, please try again."
+            pure $ Wai.responseLBS internalServerError500 [] "Authentication error: Something went wrong, please try again."
           Right _ ->
             case mayNextURI of
-              Nothing -> pure $ Wai.responseLBS found302 [] "Authorization successful. You may close this page and return to UCM."
+              Nothing -> pure $ Wai.responseLBS found302 [] "Authentication successful. You may close this page and return to UCM."
               Just nextURI ->
                 pure $
                   Wai.responseLBS
                     found302
                     [("LOCATION", BSC.pack $ show @URI nextURI)]
-                    "Authorization successful. You may close this page and return to UCM."
+                    "Authentication successful. You may close this page and return to UCM."
   tokens <-
     Cli.with (Warp.withApplication (pure $ authTransferServer codeHandler)) \port -> do
       let redirectURI = "http://localhost:" <> show port <> "/redirect"
