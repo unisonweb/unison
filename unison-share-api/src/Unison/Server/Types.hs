@@ -25,6 +25,7 @@ import qualified Data.OpenApi.Lens as OpenApi
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text
+import qualified Unison.NameSegment as NameSegment
 import Servant.API
   ( Capture,
     FromHttpApiData (..),
@@ -222,7 +223,7 @@ data NamedTerm = NamedTerm
 instance ToJSON NamedTerm where
   toJSON (NamedTerm n h typ tag) =
     Aeson.object
-      [ "termName" .= n,
+      [ "termName" .= HQ'.toTextWith NameSegment.toText n,
         "termHash" .= h,
         "termType" .= typ,
         "termTag" .= tag

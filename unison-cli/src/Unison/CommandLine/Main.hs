@@ -18,6 +18,7 @@ import qualified System.Console.Haskeline as Line
 import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
 import Text.Pretty.Simple (pShow)
+import qualified U.Codebase.Sqlite.Operations as Operations
 import Unison.Auth.CredentialManager (newCredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Auth.HTTPClient as AuthN
@@ -108,7 +109,7 @@ main ::
   IO ()
 main dir welcome initialPath config initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
-  initialRootCausalHash <- Codebase.getRootCausalHash codebase
+  initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   _ <- Ki.fork scope $ do
     root <- Codebase.getRootBranch codebase
     atomically $ do
