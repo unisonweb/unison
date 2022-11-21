@@ -5,8 +5,9 @@ The Unison language
 
 * [Overview](#overview)
 * [Building using Stack](#building-using-stack)
-* [Language Server Protocol (LSP)](#language-server-protocol-lsp)
+* [Language Server Protocol (LSP)](docs/language-server.markdown)
 * [Codebase Server](#codebase-server)
+* [Configuration](./docs/configuration.md)
 
 Overview
 --------
@@ -67,3 +68,8 @@ connect to the server.
 
 The port, host and token can all be configured by providing environment
 variables when starting `ucm`: `UCM_PORT`, `UCM_HOST`, and `UCM_TOKEN`.
+
+Configuration
+-------------
+
+See the documentation for configuration [here](docs/configuration.md)

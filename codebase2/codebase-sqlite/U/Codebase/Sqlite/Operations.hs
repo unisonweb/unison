@@ -40,7 +40,7 @@ module U.Codebase.Sqlite.Operations
     saveWatch,
     loadWatch,
     listWatches,
-    clearWatches,
+    Q.clearWatches,
 
     -- * indexes
 
@@ -456,9 +456,6 @@ saveWatch w r t = do
   let bytes = S.putBytes S.putWatchResultFormat (uncurry S.Term.WatchResult wterm)
   Q.saveWatch w rs bytes
 
-clearWatches :: Transaction ()
-clearWatches = Q.clearWatches
-
 c2wTerm :: C.Term Symbol -> Transaction (WatchLocalIds, S.Term.Term)
 c2wTerm tm = Q.c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)
 
@@ -638,7 +635,8 @@ saveBranch ::
 saveBranch hh (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
 
-  (chId, bhId) <- flip Monad.fromMaybeM (Q.loadCausalByCausalHash hc) do
+  -- Save the causal
+  (chId, bhId) <- whenNothingM (Q.loadCausalByCausalHash hc) do
     -- if not exist, create these
     chId <- Q.saveCausalHash hc
     bhId <- Q.saveBranchHash he
@@ -655,7 +653,9 @@ saveBranch hh (C.Causal hc he parents me) = do
     -- Save these CausalHashIds to the causal_parents table,
     Q.saveCausal hh chId bhId parentCausalHashIds
     pure (chId, bhId)
-  boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByCausalHashId chId) do
+
+  -- Save the namespace
+  boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByBranchHashId bhId) do
     branch <- me
     dbBranch <- c2sBranch branch
     stats <- namespaceStatsForDbBranch dbBranch
@@ -977,6 +977,7 @@ componentReferencesByPrefix ot b32prefix pos = do
   let filterComponent l = [x | x@(C.Reference.Id _ pos) <- l, test pos]
   join <$> traverse (fmap filterComponent . componentByObjectId) oIds
 
+-- | Get the set of user-defined terms whose hash matches the given prefix.
 termReferencesByPrefix :: Text -> Maybe Word64 -> Transaction [C.Reference.Id]
 termReferencesByPrefix t w =
   componentReferencesByPrefix ObjectType.TermComponent t w
@@ -1143,6 +1144,7 @@ namespaceStatsForDbBranch S.Branch {terms, types, patches, children} = do
            in childPatchCount + patchCount
       }
 
+-- | Gets the specified number of reflog entries in chronological order, most recent first.
 getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
 getReflog numEntries = do
   entries <- Q.getReflog numEntries

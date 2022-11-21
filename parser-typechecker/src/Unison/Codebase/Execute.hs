@@ -35,7 +35,7 @@ execute codebase runtime mainName =
     let parseNames = Names.makeAbsolute (Branch.toNames (Branch.head root))
         loadTypeOfTerm = Codebase.getTypeOfTerm codebase
     let mainType = Runtime.mainType runtime
-    mt <- liftIO $ getMainTerm loadTypeOfTerm parseNames mainName mainType
+    mt <- liftIO $ Codebase.runTransaction codebase $ getMainTerm loadTypeOfTerm parseNames mainName mainType
     case mt of
       MainTerm.NotAFunctionName s -> throwError ("Not a function name: " <> P.string s)
       MainTerm.NotFound s -> throwError ("Not found: " <> P.string s)

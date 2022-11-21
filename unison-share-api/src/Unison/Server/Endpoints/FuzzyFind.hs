@@ -138,7 +138,7 @@ serveFuzzyFind ::
   Backend.Backend m [(FZF.Alignment, FoundResult)]
 serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
   let path = fromMaybe Path.empty relativeTo
-  rootHash <- traverse (Backend.expandShortCausalHash codebase) mayRoot
+  rootHash <- traverse (Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.expandShortCausalHash) mayRoot
   rootCausal <- Backend.resolveCausalHashV2 codebase (Cv.causalHash1to2 <$> rootHash)
   (localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) path
   relativeToCausal <- lift $ Codebase.getShallowCausalAtPath codebase path (Just rootCausal)
@@ -167,10 +167,11 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
                 )
             )
               <$> Backend.termListEntry codebase relativeToBranch (ExactName (NameSegment n) (Cv.referent1to2 r))
-          Backend.FoundTypeRef r -> do
-            te <- Backend.typeListEntry codebase relativeToBranch (ExactName (NameSegment n) r)
-            let namedType = Backend.typeEntryToNamedType te
-            let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
-            typeHeader <- Codebase.runTransaction codebase (Backend.typeDeclHeader codebase ppe r)
-            let ft = FoundType typeName typeHeader namedType
-            pure (a, FoundTypeResult ft)
+          Backend.FoundTypeRef r ->
+            Codebase.runTransaction codebase do
+              te <- Backend.typeListEntry codebase relativeToBranch (ExactName (NameSegment n) r)
+              let namedType = Backend.typeEntryToNamedType te
+              let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
+              typeHeader <- Backend.typeDeclHeader codebase ppe r
+              let ft = FoundType typeName typeHeader namedType
+              pure (a, FoundTypeResult ft)
