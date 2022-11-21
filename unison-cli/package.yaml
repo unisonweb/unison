@@ -59,7 +59,6 @@ dependencies:
   - semialign
   - servant
   - servant-client
-  - servant-server
   - stm
   - text
   - text-rope
