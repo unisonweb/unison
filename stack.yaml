@@ -64,13 +64,10 @@ extra-deps:
 - terminal-size-0.3.3@sha256:bd5f02333982bc8d6017db257b2a0b91870a295b4a37142a0c0525d8f533a48f,1255
 - direct-sqlite-2.3.27 # bundles sqlite 3.35.0, needed for 'delete returning'
 
-# fuzzyfind-3.0.0 requires massiv-0.6.*, but lts-19.0 has massiv-1.0.1.1
-# fuzzyfind PR: https://github.com/runarorama/fuzzyfind/pull/3
-- massiv-0.6.1.0@sha256:76023dc1b06175610283ebc3faa58a83631b0ba8f515f8b1055984d1d8ababfa,4808
-
 # these packages are transitive dependencies whose pinned versions were either too old or too new, per the above
 # deviations to the snapshot
 - co-log-core-0.3.1.0@sha256:9794bdedd1391decd0e22bdfe2b11abcb42e6cff7a4531e1f8882890828f4e63,3816 # due to lsp
+- massiv-0.6.1.0@sha256:76023dc1b06175610283ebc3faa58a83631b0ba8f515f8b1055984d1d8ababfa,4808 # due to fuzzyfind; PR: https://github.com/runarorama/fuzzyfind/pull/3
 - scheduler-1.5.0@sha256:8b43f2991bf9a720b12192ba99525f705a44aeae9541a7bd73fbc7e7b56fd8f0,2437 # due to massiv
 
 ghc-options:
