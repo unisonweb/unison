@@ -20,7 +20,9 @@ test =
                   goto (1 :: Int)
                 pure 2
         -- test that 'goto' short-circuits, as expected
-        expectEqual' (Cli.Success 1) r
+        case r of
+          Cli.Success 1 -> ok
+          _ -> crash "expected 1"
         -- test that calling 'goto' doesn't lose state changes made along the way
         expectEqual' ["foo"] (state ^. #numberedArgs)
         ok
