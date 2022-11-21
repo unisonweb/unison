@@ -141,7 +141,7 @@ completeWithinNamespace ::
   Path.Absolute ->
   m [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace compTypes query codebase currentPath = do
-  shortHashLen <- Codebase.hashLength codebase
+  shortHashLen <- Codebase.runTransaction codebase Codebase.hashLength
   b <- Codebase.getShallowBranchAtPath codebase (Path.unabsolute absQueryPath) Nothing
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
@@ -390,10 +390,10 @@ shareCompletion completionTypes authHTTPClient str =
                   let name = Server.namespaceName nn
                    in (NamespaceCompletion, name)
                 Server.TermObject nt ->
-                  let name = HQ'.toText $ Server.termName nt
+                  let name = HQ'.toTextWith NameSegment.toText $ Server.termName nt
                    in (NamespaceCompletion, name)
                 Server.TypeObject nt ->
-                  let name = HQ'.toText $ Server.typeName nt
+                  let name = HQ'.toTextWith NameSegment.toText $ Server.typeName nt
                    in (TermCompletion, name)
                 Server.PatchObject np ->
                   let name = Server.patchName np

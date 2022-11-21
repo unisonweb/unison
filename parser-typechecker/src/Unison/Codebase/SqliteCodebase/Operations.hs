@@ -9,6 +9,7 @@ module Unison.Codebase.SqliteCodebase.Operations where
 
 import Control.Lens (ifor)
 import Data.Bifunctor (second)
+import Data.Maybe (fromJust)
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
 import qualified Data.List as List
@@ -414,6 +415,7 @@ uncachedLoadRootBranch branchCache getDeclType = do
   causal2 <- Ops.expectRootCausal
   Cv.causalbranch2to1 branchCache getDeclType causal2
 
+-- | Get whether the root branch exists.
 getRootBranchExists :: Transaction Bool
 getRootBranchExists =
   isJust <$> Ops.loadRootCausalHash
@@ -444,8 +446,9 @@ putBranch :: Branch Transaction -> Transaction ()
 putBranch =
   void . Ops.saveBranch v2HashHandle . Cv.causalbranch1to2
 
-isCausalHash :: Branch.CausalHash -> Transaction Bool
-isCausalHash (Causal.CausalHash h) =
+-- | Check whether the given branch exists in the codebase.
+branchExists :: Branch.CausalHash -> Transaction Bool
+branchExists (Causal.CausalHash h) =
   Q.loadHashIdByHash h >>= \case
     Nothing -> pure False
     Just hId -> Q.isCausalHash hId
@@ -457,10 +460,14 @@ getPatch h =
     patch <- lift (Ops.expectPatch patchId)
     pure (Cv.patch2to1 patch)
 
+-- | Put a patch into the codebase.
+--
+-- Note that 'putBranch' may also put patches.
 putPatch :: Branch.EditHash -> Patch -> Transaction ()
 putPatch h p =
   void $ Ops.savePatch v2HashHandle (Cv.patchHash1to2 h) (Cv.patch1to2 p)
 
+-- | Check whether the given patch exists in the codebase.
 patchExists :: Branch.EditHash -> Transaction Bool
 patchExists h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h)
 
@@ -473,10 +480,11 @@ dependentsOfComponentImpl :: Hash -> Transaction (Set Reference.Id)
 dependentsOfComponentImpl h =
   Set.map Cv.referenceid2to1 <$> Ops.dependentsOfComponent h
 
+-- | @watches k@ returns all of the references @r@ that were previously put by a @putWatch k r t@. @t@ can be
+-- retrieved by @getWatch k r@.
 watches :: UF.WatchKind -> Transaction [Reference.Id]
 watches w =
-  Ops.listWatches (Cv.watchKind1to2 w)
-    <&> fmap Cv.referenceid2to1
+  Ops.listWatches (Cv.watchKind1to2 w) <&> fmap Cv.referenceid2to1
 
 getWatch ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
@@ -491,6 +499,16 @@ getWatch doGetDeclType k r@(Reference.Id h _i) =
       lift (Cv.term2to1 h doGetDeclType watch)
     else pure Nothing
 
+-- | @putWatch k r t@ puts a watch of kind @k@, with hash-of-expression @r@ and decompiled result @t@ into the
+-- codebase.
+--
+-- For example, in the watch expression below, @k@ is 'WK.Regular', @r@ is the hash of @x@, and @t@ is @7@.
+--
+-- @
+-- > x = 3 + 4
+--   ⧩
+--   7
+-- @
 putWatch :: UF.WatchKind -> Reference.Id -> Term Symbol Ann -> Transaction ()
 putWatch k r@(Reference.Id h _i) tm =
   when (elem k standardWatchKinds) do
@@ -501,9 +519,6 @@ putWatch k r@(Reference.Id h _i) tm =
 
 standardWatchKinds :: [UF.WatchKind]
 standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
-
-clearWatches :: Transaction ()
-clearWatches = Ops.clearWatches
 
 termsOfTypeImpl ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
@@ -523,9 +538,11 @@ termsMentioningTypeImpl doGetDeclType r =
   Ops.termsMentioningType (Cv.reference1to2 r)
     >>= Set.traverse (Cv.referentid2to1 doGetDeclType)
 
+-- | The number of base32 characters needed to distinguish any two references in the codebase.
 hashLength :: Transaction Int
 hashLength = pure 10
 
+-- | The number of base32 characters needed to distinguish any two branch in the codebase.
 branchHashLength :: Transaction Int
 branchHashLength = pure 10
 
@@ -541,8 +558,9 @@ defnReferencesByPrefix ot (ShortHash.ShortHash prefix (fmap Cv.shortHashSuffix1t
 termReferencesByPrefix :: ShortHash -> Transaction (Set Reference.Id)
 termReferencesByPrefix = defnReferencesByPrefix OT.TermComponent
 
-declReferencesByPrefix :: ShortHash -> Transaction (Set Reference.Id)
-declReferencesByPrefix = defnReferencesByPrefix OT.DeclComponent
+-- | Get the set of type declarations whose hash matches the given prefix.
+typeReferencesByPrefix :: ShortHash -> Transaction (Set Reference.Id)
+typeReferencesByPrefix = defnReferencesByPrefix OT.DeclComponent
 
 referentsByPrefix ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
@@ -568,6 +586,7 @@ referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to
         ]
   pure . Set.fromList $ termReferents <> declReferents
 
+-- | Get the set of branches whose hash matches the given prefix.
 causalHashesByPrefix :: ShortCausalHash -> Transaction (Set Branch.CausalHash)
 causalHashesByPrefix sh = do
   -- given that a Branch is shallow, it's really `CausalHash` that you'd
@@ -576,6 +595,10 @@ causalHashesByPrefix sh = do
   cs <- Ops.causalHashesByPrefix (Cv.sch1to2 sh)
   pure $ Set.map (Causal.CausalHash . unCausalHash) cs
 
+-- returns `Nothing` to not implemented, fallback to in-memory
+--    also `Nothing` if no LCA
+-- The result is undefined if the two hashes are not in the codebase.
+-- Use `Codebase.lca` which wraps this in a nice API.
 sqlLca :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Branch.CausalHash)
 sqlLca h1 h2 = do
   h3 <- Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
@@ -586,12 +609,16 @@ termExists, declExists :: Hash -> Transaction Bool
 termExists = fmap isJust . Q.loadObjectIdForPrimaryHash
 declExists = termExists
 
-before :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Bool)
+-- `before b1 b2` is undefined if `b2` not in the codebase
+before :: Branch.CausalHash -> Branch.CausalHash -> Transaction Bool
 before h1 h2 =
-  Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
+  fromJust <$> Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
 
 -- | Construct a 'ScopedNames' which can produce names which are relative to the provided
 -- Path.
+--
+-- NOTE: this method requires an up-to-date name lookup index, which is
+-- currently not kept up-to-date automatically (because it's slow to do so).
 namesAtPath ::
   Path ->
   Transaction ScopedNames

@@ -106,7 +106,7 @@ resolveMainRef main = do
   let mainType = Runtime.mainType runtime
       smain = HQ.toString main
   parseNames <- basicPrettyPrintNamesA
-  k <- liftIO (Codebase.hashLength codebase)
+  k <- Cli.runTransaction Codebase.hashLength
   let ppe = fromSuffixNames k (addHistory parseNames)
   lookupTermRefWithType codebase main >>= \case
     [(rf, ty)]

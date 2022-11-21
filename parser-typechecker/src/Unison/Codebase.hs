@@ -21,25 +21,25 @@ module Unison.Codebase
     -- ** Search
     termsOfType,
     termsMentioningType,
-    termReferencesByPrefix,
+    SqliteCodebase.Operations.termReferencesByPrefix,
     termReferentsByPrefix,
 
     -- * Type declarations
     getTypeDeclaration,
     unsafeGetTypeDeclaration,
-    getDeclComponent,
+    SqliteCodebase.Operations.getDeclComponent,
     putTypeDeclaration,
     putTypeDeclarationComponent,
-    typeReferencesByPrefix,
+    SqliteCodebase.Operations.typeReferencesByPrefix,
     isType,
 
     -- * Branches
-    branchExists,
+    SqliteCodebase.Operations.branchExists,
     getBranchForHash,
     putBranch,
-    causalHashesByPrefix,
+    SqliteCodebase.Operations.causalHashesByPrefix,
     lca,
-    beforeImpl,
+    SqliteCodebase.Operations.before,
     getShallowBranchAtPath,
     getShallowCausalAtPath,
     getShallowCausalForHash,
@@ -49,29 +49,29 @@ module Unison.Codebase
 
     -- * Root branch
     getRootBranch,
-    getRootBranchExists,
-    getRootCausalHash,
+    SqliteCodebase.Operations.getRootBranchExists,
+    Operations.expectRootCausalHash,
     putRootBranch,
-    namesAtPath,
+    SqliteCodebase.Operations.namesAtPath,
 
     -- * Patches
-    patchExists,
-    getPatch,
-    putPatch,
+    SqliteCodebase.Operations.patchExists,
+    SqliteCodebase.Operations.getPatch,
+    SqliteCodebase.Operations.putPatch,
 
     -- * Watches
     getWatch,
     lookupWatchCache,
-    watches,
-    putWatch,
-    clearWatches,
+    SqliteCodebase.Operations.watches,
+    SqliteCodebase.Operations.putWatch,
+    Queries.clearWatches,
 
     -- * Reflog
-    getReflog,
+    Operations.getReflog,
 
     -- * Unambiguous hash length
-    hashLength,
-    branchHashLength,
+    SqliteCodebase.Operations.hashLength,
+    SqliteCodebase.Operations.branchHashLength,
 
     -- * Dependents
     dependents,
@@ -119,6 +119,7 @@ import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.Referent as V2
+import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified U.Codebase.Sqlite.Queries as Queries
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtin
@@ -134,6 +135,7 @@ import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Unison.Codebase.SqliteCodebase.Operations as SqliteCodebase.Operations
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
@@ -172,7 +174,7 @@ runTransaction Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransaction conn action
 
 getShallowCausalFromRoot ::
-  Monad m =>
+  MonadIO m =>
   Codebase m v a ->
   -- Optional root branch, if Nothing use the codebase's root branch.
   Maybe V2.CausalHash ->
@@ -186,20 +188,20 @@ getShallowCausalFromRoot codebase mayRootHash p = do
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
-getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
+getShallowRootBranch :: MonadIO m => Codebase m v a -> m (V2.Branch m)
 getShallowRootBranch codebase = do
   getShallowRootCausal codebase >>= V2Causal.value
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
-getShallowRootCausal :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
+getShallowRootCausal :: MonadIO m => Codebase m v a -> m (V2.CausalBranch m)
 getShallowRootCausal codebase = do
-  hash <- getRootCausalHash codebase
+  hash <- runTransaction codebase Operations.expectRootCausalHash
   getShallowCausalForHash codebase hash
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
-getShallowCausalAtPath :: Monad m => Codebase m v a -> Path -> Maybe (V2Branch.CausalBranch m) -> m (V2Branch.CausalBranch m)
+getShallowCausalAtPath :: MonadIO m => Codebase m v a -> Path -> Maybe (V2Branch.CausalBranch m) -> m (V2Branch.CausalBranch m)
 getShallowCausalAtPath codebase path mayCausal = do
   causal <- whenNothing mayCausal (getShallowRootCausal codebase)
   case path of
@@ -212,7 +214,7 @@ getShallowCausalAtPath codebase path mayCausal = do
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
-getShallowBranchAtPath :: Monad m => Codebase m v a -> Path -> Maybe (V2Branch.Branch m) -> m (V2Branch.Branch m)
+getShallowBranchAtPath :: MonadIO m => Codebase m v a -> Path -> Maybe (V2Branch.Branch m) -> m (V2Branch.Branch m)
 getShallowBranchAtPath codebase path mayBranch = do
   branch <- whenNothing mayBranch (getShallowRootCausal codebase >>= V2Causal.value)
   case path of
@@ -244,7 +246,7 @@ getBranchForHash codebase h =
 
 -- | Get the metadata attached to the term at a given path and name relative to the given branch.
 termMetadata ::
-  Monad m =>
+  MonadIO m =>
   Codebase m v a ->
   -- | The branch to search inside. Use the current root if 'Nothing'.
   Maybe (V2Branch.Branch m) ->
@@ -258,18 +260,19 @@ termMetadata codebase mayBranch (path, nameSeg) ref = do
   V2Branch.termMetadata b (coerce @NameSegment.NameSegment nameSeg) ref
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
-lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
-lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case lcaImpl code of
-  Nothing -> Branch.lca b1 b2
-  Just lca -> do
-    eb1 <- branchExists code h1
-    eb2 <- branchExists code h2
-    if eb1 && eb2
-      then do
-        lca h1 h2 >>= \case
-          Just h -> getBranchForHash code h
-          Nothing -> pure Nothing -- no common ancestor
-      else Branch.lca b1 b2
+lca :: MonadIO m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
+lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = do
+  action <-
+    runTransaction code do
+      eb1 <- SqliteCodebase.Operations.branchExists h1
+      eb2 <- SqliteCodebase.Operations.branchExists h2
+      if eb1 && eb2 
+        then do
+          SqliteCodebase.Operations.sqlLca h1 h2 >>= \case
+            Just h -> pure (getBranchForHash code h)
+            Nothing -> pure (pure Nothing) -- no common ancestor
+        else pure (Branch.lca b1 b2)
+  action
 
 debug :: Bool
 debug = False
@@ -386,25 +389,25 @@ getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
   Referent.Con r _ -> getTypeOfConstructor c r
 
-componentReferencesForReference :: Monad m => Codebase m v a -> Reference -> m (Set Reference)
-componentReferencesForReference c = \case
+componentReferencesForReference :: Reference -> Sqlite.Transaction (Set Reference)
+componentReferencesForReference = \case
   r@Reference.Builtin {} -> pure (Set.singleton r)
   Reference.Derived h _i ->
-    Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength c h
+    Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength h
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.
-dependents :: Codebase m v a -> Queries.DependentsSelector -> Reference -> Sqlite.Transaction (Set Reference)
-dependents c selector r =
+dependents :: Queries.DependentsSelector -> Reference -> Sqlite.Transaction (Set Reference)
+dependents selector r =
   Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
-    <$> dependentsImpl c selector r
+    <$> SqliteCodebase.Operations.dependentsImpl selector r
 
-dependentsOfComponent :: Functor f => Codebase f v a -> Hash -> f (Set Reference)
-dependentsOfComponent c h =
+dependentsOfComponent :: Hash -> Sqlite.Transaction (Set Reference)
+dependentsOfComponent h =
   Set.union (Builtin.builtinTypeDependentsOfComponent h)
     . Set.map Reference.DerivedId
-    <$> dependentsOfComponentImpl c h
+    <$> SqliteCodebase.Operations.dependentsOfComponentImpl h
 
 -- | Get the set of terms-or-constructors that have the given type.
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
@@ -487,9 +490,9 @@ viewRemoteBranch ::
 viewRemoteBranch codebase ns gitBranchBehavior action =
   viewRemoteBranch' codebase ns gitBranchBehavior (\(b, _dir) -> action b)
 
-unsafeGetComponentLength :: (HasCallStack, Monad m) => Codebase m v a -> Hash -> m Reference.CycleSize
-unsafeGetComponentLength codebase h =
-  getComponentLength codebase h >>= \case
+unsafeGetComponentLength :: HasCallStack => Hash -> Sqlite.Transaction Reference.CycleSize
+unsafeGetComponentLength h =
+  Operations.getCycleLen h >>= \case
     Nothing -> error (reportBug "E713350" ("component with hash " ++ show h ++ " not found"))
     Just size -> pure size
 
