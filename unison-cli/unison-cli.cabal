@@ -125,7 +125,7 @@ library
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
     , async
     , base
@@ -155,8 +155,8 @@ library
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=1.5.0.0
+    , lsp-types >=1.5.0.0
     , megaparsec
     , memory
     , mtl
@@ -246,7 +246,7 @@ executable cli-integration-tests
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
     , async
     , base
@@ -278,8 +278,8 @@ executable cli-integration-tests
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=1.5.0.0
+    , lsp-types >=1.5.0.0
     , megaparsec
     , memory
     , mtl
@@ -364,7 +364,7 @@ executable transcripts
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
     , async
     , base
@@ -396,8 +396,8 @@ executable transcripts
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=1.5.0.0
+    , lsp-types >=1.5.0.0
     , megaparsec
     , memory
     , mtl
@@ -487,7 +487,7 @@ executable unison
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
     , async
     , base
@@ -518,8 +518,8 @@ executable unison
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=1.5.0.0
+    , lsp-types >=1.5.0.0
     , megaparsec
     , memory
     , mtl
@@ -615,7 +615,7 @@ test-suite cli-tests
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
     , async
     , base
@@ -647,8 +647,8 @@ test-suite cli-tests
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=1.5.0.0
+    , lsp-types >=1.5.0.0
     , megaparsec
     , memory
     , mtl

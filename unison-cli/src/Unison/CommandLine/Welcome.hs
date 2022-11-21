@@ -166,7 +166,7 @@ authorSuggestion :: P.Pretty P.ColorText
 authorSuggestion =
   P.newline
     <> P.lines
-      [ P.wrap "📜 🪶 You might want to set up your author information next.",
+      [ P.wrap "📜 You might want to set up your author information next.",
         P.wrap "Type" <> P.hiBlue " create.author" <> " to create an author for this codebase",
         P.group (P.newline <> P.wrap "Read about how to link your author to your code at"),
         P.wrap $ P.blue "https://www.unison-lang.org/learn/tooling/configuration/"

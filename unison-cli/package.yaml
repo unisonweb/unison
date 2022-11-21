@@ -12,7 +12,7 @@ ghc-options: -Wall
 dependencies:
   - IntervalMap
   - ListLike
-  - aeson
+  - aeson >= 2.0.0.0
   - aeson-pretty
   - async
   - base
@@ -41,8 +41,8 @@ dependencies:
   - ki
   - lens
   - lock-file
-  - lsp
-  - lsp-types
+  - lsp >= 1.5.0.0
+  - lsp-types >= 1.5.0.0
   - megaparsec
   - memory
   - mtl

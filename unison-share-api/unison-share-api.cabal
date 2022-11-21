@@ -69,7 +69,7 @@ library
   ghc-options: -Wall
   build-depends:
       NanoID
-    , aeson
+    , aeson >=2.0.0.0
     , async
     , base
     , binary

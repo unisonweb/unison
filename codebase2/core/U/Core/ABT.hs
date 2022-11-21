@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
 
 module U.Core.ABT where
@@ -44,7 +46,7 @@ instance
   ( forall a. Eq a => Eq (f a),
     Foldable f,
     Functor f,
-    forall a. Ord a => Ord (f a),
+    Ord (f (Term f v a)),
     Var v
   ) =>
   Ord (Term f v a)

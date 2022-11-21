@@ -259,7 +259,7 @@ library
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these
@@ -444,7 +444,7 @@ test-suite parser-typechecker-tests
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these

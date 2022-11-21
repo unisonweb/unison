@@ -92,7 +92,7 @@ dependencies:
   - stm
   - tagged
   - temporary
-  - terminal-size
+  - terminal-size >= 0.3.3
   - text
   - text-short
   - these

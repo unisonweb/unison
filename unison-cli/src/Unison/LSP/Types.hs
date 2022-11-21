@@ -13,6 +13,8 @@ import Control.Lens hiding (List, (:<))
 import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as Aeson.Key
+import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.ByteString.Lazy.Char8 as BSC
 import qualified Data.HashMap.Strict as HM
 import Data.IntervalMap.Lazy (IntervalMap)
@@ -138,7 +140,7 @@ data Config = Config
 instance Aeson.FromJSON Config where
   parseJSON = Aeson.withObject "Config" \obj -> do
     maxCompletions <- obj Aeson..:! "maxCompletions" Aeson..!= maxCompletions defaultLSPConfig
-    let invalidKeys = Set.fromList (HM.keys obj) `Set.difference` validKeys
+    let invalidKeys = Set.fromList (map Aeson.Key.toText (Aeson.KeyMap.keys obj)) `Set.difference` validKeys
     when (not . null $ invalidKeys) do
       fail . Text.unpack $
         "Unrecognized configuration key(s): "
