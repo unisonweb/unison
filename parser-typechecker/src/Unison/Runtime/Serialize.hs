@@ -15,10 +15,12 @@ import Data.Bytes.VarInt
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.Map.Strict as Map (Map, fromList, toList)
+import qualified Data.Primitive as PA
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Vector.Primitive as BA
 import Data.Word (Word64, Word8)
+import GHC.Exts as IL (IsList (..))
 import qualified U.Util.Hash as Hash
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -155,6 +157,12 @@ getBytes = Bytes.fromChunks <$> getList getBlock
 
 putBytes :: MonadPut m => Bytes.Bytes -> m ()
 putBytes = putFoldable putBlock . Bytes.chunks
+
+getByteArray :: MonadGet m => m PA.ByteArray
+getByteArray = PA.byteArrayFromList <$> getList getWord8
+
+putByteArray :: MonadPut m => PA.ByteArray -> m ()
+putByteArray a = putFoldable putWord8 (IL.toList a)
 
 getBlock :: MonadGet m => m Bytes.Chunk
 getBlock = getLength >>= fmap Bytes.byteStringToChunk . getByteString
