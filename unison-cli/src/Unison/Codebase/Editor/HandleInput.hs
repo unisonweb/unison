@@ -2598,8 +2598,27 @@ typecheckAndEval ppe tm = do
     a = External
     rendered = P.toPlainUnbroken $ TP.pretty ppe tm
 
+ensureSchemeExists :: Cli ()
+ensureSchemeExists = liftIO callScheme >>= \case
+    True -> pure ()
+    False -> Cli.returnEarly (PrintMessage msg)
+  where
+  msg = P.lines [
+    "I can't seem to call scheme. See",
+    "",
+    P.indentN 2
+      "https://github.com/cisco/ChezScheme/blob/main/BUILDING",
+    "",
+    "for how to install Chez Scheme."]
+
+  callScheme =
+    catch
+      (True <$ readCreateProcess (shell "scheme -q") "")
+      (\(_ :: IOException) -> pure False)
+
 runScheme :: String -> Cli ()
 runScheme file = do
+  ensureSchemeExists
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
   let includes = gendir ++ ":" ++ statdir
@@ -2615,6 +2634,7 @@ runScheme file = do
 
 buildScheme :: String -> String -> Cli ()
 buildScheme main file = do
+  ensureSchemeExists
   statDir <- getSchemeStaticLibDir
   genDir <- getSchemeGenLibDir
   let cmd = shell "scheme -q --optimize-level 3"
