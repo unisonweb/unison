@@ -132,28 +132,28 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
         Run (RunFromFile file mainName) args
           | not (isDotU file) -> exitError "Files must have a .u extension."
           | otherwise -> do
-              e <- safeReadUtf8 file
-              case e of
-                Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
-                Right contents -> do
-                  getCodebaseOrExit mCodePathOption SC.MigrateAutomatically \(initRes, _, theCodebase) -> do
-                    withRuntimes RTI.OneOff \(rt, sbrt) -> do
-                      let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                      let noOpRootNotifier _ = pure ()
-                      let noOpPathNotifier _ = pure ()
-                      let serverUrl = Nothing
-                      let startPath = Nothing
-                      let cliEnv = CommandLine.mkEnv credentialManager authHTTPClient rt sbrt ucmVersion config theCodebase Nothing Nothing serverUrl
-                      launch
-                        currentDir
-                        [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
-                        startPath
-                        ShouldNotDownloadBase
-                        initRes
-                        noOpRootNotifier
-                        noOpPathNotifier
-                        CommandLine.ShouldNotWatchFiles
-                        cliEnv
+            e <- safeReadUtf8 file
+            case e of
+              Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
+              Right contents -> do
+                getCodebaseOrExit mCodePathOption SC.MigrateAutomatically \(initRes, _, theCodebase) -> do
+                  withRuntimes RTI.OneOff \(rt, sbrt) -> do
+                    let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                    let noOpRootNotifier _ = pure ()
+                    let noOpPathNotifier _ = pure ()
+                    let serverUrl = Nothing
+                    let startPath = Nothing
+                    let cliEnv = CommandLine.mkEnv credentialManager authHTTPClient rt sbrt ucmVersion config theCodebase Nothing Nothing serverUrl
+                    launch
+                      currentDir
+                      [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                      startPath
+                      ShouldNotDownloadBase
+                      initRes
+                      noOpRootNotifier
+                      noOpPathNotifier
+                      CommandLine.ShouldNotWatchFiles
+                      cliEnv
         Run (RunFromPipe mainName) args -> do
           e <- safeReadUtf8StdIn
           case e of
@@ -203,9 +203,9 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
               Right (Right (v, rf, w, sto))
                 | not vmatch -> mismatchMsg
                 | otherwise ->
-                    withArgs args (RTI.runStandalone sto w) >>= \case
-                      Left err -> exitError err
-                      Right () -> pure ()
+                  withArgs args (RTI.runStandalone sto w) >>= \case
+                    Left err -> exitError err
+                    Right () -> pure ()
                 where
                   vmatch = v == Version.gitDescribeWithDate
                   ws s = P.wrap (P.text s)
