@@ -171,6 +171,7 @@ library
     , semialign
     , servant
     , servant-client
+    , servant-server
     , stm
     , text
     , text-rope
@@ -295,6 +296,7 @@ executable cli-integration-tests
     , semialign
     , servant
     , servant-client
+    , servant-server
     , shellmet
     , stm
     , text
@@ -413,6 +415,7 @@ executable transcripts
     , semialign
     , servant
     , servant-client
+    , servant-server
     , shellmet
     , stm
     , text
@@ -535,6 +538,7 @@ executable unison
     , semialign
     , servant
     , servant-client
+    , servant-server
     , shellmet
     , stm
     , template-haskell
@@ -663,6 +667,7 @@ test-suite cli-tests
     , semialign
     , servant
     , servant-client
+    , servant-server
     , shellmet
     , stm
     , temporary
