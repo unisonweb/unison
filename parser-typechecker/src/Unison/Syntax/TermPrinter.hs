@@ -268,14 +268,10 @@ pretty0
             px <- pretty0 (ac 10 Normal im doc) x
             pure . paren (p >= 11 || isBlock x && p >= 3) $
               fmt S.DelayForceChar (l "'")
-                <> ( case x of
-                       Lets' _ _ -> id
-                       -- Add indentation below if we're opening parens with '(
-                       -- This is in case the contents are a long function application
-                       -- in which case the arguments should be indented.
-                       _ -> PP.indentAfterNewline "  "
-                   )
-                  px
+                -- Add indentation below since we're opening parens with '(
+                -- This is in case the contents are a long function application
+                -- in which case the arguments should be indented.
+                <> PP.indentAfterNewline "  " px
       List' xs ->
         PP.group <$> do
           xs' <- traverse (pretty0 (ac 0 Normal im doc)) xs
