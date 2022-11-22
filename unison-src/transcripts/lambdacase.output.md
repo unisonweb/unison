@@ -105,8 +105,8 @@ Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
   merge : [a] -> [a] -> [a]
   merge = cases
-    [], ys           -> ys
-    xs, []           -> xs
+    [], ys -> ys
+    xs, [] -> xs
     h +: t, h2 +: t2 ->
       if h <= h2 then h +: merge t (h2 +: t2)
       else h2 +: merge (h +: t) t2
