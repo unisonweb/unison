@@ -710,7 +710,10 @@ printCase ::
   DocLiteralContext ->
   [MatchCase' () (Term3 v PrintAnnotation)] ->
   m (Pretty SyntaxText)
-printCase im doc ms0 = PP.lines . alignGrid <$> grid
+printCase im doc ms0 =
+  PP.orElse
+    <$> (PP.lines . alignGrid True <$> grid)
+    <*> (PP.lines . alignGrid False <$> grid)
   where
     ms = groupCases ms0
     justify rows =
@@ -718,16 +721,29 @@ printCase im doc ms0 = PP.lines . alignGrid <$> grid
       where
         alignPatterns (p, _, _) = (p, Just "")
         gbs (_, gs, bs) = zip gs bs
-    alignGrid = fmap alignCase . justify
-    alignCase (p, gbs) =
-      if not (null (drop 1 gbs))
-        then PP.hang p guardBlock
-        else p <> guardBlock
+    nojustify = map f
       where
-        guardBlock =
-          PP.lines $
-            fmap (\(g, (a, b)) -> PP.hang (PP.group (g <> a)) b) justified
-        justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
+        f (p, gs, bs) = (p, zip gs bs)
+    alignGrid alignArrows grid =
+      fmap alignCase $ if alignArrows then justify grid else nojustify grid
+      where
+        alignCase (p, gbs) =
+          if not (null (drop 1 gbs))
+            then PP.hang p guardBlock
+            else p <> guardBlock
+          where
+            guardBlock =
+              PP.lines $
+                fmap
+                  ( \(g, (a, b)) ->
+                      PP.hang
+                        ( PP.group
+                            (g <> (if alignArrows then "" else " ") <> a)
+                        )
+                        b
+                  )
+                  justified
+            justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
     grid = traverse go ms
     patLhs env vs pats =
       case pats of
