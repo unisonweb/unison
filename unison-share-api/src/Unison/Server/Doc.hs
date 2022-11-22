@@ -220,7 +220,10 @@ renderDoc pped terms typeOf eval types tm =
             ty r = (NP.styleHashQualified'' (NP.fmt (S.TypeReference r)) . PPE.typeName ppe) r
          in Link <$> case e of
               DD.EitherLeft' (Term.TypeLink' r) -> (pure . formatPretty . ty) r
-              DD.EitherRight' (DD.Doc2Term (Term.Referent' r)) -> (pure . formatPretty . tm) r
+              DD.EitherRight' (DD.Doc2Term t) ->
+                case Term.etaNormalForm t of
+                  Term.Referent' r -> (pure . formatPretty . tm) r
+                  x -> source x
               _ -> source e
       DD.Doc2SpecialFormSignature (Term.List' tms) ->
         let rs = [r | DD.Doc2Term (Term.Referent' r) <- toList tms]
