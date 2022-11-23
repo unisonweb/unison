@@ -605,7 +605,7 @@ applyDeprecations patch =
 -- definition that is created by the `Edits` which is passed in is marked as
 -- a propagated change.
 applyPropagate :: forall m. Applicative m => Patch -> Edits Symbol -> Branch0 m -> Branch0 m
-applyPropagate patch Edits {..} = do
+applyPropagate patch Edits {newTerms, termReplacements, typeReplacements, constructorReplacements} = do
   let termTypes = Map.map (Hashing.typeToReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
   stepEverywhereButLib (updateLevel termReplacements typeReplacements termTypes)
@@ -639,32 +639,28 @@ applyPropagate patch Edits {..} = do
         terms0 = Star3.replaceFacts replaceConstructor constructorReplacements _terms
         terms :: Branch.Star Referent NameSegment
         terms =
-          updateMetadatas Referent.Ref $
+          updateMetadatas $
             Star3.replaceFacts replaceTerm termEdits terms0
         types :: Branch.Star Reference NameSegment
         types =
-          updateMetadatas id $
+          updateMetadatas $
             Star3.replaceFacts replaceType typeEdits _types
 
         updateMetadatas ::
           Ord r =>
-          (Reference -> r) ->
           Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value) ->
           Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value)
-        updateMetadatas ref s = clearPropagated $ Star3.mapD3 go s
+        updateMetadatas s = Star3.mapD3 go s
           where
-            clearPropagated s = foldl' go s allPatchTargets
-              where
-                go s r = Metadata.delete (propagatedMd $ ref r) s
             go (tp, v) = case Map.lookup (Referent.Ref v) termEdits of
               Just (Referent.Ref r) -> (typeOf r tp, r)
               _ -> (tp, v)
             typeOf r t = fromMaybe t $ Map.lookup r termTypes
 
         replaceTerm :: Referent -> Referent -> Metadata.Star Referent NameSegment -> Metadata.Star Referent NameSegment
-        replaceTerm r r' s =
+        replaceTerm _r r' s =
           ( if isPropagatedReferent r'
-              then Metadata.insert (propagatedMd r') . Metadata.delete (propagatedMd r)
+              then Metadata.insert (propagatedMd r')
               else Metadata.delete (propagatedMd r')
           )
             $ s

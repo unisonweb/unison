@@ -258,7 +258,6 @@ library
     , servant-server
     , shellmet
     , stm
-    , strings
     , tagged
     , temporary
     , terminal-size
@@ -445,7 +444,6 @@ test-suite parser-typechecker-tests
     , shellmet
     , split
     , stm
-    , strings
     , tagged
     , temporary
     , terminal-size

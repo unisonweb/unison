@@ -2,6 +2,7 @@ module Unison.Cli.TypeCheck
   ( typecheck,
     typecheckHelper,
     typecheckFile,
+    typecheckTerm,
   )
 where
 
@@ -19,11 +20,13 @@ import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.Result as Result
 import qualified Unison.Sqlite as Sqlite
-import Unison.Symbol (Symbol)
+import Unison.Symbol (Symbol (Symbol))
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
+import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
+import qualified Unison.Var as Var
 
 typecheck ::
   [Type Symbol Ann] ->
@@ -70,6 +73,39 @@ typecheckHelper codebase generateUniqueName ambient names sourceName source = do
       (Text.unpack sourceName)
       (fst source)
 
+typecheckTerm ::
+  Term Symbol Ann ->
+  Cli
+    ( Result.Result
+        (Seq (Result.Note Symbol Ann))
+        (Type Symbol Ann)
+    )
+typecheckTerm tm = do
+  Cli.Env {codebase} <- ask
+  let v = Symbol 0 (Var.Inference Var.Other)
+  liftIO $
+    fmap extract
+      <$> Codebase.runTransaction codebase (typecheckFile' codebase [] (UF.UnisonFileId mempty mempty [(v, tm)] mempty))
+  where
+    extract tuf
+      | [[(_, _, ty)]] <- UF.topLevelComponents' tuf = ty
+      | otherwise = error "internal error: typecheckTerm"
+
+typecheckFile' ::
+  Codebase m Symbol Ann ->
+  [Type Symbol Ann] ->
+  UF.UnisonFile Symbol Ann ->
+  Sqlite.Transaction
+    ( Result.Result
+        (Seq (Result.Note Symbol Ann))
+        (UF.TypecheckedUnisonFile Symbol Ann)
+    )
+typecheckFile' codebase ambient file = do
+  typeLookup <-
+    (<> Builtin.typeLookup)
+      <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
+  pure $ synthesizeFile' ambient typeLookup file
+
 typecheckFile ::
   Codebase m Symbol Ann ->
   [Type Symbol Ann] ->
@@ -79,8 +115,5 @@ typecheckFile ::
         (Seq (Result.Note Symbol Ann))
         (Either Names (UF.TypecheckedUnisonFile Symbol Ann))
     )
-typecheckFile codebase ambient file = do
-  typeLookup <-
-    (<> Builtin.typeLookup)
-      <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
-  pure . fmap Right $ synthesizeFile' ambient typeLookup file
+typecheckFile codebase ambient file =
+  fmap Right <$> typecheckFile' codebase ambient file
