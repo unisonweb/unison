@@ -133,6 +133,9 @@ d234 Relation4 {d2, d3, d4} =
 d12s :: (Ord a, Ord b) => Relation4 a b c d -> [(a, b)]
 d12s = nubOrd . fmap (\(a, (b, _)) -> (a, b)) . toNestedList
 
+d3s :: Relation4 a b c d -> Set c
+d3s = Map.keysSet . d3
+
 -- e.g. Map.toList (d1 r) >>= \(a, r3) -> (a,) <$> Map.keys (R3.d1 r3)
 
 insert,

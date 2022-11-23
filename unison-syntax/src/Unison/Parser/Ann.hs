@@ -26,3 +26,22 @@ instance Semigroup Ann where
   a <> External = a
   Intrinsic <> a = a
   a <> Intrinsic = a
+
+-- | Checks whether an annotation contains a given position
+-- i.e. pos ∈ [start, end)
+--
+-- >>> Intrinsic `contains` L.Pos 1 1
+-- False
+--
+-- >>> External `contains` L.Pos 1 1
+-- False
+--
+-- >>> Ann (L.Pos 0 0) (L.Pos 0 10) `contains` L.Pos 0 5
+-- True
+--
+-- >>> Ann (L.Pos 0 0) (L.Pos 0 10) `contains` L.Pos 0 10
+-- False
+contains :: Ann -> L.Pos -> Bool
+contains Intrinsic _ = False
+contains External _ = False
+contains (Ann start end) p = start <= p && p < end

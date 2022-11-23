@@ -19,6 +19,7 @@ module Unison.Prelude
     eitherToMaybe,
     maybeToEither,
     altSum,
+    altMap,
 
     -- * @Either@ control flow
     onLeft,
@@ -77,6 +78,9 @@ import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
 
 altSum :: (Alternative f, Foldable t) => t (f a) -> f a
 altSum = foldl' (<|>) empty
+
+altMap :: (Alternative f, Foldable t) => (a -> f b) -> t a -> f b
+altMap f = altSum . fmap f . toList
 
 -- | E.g.
 --

@@ -23,6 +23,12 @@ uToLspPos uPos =
       _character = fromIntegral $ Lex.column uPos - 1
     }
 
+lspToUPos :: Position -> Lex.Pos
+lspToUPos lspPos =
+  Lex.Pos
+    (fromIntegral $ _line lspPos + 1) -- 1 indexed vs 0 indexed
+    (fromIntegral $ _character lspPos + 1)
+
 uToLspRange :: Range.Range -> Range
 uToLspRange (Range.Range start end) = Range (uToLspPos start) (uToLspPos end)
 
