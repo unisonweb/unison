@@ -240,7 +240,6 @@ library
     , openapi3
     , optparse-applicative >=0.16.1.0
     , pem
-    , prelude-extras
     , pretty-simple
     , primitive
     , process
@@ -425,7 +424,6 @@ test-suite parser-typechecker-tests
     , openapi3
     , optparse-applicative >=0.16.1.0
     , pem
-    , prelude-extras
     , pretty-simple
     , primitive
     , process

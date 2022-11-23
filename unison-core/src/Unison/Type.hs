@@ -16,7 +16,6 @@ import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
 import Data.Monoid (Any (..))
 import qualified Data.Set as Set
-import Prelude.Extras (Eq1 (..), Ord1 (..), Show1 (..))
 import qualified Unison.ABT as ABT
 import qualified Unison.Kind as K
 import qualified Unison.Name as Name
@@ -42,12 +41,6 @@ data F a
   -- bound by outer type signatures, to support scoped type
   -- variables
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
-
-instance Eq1 F where (==#) = (==)
-
-instance Ord1 F where compare1 = compare
-
-instance Show1 F where showsPrec1 = showsPrec
 
 _Ref :: Prism' (F a) Reference
 _Ref = _Ctor @"Ref"
