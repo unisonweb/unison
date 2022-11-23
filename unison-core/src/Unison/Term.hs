@@ -13,7 +13,6 @@ import qualified Data.Sequence as Sequence
 import qualified Data.Set as Set
 import qualified Data.Set.NonEmpty as NES
 import qualified Data.Text as Text
-import Prelude.Extras (Eq1 (..), Show1 (..))
 import Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
@@ -1347,10 +1346,6 @@ fromReferent a = \case
     CT.Effect -> request a r
 
 -- mostly boring serialization code below ...
-
-instance (Eq a, ABT.Var v) => Eq1 (F v a p) where (==#) = (==)
-
-instance (Show v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
 instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Int x == Int y = x == y

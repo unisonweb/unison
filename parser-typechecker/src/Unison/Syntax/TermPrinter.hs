@@ -266,14 +266,10 @@ pretty0
             px <- pretty0 (ac 10 Normal im doc) x
             pure . paren (p >= 11 || isBlock x && p >= 3) $
               fmt S.DelayForceChar (l "'")
-                <> ( case x of
-                       Lets' _ _ -> id
-                       -- Add indentation below if we're opening parens with '(
-                       -- This is in case the contents are a long function application
-                       -- in which case the arguments should be indented.
-                       _ -> PP.indentAfterNewline "  "
-                   )
-                  px
+                -- Add indentation below since we're opening parens with '(
+                -- This is in case the contents are a long function application
+                -- in which case the arguments should be indented.
+                <> PP.indentAfterNewline "  " px
       List' xs ->
         PP.group <$> do
           xs' <- traverse (pretty0 (ac 0 Normal im doc)) xs
@@ -710,7 +706,10 @@ printCase ::
   DocLiteralContext ->
   [MatchCase' () (Term3 v PrintAnnotation)] ->
   m (Pretty SyntaxText)
-printCase im doc ms0 = PP.lines . alignGrid <$> grid
+printCase im doc ms0 =
+  PP.orElse
+    <$> (PP.lines . alignGrid True <$> grid)
+    <*> (PP.lines . alignGrid False <$> grid)
   where
     ms = groupCases ms0
     justify rows =
@@ -718,21 +717,34 @@ printCase im doc ms0 = PP.lines . alignGrid <$> grid
       where
         alignPatterns (p, _, _) = (p, Just "")
         gbs (_, gs, bs) = zip gs bs
-    alignGrid = fmap alignCase . justify
-    alignCase (p, gbs) =
-      if not (null (drop 1 gbs))
-        then PP.hang p guardBlock
-        else p <> guardBlock
+    nojustify = map f
       where
-        guardBlock =
-          PP.lines $
-            fmap (\(g, (a, b)) -> PP.hang (PP.group (g <> a)) b) justified
-        justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
+        f (p, gs, bs) = (p, zip gs bs)
+    alignGrid alignArrows grid =
+      fmap alignCase $ if alignArrows then justify grid else nojustify grid
+      where
+        alignCase (p, gbs) =
+          if not (null (drop 1 gbs))
+            then PP.hang p guardBlock
+            else p <> guardBlock
+          where
+            guardBlock =
+              PP.lines $
+                fmap
+                  ( \(g, (a, b)) ->
+                      PP.hang
+                        ( PP.group
+                            (g <> (if alignArrows then "" else " ") <> a)
+                        )
+                        b
+                  )
+                  justified
+            justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
     grid = traverse go ms
     patLhs env vs pats =
       case pats of
         [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
-        pats -> PP.group . PP.sep ("," <> PP.softbreak)
+        pats -> PP.group . PP.sep (PP.indentAfterNewline "  " $ "," <> PP.softbreak)
           . (`evalState` vs)
           . for pats
           $ \pat -> do

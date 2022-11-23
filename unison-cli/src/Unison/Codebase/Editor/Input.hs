@@ -155,6 +155,14 @@ data Input
     IOTestI (HQ.HashQualified Name)
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
+  | -- execute an IO thunk using scheme
+    ExecuteSchemeI (HQ.HashQualified Name)
+  | -- compile to a scheme file
+    CompileSchemeI String (HQ.HashQualified Name)
+  | -- generate scheme libraries
+    GenSchemeLibsI
+  | -- fetch scheme compiler
+    FetchSchemeCompilerI
   | TestI TestInput
   | -- metadata
     -- `link metadata definitions` (adds metadata to all of `definitions`)

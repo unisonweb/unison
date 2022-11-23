@@ -43,6 +43,7 @@ library
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
+      Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
@@ -166,6 +167,7 @@ library
     , nonempty-containers
     , open-browser
     , pretty-simple
+    , process
     , random >=1.2.0
     , recover-rtti
     , regex-tdfa
@@ -362,7 +364,7 @@ executable transcripts
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
+  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
   build-depends:
       IntervalMap
     , ListLike
@@ -486,7 +488,7 @@ executable unison
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -optP-Wno-nonportable-include-path
   build-depends:
       IntervalMap
     , ListLike
@@ -533,6 +535,7 @@ executable unison
     , open-browser
     , optparse-applicative >=0.16.1.0
     , pretty-simple
+    , process
     , random >=1.2.0
     , recover-rtti
     , regex-tdfa
@@ -662,6 +665,7 @@ test-suite cli-tests
     , nonempty-containers
     , open-browser
     , pretty-simple
+    , process
     , random >=1.2.0
     , recover-rtti
     , regex-tdfa

@@ -193,11 +193,14 @@ displayPretty pped terms typeOf eval types tm = go tm
             go = pure . P.underline . P.syntaxToColor . NP.prettyHashQualified
          in case e of
               DD.EitherLeft' (Term.TypeLink' ref) -> go $ PPE.typeName ppe ref
-              DD.EitherRight' (DD.Doc2Term (Term.Ref' ref)) -> go $ PPE.termName ppe (Referent.Ref ref)
-              DD.EitherRight' (DD.Doc2Term (Term.Request' ref)) ->
-                go $ PPE.termName ppe (Referent.Con ref CT.Effect)
-              DD.EitherRight' (DD.Doc2Term (Term.Constructor' ref)) ->
-                go $ PPE.termName ppe (Referent.Con ref CT.Data)
+              -- Eta-reduce the term, as the compiler may have eta-expanded it.
+              DD.EitherRight' (DD.Doc2Term t) -> case Term.etaNormalForm t of
+                Term.Ref' ref -> go $ PPE.termName ppe (Referent.Ref ref)
+                Term.Request' ref ->
+                  go $ PPE.termName ppe (Referent.Con ref CT.Effect)
+                Term.Constructor' ref ->
+                  go $ PPE.termName ppe (Referent.Con ref CT.Data)
+                _ -> P.red <$> displayTerm pped terms typeOf eval types t
               _ -> P.red <$> displayTerm pped terms typeOf eval types e
       -- Signature [Doc2.Term]
       DD.Doc2SpecialFormSignature (Term.List' tms) ->
