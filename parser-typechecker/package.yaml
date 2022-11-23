@@ -90,7 +90,6 @@ dependencies:
   - servant-server
   - shellmet
   - stm
-  - strings
   - tagged
   - temporary
   - terminal-size
