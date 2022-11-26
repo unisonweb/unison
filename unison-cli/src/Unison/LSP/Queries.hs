@@ -3,6 +3,7 @@ module Unison.LSP.Queries
   ( getTypeOfReferent,
     getTypeDeclaration,
     refAtPosition,
+    nodeAtPosition,
   )
 where
 
@@ -83,22 +84,23 @@ getTypeDeclaration fileUri refId = do
 
 -- | Returns a reference to whatever the symbol at the given position refers to.
 refAtPosition :: Uri -> Position -> MaybeT Lsp LabeledDependency
-refAtPosition uri (lspToUPos -> pos) = do
-  (FileSummary {dataDeclSummary, effectDeclSummary, termSummary, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
-  ( altMap (hoistMaybe . refInDecl pos . Right) (R3.d3s dataDeclSummary)
-      <|> altMap (hoistMaybe . refInDecl pos . Left) (R3.d3s effectDeclSummary)
-      <|> altMap findRefInTerm (R4.d3s termSummary)
-      <|> altMap findRefInTerm (testWatchSummary ^.. folded . _3)
-      <|> altMap findRefInTerm (exprWatchSummary ^.. folded . _3)
-    )
+refAtPosition uri pos = do
+  findInTermOrType <|> findInDecl
   where
-    hoistMaybe :: Maybe a -> MaybeT Lsp a
-    hoistMaybe = MaybeT . pure
-    findRefInTerm :: Term Symbol Ann -> MaybeT Lsp LabeledDependency
-    findRefInTerm term = do
-      hoistMaybe (findSmallestEnclosingNode pos term) >>= \case
+    findInTermOrType :: MaybeT Lsp LabeledDependency
+    findInTermOrType =
+      nodeAtPosition uri pos >>= \case
         Left term -> hoistMaybe $ refInTerm term
         Right typ -> hoistMaybe $ refInType typ
+    findInDecl :: MaybeT Lsp LabeledDependency
+    findInDecl = do
+      let uPos = lspToUPos pos
+      (FileSummary {dataDeclSummary, effectDeclSummary}) <- getFileSummary uri
+      ( altMap (hoistMaybe . refInDecl uPos . Right) (R3.d3s dataDeclSummary)
+          <|> altMap (hoistMaybe . refInDecl uPos . Left) (R3.d3s effectDeclSummary)
+        )
+    hoistMaybe :: Maybe a -> MaybeT Lsp a
+    hoistMaybe = MaybeT . pure
 
 refInTerm :: (Term v a -> Maybe LabeledDependency)
 refInTerm term =
@@ -211,3 +213,17 @@ refInDecl p (DD.asDataDecl -> dd)
           guard (ann `Ann.contains` p)
           typeNode <- findSmallestEnclosingType p typ
           refInType typeNode
+
+-- | Returns the ABT node at the provided position.
+-- Does not return Decl nodes.
+nodeAtPosition :: Uri -> Position -> MaybeT Lsp (Either (Term Symbol Ann) (Type Symbol Ann))
+nodeAtPosition uri (lspToUPos -> pos) = do
+  (FileSummary {termSummary, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
+  ( altMap (hoistMaybe . findSmallestEnclosingNode pos) (R4.d3s termSummary)
+      <|> altMap (fmap Right . hoistMaybe . findSmallestEnclosingType pos) (catMaybes . Set.toList $ R4.d4s termSummary)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) (testWatchSummary ^.. folded . _3)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) (exprWatchSummary ^.. folded . _3)
+    )
+  where
+    hoistMaybe :: Maybe a -> MaybeT Lsp a
+    hoistMaybe = MaybeT . pure

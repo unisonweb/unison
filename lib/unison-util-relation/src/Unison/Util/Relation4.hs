@@ -136,6 +136,9 @@ d12s = nubOrd . fmap (\(a, (b, _)) -> (a, b)) . toNestedList
 d3s :: Relation4 a b c d -> Set c
 d3s = Map.keysSet . d3
 
+d4s :: Relation4 a b c d -> Set d
+d4s = Map.keysSet . d4
+
 -- e.g. Map.toList (d1 r) >>= \(a, r3) -> (a,) <$> Map.keys (R3.d1 r3)
 
 insert,
