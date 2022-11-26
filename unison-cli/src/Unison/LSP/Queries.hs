@@ -17,6 +17,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Debug as Debug
 import Unison.LSP.Conversions (lspToUPos)
 import Unison.LSP.FileAnalysis (getFileSummary)
 import Unison.LSP.Orphans ()
@@ -96,6 +97,7 @@ refAtPosition uri pos = do
     findInDecl = do
       let uPos = lspToUPos pos
       (FileSummary {dataDeclSummary, effectDeclSummary}) <- getFileSummary uri
+      Debug.debugLogM Debug.LSP "finding in decl"
       ( altMap (hoistMaybe . refInDecl uPos . Right) (R3.d3s dataDeclSummary)
           <|> altMap (hoistMaybe . refInDecl uPos . Left) (R3.d3s effectDeclSummary)
         )
@@ -203,16 +205,13 @@ findSmallestEnclosingType pos typ
         ABT.Cycle r -> findSmallestEnclosingType pos r
         ABT.Abs _v r -> findSmallestEnclosingType pos r
 
-refInDecl :: Pos -> DD.Decl v Ann -> Maybe LabeledDependency
-refInDecl p (DD.asDataDecl -> dd)
-  | not (DD.annotation dd `Ann.contains` p) =
-      Nothing
-  | otherwise =
-      DD.constructors' dd
-        & altMap \(ann, _v, typ) -> do
-          guard (ann `Ann.contains` p)
-          typeNode <- findSmallestEnclosingType p typ
-          refInType typeNode
+refInDecl :: Pos -> DD.Decl Symbol Ann -> Maybe LabeledDependency
+refInDecl p (DD.asDataDecl -> dd) =
+  DD.constructors' dd
+    & altMap \(_conNameAnn, _v, typ) -> do
+      typeNode <- findSmallestEnclosingType p typ
+      ref <- refInType typeNode
+      pure ref
 
 -- | Returns the ABT node at the provided position.
 -- Does not return Decl nodes.
