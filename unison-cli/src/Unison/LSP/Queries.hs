@@ -84,7 +84,7 @@ getTypeDeclaration fileUri refId = do
 -- | Returns a reference to whatever the symbol at the given position refers to.
 refAtPosition :: Uri -> Position -> MaybeT Lsp LabeledDependency
 refAtPosition uri (lspToUPos -> pos) = do
-  FileSummary {dataDeclSummary, effectDeclSummary, termSummary, testWatchSummary, exprWatchSummary} <- getFileSummary uri
+  (FileSummary {dataDeclSummary, effectDeclSummary, termSummary, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
   ( altMap (hoistMaybe . refInDecl pos . Right) (R3.d3s dataDeclSummary)
       <|> altMap (hoistMaybe . refInDecl pos . Left) (R3.d3s effectDeclSummary)
       <|> altMap findRefInTerm (R4.d3s termSummary)

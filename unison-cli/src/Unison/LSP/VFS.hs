@@ -18,7 +18,7 @@ import qualified Data.Text.Utf16.Rope as Rope
 import Data.Tuple (swap)
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Types
-import Language.LSP.Types.Lens (HasCharacter (character), HasParams (params), HasPosition (position), HasTextDocument (textDocument), HasUri (uri))
+import Language.LSP.Types.Lens (HasCharacter (character), HasParams (params), HasTextDocument (textDocument), HasUri (uri))
 import qualified Language.LSP.Types.Lens as LSP
 import Language.LSP.VFS as VFS hiding (character)
 import Unison.LSP.Orphans ()
@@ -33,14 +33,14 @@ usingVFS m = do
   vfsVar' <- asks vfsVar
   modifyMVar vfsVar' $ \vfs -> swap <$> runStateT m vfs
 
-getVirtualFile :: (HasUri doc Uri) => doc -> Lsp (Maybe VirtualFile)
-getVirtualFile p = do
+getVirtualFile :: Uri -> Lsp (Maybe VirtualFile)
+getVirtualFile uri = do
   vfs <- asks vfsVar >>= readMVar
-  pure $ vfs ^. vfsMap . at (toNormalizedUri $ p ^. uri)
+  pure $ vfs ^. vfsMap . at (toNormalizedUri $ uri)
 
-getFileContents :: (HasUri doc Uri) => doc -> Lsp (Maybe (FileVersion, Text))
-getFileContents p = runMaybeT $ do
-  vf <- MaybeT $ getVirtualFile p
+getFileContents :: Uri -> MaybeT Lsp (FileVersion, Text)
+getFileContents uri = do
+  vf <- MaybeT $ getVirtualFile uri
   pure (vf ^. lsp_version, Rope.toText $ vf ^. file_text)
 
 vfsLogger :: Colog.LogAction (StateT VFS Lsp) (Colog.WithSeverity VfsLog)
@@ -62,17 +62,17 @@ markAllFilesDirty = do
   markFilesDirty $ Map.keys (vfs ^. vfsMap)
 
 -- | Returns the name or symbol which the provided position is contained in.
-identifierAtPosition :: (HasPosition p Position, HasTextDocument p TextDocumentIdentifier) => p -> Lsp (Maybe Text)
-identifierAtPosition p = do
-  identifierSplitAtPosition p <&> fmap \(before, after) -> (before <> after)
+identifierAtPosition :: Uri -> Position -> MaybeT Lsp Text
+identifierAtPosition uri pos = do
+  identifierSplitAtPosition uri pos <&> \(before, after) -> (before <> after)
 
 -- | Returns the prefix and suffix of the symbol which the provided position is contained in.
-identifierSplitAtPosition :: (HasPosition p Position, HasTextDocument p docId, HasUri docId Uri) => p -> Lsp (Maybe (Text, Text))
-identifierSplitAtPosition p = runMaybeT $ do
-  vf <- MaybeT (getVirtualFile (p ^. textDocument))
-  PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix (p ^. position) vf)
+identifierSplitAtPosition :: Uri -> Position -> MaybeT Lsp (Text, Text)
+identifierSplitAtPosition uri pos = do
+  vf <- MaybeT (getVirtualFile uri)
+  PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix pos vf)
   let (before, after) = Text.splitAt (cursorPos ^. character . to fromIntegral) fullLine
-  pure $ (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)
+  pure (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)
   where
     -- TODO: Should probably use something from the Lexer here
     isIdentifierChar = \case
@@ -83,11 +83,11 @@ identifierSplitAtPosition p = runMaybeT $ do
 
 -- | Returns the prefix of the symbol at the provided location, and the range that prefix
 -- spans.
-completionPrefix :: (HasPosition p Position, HasTextDocument p docId, HasUri docId Uri) => p -> Lsp (Maybe (Range, Text))
-completionPrefix p = runMaybeT $ do
-  (before, _) <- MaybeT $ identifierSplitAtPosition p
-  let posLine = p ^. position . LSP.line
-  let posChar = (p ^. position . LSP.character)
+completionPrefix :: Uri -> Position -> MaybeT Lsp (Range, Text)
+completionPrefix uri pos = do
+  (before, _) <- identifierSplitAtPosition uri pos
+  let posLine = pos ^. LSP.line
+  let posChar = pos ^. LSP.character
   let range = mkRange posLine (posChar - fromIntegral (Text.length before)) posLine posChar
   pure (range, before)
 

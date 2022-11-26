@@ -9,26 +9,29 @@ import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Language.LSP.Types
-import Language.LSP.Types.Lens hiding (only, to)
+import Language.LSP.Types.Lens hiding (id, only, to)
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
 import qualified Unison.Debug as Debug
+import qualified Unison.HashQualified as HQ
 import Unison.LSP.Conversions (annToInterval)
-import Unison.LSP.FileAnalysis (getFileAnalysis, getFileDefLocations, getFileSummary)
 import qualified Unison.LSP.Queries as LSPQ
 import Unison.LSP.Types
+import qualified Unison.LSP.VFS as VFS
+import qualified Unison.LabeledDependency as LD
+import qualified Unison.Name as Name
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPED
+import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Lexer as Lex
+import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Term as Term
 import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.Relation3 as Relation3
-import qualified Unison.Util.Relation4 as Relation4
+import qualified Unison.Util.Pretty as Pretty
 
 -- | Hover help handler
 --
@@ -47,40 +50,25 @@ hoverHandler m respond =
         }
 
 hoverInfo :: Uri -> Position -> MaybeT Lsp Text
-hoverInfo uri p = do
-  Debug.debugM Debug.LSP "POINT" p
-  FileAnalysis {tokenMap, typecheckedFile} <- MaybeT $ getFileAnalysis uri
-  FileSummary {termSummary, testWatchSummary, exprWatchSummary} <- getFileSummary uri
-  fileDefLocations <- getFileDefLocations uri
-  Debug.debugM Debug.LSP "TYPECHECKED" typecheckedFile
-  subTermMap <- mkSubTermMap fileDefLocations <$> MaybeT (pure typecheckedFile)
-  Debug.debugM Debug.LSP "SubTerms" subTermMap
-  let matchingHoverInfos = concat . IM.elems $ IM.containing subTermMap p
-  let matchingLexeme = IM.elems $ IM.containing tokenMap p
-
-  Debug.debugM Debug.LSP "Matching" matchingHoverInfos
-  ppe <- lift $ globalPPE
-  let renderType typ = Text.pack $ TypePrinter.prettyStr (Just 40) (PPED.suffixifiedPPE ppe) typ
-  renderedType <-
-    altSum $
-      matchingHoverInfos <&> \info -> do
-        case info of
-          BuiltinType txt -> pure txt
-          LocalVar _v -> pure $ "<local>"
-          FileDef v ->
-            pure . maybe "<file>" renderType $
-              Relation4.d1 termSummary ^? ix v . folding Relation3.d3s . _Just
-                <|> testWatchSummary ^? folded . filteredBy (_1 . _Just . only v) . _4 . _Just
-                <|> exprWatchSummary ^? folded . filteredBy (_1 . _Just . only v) . _4 . _Just
-          Ref ref -> do
-            typ <- LSPQ.getTypeOfReferent uri ref
-            pure $ renderType typ
-  let typeSig = case listToMaybe matchingLexeme of
-        Just (Lex.WordyId n _) -> Text.pack n <> " : " <> renderedType
-        Just (Lex.SymbolyId n _) -> Text.pack n <> " : " <> renderedType
-        -- TODO: add other lexemes
-        _ -> ": " <> renderedType
-  pure $ Text.unlines ["```unison", typeSig, "```"]
+hoverInfo uri pos =
+  markdownify <$> do
+    symAtCursor <- VFS.identifierAtPosition uri pos
+    ref <- LSPQ.refAtPosition uri pos
+    ppe <- lift $ globalPPE
+    case ref of
+      LD.TypeReference (Reference.Builtin {}) -> pure (symAtCursor <> " : <builtin>")
+      LD.TypeReference ref@(Reference.DerivedId refId) -> do
+        nameAtCursor <- MaybeT . pure $ Name.fromText symAtCursor
+        decl <- LSPQ.getTypeDeclaration uri refId
+        let typ = Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl ppe ref (HQ.NameOnly nameAtCursor) decl
+        pure typ
+      LD.TermReferent ref -> do
+        typ <- LSPQ.getTypeOfReferent uri ref
+        let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE ppe) typ
+        pure (symAtCursor <> " : " <> renderedType)
+  where
+    markdownify rendered = Text.unlines ["```unison", rendered, "```"]
+    prettyWidth = 40
 
 mkSubTermMap :: (Parser.Annotated a, Show a) => Map Symbol (Set a) -> UF.TypecheckedUnisonFile Symbol a -> IM.IntervalMap Position [HoverInfo]
 mkSubTermMap fileDefs (UF.TypecheckedUnisonFileId {hashTermsId}) =

@@ -75,7 +75,7 @@ import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
 checkFile :: HasUri d Uri => d -> Lsp (Maybe FileAnalysis)
 checkFile doc = runMaybeT $ do
   let fileUri = doc ^. uri
-  (fileVersion, contents) <- MaybeT (VFS.getFileContents doc)
+  (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getParseNames
   let sourceName = getUri $ doc ^. uri
   let lexedSource@(srcText, tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))

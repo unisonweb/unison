@@ -37,7 +37,9 @@ import qualified Unison.Util.Relation as Relation
 completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
 completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
-    (range, prefix) <- MaybeT $ VFS.completionPrefix (m ^. params)
+    let fileUri = m ^. params . textDocument . uri
+    let pos = (m ^. params . position)
+    (range, prefix) <- VFS.completionPrefix fileUri pos
     ppe <- PPED.suffixifiedPPE <$> lift globalPPE
     completions <- lift getCompletions
     Config {maxCompletions} <- lift getConfig
