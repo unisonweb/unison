@@ -43,7 +43,6 @@ import Control.Monad.State (evalState)
 import Data.Bifunctor (bimap, first, second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Prelude.Extras (Show1)
 import qualified Unison.ABT as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -273,7 +272,7 @@ data F a
   | LetRec [a] a
   | Constructors [a]
   | Modified Modifier a
-  deriving (Functor, Foldable, Show, Show1)
+  deriving (Functor, Foldable, Show)
 
 updateDependencies :: Ord v => Map Reference Reference -> Decl v a -> Decl v a
 updateDependencies typeUpdates decl =
