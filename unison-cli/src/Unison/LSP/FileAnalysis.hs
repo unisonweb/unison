@@ -43,8 +43,9 @@ import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPED
+import qualified Unison.PrettyPrintEnvDecl.Names as PPED
 import qualified Unison.PrintError as PrintError
 import qualified Unison.Reference as Reference
 import Unison.Result (Note)
@@ -371,34 +372,13 @@ getFileSummary uri = do
   MaybeT . pure $ fileSummary
 
 -- TODO memoize per file
-ppeForFile :: Uri -> Lsp PrettyPrintEnv
-ppeForFile fileUri = do
-  ppe <- PPE.suffixifiedPPE <$> globalPPE
+ppedForFile :: Uri -> Lsp PPE.PrettyPrintEnvDecl
+ppedForFile fileUri = do
+  pped <- globalPPE
   getFileAnalysis fileUri >>= \case
     Just (FileAnalysis {typecheckedFile = Just tf}) -> do
       hl <- asks codebase >>= \codebase -> liftIO (Codebase.runTransaction codebase Codebase.hashLength)
       let fileNames = UF.typecheckedToNames tf
-      let filePPE = PPE.fromSuffixNames hl (NamesWithHistory.fromCurrentNames fileNames)
-      pure (filePPE `PPE.addFallback` ppe)
-    _ -> pure ppe
-
--- | Information about a symbol defined within the file.
--- data FileDefInfo ann
---   = FileDataDecl Reference.Id ann
---   | FileAbilityDecl Reference.Id ann
---   | FileTerm (Maybe Reference.Id) ann
---   | FileWatch WatchKind (Maybe Reference.Id) ann
-
--- getFileSymbols :: Uri -> MaybeT Lsp (Map Symbol (FileDefInfo Ann))
--- getFileSymbols uri = do
---   FileAnalysis {parsedFile} <- MaybeT $ getFileAnalysis uri
---   UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches} <- MaybeT (pure parsedFile)
-
--- pure $
---   do
---     dataDeclarationsId & ifoldMap \v (ref, dd) -> Map.singleton v . FileDataDecl ref $ DD.annotation dd
---     <> (effectDeclarationsId & ifoldMap \v (ref, dd) -> Map.singleton v . FileAbilityDecl ref . DD.annotation . DD.toDataDecl $ dd)
---     <> (terms & foldMap \(v, ref, dd) -> Map.singleton v . FileAbilityDecl ref . DD.annotation . DD.toDataDecl $ dd)
-
--- effectDeclarationsId & ifoldMap \v ed -> [Map.singleton v . FileEffectDecl $ DD.annotation ed]
--- terms & foldMap \(v, trm) -> [Map.singleton v $ FileEffectDecl ann]
+      let filePPED = PPED.fromNamesDecl hl (NamesWithHistory.fromCurrentNames fileNames)
+      pure (filePPED `PPED.addFallback` pped)
+    _ -> pure pped

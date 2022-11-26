@@ -15,6 +15,7 @@ import qualified Unison.ConstructorType as CT
 import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified as HQ
 import Unison.LSP.Conversions (annToInterval)
+import Unison.LSP.FileAnalysis (ppedForFile)
 import qualified Unison.LSP.Queries as LSPQ
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
@@ -54,17 +55,17 @@ hoverInfo uri pos =
   markdownify <$> do
     symAtCursor <- VFS.identifierAtPosition uri pos
     ref <- LSPQ.refAtPosition uri pos
-    ppe <- lift $ globalPPE
+    pped <- lift $ ppedForFile uri
     case ref of
       LD.TypeReference (Reference.Builtin {}) -> pure (symAtCursor <> " : <builtin>")
       LD.TypeReference ref@(Reference.DerivedId refId) -> do
         nameAtCursor <- MaybeT . pure $ Name.fromText symAtCursor
         decl <- LSPQ.getTypeDeclaration uri refId
-        let typ = Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl ppe ref (HQ.NameOnly nameAtCursor) decl
+        let typ = Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly nameAtCursor) decl
         pure typ
       LD.TermReferent ref -> do
         typ <- LSPQ.getTypeOfReferent uri ref
-        let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE ppe) typ
+        let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
         pure (symAtCursor <> " : " <> renderedType)
   where
     markdownify rendered = Text.unlines ["```unison", rendered, "```"]
