@@ -103,11 +103,14 @@ checkFile doc = runMaybeT $ do
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, ..}
   pure $ fileAnalysis
 
+-- | If a symbol is a 'User' symbol, return (Just sym), otherwise return Nothing.
 assertUserSym :: Symbol -> Maybe Symbol
 assertUserSym sym = case sym of
   Symbol.Symbol _ (Var.User {}) -> Just sym
   _ -> Nothing
 
+-- | Summarize the information available to us from the current state of the file.
+-- See 'FileSummary' for more information.
 mkFileSummary :: Maybe (UF.UnisonFile Symbol Ann) -> Maybe (UF.TypecheckedUnisonFile Symbol Ann) -> Maybe FileSummary
 mkFileSummary parsed typechecked = case (parsed, typechecked) of
   (Nothing, Nothing) -> Nothing
@@ -158,10 +161,12 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
         & fmap (\(k, (a, b)) -> (k, a, b))
         & R3.fromList
 
+-- | Get the location of user defined definitions within the file
 getFileDefLocations :: Uri -> MaybeT Lsp (Map Symbol (Set Ann))
 getFileDefLocations uri = do
   fileDefLocations <$> getFileSummary uri
 
+-- | Compute the location of user defined definitions within the file
 fileDefLocations :: FileSummary -> Map Symbol (Set Ann)
 fileDefLocations FileSummary {dataDeclSummary, effectDeclSummary, testWatchSummary, exprWatchSummary, termSummary} =
   fold

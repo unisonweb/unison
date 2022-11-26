@@ -28,6 +28,7 @@ import Unison.Lexer.Pos (Pos (..))
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
+import Unison.Reference (TypeReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -92,18 +93,20 @@ refAtPosition uri pos = do
     findInTermOrType =
       nodeAtPosition uri pos >>= \case
         Left term -> hoistMaybe $ refInTerm term
-        Right typ -> hoistMaybe $ refInType typ
+        Right typ -> hoistMaybe $ fmap TypeReference (refInType typ)
     findInDecl :: MaybeT Lsp LabeledDependency
-    findInDecl = do
-      let uPos = lspToUPos pos
-      (FileSummary {dataDeclSummary, effectDeclSummary}) <- getFileSummary uri
-      Debug.debugLogM Debug.LSP "finding in decl"
-      ( altMap (hoistMaybe . refInDecl uPos . Right) (R3.d3s dataDeclSummary)
-          <|> altMap (hoistMaybe . refInDecl uPos . Left) (R3.d3s effectDeclSummary)
-        )
+    findInDecl =
+      LD.TypeReference <$> do
+        let uPos = lspToUPos pos
+        (FileSummary {dataDeclSummary, effectDeclSummary}) <- getFileSummary uri
+        Debug.debugLogM Debug.LSP "finding in decl"
+        ( altMap (hoistMaybe . refInDecl uPos . Right) (R3.d3s dataDeclSummary)
+            <|> altMap (hoistMaybe . refInDecl uPos . Left) (R3.d3s effectDeclSummary)
+          )
     hoistMaybe :: Maybe a -> MaybeT Lsp a
     hoistMaybe = MaybeT . pure
 
+-- | Returns the reference a given term node refers to, if any.
 refInTerm :: (Term v a -> Maybe LabeledDependency)
 refInTerm term =
   case ABT.out term of
@@ -135,10 +138,11 @@ refInTerm term =
     ABT.Cycle _r -> Nothing
     ABT.Abs _v _r -> Nothing
 
-refInType :: Type v a -> Maybe LabeledDependency
+-- Returns the reference a given type node refers to, if any.
+refInType :: Type v a -> Maybe TypeReference
 refInType typ = case ABT.out typ of
   ABT.Tm f -> case f of
-    Type.Ref ref -> Just (LD.TypeReference ref)
+    Type.Ref ref -> Just ref
     Type.Arrow _a _b -> Nothing
     Type.Effect _a _b -> Nothing
     Type.App _a _b -> Nothing
@@ -187,6 +191,10 @@ findSmallestEnclosingNode pos term
         ABT.Cycle r -> findSmallestEnclosingNode pos r
         ABT.Abs _v r -> findSmallestEnclosingNode pos r
 
+-- | Find the the node in a type which contains the specified position, but none of its
+-- children contain that position.
+-- This is helpful for finding the specific type reference of a given argument within a type arrow
+-- that a position references.
 findSmallestEnclosingType :: Pos -> Type v Ann -> Maybe (Type v Ann)
 findSmallestEnclosingType pos typ
   | not (ABT.annotation typ `Ann.contains` pos) = Nothing
@@ -205,7 +213,11 @@ findSmallestEnclosingType pos typ
         ABT.Cycle r -> findSmallestEnclosingType pos r
         ABT.Abs _v r -> findSmallestEnclosingType pos r
 
-refInDecl :: Pos -> DD.Decl Symbol Ann -> Maybe LabeledDependency
+-- | Returns the type reference the given position applies to within a Decl, if any.
+--
+-- I.e. if the cursor is over a type reference within a constructor signature or ability
+-- request signature, that type reference will be returned.
+refInDecl :: Pos -> DD.Decl Symbol Ann -> Maybe TypeReference
 refInDecl p (DD.asDataDecl -> dd) =
   DD.constructors' dd
     & altMap \(_conNameAnn, _v, typ) -> do
