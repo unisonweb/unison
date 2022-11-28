@@ -115,6 +115,21 @@ assertUserSym sym = case sym of
 mkFileSummary :: Maybe (UF.UnisonFile Symbol Ann) -> Maybe (UF.TypecheckedUnisonFile Symbol Ann) -> Maybe FileSummary
 mkFileSummary parsed typechecked = case (parsed, typechecked) of
   (Nothing, Nothing) -> Nothing
+  (_, Just (UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId})) ->
+    let (trms, testWatches, exprWatches) =
+          hashTermsId & ifoldMap \sym (ref, wk, trm, typ) ->
+            case wk of
+              Nothing -> (Map.singleton sym (Just ref, trm, getUserTypeAnnotation sym <|> Just typ), mempty, mempty)
+              Just TestWatch -> (mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)], mempty)
+              Just _ -> (mempty, mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)])
+     in Just $
+          FileSummary
+            { dataDeclSummary = map2ToR3 dataDeclarationsId',
+              effectDeclSummary = map2ToR3 effectDeclarationsId',
+              termSummary = termRelation trms,
+              testWatchSummary = testWatches,
+              exprWatchSummary = exprWatches
+            }
   (Just UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches}, _) ->
     let trms =
           terms & foldMap \(sym, trm) ->
@@ -129,21 +144,6 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
           FileSummary
             { dataDeclSummary = map2ToR3 dataDeclarationsId,
               effectDeclSummary = map2ToR3 effectDeclarationsId,
-              termSummary = termRelation trms,
-              testWatchSummary = testWatches,
-              exprWatchSummary = exprWatches
-            }
-  (_, Just (UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId})) ->
-    let (trms, testWatches, exprWatches) =
-          hashTermsId & ifoldMap \sym (ref, wk, trm, typ) ->
-            case wk of
-              Nothing -> (Map.singleton sym (Just ref, trm, getUserTypeAnnotation sym <|> Just typ), mempty, mempty)
-              Just TestWatch -> (mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)], mempty)
-              Just _ -> (mempty, mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)])
-     in Just $
-          FileSummary
-            { dataDeclSummary = map2ToR3 dataDeclarationsId',
-              effectDeclSummary = map2ToR3 effectDeclarationsId',
               termSummary = termRelation trms,
               testWatchSummary = testWatches,
               exprWatchSummary = exprWatches
