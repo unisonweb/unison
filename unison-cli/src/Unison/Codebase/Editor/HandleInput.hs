@@ -1419,6 +1419,7 @@ loop e = do
             VersionI -> do
               Cli.Env {ucmVersion} <- ask
               Cli.respond $ PrintVersion ucmVersion
+            OinkletI -> handleOinkletI
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1569,6 +1570,7 @@ inputDescription input =
     RemoveTypeReplacementI src p0 -> do
       p <- opatch p0
       pure ("delete.type-replacement" <> HQ.toText src <> " " <> p)
+    OinkletI -> wundefined
     --
     ApiI -> wat
     AuthLoginI {} -> wat
@@ -1774,6 +1776,10 @@ handleDependents hq = do
 handleGist :: GistInput -> Cli ()
 handleGist (GistInput repo) =
   doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
+
+handleOinkletI :: Cli ()
+handleOinkletI = do
+  pure ()
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
@@ -2599,22 +2605,26 @@ typecheckAndEval ppe tm = do
     rendered = P.toPlainUnbroken $ TP.pretty ppe tm
 
 ensureSchemeExists :: Cli ()
-ensureSchemeExists = liftIO callScheme >>= \case
+ensureSchemeExists =
+  liftIO callScheme >>= \case
     True -> pure ()
     False -> Cli.returnEarly (PrintMessage msg)
   where
-  msg = P.lines [
-    "I can't seem to call scheme. See",
-    "",
-    P.indentN 2
-      "https://github.com/cisco/ChezScheme/blob/main/BUILDING",
-    "",
-    "for how to install Chez Scheme."]
+    msg =
+      P.lines
+        [ "I can't seem to call scheme. See",
+          "",
+          P.indentN
+            2
+            "https://github.com/cisco/ChezScheme/blob/main/BUILDING",
+          "",
+          "for how to install Chez Scheme."
+        ]
 
-  callScheme =
-    catch
-      (True <$ readCreateProcess (shell "scheme -q") "")
-      (\(_ :: IOException) -> pure False)
+    callScheme =
+      catch
+        (True <$ readCreateProcess (shell "scheme -q") "")
+        (\(_ :: IOException) -> pure False)
 
 runScheme :: String -> Cli ()
 runScheme file = do

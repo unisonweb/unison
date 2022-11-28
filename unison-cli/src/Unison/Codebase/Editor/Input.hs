@@ -207,6 +207,7 @@ data Input
   | GistI GistInput
   | AuthLoginI
   | VersionI
+  | OinkletI
   deriving (Eq, Show)
 
 -- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
