@@ -41,6 +41,7 @@ dependencies:
   - errors
   - exceptions
   - extra
+  - filelock
   - filepath
   - fingertree
   - fsnotify
