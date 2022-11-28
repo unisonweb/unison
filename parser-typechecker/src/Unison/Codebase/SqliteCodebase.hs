@@ -314,9 +314,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                     Sqlite.runWriteTransaction destConn \runDest -> do
                       syncInternal (syncProgress progressStateRef) runSrc runDest b
 
-            getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
-            getWatch k r =
-              runTransaction (CodebaseOps.getWatch getDeclType k r)
+            getWatch :: UF.WatchKind -> Reference.Id -> Sqlite.Transaction (Maybe (Term Symbol Ann))
+            getWatch =
+              CodebaseOps.getWatch getDeclType
 
             termsOfTypeImpl :: Reference -> m (Set Referent.Id)
             termsOfTypeImpl r =

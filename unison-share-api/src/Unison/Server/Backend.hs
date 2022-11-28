@@ -982,7 +982,7 @@ renderDoc ppe width rt codebase r = do
     eval (Term.amap (const mempty) -> tm) = do
       let ppes = PPED.suffixifiedPPE ppe
       let codeLookup = Codebase.toCodeLookup codebase
-      let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
+      let cache r = fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase r)
       r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
       case r of
         Just tmr ->

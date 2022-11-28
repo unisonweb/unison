@@ -2040,7 +2040,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
     fmap Map.fromList do
       Set.toList testRefs & wither \case
         Reference.Builtin _ -> pure Nothing
-        r@(Reference.DerivedId rid) -> liftIO (fmap (r,) <$> Codebase.getWatch codebase WK.TestWatch rid)
+        r@(Reference.DerivedId rid) -> fmap (r,) <$> Cli.runTransaction (Codebase.getWatch codebase WK.TestWatch rid)
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
   names <-
     makePrintNamesFromLabeled' $
@@ -3202,7 +3202,7 @@ evalUnisonFile sandbox ppe unisonFile args = do
 
   let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
       watchCache ref = do
-        maybeTerm <- Codebase.lookupWatchCache codebase ref
+        maybeTerm <- Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase ref)
         pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
 
   Cli.with_ (withArgs args) do
@@ -3228,7 +3228,7 @@ evalUnisonTermE sandbox ppe useCache tm = do
 
   let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
       watchCache ref = do
-        maybeTerm <- Codebase.lookupWatchCache codebase ref
+        maybeTerm <- Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase ref)
         pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
 
   let cache = if useCache then watchCache else Runtime.noCache
