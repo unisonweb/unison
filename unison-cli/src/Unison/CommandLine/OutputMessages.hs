@@ -1134,8 +1134,7 @@ notifyUser dir o = case o of
     GitSqliteCodebaseError e -> case e of
       CodebaseFileLockFailed ->
         P.wrap $
-          "Failed to obtain a file lock on the codebase. "
-            <> "Perhaps you are running multiple ucm processes against the same codebase."
+          "It looks to me like another ucm process is using this codebase. Only one ucm process can use a codebase at a time."
       NoDatabaseFile repo localPath ->
         P.wrap $
           "I didn't find a codebase in the repository at"
