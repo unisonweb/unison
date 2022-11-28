@@ -56,6 +56,7 @@ import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import Unison.Term (Term)
+import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
@@ -118,9 +119,9 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
     let (trms, testWatches, exprWatches) =
           hashTermsId & ifoldMap \sym (ref, wk, trm, typ) ->
             case wk of
-              Nothing -> (Map.singleton sym (Just ref, trm, Just typ), mempty, mempty)
-              Just TestWatch -> (mempty, [(assertUserSym sym, Just ref, trm, Just typ)], mempty)
-              Just _ -> (mempty, mempty, [(assertUserSym sym, Just ref, trm, Just typ)])
+              Nothing -> (Map.singleton sym (Just ref, trm, getUserTypeAnnotation sym <|> Just typ), mempty, mempty)
+              Just TestWatch -> (mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)], mempty)
+              Just _ -> (mempty, mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)])
      in Just $
           FileSummary
             { dataDeclSummary = map2ToR3 dataDeclarationsId',
@@ -148,6 +149,14 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
               exprWatchSummary = exprWatches
             }
   where
+    -- Gets the user provided type annotation for a term if there is one.
+    -- This type sig will have Ann's within the file if it exists.
+    getUserTypeAnnotation :: Symbol -> Maybe (Type Symbol Ann)
+    getUserTypeAnnotation v = do
+      UF.UnisonFileId {terms, watches} <- parsed
+      trm <- Prelude.lookup v (terms <> fold watches)
+      typ <- Term.getTypeAnnotation trm
+      pure typ
     termRelation :: Map Symbol (Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)) -> Relation4 Symbol (Maybe Reference.Id) (Term Symbol Ann) (Maybe (Type Symbol Ann))
     termRelation m =
       m

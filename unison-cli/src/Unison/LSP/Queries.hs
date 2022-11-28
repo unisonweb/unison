@@ -17,7 +17,6 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Debug as Debug
 import Unison.LSP.Conversions (lspToUPos)
 import Unison.LSP.FileAnalysis (getFileSummary)
 import Unison.LSP.Orphans ()
@@ -99,7 +98,6 @@ refAtPosition uri pos = do
       LD.TypeReference <$> do
         let uPos = lspToUPos pos
         (FileSummary {dataDeclSummary, effectDeclSummary}) <- getFileSummary uri
-        Debug.debugLogM Debug.LSP "finding in decl"
         ( altMap (hoistMaybe . refInDecl uPos . Right) (R3.d3s dataDeclSummary)
             <|> altMap (hoistMaybe . refInDecl uPos . Left) (R3.d3s effectDeclSummary)
           )
@@ -156,7 +154,7 @@ refInType typ = case ABT.out typ of
 
 -- | Find the the node in a term which contains the specified position, but none of its
 -- children contain that position.
-findSmallestEnclosingNode :: Pos -> Term v Ann -> Maybe (Either (Term v Ann) (Type v Ann))
+findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (Either (Term Symbol Ann) (Type Symbol Ann))
 findSmallestEnclosingNode pos term
   | not (ABT.annotation term `Ann.contains` pos) = Nothing
   | otherwise = (<|> Just (Left term)) $ do
@@ -195,7 +193,7 @@ findSmallestEnclosingNode pos term
 -- children contain that position.
 -- This is helpful for finding the specific type reference of a given argument within a type arrow
 -- that a position references.
-findSmallestEnclosingType :: Pos -> Type v Ann -> Maybe (Type v Ann)
+findSmallestEnclosingType :: Pos -> Type Symbol Ann -> Maybe (Type Symbol Ann)
 findSmallestEnclosingType pos typ
   | not (ABT.annotation typ `Ann.contains` pos) = Nothing
   | otherwise = (<|> Just typ) $ do
@@ -230,8 +228,8 @@ refInDecl p (DD.asDataDecl -> dd) =
 nodeAtPosition :: Uri -> Position -> MaybeT Lsp (Either (Term Symbol Ann) (Type Symbol Ann))
 nodeAtPosition uri (lspToUPos -> pos) = do
   (FileSummary {termSummary, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
-  ( altMap (hoistMaybe . findSmallestEnclosingNode pos) (R4.d3s termSummary)
-      <|> altMap (fmap Right . hoistMaybe . findSmallestEnclosingType pos) (catMaybes . Set.toList $ R4.d4s termSummary)
+  ( altMap (fmap Right . hoistMaybe . findSmallestEnclosingType pos) (catMaybes . Set.toList $ R4.d4s termSummary)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) (R4.d3s termSummary)
       <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) (testWatchSummary ^.. folded . _3)
       <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) (exprWatchSummary ^.. folded . _3)
     )
