@@ -98,22 +98,24 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
       let nc = allNames oldTerms newTerms
           nu = allNamespaceUpdates oldTerms newTerms
        in DiffSlice
-            nu
-            (allAdds nc nu)
-            (allRemoves nc nu)
-            (remainingNameChanges nc)
-            (addedMetadata oldTerms newTerms)
-            (removedMetadata oldTerms newTerms)
+            { tallnamespaceUpdates = nu,
+              talladds = allAdds nc nu,
+              tallremoves = allRemoves nc nu,
+              trenames = remainingNameChanges nc,
+              taddedMetadata = addedMetadata oldTerms newTerms,
+              tremovedMetadata = removedMetadata oldTerms newTerms
+            }
     typesOut =
       let nc = allNames oldTypes newTypes
           nu = allNamespaceUpdates oldTypes newTypes
        in DiffSlice
-            nu
-            (allAdds nc nu)
-            (allRemoves nc nu)
-            (remainingNameChanges nc)
-            (addedMetadata oldTypes newTypes)
-            (removedMetadata oldTypes newTypes)
+            { tallnamespaceUpdates = nu,
+              talladds = allAdds nc nu,
+              tallremoves = allRemoves nc nu,
+              trenames = remainingNameChanges nc,
+              taddedMetadata = addedMetadata oldTypes newTypes,
+              tremovedMetadata = removedMetadata oldTypes newTypes
+            }
 
     allNames :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map r (Set Name, Set Name)
     allNames old new = R.outerJoinDomMultimaps (names old) (names new)
