@@ -42,6 +42,7 @@ import qualified Language.Haskell.TH as TH
 import qualified Language.Haskell.TH.Syntax as TH
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
+import Stats (recordRtsStats)
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName, lookupEnv, withArgs)
 import qualified System.Exit as Exit
@@ -246,8 +247,11 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                         "to produce a new compiled program \
                         \that matches your version of Unison."
                     ]
-      Transcript shouldFork shouldSaveCodebase transcriptFiles ->
-        runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
+      Transcript shouldFork shouldSaveCodebase mrtsStatsFp transcriptFiles -> do
+        let action = runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
+        case mrtsStatsFp of
+          Nothing -> action
+          Just fp -> recordRtsStats fp action
       Launch isHeadless codebaseServerOpts downloadBase mayStartingPath shouldWatchFiles -> do
         getCodebaseOrExit mCodePathOption SC.MigrateAfterPrompt \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime False RTI.Persistent Version.gitDescribeWithDate
