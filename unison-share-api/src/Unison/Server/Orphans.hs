@@ -31,6 +31,7 @@ import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
+import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -287,11 +288,11 @@ instance ToJSON Path.Path where
 instance ToSchema Path.Path where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
-instance Show n => ToJSON (HQ.HashQualified n) where
-  toJSON = Aeson.String . HQ.toText
+instance ToJSON (HQ.HashQualified Name) where
+  toJSON = Aeson.String . HQ.toTextWith Name.toText
 
-instance Show n => ToJSON (HQ'.HashQualified n) where
-  toJSON = Aeson.String . HQ'.toText
+instance ToJSON (HQ'.HashQualified NameSegment) where
+  toJSON = Aeson.String . HQ'.toTextWith NameSegment.toText
 
 instance FromJSON (HQ'.HashQualified Name) where
   parseJSON = Aeson.withText "HashQualified'" \txt ->

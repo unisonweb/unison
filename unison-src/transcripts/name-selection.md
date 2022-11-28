@@ -55,7 +55,7 @@ d = c + 10
 
 At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized. 
 The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope, 
-`long.name.but.shortest.suffixification` is chosen because its suffixified version has the fewest segments.
+`a2.c` is chosen because although the suffixified version has fewer segments, its fully-qualified name has the fewest segments.
 
 ```ucm
 .> view a b c d
@@ -88,7 +88,8 @@ other.value = 20
 
 ```ucm
 .biasing> add
--- nested.value should still be preferred even if the suffixification requires more segments than `a`
+-- nested.value should be preferred over the shorter name `a` due to biasing
+-- because `deeply.nested.value` is nearby to the term being viewed.
 .biasing> view deeply.nested.term
 ```
 
