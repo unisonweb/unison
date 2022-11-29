@@ -42,6 +42,14 @@ test =
         [here|term = true && fa|lse|],
         True,
         Left (Term.Boolean False)
+      ),
+      ( "Custom Op lhs",
+        [here|
+a &&& b = a && b
+term = tr|ue &&& false
+|],
+        True,
+        Left (Term.Boolean True)
       )
     ]
 
