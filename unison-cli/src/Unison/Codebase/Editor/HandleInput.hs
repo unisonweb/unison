@@ -1422,7 +1422,9 @@ loop e = do
             VersionI -> do
               Cli.Env {ucmVersion} <- ask
               Cli.respond $ PrintVersion ucmVersion
-            OinkletI -> handleOinkletI
+            DiffNamespaceToPatchI diffNamespaceToPatchInput -> do
+              description <- inputDescription input
+              handleDiffNamespaceToPatch description diffNamespaceToPatchInput
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1573,7 +1575,7 @@ inputDescription input =
     RemoveTypeReplacementI src p0 -> do
       p <- opatch p0
       pure ("delete.type-replacement" <> HQ.toText src <> " " <> p)
-    OinkletI -> wundefined
+    DiffNamespaceToPatchI _ -> if False then wundefined else pure "diff.namespace.toPatch"
     --
     ApiI -> wat
     AuthLoginI {} -> wat
@@ -1780,14 +1782,12 @@ handleGist :: GistInput -> Cli ()
 handleGist (GistInput repo) =
   doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
 
-handleOinkletI :: Cli ()
-handleOinkletI = do
+handleDiffNamespaceToPatch :: Text -> DiffNamespaceToPatchInput -> Cli ()
+handleDiffNamespaceToPatch description input = do
   Cli.Env {codebase} <- ask
 
-  let branchId1 = Right (Name.convert @Path.Absolute @Path' (Path.Absolute (Path.fromList ["oink1"])))
-  let branchId2 = Right (Name.convert @Path.Absolute @Path' (Path.Absolute (Path.fromList ["oink2"])))
-  branch1 <- Branch.head <$> Cli.resolveBranchId branchId1
-  branch2 <- Branch.head <$> Cli.resolveBranchId branchId2
+  branch1 <- Branch.head <$> Cli.resolveBranchId (input ^. #branchId1)
+  branch2 <- Branch.head <$> Cli.resolveBranchId (input ^. #branchId2)
   branchDiff <- liftIO (BranchDiff.diff0 branch1 branch2)
 
   -- Given {old referents} and {new referents}, create term edit patch entries as follows:
@@ -1839,7 +1839,17 @@ handleOinkletI = do
             _typeEdits = Relation.fromSet typeUpdates
           }
 
-  liftIO (print patch)
+  -- Display the patch that we are about to create.
+  ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+  Cli.respondNumbered (ListEdits patch ppe)
+
+  (patchPath, patchName) <- Cli.resolveSplit' (input ^. #patch)
+
+  -- Add the patch to the in-memory root branch and flush it all to SQLite.
+  -- If there's already a patch at the given path, overwrite it.
+  Cli.stepAtM
+    description
+    (Path.unabsolute patchPath, Branch.modifyPatches patchName (const patch))
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()

@@ -2286,17 +2286,6 @@ authLogin =
         _ -> Left (showPatternHelp authLogin)
     )
 
-oinklet :: InputPattern
-oinklet =
-  InputPattern
-    { patternName = if False then wundefined else "oinklet",
-      aliases = [],
-      visibility = I.Hidden,
-      argTypes = [],
-      help = "oinklet",
-      parse = \_ -> Right Input.OinkletI
-    }
-
 printVersion :: InputPattern
 printVersion =
   InputPattern
@@ -2310,6 +2299,24 @@ printVersion =
         [] -> Right $ Input.VersionI
         _ -> Left (showPatternHelp printVersion)
     )
+
+diffNamespaceToPatch :: InputPattern
+diffNamespaceToPatch =
+  InputPattern
+    { patternName = "diff.namespace.toPatch",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help = if False then wundefined else "diff.namespace.toPatch",
+      parse = \case
+        [branchId1, branchId2, patch] ->
+          mapLeft fromString do
+            branchId1 <- Input.parseBranchId branchId1
+            branchId2 <- Input.parseBranchId branchId2
+            patch <- Path.parseSplit' Path.definitionNameSegment patch
+            pure (Input.DiffNamespaceToPatchI Input.DiffNamespaceToPatchInput {branchId1, branchId2, patch})
+        _ -> Left (showPatternHelp diffNamespaceToPatch)
+    }
 
 validInputs :: [InputPattern]
 validInputs =
@@ -2415,7 +2422,7 @@ validInputs =
       gist,
       authLogin,
       printVersion,
-      oinklet
+      diffNamespaceToPatch
     ]
 
 -- | A map of all command patterns by pattern name or alias.
