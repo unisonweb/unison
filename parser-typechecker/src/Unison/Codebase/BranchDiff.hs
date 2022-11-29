@@ -36,17 +36,17 @@ data DiffSlice r = DiffSlice
     taddedMetadata :: Relation3 r Name Metadata.Value,
     tremovedMetadata :: Relation3 r Name Metadata.Value
   }
-  deriving (Show)
+  deriving stock (Generic, Show)
 
 data BranchDiff = BranchDiff
   { termsDiff :: DiffSlice Referent,
     typesDiff :: DiffSlice Reference,
     patchesDiff :: Map Name (DiffType PatchDiff)
   }
-  deriving (Show)
+  deriving stock (Generic, Show)
 
 diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m BranchDiff
-diff0 old new = BranchDiff (traceShowId terms) types <$> patchDiff old new
+diff0 old new = BranchDiff terms types <$> patchDiff old new
   where
     (terms, types) =
       computeSlices

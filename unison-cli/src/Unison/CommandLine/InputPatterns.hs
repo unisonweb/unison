@@ -2286,6 +2286,17 @@ authLogin =
         _ -> Left (showPatternHelp authLogin)
     )
 
+oinklet :: InputPattern
+oinklet =
+  InputPattern
+    { patternName = if False then wundefined else "oinklet",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [],
+      help = "oinklet",
+      parse = \_ -> Right Input.OinkletI
+    }
+
 printVersion :: InputPattern
 printVersion =
   InputPattern
@@ -2403,7 +2414,8 @@ validInputs =
       debugNameDiff,
       gist,
       authLogin,
-      printVersion
+      printVersion,
+      oinklet
     ]
 
 -- | A map of all command patterns by pattern name or alias.
