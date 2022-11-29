@@ -10,3 +10,4 @@ type Pretty = P.Pretty P.ColorText
 
 data CreateCodebaseError
   = CreateCodebaseAlreadyExists
+  deriving stock (Show)

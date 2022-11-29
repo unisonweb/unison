@@ -14,12 +14,12 @@ import qualified Unison.Test.VersionParser as VersionParser
 test :: Test ()
 test =
   tests
-    [ ClearCache.test,
+    [ LSP.test,
+      ClearCache.test,
       Cli.Monad.test,
       GitSync.test,
       UriParser.test,
-      VersionParser.test,
-      LSP.test
+      VersionParser.test
     ]
 
 main :: IO ()
