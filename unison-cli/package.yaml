@@ -119,7 +119,7 @@ executables:
         other-modules: Paths_unison_cli
     source-dirs: unison
     main: Main.hs
-    ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -optP-Wno-nonportable-include-path
+    ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
     dependencies:
       - code-page
       - optparse-applicative >= 0.16.1.0

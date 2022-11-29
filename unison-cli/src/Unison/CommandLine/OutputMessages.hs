@@ -1140,6 +1140,9 @@ notifyUser dir o = case o of
           else pure mempty
   GitError e -> pure $ case e of
     GitSqliteCodebaseError e -> case e of
+      CodebaseFileLockFailed ->
+        P.wrap $
+          "It looks to me like another ucm process is using this codebase. Only one ucm process can use a codebase at a time."
       NoDatabaseFile repo localPath ->
         P.wrap $
           "I didn't find a codebase in the repository at"

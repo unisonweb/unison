@@ -97,7 +97,7 @@ data Codebase m v a = Codebase
     -- | Push the given branch to the given repo, and optionally set it as the root branch.
     pushGitBranch :: forall e. WriteGitRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
     -- | @getWatch k r@ returns watch result @t@ that was previously put by @putWatch k r t@.
-    getWatch :: WK.WatchKind -> Reference.Id -> m (Maybe (Term v a)),
+    getWatch :: WK.WatchKind -> Reference.Id -> Sqlite.Transaction (Maybe (Term v a)),
     -- | Get the set of user-defined terms-or-constructors that have the given type.
     termsOfTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.
@@ -159,3 +159,4 @@ gitErrorFromOpenCodebaseError path repo = \case
     UnrecognizedSchemaVersion repo path (fromIntegral v)
   OpenCodebaseRequiresMigration fromSv toSv ->
     CodebaseRequiresMigration fromSv toSv
+  OpenCodebaseFileLockFailed -> CodebaseFileLockFailed

@@ -454,6 +454,7 @@ executable unison
   main-is: Main.hs
   other-modules:
       ArgParse
+      Stats
       System.Path
       Version
   hs-source-dirs:
@@ -488,7 +489,7 @@ executable unison
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
   build-depends:
       IntervalMap
     , ListLike

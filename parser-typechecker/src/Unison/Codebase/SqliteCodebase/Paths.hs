@@ -3,6 +3,7 @@ module Unison.Codebase.SqliteCodebase.Paths
     makeCodebasePath,
     makeCodebaseDirPath,
     backupCodebasePath,
+    lockfilePath,
   )
 where
 
@@ -17,6 +18,9 @@ codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
 -- | Makes a path to a sqlite database from a codebase path.
 makeCodebasePath :: CodebasePath -> FilePath
 makeCodebasePath root = makeCodebaseDirPath root </> "unison.sqlite3"
+
+lockfilePath :: CodebasePath -> FilePath
+lockfilePath root = makeCodebaseDirPath root </> "unison.lockfile"
 
 -- | Makes a path to the location where sqlite files are stored within a codebase path.
 makeCodebaseDirPath :: CodebasePath -> FilePath

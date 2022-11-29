@@ -59,6 +59,7 @@ library
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
       Unison.Codebase.PushBehavior
+      Unison.Codebase.RootBranchCache
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
       Unison.Codebase.ShortCausalHash
@@ -208,6 +209,7 @@ library
     , errors
     , exceptions
     , extra
+    , filelock
     , filepath
     , fingertree
     , free
@@ -392,6 +394,7 @@ test-suite parser-typechecker-tests
     , errors
     , exceptions
     , extra
+    , filelock
     , filemanip
     , filepath
     , fingertree
