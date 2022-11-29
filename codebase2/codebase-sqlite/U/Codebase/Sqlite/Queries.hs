@@ -62,6 +62,7 @@ module U.Codebase.Sqlite.Queries
     loadNamespaceRoot,
     setNamespaceRoot,
     expectNamespaceRoot,
+    removeNamespaceRoot,
 
     -- * namespace_statistics table
     saveNamespaceStats,
@@ -1105,6 +1106,10 @@ setNamespaceRoot id =
   where
     insert = "INSERT INTO namespace_root VALUES (?)"
     update = "UPDATE namespace_root SET causal_id = ?"
+
+removeNamespaceRoot :: Transaction ()
+removeNamespaceRoot =
+  execute_ "DELETE FROM namespace_root"
 
 saveWatch :: WatchKind -> Reference.IdH -> ByteString -> Transaction ()
 saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)

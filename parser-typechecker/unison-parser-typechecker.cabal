@@ -12,6 +12,8 @@ copyright:      Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
+data-files:
+    seed-codebase/.unison/v2/unison.sqlite3
 
 source-repository head
   type: git
@@ -151,6 +153,8 @@ library
       Unison.Util.Text.Pattern
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
+  other-modules:
+      Paths_unison_parser_typechecker
   hs-source-dirs:
       src
   default-extensions:

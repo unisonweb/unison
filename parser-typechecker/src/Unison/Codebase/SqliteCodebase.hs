@@ -23,6 +23,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time (getCurrentTime)
+import Paths_unison_parser_typechecker (getDataFileName)
 import qualified System.Console.ANSI as ANSI
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
 import qualified System.FilePath as FilePath
@@ -135,15 +136,25 @@ createCodebaseOrError debugName path lockOption action = do
     (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
     do
       createDirectoryIfMissing True (makeCodebaseDirPath path)
+      copySeedCodebase path
       withConnection (debugName ++ ".createSchema") path \conn -> do
         Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL
         Sqlite.runTransaction conn do
-          Q.createSchema
+          -- Q.createSchema
           void . Ops.saveRootBranch v2HashHandle $ Cv.causalbranch1to2 Branch.empty
 
       sqliteCodebase debugName path Local lockOption DontMigrate action >>= \case
         Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
         Right result -> pure (Right result)
+
+copySeedCodebase :: FilePath -> MonadIO m => m ()
+copySeedCodebase destPath = liftIO $ do
+  seedPath <- getDataFileName "seed-codebase"
+  withConnection "seed-codebase" seedPath \conn -> do
+    Sqlite.vacuumInto conn (Text.pack (makeCodebasePath destPath))
+
+  withConnection "seeded-codebase" destPath \conn -> do
+    Sqlite.runTransaction conn Q.removeNamespaceRoot
 
 -- | Use the codebase in the provided path.
 -- The codebase is automatically closed when the action completes or throws an exception.

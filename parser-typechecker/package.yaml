@@ -4,6 +4,9 @@ copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
+data-files:
+  - seed-codebase/.unison/v2/unison.sqlite3
+
 flags:
   optimized:
     manual: true
@@ -132,9 +135,6 @@ dependencies:
 
 library:
   source-dirs: src
-  when:
-    - condition: false
-      other-modules: Paths_unison_parser_typechecker
 
 tests:
   parser-typechecker-tests:
