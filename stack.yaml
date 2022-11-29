@@ -33,13 +33,15 @@ packages:
 - lib/unison-util-rope
 - lib/unison-pretty-printer
 
-resolver: lts-19.0
+resolver: lts-20.0
+# Possibly short-term override: downgrade from 9.2.5 to 9.2.4
+# This is because as of Nov 29 2022 there is no HLS release compatible with 9.2.5
+compiler: ghc-9.2.4
+compiler-check: match-exact
 
 extra-deps:
 - github: unisonweb/configurator
   commit: e47e9e9fe1f576f8c835183b9def52d73c01327a
-- github: unisonweb/shellmet
-  commit: 2fd348592c8f51bb4c0ca6ba4bc8e38668913746
 - github: awkward-squad/ki
   commit: 563e96238dfe392dccf68d93953c8f30fd53bec8
   subdirs:
@@ -51,24 +53,21 @@ extra-deps:
 - github: judah/haskeline
   commit: 3b26f1e6c279e9bb5cd052c34c852aa8f8cfa17e
 
-# these packages aren't in lts-19.0 at all
-- fuzzyfind-3.0.0@sha256:d79a5d3ed194dd436c6b839bf187211d880cf773b2febaca456e5ccf93f5ac65,1814
-- guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
-- lock-file-0.7.0.0@sha256:3ad84b5e454145e1d928063b56abb96db24a99a21b493989520e58fa0ab37b00,4484
-- monad-validate-1.2.0.1@sha256:5a100da896f11ca4b7c123da85decbedeb46c37054a097f258ac911e715cb68d,2587
-- recover-rtti-0.4.1.0@sha256:31997127810799666b01f1202efd77033d4737ebd83232d5b2389d2f4b332cf5,4606
+# these packages aren't in lts-20.0 at all
+- co-log-core-0.3.1.0
+- fuzzyfind-3.0.0
+- lock-file-0.7.0.0
+- lsp-1.6.0.0
+- monad-validate-1.2.0.1
+- recover-rtti-0.4.1.0
 
-# these packages are in lts-19.0, but the pinned version is too old
-- lsp-1.5.0.0@sha256:1ad138526f9177965d4b5b01f9074fe0475636b2c563dcc7036fb6908f8e6189,5382
-- lsp-types-1.5.0.0@sha256:7ed97bbc9290ad6ffb9b5a8e082226783c710fff9e4ca2df4c578b065997b1ea,4301
-- terminal-size-0.3.3@sha256:bd5f02333982bc8d6017db257b2a0b91870a295b4a37142a0c0525d8f533a48f,1255
-- direct-sqlite-2.3.27 # bundles sqlite 3.35.0, needed for 'delete returning'
+# these packages are in lts-20.0, but the pinned version is too old
+- shellmet-0.0.4.1
 
 # these packages are transitive dependencies whose pinned versions were either too old or too new, per the above
 # deviations to the snapshot
-- co-log-core-0.3.1.0@sha256:9794bdedd1391decd0e22bdfe2b11abcb42e6cff7a4531e1f8882890828f4e63,3816 # due to lsp
-- massiv-0.6.1.0@sha256:76023dc1b06175610283ebc3faa58a83631b0ba8f515f8b1055984d1d8ababfa,4808 # due to fuzzyfind; PR: https://github.com/runarorama/fuzzyfind/pull/3
-- scheduler-1.5.0@sha256:8b43f2991bf9a720b12192ba99525f705a44aeae9541a7bd73fbc7e7b56fd8f0,2437 # due to massiv
+- massiv-0.6.1.0 # due to fuzzyfind-3.0.0; PR: https://github.com/runarorama/fuzzyfind/pull/3
+- scheduler-1.5.0 # due to massiv-0.6.1.0
 
 ghc-options:
  # All packages
