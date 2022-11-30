@@ -1575,7 +1575,11 @@ inputDescription input =
     RemoveTypeReplacementI src p0 -> do
       p <- opatch p0
       pure ("delete.type-replacement" <> HQ.toText src <> " " <> p)
-    DiffNamespaceToPatchI _ -> if False then wundefined else pure "diff.namespace.toPatch"
+    DiffNamespaceToPatchI input -> do
+      branchId1 <- hp' (input ^. #branchId1)
+      branchId2 <- hp' (input ^. #branchId2)
+      patch <- ps' (input ^. #patch)
+      pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     --
     ApiI -> wat
     AuthLoginI {} -> wat

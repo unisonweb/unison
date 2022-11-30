@@ -2303,11 +2303,11 @@ printVersion =
 diffNamespaceToPatch :: InputPattern
 diffNamespaceToPatch =
   InputPattern
-    { patternName = "diff.namespace.toPatch",
+    { patternName = "diff.namespace.to-patch",
       aliases = [],
       visibility = I.Visible,
       argTypes = [],
-      help = if False then wundefined else "diff.namespace.toPatch",
+      help = P.wrap "Create a patch from a namespace diff.",
       parse = \case
         [branchId1, branchId2, patch] ->
           mapLeft fromString do
