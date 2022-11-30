@@ -157,3 +157,4 @@ gitErrorFromOpenCodebaseError path repo = \case
     UnrecognizedSchemaVersion repo path (fromIntegral v)
   OpenCodebaseRequiresMigration fromSv toSv ->
     CodebaseRequiresMigration fromSv toSv
+  OpenCodebaseFileLockFailed -> CodebaseFileLockFailed
