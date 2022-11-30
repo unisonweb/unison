@@ -174,16 +174,13 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
               [t | Context.TopLevelComponent t <- infos]
             where
               vars (v, _, _) = v
-          strippedTopLevelBinding (v, typ, redundant) = do
+          resetTopLevelBindings (v, typ, _redundant) = do
             tm <- case Map.lookup v topLevelBindings of
-              Nothing ->
-                Result.compilerBug $ Result.TopLevelComponentNotFound v term
-              Just (Term.Ann' x _) | redundant -> pure x
+              Nothing -> Result.compilerBug $ Result.TopLevelComponentNotFound v term
               Just x -> pure x
             -- The Var.reset removes any freshening added during typechecking
             pure (Var.reset v, tm, typ)
-       in -- use tlcsFromTypechecker to inform annotation-stripping decisions
-          traverse (traverse strippedTopLevelBinding) tlcsFromTypechecker
+       in traverse (traverse resetTopLevelBindings) tlcsFromTypechecker
     let doTdnr = applyTdnrDecisions infos
     let doTdnrInComponent (v, t, tp) = (v, doTdnr t, tp)
     let tdnredTlcs = (fmap . fmap) doTdnrInComponent topLevelComponents
@@ -215,7 +212,7 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
         resolve t = case t of
           Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
             | Just replacement <- Map.lookup (name, loc') decisions ->
-              -- loc of replacement already chosen correctly by whatever made the
-              -- Decision
-              Just $ replacement
+                -- loc of replacement already chosen correctly by whatever made the
+                -- Decision
+                Just $ replacement
           _ -> Nothing
