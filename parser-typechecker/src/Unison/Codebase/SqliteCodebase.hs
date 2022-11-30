@@ -36,10 +36,12 @@ import qualified U.Codebase.Sqlite.Sync22 as Sync22
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import qualified U.Codebase.Sync as Sync
 import U.Util.Timing (time)
+import qualified U.Util.Timing as Timing
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Type as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
 import qualified Unison.Codebase.Editor.Git as Git
@@ -56,6 +58,7 @@ import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Path (Path)
+import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.RootBranchCache
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
@@ -294,8 +297,11 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                     putRootBranchTrans :: Sqlite.Transaction () = do
                       let emptyCausalHash = Cv.causalHash1to2 (Branch.headHash Branch.empty)
                       fromRootCausalHash <- fromMaybe emptyCausalHash <$> Ops.loadRootCausalHash
+                      mayFromRootBranchHash <- Ops.loadRootBranchHash
                       let toRootCausalHash = Cv.causalHash1to2 (Branch.headHash branch1)
+                      let toRootBranchHash = Cv.namespaceHashToBranchHash (Branch.namespaceHash branch1)
                       CodebaseOps.putRootBranch branch1Trans
+                      Timing.unsafeTime "Updating Name Lookup Index" $ updateNameLookup Path.empty mayFromRootBranchHash toRootBranchHash
                       Ops.appendReflog (Reflog.Entry {time = now, fromRootCausalHash, toRootCausalHash, reason})
 
                 -- We need to update the database and the cached

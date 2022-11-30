@@ -340,6 +340,9 @@ causalHash2to1 = V1.Causal.CausalHash . V2.unCausalHash
 causalHash1to2 :: V1.Branch.CausalHash -> V2.CausalHash
 causalHash1to2 = V2.CausalHash . V1.Causal.unCausalHash
 
+namespaceHashToBranchHash :: V1.Branch.NamespaceHash m -> V2.BranchHash
+namespaceHashToBranchHash = V2.BranchHash . V1.genericHash
+
 ttype2to1 :: V2.Term.Type V2.Symbol -> V1.Type.Type V1.Symbol Ann
 ttype2to1 = type2to1' reference2to1
 

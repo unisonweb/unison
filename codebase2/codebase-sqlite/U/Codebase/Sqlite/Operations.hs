@@ -5,6 +5,7 @@ module U.Codebase.Sqlite.Operations
     expectRootCausalHash,
     expectRootCausal,
     expectRootBranchHash,
+    loadRootBranchHash,
     loadCausalHashAtPath,
     expectCausalHashAtPath,
     saveBranch,
@@ -202,6 +203,11 @@ expectRootBranchHash :: Transaction BranchHash
 expectRootBranchHash = do
   rootCausalHashId <- Q.expectNamespaceRoot
   expectValueHashByCausalHashId rootCausalHashId
+
+loadRootBranchHash :: Transaction (Maybe BranchHash)
+loadRootBranchHash = runMaybeT do
+  rootCausalHashId <- MaybeT Q.loadNamespaceRoot
+  lift $ expectValueHashByCausalHashId rootCausalHashId
 
 loadRootCausalHash :: Transaction (Maybe CausalHash)
 loadRootCausalHash =
