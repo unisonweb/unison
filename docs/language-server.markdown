@@ -47,8 +47,9 @@ Simply install the [Unison Language VSCode extension](https://marketplace.visual
 ```elisp
 (use-package unisonlang-mode
   )
-
-(require 'lsp-mode)
+  
+(use-package lsp-mode
+)
 (lsp-register-client
  (make-lsp-client :new-connection (lsp-tcp-connection
                                    ;; Not sure if this is necessary, but it works
