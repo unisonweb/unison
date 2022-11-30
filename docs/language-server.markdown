@@ -42,6 +42,33 @@ Note that you'll need to start UCM _before_ you try connecting to it in your edi
 
 Simply install the [Unison Language VSCode extension](https://marketplace.visualstudio.com/items?itemName=unison-lang.unison).
 
+### Emacs with lsp-mode
+
+```elisp
+(use-package unisonlang-mode
+  )
+
+(require 'lsp-mode)
+(lsp-register-client
+ (make-lsp-client :new-connection (lsp-tcp-connection
+                                   ;; Not sure if this is necessary, but it works
+                                   (lambda (port)
+                                     (let* ((other-port 5757)
+                                            (arg1 (format "tcp-l:%s,fork,reuseaddr" port))
+                                            (arg2 (format "tcp:127.0.0.1:%s" other-port)))
+                                       (list "socat" arg1 arg2)
+                                     )))
+                  :activation-fn (lsp-activate-on "u")
+                  :initialized-fn (lambda (workspace)
+                                    (with-lsp-workspace workspace
+                                      (lsp--set-configuration (lsp-configuration-section "unisonlang"))))
+                  :priority -1
+                  :server-id 'unisonlang
+                  ))
+(add-hook 'unisonlang-mode-hook #'lsp)
+(add-to-list 'lsp-language-id-configuration '(unisonlang-mode . "u"))
+```
+
 
 ### Other Editors
 
