@@ -13,7 +13,6 @@ module Unison.Codebase.Type
   )
 where
 
-import qualified U.Codebase.Branch as V2
 import U.Codebase.HashTags (BranchHash)
 import qualified U.Codebase.Reference as V2
 import Unison.Codebase.Branch (Branch)
@@ -82,7 +81,6 @@ data Codebase m v a = Codebase
       Text -> -- Reason for the change, will be recorded in the reflog
       Branch m ->
       m (),
-    getShallowCausalForHash :: V2.CausalHash -> m (V2.CausalBranch m),
     getBranchForHashImpl :: Branch.CausalHash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
