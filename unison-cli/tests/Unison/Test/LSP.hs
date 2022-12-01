@@ -70,24 +70,6 @@ term = This
         True,
         Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
       )
-      -- ( "Type annotation with Arrow",
-      --   [here|
-      -- structural type Thing = This | That
-      -- term : Thing -> Thi^ng
-      -- term = thing -> thing
-      --- |],
-      --   True,
-      --   Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
-      -- ),
-      -- ( "Type annotation with Arrow and named arg",
-      --   [here|
-      -- structural type Thing = This | That
-      -- term : Thing -> Thi^ng
-      -- term thing = thing
-      --- |],
-      --   True,
-      --   Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
-      -- )
     ]
 
 -- | Test helper which lets you specify a cursor position inline with source text as a '|'.
