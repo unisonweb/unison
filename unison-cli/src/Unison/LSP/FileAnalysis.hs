@@ -44,6 +44,7 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
 import qualified Unison.Result as Result
@@ -70,14 +71,22 @@ checkFile doc = runMaybeT $ do
   let lexedSource@(srcText, _) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   cb <- asks codebase
+  hashLen <- liftIO (Codebase.runTransaction cb Codebase.hashLength)
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
   r <- (liftIO $ typecheckHelper cb generateUniqueName ambientAbilities parseNames sourceName lexedSource)
   let Result.Result notes mayResult = r
-  let (parsedFile, typecheckedFile) = case mayResult of
-        Nothing -> (Nothing, Nothing)
-        Just (Left uf) -> (Just uf, Nothing)
-        Just (Right tf) -> (Just $ UF.discardTypes tf, Just tf)
-  (diagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
+  codebasePPE <- lift LSP.globalPPE
+  let (ppe, parsedFile, typecheckedFile) = case mayResult of
+        Nothing -> (codebasePPE, Nothing, Nothing)
+        Just (Left uf) ->
+          let fileNames = UF.toNames uf
+              filePPE = PPE.fromSuffixNames hashLen (NamesWithHistory.fromCurrentNames fileNames)
+           in (filePPE `PPED.addFallback` globalPPE, Just uf, Nothing)
+        Just (Right tf) ->
+          let fileNames = UF.typecheckedToNames tf
+              filePPE = PPE.fromSuffixNames hashLen (NamesWithHistory.fromCurrentNames fileNames)
+           in (filePPE `PPED.addFallback` globalPPE, Just $ UF.discardTypes tf, Just tf)
+  (diagnostics, codeActions) <- lift $ analyseFile ppe fileUri srcText notes
   let diagnosticRanges =
         diagnostics
           & fmap (\d -> (d ^. range, d))
@@ -110,9 +119,8 @@ fileAnalysisWorker = forever do
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
-analyseFile :: Foldable f => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
-analyseFile fileUri srcText notes = do
-  ppe <- LSP.globalPPE
+analyseFile :: Foldable f => PPE.PrettyPrintEnvDecl -> Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseFile ppe fileUri srcText notes = do
   analyseNotes fileUri (PPE.suffixifiedPPE ppe) (Text.unpack srcText) notes
 
 analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
