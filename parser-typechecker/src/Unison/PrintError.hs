@@ -375,13 +375,13 @@ renderTypeError e env src curPath = case e of
             -- , (,Color.ForceShow) <$> rangeForType foundType
             -- , (,Color.ForceShow) <$> rangeForType expectedType
             -- ,
-            (,Type1) <$> rangeForAnnotated foundType,
+            (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
             (,Type2) <$> rangeForAnnotated expectedLeaf
           ],
         fromOverHere'
           src
           [styleAnnotated Type1 foundLeaf]
-          [styleAnnotated Type1 expectedLeaf],
+          [styleAnnotated Type2 expectedLeaf],
         unitHint,
         intLiteralSyntaxTip mismatchSite expectedType,
         debugNoteLoc
