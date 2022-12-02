@@ -50,8 +50,8 @@ extra-deps:
 # If changing the haskeline dependency, please ensure color renders properly in a
 # Windows terminal.
 # https://github.com/judah/haskeline/pull/126
-- github: judah/haskeline
-  commit: 3b26f1e6c279e9bb5cd052c34c852aa8f8cfa17e
+- github: unisonweb/haskeline
+  commit: 6df6d5a0711dd1056b6182559281b31ecfc24773
 
 # these packages aren't in lts-20.0 at all
 - co-log-core-0.3.1.0

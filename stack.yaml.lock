@@ -29,16 +29,16 @@ packages:
     subdir: ki
     url: https://github.com/awkward-squad/ki/archive/563e96238dfe392dccf68d93953c8f30fd53bec8.tar.gz
 - completed:
-    size: 75926
-    url: https://github.com/judah/haskeline/archive/3b26f1e6c279e9bb5cd052c34c852aa8f8cfa17e.tar.gz
+    size: 75310
+    url: https://github.com/unisonweb/haskeline/archive/6df6d5a0711dd1056b6182559281b31ecfc24773.tar.gz
     name: haskeline
     version: 0.8.2
-    sha256: e3dd67b89f117fd26b0dedabe9708f9ed03b8ad0a756b57e53c624ccc806b234
+    sha256: 575845817015d206027223cbdcce5bfdde98c35556b6c7a79706a7dbba5691de
     pantry-tree:
       size: 3656
-      sha256: 945445420687d5aa03be1954908237ea2070c04115afd3a5bb76036803afe4be
+      sha256: e36991270e99af4b2686c19a2413889eda213257ebeae53e3b5c29bdcd1e75dd
   original:
-    url: https://github.com/judah/haskeline/archive/3b26f1e6c279e9bb5cd052c34c852aa8f8cfa17e.tar.gz
+    url: https://github.com/unisonweb/haskeline/archive/6df6d5a0711dd1056b6182559281b31ecfc24773.tar.gz
 - completed:
     hackage: co-log-core-0.3.1.0@sha256:9794bdedd1391decd0e22bdfe2b11abcb42e6cff7a4531e1f8882890828f4e63,3816
     pantry-tree:
