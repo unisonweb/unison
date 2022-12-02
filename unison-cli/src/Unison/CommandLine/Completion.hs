@@ -57,6 +57,7 @@ import qualified Unison.Server.Endpoints.NamespaceListing as Server
 import qualified Unison.Server.Types as Server
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Types as Share
+import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Util.Pretty as P
 import qualified UnliftIO
 import Prelude hiding (readFile, writeFile)
@@ -131,18 +132,15 @@ noCompletions _ _ _ _ = pure []
 -- .> view base.List.map#<Tab>
 -- base.List.map#0q926sgnn6
 completeWithinNamespace ::
-  forall m v a.
-  MonadIO m =>
   -- | The types of completions to return
   NESet CompletionType ->
   -- | The portion of this are that the user has already typed.
   String ->
-  Codebase m v a ->
   Path.Absolute ->
-  m [System.Console.Haskeline.Completion.Completion]
-completeWithinNamespace compTypes query codebase currentPath = do
-  shortHashLen <- Codebase.runTransaction codebase Codebase.hashLength
-  b <- Codebase.getShallowBranchAtPath codebase (Path.unabsolute absQueryPath) Nothing
+  Sqlite.Transaction [System.Console.Haskeline.Completion.Completion]
+completeWithinNamespace compTypes query currentPath = do
+  shortHashLen <- Codebase.hashLength
+  b <- Codebase.getShallowBranchAtPath (Path.unabsolute absQueryPath) Nothing
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
     nib
@@ -162,9 +160,9 @@ completeWithinNamespace compTypes query codebase currentPath = do
     (queryPathPrefix, querySuffix) = parseLaxPath'Query (Text.pack query)
     absQueryPath :: Path.Absolute
     absQueryPath = Path.resolve currentPath queryPathPrefix
-    getChildSuggestions :: Int -> V2Branch.Branch m -> m [Completion]
+    getChildSuggestions :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [Completion]
     getChildSuggestions shortHashLen b = do
-      nonEmptyChildren <- Codebase.runTransaction codebase (V2Branch.nonEmptyChildren b)
+      nonEmptyChildren <- V2Branch.nonEmptyChildren b
       case querySuffix of
         "" -> pure []
         suffix -> do
@@ -180,9 +178,9 @@ completeWithinNamespace compTypes query codebase currentPath = do
                 & filter (\(_isFinished, match) -> List.isPrefixOf query match)
                 & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
                 & pure
-    namesInBranch :: Int -> V2Branch.Branch m -> m [(Bool, Text)]
+    namesInBranch :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [(Bool, Text)]
     namesInBranch hashLen b = do
-      nonEmptyChildren <- Codebase.runTransaction codebase (V2Branch.nonEmptyChildren b)
+      nonEmptyChildren <- V2Branch.nonEmptyChildren b
       let textifyHQ :: (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [(Bool, Text)]
           textifyHQ f xs =
             xs
@@ -265,52 +263,37 @@ parseLaxPath'Query txt =
 
 -- | Completes a namespace argument by prefix-matching against the query.
 prefixCompleteNamespace ::
-  forall m v a.
-  (MonadIO m) =>
   String ->
-  Codebase m v a ->
   Path.Absolute -> -- Current path
-  m [Line.Completion]
+  Sqlite.Transaction [Line.Completion]
 prefixCompleteNamespace = completeWithinNamespace (NESet.singleton NamespaceCompletion)
 
 -- | Completes a term or type argument by prefix-matching against the query.
 prefixCompleteTermOrType ::
-  forall m v a.
-  MonadIO m =>
   String ->
-  Codebase m v a ->
   Path.Absolute -> -- Current path
-  m [Line.Completion]
+  Sqlite.Transaction [Line.Completion]
 prefixCompleteTermOrType = completeWithinNamespace (NESet.fromList (TermCompletion NE.:| [TypeCompletion]))
 
 -- | Completes a term argument by prefix-matching against the query.
 prefixCompleteTerm ::
-  forall m v a.
-  MonadIO m =>
   String ->
-  Codebase m v a ->
   Path.Absolute -> -- Current path
-  m [Line.Completion]
+  Sqlite.Transaction [Line.Completion]
 prefixCompleteTerm = completeWithinNamespace (NESet.singleton TermCompletion)
 
 -- | Completes a term or type argument by prefix-matching against the query.
 prefixCompleteType ::
-  forall m v a.
-  MonadIO m =>
   String ->
-  Codebase m v a ->
   Path.Absolute -> -- Current path
-  m [Line.Completion]
+  Sqlite.Transaction [Line.Completion]
 prefixCompleteType = completeWithinNamespace (NESet.singleton TypeCompletion)
 
 -- | Completes a patch argument by prefix-matching against the query.
 prefixCompletePatch ::
-  forall m v a.
-  MonadIO m =>
   String ->
-  Codebase m v a ->
   Path.Absolute -> -- Current path
-  m [Line.Completion]
+  Sqlite.Transaction [Line.Completion]
 prefixCompletePatch = completeWithinNamespace (NESet.singleton PatchCompletion)
 
 -- | Renders a completion option with the prefix matching the query greyed out.

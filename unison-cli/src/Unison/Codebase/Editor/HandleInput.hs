@@ -1385,7 +1385,6 @@ loop e = do
               r <- Cli.runTransaction IntegrityCheck.integrityCheckFullCodebase
               Cli.respond (IntegrityCheck r)
             DebugNameDiffI fromSCH toSCH -> do
-              Cli.Env {codebase} <- ask
               (schLen, fromCHs, toCHs) <-
                 Cli.runTransaction do
                   schLen <- Codebase.branchHashLength
@@ -1398,12 +1397,13 @@ loop e = do
                 (_, []) -> Cli.returnEarly $ Output.NoBranchWithHash toSCH
                 (_, (_ : _ : _)) -> Cli.returnEarly $ Output.BranchHashAmbiguous toSCH (Set.map (SCH.fromHash schLen) toCHs)
                 ([fromCH], [toCH]) -> pure (fromCH, toCH)
-              output <- liftIO do
-                fromBranch <- (Codebase.getShallowCausalForHash codebase $ Cv.causalHash1to2 fromCH) >>= V2Causal.value
-                toBranch <- (Codebase.getShallowCausalForHash codebase $ Cv.causalHash1to2 toCH) >>= V2Causal.value
-                treeDiff <- V2Branch.diffBranches fromBranch toBranch
-                let nameChanges = V2Branch.nameChanges Nothing treeDiff
-                pure (DisplayDebugNameDiff nameChanges)
+              output <-
+                Cli.runTransaction do
+                  fromBranch <- (Codebase.expectCausalBranchByCausalHash $ Cv.causalHash1to2 fromCH) >>= V2Causal.value
+                  toBranch <- (Codebase.expectCausalBranchByCausalHash $ Cv.causalHash1to2 toCH) >>= V2Causal.value
+                  treeDiff <- V2Branch.diffBranches fromBranch toBranch
+                  let nameChanges = V2Branch.nameChanges Nothing treeDiff
+                  pure (DisplayDebugNameDiff nameChanges)
               Cli.respond output
             DeprecateTermI {} -> Cli.respond NotImplemented
             DeprecateTypeI {} -> Cli.respond NotImplemented

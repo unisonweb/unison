@@ -13,6 +13,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified Text.Megaparsec as P
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import Unison.Codebase.Editor.Input (Input)
@@ -2432,7 +2433,7 @@ exactDefinitionArg :: ArgumentType
 exactDefinitionArg =
   ArgumentType
     { typeName = "definition",
-      suggestions = \q cb _http p -> prefixCompleteTermOrType q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
@@ -2440,7 +2441,7 @@ fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
-      suggestions = \q cb _http p -> prefixCompleteTermOrType q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
@@ -2451,7 +2452,7 @@ exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
   ArgumentType
     { typeName = "type definition query",
-      suggestions = \q cb _http p -> prefixCompleteType q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteType q p),
       globTargets = Set.fromList [Globbing.Type]
     }
 
@@ -2459,7 +2460,7 @@ exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
   ArgumentType
     { typeName = "term definition query",
-      suggestions = \q cb _http p -> prefixCompleteTerm q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTerm q p),
       globTargets = Set.fromList [Globbing.Term]
     }
 
@@ -2467,7 +2468,7 @@ patchArg :: ArgumentType
 patchArg =
   ArgumentType
     { typeName = "patch",
-      suggestions = \q cb _http p -> prefixCompletePatch q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompletePatch q p),
       globTargets = Set.fromList []
     }
 
@@ -2475,7 +2476,7 @@ namespaceArg :: ArgumentType
 namespaceArg =
   ArgumentType
     { typeName = "namespace",
-      suggestions = \q cb _http p -> prefixCompleteNamespace q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
       globTargets = Set.fromList [Globbing.Namespace]
     }
 
@@ -2487,7 +2488,7 @@ newNameArg :: ArgumentType
 newNameArg =
   ArgumentType
     { typeName = "new-name",
-      suggestions = \q cb _http p -> prefixCompleteNamespace q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
       globTargets = mempty
     }
 
