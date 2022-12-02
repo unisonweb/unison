@@ -403,8 +403,9 @@ renderTypeError e env src curPath = case e of
       ]
       where
         unitHintMsg = 
-          "\nNote: actions within a block must have type " <> 
-             style Type2 (renderType' env expectedLeaf)    <> ".\n" 
+          "\nHint: Actions within a block must have type " <> 
+             style Type2 (renderType' env expectedLeaf)    <> ".\n" <> 
+             "      Use " <> style Type1 "_ = <expr>" <> " to ignore a result."  
         unitHint = if giveUnitHint then unitHintMsg else "" 
         giveUnitHint = case expectedType of  
           Type.Ref' u | u == unitRef -> case mismatchSite of 
