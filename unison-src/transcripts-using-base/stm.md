@@ -39,8 +39,8 @@ spawn k = let
   out1 = TVar.newIO None
   out2 = TVar.newIO None
   counter = atomically '(TVar.new 0)
-  forkComp '(Right (body k out1 counter))
-  forkComp '(Right (body k out2 counter))
+  void (forkComp '(Right (body k out1 counter)))
+  void (forkComp '(Right (body k out2 counter)))
   p = atomically 'let
     r1 = TVar.read out1
     r2 = TVar.swap out2 None

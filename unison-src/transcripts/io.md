@@ -38,7 +38,8 @@ testCreateRename _ =
     tempDir = newTempDir "fileio"
     fooDir = tempDir ++ "/foo"
     barDir = tempDir ++ "/bar"
-    createDirectory.impl fooDir
+    void x = ()
+    void (createDirectory.impl fooDir)
     check "create a foo directory" (isDirectory fooDir)
     check "directory should exist" (fileExists fooDir)
     renameDirectory fooDir barDir
@@ -47,8 +48,8 @@ testCreateRename _ =
     check "bar should now exist" (fileExists barDir)
 
     bazDir = barDir ++ "/baz"
-    createDirectory.impl bazDir
-    removeDirectory.impl barDir
+    void (createDirectory.impl bazDir)
+    void (removeDirectory.impl barDir)
 
     check "removeDirectory works recursively" (not (isDirectory barDir))
     check "removeDirectory works recursively" (not (isDirectory bazDir))
