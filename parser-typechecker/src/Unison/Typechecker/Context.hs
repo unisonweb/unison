@@ -1088,6 +1088,7 @@ synthesizeWanted (Term.Let1Top' top binding e) = do
       else applyM . applyCtx ctx2 $ tb
   v' <- ABT.freshen e freshenVar
   when (Var.isAction (ABT.variable e)) $ 
+    -- enforce that actions in a block have type ()
     subtype tbinding (DDB.unitType (ABT.annotation binding)) 
   appendContext [Ann v' tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
@@ -1569,6 +1570,7 @@ annotateLetRecBindings isTop letrec =
         Foldable.for_ (zip3 vs bindings bindingTypes) $ \(v, b, t) -> do
           -- note: elements of a cycle have to be pure, otherwise order of effects
           -- is unclear and chaos ensues
+          -- ensure actions in blocks have type ()
           when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))  
           checkScopedWith b t []
         ensureGuardedCycle (vs `zip` bindings)
@@ -2123,6 +2125,7 @@ checkWanted want (Term.Let1' binding m) t = do
   want <- coalesceWanted wbinding want
   markThenRetractWanted v $ do
     when (Var.isAction (ABT.variable m)) $ 
+      -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
     extendContext (Ann v tbinding)
     checkWanted want (ABT.bindInheritAnnotation m (Term.var () v)) t
