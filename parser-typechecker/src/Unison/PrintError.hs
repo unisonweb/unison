@@ -375,17 +375,14 @@ renderTypeError e env src curPath = case e of
             -- , (,Color.ForceShow) <$> rangeForType foundType
             -- , (,Color.ForceShow) <$> rangeForType expectedType
             -- ,
-            (,Type1) <$> rangeForAnnotated foundLeaf,
+            (,Type1) <$> rangeForAnnotated foundType,
             (,Type2) <$> rangeForAnnotated expectedLeaf
           ],
         fromOverHere'
           src
           [styleAnnotated Type1 foundLeaf]
-          [styleAnnotated Type1 mismatchSite],
-        if giveUnitHint then 
-          "\nNote: actions within a block must have type " <> 
-             style Type2 (renderType' env expectedLeaf)    <> ".\n" 
-        else "",
+          [styleAnnotated Type1 expectedLeaf],
+        unitHint,
         intLiteralSyntaxTip mismatchSite expectedType,
         debugNoteLoc
           . mconcat
@@ -405,6 +402,10 @@ renderTypeError e env src curPath = case e of
         debugSummary note
       ]
       where
+        unitHintMsg = 
+          "\nNote: actions within a block must have type " <> 
+             style Type2 (renderType' env expectedLeaf)    <> ".\n" 
+        unitHint = if giveUnitHint then unitHintMsg else "" 
         giveUnitHint = case expectedType of  
           Type.Ref' u | u == unitRef -> case mismatchSite of 
             Term.Let1Named' v _ _ -> Var.isAction v
