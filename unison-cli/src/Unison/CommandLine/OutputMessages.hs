@@ -1895,7 +1895,7 @@ prettyShareLink WriteShareRemotePath {repo, path} =
         Path.toList path
           & fmap (URI.encodeText . NameSegment.toText)
           & Text.intercalate "/"
-   in P.green . P.text $ shareOrigin <> "/@" <> repo <> "/code/latest/namespaces/" <> encodedPath
+   in P.green . P.text $ shareOrigin <> "/@" <> repo <> "/p/code/latest/namespaces/" <> encodedPath
 
 prettyFilePath :: FilePath -> Pretty
 prettyFilePath fp =
