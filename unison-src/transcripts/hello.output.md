@@ -89,5 +89,9 @@ hmm = "Not, in fact, a number"
       1 | hmm : .builtin.Nat
       2 | hmm = "Not, in fact, a number"
   
+    from right here:
+  
+      2 | hmm = "Not, in fact, a number"
+  
 
 ```
