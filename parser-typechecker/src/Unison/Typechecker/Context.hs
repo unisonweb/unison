@@ -77,6 +77,7 @@ import Unison.DataDeclaration
     EffectDeclaration,
   )
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Builtin.Decls as DDB
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
@@ -1086,6 +1087,8 @@ synthesizeWanted (Term.Let1Top' top binding e) = do
       then pure $ generalizeExistentials ctx2 tb
       else applyM . applyCtx ctx2 $ tb
   v' <- ABT.freshen e freshenVar
+  when (Var.isAction (ABT.variable e)) $ 
+    subtype tbinding (DDB.unitType (ABT.annotation binding)) 
   appendContext [Ann v' tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
@@ -1563,9 +1566,10 @@ annotateLetRecBindings isTop letrec =
         (bindings, bindingTypes) <- unzip <$> traverse f bindings
         appendContext (zipWith Ann vs bindingTypes)
         -- check each `bi` against its type
-        Foldable.for_ (zip bindings bindingTypes) $ \(b, t) ->
+        Foldable.for_ (zip3 vs bindings bindingTypes) $ \(v, b, t) -> do
           -- note: elements of a cycle have to be pure, otherwise order of effects
           -- is unclear and chaos ensues
+          when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))  
           checkScopedWith b t []
         ensureGuardedCycle (vs `zip` bindings)
         pure (bindings, bindingTypes)
@@ -2118,6 +2122,8 @@ checkWanted want (Term.Let1' binding m) t = do
   (tbinding, wbinding) <- synthesize binding
   want <- coalesceWanted wbinding want
   markThenRetractWanted v $ do
+    when (Var.isAction (ABT.variable m)) $ 
+      subtype tbinding (DDB.unitType (ABT.annotation binding))
     extendContext (Ann v tbinding)
     checkWanted want (ABT.bindInheritAnnotation m (Term.var () v)) t
 checkWanted want (Term.LetRecNamed' [] m) t =
