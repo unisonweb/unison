@@ -509,7 +509,7 @@ pretty0
           body (Constructor' (ConstructorReference DD.UnitRef 0)) | elideUnit = pure []
           body e = (: []) <$> pretty0 (ac 0 Normal im doc) e
           printBinding (v, binding) =
-            if isBlank $ Var.nameStr v
+            if Var.isAction v
               then pretty0 (ac (-1) Normal im doc) binding
               else prettyBinding0 (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
           letIntro = case sc of
@@ -966,10 +966,6 @@ isSymbolic' name = case symbolyId . Name.toString $ name of
   Right _ -> True
   _ -> False
 
-isBlank :: String -> Bool
-isBlank ('_' : rest) | isJust (readMaybe rest :: Maybe Int) = True
-isBlank _ = False
-
 emptyAc :: AmbientContext
 emptyAc = ac (-1) Normal Map.empty MaybeDoc
 
@@ -1410,7 +1406,7 @@ immediateChildBlockTerms = \case
     handleDelay (Delay' b@(Lets' _ _)) = [b]
     handleDelay _ = []
     doLet (v, Ann' tm _) = doLet (v, tm)
-    doLet (v, LamsNamedOpt' _ body) = [body | not (isBlank $ Var.nameStr v)]
+    doLet (v, LamsNamedOpt' _ body) = [body | not (Var.isAction v)]
     doLet t = error (show t) []
 
 -- Matches with a single case, no variable shadowing, and where the pattern

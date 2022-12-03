@@ -19,7 +19,7 @@ import qualified Data.Set.NonEmpty as NES
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
-import Unison.Builtin.Decls (pattern TupleType')
+import Unison.Builtin.Decls (pattern TupleType', unitRef)
 import qualified Unison.Codebase.Path as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
@@ -364,7 +364,7 @@ renderTypeError e env src curPath = case e of
   Mismatch {..} ->
     mconcat
       [ Pr.lines
-          [ "I found a value of type:  " <> style Type1 (renderType' env foundLeaf),
+          [ "I found a value  of type:  " <> style Type1 (renderType' env foundLeaf),
             "where I expected to find:  " <> style Type2 (renderType' env expectedLeaf)
           ],
         "\n\n",
@@ -375,13 +375,14 @@ renderTypeError e env src curPath = case e of
             -- , (,Color.ForceShow) <$> rangeForType foundType
             -- , (,Color.ForceShow) <$> rangeForType expectedType
             -- ,
-            (,Type1) <$> rangeForAnnotated mismatchSite,
+            (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
             (,Type2) <$> rangeForAnnotated expectedLeaf
           ],
         fromOverHere'
           src
           [styleAnnotated Type1 foundLeaf]
-          [styleAnnotated Type1 mismatchSite],
+          [styleAnnotated Type2 expectedLeaf],
+        unitHint,
         intLiteralSyntaxTip mismatchSite expectedType,
         debugNoteLoc
           . mconcat
@@ -400,6 +401,17 @@ renderTypeError e env src curPath = case e of
             ],
         debugSummary note
       ]
+      where
+        unitHintMsg = 
+          "\nHint: Actions within a block must have type " <> 
+             style Type2 (renderType' env expectedLeaf)    <> ".\n" <> 
+             "      Use " <> style Type1 "_ = <expr>" <> " to ignore a result."  
+        unitHint = if giveUnitHint then unitHintMsg else "" 
+        giveUnitHint = case expectedType of  
+          Type.Ref' u | u == unitRef -> case mismatchSite of 
+            Term.Let1Named' v _ _ -> Var.isAction v
+            _ -> False
+          _ -> False
   AbilityCheckFailure {..}
     | [tv@(Type.Var' ev)] <- ambient,
       ev `Set.member` foldMap Type.freeVars requested ->

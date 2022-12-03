@@ -9,7 +9,7 @@ Docs can be used as inline code comments.
 ```unison
 foo : Nat -> Nat
 foo n =
-  [: do the thing :]
+  _ = [: do the thing :]
   n + 1
 ```
 

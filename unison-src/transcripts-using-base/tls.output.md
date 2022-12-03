@@ -154,7 +154,7 @@ testConnectSelfSigned _ =
     cert = decodeCert (toUtf8 self_signed_cert_pem2)
     received = !(testClient (Some cert) "test.unison.cloud" portVar)
 
-    kill.impl tid
+    _ = kill.impl tid
 
     expectU "should have reaped what we've sown" toSend received
 

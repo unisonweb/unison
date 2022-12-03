@@ -456,7 +456,7 @@ afun x f = f x
 
 roundtripLastLam =
   afun "foo" (n -> let
-    1 + 1
+    _ = 1 + 1
     3
   )
 ```
