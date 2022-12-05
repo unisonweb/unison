@@ -301,7 +301,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                       let toRootCausalHash = Cv.causalHash1to2 (Branch.headHash branch1)
                       let toRootBranchHash = Cv.namespaceHashToBranchHash (Branch.namespaceHash branch1)
                       CodebaseOps.putRootBranch branch1Trans
-                      Timing.unsafeTime "Updating Name Lookup Index" $ updateNameLookup Path.empty mayFromRootBranchHash toRootBranchHash
+                      Timing.timeM Sqlite.unsafeIO "Updating Name Lookup Index" $ updateNameLookup Path.empty mayFromRootBranchHash toRootBranchHash
                       Ops.appendReflog (Reflog.Entry {time = now, fromRootCausalHash, toRootCausalHash, reason})
 
                 -- We need to update the database and the cached

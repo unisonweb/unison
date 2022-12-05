@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE RankNTypes #-}
 
 module U.Util.Timing where
 
@@ -6,38 +7,27 @@ import Data.Time.Clock (picosecondsToDiffTime)
 import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
 import System.CPUTime (getCPUTime)
-import System.IO.Unsafe (unsafePerformIO)
 import qualified Unison.Debug as Debug
 import UnliftIO (MonadIO, liftIO)
 
+-- | Time an action
 time :: MonadIO m => String -> m a -> m a
-time label ma =
-  if Debug.shouldDebug Debug.Timing
-    then do
-      systemStart <- liftIO getSystemTime
-      cpuPicoStart <- liftIO getCPUTime
-      liftIO $ putStrLn $ "Timing " ++ label ++ "..."
-      a <- ma
-      cpuPicoEnd <- liftIO getCPUTime
-      systemEnd <- liftIO getSystemTime
-      let systemDiff = diffAbsoluteTime (systemToTAITime systemEnd) (systemToTAITime systemStart)
-      let cpuDiff = picosecondsToDiffTime (cpuPicoEnd - cpuPicoStart)
-      liftIO $ putStrLn $ "Finished " ++ label ++ " in " ++ show cpuDiff ++ " (cpu), " ++ show systemDiff ++ " (system)"
-      pure a
-    else ma
+time = timeM liftIO
 
-unsafeTime :: Monad m => String -> m a -> m a
-unsafeTime label ma =
+-- | Like 'time', but allows timing within monads that don't implement MonadIO (such as Transaction) by passing
+-- a way to lift the IO action into the monad.
+timeM :: Monad m => (forall x. IO x -> m x) -> String -> m a -> m a
+timeM ioLift label ma =
   if Debug.shouldDebug Debug.Timing
     then do
-      let !systemStart = unsafePerformIO getSystemTime
-          !cpuPicoStart = unsafePerformIO getCPUTime
-          !_ = unsafePerformIO $ putStrLn $ "Timing " ++ label ++ "..."
+      systemStart <- ioLift getSystemTime
+      cpuPicoStart <- ioLift getCPUTime
+      ioLift $ putStrLn $ "Timing " ++ label ++ "..."
       a <- ma
-      let !cpuPicoEnd = unsafePerformIO getCPUTime
-          !systemEnd = unsafePerformIO getSystemTime
+      cpuPicoEnd <- ioLift getCPUTime
+      systemEnd <- ioLift getSystemTime
       let systemDiff = diffAbsoluteTime (systemToTAITime systemEnd) (systemToTAITime systemStart)
       let cpuDiff = picosecondsToDiffTime (cpuPicoEnd - cpuPicoStart)
-      let !_ = unsafePerformIO $ putStrLn $ "Finished " ++ label ++ " in " ++ show cpuDiff ++ " (cpu), " ++ show systemDiff ++ " (system)"
+      ioLift $ putStrLn $ "Finished " ++ label ++ " in " ++ show cpuDiff ++ " (cpu), " ++ show systemDiff ++ " (system)"
       pure a
     else ma
