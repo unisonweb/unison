@@ -5,4 +5,4 @@ loop acc rem = match rem with
   _ -> loop (acc + rem) (rem - 1)
 
 main = do
-  timeit "simple_loop" '(loop 0 1000000)
+  timeit "simple_loop" '(loop 0 100000)
