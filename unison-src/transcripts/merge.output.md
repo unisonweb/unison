@@ -74,14 +74,7 @@ quux.y = 333
 
 .P1> delete.term foo.w
 
-  Name changes:
-  
-    Original       Changes
-    1. P0.foo.w ┐  2. P1.foo.w (removed)
-    3. P1.foo.w │  
-    4. P2.foo.w ┘  
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 ```
 We added to `foo`, `bar` and `baz`, and deleted `foo.w`, which should stay deleted in the merge.

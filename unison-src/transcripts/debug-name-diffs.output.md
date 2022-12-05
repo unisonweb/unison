@@ -39,11 +39,7 @@ structural type a.b.Baz = Boo
 
 .> delete.term a.b.one
 
-  Removed definitions:
-  
-    1. a.b.one : ##Nat
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .> alias.term a.two a.newtwo
 

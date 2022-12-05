@@ -242,20 +242,7 @@ We can resolve the name conflict by deleting one of the names.
 ```ucm
 .example.resolve.c> delete.term 2
 
-  Resolved name conflicts:
-  
-    1. ┌ example.resolve.c.foo#a84tg4er4k : Nat
-    2. └ example.resolve.c.foo#emomp74i93 : Nat
-       ↓
-    3. example.resolve.c.foo#a84tg4er4k : Nat
-  
-  Name changes:
-  
-    Original                               Changes
-    4. example.resolve.a.foo            ┐  5. example.resolve.c.foo#emomp74i93 (removed)
-    6. example.resolve.c.foo#emomp74i93 ┘  
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .example.resolve.c> todo
 

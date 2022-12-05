@@ -202,13 +202,7 @@ z = 99
 
 .feature2> delete.term x
 
-  Name changes:
-  
-    Original         Changes
-    1. feature2.x ┐  2. feature2.x (removed)
-    3. master.x   ┘  
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 ```
 And here's the other fork, where we update `y` and add a new definition, `frobnicate`:
