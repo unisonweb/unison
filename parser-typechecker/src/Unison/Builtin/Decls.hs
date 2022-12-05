@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Builtin.Decls where
 
 import Control.Lens (over, _3)
@@ -13,10 +9,7 @@ import Data.Text (Text, unpack)
 import qualified Unison.ABT as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
-import Unison.DataDeclaration
-  ( DataDeclaration (..),
-    Modifier (Structural, Unique),
-  )
+import Unison.DataDeclaration (DataDeclaration (..), Modifier (Structural, Unique))
 import qualified Unison.DataDeclaration as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Convert (hashDataDecls)

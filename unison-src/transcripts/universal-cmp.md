@@ -12,9 +12,7 @@ unique type A = A
 threadEyeDeez _ =
   t1 = forkComp '()
   t2 = forkComp '()
-  t1 == t2 
-  t1 < t2
-  ()
+  (t1 == t2, t1 < t2)
 ```
 
 ```ucm

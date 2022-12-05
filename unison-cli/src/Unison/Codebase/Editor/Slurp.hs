@@ -15,7 +15,6 @@ import qualified Unison.ConstructorReference as CR
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann)
@@ -23,6 +22,7 @@ import Unison.Prelude
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent
+import qualified Unison.Syntax.Name as Name (toText, unsafeFromVar)
 import Unison.Symbol (Symbol)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF

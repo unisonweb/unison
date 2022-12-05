@@ -33,6 +33,7 @@ import Unison.PrettyPrintEnv.Names (fromSuffixNames)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.HashQualified as HQ (toString)
 import Unison.Type (Type)
 import qualified Unison.Typechecker as Typechecker
 

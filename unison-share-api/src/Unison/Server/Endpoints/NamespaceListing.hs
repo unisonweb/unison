@@ -171,7 +171,7 @@ serve ::
   Backend.Backend IO NamespaceListing
 serve codebase maySCH mayRelativeTo mayNamespaceName = do
   useIndex <- asks Backend.useNamesIndex
-  (mayRootHash, codebaseRootHash) <- 
+  (mayRootHash, codebaseRootHash) <-
     Backend.hoistBackend (Codebase.runTransaction codebase) do
       mayRootHash <- traverse Backend.expandShortCausalHash maySCH
       codebaseRootHash <- lift Operations.expectRootCausalHash
@@ -200,9 +200,9 @@ serve codebase maySCH mayRelativeTo mayNamespaceName = do
       serveFromIndex codebase mayRootHash path'
     (True, Just rh)
       | rh == causalHash2to1 codebaseRootHash ->
-        serveFromIndex codebase mayRootHash path'
+          serveFromIndex codebase mayRootHash path'
       | otherwise -> do
-        serveFromBranch codebase path' (Cv.causalHash1to2 rh)
+          serveFromBranch codebase path' (Cv.causalHash1to2 rh)
     (False, Just rh) -> do
       serveFromBranch codebase path' (Cv.causalHash1to2 rh)
     (False, Nothing) -> do
@@ -222,9 +222,12 @@ serveFromBranch codebase path' rootHash = do
   -- worth slowing down the request for this right now.
   let ppe = PPE.empty
   let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-  causalAtPath <- liftIO $ Codebase.getShallowCausalFromRoot codebase (Just rootHash) (Path.unabsolute absPath)
+  (causalAtPath, branchAtPath) <-
+    (lift . Codebase.runTransaction codebase) do
+      causalAtPath <- Codebase.getShallowCausalFromRoot (Just rootHash) (Path.unabsolute absPath)
+      branchAtPath <- V2Causal.value causalAtPath
+      pure (causalAtPath, branchAtPath)
   let listingHash = v2CausalBranchToUnisonHash causalAtPath
-  branchAtPath <- liftIO $ V2Causal.value causalAtPath
   listingEntries <- liftIO $ Backend.lsBranch codebase branchAtPath
   makeNamespaceListing ppe listingFQN listingHash listingEntries
 
@@ -234,8 +237,11 @@ serveFromIndex ::
   Path.Path' ->
   Backend.Backend IO NamespaceListing
 serveFromIndex codebase mayRootHash path' = do
-  listingCausal <- Backend.getShallowCausalAtPathFromRootHash codebase mayRootHash (Path.fromPath' path')
-  listingBranch <- liftIO $ V2Causal.value listingCausal
+  (listingCausal, listingBranch) <-
+    (lift . Codebase.runTransaction codebase) do
+      listingCausal <- Backend.getShallowCausalAtPathFromRootHash mayRootHash (Path.fromPath' path')
+      listingBranch <- V2Causal.value listingCausal
+      pure (listingCausal, listingBranch)
   -- TODO: Currently the ppe is just used to render the types returned from the namespace
   -- listing, which are currently unused because we don't show types in the side-bar.
   -- If we ever show types on hover we need to build and use a proper PPE here, but it's not

@@ -170,6 +170,7 @@ library
     , pretty-simple
     , process
     , random >=1.2.0
+    , recover-rtti
     , regex-tdfa
     , semialign
     , servant
@@ -294,6 +295,7 @@ executable cli-integration-tests
     , pretty-simple
     , process
     , random >=1.2.0
+    , recover-rtti
     , regex-tdfa
     , semialign
     , servant
@@ -412,6 +414,7 @@ executable transcripts
     , pretty-simple
     , process
     , random >=1.2.0
+    , recover-rtti
     , regex-tdfa
     , semialign
     , servant
@@ -452,6 +455,7 @@ executable unison
   main-is: Main.hs
   other-modules:
       ArgParse
+      Stats
       System.Path
       Version
   hs-source-dirs:
@@ -486,7 +490,7 @@ executable unison
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
   build-depends:
       IntervalMap
     , ListLike
@@ -535,6 +539,7 @@ executable unison
     , pretty-simple
     , process
     , random >=1.2.0
+    , recover-rtti
     , regex-tdfa
     , semialign
     , servant
@@ -580,6 +585,7 @@ test-suite cli-tests
       Unison.Test.ClearCache
       Unison.Test.Cli.Monad
       Unison.Test.GitSync
+      Unison.Test.LSP
       Unison.Test.Ucm
       Unison.Test.UriParser
       Unison.Test.VersionParser
@@ -664,6 +670,7 @@ test-suite cli-tests
     , pretty-simple
     , process
     , random >=1.2.0
+    , recover-rtti
     , regex-tdfa
     , semialign
     , servant

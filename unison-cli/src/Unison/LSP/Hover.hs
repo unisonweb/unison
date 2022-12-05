@@ -7,7 +7,7 @@ import Control.Lens hiding (List)
 import Control.Monad.Reader
 import qualified Data.Text as Text
 import Language.LSP.Types
-import Language.LSP.Types.Lens hiding (id, only, to)
+import Language.LSP.Types.Lens
 import qualified Unison.ABT as ABT
 import qualified Unison.HashQualified as HQ
 import Unison.LSP.FileAnalysis (ppedForFile)
@@ -15,13 +15,13 @@ import qualified Unison.LSP.Queries as LSPQ
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import qualified Unison.LabeledDependency as LD
-import qualified Unison.Name as Name
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Reference as Reference
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.Name as Name
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Term as Term
 import qualified Unison.Util.Pretty as Pretty

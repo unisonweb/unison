@@ -28,6 +28,7 @@ import Unison.NamesWithHistory (NamesWithHistory (..))
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
+import qualified Unison.Syntax.Name as Name (toString, unsafeFromString)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF

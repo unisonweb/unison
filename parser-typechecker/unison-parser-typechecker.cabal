@@ -59,6 +59,7 @@ library
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
       Unison.Codebase.PushBehavior
+      Unison.Codebase.RootBranchCache
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
       Unison.Codebase.ShortCausalHash
@@ -208,6 +209,7 @@ library
     , errors
     , exceptions
     , extra
+    , filelock
     , filepath
     , fingertree
     , free
@@ -245,6 +247,7 @@ library
     , process
     , random >=1.2.0
     , raw-strings-qq
+    , recover-rtti
     , regex-base
     , regex-tdfa
     , safe
@@ -391,6 +394,7 @@ test-suite parser-typechecker-tests
     , errors
     , exceptions
     , extra
+    , filelock
     , filemanip
     , filepath
     , fingertree
@@ -429,6 +433,7 @@ test-suite parser-typechecker-tests
     , process
     , random >=1.2.0
     , raw-strings-qq
+    , recover-rtti
     , regex-base
     , regex-tdfa
     , safe

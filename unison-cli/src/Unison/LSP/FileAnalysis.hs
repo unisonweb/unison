@@ -12,6 +12,7 @@ import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Debug.RecoverRTTI (anythingToString)
 import Language.LSP.Types
   ( Diagnostic,
     DiagnosticSeverity (DsError),
@@ -27,7 +28,6 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
-import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Conversions
 import Unison.LSP.Diagnostics
   ( mkDiagnostic,
@@ -52,6 +52,7 @@ import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
 import qualified Unison.Symbol as Symbol
+import qualified Unison.Syntax.HashQualified' as HQ' (toText)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
@@ -204,7 +205,7 @@ fileAnalysisWorker = forever do
     Map.fromList <$> forMaybe (toList dirtyFileIDs) \docUri -> runMaybeT do
       fileInfo <- MaybeT (checkFile $ TextDocumentIdentifier docUri)
       pure (docUri, fileInfo)
-  Debug.debugM Debug.LSP "Freshly Typechecked " freshlyCheckedFiles
+  Debug.debugM Debug.LSP "Freshly Typechecked " (anythingToString (Map.toList freshlyCheckedFiles))
   -- Overwrite any files we successfully checked
   atomically $ modifyTVar' checkedFilesV (Map.union freshlyCheckedFiles)
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
@@ -356,7 +357,7 @@ analyseNotes fileUri ppe src notes = do
           Env {codebase} <- ask
           ppe <- PPE.suffixifiedPPE <$> globalPPE
           let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
-          refs <- liftIO $ Codebase.termsOfType codebase cleanedTyp
+          refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
           forMaybe (toList refs) $ \ref -> runMaybeT $ do
             hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
             typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref

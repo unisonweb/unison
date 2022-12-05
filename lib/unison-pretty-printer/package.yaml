@@ -45,6 +45,7 @@ library:
     - base
     - unison-core1
     - unison-prelude
+    - unison-syntax
     - containers
     - ListLike
     - ansi-terminal
@@ -84,3 +85,4 @@ tests:
       - easytest
       - containers
       - code-page
+      - unison-syntax

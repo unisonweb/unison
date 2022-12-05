@@ -25,7 +25,6 @@ import qualified Data.OpenApi.Lens as OpenApi
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text
-import qualified Unison.NameSegment as NameSegment
 import Servant.API
   ( Capture,
     FromHttpApiData (..),
@@ -51,11 +50,13 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
+import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
 import Unison.ShortHash (ShortHash)
+import qualified Unison.Syntax.HashQualified as HQ (fromText)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =

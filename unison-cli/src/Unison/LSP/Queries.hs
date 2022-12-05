@@ -4,6 +4,11 @@ module Unison.LSP.Queries
     getTypeDeclaration,
     refAtPosition,
     nodeAtPosition,
+    refInTerm,
+    refInType,
+    findSmallestEnclosingNode,
+    findSmallestEnclosingType,
+    refInDecl,
   )
 where
 

@@ -17,8 +17,12 @@ source-repository head
 
 library
   exposed-modules:
+      Unison.Lexer.Pos
       Unison.Parser.Ann
+      Unison.Syntax.HashQualified
+      Unison.Syntax.HashQualified'
       Unison.Syntax.Lexer
+      Unison.Syntax.Name
       Unison.Syntax.Parser
       Unison.UnisonFile.Error
   hs-source-dirs:
@@ -64,7 +68,6 @@ library
     , text
     , unison-core1
     , unison-prelude
-    , unison-pretty-printer
     , unison-util-base32hex
     , unison-util-bytes
   default-language: Haskell2010
@@ -117,7 +120,6 @@ test-suite syntax-tests
     , text
     , unison-core1
     , unison-prelude
-    , unison-pretty-printer
     , unison-syntax
     , unison-util-base32hex
     , unison-util-bytes

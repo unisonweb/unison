@@ -8,14 +8,13 @@
 module Unison.Codebase.SqliteCodebase.Operations where
 
 import Control.Lens (ifor)
-import Data.Bifunctor (second)
-import Data.Maybe (fromJust)
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEList
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import qualified Data.Map as Map
+import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified U.Codebase.Branch as V2Branch
@@ -377,36 +376,6 @@ tryFlushDeclBuffer termBuffer declBuffer =
           h
    in loop
 
-getRootBranch ::
-  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  BranchCache Sqlite.Transaction ->
-  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
-  TVar (Maybe (Sqlite.DataVersion, Branch Transaction)) ->
-  Transaction (Branch Transaction)
-getRootBranch branchCache doGetDeclType rootBranchCache =
-  Sqlite.unsafeIO (readTVarIO rootBranchCache) >>= \case
-    Nothing -> forceReload
-    Just (v, b) -> do
-      -- check to see if root namespace hash has been externally modified
-      -- and reload it if necessary
-      v' <- Sqlite.getDataVersion
-      if v == v'
-        then pure b
-        else do
-          newRootHash <- Ops.expectRootCausalHash
-          if Branch.headHash b == Cv.causalHash2to1 newRootHash
-            then pure b
-            else do
-              traceM $ "database was externally modified (" ++ show v ++ " -> " ++ show v' ++ ")"
-              forceReload
-  where
-    forceReload :: Transaction (Branch Transaction)
-    forceReload = do
-      branch1 <- uncachedLoadRootBranch branchCache doGetDeclType
-      ver <- Sqlite.getDataVersion
-      Sqlite.unsafeIO (atomically (writeTVar rootBranchCache (Just (ver, branch1))))
-      pure branch1
-
 uncachedLoadRootBranch ::
   BranchCache Sqlite.Transaction ->
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
@@ -420,12 +389,11 @@ getRootBranchExists :: Transaction Bool
 getRootBranchExists =
   isJust <$> Ops.loadRootCausalHash
 
-putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Transaction)) -> Branch Transaction -> Transaction ()
-putRootBranch rootBranchCache branch1 = do
+putRootBranch :: Branch Transaction -> Transaction ()
+putRootBranch branch1 = do
   -- todo: check to see if root namespace hash has been externally modified
   -- and do something (merge?) it if necessary. But for now, we just overwrite it.
   void (Ops.saveRootBranch v2HashHandle (Cv.causalbranch1to2 branch1))
-  Sqlite.unsafeIO (atomically $ modifyTVar' rootBranchCache (fmap . second $ const branch1))
 
 -- if this blows up on cromulent hashes, then switch from `hashToHashId`
 -- to one that returns Maybe.

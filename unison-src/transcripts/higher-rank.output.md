@@ -33,7 +33,7 @@ Another example, involving abilities. Here the ability-polymorphic function is i
 ```unison
 f : (forall a g . '{g} a -> '{g} a) -> () -> () 
 f id _ = 
-  (id ('1 : '{} Nat), id ('("hi") : '{IO} Text))
+  _ = (id ('1 : '{} Nat), id ('("hi") : '{IO} Text))
   ()
 ```
 

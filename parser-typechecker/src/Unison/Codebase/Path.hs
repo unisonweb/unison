@@ -94,6 +94,7 @@ import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude hiding (empty, toList)
+import qualified Unison.Syntax.Name as Name (toString, unsafeFromText)
 import Unison.Util.Monoid (intercalateMap)
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
