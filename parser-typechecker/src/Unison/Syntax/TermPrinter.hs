@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Syntax.TermPrinter (emptyAc, pretty, prettyBlock, prettyBlock', pretty', prettyBinding, prettyBinding', pretty0, runPretty) where
 
 import Control.Lens (unsnoc, (^.))
@@ -38,7 +34,9 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
+import qualified Unison.Syntax.HashQualified as HQ (unsafeFromVar)
 import Unison.Syntax.Lexer (showEscapeChar, symbolyId)
+import qualified Unison.Syntax.Name as Name (toString, toText, unsafeFromText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import Unison.Term

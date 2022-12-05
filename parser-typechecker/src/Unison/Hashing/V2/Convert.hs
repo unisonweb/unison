@@ -1,5 +1,4 @@
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- | Description: Converts V1 types to the V2 hashing types
 module Unison.Hashing.V2.Convert
@@ -60,6 +59,7 @@ import Unison.Names.ResolutionResult (ResolutionResult)
 import qualified Unison.Pattern as Memory.Pattern
 import qualified Unison.Reference as Memory.Reference
 import qualified Unison.Referent as Memory.Referent
+import qualified Unison.Syntax.Name as Name (unsafeFromVar)
 import qualified Unison.Term as Memory.Term
 import qualified Unison.Type as Memory.Type
 import qualified Unison.Util.Map as Map
@@ -239,7 +239,7 @@ hashDataDecls ::
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
 hashDataDecls memDecls = do
   let hashingDecls = fmap m2hDecl memDecls
-  hashingResult <- Hashing.DD.hashDecls hashingDecls
+  hashingResult <- Hashing.DD.hashDecls Name.unsafeFromVar hashingDecls
   pure $ map h2mDeclResult hashingResult
   where
     h2mDeclResult :: Ord v => (v, Hashing.Reference.Id, Hashing.DD.DataDeclaration v a) -> (v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)

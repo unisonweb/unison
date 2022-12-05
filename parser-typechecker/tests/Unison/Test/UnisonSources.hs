@@ -152,5 +152,5 @@ resultTest rt uf filepath = do
           -- note . show $ tm'
           -- note . show $ Term.amap (const ()) tm
           expectEqual tm' (Term.amap (const ()) tm)
-        Left e -> crash $ show e
+        Left e -> crash $ PrintError.renderParseErrorAsANSI 80 values e
     else pure ()

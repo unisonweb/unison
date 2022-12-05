@@ -1,7 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.PrintError where
 
@@ -17,13 +14,13 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NES
 import qualified Data.Text as Text
+import Data.Void (Void)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import Unison.Builtin.Decls (pattern TupleType', unitRef)
 import qualified Unison.Codebase.Path as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
-import qualified Unison.HashQualified as HQ
 import Unison.Kind (Kind)
 import qualified Unison.Kind as Kind
 import Unison.Name (Name)
@@ -40,7 +37,9 @@ import Unison.Referent (Referent, pattern Ref)
 import Unison.Result (Note (..))
 import qualified Unison.Result as Result
 import qualified Unison.Settings as Settings
+import qualified Unison.Syntax.HashQualified as HQ (toString)
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified0)
 import Unison.Syntax.Parser (Annotated, ann)
 import qualified Unison.Syntax.Parser as Parser
@@ -1374,7 +1373,7 @@ renderParseErrors s = \case
               excerpt
             ]
         L.Opaque msg -> style ErrorSite msg
-  te@(P.TrivialError _errOffset unexpected _expected) ->
+  P.TrivialError errOffset unexpected expected ->
     let (src, ranges) = case unexpected of
           Just (P.Tokens (toList -> ts)) -> case ts of
             [] -> (mempty, [])
@@ -1382,7 +1381,11 @@ renderParseErrors s = \case
               let rs = rangeForToken <$> ts
                in (showSource s $ (\r -> (r, ErrorSite)) <$> rs, rs)
           _ -> mempty
-     in [(fromString (P.parseErrorPretty te) <> src, ranges)]
+        -- Same error that we just pattern matched on, but with a different error component (here Void) - we need one
+        -- with a ShowErrorComponent instance, which our error type doesn't have.
+        sameErr :: P.ParseError Parser.Input Void
+        sameErr = P.TrivialError errOffset unexpected expected
+     in [(fromString (P.parseErrorPretty sameErr) <> src, ranges)]
   P.FancyError _sp fancyErrors ->
     (go' <$> Set.toList fancyErrors)
   where
@@ -1473,13 +1476,13 @@ renderParseErrors s = \case
                           "You can write"
                             <> Pr.group
                               ( Pr.blue $
-                                  "use " <> Pr.shown (Name.makeRelative parent) <> " "
-                                    <> Pr.shown (Name.unqualified (L.payload tok))
+                                  "use " <> Pr.text (Name.toText (Name.makeRelative parent)) <> " "
+                                    <> Pr.text (Name.toText (Name.unqualified (L.payload tok)))
                               )
                             <> "to introduce "
-                            <> Pr.backticked (Pr.shown (Name.unqualified (L.payload tok)))
+                            <> Pr.backticked (Pr.text (Name.toText (Name.unqualified (L.payload tok))))
                             <> "as a local alias for "
-                            <> Pr.backticked (Pr.shown (L.payload tok))
+                            <> Pr.backticked (Pr.text (Name.toText (L.payload tok)))
                   ]
              in (txts, ranges)
           (Right tok, _) ->

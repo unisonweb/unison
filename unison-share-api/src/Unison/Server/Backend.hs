@@ -60,9 +60,6 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
-import Unison.Name as Name
-  ( unsafeFromText,
-  )
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
@@ -94,6 +91,9 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.HashQualified as HQ (toText)
+import qualified Unison.Syntax.HashQualified' as HQ' (toText)
+import Unison.Syntax.Name as Name (toText, unsafeFromText)
 import qualified Unison.Syntax.NamePrinter as NP
 import qualified Unison.Syntax.TermPrinter as TermPrinter
 import qualified Unison.Syntax.TypePrinter as TypePrinter
@@ -314,7 +314,7 @@ fuzzyFind ::
   [(FZF.Alignment, UnisonName, [FoundRef])]
 fuzzyFind printNames query =
   let fzfNames =
-        Names.fuzzyFind (words query) printNames
+        Names.fuzzyFind Name.toText (words query) printNames
 
       toFoundRef =
         fmap (fmap (either FoundTermRef FoundTypeRef) . toList)

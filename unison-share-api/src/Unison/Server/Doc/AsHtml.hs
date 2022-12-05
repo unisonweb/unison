@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 -- | Render Unison.Server.Doc and embedded source to Html
 module Unison.Server.Doc.AsHtml where
 
@@ -14,6 +11,7 @@ import qualified Data.Char as Char
 import Data.Foldable
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Unison.Syntax.Name as Name (toText)
 import Data.Maybe
 import Data.Sequence (Seq)
 import Data.Text (Text)
@@ -23,7 +21,6 @@ import qualified Lucid as L
 import qualified Lucid.Base as LB
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Server.Doc

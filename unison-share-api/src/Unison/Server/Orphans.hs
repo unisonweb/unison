@@ -37,6 +37,9 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Syntax.HashQualified as HQ (fromText)
+import qualified Unison.Syntax.HashQualified' as HQ' (fromText)
+import qualified Unison.Syntax.Name as Name (fromTextEither, toText)
 import Unison.Util.Pretty (Width (..))
 
 instance ToJSON Hash where
@@ -290,6 +293,12 @@ instance ToSchema Path.Path where
 
 instance ToJSON (HQ.HashQualified Name) where
   toJSON = Aeson.String . HQ.toTextWith Name.toText
+
+instance ToJSON (HQ.HashQualified NameSegment) where
+  toJSON = Aeson.String . HQ.toTextWith NameSegment.toText
+
+instance ToJSON (HQ'.HashQualified Name) where
+  toJSON = Aeson.String . HQ'.toTextWith Name.toText
 
 instance ToJSON (HQ'.HashQualified NameSegment) where
   toJSON = Aeson.String . HQ'.toTextWith NameSegment.toText

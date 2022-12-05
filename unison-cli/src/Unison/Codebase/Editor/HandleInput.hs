@@ -178,7 +178,9 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
+import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toText, unsafeFromString)
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name (toString, toVar, unsafeFromString, unsafeFromVar)
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TermPrinter as TP
 import Unison.Term (Term)
@@ -778,15 +780,11 @@ loop e = do
               let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
                   terms = NamesWithHistory.lookupHQTerm query names
                   types = NamesWithHistory.lookupHQType query names
-                  terms' :: Set (Referent, Set (HQ'.HashQualified Name))
-                  terms' = Set.map go terms
-                    where
-                      go r = (r, Set.fromList $ PPE.allTermNames unsuffixifiedPPE r)
-                  types' :: Set (Reference, Set (HQ'.HashQualified Name))
-                  types' = Set.map go types
-                    where
-                      go r = (r, Set.fromList $ PPE.allTypeNames unsuffixifiedPPE r)
-              Cli.respond $ ListNames global hqLength (toList types') (toList terms')
+                  terms' :: [(Referent, [HQ'.HashQualified Name])]
+                  terms' = map (\r -> (r, PPE.allTermNames unsuffixifiedPPE r)) (Set.toList terms)
+                  types' :: [(Reference, [HQ'.HashQualified Name])]
+                  types' = map (\r -> (r, PPE.allTypeNames unsuffixifiedPPE r)) (Set.toList types)
+              Cli.respond $ ListNames global hqLength types' terms'
             LinkI mdValue srcs -> do
               description <- inputDescription input
               manageLinks False srcs [mdValue] Metadata.insert
@@ -1687,9 +1685,9 @@ handleFindI isVerbose fscope ws input = do
                  in Names.filter f
          in scopeFilter (Backend.prettyNamesForBranch root' nameScope)
   let getResults :: Names -> Cli [SearchResult]
-      getResults names = do
+      getResults names =
         case ws of
-          [] -> pure (List.sortOn (\s -> (SR.name s, s)) (SR.fromNames names))
+          [] -> pure (List.sortBy SR.compareByName (SR.fromNames names))
           -- type query
           ":" : ws -> do
             typ <- parseSearchType (show input) (unwords ws)
@@ -2411,19 +2409,22 @@ searchResultsFor ns terms types =
 
 searchBranchScored ::
   forall score.
-  (Ord score) =>
+  Ord score =>
   Names ->
   (Name -> Name -> Maybe score) ->
   [HQ.HashQualified Name] ->
   [SearchResult]
 searchBranchScored names0 score queries =
-  nubOrd . fmap snd . toList $ searchTermNamespace <> searchTypeNamespace
+  nubOrd
+    . fmap snd
+    . List.sortBy (\(s0, r0) (s1, r1) -> compare s0 s1 <> SR.compareByName r0 r1)
+    $ searchTermNamespace <> searchTypeNamespace
   where
-    searchTermNamespace = foldMap do1query queries
+    searchTermNamespace = queries >>= do1query
       where
-        do1query :: HQ.HashQualified Name -> Set (Maybe score, SearchResult)
-        do1query q = foldMap (score1hq q) (R.toList . Names.terms $ names0)
-        score1hq :: HQ.HashQualified Name -> (Name, Referent) -> Set (Maybe score, SearchResult)
+        do1query :: HQ.HashQualified Name -> [(Maybe score, SearchResult)]
+        do1query q = mapMaybe (score1hq q) (R.toList . Names.terms $ names0)
+        score1hq :: HQ.HashQualified Name -> (Name, Referent) -> Maybe (Maybe score, SearchResult)
         score1hq query (name, ref) = case query of
           HQ.NameOnly qn ->
             pair qn
@@ -2432,18 +2433,17 @@ searchBranchScored names0 score queries =
                 pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
-          _ -> mempty
+                Just (Nothing, result)
+          _ -> Nothing
           where
             result = SR.termSearchResult names0 name ref
-            pair qn = case score qn name of
-              Just score -> Set.singleton (Just score, result)
-              Nothing -> mempty
-    searchTypeNamespace = foldMap do1query queries
+            pair qn =
+              (\score -> (Just score, result)) <$> score qn name
+    searchTypeNamespace = queries >>= do1query
       where
-        do1query :: HQ.HashQualified Name -> Set (Maybe score, SearchResult)
-        do1query q = foldMap (score1hq q) (R.toList . Names.types $ names0)
-        score1hq :: HQ.HashQualified Name -> (Name, Reference) -> Set (Maybe score, SearchResult)
+        do1query :: HQ.HashQualified Name -> [(Maybe score, SearchResult)]
+        do1query q = mapMaybe (score1hq q) (R.toList . Names.types $ names0)
+        score1hq :: HQ.HashQualified Name -> (Name, Reference) -> Maybe (Maybe score, SearchResult)
         score1hq query (name, ref) = case query of
           HQ.NameOnly qn ->
             pair qn
@@ -2452,13 +2452,12 @@ searchBranchScored names0 score queries =
                 pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
-          _ -> mempty
+                Just (Nothing, result)
+          _ -> Nothing
           where
             result = SR.typeSearchResult names0 name ref
-            pair qn = case score qn name of
-              Just score -> Set.singleton (Just score, result)
-              Nothing -> mempty
+            pair qn =
+              (\score -> (Just score, result)) <$> score qn name
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
@@ -2945,7 +2944,7 @@ parseType input src = do
     Parsers.parseType (Text.unpack (fst lexed)) (Parser.ParsingEnv mempty names) & onLeft \err ->
       Cli.returnEarly (TypeParseError src err)
 
-  Type.bindNames mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->
+  Type.bindNames Name.unsafeFromVar mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->
     Cli.returnEarly (ParseResolutionFailures src (toList errs))
 
 getTermsIncludingHistorical :: Monad m => Path.HQSplit -> Branch0 m -> Cli (Set Referent)

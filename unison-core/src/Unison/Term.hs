@@ -1,13 +1,5 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Term where
 
@@ -148,11 +140,12 @@ type Term0' vt v = Term' vt v ()
 bindNames ::
   forall v a.
   Var v =>
+  (v -> Name.Name) ->
   Set v ->
   Names ->
   Term v a ->
   Names.ResolutionResult v a (Term v a)
-bindNames keepFreeTerms ns0 e = do
+bindNames unsafeVarToName keepFreeTerms ns0 e = do
   let freeTmVars = [(v, a) | (v, a) <- ABT.freeVarOccurrences keepFreeTerms e]
       -- !_ = trace "bindNames.free term vars: " ()
       -- !_ = traceShow $ fst <$> freeTmVars
@@ -163,14 +156,14 @@ bindNames keepFreeTerms ns0 e = do
       -- !_ = trace "bindNames.free type vars: " ()
       -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v, a) -> Names.ResolutionResult v a (v, Term v a)
-      okTm (v, a) = case Names.lookupHQTerm (Name.convert $ Name.unsafeFromVar v) ns of
+      okTm (v, a) = case Names.lookupHQTerm (Name.convert $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 ->
               pure (v, fromReferent a $ Set.findMin rs)
           | otherwise -> case NES.nonEmptySet rs of
               Nothing -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
               Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns0 refs)))
-      okTy (v, a) = case Names.lookupHQType (Name.convert $ Name.unsafeFromVar v) ns of
+      okTy (v, a) = case Names.lookupHQType (Name.convert $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
           | otherwise -> case NES.nonEmptySet rs of
@@ -186,6 +179,7 @@ bindNames keepFreeTerms ns0 e = do
 bindSomeNames ::
   forall v a.
   Var v =>
+  (v -> Name.Name) ->
   Set v ->
   Names ->
   Term v a ->
@@ -199,7 +193,7 @@ bindSomeNames ::
 --                   || traceShow (freeVars e) False
 --                   || traceShow e False
 --                   = undefined
-bindSomeNames avoid ns e = bindNames (avoid <> varsToTDNR) ns e
+bindSomeNames unsafeVarToName avoid ns e = bindNames unsafeVarToName (avoid <> varsToTDNR) ns e
   where
     -- `Term.bindNames` takes a set of variables that are not substituted.
     -- These should be the variables that will be subject to TDNR, which
@@ -210,7 +204,7 @@ bindSomeNames avoid ns e = bindNames (avoid <> varsToTDNR) ns e
     -- (if a free variable is being used as a typed hole).
     varsToTDNR = Set.filter notFound (freeVars e)
     notFound var =
-      Set.size (Name.searchByRankedSuffix (Name.unsafeFromVar var) (Names.terms ns)) /= 1
+      Set.size (Name.searchByRankedSuffix (unsafeVarToName var) (Names.terms ns)) /= 1
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
