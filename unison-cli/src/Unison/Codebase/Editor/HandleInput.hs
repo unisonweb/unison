@@ -1696,7 +1696,7 @@ handleFindI isVerbose fscope ws input = do
             let named = Branch.deepReferents currentBranch0
             matches <-
               fmap (filter (`Set.member` named) . toList) $
-                liftIO (Codebase.termsOfType codebase typ)
+                Cli.runTransaction (Codebase.termsOfType codebase typ)
             matches <-
               if null matches
                 then do

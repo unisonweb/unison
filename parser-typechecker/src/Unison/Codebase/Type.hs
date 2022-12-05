@@ -97,7 +97,7 @@ data Codebase m v a = Codebase
     -- | @getWatch k r@ returns watch result @t@ that was previously put by @putWatch k r t@.
     getWatch :: WK.WatchKind -> Reference.Id -> Sqlite.Transaction (Maybe (Term v a)),
     -- | Get the set of user-defined terms-or-constructors that have the given type.
-    termsOfTypeImpl :: Reference -> m (Set Referent.Id),
+    termsOfTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.
     termsMentioningTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors whose hash matches the given prefix.
