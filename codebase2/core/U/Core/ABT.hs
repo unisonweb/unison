@@ -17,7 +17,7 @@ data ABT f v r
   | Cycle r
   | Abs v r
   | Tm (f r)
-  deriving (Show, Functor, Foldable, Traversable)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable)
 
 -- | At each level in the tree, we store the set of free variables and
 -- a value of type `a`. Variables are of type `v`.

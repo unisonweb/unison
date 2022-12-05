@@ -934,11 +934,11 @@ infixAppOrBooleanOp :: Var v => TermP v
 infixAppOrBooleanOp = chainl1 term4 (or <|> and <|> infixApp)
   where
     or = orf <$> label "or" (reserved "||")
-    orf op lhs rhs = Term.or (ann op <> ann rhs) lhs rhs
+    orf op lhs rhs = Term.or (ann lhs <> ann op <> ann rhs) lhs rhs
     and = andf <$> label "and" (reserved "&&")
-    andf op lhs rhs = Term.and (ann op <> ann rhs) lhs rhs
+    andf op lhs rhs = Term.and (ann lhs <> ann op <> ann rhs) lhs rhs
     infixApp = infixAppf <$> label "infixApp" (hashQualifiedInfixTerm <* optional semi)
-    infixAppf op lhs rhs = Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
+    infixAppf op lhs rhs = Term.apps' op [lhs, rhs]
 
 typedecl :: Var v => P v (L.Token v, Type v Ann)
 typedecl =
