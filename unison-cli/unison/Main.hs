@@ -42,6 +42,7 @@ import qualified Language.Haskell.TH as TH
 import qualified Language.Haskell.TH.Syntax as TH
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
+import Stats (recordRtsStats)
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName, lookupEnv, withArgs)
 import qualified System.Exit as Exit
@@ -240,8 +241,11 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                           "to produce a new compiled program \
                           \that matches your version of Unison."
                       ]
-        Transcript shouldFork shouldSaveCodebase transcriptFiles ->
-          runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
+        Transcript shouldFork shouldSaveCodebase mrtsStatsFp transcriptFiles -> do
+          let action = runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
+          case mrtsStatsFp of
+            Nothing -> action
+            Just fp -> recordRtsStats fp action
         Launch isHeadless codebaseServerOpts downloadBase mayStartingPath shouldWatchFiles -> do
           getCodebaseOrExit mCodePathOption SC.MigrateAfterPrompt \(initRes, _, theCodebase) -> do
             withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
@@ -347,7 +351,7 @@ prepareTranscriptDir shouldFork mCodePathOption = do
       Path.copyDir (CodebaseInit.codebasePath cbInit path) (CodebaseInit.codebasePath cbInit tmp)
     DontFork -> do
       PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-      CodebaseInit.withNewUcmCodebaseOrExit cbInit "main.transcript" tmp (const $ pure ())
+      CodebaseInit.withNewUcmCodebaseOrExit cbInit "main.transcript" tmp SC.DoLock (const $ pure ())
   pure tmp
 
 runTranscripts' ::
@@ -527,7 +531,7 @@ defaultBaseLib =
 getCodebaseOrExit :: Maybe CodebasePathOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
 getCodebaseOrExit codebasePathOption migrationStrategy action = do
   initOptions <- argsToCodebaseInitOptions codebasePathOption
-  result <- CodebaseInit.withOpenOrCreateCodebase SC.init "main" initOptions migrationStrategy \case
+  result <- CodebaseInit.withOpenOrCreateCodebase SC.init "main" initOptions SC.DoLock migrationStrategy \case
     cbInit@(CreatedCodebase, dir, _) -> do
       pDir <- prettyDir dir
       PT.putPrettyLn' ""
@@ -546,6 +550,13 @@ getCodebaseOrExit codebasePathOption migrationStrategy action = do
             case err of
               InitErrorOpen err ->
                 case err of
+                  OpenCodebaseFileLockFailed ->
+                    pure
+                      ( P.lines
+                          [ "Failed to obtain a file lock on the codebase. ",
+                            "Perhaps you are running multiple ucm processes against the same codebase."
+                          ]
+                      )
                   OpenCodebaseDoesntExist ->
                     pure
                       ( P.lines

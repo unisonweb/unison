@@ -484,3 +484,26 @@ Regression test for https://github.com/unisonweb/unison/pull/3548
 ```ucm
 .> load scratch.u
 ```
+
+# Indent long pattern lists to avoid virtual semicolon
+
+Regression test for https://github.com/unisonweb/unison/issues/3627
+
+```unison:hide
+(+) a b = ##Nat.+ a b
+
+foo = cases
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
+   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+```
+
+```ucm
+.> add
+.> edit foo
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```

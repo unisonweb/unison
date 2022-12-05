@@ -338,12 +338,12 @@ lsAtPath ::
   MonadIO m =>
   Codebase m Symbol Ann ->
   -- The root to follow the path from.
-  Maybe (V2Branch.Branch m) ->
+  Maybe (V2Branch.Branch Sqlite.Transaction) ->
   -- Path from the root to the branch to 'ls'
   Path.Absolute ->
   m [ShallowListEntry Symbol Ann]
 lsAtPath codebase mayRootBranch absPath = do
-  b <- Codebase.getShallowBranchAtPath codebase (Path.unabsolute absPath) mayRootBranch
+  b <- Codebase.runTransaction codebase (Codebase.getShallowBranchAtPath (Path.unabsolute absPath) mayRootBranch)
   lsBranch codebase b
 
 findShallowReadmeInBranchAndRender ::
@@ -407,7 +407,7 @@ resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testR
 termListEntry ::
   MonadIO m =>
   Codebase m Symbol Ann ->
-  V2Branch.Branch m ->
+  V2Branch.Branch n ->
   ExactName NameSegment V2Referent.Referent ->
   m (TermEntry Symbol Ann)
 termListEntry codebase branch (ExactName nameSegment ref) = do
@@ -477,7 +477,7 @@ getTypeTag codebase r = do
 typeListEntry ::
   Var v =>
   Codebase m v Ann ->
-  V2Branch.Branch m ->
+  V2Branch.Branch n ->
   ExactName NameSegment Reference ->
   Sqlite.Transaction TypeEntry
 typeListEntry codebase b (ExactName nameSegment ref) = do
@@ -551,7 +551,7 @@ typeEntryToNamedType te@TypeEntry {typeEntryTag, typeEntryHash} =
 lsBranch ::
   MonadIO m =>
   Codebase m Symbol Ann ->
-  V2Branch.Branch m ->
+  V2Branch.Branch n ->
   m [ShallowListEntry Symbol Ann]
 lsBranch codebase b0 = do
   let flattenRefs :: Map V2Branch.NameSegment (Map ref v) -> [(ref, V2Branch.NameSegment)]
@@ -796,13 +796,15 @@ expandShortCausalHash hash = do
       throwError . AmbiguousBranchHash hash $ Set.map (SCH.fromHash len) hashSet
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
-getShallowCausalAtPathFromRootHash :: MonadIO m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (V2Branch.CausalBranch m)
-getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
+getShallowCausalAtPathFromRootHash ::
+  Maybe Branch.CausalHash ->
+  Path ->
+  Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+getShallowCausalAtPathFromRootHash mayRootHash path = do
   shallowRoot <- case mayRootHash of
-    Nothing -> lift (Codebase.getShallowRootCausal codebase)
-    Just h -> do
-      lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
-  lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)
+    Nothing -> Codebase.getShallowRootCausal
+    Just h -> Codebase.expectCausalBranchByCausalHash (Cv.causalHash1to2 h)
+  Codebase.getShallowCausalAtPath path (Just shallowRoot)
 
 formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
 formatType' ppe w =
@@ -841,8 +843,11 @@ prettyDefinitionsForHQName ::
   HQ.HashQualified Name ->
   Backend IO DefinitionDisplayResults
 prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebase query = do
-  shallowRoot <- resolveCausalHashV2 codebase (fmap Cv.causalHash1to2 mayRoot)
-  hqLength <- lift $ Codebase.runTransaction codebase Codebase.hashLength
+  (shallowRoot, hqLength) <-
+    (lift . Codebase.runTransaction codebase) do
+      shallowRoot <- resolveCausalHashV2 (fmap Cv.causalHash1to2 mayRoot)
+      hqLength <- Codebase.hashLength
+      pure (shallowRoot, hqLength)
   (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our perspective but within the
@@ -858,8 +863,10 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   DefinitionResults terms types misses <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
-  causalAtPath <- lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)
-  branchAtPath <- lift $ V2Causal.value causalAtPath
+  branchAtPath <- do
+    (lift . Codebase.runTransaction codebase) do
+      causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
+      V2Causal.value causalAtPath
   let width = mayDefaultWidth renderWidth
       -- Return only references which refer to docs.
       filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
@@ -982,7 +989,7 @@ renderDoc ppe width rt codebase r = do
     eval (Term.amap (const mempty) -> tm) = do
       let ppes = PPED.suffixifiedPPE ppe
       let codeLookup = Codebase.toCodeLookup codebase
-      let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
+      let cache r = fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase r)
       r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
       case r of
         Just tmr ->
@@ -1105,7 +1112,13 @@ bestNameForType ppe width =
 -- - 'local' includes ONLY the names within the provided path
 -- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash :: forall m v a. MonadIO m => Codebase m v a -> Maybe (V2Branch.CausalBranch m) -> Path -> Backend m (Names, PPED.PrettyPrintEnvDecl)
+scopedNamesForBranchHash ::
+  forall m n v a.
+  MonadIO m =>
+  Codebase m v a ->
+  Maybe (V2Branch.CausalBranch n) ->
+  Path ->
+  Backend m (Names, PPED.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
@@ -1148,11 +1161,10 @@ resolveCausalHash h codebase = case h of
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
     whenNothing mayBranch (throwError $ NoBranchForHash bhash)
 
-resolveCausalHashV2 ::
-  MonadIO m => Codebase m v a -> Maybe V2Branch.CausalHash -> Backend m (V2Branch.CausalBranch m)
-resolveCausalHashV2 codebase h = case h of
-  Nothing -> lift $ Codebase.getShallowRootCausal codebase
-  Just ch -> lift $ Codebase.getShallowCausalForHash codebase ch
+resolveCausalHashV2 :: Maybe V2Branch.CausalHash -> Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+resolveCausalHashV2 h = case h of
+  Nothing -> Codebase.getShallowRootCausal
+  Just ch -> Codebase.expectCausalBranchByCausalHash ch
 
 resolveRootBranchHash ::
   MonadIO m => Maybe ShortCausalHash -> Codebase m v a -> Backend m (Branch m)
@@ -1164,12 +1176,12 @@ resolveRootBranchHash mayRoot codebase = case mayRoot of
     resolveCausalHash (Just h) codebase
 
 resolveRootBranchHashV2 ::
-  MonadIO m => Codebase m v a -> Maybe ShortCausalHash -> Backend m (V2Branch.CausalBranch m)
-resolveRootBranchHashV2 codebase mayRoot = case mayRoot of
-  Nothing -> lift (Codebase.getShallowRootCausal codebase)
+  Maybe ShortCausalHash -> Backend Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+resolveRootBranchHashV2 mayRoot = case mayRoot of
+  Nothing -> lift Codebase.getShallowRootCausal
   Just sch -> do
-    h <- Cv.causalHash1to2 <$> hoistBackend (Codebase.runTransaction codebase) (expandShortCausalHash sch)
-    resolveCausalHashV2 codebase (Just h)
+    h <- Cv.causalHash1to2 <$> expandShortCausalHash sch
+    lift (resolveCausalHashV2 (Just h))
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
 --

@@ -80,9 +80,12 @@ namespaceDetails ::
 namespaceDetails runtime codebase namespacePath maySCH mayWidth =
   let width = mayDefaultWidth mayWidth
    in do
-        rootCausal <- Backend.resolveRootBranchHashV2 codebase maySCH
-        namespaceCausal <- lift $ Codebase.getShallowCausalAtPath codebase namespacePath (Just rootCausal)
-        shallowBranch <- lift $ V2Causal.value namespaceCausal
+        (rootCausal, namespaceCausal, shallowBranch) <- 
+          Backend.hoistBackend (Codebase.runTransaction codebase) do
+            rootCausal <- Backend.resolveRootBranchHashV2 maySCH
+            namespaceCausal <- lift $ Codebase.getShallowCausalAtPath namespacePath (Just rootCausal)
+            shallowBranch <- lift $ V2Causal.value namespaceCausal
+            pure (rootCausal, namespaceCausal, shallowBranch)
         namespaceDetails <- do
           (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) namespacePath
           readme <-

@@ -36,13 +36,14 @@ import qualified Unison.DataDeclaration as Decl
 import Unison.FileParsers (synthesizeFile')
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import Unison.Reference (Reference (..))
+import Unison.Reference (Reference (..), TermReference, TypeReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -58,6 +59,7 @@ import Unison.UnisonFile (UnisonFile (..))
 import qualified Unison.UnisonFile as UF
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Relation as R
+import qualified Unison.Util.Set as Set
 import qualified Unison.Util.Star3 as Star3
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
@@ -240,14 +242,7 @@ propagate patch b = case validatePatch patch of
     -- TODO: this can be removed once patches have term replacement of type `Referent -> Referent`
     rootNames <- Branch.toNames <$> Cli.getRootBranch0
 
-    let entireBranch =
-          Set.union
-            (Branch.deepTypeReferences b)
-            ( Set.fromList
-                [r | Referent.Ref r <- Set.toList $ Branch.deepReferents b]
-            )
-
-        -- TODO: these are just used for tracing, could be deleted if we don't care
+    let -- TODO: these are just used for tracing, could be deleted if we don't care
         -- about printing meaningful names for definitions during propagation, or if
         -- we want to just remove the tracing.
         refName r =
@@ -270,7 +265,8 @@ propagate patch b = case validatePatch patch of
         computeDirty
           (Codebase.dependents Queries.ExcludeOwnComponent)
           patch
-          (Names.contains names0)
+          -- Dirty reference predicate: does the reference have a name in this branch that isn't in the "lib" namespace?
+          (Names.contains (Names.filter nameNotInLibNamespace (Branch.toNames b)))
 
       let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
       -- TODO: once patches can directly contain constructor replacements, this
@@ -278,7 +274,16 @@ propagate patch b = case validatePatch patch of
       -- in the patch which have a `Referent.Con` as their LHS.
       initialCtorMappings <- genInitialCtorMapping rootNames initialTypeReplacements
 
-      order <- sortDependentsGraph initialDirty entireBranch
+      order <-
+        let restrictToTypes :: Set TypeReference
+            restrictToTypes =
+              R.dom (R.filterRan nameNotInLibNamespace (Branch.deepTypes b))
+            restrictToTerms :: Set TermReference
+            restrictToTerms =
+              Set.mapMaybe Referent.toTermReference (R.dom (R.filterRan nameNotInLibNamespace (Branch.deepTerms b)))
+         in sortDependentsGraph
+              initialDirty
+              (Set.union restrictToTypes restrictToTerms)
 
       let getOrdered :: Set Reference -> Map Int Reference
           getOrdered rs =
@@ -478,7 +483,6 @@ propagate patch b = case validatePatch patch of
           (zip (view _1 . getReference <$> Graph.topSort graph) [0 ..])
     -- vertex i precedes j whenever i has an edge to j and not vice versa.
     -- vertex i precedes j when j is a dependent of i.
-    names0 = Branch.toNames b
     validatePatch ::
       Patch -> Maybe (Map Reference TermEdit, Map Reference TypeEdit)
     validatePatch p =
@@ -600,12 +604,20 @@ applyDeprecations patch =
 -- | Things in the patch are not marked as propagated changes, but every other
 -- definition that is created by the `Edits` which is passed in is marked as
 -- a propagated change.
-applyPropagate :: Applicative m => Patch -> Edits Symbol -> Branch0 m -> Branch0 m
-applyPropagate patch Edits {..} = do
+applyPropagate :: forall m. Applicative m => Patch -> Edits Symbol -> Branch0 m -> Branch0 m
+applyPropagate patch Edits {newTerms, termReplacements, typeReplacements, constructorReplacements} = do
   let termTypes = Map.map (Hashing.typeToReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
-  Branch.stepEverywhere (updateLevel termReplacements typeReplacements termTypes)
+  stepEverywhereButLib (updateLevel termReplacements typeReplacements termTypes)
   where
+    -- Like Branch.stepEverywhere, but don't step the child named "lib"
+    stepEverywhereButLib :: (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
+    stepEverywhereButLib f branch =
+      let children =
+            Map.mapWithKey
+              (\name child -> if name == "lib" then child else Branch.step (Branch.stepEverywhere f) child)
+              (branch ^. Branch.children)
+       in f (Branch.branch0 (branch ^. Branch.terms) (branch ^. Branch.types) children (branch ^. Branch.edits))
     isPropagated r = Set.notMember r allPatchTargets
     allPatchTargets = Patch.allReferenceTargets patch
     propagatedMd :: forall r. r -> (r, Metadata.Type, Metadata.Value)
@@ -627,32 +639,28 @@ applyPropagate patch Edits {..} = do
         terms0 = Star3.replaceFacts replaceConstructor constructorReplacements _terms
         terms :: Branch.Star Referent NameSegment
         terms =
-          updateMetadatas Referent.Ref $
+          updateMetadatas $
             Star3.replaceFacts replaceTerm termEdits terms0
         types :: Branch.Star Reference NameSegment
         types =
-          updateMetadatas id $
+          updateMetadatas $
             Star3.replaceFacts replaceType typeEdits _types
 
         updateMetadatas ::
           Ord r =>
-          (Reference -> r) ->
           Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value) ->
           Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value)
-        updateMetadatas ref s = clearPropagated $ Star3.mapD3 go s
+        updateMetadatas s = Star3.mapD3 go s
           where
-            clearPropagated s = foldl' go s allPatchTargets
-              where
-                go s r = Metadata.delete (propagatedMd $ ref r) s
             go (tp, v) = case Map.lookup (Referent.Ref v) termEdits of
               Just (Referent.Ref r) -> (typeOf r tp, r)
               _ -> (tp, v)
             typeOf r t = fromMaybe t $ Map.lookup r termTypes
 
         replaceTerm :: Referent -> Referent -> Metadata.Star Referent NameSegment -> Metadata.Star Referent NameSegment
-        replaceTerm r r' s =
+        replaceTerm _r r' s =
           ( if isPropagatedReferent r'
-              then Metadata.insert (propagatedMd r') . Metadata.delete (propagatedMd r)
+              then Metadata.insert (propagatedMd r')
               else Metadata.delete (propagatedMd r')
           )
             $ s
@@ -682,11 +690,9 @@ applyPropagate patch Edits {..} = do
 
 -- | Compute the set of "dirty" references. They each:
 --
---   1. Depend directly on some reference that was edited in the given patch
---   2. Have a name in the current namespace (the given Names)
---   3. Are not themselves edited in the given patch.
---
--- Note: computeDirty a b c = R.dom <$> computeFrontier a b c
+-- 1. Depend directly on some reference that was edited in the given patch
+-- 2. Are not themselves edited in the given patch.
+-- 3. Pass the given predicate.
 computeDirty ::
   Monad m =>
   (Reference -> m (Set Reference)) -> -- eg Codebase.dependents codebase
@@ -703,3 +709,7 @@ computeDirty getDependents patch shouldUpdate =
 
     edited :: Set Reference
     edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
+
+nameNotInLibNamespace :: Name -> Bool
+nameNotInLibNamespace name =
+  not (Name.beginsWithSegment name "lib")

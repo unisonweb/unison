@@ -21,6 +21,7 @@ module Unison.Name
     countSegments,
     isAbsolute,
     isPrefixOf,
+    beginsWithSegment,
     endsWithReverseSegments,
     endsWithSegments,
     stripReversedPrefix,
@@ -163,6 +164,19 @@ cons x name =
 countSegments :: Name -> Int
 countSegments (Name _ ss) =
   length ss
+
+-- | @beginsWithSegment name segment@ returns whether @name@'s first name segment is @segment@.
+--
+-- >>> beginsWithSegment "abc.def" "abc"
+-- True
+--
+-- >>> beginsWithSegment "abc.def" "ab"
+-- False
+--
+-- /O(n)/, where /n/ is the number of name segments.
+beginsWithSegment :: Name -> NameSegment -> Bool
+beginsWithSegment name segment =
+  segment == List.NonEmpty.head (segments name)
 
 -- | @endsWithSegments x y@ returns whether @x@ ends with @y@.
 --
@@ -559,7 +573,7 @@ commonPrefix :: Name -> Name -> [NameSegment]
 commonPrefix x@(Name p1 _) y@(Name p2 _)
   | p1 /= p2 = []
   | otherwise =
-    commonPrefix' (toList $ segments x) (toList $ segments y)
+      commonPrefix' (toList $ segments x) (toList $ segments y)
   where
     commonPrefix' (a : as) (b : bs)
       | a == b = a : commonPrefix' as bs
