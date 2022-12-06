@@ -148,7 +148,7 @@ compile (Many p) !_ !success = case p of
   AnyChar -> (\acc _ -> success acc Text.empty)
   CharIn cs -> walker (charInPred cs)
   NotCharIn cs -> walker (charNotInPred cs)
-  CharRange c1 c2 -> walker (\ch -> ch >= c1 && c1 <= c2)
+  CharRange c1 c2 -> walker (\ch -> ch >= c1 && ch <= c2)
   NotCharRange c1 c2 -> walker (\ch -> ch < c1 || ch > c2)
   Digit -> walker isDigit
   Letter -> walker isLetter
