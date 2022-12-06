@@ -39,7 +39,7 @@ completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseE
 completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
     (range, prefix) <- MaybeT $ VFS.completionPrefix (m ^. params)
-    ppe <- PPED.suffixifiedPPE <$> lift globalPPE
+    ppe <- PPED.suffixifiedPPE <$> lift globalPPED
     completions <- lift getCompletions
     Config {maxCompletions} <- lift getConfig
     let defMatches = matchCompletions completions prefix
