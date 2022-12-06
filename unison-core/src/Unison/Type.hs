@@ -1,11 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Type where
 
@@ -16,7 +9,6 @@ import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
 import Data.Monoid (Any (..))
 import qualified Data.Set as Set
-import Prelude.Extras (Eq1 (..), Ord1 (..), Show1 (..))
 import qualified Unison.ABT as ABT
 import qualified Unison.Kind as K
 import qualified Unison.Name as Name
@@ -43,12 +35,6 @@ data F a
   -- variables
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
-instance Eq1 F where (==#) = (==)
-
-instance Ord1 F where compare1 = compare
-
-instance Show1 F where showsPrec1 = showsPrec
-
 _Ref :: Prism' (F a) Reference
 _Ref = _Ctor @"Ref"
 
@@ -67,13 +53,14 @@ bindExternal bs = ABT.substsInheritAnnotation [(v, ref () r) | (v, r) <- bs]
 
 bindReferences ::
   Var v =>
+  (v -> Name.Name) ->
   Set v ->
   Map Name.Name Reference ->
   Type v a ->
   Names.ResolutionResult v a (Type v a)
-bindReferences keepFree ns t =
+bindReferences unsafeVarToName keepFree ns t =
   let fvs = ABT.freeVarOccurrences keepFree t
-      rs = [(v, a, Map.lookup (Name.unsafeFromVar v) ns) | (v, a) <- fvs]
+      rs = [(v, a, Map.lookup (unsafeVarToName v) ns) | (v, a) <- fvs]
       ok (v, _a, Just r) = pure (v, r)
       ok (v, a, Nothing) = Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
    in List.validate ok rs <&> \es -> bindExternal es t

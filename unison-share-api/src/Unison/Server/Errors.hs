@@ -25,6 +25,7 @@ import Unison.Server.Types
     mungeString,
   )
 import qualified Unison.ShortHash as SH
+import qualified Unison.Syntax.HashQualified as HQ (toString)
 
 badHQN :: HashQualifiedName -> ServerError
 badHQN hqn =
@@ -101,7 +102,7 @@ noSuchDefinition :: HQ.HashQualified Name -> ServerError
 noSuchDefinition hqName =
   err404
     { errBody =
-        "Couldn't find a definition for " <> BSC.pack (show hqName)
+        "Couldn't find a definition for " <> BSC.pack (HQ.toString hqName)
     }
 
 ambiguousHashForDefinition :: SH.ShortHash -> ServerError

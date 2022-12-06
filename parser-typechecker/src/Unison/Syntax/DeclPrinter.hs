@@ -13,7 +13,6 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PPE
@@ -21,6 +20,7 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.Reference (Reference (DerivedId))
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
+import qualified Unison.Syntax.HashQualified as HQ (toString, toVar, unsafeFromString)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.TypePrinter (runPretty)
 import qualified Unison.Syntax.TypePrinter as TypePrinter
@@ -87,8 +87,11 @@ prettyPattern ::
 prettyPattern env ctorType namespace ref =
   styleHashQualified''
     (fmt (S.TermReference conRef))
-    ( HQ.stripNamespace (maybe "" Name.toText (HQ.toName namespace)) $
-        PPE.termName env conRef
+    ( let strip =
+            case HQ.toName namespace of
+              Nothing -> id
+              Just name -> HQ.stripNamespace name
+       in strip (PPE.termName env conRef)
     )
   where
     conRef = Referent.Con ref ctorType

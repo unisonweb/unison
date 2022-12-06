@@ -41,9 +41,10 @@ import Unison.CommandLine.InputPattern
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
+import qualified Unison.Syntax.HashQualified as HQ (fromString)
+import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
@@ -333,8 +334,14 @@ view =
     I.Visible
     [(ZeroPlus, definitionQueryArg)]
     ( P.lines
-        [ "`view foo` prints definitions named `foo` within your current namespace.",
-          "`view` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
+        [ P.wrap $ makeExample view ["foo"] <> "shows definitions named `foo` within your current namespace.",
+          P.wrap $ makeExample view [] <> "without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH.",
+          " ", -- hmm, this blankline seems to be ignored by pretty printer
+          P.wrap $
+            "Supports glob syntax, where ? acts a wildcard, so"
+              <> makeExample view ["List.?"]
+              <> "will show `List.map`, `List.filter`, etc, but "
+              <> "not `List.map.doc` (since ? only matches 1 name segment)."
         ]
     )
     ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
@@ -2117,6 +2124,96 @@ makeStandalone =
         _ -> Left $ showPatternHelp makeStandalone
     )
 
+runScheme :: InputPattern
+runScheme =
+  InputPattern
+    "run.native"
+    []
+    I.Visible
+    [(Required, exactDefinitionTermQueryArg)]
+    ( P.wrapColumn2
+        [ ( makeExample runScheme ["main"],
+            "Executes !main using native compilation via scheme."
+          )
+        ]
+    )
+    ( \case
+        [main] ->
+          Input.ExecuteSchemeI <$> parseHashQualifiedName main
+        _ -> Left $ showPatternHelp runScheme
+    )
+
+compileScheme :: InputPattern
+compileScheme =
+  InputPattern
+    "compile.native"
+    []
+    I.Visible
+    [(Required, exactDefinitionTermQueryArg), (Required, noCompletionsArg)]
+    ( P.wrapColumn2
+        [ ( makeExample compileScheme ["main", "file"],
+            "Creates stand alone executable via compilation to"
+              <> "scheme. The created executable will have the effect"
+              <> "of running `!main`."
+          )
+        ]
+    )
+    ( \case
+        [main, file] ->
+          Input.CompileSchemeI file <$> parseHashQualifiedName main
+        _ -> Left $ showPatternHelp compileScheme
+    )
+
+schemeLibgen :: InputPattern
+schemeLibgen =
+  InputPattern
+    "compile.native.genlibs"
+    []
+    I.Visible
+    []
+    ( P.wrapColumn2
+        [ ( makeExample schemeLibgen [],
+            "Generates libraries necessary for scheme compilation.\n\n\
+            \There is no need to run this before"
+              <> P.group (makeExample compileScheme [])
+              <> "as\
+                 \ the latter will check if the libraries are missing and\
+                 \ auto-generate them. However, this will generate the\
+                 \ libraries even if their files already exist, so if the\
+                 \ compiler has been upgraded, this can be used to ensure\
+                 \ the generated libraries are up to date."
+          )
+        ]
+    )
+    ( \case
+        [] -> pure Input.GenSchemeLibsI
+        _ -> Left $ showPatternHelp schemeLibgen
+    )
+
+fetchScheme :: InputPattern
+fetchScheme =
+  InputPattern
+    "compile.native.fetch"
+    []
+    I.Visible
+    []
+    ( P.wrapColumn2
+        [ ( makeExample fetchScheme [],
+            "Fetches the unison library for compiling to scheme.\n\n\
+            \This is done automatically when"
+              <> P.group (makeExample compileScheme [])
+              <> "is run\
+                 \ if the library is not already in the standard location\
+                 \ (unison.internal). However, this command will force\
+                 \ a pull even if the library already exists."
+          )
+        ]
+    )
+    ( \case
+        [] -> pure Input.FetchSchemeCompilerI
+        _ -> Left $ showPatternHelp fetchScheme
+    )
+
 createAuthor :: InputPattern
 createAuthor =
   InputPattern
@@ -2289,6 +2386,10 @@ validInputs =
       quit,
       updateBuiltins,
       makeStandalone,
+      runScheme,
+      compileScheme,
+      schemeLibgen,
+      fetchScheme,
       mergeBuiltins,
       mergeIOBuiltins,
       dependents,

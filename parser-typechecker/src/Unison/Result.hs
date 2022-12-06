@@ -1,6 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE Rank2Types #-}
-
 module Unison.Result where
 
 import Control.Error.Util (note)

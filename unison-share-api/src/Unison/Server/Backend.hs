@@ -60,9 +60,6 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
-import Unison.Name as Name
-  ( unsafeFromText,
-  )
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
@@ -94,6 +91,9 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.HashQualified as HQ (toText)
+import qualified Unison.Syntax.HashQualified' as HQ' (toText)
+import Unison.Syntax.Name as Name (toText, unsafeFromText)
 import qualified Unison.Syntax.NamePrinter as NP
 import qualified Unison.Syntax.TermPrinter as TermPrinter
 import qualified Unison.Syntax.TypePrinter as TypePrinter
@@ -268,7 +268,7 @@ data TermEntry v a = TermEntry
   deriving (Eq, Ord, Show, Generic)
 
 termEntryDisplayName :: TermEntry v a -> Text
-termEntryDisplayName = HQ'.toText . termEntryHQName
+termEntryDisplayName = HQ'.toTextWith NameSegment.toText . termEntryHQName
 
 termEntryHQName :: TermEntry v a -> HQ'.HashQualified NameSegment
 termEntryHQName TermEntry {termEntryName, termEntryConflicted, termEntryHash} =
@@ -286,7 +286,7 @@ data TypeEntry = TypeEntry
   deriving (Eq, Ord, Show, Generic)
 
 typeEntryDisplayName :: TypeEntry -> Text
-typeEntryDisplayName = HQ'.toText . typeEntryHQName
+typeEntryDisplayName = HQ'.toTextWith NameSegment.toText . typeEntryHQName
 
 typeEntryHQName :: TypeEntry -> HQ'.HashQualified NameSegment
 typeEntryHQName TypeEntry {typeEntryName, typeEntryConflicted, typeEntryReference} =
@@ -314,7 +314,7 @@ fuzzyFind ::
   [(FZF.Alignment, UnisonName, [FoundRef])]
 fuzzyFind printNames query =
   let fzfNames =
-        Names.fuzzyFind (words query) printNames
+        Names.fuzzyFind Name.toText (words query) printNames
 
       toFoundRef =
         fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
@@ -1184,6 +1184,12 @@ resolveRootBranchHashV2 mayRoot = case mayRoot of
     lift (resolveCausalHashV2 (Just h))
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
+--
+-- This was once used for both term and decl components, but now is only used for decl components, because 'update' does
+-- The Right Thing for terms (i.e. propagates changes to all dependents, including component-mates, which are de facto
+-- dependents).
+--
+-- Ticket of interest: https://github.com/unisonweb/unison/issues/3445
 data IncludeCycles
   = IncludeCycles
   | DontIncludeCycles
@@ -1200,16 +1206,7 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
   QueryResult misses results <- hqNameQuery codebase nameSearch query
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
-  terms <- do
-    let termRefsWithoutCycles = searchResultsToTermRefs results
-    termRefs <- case includeCycles of
-      IncludeCycles ->
-        Codebase.runTransaction codebase do
-          Monoid.foldMapM
-            Codebase.componentReferencesForReference
-            termRefsWithoutCycles
-      DontIncludeCycles -> pure termRefsWithoutCycles
-    Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) termRefs
+  terms <- Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) (searchResultsToTermRefs results)
   types <- do
     let typeRefsWithoutCycles = searchResultsToTypeRefs results
     typeRefs <- case includeCycles of

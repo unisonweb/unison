@@ -18,6 +18,8 @@ module Unison.Prelude
     whenJustM,
     eitherToMaybe,
     maybeToEither,
+    altSum,
+    altMap,
 
     -- * @Either@ control flow
     onLeft,
@@ -73,6 +75,14 @@ import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import qualified UnliftIO
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
+
+-- | Like 'fold' but for Alternative.
+altSum :: (Alternative f, Foldable t) => t (f a) -> f a
+altSum = foldl' (<|>) empty
+
+-- | Like 'foldMap' but for Alternative.
+altMap :: (Alternative f, Foldable t) => (a -> f b) -> t a -> f b
+altMap f = altSum . fmap f . toList
 
 -- | E.g.
 --

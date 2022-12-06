@@ -38,6 +38,7 @@ library
       Unison.Kind
       Unison.LabeledDependency
       Unison.Name
+      Unison.Name.Internal
       Unison.Names
       Unison.Names.ResolutionResult
       Unison.Names.Scoped
@@ -64,8 +65,11 @@ library
   default-extensions:
       ApplicativeDo
       BlockArguments
+      DeriveAnyClass
+      DeriveFoldable
       DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
@@ -76,6 +80,7 @@ library
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -94,7 +99,6 @@ library
     , memory
     , mtl
     , nonempty-containers
-    , prelude-extras
     , rfc5051
     , safe
     , text

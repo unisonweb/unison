@@ -32,6 +32,7 @@ import Unison.Result
     pattern Result,
   )
 import qualified Unison.Result as Result
+import qualified Unison.Syntax.Name as Name (toText, unsafeFromText)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)

@@ -1,10 +1,4 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Hashing.V2.DataDeclaration
   ( DataDeclaration (..),
@@ -84,30 +78,32 @@ hashDecls0 decls =
 -- affect the hash.
 hashDecls ::
   (Eq v, Var v, Show v) =>
+  (v -> Name.Name) ->
   Map v (DataDeclaration v a) ->
   Names.ResolutionResult v a [(v, Reference.Id, DataDeclaration v a)]
-hashDecls decls = do
+hashDecls unsafeVarToName decls = do
   -- todo: make sure all other external references are resolved before calling this
   let varToRef = hashDecls0 (void <$> decls)
       varToRef' = second Reference.DerivedId <$> varToRef
       decls' = bindTypes <$> decls
       bindTypes dd = dd {constructors' = over _3 (Type.bindExternal varToRef') <$> constructors' dd}
-      typeReferences = Map.fromList (first Name.unsafeFromVar <$> varToRef')
+      typeReferences = Map.fromList (first unsafeVarToName <$> varToRef')
       -- normalize the order of the constructors based on a hash of their types
       sortCtors dd = dd {constructors' = sortOn hash3 $ constructors' dd}
       hash3 (_, _, typ) = ABT.hash typ :: Hash
-  decls' <- fmap sortCtors <$> traverse (bindReferences mempty typeReferences) decls'
+  decls' <- fmap sortCtors <$> traverse (bindReferences unsafeVarToName mempty typeReferences) decls'
   pure [(v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls']]
 
 bindReferences ::
   Var v =>
+  (v -> Name.Name) ->
   Set v ->
   Map Name.Name Reference ->
   DataDeclaration v a ->
   Names.ResolutionResult v a (DataDeclaration v a)
-bindReferences keepFree names (DataDeclaration m a bound constructors) = do
+bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constructors) = do
   constructors <- for constructors $ \(a, v, ty) ->
-    (a,v,) <$> Type.bindReferences keepFree names ty
+    (a,v,) <$> Type.bindReferences unsafeVarToName keepFree names ty
   pure $ DataDeclaration m a bound constructors
 
 data F a

@@ -43,7 +43,6 @@ import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann (..))
@@ -57,6 +56,7 @@ import qualified Unison.Result as Result
 import Unison.Runtime.IOSource (isTest)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Name as Name (toVar, unsafeFromVar)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)

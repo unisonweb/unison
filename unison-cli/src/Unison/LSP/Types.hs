@@ -111,7 +111,6 @@ data FileAnalysis = FileAnalysis
     diagnostics :: IntervalMap Position [Diagnostic],
     codeActions :: IntervalMap Position [CodeAction]
   }
-  deriving (Show)
 
 getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO

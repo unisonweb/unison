@@ -1,14 +1,9 @@
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.HashQualified where
 
 import qualified Data.Text as Text
 import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.ConstructorReference as ConstructorReference
-import Unison.Name (Convert, Name, Parse)
+import Unison.Name (Convert, Name)
 import qualified Unison.Name as Name
 import Unison.Prelude hiding (fromString)
 import Unison.Reference (Reference)
@@ -17,25 +12,22 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
-import Unison.Var (Var)
-import qualified Unison.Var as Var
 import Prelude hiding (take)
 
 data HashQualified n
   = NameOnly n
   | HashOnly ShortHash
   | HashQualified n ShortHash
-  deriving (Eq, Foldable, Traversable, Functor, Show, Generic)
+  deriving stock (Eq, Foldable, Ord, Traversable, Functor, Show, Generic)
 
-stripNamespace :: Text -> HashQualified Name -> HashQualified Name
-stripNamespace "" hq = hq
+stripNamespace :: Name -> HashQualified Name -> HashQualified Name
 stripNamespace namespace hq = case hq of
   NameOnly name -> NameOnly $ strip name
   HashQualified name sh -> HashQualified (strip name) sh
   ho -> ho
   where
     strip name =
-      fromMaybe name $ Name.stripNamePrefix (Name.unsafeFromText namespace) name
+      fromMaybe name $ Name.stripNamePrefix namespace name
 
 toName :: HashQualified n -> Maybe n
 toName = \case
@@ -85,39 +77,8 @@ take i = \case
   HashOnly s -> HashOnly (SH.take i s)
   HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.take i s)
 
-toString :: Show n => HashQualified n -> String
-toString = Text.unpack . toText
-
 toStringWith :: (n -> String) -> HashQualified n -> String
 toStringWith f = Text.unpack . toTextWith (Text.pack . f)
-
-fromString :: String -> Maybe (HashQualified Name)
-fromString = fromText . Text.pack
-
-unsafeFromString :: String -> HashQualified Name
-unsafeFromString s = fromMaybe msg . fromString $ s
-  where
-    msg = error $ "HashQualified.unsafeFromString " <> show s
-
--- Parses possibly-hash-qualified into structured type.
--- Doesn't validate against base58 or the codebase.
-fromText :: Text -> Maybe (HashQualified Name)
-fromText t = case Text.breakOn "#" t of -- breakOn leaves the '#' on the RHS
-  ("", "") -> Nothing
-  (name, "") -> NameOnly <$> (Name.fromText name)
-  ("", hash) -> HashOnly <$> SH.fromText hash
-  (name, hash) -> HashQualified <$> Name.fromText name <*> SH.fromText hash
-
--- Won't crash as long as SH.unsafeFromText doesn't crash on any input that
--- starts with '#', which is true as of the time of this writing, but not great.
-unsafeFromText :: Text -> HashQualified Name
-unsafeFromText txt = fromMaybe msg . fromText $ txt
-  where
-    msg = error $ "HashQualified.unsafeFromText " <> show txt
-
-toText :: Show n => HashQualified n -> Text
-toText =
-  toTextWith (Text.pack . show)
 
 toTextWith :: (n -> Text) -> HashQualified n -> Text
 toTextWith f = \case
@@ -145,15 +106,6 @@ fromPattern r = HashOnly $ ConstructorReference.toShortHash r
 fromName :: n -> HashQualified n
 fromName = NameOnly
 
-unsafeFromVar :: Var v => v -> HashQualified Name
-unsafeFromVar = unsafeFromText . Var.name
-
-fromVar :: Var v => v -> Maybe (HashQualified Name)
-fromVar = fromText . Var.name
-
-toVar :: Var v => HashQualified Name -> v
-toVar = Var.named . toTextWith Name.toText
-
 -- todo: find this logic elsewhere and replace with call to this
 matchesNamedReferent :: Name -> Referent -> HashQualified Name -> Bool
 matchesNamedReferent n r = \case
@@ -174,9 +126,9 @@ requalify hq r = case hq of
   HashQualified n _ -> fromNamedReferent n r
   HashOnly _ -> fromReferent r
 
--- Ordered alphabetically, based on the name. Hashes come last.
-instance (Eq n, Name.Alphabetical n) => Ord (HashQualified n) where
-  compare a b =
+instance Name.Alphabetical n => Name.Alphabetical (HashQualified n) where
+  -- Ordered alphabetically, based on the name. Hashes come last.
+  compareAlphabetical a b =
     case (toName a, toName b) of
       (Just n, Just n2) -> Name.compareAlphabetical n n2
       (Nothing, Just _) -> GT
@@ -193,9 +145,3 @@ instance Convert n n2 => Convert (HashQualified n) (HashQualified n2) where
 
 instance Convert n (HashQualified n) where
   convert = NameOnly
-
-instance Parse Text (HashQualified Name) where
-  parse = fromText
-
--- instance Show n => Show (HashQualified n) where
---  show = Text.unpack . toText

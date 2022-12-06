@@ -17,7 +17,6 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import Unison.LabeledDependency (LabeledDependency)
@@ -31,6 +30,8 @@ import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Referent as Referent
+import qualified Unison.Syntax.Name as Name (toText)
+import qualified Unison.Syntax.HashQualified' as HQ' (toText)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Relation as Relation
 
