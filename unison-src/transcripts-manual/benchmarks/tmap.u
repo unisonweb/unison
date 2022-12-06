@@ -1,0 +1,13 @@
+
+-- insert 10k numbers into a map
+go m n = 
+  if n == 1000 then atomically '(TMap.lookup (encodeNat64be n) m)
+  else
+    k = encodeNat64be (Nat.mod ( n * n ) 115249)
+    atomically '(TMap.insert k k m)
+    match atomically '(TMap.lookup k m) with
+      Some a -> go m (n + 1)
+      None -> bug "Map implementation is busted" 
+
+main = do
+  timeit "TMap" '(go (atomically TMap.empty) 0) 

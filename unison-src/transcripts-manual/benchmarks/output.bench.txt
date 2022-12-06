@@ -1,0 +1,12 @@
+
+Each 149730   # 149.73ms
+List.map 41124   # 41.124ms
+List.filter 75247   # 75.247ms
+random 101622   # 101.622ms
+simple_loop 110959   # 110.959ms
+fibonacci 61354   # 61.354ms
+Map 64600   # 64.6ms
+NatMap 63450   # 63.45ms
+stm_loop 327511   # 327.511ms
+TMap 134617   # 134.617ms
+array_sort 85882   # 85.882ms

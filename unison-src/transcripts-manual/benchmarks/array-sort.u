@@ -1,0 +1,16 @@
+
+use Nat mod
+
+shuffle : Nat -> Nat
+shuffle n =
+  mod (n*n) 31397
+
+cmp : Nat -> Nat -> Ordering
+cmp m n = match compare m n with
+  -1 -> Less
+  +0 -> Equal
+  +1 -> Greater
+
+main = do
+  list = map shuffle <| range 1000 2000
+  timeit "array_sort" '(sort.List.sortBy cmp list)
