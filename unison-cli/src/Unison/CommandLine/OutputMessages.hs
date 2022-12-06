@@ -1724,9 +1724,9 @@ notifyUser dir o = case o of
       (Share.FastForwardPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
       (Share.FastForwardPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
     ShareErrorPull e -> case e of
-      (Share.PullErrorGetCausalHashByPath err) -> handleGetCausalHashByPathError err
-      (Share.PullErrorNoHistoryAtPath sharePath) ->
+      Share.PullErrorNoHistoryAtPath sharePath ->
         P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
+      Share.PullErrorNoReadPermission sharePath -> noReadPermission sharePath
     ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
     ShareErrorTransport te -> case te of
       DecodeFailure msg resp ->
