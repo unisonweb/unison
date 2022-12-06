@@ -1,5 +1,6 @@
 ```ucm:hide
 .> pull unison.public.base.releases.M4d base
+.> pull runarorama.public.sort.data sort
 ```
 
 ```unison:hide
@@ -80,7 +81,17 @@ prepare = do
 ```
 
 ```ucm
+.> load unison-src/transcripts-manual/benchmarks/stm.u
+.> run main
+```
+
+```ucm
 .> load unison-src/transcripts-manual/benchmarks/tmap.u
+.> run main
+```
+
+```ucm
+.> load unison-src/transcripts-manual/benchmarks/array-sort.u
 .> run main
 ```
 

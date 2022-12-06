@@ -1,0 +1,13 @@
+
+use TVar read write
+
+-- sum the numbers 1 to a million
+loop var = cases
+  0 -> readIO var
+  n ->
+    atomically do
+      write var (read var + n)
+    loop var (n - 1)
+
+main = do
+  timeit "stm_loop" '(loop (TVar.newIO 0) 100000)

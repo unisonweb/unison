@@ -1,0 +1,10 @@
+
+use Nat mod
+
+shuffle : Nat -> Nat
+shuffle n =
+  mod (n*n) 31397
+
+main = do
+  list = map shuffle <| range 1000 3000
+  timeit "array_sort" '(sortBy (Nat.<=) list)
