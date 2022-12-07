@@ -249,10 +249,11 @@ prefix :: Ord v => Term v a -> Prefix v (Term v a)
 prefix = ABT.visit \case
   Apps' (Var' u) as -> case splitPfx u as of
     (pf, rest) -> Just $ traverse prefix rest *> pf
+  Var' u -> Just . Pfx $ Map.singleton u []
   _ -> Nothing
 
 appPfx :: Ord v => Prefix v a -> v -> [v] -> [v]
-appPfx (Pfx m) v = maybe id common $ Map.lookup v m
+appPfx (Pfx m) v = maybe (const []) common $ Map.lookup v m
 
 -- Rewrites a term by dropping the first n arguments to every
 -- application of `v`. This just assumes such a thing makes sense, as
