@@ -38,56 +38,58 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 
-data PrettyPrintEnv = PrettyPrintEnv
+data PrettyPrintEnv m = PrettyPrintEnv
   { -- names for terms, constructors, and requests; e.g. [(original name, relativized and/or suffixified pretty name)]
-    termNames :: Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)],
+    termNames :: Referent -> m [(HQ'.HashQualified Name, HQ'.HashQualified Name)],
     -- names for types; e.g. [(original name, possibly suffixified name)]
-    typeNames :: Reference -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
+    typeNames :: Reference -> m [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
   }
 
-allTermNames :: PrettyPrintEnv -> Referent -> [HQ'.HashQualified Name]
-allTermNames ppe = fmap snd . termNames ppe
+allTermNames :: Functor m => PrettyPrintEnv m -> Referent -> m [HQ'.HashQualified Name]
+allTermNames ppe ref = fmap snd <$> termNames ppe ref
 
-allTypeNames :: PrettyPrintEnv -> Reference -> [HQ'.HashQualified Name]
-allTypeNames ppe = fmap snd . typeNames ppe
+allTypeNames :: Functor m => PrettyPrintEnv m -> Reference -> m [HQ'.HashQualified Name]
+allTypeNames ppe ref = fmap snd <$> typeNames ppe ref
 
-terms :: PrettyPrintEnv -> Referent -> Maybe (HQ'.HashQualified Name)
-terms ppe = fmap snd . listToMaybe . termNames ppe
+terms :: Functor m => PrettyPrintEnv m -> Referent -> m (Maybe (HQ'.HashQualified Name))
+terms ppe ref = fmap snd . listToMaybe <$> termNames ppe ref
 
-types :: PrettyPrintEnv -> Reference -> Maybe (HQ'.HashQualified Name)
-types ppe = fmap snd . listToMaybe . typeNames ppe
+types :: Functor m => PrettyPrintEnv m -> Reference -> m (Maybe (HQ'.HashQualified Name))
+types ppe ref = fmap snd . listToMaybe <$> typeNames ppe ref
 
-termNameOrHashOnly :: PrettyPrintEnv -> Referent -> HQ.HashQualified Name
-termNameOrHashOnly ppe r = maybe (HQ.fromReferent r) HQ'.toHQ $ terms ppe r
+termNameOrHashOnly :: Functor m => PrettyPrintEnv m -> Referent -> m (HQ.HashQualified Name)
+termNameOrHashOnly ppe r = maybe (HQ.fromReferent r) HQ'.toHQ <$> terms ppe r
 
-typeNameOrHashOnly :: PrettyPrintEnv -> Reference -> HQ.HashQualified Name
-typeNameOrHashOnly ppe r = maybe (HQ.fromReference r) HQ'.toHQ $ types ppe r
+typeNameOrHashOnly :: Functor m => PrettyPrintEnv m -> Reference -> m (HQ.HashQualified Name)
+typeNameOrHashOnly ppe r = maybe (HQ.fromReference r) HQ'.toHQ <$> types ppe r
 
-patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
+patterns :: Applicative m => PrettyPrintEnv m -> ConstructorReference -> m (Maybe (HQ'.HashQualified Name))
 patterns ppe r =
-  terms ppe (Referent.Con r CT.Data)
-    <|> terms ppe (Referent.Con r CT.Effect)
+  liftA2
+    (<|>)
+    (terms ppe (Referent.Con r CT.Data))
+    (terms ppe (Referent.Con r CT.Effect))
 
-instance Show PrettyPrintEnv where
-  show _ = "PrettyPrintEnv"
+instance Show (PrettyPrintEnv m) where
+  show _ = "PrettyPrintEnv m"
 
 -- | Attempts to find a name in primary ppe, falls back to backup ppe only if no names are
 -- found. Typically one can use this to shadow global or absolute names with names that are
 -- within the current path.
-addFallback :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
+addFallback :: Monad m => PrettyPrintEnv m -> PrettyPrintEnv m -> PrettyPrintEnv m
 addFallback primary fallback =
   PrettyPrintEnv
-    ( \r ->
-        let primaryNames = termNames primary r
-         in if null primaryNames
-              then termNames fallback r
-              else primaryNames
+    ( \r -> do
+        primaryNames <- termNames primary r
+        if null primaryNames
+          then termNames fallback r
+          else pure primaryNames
     )
-    ( \r ->
-        let primaryNames = typeNames primary r
-         in if null primaryNames
-              then typeNames fallback r
-              else primaryNames
+    ( \r -> do
+        primaryNames <- typeNames primary r
+        if null primaryNames
+          then typeNames fallback r
+          else pure primaryNames
     )
 
 -- | Finds names from both PPEs, if left unbiased the name from the left ppe is preferred.
@@ -100,57 +102,57 @@ addFallback primary fallback =
 --
 -- If you don't know the difference, it's likely you want 'addFallback' where you add global
 -- names as a fallback for local names.
-union :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
+union :: Applicative m => PrettyPrintEnv m -> PrettyPrintEnv m -> PrettyPrintEnv m
 union e1 e2 =
   PrettyPrintEnv
-    (\r -> termNames e1 r ++ termNames e2 r)
-    (\r -> typeNames e1 r ++ typeNames e2 r)
+    (\r -> liftA2 (++) (termNames e1 r) (termNames e2 r))
+    (\r -> liftA2 (++) (typeNames e1 r) (typeNames e2 r))
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
 todoHashLength = 10
 
-termName :: PrettyPrintEnv -> Referent -> HashQualified Name
+termName :: Functor m => PrettyPrintEnv m -> Referent -> m (HashQualified Name)
 termName env r =
-  case terms env r of
+  terms env r <&> \case
     Nothing -> HQ.take todoHashLength (HQ.fromReferent r)
     Just name -> HQ'.toHQ name
 
-typeName :: PrettyPrintEnv -> Reference -> HashQualified Name
+typeName :: Functor m => PrettyPrintEnv m -> Reference -> m (HashQualified Name)
 typeName env r =
-  case types env r of
+  types env r <&> \case
     Nothing -> HQ.take todoHashLength (HQ.fromReference r)
     Just name -> HQ'.toHQ name
 
 -- | Get a name for a LabeledDependency from the PPE.
-labeledRefName :: PrettyPrintEnv -> LabeledDependency -> HashQualified Name
+labeledRefName :: Functor m => PrettyPrintEnv m -> LabeledDependency -> m (HashQualified Name)
 labeledRefName ppe = \case
   LD.TermReferent ref -> termName ppe ref
   LD.TypeReference ref -> typeName ppe ref
 
-patternName :: PrettyPrintEnv -> ConstructorReference -> HashQualified Name
+patternName :: (Applicative m) => PrettyPrintEnv m -> ConstructorReference -> m (HashQualified Name)
 patternName env r =
-  case patterns env r of
+  patterns env r <&> \case
     Just name -> HQ'.toHQ name
     Nothing -> HQ.take todoHashLength $ HQ.fromPattern r
 
-empty :: PrettyPrintEnv
-empty = PrettyPrintEnv mempty mempty
+empty :: Applicative m => PrettyPrintEnv m
+empty = PrettyPrintEnv (const (pure [])) (const (pure []))
 
 -- | Prefer names which share a common prefix with any provided target.
 --
 -- Results are sorted according to the longest common prefix found against ANY target.
-biasTo :: [Name] -> PrettyPrintEnv -> PrettyPrintEnv
+biasTo :: Functor m => [Name] -> PrettyPrintEnv m -> PrettyPrintEnv m
 biasTo targets PrettyPrintEnv {termNames, typeNames} =
   PrettyPrintEnv
     { termNames = \r ->
         r
           & termNames
-          & prioritizeBias targets,
+          & fmap (prioritizeBias targets),
       typeNames = \r ->
         r
           & typeNames
-          & prioritizeBias targets
+          & fmap (prioritizeBias targets)
     }
 
 -- | Prefer names which share a common prefix with any provided target.
