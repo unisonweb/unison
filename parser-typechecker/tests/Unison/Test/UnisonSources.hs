@@ -70,8 +70,8 @@ test = do
         ]
 
 shouldPassPath, shouldFailPath :: String
-shouldPassPath = "unison-src/tests"
-shouldFailPath = "unison-src/errors"
+shouldPassPath = "../unison-src/tests"
+shouldFailPath = "../unison-src/errors"
 
 shouldPassNow :: IO [FilePath]
 shouldPassNow = find always (extension ==? ".u") shouldPassPath
