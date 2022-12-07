@@ -446,9 +446,18 @@ unique type Y a b = Y a b
 
   Done.
 
-.> delete.term ns2.fromJust'
+.> delete.term.verbose ns2.fromJust'
 
-  Done.
+  Name changes:
+  
+    Original            Changes
+    1. ns2.fromJust  ┐  2. ns2.fromJust' (removed)
+    3. ns2.fromJust' │  
+    4. ns2.yoohoo    │  
+    5. ns3.fromJust  │  
+    6. ns3.fromJust' ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 .> diff.namespace ns3 ns2
 

@@ -200,9 +200,15 @@ z = 99
   
     z : Nat
 
-.feature2> delete.term x
+.feature2> delete.term.verbose x
 
-  Done.
+  Name changes:
+  
+    Original         Changes
+    1. feature2.x ┐  2. feature2.x (removed)
+    3. master.x   ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 And here's the other fork, where we update `y` and add a new definition, `frobnicate`:

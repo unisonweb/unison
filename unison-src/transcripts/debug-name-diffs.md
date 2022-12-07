@@ -11,7 +11,7 @@ structural type a.b.Baz = Boo
 
 ```ucm
 .> add
-.> delete.term a.b.one
+.> delete.term.verbose a.b.one
 .> alias.term a.two a.newtwo
 .> move.namespace a.x a.y
 .> history

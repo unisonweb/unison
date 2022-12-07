@@ -79,7 +79,7 @@ z = 99
 
 ```ucm
 .feature2> add
-.feature2> delete.term x
+.feature2> delete.term.verbose x
 ```
 
 And here's the other fork, where we update `y` and add a new definition, `frobnicate`:

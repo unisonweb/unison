@@ -440,13 +440,31 @@ This checks to see that squashing correctly preserves deletions:
 
   Done.
 
-.delete> delete.term builtin2.Nat.+
+.delete> delete.term.verbose builtin2.Nat.+
 
-  Done.
+  Name changes:
+  
+    Original                    Changes
+    1. builtin.Nat.+         ┐  2. delete.builtin2.Nat.+ (removed)
+    3. builtin2.Nat.+        │  
+    4. delete.builtin.Nat.+  │  
+    5. delete.builtin2.Nat.+ │  
+    6. mybuiltin.Nat.+       ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
-.delete> delete.term builtin2.Nat.*
+.delete> delete.term.verbose builtin2.Nat.*
 
-  Done.
+  Name changes:
+  
+    Original                    Changes
+    1. builtin.Nat.*         ┐  2. delete.builtin2.Nat.* (removed)
+    3. builtin2.Nat.*        │  
+    4. delete.builtin.Nat.*  │  
+    5. delete.builtin2.Nat.* │  
+    6. mybuiltin.Nat.*       ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 .delete> squash builtin2 builtin
 

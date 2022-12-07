@@ -6,7 +6,7 @@ First, let's make sure it complains when we try to delete a name that doesn't
 exist.
 
 ```ucm
-.> delete foo
+.> delete.verbose foo
 
   ⚠️
   
@@ -29,17 +29,29 @@ structural type Foo = Foo ()
     structural type Foo
     foo : Nat
 
-.> delete foo
+.> delete.verbose foo
 
-  Done.
+  Removed definitions:
+  
+    1. foo : Nat
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
-.> delete Foo
+.> delete.verbose Foo
 
-  Done.
+  Removed definitions:
+  
+    1. structural type Foo
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
-.> delete Foo.Foo
+.> delete.verbose Foo.Foo
 
-  Done.
+  Removed definitions:
+  
+    1. Foo.Foo : '#089vmor9c5
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 How about an ambiguous term?
@@ -92,9 +104,19 @@ foo = 2
 A delete should remove both versions of the term.
 
 ```ucm
-.a> delete foo
+.a> delete.verbose foo
 
-  Done.
+  Removed definitions:
+  
+    1. a.foo#gjmq673r1v : Nat
+  
+  Name changes:
+  
+    Original               Changes
+    2. b.foo            ┐  3. a.foo#dcgdua2lj6 (removed)
+    4. a.foo#dcgdua2lj6 ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 ```ucm
@@ -155,15 +177,37 @@ structural type Foo = Foo
 
 ```
 ```ucm
-.a> delete Foo
+.a> delete.verbose Foo
 
-  Done.
+  Removed definitions:
+  
+    1. structural type a.Foo#089vmor9c5
+  
+  Name changes:
+  
+    Original               Changes
+    2. b.Foo            ┐  3. a.Foo#00nv2kob8f (removed)
+    4. builtin.Unit     │  
+    5. a.Foo#00nv2kob8f ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 ```ucm
-.a> delete Foo.Foo
+.a> delete.verbose Foo.Foo
 
-  Done.
+  Removed definitions:
+  
+    1. a.Foo.Foo#089vmor9c5#0 : '#089vmor9c5
+  
+  Name changes:
+  
+    Original                     Changes
+    2. b.Foo.Foo              ┐  3. a.Foo.Foo#00nv2kob8f#0 (removed)
+    4. builtin.Unit.Unit      │  
+    5. a.Foo.Foo#00nv2kob8f#0 ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 Finally, let's try to delete a term and a type with the same name.
@@ -183,8 +227,13 @@ structural type foo = Foo ()
 
 ```
 ```ucm
-.> delete foo
+.> delete.verbose foo
 
-  Done.
+  Removed definitions:
+  
+    1. structural type foo
+    2. foo : Nat
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
