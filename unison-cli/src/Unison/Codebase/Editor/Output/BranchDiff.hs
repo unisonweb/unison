@@ -1,12 +1,8 @@
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Editor.Output.BranchDiff where
 
-import Control.Lens (view, _1)
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Unison.Codebase.BranchDiff (BranchDiff (BranchDiff), DiffSlice)
@@ -17,6 +13,7 @@ import Unison.DataDeclaration (DeclOrBuiltin)
 import qualified Unison.HashQualified as HQ
 import Unison.HashQualified' (HashQualified)
 import Unison.Name (Name)
+import qualified Unison.Name as Name
 import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Prelude
@@ -25,6 +22,7 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Runtime.IOSource (isPropagatedValue)
+import Unison.Syntax.Name ()
 import Unison.Type (Type)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation3 as R3
@@ -88,7 +86,15 @@ isEmpty BranchDiffOutput {..} =
 
 type TermDisplay v a = (HashQualified Name, Referent, Maybe (Type v a), MetadataDiff (MetadataDisplay v a))
 
+compareTermDisplay :: TermDisplay v a -> TermDisplay v a -> Ordering
+compareTermDisplay (n0, r0, _, _) (n1, r1, _, _) =
+  Name.compareAlphabetical n0 n1 <> compare r0 r1
+
 type TypeDisplay v a = (HashQualified Name, Reference, Maybe (DeclOrBuiltin v a), MetadataDiff (MetadataDisplay v a))
+
+compareTypeDisplay :: TypeDisplay v a -> TypeDisplay v a -> Ordering
+compareTypeDisplay (n0, r0, _, _) (n1, r1, _, _) =
+  Name.compareAlphabetical n0 n1 <> compare r0 r1
 
 type AddedTermDisplay v a = ([(HashQualified Name, [MetadataDisplay v a])], Referent, Maybe (Type v a))
 
@@ -104,7 +110,19 @@ type SimpleTypeDisplay v a = (HashQualified Name, Reference, Maybe (DeclOrBuilti
 
 type UpdateTermDisplay v a = (Maybe [SimpleTermDisplay v a], [TermDisplay v a])
 
+compareUpdateTermDisplay :: UpdateTermDisplay v a -> UpdateTermDisplay v a -> Ordering
+compareUpdateTermDisplay (_, ts0) (_, ts1) =
+  case (ts0, ts1) of
+    (t0 : _, t1 : _) -> compareTermDisplay t0 t1
+    _ -> compare (null ts0) (null ts1)
+
 type UpdateTypeDisplay v a = (Maybe [SimpleTypeDisplay v a], [TypeDisplay v a])
+
+compareUpdateTypeDisplay :: UpdateTypeDisplay v a -> UpdateTypeDisplay v a -> Ordering
+compareUpdateTypeDisplay (_, ts0) (_, ts1) =
+  case (ts0, ts1) of
+    (t0 : _, t1 : _) -> compareTypeDisplay t0 t1
+    _ -> compare (null ts0) (null ts1)
 
 type MetadataDisplay v a = (HQ.HashQualified Name, Referent, Maybe (Type v a))
 
@@ -227,14 +245,18 @@ toOutput
                   <*> for (toList rs_new) (loadNew hidePropagatedMd forceHQ n rs_old)
        in liftA3
             (,,)
-            ( sortOn (view _1 . head . snd)
+            ( List.sortBy compareUpdateTypeDisplay
                 <$> liftA2
                   (<>)
                   (for (Map.toList $ Map.filter isSimpleUpdate nsUpdates) (loadEntry True))
                   (for (Map.toList metadataUpdates) (loadEntry False))
             )
-            (for (Map.toList $ Map.filter isNewConflict nsUpdates) (loadEntry True))
-            (for (Map.toList $ Map.filter isResolvedConflict nsUpdates) (loadEntry True))
+            ( List.sortBy compareUpdateTypeDisplay
+                <$> for (Map.toList $ Map.filter isNewConflict nsUpdates) (loadEntry True)
+            )
+            ( List.sortBy compareUpdateTypeDisplay
+                <$> for (Map.toList $ Map.filter isResolvedConflict nsUpdates) (loadEntry True)
+            )
 
     ( updatedTerms :: [UpdateTermDisplay v a],
       newTermConflicts :: [UpdateTermDisplay v a],
@@ -276,14 +298,18 @@ toOutput
             (,,)
             -- this is sorting the Update section back into alphabetical Name order
             -- after calling loadEntry on the two halves.
-            ( sortOn (view _1 . head . snd)
+            ( List.sortBy compareUpdateTermDisplay
                 <$> liftA2
                   (<>)
                   (for (Map.toList $ Map.filter isSimpleUpdate nsUpdates) (loadEntry True))
                   (for (Map.toList metadataUpdates) (loadEntry False))
             )
-            (for (Map.toList $ Map.filter isNewConflict nsUpdates) (loadEntry True))
-            (for (Map.toList $ Map.filter isResolvedConflict nsUpdates) (loadEntry True))
+            ( List.sortBy compareUpdateTermDisplay
+                <$> for (Map.toList $ Map.filter isNewConflict nsUpdates) (loadEntry True)
+            )
+            ( List.sortBy compareUpdateTermDisplay
+                <$> for (Map.toList $ Map.filter isResolvedConflict nsUpdates) (loadEntry True)
+            )
 
     let propagatedUpdates :: Int =
           -- counting the number of named auto-propagated definitions

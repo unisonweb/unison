@@ -23,7 +23,6 @@ flag optimized
 
 library
   exposed-modules:
-      Unison.Lexer.Pos
       Unison.PrettyTerminal
       Unison.Util.AnnotatedText
       Unison.Util.ColorText
@@ -67,6 +66,7 @@ library
     , text
     , unison-core1
     , unison-prelude
+    , unison-syntax
     , unliftio
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
@@ -145,6 +145,7 @@ test-suite pretty-printer-tests
     , easytest
     , raw-strings-qq
     , unison-pretty-printer
+    , unison-syntax
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010

@@ -79,6 +79,7 @@ import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or)
 import qualified Data.Map as Map
+import qualified Data.Primitive as PA
 import qualified Data.Set as Set
 import qualified Data.Text as Data.Text
 import GHC.Stack (CallStack, callStack)
@@ -226,12 +227,13 @@ newtype Prefix v x = Pfx (Map v [v]) deriving (Show)
 
 instance Functor (Prefix v) where
   fmap _ (Pfx m) = Pfx m
+
 instance Ord v => Applicative (Prefix v) where
   pure _ = Pfx Map.empty
   Pfx ml <*> Pfx mr = Pfx $ Map.unionWith common ml mr
 
 common :: Eq v => [v] -> [v] -> [v]
-common (u:us) (v:vs)
+common (u : us) (v : vs)
   | u == v = u : common us vs
 common _ _ = []
 
@@ -247,10 +249,11 @@ prefix :: Ord v => Term v a -> Prefix v (Term v a)
 prefix = ABT.visit \case
   Apps' (Var' u) as -> case splitPfx u as of
     (pf, rest) -> Just $ traverse prefix rest *> pf
+  Var' u -> Just . Pfx $ Map.singleton u []
   _ -> Nothing
 
 appPfx :: Ord v => Prefix v a -> v -> [v] -> [v]
-appPfx (Pfx m) v = maybe id common $ Map.lookup v m
+appPfx (Pfx m) v = maybe (const []) common $ Map.lookup v m
 
 -- Rewrites a term by dropping the first n arguments to every
 -- application of `v`. This just assumes such a thing makes sense, as
@@ -264,13 +267,13 @@ dropPrefix v n = ABT.visitPure rw
       | v == u = Just (apps' (var (ABT.annotation f) u) (drop n as))
     rw _ = Nothing
 
-dropPrefixes
-  :: Ord v => Semigroup a => Map v Int -> Term v a -> Term v a
+dropPrefixes ::
+  Ord v => Semigroup a => Map v Int -> Term v a -> Term v a
 dropPrefixes m = ABT.visitPure rw
   where
     rw (Apps' f@(Var' u) as)
       | Just n <- Map.lookup u m =
-        Just (apps' (var (ABT.annotation f) u) (drop n as))
+          Just (apps' (var (ABT.annotation f) u) (drop n as))
     rw _ = Nothing
 
 -- Performs opposite transformations to those in enclose. Named after
@@ -279,27 +282,28 @@ beta :: Var v => Monoid a => (Term v a -> Term v a) -> Term v a -> Maybe (Term v
 beta rec (LetRecNamedTop' top (fmap (fmap rec) -> vbs) (rec -> bd)) =
   Just $ letRec' top lvbs lbd
   where
-  -- Avoid completely reducing a lambda expression, because recursive
-  -- lets must be guarded.
-  args (v, LamsNamed' vs Ann'{}) = (v, vs)
-  args (v, LamsNamed' vs _) = (v, init vs)
-  args (v, _) = (v, [])
+    -- Avoid completely reducing a lambda expression, because recursive
+    -- lets must be guarded.
+    args (v, LamsNamed' vs Ann' {}) = (v, vs)
+    args (v, LamsNamed' vs _) = (v, init vs)
+    args (v, _) = (v, [])
 
-  Pfx m0 = traverse_ (prefix . snd) vbs *> prefix bd
+    Pfx m0 = traverse_ (prefix . snd) vbs *> prefix bd
 
-  f ls rs = case common ls rs of
-    [] -> Nothing
-    vs -> Just vs
+    f ls rs = case common ls rs of
+      [] -> Nothing
+      vs -> Just vs
 
-  m = Map.map length $ Map.differenceWith f (Map.fromList $ map args vbs) m0
-  lvbs = vbs <&> \(v, b0) -> (,) v $ case b0 of
-    LamsNamed' vs b | Just n <- Map.lookup v m ->
-      lam' (ABT.annotation b0) (drop n vs) (dropPrefixes m b)
-    -- shouldn't happen
-    b -> dropPrefixes m b
+    m = Map.map length $ Map.differenceWith f (Map.fromList $ map args vbs) m0
+    lvbs =
+      vbs <&> \(v, b0) -> (,) v $ case b0 of
+        LamsNamed' vs b
+          | Just n <- Map.lookup v m ->
+              lam' (ABT.annotation b0) (drop n vs) (dropPrefixes m b)
+        -- shouldn't happen
+        b -> dropPrefixes m b
 
-  lbd = dropPrefixes m bd
-
+    lbd = dropPrefixes m bd
 beta rec (Let1NamedTop' top v l@(LamsNamed' vs bd) (rec -> e))
   | n > 0 = Just $ let1' top [(v, lamb)] (dropPrefix v n e)
   | otherwise = Nothing
@@ -310,17 +314,18 @@ beta rec (Let1NamedTop' top v l@(LamsNamed' vs bd) (rec -> e))
     -- Enclosing doesn't create let-bound lambdas, so we
     -- should never reduce a lambda to a non-lambda, as that
     -- could affect evaluation order.
-    m | Ann' _ _ <- bd = length vs
+    m
+      | Ann' _ _ <- bd = length vs
       | otherwise = length vs - 1
     n = min m . length $ appPfx (prefix e) v vs
-
 beta rec (Apps' l@(LamsNamed' vs body) as)
-  | n <- matchVars 0 vs as
-  , n > 0 = Just $ apps' (lam' al (drop n vs) (rec body)) (drop n as)
+  | n <- matchVars 0 vs as,
+    n > 0 =
+      Just $ apps' (lam' al (drop n vs) (rec body)) (drop n as)
   | otherwise = Nothing
   where
     al = ABT.annotation l
-    matchVars !n (u:us) (Var' v : as) | u == v = matchVars (1+n) us as
+    matchVars !n (u : us) (Var' v : as) | u == v = matchVars (1 + n) us as
     matchVars n _ _ = n
 beta _ _ = Nothing
 
@@ -1261,6 +1266,7 @@ data BLit
   | Bytes Bytes
   | Quote Value
   | Code (SuperGroup Symbol)
+  | BArr PA.ByteArray
   deriving (Show)
 
 groupVars :: ANFM v (Set v)

@@ -32,13 +32,13 @@ fromNames len names = PrettyPrintEnv terms' types'
 --
 -- 1. Prefer Relative Names to Absolute Names
 -- 2. Prefer names that aren't hash qualified to those that are
--- 3. Prefer names which have fewer segments in their suffixified form (if applicable)
--- 4. Prefer names which have fewer segments in their fully-qualified form
+-- 3. Prefer names which have fewer segments in their fully-qualified form
+-- 4. Prefer names which have fewer segments in their suffixified form (if applicable)
 prioritize :: [(HQ'.HashQualified Name, HQ'.HashQualified Name)] -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
 prioritize =
   sortOn \case
-    (fqn, HQ'.NameOnly name) -> (Name.isAbsolute name, Nothing, Name.countSegments name, Name.countSegments (HQ'.toName fqn))
-    (fqn, HQ'.HashQualified name hash) -> (Name.isAbsolute name, Just hash, Name.countSegments name, Name.countSegments (HQ'.toName fqn))
+    (fqn, HQ'.NameOnly name) -> (Name.isAbsolute name, Nothing, Name.countSegments (HQ'.toName fqn), Name.countSegments name)
+    (fqn, HQ'.HashQualified name hash) -> (Name.isAbsolute name, Just hash, Name.countSegments (HQ'.toName fqn), Name.countSegments name)
 
 fromSuffixNames :: Int -> NamesWithHistory -> PrettyPrintEnv
 fromSuffixNames len names = PrettyPrintEnv terms' types'

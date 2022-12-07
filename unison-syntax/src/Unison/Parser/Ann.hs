@@ -20,9 +20,28 @@ instance Monoid Ann where
   mempty = External
 
 instance Semigroup Ann where
-  Ann s1 _ <> Ann _ e2 = Ann s1 e2
+  Ann s1 e1 <> Ann s2 e2 = Ann (min s1 s2) (max e1 e2)
   -- If we have a concrete location from a file, use it
   External <> a = a
   a <> External = a
   Intrinsic <> a = a
   a <> Intrinsic = a
+
+-- | Checks whether an annotation contains a given position
+-- i.e. pos ∈ [start, end)
+--
+-- >>> Intrinsic `contains` L.Pos 1 1
+-- False
+--
+-- >>> External `contains` L.Pos 1 1
+-- False
+--
+-- >>> Ann (L.Pos 0 0) (L.Pos 0 10) `contains` L.Pos 0 5
+-- True
+--
+-- >>> Ann (L.Pos 0 0) (L.Pos 0 10) `contains` L.Pos 0 10
+-- False
+contains :: Ann -> L.Pos -> Bool
+contains Intrinsic _ = False
+contains External _ = False
+contains (Ann start end) p = start <= p && p < end

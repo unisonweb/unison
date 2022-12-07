@@ -34,7 +34,7 @@ type TestBuilder = FilePath -> [String] -> String -> Test ()
 testBuilder ::
   Bool -> FilePath -> [String] -> String -> Test ()
 testBuilder expectFailure dir prelude transcript = scope transcript $ do
-  outputs <- io . withTemporaryUcmCodebase SC.init "transcript" $ \(codebasePath, codebase) -> do
+  outputs <- io . withTemporaryUcmCodebase SC.init "transcript" SC.DoLock $ \(codebasePath, codebase) -> do
     withTranscriptRunner "TODO: pass version here" Nothing $ \runTranscript -> do
       for files $ \filePath -> do
         transcriptSrc <- readUtf8 filePath

@@ -4,6 +4,7 @@ module Unison.PrettyPrintEnvDecl
   ( PrettyPrintEnvDecl (..),
     biasTo,
     empty,
+    addFallback,
   )
 where
 
@@ -35,3 +36,7 @@ biasTo targets PrettyPrintEnvDecl {unsuffixifiedPPE, suffixifiedPPE} =
 
 empty :: PrettyPrintEnvDecl
 empty = PrettyPrintEnvDecl PPE.empty PPE.empty
+
+addFallback :: PrettyPrintEnvDecl -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
+addFallback (PrettyPrintEnvDecl unsuff1 suff1) (PrettyPrintEnvDecl unsuff2 suff2) =
+  PrettyPrintEnvDecl (unsuff1 `PPE.addFallback` unsuff2) (suff1 `PPE.addFallback` suff2)

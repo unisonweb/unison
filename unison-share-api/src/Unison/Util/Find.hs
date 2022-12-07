@@ -1,5 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Util.Find
   ( fuzzyFinder,
     simpleFuzzyFinder,
@@ -29,6 +27,7 @@ import qualified Unison.Referent as Referent
 import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.ShortHash as SH
+import qualified Unison.Syntax.Name as Name (toString)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
