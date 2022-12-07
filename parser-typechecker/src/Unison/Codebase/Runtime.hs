@@ -32,12 +32,12 @@ data Runtime v = Runtime
   { terminate :: IO (),
     evaluate ::
       CL.CodeLookup v IO () ->
-      PPE.PrettyPrintEnv ->
+      PPE.PrettyPrintEnv IO ->
       Term v ->
       IO (Either Error (Term v)),
     compileTo ::
       CL.CodeLookup v IO () ->
-      PPE.PrettyPrintEnv ->
+      PPE.PrettyPrintEnv IO ->
       Reference ->
       FilePath ->
       IO (Maybe Error),
@@ -72,7 +72,7 @@ evaluateWatches ::
   forall v a.
   Var v =>
   CL.CodeLookup v IO a ->
-  PPE.PrettyPrintEnv ->
+  PPE.PrettyPrintEnv IO ->
   (Reference.Id -> IO (Maybe (Term v))) ->
   Runtime v ->
   TypecheckedUnisonFile v a ->
@@ -139,7 +139,7 @@ evaluateTerm' ::
   (Var v, Monoid a) =>
   CL.CodeLookup v IO a ->
   (Reference.Id -> IO (Maybe (Term v))) ->
-  PPE.PrettyPrintEnv ->
+  PPE.PrettyPrintEnv IO ->
   Runtime v ->
   Term.Term v a ->
   IO (Either Error (Term v))
@@ -164,7 +164,7 @@ evaluateTerm' codeLookup cache ppe rt tm = do
 evaluateTerm ::
   (Var v, Monoid a) =>
   CL.CodeLookup v IO a ->
-  PPE.PrettyPrintEnv ->
+  PPE.PrettyPrintEnv IO ->
   Runtime v ->
   Term.Term v a ->
   IO (Either Error (Term v))

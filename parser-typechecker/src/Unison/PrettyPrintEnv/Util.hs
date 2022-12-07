@@ -16,7 +16,7 @@ import qualified Unison.Referent as Referent
 -- foo.bar x = foo.bar x
 -- and not
 -- foo.bar x = bar x
-declarationPPE :: PrettyPrintEnvDecl -> Reference -> PrettyPrintEnv
+declarationPPE :: PrettyPrintEnvDecl m -> Reference -> PrettyPrintEnv m
 declarationPPE ppe ref = PrettyPrintEnv tm ty
   where
     rootH = hash ref
@@ -31,6 +31,6 @@ declarationPPE ppe ref = PrettyPrintEnv tm ty
       | otherwise = PPE.typeNames (suffixifiedPPE ppe) r
 
 -- The suffixed names uses the fully-qualified name for `r`
-declarationPPEDecl :: PrettyPrintEnvDecl -> Reference -> PrettyPrintEnvDecl
+declarationPPEDecl :: PrettyPrintEnvDecl m -> Reference -> PrettyPrintEnvDecl m
 declarationPPEDecl ppe r =
   ppe {suffixifiedPPE = declarationPPE ppe r}

@@ -14,7 +14,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
 import qualified Unison.Util.Relation as Rel
 
-fromNames :: Int -> NamesWithHistory -> PrettyPrintEnv
+fromNames :: forall m. Applicative m => Int -> NamesWithHistory -> PrettyPrintEnv m
 fromNames len names = PrettyPrintEnv terms' types'
   where
     terms' r =
@@ -22,11 +22,13 @@ fromNames len names = PrettyPrintEnv terms' types'
         & Set.toList
         & fmap (\n -> (n, n))
         & prioritize
+        & pure
     types' r =
       NamesWithHistory.typeName len r names
         & Set.toList
         & fmap (\n -> (n, n))
         & prioritize
+        & pure
 
 -- | Sort the names for a given ref by the following factors (in priority order):
 --
@@ -40,7 +42,7 @@ prioritize =
     (fqn, HQ'.NameOnly name) -> (Name.isAbsolute name, Nothing, Name.countSegments (HQ'.toName fqn), Name.countSegments name)
     (fqn, HQ'.HashQualified name hash) -> (Name.isAbsolute name, Just hash, Name.countSegments (HQ'.toName fqn), Name.countSegments name)
 
-fromSuffixNames :: Int -> NamesWithHistory -> PrettyPrintEnv
+fromSuffixNames :: forall m. Applicative m => Int -> NamesWithHistory -> PrettyPrintEnv m
 fromSuffixNames len names = PrettyPrintEnv terms' types'
   where
     terms' r =
@@ -49,12 +51,14 @@ fromSuffixNames len names = PrettyPrintEnv terms' types'
         & fmap (\n -> (n, n))
         & shortestUniqueSuffixes r (Names.terms $ NamesWithHistory.currentNames names)
         & prioritize
+        & pure
     types' r =
       NamesWithHistory.typeName len r names
         & Set.toList
         & fmap (\n -> (n, n))
         & shortestUniqueSuffixes r (Names.types $ NamesWithHistory.currentNames names)
         & prioritize
+        & pure
 
 -- | Reduce the provided names to their minimal unique suffix within the scope of the given
 -- relation.

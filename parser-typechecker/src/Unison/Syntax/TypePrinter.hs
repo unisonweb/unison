@@ -22,10 +22,9 @@ import qualified Unison.Builtin.Decls as DD
 import Unison.HashQualified (HashQualified)
 import Unison.Name (Name)
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import qualified Unison.PrettyPrintEnv as PPE
 import Unison.PrettyPrintEnv.FQN (Imports, elideFQN)
-import Unison.PrettyPrintEnv.MonadPretty (MonadPretty, getPPE, runPretty, willCapture)
+import Unison.PrettyPrintEnv.MonadPretty as MonadPretty
 import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (Referent)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
@@ -39,17 +38,19 @@ import qualified Unison.Var as Var
 
 type SyntaxText = S.SyntaxText' Reference
 
-pretty :: Var v => PrettyPrintEnv -> Type v a -> Pretty ColorText
-pretty ppe t = PP.syntaxToColor $ prettySyntax ppe t
+pretty :: (Var v, PPE.PrettyPrint m) => Type v a -> m (Pretty ColorText)
+pretty t = PP.syntaxToColor <$> prettySyntax t
 
-prettySyntax :: Var v => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
-prettySyntax ppe = runPretty ppe . pretty0 Map.empty (-1)
+prettySyntax :: (Var v, PPE.PrettyPrint m) => Type v a -> m (Pretty SyntaxText)
+prettySyntax = runPretty . pretty0 Map.empty (-1)
 
-prettyStr :: Var v => Maybe Width -> PrettyPrintEnv -> Type v a -> String
-prettyStr (Just width) ppe t =
-  toPlain . PP.render width . PP.syntaxToColor . runPretty ppe $ pretty0 Map.empty (-1) t
-prettyStr Nothing ppe t =
-  toPlain . PP.render maxBound . PP.syntaxToColor . runPretty ppe $ pretty0 Map.empty (-1) t
+prettyStr :: (Var v, PPE.PrettyPrint m) => Maybe Width -> Type v a -> m String
+prettyStr (Just width) t = do
+  prettyS <- runPretty $ pretty0 Map.empty (-1) t
+  pure . toPlain . PP.render width . PP.syntaxToColor $ prettyS
+prettyStr Nothing t = do
+  prettyS <- runPretty $ pretty0 Map.empty (-1) t
+  pure . toPlain . PP.render maxBound . PP.syntaxToColor $ prettyS
 
 {- Explanation of precedence handling
 
@@ -100,8 +101,8 @@ prettyRaw im p tp = go im p tp
       DD.TupleType' xs | length xs /= 1 -> PP.parenthesizeCommas <$> traverse (go im 0) xs
       -- Would be nice to use a different SyntaxHighlights color if the reference is an ability.
       Ref' r -> do
-        n <- getPPE
-        pure $ styleHashQualified'' (fmt $ S.TypeReference r) $ elideFQN im (PrettyPrintEnv.typeName n r)
+        name <- PPE.typeName r
+        pure $ styleHashQualified'' (fmt $ S.TypeReference r) $ elideFQN im name
       Cycle' _ _ -> pure $ fromString "bug: TypeParser does not currently emit Cycle"
       Abs' _ -> pure $ fromString "bug: TypeParser does not currently emit Abs"
       Ann' _ _ -> pure $ fromString "bug: TypeParser does not currently emit Ann"
@@ -133,7 +134,7 @@ prettyRaw im p tp = go im p tp
           case fst of
             Var' v
               | Var.name v == "()" ->
-                PP.parenthesizeIf (p >= 10) <$> arrows True True rest
+                  PP.parenthesizeIf (p >= 10) <$> arrows True True rest
             _ ->
               PP.parenthesizeIf (p >= 0)
                 <$> ((<>) <$> go im 0 fst <*> arrows False False rest)
@@ -182,32 +183,31 @@ fmt = PP.withSyntax
 
 -- todo: provide sample output in comment
 prettySignaturesCT ::
-  Var v =>
-  PrettyPrintEnv ->
+  (Var v, PPE.PrettyPrint m) =>
   [(Referent, HashQualified Name, Type v a)] ->
-  [Pretty ColorText]
-prettySignaturesCT ppe ts = map PP.syntaxToColor $ prettySignaturesST ppe ts
+  m [Pretty ColorText]
+prettySignaturesCT ts = map PP.syntaxToColor <$> prettySignaturesST ts
 
 prettySignaturesCTCollapsed ::
-  Var v =>
-  PrettyPrintEnv ->
+  (Var v, PPE.PrettyPrint m) =>
   [(Referent, HashQualified Name, Type v a)] ->
-  Pretty ColorText
-prettySignaturesCTCollapsed ppe ts =
+  m (Pretty ColorText)
+prettySignaturesCTCollapsed ts =
   PP.lines
     . map PP.group
-    $ prettySignaturesCT ppe ts
+    <$> prettySignaturesCT ts
 
 prettySignaturesST ::
-  Var v =>
-  PrettyPrintEnv ->
+  forall v m a.
+  (Var v, PPE.PrettyPrint m) =>
   [(Referent, HashQualified Name, Type v a)] ->
-  [Pretty SyntaxText]
-prettySignaturesST ppe ts =
-  PP.align . runPretty ppe $ traverse (\(r, hq, typ) -> (name r hq,) <$> sig typ) ts
+  m [Pretty SyntaxText]
+prettySignaturesST ts =
+  fmap PP.align . runPretty $ traverse (\(r, hq, typ) -> (name r hq,) <$> sig typ) ts
   where
     name r hq =
       styleHashQualified'' (fmt $ S.TermReference r) hq
+    sig :: (Type v a1 -> PrettyM v m (Pretty (S.SyntaxText' Reference)))
     sig typ = do
       t <- pretty0 Map.empty (-1) typ
       let col = fmt S.TypeAscriptionColon ": "
@@ -215,11 +215,10 @@ prettySignaturesST ppe ts =
 
 -- todo: provide sample output in comment; different from prettySignatures'
 prettySignaturesAlt' ::
-  Var v =>
-  PrettyPrintEnv ->
+  (Var v, PPE.PrettyPrint m) =>
   [([HashQualified Name], Type v a)] ->
-  [Pretty ColorText]
-prettySignaturesAlt' ppe ts = runPretty ppe $
+  m [Pretty ColorText]
+prettySignaturesAlt' ts = runPretty $
   do
     ts' <- traverse f ts
     pure $ map PP.syntaxToColor $ PP.align ts'
@@ -237,11 +236,10 @@ prettySignaturesAlt' ppe ts = runPretty ppe $
 -- prettySignatures'' env ts = prettySignatures' env (first HQ.fromName <$> ts)
 
 prettySignaturesAlt ::
-  Var v =>
-  PrettyPrintEnv ->
+  (Var v, PPE.PrettyPrint m) =>
   [([HashQualified Name], Type v a)] ->
-  Pretty ColorText
-prettySignaturesAlt ppe ts =
+  m (Pretty ColorText)
+prettySignaturesAlt ts =
   PP.lines
     . map PP.group
-    $ prettySignaturesAlt' ppe ts
+    <$> prettySignaturesAlt' ts

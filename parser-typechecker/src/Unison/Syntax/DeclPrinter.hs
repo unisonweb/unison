@@ -39,7 +39,7 @@ type SyntaxText = S.SyntaxText' Reference
 
 prettyDecl ::
   Var v =>
-  PrettyPrintEnvDecl ->
+  PrettyPrintEnvDecl m ->
   Reference ->
   HQ.HashQualified Name ->
   DD.Decl v a ->
@@ -50,7 +50,7 @@ prettyDecl ppe r hq d = case d of
 
 prettyEffectDecl ::
   Var v =>
-  PrettyPrintEnv ->
+  PrettyPrintEnv m ->
   Reference ->
   HQ.HashQualified Name ->
   EffectDeclaration v a ->
@@ -59,7 +59,7 @@ prettyEffectDecl ppe r name = prettyGADT ppe CT.Effect r name . toDataDecl
 
 prettyGADT ::
   Var v =>
-  PrettyPrintEnv ->
+  PrettyPrintEnv m ->
   CT.ConstructorType ->
   Reference ->
   HQ.HashQualified Name ->
@@ -79,7 +79,7 @@ prettyGADT env ctorType r name dd =
     header = prettyEffectHeader name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
 
 prettyPattern ::
-  PrettyPrintEnv ->
+  PrettyPrintEnv m ->
   CT.ConstructorType ->
   HQ.HashQualified Name ->
   ConstructorReference ->
@@ -98,7 +98,7 @@ prettyPattern env ctorType namespace ref =
 
 prettyDataDecl ::
   Var v =>
-  PrettyPrintEnvDecl ->
+  PrettyPrintEnvDecl m ->
   Reference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
@@ -145,17 +145,17 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
 -- This function bails with `Nothing` if the names aren't an exact match for
 -- the expected record naming convention.
 fieldNames ::
-  forall v a.
+  forall v a m.
   Var v =>
-  PrettyPrintEnv ->
+  PrettyPrintEnv m ->
   Reference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
-  Maybe [HQ.HashQualified Name]
-fieldNames env r name dd = do
+  m (Maybe [HQ.HashQualified Name])
+fieldNames env r name dd = runMaybeT do
   typ <- case DD.constructors dd of
-    [(_, typ)] -> Just typ
-    _ -> Nothing
+    [(_, typ)] -> pure typ
+    _ -> empty
   let vars :: [v]
       vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
   let accessors :: [(v, Term.Term v ())]
@@ -177,13 +177,12 @@ fieldNames env r name dd = do
   accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
     for accessors \(v, trm) ->
       case Result.result (Typechecker.synthesize typecheckingEnv trm) of
-        Nothing -> Nothing
-        Just typ -> Just (v, trm, typ)
+        Nothing -> empty
+        Just typ -> pure (v, trm, typ)
   let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ))) $ accessorsWithTypes)
-  let names =
-        [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
-          | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes
-        ]
+  names <- lift $ for (Map.elems hashes) \(refId, _trm, _typ) -> do
+    name <- HQ.toString <$> (PPE.termName env . Referent.Ref $ DerivedId refId)
+    pure (refId, name)
   let fieldNames =
         Map.fromList
           [ (r, f) | (r, n) <- names, typename <- pure (HQ.toString name), typename `isPrefixOf` n, rest <- pure $ drop (length typename + 1) n, (f, rest) <- pure $ span (/= '.') rest, rest `elem` ["", ".set", ".modify"]
@@ -191,13 +190,13 @@ fieldNames env r name dd = do
 
   if Map.size fieldNames == length names
     then
-      Just
+      pure
         [ HQ.unsafeFromString name
           | v <- vars,
             Just (ref, _, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes],
             Just name <- [Map.lookup ref fieldNames]
         ]
-    else Nothing
+    else empty
 
 prettyModifier :: DD.Modifier -> Pretty SyntaxText
 prettyModifier DD.Structural = fmt S.DataTypeModifier "structural"
