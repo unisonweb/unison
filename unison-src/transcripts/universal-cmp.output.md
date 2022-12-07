@@ -8,9 +8,7 @@ unique type A = A
 threadEyeDeez _ =
   t1 = forkComp '()
   t2 = forkComp '()
-  t1 == t2 
-  t1 < t2
-  ()
+  (t1 == t2, t1 < t2)
 ```
 
 ```ucm
@@ -22,7 +20,7 @@ threadEyeDeez _ =
     ⍟ These new definitions are ok to `add`:
     
       unique type A
-      threadEyeDeez : ∀ _. _ ->{IO} ()
+      threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 ```
 ```ucm
@@ -31,11 +29,11 @@ threadEyeDeez _ =
   ⍟ I've added these definitions:
   
     unique type A
-    threadEyeDeez : ∀ _. _ ->{IO} ()
+    threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 .> run threadEyeDeez
 
-  ()
+  (false, true)
 
 ```
 ```unison

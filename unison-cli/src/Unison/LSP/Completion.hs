@@ -17,7 +17,6 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import Unison.LabeledDependency (LabeledDependency)
@@ -31,6 +30,8 @@ import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Referent as Referent
+import qualified Unison.Syntax.Name as Name (toText)
+import qualified Unison.Syntax.HashQualified' as HQ' (toText)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Relation as Relation
 
@@ -38,7 +39,7 @@ completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseE
 completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
     (range, prefix) <- MaybeT $ VFS.completionPrefix (m ^. params)
-    ppe <- PPED.suffixifiedPPE <$> lift globalPPE
+    ppe <- PPED.suffixifiedPPE <$> lift globalPPED
     completions <- lift getCompletions
     Config {maxCompletions} <- lift getConfig
     let defMatches = matchCompletions completions prefix

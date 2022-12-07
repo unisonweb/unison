@@ -12,7 +12,7 @@ import Control.Monad.Trans.Writer.CPS
 import Data.Bifunctor (first, second)
 import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Foldable as Foldable
-import Data.List (sort, stripPrefix)
+import Data.List (stripPrefix)
 import qualified Data.List as List
 import Data.List.Extra (notNull, nubOrd, nubOrdOn)
 import qualified Data.List.NonEmpty as NEList
@@ -129,6 +129,8 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.HashQualified as HQ (toString, toText, unsafeFromVar)
+import qualified Unison.Syntax.Name as Name (toString, toText)
 import Unison.Syntax.NamePrinter
   ( prettyHashQualified,
     prettyHashQualified',
@@ -665,8 +667,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -674,7 +676,6 @@ notifyUser dir o = case o of
           else
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
-      where
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -924,7 +925,11 @@ notifyUser dir o = case o of
           go (ref, hqs) =
             P.column2
               [ ("Hash:", P.syntaxToColor (prettyReferent len ref)),
-                ("Names: ", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
+                ( "Names: ",
+                  P.group $
+                    P.spaced $
+                      P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
+                )
               ]
       formatTypes types =
         P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : List.intersperse "" (go <$> types)
@@ -932,7 +937,11 @@ notifyUser dir o = case o of
           go (ref, hqs) =
             P.column2
               [ ("Hash:", P.syntaxToColor (prettyReference len ref)),
-                ("Names:", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
+                ( "Names:",
+                  P.group $
+                    P.spaced $
+                      P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
+                )
               ]
   -- > names foo
   --   Terms:
@@ -1131,6 +1140,9 @@ notifyUser dir o = case o of
           else pure mempty
   GitError e -> pure $ case e of
     GitSqliteCodebaseError e -> case e of
+      CodebaseFileLockFailed ->
+        P.wrap $
+          "It looks to me like another ucm process is using this codebase. Only one ucm process can use a codebase at a time."
       NoDatabaseFile repo localPath ->
         P.wrap $
           "I didn't find a codebase in the repository at"
@@ -1891,7 +1903,7 @@ prettyShareLink WriteShareRemotePath {repo, path} =
         Path.toList path
           & fmap (URI.encodeText . NameSegment.toText)
           & Text.intercalate "/"
-   in P.green . P.text $ shareOrigin <> "/@" <> repo <> "/code/latest/namespaces/" <> encodedPath
+   in P.green . P.text $ shareOrigin <> "/@" <> repo <> "/p/code/latest/namespaces/" <> encodedPath
 
 prettyFilePath :: FilePath -> Pretty
 prettyFilePath fp =
@@ -2067,13 +2079,18 @@ displayDefinitions outputLoc ppe types terms =
         ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE ppe r
         ppeDecl = PPED.unsuffixifiedPPE ppe
         prettyTerms =
-          map go . Map.toList $
-            -- sort by name
-            Map.mapKeys (first (PPE.termName ppeDecl . Referent.Ref) . dupe) terms
+          terms
+            & Map.toList
+            & map (\(ref, dt) -> (PPE.termName ppeDecl (Referent.Ref ref), ref, dt))
+            & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
+            & map go
         prettyTypes =
-          map go2 . Map.toList $
-            Map.mapKeys (first (PPE.typeName ppeDecl) . dupe) types
-        go ((n, r), dt) =
+          types
+            & Map.toList
+            & map (\(ref, dt) -> (PPE.typeName ppeDecl ref, ref, dt))
+            & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
+            & map go2
+        go (n, r, dt) =
           case dt of
             MissingObject r -> missing n r
             BuiltinObject typ ->
@@ -2082,7 +2099,7 @@ displayDefinitions outputLoc ppe types terms =
                   ("builtin " <> prettyHashQualified n <> " :")
                   (TypePrinter.prettySyntax (ppeBody n r) typ)
             UserObject tm -> TermPrinter.prettyBinding (ppeBody n r) n tm
-        go2 ((n, r), dt) =
+        go2 (n, r, dt) =
           case dt of
             MissingObject r -> missing n r
             BuiltinObject _ -> builtin n
@@ -2463,7 +2480,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
@@ -2586,10 +2603,10 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
         leftNamePad :: P.Width =
           foldl1' max $
             map
-              (foldl1' max . map (P.Width . HQ'.nameLength) . toList . view _3)
+              (foldl1' max . map (P.Width . HQ'.nameLength Name.toText) . toList . view _3)
               terms
               <> map
-                (foldl1' max . map (P.Width . HQ'.nameLength) . toList . view _3)
+                (foldl1' max . map (P.Width . HQ'.nameLength Name.toText) . toList . view _3)
                 types
         prettyGroup ::
           ( (Referent, b, Set (HQ'.HashQualified Name), Set (HQ'.HashQualified Name)),
@@ -2600,11 +2617,12 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           let -- [ "peach  ┐"
               -- , "peach' ┘"]
               olds' :: [Numbered Pretty] =
-                map (\(oldhq, oldp) -> numHQ' oldPath oldhq r <&> (\n -> n <> " " <> oldp))
-                  . (zip (toList olds))
-                  . P.boxRight
-                  . map (P.rightPad leftNamePad . phq')
-                  $ toList olds
+                let olds0 = List.sortBy Name.compareAlphabetical (Set.toList olds)
+                 in map (\(oldhq, oldp) -> numHQ' oldPath oldhq r <&> (\n -> n <> " " <> oldp))
+                      . zip olds0
+                      . P.boxRight
+                      . map (P.rightPad leftNamePad . phq')
+                      $ olds0
 
               added' = toList $ Set.difference news olds
               removed' = toList $ Set.difference olds news
@@ -2807,7 +2825,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
         then error "Super invalid UpdateTermDisplay"
         else fmap P.column2 $ traverse (mdTermLine newPath namesWidth) newTerms
       where
-        namesWidth = foldl1' max $ fmap (P.Width . HQ'.nameLength . view _1) newTerms
+        namesWidth = foldl1' max $ fmap (P.Width . HQ'.nameLength Name.toText . view _1) newTerms
     prettyUpdateTerm (Just olds, news) = fmap P.column2 $ do
       olds <-
         traverse
@@ -2823,8 +2841,8 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       where
         namesWidth =
           foldl1' max $
-            fmap (P.Width . HQ'.nameLength . view _1) news
-              <> fmap (P.Width . HQ'.nameLength . view _1) olds
+            fmap (P.Width . HQ'.nameLength Name.toText . view _1) news
+              <> fmap (P.Width . HQ'.nameLength Name.toText . view _1) olds
 
     prettyMetadataDiff :: OBD.MetadataDiff (OBD.MetadataDisplay v a) -> Numbered Pretty
     prettyMetadataDiff OBD.MetadataDiff {..} =
@@ -3026,7 +3044,7 @@ prettyDiff diff =
       addedTypes =
         [ (n, r) | (n, r) <- R.toList (Names.types adds), not $ R.memberRan r (Names.types removes)
         ]
-      added = sort (hqTerms ++ hqTypes)
+      added = List.sortBy Name.compareAlphabetical (hqTerms ++ hqTypes)
         where
           hqTerms = [Names.hqName adds n (Right r) | (n, r) <- addedTerms]
           hqTypes = [Names.hqName adds n (Left r) | (n, r) <- addedTypes]
@@ -3041,7 +3059,7 @@ prettyDiff diff =
         ]
         where
           addedTypesSet = Set.fromList (map fst addedTypes)
-      removed = sort (hqTerms ++ hqTypes)
+      removed = List.sortBy Name.compareAlphabetical (hqTerms ++ hqTypes)
         where
           hqTerms = [Names.hqName removes n (Right r) | (n, r) <- removedTerms]
           hqTypes = [Names.hqName removes n (Left r) | (n, r) <- removedTypes]
@@ -3052,7 +3070,7 @@ prettyDiff diff =
       movedTypes =
         [ (n, n2) | (n, r) <- R.toList (Names.types removes), n2 <- toList (R.lookupRan r (Names.types adds))
         ]
-      moved = Name.sortNamed fst . nubOrd $ (movedTerms <> movedTypes)
+      moved = Name.sortNamed Name.toText fst . nubOrd $ (movedTerms <> movedTypes)
 
       copiedTerms =
         List.multimap
@@ -3063,7 +3081,7 @@ prettyDiff diff =
           [ (n, n2) | (n2, r) <- R.toList (Names.types adds), not (R.memberRan r (Names.types removes)), n <- toList (R.lookupRan r (Names.types orig))
           ]
       copied =
-        Name.sortNamed fst $
+        Name.sortNamed Name.toText fst $
           Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
    in P.sepNonEmpty
         "\n\n"

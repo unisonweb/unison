@@ -456,7 +456,7 @@ afun x f = f x
 
 roundtripLastLam =
   afun "foo" (n -> let
-    1 + 1
+    _ = 1 + 1
     3
   )
 ```
@@ -478,6 +478,29 @@ Regression test for https://github.com/unisonweb/unison/pull/3548
 ```ucm
 .> alias.term ##Nat.+ plus
 .> edit plus
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```
+
+# Indent long pattern lists to avoid virtual semicolon
+
+Regression test for https://github.com/unisonweb/unison/issues/3627
+
+```unison:hide
+(+) a b = ##Nat.+ a b
+
+foo = cases
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
+   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+```
+
+```ucm
+.> add
+.> edit foo
 .> undo
 ```
 

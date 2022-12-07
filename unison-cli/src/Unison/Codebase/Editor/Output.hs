@@ -179,8 +179,8 @@ data Output
   | ListNames
       IsGlobal
       Int -- hq length to print References
-      [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
-      [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
+      [(Reference, [HQ'.HashQualified Name])] -- type match, type names
+      [(Referent, [HQ'.HashQualified Name])] -- term match, term names
       -- list of all the definitions within this branch
   | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
@@ -323,7 +323,8 @@ isFailure o = case o of
   BadMainFunction {} -> True
   CreatedNewBranch {} -> False
   BranchAlreadyExists {} -> True
-  FindNoLocalMatches {} -> True
+  -- we do a global search after finding no local matches, so let's not call this a failure yet
+  FindNoLocalMatches {} -> False
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True

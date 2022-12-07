@@ -1,10 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Hashing.V2.Type
   ( Type,
     F (..),
@@ -68,13 +61,14 @@ bindExternal bs = ABT.substsInheritAnnotation [(v, ref () r) | (v, r) <- bs]
 
 bindReferences ::
   Var v =>
+  (v -> Name.Name) ->
   Set v ->
   Map Name.Name Reference ->
   Type v a ->
   Names.ResolutionResult v a (Type v a)
-bindReferences keepFree ns t =
+bindReferences unsafeVarToName keepFree ns t =
   let fvs = ABT.freeVarOccurrences keepFree t
-      rs = [(v, a, Map.lookup (Name.unsafeFromVar v) ns) | (v, a) <- fvs]
+      rs = [(v, a, Map.lookup (unsafeVarToName v) ns) | (v, a) <- fvs]
       ok (v, _a, Just r) = pure (v, r)
       ok (v, a, Nothing) = Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
    in List.validate ok rs <&> \es -> bindExternal es t

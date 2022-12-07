@@ -375,7 +375,7 @@ exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim2 CMPU i j) = do
   ustk <- bump ustk
   poke ustk . fromEnum $ universalCompare compare x y
   pure (denv, ustk, bstk, k)
-exec !_   !_    !_activeThreads !_    !bstk !k r (BPrim2 THRO i j) = do
+exec !_ !_ !_activeThreads !_ !bstk !k r (BPrim2 THRO i j) = do
   name <- peekOffBi @Util.Text.Text bstk i
   x <- peekOff bstk j
   throwIO (BU (traceK r k) (Util.Text.toText name) x)
@@ -1938,6 +1938,8 @@ reflectValue rty = goV
           pure (ANF.Quote v)
       | Just g <- maybeUnwrapForeign Rf.codeRef f =
           pure (ANF.Code g)
+      | Just a <- maybeUnwrapForeign Rf.ibytearrayRef f =
+          pure (ANF.BArr a)
       | otherwise = die $ err $ "foreign value: " <> (show f)
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
@@ -2010,6 +2012,7 @@ reifyValue0 (rty, rtm) = goV
     goL (ANF.Bytes b) = pure . Foreign $ Wrap Rf.bytesRef b
     goL (ANF.Quote v) = pure . Foreign $ Wrap Rf.valueRef v
     goL (ANF.Code g) = pure . Foreign $ Wrap Rf.codeRef g
+    goL (ANF.BArr a) = pure . Foreign $ Wrap Rf.ibytearrayRef a
 
 -- Universal comparison functions
 
@@ -2159,7 +2162,8 @@ universalCompare frn = cmpc False
     cmpc tyEq (Foreign fl) (Foreign fr)
       | Just sl <- maybeUnwrapForeign Rf.listRef fl,
         Just sr <- maybeUnwrapForeign Rf.listRef fr =
-          comparing Sq.length sl sr <> fold (Sq.zipWith (cmpc tyEq) sl sr)
+          fold (Sq.zipWith (cmpc tyEq) sl sr)
+            <> compare (length sl) (length sr)
       | Just al <- maybeUnwrapForeign Rf.iarrayRef fl,
         Just ar <- maybeUnwrapForeign Rf.iarrayRef fr =
           arrayCmp (cmpc tyEq) al ar

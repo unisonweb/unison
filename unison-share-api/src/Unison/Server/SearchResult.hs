@@ -4,12 +4,14 @@ import qualified Data.Set as Set
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
+import qualified Unison.Name as Name
 import Unison.Names (Names (..))
 import qualified Unison.Names as Names
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
+import Unison.Syntax.Name {- instance Name.Alphabetical Name -} ()
 import qualified Unison.Util.Relation as R
 
 data SearchResult = Tp TypeResult | Tm TermResult deriving (Eq, Ord, Show)
@@ -89,3 +91,17 @@ _fromNames n0@(Names terms types) = typeResults <> termResults
       [ termSearchResult n0 name r
         | (name, r) <- R.toList terms
       ]
+
+-- | Sort a list of search results by name. If names are equal, fall back to comparing by reference (putting types
+-- before terms).
+compareByName :: SearchResult -> SearchResult -> Ordering
+compareByName x y =
+  primary <> secondary
+  where
+    primary = Name.compareAlphabetical (name x) (name y)
+    secondary =
+      case (x, y) of
+        (Tp _, Tm _) -> LT
+        (Tm _, Tp _) -> GT
+        (Tp t0, Tp t1) -> compare (reference t0) (reference t1)
+        (Tm t0, Tm t1) -> compare (referent t0) (referent t1)

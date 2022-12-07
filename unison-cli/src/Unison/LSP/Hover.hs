@@ -9,13 +9,13 @@ import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.HashQualified as HQ
 import Unison.LSP.Types
 import Unison.LSP.VFS
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.Syntax as Server
 import qualified Unison.Server.Types as Backend
+import qualified Unison.Syntax.HashQualified as HQ (fromText)
 
 -- | Rudimentary hover handler
 --

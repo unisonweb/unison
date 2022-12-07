@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -59,6 +59,7 @@ library
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
       Unison.Codebase.PushBehavior
+      Unison.Codebase.RootBranchCache
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
       Unison.Codebase.ShortCausalHash
@@ -208,6 +209,7 @@ library
     , errors
     , exceptions
     , extra
+    , filelock
     , filepath
     , fingertree
     , free
@@ -240,12 +242,12 @@ library
     , openapi3
     , optparse-applicative >=0.16.1.0
     , pem
-    , prelude-extras
     , pretty-simple
     , primitive
     , process
     , random >=1.2.0
     , raw-strings-qq
+    , recover-rtti
     , regex-base
     , regex-tdfa
     , safe
@@ -258,7 +260,6 @@ library
     , servant-server
     , shellmet
     , stm
-    , strings
     , tagged
     , temporary
     , terminal-size
@@ -297,9 +298,9 @@ library
     , x509-system
     , yaml
     , zlib
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010
 
 test-suite parser-typechecker-tests
   type: exitcode-stdio-1.0
@@ -393,6 +394,7 @@ test-suite parser-typechecker-tests
     , errors
     , exceptions
     , extra
+    , filelock
     , filemanip
     , filepath
     , fingertree
@@ -426,12 +428,12 @@ test-suite parser-typechecker-tests
     , openapi3
     , optparse-applicative >=0.16.1.0
     , pem
-    , prelude-extras
     , pretty-simple
     , primitive
     , process
     , random >=1.2.0
     , raw-strings-qq
+    , recover-rtti
     , regex-base
     , regex-tdfa
     , safe
@@ -445,7 +447,6 @@ test-suite parser-typechecker-tests
     , shellmet
     , split
     , stm
-    , strings
     , tagged
     , temporary
     , terminal-size
@@ -485,6 +486,6 @@ test-suite parser-typechecker-tests
     , x509-system
     , yaml
     , zlib
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010

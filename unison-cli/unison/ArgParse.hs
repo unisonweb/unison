@@ -53,10 +53,12 @@ import qualified Options.Applicative as OptParse
 import Options.Applicative.Builder.Internal (noGlobal {- https://github.com/pcapriotti/optparse-applicative/issues/461 -})
 import Options.Applicative.Help (bold, (<+>))
 import qualified Options.Applicative.Help.Pretty as P
+import Stats
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
+import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import qualified Unison.PrettyTerminal as PT
 import Unison.Server.CodebaseServer (CodebaseServerOpts (..))
 import qualified Unison.Server.CodebaseServer as Server
@@ -110,11 +112,12 @@ data Command
       ShouldDownloadBase
       -- Starting path
       (Maybe Path.Absolute)
+      ShouldWatchFiles
   | PrintVersion
   | -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
     Init
   | Run RunSource [String]
-  | Transcript ShouldForkCodebase ShouldSaveCodebase (NonEmpty FilePath)
+  | Transcript ShouldForkCodebase ShouldSaveCodebase (Maybe RtsStatsPath) (NonEmpty FilePath)
   deriving (Show, Eq)
 
 -- | Options shared by sufficiently many subcommands.
@@ -347,7 +350,8 @@ launchParser envOpts isHeadless = do
   codebaseServerOpts <- codebaseServerOptsParser envOpts
   downloadBase <- downloadBaseFlag
   startingPath <- startingPathOption
-  pure (Launch isHeadless codebaseServerOpts downloadBase startingPath)
+  shouldWatchFiles <- noFileWatchFlag
+  pure (Launch isHeadless codebaseServerOpts downloadBase startingPath shouldWatchFiles)
 
 initParser :: Parser Command
 initParser = pure Init
@@ -378,6 +382,15 @@ runCompiledParser :: Parser Command
 runCompiledParser =
   Run . RunCompiled <$> fileArgument "path/to/file" <*> runArgumentParser
 
+rtsStatsOption :: Parser (Maybe RtsStatsPath)
+rtsStatsOption =
+  let meta =
+        metavar "FILE.json"
+          <> long "rts-stats"
+          <> help "Write json summary of rts stats to FILE"
+          <> noGlobal
+   in optional (option OptParse.str meta)
+
 saveCodebaseFlag :: Parser ShouldSaveCodebase
 saveCodebaseFlag = flag DontSaveCodebase SaveCodebase (long "save-codebase" <> help saveHelp)
   where
@@ -404,6 +417,18 @@ startingPathOption =
           <> help "Launch the UCM session at the provided path location."
           <> noGlobal
    in optional $ option readAbsolutePath meta
+
+noFileWatchFlag :: Parser ShouldWatchFiles
+noFileWatchFlag =
+  flag
+    ShouldWatchFiles
+    ShouldNotWatchFiles
+    ( long "no-file-watch"
+        <> help noFileWatchHelp
+        <> noGlobal
+    )
+  where
+    noFileWatchHelp = "If set, ucm will not respond to changes in unison files. Instead, you can use the 'load' command."
 
 readAbsolutePath :: ReadM Path.Absolute
 readAbsolutePath = do
@@ -433,15 +458,17 @@ transcriptParser :: Parser Command
 transcriptParser = do
   -- ApplicativeDo
   shouldSaveCodebase <- saveCodebaseFlag
+  mrtsStatsFp <- rtsStatsOption
   files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
-  pure (Transcript DontFork shouldSaveCodebase files)
+  pure (Transcript DontFork shouldSaveCodebase mrtsStatsFp files)
 
 transcriptForkParser :: Parser Command
 transcriptForkParser = do
   -- ApplicativeDo
   shouldSaveCodebase <- saveCodebaseFlag
+  mrtsStatsFp <- rtsStatsOption
   files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
-  pure (Transcript UseFork shouldSaveCodebase files)
+  pure (Transcript UseFork shouldSaveCodebase mrtsStatsFp files)
 
 unisonHelp :: String -> String -> P.Doc
 unisonHelp (P.text -> executable) (P.text -> version) =

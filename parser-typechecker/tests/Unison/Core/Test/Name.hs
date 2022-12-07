@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.Core.Test.Name where
 
 import Data.List.NonEmpty (NonEmpty (..))
@@ -7,6 +5,7 @@ import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Set as Set
 import EasyTest
 import Unison.Name as Name
+import qualified Unison.Syntax.Name as Name (unsafeFromText)
 import qualified Unison.Util.Relation as R
 
 test :: Test ()
