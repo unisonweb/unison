@@ -20,9 +20,11 @@ module Unison.PrettyPrintEnv
     union,
     empty,
     PrettyPrint (..),
+    usePPE,
   )
 where
 
+import Control.Monad.Reader
 import Data.Ord (Down (Down))
 import Data.Semigroup (Max (Max))
 import Unison.ConstructorReference (ConstructorReference)
@@ -42,6 +44,17 @@ import qualified Unison.Referent as Referent
 class Monad m => PrettyPrint m where
   termNames :: Referent -> m [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
   typeNames :: Reference -> m [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
+
+instance Monad m => PrettyPrint (ReaderT (PrettyPrintEnv m) m) where
+  termNames r = do
+    ppe <- ask
+    lift $ termNames' ppe r
+  typeNames r = do
+    ppe <- ask
+    lift $ typeNames' ppe r
+
+usePPE :: PrettyPrintEnv m -> ReaderT (PrettyPrintEnv m) m a -> m a
+usePPE ppe m = runReaderT m ppe
 
 data PrettyPrintEnv m = PrettyPrintEnv
   { -- names for terms, constructors, and requests; e.g. [(original name, relativized and/or suffixified pretty name)]
