@@ -1691,23 +1691,20 @@ handleFindI isVerbose fscope ws input = do
           -- type query
           ":" : ws -> do
             typ <- parseSearchType (show input) (unwords ws)
-            let named = Branch.deepReferents currentBranch0
-            matches <-
-              fmap (filter (`Set.member` named) . toList) $
-                Cli.runTransaction (Codebase.termsOfType codebase typ)
-            matches <-
-              if null matches
-                then do
-                  Cli.respond NoExactTypeMatches
-                  fmap (filter (`Set.member` named) . toList) $
-                    liftIO (Codebase.termsMentioningType codebase typ)
-                else pure matches
+            let keepNamed = Set.intersection (Branch.deepReferents currentBranch0)
+            (noExactTypeMatches, matches) <- do
+              Cli.runTransaction do
+                matches <- keepNamed <$> Codebase.termsOfType codebase typ
+                if null matches
+                  then (True,) . keepNamed <$> Codebase.termsMentioningType codebase typ
+                  else pure (False, matches)
+            when noExactTypeMatches (Cli.respond NoExactTypeMatches)
             pure $
               -- in verbose mode, aliases are shown, so we collapse all
               -- aliases to a single search result; in non-verbose mode,
               -- a separate result may be shown for each alias
               (if isVerbose then uniqueBy SR.toReferent else id) $
-                searchResultsFor names matches []
+                searchResultsFor names (Set.toList matches) []
 
           -- name query
           (map HQ.unsafeFromString -> qs) -> do
