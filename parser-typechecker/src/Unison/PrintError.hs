@@ -17,7 +17,7 @@ import qualified Data.Text as Text
 import Data.Void (Void)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
-import Unison.Builtin.Decls (pattern TupleType', unitRef)
+import Unison.Builtin.Decls (unitRef, pattern TupleType')
 import qualified Unison.Codebase.Path as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
@@ -112,7 +112,7 @@ fromOverHere src spots0 removing =
 
 showTypeWithProvenance ::
   (Var v, Annotated a, Ord style) =>
-  Env ->
+  Env m ->
   String ->
   style ->
   Type v a ->
@@ -139,10 +139,10 @@ describeStyle _ = ""
 
 -- Render an informational typechecking note
 renderTypeInfo ::
-  forall v loc sty.
+  forall v loc sty m.
   (Var v, Annotated loc, Ord loc, Show loc) =>
   TypeInfo v loc ->
-  Env ->
+  Env m ->
   Pretty (AnnotatedText sty)
 renderTypeInfo i env = case i of
   TopLevelComponent {..} -> case definitions of
@@ -162,10 +162,10 @@ renderTypeInfo i env = case i of
 
 -- Render a type error
 renderTypeError ::
-  forall v loc.
+  forall v loc m.
   (Var v, Annotated loc, Ord loc, Show loc) =>
   TypeError v loc ->
-  Env ->
+  Env m ->
   String ->
   Path.Absolute ->
   Pretty ColorText
@@ -400,17 +400,20 @@ renderTypeError e env src curPath = case e of
             ],
         debugSummary note
       ]
-      where
-        unitHintMsg = 
-          "\nHint: Actions within a block must have type " <> 
-             style Type2 (renderType' env expectedLeaf)    <> ".\n" <> 
-             "      Use " <> style Type1 "_ = <expr>" <> " to ignore a result."  
-        unitHint = if giveUnitHint then unitHintMsg else "" 
-        giveUnitHint = case expectedType of  
-          Type.Ref' u | u == unitRef -> case mismatchSite of 
-            Term.Let1Named' v _ _ -> Var.isAction v
-            _ -> False
+    where
+      unitHintMsg =
+        "\nHint: Actions within a block must have type "
+          <> style Type2 (renderType' env expectedLeaf)
+          <> ".\n"
+          <> "      Use "
+          <> style Type1 "_ = <expr>"
+          <> " to ignore a result."
+      unitHint = if giveUnitHint then unitHintMsg else ""
+      giveUnitHint = case expectedType of
+        Type.Ref' u | u == unitRef -> case mismatchSite of
+          Term.Let1Named' v _ _ -> Var.isAction v
           _ -> False
+        _ -> False
   AbilityCheckFailure {..}
     | [tv@(Type.Var' ev)] <- ambient,
       ev `Set.member` foldMap Type.freeVars requested ->
@@ -916,7 +919,7 @@ renderTypeError e env src curPath = case e of
 
 renderCompilerBug ::
   (Var v, Annotated loc, Ord loc, Show loc) =>
-  Env ->
+  Env m ->
   String ->
   C.CompilerBug v loc ->
   Pretty ColorText
@@ -990,7 +993,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
   C.OtherBug str -> ["OtherBug:\n", fromString str]
 
 renderContext ::
-  (Var v, Ord loc) => Env -> C.Context v loc -> Pretty (AnnotatedText a)
+  (Var v, Ord loc) => Env m -> C.Context v loc -> Pretty (AnnotatedText a)
 renderContext env ctx@(C.Context es) =
   "  Γ\n    "
     <> intercalateMap "\n    " (showElem ctx . fst) (reverse es)
@@ -1011,15 +1014,15 @@ renderContext env ctx@(C.Context es) =
       shortName v <> " : " <> renderType' env (C.apply ctx t)
     showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 
-renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
-renderTerm env e =
-  let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e)
-   in if length s > Settings.renderTermMaxLength
-        then fromString (take Settings.renderTermMaxLength s <> "...")
-        else fromString s
+renderTerm :: (IsString s, Var v) => C.Term v loc -> m s
+renderTerm e = do
+  s <- Color.toPlain <$> TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e)
+  if length s > Settings.renderTermMaxLength
+    then fromString (take Settings.renderTermMaxLength s <> "...")
+    else fromString s
 
 -- | renders a type with no special styling
-renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
+renderType' :: (IsString s, Var v) => Env m -> Type v loc -> s
 renderType' env typ =
   fromString . Pr.toPlain defaultWidth $ renderType env (const id) typ
 
@@ -1027,7 +1030,7 @@ renderType' env typ =
 -- | You can pass `(const id)` if no styling is needed, or call `renderType'`.
 renderType ::
   Var v =>
-  Env ->
+  Env m ->
   (loc -> Pretty (AnnotatedText a) -> Pretty (AnnotatedText a)) ->
   Type v loc ->
   Pretty (AnnotatedText a)
@@ -1063,7 +1066,7 @@ renderType env f t = renderType0 env f (0 :: Int) (Type.removePureEffects t)
         go = renderType0 env f
 
 renderSuggestion ::
-  (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
+  (IsString s, Semigroup s, Var v) => Env m -> C.Suggestion v loc -> s
 renderSuggestion env sug =
   fromString (Text.unpack $ C.suggestionName sug) <> " : "
     <> renderType'
@@ -1082,7 +1085,7 @@ commas = intercalateMap ", "
 renderVar :: (IsString a, Var v) => v -> a
 renderVar = fromString . Text.unpack . Var.name
 
-renderVar' :: (Var v, Annotated a) => Env -> C.Context v a -> v -> String
+renderVar' :: (Var v, Annotated a) => Env m -> C.Context v a -> v -> String
 renderVar' env ctx v = case C.lookupSolved ctx v of
   Nothing -> "unsolved"
   Just t -> renderType' env $ Type.getPolytype t
@@ -1094,21 +1097,21 @@ renderKind :: Kind -> Pretty (AnnotatedText a)
 renderKind Kind.Star = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
-showTermRef :: IsString s => Env -> Referent -> s
-showTermRef env r = fromString . HQ.toString $ PPE.termName env r
+showTermRef :: IsString s => Referent -> m s
+showTermRef r = fromString . HQ.toString <$> PPE.termName r
 
-showTypeRef :: IsString s => Env -> R.Reference -> s
-showTypeRef env r = fromString . HQ.toString $ PPE.typeName env r
+showTypeRef :: IsString s => R.Reference -> m s
+showTypeRef r = fromString . HQ.toString <$> PPE.typeName r
 
 -- todo: do something different/better if cid not found
-showConstructor :: IsString s => Env -> ConstructorReference -> s
-showConstructor env r =
-  fromString . HQ.toString $
-    PPE.patternName env r
+showConstructor :: IsString s => ConstructorReference -> m s
+showConstructor r = do
+  fromString . HQ.toString
+    <$> PPE.patternName r
 
 styleInOverallType ::
   (Var v, Annotated a, Eq a) =>
-  Env ->
+  Env m ->
   C.Type v a ->
   C.Type v a ->
   Color ->
@@ -1168,7 +1171,7 @@ showLexerOutput = False
 renderNoteAsANSI ::
   (Var v, Annotated a, Show a, Ord a) =>
   Pr.Width ->
-  Env ->
+  Env m ->
   String ->
   Path.Absolute ->
   Note v a ->
@@ -1180,7 +1183,7 @@ renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
 
 printNoteWithSource ::
   (Var v, Annotated a, Show a, Ord a) =>
-  Env ->
+  Env m ->
   String ->
   Path.Absolute ->
   Note v a ->
@@ -1794,7 +1797,7 @@ findTerm = go
 prettyTypecheckError ::
   (Var v, Ord loc, Show loc, Parser.Annotated loc) =>
   C.ErrorNote v loc ->
-  Env ->
+  Env m ->
   String ->
   Path.Absolute ->
   Pretty ColorText
@@ -1804,7 +1807,7 @@ prettyTypecheckError note env src curPath =
 prettyTypeInfo ::
   (Var v, Ord loc, Show loc, Parser.Annotated loc) =>
   C.InfoNote v loc ->
-  Env ->
+  Env m ->
   Pretty ColorText
 prettyTypeInfo n e =
   maybe "" (`renderTypeInfo` e) (typeInfoFromNote n)
@@ -1861,7 +1864,7 @@ prettyResolutionFailures s allFailures =
       (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
       (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
 
-    ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
+    ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv m
     ppeFromNames names0 =
       PPE.fromNames PPE.todoHashLength (NamesWithHistory.NamesWithHistory {currentNames = names0, oldNames = mempty})
 

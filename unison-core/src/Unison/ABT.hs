@@ -36,6 +36,7 @@ module Unison.ABT
     rebuildUp,
     rebuildUp',
     reannotateUp,
+    reannotateUpM,
     rewriteDown,
     cata,
     para,
@@ -115,8 +116,8 @@ import U.Core.ABT
     unabs,
     visit,
     visit',
-    visit_,
     visitPure,
+    visit_,
     vmap,
     pattern AbsN',
     pattern Tm',
@@ -463,22 +464,34 @@ unabs1 _ = Nothing
 -- Rebuild the tree annotations upward, starting from the leaves,
 -- using the Monoid to choose the annotation at intermediate nodes
 reannotateUp ::
-  (Ord v, Foldable f, Functor f, Monoid b) =>
+  (Ord v, Traversable f, Monoid b) =>
   (Term f v a -> b) ->
   Term f v a ->
   Term f v (a, b)
-reannotateUp g t = case out t of
-  Var v -> annotatedVar (annotation t, g t) v
-  Cycle body ->
-    let body' = reannotateUp g body
-     in cycle' (annotation t, snd (annotation body')) body'
-  Abs v body ->
-    let body' = reannotateUp g body
-     in abs' (annotation t, snd (annotation body')) v body'
-  Tm body ->
-    let body' = reannotateUp g <$> body
-        ann = g t <> foldMap (snd . annotation) body'
-     in tm' (annotation t, ann) body'
+reannotateUp g t = runIdentity $ reannotateUpM (Identity . g) t
+
+-- Rebuild the tree annotations upward, starting from the leaves,
+-- using the Monoid to choose the annotation at intermediate nodes
+reannotateUpM ::
+  (Ord v, Monoid b, Monad m, Traversable f) =>
+  (Term f v a -> m b) ->
+  Term f v a ->
+  m (Term f v (a, b))
+reannotateUpM g t = case out t of
+  Var v -> do
+    t' <- g t
+    pure $ annotatedVar (annotation t, t') v
+  Cycle body -> do
+    body' <- reannotateUpM g body
+    pure $ cycle' (annotation t, snd (annotation body')) body'
+  Abs v body -> do
+    body' <- reannotateUpM g body
+    pure $ abs' (annotation t, snd (annotation body')) v body'
+  Tm body -> do
+    body' <- traverse (reannotateUpM g) body
+    t' <- g t
+    let ann = t' <> foldMap (snd . annotation) body'
+    pure $ tm' (annotation t, ann) body'
 
 -- Find all subterms that match a predicate.  Prune the search for speed.
 -- (Some patterns of pruning can cut the complexity of the search.)
