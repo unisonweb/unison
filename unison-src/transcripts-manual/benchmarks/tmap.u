@@ -1,12 +1,27 @@
 
--- insert 10k numbers into a map
+N = 10000
+
+baseline m n = 
+  if n == N then m 
+  else
+    baseline (encodeNat64be (Nat.mod ( n * n ) 115249)) (n + 1)
+
 go m n = 
-  if n == 1000 then atomically '(TMap.lookup (encodeNat64be n) m)
+  if n == N then atomically '(TMap.lookup (encodeNat64be n) m)
   else
     k = encodeNat64be (Nat.mod ( n * n ) 115249)
     atomically '(TMap.insert k k m)
     match atomically '(TMap.lookup k m) with
       Some a -> go m (n + 1)
+      None -> bug "Map implementation is busted" 
+
+go2 m n = 
+  if n == N then atomically '(TMap2.lookup (encodeNat64be n) m)
+  else
+    k = encodeNat64be (Nat.mod ( n * n ) 115249)
+    atomically '(TMap2.insert k k m)
+    match atomically '(TMap2.lookup k m) with
+      Some a -> go2 m (n + 1)
       None -> bug "Map implementation is busted" 
 
 goWrap lock m n =
@@ -24,6 +39,56 @@ gos k m n = match k with
     MVar.take lock
 
 main = do
+  _baseline = timeit "encodeNat64be" '(baseline 0xs 0)
   _a = timeit "TMap" '(go (atomically TMap.empty) 0) 
+  _a1 = timeit "TMap2" '(go2 (atomically TMap2.empty) 0) 
   _b = timeit "TMap.empty" '(repeat 1000 '(atomically TMap.empty))
-  timeit "Tmap.concurrent" '(gos 4 (atomically TMap.empty) 0)
+  timeit "TMap.concurrent" '(gos 4 (atomically TMap.empty) 0)
+
+unique type TMap2 a
+  = TMap2 (TVar (Optional a)) (TVar (Map Nat (TMap2.impl.F a)))
+
+unique type TMap2.impl.F a
+  = One Bytes a
+  | Many (TMap2 a)
+  | F.Empty
+
+TMap2.empty : '{STM} TMap2 a
+TMap2.empty = do TMap2 (TVar.new None) (TVar.new Map.empty)
+
+TMap2.insert : Bytes -> a -> TMap2 a ->{STM} ()
+TMap2.insert b a m = insert.impl 0 b a m
+
+TMap2.insert.impl : Nat -> Bytes -> a -> TMap2 a ->{STM} ()
+TMap2.insert.impl i b a m =
+  use TVar write read
+  match (Bytes.at i b, m) with
+    (None, TMap2 tv _)         -> write tv (Some a)
+    (Some h, TMap2 _ children) ->
+      children0 = read children 
+      match Map.lookup h children0 with
+        None -> write children (Map.insert h (One b a) children0) 
+        Some F.Empty  -> write children (Map.insert h (One b a) children0)
+        Some (One b2 a0)
+          | b === b2  -> write children (Map.insert h (One b2 a) children0)
+          | otherwise ->
+            c = !TMap2.empty
+            write children (Map.insert h (Many c) children0)
+            impl (i + 1) b2 a0 c
+            impl (i + 1) b a c
+        Some (Many m)    -> impl (i + 1) b a m
+
+TMap2.lookup : Bytes -> TMap2 a ->{STM} Optional a
+TMap2.lookup b m =
+  go i m =
+    use TVar read
+    match (Bytes.at i b, m) with
+      (None, TMap2 tv _)         -> read tv
+      (Some h, TMap2 _ children) ->
+        match Map.lookup h (read children) with
+          Some (One b2 a) | b === b2 -> Some a
+          Some (Many m)   ->
+            use Nat +
+            go (i + 1) m
+          _        -> None
+  go 0 m
