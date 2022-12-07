@@ -24,6 +24,15 @@ go2 m n =
       Some a -> go2 m (n + 1)
       None -> bug "Map implementation is busted" 
 
+go3 m n = 
+  if n == N then atomically '(TMap3.lookup (encodeNat64be n) m)
+  else
+    k = encodeNat64be (Nat.mod ( n * n ) 115249)
+    atomically '(TMap3.insert k k m)
+    match atomically '(TMap3.lookup k m) with
+      Some a -> go3 m (n + 1)
+      None -> bug "Map implementation is busted" 
+
 goWrap lock m n =
   _ = go m n
   MVar.put lock ()
@@ -42,6 +51,7 @@ main = do
   _baseline = timeit "encodeNat64be" '(baseline 0xs 0)
   _a = timeit "TMap" '(go (atomically TMap.empty) 0) 
   _a1 = timeit "TMap2" '(go2 (atomically TMap2.empty) 0) 
+  _a2 = timeit "TMap3" '(go3 (atomically TMap3.empty) 0) 
   _b = timeit "TMap.empty" '(repeat 1000 '(atomically TMap.empty))
   timeit "TMap.concurrent" '(gos 4 (atomically TMap.empty) 0)
 
@@ -49,15 +59,15 @@ unique type TMap2 a
   = TMap2 (TVar (Optional a)) (TVar (Map Nat (TMap2.impl.F a)))
 
 unique type TMap2.impl.F a
-  = One Bytes a
-  | Many (TMap2 a)
-  | F.Empty
+  = One_a Bytes a
+  | Many_a (TMap2 a)
+  | F.Empty_a
 
 TMap2.empty : '{STM} TMap2 a
 TMap2.empty = do TMap2 (TVar.new None) (TVar.new Map.empty)
 
 TMap2.insert : Bytes -> a -> TMap2 a ->{STM} ()
-TMap2.insert b a m = insert.impl 0 b a m
+TMap2.insert b a m = TMap2.insert.impl 0 b a m
 
 TMap2.insert.impl : Nat -> Bytes -> a -> TMap2 a ->{STM} ()
 TMap2.insert.impl i b a m =
@@ -67,16 +77,16 @@ TMap2.insert.impl i b a m =
     (Some h, TMap2 _ children) ->
       children0 = read children 
       match Map.lookup h children0 with
-        None -> write children (Map.insert h (One b a) children0) 
-        Some F.Empty  -> write children (Map.insert h (One b a) children0)
-        Some (One b2 a0)
-          | b === b2  -> write children (Map.insert h (One b2 a) children0)
+        None -> write children (Map.insert h (One_a b a) children0) 
+        Some F.Empty_a  -> write children (Map.insert h (One_a b a) children0)
+        Some (One_a b2 a0)
+          | b === b2  -> write children (Map.insert h (One_a b2 a) children0)
           | otherwise ->
             c = !TMap2.empty
-            write children (Map.insert h (Many c) children0)
+            write children (Map.insert h (Many_a c) children0)
             impl (i + 1) b2 a0 c
             impl (i + 1) b a c
-        Some (Many m)    -> impl (i + 1) b a m
+        Some (Many_a m)    -> impl (i + 1) b a m
 
 TMap2.lookup : Bytes -> TMap2 a ->{STM} Optional a
 TMap2.lookup b m =
@@ -86,8 +96,74 @@ TMap2.lookup b m =
       (None, TMap2 tv _)         -> read tv
       (Some h, TMap2 _ children) ->
         match Map.lookup h (read children) with
-          Some (One b2 a) | b === b2 -> Some a
-          Some (Many m)   ->
+          Some (One_a b2 a) | b === b2 -> Some a
+          Some (Many_a m)   ->
+            use Nat +
+            go (i + 1) m
+          _        -> None
+  go 0 m
+
+TMap3.insert : Bytes -> a -> TMap3 a ->{STM} ()
+TMap3.insert b a m = TMap3.insert.impl 0 b a m
+
+TMap3.insert.impl : Nat -> Bytes -> a -> TMap3 a ->{STM} ()
+TMap3.insert.impl i b a m =
+  use TVar write
+  match (Bytes.at i b, m) with
+    (None, TMap3 tv _)         -> write tv (Some a)
+    (Some h, TMap3 _ children) ->
+      use Nat +
+      lowerBits = Nat.and 0x0f h
+      child = unsafeAt lowerBits (read (unsafeAt (shiftRight h 4) children)) 
+      writeChild a = 
+        group = unsafeAt (shiftRight h 4) children
+        write group (List.replace lowerBits a (read group))
+      match child with
+        One b2 a0 
+          | b === b2  -> writeChild (One b2 a)
+          | otherwise ->
+            c = !TMap3.empty
+            writeChild (Many c)
+            TMap3.insert.impl (i + 1) b2 a0 c
+            TMap3.insert.impl (i + 1) b a c
+        Many m    -> TMap3.insert.impl (i + 1) b a m
+        F.Empty   -> writeChild (One b a)
+
+unique type TMap3 a
+  = TMap3 (TVar (Optional a)) [TVar [TMap3.impl.F a]]
+
+unique type TMap3.impl.F a
+  = One Bytes a
+  | Many (TMap3 a)
+  | F.Empty
+
+TMap3.impl.empties = List.fill 16 Empty
+
+TMap3.empty : '{STM} TMap3 a
+TMap3.empty _ =
+  use F Empty
+  use TVar new
+  z = impl.empties
+  TMap3
+    (new None)
+    [ new z, new z, new z, new z,
+      new z, new z, new z, new z,
+      new z, new z, new z, new z,
+      new z, new z, new z, new z
+    ]
+
+TMap3.lookup : Bytes -> TMap3 a ->{STM} Optional a
+TMap3.lookup b m =
+  go i m =
+    use TVar read
+    match (Bytes.at i b, m) with
+      (None, TMap3 tv _)         -> read tv
+      (Some h, TMap3 _ children) ->
+        lowerBits = Nat.and 0x0f h
+        child = unsafeAt lowerBits (read (unsafeAt (shiftRight h 4) children)) 
+        match child with
+          One b2 a | b === b2 -> Some a
+          Many m   ->
             use Nat +
             go (i + 1) m
           _        -> None
