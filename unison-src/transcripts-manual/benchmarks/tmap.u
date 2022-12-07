@@ -9,5 +9,21 @@ go m n =
       Some a -> go m (n + 1)
       None -> bug "Map implementation is busted" 
 
+goWrap lock m n =
+  _ = go m n
+  MVar.put lock ()
+
+use IO.concurrent fork
+
+gos k m n = match k with
+  0 -> ()
+  _ ->
+    lock = !MVar.newEmpty
+    tid = fork '(catch '(goWrap lock m n))
+    gos (k-1) m n
+    MVar.take lock
+
 main = do
-  timeit "TMap" '(go (atomically TMap.empty) 0) 
+  _a = timeit "TMap" '(go (atomically TMap.empty) 0) 
+  _b = timeit "TMap.empty" '(repeat 1000 '(atomically TMap.empty))
+  timeit "Tmap.concurrent" '(gos 4 (atomically TMap.empty) 0)
