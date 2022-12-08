@@ -19,3 +19,10 @@ TVar Map concurrent (2) 3576610   # 3.57661s
 TVar Map concurrent (4) 6386835   # 6.386835s
 TVar Map concurrent (8) 12993929   # 12.993929s
 TVar Map concurrent (16) 27345687   # 27.345687s
+TVar Map concurrent (32) 60121265   # 1m
+TMap.concurrent(2) 1235590   # 1.23559s
+TMap.concurrent(4) 1501582   # 1.501582s
+TMap.concurrent(8) 3565150   # 3.56515s
+TMap.concurrent(16) 6214075   # 6.214075s
+TMap.concurrent(32) 12510994   # 12.510994s
+array_sort 141998   # 141.998ms
