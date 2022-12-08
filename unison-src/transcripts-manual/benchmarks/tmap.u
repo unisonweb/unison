@@ -1,29 +1,293 @@
 
--- insert 10k numbers into a map
+N = 20000
+
+main = do
+  _baseline = timeit "encodeNat64be" '(baseline 0xs N)
+  _a1 = timeit "TMap" '(go (atomically TMap.empty) N) 
+  _a2 = timeit "TMap2" '(go2 (atomically TMap2.empty) N) 
+  _a3 = timeit "TMap3" '(go3 (atomically TMap3.empty) N) 
+  _a4 = timeit "TMap4" '(go4 (atomically TMap4.empty) N) 
+  _a5 = timeit "TMap.empty" '(repeat 1000 '(atomically TMap.empty))
+  _a6 = timeit "TVar Map concurrent (2)" '(gos_TVar_Map 2 (atomically '(TVar.new Map.empty)) N)
+  _a7 = timeit "TVar Map concurrent (4)" '(gos_TVar_Map 4 (atomically '(TVar.new Map.empty)) N)
+  _a8 = timeit "TVar Map concurrent (8)" '(gos_TVar_Map 8 (atomically '(TVar.new Map.empty)) N)
+  _a9 = timeit "TVar Map concurrent (16)" '(gos_TVar_Map 16 (atomically '(TVar.new Map.empty)) N)
+  _a10 = timeit "TVar Map concurrent (32)" '(gos_TVar_Map 32 (atomically '(TVar.new Map.empty)) N)
+  _a12 = timeit "TMap.concurrent(2)" '(gos 2 (atomically TMap.empty) N)
+  _a13 = timeit "TMap.concurrent(4)" '(gos 4 (atomically TMap.empty) N)
+  _a14 = timeit "TMap.concurrent(8)" '(gos 8 (atomically TMap.empty) N)
+  _a15 = timeit "TMap.concurrent(16)" '(gos 16 (atomically TMap.empty) N)
+  _a16 = timeit "TMap.concurrent(32)" '(gos 32 (atomically TMap.empty) N)
+  ()
+
+baseline m n = 
+  if n == 0 then m 
+  else
+    baseline (encodeNat64be (Nat.mod ( n * n ) 115249)) (n - 1)
+
 go m n = 
-  if n == 1000 then atomically '(TMap.lookup (encodeNat64be n) m)
+  if n == 0 then atomically '(TMap.lookup (hash Blake2b_256 n) m)
   else
     k = encodeNat64be (Nat.mod ( n * n ) 115249)
     atomically '(TMap.insert k k m)
     match atomically '(TMap.lookup k m) with
-      Some a -> go m (n + 1)
+      Some a -> go m (n - 1)
       None -> bug "Map implementation is busted" 
-
-goWrap lock m n =
-  _ = go m n
-  MVar.put lock ()
-
-use IO.concurrent fork
 
 gos k m n = match k with
   0 -> ()
   _ ->
     lock = !MVar.newEmpty
-    tid = fork '(catch '(goWrap lock m n))
+    goWrap m n =
+      _ = go m n
+      MVar.put lock ()
+    tid = fork '(catch '(goWrap m n))
     gos (k-1) m n
     MVar.take lock
 
-main = do
-  _a = timeit "TMap" '(go (atomically TMap.empty) 0) 
-  _b = timeit "TMap.empty" '(repeat 1000 '(atomically TMap.empty))
-  timeit "Tmap.concurrent" '(gos 4 (atomically TMap.empty) 0)
+gos_TVar_Map k m n = match k with
+  0 -> ()
+  _ ->
+    go tv n = 
+      if n == 0 then Map.size (atomically '(TVar.read tv))
+      else
+        k = Nat.mod ( n * n ) 115249
+        atomically do TVar.write tv (Map.insert k k (TVar.read tv)) 
+        match atomically '(Map.lookup k (TVar.read tv)) with 
+          Some a -> go tv (n - 1)
+          None -> bug "Map implementation is busted" 
+    lock = !MVar.newEmpty
+    goWrap m n =
+      _ = go m n
+      MVar.put lock ()
+    tid = fork '(catch '(goWrap m n))
+    gos_TVar_Map (k-1) m n
+    MVar.take lock
+
+
+go2 m n = 
+  if n == 0 then atomically '(TMap2.lookup (encodeNat64be n) m)
+  else
+    k = encodeNat64be (Nat.mod ( n * n ) 115249)
+    atomically '(TMap2.insert k k m)
+    match atomically '(TMap2.lookup k m) with
+      Some a -> go2 m (n - 1)
+      None -> bug "Map implementation is busted" 
+
+go3 m n = 
+  if n == 0 then atomically '(TMap3.lookup (encodeNat64be n) m)
+  else
+    k = encodeNat64be (Nat.mod ( n * n ) 115249)
+    atomically '(TMap3.insert k k m)
+    match atomically '(TMap3.lookup k m) with
+      Some a -> go3 m (n - 1)
+      None -> bug "Map implementation is busted" 
+
+go4 m n = 
+  if n == 0 then atomically '(TMap4.lookup (encodeNat64be n) m)
+  else
+    k = encodeNat64be (Nat.mod ( n * n ) 115249)
+    atomically '(TMap4.insert k k m)
+    match atomically '(TMap4.lookup k m) with
+      Some a -> go4 m (n - 1)
+      None -> bug "Map implementation is busted" 
+
+use IO.concurrent fork
+
+unique type TMap2 a
+  = TMap2 (TVar (Optional a)) (TVar (Map Nat (TMap2.impl.F a)))
+
+unique type TMap2.impl.F a
+  = One_a Bytes a
+  | Many_a (TMap2 a)
+  | F.Empty_a
+
+TMap2.empty : '{STM} TMap2 a
+TMap2.empty = do TMap2 (TVar.new None) (TVar.new Map.empty)
+
+TMap2.insert : Bytes -> a -> TMap2 a ->{STM} ()
+TMap2.insert b a m = TMap2.insert.impl 0 b a m
+
+TMap2.insert.impl : Nat -> Bytes -> a -> TMap2 a ->{STM} ()
+TMap2.insert.impl i b a m =
+  use TVar write read
+  match (Bytes.at i b, m) with
+    (None, TMap2 tv _)         -> write tv (Some a)
+    (Some h, TMap2 _ children) ->
+      children0 = read children 
+      match Map.lookup h children0 with
+        None -> write children (Map.insert h (One_a b a) children0) 
+        Some F.Empty_a  -> write children (Map.insert h (One_a b a) children0)
+        Some (One_a b2 a0)
+          | b === b2  -> write children (Map.insert h (One_a b2 a) children0)
+          | otherwise ->
+            c = !TMap2.empty
+            write children (Map.insert h (Many_a c) children0)
+            impl (i + 1) b2 a0 c
+            impl (i + 1) b a c
+        Some (Many_a m)    -> impl (i + 1) b a m
+
+TMap2.lookup : Bytes -> TMap2 a ->{STM} Optional a
+TMap2.lookup b m =
+  go i m =
+    use TVar read
+    match (Bytes.at i b, m) with
+      (None, TMap2 tv _)         -> read tv
+      (Some h, TMap2 _ children) ->
+        match Map.lookup h (read children) with
+          Some (One_a b2 a) | b === b2 -> Some a
+          Some (Many_a m)   ->
+            use Nat +
+            go (i + 1) m
+          _        -> None
+  go 0 m
+
+unique type TMap3 a
+  = TMap3 (TVar (Optional a)) [TVar [TMap3.impl.F a]]
+
+unique type TMap3.impl.F a
+  = One Bytes a
+  | Many (TMap3 a)
+  | F.Empty
+
+TMap3.impl.empties = List.fill 16 Empty
+
+TMap3.empty : '{STM} TMap3 a
+TMap3.empty _ =
+  use F Empty
+  use TVar new
+  z = impl.empties
+  TMap3
+    (new None)
+    [ new z, new z, new z, new z,
+      new z, new z, new z, new z,
+      new z, new z, new z, new z,
+      new z, new z, new z, new z
+    ]
+
+TMap3.insert : Bytes -> a -> TMap3 a ->{STM} ()
+TMap3.insert b a m = TMap3.insert.impl 0 b a m
+
+TMap3.insert.impl : Nat -> Bytes -> a -> TMap3 a ->{STM} ()
+TMap3.insert.impl i b a m =
+  use TVar write
+  match (Bytes.at i b, m) with
+    (None, TMap3 tv _)         -> write tv (Some a)
+    (Some h, TMap3 _ children) ->
+      use Nat +
+      lowerBits = Nat.and 0x0f h
+      child = unsafeAt lowerBits (read (unsafeAt (shiftRight h 4) children)) 
+      writeChild a = 
+        group = unsafeAt (shiftRight h 4) children
+        write group (List.replace lowerBits a (read group))
+      match child with
+        One b2 a0 
+          | b === b2  -> writeChild (One b2 a)
+          | otherwise ->
+            c = !TMap3.empty
+            writeChild (Many c)
+            TMap3.insert.impl (i + 1) b2 a0 c
+            TMap3.insert.impl (i + 1) b a c
+        Many m    -> TMap3.insert.impl (i + 1) b a m
+        F.Empty   -> writeChild (One b a)
+
+TMap3.lookup : Bytes -> TMap3 a ->{STM} Optional a
+TMap3.lookup b m =
+  go i m =
+    use TVar read
+    match (Bytes.at i b, m) with
+      (None, TMap3 tv _)         -> read tv
+      (Some h, TMap3 _ children) ->
+        lowerBits = Nat.and 0x0f h
+        child = unsafeAt lowerBits (read (unsafeAt (shiftRight h 4) children)) 
+        match child with
+          One b2 a | b === b2 -> Some a
+          Many m   ->
+            use Nat +
+            go (i + 1) m
+          _        -> None
+  go 0 m
+
+unique type TMap4 a
+  = TMap4 (TVar (Optional a)) [TVar (Optional [TVar (TMap4.impl.F a)])]
+
+unique type TMap4.impl.F a
+  = One_f Bytes a
+  | Many_f (TMap4 a)
+  | F.Empty_f
+
+TMap4.insert : Bytes -> a -> TMap4 a ->{STM} ()
+TMap4.insert b a m = TMap4.insert.impl 0 b a m
+
+TMap4.insert.impl : Nat -> Bytes -> a -> TMap4 a ->{STM} ()
+TMap4.insert.impl i b a m =
+  use TVar write
+  match (Bytes.at i b, m) with
+    (None, TMap4 tv _)         -> write tv (Some a)
+    (Some h, TMap4 _ children) ->
+      use Nat +
+      lowerBits = Nat.and 0x0f h
+      higherBits = shiftRight h 4
+      child0 = unsafeAt higherBits children
+      group = match read child0 with
+        None -> 
+          l0 = [ new Empty_f, new Empty_f, new Empty_f, new Empty_f , new Empty_f, new Empty_f, new Empty_f, new Empty_f , new Empty_f, new Empty_f, new Empty_f, new Empty_f , new Empty_f, new Empty_f, new Empty_f, new Empty_f ]
+          write child0 (Some l0)
+          l0
+        Some t -> t
+      child = unsafeAt lowerBits group
+      match read child with
+        One_f b2 a0 
+          | b === b2  -> write child (One_f b2 a)
+          | otherwise ->
+            c = !TMap4.empty
+            write child (Many_f c)
+            TMap4.insert.impl (i + 1) b2 a0 c
+            TMap4.insert.impl (i + 1) b a c
+        Many_f m    -> TMap4.insert.impl (i + 1) b a m
+        F.Empty_f   -> write child (One_f b a)
+
+TMap4.empty : '{STM} TMap4 a
+TMap4.empty _ =
+  use F Empty_f
+  use TVar new
+  TMap4
+    (new None)
+    [ new None, new None, new None, new None,
+      new None, new None, new None, new None,
+      new None, new None, new None, new None,
+      new None, new None, new None, new None
+    ]
+
+TMap4.lookup : Bytes -> TMap4 a ->{STM} Optional a
+TMap4.lookup b m =
+  go i m =
+    use TVar read
+    match (Bytes.at i b, m) with
+      (None, TMap4 tv _)         -> read tv
+      (Some h, TMap4 _ children) ->
+        higherBits = shiftRight h 4
+        lowerBits = Nat.and 0x0f h
+        match read (unsafeAt higherBits children) with
+          None -> None 
+          Some g -> match read (unsafeAt lowerBits g) with
+            One_f b2 a | b === b2 -> Some a
+            Many_f m   ->
+              use Nat +
+              go (i + 1) m
+            _        -> None
+  go 0 m
+
+---
+
+timeit : Text -> '{IO,Exception} a ->{IO,Exception} a
+timeit label a = 
+  before = !realtime
+  r = !a
+  after = !realtime
+  elapsed = Duration.between before after
+  elapsedText = Duration.toText elapsed
+  printLine ("\n\n ******** \n")
+  printLine (label ++ " took " ++ elapsedText)
+  -- bracket '(FilePath.open benchmarkFilePath FileMode.Append) Handle.close go
+  r
