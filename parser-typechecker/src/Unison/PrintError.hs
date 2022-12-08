@@ -1016,7 +1016,7 @@ renderContext env ctx@(C.Context es) =
 
 renderTerm :: (IsString s, Var v) => C.Term v loc -> m s
 renderTerm e = do
-  s <- Color.toPlain <$> TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e)
+  s <- Color.toPlain <$> TermPrinter.pretty' (Just 80) (TypeVar.lowerTerm e)
   if length s > Settings.renderTermMaxLength
     then fromString (take Settings.renderTermMaxLength s <> "...")
     else fromString s

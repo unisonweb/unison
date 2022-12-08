@@ -53,22 +53,22 @@ import qualified Unison.Var as Var
 
 type SyntaxText = S.SyntaxText' Reference
 
-pretty :: Var v => PrettyPrintEnv m -> Term v a -> m (Pretty ColorText)
-pretty ppe tm =
-  fmap PP.syntaxToColor . PPE.usePPE ppe . runPretty $ pretty0 emptyAc $ printAnnotate ppe tm
+pretty :: Var v => Term v a -> m (Pretty ColorText)
+pretty tm =
+  fmap PP.syntaxToColor . runPretty $ pretty0 emptyAc $ printAnnotate tm
 
-prettyBlock :: Var v => Bool -> PrettyPrintEnv m -> Term v a -> Pretty ColorText
-prettyBlock elideUnit ppe = PP.syntaxToColor . prettyBlock' elideUnit ppe
+prettyBlock :: Var v => Bool -> Term v a -> m (Pretty ColorText)
+prettyBlock elideUnit = fmap PP.syntaxToColor . prettyBlock' elideUnit
 
-prettyBlock' :: Var v => Bool -> PrettyPrintEnv m -> Term v a -> m (Pretty SyntaxText)
-prettyBlock' elideUnit ppe tm =
-  PPE.usePPE ppe . runPretty . pretty0 (emptyBlockAc {elideUnit = elideUnit}) $ printAnnotate ppe tm
+prettyBlock' :: Var v => Bool -> Term v a -> m (Pretty SyntaxText)
+prettyBlock' elideUnit tm =
+  runPretty . pretty0 (emptyBlockAc {elideUnit = elideUnit}) $ printAnnotate tm
 
 pretty' :: Var v => Maybe Width -> Term v a -> m ColorText
 pretty' (Just width) t =
-  PP.render width . PP.syntaxToColor <$> (runPretty (pretty0 emptyAc (printAnnotate ppe t)))
+  PP.render width . PP.syntaxToColor <$> (runPretty (pretty0 emptyAc (printAnnotate t)))
 pretty' Nothing t =
-  PP.renderUnbroken . PP.syntaxToColor <$> (runPretty (pretty0 emptyAc (printAnnotate ppe t)))
+  PP.renderUnbroken . PP.syntaxToColor <$> (runPretty (pretty0 emptyAc (printAnnotate t)))
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -182,20 +182,17 @@ pretty0
           -- OK since all term vars are user specified, any freshening was just added during typechecking
           name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
       Ref' r -> do
-        n <- getPPE
-        let name = elideFQN im $ PrettyPrintEnv m . termName n (Referent.Ref r)
+        name <- elideFQN im <$> PrettyPrintEnv.termName (Referent.Ref r)
         pure . parenIfInfix name ic $ styleHashQualified'' (fmt $ S.TermReference (Referent.Ref r)) name
       TermLink' r -> do
-        n <- getPPE
-        let name = elideFQN im $ PrettyPrintEnv m . termName n r
+        name <- elideFQN im <$> PrettyPrintEnv.termName r
         pure . paren (p >= 10) $
           fmt S.LinkKeyword "termLink "
             <> parenIfInfix name ic (styleHashQualified'' (fmt $ S.TermReference r) name)
         where
 
       TypeLink' r -> do
-        n <- getPPE
-        let name = elideFQN im $ PrettyPrintEnv m . typeName n r
+        name <- elideFQN im <$> PrettyPrintEnv.typeName r
         pure . paren (p >= 10) $
           fmt S.LinkKeyword "typeLink "
             <> parenIfInfix name ic (styleHashQualified'' (fmt $ S.TypeReference r) name)
@@ -225,14 +222,12 @@ pretty0
           Nothing -> '?' : [c]
       Blank' id -> pure $ fmt S.Blank $ l "_" <> l (fromMaybe "" (Blank.nameb id))
       Constructor' ref -> do
-        n <- getPPE
-        let name = elideFQN im $ PrettyPrintEnv m . termName n conRef
-            conRef = Referent.Con ref CT.Data
+        let conRef = Referent.Con ref CT.Data
+        name <- elideFQN im <$> PrettyPrintEnv.termName conRef
         pure $ styleHashQualified'' (fmt $ S.TermReference conRef) name
       Request' ref -> do
-        n <- getPPE
-        let name = elideFQN im $ PrettyPrintEnv m . termName n conRef
-            conRef = Referent.Con ref CT.Effect
+        let conRef = Referent.Con ref CT.Effect
+        name <- elideFQN im <$> PrettyPrintEnv.termName conRef
         pure $ styleHashQualified'' (fmt $ S.TermReference conRef) name
       Handle' h body -> do
         pb <- pblock body
@@ -324,7 +319,6 @@ pretty0
       -- See `isDestructuringBind` definition.
       Match' scrutinee cs@[MatchCase pat guard (AbsN' vs body)]
         | p < 1 && isDestructuringBind scrutinee cs -> do
-            n <- getPPE
             let letIntro = case bc of
                   Block -> id
                   Normal -> \x ->
@@ -334,7 +328,7 @@ pretty0
                     -- this let block provides to add a use statement.  Not so bad.
                     fmt S.ControlKeyword "let" `PP.hang` x
             lhs <- do
-              let (lhs, _) = prettyPattern n (ac 0 Block im doc) 10 vs pat
+              (lhs, _) <- prettyPattern (ac 0 Block im doc) 10 vs pat
               guard' <- printGuard guard
               pure $ PP.group lhs `PP.hang` guard'
             let eq = fmt S.BindingEquals "="
@@ -376,17 +370,16 @@ pretty0
           Nothing -> notDoc go
         where
           notDoc go = do
-            n <- getPPE
             let -- This predicate controls which binary functions we render as infix
                 -- operators. At the moment the policy is just to render symbolic
                 -- operators as infix.
-                binaryOpsPred :: Term3 v PrintAnnotation -> Bool
+                binaryOpsPred :: Term3 v PrintAnnotation -> m Bool
                 binaryOpsPred = \case
-                  Ref' r -> isSymbolic $ PrettyPrintEnv m . termName n (Referent.Ref r)
-                  Var' v -> isSymbolic $ HQ.unsafeFromVar v
-                  _ -> False
-            case (term, binaryOpsPred) of
-              (DD.Doc, _)
+                  Ref' r -> isSymbolic <$> PrettyPrintEnv.termName (Referent.Ref r)
+                  Var' v -> pure $ isSymbolic $ HQ.unsafeFromVar v
+                  _ -> pure False
+            case term of
+              (DD.Doc)
                 | doc == MaybeDoc ->
                     if isDocLiteral term
                       then applyPPE3 prettyDoc im term
@@ -579,16 +572,15 @@ pretty0
 prettyPattern ::
   forall v loc m.
   Var v =>
-  PrettyPrintEnv m ->
   AmbientContext ->
   Int ->
   [v] ->
   Pattern loc ->
-  (Pretty SyntaxText, [v])
+  m (Pretty SyntaxText, [v])
 -- vs is the list of pattern variables used by the pattern, plus possibly a
 -- tail of variables it doesn't use.  This tail is the second component of
 -- the return value.
-prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
+prettyPattern c@AmbientContext {imports = im} p vs patt = pure $ case patt of
   Pattern.Char _ c ->
     ( fmt S.CharLiteral $
         l $ case showEscapeChar c of
@@ -607,72 +599,75 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
   Pattern.Float _ f -> (fmt S.NumericLiteral $ l $ show f, vs)
   Pattern.Text _ t -> (fmt S.TextLiteral $ l $ show t, vs)
   TuplePattern pats
-    | length pats /= 1 ->
-        let (pats_printed, tail_vs) = patterns (-1) vs pats
-         in (PP.parenthesizeCommas pats_printed, tail_vs)
-  Pattern.Constructor _ ref [] ->
-    (styleHashQualified'' (fmt $ S.TermReference conRef) name, vs)
+    | length pats /= 1 -> do
+        (pats_printed, tail_vs) <- patterns (-1) vs pats
+        pure $ (PP.parenthesizeCommas pats_printed, tail_vs)
+  Pattern.Constructor _ ref [] -> do
+    name <- elideFQN im <$> PrettyPrintEnv.termName conRef
+    pure $ (styleHashQualified'' (fmt $ S.TermReference conRef) name, vs)
     where
-      name = elideFQN im $ PrettyPrintEnv.termName n conRef
       conRef = Referent.Con ref CT.Data
-  Pattern.Constructor _ ref pats ->
-    let (pats_printed, tail_vs) = patternsSep 10 PP.softbreak vs pats
-        name = elideFQN im $ PrettyPrintEnv.termName n conRef
-        conRef = Referent.Con ref CT.Data
-     in ( paren (p >= 10) $
-            styleHashQualified'' (fmt $ S.TermReference conRef) name
-              `PP.hang` pats_printed,
-          tail_vs
-        )
-  Pattern.As _ pat ->
+  Pattern.Constructor _ ref pats -> do
+    (pats_printed, tail_vs) <- patternsSep 10 PP.softbreak vs pats
+    let conRef = Referent.Con ref CT.Data
+    name <- elideFQN im <$> PrettyPrintEnv.termName conRef
+    pure
+      ( paren (p >= 10) $
+          styleHashQualified'' (fmt $ S.TermReference conRef) name
+            `PP.hang` pats_printed,
+        tail_vs
+      )
+  Pattern.As _ pat -> do
     case vs of
-      (v : tail_vs) ->
-        let (printed, eventual_tail) = prettyPattern n c 11 tail_vs pat
-         in (paren (p >= 11) (fmt S.Var (l $ Var.nameStr v) <> fmt S.DelimiterChar (l "@") <> printed), eventual_tail)
+      (v : tail_vs) -> do
+        (printed, eventual_tail) <- prettyPattern c 11 tail_vs pat
+        pure (paren (p >= 11) (fmt S.Var (l $ Var.nameStr v) <> fmt S.DelimiterChar (l "@") <> printed), eventual_tail)
       _ -> error "prettyPattern: Expected at least one var"
-  Pattern.EffectPure _ pat ->
-    let (printed, eventual_tail) = prettyPattern n c (-1) vs pat
-     in (PP.sep " " [fmt S.DelimiterChar "{", printed, fmt S.DelimiterChar "}"], eventual_tail)
-  Pattern.EffectBind _ ref pats k_pat ->
-    let (pats_printed, tail_vs) = patternsSep 10 PP.softbreak vs pats
-        (k_pat_printed, eventual_tail) = prettyPattern n c 0 tail_vs k_pat
-        name = elideFQN im $ PrettyPrintEnv.termName n conRef
-        conRef = Referent.Con ref CT.Effect
-     in ( PP.group
-            ( fmt S.DelimiterChar "{"
-                <> ( PP.sep " " . PP.nonEmpty $
-                       [ styleHashQualified'' (fmt (S.TermReference conRef)) name,
-                         pats_printed,
-                         fmt S.ControlKeyword "->",
-                         k_pat_printed
-                       ]
-                   )
-                <> fmt S.DelimiterChar "}"
-            ),
-          eventual_tail
-        )
-  Pattern.SequenceLiteral _ pats ->
-    let (pats_printed, tail_vs) = patternsSep (-1) (fmt S.DelimiterChar ", ") vs pats
-     in (fmt S.DelimiterChar "[" <> pats_printed <> fmt S.DelimiterChar "]", tail_vs)
-  Pattern.SequenceOp _ l op r ->
-    let (pl, lvs) = prettyPattern n c p vs l
-        (pr, rvs) = prettyPattern n c (p + 1) lvs r
-        f i s = (paren (p >= i) (pl <> " " <> fmt (S.Op op) s <> " " <> pr), rvs)
-     in case op of
-          Pattern.Cons -> f 0 "+:"
-          Pattern.Snoc -> f 0 ":+"
-          Pattern.Concat -> f 0 "++"
+  Pattern.EffectPure _ pat -> do
+    (printed, eventual_tail) <- prettyPattern c (-1) vs pat
+    pure $ (PP.sep " " [fmt S.DelimiterChar "{", printed, fmt S.DelimiterChar "}"], eventual_tail)
+  Pattern.EffectBind _ ref pats k_pat -> do
+    (pats_printed, tail_vs) <- patternsSep 10 PP.softbreak vs pats
+    (k_pat_printed, eventual_tail) <- prettyPattern c 0 tail_vs k_pat
+    let conRef = Referent.Con ref CT.Effect
+    name <- elideFQN im <$> PrettyPrintEnv.termName conRef
+    ( PP.group
+        ( fmt S.DelimiterChar "{"
+            <> ( PP.sep " " . PP.nonEmpty $
+                   [ styleHashQualified'' (fmt (S.TermReference conRef)) name,
+                     pats_printed,
+                     fmt S.ControlKeyword "->",
+                     k_pat_printed
+                   ]
+               )
+            <> fmt S.DelimiterChar "}"
+        ),
+      eventual_tail
+      )
+  Pattern.SequenceLiteral _ pats -> do
+    (pats_printed, tail_vs) <- patternsSep (-1) (fmt S.DelimiterChar ", ") vs pats
+    pure (fmt S.DelimiterChar "[" <> pats_printed <> fmt S.DelimiterChar "]", tail_vs)
+  Pattern.SequenceOp _ l op r -> do
+    (pl, lvs) <- prettyPattern c p vs l
+    (pr, rvs) <- prettyPattern c (p + 1) lvs r
+    let f i s = (paren (p >= i) (pl <> " " <> fmt (S.Op op) s <> " " <> pr), rvs)
+    pure $ case op of
+      Pattern.Cons -> f 0 "+:"
+      Pattern.Snoc -> f 0 ":+"
+      Pattern.Concat -> f 0 "++"
   where
     l :: IsString s => String -> s
     l = fromString
-    patterns p vs (pat : pats) =
-      let (printed, tail_vs) =
-            prettyPattern n c p vs pat
-          (rest_printed, eventual_tail) = patterns p tail_vs pats
-       in (printed : rest_printed, eventual_tail)
-    patterns _ vs [] = ([], vs)
-    patternsSep p sep vs pats = case patterns p vs pats of
-      (printed, tail_vs) -> (PP.sep sep printed, tail_vs)
+    patterns :: Int -> [v] -> [Pattern loc] -> m ([Pretty SyntaxText], [v])
+    patterns p vs (pat : pats) = do
+      (printed, tail_vs) <- prettyPattern c p vs pat
+      (rest_printed, eventual_tail) <- patterns p tail_vs pats
+      pure (printed : rest_printed, eventual_tail)
+    patterns _ vs [] = pure ([], vs)
+    patternsSep :: (Int -> Pretty SyntaxText -> [v] -> [Pattern loc] -> m (Pretty SyntaxText, [v]))
+    patternsSep p sep vs pats =
+      patterns p vs pats <&> \case
+        (printed, tail_vs) -> (PP.sep sep printed, tail_vs)
 
 type MatchCase' ann tm = ([Pattern ann], Maybe tm, tm)
 
@@ -742,7 +737,7 @@ printCase im doc ms0 =
                   justified
             justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
     grid = traverse go ms
-    patLhs env vs pats =
+    patLhs vs pats =
       case pats of
         [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
         pats -> PP.group . PP.sep (PP.indentAfterNewline "  " $ "," <> PP.softbreak)
@@ -763,8 +758,8 @@ printCase im doc ms0 =
     go (pats, vs, unzip -> (guards, bodies)) = do
       guards' <- traverse printGuard guards
       bodies' <- traverse printBody bodies
-      ppe <- getPPE
-      pure (patLhs ppe vs pats, guards', bodies')
+      lhs <- patLhs vs pats
+      pure (lhs, guards', bodies')
       where
         noGuards = all (== Nothing) guards
         printGuard Nothing | noGuards = pure mempty
@@ -906,34 +901,45 @@ isDocLiteral term = case term of
   _ -> False
 
 -- Similar to DisplayValues.displayDoc, but does not follow and expand references.
-prettyDoc :: Var v => PrettyPrintEnv m -> Imports -> Term3 v a -> Pretty SyntaxText
-prettyDoc n im term =
-  mconcat
-    [ fmt S.DocDelimiter $ l "[: ",
-      go term,
-      spaceUnlessBroken,
-      fmt S.DocDelimiter $ l ":]"
-    ]
+prettyDoc :: forall v m a. Var v => Imports -> Term3 v a -> m (Pretty SyntaxText)
+prettyDoc im term = do
+  formatted <- go term
+  pure $
+    mconcat
+      [ fmt S.DocDelimiter $ l "[: ",
+        formatted,
+        spaceUnlessBroken,
+        fmt S.DocDelimiter $ l ":]"
+      ]
   where
-    go (DD.DocJoin segs) = foldMap go segs
-    go (DD.DocBlob txt) = PP.paragraphyText (escaped txt)
-    go (DD.DocLink (DD.LinkTerm (TermLink' r))) =
-      fmt S.DocDelimiter (l "@") <> (fmt $ S.TermReference r) (fmtTerm r)
-    go (DD.DocLink (DD.LinkType (TypeLink' r))) =
-      fmt S.DocDelimiter (l "@") <> (fmt $ S.TypeReference r) (fmtType r)
-    go (DD.DocSource (DD.LinkTerm (TermLink' r))) =
-      atKeyword "source" <> fmtTerm r
-    go (DD.DocSource (DD.LinkType (TypeLink' r))) =
-      atKeyword "source" <> fmtType r
-    go (DD.DocSignature (TermLink' r)) =
-      atKeyword "signature" <> fmtTerm r
-    go (DD.DocEvaluate (TermLink' r)) =
-      atKeyword "evaluate" <> fmtTerm r
-    go (Ref' r) = atKeyword "include" <> fmtTerm (Referent.Ref r)
-    go _ = l $ "(invalid doc literal: " ++ show term ++ ")"
+    go :: (Term3 v a -> m (Pretty (S.SyntaxText' Reference)))
+    go (DD.DocJoin segs) = foldMapM go segs
+    go (DD.DocBlob txt) = pure $ PP.paragraphyText (escaped txt)
+    go (DD.DocLink (DD.LinkTerm (TermLink' r))) = do
+      formatted <- fmtTerm r
+      pure $ fmt S.DocDelimiter (l "@") <> (fmt $ S.TermReference r) formatted
+    go (DD.DocLink (DD.LinkType (TypeLink' r))) = do
+      formatted <- fmtType r
+      pure $ fmt S.DocDelimiter (l "@") <> (fmt $ S.TypeReference r) formatted
+    go (DD.DocSource (DD.LinkTerm (TermLink' r))) = do
+      formatted <- fmtTerm r
+      pure $ atKeyword "source" <> formatted
+    go (DD.DocSource (DD.LinkType (TypeLink' r))) = do
+      formatted <- fmtType r
+      pure $ atKeyword "source" <> formatted
+    go (DD.DocSignature (TermLink' r)) = do
+      formatted <- fmtTerm r
+      pure $ atKeyword "signature" <> formatted
+    go (DD.DocEvaluate (TermLink' r)) = do
+      formatted <- fmtTerm r
+      pure $ atKeyword "evaluate" <> formatted
+    go (Ref' r) = do
+      formatted <- fmtTerm (Referent.Ref r)
+      pure $ atKeyword "include" <> formatted
+    go _ = pure . l $ "(invalid doc literal: " ++ show term ++ ")"
     fmtName s = styleHashQualified'' (fmt $ S.HashQualifier s) $ elideFQN im s
-    fmtTerm r = fmtName $ PrettyPrintEnv m . termName n r
-    fmtType r = fmtName $ PrettyPrintEnv m . typeName n r
+    fmtTerm r = fmtName <$> PrettyPrintEnv.termName r
+    fmtType r = fmtName <$> PrettyPrintEnv.typeName r
     atKeyword w =
       fmt S.DocDelimiter (l "@[")
         <> fmt S.DocKeyword (l w)
