@@ -33,6 +33,15 @@ go3 m n =
       Some a -> go3 m (n + 1)
       None -> bug "Map implementation is busted" 
 
+go4 m n = 
+  if n == N then atomically '(TMap4.lookup (encodeNat64be n) m)
+  else
+    k = encodeNat64be (Nat.mod ( n * n ) 115249)
+    atomically '(TMap4.insert k k m)
+    match atomically '(TMap4.lookup k m) with
+      Some a -> go4 m (n + 1)
+      None -> bug "Map implementation is busted" 
+
 goWrap lock m n =
   _ = go m n
   MVar.put lock ()
@@ -52,6 +61,7 @@ main = do
   _a = timeit "TMap" '(go (atomically TMap.empty) 0) 
   _a1 = timeit "TMap2" '(go2 (atomically TMap2.empty) 0) 
   _a2 = timeit "TMap3" '(go3 (atomically TMap3.empty) 0) 
+  _a4 = timeit "TMap4" '(go4 (atomically TMap4.empty) 0) 
   _b = timeit "TMap.empty" '(repeat 1000 '(atomically TMap.empty))
   timeit "TMap.concurrent" '(gos 4 (atomically TMap.empty) 0)
 
@@ -103,6 +113,29 @@ TMap2.lookup b m =
           _        -> None
   go 0 m
 
+unique type TMap3 a
+  = TMap3 (TVar (Optional a)) [TVar [TMap3.impl.F a]]
+
+unique type TMap3.impl.F a
+  = One Bytes a
+  | Many (TMap3 a)
+  | F.Empty
+
+TMap3.impl.empties = List.fill 16 Empty
+
+TMap3.empty : '{STM} TMap3 a
+TMap3.empty _ =
+  use F Empty
+  use TVar new
+  z = impl.empties
+  TMap3
+    (new None)
+    [ new z, new z, new z, new z,
+      new z, new z, new z, new z,
+      new z, new z, new z, new z,
+      new z, new z, new z, new z
+    ]
+
 TMap3.insert : Bytes -> a -> TMap3 a ->{STM} ()
 TMap3.insert b a m = TMap3.insert.impl 0 b a m
 
@@ -129,29 +162,6 @@ TMap3.insert.impl i b a m =
         Many m    -> TMap3.insert.impl (i + 1) b a m
         F.Empty   -> writeChild (One b a)
 
-unique type TMap3 a
-  = TMap3 (TVar (Optional a)) [TVar [TMap3.impl.F a]]
-
-unique type TMap3.impl.F a
-  = One Bytes a
-  | Many (TMap3 a)
-  | F.Empty
-
-TMap3.impl.empties = List.fill 16 Empty
-
-TMap3.empty : '{STM} TMap3 a
-TMap3.empty _ =
-  use F Empty
-  use TVar new
-  z = impl.empties
-  TMap3
-    (new None)
-    [ new z, new z, new z, new z,
-      new z, new z, new z, new z,
-      new z, new z, new z, new z,
-      new z, new z, new z, new z
-    ]
-
 TMap3.lookup : Bytes -> TMap3 a ->{STM} Optional a
 TMap3.lookup b m =
   go i m =
@@ -167,4 +177,74 @@ TMap3.lookup b m =
             use Nat +
             go (i + 1) m
           _        -> None
+  go 0 m
+
+unique type TMap4 a
+  = TMap4 (TVar (Optional a)) [TVar (Optional [TVar (TMap4.impl.F a)])]
+
+unique type TMap4.impl.F a
+  = One_f Bytes a
+  | Many_f (TMap4 a)
+  | F.Empty_f
+
+TMap4.insert : Bytes -> a -> TMap4 a ->{STM} ()
+TMap4.insert b a m = TMap4.insert.impl 0 b a m
+
+TMap4.insert.impl : Nat -> Bytes -> a -> TMap4 a ->{STM} ()
+TMap4.insert.impl i b a m =
+  use TVar write
+  match (Bytes.at i b, m) with
+    (None, TMap4 tv _)         -> write tv (Some a)
+    (Some h, TMap4 _ children) ->
+      use Nat +
+      lowerBits = Nat.and 0x0f h
+      higherBits = shiftRight h 4
+      child0 = unsafeAt higherBits children
+      group = match read child0 with
+        None -> 
+          l0 = [ new Empty_f, new Empty_f, new Empty_f, new Empty_f , new Empty_f, new Empty_f, new Empty_f, new Empty_f , new Empty_f, new Empty_f, new Empty_f, new Empty_f , new Empty_f, new Empty_f, new Empty_f, new Empty_f ]
+          write child0 (Some l0)
+          l0
+        Some t -> t
+      child = unsafeAt lowerBits group
+      match read child with
+        One_f b2 a0 
+          | b === b2  -> write child (One_f b2 a)
+          | otherwise ->
+            c = !TMap4.empty
+            write child (Many_f c)
+            TMap4.insert.impl (i + 1) b2 a0 c
+            TMap4.insert.impl (i + 1) b a c
+        Many_f m    -> TMap4.insert.impl (i + 1) b a m
+        F.Empty_f   -> write child (One_f b a)
+
+TMap4.empty : '{STM} TMap4 a
+TMap4.empty _ =
+  use F Empty_f
+  use TVar new
+  TMap4
+    (new None)
+    [ new None, new None, new None, new None,
+      new None, new None, new None, new None,
+      new None, new None, new None, new None,
+      new None, new None, new None, new None
+    ]
+
+TMap4.lookup : Bytes -> TMap4 a ->{STM} Optional a
+TMap4.lookup b m =
+  go i m =
+    use TVar read
+    match (Bytes.at i b, m) with
+      (None, TMap4 tv _)         -> read tv
+      (Some h, TMap4 _ children) ->
+        higherBits = shiftRight h 4
+        lowerBits = Nat.and 0x0f h
+        match read (unsafeAt higherBits children) with
+          None -> None 
+          Some g -> match read (unsafeAt lowerBits g) with
+            One_f b2 a | b === b2 -> Some a
+            Many_f m   ->
+              use Nat +
+              go (i + 1) m
+            _        -> None
   go 0 m
