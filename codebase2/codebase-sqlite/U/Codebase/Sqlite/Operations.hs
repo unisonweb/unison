@@ -72,6 +72,8 @@ module U.Codebase.Sqlite.Operations
     NamesByPath (..),
     termNamesWithinNamespace,
     typeNamesWithinNamespace,
+    termNamesBySuffix,
+    typeNamesBySuffix,
 
     -- * reflog
     getReflog,
@@ -1124,6 +1126,14 @@ termNamesWithinNamespace namespace ref = do
 typeNamesWithinNamespace :: PathText -> C.Reference -> Transaction [S.ReversedSegments]
 typeNamesWithinNamespace namespace ref = do
   Q.typeNamesWithinNamespace (namespace) (c2sTextReference ref)
+
+termNamesBySuffix :: PathText -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesBySuffix namespace suffix = do
+  Q.termNamesBySuffix namespace suffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+
+typeNamesBySuffix :: PathText -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeNamesBySuffix namespace suffix =
+  Q.typeNamesBySuffix namespace suffix <&> fmap (fmap s2cTextReference)
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them
 -- then return them.

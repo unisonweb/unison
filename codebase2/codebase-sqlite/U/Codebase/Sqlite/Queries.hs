@@ -1835,21 +1835,19 @@ typeNamesWithinNamespace namespaceRoot ref = do
 -- is only true on Share.
 --
 -- Get the list of term names within a given namespace which have the given suffix.
-termNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [ReversedSegments]
+termNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termNamesBySuffix namespaceRoot suffix = do
   let (exactNamespace, namespaceGlob) = case namespaceRoot of
         "" -> ("", "*")
         exactNamespace -> (exactNamespace, globEscape exactNamespace <> ".*")
   let suffixGlob = globEscape (Text.intercalate "." (toList suffix))
-  queryListColCheck sql (suffixGlob, namespaceGlob, exactNamespace) \reversedNames ->
-    for reversedNames \reversedName -> do
-      case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
-        Nothing -> Left (EmptyName $ "In termNamesBySuffix:" <> show (namespaceRoot, suffix))
-        Just segments -> Right $ segments
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (suffixGlob, namespaceGlob, exactNamespace)
+  pure (fmap unRow <$> results)
   where
+    unRow (a :. Only b) = (a, b)
     sql =
       [here|
-        SELECT reversed_name FROM term_name_lookup
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, referent_constructor_type FROM term_name_lookup
         WHERE reversed_name GLOB ?
               AND (namespace GLOB ? OR namespace = ?)
         |]
@@ -1858,21 +1856,17 @@ termNamesBySuffix namespaceRoot suffix = do
 -- is only true on Share.
 --
 -- Get the list of type names within a given namespace which have the given suffix.
-typeNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [ReversedSegments]
+typeNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
 typeNamesBySuffix namespaceRoot suffix = do
   let (exactNamespace, namespaceGlob) = case namespaceRoot of
         "" -> ("", "*")
         exactNamespace -> (exactNamespace, globEscape exactNamespace <> ".*")
   let suffixGlob = globEscape (Text.intercalate "." (toList suffix))
-  queryListColCheck sql (suffixGlob, namespaceGlob, exactNamespace) \reversedNames ->
-    for reversedNames \reversedName -> do
-      case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
-        Nothing -> Left (EmptyName $ "In termNamesBySuffix:" <> show (namespaceRoot, suffix))
-        Just segments -> Right $ segments
+  queryListRow sql (suffixGlob, namespaceGlob, exactNamespace)
   where
     sql =
       [here|
-        SELECT reversed_name FROM type_name_lookup
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup FROM type_name_lookup
         WHERE reversed_name GLOB ?
               AND (namespace GLOB ? OR namespace = ?)
         |]
