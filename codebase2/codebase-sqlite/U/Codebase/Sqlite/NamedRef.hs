@@ -7,6 +7,7 @@ import qualified Data.Text as Text
 import Unison.Prelude
 import Unison.Sqlite (FromField (..), FromRow (..), SQLData (..), ToField (..), ToRow (..), field)
 
+-- | E.g. ("map" :| ["List", "base"])
 type ReversedSegments = NonEmpty Text
 
 data ConstructorType

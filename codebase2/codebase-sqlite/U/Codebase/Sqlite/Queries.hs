@@ -142,6 +142,10 @@ module U.Codebase.Sqlite.Queries
     rootTermNamesByPath,
     rootTypeNamesByPath,
     getNamespaceDefinitionCount,
+    termNamesWithinNamespace,
+    typeNamesWithinNamespace,
+    termNamesBySuffix,
+    typeNamesBySuffix,
 
     -- * Reflog
     appendReflog,
@@ -201,6 +205,7 @@ import qualified Data.Foldable as Foldable
 import qualified Data.List.Extra as List
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.NonEmpty as NEMap
@@ -246,7 +251,7 @@ import U.Codebase.Sqlite.LocalIds
     LocalTextId (..),
   )
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
-import U.Codebase.Sqlite.NamedRef (NamedRef)
+import U.Codebase.Sqlite.NamedRef (NamedRef, ReversedSegments)
 import qualified U.Codebase.Sqlite.NamedRef as NamedRef
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
@@ -1599,18 +1604,20 @@ ensureNameLookupTables = do
         referent_component_index INTEGER NULL,
         referent_constructor_index INTEGER NULL,
         referent_constructor_type INTEGER NULL,
-        PRIMARY KEY (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
+        PRIMARY KEY (referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, reversed_name)
       )
     |]
+  -- This index allows finding all names we need to consider within a given namespace for
+  -- suffixification of a name.
   execute_
     [here|
-      CREATE INDEX IF NOT EXISTS term_names_by_namespace ON term_name_lookup(namespace)
+      CREATE INDEX IF NOT EXISTS term_names_by_namespace_and_reversed_name ON term_name_lookup(namespace, reversed_name)
     |]
-  -- Don't need this index at the moment, but will likely be useful later.
-  -- execute_
-  --   [here|
-  --     CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
-  --   |]
+  -- This index allows us to find all names with a given ref within a specific namespace.
+  execute_
+    [here|
+      CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, namespace)
+    |]
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS type_name_lookup (
@@ -1621,19 +1628,22 @@ ensureNameLookupTables = do
         reference_builtin TEXT NULL,
         reference_component_hash INTEGER NULL,
         reference_component_index INTEGER NULL,
-        PRIMARY KEY (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
+        PRIMARY KEY (reference_builtin, reference_component_hash, reference_component_index, reversed_name)
       );
     |]
+
+  -- This index allows finding all names we need to consider within a given namespace for
+  -- suffixification of a name.
   execute_
     [here|
-      CREATE INDEX IF NOT EXISTS type_names_by_namespace ON type_name_lookup(namespace)
+      CREATE INDEX IF NOT EXISTS type_names_by_namespace ON type_name_lookup(namespace, reversed_name)
     |]
 
--- Don't need this index at the moment, but will likely be useful later.
--- execute_
---   [here|
---     CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index);
---   |]
+  -- This index allows us to find all names with a given ref within a specific namespace.
+  execute_
+    [here|
+      CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index, namespace);
+    |]
 
 -- | Insert the given set of term names into the name lookup table
 insertTermNames :: [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
@@ -1765,6 +1775,106 @@ rootTermNamesByPath mayNamespace = do
       [here|
         SELECT namespace GLOB ? OR namespace = ?, reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
         ORDER BY (namespace GLOB ? OR namespace = ?) DESC
+        |]
+
+-- | Thrown if we try to get the segments of an empty name, shouldn't ever happen since empty names
+-- are invalid.
+data EmptyName = EmptyName String
+  deriving stock (Eq, Show)
+  deriving anyclass (SqliteExceptionReason)
+
+-- | A namespace rendered as a path, no leading '.'
+-- E.g. "base.data"
+type NamespaceText = Text
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of a names for a given Referent.
+termNamesWithinNamespace :: NamespaceText -> Referent.TextReferent -> Transaction [ReversedSegments]
+termNamesWithinNamespace namespaceRoot ref = do
+  let (exactNamespace, namespaceGlob) = case namespaceRoot of
+        "" -> ("", "*")
+        exactNamespace -> (exactNamespace, globEscape exactNamespace <> ".*")
+  queryListColCheck sql (ref :. (namespaceGlob, exactNamespace)) \reversedNames ->
+    for reversedNames \reversedName -> do
+      case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
+        Nothing -> Left (EmptyName $ "In termNamesWithinNamespace:" <> show (namespaceRoot, ref))
+        Just segments -> Right $ segments
+  where
+    sql =
+      [here|
+        SELECT reversed_name FROM term_name_lookup
+        WHERE referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?
+              AND (namespace GLOB ? OR namespace = ?)
+        |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of a names for a given Referent.
+typeNamesWithinNamespace :: NamespaceText -> Reference.TextReference -> Transaction [ReversedSegments]
+typeNamesWithinNamespace namespaceRoot ref = do
+  let (exactNamespace, namespaceGlob) = case namespaceRoot of
+        "" -> ("", "*")
+        exactNamespace -> (exactNamespace, globEscape exactNamespace <> ".*")
+  queryListColCheck sql (ref :. (namespaceGlob, exactNamespace)) \reversedNames ->
+    for reversedNames \reversedName -> do
+      case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
+        Nothing -> Left (EmptyName $ "In typeNamesWithinNamespace:" <> show (namespaceRoot, ref))
+        Just segments -> Right $ segments
+  where
+    sql =
+      [here|
+        SELECT reversed_name FROM type_name_lookup
+        WHERE reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?
+              AND (namespace GLOB ? OR namespace = ?)
+        |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of term names within a given namespace which have the given suffix.
+termNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [ReversedSegments]
+termNamesBySuffix namespaceRoot suffix = do
+  let (exactNamespace, namespaceGlob) = case namespaceRoot of
+        "" -> ("", "*")
+        exactNamespace -> (exactNamespace, globEscape exactNamespace <> ".*")
+  let suffixGlob = globEscape (Text.intercalate "." (toList suffix))
+  queryListColCheck sql (suffixGlob, namespaceGlob, exactNamespace) \reversedNames ->
+    for reversedNames \reversedName -> do
+      case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
+        Nothing -> Left (EmptyName $ "In termNamesBySuffix:" <> show (namespaceRoot, suffix))
+        Just segments -> Right $ segments
+  where
+    sql =
+      [here|
+        SELECT reversed_name FROM term_name_lookup
+        WHERE reversed_name GLOB ?
+              AND (namespace GLOB ? OR namespace = ?)
+        |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of type names within a given namespace which have the given suffix.
+typeNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [ReversedSegments]
+typeNamesBySuffix namespaceRoot suffix = do
+  let (exactNamespace, namespaceGlob) = case namespaceRoot of
+        "" -> ("", "*")
+        exactNamespace -> (exactNamespace, globEscape exactNamespace <> ".*")
+  let suffixGlob = globEscape (Text.intercalate "." (toList suffix))
+  queryListColCheck sql (suffixGlob, namespaceGlob, exactNamespace) \reversedNames ->
+    for reversedNames \reversedName -> do
+      case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
+        Nothing -> Left (EmptyName $ "In termNamesBySuffix:" <> show (namespaceRoot, suffix))
+        Just segments -> Right $ segments
+  where
+    sql =
+      [here|
+        SELECT reversed_name FROM type_name_lookup
+        WHERE reversed_name GLOB ?
+              AND (namespace GLOB ? OR namespace = ?)
         |]
 
 -- | Get the list of a type names in the root namespace according to the name lookup index

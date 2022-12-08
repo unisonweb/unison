@@ -70,6 +70,8 @@ module U.Codebase.Sqlite.Operations
     updateNameIndex,
     rootNamesByPath,
     NamesByPath (..),
+    termNamesWithinNamespace,
+    typeNamesWithinNamespace,
 
     -- * reflog
     getReflog,
@@ -171,6 +173,12 @@ import Unison.Sqlite
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
 
+-- FIXME should we move some Path type here?
+type PathSegments = [Text]
+
+-- | A rendered relative path of the form: foo.bar.baz
+type PathText = Text
+
 -- * Error handling
 
 debug :: Bool
@@ -209,9 +217,7 @@ loadRootCausalHash =
     lift . Q.expectCausalHash =<< MaybeT Q.loadNamespaceRoot
 
 -- | Load the causal hash at the given path from the root.
---
--- FIXME should we move some Path type here?
-loadCausalHashAtPath :: [Text] -> Transaction (Maybe CausalHash)
+loadCausalHashAtPath :: PathSegments -> Transaction (Maybe CausalHash)
 loadCausalHashAtPath =
   let go :: Db.CausalHashId -> [Text] -> MaybeT Transaction CausalHash
       go hashId = \case
@@ -226,9 +232,7 @@ loadCausalHashAtPath =
         runMaybeT (go hashId path)
 
 -- | Expect the causal hash at the given path from the root.
---
--- FIXME should we move some Path type here?
-expectCausalHashAtPath :: [Text] -> Transaction CausalHash
+expectCausalHashAtPath :: PathSegments -> Transaction CausalHash
 expectCausalHashAtPath =
   let go :: Db.CausalHashId -> [Text] -> Transaction CausalHash
       go hashId = \case
@@ -1104,6 +1108,22 @@ rootNamesByPath path = do
   where
     convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
     convertTypes = fmap s2cTextReference
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of a names for a given Referent.
+termNamesWithinNamespace :: PathText -> C.Referent -> Transaction [S.ReversedSegments]
+termNamesWithinNamespace namespace ref = do
+  Q.termNamesWithinNamespace namespace (c2sTextReferent ref)
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of a names for a given Reference.
+typeNamesWithinNamespace :: PathText -> C.Reference -> Transaction [S.ReversedSegments]
+typeNamesWithinNamespace namespace ref = do
+  Q.typeNamesWithinNamespace (namespace) (c2sTextReference ref)
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them
 -- then return them.

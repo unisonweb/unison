@@ -21,6 +21,7 @@ module Unison.Name
     reverseSegments,
     segments,
     suffixes,
+    lastSegment,
 
     -- * Basic manipulation
     makeAbsolute,
@@ -281,6 +282,13 @@ fromReverseSegments rs =
 reverseSegments :: Name -> NonEmpty NameSegment
 reverseSegments (Name _ ss) =
   ss
+
+-- | Return the final segment of a name.
+--
+-- >>> lastSegment (fromSegments ("base" :| ["List", "map"]))
+-- NameSegment {toText = "map"}
+lastSegment :: Name -> NameSegment
+lastSegment = List.NonEmpty.head . reverseSegments
 
 -- If there's no exact matches for `suffix` in `rel`, find all
 -- `r` in `rel` whose corresponding name `suffix` as a suffix.
