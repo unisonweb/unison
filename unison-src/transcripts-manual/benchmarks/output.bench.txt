@@ -1,18 +1,27 @@
 
-Each 112607   # 112.607ms
-List.map 38782   # 38.782ms
-List.filter 41066   # 41.066ms
-random 83221   # 83.221ms
-simple_loop 96444   # 96.444ms
-fibonacci 48727   # 48.727ms
-Map 50384   # 50.384ms
-NatMap 55756   # 55.756ms
-stm_loop 244017   # 244.017ms
-encodeNat64be 21165   # 21.165ms
-TMap 484774   # 484.774ms
-TMap2 1063580   # 1.06358s
-TMap3 735262   # 735.262ms
-TMap4 859772   # 859.772ms
-TMap.empty 92354   # 92.354ms
-TMap.concurrent 604351   # 604.351ms
-array_sort 77980   # 77.98ms
+Each 111202   # 111.202ms
+List.map 38240   # 38.24ms
+List.filter 39300   # 39.3ms
+random 80965   # 80.965ms
+simple_loop 93465   # 93.465ms
+fibonacci 48050   # 48.05ms
+Map 50077   # 50.077ms
+NatMap 54566   # 54.566ms
+stm_loop 241047   # 241.047ms
+encodeNat64be 40531   # 40.531ms
+TMap 893535   # 893.535ms
+TMap2 2439804   # 2.439804s
+TMap3 1475987   # 1.475987s
+TMap4 1767079   # 1.767079s
+TMap.empty 119670   # 119.67ms
+TVar Map concurrent (2) 3158616   # 3.158616s
+TVar Map concurrent (4) 5732858   # 5.732858s
+TVar Map concurrent (8) 12333688   # 12.333688s
+TVar Map concurrent (16) 25708170   # 25.70817s
+TVar Map concurrent (32) 55115180   # 55.11518s
+TMap.concurrent(2) 1098109   # 1.098109s
+TMap.concurrent(4) 1272848   # 1.272848s
+TMap.concurrent(8) 3273686   # 3.273686s
+TMap.concurrent(16) 5473991   # 5.473991s
+TMap.concurrent(32) 11992583   # 11.992583s
+array_sort 103266   # 103.266ms
