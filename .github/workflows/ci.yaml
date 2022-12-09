@@ -161,6 +161,8 @@ jobs:
         run: stack --no-terminal build --fast --test unison-syntax
       - name: unison-util-bytes tests
         run: stack --no-terminal build --fast --test unison-util-bytes
+      - name: unison-util-cache tests
+        run: stack --no-terminal build --fast --test unison-util-cache
       - name: unison-util-relation tests
         run: stack --no-terminal build --fast --test unison-util-relation
       - name: transcripts

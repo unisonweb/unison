@@ -15,6 +15,20 @@ library:
     - condition: false
       other-modules: Paths_unison_util_cache
 
+tests:
+  util-cache-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util_cache
+    dependencies:
+      - async
+      - code-page
+      - easytest
+      - stm
+      - unison-util-cache
+    main: Main.hs
+    source-dirs: test
+
 default-extensions:
   - ApplicativeDo
   - BangPatterns
