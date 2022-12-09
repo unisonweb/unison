@@ -281,7 +281,6 @@ library
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
@@ -470,7 +469,6 @@ test-suite parser-typechecker-tests
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache

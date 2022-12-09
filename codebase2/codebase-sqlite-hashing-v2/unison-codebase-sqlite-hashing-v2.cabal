@@ -64,7 +64,6 @@ library
     , unison-hashing-v2
     , unison-prelude
     , unison-sqlite
-    , unison-util
     , unison-util-base32hex
     , unison-util-term
     , vector

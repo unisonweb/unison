@@ -46,7 +46,6 @@ dependencies:
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer
-  - unison-util
   - unison-util-base32hex
   - unison-util-base32hex-orphans-aeson
   - unison-util-relation

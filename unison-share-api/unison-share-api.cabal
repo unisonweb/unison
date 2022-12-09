@@ -107,7 +107,6 @@ library
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-base32hex-orphans-aeson
     , unison-util-relation

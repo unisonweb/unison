@@ -105,7 +105,6 @@ library
     , transformers
     , unison-core
     , unison-prelude
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , vector
