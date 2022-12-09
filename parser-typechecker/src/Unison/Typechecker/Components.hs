@@ -35,7 +35,7 @@ ordered = ABT.orderedComponents
 --
 -- Fails on the left if there are duplicate definitions.
 minimize ::
-  Var v =>
+  (Var v, Semigroup a) =>
   Term' vt v a ->
   Either (NonEmpty (v, [a])) (Maybe (Term' vt v a))
 minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
@@ -88,5 +88,5 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
 minimize _ = Right Nothing
 
 minimize' ::
-  Var v => Term' vt v a -> Either (NonEmpty (v, [a])) (Term' vt v a)
+  (Var v, Semigroup a) => Term' vt v a -> Either (NonEmpty (v, [a])) (Term' vt v a)
 minimize' term = fromMaybe term <$> minimize term

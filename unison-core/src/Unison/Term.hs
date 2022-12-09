@@ -956,14 +956,14 @@ let1_ isTop bindings e = foldr f e bindings
 
 -- | annotations are applied to each nested Let expression
 let1 ::
-  Ord v =>
+  (Ord v, Semigroup a) =>
   IsTop ->
   [((a, v), Term2 vt at ap v a)] ->
   Term2 vt at ap v a ->
   Term2 vt at ap v a
 let1 isTop bindings e = foldr f e bindings
   where
-    f ((ann, v), b) body = ABT.tm' ann (Let isTop b (ABT.abs' ann v body))
+    f ((ann, v), b) body = ABT.tm' (ann <> ABT.annotation body) (Let isTop b (ABT.abs' ann v body))
 
 let1' ::
   (Semigroup a, Ord v) =>
@@ -974,7 +974,7 @@ let1' ::
 let1' isTop bindings e = foldr f e bindings
   where
     ann = ABT.annotation
-    f (v, b) body = ABT.tm' a (Let isTop b (ABT.abs' a v body))
+    f (v, b) body = ABT.tm' (a <> ABT.annotation body) (Let isTop b (ABT.abs' a v body))
       where
         a = ann b <> ann body
 

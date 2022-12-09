@@ -571,7 +571,7 @@ inlineAlias = ABT.visitPure $ \case
   Let1Named' v b@(Var' _) e -> Just . inlineAlias $ ABT.subst v b e
   _ -> Nothing
 
-minimizeCyclesOrCrash :: Var v => Term v a -> Term v a
+minimizeCyclesOrCrash :: (Var v, Semigroup a) => Term v a -> Term v a
 minimizeCyclesOrCrash t = case minimize' t of
   Right t -> t
   Left e ->
@@ -1373,7 +1373,9 @@ tru = TCon Ty.booleanRef 1 []
 renameCtx :: Var v => v -> v -> Ctx v -> (Ctx v, Bool)
 renameCtx v u (d, ctx) | (ctx, b) <- rn [] ctx = ((d, ctx), b)
   where
-    swap w | w == v = u | otherwise = w
+    swap w
+      | w == v = u
+      | otherwise = w
 
     rn acc [] = (reverse acc, False)
     rn acc (ST d vs ccs b : es)

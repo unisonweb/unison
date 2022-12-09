@@ -78,7 +78,7 @@ refInType typ = case ABT.out typ of
 -- children contain that position.
 findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (Either (Term Symbol Ann) (Type Symbol Ann))
 findSmallestEnclosingNode pos term
-  | not (ABT.annotation term `Ann.contains` pos) = Nothing
+  | annIsFilePosition (ABT.annotation term) && not (ABT.annotation term `Ann.contains` pos) = Nothing
   | otherwise = (<|> Just (Left term)) $ do
       case ABT.out term of
         ABT.Tm f -> case f of
@@ -117,7 +117,7 @@ findSmallestEnclosingNode pos term
 -- that a position references.
 findSmallestEnclosingType :: Pos -> Type Symbol Ann -> Maybe (Type Symbol Ann)
 findSmallestEnclosingType pos typ
-  | not (ABT.annotation typ `Ann.contains` pos) = Nothing
+  | annIsFilePosition (ABT.annotation typ) && not (ABT.annotation typ `Ann.contains` pos) = Nothing
   | otherwise = (<|> Just typ) $ do
       case ABT.out typ of
         ABT.Tm f -> case f of
@@ -144,3 +144,9 @@ refInDecl p (DD.asDataDecl -> dd) =
       typeNode <- findSmallestEnclosingType p typ
       ref <- refInType typeNode
       pure ref
+
+annIsFilePosition :: Ann -> Bool
+annIsFilePosition = \case
+  Ann.Intrinsic -> False
+  Ann.External -> False
+  Ann.Ann {} -> True

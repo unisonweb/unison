@@ -49,6 +49,7 @@ library
   build-depends:
       base
     , containers
+    , unison-prelude
     , unison-util
     , vector
   default-language: Haskell2010

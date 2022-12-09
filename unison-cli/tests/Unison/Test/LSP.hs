@@ -69,6 +69,55 @@ term = This
 |],
         True,
         Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+      ),
+      ( "Test annotations within bindings for do-block elements",
+        [here|
+term = do
+  first = false
+  second = tr^ue
+  first && second
+        |],
+        True,
+        Left (Term.Boolean True)
+      ),
+      ( "Test annotations within bindings for let-block elements",
+        [here|
+term = let
+  first = false
+  second = tr^ue
+  first && second
+        |],
+        True,
+        Left (Term.Boolean True)
+      ),
+      ( "Test annotations within actions for let-block elements",
+        [here|
+term = let
+  first = false
+  first && tr^ue
+        |],
+        True,
+        Left (Term.Boolean True)
+      ),
+      ( "Test annotations for blocks with destructing binds",
+        [here|
+term = let
+  (first, second) = (false, true)
+  (third, fourth) = (false, tr^ue)
+  first && second && third && fourth
+        |],
+        True,
+        Left (Term.Boolean True)
+      ),
+      ( "Test annotations for blocks recursive binds",
+        [here|
+term = let
+  f x = g true && x
+  g y = f fal^se && y
+  f true
+        |],
+        True,
+        Left (Term.Boolean False)
       )
     ]
 

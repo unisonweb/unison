@@ -12,6 +12,7 @@ dependencies:
   - containers
   - vector
   - unison-util
+  - unison-prelude
 
 default-extensions:
   - ApplicativeDo

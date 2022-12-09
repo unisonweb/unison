@@ -67,6 +67,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
+import qualified Unison.Builtin.Decls as DDB
 import Unison.ConstructorReference
   ( ConstructorReference,
     GConstructorReference (..),
@@ -77,7 +78,6 @@ import Unison.DataDeclaration
     EffectDeclaration,
   )
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Builtin.Decls as DDB
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
@@ -850,7 +850,7 @@ withEffects handled act = do
   pruneWanted [] want handled
 
 synthesizeApps ::
-  (Foldable f, Var v, Ord loc) =>
+  (Foldable f, Var v, Ord loc, Semigroup loc) =>
   Term v loc ->
   Type v loc ->
   f (Term v loc) ->
@@ -868,7 +868,7 @@ synthesizeApps fun ft args =
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp ::
-  (Var v, Ord loc) =>
+  (Var v, Ord loc, Semigroup loc) =>
   Term v loc ->
   Type v loc ->
   (Term v loc, Int) ->
@@ -939,7 +939,7 @@ generalizeExistentials' t =
     isExistential _ = False
 
 noteTopLevelType ::
-  (Ord loc, Var v) =>
+  (Ord loc, Var v, Semigroup loc) =>
   ABT.Subst f v a ->
   Term v loc ->
   Type v loc ->
@@ -964,7 +964,7 @@ noteTopLevelType e binding typ = case binding of
         [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
 
 synthesizeTop ::
-  Var v =>
+  (Var v, Semigroup loc) =>
   Ord loc =>
   Term v loc ->
   M v loc (Type v loc)
@@ -985,7 +985,7 @@ synthesizeTop tm = do
 -- the process.  Also collect wanted abilities.
 -- | Figure 11 from the paper
 synthesize ::
-  Var v =>
+  (Var v, Semigroup loc) =>
   Ord loc =>
   Term v loc ->
   M v loc (Type v loc, Wanted v loc)
@@ -1018,7 +1018,7 @@ wantRequest loc ty =
 -- The return value is the synthesized type together with a list of
 -- wanted abilities.
 synthesizeWanted ::
-  Var v =>
+  (Var v, Semigroup loc) =>
   Ord loc =>
   Term v loc ->
   M v loc (Type v loc, Wanted v loc)
@@ -1087,9 +1087,9 @@ synthesizeWanted (Term.Let1Top' top binding e) = do
       then pure $ generalizeExistentials ctx2 tb
       else applyM . applyCtx ctx2 $ tb
   v' <- ABT.freshen e freshenVar
-  when (Var.isAction (ABT.variable e)) $ 
+  when (Var.isAction (ABT.variable e)) $
     -- enforce that actions in a block have type ()
-    subtype tbinding (DDB.unitType (ABT.annotation binding)) 
+    subtype tbinding (DDB.unitType (ABT.annotation binding))
   appendContext [Ann v' tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
@@ -1220,7 +1220,7 @@ synthesizeWanted e
 synthesizeWanted _e = compilerCrash PatternMatchFailure
 
 checkCases ::
-  Var v =>
+  (Var v, Semigroup loc) =>
   Ord loc =>
   Type v loc ->
   Type v loc ->
@@ -1285,7 +1285,7 @@ requestType ps =
 
 checkCase ::
   forall v loc.
-  (Var v, Ord loc) =>
+  (Var v, Ord loc, Semigroup loc) =>
   Type v loc ->
   Type v loc ->
   Term.MatchCase loc (Term v loc) ->
@@ -1509,7 +1509,7 @@ resetContextAfter x a = do
 -- their type. Also returns the freshened version of `body`.
 -- See usage in `synthesize` and `check` for `LetRec'` case.
 annotateLetRecBindings ::
-  (Var v, Ord loc) =>
+  (Var v, Ord loc, Semigroup loc) =>
   Term.IsTop ->
   ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc)) ->
   M v loc (Term v loc)
@@ -1571,7 +1571,7 @@ annotateLetRecBindings isTop letrec =
           -- note: elements of a cycle have to be pure, otherwise order of effects
           -- is unclear and chaos ensues
           -- ensure actions in blocks have type ()
-          when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))  
+          when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))
           checkScopedWith b t []
         ensureGuardedCycle (vs `zip` bindings)
         pure (bindings, bindingTypes)
@@ -1808,7 +1808,7 @@ variableP _ = Nothing
 -- See its usage in `synthesize` and `annotateLetRecBindings`.
 checkScoped ::
   forall v loc.
-  (Var v, Ord loc) =>
+  (Var v, Ord loc, Semigroup loc) =>
   Term v loc ->
   Type v loc ->
   M v loc (Type v loc, Wanted v loc)
@@ -1825,7 +1825,7 @@ checkScoped e t = do
   (t,) <$> check e t
 
 checkScopedWith ::
-  Var v =>
+  (Var v, Semigroup loc) =>
   Ord loc =>
   Term v loc ->
   Type v loc ->
@@ -2087,7 +2087,7 @@ relax' nonArrow v t
     tv = Type.var loc (TypeVar.Existential B.Blank v)
 
 checkWantedScoped ::
-  Var v =>
+  (Var v, Semigroup loc) =>
   Ord loc =>
   Wanted v loc ->
   Term v loc ->
@@ -2097,7 +2097,7 @@ checkWantedScoped want m ty =
   scope (InCheck m ty) $ checkWanted want m ty
 
 checkWanted ::
-  Var v =>
+  (Var v, Semigroup loc) =>
   Ord loc =>
   Wanted v loc ->
   Term v loc ->
@@ -2124,7 +2124,7 @@ checkWanted want (Term.Let1' binding m) t = do
   (tbinding, wbinding) <- synthesize binding
   want <- coalesceWanted wbinding want
   markThenRetractWanted v $ do
-    when (Var.isAction (ABT.variable m)) $ 
+    when (Var.isAction (ABT.variable m)) $
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
     extendContext (Ann v tbinding)
@@ -2146,7 +2146,7 @@ checkWanted want e t = do
 --     `m` has type `t` with abilities `es`,
 -- updating the context in the process.
 checkWithAbilities ::
-  Var v =>
+  (Var v, Semigroup loc) =>
   Ord loc =>
   [Type v loc] ->
   Term v loc ->
@@ -2162,7 +2162,7 @@ checkWithAbilities es m t = do
 --     `m` has type `t`
 -- updating the context in the process.
 check ::
-  Var v =>
+  (Var v, Semigroup loc) =>
   Ord loc =>
   Term v loc ->
   Type v loc ->
@@ -2869,7 +2869,7 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
 
 -- | public interface to the typechecker
 synthesizeClosed ::
-  (Var v, Ord loc) =>
+  (Var v, Ord loc, Semigroup loc) =>
   [Type v loc] ->
   TL.TypeLookup v loc ->
   Term v loc ->
@@ -2930,7 +2930,7 @@ run datas effects m =
     $ Env 1 context0
 
 synthesizeClosed' ::
-  (Var v, Ord loc) =>
+  (Var v, Ord loc, Semigroup loc) =>
   [Type v loc] ->
   Term v loc ->
   M v loc (Type v loc)
