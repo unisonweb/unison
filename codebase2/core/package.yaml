@@ -13,6 +13,7 @@ dependencies:
   - vector
   - unison-util
   - unison-prelude
+  - recover-rtti
 
 default-extensions:
   - ApplicativeDo

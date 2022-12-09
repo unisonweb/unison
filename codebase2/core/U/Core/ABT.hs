@@ -8,6 +8,7 @@ import Data.Functor.Identity (Identity (runIdentity))
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
+import qualified Debug.RecoverRTTI as RTTI
 import GHC.Generics (Generic)
 import U.Core.ABT.Var (Var (freshIn))
 import qualified Unison.Debug as Debug
@@ -70,7 +71,7 @@ instance
       tag (Cycle _) = 3
 
 instance (forall a. Show a => Show (f a), Show v) => Show (Term f v a) where
-  showsPrec p (Term ann _ out) = case out of
+  showsPrec p (Term _ ann out) = case out of
     Var v -> showParen (p >= 9) $ \x -> showAnn ++ "Var " ++ show v ++ x
     Cycle body -> (\s -> showAnn ++ "Cycle " ++ s) . showsPrec p body
     Abs v body -> showParen True $ (\s -> showAnn ++ show v ++ s) . showString ". " . showsPrec p body
@@ -78,7 +79,7 @@ instance (forall a. Show a => Show (f a), Show v) => Show (Term f v a) where
     where
       showAnn =
         if Debug.shouldDebug Debug.Annotations
-          then "(" ++ show ann ++ ")"
+          then "(" ++ RTTI.anythingToString ann ++ ")"
           else ""
 
 amap :: Functor f => (a -> a') -> Term f v a -> Term f v a'

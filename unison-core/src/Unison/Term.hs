@@ -963,7 +963,7 @@ let1 ::
   Term2 vt at ap v a
 let1 isTop bindings e = foldr f e bindings
   where
-    f ((ann, v), b) body = ABT.tm' (ann <> ABT.annotation body) (Let isTop b (ABT.abs' ann v body))
+    f ((ann, v), b) body = ABT.tm' (ann <> ABT.annotation body) (Let isTop b (ABT.abs' (ABT.annotation body) v body))
 
 let1' ::
   (Semigroup a, Ord v) =>
@@ -974,7 +974,7 @@ let1' ::
 let1' isTop bindings e = foldr f e bindings
   where
     ann = ABT.annotation
-    f (v, b) body = ABT.tm' (a <> ABT.annotation body) (Let isTop b (ABT.abs' a v body))
+    f (v, b) body = ABT.tm' (a <> ABT.annotation body) (Let isTop b (ABT.abs' (ABT.annotation body) v body))
       where
         a = ann b <> ann body
 
