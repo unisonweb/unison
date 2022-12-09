@@ -18,8 +18,6 @@ library
   exposed-modules:
       U.Util.Cache
       U.Util.Components
-      U.Util.String
-      U.Util.Text
       U.Util.Timing
   hs-source-dirs:
       src

@@ -24,6 +24,7 @@ library
       Unison.Util.Map
       Unison.Util.Monoid
       Unison.Util.Set
+      Unison.Util.Text
   hs-source-dirs:
       src
   default-extensions:

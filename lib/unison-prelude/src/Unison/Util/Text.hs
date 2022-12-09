@@ -1,9 +1,7 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
-
-module U.Util.Text where
+module Unison.Util.Text
+  ( stripMargin,
+  )
+where
 
 import qualified Data.Char as Char
 import Data.Maybe (fromMaybe)
