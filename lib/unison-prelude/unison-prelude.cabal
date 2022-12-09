@@ -19,6 +19,7 @@ library
   exposed-modules:
       Unison.Debug
       Unison.Prelude
+      Unison.Util.Alternative
       Unison.Util.Map
       Unison.Util.Monoid
       Unison.Util.Set

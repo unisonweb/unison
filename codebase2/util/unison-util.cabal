@@ -16,7 +16,6 @@ source-repository head
 
 library
   exposed-modules:
-      U.Util.Alternative
       U.Util.Cache
       U.Util.Components
       U.Util.Lens
