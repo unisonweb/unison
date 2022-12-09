@@ -18,6 +18,7 @@ import Control.Monad (when)
 import qualified Data.Text as Text
 import System.Directory (removeDirectoryRecursive)
 import qualified System.IO.Temp as Temp
+import U.Util.Text (stripMargin)
 import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Init as Codebase.Init
@@ -29,7 +30,6 @@ import Unison.Prelude (traceM)
 import qualified Unison.PrettyTerminal as PT
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
-import Unison.Util.Text (stripMargin)
 
 data CodebaseFormat = CodebaseFormat2 deriving (Show, Enum, Bounded)
 

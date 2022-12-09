@@ -1,4 +1,4 @@
-module Unison.Util.Text
+module U.Util.Text
   ( stripMargin,
   )
 where
