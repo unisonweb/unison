@@ -34,7 +34,6 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import qualified U.Codebase.Sync as Sync
-import U.Util.Timing (time)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
@@ -79,6 +78,7 @@ import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Util.Timing (time)
 import qualified Unison.WatchKind as UF
 import UnliftIO (UnliftIO (..), finally, throwIO, try)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)

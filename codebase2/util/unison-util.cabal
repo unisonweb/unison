@@ -15,8 +15,6 @@ source-repository head
   location: https://github.com/unisonweb/unison
 
 library
-  exposed-modules:
-      U.Util.Timing
   hs-source-dirs:
       src
   default-extensions:
@@ -48,49 +46,6 @@ library
     , text
     , time
     , unison-prelude
-    , unison-util-relation
-    , unliftio
-    , vector
-  default-language: Haskell2010
-
-benchmark bench
-  type: exitcode-stdio-1.0
-  main-is: Main.hs
-  hs-source-dirs:
-      bench
-  default-extensions:
-      ApplicativeDo
-      BlockArguments
-      DeriveFunctor
-      DerivingStrategies
-      DoAndIfThenElse
-      FlexibleContexts
-      FlexibleInstances
-      LambdaCase
-      MultiParamTypeClasses
-      NamedFieldPuns
-      OverloadedStrings
-      PatternSynonyms
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
-  build-depends:
-      base
-    , base32
-    , bytestring
-    , containers
-    , criterion
-    , cryptonite
-    , extra
-    , lens
-    , memory
-    , safe
-    , sandi
-    , text
-    , time
-    , unison-prelude
-    , unison-util
-    , unison-util-base32hex
     , unison-util-relation
     , unliftio
     , vector

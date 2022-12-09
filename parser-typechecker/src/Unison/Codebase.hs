@@ -121,7 +121,6 @@ import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.Referent as V2
 import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified U.Codebase.Sqlite.Queries as Queries
-import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Terms as Builtin
 import Unison.Codebase.Branch (Branch)
@@ -165,6 +164,7 @@ import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
+import Unison.Util.Timing (time)
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 

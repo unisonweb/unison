@@ -19,6 +19,7 @@ dependencies:
   - pretty-simple
   - safe
   - text
+  - time
   - transformers
   - unliftio
   - vector
@@ -29,6 +30,7 @@ ghc-options:
 
 default-extensions:
   - ApplicativeDo
+  - BangPatterns
   - BlockArguments
   - ConstraintKinds
   - DeriveFunctor
