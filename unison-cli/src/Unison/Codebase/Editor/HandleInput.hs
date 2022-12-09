@@ -64,6 +64,7 @@ import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
+import qualified Unison.Codebase.BranchDiff as BranchDiff (diff0)
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
@@ -120,8 +121,10 @@ import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
+import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
 import Unison.Codebase.Type (GitPushBehavior (..))
+import Unison.Codebase.TypeEdit (TypeEdit)
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.Completion as Completion
@@ -1417,6 +1420,9 @@ loop e = do
             VersionI -> do
               Cli.Env {ucmVersion} <- ask
               Cli.respond $ PrintVersion ucmVersion
+            DiffNamespaceToPatchI diffNamespaceToPatchInput -> do
+              description <- inputDescription input
+              handleDiffNamespaceToPatch description diffNamespaceToPatchInput
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1567,6 +1573,11 @@ inputDescription input =
     RemoveTypeReplacementI src p0 -> do
       p <- opatch p0
       pure ("delete.type-replacement" <> HQ.toText src <> " " <> p)
+    DiffNamespaceToPatchI input -> do
+      branchId1 <- hp' (input ^. #branchId1)
+      branchId2 <- hp' (input ^. #branchId2)
+      patch <- ps' (input ^. #patch)
+      pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     --
     ApiI -> wat
     AuthLoginI {} -> wat
@@ -1769,6 +1780,75 @@ handleDependents hq = do
 handleGist :: GistInput -> Cli ()
 handleGist (GistInput repo) =
   doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
+
+handleDiffNamespaceToPatch :: Text -> DiffNamespaceToPatchInput -> Cli ()
+handleDiffNamespaceToPatch description input = do
+  Cli.Env {codebase} <- ask
+
+  branch1 <- Branch.head <$> Cli.resolveBranchId (input ^. #branchId1)
+  branch2 <- Branch.head <$> Cli.resolveBranchId (input ^. #branchId2)
+  branchDiff <- liftIO (BranchDiff.diff0 branch1 branch2)
+
+  -- Given {old referents} and {new referents}, create term edit patch entries as follows:
+  --
+  --   * If the {new referents} is a singleton set {new referent}, proceed. (Otherwise, the patch we might create would
+  --     not be a function, which is a bogus/conflicted patch).
+  --   * If the new referent is a term reference, not a data constructor, proceed. (Patches currently can't track
+  --     updates to data constructors).
+  --   * For each old term reference (again, throwing constructors away) in {old referents}, create a patch entry that
+  --     maps the old reference to the new. The patch entry includes the typing relationship between the terms, so we
+  --     look the references' types up in the codebase, too.
+  let termNamespaceUpdateToTermEdits :: (Set Referent, Set Referent) -> Sqlite.Transaction (Set (Reference, TermEdit))
+      termNamespaceUpdateToTermEdits (refs0, refs1) =
+        case Set.asSingleton refs1 of
+          Just (Referent.Ref ref1) ->
+            Codebase.getTypeOfTerm codebase ref1 >>= \case
+              Nothing -> pure Set.empty
+              Just ty1 ->
+                Monoid.foldMapM
+                  ( \ref0 ->
+                      Codebase.getTypeOfTerm codebase ref0 <&> \case
+                        Nothing -> Set.empty
+                        Just ty0 -> Set.singleton (ref0, TermEdit.Replace ref1 (TermEdit.typing ty0 ty1))
+                  )
+                  (mapMaybe Referent.toTermReference (Set.toList refs0))
+          _ -> pure Set.empty
+
+  -- The same idea as above, but for types: if there's one new reference in {new references}, then map each of the old
+  -- references to it.
+  let typeNamespaceUpdateToTypeEdits :: (Set Reference, Set Reference) -> Set (Reference, TypeEdit)
+      typeNamespaceUpdateToTypeEdits (refs0, refs1) =
+        case Set.asSingleton refs1 of
+          Just ref1 -> Set.map (\ref0 -> (ref0, TypeEdit.Replace ref1)) refs0
+          _ -> Set.empty
+
+  termUpdates <-
+    Cli.runTransaction do
+      (branchDiff ^. #termsDiff . #tallnamespaceUpdates)
+        & Map.elems
+        & Monoid.foldMapM termNamespaceUpdateToTermEdits
+  let typeUpdates =
+        (branchDiff ^. #typesDiff . #tallnamespaceUpdates)
+          & Map.elems
+          & foldMap typeNamespaceUpdateToTypeEdits
+
+  let patch =
+        Patch
+          { _termEdits = Relation.fromSet termUpdates,
+            _typeEdits = Relation.fromSet typeUpdates
+          }
+
+  -- Display the patch that we are about to create.
+  ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+  Cli.respondNumbered (ListEdits patch ppe)
+
+  (patchPath, patchName) <- Cli.resolveSplit' (input ^. #patch)
+
+  -- Add the patch to the in-memory root branch and flush it all to SQLite.
+  -- If there's already a patch at the given path, overwrite it.
+  Cli.stepAtM
+    description
+    (Path.unabsolute patchPath, Branch.modifyPatches patchName (const patch))
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()

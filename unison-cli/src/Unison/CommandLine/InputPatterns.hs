@@ -2302,6 +2302,24 @@ printVersion =
         _ -> Left (showPatternHelp printVersion)
     )
 
+diffNamespaceToPatch :: InputPattern
+diffNamespaceToPatch =
+  InputPattern
+    { patternName = "diff.namespace.to-patch",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help = P.wrap "Create a patch from a namespace diff.",
+      parse = \case
+        [branchId1, branchId2, patch] ->
+          mapLeft fromString do
+            branchId1 <- Input.parseBranchId branchId1
+            branchId2 <- Input.parseBranchId branchId2
+            patch <- Path.parseSplit' Path.definitionNameSegment patch
+            pure (Input.DiffNamespaceToPatchI Input.DiffNamespaceToPatchInput {branchId1, branchId2, patch})
+        _ -> Left (showPatternHelp diffNamespaceToPatch)
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2405,7 +2423,8 @@ validInputs =
       debugNameDiff,
       gist,
       authLogin,
-      printVersion
+      printVersion,
+      diffNamespaceToPatch
     ]
 
 -- | A map of all command patterns by pattern name or alias.

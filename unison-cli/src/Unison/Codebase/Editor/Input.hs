@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
+    DiffNamespaceToPatchInput (..),
     GistInput (..),
     PushRemoteBranchInput (..),
     TestInput (..),
@@ -207,7 +208,18 @@ data Input
   | GistI GistInput
   | AuthLoginI
   | VersionI
+  | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   deriving (Eq, Show)
+
+data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
+  { -- The first/earlier namespace.
+    branchId1 :: BranchId,
+    -- The second/later namespace.
+    branchId2 :: BranchId,
+    -- Where to store the patch that corresponds to the diff between the namespaces.
+    patch :: Path.Split'
+  }
+  deriving stock (Eq, Generic, Show)
 
 -- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
 data GistInput = GistInput
