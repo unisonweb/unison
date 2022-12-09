@@ -17,7 +17,6 @@ source-repository head
 library
   exposed-modules:
       U.Util.Cache
-      U.Util.Components
       U.Util.Timing
   hs-source-dirs:
       src
