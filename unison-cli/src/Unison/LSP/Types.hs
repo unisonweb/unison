@@ -67,7 +67,7 @@ data Env = Env
     lspContext :: LanguageContextEnv Config,
     codebase :: Codebase IO Symbol Ann,
     parseNamesCache :: IO NamesWithHistory,
-    ppeCache :: IO PrettyPrintEnvDecl,
+    ppedCache :: IO PrettyPrintEnvDecl,
     currentPathCache :: IO Path.Absolute,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
@@ -111,7 +111,6 @@ data FileAnalysis = FileAnalysis
     diagnostics :: IntervalMap Position [Diagnostic],
     codeActions :: IntervalMap Position [CodeAction]
   }
-  deriving (Show)
 
 getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO
@@ -119,8 +118,8 @@ getCurrentPath = asks currentPathCache >>= liftIO
 getCompletions :: Lsp CompletionTree
 getCompletions = asks completionsVar >>= readTVarIO
 
-globalPPE :: Lsp PrettyPrintEnvDecl
-globalPPE = asks ppeCache >>= liftIO
+globalPPED :: Lsp PrettyPrintEnvDecl
+globalPPED = asks ppedCache >>= liftIO
 
 getParseNames :: Lsp NamesWithHistory
 getParseNames = asks parseNamesCache >>= liftIO

@@ -27,7 +27,6 @@ import qualified System.Console.ANSI as ANSI
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
-import qualified U.Codebase.Branch as V2Branch
 import U.Codebase.HashTags (BranchHash, CausalHash (CausalHash))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -271,10 +270,6 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             putTypeDeclarationComponent =
               CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer
 
-            getShallowCausalForHash :: MonadIO m => V2Branch.CausalHash -> m (V2Branch.CausalBranch m)
-            getShallowCausalForHash bh =
-              V2Branch.hoistCausalBranch runTransaction <$> runTransaction (Ops.expectCausalBranchByCausalHash bh)
-
             getRootBranch :: m (Branch m)
             getRootBranch =
               Branch.transform runTransaction
@@ -340,13 +335,13 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             getWatch =
               CodebaseOps.getWatch getDeclType
 
-            termsOfTypeImpl :: Reference -> m (Set Referent.Id)
-            termsOfTypeImpl r =
-              runTransaction (CodebaseOps.termsOfTypeImpl getDeclType r)
+            termsOfTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id)
+            termsOfTypeImpl =
+              CodebaseOps.termsOfTypeImpl getDeclType
 
-            termsMentioningTypeImpl :: Reference -> m (Set Referent.Id)
-            termsMentioningTypeImpl r =
-              runTransaction (CodebaseOps.termsMentioningTypeImpl getDeclType r)
+            termsMentioningTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id)
+            termsMentioningTypeImpl =
+              CodebaseOps.termsMentioningTypeImpl getDeclType
 
             referentsByPrefix :: ShortHash -> m (Set Referent.Id)
             referentsByPrefix sh =
@@ -370,9 +365,8 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   putTypeDeclaration,
                   putTypeDeclarationComponent,
                   getTermComponentWithTypes,
-                  getRootBranch = getRootBranch,
-                  putRootBranch = putRootBranch,
-                  getShallowCausalForHash,
+                  getRootBranch,
+                  putRootBranch,
                   getBranchForHashImpl = getBranchForHash,
                   putBranch,
                   syncFromDirectory,

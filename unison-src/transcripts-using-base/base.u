@@ -9,6 +9,7 @@ compose2 f g = a -> b -> f (g a b)
 compose3 f g = a -> b -> c -> f (g a b c)
 
 id a = a
+void x = ()
 
 structural ability Exception where
   raise: io2.Failure -> anything

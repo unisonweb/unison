@@ -11,6 +11,7 @@ import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import Debug.RecoverRTTI (anythingToString)
 import Language.LSP.Types
   ( Diagnostic,
     DiagnosticSeverity (DsError),
@@ -26,7 +27,6 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
-import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Conversions
 import Unison.LSP.Diagnostics
   ( mkDiagnostic,
@@ -34,7 +34,6 @@ import Unison.LSP.Diagnostics
   )
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
-import qualified Unison.LSP.Types as LSP
 import qualified Unison.LSP.VFS as VFS
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
@@ -42,12 +41,13 @@ import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPED
+import qualified Unison.PrettyPrintEnvDecl.Names as PPED
 import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.HashQualified' as HQ' (toText)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
@@ -77,7 +77,8 @@ checkFile doc = runMaybeT $ do
         Nothing -> (Nothing, Nothing)
         Just (Left uf) -> (Just uf, Nothing)
         Just (Right tf) -> (Just $ UF.discardTypes tf, Just tf)
-  (diagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
+  pped <- lift $ ppedForFileHelper parsedFile typecheckedFile
+  (diagnostics, codeActions) <- lift $ analyseFile pped fileUri srcText notes
   let diagnosticRanges =
         diagnostics
           & fmap (\d -> (d ^. range, d))
@@ -104,16 +105,15 @@ fileAnalysisWorker = forever do
     Map.fromList <$> forMaybe (toList dirtyFileIDs) \docUri -> runMaybeT do
       fileInfo <- MaybeT (checkFile $ TextDocumentIdentifier docUri)
       pure (docUri, fileInfo)
-  Debug.debugM Debug.LSP "Freshly Typechecked " freshlyCheckedFiles
+  Debug.debugM Debug.LSP "Freshly Typechecked " (anythingToString (Map.toList freshlyCheckedFiles))
   -- Overwrite any files we successfully checked
   atomically $ modifyTVar' checkedFilesV (Map.union freshlyCheckedFiles)
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
-analyseFile :: Foldable f => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
-analyseFile fileUri srcText notes = do
-  ppe <- LSP.globalPPE
-  analyseNotes fileUri (PPE.suffixifiedPPE ppe) (Text.unpack srcText) notes
+analyseFile :: Foldable f => PPED.PrettyPrintEnvDecl -> Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseFile ppe fileUri srcText notes = do
+  analyseNotes fileUri (PPED.suffixifiedPPE ppe) (Text.unpack srcText) notes
 
 analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseNotes fileUri ppe src notes = do
@@ -245,9 +245,9 @@ analyseNotes fileUri ppe src notes = do
       | not (isUserBlank v) = pure []
       | otherwise = do
           Env {codebase} <- ask
-          ppe <- PPE.suffixifiedPPE <$> globalPPE
+          ppe <- PPED.suffixifiedPPE <$> globalPPED
           let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
-          refs <- liftIO $ Codebase.termsOfType codebase cleanedTyp
+          refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
           forMaybe (toList refs) $ \ref -> runMaybeT $ do
             hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
             typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
@@ -272,13 +272,24 @@ getFileAnalysis uri = do
   pure $ Map.lookup uri checkedFiles
 
 -- TODO memoize per file
-ppeForFile :: Uri -> Lsp PrettyPrintEnv
-ppeForFile fileUri = do
-  ppe <- PPE.suffixifiedPPE <$> globalPPE
+ppedForFile :: Uri -> Lsp PPED.PrettyPrintEnvDecl
+ppedForFile fileUri = do
   getFileAnalysis fileUri >>= \case
-    Just (FileAnalysis {typecheckedFile = Just tf}) -> do
-      hl <- asks codebase >>= \codebase -> liftIO (Codebase.runTransaction codebase Codebase.hashLength)
+    Just (FileAnalysis {typecheckedFile = tf, parsedFile = uf}) ->
+      ppedForFileHelper uf tf
+    _ -> ppedForFileHelper Nothing Nothing
+
+ppedForFileHelper :: Maybe (UF.UnisonFile Symbol a) -> Maybe (UF.TypecheckedUnisonFile Symbol a) -> Lsp PPED.PrettyPrintEnvDecl
+ppedForFileHelper uf tf = do
+  codebasePPED <- globalPPED
+  hashLen <- asks codebase >>= \codebase -> liftIO (Codebase.runTransaction codebase Codebase.hashLength)
+  pure $ case (uf, tf) of
+    (Nothing, Nothing) -> codebasePPED
+    (_, Just tf) ->
       let fileNames = UF.typecheckedToNames tf
-      let filePPE = PPE.fromSuffixNames hl (NamesWithHistory.fromCurrentNames fileNames)
-      pure (filePPE `PPE.addFallback` ppe)
-    _ -> pure ppe
+          filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
+       in filePPED `PPED.addFallback` codebasePPED
+    (Just uf, _) ->
+      let fileNames = UF.toNames uf
+          filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
+       in filePPED `PPED.addFallback` codebasePPED

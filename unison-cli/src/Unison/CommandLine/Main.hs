@@ -96,7 +96,7 @@ main ::
   FilePath ->
   Welcome.Welcome ->
   Path.Absolute ->
-  (Config, IO ()) ->
+  Config ->
   [Either Event Input] ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
@@ -107,7 +107,7 @@ main ::
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
+main dir welcome initialPath config initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   _ <- Ki.fork scope $ do
@@ -175,11 +175,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     (putPrettyLnUnpaged o)
               )
 
-  let cleanup = do
-        Runtime.terminate runtime
-        Runtime.terminate sbRuntime
-        cancelConfig
-        cancelFileSystemWatch
+  let cleanup :: IO ()
+      cleanup = cancelFileSystemWatch
       awaitInput :: Cli.LoopState -> IO (Either Event Input)
       awaitInput loopState = do
         -- use up buffered input before consulting external events

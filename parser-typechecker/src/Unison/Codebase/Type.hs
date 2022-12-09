@@ -13,7 +13,6 @@ module Unison.Codebase.Type
   )
 where
 
-import qualified U.Codebase.Branch as V2
 import U.Codebase.HashTags (BranchHash)
 import qualified U.Codebase.Reference as V2
 import Unison.Codebase.Branch (Branch)
@@ -82,7 +81,6 @@ data Codebase m v a = Codebase
       Text -> -- Reason for the change, will be recorded in the reflog
       Branch m ->
       m (),
-    getShallowCausalForHash :: V2.CausalHash -> m (V2.CausalBranch m),
     getBranchForHashImpl :: Branch.CausalHash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
@@ -99,9 +97,9 @@ data Codebase m v a = Codebase
     -- | @getWatch k r@ returns watch result @t@ that was previously put by @putWatch k r t@.
     getWatch :: WK.WatchKind -> Reference.Id -> Sqlite.Transaction (Maybe (Term v a)),
     -- | Get the set of user-defined terms-or-constructors that have the given type.
-    termsOfTypeImpl :: Reference -> m (Set Referent.Id),
+    termsOfTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.
-    termsMentioningTypeImpl :: Reference -> m (Set Referent.Id),
+    termsMentioningTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors whose hash matches the given prefix.
     termReferentsByPrefix :: ShortHash -> m (Set Referent.Id),
     -- Updates the root namespace names index from an old BranchHash to a new one.

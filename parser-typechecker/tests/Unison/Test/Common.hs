@@ -1,5 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
-
 module Unison.Test.Common
   ( hqLength,
     t,
@@ -47,7 +45,7 @@ t s =
 
 tm :: String -> Term Symbol
 tm s =
-  either (error . show) id
+  either (error . showParseError s) id
   -- . Term.bindSomeNames mempty B.names0
   -- . either (error . showParseError s) id
   $

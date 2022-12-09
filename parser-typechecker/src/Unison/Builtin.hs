@@ -37,7 +37,6 @@ import qualified Unison.DataDeclaration as DD
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as H
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.Names (Names (Names))
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
@@ -45,6 +44,7 @@ import Unison.Prelude
 import qualified Unison.Reference as R
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Name as Name (unsafeFromText, unsafeFromVar)
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation as Rel

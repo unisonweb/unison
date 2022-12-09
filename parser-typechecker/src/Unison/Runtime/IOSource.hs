@@ -1,7 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Unison.Runtime.IOSource where
@@ -10,6 +7,7 @@ import Control.Lens (view, _1)
 import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
 import qualified Data.Map as Map
+import Debug.RecoverRTTI (anythingToString)
 import Text.RawString.QQ (r)
 import qualified Unison.Builtin as Builtin
 import Unison.Codebase.CodeLookup (CodeLookup (..))
@@ -45,8 +43,8 @@ typecheckedFile' =
       env = Parser.ParsingEnv mempty (Names.NamesWithHistory Builtin.names0 mempty)
       r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
    in case runIdentity $ Result.runResultT r of
-        (Nothing, notes) -> error $ "parsing failed: " <> show notes
-        (Just Left {}, notes) -> error $ "typechecking failed" <> show notes
+        (Nothing, notes) -> error $ "parsing failed: " <> anythingToString (toList notes)
+        (Just Left {}, notes) -> error $ "typechecking failed" <> anythingToString (toList notes)
         (Just (Right file), _) -> file
 
 typecheckedFileTerms :: Map.Map Symbol R.Reference
