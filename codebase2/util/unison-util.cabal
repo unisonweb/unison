@@ -18,7 +18,6 @@ library
   exposed-modules:
       U.Util.Cache
       U.Util.Components
-      U.Util.Monoid
       U.Util.String
       U.Util.Text
       U.Util.Timing
