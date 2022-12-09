@@ -592,19 +592,12 @@ namesAtPath ::
   Transaction ScopedNames
 namesAtPath path = do
   let namespace = if path == Path.empty then Nothing else Just $ tShow path
-  NamesByPath {termNamesInPath, termNamesExternalToPath, typeNamesInPath, typeNamesExternalToPath} <- Ops.rootNamesByPath namespace
+  NamesByPath {termNamesInPath, typeNamesInPath} <- Ops.rootNamesByPath namespace
   let termsInPath = convertTerms termNamesInPath
   let typesInPath = convertTypes typeNamesInPath
-  let termsOutsidePath = convertTerms termNamesExternalToPath
-  let typesOutsidePath = convertTypes typeNamesExternalToPath
-  let allTerms :: [(Name, Referent.Referent)]
-      allTerms = termsInPath <> termsOutsidePath
-  let allTypes :: [(Name, Reference.Reference)]
-      allTypes = typesInPath <> typesOutsidePath
-  let rootTerms = Rel.fromList allTerms
-  let rootTypes = Rel.fromList allTypes
+  let rootTerms = Rel.fromList termsInPath
+  let rootTypes = Rel.fromList typesInPath
   let absoluteRootNames = Names.makeAbsolute $ Names {terms = rootTerms, types = rootTypes}
-  let absoluteExternalNames = Names.makeAbsolute $ Names {terms = Rel.fromList termsOutsidePath, types = Rel.fromList typesOutsidePath}
   let relativeScopedNames =
         case path of
           Path.Empty -> (Names.makeRelative $ absoluteRootNames)
@@ -615,8 +608,7 @@ namesAtPath path = do
              in (Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes})
   pure $
     ScopedNames
-      { absoluteExternalNames,
-        relativeScopedNames,
+      { relativeScopedNames,
         absoluteRootNames
       }
   where
