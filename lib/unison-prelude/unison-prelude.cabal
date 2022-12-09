@@ -20,6 +20,7 @@ library
       Unison.Debug
       Unison.Prelude
       Unison.Util.Alternative
+      Unison.Util.Lens
       Unison.Util.Map
       Unison.Util.Monoid
       Unison.Util.Set
@@ -28,6 +29,7 @@ library
   default-extensions:
       ApplicativeDo
       BlockArguments
+      ConstraintKinds
       DeriveFunctor
       DerivingStrategies
       DoAndIfThenElse

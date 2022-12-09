@@ -275,12 +275,12 @@ import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
 import qualified U.Util.Hash32 as Hash32
 import U.Util.Hash32.Orphans.Sqlite ()
-import qualified U.Util.Lens as Lens
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
 import Unison.Prelude
 import Unison.Sqlite
 import qualified Unison.Util.Alternative as Alternative
+import qualified Unison.Util.Lens as Lens
 
 -- * main squeeze
 

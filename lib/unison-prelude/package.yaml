@@ -14,14 +14,14 @@ dependencies:
   - containers
   - either
   - extra
+  - lens
   - mtl
+  - pretty-simple
   - safe
   - text
   - transformers
-  - lens
-  - vector
   - unliftio
-  - pretty-simple
+  - vector
   - witherable
 
 ghc-options:
@@ -30,6 +30,7 @@ ghc-options:
 default-extensions:
   - ApplicativeDo
   - BlockArguments
+  - ConstraintKinds
   - DeriveFunctor
   - DerivingStrategies
   - DoAndIfThenElse
