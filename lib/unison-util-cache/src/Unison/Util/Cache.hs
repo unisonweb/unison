@@ -1,8 +1,13 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
-
-module U.Util.Cache where
+module Unison.Util.Cache 
+ ( Cache
+ , cache
+ , nullCache
+ , semispaceCache
+ , lookup
+ , insert
+ , apply
+ , applyDefined
+ ) where
 
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)

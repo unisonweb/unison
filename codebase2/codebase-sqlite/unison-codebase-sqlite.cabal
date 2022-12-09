@@ -111,6 +111,7 @@ library
     , unison-util
     , unison-util-base32hex
     , unison-util-base32hex-orphans-sqlite
+    , unison-util-cache
     , unison-util-serialization
     , unison-util-term
     , unliftio

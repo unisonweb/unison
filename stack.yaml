@@ -31,6 +31,7 @@ packages:
 - lib/unison-util-base32hex-orphans-aeson
 - lib/unison-util-base32hex-orphans-sqlite
 - lib/unison-util-bytes
+- lib/unison-util-cache
 - lib/unison-util-relation
 - lib/unison-util-rope
 - lib/unison-pretty-printer

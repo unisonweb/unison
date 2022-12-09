@@ -284,6 +284,7 @@ library
     , unison-util
     , unison-util-base32hex
     , unison-util-bytes
+    , unison-util-cache
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -472,6 +473,7 @@ test-suite parser-typechecker-tests
     , unison-util
     , unison-util-base32hex
     , unison-util-bytes
+    , unison-util-cache
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization

@@ -32,7 +32,6 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sqlite.V2.Decl (saveDeclComponent)
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import U.Codebase.Sqlite.V2.Term (saveTermComponent)
-import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase.Branch (Branch (..))
@@ -73,6 +72,7 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
+import qualified Unison.Util.Cache as Cache
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
