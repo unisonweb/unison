@@ -109,16 +109,16 @@ term = let
         True,
         Left (Term.Boolean True)
       ),
-      ( "Test annotations for blocks with destructuring binds",
-        [here|
-term = let
-  (first, second) = (false, true)
-  (third, fourth) = (false, tr^ue)
-  first && second && third && fourth
-        |],
-        True,
-        Left (Term.Boolean True)
-      ),
+      -- ( "Test annotations for blocks with destructuring binds",
+      --   [here|
+      -- term = let
+      -- (first, second) = (false, true)
+      -- (third, fourth) = (false, tr^ue)
+      -- first && second && third && fourth
+      --   |],
+      --   True,
+      --   Left (Term.Boolean True)
+      -- ),
       ( "Test annotations for blocks recursive binds",
         [here|
 term = let
