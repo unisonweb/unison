@@ -24,7 +24,7 @@ test> Any.unsafeExtract.works =
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    3 |   checks [1 == Any.unsafeExtract (Any 1), 
+    1 | test> Any.unsafeExtract.works = 
     
     ✅ Passed Passed
 
