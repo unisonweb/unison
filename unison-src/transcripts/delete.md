@@ -10,7 +10,7 @@ First, let's make sure it complains when we try to delete a name that doesn't
 exist.
 
 ```ucm:error
-.> delete foo
+.> delete.verbose foo
 ```
 
 Now for some easy cases. Deleting an unambiguous term, then deleting an
@@ -23,9 +23,9 @@ structural type Foo = Foo ()
 
 ```ucm
 .> add
-.> delete foo
-.> delete Foo
-.> delete Foo.Foo
+.> delete.verbose foo
+.> delete.verbose Foo
+.> delete.verbose Foo.Foo
 ```
 
 How about an ambiguous term?
@@ -50,7 +50,7 @@ foo = 2
 A delete should remove both versions of the term.
 
 ```ucm
-.a> delete foo
+.a> delete.verbose foo
 ```
 
 ```ucm:error
@@ -77,11 +77,11 @@ structural type Foo = Foo
 ```
 
 ```ucm
-.a> delete Foo
+.a> delete.verbose Foo
 ```
 
 ```ucm
-.a> delete Foo.Foo
+.a> delete.verbose Foo.Foo
 ```
 
 Finally, let's try to delete a term and a type with the same name.
@@ -96,5 +96,5 @@ structural type foo = Foo ()
 ```
 
 ```ucm
-.> delete foo
+.> delete.verbose foo
 ```
