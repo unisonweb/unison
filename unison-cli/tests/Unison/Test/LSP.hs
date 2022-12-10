@@ -164,18 +164,18 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
 
 annotationNesting :: Test ()
 annotationNesting =
-  scope "annotation nesting" . tests . fmap annotationNestingTest $
+  scope "nesting" . tests . fmap annotationNestingTest $
     [ ( "let blocks",
         [here|
 term = let
-  x = 1
-  y = 2
-  x + y
+  x = true
+  y = false
+  true && false
 |]
       ),
       ( "function bindings",
         [here|
-term x y = x + y
+term x y = x && y
 |]
       )
     ]
