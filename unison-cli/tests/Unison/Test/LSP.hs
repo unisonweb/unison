@@ -64,6 +64,7 @@ term = tr^ue &&& false
       ),
       ( "Simple type annotation on non-typechecking file",
         [here|
+structural type Thing = This | That
 term : Thi^ng
 term = "this won't typecheck"
 |],
@@ -108,7 +109,7 @@ term = let
         True,
         Left (Term.Boolean True)
       ),
-      ( "Test annotations for blocks with destructing binds",
+      ( "Test annotations for blocks with destructuring binds",
         [here|
 term = let
   (first, second) = (false, true)
