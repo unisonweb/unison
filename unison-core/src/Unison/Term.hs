@@ -911,7 +911,7 @@ letRec' isTop bindings body =
 --   =>
 --   let rec x = 42; y = "hi" in (x,y)
 consLetRec ::
-  Ord v =>
+  (Ord v, Semigroup a) =>
   Bool -> -- isTop parameter
   a -> -- annotation for overall let rec
   (a, v, Term' vt v a) -> -- the binding
@@ -922,7 +922,8 @@ consLetRec isTop a (ab, vb, b) body = case body of
   _ -> letRec isTop a [((ab, vb), b)] body
 
 letRec ::
-  Ord v =>
+  forall v vt a.
+  (Ord v, Semigroup a) =>
   Bool ->
   a ->
   [((a, v), Term' vt v a)] ->
@@ -932,10 +933,12 @@ letRec _ _ [] e = e
 letRec isTop a bindings e =
   ABT.cycle'
     a
-    -- TODO: Fix this abs' somehow :thinking:
-    (foldr (uncurry ABT.abs' . fst) z bindings)
+    (foldr addAbs body bindings)
   where
-    z = ABT.tm' a (LetRec isTop (map snd bindings) e)
+    addAbs :: ((a, v), b) -> ABT.Term f v a -> ABT.Term f v a
+    addAbs ((a, v), _b) t = ABT.abs' (a <> ABT.annotation t) v t
+    body :: Term' vt v a
+    body = ABT.tm' a (LetRec isTop (map snd bindings) e)
 
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),

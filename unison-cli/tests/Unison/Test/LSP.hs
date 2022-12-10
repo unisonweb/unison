@@ -173,6 +173,14 @@ term = let
   true && false
 |]
       ),
+      ( "let-rec blocks",
+        [here|
+term = let
+  x a = a && y true
+  y b = b && x true
+  x true && y true
+|]
+      ),
       ( "function bindings",
         [here|
 term x y = x && y
@@ -191,10 +199,13 @@ annotationNestingTest (name, src) = scope name do
 
 -- | Asserts that for all nodes in the provided ABT, the annotations of all child nodes are
 -- within the span of the parent node.
-assertAnnotationsAreNested :: forall f. (Foldable f, Functor f, Show (f ())) => ABT.Term f Symbol Ann -> Test ()
-assertAnnotationsAreNested = void . ABT.cata alg
+assertAnnotationsAreNested :: forall f. (Foldable f, Functor f, Show (f (Either String Ann))) => ABT.Term f Symbol Ann -> Test ()
+assertAnnotationsAreNested term = do
+  case ABT.cata alg term of
+    Right _ -> pure ()
+    Left err -> crash err
   where
-    alg :: Ann -> ABT.ABT f Symbol (Test Ann) -> Test Ann
+    alg :: Ann -> ABT.ABT f Symbol (Either String Ann) -> Either String Ann
     alg ann abt = do
       childSpan <- abt & foldMapM id
       case ann `Ann.encompasses` childSpan of
@@ -202,7 +213,7 @@ assertAnnotationsAreNested = void . ABT.cata alg
         Nothing -> pure (ann <> childSpan)
         Just isInFile
           | isInFile -> pure ann
-          | otherwise -> crash $ "Containment breach: children aren't contained with the parent:" <> show (ann, void abt)
+          | otherwise -> Left $ "Containment breach: children aren't contained with the parent:" <> show (ann, abt)
 
 typecheckSrc :: String -> Text -> Test (Seq (Result.Note Symbol Ann), Maybe (UF.UnisonFile Symbol Ann), Maybe (UF.TypecheckedUnisonFile Symbol Ann))
 typecheckSrc name src = do
