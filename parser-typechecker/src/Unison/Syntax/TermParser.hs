@@ -19,7 +19,6 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
-import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.Name as Name
@@ -1117,20 +1116,20 @@ block' :: Var v => IsTop -> String -> P v (L.Token ()) -> P v (L.Token ()) -> Te
 block' isTop = block'' isTop False
 
 block'' ::
-  forall v.
+  forall v b.
   Var v =>
   IsTop ->
   Bool -> -- `True` means insert `()` at end of block if it ends with a statement
   String ->
   P v (L.Token ()) ->
-  P v (L.Token ()) ->
+  P v b ->
   TermP v
 block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
   open <- openBlock
   (names, imports) <- imports
   _ <- optional semi
   statements <- local (\e -> e {names = names}) $ sepBy semi statement
-  _close <- closeBlock
+  _ <- closeBlock
   theBlock <- substImports names imports <$> go open statements
   pure $ ABT.annotate (ann open <> ann theBlock) theBlock
   where

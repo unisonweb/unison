@@ -41,6 +41,7 @@ test = do
         annotationNesting
       ]
 
+-- | Test that we can find the correct reference for a given cursor position.
 refFinding :: Test ()
 refFinding =
   scope "refs" . tests . fmap makeNodeSelectionTest $
@@ -163,6 +164,8 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
                 LSPQ.findSmallestEnclosingNode pos trm
       expectEqual (Just $ bimap ABT.Tm ABT.Tm expected) (bimap ABT.out ABT.out <$> tfResult)
 
+-- | Tests which assert that the annotation for each ABT node spans at least the span of
+-- its children, i.e. all child annotations are contained within the annotation of their parent.
 annotationNesting :: Test ()
 annotationNesting =
   scope "nesting" . tests . fmap annotationNestingTest $
