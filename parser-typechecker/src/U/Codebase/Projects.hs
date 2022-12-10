@@ -20,6 +20,11 @@ libSegment = (Branch.NameSegment "lib")
 -- | Infers the project root containing a given path.
 -- Currently this means finding the closest parent with a "lib" child.
 inferProjectRoot :: Path -> Branch Sqlite.Transaction -> Sqlite.Transaction (Maybe Path)
+inferProjectRoot p _b | Just match <- specialCases p = pure $ Just match
+  where
+    specialCases :: Path -> Maybe Path
+    specialCases ("public" Cons.:< "base" Cons.:< release Cons.:< _rest) = Just (Path.fromList ["public", "base", release])
+    specialCases _ = Nothing
 inferProjectRoot p b = getLast <$> execWriterT (runReaderT (go p b) Path.empty)
   where
     go :: Path -> Branch Sqlite.Transaction -> ReaderT Path (WriterT (Last Path) Sqlite.Transaction) ()
