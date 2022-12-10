@@ -45,3 +45,11 @@ contains :: Ann -> L.Pos -> Bool
 contains Intrinsic _ = False
 contains External _ = False
 contains (Ann start end) p = start <= p && p < end
+
+encompasses :: Ann -> Ann -> Maybe Bool
+encompasses Intrinsic _ = Nothing
+encompasses External _ = Nothing
+encompasses _ Intrinsic = Nothing
+encompasses _ External = Nothing
+encompasses (Ann start1 end1) (Ann start2 end2) =
+  Just $ start1 <= start2 && end1 <= end2

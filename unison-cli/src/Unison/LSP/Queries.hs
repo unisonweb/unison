@@ -79,7 +79,7 @@ refInType typ = case ABT.out typ of
 findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (Either (Term Symbol Ann) (Type Symbol Ann))
 findSmallestEnclosingNode pos term
   | annIsFilePosition (ABT.annotation term) && not (ABT.annotation term `Ann.contains` pos) = Nothing
-  | otherwise = (<|> Just (Left term)) $ do
+  | otherwise = do
       case ABT.out term of
         ABT.Tm f -> case f of
           Term.Int {} -> Just (Left term)

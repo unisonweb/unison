@@ -932,6 +932,7 @@ letRec _ _ [] e = e
 letRec isTop a bindings e =
   ABT.cycle'
     a
+    -- TODO: Fix this abs' somehow :thinking:
     (foldr (uncurry ABT.abs' . fst) z bindings)
   where
     z = ABT.tm' a (LetRec isTop (map snd bindings) e)

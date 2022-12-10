@@ -19,6 +19,7 @@ import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.LSP.Queries as LSPQ
 import qualified Unison.Lexer.Pos as Lexer
 import Unison.Parser.Ann (Ann (..))
+import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
 import qualified Unison.Reference as Reference
 import qualified Unison.Result as Result
@@ -30,10 +31,19 @@ import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
+import Unison.Util.Monoid (foldMapM)
 
 test :: Test ()
-test =
-  scope "annotations" . tests . fmap makeNodeSelectionTest $
+test = do
+  scope "annotations" $
+    tests
+      [ refFinding,
+        annotationNesting
+      ]
+
+refFinding :: Test ()
+refFinding =
+  scope "refs" . tests . fmap makeNodeSelectionTest $
     [ ( "Binary Op lhs",
         [here|term = tr^ue && false|],
         True,
@@ -54,7 +64,6 @@ term = tr^ue &&& false
       ),
       ( "Simple type annotation on non-typechecking file",
         [here|
-structural type Thing = This | That
 term : Thi^ng
 term = "this won't typecheck"
 |],
@@ -134,18 +143,7 @@ extractCursor txt =
 makeNodeSelectionTest :: (String, Text, Bool, Either ((Term.F Symbol Ann Ann (Term Symbol Ann))) (Type.F (Type Symbol Ann))) -> Test ()
 makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ do
   (pos, src) <- extractCursor testSrc
-  (notes, mayParsedFile, mayTypecheckedFile) <- withTestCodebase \codebase -> do
-    let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
-    let ambientAbilities = []
-    let parseNames = mempty
-    let lexedSource = (src, L.lexer name (Text.unpack src))
-    r <- Typecheck.typecheckHelper codebase generateUniqueName ambientAbilities parseNames (Text.pack name) lexedSource
-    let Result.Result notes mayResult = r
-    let (parsedFile, typecheckedFile) = case mayResult of
-          Nothing -> (Nothing, Nothing)
-          Just (Left uf) -> (Just uf, Nothing)
-          Just (Right tf) -> (Just $ UF.discardTypes tf, Just tf)
-    pure (notes, parsedFile, typecheckedFile)
+  (notes, mayParsedFile, mayTypecheckedFile) <- typecheckSrc name src
   scope "parsed file" $ do
     pf <- maybe (crash (show ("Failed to parse" :: String, notes))) pure mayParsedFile
     let pfResult =
@@ -163,6 +161,63 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
               & firstJust \(_refId, _wk, trm, _typ) ->
                 LSPQ.findSmallestEnclosingNode pos trm
       expectEqual (Just $ bimap ABT.Tm ABT.Tm expected) (bimap ABT.out ABT.out <$> tfResult)
+
+annotationNesting :: Test ()
+annotationNesting =
+  scope "annotation nesting" . tests . fmap annotationNestingTest $
+    [ ( "let blocks",
+        [here|
+term = let
+  x = 1
+  y = 2
+  x + y
+|]
+      ),
+      ( "function bindings",
+        [here|
+term x y = x + y
+|]
+      )
+    ]
+
+annotationNestingTest :: (String, Text) -> Test ()
+annotationNestingTest (name, src) = scope name do
+  (_notes, _pf, maytf) <- typecheckSrc name src
+  tf <- maybe (crash "Failed to typecheck") pure maytf
+  UF.hashTermsId tf
+    & toList
+    & traverse_ \(_refId, _wk, trm, _typ) ->
+      assertAnnotationsAreNested trm
+
+-- | Asserts that for all nodes in the provided ABT, the annotations of all child nodes are
+-- within the span of the parent node.
+assertAnnotationsAreNested :: forall f. (Foldable f, Functor f, Show (f ())) => ABT.Term f Symbol Ann -> Test ()
+assertAnnotationsAreNested = void . ABT.cata alg
+  where
+    alg :: Ann -> ABT.ABT f Symbol (Test Ann) -> Test Ann
+    alg ann abt = do
+      childSpan <- abt & foldMapM id
+      case ann `Ann.encompasses` childSpan of
+        -- one of the annotations isn't in the file, don't bother checking.
+        Nothing -> pure (ann <> childSpan)
+        Just isInFile
+          | isInFile -> pure ann
+          | otherwise -> crash $ "Containment breach: children aren't contained with the parent:" <> show (ann, void abt)
+
+typecheckSrc :: String -> Text -> Test (Seq (Result.Note Symbol Ann), Maybe (UF.UnisonFile Symbol Ann), Maybe (UF.TypecheckedUnisonFile Symbol Ann))
+typecheckSrc name src = do
+  withTestCodebase \codebase -> do
+    let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
+    let ambientAbilities = []
+    let parseNames = mempty
+    let lexedSource = (src, L.lexer name (Text.unpack src))
+    r <- Typecheck.typecheckHelper codebase generateUniqueName ambientAbilities parseNames (Text.pack name) lexedSource
+    let Result.Result notes mayResult = r
+    let (parsedFile, typecheckedFile) = case mayResult of
+          Nothing -> (Nothing, Nothing)
+          Just (Left uf) -> (Just uf, Nothing)
+          Just (Right tf) -> (Just $ UF.discardTypes tf, Just tf)
+    pure (notes, parsedFile, typecheckedFile)
 
 withTestCodebase ::
   (Codebase IO Symbol Ann -> IO r) -> Test r
