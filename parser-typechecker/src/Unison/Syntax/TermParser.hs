@@ -1003,39 +1003,38 @@ destructuringBind = do
 -- * If the binding is a lambda, the  lambda node includes the entire LHS of the binding,
 -- including the name as well.
 binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
-binding =
-  Debug.debug Debug.Temp "Binding" <$> label "binding" do
-    typ <- optional typedecl
-    -- a ++ b = ...
-    let infixLhs = do
-          (arg1, op) <-
-            P.try $
-              (,) <$> prefixDefinitionName <*> infixDefinitionName
-          arg2 <- prefixDefinitionName
-          pure (ann arg1, op, [arg1, arg2])
-    let prefixLhs = do
-          v <- prefixDefinitionName
-          vs <- many prefixDefinitionName
-          pure (ann v, v, vs)
-    let lhs :: P v (Ann, L.Token v, [L.Token v])
-        lhs = infixLhs <|> prefixLhs
-    case typ of
-      Nothing -> do
-        -- we haven't seen a type annotation, so lookahead to '=' before commit
-        (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
-        body <- block "="
-        verifyRelativeName' (fmap Name.unsafeFromVar name)
-        pure $ mkBinding (lhsLoc <> ann body) (L.payload name) args body
-      Just (nameT, typ) -> do
-        (lhsLoc, name, args) <- lhs
-        verifyRelativeName' (fmap Name.unsafeFromVar name)
-        when (L.payload name /= L.payload nameT) $
-          customFailure $ SignatureNeedsAccompanyingBody nameT
-        body <- block "="
-        pure $
-          fmap
-            (\e -> Term.ann (ann nameT <> ann e) e typ)
-            (mkBinding (ann lhsLoc <> ann body) (L.payload name) args body)
+binding = label "binding" do
+  typ <- optional typedecl
+  -- a ++ b = ...
+  let infixLhs = do
+        (arg1, op) <-
+          P.try $
+            (,) <$> prefixDefinitionName <*> infixDefinitionName
+        arg2 <- prefixDefinitionName
+        pure (ann arg1, op, [arg1, arg2])
+  let prefixLhs = do
+        v <- prefixDefinitionName
+        vs <- many prefixDefinitionName
+        pure (ann v, v, vs)
+  let lhs :: P v (Ann, L.Token v, [L.Token v])
+      lhs = infixLhs <|> prefixLhs
+  case typ of
+    Nothing -> do
+      -- we haven't seen a type annotation, so lookahead to '=' before commit
+      (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
+      body <- block "="
+      verifyRelativeName' (fmap Name.unsafeFromVar name)
+      pure $ mkBinding (lhsLoc <> ann body) (L.payload name) args body
+    Just (nameT, typ) -> do
+      (lhsLoc, name, args) <- lhs
+      verifyRelativeName' (fmap Name.unsafeFromVar name)
+      when (L.payload name /= L.payload nameT) $
+        customFailure $ SignatureNeedsAccompanyingBody nameT
+      body <- block "="
+      pure $
+        fmap
+          (\e -> Term.ann (ann nameT <> ann e) e typ)
+          (mkBinding (ann lhsLoc <> ann body) (L.payload name) args body)
   where
     mkBinding loc f [] body = ((loc, f), body)
     mkBinding loc f args body =
@@ -1126,15 +1125,14 @@ block'' ::
   P v (L.Token ()) ->
   P v (L.Token ()) ->
   TermP v
-block'' isTop implicitUnitAtEnd s openBlock closeBlock =
-  Debug.debug Debug.Temp "BLOCK" <$> do
-    open <- openBlock
-    (names, imports) <- imports
-    _ <- optional semi
-    statements <- local (\e -> e {names = names}) $ sepBy semi statement
-    _close <- closeBlock
-    theBlock <- substImports names imports <$> go open (Debug.debug Debug.Temp "STATEMENTS" statements)
-    pure $ ABT.annotate (ann open <> ann theBlock) theBlock
+block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
+  open <- openBlock
+  (names, imports) <- imports
+  _ <- optional semi
+  statements <- local (\e -> e {names = names}) $ sepBy semi statement
+  _close <- closeBlock
+  theBlock <- substImports names imports <$> go open statements
+  pure $ ABT.annotate (ann open <> ann theBlock) theBlock
   where
     statement = asum [Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm]
     go :: L.Token () -> [BlockElement v] -> P v (Term v Ann)
