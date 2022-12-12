@@ -118,7 +118,6 @@ import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
@@ -565,7 +564,7 @@ loop e = do
               history <- liftIO (doHistory schLength 0 branch [])
               Cli.respondNumbered history
               where
-                doHistory :: Int -> Int -> Branch IO -> [(Causal.CausalHash, NamesWithHistory.Diff)] -> IO NumberedOutput
+                doHistory :: Int -> Int -> Branch IO -> [(CausalHash, NamesWithHistory.Diff)] -> IO NumberedOutput
                 doHistory schLength !n b acc =
                   if maybe False (n >=) resultsCap
                     then pure (History diffCap schLength acc (PageEnd (Branch.headHash b) n))
@@ -1340,7 +1339,7 @@ loop e = do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
                   getCausal b = (Branch.headHash b, pure $ Branch._history b)
-                  goCausal :: forall m. Monad m => [(Branch.CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.CausalHash) m ()
+                  goCausal :: forall m. Monad m => [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
                   goCausal [] = pure ()
                   goCausal ((h, mc) : queue) = do
                     ifM (seen h) (goCausal queue) do
@@ -1348,7 +1347,7 @@ loop e = do
                         Causal.One h _bh b -> goBranch h b mempty queue
                         Causal.Cons h _bh b tail -> goBranch h b [fst tail] (tail : queue)
                         Causal.Merge h _bh b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
-                  goBranch :: forall m. Monad m => Branch.CausalHash -> Branch0 m -> [Branch.CausalHash] -> [(Branch.CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.CausalHash) m ()
+                  goBranch :: forall m. Monad m => CausalHash -> Branch0 m -> [CausalHash] -> [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
                   goBranch h b (Set.fromList -> causalParents) queue = case b of
                     Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ _ ->
                       let wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
@@ -1408,8 +1407,8 @@ loop e = do
                 ([fromCH], [toCH]) -> pure (fromCH, toCH)
               output <-
                 Cli.runTransaction do
-                  fromBranch <- (Codebase.expectCausalBranchByCausalHash $ Cv.causalHash1to2 fromCH) >>= V2Causal.value
-                  toBranch <- (Codebase.expectCausalBranchByCausalHash $ Cv.causalHash1to2 toCH) >>= V2Causal.value
+                  fromBranch <- (Codebase.expectCausalBranchByCausalHash fromCH) >>= V2Causal.value
+                  toBranch <- (Codebase.expectCausalBranchByCausalHash toCH) >>= V2Causal.value
                   treeDiff <- V2Branch.diffBranches fromBranch toBranch
                   let nameChanges = V2Branch.nameChanges Nothing treeDiff
                   pure (DisplayDebugNameDiff nameChanges)
@@ -2264,7 +2263,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
       (Cli.returnEarly . Output.ShareError) case err0 of
         Share.SyncError err -> Output.ShareErrorPull err
         Share.TransportError err -> Output.ShareErrorTransport err
-  liftIO (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) & onNothingM do
+  liftIO (Codebase.getBranchForHash codebase causalHash) & onNothingM do
     error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
   where
     -- Provide the given action a callback that display to the terminal.

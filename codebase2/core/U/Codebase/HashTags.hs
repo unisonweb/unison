@@ -4,6 +4,7 @@ import U.Util.Hash (Hash)
 
 newtype BranchHash = BranchHash {unBranchHash :: Hash} deriving (Eq, Ord)
 
+-- | Represents a hash of a causal containing values of the provided type.
 newtype CausalHash = CausalHash {unCausalHash :: Hash} deriving (Eq, Ord)
 
 newtype EditHash = EditHash {unEditHash :: Hash} deriving (Eq, Ord)

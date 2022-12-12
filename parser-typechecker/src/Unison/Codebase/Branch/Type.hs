@@ -2,7 +2,6 @@
 
 module Unison.Codebase.Branch.Type
   ( NamespaceHash,
-    CausalHash (..),
     head,
     headHash,
     namespaceHash,
@@ -19,7 +18,8 @@ where
 import Control.Lens
 import Data.Map (Map)
 import Data.Set (Set)
-import Unison.Codebase.Causal.Type (Causal, CausalHash)
+import U.Codebase.HashTags (CausalHash)
+import Unison.Codebase.Causal.Type (Causal)
 import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch)

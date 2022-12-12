@@ -9,7 +9,7 @@ import Data.Text (pack, unpack)
 import qualified U.Codebase.Branch as V2.Branch
 import qualified U.Codebase.Causal as V2
 import qualified U.Codebase.Decl as V2.Decl
-import qualified U.Codebase.HashTags as V2
+import U.Codebase.HashTags
 import qualified U.Codebase.Kind as V2.Kind
 import qualified U.Codebase.Reference as V2
 import qualified U.Codebase.Reference as V2.Reference
@@ -273,14 +273,14 @@ rreferenceid1to2 h (V1.Reference.Id h' i) = V2.Reference.Id oh i
   where
     oh = if h == h' then Nothing else Just h'
 
-branchHash1to2 :: V1.Branch.NamespaceHash m -> V2.BranchHash
-branchHash1to2 = V2.BranchHash . V1.genericHash
+branchHash1to2 :: V1.Branch.NamespaceHash m -> BranchHash
+branchHash1to2 = BranchHash . V1.genericHash
 
-branchHash2to1 :: forall m. V2.BranchHash -> V1.Branch.NamespaceHash m
-branchHash2to1 = V1.HashFor . V2.unBranchHash
+branchHash2to1 :: forall m. BranchHash -> V1.Branch.NamespaceHash m
+branchHash2to1 = V1.HashFor . unBranchHash
 
-patchHash1to2 :: V1.Branch.EditHash -> V2.PatchHash
-patchHash1to2 = V2.PatchHash
+patchHash1to2 :: V1.Branch.EditHash -> PatchHash
+patchHash1to2 = PatchHash
 
 reference2to1 :: V2.Reference -> V1.Reference
 reference2to1 = \case
@@ -333,12 +333,6 @@ constructorType2to1 :: V2.ConstructorType -> CT.ConstructorType
 constructorType2to1 = \case
   V2.DataConstructor -> CT.Data
   V2.EffectConstructor -> CT.Effect
-
-causalHash2to1 :: V2.CausalHash -> V1.Branch.CausalHash
-causalHash2to1 = V1.Causal.CausalHash . V2.unCausalHash
-
-causalHash1to2 :: V1.Branch.CausalHash -> V2.CausalHash
-causalHash1to2 = V2.CausalHash . V1.Causal.unCausalHash
 
 ttype2to1 :: V2.Term.Type V2.Symbol -> V1.Type.Type V1.Symbol Ann
 ttype2to1 = type2to1' reference2to1
@@ -406,30 +400,28 @@ causalbranch2to1 branchCache lookupCT cb = do
       pure b
 
 causalbranch2to1' :: Monad m => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.UnwrappedBranch m)
-causalbranch2to1' branchCache lookupCT (V2.Causal hc eh (Map.toList -> parents) me) = do
-  let currentHash = causalHash2to1 hc
-      branchHash = branchHash2to1 eh
+causalbranch2to1' branchCache lookupCT (V2.Causal currentHash eh (Map.toList -> parents) me) = do
+  let branchHash = branchHash2to1 eh
   case parents of
     [] -> V1.Causal.UnsafeOne currentHash branchHash <$> (me >>= branch2to1 branchCache lookupCT)
-    [(hp, mp)] -> do
-      let parentHash = causalHash2to1 hp
+    [(parentHash, mp)] -> do
       V1.Causal.UnsafeCons currentHash branchHash
         <$> (me >>= branch2to1 branchCache lookupCT)
         <*> pure (parentHash, causalbranch2to1' branchCache lookupCT =<< mp)
     merge -> do
-      let tailsList = map (bimap causalHash2to1 (causalbranch2to1' branchCache lookupCT =<<)) merge
+      let tailsList = map (fmap (causalbranch2to1' branchCache lookupCT =<<)) merge
       e <- me
       V1.Causal.UnsafeMerge currentHash branchHash <$> branch2to1 branchCache lookupCT e <*> pure (Map.fromList tailsList)
 
 causalbranch1to2 :: forall m. Monad m => V1.Branch.Branch m -> V2.Branch.CausalBranch m
 causalbranch1to2 (V1.Branch.Branch c) =
-  causal1to2 causalHash1to2 branchHash1to2 branch1to2 c
+  causal1to2 branchHash1to2 branch1to2 c
   where
-    causal1to2 :: forall m h2c h2e e e2. (Monad m, Ord h2c) => (V1.Causal.CausalHash -> h2c) -> (V1.HashFor e -> h2e) -> (e -> m e2) -> V1.Causal.Causal m e -> V2.Causal m h2c h2e e2
-    causal1to2 h1to2 eh1to2 e1to2 = \case
-      V1.Causal.One hc eh e -> V2.Causal (h1to2 hc) (eh1to2 eh) Map.empty (e1to2 e)
-      V1.Causal.Cons hc eh e (ht, mt) -> V2.Causal (h1to2 hc) (eh1to2 eh) (Map.singleton (h1to2 ht) (causal1to2 h1to2 eh1to2 e1to2 <$> mt)) (e1to2 e)
-      V1.Causal.Merge hc eh e parents -> V2.Causal (h1to2 hc) (eh1to2 eh) (Map.bimap h1to2 (causal1to2 h1to2 eh1to2 e1to2 <$>) parents) (e1to2 e)
+    causal1to2 :: forall m h2e e e2. Monad m => (V1.HashFor e -> h2e) -> (e -> m e2) -> V1.Causal.Causal m e -> V2.Causal m CausalHash h2e e2
+    causal1to2 eh1to2 e1to2 = \case
+      V1.Causal.One hc eh e -> V2.Causal hc (eh1to2 eh) Map.empty (e1to2 e)
+      V1.Causal.Cons hc eh e (ht, mt) -> V2.Causal hc (eh1to2 eh) (Map.singleton ht (causal1to2 eh1to2 e1to2 <$> mt)) (e1to2 e)
+      V1.Causal.Merge hc eh e parents -> V2.Causal hc (eh1to2 eh) (Map.map (causal1to2 eh1to2 e1to2 <$>) parents) (e1to2 e)
 
     -- todo: this could be a pure function
     branch1to2 :: forall m. Monad m => V1.Branch.Branch0 m -> m (V2.Branch.Branch m)
@@ -470,7 +462,7 @@ causalbranch1to2 (V1.Branch.Branch c) =
                         ]
             ]
 
-        doPatches :: Map V1.NameSegment (V1.Branch.EditHash, m V1.Patch) -> Map V2.Branch.NameSegment (V2.PatchHash, m V2.Branch.Patch)
+        doPatches :: Map V1.NameSegment (V1.Branch.EditHash, m V1.Patch) -> Map V2.Branch.NameSegment (PatchHash, m V2.Branch.Patch)
         doPatches = Map.bimap namesegment1to2 (bimap edithash1to2 (fmap patch1to2))
 
         doChildren :: Map V1.NameSegment (V1.Branch.Branch m) -> Map V2.Branch.NameSegment (V2.Branch.CausalBranch m)
@@ -519,11 +511,11 @@ patch1to2 (V1.Patch v1termedits v1typeedits) = V2.Branch.Patch v2termedits v2typ
       V1.TermEdit.Subtype -> V2.TermEdit.Subtype
       V1.TermEdit.Different -> V2.TermEdit.Different
 
-edithash2to1 :: V2.PatchHash -> V1.Branch.EditHash
-edithash2to1 = V2.unPatchHash
+edithash2to1 :: PatchHash -> V1.Branch.EditHash
+edithash2to1 = unPatchHash
 
-edithash1to2 :: V1.Branch.EditHash -> V2.PatchHash
-edithash1to2 = V2.PatchHash
+edithash1to2 :: V1.Branch.EditHash -> PatchHash
+edithash1to2 = PatchHash
 
 namesegment2to1 :: V2.Branch.NameSegment -> V1.NameSegment
 namesegment2to1 (V2.Branch.NameSegment t) = V1.NameSegment t

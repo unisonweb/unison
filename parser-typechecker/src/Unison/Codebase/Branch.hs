@@ -12,7 +12,6 @@ module Unison.Codebase.Branch
     Raw,
     Star,
     NamespaceHash,
-    CausalHash,
     EditHash,
 
     -- * Branch construction
@@ -98,7 +97,6 @@ import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0 (..),
-    CausalHash (..),
     EditHash,
     NamespaceHash,
     Star,

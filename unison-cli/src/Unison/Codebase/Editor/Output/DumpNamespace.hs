@@ -1,9 +1,9 @@
 module Unison.Codebase.Editor.Output.DumpNamespace where
 
-import Data.Map (Map)
-import Data.Set (Set)
+import U.Codebase.HashTags (CausalHash)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.NameSegment (NameSegment)
+import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 
@@ -11,7 +11,7 @@ data DumpNamespace = DumpNamespace
   { terms :: Map Referent (Set NameSegment, Set Reference),
     types :: Map Reference (Set NameSegment, Set Reference),
     patches :: Map NameSegment Branch.EditHash,
-    children :: Map NameSegment Branch.CausalHash,
-    causalParents :: Set Branch.CausalHash
+    children :: Map NameSegment CausalHash,
+    causalParents :: Set CausalHash
   }
   deriving (Show)

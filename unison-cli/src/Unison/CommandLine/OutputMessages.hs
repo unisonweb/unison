@@ -38,6 +38,7 @@ import System.Directory
   )
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
+import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
@@ -48,8 +49,6 @@ import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
 import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
@@ -367,16 +366,16 @@ notifyNumbered o = case o of
               "",
               tailMsg
             ]
-        branchHashes :: [Branch.CausalHash]
+        branchHashes :: [CausalHash]
         branchHashes = (fst <$> reversedHistory) <> tailHashes
      in (msg, displayBranchHash <$> branchHashes)
     where
-      toSCH :: Branch.CausalHash -> ShortCausalHash
+      toSCH :: CausalHash -> ShortCausalHash
       toSCH h = SCH.fromHash schLength h
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
-      handleTail :: Int -> (Pretty, [Branch.CausalHash])
+      handleTail :: Int -> (Pretty, [CausalHash])
       handleTail n = case tail of
         E.EndOfLog h ->
           ( P.lines
@@ -1233,7 +1232,7 @@ notifyUser dir o = case o of
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"
-            <> P.group ("(" <> P.text (Hash.base32Hex $ Causal.unCausalHash hash) <> ")")
+            <> P.group ("(" <> P.text (Hash.base32Hex $ unCausalHash hash) <> ")")
             <> "from the repository at"
             <> prettyReadGitRepo repo
       CouldntLoadSyncedBranch ns h ->
@@ -1528,10 +1527,10 @@ notifyUser dir o = case o of
           Nothing -> go (renderLine head [] : output) queue
           Just tails -> go (renderLine head tails : output) (queue ++ tails)
           where
-            renderHash = take 10 . Text.unpack . Hash.base32Hex . Causal.unCausalHash
+            renderHash = take 10 . Text.unpack . Hash.base32Hex . unCausalHash
             renderLine head tail =
               (renderHash head) ++ "|" ++ intercalateMap " " renderHash tail
-                ++ case Map.lookup (Hash.base32Hex . Causal.unCausalHash $ head) tags of
+                ++ case Map.lookup (Hash.base32Hex . unCausalHash $ head) tags of
                   Just t -> "|tag: " ++ t
                   Nothing -> ""
             -- some specific hashes that we want to label in the output
@@ -1929,8 +1928,8 @@ prettyAbsolute = P.blue . P.shown
 prettySCH :: IsString s => ShortCausalHash -> P.Pretty s
 prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)
 
-prettyCausalHash :: IsString s => Causal.CausalHash -> P.Pretty s
-prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unCausalHash $ hash)
+prettyCausalHash :: IsString s => CausalHash -> P.Pretty s
+prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . unCausalHash $ hash)
 
 prettyBase32Hex :: IsString s => Base32Hex -> P.Pretty s
 prettyBase32Hex = P.text . Base32Hex.toText
@@ -3213,8 +3212,8 @@ endangeredDependentsTable ppeDecl m =
         & P.lines
 
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
-displayBranchHash :: Branch.CausalHash -> String
-displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . Causal.unCausalHash
+displayBranchHash :: CausalHash -> String
+displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . unCausalHash
 
 prettyHumanReadableTime :: UTCTime -> UTCTime -> Pretty
 prettyHumanReadableTime now time =

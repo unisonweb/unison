@@ -12,6 +12,7 @@ import Data.Monoid.Generic (GenericMonoid (..), GenericSemigroup (..))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import GHC.Generics (Generic)
+import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Branch.Type as Branch
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Patch (Patch)
@@ -24,7 +25,7 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
 
-type Branches m = [(Branch.CausalHash, m (Branch m))]
+type Branches m = [(CausalHash, m (Branch m))]
 
 data Dependencies = Dependencies
   { patches :: Set EditHash,

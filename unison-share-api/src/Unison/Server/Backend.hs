@@ -31,6 +31,7 @@ import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Referent as V2Referent
 import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified Unison.ABT as ABT
@@ -41,7 +42,6 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
 import Unison.Codebase.Path (Path)
@@ -119,7 +119,7 @@ type SyntaxText = UST.SyntaxText' Reference
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
   | ShallowTypeEntry TypeEntry
-  | ShallowBranchEntry NameSegment Branch.CausalHash NamespaceStats
+  | ShallowBranchEntry NameSegment CausalHash NamespaceStats
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
@@ -141,8 +141,8 @@ data BackendError
   | CouldntExpandBranchHash ShortCausalHash
   | AmbiguousBranchHash ShortCausalHash (Set ShortCausalHash)
   | AmbiguousHashForDefinition ShortHash
-  | NoBranchForHash Branch.CausalHash
-  | CouldntLoadBranch Branch.CausalHash
+  | NoBranchForHash CausalHash
+  | CouldntLoadBranch CausalHash
   | MissingSignatureForTerm Reference
   | NoSuchDefinition (HQ.HashQualified Name)
   deriving stock (Show)
@@ -570,7 +570,7 @@ lsBranch codebase b0 = do
   let branchEntries :: [ShallowListEntry Symbol Ann] = do
         (ns, (h, stats)) <- Map.toList $ childrenWithStats
         guard $ V2Branch.hasDefinitions stats
-        pure $ ShallowBranchEntry (Cv.namesegment2to1 ns) (Cv.causalHash2to1 . V2Causal.causalHash $ h) stats
+        pure $ ShallowBranchEntry (Cv.namesegment2to1 ns) (V2Causal.causalHash $ h) stats
       patchEntries :: [ShallowListEntry Symbol Ann] = do
         (ns, _h) <- Map.toList $ V2Branch.patches b0
         pure $ ShallowPatchEntry (Cv.namesegment2to1 ns)
@@ -785,7 +785,7 @@ data DefinitionResults v = DefinitionResults
     noResults :: [HQ.HashQualified Name]
   }
 
-expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction Branch.CausalHash
+expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction CausalHash
 expandShortCausalHash hash = do
   hashSet <- lift $ Codebase.causalHashesByPrefix hash
   len <- lift $ Codebase.branchHashLength
@@ -797,13 +797,13 @@ expandShortCausalHash hash = do
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
 getShallowCausalAtPathFromRootHash ::
-  Maybe Branch.CausalHash ->
+  Maybe CausalHash ->
   Path ->
   Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
 getShallowCausalAtPathFromRootHash mayRootHash path = do
   shallowRoot <- case mayRootHash of
     Nothing -> Codebase.getShallowRootCausal
-    Just h -> Codebase.expectCausalBranchByCausalHash (Cv.causalHash1to2 h)
+    Just h -> Codebase.expectCausalBranchByCausalHash h
   Codebase.getShallowCausalAtPath path (Just shallowRoot)
 
 formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
@@ -832,7 +832,7 @@ prettyDefinitionsForHQName ::
   -- this path.
   Path ->
   -- | The root branch to use
-  Maybe Branch.CausalHash ->
+  Maybe CausalHash ->
   Maybe Width ->
   -- | Whether to suffixify bindings in the rendered syntax
   Suffixify ->
@@ -845,7 +845,7 @@ prettyDefinitionsForHQName ::
 prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebase query = do
   (shallowRoot, hqLength) <-
     (lift . Codebase.runTransaction codebase) do
-      shallowRoot <- resolveCausalHashV2 (fmap Cv.causalHash1to2 mayRoot)
+      shallowRoot <- resolveCausalHashV2 mayRoot
       hqLength <- Codebase.hashLength
       pure (shallowRoot, hqLength)
   (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
@@ -1131,12 +1131,11 @@ scopedNamesForBranchHash codebase mbh path = do
           pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
-      let v1CausalHash = Cv.causalHash2to1 ch
       rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash
       if (ch == rootHash) && shouldUseNamesIndex
         then lift $ Codebase.runTransaction codebase indexNames
         else do
-          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just v1CausalHash) codebase
+          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just ch) codebase
           pure (parseNames, localNames)
 
   let localPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
@@ -1154,14 +1153,14 @@ scopedNamesForBranchHash codebase mbh path = do
       pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::
-  Monad m => Maybe Branch.CausalHash -> Codebase m v a -> Backend m (Branch m)
+  Monad m => Maybe CausalHash -> Codebase m v a -> Backend m (Branch m)
 resolveCausalHash h codebase = case h of
   Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
     whenNothing mayBranch (throwError $ NoBranchForHash bhash)
 
-resolveCausalHashV2 :: Maybe V2Branch.CausalHash -> Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+resolveCausalHashV2 :: Maybe CausalHash -> Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
 resolveCausalHashV2 h = case h of
   Nothing -> Codebase.getShallowRootCausal
   Just ch -> Codebase.expectCausalBranchByCausalHash ch
@@ -1180,7 +1179,7 @@ resolveRootBranchHashV2 ::
 resolveRootBranchHashV2 mayRoot = case mayRoot of
   Nothing -> lift Codebase.getShallowRootCausal
   Just sch -> do
-    h <- Cv.causalHash1to2 <$> expandShortCausalHash sch
+    h <- expandShortCausalHash sch
     lift (resolveCausalHashV2 (Just h))
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
