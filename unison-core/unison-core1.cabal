@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 
@@ -109,6 +109,6 @@ library
     , unison-util-base32hex
     , unison-util-relation
     , vector
-  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
+  default-language: Haskell2010
