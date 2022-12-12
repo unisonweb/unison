@@ -18,6 +18,8 @@ library
   exposed-modules:
       U.Core.ABT
       U.Core.ABT.Var
+      Unison.NameSegment
+      Unison.Util.Alphabetical
   hs-source-dirs:
       ./
   default-extensions:
@@ -49,6 +51,9 @@ library
   build-depends:
       base
     , containers
+    , rfc5051
+    , text
+    , unison-prelude
     , unison-util
     , vector
   default-language: Haskell2010
