@@ -28,7 +28,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
-import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.HashTags (CausalHash (..), PatchHash (..))
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.Branch.Type as Memory.Branch
 import qualified Unison.Codebase.Patch as Memory.Patch
@@ -411,9 +411,9 @@ m2hBranch0 b =
         ]
 
     doPatches ::
-      Map Memory.NameSegment.NameSegment (Memory.Branch.EditHash, m Memory.Patch.Patch) ->
+      Map Memory.NameSegment.NameSegment (PatchHash, m Memory.Patch.Patch) ->
       Map Hashing.Branch.NameSegment Hash
-    doPatches = Map.bimap m2hNameSegment fst
+    doPatches = Map.bimap m2hNameSegment (unPatchHash . fst)
 
     doChildren ::
       Map Memory.NameSegment.NameSegment (Memory.Branch.Branch m) ->

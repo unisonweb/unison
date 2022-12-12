@@ -27,7 +27,7 @@ import qualified System.Console.ANSI as ANSI
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
-import U.Codebase.HashTags (BranchHash, CausalHash)
+import U.Codebase.HashTags (BranchHash, CausalHash, PatchHash (..))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -460,7 +460,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
                         processBranches rest
                       else do
                         let bs = map (uncurry B) cs
-                            os = map O (es <> ts <> ds)
+                            os = map O (coerce @[PatchHash] @[Hash] es <> ts <> ds)
                         processBranches (os ++ bs ++ b0 : rest)
         O h : rest -> do
           when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)

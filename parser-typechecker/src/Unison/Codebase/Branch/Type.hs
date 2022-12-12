@@ -10,7 +10,6 @@ module Unison.Codebase.Branch.Type
     history,
     edits,
     Star,
-    EditHash,
     UnwrappedBranch,
   )
 where
@@ -18,7 +17,7 @@ where
 import Control.Lens
 import Data.Map (Map)
 import Data.Set (Set)
-import U.Codebase.HashTags (CausalHash)
+import U.Codebase.HashTags (CausalHash, PatchHash)
 import Unison.Codebase.Causal.Type (Causal)
 import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Metadata as Metadata
@@ -41,8 +40,6 @@ type UnwrappedBranch m = Causal m (Branch0 m)
 
 -- | A Hash for a namespace itself, it doesn't incorporate any history.
 type NamespaceHash m = Hash.HashFor (Branch0 m)
-
-type EditHash = Hash.Hash
 
 type Star r n = Metadata.Star r n
 
@@ -69,7 +66,7 @@ data Branch0 m = Branch0
     -- | Note the 'Branch' here, not 'Branch0'.
     -- Every level in the tree has a history.
     _children :: Map NameSegment (Branch m),
-    _edits :: Map NameSegment (EditHash, m Patch),
+    _edits :: Map NameSegment (PatchHash, m Patch),
     -- | True if a branch and its children have no definitions or edits in them.
     -- (Computed recursively, and small enough to justify storing here to avoid computing more than once.)
     isEmpty0 :: Bool,
@@ -80,7 +77,7 @@ data Branch0 m = Branch0
     deepTermMetadata :: Metadata.R4 Referent Name,
     deepTypeMetadata :: Metadata.R4 Reference Name,
     deepPaths :: Set Path,
-    deepEdits :: Map Name EditHash
+    deepEdits :: Map Name PatchHash
   }
 
 instance Eq (Branch0 m) where
@@ -93,5 +90,5 @@ instance Eq (Branch0 m) where
 history :: Iso' (Branch m) (UnwrappedBranch m)
 history = iso _history Branch
 
-edits :: Lens' (Branch0 m) (Map NameSegment (EditHash, m Patch))
+edits :: Lens' (Branch0 m) (Map NameSegment (PatchHash, m Patch))
 edits = lens _edits (\b0 e -> b0 {_edits = e})

@@ -20,7 +20,7 @@ import qualified Data.Text as Text
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Branch.Diff as BranchDiff
 import qualified U.Codebase.Causal as V2Causal
-import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash))
+import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash), PatchHash)
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
@@ -420,23 +420,23 @@ branchExists h =
     Nothing -> pure False
     Just hId -> Q.isCausalHash hId
 
-getPatch :: Branch.EditHash -> Transaction (Maybe Patch)
+getPatch :: PatchHash -> Transaction (Maybe Patch)
 getPatch h =
   runMaybeT do
-    patchId <- MaybeT (Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h))
+    patchId <- MaybeT (Q.loadPatchObjectIdForPrimaryHash h)
     patch <- lift (Ops.expectPatch patchId)
     pure (Cv.patch2to1 patch)
 
 -- | Put a patch into the codebase.
 --
 -- Note that 'putBranch' may also put patches.
-putPatch :: Branch.EditHash -> Patch -> Transaction ()
+putPatch :: PatchHash -> Patch -> Transaction ()
 putPatch h p =
-  void $ Ops.savePatch v2HashHandle (Cv.patchHash1to2 h) (Cv.patch1to2 p)
+  void $ Ops.savePatch v2HashHandle h (Cv.patch1to2 p)
 
 -- | Check whether the given patch exists in the codebase.
-patchExists :: Branch.EditHash -> Transaction Bool
-patchExists h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h)
+patchExists :: PatchHash -> Transaction Bool
+patchExists h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash h
 
 dependentsImpl :: Q.DependentsSelector -> Reference -> Transaction (Set Reference.Id)
 dependentsImpl selector r =

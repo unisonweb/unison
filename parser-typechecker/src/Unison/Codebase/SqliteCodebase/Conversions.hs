@@ -279,9 +279,6 @@ branchHash1to2 = BranchHash . V1.genericHash
 branchHash2to1 :: forall m. BranchHash -> V1.Branch.NamespaceHash m
 branchHash2to1 = V1.HashFor . unBranchHash
 
-patchHash1to2 :: V1.Branch.EditHash -> PatchHash
-patchHash1to2 = PatchHash
-
 reference2to1 :: V2.Reference -> V1.Reference
 reference2to1 = \case
   V2.ReferenceBuiltin t -> V1.Reference.Builtin t
@@ -462,8 +459,8 @@ causalbranch1to2 (V1.Branch.Branch c) =
                         ]
             ]
 
-        doPatches :: Map V1.NameSegment (V1.Branch.EditHash, m V1.Patch) -> Map V2.Branch.NameSegment (PatchHash, m V2.Branch.Patch)
-        doPatches = Map.bimap namesegment1to2 (bimap edithash1to2 (fmap patch1to2))
+        doPatches :: Map V1.NameSegment (PatchHash, m V1.Patch) -> Map V2.Branch.NameSegment (PatchHash, m V2.Branch.Patch)
+        doPatches = Map.bimap namesegment1to2 (fmap (fmap patch1to2))
 
         doChildren :: Map V1.NameSegment (V1.Branch.Branch m) -> Map V2.Branch.NameSegment (V2.Branch.CausalBranch m)
         doChildren = Map.bimap namesegment1to2 causalbranch1to2
@@ -511,12 +508,6 @@ patch1to2 (V1.Patch v1termedits v1typeedits) = V2.Branch.Patch v2termedits v2typ
       V1.TermEdit.Subtype -> V2.TermEdit.Subtype
       V1.TermEdit.Different -> V2.TermEdit.Different
 
-edithash2to1 :: PatchHash -> V1.Branch.EditHash
-edithash2to1 = unPatchHash
-
-edithash1to2 :: V1.Branch.EditHash -> PatchHash
-edithash1to2 = PatchHash
-
 namesegment2to1 :: V2.Branch.NameSegment -> V1.NameSegment
 namesegment2to1 (V2.Branch.NameSegment t) = V1.NameSegment t
 
@@ -535,7 +526,7 @@ branch2to1 branchCache lookupCT (V2.Branch.Branch v2terms v2types v2patches v2ch
   v1children <- Map.bitraverse (pure . namesegment2to1) (causalbranch2to1 branchCache lookupCT) v2children
   pure $ V1.Branch.branch0 v1terms v1types v1children v1patches
   where
-    v1patches = Map.bimap namesegment2to1 (bimap edithash2to1 (fmap patch2to1)) v2patches
+    v1patches = Map.bimap namesegment2to1 (fmap (fmap patch2to1)) v2patches
     toStar :: forall name ref. (Ord name, Ord ref) => (V2.Reference -> V1.Reference) -> Map name (Map ref V2.Branch.MdValues) -> V1.Metadata.Star ref name
     toStar mdref2to1 m = foldl' insert mempty (Map.toList m)
       where
