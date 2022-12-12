@@ -25,18 +25,14 @@ import Servant.Docs
   )
 import Servant.OpenApi ()
 import U.Codebase.Branch (NamespaceStats (..))
-import qualified U.Codebase.Branch as V2Causal
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import Unison.Codebase.SqliteCodebase.Conversions (causalHash2to1)
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -157,7 +153,7 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
     Subnamespace $
       NamedNamespace
         { namespaceName = NameSegment.toText name,
-          namespaceHash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash),
+          namespaceHash = "#" <> Hash.toBase32HexText (unCausalHash hash),
           namespaceSize = numContainedTerms + numContainedTypes + numContainedPatches
         }
   Backend.ShallowPatchEntry name ->
@@ -199,12 +195,12 @@ serve codebase maySCH mayRelativeTo mayNamespaceName = do
     (True, Nothing) ->
       serveFromIndex codebase mayRootHash path'
     (True, Just rh)
-      | rh == causalHash2to1 codebaseRootHash ->
+      | rh == codebaseRootHash ->
           serveFromIndex codebase mayRootHash path'
       | otherwise -> do
-          serveFromBranch codebase path' (Cv.causalHash1to2 rh)
+          serveFromBranch codebase path' rh
     (False, Just rh) -> do
-      serveFromBranch codebase path' (Cv.causalHash1to2 rh)
+      serveFromBranch codebase path' rh
     (False, Nothing) -> do
       ch <- liftIO $ Codebase.runTransaction codebase Operations.expectRootCausalHash
       serveFromBranch codebase path' ch
@@ -212,7 +208,7 @@ serve codebase maySCH mayRelativeTo mayNamespaceName = do
 serveFromBranch ::
   Codebase IO Symbol Ann ->
   Path.Path' ->
-  V2Causal.CausalHash ->
+  CausalHash ->
   Backend.Backend IO NamespaceListing
 serveFromBranch codebase path' rootHash = do
   let absPath = Path.Absolute . Path.fromPath' $ path'
@@ -233,7 +229,7 @@ serveFromBranch codebase path' rootHash = do
 
 serveFromIndex ::
   Codebase IO Symbol Ann ->
-  Maybe Branch.CausalHash ->
+  Maybe CausalHash ->
   Path.Path' ->
   Backend.Backend IO NamespaceListing
 serveFromIndex codebase mayRootHash path' = do

@@ -21,8 +21,8 @@ import Data.Time (UTCTime)
 import Network.URI (URI)
 import qualified System.Console.Haskeline as Completion
 import U.Codebase.Branch.Diff (NameChanges)
+import U.Codebase.HashTags (CausalHash)
 import Unison.Auth.Types (CredentialFailure)
-import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
@@ -104,7 +104,7 @@ data NumberedOutput
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(Branch.CausalHash, Names.Diff)]
+      [(CausalHash, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
   | ListEdits Patch PPE.PrettyPrintEnv
 
@@ -257,11 +257,11 @@ data Output
       Path.Absolute -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
-  | DumpBitBooster Branch.CausalHash (Map Branch.CausalHash [Branch.CausalHash])
+  | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
-  | CouldntLoadBranch Branch.CausalHash
+  | CouldntLoadBranch CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
@@ -286,9 +286,9 @@ data ShareError
   | ShareErrorTransport Sync.CodeserverTransportError
 
 data HistoryTail
-  = EndOfLog Branch.CausalHash
-  | MergeTail Branch.CausalHash [Branch.CausalHash]
-  | PageEnd Branch.CausalHash Int -- PageEnd nextHash nextIndex
+  = EndOfLog CausalHash
+  | MergeTail CausalHash [CausalHash]
+  | PageEnd CausalHash Int -- PageEnd nextHash nextIndex
   deriving (Show)
 
 data TestReportStats

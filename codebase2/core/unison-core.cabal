@@ -16,6 +16,7 @@ source-repository head
 
 library
   exposed-modules:
+      U.Codebase.HashTags
       U.Core.ABT
       U.Core.ABT.Var
       Unison.NameSegment
@@ -55,5 +56,6 @@ library
     , text
     , unison-prelude
     , unison-util
+    , unison-util-base32hex
     , vector
   default-language: Haskell2010
