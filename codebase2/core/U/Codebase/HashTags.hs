@@ -9,8 +9,6 @@ newtype CausalHash = CausalHash {unCausalHash :: Hash} deriving (Eq, Ord)
 
 newtype PatchHash = PatchHash {unPatchHash :: Hash} deriving (Eq, Ord)
 
-newtype DefnHash = DefnHash {unDefnHash :: Hash} deriving (Eq, Ord)
-
 instance Show BranchHash where
   show h = "BranchHash (" ++ show (unBranchHash h) ++ ")"
 
@@ -19,6 +17,3 @@ instance Show CausalHash where
 
 instance Show PatchHash where
   show h = "PatchHash (" ++ show (unPatchHash h) ++ ")"
-
-instance Show DefnHash where
-  show h = "DefnHash (" ++ show (unDefnHash h) ++ ")"
