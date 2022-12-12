@@ -685,7 +685,7 @@ makeTypeSearch len names =
     }
 
 -- | Make a term search, given a short hash length and names to search in.
-makeTermSearch :: Int -> NamesWithHistory -> Search m Referent
+makeTermSearch :: Applicative m => Int -> NamesWithHistory -> Search m Referent
 makeTermSearch len names =
   Search
     { lookupNames = \ref -> pure $ NamesWithHistory.termName len ref names,
@@ -694,7 +694,7 @@ makeTermSearch len names =
       makeResult = \hqname r names -> pure $ SR.termResult hqname r names
     }
 
-makeNameSearch :: Int -> NamesWithHistory -> NameSearch m
+makeNameSearch :: Applicative m => Int -> NamesWithHistory -> NameSearch m
 makeNameSearch hashLength names =
   NameSearch
     { typeSearch = makeTypeSearch hashLength names,
@@ -702,7 +702,7 @@ makeNameSearch hashLength names =
     }
 
 -- | Interpret a 'Search' as a function from name to search results.
-applySearch :: (Show r) => Search m r -> HQ'.HashQualified Name -> m [SR.SearchResult]
+applySearch :: (Show r, Monad m) => Search m r -> HQ'.HashQualified Name -> m [SR.SearchResult]
 applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} query = do
   refs <- (lookupRelativeHQRefs' query)
   -- a bunch of references will match a HQ ref.
@@ -788,7 +788,7 @@ data DefinitionResults v = DefinitionResults
     noResults :: [HQ.HashQualified Name]
   }
 
-definitionResultsDependencies :: DefinitionResults v -> Set LD.LabeledDependency
+definitionResultsDependencies :: Ord v => DefinitionResults v -> Set LD.LabeledDependency
 definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
   let termDeps =
         termResults
@@ -878,18 +878,9 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   -- let nameSearch :: NameSearch m
   --     nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   dr@(DefinitionResults terms types misses) <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
-  let ppeDeps = definitionResultsDependencies dr
-  let biases = maybeToList $ HQ.toName query
-  pped <- PPED.biasTo biases <$> liftIO (Codebase.runTransaction codebase (PPED.ppedForReferences hqLength path ppeDeps))
-  let fqnPPE :: PPE.PrettyPrintEnv
-      fqnPPE = PPED.unsuffixifiedPPE pped
-  branchAtPath <- do
-    (lift . Codebase.runTransaction codebase) do
-      causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
-      V2Causal.value causalAtPath
-  let width = mayDefaultWidth renderWidth
-      -- Return only references which refer to docs.
-      filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
+
+  -- Return only references which refer to docs.
+  let filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
       filterForDocs rs = do
         rts <- fmap join . for rs $ \case
           Referent.Ref r ->
@@ -912,6 +903,16 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         docs <- Codebase.runTransaction codebase (filterForDocs (toList allPotentialDocRefs))
         -- render all the docs
         traverse (renderDoc pped width rt codebase) docs
+  let ppeDeps = definitionResultsDependencies dr
+  let biases = maybeToList $ HQ.toName query
+  pped <- PPED.biasTo biases <$> liftIO (Codebase.runTransaction codebase (PPED.ppedForReferences hqLength path ppeDeps))
+  let fqnPPE :: PPE.PrettyPrintEnv
+      fqnPPE = PPED.unsuffixifiedPPE pped
+  branchAtPath <- do
+    (lift . Codebase.runTransaction codebase) do
+      causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
+      V2Causal.value causalAtPath
+  let width = mayDefaultWidth renderWidth
 
       mkTermDefinition ::
         Reference ->

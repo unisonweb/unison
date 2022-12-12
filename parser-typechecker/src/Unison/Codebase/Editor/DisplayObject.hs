@@ -9,7 +9,7 @@ import Unison.Prelude
 import Unison.ShortHash
 
 data DisplayObject b a = BuiltinObject b | MissingObject ShortHash | UserObject a
-  deriving (Eq, Ord, Show, Functor, Generic)
+  deriving (Eq, Ord, Show, Functor, Generic, Foldable, Traversable)
 
 instance Bifunctor DisplayObject where
   bimap _ _ (MissingObject sh) = MissingObject sh
