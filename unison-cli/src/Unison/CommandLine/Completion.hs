@@ -166,7 +166,7 @@ completeWithinNamespace compTypes query currentPath = do
       case querySuffix of
         "" -> pure []
         suffix -> do
-          case Map.lookup (Cv.namesegment1to2 suffix) nonEmptyChildren of
+          case Map.lookup suffix nonEmptyChildren of
             Nothing -> pure []
             Just childCausal -> do
               childBranch <- V2Causal.value childCausal
@@ -181,29 +181,29 @@ completeWithinNamespace compTypes query currentPath = do
     namesInBranch :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [(Bool, Text)]
     namesInBranch hashLen b = do
       nonEmptyChildren <- V2Branch.nonEmptyChildren b
-      let textifyHQ :: (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [(Bool, Text)]
+      let textifyHQ :: (NameSegment -> r -> HQ'.HashQualified NameSegment) -> Map NameSegment (Map r metadata) -> [(Bool, Text)]
           textifyHQ f xs =
             xs
               & hashQualifyCompletions f
-              & fmap (HQ'.toTextWith V2Branch.unNameSegment)
+              & fmap (HQ'.toTextWith NameSegment.toText)
               & fmap (True,)
       pure $
-        ((False,) <$> dotifyNamespaces (fmap V2Branch.unNameSegment . Map.keys $ nonEmptyChildren))
+        ((False,) <$> dotifyNamespaces (fmap NameSegment.toText . Map.keys $ nonEmptyChildren))
           <> Monoid.whenM (NESet.member TermCompletion compTypes) (textifyHQ (hqFromNamedV2Referent hashLen) $ V2Branch.terms b)
           <> Monoid.whenM (NESet.member TypeCompletion compTypes) (textifyHQ (hqFromNamedV2Reference hashLen) $ V2Branch.types b)
-          <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap ((True,) . V2Branch.unNameSegment) . Map.keys $ V2Branch.patches b)
+          <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap ((True,) . NameSegment.toText) . Map.keys $ V2Branch.patches b)
 
     -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
-    hqFromNamedV2Referent :: Int -> V2Branch.NameSegment -> Referent.Referent -> HQ'.HashQualified V2Branch.NameSegment
+    hqFromNamedV2Referent :: Int -> NameSegment -> Referent.Referent -> HQ'.HashQualified NameSegment
     hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (Cv.referent2toshorthash1 (Just hashLen) r)
-    hqFromNamedV2Reference :: Int -> V2Branch.NameSegment -> Reference.Reference -> HQ'.HashQualified V2Branch.NameSegment
+    hqFromNamedV2Reference :: Int -> NameSegment -> Reference.Reference -> HQ'.HashQualified NameSegment
     hqFromNamedV2Reference hashLen n r = HQ'.HashQualified n (Cv.reference2toshorthash1 (Just hashLen) r)
-    hashQualifyCompletions :: forall r metadata. (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
+    hashQualifyCompletions :: forall r metadata. (NameSegment -> r -> HQ'.HashQualified NameSegment) -> Map NameSegment (Map r metadata) -> [HQ'.HashQualified NameSegment]
     hashQualifyCompletions qualify defs = ifoldMap qualifyRefs defs
       where
         -- Qualify any conflicted definitions. If the query has a "#" in it, then qualify ALL
         -- completions.
-        qualifyRefs :: V2Branch.NameSegment -> (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
+        qualifyRefs :: NameSegment -> (Map r metadata) -> [HQ'.HashQualified NameSegment]
         qualifyRefs n refs
           | ((Text.isInfixOf "#" . NameSegment.toText) querySuffix) || length refs > 1 =
               refs
