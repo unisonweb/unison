@@ -184,6 +184,7 @@ library
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -310,6 +311,7 @@ executable cli-integration-tests
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -430,6 +432,7 @@ executable transcripts
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -557,6 +560,7 @@ executable unison
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -687,6 +691,7 @@ test-suite cli-tests
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
