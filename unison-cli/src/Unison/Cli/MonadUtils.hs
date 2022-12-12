@@ -13,6 +13,7 @@ module Unison.Cli.MonadUtils
 
     -- ** Resolving branch identifiers
     resolveAbsBranchId,
+    resolveBranchId,
     resolveShortCausalHash,
 
     -- ** Getting/setting branches
@@ -143,6 +144,13 @@ resolveAbsBranchId :: Input.AbsBranchId -> Cli (Branch IO)
 resolveAbsBranchId = \case
   Left hash -> resolveShortCausalHash hash
   Right path -> getBranchAt path
+
+-- | Resolve a @BranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
+-- branches by path are OK - the empty branch will be returned).
+resolveBranchId  :: Input.BranchId -> Cli (Branch IO)
+resolveBranchId branchId = do
+  absBranchId <- traverseOf _Right resolvePath' branchId
+  resolveAbsBranchId absBranchId
 
 -- | Resolve a @ShortCausalHash@ to the corresponding @Branch IO@, or fail if no such branch hash is found.
 resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)

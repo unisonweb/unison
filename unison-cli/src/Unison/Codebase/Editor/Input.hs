@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
+    DiffNamespaceToPatchInput (..),
     GistInput (..),
     PushRemoteBranchInput (..),
     TestInput (..),
@@ -17,6 +18,8 @@ module Unison.Codebase.Editor.Input
     FindScope (..),
     ShowDefinitionScope (..),
     IsGlobal,
+    DeleteOutput (..),
+    DeleteTarget (..),
   )
 where
 
@@ -118,11 +121,7 @@ data Input
   | MovePatchI Path.Split' Path.Split'
   | CopyPatchI Path.Split' Path.Split'
   | -- delete = unname
-    DeleteI Path.HQSplit'
-  | DeleteTermI Path.HQSplit'
-  | DeleteTypeI Path.HQSplit'
-  | DeleteBranchI Insistence (Maybe Path.Split')
-  | DeletePatchI Path.Split'
+    DeleteI DeleteTarget
   | -- resolving naming conflicts within `branchpath`
     -- Add the specified name after deleting all others for a given reference
     -- within a given branch.
@@ -207,7 +206,18 @@ data Input
   | GistI GistInput
   | AuthLoginI
   | VersionI
+  | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   deriving (Eq, Show)
+
+data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
+  { -- The first/earlier namespace.
+    branchId1 :: BranchId,
+    -- The second/later namespace.
+    branchId2 :: BranchId,
+    -- Where to store the patch that corresponds to the diff between the namespaces.
+    patch :: Path.Split'
+  }
+  deriving stock (Eq, Generic, Show)
 
 -- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
 data GistInput = GistInput
@@ -251,4 +261,17 @@ data FindScope
 data ShowDefinitionScope
   = ShowDefinitionLocal
   | ShowDefinitionGlobal
+  deriving stock (Eq, Show)
+
+data DeleteOutput
+  = DeleteOutput'Diff
+  | DeleteOutput'NoDiff
+  deriving stock (Eq, Show)
+
+data DeleteTarget
+  = DeleteTarget'TermOrType DeleteOutput Path.HQSplit'
+  | DeleteTarget'Term DeleteOutput Path.HQSplit'
+  | DeleteTarget'Type DeleteOutput Path.HQSplit'
+  | DeleteTarget'Branch Insistence (Maybe Path.Split')
+  | DeleteTarget'Patch Path.Split'
   deriving stock (Eq, Show)

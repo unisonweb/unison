@@ -2175,7 +2175,8 @@ arrayCmp ::
   PA.Array Closure ->
   PA.Array Closure ->
   Ordering
-arrayCmp cmpc l r = comparing PA.sizeofArray l r <> go (PA.sizeofArray l)
+arrayCmp cmpc l r =
+  comparing PA.sizeofArray l r <> go (PA.sizeofArray l - 1)
   where
     go i
       | i < 0 = EQ
