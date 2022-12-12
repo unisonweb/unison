@@ -59,6 +59,7 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
@@ -660,39 +661,39 @@ fixupNamesRelative root names =
 -- | A @Search r@ is a small bag of functions that is used to power a search for @r@s.
 --
 -- Construct a 'Search' with 'makeTypeSearch' or 'makeTermSearch', and eliminate it with 'applySearch'.
-data Search r = Search
-  { lookupNames :: r -> Set (HQ'.HashQualified Name),
-    lookupRelativeHQRefs' :: HQ'.HashQualified Name -> Set r,
-    makeResult :: HQ.HashQualified Name -> r -> Set (HQ'.HashQualified Name) -> SR.SearchResult,
+data Search m r = Search
+  { lookupNames :: r -> m (Set (HQ'.HashQualified Name)),
+    lookupRelativeHQRefs' :: HQ'.HashQualified Name -> m (Set r),
+    makeResult :: HQ.HashQualified Name -> r -> Set (HQ'.HashQualified Name) -> m SR.SearchResult,
     matchesNamedRef :: Name -> r -> HQ'.HashQualified Name -> Bool
   }
 
-data NameSearch = NameSearch
-  { typeSearch :: Search Reference,
-    termSearch :: Search Referent
+data NameSearch m = NameSearch
+  { typeSearch :: Search m Reference,
+    termSearch :: Search m Referent
   }
 
 -- | Make a type search, given a short hash length and names to search in.
-makeTypeSearch :: Int -> NamesWithHistory -> Search Reference
+makeTypeSearch :: Applicative m => Int -> NamesWithHistory -> Search m Reference
 makeTypeSearch len names =
   Search
-    { lookupNames = \ref -> NamesWithHistory.typeName len ref names,
-      lookupRelativeHQRefs' = (`NamesWithHistory.lookupRelativeHQType'` names),
+    { lookupNames = \ref -> pure $ NamesWithHistory.typeName len ref names,
+      lookupRelativeHQRefs' = pure . (`NamesWithHistory.lookupRelativeHQType'` names),
       matchesNamedRef = HQ'.matchesNamedReference,
-      makeResult = SR.typeResult
+      makeResult = \hqname r names -> pure $ SR.typeResult hqname r names
     }
 
 -- | Make a term search, given a short hash length and names to search in.
-makeTermSearch :: Int -> NamesWithHistory -> Search Referent
+makeTermSearch :: Int -> NamesWithHistory -> Search m Referent
 makeTermSearch len names =
   Search
-    { lookupNames = \ref -> NamesWithHistory.termName len ref names,
-      lookupRelativeHQRefs' = (`NamesWithHistory.lookupRelativeHQTerm'` names),
+    { lookupNames = \ref -> pure $ NamesWithHistory.termName len ref names,
+      lookupRelativeHQRefs' = pure . (`NamesWithHistory.lookupRelativeHQTerm'` names),
       matchesNamedRef = HQ'.matchesNamedReferent,
-      makeResult = SR.termResult
+      makeResult = \hqname r names -> pure $ SR.termResult hqname r names
     }
 
-makeNameSearch :: Int -> NamesWithHistory -> NameSearch
+makeNameSearch :: Int -> NamesWithHistory -> NameSearch m
 makeNameSearch hashLength names =
   NameSearch
     { typeSearch = makeTypeSearch hashLength names,
@@ -700,10 +701,11 @@ makeNameSearch hashLength names =
     }
 
 -- | Interpret a 'Search' as a function from name to search results.
-applySearch :: (Show r) => Search r -> HQ'.HashQualified Name -> [SR.SearchResult]
+applySearch :: (Show r) => Search m r -> HQ'.HashQualified Name -> m [SR.SearchResult]
 applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} query = do
+  refs <- (lookupRelativeHQRefs' query)
   -- a bunch of references will match a HQ ref.
-  toList (lookupRelativeHQRefs' query) <&> \ref ->
+  for (toList refs) \ref -> do
     let -- Precondition: the input set is non-empty
         prioritize :: Set (HQ'.HashQualified Name) -> (HQ'.HashQualified Name, Set (HQ'.HashQualified Name))
         prioritize =
@@ -712,18 +714,18 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
             >>> List.uncons
             >>> fromMaybe (error (reportBug "E839404" ("query = " ++ show query ++ ", ref = " ++ show ref)))
             >>> over _2 Set.fromList
-        names = lookupNames ref
-        (primaryName, aliases) =
+    names <- lookupNames ref
+    let (primaryName, aliases) =
           -- The precondition of `prioritize` should hold here because we are passing in the set of names that are
           -- related to this ref, which is itself one of the refs that the query name was related to! (Hence it should
           -- be non-empty).
           prioritize names
-     in makeResult (HQ'.toHQ primaryName) ref aliases
+    makeResult (HQ'.toHQ primaryName) ref aliases
 
 hqNameQuery ::
   MonadIO m =>
   Codebase m v Ann ->
-  NameSearch ->
+  NameSearch m ->
   [HQ.HashQualified Name] ->
   m QueryResult
 hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
@@ -750,9 +752,9 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
         (\(sh, tms) -> mkTermResult sh <$> toList tms) <$> termRefs
       typeResults =
         (\(sh, tps) -> mkTypeResult sh <$> toList tps) <$> typeRefs
-      -- Now do the actual name query
-      resultss = map (\name -> applySearch typeSearch name <> applySearch termSearch name) hqnames
-      (misses, hits) =
+  -- Now do the actual name query
+  resultss <- for hqnames (\name -> liftA2 (<>) (applySearch typeSearch name) (applySearch termSearch name))
+  let (misses, hits) =
         zipWith
           ( \hqname results ->
               (if null results then Left hqname else Right results)
@@ -784,6 +786,22 @@ data DefinitionResults v = DefinitionResults
     typeResults :: Map Reference (DisplayObject () (DD.Decl v Ann)),
     noResults :: [HQ.HashQualified Name]
   }
+
+definitionResultsDependencies :: DefinitionResults v -> Set LD.LabeledDependency
+definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
+  let termDeps =
+        termResults
+          & foldOf
+            ( folded
+                . beside
+                  (to Type.dependencies . to (Set.map LD.TypeReference))
+                  (to Term.dependencies . to (Set.map LD.TermReference))
+            )
+      typeDeps =
+        typeResults
+          & foldOf
+            (folded . folded . to DD.declDependencies . to (Set.map LD.TypeReference))
+   in termDeps <> typeDeps
 
 expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction Branch.CausalHash
 expandShortCausalHash hash = do
@@ -848,7 +866,6 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
       shallowRoot <- resolveCausalHashV2 (fmap Cv.causalHash1to2 mayRoot)
       hqLength <- Codebase.hashLength
       pure (shallowRoot, hqLength)
-  (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our perspective but within the
   -- same tree;
@@ -856,13 +873,13 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   -- we bias towards `map` and `.base.trunk.List.map` which ensures we still prefer names in
   -- `trunk` over those in other releases.
   let biases = maybeToList $ HQ.toName query
-  let pped = PPED.biasTo biases unbiasedPPE
   -- ppe which returns names fully qualified to the current perspective,  not to the codebase root.
   let fqnPPE :: PPE.PrettyPrintEnv
       fqnPPE = PPED.unsuffixifiedPPE pped
-  let nameSearch :: NameSearch
+  let nameSearch :: NameSearch m
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
-  DefinitionResults terms types misses <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
+  dr@(DefinitionResults terms types misses) <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
+  let ppeDeps = definitionResultsDependencies dr
   branchAtPath <- do
     (lift . Codebase.runTransaction codebase) do
       causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
@@ -946,6 +963,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
             tag
             (bimap mungeSyntaxText mungeSyntaxText tp)
             docs
+  let ppeDeps = terms <> types <> _docs
   typeDefinitions <-
     Map.traverseWithKey mkTypeDefinition $
       typesToSyntax suffixifyBindings width pped types
@@ -1198,7 +1216,7 @@ definitionsBySuffixes ::
   forall m.
   MonadIO m =>
   Codebase m Symbol Ann ->
-  NameSearch ->
+  NameSearch m ->
   IncludeCycles ->
   [HQ.HashQualified Name] ->
   m (DefinitionResults Symbol)
