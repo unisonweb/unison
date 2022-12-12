@@ -54,6 +54,11 @@ toReference = \case
   Ref termRef -> termRef
   Con typeRef _ -> typeRef
 
+toTermReference :: Referent' termRef typeRef -> Maybe termRef
+toTermReference = \case
+  Ref termRef -> Just termRef
+  Con _ _ -> Nothing
+
 type Id = Id' Hash Hash
 
 data Id' hTm hTp
