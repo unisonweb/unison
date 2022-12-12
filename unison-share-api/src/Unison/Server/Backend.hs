@@ -75,6 +75,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPED
+import qualified Unison.PrettyPrintEnvDecl.Sqlite as PPED
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -872,14 +873,16 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   -- e.g. if the query is `map` and we're in `base.trunk.List`,
   -- we bias towards `map` and `.base.trunk.List.map` which ensures we still prefer names in
   -- `trunk` over those in other releases.
-  let biases = maybeToList $ HQ.toName query
   -- ppe which returns names fully qualified to the current perspective,  not to the codebase root.
-  let fqnPPE :: PPE.PrettyPrintEnv
-      fqnPPE = PPED.unsuffixifiedPPE pped
-  let nameSearch :: NameSearch m
-      nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
+  nameSearch@NameSearch {termSearch} <- mkNameSearch shallowRoot path codebase
+  -- let nameSearch :: NameSearch m
+  --     nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   dr@(DefinitionResults terms types misses) <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
   let ppeDeps = definitionResultsDependencies dr
+  let biases = maybeToList $ HQ.toName query
+  pped <- PPED.biasTo biases <$> liftIO (Codebase.runTransaction codebase (PPED.ppedForReferences hqLength path ppeDeps))
+  let fqnPPE :: PPE.PrettyPrintEnv
+      fqnPPE = PPED.unsuffixifiedPPE pped
   branchAtPath <- do
     (lift . Codebase.runTransaction codebase) do
       causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
@@ -896,11 +899,11 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
 
       docResults :: Reference -> HQ.HashQualified Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults ref hqName = do
-        let docRefs = case HQ.toName hqName of
-              Nothing -> mempty
-              Just name ->
-                let docName = name :> "doc"
-                 in Names.termsNamed localNamesOnly docName
+        docRefs <- case HQ.toName hqName of
+          Nothing -> mempty
+          Just name ->
+            let docName = name :> "doc"
+             in lookupRelativeHQRefs' termSearch (HQ'.NameOnly docName)
         let selfRef = Referent.Ref ref
         -- It's possible the user is loading a doc directly, in which case we should render it as a doc
         -- too.
@@ -963,7 +966,6 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
             tag
             (bimap mungeSyntaxText mungeSyntaxText tp)
             docs
-  let ppeDeps = terms <> types <> _docs
   typeDefinitions <-
     Map.traverseWithKey mkTypeDefinition $
       typesToSyntax suffixifyBindings width pped types
@@ -978,6 +980,18 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
+
+mkNameSearch :: V2Branch.CausalBranch n -> Path -> Codebase IO v a -> Backend IO (NameSearch IO)
+mkNameSearch shallowRoot path codebase = do
+  asks useNamesIndex >>= \case
+    True -> pure sqliteNameSearch
+    False -> do
+      hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
+      (localNamesOnly, _unbiasedPPE) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
+      pure $ makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
+  where
+    sqliteNameSearch :: NameSearch IO
+    sqliteNameSearch = undefined
 
 renderDoc ::
   PPED.PrettyPrintEnvDecl ->
