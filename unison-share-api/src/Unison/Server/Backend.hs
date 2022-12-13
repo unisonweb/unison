@@ -904,7 +904,14 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
             ( termEntryTag
                 <$> termListEntry codebase branchAtPath (ExactName (NameSegment bn) (Cv.referent1to2 referent))
             )
-        docs <- lift (maybe mempty (docResults pped) (HQ.toName hqTermName))
+
+        docRefs <- lift (maybe mempty (docsForTermName codebase nameSearch) (HQ.toName hqTermName))
+        -- This PPE is only used for improving error messages, it's not required.
+        let evalPPE = Nothing
+        docsOrErr <- liftIO $ for docRefs $ \docRef -> evalDocRef rt codebase evalPPE docRef
+        case sequenceA docsOrErr of
+          Left err -> _
+          Right a -> _
         mk docs ts bn tag
         where
           fqnPPE = PPED.unsuffixifiedPPE pped
@@ -1042,14 +1049,41 @@ docsForTermName codebase (NameSearch {termSearch}) name = do
         _ -> pure []
       pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
 
+-- | Evaluates a doc.
 evalDoc ::
-  Maybe PPED.PrettyPrintEnvDecl ->
-  Width ->
+  MonadIO m =>
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
+  -- | This PPE will be used for improving error messages if provided.
+  Maybe PPE.PrettyPrintEnv ->
+  Term Symbol b ->
+  m (Either Rt.Error (Term Symbol Ann))
+evalDoc rt codebase mayPPE (Term.amap (const mempty) -> tm) = do
+  let evalPPE = fromMaybe mempty mayPPE
+  let codeLookup = Codebase.toCodeLookup codebase
+  let cache r = fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase r)
+  r <- liftIO $ Rt.evaluateTerm' codeLookup cache evalPPE rt tm
+  case r of
+    Right tmr ->
+      liftIO . Codebase.runTransaction codebase $ do
+        Codebase.putWatch
+          WK.RegularWatch
+          (Hashing.hashClosedTerm tm)
+          (Term.amap (const mempty) tmr)
+    Left _ -> pure ()
+  pure $ r <&> Term.amap (const mempty)
+
+-- | Loads and evaluates a doc reference.
+evalDocRef ::
+  MonadIO m =>
+  Rt.Runtime Symbol ->
+  Codebase IO Symbol Ann ->
+  -- | This PPE will be used for improving error messages if provided.
+  Maybe PPE.PrettyPrintEnv ->
   TermReference ->
-  IO (HashQualifiedName, UnisonHash, Doc.Doc)
-evalDoc = _
+  m (Either Rt.Error (Term Symbol Ann))
+evalDocRef rt codebase mayPPE docRef = do
+  evalDoc rt codebase mayPPE (Term.ref () docRef)
 
 docsInBranchToHtmlFiles ::
   Rt.Runtime Symbol ->
