@@ -2,7 +2,9 @@
 
 module Unison.Util.Text.Pattern where
 
-import Data.Char (isDigit, isLetter, isPunctuation, isSpace)
+import Basement.Compat.Base (Word64)
+import Data.Bifunctor (Bifunctor (first))
+import Data.Char (isDigit, isLetter, isLower, isNumber, isPunctuation, isSpace, isSymbol, isUpper)
 import qualified Data.Text as DT
 import Unison.Util.Text (Text)
 import qualified Unison.Util.Text as Text
@@ -10,20 +12,29 @@ import qualified Unison.Util.Text as Text
 data Pattern
   = Join [Pattern] -- sequencing of patterns
   | Or Pattern Pattern -- left-biased choice: tries second pattern only if first fails
-  | Capture Pattern -- capture all the text consumed by the inner pattern, discarding its subcaptures
+  | AddCapture Pattern -- capture all the text consumed by the inner pattern, discarding its subcaptures
   | Many Pattern -- zero or more repetitions (at least 1 can be written: Join [p, Many p])
   | Replicate Int Int Pattern -- m to n occurrences of a pattern, optional = 0-1
-  | AnyChar -- consume a single char
   | Eof -- succeed if given the empty text, fail otherwise
   | Literal Text -- succeed if input starts with the given text, advance by that text
-  | CharRange Char Char -- consume 1 char in the given range, or fail
-  | CharIn [Char] -- consume 1 char in the given set, or fail
-  | NotCharIn [Char] -- consume 1 char NOT in the given set, or fail
-  | NotCharRange Char Char -- consume 1 char NOT in the given range, or fail
-  | Digit -- consume 1 digit (according to Char.isDigit)
-  | Letter -- consume 1 letter (according to Char.isLetter)
-  | Space -- consume 1 space character (according to Char.isSpace)
-  | Punctuation -- consume 1 punctuation char (according to Char.isPunctuation)
+  | Character CharClass -- consume a single character satisfying the given class, or fail
+  deriving (Eq, Ord)
+
+data CharClass
+  = AnyChar -- matches any character
+  | CharRange Char Char -- matches any character in the given range
+  | CharIn [Char] -- matches any character in the given set
+  | Digit -- matches any digit character (according to Char.isDigit)
+  | Letter -- matches any letter character (according to Char.isLetter)
+  | Space -- matches any space character (according to Char.isSpace)
+  | Punctuation -- matches punctuation char (according to Char.isPunctuation)
+  | Symbol -- matches any symbol character (according to Char.isSymbol)
+  | Number -- numeric character (according to Char.isNumber)
+  | Lower -- lowercase character (according to Char.isLower)
+  | Upper -- uppercase character (according to Char.isUpper)
+  | CharNot CharClass -- matches any character not in the given class
+  | CharAnd CharClass CharClass -- matches any character in both classes
+  | CharOr CharClass CharClass -- matches any character in either class
   deriving (Eq, Ord)
 
 -- Wrapper type. Holds a pattern together with its compilation. This is used as
@@ -49,7 +60,7 @@ run :: Pattern -> Text -> Maybe ([Text], Text)
 run p =
   let cp = compile p (\_ _ -> Nothing) (\acc rem -> Just (s acc, rem))
       s = reverse . capturesToList . stackCaptures
-   in \t -> cp (Empty emptyCaptures) t
+   in fmap (first (fmap captureText)) <$> cp (Empty emptyCaptures)
 
 -- Stack used to track captures and to support backtracking.
 -- A `try` will push a `Mark` that allows the old state
@@ -59,7 +70,13 @@ data Stack = Empty !Captures | Mark !Captures !Text !Stack
 
 -- A difference list for representing the captures of a pattern.
 -- So that capture lists can be appended in O(1).
-type Captures = [Text] -> [Text]
+type Captures = [Capture] -> [Capture]
+
+newtype Position = Position Word64
+  deriving (Eq, Ord, Show)
+
+data Capture = Capture {captureText :: Text, capturePos :: Position}
+  deriving (Eq, Ord, Show)
 
 stackCaptures :: Stack -> Captures
 stackCaptures (Mark cs _ _) = cs
@@ -71,7 +88,7 @@ pushCaptures c (Empty cs) = Empty (appendCaptures c cs)
 pushCaptures c (Mark cs t s) = Mark (appendCaptures c cs) t s
 {-# INLINE pushCaptures #-}
 
-pushCapture :: Text -> Stack -> Stack
+pushCapture :: Capture -> Stack -> Stack
 pushCapture txt = pushCaptures (txt :)
 {-# INLINE pushCapture #-}
 
@@ -82,13 +99,29 @@ appendCaptures c1 c2 = c1 . c2
 emptyCaptures :: Captures
 emptyCaptures = id
 
-capturesToList :: Captures -> [Text]
+capturesToList :: Captures -> [Capture]
 capturesToList c = c []
 
 type Compiled r = (Stack -> Text -> r) -> (Stack -> Text -> r) -> Stack -> Text -> r
 
+classToPred :: CharClass -> Char -> Bool
+classToPred AnyChar _ = True
+classToPred (CharRange c1 c2) c = c >= c1 && c <= c2
+classToPred (CharIn cs) c = c `elem` cs
+classToPred Digit c = isDigit c
+classToPred Letter c = isLetter c
+classToPred Space c = isSpace c
+classToPred Punctuation c = isPunctuation c
+classToPred Symbol c = isSymbol c
+classToPred Number c = isNumber c
+classToPred Lower c = isLower c
+classToPred Upper c = isUpper c
+classToPred (CharNot cc) c = not (classToPred cc c)
+classToPred (CharAnd cc1 cc2) c = classToPred cc1 c && classToPred cc2 c
+classToPred (CharOr cc1 cc2) c = classToPred cc1 c || classToPred cc2 c
+
 compile :: Pattern -> Compiled r
-compile !Eof !err !success = go
+compile Eof !err !success = go
   where
     go acc t
       | Text.size t == 0 = success acc t
@@ -98,17 +131,20 @@ compile (Literal txt) !err !success = go
     go acc t
       | Text.take (Text.size txt) t == txt = success acc (Text.drop (Text.size txt) t)
       | otherwise = err acc t
-compile AnyChar !err !success = go
+compile (Character AnyChar) !err !success = go
   where
     go acc t = case Text.drop 1 t of
       rem
         | Text.size t > Text.size rem -> success acc rem
         | otherwise -> err acc rem
-compile (Capture (Many AnyChar)) !_ !success = \acc t -> success (pushCapture t acc) Text.empty
-compile (Capture c) !err !success = go
+compile (AddCapture (Many (Character AnyChar))) !_ !success = \acc t -> success (pushCapture t acc) Text.empty
+compile (AddCapture c) !err !success = go
   where
     err' _ _ acc0 t0 = err acc0 t0
-    success' _ rem acc0 t0 = success (pushCapture (Text.take (Text.size t0 - Text.size rem) t0) acc0) rem
+    success' _ rem acc0 t0 =
+      let position = fromIntegral (Text.size t0 - Text.size rem)
+          capture = Capture (Text.take (Text.size t0 - Text.size rem) t0) position
+       in success (pushCapture capture acc0) rem
     compiled = compile c err' success'
     go acc t = compiled acc t acc t
 compile (Or p1 p2) err success = cp1
@@ -122,38 +158,15 @@ compile (Join ps) !err !success = go ps
       let pc = compile p err psc
           psc = compile (Join ps) err success
        in pc
-compile (NotCharIn cs) !err !success = go
+compile (Character charClass) !err !success = go
   where
-    ok = charNotInPred cs
+    ok = classToPred charClass
     go acc t = case Text.uncons t of
       Just (ch, rem) | ok ch -> success acc rem
-      _ -> err acc t
-compile (CharIn cs) !err !success = go
-  where
-    ok = charInPred cs
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | ok ch -> success acc rem
-      _ -> err acc t
-compile (CharRange c1 c2) !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | ch >= c1 && ch <= c2 -> success acc rem
-      _ -> err acc t
-compile (NotCharRange c1 c2) !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | not (ch >= c1 && ch <= c2) -> success acc rem
       _ -> err acc t
 compile (Many p) !_ !success = case p of
-  AnyChar -> (\acc _ -> success acc Text.empty)
-  CharIn cs -> walker (charInPred cs)
-  NotCharIn cs -> walker (charNotInPred cs)
-  CharRange c1 c2 -> walker (\ch -> ch >= c1 && ch <= c2)
-  NotCharRange c1 c2 -> walker (\ch -> ch < c1 || ch > c2)
-  Digit -> walker isDigit
-  Letter -> walker isLetter
-  Punctuation -> walker isPunctuation
-  Space -> walker isSpace
+  Character AnyChar -> (\acc _ -> success acc Text.empty)
+  Character cclass -> walker (classToPred cclass)
   p -> go
     where
       go = compile p success success'
@@ -169,25 +182,18 @@ compile (Many p) !_ !success = case p of
             rem
               | DT.null rem -> go acc t
               | otherwise ->
-                  -- moving the remainder to the root of the tree is much more efficient
-                  -- since the next uncons will be O(1) rather than O(log n)
-                  -- this can't unbalance the tree too badly since these promoted chunks
-                  -- are being consumed and will get removed by a subsequent uncons
-                  success acc (Text.appendUnbalanced (Text.fromText rem) t)
+                -- moving the remainder to the root of the tree is much more efficient
+                -- since the next uncons will be O(1) rather than O(log n)
+                -- this can't unbalance the tree too badly since these promoted chunks
+                -- are being consumed and will get removed by a subsequent uncons
+                success acc (Text.appendUnbalanced (Text.fromText rem) t)
     {-# INLINE walker #-}
 compile (Replicate m n p) !err !success = case p of
-  AnyChar -> \acc t ->
+  Character AnyChar -> \acc t ->
     if Text.size t < m
       then err acc t
       else success acc (Text.drop n t)
-  CharIn cs -> dropper (charInPred cs)
-  NotCharIn cs -> dropper (charNotInPred cs)
-  CharRange c1 c2 -> dropper (\ch -> ch >= c1 && c1 <= c2)
-  NotCharRange c1 c2 -> dropper (\ch -> ch < c1 || ch > c2)
-  Digit -> dropper isDigit
-  Letter -> dropper isLetter
-  Punctuation -> dropper isPunctuation
-  Space -> dropper isSpace
+  Character cclass -> dropper (classToPred cclass)
   _ -> try "Replicate" (go1 m) err (go2 (n - m))
   where
     go1 0 = \_err success stk rem -> success stk rem
@@ -198,32 +204,6 @@ compile (Replicate m n p) !err !success = case p of
     dropper ok acc t
       | (i, rest) <- Text.dropWhileMax ok n t, i >= m = success acc rest
       | otherwise = err acc t
-compile Digit !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | isDigit ch -> success acc rem
-      _ -> err acc t
-compile Letter !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | isLetter ch -> success acc rem
-      _ -> err acc t
-compile Punctuation !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | isPunctuation ch -> success acc rem
-      _ -> err acc t
-compile Space !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | isSpace ch -> success acc rem
-      _ -> err acc t
-
-charInPred, charNotInPred :: [Char] -> Char -> Bool
-charInPred [] = const False
-charInPred (c : chs) = let ok = charInPred chs in \ci -> ci == c || ok ci
-charNotInPred [] = const True
-charNotInPred (c : chs) = let ok = charNotInPred chs in (\ci -> ci /= c && ok ci)
 
 -- runs c and if it fails, restores state to what it was before
 try :: String -> Compiled r -> Compiled r
