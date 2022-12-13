@@ -142,7 +142,7 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
     Backend.hoistBackend (Codebase.runTransaction codebase) do
       rootHash <- traverse Backend.expandShortCausalHash mayRoot
       lift (Backend.resolveCausalHashV2 (Cv.causalHash1to2 <$> rootHash))
-  (localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) path
+  (nameSearch, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) path
   relativeToBranch <- do
     (lift . Codebase.runTransaction codebase) do
       relativeToCausal <- Codebase.getShallowCausalAtPath path (Just rootCausal)
@@ -155,7 +155,7 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
           ]
         )
       alignments =
-        take (fromMaybe 10 limit) $ Backend.fuzzyFind localNamesOnly (fromMaybe "" query)
+        take (fromMaybe 10 limit) $ Backend.fuzzyFind nameSearch (fromMaybe "" query)
   lift (join <$> traverse (loadEntry relativeToBranch (PPE.suffixifiedPPE ppe)) alignments)
   where
     loadEntry relativeToBranch ppe (a, n, refs) = do

@@ -844,12 +844,11 @@ prettyDefinitionsForHQName ::
   HQ.HashQualified Name ->
   Backend IO DefinitionDisplayResults
 prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebase query = do
-  (shallowRoot, hqLength) <-
+  (shallowRoot) <-
     (lift . Codebase.runTransaction codebase) do
       shallowRoot <- resolveCausalHashV2 (fmap Cv.causalHash1to2 mayRoot)
-      hqLength <- Codebase.hashLength
-      pure (shallowRoot, hqLength)
-  (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
+      pure shallowRoot
+  (nameSearch@NameSearch {termSearch}, unbiasedPPE) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our perspective but within the
   -- same tree;
@@ -861,7 +860,6 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   -- ppe which returns names fully qualified to the current perspective,  not to the codebase root.
   let fqnPPE :: PPE.PrettyPrintEnv
       fqnPPE = PPED.unsuffixifiedPPE pped
-  nameSearch@NameSearch {termSearch} <- mkNameSearch shallowRoot path codebase
   DefinitionResults terms types misses <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
   branchAtPath <- do
     (lift . Codebase.runTransaction codebase) do
@@ -960,18 +958,6 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
-
-mkNameSearch :: V2Branch.CausalBranch n -> Path -> Codebase IO v a -> Backend IO (NameSearch IO)
-mkNameSearch shallowRoot path codebase = do
-  asks useNamesIndex >>= \case
-    True -> pure sqliteNameSearch
-    False -> do
-      hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
-      (localNamesOnly, _unbiasedPPE) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
-      pure $ makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
-  where
-    sqliteNameSearch :: NameSearch IO
-    sqliteNameSearch = undefined
 
 renderDoc ::
   PPED.PrettyPrintEnvDecl ->
@@ -1130,7 +1116,7 @@ scopedNamesForBranchHash ::
   Codebase m v a ->
   Maybe (V2Branch.CausalBranch n) ->
   Path ->
-  Backend m (Names, PPED.PrettyPrintEnvDecl)
+  Backend m (NameSearch m, PPED.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
@@ -1153,7 +1139,8 @@ scopedNamesForBranchHash codebase mbh path = do
 
   let localPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
   let globalPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames parseNames)
-  pure (localNames, mkPPE localPPE globalPPE)
+  let nameSearch = makeNameSearch hashLen (NamesWithHistory.fromCurrentNames localNames)
+  pure (nameSearch, mkPPE localPPE globalPPE)
   where
     mkPPE :: PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl
     mkPPE primary addFallback =
@@ -1210,7 +1197,7 @@ definitionsBySuffixes ::
   forall m.
   MonadIO m =>
   Codebase m Symbol Ann ->
-  NameSearch ->
+  NameSearch m ->
   IncludeCycles ->
   [HQ.HashQualified Name] ->
   m (DefinitionResults Symbol)
