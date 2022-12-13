@@ -20,6 +20,7 @@ import Data.OpenApi (ToSchema)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Data.Void
 import Data.Word
 import GHC.Generics (Generic)
 import qualified Unison.ABT as ABT
@@ -30,6 +31,7 @@ import qualified Unison.Codebase.Editor.DisplayObject as DO
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.LabeledDependency as LD
+import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import Unison.Reference (Reference)
@@ -50,6 +52,7 @@ import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.List as List
+import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.SyntaxText as S
 import Unison.Var (Var)
@@ -60,7 +63,7 @@ type SSyntaxText = S.SyntaxText' Reference
 
 type SrcRefs = Ref (UnisonHash, DisplayObject SyntaxText (Src SyntaxText))
 
-type Doc = DocG SyntaxText SrcRefs SyntaxText SyntaxText SyntaxText SyntaxText SyntaxText UnisonHash
+type Doc = DocG Void SrcRefs SyntaxText SyntaxText SyntaxText SyntaxText SyntaxText UnisonHash
 
 type ExpandedDoc v = DocG (RenderError v) (ExpandedSrc v) (Term v ()) (Type v ()) (DD.Decl v ()) (Either (Term v ()) LD.LabeledDependency) Builtin ()
 
@@ -153,59 +156,52 @@ evalAndRenderDoc ::
 evalAndRenderDoc pped terms typeOf eval types tm =
   eval tm >>= \case
     Nothing -> pure $ Word "🆘 doc rendering failed during evaluation"
-    Just tm -> renderDoc pped terms typeOf types tm
+    Just tm -> expandDoc terms typeOf eval types tm >>= renderDoc pped
 
 renderDoc ::
   forall v m.
   (Var v, Monad m) =>
   PPE.PrettyPrintEnvDecl ->
-  (Reference -> m (Maybe (Term v ()))) ->
-  (Referent -> m (Maybe (Type v ()))) ->
-  (Reference -> m (Maybe (DD.Decl v ()))) ->
-  Term v () ->
+  ExpandedDoc v ->
   m Doc
-renderDoc pped terms typeOf types tm = go tm
+renderDoc pped doc = go doc
   where
+    suffixifiedPPE = PPE.suffixifiedPPE pped
+    go :: ExpandedDoc v -> m Doc
     go = \case
-      DD.Doc2Word txt -> pure $ Word txt
-      DD.Doc2Code d -> Code <$> go d
-      DD.Doc2CodeBlock lang d -> CodeBlock lang <$> go d
-      DD.Doc2Bold d -> Bold <$> go d
-      DD.Doc2Italic d -> Italic <$> go d
-      DD.Doc2Strikethrough d -> Strikethrough <$> go d
-      DD.Doc2Style s d -> Style s <$> go d
-      DD.Doc2Anchor id d -> Anchor id <$> go d
-      DD.Doc2Blockquote d -> Blockquote <$> go d
-      DD.Doc2Blankline -> pure Blankline
-      DD.Doc2Linebreak -> pure Linebreak
-      DD.Doc2SectionBreak -> pure SectionBreak
-      DD.Doc2Tooltip d1 d2 -> Tooltip <$> go d1 <*> go d2
-      DD.Doc2Aside d -> Aside <$> go d
-      DD.Doc2Callout Decls.OptionalNone' d -> Callout Nothing <$> go d
-      DD.Doc2Callout (Decls.OptionalSome' icon) d -> Callout <$> (Just <$> go icon) <*> go d
-      DD.Doc2Table rows -> Table <$> traverse r rows
-        where
-          r (Term.List' ds) = traverse go (toList ds)
-          r _ = pure [Word "🆘 invalid table"]
-      DD.Doc2Folded isFolded d d2 -> Folded isFolded <$> go d <*> go d2
-      DD.Doc2Paragraph ds -> Paragraph <$> traverse go ds
-      DD.Doc2BulletedList ds -> BulletedList <$> traverse go ds
-      DD.Doc2NumberedList n ds -> NumberedList n <$> traverse go ds
-      DD.Doc2Section title ds -> Section <$> go title <*> traverse go ds
-      DD.Doc2NamedLink d1 d2 -> NamedLink <$> go d1 <*> go d2
-      DD.Doc2Image d1 d2 Decls.OptionalNone' -> Image <$> go d1 <*> go d2 <*> pure Nothing
-      DD.Doc2Image d1 d2 (Decls.OptionalSome' d) -> Image <$> go d1 <*> go d2 <*> (Just <$> go d)
-      DD.Doc2Special sf -> Special <$> goSpecial sf
-      DD.Doc2Join ds -> Join <$> traverse go ds
-      DD.Doc2UntitledSection ds -> UntitledSection <$> traverse go ds
-      DD.Doc2Column ds -> Column <$> traverse go ds
-      DD.Doc2Group d -> Group <$> go d
-      wat ->
-        pure . Word . Text.pack . P.toPlain (P.Width 80) . P.indent "🆘  "
-          . TermPrinter.pretty (PPE.suffixifiedPPE pped)
-          $ wat
+      Word txt -> pure $ Word txt
+      Code d -> Code <$> go d
+      CodeBlock lang d -> CodeBlock lang <$> go d
+      Bold d -> Bold <$> go d
+      Italic d -> Italic <$> go d
+      Strikethrough d -> Strikethrough <$> go d
+      Style s d -> Style s <$> go d
+      Anchor a d -> Anchor a <$> go d
+      Blockquote d -> Blockquote <$> go d
+      Blankline -> pure Blankline
+      Linebreak -> pure Linebreak
+      SectionBreak -> pure SectionBreak
+      Tooltip d1 d2 -> Tooltip <$> go d1 <*> go d2
+      Aside d -> Aside <$> go d
+      Callout d1 d2 -> Callout <$> traverse go d1 <*> go d2
+      Table rows -> Table <$> traverse (traverse go) rows
+      Folded folded d1 d2 -> Folded folded <$> go d1 <*> go d2
+      Paragraph ds -> Paragraph <$> traverse go ds
+      BulletedList ds -> BulletedList <$> traverse go ds
+      NumberedList n ds -> NumberedList n <$> traverse go ds
+      Section d ds -> Section <$> go d <*> traverse go ds
+      NamedLink d1 d2 -> NamedLink <$> go d1 <*> go d2
+      Image d1 d2 d3 -> Image <$> go d1 <*> go d2 <*> traverse go d3
+      Special s -> Special <$> goSpecial s
+      Join ds -> Join <$> traverse go ds
+      UntitledSection ds -> UntitledSection <$> traverse go ds
+      Column ds -> Column <$> traverse go ds
+      Group d -> Group <$> go d
+      RenderError (InvalidTerm trm) -> pure . Word . Text.pack . P.toPlain (P.Width 80) . P.indent "🆘  " . TermPrinter.pretty (PPE.suffixifiedPPE pped) $ trm
 
     formatPretty = fmap Syntax.convertElement . P.render (P.Width 70)
+
+    formatPrettyType :: PPE.PrettyPrintEnv -> Type v a -> SyntaxText
     formatPrettyType ppe typ = formatPretty (TypePrinter.prettySyntax ppe typ)
 
     source :: Term v () -> m SyntaxText
@@ -221,81 +217,121 @@ renderDoc pped terms typeOf types tm = go tm
               (PPE.suffixifiedPPE pped)
               [(r, PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r, ty) <- zip rs types]
 
-    goSpecial :: Term v () -> m SpecialForm
+    -- goSpecial :: Term v () -> m SpecialForm
+    -- goSpecial = \case
+    -- DD.Doc2SpecialFormFoldedSource (Term.List' es) -> FoldedSource <$> goSrc (toList es)
+    -- -- Source [Either Link.Type Doc2.Term]
+    -- DD.Doc2SpecialFormSource (Term.List' es) -> Source <$> goSrc (toList es)
+    -- -- Example Nat Doc2.Term
+    -- -- Examples like `foo x y` are encoded as `Example 2 (_ x y -> foo)`, where
+    -- -- 2 is the number of variables that should be dropped from the rendering.
+    -- -- So this will render as `foo x y`.
+    -- DD.Doc2SpecialFormExample n (DD.Doc2Example vs body) ->
+    --   Example <$> source ex
+    --   where
+    --     ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+    -- DD.Doc2SpecialFormExampleBlock n (DD.Doc2Example vs body) ->
+    --   ExampleBlock <$> source ex
+    --   where
+    --     ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+
+    -- -- Link (Either Link.Type Doc2.Term)
+    -- DD.Doc2SpecialFormLink e ->
+    --   let ppe = PPE.suffixifiedPPE pped
+    --       tm :: Referent -> P.Pretty SSyntaxText
+    --       tm r = (NP.styleHashQualified'' (NP.fmt (S.TermReference r)) . PPE.termName ppe) r
+    --       ty :: Reference -> P.Pretty SSyntaxText
+    --       ty r = (NP.styleHashQualified'' (NP.fmt (S.TypeReference r)) . PPE.typeName ppe) r
+    --    in Link <$> case e of
+    --         DD.EitherLeft' (Term.TypeLink' r) -> (pure . formatPretty . ty) r
+    --         DD.EitherRight' (DD.Doc2Term t) ->
+    --           case Term.etaNormalForm t of
+    --             Term.Referent' r -> (pure . formatPretty . tm) r
+    --             x -> source x
+    --         _ -> source e
+    -- DD.Doc2SpecialFormSignature (Term.List' tms) ->
+    --   let rs = [r | DD.Doc2Term (Term.Referent' r) <- toList tms]
+    --    in goSignatures rs <&> \s -> Signature (map formatPretty s)
+    -- -- SignatureInline Doc2.Term
+    -- DD.Doc2SpecialFormSignatureInline (DD.Doc2Term (Term.Referent' r)) ->
+    --   goSignatures [r] <&> \s -> SignatureInline (formatPretty (P.lines s))
+    -- -- Eval Doc2.Term
+    -- DD.Doc2SpecialFormEval (DD.Doc2Term tm) ->
+    --   eval tm >>= \case
+    --     Nothing -> Eval <$> source tm <*> pure evalErrMsg
+    --     Just result -> Eval <$> source tm <*> source result
+    -- -- EvalInline Doc2.Term
+    -- DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) ->
+    --   eval tm >>= \case
+    --     Nothing -> EvalInline <$> source tm <*> pure evalErrMsg
+    --     Just result -> EvalInline <$> source tm <*> source result
+    -- -- Embed Video
+    -- DD.Doc2SpecialFormEmbedVideo sources config ->
+    --   pure $ Video sources' config'
+    --   where
+    --     sources' = [MediaSource url mimeType | DD.Doc2MediaSource (Term.Text' url) (maybeText -> mimeType) <- sources]
+    --     config' = Map.fromList [(k, v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- config]
+    --     maybeText (Term.App' _ (Term.Text' a)) = Just a
+    --     maybeText _ = Nothing
+
+    -- -- Embed FrontMatter
+    -- DD.Doc2SpecialFormEmbedFrontMatter frontMatter ->
+    --   pure $ FrontMatter frontMatter'
+    --   where
+    --     frontMatter' = List.multimap [(k, v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- frontMatter])
+
+    -- -- Embed Any
+    -- DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
+    --   source any <&> \p -> Embed ("{{ embed {{" <> p <> "}} }}")
+    -- -- EmbedInline Any
+    -- DD.Doc2SpecialFormEmbedInline any ->
+    --   source any <&> \p -> EmbedInline ("{{ embed {{" <> p <> "}} }}")
+    -- tm -> source tm <&> \p -> Embed ("🆘  unable to render " <> p)
+
+    goSpecial :: ExpandedSpecialForm v -> m SpecialForm
     goSpecial = \case
-      DD.Doc2SpecialFormFoldedSource (Term.List' es) -> FoldedSource <$> goSrc (toList es)
-      -- Source [Either Link.Type Doc2.Term]
-      DD.Doc2SpecialFormSource (Term.List' es) -> Source <$> goSrc (toList es)
-      -- Example Nat Doc2.Term
-      -- Examples like `foo x y` are encoded as `Example 2 (_ x y -> foo)`, where
-      -- 2 is the number of variables that should be dropped from the rendering.
-      -- So this will render as `foo x y`.
-      DD.Doc2SpecialFormExample n (DD.Doc2Example vs body) ->
-        Example <$> source ex
-        where
-          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
-      DD.Doc2SpecialFormExampleBlock n (DD.Doc2Example vs body) ->
-        ExampleBlock <$> source ex
-        where
-          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
-
-      -- Link (Either Link.Type Doc2.Term)
-      DD.Doc2SpecialFormLink e ->
-        let ppe = PPE.suffixifiedPPE pped
-            tm :: Referent -> P.Pretty SSyntaxText
-            tm r = (NP.styleHashQualified'' (NP.fmt (S.TermReference r)) . PPE.termName ppe) r
-            ty :: Reference -> P.Pretty SSyntaxText
-            ty r = (NP.styleHashQualified'' (NP.fmt (S.TypeReference r)) . PPE.typeName ppe) r
-         in Link <$> case e of
-              DD.EitherLeft' (Term.TypeLink' r) -> (pure . formatPretty . ty) r
-              DD.EitherRight' (DD.Doc2Term t) ->
-                case Term.etaNormalForm t of
-                  Term.Referent' r -> (pure . formatPretty . tm) r
-                  x -> source x
-              _ -> source e
-      DD.Doc2SpecialFormSignature (Term.List' tms) ->
-        let rs = [r | DD.Doc2Term (Term.Referent' r) <- toList tms]
-         in goSignatures rs <&> \s -> Signature (map formatPretty s)
-      -- SignatureInline Doc2.Term
-      DD.Doc2SpecialFormSignatureInline (DD.Doc2Term (Term.Referent' r)) ->
-        goSignatures [r] <&> \s -> SignatureInline (formatPretty (P.lines s))
-      -- Eval Doc2.Term
-      DD.Doc2SpecialFormEval (DD.Doc2Term tm) ->
-        eval tm >>= \case
-          Nothing -> Eval <$> source tm <*> pure evalErrMsg
-          Just result -> Eval <$> source tm <*> source result
-      -- EvalInline Doc2.Term
-      DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) ->
-        eval tm >>= \case
-          Nothing -> EvalInline <$> source tm <*> pure evalErrMsg
-          Just result -> EvalInline <$> source tm <*> source result
-      -- Embed Video
-      DD.Doc2SpecialFormEmbedVideo sources config ->
-        pure $ Video sources' config'
-        where
-          sources' = [MediaSource url mimeType | DD.Doc2MediaSource (Term.Text' url) (maybeText -> mimeType) <- sources]
-          config' = Map.fromList [(k, v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- config]
-          maybeText (Term.App' _ (Term.Text' a)) = Just a
-          maybeText _ = Nothing
-
-      -- Embed FrontMatter
-      DD.Doc2SpecialFormEmbedFrontMatter frontMatter ->
-        pure $ FrontMatter frontMatter'
-        where
-          frontMatter' = List.multimap [(k, v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- frontMatter]
-
-      -- Embed Any
-      DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
-        source any <&> \p -> Embed ("{{ embed {{" <> p <> "}} }}")
-      -- EmbedInline Any
-      DD.Doc2SpecialFormEmbedInline any ->
-        source any <&> \p -> EmbedInline ("{{ embed {{" <> p <> "}} }}")
-      tm -> source tm <&> \p -> Embed ("🆘  unable to render " <> p)
+      Source srcs -> Source <$> goSrc srcs
+      FoldedSource srcs -> FoldedSource <$> goSrc srcs
 
     evalErrMsg = "🆘  An error occured during evaluation"
 
-    goSrc :: [Term v ()] -> m [Ref (UnisonHash, DisplayObject SyntaxText (Src SyntaxText))]
-    goSrc es = do
+    goSrc :: [ExpandedSrc v] -> m [Ref (UnisonHash, DisplayObject SyntaxText (Src SyntaxText))]
+    goSrc srcs =
+      srcs & foldMapM \case
+        ExpandedSrcDecl srcDecl -> case srcDecl of
+          MissingDecl r -> pure [(Type (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r)))]
+          BuiltinDecl builtin -> do
+            let r = Reference.Builtin builtin
+            let name =
+                  formatPretty . NP.styleHashQualified (NP.fmt (S.TypeReference r))
+                    . PPE.typeName suffixifiedPPE
+                    $ r
+            pure [Type (Reference.toText r, DO.BuiltinObject name)]
+            where
+
+          FoundDecl r decl -> do
+            pure $ [Type (Reference.toText r, DO.UserObject (Src folded full))]
+            where
+              full = formatPretty (DeclPrinter.prettyDecl pped r (PPE.typeName suffixifiedPPE r) decl)
+              folded = formatPretty (DeclPrinter.prettyDeclHeader (PPE.typeName suffixifiedPPE r) decl)
+        ExpandedSrcTerm srcTerm -> case srcTerm of
+          MissingBuiltinTypeSig r -> pure [(Type (Reference.toText r, DO.BuiltinObject "🆘 missing type signature"))]
+          BuiltinTypeSig r typ -> do
+            pure $ [Type (Reference.toText r, DO.BuiltinObject (formatPrettyType suffixifiedPPE typ))]
+          MissingTerm r -> pure [Term (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r))]
+          FoundTerm ref typ tm -> do
+            let name = PPE.termName suffixifiedPPE (Referent.Ref ref)
+            let folded =
+                  formatPretty . P.lines $
+                    TypePrinter.prettySignaturesST suffixifiedPPE [(Referent.Ref ref, name, typ)]
+            let full tm@(Term.Ann' _ _) _ =
+                  formatPretty (TermPrinter.prettyBinding suffixifiedPPE name tm)
+                full tm typ =
+                  formatPretty (TermPrinter.prettyBinding suffixifiedPPE name (Term.ann () tm typ))
+            pure [Term (Reference.toText ref, DO.UserObject (Src folded (full tm typ)))]
+
+    goSrc' :: [ExpandedSrc v] -> m [Ref (UnisonHash, DisplayObject SyntaxText (Src SyntaxText))]
+    goSrc' es = do
       let toRef (Term.Ref' r) = Set.singleton r
           toRef (Term.RequestOrCtor' r) = Set.singleton (r ^. ConstructorReference.reference_)
           toRef _ = mempty
@@ -520,14 +556,14 @@ expandDoc terms typeOf eval types tm = go tm
                         (: acc) <$> case r of
                           Reference.Builtin _ ->
                             typeOf (Referent.Ref r) <&> \case
-                              Nothing -> ExpandedSrcTypeSig (MissingTypeSig (Referent.Ref r))
-                              Just ty -> ExpandedSrcTypeSig (FoundTypeSig ty)
+                              Nothing -> ExpandedSrcTypeSig (MissingTypeSig r)
+                              Just ty -> ExpandedSrcTypeSig (FoundTypeSig r ty)
                           ref ->
                             terms ref >>= \case
                               Nothing -> pure . ExpandedSrcTerm . MissingTerm $ ref
                               Just tm -> do
                                 typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
-                                pure $ ExpandedSrcTerm (FoundTerm (typ, tm))
+                                pure $ ExpandedSrcTerm (FoundTerm ref typ tm)
                   Term.RequestOrCtor' (view ConstructorReference.reference_ -> r) | Set.notMember r seen -> (: acc) <$> goType r
                   _ -> pure acc
             DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns]
@@ -541,20 +577,15 @@ data RenderError v
 
 data ExpandedSrc v
   = ExpandedSrcDecl (ExpandedDecl v)
-  | ExpandedSrcTypeSig (ExpandedTypeSig v)
   | ExpandedSrcTerm (ExpandedTerm v)
 
 data ExpandedDecl v
   = MissingDecl Reference
   | BuiltinDecl Builtin
-  | FoundDecl (DD.Decl v ())
-
-data ExpandedTypeSig v
-  = MissingTypeSig Referent
-  | BuiltinTypeSig Builtin
-  | FoundTypeSig (Type v ())
+  | FoundDecl Reference (DD.Decl v ())
 
 data ExpandedTerm v
   = MissingTerm Reference
-  | BuiltinTerm Builtin
-  | FoundTerm (Type v (), Term v ())
+  | BuiltinTypeSig Reference (Type v ())
+  | MissingBuiltinTypeSig Reference
+  | FoundTerm Reference (Type v ()) (Term v ())
