@@ -25,15 +25,16 @@ import Unison.Referent (Referent)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Util.Monoid (foldMapM)
 
-prettyPrintUsingNamesIndex :: (MonadIO m) => Codebase IO v ann -> Int -> Path -> PPG.PrettyPrintGrouper m a -> m a
-prettyPrintUsingNamesIndex codebase hashLen perspective action = do
+prettyPrintUsingNamesIndex :: (MonadIO m) => Codebase IO v ann -> Path -> PPG.PrettyPrintGrouper m a -> m a
+prettyPrintUsingNamesIndex codebase perspective action = do
   let deps = PPG.collectDeps action
-  pped <- liftIO . Codebase.runTransaction codebase $ ppedForReferences hashLen perspective deps
+  pped <- liftIO . Codebase.runTransaction codebase $ ppedForReferences perspective deps
   PPG.runWithPPE pped action
 
 -- | Given a set of references, return a PPE which contains names for only those references.
-ppedForReferences :: Int -> Path -> Set LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl
-ppedForReferences hashLength perspective refs = do
+ppedForReferences :: Path -> Set LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl
+ppedForReferences perspective refs = do
+  hashLen <- Codebase.hashLength
   (termNames, typeNames) <-
     refs & foldMapM \ref ->
       namesForReference ref
@@ -52,7 +53,7 @@ ppedForReferences hashLength perspective refs = do
         Ops.typeNamesBySuffix pathText suffix <&> fmap \(NamedRef {reversedSegments, ref}) ->
           (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
       pure (srcName : suffixMatches)
-  pure . PPED.fromNamesDecl hashLength . NamesWithHistory.fromCurrentNames $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
+  pure . PPED.fromNamesDecl hashLen . NamesWithHistory.fromCurrentNames $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
   where
     pathText :: Text
     pathText = Path.toText perspective
