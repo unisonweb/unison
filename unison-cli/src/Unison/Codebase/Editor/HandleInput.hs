@@ -12,6 +12,7 @@ import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
+import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Writer (WriterT (..))
 import Data.Bifunctor (first, second)
 import qualified Data.Foldable as Foldable
@@ -41,6 +42,7 @@ import qualified Text.Megaparsec as P
 import qualified U.Codebase.Branch.Diff as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
+import qualified U.Codebase.Reference as V2 (Reference)
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Queries
@@ -64,7 +66,6 @@ import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.BranchDiff as BranchDiff (diff0)
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
@@ -118,6 +119,7 @@ import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase.ShortCausalHash as SCH
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Conversions
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
@@ -1407,8 +1409,8 @@ loop e = do
                 ([fromCH], [toCH]) -> pure (fromCH, toCH)
               output <-
                 Cli.runTransaction do
-                  fromBranch <- (Codebase.expectCausalBranchByCausalHash fromCH) >>= V2Causal.value
-                  toBranch <- (Codebase.expectCausalBranchByCausalHash toCH) >>= V2Causal.value
+                  fromBranch <- Codebase.expectCausalBranchByCausalHash fromCH >>= V2Causal.value
+                  toBranch <- Codebase.expectCausalBranchByCausalHash toCH >>= V2Causal.value
                   treeDiff <- V2Branch.diffBranches fromBranch toBranch
                   let nameChanges = V2Branch.nameChanges Nothing treeDiff
                   pure (DisplayDebugNameDiff nameChanges)
@@ -1801,58 +1803,34 @@ handleDiffNamespaceToPatch :: Text -> DiffNamespaceToPatchInput -> Cli ()
 handleDiffNamespaceToPatch description input = do
   Cli.Env {codebase} <- ask
 
-  branch1 <- Branch.head <$> Cli.resolveBranchId (input ^. #branchId1)
-  branch2 <- Branch.head <$> Cli.resolveBranchId (input ^. #branchId2)
-  branchDiff <- liftIO (BranchDiff.diff0 branch1 branch2)
+  absBranchId1 <- Cli.resolveBranchIdToAbsBranchId (input ^. #branchId1)
+  absBranchId2 <- Cli.resolveBranchIdToAbsBranchId (input ^. #branchId2)
 
-  -- Given {old referents} and {new referents}, create term edit patch entries as follows:
-  --
-  --   * If the {new referents} is a singleton set {new referent}, proceed. (Otherwise, the patch we might create would
-  --     not be a function, which is a bogus/conflicted patch).
-  --   * If the new referent is a term reference, not a data constructor, proceed. (Patches currently can't track
-  --     updates to data constructors).
-  --   * For each old term reference (again, throwing constructors away) in {old referents}, create a patch entry that
-  --     maps the old reference to the new. The patch entry includes the typing relationship between the terms, so we
-  --     look the references' types up in the codebase, too.
-  let termNamespaceUpdateToTermEdits :: (Set Referent, Set Referent) -> Sqlite.Transaction (Set (Reference, TermEdit))
-      termNamespaceUpdateToTermEdits (refs0, refs1) =
-        case Set.asSingleton refs1 of
-          Just (Referent.Ref ref1) ->
-            Codebase.getTypeOfTerm codebase ref1 >>= \case
-              Nothing -> pure Set.empty
-              Just ty1 ->
-                Monoid.foldMapM
-                  ( \ref0 ->
-                      Codebase.getTypeOfTerm codebase ref0 <&> \case
-                        Nothing -> Set.empty
-                        Just ty0 -> Set.singleton (ref0, TermEdit.Replace ref1 (TermEdit.typing ty0 ty1))
-                  )
-                  (mapMaybe Referent.toTermReference (Set.toList refs0))
-          _ -> pure Set.empty
-
-  -- The same idea as above, but for types: if there's one new reference in {new references}, then map each of the old
-  -- references to it.
-  let typeNamespaceUpdateToTypeEdits :: (Set Reference, Set Reference) -> Set (Reference, TypeEdit)
-      typeNamespaceUpdateToTypeEdits (refs0, refs1) =
-        case Set.asSingleton refs1 of
-          Just ref1 -> Set.map (\ref0 -> (ref0, TypeEdit.Replace ref1)) refs0
-          _ -> Set.empty
-
-  termUpdates <-
-    Cli.runTransaction do
-      (branchDiff ^. #termsDiff . #tallnamespaceUpdates)
-        & Map.elems
-        & Monoid.foldMapM termNamespaceUpdateToTermEdits
-  let typeUpdates =
-        (branchDiff ^. #typesDiff . #tallnamespaceUpdates)
-          & Map.elems
-          & foldMap typeNamespaceUpdateToTypeEdits
-
-  let patch =
-        Patch
-          { _termEdits = Relation.fromSet termUpdates,
-            _typeEdits = Relation.fromSet typeUpdates
-          }
+  patch <- do
+    Cli.runEitherTransaction do
+      runExceptT do
+        branch1 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId1)
+        branch2 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId2)
+        lift do
+          branchDiff <- V2Branch.nameBasedDiff <$> V2Branch.diffBranches branch1 branch2
+          termEdits <-
+            (branchDiff ^. #terms)
+              & Relation.domain
+              & Map.toList
+              & traverse \(oldRef, newRefs) -> makeTermEdit codebase oldRef newRefs
+          pure
+            Patch
+              { _termEdits =
+                  termEdits
+                    & catMaybes
+                    & Relation.fromList,
+                _typeEdits =
+                  (branchDiff ^. #types)
+                    & Relation.domain
+                    & Map.toList
+                    & mapMaybe (\(oldRef, newRefs) -> makeTypeEdit oldRef newRefs)
+                    & Relation.fromList
+              }
 
   -- Display the patch that we are about to create.
   ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
@@ -1865,6 +1843,36 @@ handleDiffNamespaceToPatch description input = do
   Cli.stepAtM
     description
     (Path.unabsolute patchPath, Branch.modifyPatches patchName (const patch))
+  where
+    -- Given {old reference} and {new references}, create term edit patch entries as follows:
+    --
+    --   * If the {new references} is a singleton set {new reference}, proceed. (Otherwise, the patch we might create
+    --     would not be a function, which is a bogus/conflicted patch).
+    --   * Look up {old reference} and {new reference} types in the codebase (which can technically fail, due to
+    --     non-transactionality of this command, though we don't typically delete anything from SQLite), and create a
+    --     patch entry that maps {old reference} to {new reference} with the typing relationship.
+    makeTermEdit ::
+      Codebase m Symbol Ann ->
+      V2.Reference ->
+      Set V2.Reference ->
+      Sqlite.Transaction (Maybe (Reference, TermEdit))
+    makeTermEdit codebase (Conversions.reference2to1 -> oldRef) newRefs =
+      runMaybeT do
+        newRef <- Conversions.reference2to1 <$> MaybeT (pure (Set.asSingleton newRefs))
+        oldRefType <- MaybeT (Codebase.getTypeOfTerm codebase oldRef)
+        newRefType <- MaybeT (Codebase.getTypeOfTerm codebase newRef)
+        pure (oldRef, TermEdit.Replace newRef (TermEdit.typing oldRefType newRefType))
+
+    -- Given {old reference} and {new references}, create term edit patch entries as follows:
+    --
+    --   * If the {new references} is a singleton set {new reference}, proceed. (Otherwise, the patch we might create
+    --     would not be a function, which is a bogus/conflicted patch).
+    --   * Look up {old reference} and {new reference} types in the codebase (which can technically fail, due to
+    --     non-transactionality of this command, though we don't typically delete anything from SQLite), and create a
+    --     patch entry that maps {old reference} to {new reference} with the typing relationship.
+    makeTypeEdit :: V2.Reference -> Set V2.Reference -> Maybe (Reference, TypeEdit)
+    makeTypeEdit (Conversions.reference2to1 -> oldRef) newRefs =
+      Set.asSingleton newRefs <&> \newRef -> (oldRef, TypeEdit.Replace (Conversions.reference2to1 newRef))
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()

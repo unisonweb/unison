@@ -97,7 +97,7 @@ instance Monoid NameChanges where
 -- | A name-based diff for namespaces `N1` and `N2` is (for both terms and types) a relation between references, where
 -- `a R b` if:
 --
---   1. `a` has name `n` in `N1` and `b` has the same name `n` in `N2`
+--   1. `a` has name `n` in `N1`, and `b` has the same name `n` in `N2`
 --   2. `a` != `b`
 data NameBasedDiff = NameBasedDiff
   { terms :: Relation Reference Reference,
@@ -202,8 +202,8 @@ nameBasedDiff (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< children)) =
   where
     nameBasedTermDiff :: Diff Referent -> Relation Reference Reference
     nameBasedTermDiff Diff {adds, removals} =
-      let termAdds = mapMaybe Referent.toTermReference (Set.toList removals)
-          termRemovals = mapMaybe Referent.toTermReference (Set.toList adds)
+      let termAdds = mapMaybe Referent.toTermReference (Set.toList adds)
+          termRemovals = mapMaybe Referent.toTermReference (Set.toList removals)
        in ((,) <$> termRemovals <*> termAdds)
             & filter (\(r0, r1) -> r0 /= r1)
             & Relation.fromList
