@@ -29,9 +29,7 @@ import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (NamesByPath (..))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
-import U.Codebase.Sqlite.V2.Decl (saveDeclComponent)
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
-import U.Codebase.Sqlite.V2.Term (saveTermComponent)
 import qualified U.Util.Hash as H2
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase.Branch (Branch (..))
@@ -296,7 +294,7 @@ tryFlushTermBuffer termBuffer =
   let loop h =
         tryFlushBuffer
           termBuffer
-          (\h2 component -> void $ saveTermComponent Nothing h2 (Cv.termComponent1to2 h component))
+          (\h2 component -> void $ Q.saveTermComponent v2HashHandle Nothing h2 (Cv.termComponent1to2 h component))
           loop
           h
    in loop
@@ -367,7 +365,8 @@ tryFlushDeclBuffer termBuffer declBuffer =
           declBuffer
           ( \h2 component ->
               void $
-                saveDeclComponent
+                Q.saveDeclComponent
+                  v2HashHandle
                   Nothing
                   h2
                   (fmap (Cv.decl1to2 h) component)

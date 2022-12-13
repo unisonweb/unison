@@ -55,7 +55,7 @@ quux.y = 333
 
 ```ucm
 .P1> add
-.P1> delete.term foo.w
+.P1> delete.term.verbose foo.w
 ```
 
 We added to `foo`, `bar` and `baz`, and deleted `foo.w`, which should stay deleted in the merge.

@@ -16,7 +16,7 @@ import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
-import Unison.Codebase.Editor.Input (Input)
+import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input)
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
@@ -588,59 +588,55 @@ renameType =
               "`rename.type` takes two arguments, like `rename.type oldname newname`."
     )
 
+deleteGen :: Maybe String -> String -> (Path.HQSplit' -> DeleteTarget) -> InputPattern
+deleteGen suffix target mkTarget =
+  let cmd = maybe "delete" ("delete." <>) suffix
+      info =
+        P.sep
+          " "
+          [ backtick (P.sep " " [P.string cmd, "foo"]),
+            "removes the",
+            P.string target,
+            "name `foo` from the namespace."
+          ]
+      warn =
+        P.sep
+          " "
+          [ backtick (P.string cmd),
+            "takes an argument, like",
+            backtick (P.sep " " [P.string cmd, "name"]) <> "."
+          ]
+   in InputPattern
+        cmd
+        []
+        I.Visible
+        [(OnePlus, exactDefinitionTermQueryArg)]
+        info
+        ( \case
+            [query] -> first fromString $ do
+              p <- Path.parseHQSplit' query
+              pure $ Input.DeleteI (mkTarget p)
+            _ ->
+              Left . P.warnCallout $ P.wrap warn
+        )
+
 delete :: InputPattern
-delete =
-  InputPattern
-    "delete"
-    []
-    I.Visible
-    [(OnePlus, definitionQueryArg)]
-    "`delete foo` removes the term or type name `foo` from the namespace."
-    ( \case
-        [query] -> first fromString $ do
-          p <- Path.parseHQSplit' query
-          pure $ Input.DeleteI p
-        _ ->
-          Left . P.warnCallout $
-            P.wrap
-              "`delete` takes an argument, like `delete name`."
-    )
+delete = deleteGen Nothing "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
+
+deleteVerbose :: InputPattern
+deleteVerbose = deleteGen (Just "verbose") "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
 
 deleteTerm :: InputPattern
-deleteTerm =
-  InputPattern
-    "delete.term"
-    []
-    I.Visible
-    [(OnePlus, exactDefinitionTermQueryArg)]
-    "`delete.term foo` removes the term name `foo` from the namespace."
-    ( \case
-        [query] -> first fromString $ do
-          p <- Path.parseHQSplit' query
-          pure $ Input.DeleteTermI p
-        _ ->
-          Left . P.warnCallout $
-            P.wrap
-              "`delete.term` takes an argument, like `delete.term name`."
-    )
+deleteTerm = deleteGen (Just "term") "term" (DeleteTarget'Term DeleteOutput'NoDiff)
+
+deleteTermVerbose :: InputPattern
+deleteTermVerbose = deleteGen (Just "term.verbose") "term" (DeleteTarget'Term DeleteOutput'Diff)
 
 deleteType :: InputPattern
-deleteType =
-  InputPattern
-    "delete.type"
-    []
-    I.Visible
-    [(OnePlus, exactDefinitionTypeQueryArg)]
-    "`delete.type foo` removes the type name `foo` from the namespace."
-    ( \case
-        [query] -> first fromString $ do
-          p <- Path.parseHQSplit' query
-          pure $ Input.DeleteTypeI p
-        _ ->
-          Left . P.warnCallout $
-            P.wrap
-              "`delete.type` takes an argument, like `delete.type name`."
-    )
+deleteType = deleteGen (Just "type") "type" (DeleteTarget'Type DeleteOutput'NoDiff)
+
+deleteTypeVerbose :: InputPattern
+deleteTypeVerbose = deleteGen (Just "type.verbose") "type" (DeleteTarget'Type DeleteOutput'Diff)
 
 deleteTermReplacementCommand :: String
 deleteTermReplacementCommand = "delete.term-replacement"
@@ -870,10 +866,10 @@ deleteNamespaceParser helpText insistence =
       ["."] ->
         first fromString
           . pure
-          $ Input.DeleteBranchI insistence Nothing
+          $ Input.DeleteI (DeleteTarget'Branch insistence Nothing)
       [p] -> first fromString $ do
         p <- Path.parseSplit' Path.definitionNameSegment p
-        pure . Input.DeleteBranchI insistence $ Just p
+        pure $ Input.DeleteI (DeleteTarget'Branch insistence (Just p))
       _ -> Left helpText
   )
 
@@ -888,7 +884,7 @@ deletePatch =
     ( \case
         [p] -> first fromString $ do
           p <- Path.parseSplit' Path.definitionNameSegment p
-          pure . Input.DeletePatchI $ p
+          pure . Input.DeleteI $ DeleteTarget'Patch p
         _ -> Left (I.help deletePatch)
     )
 
@@ -2333,6 +2329,7 @@ validInputs =
       previewUpdate,
       updateNoPatch,
       delete,
+      deleteVerbose,
       forkLocal,
       mergeLocal,
       squashMerge,
@@ -2380,9 +2377,11 @@ validInputs =
       edit,
       renameTerm,
       deleteTerm,
+      deleteTermVerbose,
       aliasTerm,
       renameType,
       deleteType,
+      deleteTypeVerbose,
       aliasType,
       aliasMany,
       todo,
