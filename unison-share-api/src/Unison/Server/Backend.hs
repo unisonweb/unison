@@ -12,6 +12,7 @@ module Unison.Server.Backend where
 
 import Control.Error.Util (hush)
 import Control.Lens hiding ((??))
+import qualified Control.Lens.Cons as Cons
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Bifunctor (Bifunctor (..), first)
@@ -108,6 +109,7 @@ import qualified Unison.Typechecker as Typechecker
 import Unison.Util.AnnotatedText (AnnotatedText)
 import Unison.Util.List (uniqueBy)
 import qualified Unison.Util.Map as Map
+import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Monoid as Monoid
 import Unison.Util.Pretty (Width)
 import qualified Unison.Util.Pretty as Pretty
@@ -871,37 +873,16 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   -- we bias towards `map` and `.base.trunk.List.map` which ensures we still prefer names in
   -- `trunk` over those in other releases.
   -- ppe which returns names fully qualified to the current perspective,  not to the codebase root.
-  (nameSearch@NameSearch {termSearch}, backendPPE) <- mkNamesStuff shallowRoot path codebase
+  (nameSearch, backendPPE) <- mkNamesStuff shallowRoot path codebase
   -- let nameSearch :: NameSearch m
   --     nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   dr@(DefinitionResults terms types misses) <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
-
   let width = mayDefaultWidth renderWidth
-
-  -- Return only references which refer to docs.
-  let filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
-      filterForDocs rs = do
-        rts <- fmap join . for rs $ \case
-          Referent.Ref r ->
-            maybe [] (pure . (r,)) <$> Codebase.getTypeOfTerm codebase r
-          _ -> pure []
-        pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
-
-      docResults :: PPED.PrettyPrintEnvDecl -> Reference -> HQ.HashQualified Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
-      docResults pped ref hqName = do
-        docRefs <- case HQ.toName hqName of
-          Nothing -> mempty
-          Just name ->
-            let docName = name :> "doc"
-             in lookupRelativeHQRefs' termSearch (HQ'.NameOnly docName)
-        let selfRef = Referent.Ref ref
-        -- It's possible the user is loading a doc directly, in which case we should render it as a doc
-        -- too.
-        let allPotentialDocRefs = Set.insert selfRef docRefs
-        -- lookup the type of each, make sure it's a doc
-        docs <- Codebase.runTransaction codebase (filterForDocs (toList allPotentialDocRefs))
+  let docResults :: PPED.PrettyPrintEnvDecl -> Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      docResults pped name = do
+        docRefs <- docsForTermName codebase nameSearch name
         -- render all the docs
-        traverse (renderDoc pped width rt codebase) docs
+        traverse (renderDoc pped width rt codebase) docRefs
   branchAtPath <- do
     (lift . Codebase.runTransaction codebase) do
       causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
@@ -923,7 +904,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
             ( termEntryTag
                 <$> termListEntry codebase branchAtPath (ExactName (NameSegment bn) (Cv.referent1to2 referent))
             )
-        docs <- lift (docResults pped r hqTermName)
+        docs <- lift (maybe mempty (docResults pped) (HQ.toName hqTermName))
         mk docs ts bn tag
         where
           fqnPPE = PPED.unsuffixifiedPPE pped
@@ -940,7 +921,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
                 (bimap mungeSyntaxText mungeSyntaxText tm)
                 (formatSuffixedType pped width typeSig)
                 docs
-      mkTypeDefinition ::
+  let mkTypeDefinition ::
         ( PPED.PrettyPrintEnvDecl ->
           Reference ->
           DisplayObject
@@ -954,7 +935,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         tag <-
           Codebase.runTransaction codebase do
             typeEntryTag <$> typeListEntry codebase branchAtPath (ExactName (NameSegment bn) r)
-        docs <- docResults pped r hqTypeName
+        docs <- (maybe mempty (docResults pped) (HQ.toName hqTypeName))
         pure $
           TypeDefinition
             (HQ'.toText <$> PPE.allTypeNames fqnPPE r)
@@ -1037,6 +1018,38 @@ renderDoc ppe width rt codebase r = do
 
     decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> Codebase.getTypeDeclaration codebase r
     decls _ = pure Nothing
+
+-- | Fetch the docs associated with the given name.
+-- Returns all references with a Doc type which are at the name provided, or at '<name>.doc'.
+docsForTermName ::
+  Codebase IO Symbol Ann ->
+  NameSearch IO ->
+  Name ->
+  IO [TermReference]
+docsForTermName codebase (NameSearch {termSearch}) name = do
+  let potentialDocNames = [name, name Cons.:> "doc"]
+  refs <-
+    potentialDocNames & foldMapM \name ->
+      lookupRelativeHQRefs' termSearch (HQ'.NameOnly name)
+  Codebase.runTransaction codebase do
+    filterForDocs (toList refs)
+  where
+    filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
+    filterForDocs rs = do
+      rts <- fmap join . for rs $ \case
+        Referent.Ref r ->
+          maybe [] (pure . (r,)) <$> Codebase.getTypeOfTerm codebase r
+        _ -> pure []
+      pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
+
+evalDoc ::
+  Maybe PPED.PrettyPrintEnvDecl ->
+  Width ->
+  Rt.Runtime Symbol ->
+  Codebase IO Symbol Ann ->
+  TermReference ->
+  IO (HashQualifiedName, UnisonHash, Doc.Doc)
+evalDoc = _
 
 docsInBranchToHtmlFiles ::
   Rt.Runtime Symbol ->
