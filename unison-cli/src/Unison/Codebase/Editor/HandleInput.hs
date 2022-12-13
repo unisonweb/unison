@@ -1863,13 +1863,7 @@ handleDiffNamespaceToPatch description input = do
         newRefType <- MaybeT (Codebase.getTypeOfTerm codebase newRef)
         pure (oldRef, TermEdit.Replace newRef (TermEdit.typing oldRefType newRefType))
 
-    -- Given {old reference} and {new references}, create term edit patch entries as follows:
-    --
-    --   * If the {new references} is a singleton set {new reference}, proceed. (Otherwise, the patch we might create
-    --     would not be a function, which is a bogus/conflicted patch).
-    --   * Look up {old reference} and {new reference} types in the codebase (which can technically fail, due to
-    --     non-transactionality of this command, though we don't typically delete anything from SQLite), and create a
-    --     patch entry that maps {old reference} to {new reference} with the typing relationship.
+    -- Same idea as 'makeTermEdit', but simpler, because there's nothing to look up in the database.
     makeTypeEdit :: V2.Reference -> Set V2.Reference -> Maybe (Reference, TypeEdit)
     makeTypeEdit (Conversions.reference2to1 -> oldRef) newRefs =
       Set.asSingleton newRefs <&> \newRef -> (oldRef, TypeEdit.Replace (Conversions.reference2to1 newRef))
