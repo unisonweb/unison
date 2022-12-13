@@ -3,6 +3,8 @@ module Unison.PrettyPrintEnvDecl.Sqlite where
 import qualified Data.List.NonEmpty as NEL
 import U.Codebase.Sqlite.NamedRef (NamedRef (..))
 import qualified U.Codebase.Sqlite.Operations as Ops
+import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -17,10 +19,17 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPED
+import qualified Unison.PrettyPrintEnvDecl.Scanner as PPG
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Util.Monoid (foldMapM)
+
+prettyPrintUsingNamesIndex :: (MonadIO m) => Codebase IO v ann -> Int -> Path -> PPG.PrettyPrintGrouper m a -> m a
+prettyPrintUsingNamesIndex codebase hashLen perspective action = do
+  let deps = PPG.collectDeps action
+  pped <- liftIO . Codebase.runTransaction codebase $ ppedForReferences hashLen perspective deps
+  PPG.runWithPPE pped action
 
 -- | Given a set of references, return a PPE which contains names for only those references.
 ppedForReferences :: Int -> Path -> Set LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl

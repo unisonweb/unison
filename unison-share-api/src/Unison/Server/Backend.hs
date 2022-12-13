@@ -75,7 +75,9 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPED
-import qualified Unison.PrettyPrintEnvDecl.Sqlite as PPED
+import Unison.PrettyPrintEnvDecl.Scanner (PrettyPrintGrouper)
+import qualified Unison.PrettyPrintEnvDecl.Scanner as PPG
+import qualified Unison.PrettyPrintEnvDecl.Sqlite as PPESqlite
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -879,6 +881,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   --     nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   dr@(DefinitionResults terms types misses) <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
 
+  let width = mayDefaultWidth renderWidth
   -- Return only references which refer to docs.
   let filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
       filterForDocs rs = do
@@ -888,7 +891,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
           _ -> pure []
         pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
 
-      docResults :: Reference -> HQ.HashQualified Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      docResults :: Reference -> HQ.HashQualified Name -> PrettyPrintGrouper (Backend IO) [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults ref hqName = do
         docRefs <- case HQ.toName hqName of
           Nothing -> mempty
@@ -903,60 +906,75 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         docs <- Codebase.runTransaction codebase (filterForDocs (toList allPotentialDocRefs))
         -- render all the docs
         traverse (renderDoc pped width rt codebase) docs
-  let ppeDeps = definitionResultsDependencies dr
-  let biases = maybeToList $ HQ.toName query
-  pped <- PPED.biasTo biases <$> liftIO (Codebase.runTransaction codebase (PPED.ppedForReferences hqLength path ppeDeps))
-  let fqnPPE :: PPE.PrettyPrintEnv
-      fqnPPE = PPED.unsuffixifiedPPE pped
+  -- let ppeDeps = definitionResultsDependencies dr
+  -- let biases = maybeToList $ HQ.toName query
+  -- pped <- PPED.biasTo biases <$> PPG.liftM (liftIO (Codebase.runTransaction codebase (PPED.ppedForReferences hqLength path ppeDeps)))
+  -- let fqnPPE :: PPE.PrettyPrintEnv
+  --     fqnPPE = PPED.unsuffixifiedPPE pped
   branchAtPath <- do
     (lift . Codebase.runTransaction codebase) do
       causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
       V2Causal.value causalAtPath
-  let width = mayDefaultWidth renderWidth
 
-      mkTermDefinition ::
+  let mkTermDefinition ::
         Reference ->
         DisplayObject
           (AnnotatedText (UST.Element Reference))
           (AnnotatedText (UST.Element Reference)) ->
-        Backend IO TermDefinition
+        PrettyPrintGrouper (Backend IO) TermDefinition
       mkTermDefinition r tm = do
         let referent = Referent.Ref r
-        ts <- liftIO (Codebase.runTransaction codebase (Codebase.getTypeOfTerm codebase r))
-        let hqTermName = PPE.termNameOrHashOnly fqnPPE referent
-        let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref r)
-        tag <-
-          lift
-            ( termEntryTag
-                <$> termListEntry codebase branchAtPath (ExactName (NameSegment bn) (Cv.referent1to2 referent))
-            )
-        docs <- lift (docResults r hqTermName)
+        (hqTermName, bn) <- PPG.withPPED (Set.singleton (LD.TermReferent referent)) \pped -> do
+          let fqnPPE = PPED.unsuffixifiedPPE pped
+          let hqTermName = PPE.termNameOrHashOnly fqnPPE referent
+          let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref r)
+          pure (hqTermName, bn)
+        (ts, tag) <- PPG.liftM do
+          ts <- liftIO (Codebase.runTransaction codebase (Codebase.getTypeOfTerm codebase r))
+          tag <-
+            liftIO
+              ( termEntryTag
+                  <$> termListEntry codebase branchAtPath (ExactName (NameSegment bn) (Cv.referent1to2 referent))
+              )
+          pure (ts, tag)
+        docs <- docResults r hqTermName
         mk docs ts bn tag
         where
-          mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
+          mk ::
+            [(HashQualifiedName, UnisonHash, Doc.Doc)] ->
+            Maybe (Type Symbol Ann) ->
+            HashQualifiedName ->
+            TermTag ->
+            PrettyPrintGrouper (Backend IO) TermDefinition
+          mk _ Nothing _ _ = PPG.liftM . throwError $ MissingSignatureForTerm r
           mk docs (Just typeSig) bn tag = do
             -- We don't ever display individual constructors (they're shown as part of their
             -- type), so term references are never constructors.
             let referent = Referent.Ref r
-            pure $
-              TermDefinition
-                (HQ'.toText <$> PPE.allTermNames fqnPPE referent)
-                bn
-                tag
-                (bimap mungeSyntaxText mungeSyntaxText tm)
-                (formatSuffixedType pped width typeSig)
-                docs
+            PPG.withPPED (Set.singleton (LD.TermReferent referent)) \pped -> do
+              let fqnPPE = PPED.unsuffixifiedPPE pped
+              pure $
+                TermDefinition
+                  (HQ'.toText <$> PPE.allTermNames fqnPPE referent)
+                  bn
+                  tag
+                  (bimap mungeSyntaxText mungeSyntaxText tm)
+                  (formatSuffixedType pped width typeSig)
+                  docs
       mkTypeDefinition ::
         ( Reference ->
           DisplayObject
             (AnnotatedText (UST.Element Reference))
             (AnnotatedText (UST.Element Reference)) ->
-          Backend IO TypeDefinition
+          PrettyPrintGrouper (Backend IO) TypeDefinition
         )
-      mkTypeDefinition r tp = lift do
-        let hqTypeName = PPE.typeNameOrHashOnly fqnPPE r
-        let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
-        tag <-
+      mkTypeDefinition r tp = do
+        (hqTypeName, bn) <- PPG.withPPED (Set.singleton (LD.TypeReference r)) \pped -> do
+          let fqnPPE = PPED.unsuffixifiedPPE pped
+          let hqTypeName = PPE.typeNameOrHashOnly fqnPPE r
+          let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
+          pure (hqTypeName, bn)
+        tag <- PPG.liftM . liftIO $
           Codebase.runTransaction codebase do
             typeEntryTag <$> typeListEntry codebase branchAtPath (ExactName (NameSegment bn) r)
         docs <- docResults r hqTypeName
@@ -993,6 +1011,28 @@ mkNameSearch shallowRoot path codebase = do
   where
     sqliteNameSearch :: NameSearch IO
     sqliteNameSearch = undefined
+
+data BackendPPE
+  = UseSQLiteIndex (Codebase IO Symbol Ann) Path (NameSearch IO)
+  | UsePPED Names PPED.PrettyPrintEnvDecl
+
+selectBackendPPE :: Codebase IO Symbol Ann -> Path -> Backend IO BackendPPE
+selectBackendPPE codebase path = do
+  useNamesIndex <- asks useNamesIndex
+  if useNamesIndex
+    then pure $ UseSQLiteIndex codebase path (error "name search")
+    else do
+      liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
+      (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase Nothing path
+      pure $ UsePPED localNamesOnly unbiasedPPED
+
+runPPE :: BackendPPE -> PrettyPrintGrouper (Backend IO) a -> Backend IO a
+runPPE backendPPE action = do
+  case backendPPE of
+    UseSQLiteIndex cb perspective _nameSearch -> do
+      hashLen <- liftIO $ Codebase.runTransaction cb $ Codebase.hashLength
+      PPESqlite.prettyPrintUsingNamesIndex cb hashLen perspective action
+    UsePPED _names pped -> PPG.runWithPPE pped action
 
 renderDoc ::
   PPED.PrettyPrintEnvDecl ->
