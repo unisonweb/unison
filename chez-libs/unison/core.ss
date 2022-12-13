@@ -3,7 +3,9 @@
     identity
 
     describe-value
-    decode-value)
+    decode-value
+
+    universal-compare)
 
   (import (chezscheme))
 
@@ -40,4 +42,13 @@
              (reify-args
                (- j 1)
                (cons (reify (i 'ref j)) args))))])))
+
+  ; 0 = LT
+  ; 1 = EQ
+  ; 2 = GT
+  (define (universal-compare l r)
+    (cond
+      [(equal? l r) 1]
+      [(and (number? l) (number? r)) (if (< l r) 0 2)]
+      [else (raise "universal-compare: unimplemented")]))
   )
