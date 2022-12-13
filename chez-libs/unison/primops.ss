@@ -37,6 +37,7 @@
     unison-FOp-Text.toUtf8
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
+    unison-FOp-IO.getArgs.impl.v1
 
     unison-FOp-ImmutableByteArray.copyTo!
     unison-FOp-ImmutableByteArray.read8
@@ -69,6 +70,7 @@
     unison-POp-ITOT
     unison-POp-LEQN
     ; unison-POp-LKUP
+    unison-POp-LZRO
     unison-POp-MULN
     unison-POp-NTOT
     unison-POp-PAKT
@@ -83,7 +85,9 @@
     unison-POp-TAKS
     unison-POp-TAKT
     unison-POp-TRCE
+    unison-POp-TTON
     unison-POp-UPKT
+    unison-POp-XORN
     unison-POp-VALU
     unison-POp-VWLS
 
@@ -119,6 +123,7 @@
   (define (unison-POp-IORN m n) (fxlogior m n))
   (define (unison-POp-ITOT i) (signed-number->istring i))
   (define (unison-POp-LEQN m n) (if (fx< m n) 1 0))
+  (define (unison-POp-LZRO m) (- 64 (fxlength m)))
   (define (unison-POp-MULN m n) (* m n))
   (define (unison-POp-NTOT m) (number->istring m))
   (define (unison-POp-PAKB l) (u8-list->ibytevector l))
@@ -134,11 +139,15 @@
   (define (unison-POp-TAKS n s) (list-head s n))
   (define (unison-POp-TAKT n t) (istring-take n t))
   (define (unison-POp-TRCE x) (display (describe-value x)))
+  (define (unison-POp-TTON s)
+    (let ([mn (string->number s)])
+      (if mn (list 1 mn) (list 0))))
   (define (unison-POp-UPKT t) (string->list t))
   (define (unison-POp-VWLS l)
     (if (null? l)
       (list 0)
       (list 1 (car l) (cdr l))))
+  (define (unison-POp-XORN m n) (fxxor m n))
   (define (unison-POp-VALU c) (decode-value c))
 
   (define (unison-FOp-IO.putBytes.impl.v3 p bs)
@@ -158,6 +167,9 @@
       [(0) stdin]
       [(1) stdout]
       [(2) stderr]))
+
+  (define (unison-FOp-IO.getArgs.impl.v1)
+    (list 1 (cdr (command-line))))
 
   (define (unison-FOp-Text.toUtf8 s)
     (string->bytevector s utf-8-transcoder))
