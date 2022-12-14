@@ -65,7 +65,7 @@ type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 data DeclOrBuiltin v a
   = Builtin CT.ConstructorType
   | Decl (Decl v a)
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
@@ -90,7 +90,7 @@ data DataDeclaration v a = DataDeclaration
     bound :: [v],
     constructors' :: [(a, v, Type v a)]
   }
-  deriving (Eq, Show, Functor)
+  deriving (Eq, Ord, Show, Functor)
 
 constructors_ :: Lens' (DataDeclaration v a) [(a, v, Type v a)]
 constructors_ = lens getter setter
@@ -101,7 +101,7 @@ constructors_ = lens getter setter
 newtype EffectDeclaration v a = EffectDeclaration
   { toDataDecl :: DataDeclaration v a
   }
-  deriving (Eq, Show, Functor)
+  deriving (Eq, Ord, Show, Functor)
 
 asDataDecl_ :: Iso' (EffectDeclaration v a) (DataDeclaration v a)
 asDataDecl_ = iso toDataDecl EffectDeclaration

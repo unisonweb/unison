@@ -86,7 +86,7 @@ checkFile doc = runMaybeT $ do
   (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getParseNames
   let sourceName = getUri $ doc ^. uri
-  let lexedSource@(srcText, tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
+  let lexedSource@(srcText, _tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   cb <- asks codebase
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
