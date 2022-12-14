@@ -329,12 +329,6 @@ expandDoc terms typeOf eval types tm = go tm
       DD.Doc2Column ds -> Column <$> traverse go ds
       DD.Doc2Group d -> Group <$> go d
       wat -> pure $ RenderError (InvalidTerm wat)
-    -- pure . Word . Text.pack . P.toPlain (P.Width 80) . P.indent "🆘  "
-    --   . TermPrinter.pretty (PPE.suffixifiedPPE pped)
-    --   $ wat
-
-    source :: Term v () -> m (Term v ())
-    source = pure
 
     goSignatures :: [Referent] -> m [(Referent, Type v ())]
     goSignatures rs =
@@ -352,11 +346,11 @@ expandDoc terms typeOf eval types tm = go tm
       -- 2 is the number of variables that should be dropped from the rendering.
       -- So this will render as `foo x y`.
       DD.Doc2SpecialFormExample n (DD.Doc2Example vs body) ->
-        Example <$> source ex
+        pure $ Example ex
         where
           ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
       DD.Doc2SpecialFormExampleBlock n (DD.Doc2Example vs body) ->
-        ExampleBlock <$> source ex
+        pure $ ExampleBlock ex
         where
           ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
 
@@ -371,8 +365,8 @@ expandDoc terms typeOf eval types tm = go tm
               DD.EitherRight' (DD.Doc2Term t) ->
                 case Term.etaNormalForm t of
                   Term.Referent' r -> pure $ tm r
-                  x -> Left <$> source x
-              _ -> Left <$> source e
+                  x -> pure $ Left x
+              _ -> pure $ Left e
       DD.Doc2SpecialFormSignature (Term.List' tms) ->
         let rs = [r | DD.Doc2Term (Term.Referent' r) <- toList tms]
          in goSignatures rs <&> \s -> Signature s
@@ -382,11 +376,11 @@ expandDoc terms typeOf eval types tm = go tm
       -- Eval Doc2.Term
       DD.Doc2SpecialFormEval (DD.Doc2Term tm) -> do
         result <- eval tm
-        Eval <$> source tm <*> traverse source result
+        pure $ Eval tm result
       -- EvalInline Doc2.Term
       DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) -> do
         result <- eval tm
-        Eval <$> source tm <*> traverse source result
+        pure $ Eval tm result
       -- Embed Video
       DD.Doc2SpecialFormEmbedVideo sources config ->
         pure $ Video sources' config'
@@ -404,11 +398,11 @@ expandDoc terms typeOf eval types tm = go tm
 
       -- Embed Any
       DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
-        source any <&> \p -> Embed p
+        pure $ Embed any
       -- EmbedInline Any
       DD.Doc2SpecialFormEmbedInline any ->
-        source any <&> \p -> EmbedInline p
-      tm -> source tm <&> \p -> SpecialRenderError $ InvalidTerm p
+        pure $ EmbedInline any
+      tm -> pure $ SpecialRenderError (InvalidTerm tm)
 
     goSrc :: [Term v ()] -> m [ExpandedSrc v]
     goSrc es = do
