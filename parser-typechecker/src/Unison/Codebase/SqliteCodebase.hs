@@ -27,7 +27,7 @@ import qualified System.Console.ANSI as ANSI
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
-import U.Codebase.HashTags (BranchHash, CausalHash (CausalHash))
+import U.Codebase.HashTags (BranchHash, CausalHash, PatchHash (..))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -39,7 +39,6 @@ import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.RemoteRepo
@@ -285,9 +284,9 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                 -- Transaction is applied to the same db connection.
                 let branch1Trans = Branch.transform (Sqlite.unsafeIO . runInIO) branch1
                     putRootBranchTrans :: Sqlite.Transaction () = do
-                      let emptyCausalHash = Cv.causalHash1to2 (Branch.headHash Branch.empty)
+                      let emptyCausalHash = Branch.headHash Branch.empty
                       fromRootCausalHash <- fromMaybe emptyCausalHash <$> Ops.loadRootCausalHash
-                      let toRootCausalHash = Cv.causalHash1to2 (Branch.headHash branch1)
+                      let toRootCausalHash = Branch.headHash branch1
                       CodebaseOps.putRootBranch branch1Trans
                       Ops.appendReflog (Reflog.Entry {time = now, fromRootCausalHash, toRootCausalHash, reason})
 
@@ -301,7 +300,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
 
             -- if this blows up on cromulent hashes, then switch from `hashToHashId`
             -- to one that returns Maybe.
-            getBranchForHash :: Branch.CausalHash -> m (Maybe (Branch m))
+            getBranchForHash :: CausalHash -> m (Maybe (Branch m))
             getBranchForHash h =
               fmap (Branch.transform runTransaction) <$> runTransaction (CodebaseOps.getBranchForHash branchCache getDeclType h)
 
@@ -433,8 +432,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
               processBranches rest
             do
               when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in dest db"
-              let h2 = CausalHash $ Causal.unCausalHash h
-              runSrc (Q.loadCausalHashIdByCausalHash h2) >>= \case
+              runSrc (Q.loadCausalHashIdByCausalHash h) >>= \case
                 Just chId -> do
                   when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
                   doSync [Sync22.C chId]
@@ -460,7 +458,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
                         processBranches rest
                       else do
                         let bs = map (uncurry B) cs
-                            os = map O (es <> ts <> ds)
+                            os = map O (coerce @[PatchHash] @[Hash] es <> ts <> ds)
                         processBranches (os ++ bs ++ b0 : rest)
         O h : rest -> do
           when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
@@ -471,7 +469,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
   time "SyncInternal.processBranches" $ processBranches [B bHash (pure b)]
 
 data Entity m
-  = B Branch.CausalHash (m (Branch m))
+  = B CausalHash (m (Branch m))
   | O Hash
 
 instance Show (Entity m) where
@@ -670,7 +668,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
                       runDest Ops.loadRootCausalHash >>= \case
                         Nothing -> pure ()
                         Just oldRootHash -> do
-                          runDest (CodebaseOps.before (Cv.causalHash2to1 oldRootHash) newBranchHash) >>= \case
+                          runDest (CodebaseOps.before oldRootHash newBranchHash) >>= \case
                             False -> throwIO . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
                             True -> pure ()
                   CreatedCodebase -> pure ()
@@ -679,11 +677,10 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
             C.GitPushBehaviorGist -> pure ()
             C.GitPushBehaviorFf -> overwriteRoot False
             C.GitPushBehaviorForce -> overwriteRoot True
-    setRepoRoot :: Branch.CausalHash -> Sqlite.Transaction ()
+    setRepoRoot :: CausalHash -> Sqlite.Transaction ()
     setRepoRoot h = do
-      let h2 = Cv.causalHash1to2 h
-          err = error $ "Called SqliteCodebase.setNamespaceRoot on unknown causal hash " ++ show h2
-      chId <- fromMaybe err <$> Q.loadCausalHashIdByCausalHash h2
+      let err = error $ "Called SqliteCodebase.setNamespaceRoot on unknown causal hash " ++ show h
+      chId <- fromMaybe err <$> Q.loadCausalHashIdByCausalHash h
       Q.setNamespaceRoot chId
 
     -- This function makes sure that the result of git status is valid.

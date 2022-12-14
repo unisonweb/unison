@@ -9,7 +9,6 @@ module U.Codebase.Branch.Type
     MetadataValue,
     MdValues (..),
     NameSegment (..),
-    CausalHash,
     NamespaceStats (..),
     hasDefinitions,
     childAt,

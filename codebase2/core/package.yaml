@@ -12,6 +12,7 @@ dependencies:
   - containers
   - vector
   - unison-util
+  - unison-util-base32hex
 
 default-extensions:
   - ApplicativeDo

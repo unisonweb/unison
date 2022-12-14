@@ -118,6 +118,7 @@ import qualified Data.Set as Set
 import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Referent as V2
 import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified U.Codebase.Sqlite.Queries as Queries
@@ -175,7 +176,7 @@ runTransaction Codebase {withConnection} action =
 
 getShallowCausalFromRoot ::
   -- Optional root branch, if Nothing use the codebase's root branch.
-  Maybe V2.CausalHash ->
+  Maybe CausalHash ->
   Path.Path ->
   Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
 getShallowCausalFromRoot mayRootHash p = do
@@ -231,7 +232,7 @@ getShallowBranchAtPath path mayBranch = do
           getShallowBranchAtPath p (Just childBranch)
 
 -- | Get a branch from the codebase.
-getBranchForHash :: Monad m => Codebase m v a -> Branch.CausalHash -> m (Maybe (Branch m))
+getBranchForHash :: Monad m => Codebase m v a -> CausalHash -> m (Maybe (Branch m))
 getBranchForHash codebase h =
   -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
   -- If not found, attempt to find it in the Codebase (sqlite)
@@ -270,7 +271,7 @@ lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = do
       eb2 <- SqliteCodebase.Operations.branchExists h2
       if eb1 && eb2
         then do
-          SqliteCodebase.Operations.sqlLca h1 h2 >>= \case
+          Operations.lca h1 h2 >>= \case
             Just h -> pure (getBranchForHash code h)
             Nothing -> pure (pure Nothing) -- no common ancestor
         else pure (Branch.lca b1 b2)

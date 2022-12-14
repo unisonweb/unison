@@ -16,6 +16,7 @@ source-repository head
 
 library
   exposed-modules:
+      U.Codebase.HashTags
       U.Core.ABT
       U.Core.ABT.Var
   hs-source-dirs:
@@ -50,5 +51,6 @@ library
       base
     , containers
     , unison-util
+    , unison-util-base32hex
     , vector
   default-language: Haskell2010
