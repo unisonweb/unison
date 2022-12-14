@@ -67,6 +67,7 @@ library
     , mtl
     , text
     , unison-core1
+    , unison-hash
     , unison-prelude
     , unison-util-base32hex
     , unison-util-bytes
@@ -119,6 +120,7 @@ test-suite syntax-tests
     , mtl
     , text
     , unison-core1
+    , unison-hash
     , unison-prelude
     , unison-syntax
     , unison-util-base32hex

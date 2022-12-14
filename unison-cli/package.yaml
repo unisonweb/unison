@@ -70,8 +70,8 @@ dependencies:
   - unison-codebase
   - unison-codebase-sqlite
   - unison-codebase-sqlite-hashing-v2
-  - unison-sqlite
   - unison-core1
+  - unison-hash
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer

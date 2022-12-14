@@ -1,36 +1,28 @@
-name: unison-hashing-v2
+name: unison-hash-orphans-sqlite
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
-ghc-options: -Wall
+library:
+  when:
+    - condition: false
+      other-modules: Paths_unison_hash_orphans_sqlite
+  source-dirs: src
 
 dependencies:
   - base
-  - bytestring
-  - containers
-  - cryptonite
-  - lens
-  - memory
-  - semialign
+  - sqlite-simple
   - text
-  - unison-core1
   - unison-hash
-  - unison-prelude
-  - unison-util
   - unison-util-base32hex
-  - unison-util-relation
 
-library:
-  source-dirs: src
-  when:
-    - condition: false
-      other-modules: Paths_unison_hashing_v2
+ghc-options:
+  -Wall
+  -fno-warn-orphans
 
 default-extensions:
   - ApplicativeDo
   - BangPatterns
   - BlockArguments
-  - DeriveAnyClass
   - DeriveFunctor
   - DeriveGeneric
   - DeriveTraversable
@@ -47,6 +39,7 @@ default-extensions:
   - PatternSynonyms
   - RankNTypes
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
   - ViewPatterns

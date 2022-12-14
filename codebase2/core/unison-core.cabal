@@ -18,7 +18,6 @@ library
   exposed-modules:
       U.Core.ABT
       U.Core.ABT.Var
-      Unison.ContentAddressable
   hs-source-dirs:
       ./
   default-extensions:

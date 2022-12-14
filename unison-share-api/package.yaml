@@ -43,12 +43,13 @@ dependencies:
   - unison-codebase
   - unison-codebase-sqlite
   - unison-core1
+  - unison-hash
+  - unison-hash-orphans-aeson
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer
   - unison-util
   - unison-util-base32hex
-  - unison-util-base32hex-orphans-aeson
   - unison-util-relation
   - unison-sqlite
   - unison-syntax

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           unison-util-base32hex-orphans-aeson
+name:           unison-hash
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
@@ -17,19 +17,24 @@ source-repository head
 
 library
   exposed-modules:
-      U.Util.Hash32.Orphans.Aeson
+      U.Util.Hash
+      U.Util.Hash32
+      Unison.ContentAddressable
+      Unison.Hash
   hs-source-dirs:
       src
   default-extensions:
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveGeneric
       DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
@@ -43,11 +48,13 @@ library
       StandaloneDeriving
       TupleSections
       TypeApplications
+      TypeFamilies
       ViewPatterns
-  ghc-options: -Wall -fno-warn-orphans
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
-      aeson
-    , base
+      base
+    , bytestring
     , text
+    , unison-prelude
     , unison-util-base32hex
   default-language: Haskell2010

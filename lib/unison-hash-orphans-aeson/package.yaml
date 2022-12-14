@@ -1,17 +1,18 @@
-name: unison-util-base32hex-orphans-sqlite
+name: unison-hash-orphans-aeson
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 library:
   when:
     - condition: false
-      other-modules: Paths_unison_util_base32hex_orphans_sqlite
+      other-modules: Paths_unison_hash_orphans_aeson
   source-dirs: src
 
 dependencies:
+  - aeson
   - base
-  - sqlite-simple
   - text
+  - unison-hash
   - unison-util-base32hex
 
 ghc-options:

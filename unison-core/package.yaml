@@ -26,6 +26,7 @@ library:
     - text
     - transformers
     - unison-core
+    - unison-hash
     - unison-prelude
     - unison-util
     - unison-util-base32hex
