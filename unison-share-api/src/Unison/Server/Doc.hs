@@ -458,7 +458,7 @@ expandDoc terms typeOf eval types tm = go tm
 
 data RenderError trm
   = InvalidTerm trm
-  deriving stock (Generic)
+  deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON)
 
 deriving anyclass instance ToSchema trm => ToSchema (RenderError trm)
