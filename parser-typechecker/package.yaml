@@ -41,10 +41,12 @@ dependencies:
   - errors
   - exceptions
   - extra
+  - filelock
   - filepath
   - fingertree
   - fsnotify
   - fuzzyfind
+  - free
   - generic-lens
   - generic-monoid
   - hashable
@@ -72,12 +74,12 @@ dependencies:
   - openapi3
   - optparse-applicative >= 0.16.1.0
   - pem
-  - prelude-extras
   - pretty-simple
   - primitive
   - process
   - random >= 1.2.0
   - raw-strings-qq
+  - recover-rtti
   - regex-base
   - regex-tdfa
   - safe
@@ -90,7 +92,6 @@ dependencies:
   - servant-server
   - shellmet
   - stm
-  - strings
   - tagged
   - temporary
   - terminal-size
@@ -111,9 +112,12 @@ dependencies:
   - unison-prelude
   - unison-pretty-printer
   - unison-sqlite
+  - unison-syntax
   - unison-util
   - unison-util-base32hex
+  - unison-util-bytes
   - unison-util-relation
+  - unison-util-rope
   - unison-util-serialization
   - unliftio
   - uri-encode

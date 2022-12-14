@@ -19,19 +19,20 @@ import Servant.Docs
     noSamples,
   )
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
-import Unison.Codebase.ShortBranchHash
-  ( ShortBranchHash,
+import Unison.Codebase.ShortCausalHash
+  ( ShortCausalHash,
   )
 import qualified Unison.HashQualified as HQ
+import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Types
   ( APIGet,
     DefinitionDisplayResults,
-    HashQualifiedName,
     Suffixify (..),
     defaultWidth,
   )
@@ -40,9 +41,9 @@ import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty (Width)
 
 type DefinitionsAPI =
-  "getDefinition" :> QueryParam "rootBranch" ShortBranchHash
+  "getDefinition" :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
-    :> QueryParams "names" HashQualifiedName
+    :> QueryParams "names" (HQ.HashQualified Name)
     :> QueryParam "renderWidth" Width
     :> QueryParam "suffixifyBindings" Suffixify
     :> APIGet DefinitionDisplayResults
@@ -92,7 +93,7 @@ instance ToParam (QueryParam "namespace" Path.Path) where
       )
       Normal
 
-instance ToParam (QueryParam "rootBranch" ShortBranchHash) where
+instance ToParam (QueryParam "rootBranch" ShortCausalHash) where
   toParam _ =
     DocQueryParam
       "rootBranch"
@@ -102,11 +103,11 @@ instance ToParam (QueryParam "rootBranch" ShortBranchHash) where
       )
       Normal
 
-instance ToParam (QueryParams "names" Text) where
+instance ToParam (QueryParams "names" (HQ.HashQualified Name)) where
   toParam _ =
     DocQueryParam
       "names"
-      [".base.List", "foo.bar", "#abc123"]
+      [".base.List", "foo.bar", "@abc123"]
       ("A fully qualified name, hash-qualified name, " <> "or hash.")
       List
 
@@ -116,16 +117,15 @@ instance ToSample DefinitionDisplayResults where
 serveDefinitions ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  Maybe ShortBranchHash ->
+  Maybe ShortCausalHash ->
   Maybe Path.Path ->
-  [HashQualifiedName] ->
+  [HQ.HashQualified Name] ->
   Maybe Width ->
   Maybe Suffixify ->
   Backend.Backend IO DefinitionDisplayResults
-serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
+serveDefinitions rt codebase mayRoot relativePath hqns width suff =
   do
-    root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    let hqns = HQ.unsafeFromText <$> rawHqns
+    root <- traverse (Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.expandShortCausalHash) mayRoot
     hqns
       & foldMapM
         ( Backend.prettyDefinitionsForHQName

@@ -11,17 +11,18 @@ import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified Text.Megaparsec as P
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
-import Unison.Codebase.Editor.Input (Input)
+import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input)
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemotePath)
+import Unison.Codebase.Editor.RemoteRepo (WriteGitRepo, WriteRemotePath)
 import qualified Unison.Codebase.Editor.SlurpResult as SR
+import Unison.Codebase.Editor.UriParser (parseReadRemoteNamespace)
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
@@ -40,9 +41,10 @@ import Unison.CommandLine.InputPattern
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
+import qualified Unison.Syntax.HashQualified as HQ (fromString)
+import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
@@ -332,8 +334,14 @@ view =
     I.Visible
     [(ZeroPlus, definitionQueryArg)]
     ( P.lines
-        [ "`view foo` prints definitions named `foo` within your current namespace.",
-          "`view` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
+        [ P.wrap $ makeExample view ["foo"] <> "shows definitions named `foo` within your current namespace.",
+          P.wrap $ makeExample view [] <> "without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH.",
+          " ", -- hmm, this blankline seems to be ignored by pretty printer
+          P.wrap $
+            "Supports glob syntax, where ? acts a wildcard, so"
+              <> makeExample view ["List.?"]
+              <> "will show `List.map`, `List.filter`, etc, but "
+              <> "not `List.map.doc` (since ? only matches 1 name segment)."
         ]
     )
     ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
@@ -580,59 +588,55 @@ renameType =
               "`rename.type` takes two arguments, like `rename.type oldname newname`."
     )
 
+deleteGen :: Maybe String -> String -> (Path.HQSplit' -> DeleteTarget) -> InputPattern
+deleteGen suffix target mkTarget =
+  let cmd = maybe "delete" ("delete." <>) suffix
+      info =
+        P.sep
+          " "
+          [ backtick (P.sep " " [P.string cmd, "foo"]),
+            "removes the",
+            P.string target,
+            "name `foo` from the namespace."
+          ]
+      warn =
+        P.sep
+          " "
+          [ backtick (P.string cmd),
+            "takes an argument, like",
+            backtick (P.sep " " [P.string cmd, "name"]) <> "."
+          ]
+   in InputPattern
+        cmd
+        []
+        I.Visible
+        [(OnePlus, exactDefinitionTermQueryArg)]
+        info
+        ( \case
+            [query] -> first fromString $ do
+              p <- Path.parseHQSplit' query
+              pure $ Input.DeleteI (mkTarget p)
+            _ ->
+              Left . P.warnCallout $ P.wrap warn
+        )
+
 delete :: InputPattern
-delete =
-  InputPattern
-    "delete"
-    []
-    I.Visible
-    [(OnePlus, definitionQueryArg)]
-    "`delete foo` removes the term or type name `foo` from the namespace."
-    ( \case
-        [query] -> first fromString $ do
-          p <- Path.parseHQSplit' query
-          pure $ Input.DeleteI p
-        _ ->
-          Left . P.warnCallout $
-            P.wrap
-              "`delete` takes an argument, like `delete name`."
-    )
+delete = deleteGen Nothing "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
+
+deleteVerbose :: InputPattern
+deleteVerbose = deleteGen (Just "verbose") "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
 
 deleteTerm :: InputPattern
-deleteTerm =
-  InputPattern
-    "delete.term"
-    []
-    I.Visible
-    [(OnePlus, exactDefinitionTermQueryArg)]
-    "`delete.term foo` removes the term name `foo` from the namespace."
-    ( \case
-        [query] -> first fromString $ do
-          p <- Path.parseHQSplit' query
-          pure $ Input.DeleteTermI p
-        _ ->
-          Left . P.warnCallout $
-            P.wrap
-              "`delete.term` takes an argument, like `delete.term name`."
-    )
+deleteTerm = deleteGen (Just "term") "term" (DeleteTarget'Term DeleteOutput'NoDiff)
+
+deleteTermVerbose :: InputPattern
+deleteTermVerbose = deleteGen (Just "term.verbose") "term" (DeleteTarget'Term DeleteOutput'Diff)
 
 deleteType :: InputPattern
-deleteType =
-  InputPattern
-    "delete.type"
-    []
-    I.Visible
-    [(OnePlus, exactDefinitionTypeQueryArg)]
-    "`delete.type foo` removes the type name `foo` from the namespace."
-    ( \case
-        [query] -> first fromString $ do
-          p <- Path.parseHQSplit' query
-          pure $ Input.DeleteTypeI p
-        _ ->
-          Left . P.warnCallout $
-            P.wrap
-              "`delete.type` takes an argument, like `delete.type name`."
-    )
+deleteType = deleteGen (Just "type") "type" (DeleteTarget'Type DeleteOutput'NoDiff)
+
+deleteTypeVerbose :: InputPattern
+deleteTypeVerbose = deleteGen (Just "type.verbose") "type" (DeleteTarget'Type DeleteOutput'Diff)
 
 deleteTermReplacementCommand :: String
 deleteTermReplacementCommand = "delete.term-replacement"
@@ -862,10 +866,10 @@ deleteNamespaceParser helpText insistence =
       ["."] ->
         first fromString
           . pure
-          $ Input.DeleteBranchI insistence Nothing
+          $ Input.DeleteI (DeleteTarget'Branch insistence Nothing)
       [p] -> first fromString $ do
         p <- Path.parseSplit' Path.definitionNameSegment p
-        pure . Input.DeleteBranchI insistence $ Just p
+        pure $ Input.DeleteI (DeleteTarget'Branch insistence (Just p))
       _ -> Left helpText
   )
 
@@ -880,7 +884,7 @@ deletePatch =
     ( \case
         [p] -> first fromString $ do
           p <- Path.parseSplit' Path.definitionNameSegment p
-          pure . Input.DeletePatchI $ p
+          pure . Input.DeleteI $ DeleteTarget'Patch p
         _ -> Left (I.help deletePatch)
     )
 
@@ -1357,46 +1361,6 @@ loadPullRequest =
           pure $ Input.LoadPullRequestI baseRepo headRepo destPath
         _ -> Left (I.help loadPullRequest)
     )
-
-parseReadRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
-parseReadRemoteNamespace label input =
-  let printError err = P.lines [P.string "I couldn't parse the repository address given above.", prettyPrintParseError input err]
-   in first printError (P.parse UriParser.repoPath label (Text.pack input))
-
-prettyPrintParseError :: String -> P.ParseErrorBundle Text Void -> P.Pretty P.ColorText
-prettyPrintParseError input errBundle =
-  let (firstError, sp) = NE.head . fst $ P.attachSourcePos P.errorOffset (P.bundleErrors errBundle) (P.bundlePosState errBundle)
-   in case firstError of
-        P.TrivialError _errorOffset ue ee ->
-          P.lines
-            [ printLocation sp,
-              P.newline,
-              printTrivial ue ee
-            ]
-        P.FancyError _errorOffset ee ->
-          let errors = foldMap (P.string . mappend "\n" . showErrorFancy) ee
-           in P.lines
-                [ printLocation sp,
-                  errors
-                ]
-  where
-    printLocation :: P.SourcePos -> P.Pretty P.ColorText
-    printLocation sp =
-      let col = (P.unPos $ P.sourceColumn sp) - 1
-          row = (P.unPos $ P.sourceLine sp) - 1
-          errorLine = lines input !! row
-       in P.lines
-            [ P.newline,
-              P.string errorLine,
-              P.string $ replicate col ' ' <> "^-- This is where I gave up."
-            ]
-
-    printTrivial :: (Maybe (P.ErrorItem Char)) -> (Set (P.ErrorItem Char)) -> P.Pretty P.ColorText
-    printTrivial ue ee =
-      let expected = "I expected " <> foldMap (P.singleQuoted . P.string . showErrorItem) ee
-          found = P.string . mappend "I found " . showErrorItem <$> ue
-          message = [expected] <> catMaybes [found]
-       in P.oxfordCommasWith "." message
 
 parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
 parseWriteGitRepo label input = do
@@ -2005,6 +1969,24 @@ debugDoctor =
         _ -> Left (showPatternHelp debugDoctor)
     )
 
+debugNameDiff :: InputPattern
+debugNameDiff =
+  InputPattern
+    { patternName = "debug.name-diff",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [(Required, namespaceArg), (Required, namespaceArg)],
+      help = P.wrap "List all name changes between two causal hashes. Does not detect patch or metadata changes.",
+      parse =
+        ( \case
+            [from, to] -> first fromString $ do
+              fromSCH <- Input.parseShortCausalHash from
+              toSCH <- Input.parseShortCausalHash to
+              pure $ Input.DebugNameDiffI fromSCH toSCH
+            _ -> Left (I.help debugNameDiff)
+        )
+    }
+
 test :: InputPattern
 test =
   InputPattern
@@ -2138,6 +2120,96 @@ makeStandalone =
         _ -> Left $ showPatternHelp makeStandalone
     )
 
+runScheme :: InputPattern
+runScheme =
+  InputPattern
+    "run.native"
+    []
+    I.Visible
+    [(Required, exactDefinitionTermQueryArg)]
+    ( P.wrapColumn2
+        [ ( makeExample runScheme ["main"],
+            "Executes !main using native compilation via scheme."
+          )
+        ]
+    )
+    ( \case
+        [main] ->
+          Input.ExecuteSchemeI <$> parseHashQualifiedName main
+        _ -> Left $ showPatternHelp runScheme
+    )
+
+compileScheme :: InputPattern
+compileScheme =
+  InputPattern
+    "compile.native"
+    []
+    I.Visible
+    [(Required, exactDefinitionTermQueryArg), (Required, noCompletionsArg)]
+    ( P.wrapColumn2
+        [ ( makeExample compileScheme ["main", "file"],
+            "Creates stand alone executable via compilation to"
+              <> "scheme. The created executable will have the effect"
+              <> "of running `!main`."
+          )
+        ]
+    )
+    ( \case
+        [main, file] ->
+          Input.CompileSchemeI file <$> parseHashQualifiedName main
+        _ -> Left $ showPatternHelp compileScheme
+    )
+
+schemeLibgen :: InputPattern
+schemeLibgen =
+  InputPattern
+    "compile.native.genlibs"
+    []
+    I.Visible
+    []
+    ( P.wrapColumn2
+        [ ( makeExample schemeLibgen [],
+            "Generates libraries necessary for scheme compilation.\n\n\
+            \There is no need to run this before"
+              <> P.group (makeExample compileScheme [])
+              <> "as\
+                 \ the latter will check if the libraries are missing and\
+                 \ auto-generate them. However, this will generate the\
+                 \ libraries even if their files already exist, so if the\
+                 \ compiler has been upgraded, this can be used to ensure\
+                 \ the generated libraries are up to date."
+          )
+        ]
+    )
+    ( \case
+        [] -> pure Input.GenSchemeLibsI
+        _ -> Left $ showPatternHelp schemeLibgen
+    )
+
+fetchScheme :: InputPattern
+fetchScheme =
+  InputPattern
+    "compile.native.fetch"
+    []
+    I.Visible
+    []
+    ( P.wrapColumn2
+        [ ( makeExample fetchScheme [],
+            "Fetches the unison library for compiling to scheme.\n\n\
+            \This is done automatically when"
+              <> P.group (makeExample compileScheme [])
+              <> "is run\
+                 \ if the library is not already in the standard location\
+                 \ (unison.internal). However, this command will force\
+                 \ a pull even if the library already exists."
+          )
+        ]
+    )
+    ( \case
+        [] -> pure Input.FetchSchemeCompilerI
+        _ -> Left $ showPatternHelp fetchScheme
+    )
+
 createAuthor :: InputPattern
 createAuthor =
   InputPattern
@@ -2226,6 +2298,24 @@ printVersion =
         _ -> Left (showPatternHelp printVersion)
     )
 
+diffNamespaceToPatch :: InputPattern
+diffNamespaceToPatch =
+  InputPattern
+    { patternName = "diff.namespace.to-patch",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help = P.wrap "Create a patch from a namespace diff.",
+      parse = \case
+        [branchId1, branchId2, patch] ->
+          mapLeft fromString do
+            branchId1 <- Input.parseBranchId branchId1
+            branchId2 <- Input.parseBranchId branchId2
+            patch <- Path.parseSplit' Path.definitionNameSegment patch
+            pure (Input.DiffNamespaceToPatchI Input.DiffNamespaceToPatchInput {branchId1, branchId2, patch})
+        _ -> Left (showPatternHelp diffNamespaceToPatch)
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2239,6 +2329,7 @@ validInputs =
       previewUpdate,
       updateNoPatch,
       delete,
+      deleteVerbose,
       forkLocal,
       mergeLocal,
       squashMerge,
@@ -2286,9 +2377,11 @@ validInputs =
       edit,
       renameTerm,
       deleteTerm,
+      deleteTermVerbose,
       aliasTerm,
       renameType,
       deleteType,
+      deleteTypeVerbose,
       aliasType,
       aliasMany,
       todo,
@@ -2310,6 +2403,10 @@ validInputs =
       quit,
       updateBuiltins,
       makeStandalone,
+      runScheme,
+      compileScheme,
+      schemeLibgen,
+      fetchScheme,
       mergeBuiltins,
       mergeIOBuiltins,
       dependents,
@@ -2322,9 +2419,11 @@ validInputs =
       debugClearWatchCache,
       debugDoctor,
       debugTabCompletion,
+      debugNameDiff,
       gist,
       authLogin,
-      printVersion
+      printVersion,
+      diffNamespaceToPatch
     ]
 
 -- | A map of all command patterns by pattern name or alias.
@@ -2352,7 +2451,7 @@ exactDefinitionArg :: ArgumentType
 exactDefinitionArg =
   ArgumentType
     { typeName = "definition",
-      suggestions = \q cb _http p -> prefixCompleteTermOrType q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
@@ -2360,7 +2459,7 @@ fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
-      suggestions = \q cb _http p -> prefixCompleteTermOrType q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
@@ -2371,7 +2470,7 @@ exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
   ArgumentType
     { typeName = "type definition query",
-      suggestions = \q cb _http p -> prefixCompleteType q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteType q p),
       globTargets = Set.fromList [Globbing.Type]
     }
 
@@ -2379,7 +2478,7 @@ exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
   ArgumentType
     { typeName = "term definition query",
-      suggestions = \q cb _http p -> prefixCompleteTerm q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTerm q p),
       globTargets = Set.fromList [Globbing.Term]
     }
 
@@ -2387,7 +2486,7 @@ patchArg :: ArgumentType
 patchArg =
   ArgumentType
     { typeName = "patch",
-      suggestions = \q cb _http p -> prefixCompletePatch q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompletePatch q p),
       globTargets = Set.fromList []
     }
 
@@ -2395,7 +2494,7 @@ namespaceArg :: ArgumentType
 namespaceArg =
   ArgumentType
     { typeName = "namespace",
-      suggestions = \q cb _http p -> prefixCompleteNamespace q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
       globTargets = Set.fromList [Globbing.Namespace]
     }
 
@@ -2407,7 +2506,7 @@ newNameArg :: ArgumentType
 newNameArg =
   ArgumentType
     { typeName = "new-name",
-      suggestions = \q cb _http p -> prefixCompleteNamespace q cb p,
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
       globTargets = mempty
     }
 

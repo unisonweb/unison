@@ -32,7 +32,7 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
@@ -40,11 +40,12 @@ import Unison.Prelude
 import Unison.Server.Backend
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Types (APIGet, UnisonHash)
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Util.Monoid (foldMapM)
 
 type ProjectsAPI =
-  "projects" :> QueryParam "rootBranch" ShortBranchHash
+  "projects" :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "owner" ProjectOwner
     :> APIGet [ProjectListing]
 
@@ -126,20 +127,22 @@ serve ::
   forall m.
   MonadIO m =>
   Codebase m Symbol Ann ->
-  Maybe ShortBranchHash ->
+  Maybe ShortCausalHash ->
   Maybe ProjectOwner ->
   Backend m [ProjectListing]
 serve codebase mayRoot mayOwner = projects
   where
     projects :: Backend m [ProjectListing]
     projects = do
-      shallowRootBranch <- case mayRoot of
-        Nothing -> lift (Codebase.getShallowRootBranch codebase)
-        Just sbh -> do
-          h <- Backend.expandShortBranchHash codebase sbh
-          -- TODO: can this ever be missing?
-          causal <- lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
-          lift $ V2Causal.value causal
+      shallowRootBranch <-
+        Backend.hoistBackend (Codebase.runTransaction codebase) do
+          case mayRoot of
+            Nothing -> lift Codebase.getShallowRootBranch
+            Just sch -> do
+              h <- Backend.expandShortCausalHash sch
+              -- TODO: can this ever be missing?
+              causal <- lift $ Codebase.expectCausalBranchByCausalHash (Cv.causalHash1to2 h)
+              lift $ V2Causal.value causal
 
       ownerEntries <- lift $ Backend.lsBranch codebase shallowRootBranch
       -- If an owner is provided, we only want projects belonging to them
@@ -149,7 +152,7 @@ serve codebase mayRoot mayOwner = projects
               Nothing -> mapMaybe entryToOwner ownerEntries
       foldMapM (ownerToProjectListings shallowRootBranch) owners
 
-    ownerToProjectListings :: V2Branch.Branch m -> ProjectOwner -> Backend m [ProjectListing]
+    ownerToProjectListings :: V2Branch.Branch Sqlite.Transaction -> ProjectOwner -> Backend m [ProjectListing]
     ownerToProjectListings root owner = do
       let (ProjectOwner ownerName) = owner
       ownerPath' <- (parsePath . Text.unpack) ownerName

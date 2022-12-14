@@ -17,7 +17,7 @@ data ABT f v r
   | Cycle r
   | Abs v r
   | Tm (f r)
-  deriving (Show, Functor, Foldable, Traversable)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable)
 
 -- | At each level in the tree, we store the set of free variables and
 -- a value of type `a`. Variables are of type `v`.
@@ -171,7 +171,7 @@ visit' f t = case out t of
 
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
 visit_ ::
-  (Traversable f, Monad g, Ord v) =>
+  (Traversable f, Applicative g, Ord v) =>
   (f (Term f v a) -> g ()) ->
   Term f v a ->
   g (Term f v a)
@@ -179,7 +179,7 @@ visit_ f t = case out t of
   Var _ -> pure t
   Cycle body -> cycle (annotation t) <$> visit_ f body
   Abs x e -> abs (annotation t) x <$> visit_ f e
-  Tm body -> f body >> tm (annotation t) <$> traverse (visit_ f) body
+  Tm body -> f body *> (tm (annotation t) <$> traverse (visit_ f) body)
 
 -- | `visit` specialized to the `Identity` effect.
 visitPure ::

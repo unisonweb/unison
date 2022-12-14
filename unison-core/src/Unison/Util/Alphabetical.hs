@@ -4,6 +4,7 @@
 
 module Unison.Util.Alphabetical where
 
+import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.RFC5051 as RFC5051
 import Data.Text (Text)
 
@@ -26,6 +27,9 @@ instance (Eq a, Alphabetical a) => Ord (OrderAlphabetically a) where
   compare (OrderAlphabetically a) (OrderAlphabetically b) = compareAlphabetical a b
 
 instance Alphabetical a => Alphabetical [a] where
+  compareAlphabetical a1s a2s = compare (OrderAlphabetically <$> a1s) (OrderAlphabetically <$> a2s)
+
+instance Alphabetical a => Alphabetical (List.NonEmpty a) where
   compareAlphabetical a1s a2s = compare (OrderAlphabetically <$> a1s) (OrderAlphabetically <$> a2s)
 
 instance Alphabetical a => Alphabetical (Maybe a) where

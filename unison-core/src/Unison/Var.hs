@@ -1,8 +1,35 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
-
-module Unison.Var where
+module Unison.Var
+  ( Var (..),
+    Type (..),
+    InferenceType (..),
+    blank,
+    freshIn,
+    inferAbility,
+    inferInput,
+    inferOther,
+    inferOutput,
+    inferPatternBindE,
+    inferPatternBindV,
+    inferPatternPureE,
+    inferPatternPureV,
+    inferTypeConstructor,
+    inferTypeConstructorArg,
+    isAction,
+    joinDot,
+    missingResult,
+    name,
+    nameStr,
+    named,
+    nameds,
+    namespaced,
+    rawName,
+    reset,
+    uncapitalize,
+    universallyQuantifyIfFree,
+    unnamedRef,
+    unnamedTest,
+  )
+where
 
 import Data.Char (isLower, toLower)
 import Data.Text (pack)
@@ -60,6 +87,19 @@ name v = rawName (typeOf v) <> showid v
   where
     showid (freshId -> 0) = ""
     showid (freshId -> n) = pack (show n)
+
+-- | Currently, actions in blocks are encoded as bindings
+-- with names of the form _123 (an underscore, followed by 
+-- 1 or more digits). This function returns `True` if the
+-- input variable has this form.
+-- 
+-- Various places check for this (the pretty-printer, to
+-- determine how to print the binding), and the typechecker
+-- (to decide if it should ensure the binding has type `()`).
+isAction :: Var v => v -> Bool
+isAction v = case Text.unpack (name v) of
+  ('_' : rest) | Just _ <- (readMaybe rest :: Maybe Int) -> True
+  _ -> False
 
 uncapitalize :: Var v => v -> v
 uncapitalize v = nameds $ go (nameStr v)
@@ -168,9 +208,6 @@ joinDot prefix v2 =
   if name prefix == "."
     then named (name prefix `mappend` name v2)
     else named (name prefix `mappend` "." `mappend` name v2)
-
-freshNamed :: Var v => Set v -> Text -> v
-freshNamed used n = ABT.freshIn used (named n)
 
 universallyQuantifyIfFree :: forall v. Var v => v -> Bool
 universallyQuantifyIfFree v =

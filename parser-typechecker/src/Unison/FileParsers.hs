@@ -1,4 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
@@ -27,11 +26,13 @@ import Unison.Reference (Reference)
 import qualified Unison.Referent as Referent
 import Unison.Result (CompilerBug (..), Note (..), Result, ResultT, pattern Result)
 import qualified Unison.Result as Result
+import qualified Unison.Syntax.Name as Name (toText, unsafeFromVar)
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.Typechecker.Context as Context
+import Unison.Typechecker.Extractor (RedundantTypeAnnotation)
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
@@ -165,29 +166,28 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
     (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let topLevelBindings :: Map v (Term v)
           topLevelBindings = Map.mapKeys Var.reset $ extractTopLevelBindings tdnrTerm
+          extractTopLevelBindings :: (Term.Term v a -> Map v (Term.Term v a))
           extractTopLevelBindings (Term.LetRecNamedAnnotatedTop' True _ bs body) =
             Map.fromList (first snd <$> bs) <> extractTopLevelBindings body
           extractTopLevelBindings _ = Map.empty
+          tlcsFromTypechecker :: [[(v, Type.Type v Ann, RedundantTypeAnnotation)]]
           tlcsFromTypechecker =
             List.uniqueBy'
               (fmap vars)
               [t | Context.TopLevelComponent t <- infos]
             where
               vars (v, _, _) = v
-          strippedTopLevelBinding (v, typ, redundant) = do
+          addTypesToTopLevelBindings :: (v, c, c1) -> Result (Seq (Note v Ann)) (v, Term v, c)
+          addTypesToTopLevelBindings (v, typ, _redundant) = do
             tm <- case Map.lookup v topLevelBindings of
-              Nothing ->
-                Result.compilerBug $ Result.TopLevelComponentNotFound v term
-              Just (Term.Ann' x _) | redundant -> pure x
+              Nothing -> Result.compilerBug $ Result.TopLevelComponentNotFound v term
               Just x -> pure x
             -- The Var.reset removes any freshening added during typechecking
             pure (Var.reset v, tm, typ)
-       in -- use tlcsFromTypechecker to inform annotation-stripping decisions
-          traverse (traverse strippedTopLevelBinding) tlcsFromTypechecker
+       in traverse (traverse addTypesToTopLevelBindings) tlcsFromTypechecker
     let doTdnr = applyTdnrDecisions infos
-        doTdnrInComponent (v, t, tp) = (\t -> (v, t, tp)) <$> doTdnr t
-    _ <- doTdnr tdnrTerm
-    tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
+    let doTdnrInComponent (v, t, tp) = (v, doTdnr t, tp)
+    let tdnredTlcs = (fmap . fmap) doTdnrInComponent topLevelComponents
     let (watches', terms') = partition isWatch tdnredTlcs
         isWatch = all (\(v, _, _) -> Set.member v watchedVars)
         watchedVars = Set.fromList [v | (v, _) <- UF.allWatches uf]
@@ -208,19 +208,15 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
     applyTdnrDecisions ::
       [Context.InfoNote v Ann] ->
       Term v ->
-      Result' v (Term v)
-    applyTdnrDecisions infos tdnrTerm = foldM go tdnrTerm decisions
+      Term v
+    applyTdnrDecisions infos tdnrTerm = ABT.visitPure resolve tdnrTerm
       where
-        -- UF data/effect ctors + builtins + TLC Term.vars
-        go term _decision@(shortv, loc, replacement) =
-          ABT.visit (resolve shortv loc replacement) term
-        decisions =
-          [(v, loc, replacement) | Context.Decision v loc replacement <- infos]
+        decisions = Map.fromList [((Var.nameStr v, loc), replacement) | Context.Decision v loc replacement <- infos]
         -- resolve (v,loc) in a matching Blank to whatever `fqn` maps to in `names`
-        resolve shortv loc replacement t = case t of
+        resolve t = case t of
           Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
-            | loc' == loc && Var.nameStr shortv == name ->
+            | Just replacement <- Map.lookup (name, loc') decisions ->
                 -- loc of replacement already chosen correctly by whatever made the
                 -- Decision
-                pure . pure $ replacement
+                Just $ replacement
           _ -> Nothing

@@ -1,6 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -183,7 +181,7 @@ renderDoc pped terms typeOf eval types tm =
     formatPrettyType ppe typ = formatPretty (TypePrinter.prettySyntax ppe typ)
 
     source :: Term v () -> m SyntaxText
-    source tm = (pure . formatPretty . TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped)) tm
+    source tm = pure . formatPretty $ TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped) tm
 
     goSignatures :: [Referent] -> m [P.Pretty SSyntaxText]
     goSignatures rs =
@@ -222,7 +220,10 @@ renderDoc pped terms typeOf eval types tm =
             ty r = (NP.styleHashQualified'' (NP.fmt (S.TypeReference r)) . PPE.typeName ppe) r
          in Link <$> case e of
               DD.EitherLeft' (Term.TypeLink' r) -> (pure . formatPretty . ty) r
-              DD.EitherRight' (DD.Doc2Term (Term.Referent' r)) -> (pure . formatPretty . tm) r
+              DD.EitherRight' (DD.Doc2Term t) ->
+                case Term.etaNormalForm t of
+                  Term.Referent' r -> (pure . formatPretty . tm) r
+                  x -> source x
               _ -> source e
       DD.Doc2SpecialFormSignature (Term.List' tms) ->
         let rs = [r | DD.Doc2Term (Term.Referent' r) <- toList tms]

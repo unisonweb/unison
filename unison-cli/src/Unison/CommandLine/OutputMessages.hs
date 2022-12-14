@@ -12,7 +12,7 @@ import Control.Monad.Trans.Writer.CPS
 import Data.Bifunctor (first, second)
 import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Foldable as Foldable
-import Data.List (sort, stripPrefix)
+import Data.List (stripPrefix)
 import qualified Data.List as List
 import Data.List.Extra (notNull, nubOrd, nubOrdOn)
 import qualified Data.List.NonEmpty as NEList
@@ -37,6 +37,7 @@ import System.Directory
     getHomeDirectory,
   )
 import U.Codebase.Branch (NamespaceStats (..))
+import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
@@ -72,8 +73,9 @@ import qualified Unison.Codebase.Patch as Patch
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Codebase.ShortCausalHash as SCH
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SqliteCodebase.GitError
   ( GitSqliteCodebaseError (..),
   )
@@ -84,6 +86,7 @@ import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.InputPatterns (makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.ConstructorReference (GConstructorReference (..))
+import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
@@ -126,6 +129,8 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.HashQualified as HQ (toString, toText, unsafeFromVar)
+import qualified Unison.Syntax.Name as Name (toString, toText)
 import Unison.Syntax.NamePrinter
   ( prettyHashQualified,
     prettyHashQualified',
@@ -296,21 +301,20 @@ notifyNumbered o = case o of
       else
         first
           ( \p ->
-              ( P.lines
-                  [ P.wrap $
-                      "The changes summarized below are available for you to review,"
-                        <> "using the following command:",
-                    "",
-                    P.indentN 2 $
-                      IP.makeExampleNoBackticks
-                        IP.loadPullRequest
-                        [ (prettyReadRemoteNamespace baseRepo),
-                          (prettyReadRemoteNamespace headRepo)
-                        ],
-                    "",
-                    p
-                  ]
-              )
+              P.lines
+                [ P.wrap $
+                    "The changes summarized below are available for you to review,"
+                      <> "using the following command:",
+                  "",
+                  P.indentN 2 $
+                    IP.makeExampleNoBackticks
+                      IP.loadPullRequest
+                      [ prettyReadRemoteNamespace baseRepo,
+                        prettyReadRemoteNamespace headRepo
+                      ],
+                  "",
+                  p
+                ]
           )
           (showDiffNamespace HideNumbers ppe (absPathToBranchId Path.absoluteEmpty) (absPathToBranchId Path.absoluteEmpty) diff)
   -- todo: these numbers aren't going to work,
@@ -352,14 +356,14 @@ notifyNumbered o = case o of
           ],
       numberedArgsForEndangerments ppeDecl endangerments
     )
-  History _cap sbhLength history tail ->
+  History _cap schLength history tail ->
     let (tailMsg, tailHashes) = handleTail (length history + 1)
         msg :: Pretty
         msg =
           P.lines
             [ note $ "The most recent namespace hash is immediately below this message.",
               "",
-              P.sep "\n\n" [go i (toSBH h) diff | (i, (h, diff)) <- zip [1 ..] reversedHistory],
+              P.sep "\n\n" [go i (toSCH h) diff | (i, (h, diff)) <- zip [1 ..] reversedHistory],
               "",
               tailMsg
             ]
@@ -367,8 +371,8 @@ notifyNumbered o = case o of
         branchHashes = (fst <$> reversedHistory) <> tailHashes
      in (msg, displayBranchHash <$> branchHashes)
     where
-      toSBH :: Branch.CausalHash -> ShortBranchHash
-      toSBH h = SBH.fromHash sbhLength h
+      toSCH :: Branch.CausalHash -> ShortCausalHash
+      toSCH h = SCH.fromHash schLength h
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
@@ -376,7 +380,7 @@ notifyNumbered o = case o of
       handleTail n = case tail of
         E.EndOfLog h ->
           ( P.lines
-              [ "□ " <> showNum n <> prettySBH (toSBH h) <> " (start of history)"
+              [ "□ " <> showNum n <> prettySCH (toSCH h) <> " (start of history)"
               ],
             [h]
           )
@@ -384,9 +388,9 @@ notifyNumbered o = case o of
           ( P.lines
               [ P.wrap $ "This segment of history starts with a merge." <> ex,
                 "",
-                "⊙ " <> showNum n <> prettySBH (toSBH h),
+                "⊙ " <> showNum n <> prettySCH (toSCH h),
                 "⑃",
-                P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySBH (toSBH h))
+                P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySCH (toSCH h))
               ],
             h : hs
           )
@@ -396,15 +400,15 @@ notifyNumbered o = case o of
                 "",
                 dots,
                 "",
-                "⊙ " <> showNum n <> prettySBH (toSBH h),
+                "⊙ " <> showNum n <> prettySCH (toSCH h),
                 ""
               ],
             [h]
           )
       dots = "⠇"
-      go i sbh diff =
+      go i sch diff =
         P.lines
-          [ "⊙ " <> showNum i <> prettySBH sbh,
+          [ "⊙ " <> showNum i <> prettySCH sch,
             "",
             P.indentN 2 $ prettyDiff diff
           ]
@@ -594,13 +598,13 @@ notifyUser dir o = case o of
                   <> P.group (P.plural hashes "hash" <> ":"),
               "",
               (P.indentN 2 . P.oxfordCommas)
-                (map prettySBH $ toList hashes),
+                (map prettySCH $ toList hashes),
               "",
               P.wrap $
                 "and I'm not sure what to do about it."
                   <> "The last root namespace hash that I knew about was:",
               "",
-              P.indentN 2 $ prettySBH current,
+              P.indentN 2 $ prettySCH current,
               "",
               P.wrap $ "Now might be a good time to make a backup of your codebase. 😬",
               "",
@@ -672,8 +676,6 @@ notifyUser dir o = case o of
           else
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
-      where
-
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -687,7 +689,7 @@ notifyUser dir o = case o of
   TestIncrementalOutputStart ppe (n, total) r _src -> do
     putPretty' $
       P.shown (total - n) <> " tests left to run, current test: "
-        <> (P.syntaxToColor $ prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
+        <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
     pure mempty
   TestIncrementalOutputEnd _ppe (_n, _total) _r result -> do
     clearCurrentLine
@@ -923,7 +925,11 @@ notifyUser dir o = case o of
           go (ref, hqs) =
             P.column2
               [ ("Hash:", P.syntaxToColor (prettyReferent len ref)),
-                ("Names: ", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
+                ( "Names: ",
+                  P.group $
+                    P.spaced $
+                      P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
+                )
               ]
       formatTypes types =
         P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : List.intersperse "" (go <$> types)
@@ -931,7 +937,11 @@ notifyUser dir o = case o of
           go (ref, hqs) =
             P.column2
               [ ("Hash:", P.syntaxToColor (prettyReference len ref)),
-                ("Names:", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
+                ( "Names:",
+                  P.group $
+                    P.spaced $
+                      P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
+                )
               ]
   -- > names foo
   --   Terms:
@@ -1037,7 +1047,7 @@ notifyUser dir o = case o of
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:" :
                 "" :
-                  [ (P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b)
+                  [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
                     | (v, b) <- bindings
                   ]
             prettyWatches =
@@ -1130,6 +1140,9 @@ notifyUser dir o = case o of
           else pure mempty
   GitError e -> pure $ case e of
     GitSqliteCodebaseError e -> case e of
+      CodebaseFileLockFailed ->
+        P.wrap $
+          "It looks to me like another ucm process is using this codebase. Only one ucm process can use a codebase at a time."
       NoDatabaseFile repo localPath ->
         P.wrap $
           "I didn't find a codebase in the repository at"
@@ -1235,15 +1248,15 @@ notifyUser dir o = case o of
             <> P.shown path
             <> "in the repository at"
             <> prettyReadGitRepo repo
-      NoRemoteNamespaceWithHash repo sbh ->
+      NoRemoteNamespaceWithHash repo sch ->
         P.wrap $
           "The repository at" <> prettyReadGitRepo repo
             <> "doesn't contain a namespace with the hash prefix"
-            <> (P.blue . P.text . SBH.toText) sbh
-      RemoteNamespaceHashAmbiguous repo sbh hashes ->
+            <> (P.blue . P.text . SCH.toText) sch
+      RemoteNamespaceHashAmbiguous repo sch hashes ->
         P.lines
           [ P.wrap $
-              "The namespace hash" <> prettySBH sbh
+              "The namespace hash" <> prettySCH sch
                 <> "at"
                 <> prettyReadGitRepo repo
                 <> "is ambiguous."
@@ -1251,7 +1264,7 @@ notifyUser dir o = case o of
             "",
             P.indentN 2 $
               P.lines
-                ( prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
+                ( prettySCH . SCH.fromHash ((Text.length . SCH.toText) sch * 2)
                     <$> Set.toList hashes
                 ),
             "",
@@ -1402,10 +1415,10 @@ notifyUser dir o = case o of
   BranchHashAmbiguous h rs ->
     pure . P.callout "\129300" . P.lines $
       [ P.wrap $
-          "The namespace hash" <> prettySBH h <> "is ambiguous."
+          "The namespace hash" <> prettySCH h <> "is ambiguous."
             <> "Did you mean one of these hashes?",
         "",
-        P.indentN 2 $ P.lines (prettySBH <$> Set.toList rs),
+        P.indentN 2 $ P.lines (prettySCH <$> Set.toList rs),
         "",
         P.wrap "Try again with a few more hash characters to disambiguate."
       ]
@@ -1444,7 +1457,7 @@ notifyUser dir o = case o of
     where
       header =
         case entries of
-          (_head : (_, prevSBH, _) : _) ->
+          (_head : (_, prevSCH, _) : _) ->
             P.lines
               [ P.wrap $
                   "Here is a log of the root namespace hashes,"
@@ -1456,11 +1469,11 @@ notifyUser dir o = case o of
                     [ ( IP.makeExample IP.forkLocal ["2", ".old"],
                         ""
                       ),
-                      ( IP.makeExample IP.forkLocal [prettySBH prevSBH, ".old"],
+                      ( IP.makeExample IP.forkLocal [prettySCH prevSCH, ".old"],
                         "to make an old namespace accessible again,"
                       ),
                       (mempty, mempty),
-                      ( IP.makeExample IP.resetRoot [prettySBH prevSBH],
+                      ( IP.makeExample IP.resetRoot [prettySCH prevSCH],
                         "to reset the root namespace and its history to that of the specified"
                           <> "namespace."
                       )
@@ -1469,9 +1482,9 @@ notifyUser dir o = case o of
                 ""
               ]
           _ -> mempty
-      renderEntry3Column :: UTCTime -> (Maybe UTCTime, SBH.ShortBranchHash, Text) -> [Pretty]
-      renderEntry3Column now (mayTime, sbh, reason) =
-        [maybe "" (prettyHumanReadableTime now) mayTime, P.blue (prettySBH sbh), P.text $ truncateReason reason]
+      renderEntry3Column :: UTCTime -> (Maybe UTCTime, SCH.ShortCausalHash, Text) -> [Pretty]
+      renderEntry3Column now (mayTime, sch, reason) =
+        [maybe "" (prettyHumanReadableTime now) mayTime, P.blue (prettySCH sch), P.text $ truncateReason reason]
       truncateReason :: Text -> Text
       truncateReason txt = case Text.splitAt 60 txt of
         (short, "") -> short
@@ -1805,6 +1818,20 @@ notifyUser dir o = case o of
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
+  DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
+    let referentText =
+          -- We don't use the constructor type in the actual output here, so there's no
+          -- point in looking up the correct one.
+          P.text . Referent.toText . runIdentity . Cv.referent2to1 (\_ref -> Identity CT.Data)
+    let referenceText = P.text . Reference.toText . Cv.reference2to1
+    pure $
+      P.columnNHeader
+        ["Kind", "Name", "Change", "Ref"]
+        ( (termNameAdds <&> \(n, ref) -> ["Term", prettyName n, "Added", referentText ref])
+            <> (termNameRemovals <&> \(n, ref) -> ["Term", prettyName n, "Removed", referentText ref])
+            <> (typeNameAdds <&> \(n, ref) -> ["Type", prettyName n, "Added", referenceText ref])
+            <> (typeNameRemovals <&> \(n, ref) -> ["Type", prettyName n, "Removed", referenceText ref])
+        )
   DisplayDebugCompletions completions ->
     pure $
       P.column2
@@ -1876,7 +1903,7 @@ prettyShareLink WriteShareRemotePath {repo, path} =
         Path.toList path
           & fmap (URI.encodeText . NameSegment.toText)
           & Text.intercalate "/"
-   in P.green . P.text $ shareOrigin <> "/@" <> repo <> "/code/latest/namespaces/" <> encodedPath
+   in P.green . P.text $ shareOrigin <> "/@" <> repo <> "/p/code/latest/namespaces/" <> encodedPath
 
 prettyFilePath :: FilePath -> Pretty
 prettyFilePath fp =
@@ -1890,7 +1917,7 @@ prettyPath' p' =
 
 prettyBranchId :: Input.AbsBranchId -> Pretty
 prettyBranchId = \case
-  Left sbh -> prettySBH sbh
+  Left sch -> prettySCH sch
   Right absPath -> prettyAbsolute $ absPath
 
 prettyRelative :: Path.Relative -> Pretty
@@ -1899,8 +1926,8 @@ prettyRelative = P.blue . P.shown
 prettyAbsolute :: Path.Absolute -> Pretty
 prettyAbsolute = P.blue . P.shown
 
-prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
-prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
+prettySCH :: IsString s => ShortCausalHash -> P.Pretty s
+prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)
 
 prettyCausalHash :: IsString s => Causal.CausalHash -> P.Pretty s
 prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unCausalHash $ hash)
@@ -2052,21 +2079,27 @@ displayDefinitions outputLoc ppe types terms =
         ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE ppe r
         ppeDecl = PPED.unsuffixifiedPPE ppe
         prettyTerms =
-          map go . Map.toList $
-            -- sort by name
-            Map.mapKeys (first (PPE.termName ppeDecl . Referent.Ref) . dupe) terms
+          terms
+            & Map.toList
+            & map (\(ref, dt) -> (PPE.termName ppeDecl (Referent.Ref ref), ref, dt))
+            & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
+            & map go
         prettyTypes =
-          map go2 . Map.toList $
-            Map.mapKeys (first (PPE.typeName ppeDecl) . dupe) types
-        go ((n, r), dt) =
+          types
+            & Map.toList
+            & map (\(ref, dt) -> (PPE.typeName ppeDecl ref, ref, dt))
+            & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
+            & map go2
+        go (n, r, dt) =
           case dt of
             MissingObject r -> missing n r
             BuiltinObject typ ->
-              P.hang
-                ("builtin " <> prettyHashQualified n <> " :")
-                (TypePrinter.prettySyntax (ppeBody n r) typ)
+              (if isJust outputLoc then P.indent "-- " else id) $
+                P.hang
+                  ("builtin " <> prettyHashQualified n <> " :")
+                  (TypePrinter.prettySyntax (ppeBody n r) typ)
             UserObject tm -> TermPrinter.prettyBinding (ppeBody n r) n tm
-        go2 ((n, r), dt) =
+        go2 (n, r, dt) =
           case dt of
             MissingObject r -> missing n r
             BuiltinObject _ -> builtin n
@@ -2149,7 +2182,7 @@ unsafePrettyTermResultSigFull' ppe = \case
       [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r),
         P.group $
           P.commas (fmap greyHash $ hq : map HQ'.toHQ (toList aliases)) <> " : "
-            <> (P.syntaxToColor $ TypePrinter.pretty0 ppe mempty (-1) typ),
+            <> P.syntaxToColor (TypePrinter.prettySyntax ppe typ),
         mempty
       ]
   _ -> error "Don't pass Nothing"
@@ -2570,10 +2603,10 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
         leftNamePad :: P.Width =
           foldl1' max $
             map
-              (foldl1' max . map (P.Width . HQ'.nameLength) . toList . view _3)
+              (foldl1' max . map (P.Width . HQ'.nameLength Name.toText) . toList . view _3)
               terms
               <> map
-                (foldl1' max . map (P.Width . HQ'.nameLength) . toList . view _3)
+                (foldl1' max . map (P.Width . HQ'.nameLength Name.toText) . toList . view _3)
                 types
         prettyGroup ::
           ( (Referent, b, Set (HQ'.HashQualified Name), Set (HQ'.HashQualified Name)),
@@ -2584,11 +2617,12 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           let -- [ "peach  ┐"
               -- , "peach' ┘"]
               olds' :: [Numbered Pretty] =
-                map (\(oldhq, oldp) -> numHQ' oldPath oldhq r <&> (\n -> n <> " " <> oldp))
-                  . (zip (toList olds))
-                  . P.boxRight
-                  . map (P.rightPad leftNamePad . phq')
-                  $ toList olds
+                let olds0 = List.sortBy Name.compareAlphabetical (Set.toList olds)
+                 in map (\(oldhq, oldp) -> numHQ' oldPath oldhq r <&> (\n -> n <> " " <> oldp))
+                      . zip olds0
+                      . P.boxRight
+                      . map (P.rightPad leftNamePad . phq')
+                      $ olds0
 
               added' = toList $ Set.difference news olds
               removed' = toList $ Set.difference olds news
@@ -2624,7 +2658,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           5. - apiDocs : License
           6. + MIT     : License
     -}
-    prettyUpdateType (Nothing, mdUps) =
+    prettyUpdateType (OBD.UpdateTypeDisplay Nothing mdUps) =
       P.column2 <$> traverse (mdTypeLine newPath) mdUps
     {-
         1. ┌ ability Foo#pqr x y
@@ -2643,9 +2677,9 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
         4. foo	 : Poop
              5. + foo.docs : Doc
     -}
-    prettyUpdateType (Just olds, news) =
+    prettyUpdateType (OBD.UpdateTypeDisplay (Just olds) news) =
       do
-        olds <- traverse (mdTypeLine oldPath) [(name, r, decl, mempty) | (name, r, decl) <- olds]
+        olds <- traverse (mdTypeLine oldPath) [OBD.TypeDisplay name r decl mempty | (name, r, decl) <- olds]
         news <- traverse (mdTypeLine newPath) news
         let (oldnums, olddatas) = unzip olds
         let (newnums, newdatas) = unzip news
@@ -2763,7 +2797,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
 
     downArrow = P.bold "↓"
     mdTypeLine :: Input.AbsBranchId -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
-    mdTypeLine p (hq, r, odecl, mddiff) = do
+    mdTypeLine p (OBD.TypeDisplay hq r odecl mddiff) = do
       n <- numHQ' p hq (Referent.Ref r)
       fmap ((n,) . P.linesNonEmpty) . sequence $
         [ pure $ prettyDecl hq odecl,
@@ -2777,7 +2811,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       P.Width ->
       OBD.TermDisplay v a ->
       Numbered (Pretty, Pretty)
-    mdTermLine p namesWidth (hq, r, otype, mddiff) = do
+    mdTermLine p namesWidth (OBD.TermDisplay hq r otype mddiff) = do
       n <- numHQ' p hq r
       fmap ((n,) . P.linesNonEmpty)
         . sequence
@@ -2786,17 +2820,17 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           ]
 
     prettyUpdateTerm :: OBD.UpdateTermDisplay v a -> Numbered Pretty
-    prettyUpdateTerm (Nothing, newTerms) =
+    prettyUpdateTerm (OBD.UpdateTermDisplay Nothing newTerms) =
       if null newTerms
         then error "Super invalid UpdateTermDisplay"
         else fmap P.column2 $ traverse (mdTermLine newPath namesWidth) newTerms
       where
-        namesWidth = foldl1' max $ fmap (P.Width . HQ'.nameLength . view _1) newTerms
-    prettyUpdateTerm (Just olds, news) = fmap P.column2 $ do
+        namesWidth = foldl1' max $ fmap (P.Width . HQ'.nameLength Name.toText . view #name) newTerms
+    prettyUpdateTerm (OBD.UpdateTermDisplay (Just olds) news) = fmap P.column2 $ do
       olds <-
         traverse
           (mdTermLine oldPath namesWidth)
-          [(name, r, typ, mempty) | (name, r, typ) <- olds]
+          [OBD.TermDisplay name r typ mempty | (name, r, typ) <- olds]
       news <- traverse (mdTermLine newPath namesWidth) news
       let (oldnums, olddatas) = unzip olds
       let (newnums, newdatas) = unzip news
@@ -2807,8 +2841,8 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       where
         namesWidth =
           foldl1' max $
-            fmap (P.Width . HQ'.nameLength . view _1) news
-              <> fmap (P.Width . HQ'.nameLength . view _1) olds
+            fmap (P.Width . HQ'.nameLength Name.toText . view #name) news
+              <> fmap (P.Width . HQ'.nameLength Name.toText . view _1) olds
 
     prettyMetadataDiff :: OBD.MetadataDiff (OBD.MetadataDisplay v a) -> Numbered Pretty
     prettyMetadataDiff OBD.MetadataDiff {..} =
@@ -2847,7 +2881,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -- prefixBranchId ".base" "List.map" -> ".base.List.map"
     prefixBranchId :: Input.AbsBranchId -> Name -> String
     prefixBranchId branchId name = case branchId of
-      Left sbh -> "#" <> SBH.toString sbh <> ":" <> Name.toString (Name.makeAbsolute name)
+      Left sch -> "#" <> SCH.toString sch <> ":" <> Name.toString (Name.makeAbsolute name)
       Right pathPrefix -> Name.toString (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
 
     addNumberedArg' :: String -> Numbered Pretty
@@ -3010,7 +3044,7 @@ prettyDiff diff =
       addedTypes =
         [ (n, r) | (n, r) <- R.toList (Names.types adds), not $ R.memberRan r (Names.types removes)
         ]
-      added = sort (hqTerms ++ hqTypes)
+      added = List.sortBy Name.compareAlphabetical (hqTerms ++ hqTypes)
         where
           hqTerms = [Names.hqName adds n (Right r) | (n, r) <- addedTerms]
           hqTypes = [Names.hqName adds n (Left r) | (n, r) <- addedTypes]
@@ -3025,7 +3059,7 @@ prettyDiff diff =
         ]
         where
           addedTypesSet = Set.fromList (map fst addedTypes)
-      removed = sort (hqTerms ++ hqTypes)
+      removed = List.sortBy Name.compareAlphabetical (hqTerms ++ hqTypes)
         where
           hqTerms = [Names.hqName removes n (Right r) | (n, r) <- removedTerms]
           hqTypes = [Names.hqName removes n (Left r) | (n, r) <- removedTypes]
@@ -3036,7 +3070,7 @@ prettyDiff diff =
       movedTypes =
         [ (n, n2) | (n, r) <- R.toList (Names.types removes), n2 <- toList (R.lookupRan r (Names.types adds))
         ]
-      moved = Name.sortNamed fst . nubOrd $ (movedTerms <> movedTypes)
+      moved = Name.sortNamed Name.toText fst . nubOrd $ (movedTerms <> movedTypes)
 
       copiedTerms =
         List.multimap
@@ -3047,7 +3081,7 @@ prettyDiff diff =
           [ (n, n2) | (n2, r) <- R.toList (Names.types adds), not (R.memberRan r (Names.types removes)), n <- toList (R.lookupRan r (Names.types orig))
           ]
       copied =
-        Name.sortNamed fst $
+        Name.sortNamed Name.toText fst $
           Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
    in P.sepNonEmpty
         "\n\n"

@@ -152,7 +152,7 @@ eval0 !env !activeThreads !co = do
   bstk <- alloc
   (denv, k) <-
     topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
-  eval env denv activeThreads ustk bstk (k KE) co
+  eval env denv activeThreads ustk bstk (k KE) dummyRef co
 
 topDEnv ::
   M.Map Reference Word64 ->
@@ -241,31 +241,32 @@ exec ::
   Stack 'UN ->
   Stack 'BX ->
   K ->
+  Reference ->
   Instr ->
   IO (DEnv, Stack 'UN, Stack 'BX, K)
-exec !_ !denv !_activeThreads !ustk !bstk !k (Info tx) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Info tx) = do
   info tx ustk
   info tx bstk
   info tx k
   pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k (Name r args) = do
+exec !env !denv !_activeThreads !ustk !bstk !k _ (Name r args) = do
   bstk <- name ustk bstk args =<< resolve env denv bstk r
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (SetDyn p i) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (SetDyn p i) = do
   clo <- peekOff bstk i
   pure (EC.mapInsert p clo denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (Capture p) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Capture p) = do
   (cap, denv, ustk, bstk, k) <- splitCont denv ustk bstk k p
   bstk <- bump bstk
   poke bstk cap
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (UPrim1 op i) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (UPrim1 op i) = do
   ustk <- uprim1 ustk op i
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (UPrim2 op i j) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (UPrim2 op i j) = do
   ustk <- uprim2 ustk op i j
   pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 MISS i)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 MISS i)
   | sandboxed env = die "attempted to use sandboxed operation: isMissing"
   | otherwise = do
       clink <- peekOff bstk i
@@ -274,7 +275,7 @@ exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 MISS i)
       ustk <- bump ustk
       if (link `M.member` m) then poke ustk 1 else poke ustk 0
       pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 CACH i)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 CACH i)
   | sandboxed env = die "attempted to use sandboxed operation: cache"
   | otherwise = do
       arg <- peekOffS bstk i
@@ -285,7 +286,7 @@ exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 CACH i)
         bstk
         (Sq.fromList $ Foreign . Wrap Rf.termLinkRef . Ref <$> unknown)
       pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 CVLD i)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 CVLD i)
   | sandboxed env = die "attempted to use sandboxed operation: validate"
   | otherwise = do
       arg <- peekOffS bstk i
@@ -303,7 +304,7 @@ exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 CVLD i)
           pokeOffBi bstk 1 msg
           pokeOff bstk 2 clo
           pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 LKUP i)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 LKUP i)
   | sandboxed env = die "attempted to use sandboxed operation: lookup"
   | otherwise = do
       clink <- peekOff bstk i
@@ -323,14 +324,14 @@ exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 LKUP i)
           bstk <- bump bstk
           bstk <$ pokeBi bstk sg
       pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (BPrim1 TLTT i) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim1 TLTT i) = do
   clink <- peekOff bstk i
   let Ref link = unwrapForeign $ marshalToForeign clink
   let sh = Util.Text.fromText . SH.toText $ toShortHash link
   bstk <- bump bstk
   pokeBi bstk sh
   pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 LOAD i)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 LOAD i)
   | sandboxed env = die "attempted to use sandboxed operation: load"
   | otherwise = do
       v <- peekOffBi bstk i
@@ -345,16 +346,16 @@ exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 LOAD i)
           poke ustk 1
           poke bstk x
       pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 VALU i) = do
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 VALU i) = do
   m <- readTVarIO (tagRefs env)
   c <- peekOff bstk i
   bstk <- bump bstk
   pokeBi bstk =<< reflectValue m c
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (BPrim1 op i) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim1 op i) = do
   (ustk, bstk) <- bprim1 ustk bstk op i
   pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k (BPrim2 SDBX i j) = do
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim2 SDBX i j) = do
   s <- peekOffS bstk i
   c <- peekOff bstk j
   l <- decodeSandboxArgument s
@@ -362,92 +363,96 @@ exec !env !denv !_activeThreads !ustk !bstk !k (BPrim2 SDBX i j) = do
   ustk <- bump ustk
   poke ustk $ if b then 1 else 0
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (BPrim2 EQLU i j) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim2 EQLU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   ustk <- bump ustk
   poke ustk $ if universalEq (==) x y then 1 else 0
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (BPrim2 CMPU i j) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim2 CMPU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   ustk <- bump ustk
   poke ustk . fromEnum $ universalCompare compare x y
   pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k (BPrim2 TRCE i j)
+exec !_ !_ !_activeThreads !_ !bstk !k r (BPrim2 THRO i j) = do
+  name <- peekOffBi @Util.Text.Text bstk i
+  x <- peekOff bstk j
+  throwIO (BU (traceK r k) (Util.Text.toText name) x)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim2 TRCE i j)
   | sandboxed env = die "attempted to use sandboxed operation: trace"
   | otherwise = do
       tx <- peekOffBi bstk i
       clo <- peekOff bstk j
       tracer env tx clo
       pure (denv, ustk, bstk, k)
-exec !_ !denv !_trackThreads !ustk !bstk !k (BPrim2 op i j) = do
+exec !_ !denv !_trackThreads !ustk !bstk !k _ (BPrim2 op i j) = do
   (ustk, bstk) <- bprim2 ustk bstk op i j
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (Pack r t args) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Pack r t args) = do
   clo <- buildData ustk bstk r t args
   bstk <- bump bstk
   poke bstk clo
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (Unpack r i) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Unpack r i) = do
   (ustk, bstk) <- dumpData r ustk bstk =<< peekOff bstk i
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (Print i) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Print i) = do
   t <- peekOffBi bstk i
   Tx.putStrLn (Util.Text.toText t)
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (Lit (MI n)) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Lit (MI n)) = do
   ustk <- bump ustk
   poke ustk n
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (Lit (MD d)) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Lit (MD d)) = do
   ustk <- bump ustk
   pokeD ustk d
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (Lit (MT t)) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Lit (MT t)) = do
   bstk <- bump bstk
   poke bstk (Foreign (Wrap Rf.textRef t))
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (Lit (MM r)) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Lit (MM r)) = do
   bstk <- bump bstk
   poke bstk (Foreign (Wrap Rf.termLinkRef r))
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (Lit (MY r)) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Lit (MY r)) = do
   bstk <- bump bstk
   poke bstk (Foreign (Wrap Rf.typeLinkRef r))
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k (Reset ps) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Reset ps) = do
   (ustk, ua) <- saveArgs ustk
   (bstk, ba) <- saveArgs bstk
   pure (denv, ustk, bstk, Mark ua ba ps clos k)
   where
     clos = EC.restrictKeys denv ps
-exec !_ !denv !_activeThreads !ustk !bstk !k (Seq as) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Seq as) = do
   l <- closureArgs bstk as
   bstk <- bump bstk
   pokeS bstk $ Sq.fromList l
   pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k (ForeignCall _ w args)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (ForeignCall _ w args)
   | Just (FF arg res ev) <- EC.lookup w (foreignFuncs env) =
       uncurry (denv,,,k)
         <$> (arg ustk bstk args >>= ev >>= res ustk bstk)
   | otherwise =
       die $ "reference to unknown foreign function: " ++ show w
-exec !env !denv !activeThreads !ustk !bstk !k (Fork i)
+exec !env !denv !activeThreads !ustk !bstk !k _ (Fork i)
   | sandboxed env = die "attempted to use sandboxed operation: fork"
   | otherwise = do
       tid <- forkEval env activeThreads =<< peekOff bstk i
       bstk <- bump bstk
       poke bstk . Foreign . Wrap Rf.threadIdRef $ tid
       pure (denv, ustk, bstk, k)
-exec !env !denv !activeThreads !ustk !bstk !k (Atomically i)
+exec !env !denv !activeThreads !ustk !bstk !k _ (Atomically i)
   | sandboxed env = die $ "attempted to use sandboxed operation: atomically"
   | otherwise = do
       c <- peekOff bstk i
       bstk <- bump bstk
       atomicEval env activeThreads (poke bstk) c
       pure (denv, ustk, bstk, k)
-exec !env !denv !activeThreads !ustk !bstk !k (TryForce i)
+exec !env !denv !activeThreads !ustk !bstk !k _ (TryForce i)
   | sandboxed env = die $ "attempted to use sandboxed operation: tryForce"
   | otherwise = do
       c <- peekOff bstk i
@@ -478,7 +483,7 @@ encodeExn ustk bstk (Left exn) = do
       | Just re <- fromException exn = case re of
           PE _stk msg ->
             (Rf.runtimeFailureRef, Util.Text.pack $ toPlainUnbroken msg, unitValue)
-          BU tx cl -> (Rf.runtimeFailureRef, Util.Text.fromText tx, cl)
+          BU _ tx cl -> (Rf.runtimeFailureRef, Util.Text.fromText tx, cl)
       | Just (ae :: ArithException) <- fromException exn =
           (Rf.arithmeticFailureRef, disp ae, unitValue)
       | Just (nae :: NestedAtomically) <- fromException exn =
@@ -496,15 +501,16 @@ eval ::
   Stack 'UN ->
   Stack 'BX ->
   K ->
+  Reference ->
   Section ->
   IO ()
-eval !env !denv !activeThreads !ustk !bstk !k (Match i (TestT df cs)) = do
+eval !env !denv !activeThreads !ustk !bstk !k r (Match i (TestT df cs)) = do
   t <- peekOffBi bstk i
-  eval env denv activeThreads ustk bstk k $ selectTextBranch t df cs
-eval !env !denv !activeThreads !ustk !bstk !k (Match i br) = do
+  eval env denv activeThreads ustk bstk k r $ selectTextBranch t df cs
+eval !env !denv !activeThreads !ustk !bstk !k r (Match i br) = do
   n <- peekOffN ustk i
-  eval env denv activeThreads ustk bstk k $ selectBranch n br
-eval !env !denv !activeThreads !ustk !bstk !k (Yield args)
+  eval env denv activeThreads ustk bstk k r $ selectBranch n br
+eval !env !denv !activeThreads !ustk !bstk !k _ (Yield args)
   | asize ustk + asize bstk > 0,
     BArg1 i <- args =
       peekOff bstk i >>= apply env denv activeThreads ustk bstk k False ZArgs
@@ -513,23 +519,23 @@ eval !env !denv !activeThreads !ustk !bstk !k (Yield args)
       ustk <- frameArgs ustk
       bstk <- frameArgs bstk
       yield env denv activeThreads ustk bstk k
-eval !env !denv !activeThreads !ustk !bstk !k (App ck r args) =
+eval !env !denv !activeThreads !ustk !bstk !k _ (App ck r args) =
   resolve env denv bstk r
     >>= apply env denv activeThreads ustk bstk k ck args
-eval !env !denv !activeThreads !ustk !bstk !k (Call ck n args) =
+eval !env !denv !activeThreads !ustk !bstk !k _ (Call ck n args) =
   combSection env (CIx dummyRef n 0)
     >>= enter env denv activeThreads ustk bstk k ck args
-eval !env !denv !activeThreads !ustk !bstk !k (Jump i args) =
+eval !env !denv !activeThreads !ustk !bstk !k _ (Jump i args) =
   peekOff bstk i >>= jump env denv activeThreads ustk bstk k args
-eval !env !denv !activeThreads !ustk !bstk !k (Let nw cix) = do
+eval !env !denv !activeThreads !ustk !bstk !k r (Let nw cix) = do
   (ustk, ufsz, uasz) <- saveFrame ustk
   (bstk, bfsz, basz) <- saveFrame bstk
-  eval env denv activeThreads ustk bstk (Push ufsz bfsz uasz basz cix k) nw
-eval !env !denv !activeThreads !ustk !bstk !k (Ins i nx) = do
-  (denv, ustk, bstk, k) <- exec env denv activeThreads ustk bstk k i
-  eval env denv activeThreads ustk bstk k nx
-eval !_ !_ !_ !_activeThreads !_ !_ Exit = pure ()
-eval !_ !_ !_ !_activeThreads !_ !_ (Die s) = die s
+  eval env denv activeThreads ustk bstk (Push ufsz bfsz uasz basz cix k) r nw
+eval !env !denv !activeThreads !ustk !bstk !k r (Ins i nx) = do
+  (denv, ustk, bstk, k) <- exec env denv activeThreads ustk bstk k r i
+  eval env denv activeThreads ustk bstk k r nx
+eval !_ !_ !_ !_activeThreads !_ !_ _ Exit = pure ()
+eval !_ !_ !_ !_activeThreads !_ !_ _ (Die s) = die s
 {-# NOINLINE eval #-}
 
 forkEval :: CCache -> ActiveThreads -> Closure -> IO ThreadId
@@ -587,7 +593,9 @@ enter !env !denv !activeThreads !ustk !bstk !k !ck !args !comb = do
   (ustk, bstk) <- moveArgs ustk bstk args
   ustk <- acceptArgs ustk ua
   bstk <- acceptArgs bstk ba
-  eval env denv activeThreads ustk bstk k entry
+  -- TODO: start putting references in `Call` if we ever start
+  -- detecting saturated calls.
+  eval env denv activeThreads ustk bstk k dummyRef entry
   where
     Lam ua ba uf bf entry = comb
 {-# INLINE enter #-}
@@ -626,7 +634,7 @@ apply !env !denv !activeThreads !ustk !bstk !k !ck !args (PAp comb useg bseg) =
           bstk <- dumpSeg bstk bseg A
           ustk <- acceptArgs ustk ua
           bstk <- acceptArgs bstk ba
-          eval env denv activeThreads ustk bstk k entry
+          eval env denv activeThreads ustk bstk k (combRef comb) entry
       | otherwise -> do
           (useg, bseg) <- closeArgs C ustk bstk useg bseg args
           ustk <- discardFrame =<< frameArgs ustk
@@ -1594,10 +1602,7 @@ bprim2 !ustk !bstk CATB i j = do
   bstk <- bump bstk
   pokeBi bstk (l <> r :: By.Bytes)
   pure (ustk, bstk)
-bprim2 !_ !bstk THRO i j = do
-  name <- peekOffBi @Util.Text.Text bstk i
-  x <- peekOff bstk j
-  throwIO (BU (Util.Text.toText name) x)
+bprim2 !ustk !bstk THRO _ _ = pure (ustk, bstk) -- impossible
 bprim2 !ustk !bstk TRCE _ _ = pure (ustk, bstk) -- impossible
 bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
 bprim2 !ustk !bstk SDBX _ _ = pure (ustk, bstk) -- impossible
@@ -1626,7 +1631,7 @@ yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
       bstk <- restoreFrame bstk bfsz basz
       ustk <- ensure ustk uf
       bstk <- ensure bstk bf
-      eval env denv activeThreads ustk bstk k nx
+      eval env denv activeThreads ustk bstk k (combRef cix) nx
     leap _ (CB (Hook f)) = f ustk bstk
     leap _ KE = pure ()
 {-# INLINE yield #-}
@@ -1713,7 +1718,7 @@ resolve env _ _ (Env n i) =
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve _ denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
-  _ -> die $ "resolve: looked up bad dynamic: " ++ show i
+  _ -> die $ "resolve: unhandled ability request: " ++ show i
 
 combSection :: HasCallStack => CCache -> CombIx -> IO Comb
 combSection env (CIx _ n i) =
@@ -1933,6 +1938,8 @@ reflectValue rty = goV
           pure (ANF.Quote v)
       | Just g <- maybeUnwrapForeign Rf.codeRef f =
           pure (ANF.Code g)
+      | Just a <- maybeUnwrapForeign Rf.ibytearrayRef f =
+          pure (ANF.BArr a)
       | otherwise = die $ err $ "foreign value: " <> (show f)
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
@@ -2005,6 +2012,7 @@ reifyValue0 (rty, rtm) = goV
     goL (ANF.Bytes b) = pure . Foreign $ Wrap Rf.bytesRef b
     goL (ANF.Quote v) = pure . Foreign $ Wrap Rf.valueRef v
     goL (ANF.Code g) = pure . Foreign $ Wrap Rf.codeRef g
+    goL (ANF.BArr a) = pure . Foreign $ Wrap Rf.ibytearrayRef a
 
 -- Universal comparison functions
 
@@ -2154,7 +2162,8 @@ universalCompare frn = cmpc False
     cmpc tyEq (Foreign fl) (Foreign fr)
       | Just sl <- maybeUnwrapForeign Rf.listRef fl,
         Just sr <- maybeUnwrapForeign Rf.listRef fr =
-          comparing Sq.length sl sr <> fold (Sq.zipWith (cmpc tyEq) sl sr)
+          fold (Sq.zipWith (cmpc tyEq) sl sr)
+            <> compare (length sl) (length sr)
       | Just al <- maybeUnwrapForeign Rf.iarrayRef fl,
         Just ar <- maybeUnwrapForeign Rf.iarrayRef fr =
           arrayCmp (cmpc tyEq) al ar
@@ -2166,7 +2175,8 @@ arrayCmp ::
   PA.Array Closure ->
   PA.Array Closure ->
   Ordering
-arrayCmp cmpc l r = comparing PA.sizeofArray l r <> go (PA.sizeofArray l)
+arrayCmp cmpc l r =
+  comparing PA.sizeofArray l r <> go (PA.sizeofArray l - 1)
   where
     go i
       | i < 0 = EQ

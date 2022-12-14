@@ -106,41 +106,6 @@ oldfoo = 801
 .lhs> todo
 ```
 
-## A type-preserving update to one element of a cycle, which doesn't (yet) propagate to the other
-
-```ucm:hide
-.cycle1> builtins.mergeio
-```
-
-```unison
-even = cases
-  0 -> true
-  n -> odd (drop 1 n)
-
-odd = cases
-  0 -> false
-  n -> even (drop 1 n)
-```
-
-```ucm
-.cycle1> add
-```
-
-```unison
-even = cases
-  0 -> true
-  2 -> true
-  n -> odd (drop 1 n)
-```
-
-```ucm
-.cycle1> update
-```
-
-```ucm:error
-.cycle1> todo
-```
-
 ## A type-changing update to one element of a cycle, which doesn't propagate to the other
 
 ```ucm:hide

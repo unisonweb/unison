@@ -1,10 +1,4 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.DataDeclaration
   ( DataDeclaration (..),
@@ -43,7 +37,6 @@ import Control.Monad.State (evalState)
 import Data.Bifunctor (bimap, first, second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Prelude.Extras (Show1)
 import qualified Unison.ABT as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -248,13 +241,14 @@ allVars' = allVars . either toDataDecl id
 
 bindReferences ::
   Var v =>
+  (v -> Name.Name) ->
   Set v ->
   Map Name.Name Reference ->
   DataDeclaration v a ->
   Names.ResolutionResult v a (DataDeclaration v a)
-bindReferences keepFree names (DataDeclaration m a bound constructors) = do
+bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constructors) = do
   constructors <- for constructors $ \(a, v, ty) ->
-    (a,v,) <$> Type.bindReferences keepFree names ty
+    (a,v,) <$> Type.bindReferences unsafeVarToName keepFree names ty
   pure $ DataDeclaration m a bound constructors
 
 dependencies :: Ord v => DataDeclaration v a -> Set Reference
@@ -274,7 +268,7 @@ data F a
   | LetRec [a] a
   | Constructors [a]
   | Modified Modifier a
-  deriving (Functor, Foldable, Show, Show1)
+  deriving (Functor, Foldable, Show)
 
 updateDependencies :: Ord v => Map Reference Reference -> Decl v a -> Decl v a
 updateDependencies typeUpdates decl =

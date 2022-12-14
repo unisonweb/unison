@@ -8,6 +8,7 @@ import Control.Monad.Trans.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Unison.Cli.Monad (Cli, Env (..))
+import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0)
 import qualified Unison.Codebase.Branch as Branch
@@ -37,15 +38,17 @@ import qualified Unison.Util.Relation4 as Relation4
 --
 -- Returns a Set of names rather than using the PPE since we already have the correct names in
 -- scope on this branch, and also want to list ALL names of dependents, including aliases.
-namespaceDependencies :: forall m r. Branch0 m -> Cli r (Map LabeledDependency (Set Name))
+namespaceDependencies :: Branch0 m -> Cli (Map LabeledDependency (Set Name))
 namespaceDependencies branch = do
   Env {codebase} <- ask
 
-  typeDeps <- for (Map.toList currentBranchTypeRefs) $ \(typeRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
-    refId <- MaybeT . pure $ Reference.toId typeRef
-    decl <- MaybeT $ liftIO (Codebase.getTypeDeclaration codebase refId)
-    let typeDeps = Set.map LD.typeRef $ DD.dependencies (DD.asDataDecl decl)
-    pure $ foldMap (`Map.singleton` names) typeDeps
+  typeDeps <-
+    Cli.runTransaction do
+      for (Map.toList currentBranchTypeRefs) $ \(typeRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
+        refId <- MaybeT . pure $ Reference.toId typeRef
+        decl <- MaybeT $ Codebase.getTypeDeclaration codebase refId
+        let typeDeps = Set.map LD.typeRef $ DD.dependencies (DD.asDataDecl decl)
+        pure $ foldMap (`Map.singleton` names) typeDeps
 
   termDeps <- for (Map.toList currentBranchTermRefs) $ \(termRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
     refId <- MaybeT . pure $ Referent.toReferenceId termRef

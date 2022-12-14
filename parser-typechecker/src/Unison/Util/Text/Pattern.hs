@@ -47,11 +47,47 @@ cpattern p = CP p (run p)
 
 run :: Pattern -> Text -> Maybe ([Text], Text)
 run p =
-  let cp = compile p (\_ _ -> Nothing) (\acc rem -> Just (reverse acc, rem))
-   in \t -> cp [] t
+  let cp = compile p (\_ _ -> Nothing) (\acc rem -> Just (s acc, rem))
+      s = reverse . capturesToList . stackCaptures
+   in \t -> cp (Empty emptyCaptures) t
 
--- Pattern a -> ([a] -> a -> r) -> ... -- might need a takeable and droppable interface if go this route
-compile :: Pattern -> ([Text] -> Text -> r) -> ([Text] -> Text -> r) -> [Text] -> Text -> r
+-- Stack used to track captures and to support backtracking.
+-- A `try` will push a `Mark` that allows the old state
+-- (both the list of captures and the current remainder)
+-- to be restored on failure.
+data Stack = Empty !Captures | Mark !Captures !Text !Stack
+
+-- A difference list for representing the captures of a pattern.
+-- So that capture lists can be appended in O(1).
+type Captures = [Text] -> [Text]
+
+stackCaptures :: Stack -> Captures
+stackCaptures (Mark cs _ _) = cs
+stackCaptures (Empty cs) = cs
+{-# INLINE stackCaptures #-}
+
+pushCaptures :: Captures -> Stack -> Stack
+pushCaptures c (Empty cs) = Empty (appendCaptures c cs)
+pushCaptures c (Mark cs t s) = Mark (appendCaptures c cs) t s
+{-# INLINE pushCaptures #-}
+
+pushCapture :: Text -> Stack -> Stack
+pushCapture txt = pushCaptures (txt :)
+{-# INLINE pushCapture #-}
+
+appendCaptures :: Captures -> Captures -> Captures
+appendCaptures c1 c2 = c1 . c2
+{-# INLINE appendCaptures #-}
+
+emptyCaptures :: Captures
+emptyCaptures = id
+
+capturesToList :: Captures -> [Text]
+capturesToList c = c []
+
+type Compiled r = (Stack -> Text -> r) -> (Stack -> Text -> r) -> Stack -> Text -> r
+
+compile :: Pattern -> Compiled r
 compile !Eof !err !success = go
   where
     go acc t
@@ -68,17 +104,17 @@ compile AnyChar !err !success = go
       rem
         | Text.size t > Text.size rem -> success acc rem
         | otherwise -> err acc rem
-compile (Capture (Many AnyChar)) !_ !success = \acc t -> success (t : acc) Text.empty
+compile (Capture (Many AnyChar)) !_ !success = \acc t -> success (pushCapture t acc) Text.empty
 compile (Capture c) !err !success = go
   where
     err' _ _ acc0 t0 = err acc0 t0
-    success' _ rem acc0 t0 = success (Text.take (Text.size t0 - Text.size rem) t0 : acc0) rem
+    success' _ rem acc0 t0 = success (pushCapture (Text.take (Text.size t0 - Text.size rem) t0) acc0) rem
     compiled = compile c err' success'
     go acc t = compiled acc t acc t
 compile (Or p1 p2) err success = cp1
   where
     cp2 = compile p2 err success
-    cp1 = compile p1 cp2 success
+    cp1 = try "Or" (compile p1) cp2 success
 compile (Join ps) !err !success = go ps
   where
     go [] = success
@@ -112,6 +148,8 @@ compile (Many p) !_ !success = case p of
   AnyChar -> (\acc _ -> success acc Text.empty)
   CharIn cs -> walker (charInPred cs)
   NotCharIn cs -> walker (charNotInPred cs)
+  CharRange c1 c2 -> walker (\ch -> ch >= c1 && ch <= c2)
+  NotCharRange c1 c2 -> walker (\ch -> ch < c1 || ch > c2)
   Digit -> walker isDigit
   Letter -> walker isLetter
   Punctuation -> walker isPunctuation
@@ -144,16 +182,18 @@ compile (Replicate m n p) !err !success = case p of
       else success acc (Text.drop n t)
   CharIn cs -> dropper (charInPred cs)
   NotCharIn cs -> dropper (charNotInPred cs)
+  CharRange c1 c2 -> dropper (\ch -> ch >= c1 && c1 <= c2)
+  NotCharRange c1 c2 -> dropper (\ch -> ch < c1 || ch > c2)
   Digit -> dropper isDigit
   Letter -> dropper isLetter
   Punctuation -> dropper isPunctuation
   Space -> dropper isSpace
-  _ -> go1 m
+  _ -> try "Replicate" (go1 m) err (go2 (n - m))
   where
-    go1 0 = go2 (n - m)
-    go1 n = compile p err (go1 (n - 1))
+    go1 0 = \_err success stk rem -> success stk rem
+    go1 n = \err success -> compile p err (go1 (n - 1) err success)
     go2 0 = success
-    go2 n = compile p success (go2 (n - 1))
+    go2 n = try "Replicate" (compile p) success (go2 (n - 1))
 
     dropper ok acc t
       | (i, rest) <- Text.dropWhileMax ok n t, i >= m = success acc rest
@@ -184,3 +224,16 @@ charInPred [] = const False
 charInPred (c : chs) = let ok = charInPred chs in \ci -> ci == c || ok ci
 charNotInPred [] = const True
 charNotInPred (c : chs) = let ok = charNotInPred chs in (\ci -> ci /= c && ok ci)
+
+-- runs c and if it fails, restores state to what it was before
+try :: String -> Compiled r -> Compiled r
+try msg c err success stk rem =
+  c err' success' (Mark id rem stk) rem
+  where
+    success' stk rem = case stk of
+      Mark caps _ stk -> success (pushCaptures caps stk) rem
+      _ -> error $ "Pattern compiler error in: " <> msg
+    err' stk _ = case stk of
+      Mark _ rem stk -> err stk rem
+      _ -> error $ "Pattern compiler error in: " <> msg
+{-# INLINE try #-}

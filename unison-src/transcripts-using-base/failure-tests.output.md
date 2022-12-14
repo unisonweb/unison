@@ -9,12 +9,12 @@ tested here.
 ```unison
 test1 : '{IO, Exception} [Result]
 test1 = do
-  fromUtf8 0xsee
+  _ = fromUtf8 0xsee
   [Ok "test1"]
 
 test2 : '{IO, Exception} [Result]
 test2 = do
-  tryEval '(bug "whoa")
+  _ = tryEval '(bug "whoa")
   [Ok "test2"]
 ```
 
@@ -50,6 +50,10 @@ test2 = do
       (typeLink IOFailure)
       "Cannot decode byte '\\xee': Data.Text.Internal.Encoding.decodeUtf8: Invalid UTF-8 stream"
       (Any ())
+  
+  
+  Stack trace:
+    ##raise
 
 ```
 ```ucm
@@ -60,5 +64,9 @@ test2 = do
   The program halted with an unhandled exception:
   
     Failure (typeLink RuntimeFailure) "builtin.bug" (Any "whoa")
+  
+  
+  Stack trace:
+    ##raise
 
 ```

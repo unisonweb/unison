@@ -28,6 +28,7 @@ module Unison.Runtime.MCode
     emitComb,
     emptyRNs,
     argsToLists,
+    combRef,
     combDeps,
     combTypes,
     prettyCombs,
@@ -542,6 +543,9 @@ data CombIx
       !Word64 -- top level
       !Word64 -- section
   deriving (Eq, Ord, Show)
+
+combRef :: CombIx -> Reference
+combRef (CIx r _ _) = r
 
 data RefNums = RN
   { dnum :: Reference -> Word64,

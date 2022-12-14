@@ -11,6 +11,10 @@ on:
         description: 'Release Version (E.g. M4 or M4a)'
         required: true
         type: string
+      share_base_path:
+        description: 'Path to base version that UCM should pull by default (E.g. `unison.public.base.releases.M4`)'
+        required: true
+        type: string
       target:
         description: 'Ref to use for this release, defaults to trunk'
         required: true
@@ -57,6 +61,8 @@ jobs:
 
     name: "build_linux"
     runs-on: ubuntu-20.04
+    env:
+      UNISON_BASE_PATH: "${{inputs.share_base_path}}"
     steps:
       - uses: actions/checkout@v2
         with:
@@ -102,7 +108,11 @@ jobs:
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: build
-        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+        run: |
+          # unison-cli checks env vars for which base version to automatically pull,
+          # so it needs to be forced to rebuild to ensure those are updated.
+          stack clean unison-cli
+          stack --no-terminal build --flag unison-parser-typechecker:optimized
 
       - name: fetch latest Unison Local UI and package with ucm
         run: |
@@ -123,6 +133,8 @@ jobs:
   build_macos:
     name: "build_macos"
     runs-on: macos-11
+    env:
+      UNISON_BASE_PATH: "${{inputs.share_base_path}}"
     steps:
       - uses: actions/checkout@v2
         with:
@@ -171,7 +183,11 @@ jobs:
         run: rm -rf ~/.stack/setup-exe-cache
 
       - name: build
-        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+        run: |
+          # unison-cli checks env vars for which base version to automatically pull,
+          # so it needs to be forced to rebuild to ensure those are updated.
+          stack clean unison-cli
+          stack --no-terminal build --flag unison-parser-typechecker:optimized
 
       - name: fetch latest Unison Local UI and package with ucm
         run: |
@@ -192,6 +208,8 @@ jobs:
   build_windows:
     name: "build_windows"
     runs-on: windows-2019
+    env:
+      UNISON_BASE_PATH: "${{inputs.share_base_path}}"
 
     steps:
       - uses: actions/checkout@v2
@@ -239,6 +257,10 @@ jobs:
 
       - name: build
         run: |
+          # unison-cli checks env vars for which base version to automatically pull,
+          # so it needs to be forced to rebuild to ensure those are updated.
+          stack clean unison-cli
+
           # Windows will crash on build intermittently because the filesystem
           # sucks at managing concurrent file access;
           # Just keep retrying on these failures.
@@ -248,13 +270,18 @@ jobs:
           done
 
       - name: fetch latest Unison Local UI and package with ucm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Powershell
+        shell: pwsh
         run: |
-          mkdir -p /tmp/ucm/ui
-          UCM="$(stack path | awk '/local-install-root/{print $2}')/bin/unison"
-          cp "$UCM" /tmp/ucm/ucm
-          wget -O /tmp/unisonLocal.zip https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
-          tar.exe -xf /tmp/unisonLocal.zip --directory /tmp/ucm/ui
-          tar.exe -a -c -f ucm-windows.zip /tmp/ucm
+          mkdir -p tmp\ui
+          mkdir -p release\ui
+          $UCM = .\stack\stack-2.7.5-windows-x86_64\stack.exe exec -- where unison
+          cp $UCM .\release\ucm.exe
+          Invoke-WebRequest -Uri https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
+          Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui
+          Compress-Archive -Path .\release\* -DestinationPath ucm-windows.zip
 
       - name: Upload windows artifact
         uses: actions/upload-artifact@v2

@@ -38,5 +38,6 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - ScopedTypeVariables
+  - RankNTypes
   - TupleSections
   - TypeApplications

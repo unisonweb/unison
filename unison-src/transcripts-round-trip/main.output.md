@@ -18,7 +18,7 @@ x = 1 + 1
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     x : Nat
     x =
@@ -34,16 +34,20 @@ x = 1 + 1
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #3uk2laeo44 .old`   to make an old namespace
+    `fork #l7cnk7raag .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #3uk2laeo44`  to reset the root namespace and
+    `reset-root #l7cnk7raag`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #5d37lofc79 : add
-  2. #3uk2laeo44 : builtins.mergeio
-  3. #sg60bvjo91 : (initial reflogged namespace)
+       When         Root Hash     Action
+  1.   now          #pdrl1ktsa0   add
+  2.   1 secs ago   #l7cnk7raag   builtins.mergeio
+  3.                #sg60bvjo91   history starts here
+  
+  Tip: Use `diff.namespace 1 7` to compare namespaces between
+       two points in history.
 
 .> reset-root 2
 
@@ -102,7 +106,7 @@ Without the above stanza, the `edit` will send the definition to the most recent
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     b : Nat
     b = 92384
@@ -116,18 +120,22 @@ Without the above stanza, the `edit` will send the definition to the most recent
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #3uk2laeo44 .old`   to make an old namespace
+    `fork #l7cnk7raag .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #3uk2laeo44`  to reset the root namespace and
+    `reset-root #l7cnk7raag`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #m90i9pca73 : add
-  2. #3uk2laeo44 : reset-root #3uk2laeo44
-  3. #5d37lofc79 : add
-  4. #3uk2laeo44 : builtins.mergeio
-  5. #sg60bvjo91 : (initial reflogged namespace)
+       When         Root Hash     Action
+  1.   now          #7a6vnmv5c9   add
+  2.   now          #l7cnk7raag   reset-root #l7cnk7raag
+  3.   now          #pdrl1ktsa0   add
+  4.   1 secs ago   #l7cnk7raag   builtins.mergeio
+  5.                #sg60bvjo91   history starts here
+  
+  Tip: Use `diff.namespace 1 7` to compare namespaces between
+       two points in history.
 
 .> reset-root 2
 
@@ -174,7 +182,7 @@ f x = let
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     unique type Blah
       = Blah Boolean Boolean
@@ -191,20 +199,24 @@ f x = let
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #3uk2laeo44 .old`   to make an old namespace
+    `fork #l7cnk7raag .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #3uk2laeo44`  to reset the root namespace and
+    `reset-root #l7cnk7raag`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #ru0oo7dcnh : add
-  2. #3uk2laeo44 : reset-root #3uk2laeo44
-  3. #m90i9pca73 : add
-  4. #3uk2laeo44 : reset-root #3uk2laeo44
-  5. #5d37lofc79 : add
-  6. #3uk2laeo44 : builtins.mergeio
-  7. #sg60bvjo91 : (initial reflogged namespace)
+       When         Root Hash     Action
+  1.   now          #obak7jnhcv   add
+  2.   now          #l7cnk7raag   reset-root #l7cnk7raag
+  3.   now          #7a6vnmv5c9   add
+  4.   now          #l7cnk7raag   reset-root #l7cnk7raag
+  5.   now          #pdrl1ktsa0   add
+  6.   1 secs ago   #l7cnk7raag   builtins.mergeio
+  7.                #sg60bvjo91   history starts here
+  
+  Tip: Use `diff.namespace 1 7` to compare namespaces between
+       two points in history.
 
 .> reset-root 2
 
@@ -256,7 +268,7 @@ h xs = match xs with
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     f : [a] -> a
     f = cases x +: (x' +: rest) -> x
@@ -273,22 +285,26 @@ h xs = match xs with
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #3uk2laeo44 .old`   to make an old namespace
+    `fork #l7cnk7raag .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #3uk2laeo44`  to reset the root namespace and
+    `reset-root #l7cnk7raag`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #c5qfjje3vn : add
-  2. #3uk2laeo44 : reset-root #3uk2laeo44
-  3. #ru0oo7dcnh : add
-  4. #3uk2laeo44 : reset-root #3uk2laeo44
-  5. #m90i9pca73 : add
-  6. #3uk2laeo44 : reset-root #3uk2laeo44
-  7. #5d37lofc79 : add
-  8. #3uk2laeo44 : builtins.mergeio
-  9. #sg60bvjo91 : (initial reflogged namespace)
+       When         Root Hash     Action
+  1.   now          #4skv4f38cf   add
+  2.   now          #l7cnk7raag   reset-root #l7cnk7raag
+  3.   now          #obak7jnhcv   add
+  4.   now          #l7cnk7raag   reset-root #l7cnk7raag
+  5.   now          #7a6vnmv5c9   add
+  6.   now          #l7cnk7raag   reset-root #l7cnk7raag
+  7.   now          #pdrl1ktsa0   add
+  8.   1 secs ago   #l7cnk7raag   builtins.mergeio
+  9.                #sg60bvjo91   history starts here
+  
+  Tip: Use `diff.namespace 1 7` to compare namespaces between
+       two points in history.
 
 .> reset-root 2
 
@@ -334,7 +350,7 @@ foo n _ = n
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     unique type Foo x y
       = 
@@ -353,24 +369,28 @@ foo n _ = n
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #3uk2laeo44 .old`   to make an old namespace
+    `fork #l7cnk7raag .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #3uk2laeo44`  to reset the root namespace and
+    `reset-root #l7cnk7raag`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #90vn9fdk1t : add
-  2.  #3uk2laeo44 : reset-root #3uk2laeo44
-  3.  #c5qfjje3vn : add
-  4.  #3uk2laeo44 : reset-root #3uk2laeo44
-  5.  #ru0oo7dcnh : add
-  6.  #3uk2laeo44 : reset-root #3uk2laeo44
-  7.  #m90i9pca73 : add
-  8.  #3uk2laeo44 : reset-root #3uk2laeo44
-  9.  #5d37lofc79 : add
-  10. #3uk2laeo44 : builtins.mergeio
-  11. #sg60bvjo91 : (initial reflogged namespace)
+        When         Root Hash     Action
+  1.    now          #fdnrhfkoot   add
+  2.    now          #l7cnk7raag   reset-root #l7cnk7raag
+  3.    now          #4skv4f38cf   add
+  4.    now          #l7cnk7raag   reset-root #l7cnk7raag
+  5.    now          #obak7jnhcv   add
+  6.    now          #l7cnk7raag   reset-root #l7cnk7raag
+  7.    now          #7a6vnmv5c9   add
+  8.    now          #l7cnk7raag   reset-root #l7cnk7raag
+  9.    now          #pdrl1ktsa0   add
+  10.   1 secs ago   #l7cnk7raag   builtins.mergeio
+  11.                #sg60bvjo91   history starts here
+  
+  Tip: Use `diff.namespace 1 7` to compare namespaces between
+       two points in history.
 
 .> reset-root 2
 
@@ -413,7 +433,7 @@ foo =
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     foo : Text
     foo =
@@ -432,26 +452,30 @@ foo =
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #3uk2laeo44 .old`   to make an old namespace
+    `fork #l7cnk7raag .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #3uk2laeo44`  to reset the root namespace and
+    `reset-root #l7cnk7raag`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #fqe7rpjits : add
-  2.  #3uk2laeo44 : reset-root #3uk2laeo44
-  3.  #90vn9fdk1t : add
-  4.  #3uk2laeo44 : reset-root #3uk2laeo44
-  5.  #c5qfjje3vn : add
-  6.  #3uk2laeo44 : reset-root #3uk2laeo44
-  7.  #ru0oo7dcnh : add
-  8.  #3uk2laeo44 : reset-root #3uk2laeo44
-  9.  #m90i9pca73 : add
-  10. #3uk2laeo44 : reset-root #3uk2laeo44
-  11. #5d37lofc79 : add
-  12. #3uk2laeo44 : builtins.mergeio
-  13. #sg60bvjo91 : (initial reflogged namespace)
+        When         Root Hash     Action
+  1.    now          #dblf9f7ggq   add
+  2.    now          #l7cnk7raag   reset-root #l7cnk7raag
+  3.    now          #fdnrhfkoot   add
+  4.    now          #l7cnk7raag   reset-root #l7cnk7raag
+  5.    now          #4skv4f38cf   add
+  6.    now          #l7cnk7raag   reset-root #l7cnk7raag
+  7.    now          #obak7jnhcv   add
+  8.    now          #l7cnk7raag   reset-root #l7cnk7raag
+  9.    now          #7a6vnmv5c9   add
+  10.   now          #l7cnk7raag   reset-root #l7cnk7raag
+  11.   now          #pdrl1ktsa0   add
+  12.   1 secs ago   #l7cnk7raag   builtins.mergeio
+  13.                #sg60bvjo91   history starts here
+  
+  Tip: Use `diff.namespace 1 7` to compare namespaces between
+       two points in history.
 
 .> reset-root 2
 
@@ -490,7 +514,7 @@ myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*T
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     myDoc : Doc2
     myDoc =
@@ -573,7 +597,7 @@ x = '(let
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     structural ability base.Abort where abort : {base.Abort} a
     
@@ -662,7 +686,7 @@ r = 'let
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     r : 'Nat
     r = do
@@ -725,7 +749,7 @@ x = 2
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     docTest2 : Doc2
     docTest2 =
@@ -785,7 +809,7 @@ broken =
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     broken : Nat
     broken =
@@ -842,7 +866,7 @@ broken tvar =
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     broken : tvar -> () -> ()
     broken tvar =
@@ -899,7 +923,7 @@ broken = cases
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     broken : Optional Nat -> ()
     broken = cases
@@ -960,7 +984,7 @@ foo = let
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     structural type SomethingUnusuallyLong
       = SomethingUnusuallyLong Text Text Text
@@ -1031,7 +1055,7 @@ foo = let
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/unison-src/transcripts-round-trip/nested.u
+  /Users/runar/work/unison/unison-src/transcripts-round-trip/nested.u
   
     nested : Doc2
     nested =
@@ -1088,7 +1112,7 @@ x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     foo : a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> Nat
     foo a b c d e f g h i j = 42
@@ -1248,7 +1272,7 @@ bar3 x = do
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     bar0 : x -> () -> Nat
     bar0 x = do
@@ -1335,5 +1359,173 @@ bar3 x = do
       bar2 : x -> 'Nat
       bar3 : x -> '(b -> Nat)
       foo  : a -> b -> Nat
+
+```
+# Lambda as the last argument where the bound var is not free in the body
+
+If a lambda's argument is not free in the body, the term printer counts this as
+a "delay" instead of a lambda. This test makes sure that detecting this
+condition lines up with the printing, so we don't detect a delay but then
+go ahead and print it as a normal lambda.
+
+```unison
+(+) a b = ##Nat.+ a b
+
+afun x f = f x
+
+roundtripLastLam =
+  afun "foo" (n -> let
+    1 + 1
+    3
+  )
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    +                : Nat -> Nat -> Nat
+    afun             : x -> (x ->{g} t) ->{g} t
+    roundtripLastLam : Nat
+
+.> edit roundtripLastLam afun
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    afun : x -> (x ->{g} t) ->{g} t
+    afun x f = f x
+    
+    roundtripLastLam : Nat
+    roundtripLastLam =
+      afun "foo" do
+        1 + 1
+        3
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. +                : Nat -> Nat -> Nat
+    2. afun             : x -> (x ->{g} t) ->{g} t
+    3. roundtripLastLam : Nat
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      afun             : x -> (x ->{g} t) ->{g} t
+      roundtripLastLam : Nat
+
+```
+# Comment out builtins in the edit command
+
+Regression test for https://github.com/unisonweb/unison/pull/3548
+
+```ucm
+.> alias.term ##Nat.+ plus
+
+  Done.
+
+.> edit plus
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    -- builtin plus : builtin.Nat -> builtin.Nat -> builtin.Nat
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Name changes:
+  
+    Original            Changes
+    1. builtin.Nat.+    2. plus (added)
+
+```
+```ucm
+.> load scratch.u
+
+  I loaded scratch.u and didn't find anything.
+
+```
+# Indent long pattern lists to avoid virtual semicolon
+
+Regression test for https://github.com/unisonweb/unison/issues/3627
+
+```unison
+(+) a b = ##Nat.+ a b
+
+foo = cases
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
+   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    +   : Nat -> Nat -> Nat
+    foo : Nat -> Nat -> Nat
+
+.> edit foo
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    foo : Nat -> Nat -> Nat
+    foo = cases
+      aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
+        bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ->
+        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. +   : Nat -> Nat -> Nat
+    2. foo : Nat -> Nat -> Nat
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : Nat -> Nat -> Nat
 
 ```

@@ -7,13 +7,16 @@
 module Unison.LSP.Types where
 
 import Colog.Core hiding (Lens')
-import Control.Lens hiding (List)
+import Control.Comonad.Cofree (Cofree)
+import qualified Control.Comonad.Cofree as Cofree
+import Control.Lens hiding (List, (:<))
 import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BSC
 import qualified Data.HashMap.Strict as HM
 import Data.IntervalMap.Lazy (IntervalMap)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Ki
@@ -27,6 +30,9 @@ import Unison.Codebase
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.LSP.Orphans ()
+import Unison.LabeledDependency (LabeledDependency)
+import Unison.Name (Name)
+import Unison.NameSegment (NameSegment)
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
@@ -61,7 +67,7 @@ data Env = Env
     lspContext :: LanguageContextEnv Config,
     codebase :: Codebase IO Symbol Ann,
     parseNamesCache :: IO NamesWithHistory,
-    ppeCache :: IO PrettyPrintEnvDecl,
+    ppedCache :: IO PrettyPrintEnvDecl,
     currentPathCache :: IO Path.Absolute,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
@@ -72,8 +78,24 @@ data Env = Env
     dirtyFilesVar :: TVar (Set Uri),
     -- A map  of request IDs to an action which kills that request.
     cancellationMapVar :: TVar (Map SomeLspId (IO ())),
+    -- A lazily computed map of all valid completion suffixes from the current path.
+    completionsVar :: TVar CompletionTree,
     scope :: Ki.Scope
   }
+
+-- | A suffix tree over path segments of name completions.
+-- see 'namesToCompletionTree' for more on how this is built and the invariants it should have.
+newtype CompletionTree = CompletionTree
+  { unCompletionTree :: Cofree (Map NameSegment) (Set (Name, LabeledDependency))
+  }
+  deriving (Show)
+
+instance Semigroup CompletionTree where
+  CompletionTree (a Cofree.:< subtreeA) <> CompletionTree (b Cofree.:< subtreeB) =
+    CompletionTree (a <> b Cofree.:< Map.unionWith (\a b -> unCompletionTree $ CompletionTree a <> CompletionTree b) subtreeA subtreeB)
+
+instance Monoid CompletionTree where
+  mempty = CompletionTree $ mempty Cofree.:< mempty
 
 -- | A monotonically increasing file version tracked by the lsp client.
 type FileVersion = Int32
@@ -90,25 +112,34 @@ data FileAnalysis = FileAnalysis
     diagnostics :: IntervalMap Position [Diagnostic],
     codeActions :: IntervalMap Position [CodeAction]
   }
-  deriving (Show)
 
 getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO
 
-globalPPE :: Lsp PrettyPrintEnvDecl
-globalPPE = asks ppeCache >>= liftIO
+getCompletions :: Lsp CompletionTree
+getCompletions = asks completionsVar >>= readTVarIO
+
+globalPPED :: Lsp PrettyPrintEnvDecl
+globalPPED = asks ppedCache >>= liftIO
 
 getParseNames :: Lsp NamesWithHistory
 getParseNames = asks parseNamesCache >>= liftIO
 
 data Config = Config
   { formattingWidth :: Int,
-    rewriteNamesOnFormat :: Bool
+    rewriteNamesOnFormat :: Bool,
+    -- 'Nothing' will load ALL available completions, which is slower, but may provide a better
+    -- solution for some users.
+    --
+    -- 'Just n' will only fetch the first 'n' completions and will prompt the client to ask for
+    -- more completions after more typing.
+    maxCompletions :: Maybe Int
   }
   deriving stock (Show)
 
 instance Aeson.FromJSON Config where
   parseJSON = Aeson.withObject "Config" \obj -> do
+    maxCompletions <- obj Aeson..:? "maxCompletions" Aeson..!= maxCompletions defaultLSPConfig
     formattingWidth <- obj Aeson..:? "formattingWidth" Aeson..!= formattingWidth defaultLSPConfig
     rewriteNamesOnFormat <- obj Aeson..:? "rewriteNamesOnFormat" Aeson..!= rewriteNamesOnFormat defaultLSPConfig
     let invalidKeys = Set.fromList (HM.keys obj) `Set.difference` validKeys
@@ -125,10 +156,11 @@ instance Aeson.FromJSON Config where
         BSC.unpack $ Aeson.encode defaultLSPConfig
 
 instance Aeson.ToJSON Config where
-  toJSON (Config formattingWidth rewriteNamesOnFormat) =
+  toJSON (Config formattingWidth rewriteNamesOnFormat maxCompletions) =
     Aeson.object
       [ "formattingWidth" Aeson..= formattingWidth,
-        "rewriteNamesOnFormat" Aeson..= rewriteNamesOnFormat
+        "rewriteNamesOnFormat" Aeson..= rewriteNamesOnFormat,
+        "maxCompletions" Aeson..= maxCompletions
       ]
 
 defaultLSPConfig :: Config
@@ -136,6 +168,7 @@ defaultLSPConfig = Config {..}
   where
     formattingWidth = 80
     rewriteNamesOnFormat = True
+    maxCompletions = Just 100
 
 -- | Lift a backend computation into the Lsp monad.
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)

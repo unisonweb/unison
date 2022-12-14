@@ -83,10 +83,14 @@ hmm = "Not, in fact, a number"
 
 ```ucm
 
-  I found a value of type:  Text
+  I found a value  of type:  Text
   where I expected to find:  Nat
   
       1 | hmm : .builtin.Nat
+      2 | hmm = "Not, in fact, a number"
+  
+    from right here:
+  
       2 | hmm = "Not, in fact, a number"
   
 

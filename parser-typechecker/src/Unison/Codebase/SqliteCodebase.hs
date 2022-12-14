@@ -9,6 +9,7 @@
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
     MigrationStrategy (..),
+    CodebaseLockOption (..),
   )
 where
 
@@ -19,22 +20,20 @@ import qualified Data.Char as Char
 import Data.Either.Extra ()
 import Data.IORef
 import qualified Data.Map as Map
-import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time (getCurrentTime)
 import qualified System.Console.ANSI as ANSI
+import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
-import qualified U.Codebase.Branch as V2Branch
-import U.Codebase.HashTags (CausalHash (CausalHash))
+import U.Codebase.HashTags (BranchHash, CausalHash (CausalHash))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import qualified U.Codebase.Sync as Sync
-import qualified U.Util.Cache as Cache
 import U.Util.Timing (time)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
@@ -47,18 +46,16 @@ import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadGitRepo,
     WriteGitRepo (..),
-    printWriteGitRepo,
     writeToReadGit,
   )
 import qualified Unison.Codebase.GitError as GitError
-import Unison.Codebase.Init (MigrationStrategy (..))
+import Unison.Codebase.Init (CodebaseLockOption (..), MigrationStrategy (..))
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
-import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.RootBranchCache
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -72,7 +69,6 @@ import Unison.Codebase.Type (LocalOrRemote (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase.Type as C
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
-import Unison.Names.Scoped (ScopedNames)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -112,13 +108,14 @@ withOpenOrCreateCodebase ::
   Codebase.DebugName ->
   CodebasePath ->
   LocalOrRemote ->
+  CodebaseLockOption ->
   MigrationStrategy ->
   ((CodebaseStatus, Codebase m Symbol Ann) -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
-withOpenOrCreateCodebase debugName codebasePath localOrRemote migrationStrategy action = do
-  createCodebaseOrError debugName codebasePath (action' CreatedCodebase) >>= \case
+withOpenOrCreateCodebase debugName codebasePath localOrRemote lockOption migrationStrategy action = do
+  createCodebaseOrError debugName codebasePath lockOption (action' CreatedCodebase) >>= \case
     Left (Codebase1.CreateCodebaseAlreadyExists) -> do
-      sqliteCodebase debugName codebasePath localOrRemote migrationStrategy (action' ExistingCodebase)
+      sqliteCodebase debugName codebasePath localOrRemote lockOption migrationStrategy (action' ExistingCodebase)
     Right r -> pure (Right r)
   where
     action' openOrCreate codebase = action (openOrCreate, codebase)
@@ -128,9 +125,10 @@ createCodebaseOrError ::
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
+  CodebaseLockOption ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.CreateCodebaseError r)
-createCodebaseOrError debugName path action = do
+createCodebaseOrError debugName path lockOption action = do
   ifM
     (doesFileExist $ makeCodebasePath path)
     (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
@@ -142,7 +140,7 @@ createCodebaseOrError debugName path action = do
           Q.createSchema
           void . Ops.saveRootBranch v2HashHandle $ Cv.causalbranch1to2 Branch.empty
 
-      sqliteCodebase debugName path Local DontMigrate action >>= \case
+      sqliteCodebase debugName path Local lockOption DontMigrate action >>= \case
         Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
         Right result -> pure (Right result)
 
@@ -153,13 +151,14 @@ withCodebaseOrError ::
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
+  CodebaseLockOption ->
   MigrationStrategy ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
-withCodebaseOrError debugName dir migrationStrategy action = do
+withCodebaseOrError debugName dir lockOption migrationStrategy action = do
   doesFileExist (makeCodebasePath dir) >>= \case
     False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
-    True -> sqliteCodebase debugName dir Local migrationStrategy action
+    True -> sqliteCodebase debugName dir Local lockOption migrationStrategy action
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
@@ -193,16 +192,14 @@ sqliteCodebase ::
   CodebasePath ->
   -- | When local, back up the existing codebase before migrating, in case there's a catastrophic bug in the migration.
   LocalOrRemote ->
+  CodebaseLockOption ->
   MigrationStrategy ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
-sqliteCodebase debugName root localOrRemote migrationStrategy action = do
-  termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
-  typeOfTermCache <- Cache.semispaceCache 8192
-  declCache <- Cache.semispaceCache 1024
-  rootBranchCache <- newTVarIO Nothing
+sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action = handleLockOption do
+  rootBranchCache <- newEmptyRootBranchCacheIO
   branchCache <- newBranchCache
-  getDeclType <- CodebaseOps.mkGetDeclType
+  getDeclType <- CodebaseOps.makeCachedTransaction 2048 CodebaseOps.getDeclType
   -- The v1 codebase interface has operations to read and write individual definitions
   -- whereas the v2 codebase writes them as complete components.  These two fields buffer
   -- the individual definitions until a complete component has been written.
@@ -239,30 +236,15 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             printBuffer "Terms:" terms
 
       flip finally finalizer do
-        let getTerm :: Reference.Id -> m (Maybe (Term Symbol Ann))
-            getTerm id =
-              runTransaction (CodebaseOps.getTerm getDeclType id)
+        getTermTransaction <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTerm getDeclType)
+        let getTerm id = runTransaction (getTermTransaction id)
 
-            getTypeOfTermImpl :: Reference.Id -> m (Maybe (Type Symbol Ann))
-            getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
-            getTypeOfTermImpl id =
-              runTransaction (CodebaseOps.getTypeOfTermImpl id)
+        getTypeOfTermImpl <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTypeOfTermImpl)
+        getTypeDeclaration <- CodebaseOps.makeMaybeCachedTransaction 1024 CodebaseOps.getTypeDeclaration
 
-            getTermComponentWithTypes :: Hash -> m (Maybe [(Term Symbol Ann, Type Symbol Ann)])
-            getTermComponentWithTypes h =
-              runTransaction (CodebaseOps.getTermComponentWithTypes getDeclType h)
-
-            getTypeDeclaration :: Reference.Id -> m (Maybe (Decl Symbol Ann))
-            getTypeDeclaration id =
-              runTransaction (CodebaseOps.getTypeDeclaration id)
-
-            getDeclComponent :: Hash -> m (Maybe [Decl Symbol Ann])
-            getDeclComponent h =
-              runTransaction (CodebaseOps.getDeclComponent h)
-
-            getCycleLength :: Hash -> m (Maybe Reference.CycleSize)
-            getCycleLength h =
-              runTransaction (CodebaseOps.getCycleLength h)
+        let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
+            getTermComponentWithTypes =
+              CodebaseOps.getTermComponentWithTypes getDeclType
 
             -- putTermComponent :: MonadIO m => Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> m ()
             -- putTerms :: MonadIO m => Map Reference.Id (Term Symbol Ann, Type Symbol Ann) -> m () -- dies horribly if missing dependencies?
@@ -271,42 +253,53 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             -- option 2: switch codebase interface from putTerm to putTerms -- buffering can be local to the function
             -- option 3: switch from putTerm to putTermComponent -- needs to buffer dependencies non-locally (or require application to manage + die horribly)
 
-            putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
+            putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> Sqlite.Transaction ()
             putTerm id tm tp | debug && trace ("SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
             putTerm id tm tp =
-              runTransaction (CodebaseOps.putTerm termBuffer declBuffer id tm tp)
+              CodebaseOps.putTerm termBuffer declBuffer id tm tp
 
-            putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> m ()
-            putTypeDeclaration id decl =
-              runTransaction (CodebaseOps.putTypeDeclaration termBuffer declBuffer id decl)
+            putTermComponent :: Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> Sqlite.Transaction ()
+            putTermComponent =
+              CodebaseOps.putTermComponent termBuffer declBuffer
 
-            getRootCausalHash :: MonadIO m => m V2Branch.CausalHash
-            getRootCausalHash =
-              runTransaction Ops.expectRootCausalHash
+            putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> Sqlite.Transaction ()
+            putTypeDeclaration =
+              CodebaseOps.putTypeDeclaration termBuffer declBuffer
 
-            getShallowCausalForHash :: MonadIO m => V2Branch.CausalHash -> m (V2Branch.CausalBranch m)
-            getShallowCausalForHash bh =
-              V2Branch.hoistCausalBranch runTransaction <$> runTransaction (Ops.expectCausalBranchByCausalHash bh)
+            putTypeDeclarationComponent :: Hash -> [Decl Symbol Ann] -> Sqlite.Transaction ()
+            putTypeDeclarationComponent =
+              CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer
 
-            getRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> m (Branch m)
-            getRootBranch rootBranchCache =
-              Branch.transform runTransaction <$> runTransaction (CodebaseOps.getRootBranch branchCache getDeclType rootBranchCache)
+            getRootBranch :: m (Branch m)
+            getRootBranch =
+              Branch.transform runTransaction
+                <$> fetchRootBranch
+                  rootBranchCache
+                  (runTransaction (CodebaseOps.uncachedLoadRootBranch branchCache getDeclType))
 
-            getRootBranchExists :: m Bool
-            getRootBranchExists =
-              runTransaction CodebaseOps.getRootBranchExists
-
-            putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> Text -> Branch m -> m ()
-            putRootBranch rootBranchCache reason branch1 = do
+            putRootBranch :: Text -> Branch m -> m ()
+            putRootBranch reason branch1 = do
               now <- liftIO getCurrentTime
               withRunInIO \runInIO -> do
-                runInIO do
-                  runTransaction do
-                    let emptyCausalHash = Cv.causalHash1to2 $ Branch.headHash Branch.empty
-                    fromRootCausalHash <- fromMaybe emptyCausalHash <$> Ops.loadRootCausalHash
-                    let toRootCausalHash = Cv.causalHash1to2 $ Branch.headHash branch1
-                    CodebaseOps.putRootBranch rootBranchCache (Branch.transform (Sqlite.unsafeIO . runInIO) branch1)
-                    Ops.appendReflog (Reflog.Entry {time = now, fromRootCausalHash, toRootCausalHash, reason})
+                -- this is naughty, the type says Transaction but it
+                -- won't run automatically with whatever Transaction
+                -- it is composed into unless the enclosing
+                -- Transaction is applied to the same db connection.
+                let branch1Trans = Branch.transform (Sqlite.unsafeIO . runInIO) branch1
+                    putRootBranchTrans :: Sqlite.Transaction () = do
+                      let emptyCausalHash = Cv.causalHash1to2 (Branch.headHash Branch.empty)
+                      fromRootCausalHash <- fromMaybe emptyCausalHash <$> Ops.loadRootCausalHash
+                      let toRootCausalHash = Cv.causalHash1to2 (Branch.headHash branch1)
+                      CodebaseOps.putRootBranch branch1Trans
+                      Ops.appendReflog (Reflog.Entry {time = now, fromRootCausalHash, toRootCausalHash, reason})
+
+                -- We need to update the database and the cached
+                -- value. We want to keep these in sync, so we take
+                -- the cache lock while updating sqlite.
+                withLock
+                  rootBranchCache
+                  (\restore _ -> restore $ runInIO $ runTransaction putRootBranchTrans)
+                  (\_ -> Just branch1Trans)
 
             -- if this blows up on cromulent hashes, then switch from `hashToHashId`
             -- to one that returns Maybe.
@@ -318,30 +311,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             putBranch branch =
               withRunInIO \runInIO ->
                 runInIO (runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch)))
-
-            isCausalHash :: Branch.CausalHash -> m Bool
-            isCausalHash h =
-              runTransaction (CodebaseOps.isCausalHash h)
-
-            getPatch :: Branch.EditHash -> m (Maybe Patch)
-            getPatch h =
-              runTransaction (CodebaseOps.getPatch h)
-
-            putPatch :: Branch.EditHash -> Patch -> m ()
-            putPatch h p =
-              runTransaction (CodebaseOps.putPatch h p)
-
-            patchExists :: Branch.EditHash -> m Bool
-            patchExists h =
-              runTransaction (CodebaseOps.patchExists h)
-
-            dependentsImpl :: Q.DependentsSelector -> Reference -> m (Set Reference.Id)
-            dependentsImpl selector r =
-              runTransaction (CodebaseOps.dependentsImpl selector r)
-
-            dependentsOfComponentImpl :: Hash -> m (Set Reference.Id)
-            dependentsOfComponentImpl h =
-              runTransaction (CodebaseOps.dependentsOfComponentImpl h)
 
             syncFromDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
             syncFromDirectory srcRoot _syncMode b =
@@ -362,121 +331,52 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                     Sqlite.runWriteTransaction destConn \runDest -> do
                       syncInternal (syncProgress progressStateRef) runSrc runDest b
 
-            watches :: UF.WatchKind -> m [Reference.Id]
-            watches w =
-              runTransaction (CodebaseOps.watches w)
+            getWatch :: UF.WatchKind -> Reference.Id -> Sqlite.Transaction (Maybe (Term Symbol Ann))
+            getWatch =
+              CodebaseOps.getWatch getDeclType
 
-            getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
-            getWatch k r =
-              runTransaction (CodebaseOps.getWatch getDeclType k r)
+            termsOfTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id)
+            termsOfTypeImpl =
+              CodebaseOps.termsOfTypeImpl getDeclType
 
-            putWatch :: UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
-            putWatch k r tm =
-              runTransaction (CodebaseOps.putWatch k r tm)
+            termsMentioningTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id)
+            termsMentioningTypeImpl =
+              CodebaseOps.termsMentioningTypeImpl getDeclType
 
-            clearWatches :: m ()
-            clearWatches =
-              runTransaction CodebaseOps.clearWatches
+            referentsByPrefix :: ShortHash -> Sqlite.Transaction (Set Referent.Id)
+            referentsByPrefix =
+              CodebaseOps.referentsByPrefix getDeclType
 
-            getReflog :: Int -> m [Reflog.Entry CausalHash Text]
-            getReflog numEntries = runTransaction $ Ops.getReflog numEntries
-
-            termsOfTypeImpl :: Reference -> m (Set Referent.Id)
-            termsOfTypeImpl r =
-              runTransaction (CodebaseOps.termsOfTypeImpl getDeclType r)
-
-            termsMentioningTypeImpl :: Reference -> m (Set Referent.Id)
-            termsMentioningTypeImpl r =
-              runTransaction (CodebaseOps.termsMentioningTypeImpl getDeclType r)
-
-            hashLength :: m Int
-            hashLength =
-              runTransaction CodebaseOps.hashLength
-
-            branchHashLength :: m Int
-            branchHashLength =
-              runTransaction CodebaseOps.branchHashLength
-
-            termReferencesByPrefix :: ShortHash -> m (Set Reference.Id)
-            termReferencesByPrefix sh =
-              runTransaction (CodebaseOps.termReferencesByPrefix sh)
-
-            declReferencesByPrefix :: ShortHash -> m (Set Reference.Id)
-            declReferencesByPrefix sh =
-              runTransaction (CodebaseOps.declReferencesByPrefix sh)
-
-            referentsByPrefix :: ShortHash -> m (Set Referent.Id)
-            referentsByPrefix sh =
-              runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
-
-            branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.CausalHash)
-            branchHashesByPrefix sh =
-              runTransaction (CodebaseOps.branchHashesByPrefix sh)
-
-            sqlLca :: Branch.CausalHash -> Branch.CausalHash -> m (Maybe (Branch.CausalHash))
-            sqlLca h1 h2 =
-              runTransaction (CodebaseOps.sqlLca h1 h2)
-
-            beforeImpl :: Maybe (Branch.CausalHash -> Branch.CausalHash -> m Bool)
-            beforeImpl =
-              Just \l r ->
-                runTransaction $ fromJust <$> CodebaseOps.before l r
-
-            namesAtPath :: Path -> m ScopedNames
-            namesAtPath path =
-              runTransaction (CodebaseOps.namesAtPath path)
-
-            updateNameLookup :: m ()
+            updateNameLookup :: Path -> Maybe BranchHash -> BranchHash -> Sqlite.Transaction ()
             updateNameLookup =
-              runTransaction (CodebaseOps.updateNameLookupIndexFromV2Root getDeclType)
+              CodebaseOps.updateNameLookupIndex getDeclType
 
         let codebase =
               C.Codebase
-                { getTerm = Cache.applyDefined termCache getTerm,
-                  getTypeOfTermImpl = Cache.applyDefined typeOfTermCache getTypeOfTermImpl,
-                  getTypeDeclaration = Cache.applyDefined declCache getTypeDeclaration,
+                { getTerm,
+                  getTypeOfTermImpl,
+                  getTypeDeclaration,
                   getDeclType =
                     \r ->
                       withConn \conn ->
                         Sqlite.runReadOnlyTransaction conn \run -> run (getDeclType r),
                   putTerm,
+                  putTermComponent,
                   putTypeDeclaration,
+                  putTypeDeclarationComponent,
                   getTermComponentWithTypes,
-                  getDeclComponent,
-                  getComponentLength = getCycleLength,
-                  getRootBranch = getRootBranch rootBranchCache,
-                  getRootCausalHash,
-                  getRootBranchExists,
-                  putRootBranch = putRootBranch rootBranchCache,
-                  getShallowCausalForHash,
+                  getRootBranch,
+                  putRootBranch,
                   getBranchForHashImpl = getBranchForHash,
                   putBranch,
-                  branchExists = isCausalHash,
-                  getPatch,
-                  putPatch,
-                  patchExists,
-                  dependentsImpl,
-                  dependentsOfComponentImpl,
                   syncFromDirectory,
                   syncToDirectory,
                   viewRemoteBranch',
                   pushGitBranch = \repo opts action -> withConn \conn -> pushGitBranch conn repo opts action,
-                  watches,
                   getWatch,
-                  putWatch,
-                  clearWatches,
-                  getReflog,
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
-                  hashLength,
-                  termReferencesByPrefix,
-                  typeReferencesByPrefix = declReferencesByPrefix,
                   termReferentsByPrefix = referentsByPrefix,
-                  branchHashLength,
-                  branchHashesByPrefix,
-                  lcaImpl = Just sqlLca,
-                  beforeImpl,
-                  namesAtPath,
                   updateNameLookup,
                   withConnection = withConn,
                   withConnectionIO = withConnection debugName root
@@ -490,6 +390,13 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
     runTransaction :: Sqlite.Transaction a -> m a
     runTransaction action =
       withConn \conn -> Sqlite.runTransaction conn action
+
+    handleLockOption ma = case lockOption of
+      DontLock -> ma
+      DoLock -> withRunInIO \runInIO ->
+        withTryFileLock (lockfilePath root) Exclusive (\_flock -> runInIO ma) <&> \case
+          Nothing -> Left OpenCodebaseFileLockFailed
+          Just x -> x
 
 syncInternal ::
   forall m.
@@ -522,13 +429,13 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
             traceM $ "processBranches " ++ show b0
             traceM $ " queue: " ++ show rest
           ifM
-            (runDest (CodebaseOps.isCausalHash h))
+            (runDest (CodebaseOps.branchExists h))
             do
               when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " already exists in dest db"
               processBranches rest
             do
               when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in dest db"
-              let h2 = CausalHash . Cv.hash1to2 $ Causal.unCausalHash h
+              let h2 = CausalHash $ Causal.unCausalHash h
               runSrc (Q.loadCausalHashIdByCausalHash h2) >>= \case
                 Just chId -> do
                   when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
@@ -544,7 +451,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
                       traceM $ "  decls: " ++ show ds
                       traceM $ "  edits: " ++ show es
                     (cs, es, ts, ds) <- runDest do
-                      cs <- filterM (fmap not . CodebaseOps.isCausalHash . fst) branchDeps
+                      cs <- filterM (fmap not . CodebaseOps.branchExists . fst) branchDeps
                       es <- filterM (fmap not . CodebaseOps.patchExists) es
                       ts <- filterM (fmap not . CodebaseOps.termExists) ts
                       ds <- filterM (fmap not . CodebaseOps.declExists) ds
@@ -559,7 +466,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
                         processBranches (os ++ bs ++ b0 : rest)
         O h : rest -> do
           when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
-          oId <- runSrc (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)
+          oId <- runSrc (Q.expectHashIdByHash h >>= Q.expectObjectIdForAnyHashId)
           doSync [Sync22.O oId]
           processBranches rest
   let bHash = Branch.headHash b
@@ -662,7 +569,7 @@ viewRemoteBranch' ::
   Git.GitBranchBehavior ->
   ((Branch m, CodebasePath) -> m r) ->
   m (Either C.GitError r)
-viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior action = UnliftIO.try $ do
+viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior action = UnliftIO.try $ do
   -- set up the cache dir
   time "Git fetch" $
     throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
@@ -683,21 +590,21 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior act
           then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
           else throwIO exception
 
-      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote MigrateAfterPrompt \codebase -> do
+      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote DoLock MigrateAfterPrompt \codebase -> do
         -- try to load the requested branch from it
-        branch <- time "Git fetch (sbh)" $ case sbh of
+        branch <- time "Git fetch (sch)" $ case sch of
           -- no sub-branch was specified, so use the root.
           Nothing -> time "Get remote root branch" $ Codebase1.getRootBranch codebase
-          -- load from a specific `ShortBranchHash`
-          Just sbh -> do
-            branchCompletions <- Codebase1.branchHashesByPrefix codebase sbh
+          -- load from a specific `ShortCausalHash`
+          Just sch -> do
+            branchCompletions <- Codebase1.runTransaction codebase (Codebase1.causalHashesByPrefix sch)
             case toList branchCompletions of
-              [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+              [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
               [h] ->
                 (Codebase1.getBranchForHash codebase h) >>= \case
                   Just b -> pure b
-                  Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+                  Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
+              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sch branchCompletions
         case Branch.getAt path branch of
           Just b -> action (b, remotePath)
           Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
@@ -733,25 +640,25 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
   -- set up the cache dir
   throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
     newBranchOrErr <- throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
-      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote MigrateAfterPrompt
+      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote DoLock MigrateAfterPrompt
       $ \(codebaseStatus, destCodebase) -> do
         currentRootBranch <-
-          C.getRootBranchExists destCodebase >>= \case
+          Codebase1.runTransaction destCodebase CodebaseOps.getRootBranchExists >>= \case
             False -> pure Branch.empty
             True -> C.getRootBranch destCodebase
         action currentRootBranch >>= \case
           Left e -> pure $ Left e
           Right newBranch -> do
             C.withConnection destCodebase \destConn ->
-              doSync codebaseStatus (Git.gitDirToPath pushStaging) destConn newBranch
+              doSync codebaseStatus destConn newBranch
             pure (Right newBranch)
     for newBranchOrErr $ push pushStaging repo
     pure newBranchOrErr
   where
     readRepo :: ReadGitRepo
     readRepo = writeToReadGit repo
-    doSync :: CodebaseStatus -> FilePath -> Sqlite.Connection -> Branch m -> m ()
-    doSync codebaseStatus remotePath destConn newBranch = do
+    doSync :: CodebaseStatus -> Sqlite.Connection -> Branch m -> m ()
+    doSync codebaseStatus destConn newBranch = do
       progressStateRef <- liftIO (newIORef emptySyncProgressState)
       Sqlite.runReadOnlyTransaction srcConn \runSrc -> do
         Sqlite.runWriteTransaction destConn \runDest -> do
@@ -766,23 +673,14 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
                         Nothing -> pure ()
                         Just oldRootHash -> do
                           runDest (CodebaseOps.before (Cv.causalHash2to1 oldRootHash) newBranchHash) >>= \case
-                            Nothing ->
-                              error $
-                                "I couldn't find the hash " ++ show newBranchHash
-                                  ++ " that I just synced to the cached copy of "
-                                  ++ repoString
-                                  ++ " in "
-                                  ++ show remotePath
-                                  ++ "."
-                            Just False -> throwIO . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-                            Just True -> pure ()
+                            False -> throwIO . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                            True -> pure ()
                   CreatedCodebase -> pure ()
                 runDest (setRepoRoot newBranchHash)
           case behavior of
             C.GitPushBehaviorGist -> pure ()
             C.GitPushBehaviorFf -> overwriteRoot False
             C.GitPushBehaviorForce -> overwriteRoot True
-    repoString = Text.unpack $ printWriteGitRepo repo
     setRepoRoot :: Branch.CausalHash -> Sqlite.Transaction ()
     setRepoRoot h = do
       let h2 = Cv.causalHash1to2 h
@@ -821,9 +719,10 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
         -- so we have to convert our expected path to test.
         posixCodebasePath =
           FilePath.Posix.joinPath (FilePath.splitDirectories codebasePath)
+        posixLockfilePath = FilePath.replaceExtension posixCodebasePath "lockfile"
         statusLines = Text.unpack <$> Text.lines status
         t = dropWhile Char.isSpace
-        okLine (t -> '?' : '?' : (t -> p)) | p == posixCodebasePath = True
+        okLine (t -> '?' : '?' : (t -> p)) | p == posixCodebasePath || p == posixLockfilePath = True
         okLine (t -> 'M' : (t -> p)) | p == posixCodebasePath = True
         okLine line = isWalDelete line || isShmDelete line
         isWalDelete (t -> 'D' : (t -> p)) | p == posixCodebasePath ++ "-wal" = True

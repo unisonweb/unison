@@ -24,6 +24,7 @@ import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Reference as Reference
 import qualified Unison.Symbol as Symbol
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.Name as Name
 import qualified Unison.Syntax.TermPrinter as TermPrinter
 import qualified Unison.Term as Term
 import qualified Unison.UnisonFile as UF
@@ -58,7 +59,7 @@ formatDefs fileUri =
           let watchesWithKind = watches & ifoldMap \wk exprs -> exprs <&> \(sym, trm) -> (sym, trm, Just wk)
           pure (dataDeclarationsId, effectDeclarationsId, termsWithKind <> watchesWithKind)
         (Nothing, Nothing) -> empty
-      filePPED <- ppedForFile fileUri
+      filePPED <- lift $ ppedForFile fileUri
       let decls = Map.toList (fmap Right <$> datas) <> Map.toList (fmap Left <$> effects)
       formattedDecls <- for decls \(sym, (ref, decl)) -> do
         symName <- hoistMaybe (Name.fromVar sym)

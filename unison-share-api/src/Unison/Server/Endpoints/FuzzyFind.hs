@@ -31,7 +31,7 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
@@ -52,7 +52,7 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 
 type FuzzyFindAPI =
-  "find" :> QueryParam "rootBranch" SBH.ShortBranchHash
+  "find" :> QueryParam "rootBranch" SCH.ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "limit" Int
     :> QueryParam "renderWidth" Width
@@ -130,7 +130,7 @@ serveFuzzyFind ::
   forall m.
   MonadIO m =>
   Codebase m Symbol Ann ->
-  Maybe SBH.ShortBranchHash ->
+  Maybe SCH.ShortCausalHash ->
   Maybe Path.Path ->
   Maybe Int ->
   Maybe Width ->
@@ -138,11 +138,15 @@ serveFuzzyFind ::
   Backend.Backend m [(FZF.Alignment, FoundResult)]
 serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
   let path = fromMaybe Path.empty relativeTo
-  rootHash <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-  rootCausal <- Backend.resolveCausalHashV2 codebase (Cv.causalHash1to2 <$> rootHash)
+  rootCausal <-
+    Backend.hoistBackend (Codebase.runTransaction codebase) do
+      rootHash <- traverse Backend.expandShortCausalHash mayRoot
+      lift (Backend.resolveCausalHashV2 (Cv.causalHash1to2 <$> rootHash))
   (localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) path
-  relativeToCausal <- lift $ Codebase.getShallowCausalAtPath codebase path (Just rootCausal)
-  relativeToBranch <- lift $ V2Causal.value relativeToCausal
+  relativeToBranch <- do
+    (lift . Codebase.runTransaction codebase) do
+      relativeToCausal <- Codebase.getShallowCausalAtPath path (Just rootCausal)
+      V2Causal.value relativeToCausal
   let alignments ::
         ( [ ( FZF.Alignment,
               UnisonName,
@@ -167,10 +171,11 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
                 )
             )
               <$> Backend.termListEntry codebase relativeToBranch (ExactName (NameSegment n) (Cv.referent1to2 r))
-          Backend.FoundTypeRef r -> do
-            te <- Backend.typeListEntry codebase relativeToBranch (ExactName (NameSegment n) r)
-            let namedType = Backend.typeEntryToNamedType te
-            let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
-            typeHeader <- Backend.typeDeclHeader codebase ppe r
-            let ft = FoundType typeName typeHeader namedType
-            pure (a, FoundTypeResult ft)
+          Backend.FoundTypeRef r ->
+            Codebase.runTransaction codebase do
+              te <- Backend.typeListEntry codebase relativeToBranch (ExactName (NameSegment n) r)
+              let namedType = Backend.typeEntryToNamedType te
+              let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
+              typeHeader <- Backend.typeDeclHeader codebase ppe r
+              let ft = FoundType typeName typeHeader namedType
+              pure (a, FoundTypeResult ft)

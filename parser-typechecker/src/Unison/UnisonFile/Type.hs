@@ -1,7 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.UnisonFile.Type where
 
@@ -10,6 +7,7 @@ import Data.Bifunctor (first)
 import qualified Unison.ABT as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.Prelude
+import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import qualified Unison.Reference as Reference
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -18,16 +16,16 @@ import qualified Unison.Type as Type
 import Unison.WatchKind (WatchKind)
 
 data UnisonFile v a = UnisonFileId
-  { dataDeclarationsId :: Map v (Reference.Id, DataDeclaration v a),
-    effectDeclarationsId :: Map v (Reference.Id, EffectDeclaration v a),
+  { dataDeclarationsId :: Map v (TermReferenceId, DataDeclaration v a),
+    effectDeclarationsId :: Map v (TermReferenceId, EffectDeclaration v a),
     terms :: [(v, Term v a)],
     watches :: Map WatchKind [(v, Term v a)]
   }
   deriving (Show)
 
 pattern UnisonFile ::
-  Map v (Reference.Reference, DataDeclaration v a) ->
-  Map v (Reference.Reference, EffectDeclaration v a) ->
+  Map v (TypeReference, DataDeclaration v a) ->
+  Map v (TypeReference, EffectDeclaration v a) ->
   [(v, Term v a)] ->
   Map WatchKind [(v, Term v a)] ->
   UnisonFile v a
@@ -43,24 +41,24 @@ pattern UnisonFile ds es tms ws <-
 -- | A UnisonFile after typechecking. Terms are split into groups by
 --  cycle and the type of each term is known.
 data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
-  { dataDeclarationsId' :: Map v (Reference.Id, DataDeclaration v a),
-    effectDeclarationsId' :: Map v (Reference.Id, EffectDeclaration v a),
+  { dataDeclarationsId' :: Map v (TypeReferenceId, DataDeclaration v a),
+    effectDeclarationsId' :: Map v (TypeReferenceId, EffectDeclaration v a),
     topLevelComponents' :: [[(v, Term v a, Type v a)]],
     watchComponents :: [(WatchKind, [(v, Term v a, Type v a)])],
-    hashTermsId :: Map v (Reference.Id, Maybe WatchKind, Term v a, Type v a)
+    hashTermsId :: Map v (TermReferenceId, Maybe WatchKind, Term v a, Type v a)
   }
-  deriving (Show)
+  deriving stock (Generic, Show)
 
 {-# COMPLETE TypecheckedUnisonFile #-}
 
 pattern TypecheckedUnisonFile ::
-  Map v (Reference.Reference, DataDeclaration v a) ->
-  Map v (Reference.Reference, EffectDeclaration v a) ->
+  Map v (TypeReference, DataDeclaration v a) ->
+  Map v (TypeReference, EffectDeclaration v a) ->
   [[(v, Term v a, Type v a)]] ->
   [(WatchKind, [(v, Term v a, Type v a)])] ->
   Map
     v
-    ( Reference.Reference,
+    ( TermReference,
       Maybe WatchKind,
       ABT.Term (Term.F v a a) v a,
       ABT.Term Type.F v a

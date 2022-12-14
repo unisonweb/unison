@@ -12,10 +12,10 @@
 
 Supported features:
 
-* Show type on hover
+* Autocompletion
 * Inline type and parser error messages
 * Format on save
-* NO autocomplete yet, but soon.
+* Show type on hover
 
 Notes:
 
@@ -60,4 +60,25 @@ Note that you'll need to start UCM _before_ you try connecting to it in your edi
 
 ### VSCode
 
-Install the [Unison Extension](https://marketplace.visualstudio.com/items?itemName=unison-lang.unison) from the extension marketplace.
+Simply install the [Unison Language VSCode extension](https://marketplace.visualstudio.com/items?itemName=unison-lang.unison).
+
+
+### Other Editors
+
+If your editor provides a mechanism for connecting to a host and port, provide a host of `127.0.0.1` and port `5757`.
+
+If your editor requires a command to run, you can provide the command `nc localhost 5757` on Mac, or `netcat localhost 5757` on linux.
+Note that some editors require passing the command and arguments as separate parameters.
+
+## Configuration
+
+Supported settings and their defaults. See information for your language server client about where to provide these.
+
+```json
+{
+  // The number of completions the server should collect and send based on a single query.
+  // Increasing this limit will provide more completion results, but at the cost of being slower to respond.
+  // If explicitly set to `null` the server will return ALL completions available.
+  "maxCompletions": 100
+}
+```

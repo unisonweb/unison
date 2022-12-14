@@ -1,0 +1,8 @@
+
+-- sum up a bunch of random numbers 
+go acc n = 
+  if n == 10000 then acc 
+  else go (acc + Random.natIn 0 1000) (n + 1)
+
+main = do
+  timeit "random" '(splitmix 19 '(go 0 0))

@@ -26,7 +26,8 @@ testCreateRename _ =
     tempDir = newTempDir "fileio"
     fooDir = tempDir ++ "/foo"
     barDir = tempDir ++ "/bar"
-    createDirectory.impl fooDir
+    void x = ()
+    void (createDirectory.impl fooDir)
     check "create a foo directory" (isDirectory fooDir)
     check "directory should exist" (fileExists fooDir)
     renameDirectory fooDir barDir
@@ -35,8 +36,8 @@ testCreateRename _ =
     check "bar should now exist" (fileExists barDir)
 
     bazDir = barDir ++ "/baz"
-    createDirectory.impl bazDir
-    removeDirectory.impl barDir
+    void (createDirectory.impl bazDir)
+    void (removeDirectory.impl barDir)
 
     check "removeDirectory works recursively" (not (isDirectory barDir))
     check "removeDirectory works recursively" (not (isDirectory bazDir))
@@ -604,6 +605,10 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with args" (Any ())
+  
+  
+  Stack trace:
+    ##raise
 
 ```
 ```ucm
@@ -614,6 +619,10 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with no args" (Any ())
+  
+  
+  Stack trace:
+    ##raise
 
 ```
 ```ucm
@@ -625,6 +634,10 @@ Calling our examples with the wrong number of args will error.
   
     Failure
       (typeLink IOFailure) "called with too many args" (Any ())
+  
+  
+  Stack trace:
+    ##raise
 
 ```
 ```ucm
@@ -635,5 +648,9 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with no args" (Any ())
+  
+  
+  Stack trace:
+    ##raise
 
 ```

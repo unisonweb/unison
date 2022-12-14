@@ -13,7 +13,7 @@ reportDiagnostics ::
   f Diagnostic ->
   Lsp ()
 reportDiagnostics docUri fileVersion diags = do
-  let jsonRPC = "" -- TODO: what's this for?
+  let jsonRPC = "2.0"
   let params = PublishDiagnosticsParams {_uri = docUri, _version = fromIntegral <$> fileVersion, _diagnostics = List . toList $ diags}
   sendNotification (NotificationMessage jsonRPC STextDocumentPublishDiagnostics params)
 

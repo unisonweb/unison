@@ -1,8 +1,3 @@
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Names.ResolutionResult where
 
 import Data.Set.NonEmpty

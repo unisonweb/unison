@@ -441,3 +441,69 @@ bar3 x = do
 ```ucm
 .> load scratch.u
 ```
+
+# Lambda as the last argument where the bound var is not free in the body
+
+If a lambda's argument is not free in the body, the term printer counts this as
+a "delay" instead of a lambda. This test makes sure that detecting this
+condition lines up with the printing, so we don't detect a delay but then
+go ahead and print it as a normal lambda.
+
+```unison:hide
+(+) a b = ##Nat.+ a b
+
+afun x f = f x
+
+roundtripLastLam =
+  afun "foo" (n -> let
+    _ = 1 + 1
+    3
+  )
+```
+
+```ucm
+.> add
+.> edit roundtripLastLam afun
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```
+
+# Comment out builtins in the edit command
+
+Regression test for https://github.com/unisonweb/unison/pull/3548
+
+```ucm
+.> alias.term ##Nat.+ plus
+.> edit plus
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```
+
+# Indent long pattern lists to avoid virtual semicolon
+
+Regression test for https://github.com/unisonweb/unison/issues/3627
+
+```unison:hide
+(+) a b = ##Nat.+ a b
+
+foo = cases
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
+   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+```
+
+```ucm
+.> add
+.> edit foo
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```

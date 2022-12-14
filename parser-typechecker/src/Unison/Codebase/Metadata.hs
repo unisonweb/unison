@@ -29,7 +29,16 @@ type Star a n = Star3 a n Type (Type, Value)
 type R4 a n = R4.Relation4 a n Type Value
 
 starToR4 :: (Ord r, Ord n) => Star r n -> Relation4 r n Type Value
-starToR4 = R4.fromList . fmap (\(r, n, _, (t, v)) -> (r, n, t, v)) . Star3.toList
+starToR4 = R4.fromList . starToR4List
+
+-- | Flattens a Metadata.Star into a 4-tuple.
+starToR4List :: Ord r => Star r n -> [(r, n, Type, Value)]
+starToR4List s =
+  [ (f, x, y, z)
+    | f <- Set.toList (Star3.fact s),
+      x <- Set.toList (R.lookupDom f (Star3.d1 s)),
+      (y, z) <- Set.toList (R.lookupDom f (Star3.d3 s))
+  ]
 
 hasMetadata :: Ord a => a -> Type -> Value -> Star a n -> Bool
 hasMetadata a t v = Set.member (t, v) . R.lookupDom a . Star3.d3

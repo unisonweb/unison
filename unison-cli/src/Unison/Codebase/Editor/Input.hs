@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
+    DiffNamespaceToPatchInput (..),
     GistInput (..),
     PushRemoteBranchInput (..),
     TestInput (..),
@@ -9,6 +10,7 @@ module Unison.Codebase.Editor.Input
     BranchId,
     AbsBranchId,
     parseBranchId,
+    parseShortCausalHash,
     HashOrHQSplit',
     Insistence (..),
     PullMode (..),
@@ -16,6 +18,8 @@ module Unison.Codebase.Editor.Input
     FindScope (..),
     ShowDefinitionScope (..),
     IsGlobal,
+    DeleteOutput (..),
+    DeleteTarget (..),
   )
 where
 
@@ -27,8 +31,8 @@ import Unison.Codebase.Path (Path')
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Verbosity
 import qualified Unison.HashQualified as HQ
@@ -51,9 +55,9 @@ type PatchPath = Path.Split'
 data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
   deriving (Eq, Ord, Show)
 
-type BranchId = Either ShortBranchHash Path'
+type BranchId = Either ShortCausalHash Path'
 
-type AbsBranchId = Either ShortBranchHash Path.Absolute
+type AbsBranchId = Either ShortCausalHash Path.Absolute
 
 type HashOrHQSplit' = Either ShortHash Path.HQSplit'
 
@@ -62,10 +66,14 @@ data Insistence = Force | Try
   deriving (Show, Eq)
 
 parseBranchId :: String -> Either String BranchId
-parseBranchId ('#' : s) = case SBH.fromText (Text.pack s) of
+parseBranchId ('#' : s) = case SCH.fromText (Text.pack s) of
   Nothing -> Left "Invalid hash, expected a base32hex string."
   Just h -> pure $ Left h
 parseBranchId s = Right <$> Path.parsePath' s
+
+parseShortCausalHash :: String -> Either String ShortCausalHash
+parseShortCausalHash ('#' : s) | Just sch <- SCH.fromText (Text.pack s) = Right sch
+parseShortCausalHash _ = Left "Invalid hash, expected a base32hex string."
 
 data PullMode
   = PullWithHistory
@@ -79,7 +87,7 @@ data Input
     -- directory ops
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
-    ForkLocalBranchI (Either ShortBranchHash Path') Path'
+    ForkLocalBranchI (Either ShortCausalHash Path') Path'
   | -- merge first causal into destination
     MergeLocalBranchI Path' Path' Branch.MergeMode
   | PreviewMergeLocalBranchI Path' Path'
@@ -88,7 +96,7 @@ data Input
   | PushRemoteBranchI PushRemoteBranchInput
   | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
   | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
-  | ResetRootI (Either ShortBranchHash Path')
+  | ResetRootI (Either ShortCausalHash Path')
   | -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user
@@ -113,11 +121,7 @@ data Input
   | MovePatchI Path.Split' Path.Split'
   | CopyPatchI Path.Split' Path.Split'
   | -- delete = unname
-    DeleteI Path.HQSplit'
-  | DeleteTermI Path.HQSplit'
-  | DeleteTypeI Path.HQSplit'
-  | DeleteBranchI Insistence (Maybe Path.Split')
-  | DeletePatchI Path.Split'
+    DeleteI DeleteTarget
   | -- resolving naming conflicts within `branchpath`
     -- Add the specified name after deleting all others for a given reference
     -- within a given branch.
@@ -150,6 +154,14 @@ data Input
     IOTestI (HQ.HashQualified Name)
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
+  | -- execute an IO thunk using scheme
+    ExecuteSchemeI (HQ.HashQualified Name)
+  | -- compile to a scheme file
+    CompileSchemeI String (HQ.HashQualified Name)
+  | -- generate scheme libraries
+    GenSchemeLibsI
+  | -- fetch scheme compiler
+    FetchSchemeCompilerI
   | TestI TestInput
   | -- metadata
     -- `link metadata definitions` (adds metadata to all of `definitions`)
@@ -186,6 +198,7 @@ data Input
   | DebugDumpNamespaceSimpleI
   | DebugClearWatchI
   | DebugDoctorI
+  | DebugNameDiffI ShortCausalHash ShortCausalHash
   | QuitI
   | ApiI
   | UiI
@@ -193,7 +206,18 @@ data Input
   | GistI GistInput
   | AuthLoginI
   | VersionI
+  | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   deriving (Eq, Show)
+
+data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
+  { -- The first/earlier namespace.
+    branchId1 :: BranchId,
+    -- The second/later namespace.
+    branchId2 :: BranchId,
+    -- Where to store the patch that corresponds to the diff between the namespaces.
+    patch :: Path.Split'
+  }
+  deriving stock (Eq, Generic, Show)
 
 -- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
 data GistInput = GistInput
@@ -237,4 +261,17 @@ data FindScope
 data ShowDefinitionScope
   = ShowDefinitionLocal
   | ShowDefinitionGlobal
+  deriving stock (Eq, Show)
+
+data DeleteOutput
+  = DeleteOutput'Diff
+  | DeleteOutput'NoDiff
+  deriving stock (Eq, Show)
+
+data DeleteTarget
+  = DeleteTarget'TermOrType DeleteOutput Path.HQSplit'
+  | DeleteTarget'Term DeleteOutput Path.HQSplit'
+  | DeleteTarget'Type DeleteOutput Path.HQSplit'
+  | DeleteTarget'Branch Insistence (Maybe Path.Split')
+  | DeleteTarget'Patch Path.Split'
   deriving stock (Eq, Show)

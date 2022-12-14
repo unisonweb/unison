@@ -37,7 +37,6 @@ import qualified Unison.DataDeclaration as DD
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as H
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.Names (Names (Names))
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
@@ -45,6 +44,7 @@ import Unison.Prelude
 import qualified Unison.Reference as R
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Name as Name (unsafeFromText, unsafeFromVar)
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation as Rel
@@ -712,6 +712,10 @@ ioBuiltins =
     ("IO.getArgs.impl.v1", unit --> iof (list text)),
     ("IO.getBuffering.impl.v3", handle --> iof bmode),
     ("IO.setBuffering.impl.v3", handle --> bmode --> iof unit),
+    ("IO.getChar.impl.v1", handle --> iof char),
+    ("IO.getEcho.impl.v1", handle --> iof boolean),
+    ("IO.ready.impl.v1", handle --> iof boolean),
+    ("IO.setEcho.impl.v1", handle --> boolean --> iof unit),
     ("IO.getBytes.impl.v3", handle --> nat --> iof bytes),
     ("IO.getSomeBytes.impl.v1", handle --> nat --> iof bytes),
     ("IO.putBytes.impl.v3", handle --> bytes --> iof unit),

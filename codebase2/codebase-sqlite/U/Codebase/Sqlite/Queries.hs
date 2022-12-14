@@ -79,7 +79,9 @@ module U.Codebase.Sqlite.Queries
     loadCausalByCausalHash,
     expectCausalByCausalHash,
     loadBranchObjectIdByCausalHashId,
+    loadBranchObjectIdByBranchHashId,
     expectBranchObjectIdByCausalHashId,
+    expectBranchObjectIdByBranchHashId,
 
     -- ** causal_parent table
     saveCausalParents,
@@ -104,6 +106,7 @@ module U.Codebase.Sqlite.Queries
     getDependentsForDependencyComponent,
     getDependenciesForDependent,
     getDependencyIdsForDependent,
+    getDependenciesBetweenTerms,
 
     -- ** migrations
     currentSchemaVersion,
@@ -130,9 +133,12 @@ module U.Codebase.Sqlite.Queries
     causalHashIdByBase32Prefix,
 
     -- * Name Lookup
-    resetNameLookupTables,
+    ensureNameLookupTables,
+    dropNameLookupTables,
     insertTermNames,
     insertTypeNames,
+    removeTermNames,
+    removeTypeNames,
     rootTermNamesByPath,
     rootTypeNamesByPath,
     getNamespaceDefinitionCount,
@@ -1038,6 +1044,19 @@ loadBranchObjectIdByCausalHashIdSql =
     WHERE causal.self_hash_id = ?
   |]
 
+expectBranchObjectIdByBranchHashId :: BranchHashId -> Transaction BranchObjectId
+expectBranchObjectIdByBranchHashId id = queryOneCol loadBranchObjectIdByBranchHashIdSql (Only id)
+
+loadBranchObjectIdByBranchHashId :: BranchHashId -> Transaction (Maybe BranchObjectId)
+loadBranchObjectIdByBranchHashId id = queryMaybeCol loadBranchObjectIdByBranchHashIdSql (Only id)
+
+loadBranchObjectIdByBranchHashIdSql :: Sql
+loadBranchObjectIdByBranchHashIdSql =
+  [here|
+    SELECT object_id FROM hash_object
+    WHERE hash_id = ?
+  |]
+
 saveCausalParents :: CausalHashId -> [CausalHashId] -> Transaction ()
 saveCausalParents child parents = executeMany sql $ (child,) <$> parents where
   sql = [here|
@@ -1132,6 +1151,7 @@ loadWatchesByWatchKind k = queryListRow sql (Only k) where sql = [here|
   SELECT hash_id, component_index FROM watch WHERE watch_kind_id = ?
 |]
 
+-- | Delete all watches that were put by 'putWatch'.
 clearWatches :: Transaction ()
 clearWatches = do
   execute_ "DELETE FROM watch_result"
@@ -1286,8 +1306,8 @@ garbageCollectWatchesWithoutObjects = do
       (SELECT hash_object.hash_id FROM hash_object)
     |]
 
-addToDependentsIndex :: Reference.Reference -> Reference.Id -> Transaction ()
-addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)
+addToDependentsIndex :: [Reference.Reference] -> Reference.Id -> Transaction ()
+addToDependentsIndex dependencies dependent = executeMany sql (map (:. dependent) dependencies)
   where sql = [here|
     INSERT INTO dependents_index (
       dependency_builtin,
@@ -1387,12 +1407,121 @@ getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
         FROM dependents_index
         WHERE dependency_builtin IS NULL
           AND dependent_object_id = ?
-          AND dependen_component_index = ?
+          AND dependent_component_index = ?
       |]
 
     isNotSelfReference :: Reference.Id -> Bool
     isNotSelfReference (C.Reference.Id oid1 _) =
       oid0 /= oid1
+
+-- | Given two term (components) A and B, return the set of all terms that are along any "dependency path" from A to B,
+-- not including A nor B; i.e., the transitive dependencies of A that are transitive dependents of B.
+--
+-- For example, if A depends on X and Y, X depends on Q, Y depends on Z, and X and Z depend on B...
+--
+--     --X-----Q
+--    /     \
+--   A       B
+--    \     /
+--     Y---Z
+--
+-- ...then `getDependenciesBetweenTerms A B` would return the set {X Y Z}
+getDependenciesBetweenTerms :: ObjectId -> ObjectId -> Transaction (Set ObjectId)
+getDependenciesBetweenTerms oid1 oid2 =
+  queryListCol sql (oid1, oid2, oid2) <&> Set.fromList
+  where
+    -- Given the example above, we'd have tables that look like this.
+    --
+    -- First, the `paths` table finds all paths from source `A`, exploring depth-first. As a minor optimization, we seed
+    -- the search not with `A`, but rather the direct dependencies of `A` (namely `X` and `Y`).
+    --
+    -- Naming note: "path_init" / "path_last" refer to the "init" / "last" elements of a list segments of a list (though
+    -- our "last" is in reverse order):
+    --
+    --        [foo, bar, baz, qux]
+    --   init  ^^^^^^^^^^^^^
+    --   last                 ^^^
+    --
+    -- +-paths-------------------------+
+    -- +-level-+-path_last-+-path_init-+
+    -- |     0 |         X |        '' | -- path: [X]
+    -- |     0 |         Y |        '' | -- path: [Y]
+    -- |     1 |         B |      'X,' | -- path: [X,B]   -- ends in B, yay!
+    -- |     1 |         Q |      'X,' | -- path: [X,Q]
+    -- |     1 |         Z |      'Y,' | -- path: [Y,Z]
+    -- |     2 |         B |    'Z,Y,' | -- path: [Y,Z,B] -- ends in B, yay!
+    -- +-------+-----------+-----------+
+    --
+    -- Next, we seed another recursive CTE with those paths that end in the sink `B`. This is just the (very verbose)
+    -- way to unnest an array in SQLite. All we're doing is turning the set of strings {'X,' 'Z,Y,'}, each of which
+    -- represents the inner nodes of a full path between `A` and `B`, into the set {X Z Y}, which is just the full set
+    -- of such inner nodes, along any path.
+    --
+    -- +-elems-----------------+
+    -- +-path_elem-+-path_init-+
+    -- |           |      'X,' |
+    -- |           |    'Z,Y,' |
+    -- |       'X' |        '' |
+    -- |       'Z' |      'Y,' |
+    -- |       'Y' |        '' |
+    -- +-----------+-----------+
+    --
+    -- And finally, we just select out the non-null `path_elem` rows from here, casting the strings back to integers for
+    -- clarity (this isn't very matter - SQLite would cast on-the-fly).
+    --
+    -- +-path_elem-+
+    -- |         X |
+    -- |         Z |
+    -- |         Y |
+    -- +-----------+
+    --
+    -- Notes
+    --
+    -- (1) We only care about term dependencies, not type dependencies. This is because a type can only depend on types,
+    --     not terms, so there is no point in searching through a type's transitive dependencies looking for our sink.
+    -- (2) No need to search beyond the sink itself, since component dependencies form a DAG.
+    -- (3) An explicit cast from e.g. string '1' to int 1 isn't strictly necessary.
+    sql :: Sql
+    sql = [here|
+      WITH RECURSIVE paths(level, path_last, path_init) AS (
+        SELECT
+          0,
+          dependents_index.dependency_object_id,
+          ''
+        FROM dependents_index
+          JOIN object ON dependents_index.dependency_object_id = object.id
+        WHERE dependents_index.dependent_object_id = ?
+          AND object.type_id = 0 -- Note (1)
+          AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
+        UNION ALL
+        SELECT
+          paths.level + 1 AS level,
+          dependents_index.dependency_object_id,
+          dependents_index.dependent_object_id || ',' || paths.path_init
+        FROM paths
+          JOIN dependents_index
+            ON paths.path_last = dependents_index.dependent_object_id
+          JOIN object ON dependents_index.dependency_object_id = object.id
+        WHERE object.type_id = 0 -- Note (1)
+          AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
+          AND paths.path_last != ? -- Note (2)
+        ORDER BY level DESC
+      ),
+      elems(path_elem, path_init) AS (
+        SELECT null, path_init
+        FROM paths
+        WHERE paths.path_last = ?
+        UNION ALL
+        SELECT
+          substr(path_init, 0, instr(path_init, ',')),
+          substr(path_init, instr(path_init, ',') + 1)
+        FROM elems
+        WHERE path_init != ''
+      )
+      SELECT DISTINCT CAST(path_elem AS integer) AS path_elem -- Note (3)
+      FROM elems
+      WHERE path_elem IS NOT null
+    |]
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
 objectIdByBase32Prefix objType prefix = queryListCol sql (objType, likeEscape '\\' prefix <> "%") where sql = [here|
@@ -1441,14 +1570,26 @@ removeHashObjectsByHashingVersion hashVersion =
       WHERE hash_version = ?
 |]
 
--- | Drop and recreate the name lookup tables. Use this when resetting names to a new branch.
-resetNameLookupTables :: Transaction ()
-resetNameLookupTables = do
-  execute_ "DROP TABLE IF EXISTS term_name_lookup"
-  execute_ "DROP TABLE IF EXISTS type_name_lookup"
+-- | Not used in typical operations, but if we ever end up in a situation where a bug
+-- has caused the name lookup index to go out of sync this can be used to get back to a clean
+-- slate.
+dropNameLookupTables :: Transaction ()
+dropNameLookupTables = do
   execute_
     [here|
-      CREATE TABLE term_name_lookup (
+    DROP TABLE IF EXISTS term_name_lookup
+  |]
+  execute_
+    [here|
+    DROP TABLE IF EXISTS type_name_lookup
+  |]
+
+-- | Ensure the name lookup tables exist.
+ensureNameLookupTables :: Transaction ()
+ensureNameLookupTables = do
+  execute_
+    [here|
+      CREATE TABLE IF NOT EXISTS term_name_lookup (
         -- The name of the term: E.g. map.List.base
         reversed_name TEXT NOT NULL,
         -- The namespace containing this term, not reversed: E.g. base.List
@@ -1463,7 +1604,7 @@ resetNameLookupTables = do
     |]
   execute_
     [here|
-      CREATE INDEX term_names_by_namespace ON term_name_lookup(namespace)
+      CREATE INDEX IF NOT EXISTS term_names_by_namespace ON term_name_lookup(namespace)
     |]
   -- Don't need this index at the moment, but will likely be useful later.
   -- execute_
@@ -1472,7 +1613,7 @@ resetNameLookupTables = do
   --   |]
   execute_
     [here|
-      CREATE TABLE type_name_lookup (
+      CREATE TABLE IF NOT EXISTS type_name_lookup (
         -- The name of the term: E.g. List.base
         reversed_name TEXT NOT NULL,
         -- The namespace containing this term, not reversed: E.g. base.List
@@ -1485,7 +1626,7 @@ resetNameLookupTables = do
     |]
   execute_
     [here|
-      CREATE INDEX type_names_by_namespace ON type_name_lookup(namespace)
+      CREATE INDEX IF NOT EXISTS type_names_by_namespace ON type_name_lookup(namespace)
     |]
 
 -- Don't need this index at the moment, but will likely be useful later.
@@ -1506,6 +1647,37 @@ insertTermNames names = do
       INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, namespace)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
+        |]
+
+-- | Remove the given set of term names into the name lookup table
+removeTermNames :: [NamedRef Referent.TextReferent] -> Transaction ()
+removeTermNames names = do
+  executeMany sql names
+  where
+    sql =
+      [here|
+      DELETE FROM term_name_lookup
+        WHERE
+        reversed_name IS ?
+        AND referent_builtin IS ?
+        AND referent_component_hash IS ?
+        AND referent_component_index IS ?
+        AND referent_constructor_index IS ?
+        |]
+
+-- | Remove the given set of term names into the name lookup table
+removeTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
+removeTypeNames names = do
+  executeMany sql names
+  where
+    sql =
+      [here|
+      DELETE FROM type_name_lookup
+        WHERE
+        reversed_name IS ?
+        AND reference_builtin IS ?
+        AND reference_component_hash IS ?
+        AND reference_component_index IS ?
         |]
 
 -- | We need to escape any special characters for globbing.
@@ -1578,40 +1750,39 @@ insertTypeNames names =
         |]
 
 -- | Get the list of a term names in the root namespace according to the name lookup index
-rootTermNamesByPath :: Maybe Text -> Transaction ([NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)], [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)])
+rootTermNamesByPath :: Maybe Text -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 rootTermNamesByPath mayNamespace = do
   let (namespace, subnamespace) = case mayNamespace of
         Nothing -> ("", "*")
         Just namespace -> (namespace, globEscape namespace <> ".*")
-  results :: [Only Bool :. NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (subnamespace, namespace, subnamespace, namespace)
-  let (namesInNamespace, namesOutsideNamespace) = span (\(Only inNamespace :. _) -> inNamespace) results
-  pure (fmap unRow . dropTag <$> namesInNamespace, fmap unRow . dropTag <$> namesOutsideNamespace)
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (subnamespace, namespace, subnamespace, namespace)
+  pure (fmap unRow <$> results)
   where
-    dropTag (_ :. name) = name
     unRow (a :. Only b) = (a, b)
     sql =
       [here|
-        SELECT namespace GLOB ? OR namespace = ?, reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
+        WHERE (namespace GLOB ? OR namespace = ?)
         ORDER BY (namespace GLOB ? OR namespace = ?) DESC
         |]
 
 -- | Get the list of a type names in the root namespace according to the name lookup index
-rootTypeNamesByPath :: Maybe Text -> Transaction ([NamedRef Reference.TextReference], [NamedRef Reference.TextReference])
+rootTypeNamesByPath :: Maybe Text -> Transaction [NamedRef Reference.TextReference]
 rootTypeNamesByPath mayNamespace = do
   let (namespace, subnamespace) = case mayNamespace of
         Nothing -> ("", "*")
         Just namespace -> (namespace, globEscape namespace <> ".*")
-  results :: [Only Bool :. NamedRef Reference.TextReference] <- queryListRow sql (subnamespace, namespace, subnamespace, namespace)
-  let (namesInNamespace, namesOutsideNamespace) = span (\(Only inNamespace :. _) -> inNamespace) results
-  pure (dropTag <$> namesInNamespace, dropTag <$> namesOutsideNamespace)
+  results :: [NamedRef Reference.TextReference] <- queryListRow sql (subnamespace, namespace, subnamespace, namespace)
+  pure results
   where
-    dropTag (_ :. name) = name
     sql =
       [here|
-        SELECT namespace GLOB ? OR namespace = ?, reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
+        WHERE namespace GLOB ? OR namespace = ?
         ORDER BY (namespace GLOB ? OR namespace = ?) DESC
         |]
 
+-- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool
 before chId1 chId2 = queryOneCol sql (chId2, chId1)
   where
@@ -1877,8 +2048,7 @@ saveTermComponent hh@HashHandle {toReference, toReferenceMentions} maybeEncodedT
          in S.putBytes Serialization.putTermFormat $ S.Term.Term li
   oId <- saveObject hh hashId ObjectType.TermComponent bytes
   -- populate dependents index
-  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sTermElements `zip` [0 ..])
-      unlocalizeRefs :: ((LocalIds, S.Term.Term, S.Term.Type), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
+  let unlocalizeRefs :: ((LocalIds, S.Term.Term, S.Term.Type), C.Reference.Pos) -> (Set S.Reference.Reference, S.Reference.Id)
       unlocalizeRefs ((LocalIds tIds oIds, tm, tp), i) =
         let self = C.Reference.Id oId i
             dependencies :: Set S.Reference =
@@ -1903,8 +2073,9 @@ saveTermComponent hh@HashHandle {toReference, toReferenceMentions} maybeEncodedT
                       ++ map getSTermLink tmLinks
                       ++ map getTypeSRef (tpRefs ++ tpRefs')
                       ++ map getSTypeLink tpLinks
-         in Set.map (,self) dependencies
-  traverse_ (uncurry addToDependentsIndex) dependencies
+         in (dependencies, self)
+  for_ (map unlocalizeRefs (sTermElements `zip` [0 ..])) \(dependencies, dependent) ->
+    addToDependentsIndex (Set.toList dependencies) dependent
   for_ ((snd <$> terms) `zip` [0 ..]) \(tp, i) -> do
     let self = C.Referent.RefId (C.Reference.Id oId i)
         typeForIndexing = toReference tp
@@ -1936,8 +2107,7 @@ saveDeclComponent hh@HashHandle {toReferenceDecl, toReferenceDeclMentions} maybe
          in S.putBytes Serialization.putDeclFormat $ S.Decl.Decl li
   oId <- saveObject hh hashId ObjectType.DeclComponent bytes
   -- populate dependents index
-  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sDeclElements `zip` [0 ..])
-      unlocalizeRefs :: ((LocalIds, S.Decl.Decl Symbol), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
+  let unlocalizeRefs :: ((LocalIds, S.Decl.Decl Symbol), C.Reference.Pos) -> (Set S.Reference.Reference, S.Reference.Id)
       unlocalizeRefs ((LocalIds tIds oIds, decl), i) =
         let self = C.Reference.Id oId i
             dependencies :: Set S.Decl.TypeRef = C.Decl.dependencies decl
@@ -1946,8 +2116,9 @@ saveDeclComponent hh@HashHandle {toReferenceDecl, toReferenceDeclMentions} maybe
               C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
               C.Reference.Derived Nothing i -> C.Reference.Derived oId i -- index self-references
               C.Reference.Derived (Just h) i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
-         in Set.map ((,self) . getSRef) dependencies
-  traverse_ (uncurry addToDependentsIndex) dependencies
+         in (Set.map getSRef dependencies, self)
+  for_ (map unlocalizeRefs (sDeclElements `zip` [0 ..])) \(dependencies, dependent) ->
+    addToDependentsIndex (Set.toList dependencies) dependent
   for_ ((fmap C.Decl.constructorTypes decls) `zip` [0 ..]) \(ctors, i) ->
     for_ (ctors `zip` [0 ..]) \(tp, j) -> do
       let self = C.Referent.ConId (C.Reference.Id oId i) j

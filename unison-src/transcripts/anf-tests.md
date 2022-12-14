@@ -16,10 +16,11 @@ remain in the definition of `baz`.
 ```unison
 foo _ =
   id x = x
+  void x = ()
   bar = let
-    Debug.watch "hello" "hello"
+    void (Debug.watch "hello" "hello")
     result = 5
-    Debug.watch "goodbye" "goodbye"
+    void (Debug.watch "goodbye" "goodbye")
     result
   baz = id bar
   baz

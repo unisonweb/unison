@@ -20,6 +20,7 @@ import Data.Set.NonEmpty (NESet)
 import Data.Time (UTCTime)
 import Network.URI (URI)
 import qualified System.Console.Haskeline as Completion
+import U.Codebase.Branch.Diff (NameChanges)
 import Unison.Auth.Types (CredentialFailure)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
@@ -36,8 +37,8 @@ import Unison.Codebase.Path (Path')
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.Runtime as Runtime
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.InputPattern as Input
 import Unison.DataDeclaration (Decl)
@@ -122,7 +123,7 @@ data Output
     NoMainFunction String PPE.PrettyPrintEnv [Type Symbol Ann]
   | -- Main function found, but has improper type
     BadMainFunction String (Type Symbol Ann) PPE.PrettyPrintEnv [Type Symbol Ann]
-  | BranchEmpty (Either ShortBranchHash Path')
+  | BranchEmpty (Either ShortCausalHash Path')
   | BranchNotEmpty Path'
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -140,7 +141,7 @@ data Output
   | DeleteNameAmbiguous Int Path.HQSplit' (Set Referent) (Set Reference)
   | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
-  | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
+  | BranchHashAmbiguous ShortCausalHash (Set ShortCausalHash)
   | BadNamespace String String
   | BranchNotFound Path'
   | EmptyPush Path'
@@ -178,15 +179,15 @@ data Output
   | ListNames
       IsGlobal
       Int -- hq length to print References
-      [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
-      [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
+      [(Reference, [HQ'.HashQualified Name])] -- type match, type names
+      [(Referent, [HQ'.HashQualified Name])] -- term match, term names
       -- list of all the definitions within this branch
   | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
   | -- show the result of add/update
-    SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult Symbol)
+    SlurpOutput Input PPE.PrettyPrintEnv SlurpResult
   | -- Original source, followed by the errors:
     ParseErrors Text [Parser.Err Symbol]
   | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote Symbol Ann]
@@ -199,7 +200,7 @@ data Output
       [(Symbol, Term Symbol ())]
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
-  | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult Symbol) (UF.TypecheckedUnisonFile Symbol Ann)
+  | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
     DisplayDefinitions
@@ -234,9 +235,9 @@ data Output
     NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
-  | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)
+  | WarnIncomingRootBranch ShortCausalHash (Set ShortCausalHash)
   | StartOfCurrentPathHistory
-  | ShowReflog [(Maybe UTCTime, SBH.ShortBranchHash, Text)]
+  | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
   | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | PullSuccessful ReadRemoteNamespace Path'
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
@@ -246,7 +247,7 @@ data Output
   | -- | No conflicts or edits remain for the current patch.
     NoConflictsOrEdits
   | NotImplemented
-  | NoBranchWithHash ShortBranchHash
+  | NoBranchWithHash ShortCausalHash
   | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
   | -- | List dependents of a type or term.
     ListDependents Int LabeledDependency [(Reference, Maybe Name)]
@@ -274,6 +275,7 @@ data Output
   | CredentialFailureMsg CredentialFailure
   | PrintVersion Text
   | IntegrityCheck IntegrityResult
+  | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
 
 data ShareError
@@ -321,7 +323,8 @@ isFailure o = case o of
   BadMainFunction {} -> True
   CreatedNewBranch {} -> False
   BranchAlreadyExists {} -> True
-  FindNoLocalMatches {} -> True
+  -- we do a global search after finding no local matches, so let's not call this a failure yet
+  FindNoLocalMatches {} -> False
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True
@@ -420,6 +423,7 @@ isFailure o = case o of
   ShareError {} -> True
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
+  DisplayDebugNameDiff {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

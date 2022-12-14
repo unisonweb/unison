@@ -9,6 +9,7 @@ compose2 f g = a -> b -> f (g a b)
 compose3 f g = a -> b -> c -> f (g a b c)
 
 id a = a
+void x = ()
 
 structural ability Exception where
   raise: io2.Failure -> anything
@@ -17,6 +18,26 @@ Exception.reraise : Either Failure a ->{Exception} a
 Exception.reraise = cases
   Left e  -> Exception.raise e
   Right a -> a
+
+Either.isLeft = cases
+  Left _ -> true
+  Right _ -> false
+
+Exception.catch : '{g, Exception} a ->{g} Either Failure a
+Exception.catch ex =
+    handle !ex
+    with
+      cases
+        { a }                    -> Right a
+        {Exception.raise f -> _} -> Left f
+
+Either.raiseMessage v e = reraise (Either.mapLeft (msg -> failure msg v) e)
+
+Either.mapLeft f = cases
+  Left l  -> Left (f l)
+  Right r -> Right r
+
+Exception.failure msg a = Failure (typeLink Unit) msg (Any a)
 
 Exception.toEither.handler : Request {Exception} a -> Either Failure a
 Exception.toEither.handler = cases
@@ -213,6 +234,10 @@ getSomeBytes = compose2 reraise getSomeBytes.impl
 handlePosition = compose reraise handlePosition.impl
 getBuffering = compose reraise getBuffering.impl
 setBuffering mode = compose reraise (setBuffering.impl mode)
+setEcho = compose2 reraise setEcho.impl
+getEcho = compose reraise getEcho.impl
+getChar =  compose reraise getChar.impl
+ready = compose reraise ready.impl
 seekHandle = compose3 reraise seekHandle.impl
 putBytes = compose2 reraise putBytes.impl
 getLine = compose reraise getLine.impl
@@ -386,3 +411,4 @@ saveTestCase name f i =
   saveSelfContained (f, i) sfile
   writeFile ofile (toUtf8 output)
   writeFile hfile (Bytes.toBase32 (crypto.hash Sha3_512 (f, i)))
+

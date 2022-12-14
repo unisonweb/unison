@@ -51,6 +51,7 @@ dependencies:
   - unison-util-base32hex-orphans-aeson
   - unison-util-relation
   - unison-sqlite
+  - unison-syntax
   - unliftio
   - unordered-containers
   - uri-encode
@@ -83,6 +84,7 @@ default-extensions:
   - NumericUnderscores
   - OverloadedStrings
   - PatternSynonyms
+  - RankNTypes
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications

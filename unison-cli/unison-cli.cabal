@@ -34,6 +34,7 @@ library
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
       Unison.Cli.PrettyPrintUtils
+      Unison.Cli.TypeCheck
       Unison.Cli.UnisonConfigUtils
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
@@ -42,6 +43,7 @@ library
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
+      Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
@@ -66,6 +68,7 @@ library
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
+      Unison.CommandLine.Types
       Unison.CommandLine.Welcome
       Unison.LSP
       Unison.LSP.CancelRequest
@@ -81,6 +84,7 @@ library
       Unison.LSP.Hover
       Unison.LSP.NotificationHandlers
       Unison.LSP.Orphans
+      Unison.LSP.Queries
       Unison.LSP.Types
       Unison.LSP.UCMWorker
       Unison.LSP.VFS
@@ -141,6 +145,7 @@ library
     , exceptions
     , extra
     , filepath
+    , free
     , friendly-time
     , fuzzyfind
     , generic-lens
@@ -164,7 +169,9 @@ library
     , nonempty-containers
     , open-browser
     , pretty-simple
+    , process
     , random >=1.2.0
+    , recover-rtti
     , regex-tdfa
     , semialign
     , servant
@@ -184,6 +191,7 @@ library
     , unison-pretty-printer
     , unison-share-api
     , unison-sqlite
+    , unison-syntax
     , unison-util
     , unison-util-base32hex
     , unison-util-relation
@@ -262,6 +270,7 @@ executable cli-integration-tests
     , exceptions
     , extra
     , filepath
+    , free
     , friendly-time
     , fuzzyfind
     , generic-lens
@@ -287,6 +296,7 @@ executable cli-integration-tests
     , pretty-simple
     , process
     , random >=1.2.0
+    , recover-rtti
     , regex-tdfa
     , semialign
     , servant
@@ -307,6 +317,7 @@ executable cli-integration-tests
     , unison-pretty-printer
     , unison-share-api
     , unison-sqlite
+    , unison-syntax
     , unison-util
     , unison-util-base32hex
     , unison-util-relation
@@ -355,7 +366,7 @@ executable transcripts
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
+  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
   build-depends:
       IntervalMap
     , ListLike
@@ -378,6 +389,7 @@ executable transcripts
     , exceptions
     , extra
     , filepath
+    , free
     , friendly-time
     , fuzzyfind
     , generic-lens
@@ -403,6 +415,7 @@ executable transcripts
     , pretty-simple
     , process
     , random >=1.2.0
+    , recover-rtti
     , regex-tdfa
     , semialign
     , servant
@@ -424,6 +437,7 @@ executable transcripts
     , unison-pretty-printer
     , unison-share-api
     , unison-sqlite
+    , unison-syntax
     , unison-util
     , unison-util-base32hex
     , unison-util-relation
@@ -442,6 +456,7 @@ executable unison
   main-is: Main.hs
   other-modules:
       ArgParse
+      Stats
       System.Path
       Version
   hs-source-dirs:
@@ -476,7 +491,7 @@ executable unison
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
   build-depends:
       IntervalMap
     , ListLike
@@ -498,6 +513,7 @@ executable unison
     , exceptions
     , extra
     , filepath
+    , free
     , friendly-time
     , fuzzyfind
     , generic-lens
@@ -522,7 +538,9 @@ executable unison
     , open-browser
     , optparse-applicative >=0.16.1.0
     , pretty-simple
+    , process
     , random >=1.2.0
+    , recover-rtti
     , regex-tdfa
     , semialign
     , servant
@@ -546,6 +564,7 @@ executable unison
     , unison-pretty-printer
     , unison-share-api
     , unison-sqlite
+    , unison-syntax
     , unison-util
     , unison-util-base32hex
     , unison-util-relation
@@ -565,7 +584,9 @@ test-suite cli-tests
   main-is: Main.hs
   other-modules:
       Unison.Test.ClearCache
+      Unison.Test.Cli.Monad
       Unison.Test.GitSync
+      Unison.Test.LSP
       Unison.Test.Ucm
       Unison.Test.UriParser
       Unison.Test.VersionParser
@@ -624,6 +645,7 @@ test-suite cli-tests
     , exceptions
     , extra
     , filepath
+    , free
     , friendly-time
     , fuzzyfind
     , generic-lens
@@ -647,7 +669,9 @@ test-suite cli-tests
     , nonempty-containers
     , open-browser
     , pretty-simple
+    , process
     , random >=1.2.0
+    , recover-rtti
     , regex-tdfa
     , semialign
     , servant
@@ -670,6 +694,7 @@ test-suite cli-tests
     , unison-pretty-printer
     , unison-share-api
     , unison-sqlite
+    , unison-syntax
     , unison-util
     , unison-util-base32hex
     , unison-util-relation

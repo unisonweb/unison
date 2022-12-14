@@ -28,6 +28,7 @@ dependencies:
   - exceptions
   - extra
   - filepath
+  - free
   - fuzzyfind
   - friendly-time
   - generic-lens
@@ -53,7 +54,9 @@ dependencies:
   - nonempty-containers
   - open-browser
   - pretty-simple
+  - process
   - random >= 1.2.0
+  - recover-rtti
   - regex-tdfa
   - semialign
   - servant
@@ -74,6 +77,7 @@ dependencies:
   - unison-pretty-printer
   - unison-share-api
   - unison-sqlite
+  - unison-syntax
   - unison-util
   - unison-util-base32hex
   - unison-util-relation
@@ -115,7 +119,7 @@ executables:
         other-modules: Paths_unison_cli
     source-dirs: unison
     main: Main.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+    ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
     dependencies:
       - code-page
       - optparse-applicative >= 0.16.1.0
@@ -130,7 +134,7 @@ executables:
         other-modules: Paths_unison_cli
     source-dirs: transcripts
     main: Transcripts.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
+    ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
     dependencies:
       - code-page
       - easytest
