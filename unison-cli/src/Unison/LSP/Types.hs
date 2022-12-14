@@ -40,6 +40,7 @@ import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import qualified Unison.Reference as Reference
+import Unison.Referent (Referent)
 import Unison.Result (Note)
 import qualified Unison.Server.Backend as Backend
 import Unison.Symbol
@@ -47,6 +48,8 @@ import qualified Unison.Syntax.Lexer as Lexer
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
+import Unison.Util.Relation3 (Relation3)
+import Unison.Util.Relation4 (Relation4)
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
@@ -106,6 +109,13 @@ type FileVersion = Int32
 
 type LexedSource = (Text, [Lexer.Token Lexer.Lexeme])
 
+data TypeSignatureHint = TypeSignatureHint
+  { name :: Name,
+    referent :: Referent,
+    definitionPosition :: Position,
+    signature :: Type Symbol Ann
+  }
+
 data FileAnalysis = FileAnalysis
   { fileUri :: Uri,
     fileVersion :: FileVersion,
@@ -115,6 +125,7 @@ data FileAnalysis = FileAnalysis
     notes :: Seq (Note Symbol Ann),
     diagnostics :: IntervalMap Position [Diagnostic],
     codeActions :: IntervalMap Position [CodeAction],
+    typeSignatureHints :: Map Symbol TypeSignatureHint,
     fileSummary :: Maybe FileSummary
   }
 

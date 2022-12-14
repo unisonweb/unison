@@ -73,6 +73,8 @@ library
       Unison.LSP
       Unison.LSP.CancelRequest
       Unison.LSP.CodeAction
+      Unison.LSP.CodeLens
+      Unison.LSP.Commands
       Unison.LSP.Completion
       Unison.LSP.Configuration
       Unison.LSP.Conversions

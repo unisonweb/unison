@@ -10,7 +10,9 @@ import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Zip as Zip
 import Debug.RecoverRTTI (anythingToString)
 import Language.LSP.Types
   ( Diagnostic,
@@ -38,6 +40,7 @@ import qualified Unison.LSP.Types as LSP
 import qualified Unison.LSP.VFS as VFS
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
+import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -45,25 +48,36 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPED
 import qualified Unison.PrintError as PrintError
+import qualified Unison.Reference as Reference
+import qualified Unison.Referent as Referent
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
 import qualified Unison.Symbol as Symbol
 import qualified Unison.Syntax.HashQualified' as HQ' (toText)
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Term as Term
 import Unison.Type (Type)
+import Unison.Term (Term)
+import qualified Unison.Term as Term
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
+import qualified Unison.Util.Relation as R
+import Unison.Util.Relation3 (Relation3)
+import qualified Unison.Util.Relation3 as R3
+import Unison.Util.Relation4 (Relation4)
+import qualified Unison.Util.Relation4 as R4
 import qualified Unison.Var as Var
 import Unison.WatchKind (pattern TestWatch)
 import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
+import Witherable
 
 -- | Lex, parse, and typecheck a file.
 checkFile :: HasUri d Uri => d -> Lsp (Maybe FileAnalysis)
@@ -72,7 +86,7 @@ checkFile doc = runMaybeT $ do
   (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getParseNames
   let sourceName = getUri $ doc ^. uri
-  let lexedSource@(srcText, _tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
+  let lexedSource@(srcText, tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   cb <- asks codebase
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
@@ -91,8 +105,9 @@ checkFile doc = runMaybeT $ do
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
+  let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
   let fileSummary = mkFileSummary parsedFile typecheckedFile
-  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, ..}
+  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, typeSignatureHints, ..}
   pure $ fileAnalysis
 
 -- | If a symbol is a 'User' symbol, return (Just sym), otherwise return Nothing.
@@ -166,6 +181,25 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
       trm <- Prelude.lookup v (terms <> fold watches)
       typ <- Term.getTypeAnnotation trm
       pure typ
+
+-- | Get the location of user defined definitions within the file
+getFileDefLocations :: Uri -> MaybeT Lsp (Map Symbol (Set Ann))
+getFileDefLocations uri = do
+  fileDefLocations <$> getFileSummary uri
+
+-- | Compute the location of user defined definitions within the file
+fileDefLocations :: FileSummary -> Map Symbol (Set Ann)
+fileDefLocations FileSummary {dataDeclSummary, effectDeclSummary, testWatchSummary, exprWatchSummary, termSummary} =
+  fold
+    [ fmap (Set.map DD.annotation) . R.domain . R3.d13 $ dataDeclSummary,
+      fmap (Set.map (DD.annotation . DD.toDataDecl)) . R.domain . R3.d13 $ effectDeclSummary,
+      (testWatchSummary <> exprWatchSummary)
+        & foldMap \(maySym, _id, trm, _typ) ->
+          case maySym of
+            Nothing -> mempty
+            Just sym -> Map.singleton sym (Set.singleton $ ABT.annotation trm),
+      fmap (Set.map ABT.annotation) . R.domain . R4.d13 $ termSummary
+    ]
 
 fileAnalysisWorker :: Lsp ()
 fileAnalysisWorker = forever do
@@ -380,3 +414,33 @@ ppedForFileHelper uf tf = do
       let fileNames = UF.toNames uf
           filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
        in filePPED `PPED.addFallback` codebasePPED
+
+mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
+mkTypeSignatureHints parsedFile typecheckedFile = do
+  let symbolsWithoutTypeSigs :: Map Symbol Ann
+      symbolsWithoutTypeSigs =
+        UF.terms parsedFile
+          & mapMaybe
+            ( \(v, trm) -> do
+                -- We only want hints for terms without a user signature
+                guard (isNothing $ Term.getTypeAnnotation trm)
+                pure (v, ABT.annotation trm)
+            )
+          & Map.fromList
+      typeHints =
+        typecheckedFile
+          & UF.hashTermsId
+          & Zip.zip symbolsWithoutTypeSigs
+          & imapMaybe
+            ( \v (ann, (ref, _wk, _trm, typ)) -> do
+                startPos <- annStart ann
+                name <- Name.fromText (Var.name v)
+                pure $ TypeSignatureHint name (Referent.fromTermReferenceId ref) startPos typ
+            )
+   in typeHints
+  where
+    annStart :: Ann -> Maybe Position
+    annStart = \case
+      Ann.Intrinsic -> Nothing
+      Ann.External -> Nothing
+      Ann.Ann start _ -> Just $ uToLspPos start
