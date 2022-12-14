@@ -571,7 +571,7 @@ inlineAlias = ABT.visitPure $ \case
   Let1Named' v b@(Var' _) e -> Just . inlineAlias $ ABT.subst v b e
   _ -> Nothing
 
-minimizeCyclesOrCrash :: (Var v, Semigroup a) => Term v a -> Term v a
+minimizeCyclesOrCrash :: Var v => Term v a -> Term v a
 minimizeCyclesOrCrash t = case minimize' t of
   Right t -> t
   Left e ->
