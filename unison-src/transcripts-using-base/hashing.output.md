@@ -373,19 +373,19 @@ test> hmac_sha2_512.tests.ex2 =
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    3 | test> hmac_sha2_256.tests.ex1 =
+    4 |   ex' Sha2_256
     
     ✅ Passed Passed
   
-    8 | test> hmac_sha2_512.tests.ex1 =
+    9 |   ex' Sha2_512
     
     ✅ Passed Passed
   
-    14 | test> hmac_sha2_256.tests.ex2 =
+    15 |   ex' Sha2_256
     
     ✅ Passed Passed
   
-    20 | test> hmac_sha2_512.tests.ex2 =
+    21 |   ex' Sha2_512
     
     ✅ Passed Passed
 
