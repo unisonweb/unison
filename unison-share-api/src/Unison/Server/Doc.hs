@@ -212,77 +212,6 @@ renderDoc pped doc = go doc
           (PPE.suffixifiedPPE pped)
           [(r, PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r, ty) <- types]
 
-    -- goSpecial :: Term v () -> m SpecialForm
-    -- goSpecial = \case
-    -- DD.Doc2SpecialFormFoldedSource (Term.List' es) -> FoldedSource <$> goSrc (toList es)
-    -- -- Source [Either Link.Type Doc2.Term]
-    -- DD.Doc2SpecialFormSource (Term.List' es) -> Source <$> goSrc (toList es)
-    -- -- Example Nat Doc2.Term
-    -- -- Examples like `foo x y` are encoded as `Example 2 (_ x y -> foo)`, where
-    -- -- 2 is the number of variables that should be dropped from the rendering.
-    -- -- So this will render as `foo x y`.
-    -- DD.Doc2SpecialFormExample n (DD.Doc2Example vs body) ->
-    --   Example <$> source ex
-    --   where
-    --     ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
-    -- DD.Doc2SpecialFormExampleBlock n (DD.Doc2Example vs body) ->
-    --   ExampleBlock <$> source ex
-    --   where
-    --     ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
-
-    -- -- Link (Either Link.Type Doc2.Term)
-    -- DD.Doc2SpecialFormLink e ->
-    --   let ppe = PPE.suffixifiedPPE pped
-    --       tm :: Referent -> P.Pretty SSyntaxText
-    --       tm r = (NP.styleHashQualified'' (NP.fmt (S.TermReference r)) . PPE.termName ppe) r
-    --       ty :: Reference -> P.Pretty SSyntaxText
-    --       ty r = (NP.styleHashQualified'' (NP.fmt (S.TypeReference r)) . PPE.typeName ppe) r
-    --    in Link <$> case e of
-    --         DD.EitherLeft' (Term.TypeLink' r) -> (pure . formatPretty . ty) r
-    --         DD.EitherRight' (DD.Doc2Term t) ->
-    --           case Term.etaNormalForm t of
-    --             Term.Referent' r -> (pure . formatPretty . tm) r
-    --             x -> source x
-    --         _ -> source e
-    -- DD.Doc2SpecialFormSignature (Term.List' tms) ->
-    --   let rs = [r | DD.Doc2Term (Term.Referent' r) <- toList tms]
-    --    in goSignatures rs <&> \s -> Signature (map formatPretty s)
-    -- -- SignatureInline Doc2.Term
-    -- DD.Doc2SpecialFormSignatureInline (DD.Doc2Term (Term.Referent' r)) ->
-    --   goSignatures [r] <&> \s -> SignatureInline (formatPretty (P.lines s))
-    -- -- Eval Doc2.Term
-    -- DD.Doc2SpecialFormEval (DD.Doc2Term tm) ->
-    --   eval tm >>= \case
-    --     Nothing -> Eval <$> source tm <*> pure evalErrMsg
-    --     Just result -> Eval <$> source tm <*> source result
-    -- -- EvalInline Doc2.Term
-    -- DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) ->
-    --   eval tm >>= \case
-    --     Nothing -> EvalInline <$> source tm <*> pure evalErrMsg
-    --     Just result -> EvalInline <$> source tm <*> source result
-    -- -- Embed Video
-    -- DD.Doc2SpecialFormEmbedVideo sources config ->
-    --   pure $ Video sources' config'
-    --   where
-    --     sources' = [MediaSource url mimeType | DD.Doc2MediaSource (Term.Text' url) (maybeText -> mimeType) <- sources]
-    --     config' = Map.fromList [(k, v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- config]
-    --     maybeText (Term.App' _ (Term.Text' a)) = Just a
-    --     maybeText _ = Nothing
-
-    -- -- Embed FrontMatter
-    -- DD.Doc2SpecialFormEmbedFrontMatter frontMatter ->
-    --   pure $ FrontMatter frontMatter'
-    --   where
-    --     frontMatter' = List.multimap [(k, v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- frontMatter])
-
-    -- -- Embed Any
-    -- DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
-    --   source any <&> \p -> Embed ("{{ embed {{" <> p <> "}} }}")
-    -- -- EmbedInline Any
-    -- DD.Doc2SpecialFormEmbedInline any ->
-    --   source any <&> \p -> EmbedInline ("{{ embed {{" <> p <> "}} }}")
-    -- tm -> source tm <&> \p -> Embed ("🆘  unable to render " <> p)
-
     goSpecial :: ExpandedSpecialForm v -> m SpecialForm
     goSpecial = \case
       Source srcs -> Source <$> goSrc srcs
@@ -323,8 +252,7 @@ renderDoc pped doc = go doc
       srcs & foldMapM \case
         ExpandedSrcDecl srcDecl -> case srcDecl of
           MissingDecl r -> pure [(Type (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r)))]
-          BuiltinDecl builtin -> do
-            let r = Reference.Builtin builtin
+          BuiltinDecl r _builtin -> do
             let name =
                   formatPretty . NP.styleHashQualified (NP.fmt (S.TypeReference r))
                     . PPE.typeName suffixifiedPPE
@@ -487,8 +415,8 @@ expandDoc terms typeOf eval types tm = go tm
           toRef (Term.RequestOrCtor' r) = Set.singleton (r ^. ConstructorReference.reference_)
           toRef _ = mempty
           goType :: Reference -> m (ExpandedSrc v)
-          goType (Reference.Builtin builtin) =
-            pure (ExpandedSrcDecl (BuiltinDecl builtin))
+          goType r@(Reference.Builtin builtin) =
+            pure (ExpandedSrcDecl (BuiltinDecl r builtin))
           goType r = do
             d <- types r
             case d of
@@ -536,7 +464,7 @@ data ExpandedSrc v
 
 data ExpandedDecl v
   = MissingDecl Reference
-  | BuiltinDecl Builtin
+  | BuiltinDecl Reference Builtin
   | FoundDecl Reference (DD.Decl v ())
 
 data ExpandedTerm v
@@ -544,3 +472,99 @@ data ExpandedTerm v
   | BuiltinTypeSig Reference (Type v ())
   | MissingBuiltinTypeSig Reference
   | FoundTerm Reference (Type v ()) (Term v ())
+
+dependencies :: Ord v => ExpandedDoc v -> Set LD.LabeledDependency
+dependencies = \case
+  -- Word txt -> pure $ Word txt
+  -- Code d -> Code <$> go d
+  -- CodeBlock lang d -> CodeBlock lang <$> go d
+  -- Bold d -> Bold <$> go d
+  -- Italic d -> Italic <$> go d
+  -- Strikethrough d -> Strikethrough <$> go d
+  -- Style s d -> Style s <$> go d
+  -- Anchor a d -> Anchor a <$> go d
+  -- Blockquote d -> Blockquote <$> go d
+  -- Blankline -> pure Blankline
+  -- Linebreak -> pure Linebreak
+  -- SectionBreak -> pure SectionBreak
+  -- Tooltip d1 d2 -> Tooltip <$> go d1 <*> go d2
+  -- Aside d -> Aside <$> go d
+  -- Callout d1 d2 -> Callout <$> traverse go d1 <*> go d2
+  -- Table rows -> Table <$> traverse (traverse go) rows
+  -- Folded folded d1 d2 -> Folded folded <$> go d1 <*> go d2
+  -- Paragraph ds -> Paragraph <$> traverse go ds
+  -- BulletedList ds -> BulletedList <$> traverse go ds
+  -- NumberedList n ds -> NumberedList n <$> traverse go ds
+  -- Section d ds -> Section <$> go d <*> traverse go ds
+  -- NamedLink d1 d2 -> NamedLink <$> go d1 <*> go d2
+  -- Image d1 d2 d3 -> Image <$> go d1 <*> go d2 <*> traverse go d3
+  -- Special s -> Special <$> goSpecial s
+  -- Join ds -> Join <$> traverse go ds
+  -- UntitledSection ds -> UntitledSection <$> traverse go ds
+  -- Column ds -> Column <$> traverse go ds
+  -- Group d -> Group <$> go d
+  -- RenderError (InvalidTerm trm) -> pure . Word . Text.pack . P.toPlain (P.Width 80) . P.indent "🆘  " . TermPrinter.pretty (PPE.suffixifiedPPE pped) $ trmm
+  Word _txt -> mempty
+  Code d -> dependencies d
+  CodeBlock _lang d -> dependencies d
+  Bold d -> dependencies d
+  Italic d -> dependencies d
+  Strikethrough d -> dependencies d
+  Style _s d -> dependencies d
+  Anchor _a d -> dependencies d
+  Blockquote d -> dependencies d
+  Blankline -> mempty
+  Linebreak -> mempty
+  SectionBreak -> mempty
+  Tooltip d1 d2 -> dependencies d1 <> dependencies d2
+  Aside d -> dependencies d
+  Callout d1 d2 -> foldMap dependencies d1 <> dependencies d2
+  Table rows -> foldMap (foldMap dependencies) rows
+  Folded _folded d1 d2 -> dependencies d1 <> dependencies d2
+  Paragraph ds -> foldMap dependencies ds
+  BulletedList ds -> foldMap dependencies ds
+  NumberedList _n ds -> foldMap dependencies ds
+  Section d ds -> dependencies d <> foldMap dependencies ds
+  NamedLink d1 d2 -> dependencies d1 <> dependencies d2
+  Image d1 d2 d3 -> dependencies d1 <> dependencies d2 <> foldMap dependencies d3
+  Special s -> dependenciesSpecial s
+  Join ds -> foldMap dependencies ds
+  UntitledSection ds -> foldMap dependencies ds
+  Column ds -> foldMap dependencies ds
+  Group d -> dependencies d
+  RenderError {} -> mempty
+
+-- | Determines all dependencies of a special form
+dependenciesSpecial :: forall v. Ord v => ExpandedSpecialForm v -> Set LD.LabeledDependency
+dependenciesSpecial = \case
+  Source srcs -> srcDeps srcs
+  FoldedSource srcs -> srcDeps srcs
+  Example trm -> Term.labeledDependencies trm
+  ExampleBlock trm -> Term.labeledDependencies trm
+  Link ref -> either Term.labeledDependencies Set.singleton ref
+  Signature sigtyps -> sigtypDeps sigtyps
+  SignatureInline sig -> sigtypDeps [sig]
+  Eval trm mayTrm -> Term.labeledDependencies trm <> foldMap Term.labeledDependencies mayTrm
+  EvalInline trm mayTrm -> Term.labeledDependencies trm <> foldMap Term.labeledDependencies mayTrm
+  Embed trm -> Term.labeledDependencies trm
+  EmbedInline trm -> Term.labeledDependencies trm
+  Video {} -> mempty
+  FrontMatter {} -> mempty
+  SpecialRenderError (InvalidTerm trm) -> Term.labeledDependencies trm
+  where
+    sigtypDeps :: [(Referent, Type v a)] -> Set LD.LabeledDependency
+    sigtypDeps sigtyps =
+      sigtyps & foldMap \(ref, typ) ->
+        Set.singleton (LD.TermReferent ref) <> Type.labeledDependencies typ
+    srcDeps :: [ExpandedSrc v] -> Set LD.LabeledDependency
+    srcDeps srcs =
+      srcs & foldMap \case
+        ExpandedSrcDecl srcDecl -> case srcDecl of
+          MissingDecl ref -> Set.singleton (LD.TypeReference ref)
+          BuiltinDecl ref _ -> Set.singleton (LD.TypeReference ref)
+          FoundDecl ref decl -> Set.singleton (LD.TypeReference ref) <> DD.labeledDeclDependencies decl
+        ExpandedSrcTerm srcTerm -> case srcTerm of
+          MissingTerm ref -> Set.singleton (LD.TermReference ref)
+          BuiltinTypeSig ref _ -> Set.singleton (LD.TermReference ref)
+          MissingBuiltinTypeSig ref -> Set.singleton (LD.TermReference ref)
+          FoundTerm ref typ trm -> Set.singleton (LD.TermReference ref) <> Type.labeledDependencies typ <> Term.labeledDependencies trm
