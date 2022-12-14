@@ -56,12 +56,15 @@ type Nat = Word64
 
 type SSyntaxText = S.SyntaxText' Reference
 
-type SrcRefs = Ref (UnisonHash, DisplayObject SyntaxText Src)
-
+-- | A doc rendered down to SyntaxText.
 type Doc = DocG (RenderError SyntaxText) SrcRefs SyntaxText SyntaxText SyntaxText SyntaxText SyntaxText UnisonHash
 
-type ExpandedDoc v = DocG (RenderError (Term v ())) (ExpandedSrc v) (Term v ()) (Referent, Type v ()) (DD.Decl v ()) (Either (Term v ()) LD.LabeledDependency) Builtin ()
+-- | A doc which has been evaluated and includes all information necessary to be rendered.
+type EvaluatedDoc v = DocG (RenderError (Term v ())) (EvaluatedSrc v) (Term v ()) (Referent, Type v ()) (DD.Decl v ()) (Either (Term v ()) LD.LabeledDependency) Builtin ()
 
+type SrcRefs = Ref (UnisonHash, DisplayObject SyntaxText Src)
+
+-- | A doc parameterized by all of its different types.
 data DocG err src trm typ decl ref builtin hash
   = Word Text
   | Code (DocG err src trm typ decl ref builtin hash)
@@ -86,7 +89,7 @@ data DocG err src trm typ decl ref builtin hash
   | Section (DocG err src trm typ decl ref builtin hash) [(DocG err src trm typ decl ref builtin hash)]
   | NamedLink (DocG err src trm typ decl ref builtin hash) (DocG err src trm typ decl ref builtin hash)
   | Image (DocG err src trm typ decl ref builtin hash) (DocG err src trm typ decl ref builtin hash) (Maybe (DocG err src trm typ decl ref builtin hash))
-  | Special (SpecialFormG err src trm typ decl ref builtin hash)
+  | Special (SpecialFormG err src trm typ ref)
   | Join [(DocG err src trm typ decl ref builtin hash)]
   | UntitledSection [(DocG err src trm typ decl ref builtin hash)]
   | Column [(DocG err src trm typ decl ref builtin hash)]
@@ -111,11 +114,11 @@ data MediaSource = MediaSource {mediaSourceUrl :: Text, mediaSourceMimeType :: M
 
 type Builtin = Text
 
-type SpecialForm = SpecialFormG (RenderError SyntaxText) SrcRefs SyntaxText SyntaxText SyntaxText SyntaxText SyntaxText UnisonHash
+type SpecialForm = SpecialFormG (RenderError SyntaxText) SrcRefs SyntaxText SyntaxText SyntaxText
 
-type ExpandedSpecialForm v = SpecialFormG (RenderError (Term v ())) (ExpandedSrc v) (Term v ()) (Referent, Type v ()) (DD.Decl v ()) (Either (Term v ()) LD.LabeledDependency) Text ()
+type EvaluatedSpecialForm v = SpecialFormG (RenderError (Term v ())) (EvaluatedSrc v) (Term v ()) (Referent, Type v ()) (Either (Term v ()) LD.LabeledDependency)
 
-data SpecialFormG err src trm sigtyp decl ref builtin hash
+data SpecialFormG err src trm sigtyp ref
   = Source [src]
   | FoldedSource [src]
   | Example trm
@@ -155,18 +158,18 @@ evalAndRenderDoc ::
 evalAndRenderDoc pped terms typeOf eval types tm =
   eval tm >>= \case
     Nothing -> pure $ Word "🆘 doc rendering failed during evaluation"
-    Just tm -> expandDoc terms typeOf eval types tm >>= renderDoc pped
+    Just tm -> evalDoc terms typeOf eval types tm >>= renderDoc pped
 
 renderDoc ::
   forall v m.
   (Var v, Monad m) =>
   PPE.PrettyPrintEnvDecl ->
-  ExpandedDoc v ->
+  EvaluatedDoc v ->
   m Doc
 renderDoc pped doc = go doc
   where
     suffixifiedPPE = PPE.suffixifiedPPE pped
-    go :: ExpandedDoc v -> m Doc
+    go :: EvaluatedDoc v -> m Doc
     go = \case
       Word txt -> pure $ Word txt
       Code d -> Code <$> go d
@@ -213,7 +216,7 @@ renderDoc pped doc = go doc
           (PPE.suffixifiedPPE pped)
           [(r, PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r, ty) <- types]
 
-    goSpecial :: ExpandedSpecialForm v -> m SpecialForm
+    goSpecial :: EvaluatedSpecialForm v -> m SpecialForm
     goSpecial = \case
       Source srcs -> Source <$> goSrc srcs
       FoldedSource srcs -> FoldedSource <$> goSrc srcs
@@ -248,10 +251,10 @@ renderDoc pped doc = go doc
       FrontMatter frontMatter -> pure $ FrontMatter frontMatter
       SpecialRenderError (InvalidTerm tm) -> source tm <&> \p -> Embed ("🆘  unable to render " <> p)
 
-    goSrc :: [ExpandedSrc v] -> m [Ref (UnisonHash, DisplayObject SyntaxText Src)]
+    goSrc :: [EvaluatedSrc v] -> m [Ref (UnisonHash, DisplayObject SyntaxText Src)]
     goSrc srcs =
       srcs & foldMapM \case
-        ExpandedSrcDecl srcDecl -> case srcDecl of
+        EvaluatedSrcDecl srcDecl -> case srcDecl of
           MissingDecl r -> pure [(Type (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r)))]
           BuiltinDecl r _builtin -> do
             let name =
@@ -266,7 +269,7 @@ renderDoc pped doc = go doc
             where
               full = formatPretty (DeclPrinter.prettyDecl pped r (PPE.typeName suffixifiedPPE r) decl)
               folded = formatPretty (DeclPrinter.prettyDeclHeader (PPE.typeName suffixifiedPPE r) decl)
-        ExpandedSrcTerm srcTerm -> case srcTerm of
+        EvaluatedSrcTerm srcTerm -> case srcTerm of
           MissingBuiltinTypeSig r -> pure [(Type (Reference.toText r, DO.BuiltinObject "🆘 missing type signature"))]
           BuiltinTypeSig r typ -> do
             pure $ [Type (Reference.toText r, DO.BuiltinObject (formatPrettyType suffixifiedPPE typ))]
@@ -282,7 +285,7 @@ renderDoc pped doc = go doc
                   formatPretty (TermPrinter.prettyBinding suffixifiedPPE name (Term.ann () tm typ))
             pure [Term (Reference.toText ref, DO.UserObject (Src folded (full tm typ)))]
 
-expandDoc ::
+evalDoc ::
   forall v m.
   (Var v, Monad m) =>
   (Reference -> m (Maybe (Term v ()))) ->
@@ -290,10 +293,10 @@ expandDoc ::
   (Term v () -> m (Maybe (Term v ()))) ->
   (Reference -> m (Maybe (DD.Decl v ()))) ->
   Term v () ->
-  m (ExpandedDoc v)
-expandDoc terms typeOf eval types tm = go tm
+  m (EvaluatedDoc v)
+evalDoc terms typeOf eval types tm = go tm
   where
-    go :: Term v () -> m (ExpandedDoc v)
+    go :: Term v () -> m (EvaluatedDoc v)
     go = \case
       DD.Doc2Word txt -> pure $ Word txt
       DD.Doc2Code d -> Code <$> go d
@@ -336,7 +339,7 @@ expandDoc terms typeOf eval types tm = go tm
         Nothing -> error "🆘  codebase is missing type signature for these definitions"
         Just types -> pure (zip rs types)
 
-    goSpecial :: Term v () -> m (ExpandedSpecialForm v)
+    goSpecial :: Term v () -> m (EvaluatedSpecialForm v)
     goSpecial = \case
       DD.Doc2SpecialFormFoldedSource (Term.List' es) -> FoldedSource <$> goSrc (toList es)
       -- Source [Either Link.Type Doc2.Term]
@@ -404,25 +407,25 @@ expandDoc terms typeOf eval types tm = go tm
         pure $ EmbedInline any
       tm -> pure $ SpecialRenderError (InvalidTerm tm)
 
-    goSrc :: [Term v ()] -> m [ExpandedSrc v]
+    goSrc :: [Term v ()] -> m [EvaluatedSrc v]
     goSrc es = do
       let toRef (Term.Ref' r) = Set.singleton r
           toRef (Term.RequestOrCtor' r) = Set.singleton (r ^. ConstructorReference.reference_)
           toRef _ = mempty
-          goType :: Reference -> m (ExpandedSrc v)
+          goType :: Reference -> m (EvaluatedSrc v)
           goType r@(Reference.Builtin builtin) =
-            pure (ExpandedSrcDecl (BuiltinDecl r builtin))
+            pure (EvaluatedSrcDecl (BuiltinDecl r builtin))
           goType r = do
             d <- types r
             case d of
-              Nothing -> pure (ExpandedSrcDecl $ MissingDecl r)
+              Nothing -> pure (EvaluatedSrcDecl $ MissingDecl r)
               Just decl ->
-                pure $ ExpandedSrcDecl (FoundDecl r decl)
+                pure $ EvaluatedSrcDecl (FoundDecl r decl)
 
           go ::
-            (Set.Set Reference, [ExpandedSrc v]) ->
+            (Set.Set Reference, [EvaluatedSrc v]) ->
             Term v () ->
-            m (Set.Set Reference, [ExpandedSrc v])
+            m (Set.Set Reference, [EvaluatedSrc v])
           go s1@(!seen, !acc) = \case
             -- we ignore the annotations; but this could be extended later
             DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term tm), _anns] ->
@@ -434,14 +437,14 @@ expandDoc terms typeOf eval types tm = go tm
                         (: acc) <$> case r of
                           Reference.Builtin _ ->
                             typeOf (Referent.Ref r) <&> \case
-                              Nothing -> ExpandedSrcTerm (MissingBuiltinTypeSig r)
-                              Just ty -> ExpandedSrcTerm (BuiltinTypeSig r ty)
+                              Nothing -> EvaluatedSrcTerm (MissingBuiltinTypeSig r)
+                              Just ty -> EvaluatedSrcTerm (BuiltinTypeSig r ty)
                           ref ->
                             terms ref >>= \case
-                              Nothing -> pure . ExpandedSrcTerm . MissingTerm $ ref
+                              Nothing -> pure . EvaluatedSrcTerm . MissingTerm $ ref
                               Just tm -> do
                                 typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
-                                pure $ ExpandedSrcTerm (FoundTerm ref typ tm)
+                                pure $ EvaluatedSrcTerm (FoundTerm ref typ tm)
                   Term.RequestOrCtor' (view ConstructorReference.reference_ -> r) | Set.notMember r seen -> (: acc) <$> goType r
                   _ -> pure acc
             DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns]
@@ -457,22 +460,23 @@ data RenderError trm
 
 deriving anyclass instance ToSchema trm => ToSchema (RenderError trm)
 
-data ExpandedSrc v
-  = ExpandedSrcDecl (ExpandedDecl v)
-  | ExpandedSrcTerm (ExpandedTerm v)
+data EvaluatedSrc v
+  = EvaluatedSrcDecl (EvaluatedDecl v)
+  | EvaluatedSrcTerm (EvaluatedTerm v)
 
-data ExpandedDecl v
+data EvaluatedDecl v
   = MissingDecl Reference
   | BuiltinDecl Reference Builtin
   | FoundDecl Reference (DD.Decl v ())
 
-data ExpandedTerm v
+data EvaluatedTerm v
   = MissingTerm Reference
   | BuiltinTypeSig Reference (Type v ())
   | MissingBuiltinTypeSig Reference
   | FoundTerm Reference (Type v ()) (Term v ())
 
-dependencies :: Ord v => ExpandedDoc v -> Set LD.LabeledDependency
+-- Determines all dependencies which will be required to render a doc.
+dependencies :: Ord v => EvaluatedDoc v -> Set LD.LabeledDependency
 dependencies = \case
   Word _txt -> mempty
   Code d -> dependencies d
@@ -505,7 +509,7 @@ dependencies = \case
   RenderError {} -> mempty
 
 -- | Determines all dependencies of a special form
-dependenciesSpecial :: forall v. Ord v => ExpandedSpecialForm v -> Set LD.LabeledDependency
+dependenciesSpecial :: forall v. Ord v => EvaluatedSpecialForm v -> Set LD.LabeledDependency
 dependenciesSpecial = \case
   Source srcs -> srcDeps srcs
   FoldedSource srcs -> srcDeps srcs
@@ -526,14 +530,14 @@ dependenciesSpecial = \case
     sigtypDeps sigtyps =
       sigtyps & foldMap \(ref, typ) ->
         Set.singleton (LD.TermReferent ref) <> Type.labeledDependencies typ
-    srcDeps :: [ExpandedSrc v] -> Set LD.LabeledDependency
+    srcDeps :: [EvaluatedSrc v] -> Set LD.LabeledDependency
     srcDeps srcs =
       srcs & foldMap \case
-        ExpandedSrcDecl srcDecl -> case srcDecl of
+        EvaluatedSrcDecl srcDecl -> case srcDecl of
           MissingDecl ref -> Set.singleton (LD.TypeReference ref)
           BuiltinDecl ref _ -> Set.singleton (LD.TypeReference ref)
           FoundDecl ref decl -> Set.singleton (LD.TypeReference ref) <> DD.labeledDeclDependencies decl
-        ExpandedSrcTerm srcTerm -> case srcTerm of
+        EvaluatedSrcTerm srcTerm -> case srcTerm of
           MissingTerm ref -> Set.singleton (LD.TermReference ref)
           BuiltinTypeSig ref _ -> Set.singleton (LD.TermReference ref)
           MissingBuiltinTypeSig ref -> Set.singleton (LD.TermReference ref)
