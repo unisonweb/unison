@@ -31,6 +31,7 @@ import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.Projects as Projects
 import qualified U.Codebase.Referent as V2Referent
 import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified Unison.ABT as ABT
@@ -1122,7 +1123,8 @@ scopedNamesForBranchHash codebase mbh path = do
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
   (parseNames, localNames) <- case mbh of
     Nothing
-      | shouldUseNamesIndex -> lift $ Codebase.runTransaction codebase indexNames
+      | shouldUseNamesIndex -> do
+          lift $ Codebase.runTransaction codebase indexNames
       | otherwise -> do
           rootBranch <- lift $ Codebase.getRootBranch codebase
           let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
@@ -1148,7 +1150,10 @@ scopedNamesForBranchHash codebase mbh path = do
         (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE addFallback)
     indexNames :: Sqlite.Transaction (Names, Names)
     indexNames = do
-      scopedNames <- Codebase.namesAtPath path
+      branch <- Codebase.getShallowRootBranch
+      mayProjectRoot <- Projects.inferNamesRoot path branch
+      let namesRoot = fromMaybe path mayProjectRoot
+      scopedNames <- Codebase.namesAtPath namesRoot path
       pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::

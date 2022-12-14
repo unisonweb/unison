@@ -587,35 +587,30 @@ before h1 h2 =
 -- NOTE: this method requires an up-to-date name lookup index, which is
 -- currently not kept up-to-date automatically (because it's slow to do so).
 namesAtPath ::
+  -- Include ALL names within this path
+  Path ->
+  -- Make names within this path relative to this path, other names will be absolute.
   Path ->
   Transaction ScopedNames
-namesAtPath path = do
-  let namespace = if path == Path.empty then Nothing else Just $ tShow path
-  NamesByPath {termNamesInPath, termNamesExternalToPath, typeNamesInPath, typeNamesExternalToPath} <- Ops.rootNamesByPath namespace
+namesAtPath namesRootPath relativeToPath = do
+  let namesRoot = if namesRootPath == Path.empty then Nothing else Just $ tShow namesRootPath
+  NamesByPath {termNamesInPath, typeNamesInPath} <- Ops.rootNamesByPath namesRoot
   let termsInPath = convertTerms termNamesInPath
   let typesInPath = convertTypes typeNamesInPath
-  let termsOutsidePath = convertTerms termNamesExternalToPath
-  let typesOutsidePath = convertTypes typeNamesExternalToPath
-  let allTerms :: [(Name, Referent.Referent)]
-      allTerms = termsInPath <> termsOutsidePath
-  let allTypes :: [(Name, Reference.Reference)]
-      allTypes = typesInPath <> typesOutsidePath
-  let rootTerms = Rel.fromList allTerms
-  let rootTypes = Rel.fromList allTypes
+  let rootTerms = Rel.fromList termsInPath
+  let rootTypes = Rel.fromList typesInPath
   let absoluteRootNames = Names.makeAbsolute $ Names {terms = rootTerms, types = rootTypes}
-  let absoluteExternalNames = Names.makeAbsolute $ Names {terms = Rel.fromList termsOutsidePath, types = Rel.fromList typesOutsidePath}
   let relativeScopedNames =
-        case path of
+        case relativeToPath of
           Path.Empty -> (Names.makeRelative $ absoluteRootNames)
           p ->
             let reversedPathSegments = reverse . Path.toList $ p
-                relativeTerms = stripPathPrefix reversedPathSegments <$> termsInPath
-                relativeTypes = stripPathPrefix reversedPathSegments <$> typesInPath
+                relativeTerms = mapMaybe (stripPathPrefix reversedPathSegments) termsInPath
+                relativeTypes = mapMaybe (stripPathPrefix reversedPathSegments) typesInPath
              in (Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes})
   pure $
     ScopedNames
-      { absoluteExternalNames,
-        relativeScopedNames,
+      { relativeScopedNames,
         absoluteRootNames
       }
   where
@@ -631,11 +626,11 @@ namesAtPath path = do
     -- on the left, otherwise it's left as-is and collected on the right.
     -- >>> stripPathPrefix ["b", "a"] ("a.b.c", ())
     -- ([(c,())])
-    stripPathPrefix :: [NameSegment] -> (Name, r) -> (Name, r)
+    stripPathPrefix :: [NameSegment] -> (Name, r) -> Maybe (Name, r)
     stripPathPrefix reversedPathSegments (n, ref) =
       case Name.stripReversedPrefix n reversedPathSegments of
-        Nothing -> error $ "Expected name to be in namespace" <> show (n, reverse reversedPathSegments)
-        Just stripped -> (Name.makeRelative stripped, ref)
+        Nothing -> Nothing
+        Just stripped -> Just (Name.makeRelative stripped, ref)
 
 -- | Update the root namespace names index which is used by the share server for serving api
 -- requests.
