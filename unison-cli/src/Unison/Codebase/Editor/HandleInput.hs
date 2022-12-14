@@ -345,11 +345,12 @@ loop e = do
             Cli.respond $ Typechecked (Text.pack sourceName) ppe sr uf
 
           delete ::
+            DeleteOutput ->
             ((Path.Absolute, HQ'.HQSegment) -> Cli (Set Referent)) -> -- compute matching terms
             ((Path.Absolute, HQ'.HQSegment) -> Cli (Set Reference)) -> -- compute matching types
             Path.HQSplit' ->
             Cli ()
-          delete getTerms getTypes hq' = do
+          delete doutput getTerms getTypes hq' = do
             hq <- Cli.resolveSplit' hq'
             terms <- getTerms hq
             types <- getTypes hq
@@ -370,9 +371,13 @@ loop e = do
                 before <- Cli.getRootBranch0
                 description <- inputDescription input
                 Cli.stepManyAt description (makeDeleteTermNames ++ makeDeleteTypeNames)
-                after <- Cli.getRootBranch0
-                (ppe, diff) <- diffHelper before after
-                Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
+                case doutput of
+                  DeleteOutput'Diff -> do
+                    after <- Cli.getRootBranch0
+                    (ppe, diff) <- diffHelper before after
+                    Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
+                  DeleteOutput'NoDiff -> do
+                    Cli.respond Success
               else do
                 ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                 Cli.respondNumbered (CantDeleteDefinitions ppeDecl endangerments)
@@ -527,49 +532,6 @@ loop e = do
                 description
                 (BranchUtil.makeReplacePatch (Path.convert dest) p)
               Cli.respond Success
-            DeletePatchI src' -> do
-              _ <- Cli.expectPatchAt src'
-              description <- inputDescription input
-              src <- Cli.resolveSplit' src'
-              Cli.stepAt
-                description
-                (BranchUtil.makeDeletePatch (Path.convert src))
-              Cli.respond Success
-            DeleteBranchI insistence Nothing -> do
-              hasConfirmed <- confirmedCommand input
-              if hasConfirmed || insistence == Force
-                then do
-                  description <- inputDescription input
-                  Cli.stepAt
-                    description
-                    (Path.empty, const Branch.empty0)
-                  Cli.respond DeletedEverything
-                else Cli.respond DeleteEverythingConfirmation
-            DeleteBranchI insistence (Just p) -> do
-              branch <- Cli.expectBranchAtPath' (Path.unsplit' p)
-              description <- inputDescription input
-              absPath <- Cli.resolveSplit' p
-              let toDelete =
-                    Names.prefix0
-                      (Path.unsafeToName (Path.unsplit (Path.convert absPath)))
-                      (Branch.toNames (Branch.head branch))
-              afterDelete <- do
-                rootNames <- Branch.toNames <$> Cli.getRootBranch0
-                endangerments <- Cli.runTransaction (getEndangeredDependents toDelete rootNames)
-                case (null endangerments, insistence) of
-                  (True, _) -> pure (Cli.respond Success)
-                  (False, Force) -> do
-                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
-                    pure do
-                      Cli.respond Success
-                      Cli.respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
-                  (False, Try) -> do
-                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
-                    Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
-                    Cli.returnEarlyWithoutOutput
-              Cli.stepAt description $
-                BranchUtil.makeDeleteBranch (Path.convert absPath)
-              afterDelete
             SwitchBranchI maybePath' -> do
               path' <-
                 maybePath' & onNothing do
@@ -642,7 +604,7 @@ loop e = do
               src <- traverseOf _Right Cli.resolveSplit' src'
               srcTerms <-
                 either
-                  (liftIO . Backend.termReferentsByShortHash codebase)
+                  (Cli.runTransaction . Backend.termReferentsByShortHash codebase)
                   Cli.getTermsAt
                   src
               srcTerm <-
@@ -905,9 +867,53 @@ loop e = do
                   BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata
                 ]
               Cli.respond Success
-            DeleteI hq -> delete Cli.getTermsAt Cli.getTypesAt hq
-            DeleteTypeI hq -> delete (const (pure Set.empty)) Cli.getTypesAt hq
-            DeleteTermI hq -> delete Cli.getTermsAt (const (pure Set.empty)) hq
+            DeleteI dtarget -> case dtarget of
+              DeleteTarget'TermOrType doutput hq -> delete doutput Cli.getTermsAt Cli.getTypesAt hq
+              DeleteTarget'Type doutput hq -> delete doutput (const (pure Set.empty)) Cli.getTypesAt hq
+              DeleteTarget'Term doutput hq -> delete doutput Cli.getTermsAt (const (pure Set.empty)) hq
+              DeleteTarget'Patch src' -> do
+                _ <- Cli.expectPatchAt src'
+                description <- inputDescription input
+                src <- Cli.resolveSplit' src'
+                Cli.stepAt
+                  description
+                  (BranchUtil.makeDeletePatch (Path.convert src))
+                Cli.respond Success
+              DeleteTarget'Branch insistence Nothing -> do
+                hasConfirmed <- confirmedCommand input
+                if hasConfirmed || insistence == Force
+                  then do
+                    description <- inputDescription input
+                    Cli.stepAt
+                      description
+                      (Path.empty, const Branch.empty0)
+                    Cli.respond DeletedEverything
+                  else Cli.respond DeleteEverythingConfirmation
+              DeleteTarget'Branch insistence (Just p) -> do
+                branch <- Cli.expectBranchAtPath' (Path.unsplit' p)
+                description <- inputDescription input
+                absPath <- Cli.resolveSplit' p
+                let toDelete =
+                      Names.prefix0
+                        (Path.unsafeToName (Path.unsplit (Path.convert absPath)))
+                        (Branch.toNames (Branch.head branch))
+                afterDelete <- do
+                  rootNames <- Branch.toNames <$> Cli.getRootBranch0
+                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete rootNames)
+                  case (null endangerments, insistence) of
+                    (True, _) -> pure (Cli.respond Success)
+                    (False, Force) -> do
+                      ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                      pure do
+                        Cli.respond Success
+                        Cli.respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
+                    (False, Try) -> do
+                      ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                      Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
+                      Cli.returnEarlyWithoutOutput
+                Cli.stepAt description $
+                  BranchUtil.makeDeleteBranch (Path.convert absPath)
+                afterDelete
             DisplayI outputLoc names' -> do
               currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
@@ -1478,24 +1484,35 @@ inputDescription input =
       src <- ps' src0
       dest <- ps' dest0
       pure ("copy.patch " <> src <> " " <> dest)
-    DeleteI thing0 -> do
-      thing <- hqs' thing0
-      pure ("delete " <> thing)
-    DeleteTermI def0 -> do
-      def <- hqs' def0
-      pure ("delete.term " <> def)
-    DeleteTypeI def0 -> do
-      def <- hqs' def0
-      pure ("delete.type " <> def)
-    DeleteBranchI Try opath0 -> do
-      opath <- ops' opath0
-      pure ("delete.namespace " <> opath)
-    DeleteBranchI Force opath0 -> do
-      opath <- ops' opath0
-      pure ("delete.namespace.force " <> opath)
-    DeletePatchI path0 -> do
-      path <- ps' path0
-      pure ("delete.patch " <> path)
+    DeleteI dtarget -> do
+      case dtarget of
+        DeleteTarget'TermOrType DeleteOutput'NoDiff thing0 -> do
+          thing <- hqs' thing0
+          pure ("delete " <> thing)
+        DeleteTarget'TermOrType DeleteOutput'Diff thing0 -> do
+          thing <- hqs' thing0
+          pure ("delete.verbose " <> thing)
+        DeleteTarget'Term DeleteOutput'NoDiff thing0 -> do
+          thing <- hqs' thing0
+          pure ("delete.term " <> thing)
+        DeleteTarget'Term DeleteOutput'Diff thing0 -> do
+          thing <- hqs' thing0
+          pure ("delete.term.verbose " <> thing)
+        DeleteTarget'Type DeleteOutput'NoDiff thing0 -> do
+          thing <- hqs' thing0
+          pure ("delete.type " <> thing)
+        DeleteTarget'Type DeleteOutput'Diff thing0 -> do
+          thing <- hqs' thing0
+          pure ("delete.type.verbose " <> thing)
+        DeleteTarget'Branch Try opath0 -> do
+          opath <- ops' opath0
+          pure ("delete.namespace " <> opath)
+        DeleteTarget'Branch Force opath0 -> do
+          opath <- ops' opath0
+          pure ("delete.namespace.force " <> opath)
+        DeleteTarget'Patch path0 -> do
+          path <- ps' path0
+          pure ("delete.patch " <> path)
     ReplaceI src target p0 -> do
       p <- opatch p0
       pure $
@@ -2283,8 +2300,11 @@ resolveHQToLabeledDependencies = \case
   where
     resolveHashOnly sh = do
       Cli.Env {codebase} <- ask
-      terms <- liftIO (Backend.termReferentsByShortHash codebase sh)
-      types <- Cli.runTransaction (Backend.typeReferencesByShortHash sh)
+      (terms, types) <-
+        Cli.runTransaction do
+          terms <- Backend.termReferentsByShortHash codebase sh
+          types <- Backend.typeReferencesByShortHash sh
+          pure (terms, types)
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
 doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Cli ()
@@ -3180,10 +3200,11 @@ hqNameQuery query = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath <- Cli.getCurrentPath
-  hqLength <- Cli.runTransaction Codebase.hashLength
-  let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
-  let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
-  liftIO (Backend.hqNameQuery codebase nameSearch query)
+  Cli.runTransaction do
+    hqLength <- Codebase.hashLength
+    let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
+    let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+    Backend.hqNameQuery codebase nameSearch query
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.

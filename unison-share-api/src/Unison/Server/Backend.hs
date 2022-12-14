@@ -31,6 +31,7 @@ import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.Projects as Projects
 import qualified U.Codebase.Referent as V2Referent
 import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified Unison.ABT as ABT
@@ -600,7 +601,7 @@ termReferencesByShortHash sh = do
   pure (fromBuiltins <> Set.mapMonotonic Reference.DerivedId fromCodebase)
 
 -- | Look up terms in the codebase by short hash, and include builtins.
-termReferentsByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Referent)
+termReferentsByShortHash :: Codebase m v a -> ShortHash -> Sqlite.Transaction (Set Referent)
 termReferentsByShortHash codebase sh = do
   fromCodebase <- Codebase.termReferentsByPrefix codebase sh
   let fromBuiltins =
@@ -721,11 +722,10 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
      in makeResult (HQ'.toHQ primaryName) ref aliases
 
 hqNameQuery ::
-  MonadIO m =>
   Codebase m v Ann ->
   NameSearch ->
   [HQ.HashQualified Name] ->
-  m QueryResult
+  Sqlite.Transaction QueryResult
 hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hashes, hqnames) = partitionEithers (map HQ'.fromHQ2 hqs)
@@ -737,11 +737,10 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
         hashes
   -- Find types with those hashes.
   typeRefs <-
-    Codebase.runTransaction codebase do
-      filter (not . Set.null . snd) . zip hashes
-        <$> traverse
-          typeReferencesByShortHash
-          hashes
+    filter (not . Set.null . snd) . zip hashes
+      <$> traverse
+        typeReferencesByShortHash
+        hashes
   -- Now do the name queries.
   let mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty
       mkTypeResult sh r = SR.typeResult (HQ.HashOnly sh) r Set.empty
@@ -1124,7 +1123,8 @@ scopedNamesForBranchHash codebase mbh path = do
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
   (parseNames, localNames) <- case mbh of
     Nothing
-      | shouldUseNamesIndex -> lift $ Codebase.runTransaction codebase indexNames
+      | shouldUseNamesIndex -> do
+          lift $ Codebase.runTransaction codebase indexNames
       | otherwise -> do
           rootBranch <- lift $ Codebase.getRootBranch codebase
           let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
@@ -1150,7 +1150,10 @@ scopedNamesForBranchHash codebase mbh path = do
         (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE addFallback)
     indexNames :: Sqlite.Transaction (Names, Names)
     indexNames = do
-      scopedNames <- Codebase.namesAtPath path
+      branch <- Codebase.getShallowRootBranch
+      mayProjectRoot <- Projects.inferNamesRoot path branch
+      let namesRoot = fromMaybe path mayProjectRoot
+      scopedNames <- Codebase.namesAtPath namesRoot path
       pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::
@@ -1203,7 +1206,7 @@ definitionsBySuffixes ::
   [HQ.HashQualified Name] ->
   m (DefinitionResults Symbol)
 definitionsBySuffixes codebase nameSearch includeCycles query = do
-  QueryResult misses results <- hqNameQuery codebase nameSearch query
+  QueryResult misses results <- Codebase.runTransaction codebase (hqNameQuery codebase nameSearch query)
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) (searchResultsToTermRefs results)
