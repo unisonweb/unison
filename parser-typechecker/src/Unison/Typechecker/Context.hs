@@ -850,7 +850,7 @@ withEffects handled act = do
   pruneWanted [] want handled
 
 synthesizeApps ::
-  (Foldable f, Var v, Ord loc, Semigroup loc) =>
+  (Foldable f, Var v, Ord loc) =>
   Term v loc ->
   Type v loc ->
   f (Term v loc) ->
@@ -868,7 +868,7 @@ synthesizeApps fun ft args =
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc) =>
   Term v loc ->
   Type v loc ->
   (Term v loc, Int) ->
@@ -939,7 +939,7 @@ generalizeExistentials' t =
     isExistential _ = False
 
 noteTopLevelType ::
-  (Ord loc, Var v, Semigroup loc) =>
+  (Ord loc, Var v) =>
   ABT.Subst f v a ->
   Term v loc ->
   Type v loc ->
@@ -964,7 +964,7 @@ noteTopLevelType e binding typ = case binding of
         [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
 
 synthesizeTop ::
-  (Var v, Semigroup loc) =>
+  Var v =>
   Ord loc =>
   Term v loc ->
   M v loc (Type v loc)
@@ -985,7 +985,7 @@ synthesizeTop tm = do
 -- the process.  Also collect wanted abilities.
 -- | Figure 11 from the paper
 synthesize ::
-  (Var v, Semigroup loc) =>
+  Var v =>
   Ord loc =>
   Term v loc ->
   M v loc (Type v loc, Wanted v loc)
@@ -1018,7 +1018,7 @@ wantRequest loc ty =
 -- The return value is the synthesized type together with a list of
 -- wanted abilities.
 synthesizeWanted ::
-  (Var v, Semigroup loc) =>
+  Var v =>
   Ord loc =>
   Term v loc ->
   M v loc (Type v loc, Wanted v loc)
@@ -1220,7 +1220,7 @@ synthesizeWanted e
 synthesizeWanted _e = compilerCrash PatternMatchFailure
 
 checkCases ::
-  (Var v, Semigroup loc) =>
+  Var v =>
   Ord loc =>
   Type v loc ->
   Type v loc ->
@@ -1285,7 +1285,7 @@ requestType ps =
 
 checkCase ::
   forall v loc.
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc) =>
   Type v loc ->
   Type v loc ->
   Term.MatchCase loc (Term v loc) ->
@@ -1509,7 +1509,7 @@ resetContextAfter x a = do
 -- their type. Also returns the freshened version of `body`.
 -- See usage in `synthesize` and `check` for `LetRec'` case.
 annotateLetRecBindings ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc) =>
   Term.IsTop ->
   ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc)) ->
   M v loc (Term v loc)
@@ -1808,7 +1808,7 @@ variableP _ = Nothing
 -- See its usage in `synthesize` and `annotateLetRecBindings`.
 checkScoped ::
   forall v loc.
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc) =>
   Term v loc ->
   Type v loc ->
   M v loc (Type v loc, Wanted v loc)
@@ -1825,7 +1825,7 @@ checkScoped e t = do
   (t,) <$> check e t
 
 checkScopedWith ::
-  (Var v, Semigroup loc) =>
+  Var v =>
   Ord loc =>
   Term v loc ->
   Type v loc ->
@@ -2087,7 +2087,7 @@ relax' nonArrow v t
     tv = Type.var loc (TypeVar.Existential B.Blank v)
 
 checkWantedScoped ::
-  (Var v, Semigroup loc) =>
+  Var v =>
   Ord loc =>
   Wanted v loc ->
   Term v loc ->
@@ -2097,7 +2097,7 @@ checkWantedScoped want m ty =
   scope (InCheck m ty) $ checkWanted want m ty
 
 checkWanted ::
-  (Var v, Semigroup loc) =>
+  Var v =>
   Ord loc =>
   Wanted v loc ->
   Term v loc ->
@@ -2146,7 +2146,7 @@ checkWanted want e t = do
 --     `m` has type `t` with abilities `es`,
 -- updating the context in the process.
 checkWithAbilities ::
-  (Var v, Semigroup loc) =>
+  Var v =>
   Ord loc =>
   [Type v loc] ->
   Term v loc ->
@@ -2162,7 +2162,7 @@ checkWithAbilities es m t = do
 --     `m` has type `t`
 -- updating the context in the process.
 check ::
-  (Var v, Semigroup loc) =>
+  Var v =>
   Ord loc =>
   Term v loc ->
   Type v loc ->
@@ -2869,7 +2869,7 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
 
 -- | public interface to the typechecker
 synthesizeClosed ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc) =>
   [Type v loc] ->
   TL.TypeLookup v loc ->
   Term v loc ->
@@ -2930,7 +2930,7 @@ run datas effects m =
     $ Env 1 context0
 
 synthesizeClosed' ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc) =>
   [Type v loc] ->
   Term v loc ->
   M v loc (Type v loc)

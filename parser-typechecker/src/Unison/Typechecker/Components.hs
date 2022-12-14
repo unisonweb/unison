@@ -35,10 +35,10 @@ ordered = ABT.orderedComponents
 --
 -- Fails on the left if there are duplicate definitions.
 minimize ::
-  (Var v, Semigroup a) =>
+  (Var v) =>
   Term' vt v a ->
   Either (NonEmpty (v, [a])) (Maybe (Term' vt v a))
-minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
+minimize (Term.LetRecNamedAnnotatedTop' isTop blockAnn bs e) =
   let bindings = first snd <$> bs
       group =
         map (fst . head &&& map (ABT.annotation . snd)) . groupBy ((==) `on` fst)
@@ -70,23 +70,23 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
                 | Set.member hdv (ABT.freeVars hdb) =
                     Term.letRec
                       isTop
-                      (annotationFor hdv)
+                      blockAnn
                       [(annotatedVar hdv, hdb)]
                       e
-                | otherwise = Term.let1 isTop [(annotatedVar hdv, hdb)] e
-              mklet cycle@((hdv, _) : _) e =
+                | otherwise = Term.singleLet isTop blockAnn (hdv, hdb) e
+              mklet cycle@((_, _) : _) e =
                 Term.letRec
                   isTop
-                  (annotationFor hdv)
+                  blockAnn
                   (first annotatedVar <$> cycle)
                   e
               mklet [] e = e
            in -- The outer annotation is going to be meaningful, so we make
               -- sure to preserve it, whereas the annotations at intermediate Abs
               -- nodes aren't necessarily meaningful
-              Right . Just . ABT.annotate ann . foldr mklet e $ cs
+              Right . Just . ABT.annotate blockAnn . foldr mklet e $ cs
 minimize _ = Right Nothing
 
 minimize' ::
-  (Var v, Semigroup a) => Term' vt v a -> Either (NonEmpty (v, [a])) (Term' vt v a)
+  (Var v) => Term' vt v a -> Either (NonEmpty (v, [a])) (Term' vt v a)
 minimize' term = fromMaybe term <$> minimize term
