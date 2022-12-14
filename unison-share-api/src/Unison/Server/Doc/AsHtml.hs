@@ -447,7 +447,7 @@ toHtml docNamesByRef document =
                           Syntax.toHtml source
                           div_ [class_ "result"] $ do
                             "⧨"
-                            div_ [] $ Syntax.toHtml (fromMaybe "🆘 doc rendering failed during evaluation" result)
+                            div_ [] $ Syntax.toHtml result
                 EvalInline source result ->
                   pure $
                     span_ [class_ "source rich eval-inline"] $
@@ -456,7 +456,7 @@ toHtml docNamesByRef document =
                           Syntax.toHtml source
                           span_ [class_ "result"] $ do
                             "⧨"
-                            Syntax.toHtml (fromMaybe "🆘 doc rendering failed during evaluation" result)
+                            Syntax.toHtml result
                 Video sources attrs ->
                   let source (MediaSource s Nothing) =
                         source_ [src_ s]
@@ -478,7 +478,7 @@ toHtml docNamesByRef document =
                   pure $ div_ [class_ "source rich embed"] $ codeBlock [] (Syntax.toHtml syntax)
                 EmbedInline syntax ->
                   pure $ span_ [class_ "source rich embed-inline"] $ inlineCode [] (Syntax.toHtml syntax)
-                SpecialRenderError (InvalidTerm err) -> pure $ Syntax.toHtml err
+                RenderError (InvalidTerm err) -> pure $ Syntax.toHtml err
             Join docs ->
               span_ [class_ "join"] <$> renderSequence currentSectionLevelToHtml (mergeWords " " docs)
             UntitledSection docs ->
@@ -491,7 +491,6 @@ toHtml docNamesByRef document =
                   (mergeWords " " docs)
             Group content ->
               span_ [class_ "group"] <$> currentSectionLevelToHtml content
-            RenderError (InvalidTerm err) -> pure $ Syntax.toHtml err
 
 -- HELPERS --------------------------------------------------------------------
 
