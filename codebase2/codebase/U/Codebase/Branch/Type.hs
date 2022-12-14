@@ -8,7 +8,6 @@ module U.Codebase.Branch.Type
     MetadataType,
     MetadataValue,
     MdValues (..),
-    NameSegment (..),
     NamespaceStats (..),
     hasDefinitions,
     childAt,
@@ -28,9 +27,8 @@ import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
 import U.Codebase.TermEdit (TermEdit)
 import U.Codebase.TypeEdit (TypeEdit)
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-
-newtype NameSegment = NameSegment {unNameSegment :: Text} deriving (Eq, Ord, Show)
 
 type MetadataType = Reference
 

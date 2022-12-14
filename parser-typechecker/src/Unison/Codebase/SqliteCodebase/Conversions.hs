@@ -38,7 +38,7 @@ import qualified Unison.DataDeclaration as V1.Decl
 import Unison.Hash (Hash, base32Hex)
 import qualified Unison.Hash as V1
 import qualified Unison.Kind as V1.Kind
-import qualified Unison.NameSegment as V1
+import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Pattern as V1.Pattern
@@ -431,10 +431,10 @@ causalbranch1to2 (V1.Branch.Branch c) =
           (doChildren (V1.Branch._children b))
       where
         -- is there a more readable way to structure these that's also linear?
-        doTerms :: V1.Branch.Star V1.Referent.Referent V1.NameSegment -> Map V2.Branch.NameSegment (Map V2.Referent.Referent (m V2.Branch.MdValues))
+        doTerms :: V1.Branch.Star V1.Referent.Referent NameSegment -> Map NameSegment (Map V2.Referent.Referent (m V2.Branch.MdValues))
         doTerms s =
           Map.fromList
-            [ (namesegment1to2 ns, m2)
+            [ (ns, m2)
               | ns <- toList . Relation.ran $ V1.Star3.d1 s,
                 let m2 =
                       Map.fromList
@@ -445,10 +445,10 @@ causalbranch1to2 (V1.Branch.Branch c) =
                         ]
             ]
 
-        doTypes :: V1.Branch.Star V1.Reference.Reference V1.NameSegment -> Map V2.Branch.NameSegment (Map V2.Reference.Reference (m V2.Branch.MdValues))
+        doTypes :: V1.Branch.Star V1.Reference.Reference NameSegment -> Map NameSegment (Map V2.Reference.Reference (m V2.Branch.MdValues))
         doTypes s =
           Map.fromList
-            [ (namesegment1to2 ns, m2)
+            [ (ns, m2)
               | ns <- toList . Relation.ran $ V1.Star3.d1 s,
                 let m2 =
                       Map.fromList
@@ -459,11 +459,11 @@ causalbranch1to2 (V1.Branch.Branch c) =
                         ]
             ]
 
-        doPatches :: Map V1.NameSegment (PatchHash, m V1.Patch) -> Map V2.Branch.NameSegment (PatchHash, m V2.Branch.Patch)
-        doPatches = Map.bimap namesegment1to2 (fmap (fmap patch1to2))
+        doPatches :: Map NameSegment (PatchHash, m V1.Patch) -> Map NameSegment (PatchHash, m V2.Branch.Patch)
+        doPatches = Map.map (fmap (fmap patch1to2))
 
-        doChildren :: Map V1.NameSegment (V1.Branch.Branch m) -> Map V2.Branch.NameSegment (V2.Branch.CausalBranch m)
-        doChildren = Map.bimap namesegment1to2 causalbranch1to2
+        doChildren :: Map NameSegment (V1.Branch.Branch m) -> Map NameSegment (V2.Branch.CausalBranch m)
+        doChildren = Map.map causalbranch1to2
 
 patch2to1 :: V2.Branch.Patch -> V1.Patch
 patch2to1 (V2.Branch.Patch v2termedits v2typeedits) =
@@ -508,12 +508,6 @@ patch1to2 (V1.Patch v1termedits v1typeedits) = V2.Branch.Patch v2termedits v2typ
       V1.TermEdit.Subtype -> V2.TermEdit.Subtype
       V1.TermEdit.Different -> V2.TermEdit.Different
 
-namesegment2to1 :: V2.Branch.NameSegment -> V1.NameSegment
-namesegment2to1 (V2.Branch.NameSegment t) = V1.NameSegment t
-
-namesegment1to2 :: V1.NameSegment -> V2.Branch.NameSegment
-namesegment1to2 (V1.NameSegment t) = V2.Branch.NameSegment t
-
 branch2to1 ::
   Monad m =>
   BranchCache m ->
@@ -521,12 +515,12 @@ branch2to1 ::
   V2.Branch.Branch m ->
   m (V1.Branch.Branch0 m)
 branch2to1 branchCache lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children) = do
-  v1terms <- toStar reference2to1 <$> Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (referent2to1 lookupCT) id) v2terms
-  v1types <- toStar reference2to1 <$> Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (pure . reference2to1) id) v2types
-  v1children <- Map.bitraverse (pure . namesegment2to1) (causalbranch2to1 branchCache lookupCT) v2children
+  v1terms <- toStar reference2to1 <$> traverse (Map.bitraverse (referent2to1 lookupCT) id) v2terms
+  v1types <- toStar reference2to1 <$> traverse (Map.bitraverse (pure . reference2to1) id) v2types
+  v1children <- traverse (causalbranch2to1 branchCache lookupCT) v2children
   pure $ V1.Branch.branch0 v1terms v1types v1children v1patches
   where
-    v1patches = Map.bimap namesegment2to1 (fmap (fmap patch2to1)) v2patches
+    v1patches = Map.map (fmap (fmap patch2to1)) v2patches
     toStar :: forall name ref. (Ord name, Ord ref) => (V2.Reference -> V1.Reference) -> Map name (Map ref V2.Branch.MdValues) -> V1.Metadata.Star ref name
     toStar mdref2to1 m = foldl' insert mempty (Map.toList m)
       where

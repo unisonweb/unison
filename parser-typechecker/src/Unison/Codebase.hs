@@ -208,9 +208,9 @@ getShallowCausalAtPath path mayCausal = do
   causal <- whenNothing mayCausal getShallowRootCausal
   case path of
     Path.Empty -> pure causal
-    (ns Path.:< p) -> do
+    ns Path.:< p -> do
       b <- V2Causal.value causal
-      case (V2Branch.childAt (Cv.namesegment1to2 ns) b) of
+      case V2Branch.childAt ns b of
         Nothing -> pure (Cv.causalbranch1to2 Branch.empty)
         Just childCausal -> getShallowCausalAtPath p (Just childCausal)
 
@@ -224,8 +224,8 @@ getShallowBranchAtPath path mayBranch = do
   branch <- whenNothing mayBranch (getShallowRootCausal >>= V2Causal.value)
   case path of
     Path.Empty -> pure branch
-    (ns Path.:< p) -> do
-      case (V2Branch.childAt (Cv.namesegment1to2 ns) branch) of
+    ns Path.:< p -> do
+      case V2Branch.childAt ns branch of
         Nothing -> pure V2Branch.empty
         Just childCausal -> do
           childBranch <- V2Causal.value childCausal

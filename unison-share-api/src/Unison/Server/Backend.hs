@@ -228,13 +228,13 @@ shallowNames :: forall m v a. Monad m => Codebase m v a -> V2Branch.Branch m -> 
 shallowNames codebase b = do
   newTerms <-
     V2Branch.terms b
-      & Map.mapKeys (Name.fromSegment . Cv.namesegment2to1)
+      & Map.mapKeys Name.fromSegment
       & fmap Map.keysSet
       & traverse . Set.traverse %%~ Cv.referent2to1 (Codebase.getDeclType codebase)
 
   let newTypes =
         V2Branch.types b
-          & Map.mapKeys (Name.fromSegment . Cv.namesegment2to1)
+          & Map.mapKeys Name.fromSegment
           & fmap Map.keysSet
           & traverse . Set.traverse %~ Cv.reference2to1
   pure (Names (R.fromMultimap newTerms) (R.fromMultimap newTypes))
@@ -362,7 +362,7 @@ findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
 
       -- choose the first term (among conflicted terms) matching any of these names, in this order.
       -- we might later want to return all of them to let the front end decide
-      toCheck = V2Branch.NameSegment <$> ["README", "Readme", "ReadMe", "readme"]
+      toCheck = NameSegment <$> ["README", "Readme", "ReadMe", "readme"]
       readme :: Maybe Reference
       readme = listToMaybe $ do
         name <- toCheck
@@ -428,7 +428,7 @@ termListEntry codebase branch (ExactName nameSegment ref) = do
     isConflicted =
       branch
         & V2Branch.terms
-        & Map.lookup (coerce @NameSegment @V2Branch.NameSegment nameSegment)
+        & Map.lookup nameSegment
         & maybe 0 Map.size
         & (> 1)
 
@@ -496,7 +496,7 @@ typeListEntry codebase b (ExactName nameSegment ref) = do
     isConflicted =
       b
         & V2Branch.types
-        & Map.lookup (coerce @NameSegment @V2Branch.NameSegment nameSegment)
+        & Map.lookup nameSegment
         & maybe 0 Map.size
         & (> 1)
 
@@ -555,26 +555,26 @@ lsBranch ::
   V2Branch.Branch n ->
   m [ShallowListEntry Symbol Ann]
 lsBranch codebase b0 = do
-  let flattenRefs :: Map V2Branch.NameSegment (Map ref v) -> [(ref, V2Branch.NameSegment)]
+  let flattenRefs :: Map NameSegment (Map ref v) -> [(ref, NameSegment)]
       flattenRefs m = do
         (ns, refs) <- Map.toList m
         r <- Map.keys refs
         pure (r, ns)
   termEntries <- for (flattenRefs $ V2Branch.terms b0) $ \(r, ns) -> do
-    ShallowTermEntry <$> termListEntry codebase b0 (ExactName (coerce @V2Branch.NameSegment ns) r)
+    ShallowTermEntry <$> termListEntry codebase b0 (ExactName ns r)
   typeEntries <-
     Codebase.runTransaction codebase do
       for (flattenRefs $ V2Branch.types b0) \(r, ns) -> do
         let v1Ref = Cv.reference2to1 r
-        ShallowTypeEntry <$> typeListEntry codebase b0 (ExactName (coerce @V2Branch.NameSegment ns) v1Ref)
+        ShallowTypeEntry <$> typeListEntry codebase b0 (ExactName ns v1Ref)
   childrenWithStats <- Codebase.runTransaction codebase (V2Branch.childStats b0)
   let branchEntries :: [ShallowListEntry Symbol Ann] = do
         (ns, (h, stats)) <- Map.toList $ childrenWithStats
         guard $ V2Branch.hasDefinitions stats
-        pure $ ShallowBranchEntry (Cv.namesegment2to1 ns) (V2Causal.causalHash $ h) stats
+        pure $ ShallowBranchEntry ns (V2Causal.causalHash h) stats
       patchEntries :: [ShallowListEntry Symbol Ann] = do
         (ns, _h) <- Map.toList $ V2Branch.patches b0
-        pure $ ShallowPatchEntry (Cv.namesegment2to1 ns)
+        pure $ ShallowPatchEntry ns
   pure . List.sortOn listEntryName $
     termEntries
       ++ typeEntries

@@ -19,6 +19,8 @@ library
       U.Codebase.HashTags
       U.Core.ABT
       U.Core.ABT.Var
+      Unison.NameSegment
+      Unison.Util.Alphabetical
   hs-source-dirs:
       ./
   default-extensions:
@@ -50,6 +52,9 @@ library
   build-depends:
       base
     , containers
+    , rfc5051
+    , text
+    , unison-prelude
     , unison-util
     , unison-util-base32hex
     , vector
