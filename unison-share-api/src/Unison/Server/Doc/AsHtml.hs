@@ -11,7 +11,6 @@ import qualified Data.Char as Char
 import Data.Foldable
 import Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Unison.Syntax.Name as Name (toText)
 import Data.Maybe
 import Data.Sequence (Seq)
 import Data.Text (Text)
@@ -27,6 +26,7 @@ import Unison.Server.Doc
 import qualified Unison.Server.Doc as Doc
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
+import qualified Unison.Syntax.Name as Name (toText)
 
 data NamedLinkHref
   = Href Text
@@ -447,7 +447,7 @@ toHtml docNamesByRef document =
                           Syntax.toHtml source
                           div_ [class_ "result"] $ do
                             "⧨"
-                            div_ [] $ Syntax.toHtml result
+                            div_ [] $ Syntax.toHtml (fromMaybe "🆘 doc rendering failed during evaluation" result)
                 EvalInline source result ->
                   pure $
                     span_ [class_ "source rich eval-inline"] $
@@ -456,7 +456,7 @@ toHtml docNamesByRef document =
                           Syntax.toHtml source
                           span_ [class_ "result"] $ do
                             "⧨"
-                            Syntax.toHtml result
+                            Syntax.toHtml (fromMaybe "🆘 doc rendering failed during evaluation" result)
                 Video sources attrs ->
                   let source (MediaSource s Nothing) =
                         source_ [src_ s]
@@ -478,6 +478,7 @@ toHtml docNamesByRef document =
                   pure $ div_ [class_ "source rich embed"] $ codeBlock [] (Syntax.toHtml syntax)
                 EmbedInline syntax ->
                   pure $ span_ [class_ "source rich embed-inline"] $ inlineCode [] (Syntax.toHtml syntax)
+                SpecialRenderError (InvalidTerm err) -> pure $ Syntax.toHtml err
             Join docs ->
               span_ [class_ "join"] <$> renderSequence currentSectionLevelToHtml (mergeWords " " docs)
             UntitledSection docs ->
@@ -490,6 +491,7 @@ toHtml docNamesByRef document =
                   (mergeWords " " docs)
             Group content ->
               span_ [class_ "group"] <$> currentSectionLevelToHtml content
+            RenderError (InvalidTerm err) -> pure $ Syntax.toHtml err
 
 -- HELPERS --------------------------------------------------------------------
 
