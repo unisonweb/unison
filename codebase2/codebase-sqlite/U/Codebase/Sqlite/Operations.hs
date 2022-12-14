@@ -1083,9 +1083,7 @@ updateNameIndex (newTermNames, removedTermNames) (newTypeNames, removedTypeNames
 
 data NamesByPath = NamesByPath
   { termNamesInPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
-    termNamesExternalToPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
-    typeNamesInPath :: [S.NamedRef C.Reference],
-    typeNamesExternalToPath :: [S.NamedRef C.Reference]
+    typeNamesInPath :: [S.NamedRef C.Reference]
   }
 
 -- | Get all the term and type names for the root namespace from the lookup table.
@@ -1094,14 +1092,12 @@ rootNamesByPath ::
   Maybe Text ->
   Transaction NamesByPath
 rootNamesByPath path = do
-  (termNamesInPath, termNamesExternalToPath) <- Q.rootTermNamesByPath path
-  (typeNamesInPath, typeNamesExternalToPath) <- Q.rootTypeNamesByPath path
+  termNamesInPath <- Q.rootTermNamesByPath path
+  typeNamesInPath <- Q.rootTypeNamesByPath path
   pure $
     NamesByPath
       { termNamesInPath = convertTerms <$> termNamesInPath,
-        termNamesExternalToPath = convertTerms <$> termNamesExternalToPath,
-        typeNamesInPath = convertTypes <$> typeNamesInPath,
-        typeNamesExternalToPath = convertTypes <$> typeNamesExternalToPath
+        typeNamesInPath = convertTypes <$> typeNamesInPath
       }
   where
     convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))

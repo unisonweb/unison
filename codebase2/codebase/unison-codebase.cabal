@@ -19,7 +19,6 @@ library
       U.Codebase.Branch.Type
       U.Codebase.Causal
       U.Codebase.Decl
-      U.Codebase.HashTags
       U.Codebase.Kind
       U.Codebase.Reference
       U.Codebase.Referent

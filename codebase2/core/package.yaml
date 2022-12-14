@@ -15,6 +15,7 @@ dependencies:
   - vector
   - unison-prelude
   - unison-util
+  - unison-util-base32hex
 
 default-extensions:
   - ApplicativeDo
