@@ -396,7 +396,7 @@ evalDoc terms typeOf eval types tm = go tm
       -- EvalInline Doc2.Term
       DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) -> do
         result <- eval tm
-        pure $ EEval tm result
+        pure $ EEvalInline tm result
       -- Embed Video
       DD.Doc2SpecialFormEmbedVideo sources config ->
         pure $ EVideo sources' config'
