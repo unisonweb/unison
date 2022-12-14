@@ -3,7 +3,6 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Server.Doc where
@@ -94,9 +93,7 @@ data DocG specialForm
   | Column [(DocG specialForm)]
   | Group (DocG specialForm)
   deriving stock (Eq, Show, Generic, Functor, Foldable, Traversable)
-  deriving anyclass (ToJSON)
-
-deriving anyclass instance ToSchema Doc
+  deriving anyclass (ToJSON, ToSchema)
 
 type UnisonHash = Text
 
@@ -110,8 +107,6 @@ data MediaSource = MediaSource {mediaSourceUrl :: Text, mediaSourceMimeType :: M
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, ToSchema)
 
-type Builtin = Text
-
 data RenderedSpecialForm
   = Source [SrcRefs]
   | FoldedSource [SrcRefs]
@@ -119,11 +114,14 @@ data RenderedSpecialForm
   | ExampleBlock SyntaxText
   | Link SyntaxText
   | Signature [SyntaxText]
-  | SignatureInline SyntaxText
-  | -- Result is Nothing if there was an Eval failure
-    Eval SyntaxText SyntaxText
-  | -- Result is Nothing if there was an Eval failure
-    EvalInline SyntaxText SyntaxText
+  | SignatureInline
+      SyntaxText
+      Eval
+      SyntaxText
+      SyntaxText
+      EvalInline
+      SyntaxText
+      SyntaxText
   | Embed SyntaxText
   | EmbedInline SyntaxText
   | Video [MediaSource] (Map Text Text)
@@ -156,6 +154,7 @@ data Src = Src SyntaxText SyntaxText
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, ToSchema)
 
+-- | Evaluate the doc, then render it.
 evalAndRenderDoc ::
   forall v m.
   (Var v, Monad m) =>
@@ -171,6 +170,7 @@ evalAndRenderDoc pped terms typeOf eval types tm =
     Nothing -> pure $ Word "🆘 doc rendering failed during evaluation"
     Just tm -> evalDoc terms typeOf eval types tm >>= renderDoc pped
 
+-- | Renders the given doc, which must have been evaluated using 'evalDoc'
 renderDoc ::
   forall v m.
   (Var v, Monad m) =>
@@ -238,7 +238,7 @@ renderDoc pped doc = traverse renderSpecial doc
       srcs & foldMapM \case
         EvaluatedSrcDecl srcDecl -> case srcDecl of
           MissingDecl r -> pure [(Type (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r)))]
-          BuiltinDecl r _builtin -> do
+          BuiltinDecl r -> do
             let name =
                   formatPretty . NP.styleHashQualified (NP.fmt (S.TypeReference r))
                     . PPE.typeName suffixifiedPPE
@@ -267,6 +267,7 @@ renderDoc pped doc = traverse renderSpecial doc
                   formatPretty (TermPrinter.prettyBinding suffixifiedPPE name (Term.ann () tm typ))
             pure [Term (Reference.toText ref, DO.UserObject (Src folded (full tm typ)))]
 
+-- | Evaluates the given doc, expanding transclusions, expressions, etc.
 evalDoc ::
   forall v m.
   (Var v, Monad m) =>
@@ -396,7 +397,7 @@ evalDoc terms typeOf eval types tm = go tm
           toRef _ = mempty
           goType :: Reference -> m (EvaluatedSrc v)
           goType r@(Reference.Builtin builtin) =
-            pure (EvaluatedSrcDecl (BuiltinDecl r builtin))
+            pure (EvaluatedSrcDecl (BuiltinDecl r))
           goType r = do
             d <- types r
             case d of
@@ -449,7 +450,7 @@ data EvaluatedSrc v
 
 data EvaluatedDecl v
   = MissingDecl Reference
-  | BuiltinDecl Reference Builtin
+  | BuiltinDecl Reference
   | FoundDecl Reference (DD.Decl v ())
   deriving stock (Show, Eq, Generic)
 
@@ -491,7 +492,7 @@ dependenciesSpecial = \case
       srcs & foldMap \case
         EvaluatedSrcDecl srcDecl -> case srcDecl of
           MissingDecl ref -> Set.singleton (LD.TypeReference ref)
-          BuiltinDecl ref _ -> Set.singleton (LD.TypeReference ref)
+          BuiltinDecl ref -> Set.singleton (LD.TypeReference ref)
           FoundDecl ref decl -> Set.singleton (LD.TypeReference ref) <> DD.labeledDeclDependencies decl
         EvaluatedSrcTerm srcTerm -> case srcTerm of
           MissingTerm ref -> Set.singleton (LD.TermReference ref)
