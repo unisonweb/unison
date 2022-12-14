@@ -24,6 +24,7 @@ flag optimized
 library
   exposed-modules:
       U.Codebase.Branch.Diff
+      U.Codebase.Projects
       Unison.Builtin
       Unison.Builtin.Decls
       Unison.Builtin.Terms

@@ -21,8 +21,11 @@ Test that tab completion works as expected.
    delete.patch
    delete.term
    delete.term-replacement
+   delete.term.verbose
    delete.type
    delete.type-replacement
+   delete.type.verbose
+   delete.verbose
 
 ```
 ## Tab complete terms & types

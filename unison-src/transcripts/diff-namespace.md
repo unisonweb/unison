@@ -99,7 +99,7 @@ unique type Y a b = Y a b
 .> view.patch ns2.patch
 .> fork ns2 ns3
 .> alias.term ns2.fromJust' ns2.yoohoo
-.> delete.term ns2.fromJust'
+.> delete.term.verbose ns2.fromJust'
 .> diff.namespace ns3 ns2
 ```
 ```unison:hide
