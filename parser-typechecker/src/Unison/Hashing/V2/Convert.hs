@@ -45,6 +45,7 @@ import qualified Unison.Hashing.V2.DataDeclaration as Hashing.DD
 import Unison.Hashing.V2.Hashable (HashFor (HashFor), Hashable)
 import qualified Unison.Hashing.V2.Hashable as Hashable
 import qualified Unison.Hashing.V2.Kind as Hashing.Kind
+import qualified Unison.Hashing.V2.NameSegment as Hashing (NameSegment (..))
 import qualified Unison.Hashing.V2.Patch as Hashing.Patch
 import qualified Unison.Hashing.V2.Pattern as Hashing.Pattern
 import qualified Unison.Hashing.V2.Reference as Hashing.Reference
@@ -379,7 +380,7 @@ m2hBranch0 b =
     -- is there a more readable way to structure these that's also linear?
     doTerms ::
       Memory.Branch.Star Memory.Referent.Referent Memory.NameSegment.NameSegment ->
-      Map Hashing.Branch.NameSegment (Map Hashing.Referent.Referent Hashing.Branch.MdValues)
+      Map Hashing.NameSegment (Map Hashing.Referent.Referent Hashing.Branch.MdValues)
     doTerms s =
       Map.fromList
         [ (m2hNameSegment ns, m2)
@@ -395,7 +396,7 @@ m2hBranch0 b =
 
     doTypes ::
       Memory.Branch.Star Memory.Reference.Reference Memory.NameSegment.NameSegment ->
-      Map Hashing.Branch.NameSegment (Map Hashing.Reference.Reference Hashing.Branch.MdValues)
+      Map Hashing.NameSegment (Map Hashing.Reference.Reference Hashing.Branch.MdValues)
     doTypes s =
       Map.fromList
         [ (m2hNameSegment ns, m2)
@@ -412,13 +413,13 @@ m2hBranch0 b =
 
     doPatches ::
       Map Memory.NameSegment.NameSegment (Memory.Branch.EditHash, m Memory.Patch.Patch) ->
-      Map Hashing.Branch.NameSegment Hash
+      Map Hashing.NameSegment Hash
     doPatches = Map.bimap m2hNameSegment fst
 
     doChildren ::
       Map Memory.NameSegment.NameSegment (Memory.Branch.Branch m) ->
-      Map Hashing.Branch.NameSegment Hash
+      Map Hashing.NameSegment Hash
     doChildren = Map.bimap m2hNameSegment (Memory.Causal.unCausalHash . Memory.Branch.headHash)
 
-m2hNameSegment :: Memory.NameSegment.NameSegment -> Hashing.Branch.NameSegment
-m2hNameSegment (Memory.NameSegment.NameSegment s) = Hashing.Branch.NameSegment s
+m2hNameSegment :: Memory.NameSegment.NameSegment -> Hashing.NameSegment
+m2hNameSegment (Memory.NameSegment.NameSegment s) = Hashing.NameSegment s

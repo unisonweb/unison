@@ -26,9 +26,9 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as S
 import qualified U.Codebase.Sqlite.Referent as S
 import Unison.Hash (Hash)
-import Unison.Hashing.V2.Branch (NameSegment (..))
 import qualified Unison.Hashing.V2.Branch as Hashing.Branch
 import qualified Unison.Hashing.V2.Causal as Hashing.Causal
+import qualified Unison.Hashing.V2.NameSegment as Hashing (NameSegment (..))
 import qualified Unison.Hashing.V2.Patch as Hashing (Patch (..))
 import qualified Unison.Hashing.V2.Patch as Hashing.Patch
 import qualified Unison.Hashing.V2.Reference as Hashing (Reference)
@@ -62,7 +62,7 @@ dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
   where
     doTerms ::
       Map Db.TextId (Map S.Referent S.DbMetadataSet) ->
-      Transaction (Map NameSegment (Map Hashing.Referent Hashing.Branch.MdValues))
+      Transaction (Map Hashing.NameSegment (Map Hashing.Referent Hashing.Branch.MdValues))
     doTerms =
       Map.bitraverse
         s2hNameSegment
@@ -70,17 +70,17 @@ dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
 
     doTypes ::
       Map Db.TextId (Map S.Reference S.DbMetadataSet) ->
-      Transaction (Map NameSegment (Map Hashing.Reference Hashing.Branch.MdValues))
+      Transaction (Map Hashing.NameSegment (Map Hashing.Reference Hashing.Branch.MdValues))
     doTypes =
       Map.bitraverse
         s2hNameSegment
         (Map.bitraverse s2hReference s2hMetadataSet)
 
-    doPatches :: Map Db.TextId Db.PatchObjectId -> Transaction (Map NameSegment Hash)
+    doPatches :: Map Db.TextId Db.PatchObjectId -> Transaction (Map Hashing.NameSegment Hash)
     doPatches =
       Map.bitraverse s2hNameSegment (Q.expectPrimaryHashByObjectId . Db.unPatchObjectId)
 
-    doChildren :: Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> Transaction (Map NameSegment Hash)
+    doChildren :: Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> Transaction (Map Hashing.NameSegment Hash)
     doChildren =
       Map.bitraverse s2hNameSegment \(_boId, chId) -> Q.expectHash (Db.unCausalHashId chId)
 
@@ -103,9 +103,9 @@ s2hMetadataSet :: DbMetadataSet -> Transaction Hashing.Branch.MdValues
 s2hMetadataSet = \case
   S.MetadataSet.Inline rs -> Hashing.Branch.MdValues <$> Set.traverse s2hReference rs
 
-s2hNameSegment :: Db.TextId -> Transaction NameSegment
+s2hNameSegment :: Db.TextId -> Transaction Hashing.NameSegment
 s2hNameSegment =
-  fmap NameSegment . Q.expectText
+  fmap Hashing.NameSegment . Q.expectText
 
 s2hReferent :: S.Referent -> Transaction Hashing.Referent
 s2hReferent = \case

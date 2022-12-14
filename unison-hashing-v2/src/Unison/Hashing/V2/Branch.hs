@@ -1,13 +1,12 @@
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE ViewPatterns #-}
-
-module Unison.Hashing.V2.Branch (NameSegment (..), Raw (..), MdValues (..), hashBranch) where
+module Unison.Hashing.V2.Branch
+  ( Raw (..),
+    MdValues (..),
+    hashBranch,
+  )
+where
 
 import Unison.Hash (Hash)
+import Unison.Hashing.V2.NameSegment (NameSegment)
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Referent (Referent)
 import Unison.Hashing.V2.Tokenizable (Tokenizable)
@@ -19,8 +18,6 @@ type MetadataValue = Reference
 newtype MdValues = MdValues (Set MetadataValue)
   deriving (Eq, Ord, Show)
   deriving (Tokenizable) via Set MetadataValue
-
-newtype NameSegment = NameSegment Text deriving (Eq, Ord, Show)
 
 hashBranch :: Raw -> Hash
 hashBranch = H.hashTokenizable
@@ -39,6 +36,3 @@ instance Tokenizable Raw where
       H.accumulateToken (children b),
       H.accumulateToken (patches b)
     ]
-
-instance H.Tokenizable NameSegment where
-  tokens (NameSegment t) = [H.Text t]
