@@ -93,7 +93,7 @@ data DocG specialForm
   | UntitledSection [(DocG specialForm)]
   | Column [(DocG specialForm)]
   | Group (DocG specialForm)
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Functor, Foldable, Traversable)
   deriving anyclass (ToJSON)
 
 deriving anyclass instance ToSchema Doc
@@ -177,40 +177,9 @@ renderDoc ::
   PPE.PrettyPrintEnvDecl ->
   EvaluatedDoc v ->
   m Doc
-renderDoc pped doc = go doc
+renderDoc pped doc = traverse renderSpecial doc
   where
     suffixifiedPPE = PPE.suffixifiedPPE pped
-    go :: EvaluatedDoc v -> m Doc
-    go = \case
-      Word txt -> pure $ Word txt
-      Code d -> Code <$> go d
-      CodeBlock lang d -> CodeBlock lang <$> go d
-      Bold d -> Bold <$> go d
-      Italic d -> Italic <$> go d
-      Strikethrough d -> Strikethrough <$> go d
-      Style s d -> Style s <$> go d
-      Anchor a d -> Anchor a <$> go d
-      Blockquote d -> Blockquote <$> go d
-      Blankline -> pure Blankline
-      Linebreak -> pure Linebreak
-      SectionBreak -> pure SectionBreak
-      Tooltip d1 d2 -> Tooltip <$> go d1 <*> go d2
-      Aside d -> Aside <$> go d
-      Callout d1 d2 -> Callout <$> traverse go d1 <*> go d2
-      Table rows -> Table <$> traverse (traverse go) rows
-      Folded folded d1 d2 -> Folded folded <$> go d1 <*> go d2
-      Paragraph ds -> Paragraph <$> traverse go ds
-      BulletedList ds -> BulletedList <$> traverse go ds
-      NumberedList n ds -> NumberedList n <$> traverse go ds
-      Section d ds -> Section <$> go d <*> traverse go ds
-      NamedLink d1 d2 -> NamedLink <$> go d1 <*> go d2
-      Image d1 d2 d3 -> Image <$> go d1 <*> go d2 <*> traverse go d3
-      Special s -> Special <$> goSpecial s
-      Join ds -> Join <$> traverse go ds
-      UntitledSection ds -> UntitledSection <$> traverse go ds
-      Column ds -> Column <$> traverse go ds
-      Group d -> Group <$> go d
-
     formatPretty = fmap Syntax.convertElement . P.render (P.Width 70)
 
     formatPrettyType :: PPE.PrettyPrintEnv -> Type v a -> SyntaxText
@@ -226,10 +195,10 @@ renderDoc pped doc = go doc
           (PPE.suffixifiedPPE pped)
           [(r, PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r, ty) <- types]
 
-    goSpecial :: EvaluatedSpecialForm v -> m RenderedSpecialForm
-    goSpecial = \case
-      ESource srcs -> Source <$> goSrc srcs
-      EFoldedSource srcs -> FoldedSource <$> goSrc srcs
+    renderSpecial :: EvaluatedSpecialForm v -> m RenderedSpecialForm
+    renderSpecial = \case
+      ESource srcs -> Source <$> renderSrc srcs
+      EFoldedSource srcs -> FoldedSource <$> renderSrc srcs
       EExample trm -> Example <$> source trm
       EExampleBlock trm -> ExampleBlock <$> source trm
       ELink ref ->
@@ -264,8 +233,8 @@ renderDoc pped doc = go doc
     evalErrMsg :: SyntaxText
     evalErrMsg = "🆘  An error occured during evaluation"
 
-    goSrc :: [EvaluatedSrc v] -> m [Ref (UnisonHash, DisplayObject SyntaxText Src)]
-    goSrc srcs =
+    renderSrc :: [EvaluatedSrc v] -> m [Ref (UnisonHash, DisplayObject SyntaxText Src)]
+    renderSrc srcs =
       srcs & foldMapM \case
         EvaluatedSrcDecl srcDecl -> case srcDecl of
           MissingDecl r -> pure [(Type (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r)))]
@@ -493,35 +462,7 @@ data EvaluatedTerm v
 
 -- Determines all dependencies which will be required to render a doc.
 dependencies :: Ord v => EvaluatedDoc v -> Set LD.LabeledDependency
-dependencies = \case
-  Word _txt -> mempty
-  Code d -> dependencies d
-  CodeBlock _lang d -> dependencies d
-  Bold d -> dependencies d
-  Italic d -> dependencies d
-  Strikethrough d -> dependencies d
-  Style _s d -> dependencies d
-  Anchor _a d -> dependencies d
-  Blockquote d -> dependencies d
-  Blankline -> mempty
-  Linebreak -> mempty
-  SectionBreak -> mempty
-  Tooltip d1 d2 -> dependencies d1 <> dependencies d2
-  Aside d -> dependencies d
-  Callout d1 d2 -> foldMap dependencies d1 <> dependencies d2
-  Table rows -> foldMap (foldMap dependencies) rows
-  Folded _folded d1 d2 -> dependencies d1 <> dependencies d2
-  Paragraph ds -> foldMap dependencies ds
-  BulletedList ds -> foldMap dependencies ds
-  NumberedList _n ds -> foldMap dependencies ds
-  Section d ds -> dependencies d <> foldMap dependencies ds
-  NamedLink d1 d2 -> dependencies d1 <> dependencies d2
-  Image d1 d2 d3 -> dependencies d1 <> dependencies d2 <> foldMap dependencies d3
-  Special s -> dependenciesSpecial s
-  Join ds -> foldMap dependencies ds
-  UntitledSection ds -> foldMap dependencies ds
-  Column ds -> foldMap dependencies ds
-  Group d -> dependencies d
+dependencies = foldMap dependenciesSpecial
 
 -- | Determines all dependencies of a special form
 dependenciesSpecial :: forall v. Ord v => EvaluatedSpecialForm v -> Set LD.LabeledDependency
