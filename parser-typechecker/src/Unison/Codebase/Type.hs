@@ -100,7 +100,7 @@ data Codebase m v a = Codebase
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.
     termsMentioningTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors whose hash matches the given prefix.
-    termReferentsByPrefix :: ShortHash -> m (Set Referent.Id),
+    termReferentsByPrefix :: ShortHash -> Sqlite.Transaction (Set Referent.Id),
     -- Updates the root namespace names index from an old BranchHash to a new one.
     -- This isn't run automatically because it can be a bit slow.
     updateNameLookup ::

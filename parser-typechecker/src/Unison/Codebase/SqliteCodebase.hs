@@ -342,9 +342,9 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             termsMentioningTypeImpl =
               CodebaseOps.termsMentioningTypeImpl getDeclType
 
-            referentsByPrefix :: ShortHash -> m (Set Referent.Id)
-            referentsByPrefix sh =
-              runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
+            referentsByPrefix :: ShortHash -> Sqlite.Transaction (Set Referent.Id)
+            referentsByPrefix =
+              CodebaseOps.referentsByPrefix getDeclType
 
             updateNameLookup :: Path -> Maybe BranchHash -> BranchHash -> Sqlite.Transaction ()
             updateNameLookup =
