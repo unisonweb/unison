@@ -46,10 +46,25 @@ contains Intrinsic _ = False
 contains External _ = False
 contains (Ann start end) p = start <= p && p < end
 
+-- | Checks whether an annotation contains another annotation.
+--
+-- i.e. pos ∈ [start, end)
+--
+-- >>> Intrinsic `encompasses` Ann (L.Pos 1 1) (L.Pos 2 1)
+-- Nothing
+--
+-- >>> External `encompasses` Ann (L.Pos 1 1) (L.Pos 2 1)
+-- Nothing
+--
+-- >>> Ann (L.Pos 0 0) (L.Pos 0 10) `encompasses` Ann (L.Pos 0 1) (L.Pos 0 5)
+-- Just True
+--
+-- >>> Ann (L.Pos 1 0) (L.Pos 1 10) `encompasses` Ann (L.Pos 0 0) (L.Pos 2 0)
+-- Just False
 encompasses :: Ann -> Ann -> Maybe Bool
 encompasses Intrinsic _ = Nothing
 encompasses External _ = Nothing
 encompasses _ Intrinsic = Nothing
 encompasses _ External = Nothing
 encompasses (Ann start1 end1) (Ann start2 end2) =
-  Just $ start1 <= start2 && end1 <= end2
+  Just $ start1 <= start2 && end1 >= end2
