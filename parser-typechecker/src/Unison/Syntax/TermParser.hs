@@ -1130,8 +1130,7 @@ block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
   _ <- optional semi
   statements <- local (\e -> e {names = names}) $ sepBy semi statement
   _ <- closeBlock
-  theBlock <- substImports names imports <$> go open statements
-  pure $ ABT.annotate (ann open <> ann theBlock) theBlock
+  substImports names imports <$> go open statements
   where
     statement = asum [Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm]
     go :: L.Token () -> [BlockElement v] -> P v (Term v Ann)
