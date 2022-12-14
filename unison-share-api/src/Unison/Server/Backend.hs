@@ -861,11 +861,13 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
       fqnPPE = PPED.unsuffixifiedPPE pped
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
-  DefinitionResults terms types misses <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
-  branchAtPath <- do
+  (DefinitionResults terms types misses, branchAtPath) <-
     (lift . Codebase.runTransaction codebase) do
-      causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
-      V2Causal.value causalAtPath
+      results <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
+      branchAtPath <- do
+        causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
+        V2Causal.value causalAtPath
+      pure (results, branchAtPath)
   let width = mayDefaultWidth renderWidth
       -- Return only references which refer to docs.
       filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
@@ -975,16 +977,16 @@ renderDoc ppe width rt codebase r = do
          in Doc.renderDoc
               ppe
               terms
-              (Codebase.runTransaction codebase . typeOf)
+              typeOf
               eval
-              (Codebase.runTransaction codebase . decls)
+              decls
               tm
   where
     terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
     terms (Reference.DerivedId r) =
-      fmap Term.unannotate <$> Codebase.getTerm codebase r
+      fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.getTerm codebase r)
 
-    typeOf r = fmap void <$> Codebase.getTypeOfReferent codebase r
+    typeOf r = fmap void <$> Codebase.runTransaction codebase (Codebase.getTypeOfReferent codebase r)
     eval (Term.amap (const mempty) -> tm) = do
       let ppes = PPED.suffixifiedPPE ppe
       let codeLookup = Codebase.toCodeLookup codebase
@@ -1000,7 +1002,8 @@ renderDoc ppe width rt codebase r = do
         Nothing -> pure ()
       pure $ r <&> Term.amap (const mempty)
 
-    decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> Codebase.getTypeDeclaration codebase r
+    decls (Reference.DerivedId r) =
+      fmap (DD.amap (const ())) <$> Codebase.runTransaction codebase (Codebase.getTypeDeclaration codebase r)
     decls _ = pure Nothing
 
 docsInBranchToHtmlFiles ::
@@ -1198,15 +1201,13 @@ data IncludeCycles
   | DontIncludeCycles
 
 definitionsBySuffixes ::
-  forall m.
-  MonadIO m =>
   Codebase m Symbol Ann ->
   NameSearch ->
   IncludeCycles ->
   [HQ.HashQualified Name] ->
-  m (DefinitionResults Symbol)
+  Sqlite.Transaction (DefinitionResults Symbol)
 definitionsBySuffixes codebase nameSearch includeCycles query = do
-  QueryResult misses results <- Codebase.runTransaction codebase (hqNameQuery codebase nameSearch query)
+  QueryResult misses results <- hqNameQuery codebase nameSearch query
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) (searchResultsToTermRefs results)
@@ -1214,12 +1215,11 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
     let typeRefsWithoutCycles = searchResultsToTypeRefs results
     typeRefs <- case includeCycles of
       IncludeCycles ->
-        Codebase.runTransaction codebase do
-          Monoid.foldMapM
-            Codebase.componentReferencesForReference
-            typeRefsWithoutCycles
+        Monoid.foldMapM
+          Codebase.componentReferencesForReference
+          typeRefsWithoutCycles
       DontIncludeCycles -> pure typeRefsWithoutCycles
-    Codebase.runTransaction codebase (Map.foldMapM (\ref -> (ref,) <$> displayType codebase ref) typeRefs)
+    Map.foldMapM (\ref -> (ref,) <$> displayType codebase ref) typeRefs
   pure (DefinitionResults terms types misses)
   where
     searchResultsToTermRefs :: [SR.SearchResult] -> Set Reference
@@ -1235,7 +1235,7 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
           SR.Tp' _ r _ -> Just r
           _ -> Nothing
 
-displayTerm :: MonadIO m => Codebase m Symbol Ann -> Reference -> m (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+displayTerm :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
 displayTerm codebase = \case
   ref@(Reference.Builtin _) -> do
     pure case Map.lookup ref B.termRefTypes of
