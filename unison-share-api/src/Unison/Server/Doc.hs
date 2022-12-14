@@ -474,35 +474,6 @@ data ExpandedTerm v
 
 dependencies :: Ord v => ExpandedDoc v -> Set LD.LabeledDependency
 dependencies = \case
-  -- Word txt -> pure $ Word txt
-  -- Code d -> Code <$> go d
-  -- CodeBlock lang d -> CodeBlock lang <$> go d
-  -- Bold d -> Bold <$> go d
-  -- Italic d -> Italic <$> go d
-  -- Strikethrough d -> Strikethrough <$> go d
-  -- Style s d -> Style s <$> go d
-  -- Anchor a d -> Anchor a <$> go d
-  -- Blockquote d -> Blockquote <$> go d
-  -- Blankline -> pure Blankline
-  -- Linebreak -> pure Linebreak
-  -- SectionBreak -> pure SectionBreak
-  -- Tooltip d1 d2 -> Tooltip <$> go d1 <*> go d2
-  -- Aside d -> Aside <$> go d
-  -- Callout d1 d2 -> Callout <$> traverse go d1 <*> go d2
-  -- Table rows -> Table <$> traverse (traverse go) rows
-  -- Folded folded d1 d2 -> Folded folded <$> go d1 <*> go d2
-  -- Paragraph ds -> Paragraph <$> traverse go ds
-  -- BulletedList ds -> BulletedList <$> traverse go ds
-  -- NumberedList n ds -> NumberedList n <$> traverse go ds
-  -- Section d ds -> Section <$> go d <*> traverse go ds
-  -- NamedLink d1 d2 -> NamedLink <$> go d1 <*> go d2
-  -- Image d1 d2 d3 -> Image <$> go d1 <*> go d2 <*> traverse go d3
-  -- Special s -> Special <$> goSpecial s
-  -- Join ds -> Join <$> traverse go ds
-  -- UntitledSection ds -> UntitledSection <$> traverse go ds
-  -- Column ds -> Column <$> traverse go ds
-  -- Group d -> Group <$> go d
-  -- RenderError (InvalidTerm trm) -> pure . Word . Text.pack . P.toPlain (P.Width 80) . P.indent "🆘  " . TermPrinter.pretty (PPE.suffixifiedPPE pped) $ trmm
   Word _txt -> mempty
   Code d -> dependencies d
   CodeBlock _lang d -> dependencies d
