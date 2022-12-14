@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Server.Doc where
@@ -93,7 +94,9 @@ data DocG specialForm
   | Column [(DocG specialForm)]
   | Group (DocG specialForm)
   deriving stock (Eq, Show, Generic, Functor, Foldable, Traversable)
-  deriving anyclass (ToJSON, ToSchema)
+  deriving anyclass (ToJSON)
+
+deriving instance ToSchema specialForm => ToSchema (DocG specialForm)
 
 type UnisonHash = Text
 
@@ -114,14 +117,9 @@ data RenderedSpecialForm
   | ExampleBlock SyntaxText
   | Link SyntaxText
   | Signature [SyntaxText]
-  | SignatureInline
-      SyntaxText
-      Eval
-      SyntaxText
-      SyntaxText
-      EvalInline
-      SyntaxText
-      SyntaxText
+  | SignatureInline SyntaxText
+  | Eval SyntaxText SyntaxText
+  | EvalInline SyntaxText SyntaxText
   | Embed SyntaxText
   | EmbedInline SyntaxText
   | Video [MediaSource] (Map Text Text)
@@ -396,7 +394,7 @@ evalDoc terms typeOf eval types tm = go tm
           toRef (Term.RequestOrCtor' r) = Set.singleton (r ^. ConstructorReference.reference_)
           toRef _ = mempty
           goType :: Reference -> m (EvaluatedSrc v)
-          goType r@(Reference.Builtin builtin) =
+          goType r@(Reference.Builtin _builtin) =
             pure (EvaluatedSrcDecl (BuiltinDecl r))
           goType r = do
             d <- types r
