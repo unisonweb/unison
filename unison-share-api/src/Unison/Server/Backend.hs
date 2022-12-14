@@ -1153,7 +1153,7 @@ scopedNamesForBranchHash codebase mbh path = do
     indexNames :: Sqlite.Transaction (Names, Names)
     indexNames = do
       branch <- Codebase.getShallowRootBranch
-      mayProjectRoot <- Projects.inferProjectRoot path branch
+      mayProjectRoot <- Projects.inferNamesRoot path branch
       let namesRoot = fromMaybe path mayProjectRoot
       scopedNames <- Codebase.namesAtPath namesRoot path
       pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
