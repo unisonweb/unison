@@ -17,7 +17,6 @@ source-repository head
 
 library
   exposed-modules:
-      Unison.Hashing.V2
       Unison.Hashing.V2.ABT
       Unison.Hashing.V2.Branch
       Unison.Hashing.V2.Causal

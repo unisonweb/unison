@@ -4,9 +4,8 @@ module Unison.Hashing.V2.Branch
   )
 where
 
-import Unison.ContentAddressable (ContentAddressable)
+import Unison.ContentAddressable (ContentAddressable (..))
 import Unison.Hash (Hash)
-import Unison.Hashing.V2 (V2 (..))
 import Unison.Hashing.V2.NameSegment (NameSegment)
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Referent (Referent)
@@ -26,7 +25,9 @@ data Raw = Raw
     patches :: Map NameSegment Hash,
     children :: Map NameSegment Hash -- the Causal Hash
   }
-  deriving (ContentAddressable) via (V2 Raw)
+
+instance ContentAddressable Raw where
+  contentHash = H.hashTokenizable
 
 instance Tokenizable Raw where
   tokens b =
