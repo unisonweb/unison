@@ -304,7 +304,10 @@ completionItemResolveHandler message respond = do
             pure $ completion {_detail = Just renderedType, _documentation = Just doc}
           LD.TypeReference ref ->
             case ref of
-              Reference.Builtin {} -> empty
+              Reference.Builtin {} -> do
+                let renderedBuiltin = "<builtin>"
+                let doc = CompletionDocMarkup (toUnisonMarkup renderedBuiltin)
+                pure $ completion {_detail = Just renderedBuiltin, _documentation = Just doc}
               Reference.DerivedId refId -> do
                 decl <- LSPQ.getTypeDeclaration fileUri refId
                 let renderedDecl = Text.pack . Pretty.toPlain typeWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly name) decl
