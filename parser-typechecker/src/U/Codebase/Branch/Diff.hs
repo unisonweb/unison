@@ -20,9 +20,9 @@ import qualified U.Codebase.Branch.Type as Branch
 import qualified U.Codebase.Causal as Causal
 import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Name (Name)
 import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 
 data Diff a = Diff
@@ -163,10 +163,10 @@ nameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< chil
    in NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} <> childNameChanges
   where
     appendName :: NameSegment -> Name
-    appendName ns =
+    appendName =
       case namePrefix of
-        Nothing -> Name.fromSegment . Cv.namesegment2to1 $ ns
-        Just prefix -> prefix Lens.|> Cv.namesegment2to1 ns
+        Nothing -> Name.fromSegment
+        Just prefix -> (prefix Lens.|>)
     listifyNames :: (Name -> Set ref -> [(Name, ref)])
     listifyNames name xs =
       xs

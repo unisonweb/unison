@@ -13,10 +13,9 @@ module Unison.Codebase.Type
   )
 where
 
-import U.Codebase.HashTags (BranchHash)
+import U.Codebase.HashTags (BranchHash, CausalHash)
 import qualified U.Codebase.Reference as V2
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, WriteGitRepo)
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
@@ -50,7 +49,7 @@ data Codebase m v a = Codebase
     --
     -- Note that it is possible to call 'putTerm', then 'getTerm', and receive @Nothing@, per the semantics of
     -- 'putTerm'.
-    getTerm :: Reference.Id -> m (Maybe (Term v a)),
+    getTerm :: Reference.Id -> Sqlite.Transaction (Maybe (Term v a)),
     -- | Get the type of a user-defined term.
     --
     -- Note that it is possible to call 'putTerm', then 'getTypeOfTermImpl', and receive @Nothing@, per the semantics of
@@ -81,7 +80,7 @@ data Codebase m v a = Codebase
       Text -> -- Reason for the change, will be recorded in the reflog
       Branch m ->
       m (),
-    getBranchForHashImpl :: Branch.CausalHash -> m (Maybe (Branch m)),
+    getBranchForHashImpl :: CausalHash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
     --
@@ -144,7 +143,7 @@ data GitPushBehavior
 
 data GitError
   = GitProtocolError GitProtocolError
-  | GitCodebaseError (GitCodebaseError Branch.CausalHash)
+  | GitCodebaseError (GitCodebaseError CausalHash)
   | GitSqliteCodebaseError GitSqliteCodebaseError
   deriving (Show)
 
