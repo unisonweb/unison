@@ -253,6 +253,39 @@ matchCompletions (CompletionTree tree) txt =
       let currentMatches = matches <&> \(name, dep) -> (Path.singleton ns, name, dep)
       currentMatches <> childMatches
 
+-- | Called to resolve additional details for a completion item that the user is considering.
+completionItemResolveHandler :: RequestMessage 'CompletionItemResolve -> (Either ResponseError CompletionItem -> Lsp ()) -> Lsp ()
+completionItemResolveHandler message respond = do
+  let completion :: CompletionItem
+      completion = message ^. params
+  respond . maybe (Right completion) Right =<< runMaybeT do
+    case Aeson.fromJSON <$> (completion ^. xdata) of
+      Just (Aeson.Success (CompletionItemDetails {dep, fullyQualifiedName, relativeName, fileUri})) -> do
+        pped <- lift $ ppedForFile fileUri
+        case dep of
+          LD.TermReferent ref -> do
+            typ <- LSPQ.getTypeOfReferent fileUri ref
+            let renderedType = ": " <> (Text.pack $ TypePrinter.prettyStr (Just typeWidth) (PPED.suffixifiedPPE pped) typ)
+            let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+            pure $ (completion {_detail = Just renderedType, _documentation = Just doc} :: CompletionItem)
+          LD.TypeReference ref ->
+            case ref of
+              Reference.Builtin {} -> do
+                let renderedBuiltin = ": <builtin>"
+                let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+                pure $ (completion {_detail = Just renderedBuiltin, _documentation = Just doc} :: CompletionItem)
+              Reference.DerivedId refId -> do
+                decl <- LSPQ.getTypeDeclaration fileUri refId
+                let renderedDecl = ": " <> (Text.pack . Pretty.toPlain typeWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly relativeName) decl)
+                let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+                pure $ (completion {_detail = Just renderedDecl, _documentation = Just doc} :: CompletionItem)
+      _ -> empty
+  where
+    toUnisonMarkup txt = MarkupContent {_kind = MkMarkdown, _value = Text.unlines ["```unison", txt, "```"]}
+    -- Completion windows can be very small, so this seems like a good default
+    typeWidth = Pretty.Width 20
+
+-- | Data which will be provided back to us in the completion resolve handler when the user considers this completion.
 data CompletionItemDetails = CompletionItemDetails
   { dep :: LD.LabeledDependency,
     relativeName :: Name,
@@ -289,33 +322,3 @@ instance Aeson.FromJSON CompletionItemDetails where
           ("type" :: Text) -> LD.TypeReference <$> (obj Aeson..: "ref" >>= either (const $ fail "Invalid Reference in LabeledDependency") pure . Reference.fromText)
           ("term" :: Text) -> LD.TermReferent <$> (obj Aeson..: "ref" >>= maybe (fail "Invalid Referent in LabeledDependency") pure . Referent.fromText)
           _ -> fail "Invalid LabeledDependency kind"
-
-completionItemResolveHandler :: RequestMessage 'CompletionItemResolve -> (Either ResponseError CompletionItem -> Lsp ()) -> Lsp ()
-completionItemResolveHandler message respond = do
-  let completion :: CompletionItem
-      completion = message ^. params
-  respond . maybe (Right completion) Right =<< runMaybeT do
-    case Aeson.fromJSON <$> (completion ^. xdata) of
-      Just (Aeson.Success (CompletionItemDetails {dep, fullyQualifiedName, relativeName, fileUri})) -> do
-        pped <- lift $ ppedForFile fileUri
-        case dep of
-          LD.TermReferent ref -> do
-            typ <- LSPQ.getTypeOfReferent fileUri ref
-            let renderedType = ": " <> (Text.pack $ TypePrinter.prettyStr (Just typeWidth) (PPED.suffixifiedPPE pped) typ)
-            let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
-            pure $ (completion {_detail = Just renderedType, _documentation = Just doc} :: CompletionItem)
-          LD.TypeReference ref ->
-            case ref of
-              Reference.Builtin {} -> do
-                let renderedBuiltin = ": <builtin>"
-                let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
-                pure $ (completion {_detail = Just renderedBuiltin, _documentation = Just doc} :: CompletionItem)
-              Reference.DerivedId refId -> do
-                decl <- LSPQ.getTypeDeclaration fileUri refId
-                let renderedDecl = ": " <> (Text.pack . Pretty.toPlain typeWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly relativeName) decl)
-                let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
-                pure $ (completion {_detail = Just renderedDecl, _documentation = Just doc} :: CompletionItem)
-      _ -> empty
-  where
-    toUnisonMarkup txt = MarkupContent {_kind = MkMarkdown, _value = Text.unlines ["```unison", txt, "```"]}
-    typeWidth = Pretty.Width 20

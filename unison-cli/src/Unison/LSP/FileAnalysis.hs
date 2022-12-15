@@ -10,7 +10,6 @@ import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Debug.RecoverRTTI (anythingToString)
 import Language.LSP.Types
@@ -167,26 +166,6 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
       trm <- Prelude.lookup v (terms <> fold watches)
       typ <- Term.getTypeAnnotation trm
       pure typ
-
--- | Get the location of user defined definitions within the file
-getFileDefLocations :: Uri -> MaybeT Lsp (Map Symbol (Set Ann))
-getFileDefLocations uri = do
-  fileDefLocations <$> getFileSummary uri
-
--- | Compute the location of user defined definitions within the file
-fileDefLocations :: FileSummary -> Map Symbol (Set Ann)
-fileDefLocations FileSummary {dataDeclsBySymbol, effectDeclsBySymbol, testWatchSummary, exprWatchSummary, termsBySymbol} =
-  Map.unionsWith
-    (<>)
-    [ fmap (Set.singleton . DD.annotation) . fmap snd $ dataDeclsBySymbol,
-      fmap (Set.singleton . DD.annotation . DD.toDataDecl) . fmap snd $ effectDeclsBySymbol,
-      (testWatchSummary <> exprWatchSummary)
-        & foldMap \(maySym, _id, trm, _typ) ->
-          case maySym of
-            Nothing -> mempty
-            Just sym -> Map.singleton sym (Set.singleton $ ABT.annotation trm),
-      fmap (Set.singleton . ABT.annotation) . fmap (view _2) $ termsBySymbol
-    ]
 
 fileAnalysisWorker :: Lsp ()
 fileAnalysisWorker = forever do
