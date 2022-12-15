@@ -353,16 +353,15 @@ lsAtPath codebase mayRootBranch absPath = do
   lsBranch codebase b
 
 findShallowReadmeInBranchAndRender ::
-  Width ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
   V2Branch.Branch m ->
   Backend IO (Maybe Doc.Doc)
-findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
+findShallowReadmeInBranchAndRender runtime codebase ppe namespaceBranch =
   let renderReadme :: PPED.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
       renderReadme ppe docReference = do
-        (_, _, doc) <- renderDoc ppe width runtime codebase docReference
+        doc <- evalDocRef runtime codebase docReference >>= Doc.renderDoc ppe
         pure doc
 
       -- choose the first term (among conflicted terms) matching any of these names, in this order.
@@ -729,7 +728,7 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
 
 hqNameQuery ::
   Codebase m v Ann ->
-  NameSearch m ->
+  NameSearch Sqlite.Transaction ->
   [HQ.HashQualified Name] ->
   Sqlite.Transaction QueryResult
 hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
@@ -872,10 +871,11 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   -- we bias towards `map` and `.base.trunk.List.map` which ensures we still prefer names in
   -- `trunk` over those in other releases.
   -- ppe which returns names fully qualified to the current perspective,  not to the codebase root.
-  (nameSearch, backendPPE) <- mkNamesStuff shallowRoot path codebase
+  let biases = maybeToList $ HQ.toName query
+  (nameSearch, backendPPE) <- mkNamesStuff biases shallowRoot path codebase
   -- let nameSearch :: NameSearch m
   --     nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
-  (dr@(DefinitionResults terms types misses), branchAtPath) <- Codebase.runTransaction codebase do
+  (dr@(DefinitionResults terms types misses), branchAtPath) <- liftIO $ Codebase.runTransaction codebase do
     dr <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
     causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
     branchAtPath <- V2Causal.value causalAtPath
@@ -886,7 +886,10 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
       docResults pped name = do
         docRefs <- docsForTermName codebase nameSearch name
         -- render all the docs
-        traverse (renderDoc pped width rt codebase) docRefs
+        for docRefs \docRef -> do
+          renderedDoc <- evalDocRef rt codebase docRef >>= Doc.renderDoc pped
+          let docName = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref docRef)
+          pure (docName, Reference.toText docRef, renderedDoc)
   let mkTermDefinition ::
         PPED.PrettyPrintEnvDecl ->
         Reference ->
@@ -894,11 +897,11 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
           (AnnotatedText (UST.Element Reference))
           (AnnotatedText (UST.Element Reference)) ->
         Backend IO TermDefinition
-      mkTermDefinition pped r tm = do
+      mkTermDefinition termPPED r tm = do
         let referent = Referent.Ref r
         ts <- liftIO (Codebase.runTransaction codebase (Codebase.getTypeOfTerm codebase r))
-        let hqTermName = PPE.termNameOrHashOnly fqnPPE referent
-        let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref r)
+        let hqTermName = PPE.termNameOrHashOnly fqnTermPPE referent
+        let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE termPPED) width (Referent.Ref r)
         tag <-
           lift
             ( termEntryTag
@@ -906,15 +909,10 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
             )
 
         docRefs <- lift (maybe mempty (docsForTermName codebase nameSearch) (HQ.toName hqTermName))
-        -- This PPE is only used for improving error messages, it's not required.
-        let evalPPE = Nothing
-        docsOrErr <- liftIO $ for docRefs $ \docRef -> evalDocRef rt codebase evalPPE docRef
-        case sequenceA docsOrErr of
-          Left err -> _
-          Right a -> _
-        mk docs ts bn tag
+        renderedDocs <- renderDocRefs backendPPE width codebase rt docRefs
+        mk renderedDocs ts bn tag
         where
-          fqnPPE = PPED.unsuffixifiedPPE pped
+          fqnTermPPE = PPED.unsuffixifiedPPE termPPED
           mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
           mk docs (Just typeSig) bn tag = do
             -- We don't ever display individual constructors (they're shown as part of their
@@ -922,11 +920,11 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
             let referent = Referent.Ref r
             pure $
               TermDefinition
-                (HQ'.toText <$> PPE.allTermNames fqnPPE referent)
+                (HQ'.toText <$> PPE.allTermNames fqnTermPPE referent)
                 bn
                 tag
                 (bimap mungeSyntaxText mungeSyntaxText tm)
-                (formatSuffixedType pped width typeSig)
+                (formatSuffixedType termPPED width typeSig)
                 docs
   let mkTypeDefinition ::
         ( PPED.PrettyPrintEnvDecl ->
@@ -953,9 +951,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         where
           fqnPPE = PPED.unsuffixifiedPPE pped
 
-  let biases = maybeToList $ HQ.toName query
-  let docDependencies = error "Compute doc dependencies"
-  pped <- PPED.biasTo biases <$> getPPED (definitionResultsDependencies dr <> docDependencies) backendPPE
+  termAndTypePPED <- PPED.biasTo biases <$> getPPED (definitionResultsDependencies dr) backendPPE
   typeDefinitions <-
     Map.traverseWithKey (mkTypeDefinition pped) $
       typesToSyntax suffixifyBindings width pped types
@@ -971,37 +967,38 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
       renderedDisplayTypes
       renderedMisses
 
-mkNamesStuff :: V2Branch.CausalBranch n -> Path -> Codebase IO Symbol Ann -> Backend IO (NameSearch IO, BackendPPE)
-mkNamesStuff shallowRoot path codebase = do
+mkNamesStuff :: [Name] -> V2Branch.CausalBranch n -> Path -> Codebase IO Symbol Ann -> Backend IO (NameSearch Sqlite.Transaction, BackendPPE)
+mkNamesStuff biases shallowRoot path codebase = do
   asks useNamesIndex >>= \case
     True -> pure (sqliteNameSearch, UseSQLiteIndex codebase path (error "name search"))
     False -> do
       hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
       (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
-      pure $ (makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly), UsePPED localNamesOnly unbiasedPPED)
+      pure $ (makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly), UsePPED localNamesOnly (PPED.biasTo biases unbiasedPPED))
   where
-    sqliteNameSearch :: NameSearch IO
+    sqliteNameSearch :: NameSearch Sqlite.Transaction
     sqliteNameSearch = undefined
 
-renderDoc ::
-  PPED.PrettyPrintEnvDecl ->
-  Width ->
+-- renderDoc ::
+--   PPED.PrettyPrintEnvDecl ->
+--   Width ->
+--   TermReference ->
+--   Doc.EvaluatedDoc Symbol ->
+--   IO (HashQualifiedName, UnisonHash, Doc.Doc)
+-- renderDoc pped width docRef eDoc = do
+--   let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref docRef)
+--   let hash = Reference.toText docRef
+--   renderedDoc <- Doc.renderDoc pped eDoc
+--   pure (name, hash, renderedDoc)
+
+evalDocRef ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   TermReference ->
-  IO (HashQualifiedName, UnisonHash, Doc.Doc)
-renderDoc ppe width rt codebase r = do
-  let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE ppe) width (Referent.Ref r)
-  let hash = Reference.toText r
-  (name,hash,)
-    <$> let tm = Term.ref () r
-         in Doc.evalAndRenderDoc
-              ppe
-              terms
-              typeOf
-              eval
-              decls
-              tm
+  IO (Doc.EvaluatedDoc Symbol)
+evalDocRef rt codebase r = do
+  let tm = Term.ref () r
+  Doc.evalDoc terms typeOf eval decls tm
   where
     terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
     terms (Reference.DerivedId r) =
@@ -1009,10 +1006,11 @@ renderDoc ppe width rt codebase r = do
 
     typeOf r = fmap void <$> Codebase.runTransaction codebase (Codebase.getTypeOfReferent codebase r)
     eval (Term.amap (const mempty) -> tm) = do
-      let ppes = PPED.suffixifiedPPE ppe
+      -- We use an empty ppe for evalutation, it's only used for adding additional context to errors.
+      let evalPPE = PPE.empty
       let codeLookup = Codebase.toCodeLookup codebase
       let cache r = fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase r)
-      r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
+      r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache evalPPE rt tm
       case r of
         Just tmr ->
           Codebase.runTransaction codebase do
@@ -1031,15 +1029,15 @@ renderDoc ppe width rt codebase r = do
 -- Returns all references with a Doc type which are at the name provided, or at '<name>.doc'.
 docsForTermName ::
   Codebase IO Symbol Ann ->
-  NameSearch IO ->
+  NameSearch Sqlite.Transaction ->
   Name ->
   IO [TermReference]
 docsForTermName codebase (NameSearch {termSearch}) name = do
   let potentialDocNames = [name, name Cons.:> "doc"]
-  refs <-
-    potentialDocNames & foldMapM \name ->
-      lookupRelativeHQRefs' termSearch (HQ'.NameOnly name)
   Codebase.runTransaction codebase do
+    refs <-
+      potentialDocNames & foldMapM \name ->
+        lookupRelativeHQRefs' termSearch (HQ'.NameOnly name)
     filterForDocs (toList refs)
   where
     filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
@@ -1050,41 +1048,22 @@ docsForTermName codebase (NameSearch {termSearch}) name = do
         _ -> pure []
       pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
 
--- | Evaluates a doc.
-evalDoc ::
-  MonadIO m =>
-  Rt.Runtime Symbol ->
+renderDocRefs ::
+  BackendPPE ->
+  Width ->
   Codebase IO Symbol Ann ->
-  -- | This PPE will be used for improving error messages if provided.
-  Maybe PPE.PrettyPrintEnv ->
-  Term Symbol b ->
-  m (Either Rt.Error (Term Symbol Ann))
-evalDoc rt codebase mayPPE (Term.amap (const mempty) -> tm) = do
-  let evalPPE = fromMaybe mempty mayPPE
-  let codeLookup = Codebase.toCodeLookup codebase
-  let cache r = fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase r)
-  r <- liftIO $ Rt.evaluateTerm' codeLookup cache evalPPE rt tm
-  case r of
-    Right tmr ->
-      liftIO . Codebase.runTransaction codebase $ do
-        Codebase.putWatch
-          WK.RegularWatch
-          (Hashing.hashClosedTerm tm)
-          (Term.amap (const mempty) tmr)
-    Left _ -> pure ()
-  pure $ r <&> Term.amap (const mempty)
-
--- | Loads and evaluates a doc reference.
-evalDocRef ::
-  MonadIO m =>
   Rt.Runtime Symbol ->
-  Codebase IO Symbol Ann ->
-  -- | This PPE will be used for improving error messages if provided.
-  Maybe PPE.PrettyPrintEnv ->
-  TermReference ->
-  m (Either Rt.Error (Term Symbol Ann))
-evalDocRef rt codebase mayPPE docRef = do
-  evalDoc rt codebase mayPPE (Term.ref () docRef)
+  [TermReference] ->
+  IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+renderDocRefs backendPPE width codebase rt docRefs = do
+  eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
+  let docDeps = foldMap (Doc.dependencies . snd) eDocs
+  docsPPED <- getPPED docDeps backendPPE
+  for eDocs \(ref, eDoc) -> do
+    let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE docsPPED) width (Referent.Ref ref)
+    let hash = Reference.toText ref
+    renderedDoc <- Doc.renderDoc docsPPED eDoc
+    pure (name, hash, renderedDoc)
 
 docsInBranchToHtmlFiles ::
   Rt.Runtime Symbol ->
@@ -1110,8 +1089,10 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
   liftIO $ traverse_ (renderDocToHtmlFile docNamesByRef directory) docs
   where
-    renderDoc' ppe runtime codebase (ref, name) = do
-      (_, hash, doc) <- renderDoc ppe defaultWidth runtime codebase (Referent.toReference ref)
+    renderDoc' ppe runtime codebase (docReferent, name) = do
+      let docReference = Referent.toReference docReferent
+      doc <- evalDocRef runtime codebase docReference >>= Doc.renderDoc ppe
+      let hash = Reference.toText docReference
       pure (name, hash, doc)
 
     cleanPath :: FilePath -> FilePath
@@ -1281,7 +1262,7 @@ data IncludeCycles
 
 definitionsBySuffixes ::
   Codebase m Symbol Ann ->
-  NameSearch m ->
+  NameSearch Sqlite.Transaction ->
   IncludeCycles ->
   [HQ.HashQualified Name] ->
   Sqlite.Transaction (DefinitionResults Symbol)
