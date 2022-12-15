@@ -37,6 +37,7 @@ import qualified Unison.Codebase.TypeEdit as Memory.TypeEdit
 import qualified Unison.ConstructorReference as Memory.ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.ConstructorType as Memory.ConstructorType
+import Unison.ContentAddressable (contentHash)
 import qualified Unison.DataDeclaration as Memory.DD
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Branch as Hashing.Branch
@@ -359,7 +360,7 @@ hashPatch :: Memory.Patch.Patch -> Hash
 hashPatch = Hashing.Patch.hashPatch . m2hPatch
 
 hashBranch0 :: Memory.Branch.Branch0 m -> Hash
-hashBranch0 = Hashing.Branch.hashBranch . m2hBranch0
+hashBranch0 = contentHash . m2hBranch0
 
 hashCausal :: Hashable e => e -> Set Memory.Causal.CausalHash -> (Memory.Causal.CausalHash, HashFor e)
 hashCausal e tails =

@@ -25,6 +25,7 @@ import qualified U.Codebase.Sqlite.Patch.TypeEdit as S.TypeEdit
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as S
 import qualified U.Codebase.Sqlite.Referent as S
+import Unison.ContentAddressable (contentHash)
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Branch as Hashing.Branch
 import qualified Unison.Hashing.V2.Causal as Hashing.Causal
@@ -53,7 +54,7 @@ syncCausalHash S.SyncCausalFormat {valueHash = valueHashId, parents = parentChId
 
 dbBranchHash :: S.DbBranch -> Transaction BranchHash
 dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
-  fmap (BranchHash . Hashing.Branch.hashBranch) $
+  fmap (BranchHash . contentHash) $
     Hashing.Branch.Raw
       <$> doTerms tms
       <*> doTypes tps

@@ -1,11 +1,12 @@
 module Unison.Hashing.V2.Branch
   ( Raw (..),
     MdValues (..),
-    hashBranch,
   )
 where
 
+import Unison.ContentAddressable (ContentAddressable)
 import Unison.Hash (Hash)
+import Unison.Hashing.V2 (V2 (..))
 import Unison.Hashing.V2.NameSegment (NameSegment)
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Referent (Referent)
@@ -19,15 +20,13 @@ newtype MdValues = MdValues (Set MetadataValue)
   deriving (Eq, Ord, Show)
   deriving (Tokenizable) via Set MetadataValue
 
-hashBranch :: Raw -> Hash
-hashBranch = H.hashTokenizable
-
 data Raw = Raw
   { terms :: Map NameSegment (Map Referent MdValues),
     types :: Map NameSegment (Map Reference MdValues),
     patches :: Map NameSegment Hash,
     children :: Map NameSegment Hash -- the Causal Hash
   }
+  deriving (ContentAddressable) via (V2 Raw)
 
 instance Tokenizable Raw where
   tokens b =

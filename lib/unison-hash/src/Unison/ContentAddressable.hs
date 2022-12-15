@@ -9,4 +9,4 @@ import U.Util.Hash (Hash)
 --
 -- Instances of this class should only live in dedicated "hashing packages" such as @unison-hashing-v2@.
 class ContentAddressable a where
-  hash :: a -> Hash
+  contentHash :: a -> Hash
