@@ -7,6 +7,8 @@ module Unison.LSP.Completion where
 import Control.Comonad.Cofree
 import Control.Lens hiding (List, (:<))
 import Control.Monad.Reader
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import Data.Bifunctor (second)
 import Data.List.Extra (nubOrdOn)
 import Data.List.NonEmpty (NonEmpty (..))
@@ -17,6 +19,9 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.HashQualified as HQ
+import Unison.LSP.FileAnalysis
+import qualified Unison.LSP.Queries as LSPQ
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import Unison.LabeledDependency (LabeledDependency)
@@ -29,18 +34,25 @@ import Unison.Names (Names (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
+import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
-import qualified Unison.Syntax.Name as Name (toText)
+import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.HashQualified' as HQ' (toText)
+import qualified Unison.Syntax.Name as Name (fromText, toText)
+import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Util.Monoid as Monoid
+import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.Relation as Relation
 
 completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
 completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
-    (range, prefix) <- MaybeT $ VFS.completionPrefix (m ^. params)
+    let fileUri = (m ^. params . textDocument . uri)
+    (range, prefix) <- VFS.completionPrefix (m ^. params)
     ppe <- PPED.suffixifiedPPE <$> lift globalPPED
-    completions <- lift getCompletions
+    codebaseCompletions <- lift getCodebaseCompletions
+    fileCompletions <- getFileCompletions fileUri
+    let completions = fileCompletions <> codebaseCompletions
     Config {maxCompletions} <- lift getConfig
     let defMatches = matchCompletions completions prefix
     let (isIncomplete, defCompletions) =
@@ -64,6 +76,8 @@ completionHandler m respond =
     takeCompletions 0 xs = (not $ null xs, [])
     takeCompletions _ [] = (False, [])
     takeCompletions n (x : xs) = second (x :) $ takeCompletions (pred n) xs
+    getFileCompletions :: Uri -> MaybeT Lsp CompletionTree
+    getFileCompletions fileUri = namesToCompletionTree . fileNames <$> getFileSummary fileUri
 
 mkDefCompletionItem :: Range -> Text -> Text -> Text -> LabeledDependency -> CompletionItem
 mkDefCompletionItem range fqn path suffixified dep =
@@ -240,3 +254,63 @@ matchCompletions (CompletionTree tree) txt =
       let childMatches = mkDefMatches rest <&> over _1 (Path.cons ns)
       let currentMatches = matches <&> \(name, dep) -> (Path.singleton ns, name, dep)
       currentMatches <> childMatches
+
+data CompletionItemDetails = CompletionItemDetails
+  { dep :: LD.LabeledDependency,
+    name :: Name,
+    fileUri :: Uri
+  }
+
+instance Aeson.ToJSON CompletionItemDetails where
+  toJSON CompletionItemDetails {dep, name, fileUri} =
+    Aeson.object
+      [ "name" Aeson..= Name.toText name,
+        "fileUri" Aeson..= fileUri,
+        "dep" Aeson..= ldJSON dep
+      ]
+    where
+      ldJSON :: LD.LabeledDependency -> Aeson.Value
+      ldJSON = \case
+        LD.TypeReference ref -> Aeson.object ["kind" Aeson..= ("type" :: Text), "ref" Aeson..= Reference.toText ref]
+        LD.TermReferent ref -> Aeson.object ["kind" Aeson..= ("term" :: Text), "ref" Aeson..= Referent.toText ref]
+
+instance Aeson.FromJSON CompletionItemDetails where
+  parseJSON = Aeson.withObject "CompletionItemDetails" \obj ->
+    CompletionItemDetails
+      <$> ((obj Aeson..: "dep") >>= ldParser)
+      <*> (obj Aeson..: "name" >>= maybe (fail "Invalid name in CompletionItemDetails") pure . Name.fromText)
+      <*> obj Aeson..: "fileUri"
+    where
+      ldParser :: Aeson.Value -> Aeson.Parser LD.LabeledDependency
+      ldParser = Aeson.withObject "LabeledDependency" \obj -> do
+        kind <- obj Aeson..: "kind"
+        case kind of
+          ("type" :: Text) -> LD.TypeReference <$> (obj Aeson..: "ref" >>= either (const $ fail "Invalid Reference in LabeledDependency") pure . Reference.fromText)
+          ("term" :: Text) -> LD.TermReferent <$> (obj Aeson..: "ref" >>= maybe (fail "Invalid Referent in LabeledDependency") pure . Referent.fromText)
+          _ -> fail "Invalid LabeledDependency kind"
+
+completionItemResolveHandler :: RequestMessage 'CompletionItemResolve -> (Either ResponseError CompletionItem -> Lsp ()) -> Lsp ()
+completionItemResolveHandler message respond = do
+  let completion = message ^. params
+  respond . maybe (Right completion) Right =<< runMaybeT do
+    case Aeson.fromJSON <$> (completion ^. xdata) of
+      Just (Aeson.Success (CompletionItemDetails {dep, name, fileUri})) -> do
+        pped <- lift $ ppedForFile fileUri
+        case dep of
+          LD.TermReferent ref -> do
+            typ <- LSPQ.getTypeOfReferent fileUri ref
+            let renderedType = Text.pack $ TypePrinter.prettyStr (Just typeWidth) (PPED.suffixifiedPPE pped) typ
+            let doc = CompletionDocMarkup (toUnisonMarkup renderedType)
+            pure $ completion {_detail = Just renderedType, _documentation = Just doc}
+          LD.TypeReference ref ->
+            case ref of
+              Reference.Builtin {} -> empty
+              Reference.DerivedId refId -> do
+                decl <- LSPQ.getTypeDeclaration fileUri refId
+                let renderedDecl = Text.pack . Pretty.toPlain typeWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly name) decl
+                let doc = CompletionDocMarkup (toUnisonMarkup renderedDecl)
+                pure $ completion {_detail = Just renderedDecl, _documentation = Just doc}
+      _ -> empty
+  where
+    toUnisonMarkup txt = MarkupContent {_kind = MkMarkdown, _value = Text.unlines ["```unison", txt, "```"]}
+    typeWidth = Pretty.Width 80
