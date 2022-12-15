@@ -6,7 +6,8 @@ module Unison.Codebase.Causal.FoldHistory (FoldHistoryResult (..), foldHistoryUn
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
-import Unison.Codebase.Causal (Causal (..), CausalHash, pattern Cons, pattern Merge, pattern One)
+import U.Codebase.HashTags (CausalHash)
+import Unison.Codebase.Causal (Causal (..), pattern Cons, pattern Merge, pattern One)
 import Unison.Prelude
 import Prelude hiding (head, tail)
 
@@ -33,7 +34,7 @@ foldHistoryUntil f a c = step a mempty (pure c)
     step a _seen Seq.Empty = pure (Unsatisfied a)
     step a seen (c Seq.:<| rest)
       | currentHash c `Set.member` seen =
-        step a seen rest
+          step a seen rest
     step a seen (c Seq.:<| rest) = case f a (head c) of
       (a, True) -> pure (Satisfied a)
       (a, False) -> do

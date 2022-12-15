@@ -80,13 +80,13 @@ import qualified Data.Configurator.Types as Configurator
 import qualified Data.Set as Set
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (CausalHash (..))
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.BranchUtil as BranchUtil
-import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Patch (Patch (..))
@@ -95,7 +95,6 @@ import Unison.Codebase.Path (Path, Path' (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann (..))
@@ -147,7 +146,7 @@ resolveAbsBranchId = \case
 
 -- | Resolve a @BranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
 -- branches by path are OK - the empty branch will be returned).
-resolveBranchId  :: Input.BranchId -> Cli (Branch IO)
+resolveBranchId :: Input.BranchId -> Cli (Branch IO)
 resolveBranchId branchId = do
   absBranchId <- traverseOf _Right resolvePath' branchId
   resolveAbsBranchId absBranchId
@@ -212,13 +211,13 @@ getCurrentBranch0 = do
   Branch.head <$> getCurrentBranch
 
 -- | Get the last saved root hash.
-getLastSavedRootHash :: Cli V2Branch.CausalHash
+getLastSavedRootHash :: Cli CausalHash
 getLastSavedRootHash = do
   use #lastSavedRootHash
 
 -- | Set a new root branch.
 -- Note: This does _not_ update the codebase, the caller is responsible for that.
-setLastSavedRootHash :: V2Branch.CausalHash -> Cli ()
+setLastSavedRootHash :: CausalHash -> Cli ()
 setLastSavedRootHash ch = do
   #lastSavedRootHash .= ch
 
@@ -384,7 +383,7 @@ updateRoot :: Branch IO -> Text -> Cli ()
 updateRoot new reason =
   Cli.time "updateRoot" do
     Cli.Env {codebase} <- ask
-    let newHash = Cv.causalHash1to2 $ Branch.headHash new
+    let newHash = Branch.headHash new
     oldHash <- getLastSavedRootHash
     when (oldHash /= newHash) do
       setRootBranch new

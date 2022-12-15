@@ -8,7 +8,6 @@ module Unison.Codebase.Causal
     pattern One,
     pattern Cons,
     pattern Merge,
-    CausalHash (..),
     head_,
     one,
     cons,
@@ -34,6 +33,7 @@ import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State as State
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Causal.Type
   ( Causal
       ( UnsafeCons,
@@ -44,7 +44,6 @@ import Unison.Codebase.Causal.Type
         tail,
         tails
       ),
-    CausalHash (..),
     before,
     lca,
     predecessors,

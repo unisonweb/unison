@@ -66,6 +66,7 @@ library
     , megaparsec
     , mtl
     , text
+    , unison-core
     , unison-core1
     , unison-hash
     , unison-prelude
@@ -119,6 +120,7 @@ test-suite syntax-tests
     , megaparsec
     , mtl
     , text
+    , unison-core
     , unison-core1
     , unison-hash
     , unison-prelude

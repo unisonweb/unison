@@ -41,7 +41,6 @@ library
       Unison.Names
       Unison.Names.ResolutionResult
       Unison.Names.Scoped
-      Unison.NameSegment
       Unison.NamesWithHistory
       Unison.Pattern
       Unison.Position
@@ -54,7 +53,6 @@ library
       Unison.Term
       Unison.Type
       Unison.Type.Names
-      Unison.Util.Alphabetical
       Unison.Util.Components
       Unison.Util.List
       Unison.Var

@@ -171,4 +171,4 @@ getHQTerms = \case
   where
     hashOnly sh = do
       Cli.Env {codebase} <- ask
-      liftIO (Backend.termReferentsByShortHash codebase sh)
+      Cli.runTransaction (Backend.termReferentsByShortHash codebase sh)

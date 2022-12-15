@@ -26,6 +26,8 @@ dependencies:
 
 library:
   source-dirs: src
+  exposed-modules:
+    - U.Codebase.Sqlite.V2.HashHandle
   when:
     - condition: false
       other-modules: Paths_unison_codebase_sqlite_hashing_v2

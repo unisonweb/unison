@@ -101,6 +101,7 @@ library
     , transformers
     , unison-codebase
     , unison-codebase-sqlite
+    , unison-core
     , unison-core1
     , unison-hash
     , unison-hash-orphans-aeson

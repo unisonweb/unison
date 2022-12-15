@@ -118,7 +118,6 @@ import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
@@ -565,7 +564,7 @@ loop e = do
               history <- liftIO (doHistory schLength 0 branch [])
               Cli.respondNumbered history
               where
-                doHistory :: Int -> Int -> Branch IO -> [(Causal.CausalHash, NamesWithHistory.Diff)] -> IO NumberedOutput
+                doHistory :: Int -> Int -> Branch IO -> [(CausalHash, NamesWithHistory.Diff)] -> IO NumberedOutput
                 doHistory schLength !n b acc =
                   if maybe False (n >=) resultsCap
                     then pure (History diffCap schLength acc (PageEnd (Branch.headHash b) n))
@@ -604,7 +603,7 @@ loop e = do
               src <- traverseOf _Right Cli.resolveSplit' src'
               srcTerms <-
                 either
-                  (liftIO . Backend.termReferentsByShortHash codebase)
+                  (Cli.runTransaction . Backend.termReferentsByShortHash codebase)
                   Cli.getTermsAt
                   src
               srcTerm <-
@@ -1288,23 +1287,24 @@ loop e = do
               rootBranch <- Cli.getRootBranch
               for_ lds \ld -> do
                 dependencies :: Set Reference <-
-                  let tp r@(Reference.DerivedId i) =
-                        Codebase.getTypeDeclaration codebase i <&> \case
-                          Nothing -> error $ "What happened to " ++ show i ++ "?"
-                          Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
-                      tp _ = pure mempty
-                      tm (Referent.Ref r@(Reference.DerivedId i)) =
-                        liftIO (Codebase.getTerm codebase i) <&> \case
-                          Nothing -> error $ "What happened to " ++ show i ++ "?"
-                          Just tm -> Set.delete r $ Term.dependencies tm
-                      tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
-                        Cli.runTransaction (Codebase.getTypeDeclaration codebase i) <&> \case
-                          Nothing -> error $ "What happened to " ++ show i ++ "?"
-                          Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
-                            Nothing -> error $ "What happened to " ++ show con ++ "?"
-                            Just tp -> Type.dependencies tp
-                      tm _ = pure mempty
-                   in LD.fold (Cli.runTransaction . tp) tm ld
+                  Cli.runTransaction do
+                    let tp r@(Reference.DerivedId i) =
+                          Codebase.getTypeDeclaration codebase i <&> \case
+                            Nothing -> error $ "What happened to " ++ show i ++ "?"
+                            Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
+                        tp _ = pure mempty
+                        tm (Referent.Ref r@(Reference.DerivedId i)) =
+                          Codebase.getTerm codebase i <&> \case
+                            Nothing -> error $ "What happened to " ++ show i ++ "?"
+                            Just tm -> Set.delete r $ Term.dependencies tm
+                        tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
+                          Codebase.getTypeDeclaration codebase i <&> \case
+                            Nothing -> error $ "What happened to " ++ show i ++ "?"
+                            Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
+                              Nothing -> error $ "What happened to " ++ show con ++ "?"
+                              Just tp -> Type.dependencies tp
+                        tm _ = pure mempty
+                     in LD.fold tp tm ld
                 (missing, names0) <- liftIO (Branch.findHistoricalRefs' dependencies rootBranch)
                 let types = R.toList $ Names.types names0
                 let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
@@ -1312,11 +1312,13 @@ loop e = do
                 #numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
                 Cli.respond $ ListDependencies hqLength ld names missing
             NamespaceDependenciesI namespacePath' -> do
+              Cli.Env {codebase} <- ask
               path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
               Cli.getMaybeBranchAt path >>= \case
                 Nothing -> Cli.respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
-                  externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
+                  externalDependencies <-
+                    Cli.runTransaction (NamespaceDependencies.namespaceDependencies codebase (Branch.head b))
                   ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
                   Cli.respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> do
@@ -1340,7 +1342,7 @@ loop e = do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
                   getCausal b = (Branch.headHash b, pure $ Branch._history b)
-                  goCausal :: forall m. Monad m => [(Branch.CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.CausalHash) m ()
+                  goCausal :: forall m. Monad m => [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
                   goCausal [] = pure ()
                   goCausal ((h, mc) : queue) = do
                     ifM (seen h) (goCausal queue) do
@@ -1348,7 +1350,7 @@ loop e = do
                         Causal.One h _bh b -> goBranch h b mempty queue
                         Causal.Cons h _bh b tail -> goBranch h b [fst tail] (tail : queue)
                         Causal.Merge h _bh b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
-                  goBranch :: forall m. Monad m => Branch.CausalHash -> Branch0 m -> [Branch.CausalHash] -> [(Branch.CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.CausalHash) m ()
+                  goBranch :: forall m. Monad m => CausalHash -> Branch0 m -> [CausalHash] -> [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
                   goBranch h b (Set.fromList -> causalParents) queue = case b of
                     Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ _ ->
                       let wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
@@ -1408,8 +1410,8 @@ loop e = do
                 ([fromCH], [toCH]) -> pure (fromCH, toCH)
               output <-
                 Cli.runTransaction do
-                  fromBranch <- (Codebase.expectCausalBranchByCausalHash $ Cv.causalHash1to2 fromCH) >>= V2Causal.value
-                  toBranch <- (Codebase.expectCausalBranchByCausalHash $ Cv.causalHash1to2 toCH) >>= V2Causal.value
+                  fromBranch <- (Codebase.expectCausalBranchByCausalHash fromCH) >>= V2Causal.value
+                  toBranch <- (Codebase.expectCausalBranchByCausalHash toCH) >>= V2Causal.value
                   treeDiff <- V2Branch.diffBranches fromBranch toBranch
                   let nameChanges = V2Branch.nameChanges Nothing treeDiff
                   pure (DisplayDebugNameDiff nameChanges)
@@ -2071,7 +2073,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = Backend.makeNameSearch hqLength names
-    liftIO (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
+    Cli.runTransaction (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
     let ppe = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE
@@ -2153,7 +2155,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
     computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
       case r of
         Reference.DerivedId rid ->
-          liftIO (Codebase.getTerm codebase rid) >>= \case
+          Cli.runTransaction (Codebase.getTerm codebase rid) >>= \case
             Nothing -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
               Cli.respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
@@ -2264,7 +2266,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
       (Cli.returnEarly . Output.ShareError) case err0 of
         Share.SyncError err -> Output.ShareErrorPull err
         Share.TransportError err -> Output.ShareErrorTransport err
-  liftIO (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) & onNothingM do
+  liftIO (Codebase.getBranchForHash codebase causalHash) & onNothingM do
     error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
   where
     -- Provide the given action a callback that display to the terminal.
@@ -2300,8 +2302,11 @@ resolveHQToLabeledDependencies = \case
   where
     resolveHashOnly sh = do
       Cli.Env {codebase} <- ask
-      terms <- liftIO (Backend.termReferentsByShortHash codebase sh)
-      types <- Cli.runTransaction (Backend.typeReferencesByShortHash sh)
+      (terms, types) <-
+        Cli.runTransaction do
+          terms <- Backend.termReferentsByShortHash codebase sh
+          types <- Backend.typeReferencesByShortHash sh
+          pure (terms, types)
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
 doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Cli ()
@@ -2320,23 +2325,23 @@ doDisplay outputLoc names tm = do
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
           evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
-        Nothing -> fmap (fmap Term.unannotate) $ liftIO (Codebase.getTerm codebase r)
+        Nothing -> fmap (fmap Term.unannotate) $ Cli.runTransaction (Codebase.getTerm codebase r)
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
       loadTerm _ = pure Nothing
       loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
-        Nothing -> fmap (fmap $ DD.amap (const ())) $ Codebase.getTypeDeclaration codebase r
+        Nothing -> fmap (fmap $ DD.amap (const ())) $ Cli.runTransaction $ Codebase.getTypeDeclaration codebase r
         Just decl -> pure (Just $ DD.amap (const ()) decl)
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
         | Just (_, ty) <- Map.lookup r tms = pure $ Just (void ty)
-      loadTypeOfTerm' r = fmap (fmap void) . loadTypeOfTerm codebase $ r
+      loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . loadTypeOfTerm codebase $ r
   rendered <-
     DisplayValues.displayTerm
       ppe
-      (liftIO . loadTerm)
-      (Cli.runTransaction . loadTypeOfTerm')
+      loadTerm
+      loadTypeOfTerm'
       evalTerm
-      (Cli.runTransaction . loadDecl)
+      loadDecl
       tm
   Cli.respond $ DisplayRendered loc rendered
 
@@ -3197,10 +3202,11 @@ hqNameQuery query = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath <- Cli.getCurrentPath
-  hqLength <- Cli.runTransaction Codebase.hashLength
-  let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
-  let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
-  liftIO (Backend.hqNameQuery codebase nameSearch query)
+  Cli.runTransaction do
+    hqLength <- Codebase.hashLength
+    let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
+    let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+    Backend.hqNameQuery codebase nameSearch query
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.

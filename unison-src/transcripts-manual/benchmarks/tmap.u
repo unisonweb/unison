@@ -3,6 +3,7 @@ N = 20000
 
 main = do
   _baseline = timeit "encodeNat64be" '(baseline 0xs N)
+  _a0 = timeit "forkbomb (40k threads)" '(forkbomb 40000) 
   _a1 = timeit "TMap" '(go (atomically TMap.empty) N) 
   _a2 = timeit "TMap2" '(go2 (atomically TMap2.empty) N) 
   _a3 = timeit "TMap3" '(go3 (atomically TMap3.empty) N) 
@@ -64,6 +65,14 @@ gos_TVar_Map k m n = match k with
     gos_TVar_Map (k-1) m n
     MVar.take lock
 
+forkbomb k = match k with
+  0 -> ()
+  _ ->
+    lock = !MVar.newEmpty
+    goWrap = do MVar.put lock ()
+    tid = fork '(catch goWrap)
+    forkbomb (k-1)
+    MVar.take lock
 
 go2 m n = 
   if n == 0 then atomically '(TMap2.lookup (encodeNat64be n) m)
