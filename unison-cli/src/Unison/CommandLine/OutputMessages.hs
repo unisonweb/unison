@@ -45,7 +45,6 @@ import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
 import qualified U.Util.Hash32 as Hash32
-import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
 import qualified Unison.Builtin.Decls as DD
@@ -151,6 +150,7 @@ import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.List as List
 import Unison.Util.Monoid (intercalateMap)
+import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import Unison.Var (Var)

@@ -33,7 +33,6 @@ dependencies:
   - text
   - unison-core
   - unison-hash
-  - unison-util
   - unison-util-base32hex
   - unison-prelude
   - time

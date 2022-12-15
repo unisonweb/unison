@@ -110,8 +110,8 @@ library
     , unison-hash-orphans-sqlite
     , unison-prelude
     , unison-sqlite
-    , unison-util
     , unison-util-base32hex
+    , unison-util-cache
     , unison-util-serialization
     , unison-util-term
     , unliftio

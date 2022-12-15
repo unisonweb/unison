@@ -22,7 +22,6 @@ packages:
 - codebase2/codebase-sqlite-hashing-v2
 - codebase2/codebase-sync
 - codebase2/core
-- codebase2/util
 - codebase2/util-serialization
 - codebase2/util-term
 - lib/unison-hash
@@ -33,6 +32,7 @@ packages:
 - lib/unison-sqlite
 - lib/unison-util-base32hex
 - lib/unison-util-bytes
+- lib/unison-util-cache
 - lib/unison-util-relation
 - lib/unison-util-rope
 - lib/unison-pretty-printer

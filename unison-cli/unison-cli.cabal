@@ -193,7 +193,6 @@ library
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -321,7 +320,6 @@ executable cli-integration-tests
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -443,7 +441,6 @@ executable transcripts
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -572,7 +569,6 @@ executable unison
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -704,7 +700,6 @@ test-suite cli-tests
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio

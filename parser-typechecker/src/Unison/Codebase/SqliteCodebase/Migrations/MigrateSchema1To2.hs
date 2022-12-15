@@ -53,7 +53,6 @@ import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WK
-import U.Util.Monoid (foldMapM)
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Hashing
@@ -78,6 +77,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
+import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
 import Prelude hiding (log)
 

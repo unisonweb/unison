@@ -77,7 +77,6 @@ library
     , unison-hash
     , unison-hashing
     , unison-prelude
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
   default-language: Haskell2010

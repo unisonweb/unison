@@ -41,7 +41,6 @@ import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Referent as Referent
-import qualified U.Util.Monoid as Monoid
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient (..))
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -58,6 +57,7 @@ import qualified Unison.Server.Types as Server
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Types as Share
 import qualified Unison.Sqlite as Sqlite
+import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified UnliftIO
 import Prelude hiding (readFile, writeFile)

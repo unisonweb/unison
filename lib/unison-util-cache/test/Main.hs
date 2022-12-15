@@ -1,22 +1,26 @@
-module Unison.Test.Cache where
+module Main (main) where
 
 import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Monad
 import EasyTest
-import qualified U.Util.Cache as Cache
+import System.IO.CodePage (withCP65001)
+import qualified Unison.Util.Cache as Cache
+
+main :: IO ()
+main =
+  withCP65001 (run (scope "util.cache" test))
 
 test :: Test ()
 test =
-  scope "util.cache" $
-    tests
-      [ scope "ex1" $ fits Cache.cache,
-        scope "ex2" $ fits (Cache.semispaceCache n),
-        scope "ex3" $ doesn'tFit (Cache.semispaceCache n),
-        scope "ex4" $ do
-          replicateM_ 10 $ concurrent (Cache.semispaceCache n)
-          ok
-      ]
+  tests
+    [ scope "ex1" $ fits Cache.cache,
+      scope "ex2" $ fits (Cache.semispaceCache n),
+      scope "ex3" $ doesn'tFit (Cache.semispaceCache n),
+      scope "ex4" $ do
+        replicateM_ 10 $ concurrent (Cache.semispaceCache n)
+        ok
+    ]
   where
     n :: Word
     n = 1000
