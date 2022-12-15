@@ -8,8 +8,8 @@ import qualified Data.Text.Encoding as Text
 import EasyTest
 import Unison.Codebase.Causal (Causal, one)
 import qualified Unison.Codebase.Causal as Causal
-import Unison.ContentAddressable (ContentAddressable (contentHash))
 import qualified Unison.Hash as Hash
+import Unison.Hashing.ContentAddressable (ContentAddressable (contentHash))
 import Unison.Prelude
 
 -- Dummy instances for this test suite. Would probably be better if they weren't orphans.

@@ -37,7 +37,6 @@ import qualified Unison.Codebase.TypeEdit as Memory.TypeEdit
 import qualified Unison.ConstructorReference as Memory.ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.ConstructorType as Memory.ConstructorType
-import Unison.ContentAddressable (ContentAddressable (contentHash))
 import qualified Unison.DataDeclaration as Memory.DD
 import Unison.Hash (Hash, HashFor (HashFor))
 import qualified Unison.Hashing.V2 as Hashing
@@ -344,16 +343,16 @@ m2hPatch (Memory.Patch.Patch termEdits typeEdits) =
       Memory.TypeEdit.Deprecate -> Hashing.TypeEditDeprecate
 
 hashPatch :: Memory.Patch.Patch -> Hash
-hashPatch = contentHash . m2hPatch
+hashPatch = Hashing.contentHash . m2hPatch
 
 hashBranch0 :: Memory.Branch.Branch0 m -> Hash
-hashBranch0 = contentHash . m2hBranch0
+hashBranch0 = Hashing.contentHash . m2hBranch0
 
-hashCausal :: ContentAddressable e => e -> Set CausalHash -> (CausalHash, HashFor e)
+hashCausal :: Hashing.ContentAddressable e => e -> Set CausalHash -> (CausalHash, HashFor e)
 hashCausal e tails =
-  let valueHash = contentHash e
+  let valueHash = Hashing.contentHash e
       causalHash =
-        CausalHash . contentHash $
+        CausalHash . Hashing.contentHash $
           Hashing.Causal valueHash (Set.map unCausalHash tails)
    in (causalHash, HashFor valueHash)
 

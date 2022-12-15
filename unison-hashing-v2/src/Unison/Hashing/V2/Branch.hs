@@ -4,8 +4,8 @@ module Unison.Hashing.V2.Branch
   )
 where
 
-import Unison.ContentAddressable (ContentAddressable (..))
 import Unison.Hash (Hash)
+import Unison.Hashing.ContentAddressable (ContentAddressable (..))
 import Unison.Hashing.V2.NameSegment (NameSegment)
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Referent (Referent)

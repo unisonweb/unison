@@ -33,9 +33,13 @@ module Unison.Hashing.V2
     hashTermComponentsWithoutTypes,
     typeToReference,
     typeToReferenceMentions,
+
+    -- * Re-exports
+    ContentAddressable (..),
   )
 where
 
+import Unison.Hashing.ContentAddressable (ContentAddressable (..))
 import Unison.Hashing.V2.Branch (Branch (..), MdValues (..))
 import Unison.Hashing.V2.Causal (Causal (..))
 import Unison.Hashing.V2.DataDeclaration (DataDeclaration (..), Decl, EffectDeclaration (..), Modifier (..), hashDecls)

@@ -75,6 +75,7 @@ library
     , text
     , unison-core1
     , unison-hash
+    , unison-hashing
     , unison-prelude
     , unison-util
     , unison-util-base32hex

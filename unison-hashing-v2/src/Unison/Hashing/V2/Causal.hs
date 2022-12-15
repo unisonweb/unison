@@ -4,8 +4,8 @@ module Unison.Hashing.V2.Causal
 where
 
 import qualified Data.Set as Set
-import Unison.ContentAddressable (ContentAddressable (..))
 import Unison.Hash (Hash)
+import Unison.Hashing.ContentAddressable (ContentAddressable (..))
 import qualified Unison.Hashing.V2.Tokenizable as H
 import Unison.Prelude
 

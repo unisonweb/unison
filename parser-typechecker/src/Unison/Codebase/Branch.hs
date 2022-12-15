@@ -113,7 +113,7 @@ import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Patch as Patch
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
-import Unison.ContentAddressable (ContentAddressable (contentHash))
+import qualified Unison.Hashing.V2 as Hashing (ContentAddressable (contentHash))
 import qualified Unison.Hashing.V2.Convert as H
 import Unison.Name (Name)
 import qualified Unison.Name as Name
@@ -136,7 +136,7 @@ instance AsEmpty (Branch m) where
         | b0 == empty = Just ()
         | otherwise = Nothing
 
-instance ContentAddressable (Branch0 m) where
+instance Hashing.ContentAddressable (Branch0 m) where
   contentHash = H.hashBranch0
 
 deepReferents :: Branch0 m -> Set Referent

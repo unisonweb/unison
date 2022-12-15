@@ -36,6 +36,9 @@ cradle:
     - path: "lib/unison-hash-orphans-sqlite/src"
       component: "unison-hash-orphans-sqlite:lib"
 
+    - path: "lib/unison-hashing/src"
+      component: "unison-hashing:lib"
+
     - path: "lib/unison-prelude/src"
       component: "unison-prelude:lib"
 

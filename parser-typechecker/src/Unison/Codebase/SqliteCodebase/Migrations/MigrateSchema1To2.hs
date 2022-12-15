@@ -60,7 +60,6 @@ import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbH
 import qualified Unison.Codebase.SqliteCodebase.Operations as CodebaseOps
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.ConstructorType as CT
-import Unison.ContentAddressable (contentHash)
 import qualified Unison.DataDeclaration as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
@@ -241,7 +240,7 @@ migrateCausal oldCausalHashId = fmap (either id id) . runExceptT $ do
   let newCausalHash :: CausalHash
       newCausalHash =
         CausalHash $
-          contentHash
+          Hashing.contentHash
             Hashing.Causal
               { branchHash = unBranchHash newBranchHash,
                 parents = newParentHashes

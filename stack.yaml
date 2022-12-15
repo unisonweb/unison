@@ -28,6 +28,7 @@ packages:
 - lib/unison-hash
 - lib/unison-hash-orphans-aeson
 - lib/unison-hash-orphans-sqlite
+- lib/unison-hashing
 - lib/unison-prelude
 - lib/unison-sqlite
 - lib/unison-util-base32hex

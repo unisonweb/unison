@@ -1,4 +1,4 @@
-module Unison.ContentAddressable
+module Unison.Hashing.ContentAddressable
   ( ContentAddressable (..),
   )
 where

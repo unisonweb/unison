@@ -3,7 +3,7 @@ module Unison.Hashing.V2.Patch
   )
 where
 
-import Unison.ContentAddressable (ContentAddressable (contentHash))
+import Unison.Hashing.ContentAddressable (ContentAddressable (contentHash))
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Referent (Referent)
 import Unison.Hashing.V2.TermEdit (TermEdit)
