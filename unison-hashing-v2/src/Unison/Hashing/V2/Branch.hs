@@ -1,5 +1,5 @@
 module Unison.Hashing.V2.Branch
-  ( Raw (..),
+  ( Branch (..),
     MdValues (..),
   )
 where
@@ -19,17 +19,17 @@ newtype MdValues = MdValues (Set MetadataValue)
   deriving (Eq, Ord, Show)
   deriving (Tokenizable) via Set MetadataValue
 
-data Raw = Raw
+data Branch = Branch
   { terms :: Map NameSegment (Map Referent MdValues),
     types :: Map NameSegment (Map Reference MdValues),
     patches :: Map NameSegment Hash,
     children :: Map NameSegment Hash -- the Causal Hash
   }
 
-instance ContentAddressable Raw where
+instance ContentAddressable Branch where
   contentHash = H.hashTokenizable
 
-instance Tokenizable Raw where
+instance Tokenizable Branch where
   tokens b =
     [ H.accumulateToken (terms b),
       H.accumulateToken (types b),

@@ -43,7 +43,7 @@ syncCausalHash S.SyncCausalFormat {valueHash = valueHashId, parents = parentChId
 dbBranchHash :: S.DbBranch -> Transaction BranchHash
 dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
   fmap (BranchHash . contentHash) $
-    Hashing.Raw
+    Hashing.Branch
       <$> doTerms tms
       <*> doTypes tps
       <*> doPatches patches

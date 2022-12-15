@@ -357,9 +357,9 @@ hashCausal e tails =
           Hashing.Causal valueHash (Set.map Memory.Causal.unCausalHash tails)
    in (causalHash, HashFor valueHash)
 
-m2hBranch0 :: Memory.Branch.Branch0 m -> Hashing.Raw
+m2hBranch0 :: Memory.Branch.Branch0 m -> Hashing.Branch
 m2hBranch0 b =
-  Hashing.Raw
+  Hashing.Branch
     (doTerms (Memory.Branch._terms b))
     (doTypes (Memory.Branch._types b))
     (doPatches (Memory.Branch._edits b))

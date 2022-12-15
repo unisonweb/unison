@@ -3,7 +3,8 @@
 --   * Data types with 'ContentAddressable' instances that correspond to v2 of the Unison hash function.
 --   * Miscellaneous helper functions related to hashing.
 module Unison.Hashing.V2
-  ( Causal (..),
+  ( Branch (..),
+    Causal (..),
     DataDeclaration (..),
     Decl,
     EffectDeclaration (..),
@@ -14,7 +15,6 @@ module Unison.Hashing.V2
     NameSegment (..),
     Patch (..),
     Pattern (..),
-    Raw (..),
     Reference (..),
     pattern ReferenceDerived,
     ReferenceId (..),
@@ -35,7 +35,7 @@ module Unison.Hashing.V2
   )
 where
 
-import Unison.Hashing.V2.Branch (MdValues (..), Raw (..))
+import Unison.Hashing.V2.Branch (Branch (..), MdValues (..))
 import Unison.Hashing.V2.Causal (Causal (..))
 import Unison.Hashing.V2.DataDeclaration (DataDeclaration (..), Decl, EffectDeclaration (..), Modifier (..), hashDecls)
 import Unison.Hashing.V2.Kind (Kind (..))
