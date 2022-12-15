@@ -353,15 +353,16 @@ lsAtPath codebase mayRootBranch absPath = do
   lsBranch codebase b
 
 findShallowReadmeInBranchAndRender ::
+  Pretty.Width ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
   V2Branch.Branch m ->
   Backend IO (Maybe Doc.Doc)
-findShallowReadmeInBranchAndRender runtime codebase ppe namespaceBranch =
+findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
   let renderReadme :: PPED.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
       renderReadme ppe docReference = do
-        doc <- evalDocRef runtime codebase docReference >>= Doc.renderDoc ppe
+        doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc width ppe
         pure doc
 
       -- choose the first term (among conflicted terms) matching any of these names, in this order.
@@ -882,14 +883,10 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
     pure (dr, branchAtPath)
 
   let width = mayDefaultWidth renderWidth
-  let docResults :: PPED.PrettyPrintEnvDecl -> Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
-      docResults pped name = do
+  let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      docResults name = do
         docRefs <- docsForTermName codebase nameSearch name
-        -- render all the docs
-        for docRefs \docRef -> do
-          renderedDoc <- evalDocRef rt codebase docRef >>= Doc.renderDoc pped
-          let docName = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref docRef)
-          pure (docName, Reference.toText docRef, renderedDoc)
+        renderDocRefs backendPPE width codebase rt docRefs
   let mkTermDefinition ::
         PPED.PrettyPrintEnvDecl ->
         Reference ->
@@ -909,7 +906,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
             )
 
         docRefs <- lift (maybe mempty (docsForTermName codebase nameSearch) (HQ.toName hqTermName))
-        renderedDocs <- renderDocRefs backendPPE width codebase rt docRefs
+        renderedDocs <- lift $ renderDocRefs backendPPE width codebase rt docRefs
         mk renderedDocs ts bn tag
         where
           fqnTermPPE = PPED.unsuffixifiedPPE termPPED
@@ -940,7 +937,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         tag <-
           Codebase.runTransaction codebase do
             typeEntryTag <$> typeListEntry codebase branchAtPath (ExactName (NameSegment bn) r)
-        docs <- (maybe mempty (docResults pped) (HQ.toName hqTypeName))
+        docs <- (maybe mempty docResults (HQ.toName hqTypeName))
         pure $
           TypeDefinition
             (HQ'.toText <$> PPE.allTypeNames fqnPPE r)
@@ -953,11 +950,11 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
 
   termAndTypePPED <- PPED.biasTo biases <$> getPPED (definitionResultsDependencies dr) backendPPE
   typeDefinitions <-
-    Map.traverseWithKey (mkTypeDefinition pped) $
-      typesToSyntax suffixifyBindings width pped types
+    Map.traverseWithKey (mkTypeDefinition termAndTypePPED) $
+      typesToSyntax suffixifyBindings width termAndTypePPED types
   termDefinitions <-
-    Map.traverseWithKey (mkTermDefinition pped) $
-      termsToSyntax suffixifyBindings width pped terms
+    Map.traverseWithKey (mkTermDefinition termAndTypePPED) $
+      termsToSyntax suffixifyBindings width termAndTypePPED terms
   let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
       renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
       renderedMisses = fmap HQ.toText misses
@@ -978,18 +975,6 @@ mkNamesStuff biases shallowRoot path codebase = do
   where
     sqliteNameSearch :: NameSearch Sqlite.Transaction
     sqliteNameSearch = undefined
-
--- renderDoc ::
---   PPED.PrettyPrintEnvDecl ->
---   Width ->
---   TermReference ->
---   Doc.EvaluatedDoc Symbol ->
---   IO (HashQualifiedName, UnisonHash, Doc.Doc)
--- renderDoc pped width docRef eDoc = do
---   let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref docRef)
---   let hash = Reference.toText docRef
---   renderedDoc <- Doc.renderDoc pped eDoc
---   pure (name, hash, renderedDoc)
 
 evalDocRef ::
   Rt.Runtime Symbol ->
@@ -1057,12 +1042,12 @@ renderDocRefs ::
   IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
 renderDocRefs backendPPE width codebase rt docRefs = do
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
-  let docDeps = foldMap (Doc.dependencies . snd) eDocs
+  let docDeps = foldMap (Doc.dependencies . snd) eDocs <> Set.fromList (LD.TermReference <$> docRefs)
   docsPPED <- getPPED docDeps backendPPE
   for eDocs \(ref, eDoc) -> do
     let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE docsPPED) width (Referent.Ref ref)
     let hash = Reference.toText ref
-    renderedDoc <- Doc.renderDoc docsPPED eDoc
+    let renderedDoc = Doc.renderDoc width docsPPED eDoc
     pure (name, hash, renderedDoc)
 
 docsInBranchToHtmlFiles ::
@@ -1091,7 +1076,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   where
     renderDoc' ppe runtime codebase (docReferent, name) = do
       let docReference = Referent.toReference docReferent
-      doc <- evalDocRef runtime codebase docReference >>= Doc.renderDoc ppe
+      doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc defaultWidth ppe
       let hash = Reference.toText docReference
       pure (name, hash, doc)
 

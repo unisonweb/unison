@@ -155,6 +155,7 @@ data Src = Src SyntaxText SyntaxText
 evalAndRenderDoc ::
   forall v m.
   (Var v, Monad m) =>
+  P.Width ->
   PPE.PrettyPrintEnvDecl ->
   (Reference -> m (Maybe (Term v ()))) ->
   (Referent -> m (Maybe (Type v ()))) ->
@@ -162,20 +163,21 @@ evalAndRenderDoc ::
   (Reference -> m (Maybe (DD.Decl v ()))) ->
   Term v () ->
   m Doc
-evalAndRenderDoc pped terms typeOf eval types tm =
-  renderDoc pped <$> evalDoc terms typeOf eval types tm
+evalAndRenderDoc width pped terms typeOf eval types tm =
+  renderDoc width pped <$> evalDoc terms typeOf eval types tm
 
 -- | Renders the given doc, which must have been evaluated using 'evalDoc'
 renderDoc ::
   forall v.
   Var v =>
+  P.Width ->
   PPE.PrettyPrintEnvDecl ->
   EvaluatedDoc v ->
   Doc
-renderDoc pped doc = renderSpecial <$> doc
+renderDoc width pped doc = renderSpecial <$> doc
   where
     suffixifiedPPE = PPE.suffixifiedPPE pped
-    formatPretty = fmap Syntax.convertElement . P.render (P.Width 70)
+    formatPretty = fmap Syntax.convertElement . P.render width
 
     formatPrettyType :: PPE.PrettyPrintEnv -> Type v a -> SyntaxText
     formatPrettyType ppe typ = formatPretty (TypePrinter.prettySyntax ppe typ)
