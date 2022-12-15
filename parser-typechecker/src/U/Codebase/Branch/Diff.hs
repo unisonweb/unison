@@ -107,7 +107,6 @@ data NameBasedDiff = NameBasedDiff
 
 instance Monoid NameBasedDiff where
   mempty = NameBasedDiff mempty mempty
-  mappend = (<>)
 
 instance Semigroup NameBasedDiff where
   NameBasedDiff terms0 types0 <> NameBasedDiff terms1 types1 =
@@ -192,13 +191,12 @@ nameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< chil
 
 -- | Get a 'NameBasedDiff' from a 'TreeDiff'.
 nameBasedDiff :: TreeDiff -> NameBasedDiff
-nameBasedDiff (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< children)) =
-  let NameBasedDiff childrenTerms childrenTypes =
-        foldMap (nameBasedDiff . TreeDiff) children
-   in NameBasedDiff
-        { terms = foldMap nameBasedTermDiff termDiffs <> childrenTerms,
-          types = foldMap nameBasedTypeDiff typeDiffs <> childrenTypes
-        }
+nameBasedDiff (TreeDiff defnDiffs) =
+  defnDiffs & foldMap \DefinitionDiffs {termDiffs, typeDiffs} ->
+    NameBasedDiff
+      { terms = foldMap nameBasedTermDiff termDiffs,
+        types = foldMap nameBasedTypeDiff typeDiffs
+      }
   where
     nameBasedTermDiff :: Diff Referent -> Relation Reference Reference
     nameBasedTermDiff Diff {adds, removals} =
