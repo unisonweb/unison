@@ -39,11 +39,9 @@ two.e = 6
 .> diff.namespace.to-patch one two thepatch
 
   Edited Terms:
-    1. one.b#cp6ri8mtg0 -> 6. two.b
-    2. one.b#dcgdua2lj6 -> 7. two.b
-    3. one.a            -> 8. two.a
-    4. one.d            -> 9. two.d
-    5. one.d            -> 10. two.e
+    1. one.b#cp6ri8mtg0 -> 4. two.b
+    2. one.b#dcgdua2lj6 -> 5. two.b
+    3. one.a            -> 6. two.a
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -55,6 +53,5 @@ A summary of the diff:
 * `one.a` -> `two.a` is a normal update.
 * Even though `one.b` is conflicted, both `one.b#hash1` and `one.b#hash2` get mapped to `two.b`.
 * Because `two.c` is conflicted, `one.c` doesn't end up on the left-hand side of the patch.
-* Oops, a similar case slipped by - `one.d` and `one.e` map to `two.d` and `two.e` respectively, but because `one.d` and
-  `one.e` were aliases, we end up with a busted patch that isn't a function. This is a bug.
+* Because `one.d` and `one.e` are aliases, they don't end up on the left-hand side of the patch.
 * Neither `one.f` nor `two.g` end up in the patch because the names `f` and `g are not common to both namespaces.
