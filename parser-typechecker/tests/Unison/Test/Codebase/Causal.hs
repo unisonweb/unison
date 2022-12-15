@@ -1,15 +1,20 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Unison.Test.Codebase.Causal (test) where
 
-import Control.Monad (replicateM_)
-import Data.Functor.Identity (Identity (runIdentity))
-import Data.Int (Int64)
-import Data.Set (Set)
 import qualified Data.Set as Set
+import qualified Data.Text.Encoding as Text
 import EasyTest
 import Unison.Codebase.Causal (Causal, one)
 import qualified Unison.Codebase.Causal as Causal
+import Unison.ContentAddressable (ContentAddressable (contentHash))
+import qualified Unison.Hash as Hash
+import Unison.Prelude
+
+-- Dummy instances for this test suite. Would probably be better if they weren't orphans.
+instance ContentAddressable Int64 where contentHash = Hash.fromByteString . Text.encodeUtf8 . tShow
+instance ContentAddressable (Set Int64) where contentHash = Hash.fromByteString . Text.encodeUtf8 . tShow
 
 test :: Test ()
 test =
