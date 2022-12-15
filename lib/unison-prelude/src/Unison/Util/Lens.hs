@@ -1,6 +1,10 @@
-{-# LANGUAGE ConstraintKinds #-}
-
-module U.Util.Lens where
+module Unison.Util.Lens
+  ( Field1',
+    Field2',
+    Field3',
+    Field4',
+  )
+where
 
 import qualified Control.Lens as Lens
 

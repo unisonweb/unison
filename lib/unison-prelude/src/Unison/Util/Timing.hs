@@ -1,6 +1,8 @@
-{-# LANGUAGE BangPatterns #-}
-
-module U.Util.Timing where
+module Unison.Util.Timing
+  ( time,
+    unsafeTime,
+  )
+where
 
 import Data.Time.Clock (picosecondsToDiffTime)
 import Data.Time.Clock.System (getSystemTime, systemToTAITime)
@@ -26,6 +28,7 @@ time label ma =
       pure a
     else ma
 
+-- Mitchell says: this function doesn't look like it would work at all; let's just delete it
 unsafeTime :: Monad m => String -> m a -> m a
 unsafeTime label ma =
   if Debug.shouldDebug Debug.Timing
