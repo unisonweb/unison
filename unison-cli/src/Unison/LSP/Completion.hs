@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Unison.LSP.Completion where
 
@@ -20,6 +21,7 @@ import Language.LSP.Types.Lens
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.FileAnalysis
 import qualified Unison.LSP.Queries as LSPQ
 import Unison.LSP.Types
@@ -51,10 +53,8 @@ completionHandler m respond =
     (range, prefix) <- VFS.completionPrefix (m ^. params)
     ppe <- PPED.suffixifiedPPE <$> lift globalPPED
     codebaseCompletions <- lift getCodebaseCompletions
-    fileCompletions <- getFileCompletions fileUri
-    let completions = fileCompletions <> codebaseCompletions
     Config {maxCompletions} <- lift getConfig
-    let defMatches = matchCompletions completions prefix
+    let defMatches = matchCompletions codebaseCompletions prefix
     let (isIncomplete, defCompletions) =
           defMatches
             & nubOrdOn (\(p, _name, ref) -> (p, ref))
@@ -67,7 +67,7 @@ completionHandler m respond =
             & mapMaybe \(path, fqn, dep) ->
               let biasedPPE = PPE.biasTo [fqn] ppe
                   hqName = LD.fold (PPE.types biasedPPE) (PPE.terms biasedPPE) dep
-               in hqName <&> \hqName -> mkDefCompletionItem range (Name.toText fqn) path (HQ'.toText hqName) dep
+               in hqName <&> \hqName -> mkDefCompletionItem fileUri range (HQ'.toName hqName) fqn path (HQ'.toText hqName) dep
     pure . CompletionList isIncomplete . List $ defCompletionItems
   where
     -- Takes at most the specified number of completions, but also indicates with a boolean
@@ -76,11 +76,9 @@ completionHandler m respond =
     takeCompletions 0 xs = (not $ null xs, [])
     takeCompletions _ [] = (False, [])
     takeCompletions n (x : xs) = second (x :) $ takeCompletions (pred n) xs
-    getFileCompletions :: Uri -> MaybeT Lsp CompletionTree
-    getFileCompletions fileUri = namesToCompletionTree . fileNames <$> getFileSummary fileUri
 
-mkDefCompletionItem :: Range -> Text -> Text -> Text -> LabeledDependency -> CompletionItem
-mkDefCompletionItem range fqn path suffixified dep =
+mkDefCompletionItem :: Uri -> Range -> Name -> Name -> Text -> Text -> LabeledDependency -> CompletionItem
+mkDefCompletionItem fileUri range relativeName fullyQualifiedName path suffixified dep =
   CompletionItem
     { _label = lbl,
       _kind = case dep of
@@ -89,7 +87,7 @@ mkDefCompletionItem range fqn path suffixified dep =
           Referent.Con {} -> Just CiConstructor
           Referent.Ref {} -> Just CiValue,
       _tags = Nothing,
-      _detail = Just fqn,
+      _detail = Just (Name.toText fullyQualifiedName),
       _documentation = Nothing,
       _deprecated = Nothing,
       _preselect = Nothing,
@@ -102,7 +100,7 @@ mkDefCompletionItem range fqn path suffixified dep =
       _additionalTextEdits = Nothing,
       _commitCharacters = Nothing,
       _command = Nothing,
-      _xdata = Nothing
+      _xdata = Just $ Aeson.toJSON $ CompletionItemDetails {dep, relativeName, fullyQualifiedName, fileUri}
     }
   where
     -- We should generally show the longer of the path or suffixified name in the label,
@@ -257,14 +255,16 @@ matchCompletions (CompletionTree tree) txt =
 
 data CompletionItemDetails = CompletionItemDetails
   { dep :: LD.LabeledDependency,
-    name :: Name,
+    relativeName :: Name,
+    fullyQualifiedName :: Name,
     fileUri :: Uri
   }
 
 instance Aeson.ToJSON CompletionItemDetails where
-  toJSON CompletionItemDetails {dep, name, fileUri} =
+  toJSON CompletionItemDetails {dep, relativeName, fullyQualifiedName, fileUri} =
     Aeson.object
-      [ "name" Aeson..= Name.toText name,
+      [ "relativeName" Aeson..= Name.toText relativeName,
+        "fullyQualifiedName" Aeson..= Name.toText fullyQualifiedName,
         "fileUri" Aeson..= fileUri,
         "dep" Aeson..= ldJSON dep
       ]
@@ -275,11 +275,12 @@ instance Aeson.ToJSON CompletionItemDetails where
         LD.TermReferent ref -> Aeson.object ["kind" Aeson..= ("term" :: Text), "ref" Aeson..= Referent.toText ref]
 
 instance Aeson.FromJSON CompletionItemDetails where
-  parseJSON = Aeson.withObject "CompletionItemDetails" \obj ->
-    CompletionItemDetails
-      <$> ((obj Aeson..: "dep") >>= ldParser)
-      <*> (obj Aeson..: "name" >>= maybe (fail "Invalid name in CompletionItemDetails") pure . Name.fromText)
-      <*> obj Aeson..: "fileUri"
+  parseJSON = Aeson.withObject "CompletionItemDetails" \obj -> do
+    dep <- ((obj Aeson..: "dep") >>= ldParser)
+    relativeName <- (obj Aeson..: "relativeName" >>= maybe (fail "Invalid name in CompletionItemDetails") pure . Name.fromText)
+    fullyQualifiedName <- (obj Aeson..: "fullyQualifiedName" >>= maybe (fail "Invalid name in CompletionItemDetails") pure . Name.fromText)
+    fileUri <- obj Aeson..: "fileUri"
+    pure $ CompletionItemDetails {..}
     where
       ldParser :: Aeson.Value -> Aeson.Parser LD.LabeledDependency
       ldParser = Aeson.withObject "LabeledDependency" \obj -> do
@@ -291,29 +292,30 @@ instance Aeson.FromJSON CompletionItemDetails where
 
 completionItemResolveHandler :: RequestMessage 'CompletionItemResolve -> (Either ResponseError CompletionItem -> Lsp ()) -> Lsp ()
 completionItemResolveHandler message respond = do
-  let completion = message ^. params
+  let completion :: CompletionItem
+      completion = message ^. params
   respond . maybe (Right completion) Right =<< runMaybeT do
     case Aeson.fromJSON <$> (completion ^. xdata) of
-      Just (Aeson.Success (CompletionItemDetails {dep, name, fileUri})) -> do
+      Just (Aeson.Success (CompletionItemDetails {dep, fullyQualifiedName, relativeName, fileUri})) -> do
         pped <- lift $ ppedForFile fileUri
         case dep of
           LD.TermReferent ref -> do
             typ <- LSPQ.getTypeOfReferent fileUri ref
-            let renderedType = Text.pack $ TypePrinter.prettyStr (Just typeWidth) (PPED.suffixifiedPPE pped) typ
-            let doc = CompletionDocMarkup (toUnisonMarkup renderedType)
-            pure $ completion {_detail = Just renderedType, _documentation = Just doc}
+            let renderedType = ": " <> (Text.pack $ TypePrinter.prettyStr (Just typeWidth) (PPED.suffixifiedPPE pped) typ)
+            let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+            pure $ (completion {_detail = Just renderedType, _documentation = Just doc} :: CompletionItem)
           LD.TypeReference ref ->
             case ref of
               Reference.Builtin {} -> do
-                let renderedBuiltin = "<builtin>"
-                let doc = CompletionDocMarkup (toUnisonMarkup renderedBuiltin)
-                pure $ completion {_detail = Just renderedBuiltin, _documentation = Just doc}
+                let renderedBuiltin = ": <builtin>"
+                let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+                pure $ (completion {_detail = Just renderedBuiltin, _documentation = Just doc} :: CompletionItem)
               Reference.DerivedId refId -> do
                 decl <- LSPQ.getTypeDeclaration fileUri refId
-                let renderedDecl = Text.pack . Pretty.toPlain typeWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly name) decl
-                let doc = CompletionDocMarkup (toUnisonMarkup renderedDecl)
-                pure $ completion {_detail = Just renderedDecl, _documentation = Just doc}
+                let renderedDecl = ": " <> (Text.pack . Pretty.toPlain typeWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly relativeName) decl)
+                let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+                pure $ (completion {_detail = Just renderedDecl, _documentation = Just doc} :: CompletionItem)
       _ -> empty
   where
     toUnisonMarkup txt = MarkupContent {_kind = MkMarkdown, _value = Text.unlines ["```unison", txt, "```"]}
-    typeWidth = Pretty.Width 80
+    typeWidth = Pretty.Width 20
