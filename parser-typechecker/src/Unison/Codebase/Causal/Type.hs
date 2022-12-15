@@ -4,7 +4,6 @@
 
 module Unison.Codebase.Causal.Type
   ( Causal (..),
-    CausalHash (..),
     pattern One,
     pattern Cons,
     pattern Merge,
@@ -17,7 +16,8 @@ where
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
-import Unison.Hash (Hash, HashFor (..))
+import U.Codebase.HashTags (CausalHash)
+import Unison.Hash (HashFor (..))
 import Unison.Prelude
 import Prelude hiding (head, read, tail)
 
@@ -40,11 +40,6 @@ import Prelude hiding (head, read, tail)
   * `before c1 (sequence c1 c2)`
   * `head (sequence c1 c2) == head c2`
 -}
-
--- | Represents a hash of a causal containing values of the provided type.
-newtype CausalHash = CausalHash {unCausalHash :: Hash}
-  deriving newtype (Show)
-  deriving stock (Eq, Ord, Generic)
 
 instance (Show e) => Show (Causal m e) where
   show = \case

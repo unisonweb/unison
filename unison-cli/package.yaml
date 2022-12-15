@@ -71,6 +71,7 @@ dependencies:
   - unison-codebase-sqlite
   - unison-codebase-sqlite-hashing-v2
   - unison-sqlite
+  - unison-core
   - unison-core1
   - unison-parser-typechecker
   - unison-prelude

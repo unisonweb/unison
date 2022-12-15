@@ -2,6 +2,7 @@ module Unison.Codebase.BranchDiff where
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import U.Codebase.HashTags (PatchHash)
 import Unison.Codebase.Branch (Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Metadata as Metadata
@@ -57,7 +58,7 @@ diff0 old new = BranchDiff terms types <$> patchDiff old new
 
 patchDiff :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Map Name (DiffType PatchDiff))
 patchDiff old new = do
-  let oldDeepEdits, newDeepEdits :: Map Name (Branch.EditHash, m Patch)
+  let oldDeepEdits, newDeepEdits :: Map Name (PatchHash, m Patch)
       oldDeepEdits = Branch.deepEdits' old
       newDeepEdits = Branch.deepEdits' new
   added <- do

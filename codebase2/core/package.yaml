@@ -10,8 +10,12 @@ library:
 dependencies:
   - base
   - containers
+  - rfc5051
+  - text
   - vector
+  - unison-prelude
   - unison-util
+  - unison-util-base32hex
 
 default-extensions:
   - ApplicativeDo

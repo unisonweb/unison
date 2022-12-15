@@ -20,7 +20,7 @@ import qualified Data.Text as Text
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Branch.Diff as BranchDiff
 import qualified U.Codebase.Causal as V2Causal
-import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash))
+import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash), PatchHash)
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
@@ -36,7 +36,6 @@ import qualified Unison.Builtin as Builtins
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as V1Branch
-import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
@@ -400,10 +399,10 @@ getBranchForHash ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   BranchCache Sqlite.Transaction ->
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
-  Branch.CausalHash ->
+  CausalHash ->
   Transaction (Maybe (Branch Transaction))
 getBranchForHash branchCache doGetDeclType h = do
-  Ops.loadCausalBranchByCausalHash (Cv.causalHash1to2 h) >>= \case
+  Ops.loadCausalBranchByCausalHash h >>= \case
     Nothing -> pure Nothing
     Just causal2 -> do
       branch1 <- Cv.causalbranch2to1 branchCache doGetDeclType causal2
@@ -414,29 +413,29 @@ putBranch =
   void . Ops.saveBranch v2HashHandle . Cv.causalbranch1to2
 
 -- | Check whether the given branch exists in the codebase.
-branchExists :: Branch.CausalHash -> Transaction Bool
-branchExists (Causal.CausalHash h) =
-  Q.loadHashIdByHash h >>= \case
+branchExists :: CausalHash -> Transaction Bool
+branchExists h =
+  Q.loadHashIdByHash (unCausalHash h) >>= \case
     Nothing -> pure False
     Just hId -> Q.isCausalHash hId
 
-getPatch :: Branch.EditHash -> Transaction (Maybe Patch)
+getPatch :: PatchHash -> Transaction (Maybe Patch)
 getPatch h =
   runMaybeT do
-    patchId <- MaybeT (Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h))
+    patchId <- MaybeT (Q.loadPatchObjectIdForPrimaryHash h)
     patch <- lift (Ops.expectPatch patchId)
     pure (Cv.patch2to1 patch)
 
 -- | Put a patch into the codebase.
 --
 -- Note that 'putBranch' may also put patches.
-putPatch :: Branch.EditHash -> Patch -> Transaction ()
+putPatch :: PatchHash -> Patch -> Transaction ()
 putPatch h p =
-  void $ Ops.savePatch v2HashHandle (Cv.patchHash1to2 h) (Cv.patch1to2 p)
+  void $ Ops.savePatch v2HashHandle h (Cv.patch1to2 p)
 
 -- | Check whether the given patch exists in the codebase.
-patchExists :: Branch.EditHash -> Transaction Bool
-patchExists h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h)
+patchExists :: PatchHash -> Transaction Bool
+patchExists h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash h
 
 dependentsImpl :: Q.DependentsSelector -> Reference -> Transaction (Set Reference.Id)
 dependentsImpl selector r =
@@ -554,22 +553,12 @@ referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to
   pure . Set.fromList $ termReferents <> declReferents
 
 -- | Get the set of branches whose hash matches the given prefix.
-causalHashesByPrefix :: ShortCausalHash -> Transaction (Set Branch.CausalHash)
+causalHashesByPrefix :: ShortCausalHash -> Transaction (Set CausalHash)
 causalHashesByPrefix sh = do
   -- given that a Branch is shallow, it's really `CausalHash` that you'd
   -- refer to to specify a full namespace w/ history.
   -- but do we want to be able to refer to a namespace without its history?
-  cs <- Ops.causalHashesByPrefix (Cv.sch1to2 sh)
-  pure $ Set.map (Causal.CausalHash . unCausalHash) cs
-
--- returns `Nothing` to not implemented, fallback to in-memory
---    also `Nothing` if no LCA
--- The result is undefined if the two hashes are not in the codebase.
--- Use `Codebase.lca` which wraps this in a nice API.
-sqlLca :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Branch.CausalHash)
-sqlLca h1 h2 = do
-  h3 <- Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
-  pure (Cv.causalHash2to1 <$> h3)
+  Ops.causalHashesByPrefix (Cv.sch1to2 sh)
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists, declExists :: Hash -> Transaction Bool
@@ -577,9 +566,9 @@ termExists = fmap isJust . Q.loadObjectIdForPrimaryHash
 declExists = termExists
 
 -- `before b1 b2` is undefined if `b2` not in the codebase
-before :: Branch.CausalHash -> Branch.CausalHash -> Transaction Bool
+before :: CausalHash -> CausalHash -> Transaction Bool
 before h1 h2 =
-  fromJust <$> Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
+  fromJust <$> Ops.before h1 h2
 
 -- | Construct a 'ScopedNames' which can produce names which are relative to the provided
 -- Path.
@@ -733,7 +722,7 @@ initializeNameLookupIndexFromV2Root getDeclType = do
     -- Collects two maps, one with all term names and one with all type names.
     -- Note that unlike the `Name` type in `unison-core1`, this list of name segments is
     -- in reverse order, e.g. `["map", "List", "base"]`
-    nameMapsFromV2Branch :: Monad m => [V2Branch.NameSegment] -> V2Branch.CausalBranch m -> m (Map (NonEmpty V2Branch.NameSegment) (Set C.Referent.Referent), Map (NonEmpty V2Branch.NameSegment) (Set C.Reference.Reference))
+    nameMapsFromV2Branch :: Monad m => [NameSegment] -> V2Branch.CausalBranch m -> m (Map (NonEmpty NameSegment) (Set C.Referent.Referent), Map (NonEmpty NameSegment) (Set C.Reference.Reference))
     nameMapsFromV2Branch reversedNamePrefix cb = do
       b <- V2Causal.value cb
       let (shallowTermNames, shallowTypeNames) = (Map.keysSet <$> V2Branch.terms b, Map.keysSet <$> V2Branch.types b)
