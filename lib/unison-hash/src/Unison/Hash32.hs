@@ -1,5 +1,5 @@
 -- | A 512-bit hash, internally represented as base32hex.
-module U.Util.Hash32
+module Unison.Hash32
   ( -- * Hash32 type
     Hash32 (..),
 

@@ -17,7 +17,7 @@ source-repository head
 
 library
   exposed-modules:
-      U.Util.Hash32.Orphans.Aeson
+      Unison.Hash32.Orphans.Aeson
   hs-source-dirs:
       src
   default-extensions:

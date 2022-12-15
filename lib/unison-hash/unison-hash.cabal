@@ -17,8 +17,8 @@ source-repository head
 
 library
   exposed-modules:
-      U.Util.Hash32
       Unison.Hash
+      Unison.Hash32
   hs-source-dirs:
       src
   default-extensions:

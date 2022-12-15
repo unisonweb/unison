@@ -270,13 +270,13 @@ import qualified U.Codebase.Term as C.Term
 import qualified U.Codebase.Type as C.Type
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
-import U.Util.Hash32 (Hash32)
-import qualified U.Util.Hash32 as Hash32
-import U.Util.Hash32.Orphans.Sqlite ()
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
+import Unison.Hash32 (Hash32)
+import qualified Unison.Hash32 as Hash32
+import Unison.Hash32.Orphans.Sqlite ()
 import Unison.Prelude
 import Unison.Sqlite
 import qualified Unison.Util.Alternative as Alternative

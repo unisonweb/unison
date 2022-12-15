@@ -49,10 +49,10 @@ import qualified Servant.Client as Servant
 import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
-import U.Util.Hash32 (Hash32)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Auth.HTTPClient as Auth
 import qualified Unison.Debug as Debug
+import Unison.Hash32 (Hash32)
 import Unison.Prelude
 import Unison.Share.Sync.Types
 import qualified Unison.Sqlite as Sqlite

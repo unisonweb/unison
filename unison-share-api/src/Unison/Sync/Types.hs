@@ -88,8 +88,8 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Servant.Auth.JWT
-import U.Util.Hash32 (Hash32)
-import U.Util.Hash32.Orphans.Aeson ()
+import Unison.Hash32 (Hash32)
+import Unison.Hash32.Orphans.Aeson ()
 import Unison.Prelude
 import qualified Unison.Util.Set as Set
 import qualified Web.JWT as JWT
