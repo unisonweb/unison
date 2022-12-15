@@ -25,6 +25,7 @@ import qualified Data.Zip as Zip
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import qualified Unison.Hashing.V2.ABT as ABT
 import Unison.Hashing.V2.Pattern (Pattern)
@@ -134,9 +135,9 @@ hashClosedTerm :: Var v => Term v a -> Reference.Id
 hashClosedTerm tm = Reference.Id (ABT.hash tm) 0
 
 instance Var v => Hashable1 (F v a p) where
-  hash1 :: forall h x. (Ord h, Hashable.Accumulate h) => ([x] -> ([h], x -> h)) -> (x -> h) -> (F v a p) x -> h
+  hash1 :: forall x. ([x] -> ([Hash], x -> Hash)) -> (x -> Hash) -> (F v a p) x -> Hash
   hash1 hashCycle hash e =
-    let varint :: Integral i => i -> Hashable.Token h
+    let varint :: Integral i => i -> Hashable.Token
         varint = Hashable.Nat . fromIntegral
         tag = Hashable.Tag
         hashed = Hashable.Hashed
@@ -146,11 +147,11 @@ instance Var v => Hashable1 (F v a p) where
           -- are 'transparent' wrt hash and hashing is unaffected by whether
           -- expressions are linked. So for example `x = 1 + 1` and `y = x` hash
           -- the same.
-          Ref (Reference.Derived h 0) -> Hashable.fromBytes (Hash.toByteString h)
+          Ref (Reference.Derived h 0) -> Hash.fromByteString (Hash.toByteString h)
           Ref (Reference.Derived h i) ->
             Hashable.accumulate
               [ tag 1,
-                hashed $ Hashable.fromBytes (Hash.toByteString h),
+                hashed $ Hash.fromByteString (Hash.toByteString h),
                 Hashable.Nat i
               ]
           -- Note: start each layer with leading `1` byte, to avoid collisions

@@ -6,6 +6,7 @@ module Unison.Hash
     HashFor (..),
     base32Hex,
     fromBase32Hex,
+    Hash.fromByteString,
     Hash.toByteString,
     validBase32HexChars,
   )
