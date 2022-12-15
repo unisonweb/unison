@@ -3,7 +3,7 @@ module Unison.Hashing.ContentAddressable
   )
 where
 
-import U.Util.Hash (Hash)
+import Unison.Hash (Hash)
 
 -- | A type class that is inhabited by types that can compute a hash of their content.
 --

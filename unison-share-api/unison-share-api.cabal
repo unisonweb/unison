@@ -45,6 +45,7 @@ library
       ConstraintKinds
       DeriveAnyClass
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -62,6 +63,7 @@ library
       PatternSynonyms
       RankNTypes
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
       TypeApplications
       TypeOperators

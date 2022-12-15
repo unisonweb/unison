@@ -4,8 +4,10 @@ github: unisonweb/unison
 default-extensions:
   - ApplicativeDo
   - BlockArguments
+  - DeriveFoldable
   - DeriveFunctor
   - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts

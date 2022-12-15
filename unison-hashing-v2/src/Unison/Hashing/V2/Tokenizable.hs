@@ -15,8 +15,8 @@ import Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString, word64BE)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import U.Util.Hash (Hash)
-import qualified U.Util.Hash as Hash
+import Unison.Hash (Hash)
+import qualified Unison.Hash as Hash
 import Unison.Prelude
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as Relation
@@ -131,7 +131,7 @@ accumulate = Hash.fromByteString . BA.convert . CH.hashFinalize . go CH.hashInit
     toBS (Double d) = [BL.toStrict . toLazyByteString . doubleBE $ d]
     toBS (Text txt) =
       let tbytes = encodeUtf8 txt
-        in [encodeLength (B.length tbytes), tbytes]
+       in [encodeLength (B.length tbytes), tbytes]
     toBS (Hashed h) = [Hash.toByteString h]
     encodeLength :: Integral n => n -> B.ByteString
     encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral

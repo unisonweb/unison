@@ -70,6 +70,7 @@ default-extensions:
   - ConstraintKinds
   - DeriveAnyClass
   - DeriveFunctor
+  - DeriveGeneric
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
@@ -87,6 +88,7 @@ default-extensions:
   - PatternSynonyms
   - RankNTypes
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
   - TypeOperators

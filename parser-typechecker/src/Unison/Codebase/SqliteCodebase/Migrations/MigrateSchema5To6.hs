@@ -53,7 +53,7 @@ oldReflogEntries reflogPath now =
       -- least puts them in the correct order chronologically.
       let offsetTime = addUTCTime (negate $ fromInteger @NominalDiffTime n) now
        in case Text.words txt of
-            (Hash.fromBase32Hex -> Just old) : (Hash.fromBase32Hex -> Just new) : (Text.unwords -> reason) ->
+            (Hash.fromBase32HexText -> Just old) : (Hash.fromBase32HexText -> Just new) : (Text.unwords -> reason) ->
               Just $
                 Reflog.Entry
                   { time = offsetTime,

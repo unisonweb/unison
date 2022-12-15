@@ -315,8 +315,8 @@ setCacheControl = addHeader @"Cache-Control" "public"
 
 branchToUnisonHash :: Branch.Branch m -> UnisonHash
 branchToUnisonHash b =
-  ("#" <>) . Hash.base32Hex . unCausalHash $ Branch.headHash b
+  ("#" <>) . Hash.toBase32HexText . unCausalHash $ Branch.headHash b
 
 v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
 v2CausalBranchToUnisonHash b =
-  ("#" <>) . Hash.base32Hex . unCausalHash $ V2Causal.causalHash b
+  ("#" <>) . Hash.toBase32HexText . unCausalHash $ V2Causal.causalHash b
