@@ -46,7 +46,6 @@ import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.List as List
-import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.SyntaxText as S
 import Unison.Var (Var)
@@ -164,18 +163,16 @@ evalAndRenderDoc ::
   Term v () ->
   m Doc
 evalAndRenderDoc pped terms typeOf eval types tm =
-  eval tm >>= \case
-    Nothing -> pure $ Word "🆘 doc rendering failed during evaluation"
-    Just tm -> evalDoc terms typeOf eval types tm >>= renderDoc pped
+  renderDoc pped <$> evalDoc terms typeOf eval types tm
 
 -- | Renders the given doc, which must have been evaluated using 'evalDoc'
 renderDoc ::
-  forall v m.
-  (Var v, Monad m) =>
+  forall v.
+  Var v =>
   PPE.PrettyPrintEnvDecl ->
   EvaluatedDoc v ->
-  m Doc
-renderDoc pped doc = traverse renderSpecial doc
+  Doc
+renderDoc pped doc = renderSpecial <$> doc
   where
     suffixifiedPPE = PPE.suffixifiedPPE pped
     formatPretty = fmap Syntax.convertElement . P.render (P.Width 70)
@@ -183,87 +180,83 @@ renderDoc pped doc = traverse renderSpecial doc
     formatPrettyType :: PPE.PrettyPrintEnv -> Type v a -> SyntaxText
     formatPrettyType ppe typ = formatPretty (TypePrinter.prettySyntax ppe typ)
 
-    source :: Term v () -> m SyntaxText
-    source tm = pure . formatPretty $ TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped) tm
+    source :: Term v () -> SyntaxText
+    source tm = formatPretty $ TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped) tm
 
-    goSignatures :: [(Referent, Type v ())] -> m [P.Pretty SSyntaxText]
+    goSignatures :: [(Referent, Type v ())] -> [P.Pretty SSyntaxText]
     goSignatures types =
-      pure . fmap P.group $
+      fmap P.group $
         TypePrinter.prettySignaturesST
           (PPE.suffixifiedPPE pped)
           [(r, PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r, ty) <- types]
 
-    renderSpecial :: EvaluatedSpecialForm v -> m RenderedSpecialForm
+    renderSpecial :: EvaluatedSpecialForm v -> RenderedSpecialForm
     renderSpecial = \case
-      ESource srcs -> Source <$> renderSrc srcs
-      EFoldedSource srcs -> FoldedSource <$> renderSrc srcs
-      EExample trm -> Example <$> source trm
-      EExampleBlock trm -> ExampleBlock <$> source trm
+      ESource srcs -> Source (renderSrc srcs)
+      EFoldedSource srcs -> FoldedSource (renderSrc srcs)
+      EExample trm -> Example (source trm)
+      EExampleBlock trm -> ExampleBlock (source trm)
       ELink ref ->
         let ppe = PPE.suffixifiedPPE pped
             tm :: Referent -> P.Pretty SSyntaxText
             tm r = (NP.styleHashQualified'' (NP.fmt (S.TermReference r)) . PPE.termName ppe) r
             ty :: Reference -> P.Pretty SSyntaxText
             ty r = (NP.styleHashQualified'' (NP.fmt (S.TypeReference r)) . PPE.typeName ppe) r
-         in Link <$> case ref of
+         in Link $ case ref of
               Left trm -> source trm
               Right ld -> case ld of
-                LD.TermReferent r -> (pure . formatPretty . tm) r
-                LD.TypeReference r -> (pure . formatPretty . ty) r
-      ESignature rs -> goSignatures rs <&> \s -> Signature (map formatPretty s)
-      ESignatureInline r -> goSignatures [r] <&> \s -> SignatureInline (formatPretty (P.lines s))
-      EEval trm result -> do
-        renderedTrm <- source trm
-        case result of
-          Nothing -> pure $ Eval renderedTrm evalErrMsg
-          Just renderedResult -> Eval renderedTrm <$> source renderedResult
-      EEvalInline trm result -> do
-        renderedTrm <- source trm
-        case result of
-          Nothing -> pure $ EvalInline renderedTrm evalErrMsg
-          Just renderedResult -> EvalInline renderedTrm <$> source renderedResult
-      EEmbed any -> source any <&> \p -> Embed ("{{ embed {{" <> p <> "}} }}")
-      EEmbedInline any -> source any <&> \p -> EmbedInline ("{{ embed {{" <> p <> "}} }}")
-      EVideo sources config -> pure $ Video sources config
-      EFrontMatter frontMatter -> pure $ FrontMatter frontMatter
-      ERenderError (InvalidTerm tm) -> source tm <&> \p -> Embed ("🆘  unable to render " <> p)
+                LD.TermReferent r -> (formatPretty . tm) r
+                LD.TypeReference r -> (formatPretty . ty) r
+      ESignature rs -> Signature (map formatPretty $ goSignatures rs)
+      ESignatureInline r -> SignatureInline (formatPretty (P.lines $ goSignatures [r]))
+      EEval trm result ->
+        let renderedTrm = source trm
+         in case result of
+              Nothing -> Eval renderedTrm evalErrMsg
+              Just renderedResult -> Eval renderedTrm (source renderedResult)
+      EEvalInline trm result ->
+        let renderedTrm = source trm
+         in case result of
+              Nothing -> EvalInline renderedTrm evalErrMsg
+              Just renderedResult -> EvalInline renderedTrm (source renderedResult)
+      EEmbed any -> Embed ("{{ embed {{" <> source any <> "}} }}")
+      EEmbedInline any -> EmbedInline ("{{ embed {{" <> source any <> "}} }}")
+      EVideo sources config -> Video sources config
+      EFrontMatter frontMatter -> FrontMatter frontMatter
+      ERenderError (InvalidTerm tm) -> Embed ("🆘  unable to render " <> source tm)
 
     evalErrMsg :: SyntaxText
     evalErrMsg = "🆘  An error occured during evaluation"
 
-    renderSrc :: [EvaluatedSrc v] -> m [Ref (UnisonHash, DisplayObject SyntaxText Src)]
+    renderSrc :: [EvaluatedSrc v] -> [Ref (UnisonHash, DisplayObject SyntaxText Src)]
     renderSrc srcs =
-      srcs & foldMapM \case
+      srcs & foldMap \case
         EvaluatedSrcDecl srcDecl -> case srcDecl of
-          MissingDecl r -> pure [(Type (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r)))]
-          BuiltinDecl r -> do
+          MissingDecl r -> [(Type (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r)))]
+          BuiltinDecl r ->
             let name =
                   formatPretty . NP.styleHashQualified (NP.fmt (S.TypeReference r))
                     . PPE.typeName suffixifiedPPE
                     $ r
-            pure [Type (Reference.toText r, DO.BuiltinObject name)]
-            where
-
-          FoundDecl r decl -> do
-            pure $ [Type (Reference.toText r, DO.UserObject (Src folded full))]
+             in [Type (Reference.toText r, DO.BuiltinObject name)]
+          FoundDecl r decl -> [Type (Reference.toText r, DO.UserObject (Src folded full))]
             where
               full = formatPretty (DeclPrinter.prettyDecl pped r (PPE.typeName suffixifiedPPE r) decl)
               folded = formatPretty (DeclPrinter.prettyDeclHeader (PPE.typeName suffixifiedPPE r) decl)
         EvaluatedSrcTerm srcTerm -> case srcTerm of
-          MissingBuiltinTypeSig r -> pure [(Type (Reference.toText r, DO.BuiltinObject "🆘 missing type signature"))]
-          BuiltinTypeSig r typ -> do
-            pure $ [Type (Reference.toText r, DO.BuiltinObject (formatPrettyType suffixifiedPPE typ))]
-          MissingTerm r -> pure [Term (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r))]
-          FoundTerm ref typ tm -> do
+          MissingBuiltinTypeSig r -> [(Type (Reference.toText r, DO.BuiltinObject "🆘 missing type signature"))]
+          BuiltinTypeSig r typ -> [Type (Reference.toText r, DO.BuiltinObject (formatPrettyType suffixifiedPPE typ))]
+          MissingTerm r -> [Term (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r))]
+          FoundTerm ref typ tm ->
             let name = PPE.termName suffixifiedPPE (Referent.Ref ref)
-            let folded =
+                folded =
                   formatPretty . P.lines $
                     TypePrinter.prettySignaturesST suffixifiedPPE [(Referent.Ref ref, name, typ)]
-            let full tm@(Term.Ann' _ _) _ =
+                full tm@(Term.Ann' _ _) _ =
                   formatPretty (TermPrinter.prettyBinding suffixifiedPPE name tm)
                 full tm typ =
                   formatPretty (TermPrinter.prettyBinding suffixifiedPPE name (Term.ann () tm typ))
-            pure [Term (Reference.toText ref, DO.UserObject (Src folded (full tm typ)))]
+             in [Term (Reference.toText ref, DO.UserObject (Src folded (full tm typ)))]
 
 -- | Evaluates the given doc, expanding transclusions, expressions, etc.
 evalDoc ::
@@ -275,7 +268,10 @@ evalDoc ::
   (Reference -> m (Maybe (DD.Decl v ()))) ->
   Term v () ->
   m (EvaluatedDoc v)
-evalDoc terms typeOf eval types tm = go tm
+evalDoc terms typeOf eval types tm =
+  eval tm >>= \case
+    Nothing -> pure $ Word "🆘 doc rendering failed during evaluation"
+    Just tm -> go tm
   where
     go :: Term v () -> m (EvaluatedDoc v)
     go = \case
