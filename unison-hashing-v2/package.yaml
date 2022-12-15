@@ -21,6 +21,8 @@ dependencies:
   - unison-util-relation
 
 library:
+  exposed-modules:
+    Unison.Hashing.V2
   source-dirs: src
   when:
     - condition: false

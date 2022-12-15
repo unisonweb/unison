@@ -52,13 +52,14 @@ import Unison.Codebase.Causal.Type
     pattern Merge,
     pattern One,
   )
+import Unison.ContentAddressable (ContentAddressable)
+import Unison.Hash (HashFor (HashFor))
 import qualified Unison.Hashing.V2.Convert as Hashing
-import Unison.Hashing.V2.Hashable (HashFor (HashFor), Hashable)
 import Unison.Prelude
 import Prelude hiding (head, read, tail)
 
 -- | Focus the current head, keeping the hash up to date.
-head_ :: Hashable e => Lens.Lens' (Causal m e) e
+head_ :: ContentAddressable e => Lens.Lens' (Causal m e) e
 head_ = Lens.lens getter setter
   where
     getter = head
@@ -74,7 +75,7 @@ head_ = Lens.lens getter setter
 -- (or is equal to `c2` if `c1` changes nothing).
 squashMerge' ::
   forall m e.
-  (Monad m, Hashable e, Eq e) =>
+  (Monad m, ContentAddressable e, Eq e) =>
   (Causal m e -> Causal m e -> m (Maybe (Causal m e))) ->
   (e -> m e) ->
   (Maybe e -> e -> e -> m e) ->
@@ -93,7 +94,7 @@ squashMerge' lca discardHistory combine c1 c2 = do
 
 threeWayMerge ::
   forall m e.
-  (Monad m, Hashable e) =>
+  (Monad m, ContentAddressable e) =>
   (Maybe e -> e -> e -> m e) ->
   Causal m e ->
   Causal m e ->
@@ -102,7 +103,7 @@ threeWayMerge = threeWayMerge' lca
 
 threeWayMerge' ::
   forall m e.
-  (Monad m, Hashable e) =>
+  (Monad m, ContentAddressable e) =>
   (Causal m e -> Causal m e -> m (Maybe (Causal m e))) ->
   (Maybe e -> e -> e -> m e) ->
   Causal m e ->
@@ -138,11 +139,11 @@ beforeHash maxDepth h c =
           State.modify' (<> Set.fromList cs)
           Monad.anyM (Reader.local (1 +) . go) unseens
 
-stepDistinct :: (Applicative m, Eq e, Hashable e) => (e -> e) -> Causal m e -> Causal m e
+stepDistinct :: (Applicative m, Eq e, ContentAddressable e) => (e -> e) -> Causal m e -> Causal m e
 stepDistinct f c = f (head c) `consDistinct` c
 
 stepDistinctM ::
-  (Applicative m, Functor n, Eq e, Hashable e) =>
+  (Applicative m, Functor n, Eq e, ContentAddressable e) =>
   (e -> n e) ->
   Causal m e ->
   n (Causal m e)
@@ -150,12 +151,12 @@ stepDistinctM f c = (`consDistinct` c) <$> f (head c)
 
 -- | Causal construction should go through here for uniformity;
 -- with an exception for `one`, which avoids an Applicative constraint.
-fromList :: (Applicative m, Hashable e) => e -> [Causal m e] -> Causal m e
+fromList :: (Applicative m, ContentAddressable e) => e -> [Causal m e] -> Causal m e
 fromList e cs =
   fromListM e (map (\c -> (currentHash c, pure c)) cs)
 
 -- | Construct a causal from a list of predecessors. The predecessors may be given in any order.
-fromListM :: Hashable e => e -> [(CausalHash, m (Causal m e))] -> Causal m e
+fromListM :: ContentAddressable e => e -> [(CausalHash, m (Causal m e))] -> Causal m e
 fromListM e ts =
   case ts of
     [] -> UnsafeOne ch eh e
@@ -165,21 +166,21 @@ fromListM e ts =
     (ch, eh) = (Hashing.hashCausal e (Set.fromList (map fst ts)))
 
 -- | An optimized variant of 'fromListM' for when it is known we have 2+ predecessors (merge node).
-mergeNode :: Hashable e => e -> Map (CausalHash) (m (Causal m e)) -> Causal m e
+mergeNode :: ContentAddressable e => e -> Map (CausalHash) (m (Causal m e)) -> Causal m e
 mergeNode newHead predecessors =
   let (ch, eh) = Hashing.hashCausal newHead (Map.keysSet predecessors)
    in UnsafeMerge ch eh newHead predecessors
 
 -- duplicated logic here instead of delegating to `fromList` to avoid `Applicative m` constraint.
-one :: Hashable e => e -> Causal m e
+one :: ContentAddressable e => e -> Causal m e
 one e = UnsafeOne ch eh e
   where
     (ch, eh) = Hashing.hashCausal e mempty
 
-cons :: (Applicative m, Hashable e) => e -> Causal m e -> Causal m e
+cons :: (Applicative m, ContentAddressable e) => e -> Causal m e -> Causal m e
 cons e tail = fromList e [tail]
 
-consDistinct :: (Applicative m, Eq e, Hashable e) => e -> Causal m e -> Causal m e
+consDistinct :: (Applicative m, Eq e, ContentAddressable e) => e -> Causal m e -> Causal m e
 consDistinct e tl =
   if head tl == e
     then tl

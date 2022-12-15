@@ -17,11 +17,13 @@ source-repository head
 
 library
   exposed-modules:
+      Unison.Hashing.V2
+  other-modules:
       Unison.Hashing.V2.ABT
       Unison.Hashing.V2.Branch
       Unison.Hashing.V2.Causal
+      Unison.Hashing.V2.ConstructorId
       Unison.Hashing.V2.DataDeclaration
-      Unison.Hashing.V2.Hashable
       Unison.Hashing.V2.Kind
       Unison.Hashing.V2.NameSegment
       Unison.Hashing.V2.Patch
