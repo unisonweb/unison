@@ -9,12 +9,12 @@ import EasyTest
 import Unison.Codebase.Causal (Causal, one)
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Hash as Hash
-import Unison.Hashing.ContentAddressable (ContentAddressable (contentHash))
+import qualified Unison.Hashing.V2 as Hashing
 import Unison.Prelude
 
 -- Dummy instances for this test suite. Would probably be better if they weren't orphans.
-instance ContentAddressable Int64 where contentHash = Hash.fromByteString . Text.encodeUtf8 . tShow
-instance ContentAddressable (Set Int64) where contentHash = Hash.fromByteString . Text.encodeUtf8 . tShow
+instance Hashing.ContentAddressable Int64 where contentHash = Hash.fromByteString . Text.encodeUtf8 . tShow
+instance Hashing.ContentAddressable (Set Int64) where contentHash = Hash.fromByteString . Text.encodeUtf8 . tShow
 
 test :: Test ()
 test =
