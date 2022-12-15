@@ -995,7 +995,7 @@ renderDoc ppe width rt codebase r = do
   let hash = Reference.toText r
   (name,hash,)
     <$> let tm = Term.ref () r
-         in Doc.renderDoc
+         in Doc.evalAndRenderDoc
               ppe
               terms
               typeOf
