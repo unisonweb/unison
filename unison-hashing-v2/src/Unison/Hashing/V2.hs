@@ -1,4 +1,5 @@
--- | Description: This module exports:
+-- |
+-- This module exports:
 --
 --   * Data types with 'ContentAddressable' instances that correspond to v2 of the Unison hash function.
 --   * Miscellaneous helper functions related to hashing.
