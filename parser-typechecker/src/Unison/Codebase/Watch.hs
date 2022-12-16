@@ -11,16 +11,18 @@ import Control.Concurrent
   )
 import qualified Control.Concurrent.STM as STM
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Time.Clock
   ( UTCTime,
     diffUTCTime,
   )
 import System.FSNotify (Event (Added, Modified))
 import qualified System.FSNotify as FSNotify
+import qualified System.FilePath as FilePath
 import Unison.Prelude
 import Unison.Util.TQueue (TQueue)
 import qualified Unison.Util.TQueue as TQueue
-import UnliftIO.Exception (catch)
+import UnliftIO.Exception (catch, tryAny)
 import UnliftIO.IORef
   ( newIORef,
     readIORef,
@@ -33,7 +35,7 @@ import UnliftIO.MVar
     tryPutMVar,
     tryTakeMVar,
   )
-import UnliftIO.STM (atomically)
+import UnliftIO.STM hiding (TQueue)
 
 untilJust :: Monad m => m (Maybe a) -> m a
 untilJust act = act >>= maybe (untilJust act) return
@@ -148,3 +150,26 @@ watchDirectory dir allow = do
               process file t
       cancel = cancelWatch >> killThread enqueuer
   pure (cancel, await)
+
+withScratchFileWatcher :: MonadUnliftIO m => FilePath -> (STM FilePath -> m ()) -> m ()
+withScratchFileWatcher path action = do
+  let config = FSNotify.defaultConfig {FSNotify.confDebounce = FSNotify.NoDebounce}
+  let eventFilter evt = FilePath.takeExtension (FSNotify.eventPath evt) == ".u" && not (FSNotify.eventIsDirectory evt)
+  dirtyFilesVar <- newTVarIO Set.empty
+  let handler :: Event -> IO ()
+      handler evt = do
+        atomically $ do
+          files <- readTVar dirtyFilesVar
+          writeTVar dirtyFilesVar $ Set.insert (FSNotify.eventPath evt) files
+  toIO <- askRunInIO
+  let getChangedFile = do
+        files <- readTVar dirtyFilesVar
+        case Set.minView files of
+          Nothing -> STM.retry
+          Just (a, files) -> do
+            writeTVar dirtyFilesVar files
+            pure a
+  liftIO $
+    FSNotify.withManagerConf config $ \mgr -> do
+      void . tryAny $ FSNotify.watchDir mgr path eventFilter handler
+      toIO $ action getChangedFile

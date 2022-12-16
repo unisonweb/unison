@@ -4,8 +4,8 @@ module Unison.CommandLine.Main
 where
 
 import Compat (withInterruptHandler)
-import qualified Control.Concurrent.Async as Async
-import Control.Exception (catch, finally, mask)
+import Control.Concurrent.Async (withAsync)
+import Control.Exception (catch, mask)
 import Control.Lens ((?~), (^.))
 import Control.Monad.Catch (MonadMask)
 import qualified Crypto.Random as Random
@@ -29,11 +29,12 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
-import Unison.Codebase.Editor.Input (Event, Input (..))
+import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
+import qualified Unison.Codebase.Watch as Watch
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import qualified Unison.CommandLine.InputPatterns as IP
@@ -47,7 +48,6 @@ import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
 import UnliftIO.STM
 
@@ -107,7 +107,7 @@ main ::
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome initialPath config initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
+main dir welcome initialPath config initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange _shouldWatchFiles = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   _ <- Ki.fork scope $ do
@@ -133,13 +133,9 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
             pure (Just currentRoot)
           loop currentRoot
     loop Nothing
-  eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
   initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
   pageOutput <- newIORef True
-  cancelFileSystemWatch <- case shouldWatchFiles of
-    ShouldNotWatchFiles -> pure (pure ())
-    ShouldWatchFiles -> watchFileSystem eventQueue dir
   credentialManager <- newCredentialManager
   let tokenProvider = AuthN.newTokenProvider credentialManager
   authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
@@ -175,24 +171,23 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
                     (putPrettyLnUnpaged o)
               )
 
-  let cleanup :: IO ()
-      cleanup = cancelFileSystemWatch
-      awaitInput :: Cli.LoopState -> IO (Either Event Input)
-      awaitInput loopState = do
+  let awaitInput :: STM FilePath -> Cli.LoopState -> IO (Either Event Input)
+      awaitInput getDirtyFile loopState = do
         -- use up buffered input before consulting external events
         readIORef initialInputsRef >>= \case
           h : t -> writeIORef initialInputsRef t >> pure h
-          [] ->
-            -- Race the user input and file watch.
-            Async.race (atomically $ Q.peek eventQueue) (getInput loopState) >>= \case
-              Left _ -> do
-                let e = Left <$> atomically (Q.dequeue eventQueue)
-                writeIORef pageOutput False
-                e
-              x -> do
-                writeIORef pageOutput True
-                pure x
-
+          [] -> do
+            v <- newTVarIO Nothing
+            withAsync (getInput loopState >>= atomically . (writeTVar v) . Just) \_ -> do
+              -- Race the user input and file watch.
+              atomically ((Left <$> (readTVar v >>= altMap pure)) <|> (Right <$> getDirtyFile)) >>= \case
+                Left x -> do
+                  writeIORef pageOutput True
+                  pure (Right x)
+                Right filePath -> do
+                  text <- readUtf8 filePath
+                  writeIORef pageOutput False
+                  pure . Left $ UnisonFileChanged (Text.pack filePath) text
   let env =
         Cli.Env
           { authHTTPClient,
@@ -213,12 +208,12 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
 
   (onInterrupt, waitForInterrupt) <- buildInterruptHandler
 
-  mask \restore -> do
+  mask \restore -> Watch.withScratchFileWatcher dir \getDirtyFile -> do
     -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
     let loop0 :: Cli.LoopState -> IO ()
         loop0 s0 = do
           let step = do
-                input <- awaitInput s0
+                input <- awaitInput getDirtyFile s0
                 (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
                 let sNext = case input of
                       Left _ -> resultState
@@ -240,7 +235,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
                 Cli.Continue -> loop0 s1
                 Cli.HaltRepl -> pure ()
 
-    withInterruptHandler onInterrupt (loop0 initialState `finally` cleanup)
+    withInterruptHandler onInterrupt (loop0 initialState)
 
 -- | Installs a posix interrupt handler for catching SIGINT.
 -- This replaces GHC's default sigint handler which throws a UserInterrupt async exception
