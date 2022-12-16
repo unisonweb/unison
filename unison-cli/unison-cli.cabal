@@ -129,6 +129,7 @@ library
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -252,6 +253,7 @@ executable cli-integration-tests
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -371,6 +373,7 @@ executable transcripts
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -496,6 +499,7 @@ executable unison
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -627,6 +631,7 @@ test-suite cli-tests
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes

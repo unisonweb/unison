@@ -277,6 +277,7 @@ data Output
   | IntegrityCheck IntegrityResult
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
+  | ClearScreen
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -424,6 +425,7 @@ isFailure o = case o of
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
   DisplayDebugNameDiff {} -> False
+  ClearScreen -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
