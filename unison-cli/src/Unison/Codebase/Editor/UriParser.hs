@@ -23,6 +23,7 @@ import Unison.Codebase.Editor.RemoteRepo
     ReadRemoteNamespace (..),
     ReadShareRemoteNamespace (..),
     ShareCodeserver (DefaultCodeserver),
+    ShareUserHandle (..),
     WriteGitRemotePath (..),
     WriteGitRepo (..),
     WriteRemotePath (..),
@@ -33,7 +34,6 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import qualified Unison.Hash as Hash
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer
 import qualified Unison.Util.Pretty as P
@@ -109,8 +109,18 @@ readShareRemoteNamespace = do
 
 -- | We're lax in our share user rules here, Share is the source of truth
 -- for this stuff and can provide better error messages if required.
+--
+-- >>> P.parseMaybe shareUserHandle "unison"
+-- Just (ShareUserHandle {shareUserHandleToText = "unison"})
+--
+-- >>> P.parseMaybe shareUserHandle "unison-1337"
+-- Just (ShareUserHandle {shareUserHandleToText = "unison-1337"})
+--
+-- >>> P.parseMaybe shareUserHandle "@unison"
+-- Just (ShareUserHandle {shareUserHandleToText = "unison"})
 shareUserHandle :: P ShareUserHandle
 shareUserHandle = do
+  _ <- optional (C.char '@')
   ShareUserHandle . Text.pack <$> P.some (P.satisfy \c -> isAlphaNum c || c == '-' || c == '_')
 
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)#asdf"
