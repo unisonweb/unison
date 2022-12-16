@@ -17,6 +17,10 @@ source-repository head
   type: git
   location: https://github.com/unisonweb/unison
 
+flag arraychecks
+  manual: True
+  default: False
+
 flag optimized
   manual: True
   default: True
@@ -103,6 +107,7 @@ library
       Unison.Result
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Serialize
+      Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
@@ -301,6 +306,8 @@ library
     , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
   default-language: Haskell2010
 
 test-suite parser-typechecker-tests
@@ -489,4 +496,6 @@ test-suite parser-typechecker-tests
     , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
   default-language: Haskell2010
