@@ -57,9 +57,11 @@ import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRepo,
     ReadRemoteNamespace,
+    ShareUserHandle (..),
     WriteGitRepo,
     WriteRemotePath (..),
     WriteShareRemotePath (..),
+    shareUserHandleToText,
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
@@ -1867,7 +1869,7 @@ notifyUser dir o = case o of
       ( WriteRemotePathShare
           WriteShareRemotePath
             { server = RemoteRepo.DefaultCodeserver,
-              repo = Share.unRepoName (Share.pathRepoName sharePath),
+              repo = ShareUserHandle $ Share.unRepoName (Share.pathRepoName sharePath),
               path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
             }
       )
@@ -1908,7 +1910,7 @@ prettyShareLink WriteShareRemotePath {repo, path} =
         Path.toList path
           & fmap (URI.encodeText . NameSegment.toText)
           & Text.intercalate "/"
-   in P.green . P.text $ shareOrigin <> "/@" <> repo <> "/p/code/latest/namespaces/" <> encodedPath
+   in P.green . P.text $ shareOrigin <> "/@" <> shareUserHandleToText repo <> "/p/code/latest/namespaces/" <> encodedPath
 
 prettyFilePath :: FilePath -> Pretty
 prettyFilePath fp =
