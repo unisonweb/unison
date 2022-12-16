@@ -1,4 +1,14 @@
-module Unison.Util.Monoid where
+module Unison.Util.Monoid
+  ( foldMapM,
+    Unison.Util.Monoid.fromMaybe,
+    intercalateMap,
+    intercalateMapM,
+    isEmpty,
+    nonEmpty,
+    Unison.Util.Monoid.unlessM,
+    whenM,
+  )
+where
 
 import Data.List (intersperse)
 import Unison.Prelude hiding (whenM)
@@ -8,6 +18,9 @@ import Unison.Prelude hiding (whenM)
 intercalateMap :: (Foldable t, Monoid a) => a -> (b -> a) -> t b -> a
 intercalateMap separator renderer elements =
   mconcat $ intersperse separator (renderer <$> toList elements)
+
+intercalateMapM :: (Traversable t, Monad m, Monoid a) => a -> (b -> m a) -> t b -> m a
+intercalateMapM separator renderer = traverse renderer >=> return . intercalateMap separator id
 
 fromMaybe :: Monoid a => Maybe a -> a
 fromMaybe Nothing = mempty

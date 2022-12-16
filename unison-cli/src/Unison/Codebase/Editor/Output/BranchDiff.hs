@@ -2,6 +2,8 @@
 
 module Unison.Codebase.Editor.Output.BranchDiff where
 
+import Control.Lens
+import Data.Generics.Labels ()
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -84,17 +86,39 @@ isEmpty BranchDiffOutput {..} =
 -- Need to be able to turn a (Name,Reference) into a HashQualified relative to... what.
 -- the new namespace?
 
-type TermDisplay v a = (HashQualified Name, Referent, Maybe (Type v a), MetadataDiff (MetadataDisplay v a))
+data TermDisplay v a = TermDisplay
+  { name :: HashQualified Name,
+    ref :: Referent,
+    type_ :: Maybe (Type v a),
+    metadata :: MetadataDiff (MetadataDisplay v a)
+  }
+  deriving stock (Generic, Show)
 
-compareTermDisplay :: TermDisplay v a -> TermDisplay v a -> Ordering
-compareTermDisplay (n0, r0, _, _) (n1, r1, _, _) =
-  Name.compareAlphabetical n0 n1 <> compare r0 r1
+instance Eq (TermDisplay v a) where
+  t0 == t1 =
+    (t0 ^. #ref == t1 ^. #ref) && (t0 ^. #name == t1 ^. #name)
 
-type TypeDisplay v a = (HashQualified Name, Reference, Maybe (DeclOrBuiltin v a), MetadataDiff (MetadataDisplay v a))
+-- | Compare term displays on name.
+instance Ord (TermDisplay v a) where
+  compare t0 t1 =
+    Name.compareAlphabetical (t0 ^. #name) (t1 ^. #name) <> compare (t0 ^. #ref) (t1 ^. #ref)
 
-compareTypeDisplay :: TypeDisplay v a -> TypeDisplay v a -> Ordering
-compareTypeDisplay (n0, r0, _, _) (n1, r1, _, _) =
-  Name.compareAlphabetical n0 n1 <> compare r0 r1
+data TypeDisplay v a = TypeDisplay
+  { name :: HashQualified Name,
+    ref :: Reference,
+    decl :: Maybe (DeclOrBuiltin v a),
+    metadata :: MetadataDiff (MetadataDisplay v a)
+  }
+  deriving stock (Generic, Show)
+
+instance Eq (TypeDisplay v a) where
+  t0 == t1 =
+    (t0 ^. #ref == t1 ^. #ref) && (t0 ^. #name == t1 ^. #name)
+
+-- | Compare type displays on name.
+instance Ord (TypeDisplay v a) where
+  compare t0 t1 =
+    Name.compareAlphabetical (t0 ^. #name) (t1 ^. #name) <> compare (t0 ^. #ref) (t1 ^. #ref)
 
 type AddedTermDisplay v a = ([(HashQualified Name, [MetadataDisplay v a])], Referent, Maybe (Type v a))
 
@@ -108,21 +132,35 @@ type SimpleTermDisplay v a = (HashQualified Name, Referent, Maybe (Type v a))
 
 type SimpleTypeDisplay v a = (HashQualified Name, Reference, Maybe (DeclOrBuiltin v a))
 
-type UpdateTermDisplay v a = (Maybe [SimpleTermDisplay v a], [TermDisplay v a])
+data UpdateTermDisplay v a = UpdateTermDisplay
+  { old :: Maybe [SimpleTermDisplay v a],
+    new :: [TermDisplay v a]
+  }
+  deriving stock (Generic, Show)
 
-compareUpdateTermDisplay :: UpdateTermDisplay v a -> UpdateTermDisplay v a -> Ordering
-compareUpdateTermDisplay (_, ts0) (_, ts1) =
-  case (ts0, ts1) of
-    (t0 : _, t1 : _) -> compareTermDisplay t0 t1
-    _ -> compare (null ts0) (null ts1)
+instance Eq (UpdateTermDisplay v a) where
+  u0 == u1 = (u0 ^? #new . _head) == (u1 ^? #new . _head)
 
-type UpdateTypeDisplay v a = (Maybe [SimpleTypeDisplay v a], [TypeDisplay v a])
+instance Ord (UpdateTermDisplay v a) where
+  compare u0 u1 =
+    case (u0 ^. #new, u1 ^. #new) of
+      (t0 : _, t1 : _) -> compare t0 t1
+      (ts0, ts1) -> compare (null ts0) (null ts1)
 
-compareUpdateTypeDisplay :: UpdateTypeDisplay v a -> UpdateTypeDisplay v a -> Ordering
-compareUpdateTypeDisplay (_, ts0) (_, ts1) =
-  case (ts0, ts1) of
-    (t0 : _, t1 : _) -> compareTypeDisplay t0 t1
-    _ -> compare (null ts0) (null ts1)
+data UpdateTypeDisplay v a = UpdateTypeDisplay
+  { old :: Maybe [SimpleTypeDisplay v a],
+    new :: [TypeDisplay v a]
+  }
+  deriving stock (Generic, Show)
+
+instance Eq (UpdateTypeDisplay v a) where
+  u0 == u1 = (u0 ^? #new . _head) == (u1 ^? #new . _head)
+
+instance Ord (UpdateTypeDisplay v a) where
+  compare u0 u1 =
+    case (u0 ^. #new, u1 ^. #new) of
+      (t0 : _, t1 : _) -> compare t0 t1
+      (ts0, ts1) -> compare (null ts0) (null ts1)
 
 type MetadataDisplay v a = (HQ.HashQualified Name, Referent, Maybe (Type v a))
 
@@ -225,38 +263,43 @@ toOutput
               <*> pure r_old
               <*> declOrBuiltin r_old
           loadNew :: Bool -> Bool -> Name -> Set Reference -> Reference -> m (TypeDisplay v a)
-          loadNew hidePropagatedMd forceHQ n rs_old r_new =
-            (,,,)
-              <$> pure
-                ( if forceHQ
-                    then Names.hqTypeName' hqLen n r_new
-                    else Names.hqTypeName hqLen names2 n r_new
-                )
-              <*> pure r_new
-              <*> declOrBuiltin r_new
-              <*> fillMetadata ppe (getNewMetadataDiff hidePropagatedMd typesDiff n rs_old r_new)
+          loadNew hidePropagatedMd forceHQ n rs_old r_new = do
+            decl <- declOrBuiltin r_new
+            metadata <- fillMetadata ppe (getNewMetadataDiff hidePropagatedMd typesDiff n rs_old r_new)
+            pure
+              TypeDisplay
+                { name =
+                    if forceHQ
+                      then Names.hqTypeName' hqLen n r_new
+                      else Names.hqTypeName hqLen names2 n r_new,
+                  ref = r_new,
+                  decl,
+                  metadata
+                }
           loadEntry :: Bool -> (Name, (Set Reference, Set Reference)) -> m (UpdateTypeDisplay v a)
           loadEntry hidePropagatedMd (n, (Set.toList -> [rold], Set.toList -> [rnew]))
-            | rold == rnew =
-                (Nothing,) <$> for [rnew] (loadNew hidePropagatedMd False n (Set.singleton rold))
-          loadEntry hidePropagatedMd (n, (rs_old, rs_new)) =
+            | rold == rnew = do
+                new <- for [rnew] (loadNew hidePropagatedMd False n (Set.singleton rold))
+                pure
+                  UpdateTypeDisplay
+                    { old = Nothing,
+                      new
+                    }
+          loadEntry hidePropagatedMd (n, (rs_old, rs_new)) = do
             let forceHQ = Set.size rs_old > 1 || Set.size rs_new > 1
-             in (,) <$> (Just <$> for (toList rs_old) (loadOld forceHQ n))
-                  <*> for (toList rs_new) (loadNew hidePropagatedMd forceHQ n rs_old)
+            old <- Just <$> for (toList rs_old) (loadOld forceHQ n)
+            new <- for (toList rs_new) (loadNew hidePropagatedMd forceHQ n rs_old)
+            pure UpdateTypeDisplay {old, new}
        in liftA3
             (,,)
-            ( List.sortBy compareUpdateTypeDisplay
+            ( List.sort
                 <$> liftA2
                   (<>)
                   (for (Map.toList $ Map.filter isSimpleUpdate nsUpdates) (loadEntry True))
                   (for (Map.toList metadataUpdates) (loadEntry False))
             )
-            ( List.sortBy compareUpdateTypeDisplay
-                <$> for (Map.toList $ Map.filter isNewConflict nsUpdates) (loadEntry True)
-            )
-            ( List.sortBy compareUpdateTypeDisplay
-                <$> for (Map.toList $ Map.filter isResolvedConflict nsUpdates) (loadEntry True)
-            )
+            (List.sort <$> for (Map.toList $ Map.filter isNewConflict nsUpdates) (loadEntry True))
+            (List.sort <$> for (Map.toList $ Map.filter isResolvedConflict nsUpdates) (loadEntry True))
 
     ( updatedTerms :: [UpdateTermDisplay v a],
       newTermConflicts :: [UpdateTermDisplay v a],
@@ -276,40 +319,48 @@ toOutput
                 )
               <*> pure r_old
               <*> typeOf r_old
-          loadNew hidePropagatedMd forceHQ n rs_old r_new =
-            (,,,)
-              <$> pure
-                ( if forceHQ
-                    then Names.hqTermName' hqLen n r_new
-                    else Names.hqTermName hqLen names2 n r_new
-                )
-              <*> pure r_new
-              <*> typeOf r_new
-              <*> fillMetadata ppe (getNewMetadataDiff hidePropagatedMd termsDiff n rs_old r_new)
+          loadNew :: Bool -> Bool -> Name -> Set Referent -> Referent -> m (TermDisplay v a)
+          loadNew hidePropagatedMd forceHQ n rs_old r_new = do
+            type_ <- typeOf r_new
+            metadata <- fillMetadata ppe (getNewMetadataDiff hidePropagatedMd termsDiff n rs_old r_new)
+            pure
+              TermDisplay
+                { name =
+                    if forceHQ
+                      then Names.hqTermName' hqLen n r_new
+                      else Names.hqTermName hqLen names2 n r_new,
+                  ref = r_new,
+                  type_,
+                  metadata
+                }
+          loadEntry :: Bool -> (Name, (Set Referent, Set Referent)) -> m (UpdateTermDisplay v a)
           loadEntry hidePropagatedMd (n, (rs_old, rs_new))
             -- if the references haven't changed, it's code for: only the metadata has changed
             -- and we can ignore the old references in the output.
-            | rs_old == rs_new = (Nothing,) <$> for (toList rs_new) (loadNew hidePropagatedMd False n rs_old)
-            | otherwise =
+            | rs_old == rs_new = do
+                new <- for (toList rs_new) (loadNew hidePropagatedMd False n rs_old)
+                pure
+                  UpdateTermDisplay
+                    { old = Nothing,
+                      new
+                    }
+            | otherwise = do
                 let forceHQ = Set.size rs_old > 1 || Set.size rs_new > 1
-                 in (,) <$> (Just <$> for (toList rs_old) (loadOld forceHQ n))
-                      <*> for (toList rs_new) (loadNew hidePropagatedMd forceHQ n rs_old)
+                old <- Just <$> for (toList rs_old) (loadOld forceHQ n)
+                new <- for (toList rs_new) (loadNew hidePropagatedMd forceHQ n rs_old)
+                pure UpdateTermDisplay {old, new}
        in liftA3
             (,,)
             -- this is sorting the Update section back into alphabetical Name order
             -- after calling loadEntry on the two halves.
-            ( List.sortBy compareUpdateTermDisplay
+            ( List.sort
                 <$> liftA2
                   (<>)
                   (for (Map.toList $ Map.filter isSimpleUpdate nsUpdates) (loadEntry True))
                   (for (Map.toList metadataUpdates) (loadEntry False))
             )
-            ( List.sortBy compareUpdateTermDisplay
-                <$> for (Map.toList $ Map.filter isNewConflict nsUpdates) (loadEntry True)
-            )
-            ( List.sortBy compareUpdateTermDisplay
-                <$> for (Map.toList $ Map.filter isResolvedConflict nsUpdates) (loadEntry True)
-            )
+            (List.sort <$> for (Map.toList $ Map.filter isNewConflict nsUpdates) (loadEntry True))
+            (List.sort <$> for (Map.toList $ Map.filter isResolvedConflict nsUpdates) (loadEntry True))
 
     let propagatedUpdates :: Int =
           -- counting the number of named auto-propagated definitions
@@ -403,22 +454,23 @@ toOutput
 
     pure $
       BranchDiffOutput
-        updatedTypes
-        updatedTerms
-        newTypeConflicts
-        newTermConflicts
-        resolvedTypeConflicts
-        resolvedTermConflicts
-        propagatedUpdates
-        updatedPatches
-        addedTypes
-        addedTerms
-        addedPatches
-        removedTypes
-        removedTerms
-        removedPatches
-        renamedTypes
-        renamedTerms
+        { updatedTypes,
+          updatedTerms,
+          newTypeConflicts,
+          newTermConflicts,
+          resolvedTypeConflicts,
+          resolvedTermConflicts,
+          propagatedUpdates,
+          updatedPatches,
+          addedTypes,
+          addedTerms,
+          addedPatches,
+          removedTypes,
+          removedTerms,
+          removedPatches,
+          renamedTypes,
+          renamedTerms
+        }
     where
       fillMetadata :: Traversable t => PPE.PrettyPrintEnv -> t Metadata.Value -> m (t (MetadataDisplay v a))
       fillMetadata ppe = traverse $ -- metadata values are all terms

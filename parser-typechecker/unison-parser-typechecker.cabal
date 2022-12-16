@@ -24,6 +24,7 @@ flag optimized
 library
   exposed-modules:
       U.Codebase.Branch.Diff
+      U.Codebase.Projects
       Unison.Builtin
       Unison.Builtin.Decls
       Unison.Builtin.Terms
@@ -281,9 +282,9 @@ library
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-bytes
+    , unison-util-cache
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -309,7 +310,6 @@ test-suite parser-typechecker-tests
       Unison.Core.Test.Name
       Unison.Test.ABT
       Unison.Test.ANF
-      Unison.Test.Cache
       Unison.Test.Codebase.Branch
       Unison.Test.Codebase.Causal
       Unison.Test.Codebase.Path
@@ -469,9 +469,9 @@ test-suite parser-typechecker-tests
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-bytes
+    , unison-util-cache
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization

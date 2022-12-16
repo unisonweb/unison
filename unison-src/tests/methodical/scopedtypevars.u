@@ -9,7 +9,7 @@ ex2 : x -> y -> x
 ex2 a b =
   id : ∀ x . x -> x -- doesn't refer the variable in outer scope
   id x = x
-  id 42
+  _ = id 42
   id a
 
 merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]

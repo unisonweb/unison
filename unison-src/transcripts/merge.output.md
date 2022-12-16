@@ -72,7 +72,7 @@ quux.y = 333
     foo.y  : Nat
     quux.y : Nat
 
-.P1> delete.term foo.w
+.P1> delete.term.verbose foo.w
 
   Name changes:
   

@@ -270,17 +270,17 @@ import qualified U.Codebase.Term as C.Term
 import qualified U.Codebase.Type as C.Type
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
-import qualified U.Util.Alternative as Alternative
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
 import qualified U.Util.Hash32 as Hash32
 import U.Util.Hash32.Orphans.Sqlite ()
-import qualified U.Util.Lens as Lens
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
 import Unison.Prelude
 import Unison.Sqlite
+import qualified Unison.Util.Alternative as Alternative
+import qualified Unison.Util.Lens as Lens
 
 -- * main squeeze
 
@@ -1750,37 +1750,35 @@ insertTypeNames names =
         |]
 
 -- | Get the list of a term names in the root namespace according to the name lookup index
-rootTermNamesByPath :: Maybe Text -> Transaction ([NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)], [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)])
+rootTermNamesByPath :: Maybe Text -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 rootTermNamesByPath mayNamespace = do
   let (namespace, subnamespace) = case mayNamespace of
         Nothing -> ("", "*")
         Just namespace -> (namespace, globEscape namespace <> ".*")
-  results :: [Only Bool :. NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (subnamespace, namespace, subnamespace, namespace)
-  let (namesInNamespace, namesOutsideNamespace) = span (\(Only inNamespace :. _) -> inNamespace) results
-  pure (fmap unRow . dropTag <$> namesInNamespace, fmap unRow . dropTag <$> namesOutsideNamespace)
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (subnamespace, namespace, subnamespace, namespace)
+  pure (fmap unRow <$> results)
   where
-    dropTag (_ :. name) = name
     unRow (a :. Only b) = (a, b)
     sql =
       [here|
-        SELECT namespace GLOB ? OR namespace = ?, reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
+        WHERE (namespace GLOB ? OR namespace = ?)
         ORDER BY (namespace GLOB ? OR namespace = ?) DESC
         |]
 
 -- | Get the list of a type names in the root namespace according to the name lookup index
-rootTypeNamesByPath :: Maybe Text -> Transaction ([NamedRef Reference.TextReference], [NamedRef Reference.TextReference])
+rootTypeNamesByPath :: Maybe Text -> Transaction [NamedRef Reference.TextReference]
 rootTypeNamesByPath mayNamespace = do
   let (namespace, subnamespace) = case mayNamespace of
         Nothing -> ("", "*")
         Just namespace -> (namespace, globEscape namespace <> ".*")
-  results :: [Only Bool :. NamedRef Reference.TextReference] <- queryListRow sql (subnamespace, namespace, subnamespace, namespace)
-  let (namesInNamespace, namesOutsideNamespace) = span (\(Only inNamespace :. _) -> inNamespace) results
-  pure (dropTag <$> namesInNamespace, dropTag <$> namesOutsideNamespace)
+  results :: [NamedRef Reference.TextReference] <- queryListRow sql (subnamespace, namespace, subnamespace, namespace)
+  pure results
   where
-    dropTag (_ :. name) = name
     sql =
       [here|
-        SELECT namespace GLOB ? OR namespace = ?, reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
+        WHERE namespace GLOB ? OR namespace = ?
         ORDER BY (namespace GLOB ? OR namespace = ?) DESC
         |]
 

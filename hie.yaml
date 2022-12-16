@@ -15,12 +15,6 @@ cradle:
     - path: "codebase2/core/./"
       component: "unison-core:lib"
 
-    - path: "codebase2/util/src"
-      component: "unison-util:lib"
-
-    - path: "codebase2/util/bench/Main.hs"
-      component: "unison-util:bench:bench"
-
     - path: "codebase2/util-serialization/./"
       component: "unison-util-serialization:lib"
 
@@ -56,6 +50,12 @@ cradle:
 
     - path: "lib/unison-util-bytes/test"
       component: "unison-util-bytes:test:util-bytes-tests"
+
+    - path: "lib/unison-util-cache/src"
+      component: "unison-util-cache:lib"
+
+    - path: "lib/unison-util-cache/test"
+      component: "unison-util-cache:test:util-cache-tests"
 
     - path: "lib/unison-util-relation/src"
       component: "unison-util-relation:lib"

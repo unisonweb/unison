@@ -28,9 +28,9 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import U.Codebase.HashTags (CausalHash (..), PatchHash (..))
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.Branch.Type as Memory.Branch
-import qualified Unison.Codebase.Causal.Type as Memory.Causal
 import qualified Unison.Codebase.Patch as Memory.Patch
 import qualified Unison.Codebase.TermEdit as Memory.TermEdit
 import qualified Unison.Codebase.TypeEdit as Memory.TypeEdit
@@ -360,12 +360,12 @@ hashPatch = Hashing.Patch.hashPatch . m2hPatch
 hashBranch0 :: Memory.Branch.Branch0 m -> Hash
 hashBranch0 = Hashing.Branch.hashBranch . m2hBranch0
 
-hashCausal :: Hashable e => e -> Set Memory.Causal.CausalHash -> (Memory.Causal.CausalHash, HashFor e)
+hashCausal :: Hashable e => e -> Set CausalHash -> (CausalHash, HashFor e)
 hashCausal e tails =
   let valueHash@(HashFor vh) = (Hashable.hashFor e)
       causalHash =
-        Memory.Causal.CausalHash . Hashing.Causal.hashCausal $
-          Hashing.Causal.Causal vh (Set.map Memory.Causal.unCausalHash tails)
+        CausalHash . Hashing.Causal.hashCausal $
+          Hashing.Causal.Causal vh (Set.map unCausalHash tails)
    in (causalHash, valueHash)
 
 m2hBranch0 :: Memory.Branch.Branch0 m -> Hashing.Branch.Raw
@@ -411,14 +411,14 @@ m2hBranch0 b =
         ]
 
     doPatches ::
-      Map Memory.NameSegment.NameSegment (Memory.Branch.EditHash, m Memory.Patch.Patch) ->
+      Map Memory.NameSegment.NameSegment (PatchHash, m Memory.Patch.Patch) ->
       Map Hashing.Branch.NameSegment Hash
-    doPatches = Map.bimap m2hNameSegment fst
+    doPatches = Map.bimap m2hNameSegment (unPatchHash . fst)
 
     doChildren ::
       Map Memory.NameSegment.NameSegment (Memory.Branch.Branch m) ->
       Map Hashing.Branch.NameSegment Hash
-    doChildren = Map.bimap m2hNameSegment (Memory.Causal.unCausalHash . Memory.Branch.headHash)
+    doChildren = Map.bimap m2hNameSegment (unCausalHash . Memory.Branch.headHash)
 
 m2hNameSegment :: Memory.NameSegment.NameSegment -> Hashing.Branch.NameSegment
 m2hNameSegment (Memory.NameSegment.NameSegment s) = Hashing.Branch.NameSegment s

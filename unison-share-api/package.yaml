@@ -42,11 +42,11 @@ dependencies:
   - transformers
   - unison-codebase
   - unison-codebase-sqlite
+  - unison-core
   - unison-core1
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer
-  - unison-util
   - unison-util-base32hex
   - unison-util-base32hex-orphans-aeson
   - unison-util-relation

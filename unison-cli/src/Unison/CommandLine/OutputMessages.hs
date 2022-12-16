@@ -38,18 +38,16 @@ import System.Directory
   )
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
+import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
 import qualified U.Util.Hash32 as Hash32
-import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
 import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
@@ -152,6 +150,7 @@ import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.List as List
 import Unison.Util.Monoid (intercalateMap)
+import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
@@ -367,16 +366,16 @@ notifyNumbered o = case o of
               "",
               tailMsg
             ]
-        branchHashes :: [Branch.CausalHash]
+        branchHashes :: [CausalHash]
         branchHashes = (fst <$> reversedHistory) <> tailHashes
      in (msg, displayBranchHash <$> branchHashes)
     where
-      toSCH :: Branch.CausalHash -> ShortCausalHash
+      toSCH :: CausalHash -> ShortCausalHash
       toSCH h = SCH.fromHash schLength h
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
-      handleTail :: Int -> (Pretty, [Branch.CausalHash])
+      handleTail :: Int -> (Pretty, [CausalHash])
       handleTail n = case tail of
         E.EndOfLog h ->
           ( P.lines
@@ -1233,7 +1232,7 @@ notifyUser dir o = case o of
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"
-            <> P.group ("(" <> P.text (Hash.base32Hex $ Causal.unCausalHash hash) <> ")")
+            <> P.group ("(" <> P.text (Hash.base32Hex $ unCausalHash hash) <> ")")
             <> "from the repository at"
             <> prettyReadGitRepo repo
       CouldntLoadSyncedBranch ns h ->
@@ -1322,19 +1321,25 @@ notifyUser dir o = case o of
         "",
         err
       ]
-  NoConfiguredRemoteMapping pp p ->
-    pure . P.fatalCallout . P.wrap $
-      "I don't know where to "
-        <> PushPull.fold "push to!" "pull from!" pp
-        <> ( if Path.isRoot p
-               then ""
-               else
-                 "Add a line like `RemoteMapping." <> P.shown p
-                   <> " = namespace.path' to .unisonConfig. "
-           )
-        <> "Type `help "
-        <> PushPull.fold "push" "pull" pp
-        <> "` for more information."
+  NoConfiguredRemoteMapping pp p -> do
+    let (localPathExample, sharePathExample) =
+          if Path.isRoot p
+            then ("myproject", "myuser.public.myproject")
+            else (Path.toText (Path.unabsolute p), "myuser.public." <> Path.toText (Path.unabsolute p))
+    pure . P.fatalCallout $
+      P.lines
+        [ "I don't know where to " <> PushPull.fold "push to." "pull from." pp,
+          "Add a `RemoteMapping` configuration to your .unisonConfig file. E.g.",
+          "",
+          "```",
+          "RemoteMapping {",
+          P.text ("  " <> localPathExample <> " = \"" <> sharePathExample <> "\""),
+          "}",
+          "```",
+          "",
+          "Type `help " <> PushPull.fold "push" "pull" pp <> "` for more information."
+        ]
+
   --  | ConfiguredGitUrlParseError PushPull Path' Text String
   ConfiguredRemoteMappingParseError pp p url err ->
     pure . P.fatalCallout . P.lines $
@@ -1528,10 +1533,10 @@ notifyUser dir o = case o of
           Nothing -> go (renderLine head [] : output) queue
           Just tails -> go (renderLine head tails : output) (queue ++ tails)
           where
-            renderHash = take 10 . Text.unpack . Hash.base32Hex . Causal.unCausalHash
+            renderHash = take 10 . Text.unpack . Hash.base32Hex . unCausalHash
             renderLine head tail =
               (renderHash head) ++ "|" ++ intercalateMap " " renderHash tail
-                ++ case Map.lookup (Hash.base32Hex . Causal.unCausalHash $ head) tags of
+                ++ case Map.lookup (Hash.base32Hex . unCausalHash $ head) tags of
                   Just t -> "|tag: " ++ t
                   Nothing -> ""
             -- some specific hashes that we want to label in the output
@@ -1929,8 +1934,8 @@ prettyAbsolute = P.blue . P.shown
 prettySCH :: IsString s => ShortCausalHash -> P.Pretty s
 prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)
 
-prettyCausalHash :: IsString s => Causal.CausalHash -> P.Pretty s
-prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unCausalHash $ hash)
+prettyCausalHash :: IsString s => CausalHash -> P.Pretty s
+prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . unCausalHash $ hash)
 
 prettyBase32Hex :: IsString s => Base32Hex -> P.Pretty s
 prettyBase32Hex = P.text . Base32Hex.toText
@@ -2658,7 +2663,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           5. - apiDocs : License
           6. + MIT     : License
     -}
-    prettyUpdateType (Nothing, mdUps) =
+    prettyUpdateType (OBD.UpdateTypeDisplay Nothing mdUps) =
       P.column2 <$> traverse (mdTypeLine newPath) mdUps
     {-
         1. ┌ ability Foo#pqr x y
@@ -2677,9 +2682,9 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
         4. foo	 : Poop
              5. + foo.docs : Doc
     -}
-    prettyUpdateType (Just olds, news) =
+    prettyUpdateType (OBD.UpdateTypeDisplay (Just olds) news) =
       do
-        olds <- traverse (mdTypeLine oldPath) [(name, r, decl, mempty) | (name, r, decl) <- olds]
+        olds <- traverse (mdTypeLine oldPath) [OBD.TypeDisplay name r decl mempty | (name, r, decl) <- olds]
         news <- traverse (mdTypeLine newPath) news
         let (oldnums, olddatas) = unzip olds
         let (newnums, newdatas) = unzip news
@@ -2797,7 +2802,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
 
     downArrow = P.bold "↓"
     mdTypeLine :: Input.AbsBranchId -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
-    mdTypeLine p (hq, r, odecl, mddiff) = do
+    mdTypeLine p (OBD.TypeDisplay hq r odecl mddiff) = do
       n <- numHQ' p hq (Referent.Ref r)
       fmap ((n,) . P.linesNonEmpty) . sequence $
         [ pure $ prettyDecl hq odecl,
@@ -2811,7 +2816,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       P.Width ->
       OBD.TermDisplay v a ->
       Numbered (Pretty, Pretty)
-    mdTermLine p namesWidth (hq, r, otype, mddiff) = do
+    mdTermLine p namesWidth (OBD.TermDisplay hq r otype mddiff) = do
       n <- numHQ' p hq r
       fmap ((n,) . P.linesNonEmpty)
         . sequence
@@ -2820,17 +2825,17 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           ]
 
     prettyUpdateTerm :: OBD.UpdateTermDisplay v a -> Numbered Pretty
-    prettyUpdateTerm (Nothing, newTerms) =
+    prettyUpdateTerm (OBD.UpdateTermDisplay Nothing newTerms) =
       if null newTerms
         then error "Super invalid UpdateTermDisplay"
         else fmap P.column2 $ traverse (mdTermLine newPath namesWidth) newTerms
       where
-        namesWidth = foldl1' max $ fmap (P.Width . HQ'.nameLength Name.toText . view _1) newTerms
-    prettyUpdateTerm (Just olds, news) = fmap P.column2 $ do
+        namesWidth = foldl1' max $ fmap (P.Width . HQ'.nameLength Name.toText . view #name) newTerms
+    prettyUpdateTerm (OBD.UpdateTermDisplay (Just olds) news) = fmap P.column2 $ do
       olds <-
         traverse
           (mdTermLine oldPath namesWidth)
-          [(name, r, typ, mempty) | (name, r, typ) <- olds]
+          [OBD.TermDisplay name r typ mempty | (name, r, typ) <- olds]
       news <- traverse (mdTermLine newPath namesWidth) news
       let (oldnums, olddatas) = unzip olds
       let (newnums, newdatas) = unzip news
@@ -2841,7 +2846,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       where
         namesWidth =
           foldl1' max $
-            fmap (P.Width . HQ'.nameLength Name.toText . view _1) news
+            fmap (P.Width . HQ'.nameLength Name.toText . view #name) news
               <> fmap (P.Width . HQ'.nameLength Name.toText . view _1) olds
 
     prettyMetadataDiff :: OBD.MetadataDiff (OBD.MetadataDisplay v a) -> Numbered Pretty
@@ -3213,8 +3218,8 @@ endangeredDependentsTable ppeDecl m =
         & P.lines
 
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
-displayBranchHash :: Branch.CausalHash -> String
-displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . Causal.unCausalHash
+displayBranchHash :: CausalHash -> String
+displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . unCausalHash
 
 prettyHumanReadableTime :: UTCTime -> UTCTime -> Pretty
 prettyHumanReadableTime now time =

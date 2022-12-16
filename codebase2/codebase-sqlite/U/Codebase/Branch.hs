@@ -9,6 +9,7 @@ where
 import U.Codebase.Branch.Type as X
 import qualified U.Codebase.Causal as Causal
 import qualified U.Codebase.Sqlite.Operations as Ops
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Sqlite (Transaction)
 

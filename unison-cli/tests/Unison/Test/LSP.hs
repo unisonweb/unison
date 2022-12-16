@@ -20,6 +20,7 @@ import qualified Unison.LSP.Queries as LSPQ
 import qualified Unison.Lexer.Pos as Lexer
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
+import qualified Unison.Reference as Reference
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Lexer as L
@@ -34,29 +35,47 @@ test :: Test ()
 test =
   scope "annotations" . tests . fmap makeNodeSelectionTest $
     [ ( "Binary Op lhs",
-        [here|term = tr|ue && false|],
+        [here|term = tr^ue && false|],
         True,
         Left (Term.Boolean True)
       ),
       ( "Binary Op rhs",
-        [here|term = true && fa|lse|],
+        [here|term = true && fa^lse|],
         True,
         Left (Term.Boolean False)
       ),
       ( "Custom Op lhs",
         [here|
 a &&& b = a && b
-term = tr|ue &&& false
+term = tr^ue &&& false
 |],
         True,
         Left (Term.Boolean True)
+      ),
+      ( "Simple type annotation on non-typechecking file",
+        [here|
+structural type Thing = This | That
+term : Thi^ng
+term = "this won't typecheck"
+|],
+        False,
+        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+      ),
+      ( "Simple type annotation on typechecking file",
+        [here|
+structural type Thing = This | That
+term : Thi^ng
+term = This
+|],
+        True,
+        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
       )
     ]
 
 -- | Test helper which lets you specify a cursor position inline with source text as a '|'.
 extractCursor :: Text -> Test (Lexer.Pos, Text)
 extractCursor txt =
-  case Text.splitOn "|" txt of
+  case Text.splitOn "^" txt of
     [before, after] ->
       let col = Text.length $ Text.takeWhileEnd (/= '\n') before
           line = Prelude.length $ Text.lines before
@@ -66,20 +85,20 @@ extractCursor txt =
 makeNodeSelectionTest :: (String, Text, Bool, Either ((Term.F Symbol Ann Ann (Term Symbol Ann))) (Type.F (Type Symbol Ann))) -> Test ()
 makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ do
   (pos, src) <- extractCursor testSrc
-  (mayParsedFile, mayTypecheckedFile) <- withTestCodebase \codebase -> do
+  (notes, mayParsedFile, mayTypecheckedFile) <- withTestCodebase \codebase -> do
     let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
     let ambientAbilities = []
     let parseNames = mempty
     let lexedSource = (src, L.lexer name (Text.unpack src))
     r <- Typecheck.typecheckHelper codebase generateUniqueName ambientAbilities parseNames (Text.pack name) lexedSource
-    let Result.Result _notes mayResult = r
+    let Result.Result notes mayResult = r
     let (parsedFile, typecheckedFile) = case mayResult of
           Nothing -> (Nothing, Nothing)
           Just (Left uf) -> (Just uf, Nothing)
           Just (Right tf) -> (Just $ UF.discardTypes tf, Just tf)
-    pure (parsedFile, typecheckedFile)
+    pure (notes, parsedFile, typecheckedFile)
   scope "parsed file" $ do
-    pf <- maybe (crash "Failed to parse") pure mayParsedFile
+    pf <- maybe (crash (show ("Failed to parse" :: String, notes))) pure mayParsedFile
     let pfResult =
           UF.terms pf
             & firstJust \(_v, trm) ->

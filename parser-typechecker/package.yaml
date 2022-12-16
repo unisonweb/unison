@@ -113,9 +113,9 @@ dependencies:
   - unison-pretty-printer
   - unison-sqlite
   - unison-syntax
-  - unison-util
   - unison-util-base32hex
   - unison-util-bytes
+  - unison-util-cache
   - unison-util-relation
   - unison-util-rope
   - unison-util-serialization
