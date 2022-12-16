@@ -3,8 +3,6 @@ module U.Codebase.Reference where
 import Control.Lens (Bifunctor (..), Lens, Prism, Traversal, lens, prism)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
-import Data.Text (Text)
-import Data.Word (Word64)
 import U.Codebase.ShortHash (ShortHash)
 import qualified U.Codebase.ShortHash as SH
 import Unison.Hash (Hash)
