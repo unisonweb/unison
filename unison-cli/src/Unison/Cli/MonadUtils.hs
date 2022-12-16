@@ -179,7 +179,7 @@ resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
 resolveShortCausalHash shortHash = do
   Cli.time "resolveShortCausalHash" do
     Cli.Env {codebase} <- ask
-    hash <- Cli.runTransaction (resolveShortCausalHashToCausalHash shortHash) & onLeftM Cli.returnEarly
+    hash <- Cli.runEitherTransaction (resolveShortCausalHashToCausalHash shortHash)
     branch <- liftIO (Codebase.getBranchForHash codebase hash)
     pure (fromMaybe Branch.empty branch)
 
