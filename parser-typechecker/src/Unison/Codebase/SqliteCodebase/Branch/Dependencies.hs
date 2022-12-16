@@ -12,6 +12,7 @@ import Data.Monoid.Generic (GenericMonoid (..), GenericSemigroup (..))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import GHC.Generics (Generic)
+import U.Codebase.HashTags (CausalHash, PatchHash)
 import Unison.Codebase.Branch.Type as Branch
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Patch (Patch)
@@ -24,10 +25,10 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
 
-type Branches m = [(Branch.CausalHash, m (Branch m))]
+type Branches m = [(CausalHash, m (Branch m))]
 
 data Dependencies = Dependencies
-  { patches :: Set EditHash,
+  { patches :: Set PatchHash,
     terms :: Set Hash,
     decls :: Set Hash
   }
@@ -37,7 +38,7 @@ data Dependencies = Dependencies
   deriving (Monoid) via GenericMonoid Dependencies
 
 data Dependencies' = Dependencies'
-  { patches' :: [EditHash],
+  { patches' :: [PatchHash],
     terms' :: [Hash],
     decls' :: [Hash]
   }
@@ -86,5 +87,5 @@ fromBranch0 b =
       where
         terms = Set.fromList [h | (Derived h _) <- mdValues s]
         decls = Set.fromList [h | (Derived h _) <- references s]
-    fromEdits :: Map NameSegment (EditHash, m Patch) -> Dependencies
+    fromEdits :: Map NameSegment (PatchHash, m Patch) -> Dependencies
     fromEdits m = Dependencies (Set.fromList . fmap fst $ toList m) mempty mempty

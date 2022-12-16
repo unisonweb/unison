@@ -10,7 +10,6 @@ import Data.Text (unpack)
 import qualified Data.Text as Text
 import Data.Vector ()
 import qualified Text.Show.Unicode as U
-import U.Util.Monoid (foldMapM, intercalateMapM)
 import Unison.ABT (annotation, reannotateUp, pattern AbsN')
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
@@ -43,7 +42,7 @@ import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
 import qualified Unison.Type as Type
 import qualified Unison.Util.Bytes as Bytes
-import Unison.Util.Monoid (intercalateMap)
+import Unison.Util.Monoid (foldMapM, intercalateMap, intercalateMapM)
 import Unison.Util.Pretty (ColorText, Pretty, Width)
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.Util.SyntaxText as S

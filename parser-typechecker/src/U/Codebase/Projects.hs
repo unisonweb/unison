@@ -6,7 +6,6 @@ import Control.Monad.Writer.Strict (WriterT, execWriterT, tell)
 import qualified Data.Map as Map
 import Data.Monoid (Last (..))
 import U.Codebase.Branch
-import qualified U.Codebase.Branch.Type as Branch
 import qualified U.Codebase.Causal as Causal
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
@@ -14,8 +13,8 @@ import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 
-libSegment :: Branch.NameSegment
-libSegment = (Branch.NameSegment "lib")
+libSegment :: NameSegment
+libSegment = NameSegment "lib"
 
 -- | Infers path to use for loading names.
 -- Currently this means finding the closest parent with a "lib" child.

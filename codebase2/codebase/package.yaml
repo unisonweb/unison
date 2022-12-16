@@ -32,7 +32,6 @@ dependencies:
   - mtl
   - text
   - unison-core
-  - unison-util
   - unison-util-base32hex
   - unison-prelude
   - time

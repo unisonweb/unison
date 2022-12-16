@@ -184,6 +184,7 @@ library
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -191,7 +192,6 @@ library
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -310,6 +310,7 @@ executable cli-integration-tests
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -317,7 +318,6 @@ executable cli-integration-tests
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -430,6 +430,7 @@ executable transcripts
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -437,7 +438,6 @@ executable transcripts
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -557,6 +557,7 @@ executable unison
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -564,7 +565,6 @@ executable unison
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -687,6 +687,7 @@ test-suite cli-tests
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -694,7 +695,6 @@ test-suite cli-tests
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio

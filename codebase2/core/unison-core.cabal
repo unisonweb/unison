@@ -16,8 +16,11 @@ source-repository head
 
 library
   exposed-modules:
+      U.Codebase.HashTags
       U.Core.ABT
       U.Core.ABT.Var
+      Unison.NameSegment
+      Unison.Util.Alphabetical
   hs-source-dirs:
       ./
   default-extensions:
@@ -50,7 +53,9 @@ library
       base
     , containers
     , recover-rtti
+    , rfc5051
+    , text
     , unison-prelude
-    , unison-util
+    , unison-util-base32hex
     , vector
   default-language: Haskell2010
