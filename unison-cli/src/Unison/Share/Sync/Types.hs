@@ -12,16 +12,16 @@ import qualified Unison.Sync.Types as Share
 -- | Error used by the client when pushing code to Unison Share.
 data CheckAndSetPushError
   = CheckAndSetPushErrorHashMismatch Share.HashMismatch
-  | CheckAndSetPushErrorNoWritePermission Share.Path
+  | CheckAndSetPushErrorNoWritePermission Share.ShareLocation
   | CheckAndSetPushErrorServerMissingDependencies (NESet Hash32)
   deriving (Show)
 
 -- | An error occurred while fast-forward pushing code to Unison Share.
 data FastForwardPushError
-  = FastForwardPushErrorNoHistory Share.Path
-  | FastForwardPushErrorNoReadPermission Share.Path
-  | FastForwardPushErrorNotFastForward Share.Path
-  | FastForwardPushErrorNoWritePermission Share.Path
+  = FastForwardPushErrorNoHistory Share.ShareLocation
+  | FastForwardPushErrorNoReadPermission Share.ShareLocation
+  | FastForwardPushErrorNotFastForward Share.ShareLocation
+  | FastForwardPushErrorNoWritePermission Share.ShareLocation
   | FastForwardPushErrorServerMissingDependencies (NESet Hash32)
   | --                              Parent Child
     FastForwardPushInvalidParentage Hash32 Hash32
@@ -31,13 +31,13 @@ data FastForwardPushError
 data PullError
   = -- | An error occurred while resolving a repo+path to a causal hash.
     PullErrorGetCausalHashByPath GetCausalHashByPathError
-  | PullErrorNoHistoryAtPath Share.Path
+  | PullErrorNoHistoryAtPath Share.ShareLocation
   deriving (Show)
 
 -- | An error occurred when getting causal hash by path.
 data GetCausalHashByPathError
   = -- | The user does not have permission to read this path.
-    GetCausalHashByPathErrorNoReadPermission Share.Path
+    GetCausalHashByPathErrorNoReadPermission Share.ShareLocation
   deriving (Show)
 
 -- | Generic Codeserver transport errors

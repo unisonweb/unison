@@ -93,6 +93,7 @@ import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadRemoteNamespace (..),
     ReadShareRemoteNamespace (..),
+    ShareUserHandle (..),
     WriteGitRemotePath (..),
     WriteGitRepo,
     WriteRemotePath (..),
@@ -179,7 +180,7 @@ import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
+import qualified Unison.Sync.Types as Share
 import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toText, unsafeFromString)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Name as Name (toString, toVar, unsafeFromString, unsafeFromVar)
@@ -1959,7 +1960,7 @@ handlePushToUnisonShare :: WriteShareRemotePath -> Path.Absolute -> PushBehavior
 handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
-  let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
+  let shareLocation = Share.ShareLocation repo (pathToSegments remotePath)
   ensureAuthenticatedWithCodeserver codeserver
 
   Cli.Env {authHTTPClient, codebase} <- ask
@@ -1979,7 +1980,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
                 authHTTPClient
                 baseURL
                 (Codebase.withConnectionIO codebase)
-                sharePath
+                shareLocation
                 remoteHash
                 localCausalHash
                 uploadedCallback
@@ -1987,7 +1988,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
   case behavior of
     PushBehavior.ForcePush -> do
       maybeHashJwt <-
-        Cli.ioE (Share.getCausalHashByPath authHTTPClient baseURL sharePath) \err ->
+        Cli.ioE (Share.getCausalHashByPath authHTTPClient baseURL shareLocation) \err ->
           Cli.returnEarly (Output.ShareError (ShareErrorGetCausalHashByPath err))
       Cli.ioE (checkAndSetPush (Share.hashJWTHash <$> maybeHashJwt)) (pushError ShareErrorCheckAndSetPush)
       Cli.respond (ViewOnShare remote)
@@ -2002,7 +2003,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
                 authHTTPClient
                 baseURL
                 (Codebase.withConnectionIO codebase)
-                sharePath
+                shareLocation
                 localCausalHash
                 uploadedCallback
       Cli.ioE push (pushError ShareErrorFastForwardPush)
@@ -2250,7 +2251,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
   when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
-  let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
+  let shareLocation = Share.ShareLocation repo (coerce @[NameSegment] @[Text] (Path.toList path))
   Cli.Env {authHTTPClient, codebase} <- ask
   let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
       pull =
@@ -2259,7 +2260,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
             authHTTPClient
             baseURL
             (Codebase.withConnectionIO codebase)
-            shareFlavoredPath
+            shareLocation
             downloadedCallback
   causalHash <-
     Cli.ioE pull \err0 ->
@@ -2614,7 +2615,7 @@ doFetchCompiler =
     ns =
       ReadShareRemoteNamespace
         { server = RemoteRepo.DefaultCodeserver,
-          repo = "dolio",
+          repo = ShareUserHandle "dolio",
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }

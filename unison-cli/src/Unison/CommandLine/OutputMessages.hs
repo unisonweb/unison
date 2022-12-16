@@ -127,6 +127,7 @@ import qualified Unison.Share.Sync as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
+import Unison.Sync.Types (ShareLocation (..))
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.HashQualified as HQ (toString, toText, unsafeFromVar)
@@ -1700,7 +1701,7 @@ notifyUser dir o = case o of
       (Share.CheckAndSetPushErrorHashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash}) ->
         case (expectedHash, actualHash) of
           (Nothing, Just _) -> expectedEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
-          _ -> P.wrap $ P.text "It looks like someone modified" <> prettySharePath sharePath <> P.text "an instant before you. Pull and try again? 🤞"
+          _ -> P.wrap $ P.text "It looks like someone modified" <> prettyShareLocation sharePath <> P.text "an instant before you. Pull and try again? 🤞"
       (Share.CheckAndSetPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
       (Share.CheckAndSetPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
     ShareErrorFastForwardPush e -> case e of
@@ -1716,7 +1717,7 @@ notifyUser dir o = case o of
       Share.FastForwardPushErrorNotFastForward sharePath ->
         P.lines $
           [ P.wrap $
-              "There are some changes at" <> prettySharePath sharePath <> "that aren't in the history you pushed.",
+              "There are some changes at" <> prettyShareLocation sharePath <> "that aren't in the history you pushed.",
             "",
             P.wrap $
               "If you're sure you got the right paths, try"
@@ -1733,7 +1734,7 @@ notifyUser dir o = case o of
     ShareErrorPull e -> case e of
       (Share.PullErrorGetCausalHashByPath err) -> handleGetCausalHashByPathError err
       (Share.PullErrorNoHistoryAtPath sharePath) ->
-        P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
+        P.wrap $ P.text "The server didn't find anything at" <> prettyShareLocation sharePath
     ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
     ShareErrorTransport te -> case te of
       DecodeFailure msg resp ->
@@ -1772,13 +1773,8 @@ notifyUser dir o = case o of
       responseRequestId =
         fmap Text.decodeUtf8 . List.lookup "X-RequestId" . Foldable.toList @Seq . Servant.responseHeaders
 
-      prettySharePath =
-        prettyRelative
-          . Path.Relative
-          . Path.fromList
-          . coerce @[Text] @[NameSegment]
-          . toList
-          . Share.pathSegments
+      prettyShareLocation ShareLocation {locationUserHandle, locationPathSegments} =
+        P.text $ Text.intercalate "." [shareUserHandleToText locationUserHandle] <> Monoid.whenM (not . null $ locationPathSegments) (Path.toText . Path.fromList $ coerce locationPathSegments)
       missingDependencies hashes =
         -- maybe todo: stuff in all the args to CheckAndSetPush
         P.lines
@@ -1793,32 +1789,32 @@ notifyUser dir o = case o of
       handleGetCausalHashByPathError = \case
         Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermission sharePath
       noReadPermission sharePath =
-        P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettySharePath sharePath <> ".")
-      noWritePermissionFastForwardPushError sharePath =
-        case Share.pathSegments sharePath of
-          _ NEList.:| "public" : _ ->
+        P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettyShareLocation sharePath <> ".")
+      noWritePermissionFastForwardPushError shareLocation =
+        case Share.locationPathSegments shareLocation of
+          "public" : _ ->
             P.wrap $
-              P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
-          uname NEList.:| ys -> pushPublicNote IP.push uname ys
+              P.text "The server said you don't have permission to write" <> P.group (prettyShareLocation shareLocation <> ".")
+          ys -> pushPublicNote IP.push (Share.locationUserHandle shareLocation) ys
       pushPublicNote cmd uname ys =
         let msg =
               mconcat
                 [ "Unison Share currently only supports sharing public code. ",
                   "This is done by hosting code in a public namespace under your handle.",
-                  "It looks like you were trying to push directly to the" <> P.backticked (P.text uname),
+                  "It looks like you were trying to push directly to the" <> P.backticked (P.text $ shareUserHandleToText uname),
                   "handle. Try nesting under `public` like so: "
                 ]
-            pushCommand = IP.makeExampleNoBackticks cmd [prettySharePath exPath]
-            exPath = Share.Path (uname NEList.:| "public" : ys)
+            pushCommand = IP.makeExampleNoBackticks cmd [prettyShareLocation exPath]
+            exPath = Share.ShareLocation uname ("public" : ys)
          in P.lines
               [ P.wrap msg,
                 "",
                 P.indentN 4 pushCommand
               ]
-      noWritePermission sharePath =
-        case Share.pathSegments sharePath of
-          _ NEList.:| "public" : _ -> P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
-          uname NEList.:| ys -> pushPublicNote IP.pushCreate uname ys
+      noWritePermission shareLocation =
+        case Share.locationPathSegments shareLocation of
+          "public" : _ -> P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettyShareLocation shareLocation <> ".")
+          ys -> pushPublicNote IP.pushCreate (Share.locationUserHandle shareLocation) ys
   ViewOnShare repoPath ->
     pure $
       "View it on Unison Share: " <> prettyShareLink repoPath
@@ -1863,14 +1859,14 @@ notifyUser dir o = case o of
           "",
           P.wrap ("Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?")
         ]
-    sharePathToWriteRemotePathShare sharePath =
+    sharePathToWriteRemotePathShare shareLocation =
       -- Recover the original WriteRemotePath from the information in the error, which is thrown from generic share
       -- client code that doesn't know about WriteRemotePath
       ( WriteRemotePathShare
           WriteShareRemotePath
             { server = RemoteRepo.DefaultCodeserver,
-              repo = ShareUserHandle $ Share.unRepoName (Share.pathRepoName sharePath),
-              path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
+              repo = ShareUserHandle $ Share.unRepoName (Share.shareLocationRepoName shareLocation),
+              path = Path.fromList (coerce @[Text] @[NameSegment] (Share.locationPathSegments shareLocation))
             }
       )
 
