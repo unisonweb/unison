@@ -91,7 +91,7 @@ writeShareRemotePath =
   P.label "write share remote path" $
     WriteShareRemotePath
       <$> pure DefaultCodeserver
-      <*> (NameSegment.toText <$> nameSegment)
+      <*> shareUserHandle
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
 
 -- >>> P.parseMaybe readShareRemoteNamespace ".unisonweb.base._releases.M4"
@@ -104,8 +104,14 @@ readShareRemoteNamespace = do
     ReadShareRemoteNamespace
       <$> pure DefaultCodeserver
       -- <*> sch <- P.optional shortBranchHash
-      <*> (NameSegment.toText <$> nameSegment)
+      <*> shareUserHandle
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
+
+-- | We're lax in our share user rules here, Share is the source of truth
+-- for this stuff and can provide better error messages if required.
+shareUserHandle :: P ShareUserHandle
+shareUserHandle = do
+  ShareUserHandle . Text.pack <$> P.some (P.satisfy \c -> isAlphaNum c || c == '-' || c == '_')
 
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)#asdf"
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)#asdf."
