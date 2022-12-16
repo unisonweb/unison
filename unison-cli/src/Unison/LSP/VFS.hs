@@ -33,14 +33,14 @@ usingVFS m = do
   vfsVar' <- asks vfsVar
   modifyMVar vfsVar' $ \vfs -> swap <$> runStateT m vfs
 
-getVirtualFile :: (HasUri doc Uri) => doc -> Lsp (Maybe VirtualFile)
-getVirtualFile p = do
+getVirtualFile :: Uri -> MaybeT Lsp VirtualFile
+getVirtualFile fileUri = do
   vfs <- asks vfsVar >>= readMVar
-  pure $ vfs ^. vfsMap . at (toNormalizedUri $ p ^. uri)
+  MaybeT . pure $ vfs ^. vfsMap . at (toNormalizedUri $ fileUri)
 
-getFileContents :: (HasUri doc Uri) => doc -> Lsp (Maybe (FileVersion, Text))
-getFileContents p = runMaybeT $ do
-  vf <- MaybeT $ getVirtualFile p
+getFileContents :: Uri -> MaybeT Lsp (FileVersion, Text)
+getFileContents fileUri = do
+  vf <- getVirtualFile fileUri
   pure (vf ^. lsp_version, Rope.toText $ vf ^. file_text)
 
 vfsLogger :: Colog.LogAction (StateT VFS Lsp) (Colog.WithSeverity VfsLog)
@@ -62,14 +62,14 @@ markAllFilesDirty = do
   markFilesDirty $ Map.keys (vfs ^. vfsMap)
 
 -- | Returns the name or symbol which the provided position is contained in.
-identifierAtPosition :: (HasPosition p Position, HasTextDocument p TextDocumentIdentifier) => p -> Lsp (Maybe Text)
+identifierAtPosition :: (HasPosition p Position, HasTextDocument p TextDocumentIdentifier) => p -> MaybeT Lsp Text
 identifierAtPosition p = do
-  identifierSplitAtPosition p <&> fmap \(before, after) -> (before <> after)
+  identifierSplitAtPosition p <&> \(before, after) -> (before <> after)
 
 -- | Returns the prefix and suffix of the symbol which the provided position is contained in.
-identifierSplitAtPosition :: (HasPosition p Position, HasTextDocument p docId, HasUri docId Uri) => p -> Lsp (Maybe (Text, Text))
-identifierSplitAtPosition p = runMaybeT $ do
-  vf <- MaybeT (getVirtualFile (p ^. textDocument))
+identifierSplitAtPosition :: (HasPosition p Position, HasTextDocument p docId, HasUri docId Uri) => p -> MaybeT Lsp (Text, Text)
+identifierSplitAtPosition p = do
+  vf <- getVirtualFile (p ^. textDocument . uri)
   PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix (p ^. position) vf)
   let (before, after) = Text.splitAt (cursorPos ^. character . to fromIntegral) fullLine
   pure $ (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)
@@ -83,9 +83,9 @@ identifierSplitAtPosition p = runMaybeT $ do
 
 -- | Returns the prefix of the symbol at the provided location, and the range that prefix
 -- spans.
-completionPrefix :: (HasPosition p Position, HasTextDocument p docId, HasUri docId Uri) => p -> Lsp (Maybe (Range, Text))
-completionPrefix p = runMaybeT $ do
-  (before, _) <- MaybeT $ identifierSplitAtPosition p
+completionPrefix :: (HasPosition p Position, HasTextDocument p docId, HasUri docId Uri) => p -> MaybeT Lsp (Range, Text)
+completionPrefix p = do
+  (before, _) <- identifierSplitAtPosition p
   let posLine = p ^. position . LSP.line
   let posChar = (p ^. position . LSP.character)
   let range = mkRange posLine (posChar - fromIntegral (Text.length before)) posLine posChar

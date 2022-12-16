@@ -1321,19 +1321,25 @@ notifyUser dir o = case o of
         "",
         err
       ]
-  NoConfiguredRemoteMapping pp p ->
-    pure . P.fatalCallout . P.wrap $
-      "I don't know where to "
-        <> PushPull.fold "push to!" "pull from!" pp
-        <> ( if Path.isRoot p
-               then ""
-               else
-                 "Add a line like `RemoteMapping." <> P.shown p
-                   <> " = namespace.path' to .unisonConfig. "
-           )
-        <> "Type `help "
-        <> PushPull.fold "push" "pull" pp
-        <> "` for more information."
+  NoConfiguredRemoteMapping pp p -> do
+    let (localPathExample, sharePathExample) =
+          if Path.isRoot p
+            then ("myproject", "myuser.public.myproject")
+            else (Path.toText (Path.unabsolute p), "myuser.public." <> Path.toText (Path.unabsolute p))
+    pure . P.fatalCallout $
+      P.lines
+        [ "I don't know where to " <> PushPull.fold "push to." "pull from." pp,
+          "Add a `RemoteMapping` configuration to your .unisonConfig file. E.g.",
+          "",
+          "```",
+          "RemoteMapping {",
+          P.text ("  " <> localPathExample <> " = \"" <> sharePathExample <> "\""),
+          "}",
+          "```",
+          "",
+          "Type `help " <> PushPull.fold "push" "pull" pp <> "` for more information."
+        ]
+
   --  | ConfiguredGitUrlParseError PushPull Path' Text String
   ConfiguredRemoteMappingParseError pp p url err ->
     pure . P.fatalCallout . P.lines $
