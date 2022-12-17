@@ -3,8 +3,10 @@ module U.Codebase.Branch.Diff
     NameChanges (..),
     DefinitionDiffs (..),
     Diff (..),
+    NameBasedDiff (..),
     diffBranches,
     nameChanges,
+    nameBasedDiff,
   )
 where
 
@@ -20,10 +22,13 @@ import qualified U.Codebase.Branch.Type as Branch
 import qualified U.Codebase.Causal as Causal
 import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
+import qualified U.Codebase.Referent as Referent
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
+import Unison.Util.Relation (Relation)
+import qualified Unison.Util.Relation as Relation
 
 data Diff a = Diff
   { adds :: Set a,
@@ -83,56 +88,70 @@ data NameChanges = NameChanges
   }
 
 instance Semigroup NameChanges where
-  (NameChanges a b c d) <> (NameChanges a2 b2 c2 d2) =
+  NameChanges a b c d <> NameChanges a2 b2 c2 d2 =
     NameChanges (a <> a2) (b <> b2) (c <> c2) (d <> d2)
 
 instance Monoid NameChanges where
   mempty = NameChanges mempty mempty mempty mempty
 
+-- | A name-based diff for namespaces `N1` and `N2` is (for both terms and types) a relation between references, where
+-- `a R b` if:
+--
+--   1. `a` has name `n` in `N1`, and `b` has the same name `n` in `N2`
+--   2. `a` != `b`
+data NameBasedDiff = NameBasedDiff
+  { terms :: Relation Reference Reference,
+    types :: Relation Reference Reference
+  }
+  deriving stock (Generic, Show)
+
+instance Monoid NameBasedDiff where
+  mempty = NameBasedDiff mempty mempty
+
+instance Semigroup NameBasedDiff where
+  NameBasedDiff terms0 types0 <> NameBasedDiff terms1 types1 =
+    NameBasedDiff (terms0 <> terms1) (types0 <> types1)
+
 -- | Diff two Branches, returning a tree containing all of the changes
 diffBranches :: forall m. Monad m => Branch m -> Branch m -> m TreeDiff
 diffBranches from to = do
-  let termDiffs = diffMap (terms from) (terms to)
-  let typeDiffs = diffMap (types from) (types to)
+  let termDiffs = diffMap (Branch.terms from) (Branch.terms to)
+  let typeDiffs = diffMap (Branch.types from) (Branch.types to)
   let defDiff = DefinitionDiffs {termDiffs, typeDiffs}
   childDiff <- do
     Align.align (children from) (children to)
-      & wither
-        ( \case
-            This ca -> do
-              -- TODO: For the names index we really don't need to know which exact
-              -- names were removed, we just need to delete from the index using a
-              -- prefix query, this would be faster than crawling to get all the deletes.
-              removedChildBranch <- Causal.value ca
-              Just . unTreeDiff <$> diffBranches removedChildBranch Branch.empty
-            That ca -> do
-              newChildBranch <- Causal.value ca
-              Just . unTreeDiff <$> diffBranches Branch.empty newChildBranch
-            These fromC toC
-              | Causal.valueHash fromC == Causal.valueHash toC -> do
-                  -- This child didn't change.
-                  pure Nothing
-              | otherwise -> do
-                  fromChildBranch <- Causal.value fromC
-                  toChildBranch <- Causal.value toC
-                  diffBranches fromChildBranch toChildBranch >>= \case
-                    Lens.Empty -> pure Nothing
-                    TreeDiff cfr -> pure . Just $ cfr
-        )
+      & wither \case
+        This ca -> do
+          -- TODO: For the names index we really don't need to know which exact
+          -- names were removed, we just need to delete from the index using a
+          -- prefix query, this would be faster than crawling to get all the deletes.
+          removedChildBranch <- Causal.value ca
+          Just . unTreeDiff <$> diffBranches removedChildBranch Branch.empty
+        That ca -> do
+          newChildBranch <- Causal.value ca
+          Just . unTreeDiff <$> diffBranches Branch.empty newChildBranch
+        These fromC toC
+          | Causal.valueHash fromC == Causal.valueHash toC -> do
+              -- This child didn't change.
+              pure Nothing
+          | otherwise -> do
+              fromChildBranch <- Causal.value fromC
+              toChildBranch <- Causal.value toC
+              diffBranches fromChildBranch toChildBranch >>= \case
+                Lens.Empty -> pure Nothing
+                TreeDiff cfr -> pure . Just $ cfr
   pure $ TreeDiff (defDiff :< childDiff)
   where
     diffMap :: forall ref. Ord ref => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Diff ref)
     diffMap l r =
       Align.align l r
-        & fmap
-          ( \case
-              (This refs) -> (Diff {removals = Map.keysSet refs, adds = mempty})
-              (That refs) -> (Diff {removals = mempty, adds = Map.keysSet refs})
-              (These l' r') ->
-                let lRefs = Map.keysSet l'
-                    rRefs = Map.keysSet r'
-                 in (Diff {removals = lRefs `Set.difference` rRefs, adds = rRefs `Set.difference` lRefs})
-          )
+        & fmap \case
+          This refs -> Diff {removals = Map.keysSet refs, adds = mempty}
+          That refs -> Diff {removals = mempty, adds = Map.keysSet refs}
+          These l' r' ->
+            let lRefs = Map.keysSet l'
+                rRefs = Map.keysSet r'
+             in Diff {removals = lRefs `Set.difference` rRefs, adds = rRefs `Set.difference` lRefs}
 
 -- | Get a summary of all of the name adds and removals from a tree diff.
 --
@@ -144,22 +163,19 @@ nameChanges ::
   NameChanges
 nameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< children)) =
   let (termNameAdds, termNameRemovals) =
-        ( termDiffs
-            & ifoldMap \ns diff ->
-              let name = appendName ns
-               in (listifyNames name $ adds diff, listifyNames name $ removals diff)
-        )
+        termDiffs
+          & ifoldMap \ns diff ->
+            let name = appendName ns
+             in (listifyNames name $ adds diff, listifyNames name $ removals diff)
       (typeNameAdds, typeNameRemovals) =
-        ( typeDiffs
-            & ifoldMap \ns diff ->
-              let name = appendName ns
-               in (listifyNames name $ adds diff, listifyNames name $ removals diff)
-        )
+        typeDiffs
+          & ifoldMap \ns diff ->
+            let name = appendName ns
+             in (listifyNames name $ adds diff, listifyNames name $ removals diff)
       childNameChanges =
-        ( children
-            & ifoldMap \ns childTree ->
-              nameChanges (Just $ appendName ns) (TreeDiff childTree)
-        )
+        children
+          & ifoldMap \ns childTree ->
+            nameChanges (Just $ appendName ns) (TreeDiff childTree)
    in NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} <> childNameChanges
   where
     appendName :: NameSegment -> Name
@@ -172,3 +188,26 @@ nameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< chil
       xs
         & Set.toList
         & fmap (name,)
+
+-- | Get a 'NameBasedDiff' from a 'TreeDiff'.
+nameBasedDiff :: TreeDiff -> NameBasedDiff
+nameBasedDiff (TreeDiff defnDiffs) =
+  defnDiffs & foldMap \DefinitionDiffs {termDiffs, typeDiffs} ->
+    NameBasedDiff
+      { terms = foldMap nameBasedTermDiff termDiffs,
+        types = foldMap nameBasedTypeDiff typeDiffs
+      }
+  where
+    nameBasedTermDiff :: Diff Referent -> Relation Reference Reference
+    nameBasedTermDiff Diff {adds, removals} =
+      let termAdds = mapMaybe Referent.toTermReference (Set.toList adds)
+          termRemovals = mapMaybe Referent.toTermReference (Set.toList removals)
+       in ((,) <$> termRemovals <*> termAdds)
+            & filter (\(r0, r1) -> r0 /= r1)
+            & Relation.fromList
+
+    nameBasedTypeDiff :: Diff Reference -> Relation Reference Reference
+    nameBasedTypeDiff Diff {adds, removals} =
+      ((,) <$> Set.toList removals <*> Set.toList adds)
+        & filter (\(r0, r1) -> r0 /= r1)
+        & Relation.fromList
