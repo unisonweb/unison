@@ -51,7 +51,7 @@ import Data.IORef as SYS
   )
 import qualified Data.Map as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
-import qualified Data.Primitive as PA
+import qualified Unison.Runtime.Array as PA
 import Data.Set (insert)
 import qualified Data.Set as Set
 import qualified Data.Text
