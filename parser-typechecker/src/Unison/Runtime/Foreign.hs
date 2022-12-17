@@ -44,6 +44,68 @@ data Foreign where
 promote :: (a -> a -> r) -> b -> c -> r
 promote (~~) x y = unsafeCoerce x ~~ unsafeCoerce y
 
+-- These functions are explicit aliases of the overloaded function.
+-- When the overloaded function is used in their place, it seems to
+-- cause issues with regard to `promote` above. Somehow, the
+-- unsafeCoerce can cause memory faults, even when the values are
+-- being coerced to appropriate types. Having an explicit, noinline
+-- alias seems to prevent the faults.
+txtEq :: Text -> Text -> Bool
+txtEq l r = l == r
+{-# noinline txtEq #-}
+
+txtCmp :: Text -> Text -> Ordering
+txtCmp l r = compare l r
+{-# noinline txtCmp #-}
+
+bytesEq :: Bytes -> Bytes -> Bool
+bytesEq l r = l == r
+{-# noinline bytesEq #-}
+
+bytesCmp :: Bytes -> Bytes -> Ordering
+bytesCmp l r = compare l r
+{-# noinline bytesCmp #-}
+
+mvarEq :: MVar () -> MVar () -> Bool
+mvarEq l r = l == r
+{-# noinline mvarEq #-}
+
+refEq :: IORef () -> IORef () -> Bool
+refEq l r = l == r
+{-# noinline refEq #-}
+
+tidEq :: ThreadId -> ThreadId -> Bool
+tidEq l r = l == r
+{-# noinline tidEq #-}
+
+tidCmp :: ThreadId -> ThreadId -> Ordering
+tidCmp l r = compare l r
+{-# noinline tidCmp #-}
+
+marrEq :: MutableArray () () -> MutableArray () () -> Bool
+marrEq l r = l == r
+{-# noinline marrEq #-}
+
+mbarrEq :: MutableByteArray () -> MutableByteArray () -> Bool
+mbarrEq l r = l == r
+{-# noinline mbarrEq #-}
+
+barrEq :: ByteArray -> ByteArray -> Bool
+barrEq l r = l == r
+{-# noinline barrEq #-}
+
+barrCmp :: ByteArray -> ByteArray -> Ordering
+barrCmp l r = compare l r
+{-# noinline barrCmp #-}
+
+cpatEq :: CPattern -> CPattern -> Bool
+cpatEq l r = l == r
+{-# noinline cpatEq #-}
+
+cpatCmp :: CPattern -> CPattern -> Ordering
+cpatCmp l r = compare l r
+{-# noinline cpatCmp #-}
+
 tylEq :: Reference -> Reference -> Bool
 tylEq r l = r == l
 {-# NOINLINE tylEq #-}
@@ -62,31 +124,31 @@ tmlCmp r l = compare r l
 
 ref2eq :: Reference -> Maybe (a -> b -> Bool)
 ref2eq r
-  | r == Ty.textRef = Just $ promote ((==) @Text)
+  | r == Ty.textRef = Just $ promote txtEq
   | r == Ty.termLinkRef = Just $ promote tmlEq
   | r == Ty.typeLinkRef = Just $ promote tylEq
-  | r == Ty.bytesRef = Just $ promote ((==) @Bytes)
+  | r == Ty.bytesRef = Just $ promote bytesEq
   -- Note: MVar equality is just reference equality, so it shouldn't
   -- matter what type the MVar holds.
-  | r == Ty.mvarRef = Just $ promote ((==) @(MVar ()))
+  | r == Ty.mvarRef = Just $ promote mvarEq
   -- Ditto
-  | r == Ty.refRef = Just $ promote ((==) @(IORef ()))
-  | r == Ty.threadIdRef = Just $ promote ((==) @ThreadId)
-  | r == Ty.marrayRef = Just $ promote ((==) @(MutableArray () ()))
-  | r == Ty.mbytearrayRef = Just $ promote ((==) @(MutableByteArray ()))
-  | r == Ty.ibytearrayRef = Just $ promote ((==) @ByteArray)
-  | r == Ty.patternRef = Just $ promote ((==) @CPattern)
+  | r == Ty.refRef = Just $ promote refEq
+  | r == Ty.threadIdRef = Just $ promote tidEq
+  | r == Ty.marrayRef = Just $ promote marrEq
+  | r == Ty.mbytearrayRef = Just $ promote mbarrEq
+  | r == Ty.ibytearrayRef = Just $ promote barrEq
+  | r == Ty.patternRef = Just $ promote cpatEq
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
 ref2cmp r
-  | r == Ty.textRef = Just $ promote (compare @Text)
+  | r == Ty.textRef = Just $ promote txtCmp
   | r == Ty.termLinkRef = Just $ promote tmlCmp
   | r == Ty.typeLinkRef = Just $ promote tylCmp
-  | r == Ty.bytesRef = Just $ promote (compare @Bytes)
-  | r == Ty.threadIdRef = Just $ promote (compare @ThreadId)
-  | r == Ty.ibytearrayRef = Just $ promote (compare @ByteArray)
-  | r == Ty.patternRef = Just $ promote (compare @CPattern)
+  | r == Ty.bytesRef = Just $ promote bytesCmp
+  | r == Ty.threadIdRef = Just $ promote tidCmp
+  | r == Ty.ibytearrayRef = Just $ promote barrCmp
+  | r == Ty.patternRef = Just $ promote cpatCmp
   | otherwise = Nothing
 
 instance Eq Foreign where
