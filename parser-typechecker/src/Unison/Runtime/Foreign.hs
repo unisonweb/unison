@@ -52,59 +52,59 @@ promote (~~) x y = unsafeCoerce x ~~ unsafeCoerce y
 -- alias seems to prevent the faults.
 txtEq :: Text -> Text -> Bool
 txtEq l r = l == r
-{-# noinline txtEq #-}
+{-# NOINLINE txtEq #-}
 
 txtCmp :: Text -> Text -> Ordering
 txtCmp l r = compare l r
-{-# noinline txtCmp #-}
+{-# NOINLINE txtCmp #-}
 
 bytesEq :: Bytes -> Bytes -> Bool
 bytesEq l r = l == r
-{-# noinline bytesEq #-}
+{-# NOINLINE bytesEq #-}
 
 bytesCmp :: Bytes -> Bytes -> Ordering
 bytesCmp l r = compare l r
-{-# noinline bytesCmp #-}
+{-# NOINLINE bytesCmp #-}
 
 mvarEq :: MVar () -> MVar () -> Bool
 mvarEq l r = l == r
-{-# noinline mvarEq #-}
+{-# NOINLINE mvarEq #-}
 
 refEq :: IORef () -> IORef () -> Bool
 refEq l r = l == r
-{-# noinline refEq #-}
+{-# NOINLINE refEq #-}
 
 tidEq :: ThreadId -> ThreadId -> Bool
 tidEq l r = l == r
-{-# noinline tidEq #-}
+{-# NOINLINE tidEq #-}
 
 tidCmp :: ThreadId -> ThreadId -> Ordering
 tidCmp l r = compare l r
-{-# noinline tidCmp #-}
+{-# NOINLINE tidCmp #-}
 
 marrEq :: MutableArray () () -> MutableArray () () -> Bool
 marrEq l r = l == r
-{-# noinline marrEq #-}
+{-# NOINLINE marrEq #-}
 
 mbarrEq :: MutableByteArray () -> MutableByteArray () -> Bool
 mbarrEq l r = l == r
-{-# noinline mbarrEq #-}
+{-# NOINLINE mbarrEq #-}
 
 barrEq :: ByteArray -> ByteArray -> Bool
 barrEq l r = l == r
-{-# noinline barrEq #-}
+{-# NOINLINE barrEq #-}
 
 barrCmp :: ByteArray -> ByteArray -> Ordering
 barrCmp l r = compare l r
-{-# noinline barrCmp #-}
+{-# NOINLINE barrCmp #-}
 
 cpatEq :: CPattern -> CPattern -> Bool
 cpatEq l r = l == r
-{-# noinline cpatEq #-}
+{-# NOINLINE cpatEq #-}
 
 cpatCmp :: CPattern -> CPattern -> Ordering
 cpatCmp l r = compare l r
-{-# noinline cpatCmp #-}
+{-# NOINLINE cpatCmp #-}
 
 tylEq :: Reference -> Reference -> Bool
 tylEq r l = r == l

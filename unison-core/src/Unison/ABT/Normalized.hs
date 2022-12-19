@@ -96,25 +96,28 @@ class (Bifoldable f, Bifunctor f) => Align f where
     Applicative g =>
     (vl -> vr -> g vs) ->
     (el -> er -> g es) ->
-    f vl el -> f vr er -> Maybe (g (f vs es))
+    f vl el ->
+    f vr er ->
+    Maybe (g (f vs es))
 
 alphaErr ::
   Align f => Var v => Map v v -> Term f v -> Term f v -> Either (Term f v, Term f v) a
 alphaErr un tml tmr = Left (tml, renames count un tmr)
   where
-    count = Map.fromListWith (+) . flip zip [1,1..] $ toList un
+    count = Map.fromListWith (+) . flip zip [1, 1 ..] $ toList un
 
 -- Checks if two terms are equal up to a given variable renaming. The
 -- renaming should map variables in the right hand term to the
 -- equivalent variable in the left hand term.
 alpha :: Align f => Var v => Map v v -> Term f v -> Term f v -> Either (Term f v, Term f v) ()
-alpha un (TAbs u tml) (TAbs v tmr)
-  = alpha (Map.insert v u (Map.filter (/= u) un)) tml tmr
+alpha un (TAbs u tml) (TAbs v tmr) =
+  alpha (Map.insert v u (Map.filter (/= u) un)) tml tmr
 alpha un tml@(TTm bdl) tmr@(TTm bdr)
   | Just sub <- align av (alpha un) bdl bdr = () <$ sub
   where
-    av u v | maybe False (== u) (Map.lookup v un) = pure ()
-           | otherwise = alphaErr un tml tmr
+    av u v
+      | maybe False (== u) (Map.lookup v un) = pure ()
+      | otherwise = alphaErr un tml tmr
 alpha un tml tmr = alphaErr un tml tmr
 
 unabss :: Var v => Term f v -> ([v], Term f v)

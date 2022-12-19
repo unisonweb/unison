@@ -101,7 +101,9 @@ unionWith f (EM l) (EM r) = EM $ IM.unionWith f l r
 
 intersectionWith ::
   (a -> b -> c) ->
-  EnumMap k a -> EnumMap k b -> EnumMap k c
+  EnumMap k a ->
+  EnumMap k b ->
+  EnumMap k c
 intersectionWith f (EM l) (EM r) = EM $ IM.intersectionWith f l r
 
 keys :: EnumKey k => EnumMap k a -> [k]
@@ -148,10 +150,12 @@ traverseSet_ ::
 traverseSet_ f (ES s) =
   IS.foldr (\i r -> f (intToKey i) *> r) (pure ()) s
 
-interverse
-  :: Applicative f
-  => (a -> b -> f c)
-  -> EnumMap k a -> EnumMap k b -> f (EnumMap k c)
+interverse ::
+  Applicative f =>
+  (a -> b -> f c) ->
+  EnumMap k a ->
+  EnumMap k b ->
+  f (EnumMap k c)
 interverse f (EM l) (EM r) =
   fmap EM . traverse id $ IM.intersectionWith f l r
 

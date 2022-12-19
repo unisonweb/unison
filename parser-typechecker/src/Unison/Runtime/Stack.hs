@@ -109,12 +109,13 @@ data Closure
   deriving (Show, Eq, Ord)
 
 traceK :: Reference -> K -> [(Reference, Int)]
-traceK begin = dedup (begin, 1) where
-  dedup p (Mark _ _ _ _ k) = dedup p k
-  dedup p@(cur,n) (Push _ _ _ _ (CIx r _ _) k)
-    | cur == r = dedup (cur,1+n) k
-    | otherwise = p : dedup (r,1) k
-  dedup p _ = [p]
+traceK begin = dedup (begin, 1)
+  where
+    dedup p (Mark _ _ _ _ k) = dedup p k
+    dedup p@(cur, n) (Push _ _ _ _ (CIx r _ _) k)
+      | cur == r = dedup (cur, 1 + n) k
+      | otherwise = p : dedup (r, 1) k
+    dedup p _ = [p]
 
 splitData :: Closure -> Maybe (Reference, Word64, [Int], [Closure])
 splitData (Enum r t) = Just (r, t, [], [])
