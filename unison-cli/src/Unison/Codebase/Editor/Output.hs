@@ -1,7 +1,6 @@
-{-# LANGUAGE PatternSynonyms #-}
-
 module Unison.Codebase.Editor.Output
   ( Output (..),
+    WhichBranchEmpty(..),
     NumberedOutput (..),
     NumberedArgs,
     ListDetailed,
@@ -123,7 +122,7 @@ data Output
     NoMainFunction String PPE.PrettyPrintEnv [Type Symbol Ann]
   | -- Main function found, but has improper type
     BadMainFunction String (Type Symbol Ann) PPE.PrettyPrintEnv [Type Symbol Ann]
-  | BranchEmpty (Either ShortCausalHash Path')
+  | BranchEmpty WhichBranchEmpty
   | BranchNotEmpty Path'
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -277,6 +276,12 @@ data Output
   | IntegrityCheck IntegrityResult
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
+
+-- | A branch was empty. But how do we refer to that branch?
+data WhichBranchEmpty
+  = WhichBranchEmptyHash ShortCausalHash
+  | WhichBranchEmptyPath Path'
+  | WhichBranchEmptyRemote ReadRemoteNamespace
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError

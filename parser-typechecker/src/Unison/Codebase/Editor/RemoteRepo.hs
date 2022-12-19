@@ -1,6 +1,3 @@
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Editor.RemoteRepo where
