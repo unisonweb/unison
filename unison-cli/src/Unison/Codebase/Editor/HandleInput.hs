@@ -269,7 +269,7 @@ loop e = do
             go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
         when (not (null e')) do
           Cli.respond $ Evaluated text ppe bindings e'
-        #latestTypecheckedFile .= (Just unisonFile)
+        #latestTypecheckedFile .= Just unisonFile
 
   case e of
     Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
@@ -1186,41 +1186,7 @@ loop e = do
             ExecuteSchemeI main -> doRunAsScheme main
             GenSchemeLibsI -> doGenerateSchemeBoot True Nothing
             FetchSchemeCompilerI -> doFetchCompiler
-            IOTestI main -> do
-              Cli.Env {codebase, runtime} <- ask
-              -- todo - allow this to run tests from scratch file, using addRunMain
-              let testType = Runtime.ioTestType runtime
-              parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
-              ppe <- suffixifiedPPE parseNames
-              -- use suffixed names for resolving the argument to display
-              let oks results =
-                    [ (r, msg)
-                      | (r, Term.List' ts) <- results,
-                        Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-                        cid == DD.okConstructorId && ref == DD.testResultRef
-                    ]
-                  fails results =
-                    [ (r, msg)
-                      | (r, Term.List' ts) <- results,
-                        Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-                        cid == DD.failConstructorId && ref == DD.testResultRef
-                    ]
-
-                  results = NamesWithHistory.lookupHQTerm main parseNames
-              ref <- do
-                let noMain = Cli.returnEarly $ NoMainFunction (HQ.toString main) ppe [testType]
-                case toList results of
-                  [Referent.Ref ref] -> do
-                    Cli.runTransaction (loadTypeOfTerm codebase (Referent.Ref ref)) >>= \case
-                      Just typ | Typechecker.isSubtype typ testType -> pure ref
-                      _ -> noMain
-                  _ -> noMain
-              let a = ABT.annotation tm
-                  tm = DD.forceTerm a a (Term.ref a ref)
-              -- Don't cache IO tests
-              tm' <- evalUnisonTerm False ppe False tm
-              Cli.respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
-
+            IOTestI main -> handleIOTest main
             -- UpdateBuiltinsI -> do
             --   stepAt updateBuiltins
             --   checkTodo
@@ -1868,6 +1834,83 @@ handleDiffNamespaceToPatch description input = do
   Cli.stepAtM
     description
     (Path.unabsolute patchPath, Branch.modifyPatches patchName (const patch))
+
+handleIOTest :: HQ.HashQualified Name -> Cli ()
+handleIOTest main = do
+  Cli.Env {codebase, runtime} <- ask
+
+  let testType = Runtime.ioTestType runtime
+  parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
+  -- use suffixed names for resolving the argument to display
+  ppe <- suffixifiedPPE parseNames
+  let oks results =
+        [ (r, msg)
+          | (r, Term.List' ts) <- results,
+            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
+            cid == DD.okConstructorId && ref == DD.testResultRef
+        ]
+      fails results =
+        [ (r, msg)
+          | (r, Term.List' ts) <- results,
+            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
+            cid == DD.failConstructorId && ref == DD.testResultRef
+        ]
+
+  matches <-
+    Cli.label \returnMatches -> do
+      -- First, look at the terms in the latest typechecked file for a name-match.
+      whenJustM Cli.getLatestTypecheckedFile \typecheckedFile -> do
+        let refToType :: Reference -> Type Symbol Ann
+            refToType ref =
+              typecheckedFile
+                & UF.indexByReference
+                & fst
+                -- These two unsafe functions are actually safe:
+                --   1. We can assert ref is actually a Reference.Id because it came from the latest typechecked file.
+                --   2. The reference has to be in this map because we got it from the file itself.
+                & (Map.! (Reference.unsafeId ref))
+                & snd
+        let matches :: [(TermReference, Type Symbol Ann)]
+            matches =
+              typecheckedFile
+                & UF.typecheckedToNames
+                & (\names -> Names.refTermsHQNamed names main)
+                & Set.toList
+                & map (\r -> (r, refToType r))
+
+        -- If 1+ matches (which we know will be exactly 1, since you can't have two definitions in a scratch file with
+        -- the same name), then return them. Otherwise, fall through to looking up in the codebase.
+        when (not (null matches)) (returnMatches matches)
+
+      -- Then, if we get here (because nothing in the scratch file matched), look at the terms in the codebase.
+      fmap catMaybes do
+        Cli.runTransaction do
+          for (Set.toList (NamesWithHistory.lookupHQTerm main parseNames)) \ref0 ->
+            runMaybeT do
+              ref <- MaybeT (pure (Referent.toTermReference ref0))
+              typ <- MaybeT (loadTypeOfTerm codebase (Referent.Ref ref))
+              pure (ref, typ)
+
+  ref <-
+    case matches of
+      [] -> Cli.returnEarly (NoMainFunction (HQ.toString main) ppe [testType])
+      [(ref, typ)] ->
+        if Typechecker.isSubtype typ testType
+          then pure ref
+          else Cli.returnEarly (BadMainFunction "io.test" (HQ.toString main) typ ppe [testType])
+      _ -> do
+        hashLength <- Cli.runTransaction Codebase.hashLength
+        let labeledDependencies =
+              matches
+                & map (\(ref, _typ) -> LD.termRef ref)
+                & Set.fromList
+        Cli.returnEarly (LabeledReferenceAmbiguous hashLength main labeledDependencies)
+
+  let a = ABT.annotation tm
+      tm = DD.forceTerm a a (Term.ref a ref)
+  -- Don't cache IO tests
+  tm' <- evalUnisonTerm False ppe False tm
+  Cli.respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
@@ -2687,7 +2730,7 @@ typecheckAndEval ppe tm = do
       | Typechecker.fitsScheme ty mty ->
           () <$ evalUnisonTerm False ppe False tm
       | otherwise ->
-          Cli.returnEarly $ BadMainFunction rendered ty ppe [mty]
+          Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
     Result.Result notes Nothing -> do
       currentPath <- Cli.getCurrentPath
       let tes = [err | Result.TypeError err <- toList notes]
@@ -3122,7 +3165,7 @@ getTerm main =
       mainType <- Runtime.mainType <$> view #runtime
       basicPrettyPrintNames <- getBasicPrettyPrintNames
       ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-      Cli.returnEarly $ BadMainFunction main ty ppe [mainType]
+      Cli.returnEarly $ BadMainFunction "run" main ty ppe [mainType]
     GetTermSuccess x -> pure x
 
 getTerm' :: String -> Cli GetTermResult
