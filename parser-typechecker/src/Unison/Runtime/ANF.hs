@@ -58,6 +58,8 @@ module Unison.Runtime.ANF
     ANFM,
     Branched (.., MatchDataCover),
     Func (..),
+    SGEqv(..),
+    equivocate,
     superNormalize,
     anfTerm,
     valueTermLinks,
@@ -66,6 +68,8 @@ module Unison.Runtime.ANF
     groupLinks,
     normalLinks,
     prettyGroup,
+    prettySuperNormal,
+    prettyANF,
   )
 where
 
@@ -600,8 +604,9 @@ data ANormalF v e
   | AApp (Func v) [v]
   | AFrc v
   | AVar v
-  deriving (Show)
+  deriving (Show, Eq)
 
+  
 -- Types representing components that will go into the runtime tag of
 -- a data type value. RTags correspond to references, while CTags
 -- correspond to constructors.
@@ -700,6 +705,109 @@ instance Bifoldable ANormalF where
   bifoldMap _ g (AShift _ e) = g e
   bifoldMap f _ (AFrc v) = f v
   bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
+
+instance ABTN.Align ANormalF where
+  align f _ (AVar u) (AVar v) = Just $ AVar <$> f u v
+  align _ _ (ALit l) (ALit r)
+    | l == r = Just $ pure (ALit l)
+  align _ g (ALet dl ccl bl el) (ALet dr ccr br er)
+    | dl == dr, ccl == ccr =
+      Just $ ALet dl ccl <$> g bl br <*> g el er
+  align f g (AName hl asl el) (AName hr asr er)
+    | length asl == length asr
+    , Just hs <- alignEither f hl hr =
+    Just $
+      AName <$> hs
+            <*> traverse (uncurry f) (zip asl asr)
+            <*> g el er
+  align f g (AMatch vl bsl) (AMatch vr bsr)
+    | Just bss <- alignBranch g bsl bsr =
+    Just $ AMatch <$> f vl vr <*> bss
+  align f g (AHnd rl hl bl) (AHnd rr hr br)
+    | rl == rr = Just $ AHnd rl <$> f hl hr <*> g bl br
+  align _ g (AShift rl bl) (AShift rr br)
+    | rl == rr = Just $ AShift rl <$> g bl br
+  align f _ (AFrc u) (AFrc v) = Just $ AFrc <$> f u v
+  align f _ (AApp hl asl) (AApp hr asr)
+    | Just hs <- alignFunc f hl hr
+    , length asl == length asr
+    = Just $ AApp <$> hs <*> traverse (uncurry f) (zip asl asr)
+  align _ _ _ _ = Nothing
+
+alignEither ::
+  Applicative f =>
+  (l -> r -> f s) ->
+  Either Reference l -> Either Reference r -> Maybe (f (Either Reference s))
+alignEither _ (Left rl) (Left rr) | rl == rr = Just . pure $ Left rl
+alignEither f (Right u) (Right v) = Just $ Right <$> f u v
+alignEither _ _ _ = Nothing
+
+alignMaybe ::
+  Applicative f =>
+  (l -> r -> f s) ->
+  Maybe l -> Maybe r -> Maybe (f (Maybe s))
+alignMaybe f (Just l) (Just r) = Just $ Just <$> f l r
+alignMaybe _ Nothing Nothing = Just (pure Nothing)
+alignMaybe _ _ _ = Nothing
+
+alignFunc ::
+  Applicative f =>
+  (vl -> vr -> f vs) ->
+  Func vl -> Func vr -> Maybe (f (Func vs))
+alignFunc f (FVar u) (FVar v) = Just $ FVar <$> f u v
+alignFunc _ (FComb rl) (FComb rr) | rl == rr = Just . pure $ FComb rl
+alignFunc f (FCont u) (FCont v) = Just $ FCont <$> f u v
+alignFunc _ (FCon rl tl) (FCon rr tr)
+  | rl == rr, tl == tr = Just . pure $ FCon rl tl
+alignFunc _ (FReq rl tl) (FReq rr tr)
+  | rl == rr, tl == tr = Just . pure $ FReq rl tl
+alignFunc _ (FPrim ol) (FPrim or)
+  | ol == or = Just . pure $ FPrim ol
+alignFunc _ _ _ = Nothing
+
+alignBranch ::
+  Applicative f =>
+  (el -> er -> f es) ->
+  Branched el -> Branched er -> Maybe (f (Branched es))
+alignBranch _ MatchEmpty MatchEmpty = Just $ pure MatchEmpty
+alignBranch f (MatchIntegral bl dl) (MatchIntegral br dr)
+  | keysSet bl == keysSet br
+  , Just ds <- alignMaybe f dl dr
+  = Just $ MatchIntegral
+             <$> interverse f bl br
+             <*> ds
+alignBranch f (MatchText bl dl) (MatchText br dr)
+  | Map.keysSet bl == Map.keysSet br
+  , Just ds <- alignMaybe f dl dr
+  = Just $ MatchText
+             <$> traverse id (Map.intersectionWith f bl br)
+             <*> ds
+alignBranch f (MatchRequest bl pl) (MatchRequest br pr)
+  | Map.keysSet bl == Map.keysSet br
+  , all p (Map.keysSet bl)
+  = Just $ MatchRequest
+      <$> traverse id (Map.intersectionWith (interverse (alignCCs f)) bl br)
+      <*> f pl pr
+  where
+    p r = keysSet hsl == keysSet hsr && all q (keys hsl)
+      where
+        hsl = bl Map.! r
+        hsr = br Map.! r
+        q t = fst (hsl ! t) == fst (hsr ! t)
+alignBranch f (MatchData rfl bl dl) (MatchData rfr br dr)
+  | rfl == rfr
+  , keysSet bl == keysSet br
+  , all (\t -> fst (bl ! t) == fst (br ! t)) (keys bl)
+  , Just ds <- alignMaybe f dl dr
+  = Just $ MatchData rfl <$> interverse (alignCCs f) bl br <*> ds
+alignBranch f (MatchSum bl) (MatchSum br)
+  | keysSet bl == keysSet br
+  , all (\w -> fst (bl ! w) == fst (br ! w)) (keys bl)
+  = Just $ MatchSum <$> interverse (alignCCs f) bl br
+alignBranch _ _ _ = Nothing
+
+alignCCs :: Functor f => (l -> r -> f s) -> (a, l) -> (a, r) -> f (a, s)
+alignCCs f (ccs, l) (_, r) = (,) ccs <$> f l r
 
 matchLit :: Term v a -> Maybe Lit
 matchLit (Int' i) = Just $ I i
@@ -927,7 +1035,7 @@ data Branched e
   | MatchEmpty
   | MatchData Reference (EnumMap CTag ([Mem], e)) (Maybe e)
   | MatchSum (EnumMap Word64 ([Mem], e))
-  deriving (Show, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Functor, Foldable, Traversable)
 
 -- Data cases expected to cover all constructors
 pattern MatchDataCover :: Reference -> EnumMap CTag ([Mem], e) -> Branched e
@@ -1038,7 +1146,7 @@ data Func v
     FReq !Reference !CTag
   | -- prim op
     FPrim (Either POp FOp)
-  deriving (Show, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Lit
   = I Int64
@@ -1048,7 +1156,7 @@ data Lit
   | C Char
   | LM Referent
   | LY Reference
-  deriving (Show)
+  deriving (Show, Eq)
 
 litRef :: Lit -> Reference
 litRef (I _) = Ty.intRef
@@ -1227,13 +1335,47 @@ type DNormal v = Directed () (ANormal v)
 
 -- Should be a completely closed term
 data SuperNormal v = Lambda {conventions :: [Mem], bound :: ANormal v}
-  deriving (Show)
+  deriving (Show, Eq)
 
 data SuperGroup v = Rec
   { group :: [(v, SuperNormal v)],
     entry :: SuperNormal v
   }
   deriving (Show)
+
+instance Var v => Eq (SuperGroup v) where
+  g0 == g1 | Left _ <- equivocate g0 g1 = False | otherwise = True
+
+-- Failure modes for SuperGroup alpha equivalence test
+data SGEqv v
+  -- mismatch number of definitions in group
+  = NumDefns (SuperGroup v) (SuperGroup v)
+  -- mismatched SuperNormal calling conventions
+  | DefnConventions (SuperNormal v) (SuperNormal v)
+  -- mismatched subterms in corresponding definition
+  | Subterms (ANormal v) (ANormal v)
+
+-- Checks if two SuperGroups are equivalent up to renaming. The rest
+-- of the structure must match on the nose. If the two groups are not
+-- equivalent, an example of conflicting structure is returned.
+equivocate ::
+  Var v =>
+  SuperGroup v -> SuperGroup v -> Either (SGEqv v) ()
+equivocate g0@(Rec bs0 e0) g1@(Rec bs1 e1)
+  | length bs0 == length bs1 =
+    traverse_ eqvSN (zip ns0 ns1) *> eqvSN (e0, e1)
+  | otherwise = Left $ NumDefns g0 g1
+  where
+  (vs0, ns0) = unzip bs0
+  (vs1, ns1) = unzip bs1
+  vm = Map.fromList (zip vs1 vs0)
+
+  promote (Left (l, r)) = Left $ Subterms l r
+  promote (Right v) = Right v
+
+  eqvSN (Lambda ccs0 e0, Lambda ccs1 e1)
+    | ccs0 == ccs1 = promote $ ABTN.alpha vm e0 e1
+  eqvSN (n0, n1) = Left $ DefnConventions n0 n1
 
 type ANFM v =
   ReaderT

@@ -9,6 +9,7 @@ module Unison.Util.EnumContainers
     setSingleton,
     mapInsert,
     unionWith,
+    intersectionWith,
     hasKey,
     keys,
     keysSet,
@@ -22,7 +23,9 @@ module Unison.Util.EnumContainers
     mapToList,
     (!),
     findMin,
+    interverse,
     traverseSet_,
+    traverseWithKey,
     setSize,
   )
 where
@@ -90,12 +93,16 @@ mapInsert e x (EM m) = EM $ IM.insert (keyToInt e) x m
 
 unionWith ::
   EnumKey k =>
-  EnumKey k =>
   (a -> a -> a) ->
   EnumMap k a ->
   EnumMap k a ->
   EnumMap k a
 unionWith f (EM l) (EM r) = EM $ IM.unionWith f l r
+
+intersectionWith ::
+  (a -> b -> c) ->
+  EnumMap k a -> EnumMap k b -> EnumMap k c
+intersectionWith f (EM l) (EM r) = EM $ IM.intersectionWith f l r
 
 keys :: EnumKey k => EnumMap k a -> [k]
 keys (EM m) = fmap intToKey . IM.keys $ m
@@ -140,6 +147,21 @@ traverseSet_ ::
   Applicative f => EnumKey k => (k -> f ()) -> EnumSet k -> f ()
 traverseSet_ f (ES s) =
   IS.foldr (\i r -> f (intToKey i) *> r) (pure ()) s
+
+interverse
+  :: Applicative f
+  => (a -> b -> f c)
+  -> EnumMap k a -> EnumMap k b -> f (EnumMap k c)
+interverse f (EM l) (EM r) =
+  fmap EM . traverse id $ IM.intersectionWith f l r
+
+traverseWithKey ::
+  Applicative f =>
+  EnumKey k =>
+  (k -> a -> f b) ->
+  EnumMap k a ->
+  f (EnumMap k b)
+traverseWithKey f (EM m) = EM <$> IM.traverseWithKey (f . intToKey) m
 
 setSize :: EnumSet k -> Int
 setSize (ES s) = IS.size s
