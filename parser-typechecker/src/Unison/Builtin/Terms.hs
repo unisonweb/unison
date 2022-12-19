@@ -22,13 +22,15 @@ import qualified Unison.Type as Type
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 
-builtinTermsSrc :: a -> [(Symbol, Term Symbol a, Type Symbol a)]
+builtinTermsSrc :: a -> [(Symbol, a, Term Symbol a, Type Symbol a)]
 builtinTermsSrc ann =
   [ ( v "metadata.isPropagated",
+      a,
       Term.constructor ann (ConstructorReference Decls.isPropagatedRef Decls.isPropagatedConstructorId),
       Type.ref ann Decls.isPropagatedRef
     ),
     ( v "metadata.isTest",
+      a,
       Term.constructor ann (ConstructorReference Decls.isTestRef Decls.isTestConstructorId),
       Type.ref ann Decls.isTestRef
     )

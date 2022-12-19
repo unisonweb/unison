@@ -18,16 +18,16 @@ import Unison.WatchKind (WatchKind)
 data UnisonFile v a = UnisonFileId
   { dataDeclarationsId :: Map v (a {- ann for whole decl -}, TermReferenceId, DataDeclaration v a),
     effectDeclarationsId :: Map v (a {- ann for whole decl -}, TermReferenceId, EffectDeclaration v a),
-    terms :: [(a {- ann for whole binding -}, v, Term v a)],
-    watches :: Map WatchKind [(a {- ann for whole watch -}, v, Term v a)]
+    terms :: [(v, a {- ann for whole binding -}, Term v a)],
+    watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
   }
   deriving (Show)
 
 pattern UnisonFile ::
   Map v (a, TypeReference, DataDeclaration v a) ->
   Map v (a, TypeReference, EffectDeclaration v a) ->
-  [(a, v, Term v a)] ->
-  Map WatchKind [(a, v, Term v a)] ->
+  [(v, a, Term v a)] ->
+  Map WatchKind [(v, a, Term v a)] ->
   UnisonFile v a
 pattern UnisonFile ds es tms ws <-
   UnisonFileId
@@ -43,8 +43,8 @@ pattern UnisonFile ds es tms ws <-
 data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
   { dataDeclarationsId' :: Map v (a {- ann for whole decl -}, TypeReferenceId, DataDeclaration v a),
     effectDeclarationsId' :: Map v (a {- ann for whole decl -}, TypeReferenceId, EffectDeclaration v a),
-    topLevelComponents' :: [[(a {- ann for whole binding -}, v, Term v a, Type v a)]],
-    watchComponents :: [(WatchKind, [(a {- ann for whole watch -}, v, Term v a, Type v a)])],
+    topLevelComponents' :: [[(v, a {- ann for whole binding -}, Term v a, Type v a)]],
+    watchComponents :: [(WatchKind, [(v, a {- ann for whole watch -}, Term v a, Type v a)])],
     hashTermsId :: Map v (a {- ann for whole binding -}, TermReferenceId, Maybe WatchKind, Term v a, Type v a)
   }
   deriving stock (Generic, Show)
@@ -54,8 +54,8 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
 pattern TypecheckedUnisonFile ::
   Map v (a, TypeReference, DataDeclaration v a) ->
   Map v (a, TypeReference, EffectDeclaration v a) ->
-  [[(a, v, Term v a, Type v a)]] ->
-  [(WatchKind, [(a, v, Term v a, Type v a)])] ->
+  [[(v, a, Term v a, Type v a)]] ->
+  [(WatchKind, [(v, a, Term v a, Type v a)])] ->
   Map
     v
     ( a,
@@ -81,6 +81,6 @@ instance Ord v => Functor (TypecheckedUnisonFile v) where
       es' = es <&> \(a, refId, effect) -> (f a, refId, fmap f effect)
       tlcs' =
         tlcs
-          & (fmap . fmap) \(a, v, tm, tp) -> (f a, v, Term.amap f tm, fmap f tp)
-      wcs' = map (\(wk, tms) -> (wk, map (\(a, v, tm, tp) -> (f a, v, Term.amap f tm, fmap f tp)) tms)) wcs
+          & (fmap . fmap) \(v, a, tm, tp) -> (v, f a, Term.amap f tm, fmap f tp)
+      wcs' = map (\(wk, tms) -> (wk, map (\(v, a, tm, tp) -> (v, f a, Term.amap f tm, fmap f tp)) tms)) wcs
       hashTerms' = fmap (\(a, id, wk, tm, tp) -> (f a, id, wk, Term.amap f tm, fmap f tp)) hashTerms

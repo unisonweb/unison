@@ -16,13 +16,14 @@ module Unison.Hashing.V2.Convert
   )
 where
 
+import Control.Applicative
 import Control.Lens (over, _3)
 import qualified Control.Lens as Lens
 import Control.Monad.Trans.Writer.CPS (Writer)
 import qualified Control.Monad.Trans.Writer.CPS as Writer
 import Data.Bifunctor (bimap)
-import Data.Bitraversable (bitraverse)
 import Data.Foldable (toList)
+import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -76,22 +77,26 @@ typeToReferenceMentions = Set.map h2mReference . Hashing.Type.toReferenceMention
 -- TODO: remove non-prime version
 -- include type in hash
 hashTermComponents ::
-  forall v a.
+  forall v a extra.
   Var v =>
-  Map v (Memory.Term.Term v a, Memory.Type.Type v a) ->
-  Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
+  Map v (Memory.Term.Term v a, Memory.Type.Type v a, extra) ->
+  Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a, extra)
 hashTermComponents mTerms =
-  case Writer.runWriter (traverse (bitraverse m2hTerm (pure . m2hType)) mTerms) of
+  case h2mTermMap mTerms of
     (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.Term.hashComponents hTerms
   where
+    h2mTermMap m =
+      m
+        & traverse (\(trm, typ, extra) -> liftA3 (,,) (m2hTerm trm) (pure $ m2hType typ) (pure extra))
+        & Writer.runWriter
     h2mTermResult ::
       Ord v =>
       ( Memory.Reference.Reference ->
         Memory.ConstructorType.ConstructorType
       ) ->
-      (Hashing.Reference.Id, Hashing.Term.Term v a, Hashing.Type.Type v a) ->
-      (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
-    h2mTermResult getCtorType (id, tm, typ) = (h2mReferenceId id, h2mTerm getCtorType tm, h2mType typ)
+      (Hashing.Reference.Id, Hashing.Term.Term v a, Hashing.Type.Type v a, extra) ->
+      (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a, extra)
+    h2mTermResult getCtorType (id, tm, typ, extra) = (h2mReferenceId id, h2mTerm getCtorType tm, h2mType typ, extra)
 
 -- | This shouldn't be used when storing terms in the codebase, as it doesn't incorporate the type into the hash.
 --   this should only be used in cases where you just need a way to identify some terms that you have, but won't be

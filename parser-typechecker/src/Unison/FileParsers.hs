@@ -3,7 +3,7 @@
 
 module Unison.FileParsers where
 
-import Control.Lens (view, _3)
+import Control.Lens
 import Control.Monad.State (evalStateT)
 import Control.Monad.Writer (tell)
 import Data.Bifunctor (first)
@@ -190,11 +190,11 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
     let tdnredTlcs = (fmap . fmap) doTdnrInComponent topLevelComponents
     let (watches', terms') = partition isWatch tdnredTlcs
         isWatch = all (\(v, _, _) -> Set.member v watchedVars)
-        watchedVars = Set.fromList [v | (v, _) <- UF.allWatches uf]
+        watchedVars = Set.fromList [v | (v, _a, _) <- UF.allWatches uf]
         tlcKind [] = error "empty TLC, should never occur"
         tlcKind tlc@((v, _, _) : _) =
           let hasE k =
-                elem v . fmap fst $ Map.findWithDefault [] k (UF.watches uf)
+                elem v . view _2 $ Map.findWithDefault [] k (UF.watches uf)
            in case Foldable.find hasE (Map.keys $ UF.watches uf) of
                 Nothing -> error "wat"
                 Just kind -> (kind, tlc)

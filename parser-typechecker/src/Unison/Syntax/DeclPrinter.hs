@@ -179,10 +179,10 @@ fieldNames env r name dd = do
       case Result.result (Typechecker.synthesize typecheckingEnv trm) of
         Nothing -> Nothing
         Just typ -> Just (v, trm, typ)
-  let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ))) $ accessorsWithTypes)
+  let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ, ()))) $ accessorsWithTypes)
   let names =
         [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
-          | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes
+          | r <- (\(refId, _trm, _typ, _ann) -> refId) <$> Map.elems hashes
         ]
   let fieldNames =
         Map.fromList
@@ -194,7 +194,7 @@ fieldNames env r name dd = do
       Just
         [ HQ.unsafeFromString name
           | v <- vars,
-            Just (ref, _, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes],
+            Just (ref, _, _, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes],
             Just name <- [Map.lookup ref fieldNames]
         ]
     else Nothing
