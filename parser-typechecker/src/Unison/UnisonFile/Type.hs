@@ -16,16 +16,16 @@ import qualified Unison.Type as Type
 import Unison.WatchKind (WatchKind)
 
 data UnisonFile v a = UnisonFileId
-  { dataDeclarationsId :: Map v (a {- ann for whole decl -}, TermReferenceId, DataDeclaration v a),
-    effectDeclarationsId :: Map v (a {- ann for whole decl -}, TermReferenceId, EffectDeclaration v a),
+  { dataDeclarationsId :: Map v (TermReferenceId, DataDeclaration v a),
+    effectDeclarationsId :: Map v (TermReferenceId, EffectDeclaration v a),
     terms :: [(v, a {- ann for whole binding -}, Term v a)],
     watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
   }
   deriving (Show)
 
 pattern UnisonFile ::
-  Map v (a, TypeReference, DataDeclaration v a) ->
-  Map v (a, TypeReference, EffectDeclaration v a) ->
+  Map v (TypeReference, DataDeclaration v a) ->
+  Map v (TypeReference, EffectDeclaration v a) ->
   [(v, a, Term v a)] ->
   Map WatchKind [(v, a, Term v a)] ->
   UnisonFile v a
@@ -41,8 +41,8 @@ pattern UnisonFile ds es tms ws <-
 -- | A UnisonFile after typechecking. Terms are split into groups by
 --  cycle and the type of each term is known.
 data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
-  { dataDeclarationsId' :: Map v (a {- ann for whole decl -}, TypeReferenceId, DataDeclaration v a),
-    effectDeclarationsId' :: Map v (a {- ann for whole decl -}, TypeReferenceId, EffectDeclaration v a),
+  { dataDeclarationsId' :: Map v (TypeReferenceId, DataDeclaration v a),
+    effectDeclarationsId' :: Map v (TypeReferenceId, EffectDeclaration v a),
     topLevelComponents' :: [[(v, a {- ann for whole binding -}, Term v a, Type v a)]],
     watchComponents :: [(WatchKind, [(v, a {- ann for whole watch -}, Term v a, Type v a)])],
     hashTermsId :: Map v (a {- ann for whole binding -}, TermReferenceId, Maybe WatchKind, Term v a, Type v a)
@@ -52,8 +52,8 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
 {-# COMPLETE TypecheckedUnisonFile #-}
 
 pattern TypecheckedUnisonFile ::
-  Map v (a, TypeReference, DataDeclaration v a) ->
-  Map v (a, TypeReference, EffectDeclaration v a) ->
+  Map v (TypeReference, DataDeclaration v a) ->
+  Map v (TypeReference, EffectDeclaration v a) ->
   [[(v, a, Term v a, Type v a)]] ->
   [(WatchKind, [(v, a, Term v a, Type v a)])] ->
   Map
@@ -77,8 +77,8 @@ instance Ord v => Functor (TypecheckedUnisonFile v) where
   fmap f (TypecheckedUnisonFileId ds es tlcs wcs hashTerms) =
     TypecheckedUnisonFileId ds' es' tlcs' wcs' hashTerms'
     where
-      ds' = ds <&> \(a, refId, decl) -> (f a, refId, fmap f decl)
-      es' = es <&> \(a, refId, effect) -> (f a, refId, fmap f effect)
+      ds' = ds <&> \(refId, decl) -> (refId, fmap f decl)
+      es' = es <&> \(refId, effect) -> (refId, fmap f effect)
       tlcs' =
         tlcs
           & (fmap . fmap) \(v, a, tm, tp) -> (v, f a, Term.amap f tm, fmap f tp)

@@ -103,12 +103,12 @@ constructorType r =
   TL.constructorType typeLookup r
     <|> Map.lookup r builtinConstructorType
 
-builtinDataDecls :: [(Symbol, (Ann, R.Id, DataDeclaration))]
+builtinDataDecls :: [(Symbol, (R.Id, DataDeclaration))]
 builtinDataDecls =
-  [(v, (Intrinsic, r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls]
+  [(v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls]
 
-builtinEffectDecls :: [(Symbol, (Ann, R.Id, EffectDeclaration))]
-builtinEffectDecls = [(v, (Intrinsic, r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinEffectDecls]
+builtinEffectDecls :: [(Symbol, (R.Id, EffectDeclaration))]
+builtinEffectDecls = [(v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinEffectDecls]
 
 codeLookup :: Applicative m => CodeLookup Symbol m Ann
 codeLookup = CodeLookup (const $ pure Nothing) $ \r ->

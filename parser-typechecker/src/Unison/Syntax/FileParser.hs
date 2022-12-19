@@ -164,7 +164,7 @@ checkForDuplicateTermsAndConstructors uf = do
     allTerms :: [(v, Ann)]
     allTerms =
       UF.terms uf
-        <&> (\(v, t) -> (v, ABT.annotation t))
+        <&> (\(v, bindingAnn, _t) -> (v, bindingAnn))
     mergedTerms :: Map v (Set Ann)
     mergedTerms =
       (allConstructors <> allTerms)

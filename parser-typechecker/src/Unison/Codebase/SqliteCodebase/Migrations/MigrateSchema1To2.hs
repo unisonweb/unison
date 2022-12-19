@@ -580,9 +580,10 @@ migrateTermComponent getDeclType termBuffer declBuffer oldHash = fmap (either id
       newTermComponents =
         remappedReferences
           & Map.elems
-          & fmap (\(v, trm, typ) -> (v, (trm, typ)))
+          & fmap (\(v, trm, typ) -> (v, (trm, typ, ())))
           & Map.fromList
           & Convert.hashTermComponents
+          & fmap (\(ref, trm, typ, _) -> (ref, trm, typ))
 
   ifor newTermComponents $ \v (newReferenceId, trm, typ) -> do
     let oldReferenceId = vToOldReferenceMapping ^?! ix v

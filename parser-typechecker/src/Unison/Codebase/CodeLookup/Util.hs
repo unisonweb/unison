@@ -22,13 +22,13 @@ fromTypecheckedUnisonFile tuf = CodeLookup tm ty
     dataDeclMap =
       Map.fromList
         [ (id, Right dd)
-          | (_, (_a, Reference.DerivedId id, dd)) <-
+          | (_, (Reference.DerivedId id, dd)) <-
               Map.toList (UF.dataDeclarations' tuf)
         ]
     effectDeclMap =
       Map.fromList
         [ (id, Left ad)
-          | (_, (_a, Reference.DerivedId id, ad)) <-
+          | (_, (Reference.DerivedId id, ad)) <-
               Map.toList (UF.effectDeclarations' tuf)
         ]
     termMap :: Map Reference.Id (Term.Term v a)

@@ -1,5 +1,6 @@
 module Unison.UnisonFile.Names where
 
+import Control.Lens
 import Data.Bifunctor (second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -35,7 +36,7 @@ typecheckedToNames uf = Names (terms <> ctors) types
     terms =
       Relation.fromList
         [ (Name.unsafeFromVar v, Referent.Ref r)
-          | (v, (r, wk, _, _)) <- Map.toList $ UF.hashTerms uf,
+          | (v, (_a, r, wk, _, _)) <- Map.toList $ UF.hashTerms uf,
             wk == Nothing || wk == Just WK.TestWatch
         ]
     types =
@@ -73,11 +74,11 @@ bindNames names (UnisonFileId d e ts ws) = do
   -- todo: consider having some kind of binding structure for terms & watches
   --    so that you don't weirdly have free vars to tiptoe around.
   --    The free vars should just be the things that need to be bound externally.
-  let termVars = (fst <$> ts) ++ (Map.elems ws >>= map fst)
+  let termVars = (view _1 <$> ts) ++ (Map.elems ws >>= map (view _1))
       termVarsSet = Set.fromList termVars
   -- todo: can we clean up this lambda using something like `second`
-  ts' <- traverse (\(v, t) -> (v,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t) ts
-  ws' <- traverse (traverse (\(v, t) -> (v,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t)) ws
+  ts' <- traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t) ts
+  ws' <- traverse (traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t)) ws
   pure $ UnisonFileId d e ts' ws'
 
 -- This function computes hashes for data and effect declarations, and
