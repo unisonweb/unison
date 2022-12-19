@@ -64,12 +64,12 @@ file = do
     _ <- closeBlock
     let (termsr, watchesr) = foldl' go ([], []) stanzas
         go (terms, watches) s = case s of
-          WatchBinding kind _ ((_, v), at) ->
-            (terms, (kind, (v, Term.generalizeTypeSignatures at)) : watches)
-          WatchExpression kind guid _ at ->
-            (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
-          Binding ((_, v), at) -> ((v, Term.generalizeTypeSignatures at) : terms, watches)
-          Bindings bs -> ([(v, Term.generalizeTypeSignatures at) | ((_, v), at) <- bs] ++ terms, watches)
+          WatchBinding kind spanningAnn ((_, v), at) ->
+            (terms, (kind, (v, spanningAnn, Term.generalizeTypeSignatures at)) : watches)
+          WatchExpression kind guid spanningAnn at ->
+            (terms, (kind, (Var.unnamedTest guid, spanningAnn, Term.generalizeTypeSignatures at)) : watches)
+          Binding ((spanningAnn, v), at) -> ((v, spanningAnn, Term.generalizeTypeSignatures at) : terms, watches)
+          Bindings bs -> ([(v, spanningAnn, Term.generalizeTypeSignatures at) | ((spanningAnn, v), at) <- bs] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
@@ -115,7 +115,8 @@ file = do
     watches <- case List.validate (traverse . traverse $ bindNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
-    let toPair (tok, _) = (L.payload tok, ann tok)
+    let toPair (tok, typ) = (L.payload tok, ann tok <> ann typ)
+        accessors :: [[(v, Ann, Term v Ann)]]
         accessors =
           [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
             | (typ, fields) <- parsedAccessors,
@@ -336,10 +337,13 @@ dataDeclaration mod = do
               Type.foralls ctorAnn typeArgVs ctorType
             )
       prefixVar = TermParser.verifyRelativeVarName prefixDefinitionName
+      dataConstructor :: P v (Ann, v, Type v Ann)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
+      record :: P v ([(Ann, v, Type v Ann)], [(L.Token v, [(L.Token v, Type v Ann)])])
       record = do
         _ <- openBlockWith "{"
-        let field = do
+        let field :: P v [(L.Token v, Type v Ann)]
+            field = do
               f <- liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
               optional (reserved ",")
                 >>= ( \case
