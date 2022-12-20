@@ -1464,7 +1464,11 @@ bprim2 !ustk !bstk DRPT i j = do
   n <- peekOff ustk i
   t <- peekOffBi bstk j
   bstk <- bump bstk
-  pokeBi bstk $ Util.Text.drop n t
+  -- Note; if n < 0, the Nat argument was greater than the maximum
+  -- signed integer. As an approximation, just return the empty
+  -- string, as a string larger than this would require an absurd
+  -- amount of memory.
+  pokeBi bstk $ if n < 0 then Util.Text.empty else Util.Text.drop n t
   pure (ustk, bstk)
 bprim2 !ustk !bstk CATT i j = do
   x <- peekOffBi bstk i
@@ -1476,7 +1480,10 @@ bprim2 !ustk !bstk TAKT i j = do
   n <- peekOff ustk i
   t <- peekOffBi bstk j
   bstk <- bump bstk
-  pokeBi bstk $ Util.Text.take n t
+  -- Note: if n < 0, the Nat argument was greater than the maximum
+  -- signed integer. As an approximation, we just return the original
+  -- string, because it's unlikely such a large string exists.
+  pokeBi bstk $ if n < 0 then t else Util.Text.take n t
   pure (ustk, bstk)
 bprim2 !ustk !bstk EQLT i j = do
   x <- peekOffBi @Util.Text.Text bstk i
@@ -1500,13 +1507,21 @@ bprim2 !ustk !bstk DRPS i j = do
   n <- peekOff ustk i
   s <- peekOffS bstk j
   bstk <- bump bstk
-  pokeS bstk $ Sq.drop n s
+  -- Note: if n < 0, then the Nat argument was larger than the largest
+  -- signed integer. Seq actually doesn't handle this well, despite it
+  -- being possible to build (lazy) sequences this large. So,
+  -- approximate by yielding the empty sequence.
+  pokeS bstk $ if n < 0 then Sq.empty else Sq.drop n s
   pure (ustk, bstk)
 bprim2 !ustk !bstk TAKS i j = do
   n <- peekOff ustk i
   s <- peekOffS bstk j
   bstk <- bump bstk
-  pokeS bstk $ Sq.take n s
+  -- Note: if n < 0, then the Nat argument was greater than the
+  -- largest signed integer. It is possible to build such large
+  -- sequences, but the internal size will actually be wrong then. So,
+  -- we just return the original sequence as an approximation.
+  pokeS bstk $ if n < 0 then s else Sq.take n s
   pure (ustk, bstk)
 bprim2 !ustk !bstk CONS i j = do
   x <- peekOff bstk i
@@ -1576,13 +1591,17 @@ bprim2 !ustk !bstk TAKB i j = do
   n <- peekOff ustk i
   b <- peekOffBi bstk j
   bstk <- bump bstk
-  pokeBi bstk $ By.take n b
+  -- If n < 0, the Nat argument was larger than the maximum signed
+  -- integer. Building a value this large would reuire an absurd
+  -- amount of memory, so just assume n is larger.
+  pokeBi bstk $ if n < 0 then b else By.take n b
   pure (ustk, bstk)
 bprim2 !ustk !bstk DRPB i j = do
   n <- peekOff ustk i
   b <- peekOffBi bstk j
   bstk <- bump bstk
-  pokeBi bstk $ By.drop n b
+  -- See above for n < 0
+  pokeBi bstk $ if n < 0 then By.empty else By.drop n b
   pure (ustk, bstk)
 bprim2 !ustk !bstk IDXB i j = do
   n <- peekOff ustk i
