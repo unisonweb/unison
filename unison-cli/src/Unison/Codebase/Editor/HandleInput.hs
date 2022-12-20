@@ -164,8 +164,6 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
-import Unison.Runtime.IOSource (isTest)
-import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Server.Backend (ShallowListEntry (..))
 import qualified Unison.Server.Backend as Backend
@@ -2078,8 +2076,24 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     Cli.runTransaction (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
-    let ppe = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE
-    Cli.respond (DisplayDefinitions outputPath ppe types terms)
+    -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
+    -- currently have the whole branch in memory, we just use that to make our predicate, but this could/should get this
+    -- information from the database instead, once it's efficient to do so.
+    isTest <- do
+      branch <- Cli.getCurrentBranch0
+      pure \ref ->
+        branch
+          & Branch.deepTermMetadata
+          & Metadata.hasMetadataWithType' (Referent.fromTermReference ref) IOSource.isTestReference
+    Cli.respond $
+      DisplayDefinitions
+        DisplayDefinitionsOutput
+          { isTest,
+            outputFile = outputPath,
+            prettyPrintEnv = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE,
+            terms,
+            types
+          }
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   for_ outputPath \p -> do
     -- We set latestFile to be programmatically generated, if we
@@ -2115,7 +2129,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
     branch <- Cli.getCurrentBranch0
     branch
       & Branch.deepTermMetadata
-      & R4.restrict34d12 isTest
+      & R4.restrict34d12 IOSource.isTest
       & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
       & R.dom
       & pure
@@ -2962,7 +2976,7 @@ docsI srcLoc prettyPrintNames src =
 
     codebaseByMetadata :: Cli ()
     codebaseByMetadata = do
-      (ppe, out) <- getLinks srcLoc src (Left $ Set.fromList [DD.docRef, DD.doc2Ref])
+      (ppe, out) <- getLinks srcLoc src (Left $ Set.fromList [DD.docRef, IOSource.doc2Ref])
       case out of
         [] -> codebaseByName
         [(_name, ref, _tm)] -> do
