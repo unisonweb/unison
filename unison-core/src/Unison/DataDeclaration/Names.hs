@@ -19,26 +19,26 @@ import Prelude hiding (cycle)
 
 -- implementation of dataDeclToNames and effectDeclToNames
 toNames :: Var v => (v -> Name.Name) -> CT.ConstructorType -> v -> Reference.Id -> DataDeclaration v a -> Names
-toNames unsafeVarToName ct typeSymbol (Reference.DerivedId -> r) dd =
+toNames varToName ct typeSymbol (Reference.DerivedId -> r) dd =
   -- constructor names
   foldMap names (DD.constructorVars dd `zip` [0 ..])
     -- name of the type itself
-    <> Names mempty (Rel.singleton (unsafeVarToName typeSymbol) r)
+    <> Names mempty (Rel.singleton (varToName typeSymbol) r)
   where
     names (ctor, i) =
-      Names (Rel.singleton (unsafeVarToName ctor) (Referent.Con (ConstructorReference r i) ct)) mempty
+      Names (Rel.singleton (varToName ctor) (Referent.Con (ConstructorReference r i) ct)) mempty
 
 dataDeclToNames :: Var v => (v -> Name.Name) -> v -> Reference.Id -> DataDeclaration v a -> Names
-dataDeclToNames unsafeVarToName = toNames unsafeVarToName CT.Data
+dataDeclToNames varToName = toNames varToName CT.Data
 
 effectDeclToNames :: Var v => (v -> Name.Name) -> v -> Reference.Id -> EffectDeclaration v a -> Names
-effectDeclToNames unsafeVarToName typeSymbol r ed = toNames unsafeVarToName CT.Effect typeSymbol r $ DD.toDataDecl ed
+effectDeclToNames varToName typeSymbol r ed = toNames varToName CT.Effect typeSymbol r $ DD.toDataDecl ed
 
 dataDeclToNames' :: Var v => (v -> Name.Name) -> (v, (Reference.Id, DataDeclaration v a)) -> Names
-dataDeclToNames' unsafeVarToName (v, (r, d)) = dataDeclToNames unsafeVarToName v r d
+dataDeclToNames' varToName (v, (r, d)) = dataDeclToNames varToName v r d
 
 effectDeclToNames' :: Var v => (v -> Name.Name) -> (v, (Reference.Id, EffectDeclaration v a)) -> Names
-effectDeclToNames' unsafeVarToName (v, (r, d)) = effectDeclToNames unsafeVarToName v r d
+effectDeclToNames' varToName (v, (r, d)) = effectDeclToNames varToName v r d
 
 bindNames ::
   Var v =>
@@ -47,7 +47,7 @@ bindNames ::
   Names ->
   DataDeclaration v a ->
   Names.ResolutionResult v a (DataDeclaration v a)
-bindNames unsafeVarToName keepFree names (DataDeclaration m a bound constructors) = do
+bindNames varToName keepFree names (DataDeclaration m a bound constructors) = do
   constructors <- for constructors $ \(a, v, ty) ->
-    (a,v,) <$> Type.Names.bindNames unsafeVarToName keepFree names ty
+    (a,v,) <$> Type.Names.bindNames varToName keepFree names ty
   pure $ DataDeclaration m a bound constructors

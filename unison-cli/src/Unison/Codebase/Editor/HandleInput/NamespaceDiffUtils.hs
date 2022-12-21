@@ -39,20 +39,19 @@ diffHelper before after =
     Cli.Env {codebase} <- ask
     rootBranch <- Cli.getRootBranch
     currentPath <- Cli.getCurrentPath
-    hqLength <- liftIO (Codebase.hashLength codebase)
+    hqLength <- Cli.runTransaction Codebase.hashLength
     diff <- liftIO (BranchDiff.diff0 before after)
     let (_parseNames, prettyNames0, _local) = Backend.namesForBranch rootBranch (Backend.AllNames $ Path.unabsolute currentPath)
     ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
-    liftIO do
-      fmap (ppe,) do
-        OBranchDiff.toOutput
-          (Codebase.getTypeOfReferent codebase)
-          (Codebase.runTransaction codebase . declOrBuiltin codebase)
-          hqLength
-          (Branch.toNames before)
-          (Branch.toNames after)
-          ppe
-          diff
+    fmap (ppe,) do
+      OBranchDiff.toOutput
+        (Cli.runTransaction . Codebase.getTypeOfReferent codebase)
+        (Cli.runTransaction . declOrBuiltin codebase)
+        hqLength
+        (Branch.toNames before)
+        (Branch.toNames after)
+        ppe
+        diff
 
 declOrBuiltin :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (Maybe (DD.DeclOrBuiltin Symbol Ann))
 declOrBuiltin codebase r = case r of

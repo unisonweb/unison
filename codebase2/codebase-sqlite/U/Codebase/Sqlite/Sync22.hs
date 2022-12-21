@@ -38,10 +38,10 @@ import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Codebase.Sync (Sync (Sync), TrySyncResult)
 import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
-import U.Util.Cache (Cache)
-import qualified U.Util.Cache as Cache
 import Unison.Prelude
 import Unison.Sqlite (Transaction)
+import Unison.Util.Cache (Cache)
+import qualified Unison.Util.Cache as Cache
 
 data Entity
   = O ObjectId

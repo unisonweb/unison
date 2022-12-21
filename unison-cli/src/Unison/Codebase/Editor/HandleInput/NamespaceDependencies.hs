@@ -3,11 +3,10 @@ module Unison.Codebase.Editor.HandleInput.NamespaceDependencies
   )
 where
 
-import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Unison.Cli.Monad (Cli, Env (..))
+import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0)
 import qualified Unison.Codebase.Branch as Branch
@@ -20,6 +19,8 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
+import qualified Unison.Sqlite as Sqlite
+import Unison.Symbol (Symbol)
 import qualified Unison.Term as Term
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Relation3 as Relation3
@@ -37,21 +38,18 @@ import qualified Unison.Util.Relation4 as Relation4
 --
 -- Returns a Set of names rather than using the PPE since we already have the correct names in
 -- scope on this branch, and also want to list ALL names of dependents, including aliases.
-namespaceDependencies :: Branch0 m -> Cli (Map LabeledDependency (Set Name))
-namespaceDependencies branch = do
-  Env {codebase} <- ask
-
+namespaceDependencies :: Codebase m Symbol a -> Branch0 m -> Sqlite.Transaction (Map LabeledDependency (Set Name))
+namespaceDependencies codebase branch = do
   typeDeps <-
-    (liftIO . Codebase.runTransaction codebase) do
-      for (Map.toList currentBranchTypeRefs) $ \(typeRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
-        refId <- MaybeT . pure $ Reference.toId typeRef
-        decl <- MaybeT $ Codebase.getTypeDeclaration codebase refId
-        let typeDeps = Set.map LD.typeRef $ DD.dependencies (DD.asDataDecl decl)
-        pure $ foldMap (`Map.singleton` names) typeDeps
+    for (Map.toList currentBranchTypeRefs) $ \(typeRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
+      refId <- MaybeT . pure $ Reference.toId typeRef
+      decl <- MaybeT $ Codebase.getTypeDeclaration codebase refId
+      let typeDeps = Set.map LD.typeRef $ DD.dependencies (DD.asDataDecl decl)
+      pure $ foldMap (`Map.singleton` names) typeDeps
 
   termDeps <- for (Map.toList currentBranchTermRefs) $ \(termRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
     refId <- MaybeT . pure $ Referent.toReferenceId termRef
-    term <- MaybeT $ liftIO (Codebase.getTerm codebase refId)
+    term <- MaybeT $ Codebase.getTerm codebase refId
     let termDeps = Term.labeledDependencies term
     pure $ foldMap (`Map.singleton` names) termDeps
 

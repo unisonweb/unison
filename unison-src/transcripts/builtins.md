@@ -287,6 +287,25 @@ test> Bytes.tests.fromBase64UrlUnpadded =
 .> add
 ```
 
+## `List` comparison
+
+```unison:hide
+test> checks [
+        compare [] [1,2,3] == -1,
+        compare [1,2,3] [1,2,3,4] == -1,
+        compare [1,2,3,4] [1,2,3] == +1,
+        compare [1,2,3] [1,2,3] == +0,
+        compare [3] [1,2,3] == +1,
+        compare [1,2,3] [1,2,4] == -1,
+        compare [1,2,2] [1,2,1,2] == +1,
+        compare [1,2,3,4] [3,2,1] == -1
+      ]
+```
+
+```ucm:hide
+.> add
+```
+
 ## `Any` functions
 
 ```unison

@@ -41,7 +41,6 @@ import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Referent as Referent
-import qualified U.Util.Monoid as Monoid
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient (..))
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -57,6 +56,8 @@ import qualified Unison.Server.Endpoints.NamespaceListing as Server
 import qualified Unison.Server.Types as Server
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Types as Share
+import qualified Unison.Sqlite as Sqlite
+import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified UnliftIO
 import Prelude hiding (readFile, writeFile)
@@ -131,18 +132,15 @@ noCompletions _ _ _ _ = pure []
 -- .> view base.List.map#<Tab>
 -- base.List.map#0q926sgnn6
 completeWithinNamespace ::
-  forall m v a.
-  MonadIO m =>
   -- | The types of completions to return
   NESet CompletionType ->
   -- | The portion of this are that the user has already typed.
   String ->
-  Codebase m v a ->
   Path.Absolute ->
-  m [System.Console.Haskeline.Completion.Completion]
-completeWithinNamespace compTypes query codebase currentPath = do
-  shortHashLen <- Codebase.hashLength codebase
-  b <- Codebase.getShallowBranchAtPath codebase (Path.unabsolute absQueryPath) Nothing
+  Sqlite.Transaction [System.Console.Haskeline.Completion.Completion]
+completeWithinNamespace compTypes query currentPath = do
+  shortHashLen <- Codebase.hashLength
+  b <- Codebase.getShallowBranchAtPath (Path.unabsolute absQueryPath) Nothing
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
     nib
@@ -162,13 +160,13 @@ completeWithinNamespace compTypes query codebase currentPath = do
     (queryPathPrefix, querySuffix) = parseLaxPath'Query (Text.pack query)
     absQueryPath :: Path.Absolute
     absQueryPath = Path.resolve currentPath queryPathPrefix
-    getChildSuggestions :: Int -> V2Branch.Branch m -> m [Completion]
+    getChildSuggestions :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [Completion]
     getChildSuggestions shortHashLen b = do
-      nonEmptyChildren <- Codebase.runTransaction codebase (V2Branch.nonEmptyChildren b)
+      nonEmptyChildren <- V2Branch.nonEmptyChildren b
       case querySuffix of
         "" -> pure []
         suffix -> do
-          case Map.lookup (Cv.namesegment1to2 suffix) nonEmptyChildren of
+          case Map.lookup suffix nonEmptyChildren of
             Nothing -> pure []
             Just childCausal -> do
               childBranch <- V2Causal.value childCausal
@@ -180,32 +178,32 @@ completeWithinNamespace compTypes query codebase currentPath = do
                 & filter (\(_isFinished, match) -> List.isPrefixOf query match)
                 & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
                 & pure
-    namesInBranch :: Int -> V2Branch.Branch m -> m [(Bool, Text)]
+    namesInBranch :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [(Bool, Text)]
     namesInBranch hashLen b = do
-      nonEmptyChildren <- Codebase.runTransaction codebase (V2Branch.nonEmptyChildren b)
-      let textifyHQ :: (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [(Bool, Text)]
+      nonEmptyChildren <- V2Branch.nonEmptyChildren b
+      let textifyHQ :: (NameSegment -> r -> HQ'.HashQualified NameSegment) -> Map NameSegment (Map r metadata) -> [(Bool, Text)]
           textifyHQ f xs =
             xs
               & hashQualifyCompletions f
-              & fmap (HQ'.toTextWith V2Branch.unNameSegment)
+              & fmap (HQ'.toTextWith NameSegment.toText)
               & fmap (True,)
       pure $
-        ((False,) <$> dotifyNamespaces (fmap V2Branch.unNameSegment . Map.keys $ nonEmptyChildren))
+        ((False,) <$> dotifyNamespaces (fmap NameSegment.toText . Map.keys $ nonEmptyChildren))
           <> Monoid.whenM (NESet.member TermCompletion compTypes) (textifyHQ (hqFromNamedV2Referent hashLen) $ V2Branch.terms b)
           <> Monoid.whenM (NESet.member TypeCompletion compTypes) (textifyHQ (hqFromNamedV2Reference hashLen) $ V2Branch.types b)
-          <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap ((True,) . V2Branch.unNameSegment) . Map.keys $ V2Branch.patches b)
+          <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap ((True,) . NameSegment.toText) . Map.keys $ V2Branch.patches b)
 
     -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
-    hqFromNamedV2Referent :: Int -> V2Branch.NameSegment -> Referent.Referent -> HQ'.HashQualified V2Branch.NameSegment
+    hqFromNamedV2Referent :: Int -> NameSegment -> Referent.Referent -> HQ'.HashQualified NameSegment
     hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (Cv.referent2toshorthash1 (Just hashLen) r)
-    hqFromNamedV2Reference :: Int -> V2Branch.NameSegment -> Reference.Reference -> HQ'.HashQualified V2Branch.NameSegment
+    hqFromNamedV2Reference :: Int -> NameSegment -> Reference.Reference -> HQ'.HashQualified NameSegment
     hqFromNamedV2Reference hashLen n r = HQ'.HashQualified n (Cv.reference2toshorthash1 (Just hashLen) r)
-    hashQualifyCompletions :: forall r metadata. (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
+    hashQualifyCompletions :: forall r metadata. (NameSegment -> r -> HQ'.HashQualified NameSegment) -> Map NameSegment (Map r metadata) -> [HQ'.HashQualified NameSegment]
     hashQualifyCompletions qualify defs = ifoldMap qualifyRefs defs
       where
         -- Qualify any conflicted definitions. If the query has a "#" in it, then qualify ALL
         -- completions.
-        qualifyRefs :: V2Branch.NameSegment -> (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
+        qualifyRefs :: NameSegment -> (Map r metadata) -> [HQ'.HashQualified NameSegment]
         qualifyRefs n refs
           | ((Text.isInfixOf "#" . NameSegment.toText) querySuffix) || length refs > 1 =
               refs
@@ -265,52 +263,37 @@ parseLaxPath'Query txt =
 
 -- | Completes a namespace argument by prefix-matching against the query.
 prefixCompleteNamespace ::
-  forall m v a.
-  (MonadIO m) =>
   String ->
-  Codebase m v a ->
   Path.Absolute -> -- Current path
-  m [Line.Completion]
+  Sqlite.Transaction [Line.Completion]
 prefixCompleteNamespace = completeWithinNamespace (NESet.singleton NamespaceCompletion)
 
 -- | Completes a term or type argument by prefix-matching against the query.
 prefixCompleteTermOrType ::
-  forall m v a.
-  MonadIO m =>
   String ->
-  Codebase m v a ->
   Path.Absolute -> -- Current path
-  m [Line.Completion]
+  Sqlite.Transaction [Line.Completion]
 prefixCompleteTermOrType = completeWithinNamespace (NESet.fromList (TermCompletion NE.:| [TypeCompletion]))
 
 -- | Completes a term argument by prefix-matching against the query.
 prefixCompleteTerm ::
-  forall m v a.
-  MonadIO m =>
   String ->
-  Codebase m v a ->
   Path.Absolute -> -- Current path
-  m [Line.Completion]
+  Sqlite.Transaction [Line.Completion]
 prefixCompleteTerm = completeWithinNamespace (NESet.singleton TermCompletion)
 
 -- | Completes a term or type argument by prefix-matching against the query.
 prefixCompleteType ::
-  forall m v a.
-  MonadIO m =>
   String ->
-  Codebase m v a ->
   Path.Absolute -> -- Current path
-  m [Line.Completion]
+  Sqlite.Transaction [Line.Completion]
 prefixCompleteType = completeWithinNamespace (NESet.singleton TypeCompletion)
 
 -- | Completes a patch argument by prefix-matching against the query.
 prefixCompletePatch ::
-  forall m v a.
-  MonadIO m =>
   String ->
-  Codebase m v a ->
   Path.Absolute -> -- Current path
-  m [Line.Completion]
+  Sqlite.Transaction [Line.Completion]
 prefixCompletePatch = completeWithinNamespace (NESet.singleton PatchCompletion)
 
 -- | Renders a completion option with the prefix matching the query greyed out.

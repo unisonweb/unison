@@ -13,7 +13,6 @@ import qualified Data.Sequence as Sequence
 import qualified Data.Set as Set
 import qualified Data.Set.NonEmpty as NES
 import qualified Data.Text as Text
-import Prelude.Extras (Eq1 (..), Show1 (..))
 import Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
@@ -30,7 +29,7 @@ import qualified Unison.NamesWithHistory as Names
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
-import Unison.Reference (Reference, pattern Builtin)
+import Unison.Reference (Reference, TermReference, pattern Builtin)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -116,6 +115,11 @@ _TermLink = _Ctor @"TermLink"
 
 _TypeLink :: Prism' (F tv ta pa a) Reference
 _TypeLink = _Ctor @"TypeLink"
+
+-- | Returns the top-level type annotation for a term if it has one.
+getTypeAnnotation :: Term v a -> Maybe (Type v a)
+getTypeAnnotation (ABT.Tm' (Ann _ t)) = Just t
+getTypeAnnotation _ = Nothing
 
 type IsTop = Bool
 
@@ -1163,7 +1167,7 @@ unReqOrCtor _ = Nothing
 dependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 dependencies t = Set.map (LD.fold id Referent.toReference) (labeledDependencies t)
 
-termDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
+termDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set TermReference
 termDependencies =
   Set.fromList
     . mapMaybe
@@ -1347,10 +1351,6 @@ fromReferent a = \case
     CT.Effect -> request a r
 
 -- mostly boring serialization code below ...
-
-instance (Eq a, ABT.Var v) => Eq1 (F v a p) where (==#) = (==)
-
-instance (Show v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
 instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Int x == Int y = x == y

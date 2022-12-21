@@ -40,7 +40,7 @@ module U.Codebase.Sqlite.Operations
     saveWatch,
     loadWatch,
     listWatches,
-    clearWatches,
+    Q.clearWatches,
 
     -- * indexes
 
@@ -166,6 +166,8 @@ import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as H
 import qualified U.Util.Hash32 as Hash32
 import qualified U.Util.Serialization as S
+import Unison.NameSegment (NameSegment (NameSegment))
+import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import Unison.Sqlite
 import qualified Unison.Util.Map as Map
@@ -456,9 +458,6 @@ saveWatch w r t = do
   let bytes = S.putBytes S.putWatchResultFormat (uncurry S.Term.WatchResult wterm)
   Q.saveWatch w rs bytes
 
-clearWatches :: Transaction ()
-clearWatches = Q.clearWatches
-
 c2wTerm :: C.Term Symbol -> Transaction (WatchLocalIds, S.Term.Term)
 c2wTerm tm = Q.c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)
 
@@ -516,35 +515,35 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
 
     doTerms ::
       Map Db.TextId (Map S.Referent S.DbMetadataSet) ->
-      Transaction (Map C.Branch.NameSegment (Map C.Referent (Transaction C.Branch.MdValues)))
+      Transaction (Map NameSegment (Map C.Referent (Transaction C.Branch.MdValues)))
     doTerms =
       Map.bitraverse
-        (fmap C.Branch.NameSegment . Q.expectText)
+        (fmap NameSegment . Q.expectText)
         ( Map.bitraverse s2cReferent \case
             S.MetadataSet.Inline rs ->
               pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
         )
     doTypes ::
       Map Db.TextId (Map S.Reference S.DbMetadataSet) ->
-      Transaction (Map C.Branch.NameSegment (Map C.Reference (Transaction C.Branch.MdValues)))
+      Transaction (Map NameSegment (Map C.Reference (Transaction C.Branch.MdValues)))
     doTypes =
       Map.bitraverse
-        (fmap C.Branch.NameSegment . Q.expectText)
+        (fmap NameSegment . Q.expectText)
         ( Map.bitraverse s2cReference \case
             S.MetadataSet.Inline rs ->
               pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
         )
     doPatches ::
       Map Db.TextId Db.PatchObjectId ->
-      Transaction (Map C.Branch.NameSegment (PatchHash, Transaction C.Branch.Patch))
-    doPatches = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \patchId -> do
+      Transaction (Map NameSegment (PatchHash, Transaction C.Branch.Patch))
+    doPatches = Map.bitraverse (fmap NameSegment . Q.expectText) \patchId -> do
       h <- PatchHash <$> (Q.expectPrimaryHashByObjectId . Db.unPatchObjectId) patchId
       pure (h, expectPatch patchId)
 
     doChildren ::
       Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) ->
-      Transaction (Map C.Branch.NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
-    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \(boId, chId) ->
+      Transaction (Map NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
+    doChildren = Map.bitraverse (fmap NameSegment . Q.expectText) \(boId, chId) ->
       C.Causal <$> Q.expectCausalHash chId
         <*> expectValueHashByCausalHashId chId
         <*> headParents chId
@@ -638,7 +637,8 @@ saveBranch ::
 saveBranch hh (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
 
-  (chId, bhId) <- flip Monad.fromMaybeM (Q.loadCausalByCausalHash hc) do
+  -- Save the causal
+  (chId, bhId) <- whenNothingM (Q.loadCausalByCausalHash hc) do
     -- if not exist, create these
     chId <- Q.saveCausalHash hc
     bhId <- Q.saveBranchHash he
@@ -655,7 +655,9 @@ saveBranch hh (C.Causal hc he parents me) = do
     -- Save these CausalHashIds to the causal_parents table,
     Q.saveCausal hh chId bhId parentCausalHashIds
     pure (chId, bhId)
-  boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByCausalHashId chId) do
+
+  -- Save the namespace
+  boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByBranchHashId bhId) do
     branch <- me
     dbBranch <- c2sBranch branch
     stats <- namespaceStatsForDbBranch dbBranch
@@ -671,8 +673,8 @@ saveBranch hh (C.Causal hc he parents me) = do
         <*> Map.bitraverse saveNameSegment savePatchObjectId patches
         <*> Map.bitraverse saveNameSegment (saveBranch hh) children
 
-    saveNameSegment :: C.Branch.NameSegment -> Transaction Db.TextId
-    saveNameSegment = Q.saveText . C.Branch.unNameSegment
+    saveNameSegment :: NameSegment -> Transaction Db.TextId
+    saveNameSegment = Q.saveText . NameSegment.toText
 
     c2sMetadata :: Transaction C.Branch.MdValues -> Transaction S.Branch.Full.DbMetadataSet
     c2sMetadata mm = do
@@ -977,6 +979,7 @@ componentReferencesByPrefix ot b32prefix pos = do
   let filterComponent l = [x | x@(C.Reference.Id _ pos) <- l, test pos]
   join <$> traverse (fmap filterComponent . componentByObjectId) oIds
 
+-- | Get the set of user-defined terms whose hash matches the given prefix.
 termReferencesByPrefix :: Text -> Maybe Word64 -> Transaction [C.Reference.Id]
 termReferencesByPrefix t w =
   componentReferencesByPrefix ObjectType.TermComponent t w
@@ -1080,9 +1083,7 @@ updateNameIndex (newTermNames, removedTermNames) (newTypeNames, removedTypeNames
 
 data NamesByPath = NamesByPath
   { termNamesInPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
-    termNamesExternalToPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
-    typeNamesInPath :: [S.NamedRef C.Reference],
-    typeNamesExternalToPath :: [S.NamedRef C.Reference]
+    typeNamesInPath :: [S.NamedRef C.Reference]
   }
 
 -- | Get all the term and type names for the root namespace from the lookup table.
@@ -1091,14 +1092,12 @@ rootNamesByPath ::
   Maybe Text ->
   Transaction NamesByPath
 rootNamesByPath path = do
-  (termNamesInPath, termNamesExternalToPath) <- Q.rootTermNamesByPath path
-  (typeNamesInPath, typeNamesExternalToPath) <- Q.rootTypeNamesByPath path
+  termNamesInPath <- Q.rootTermNamesByPath path
+  typeNamesInPath <- Q.rootTypeNamesByPath path
   pure $
     NamesByPath
       { termNamesInPath = convertTerms <$> termNamesInPath,
-        termNamesExternalToPath = convertTerms <$> termNamesExternalToPath,
-        typeNamesInPath = convertTypes <$> typeNamesInPath,
-        typeNamesExternalToPath = convertTypes <$> typeNamesExternalToPath
+        typeNamesInPath = convertTypes <$> typeNamesInPath
       }
   where
     convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
@@ -1143,6 +1142,7 @@ namespaceStatsForDbBranch S.Branch {terms, types, patches, children} = do
            in childPatchCount + patchCount
       }
 
+-- | Gets the specified number of reflog entries in chronological order, most recent first.
 getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
 getReflog numEntries = do
   entries <- Q.getReflog numEntries

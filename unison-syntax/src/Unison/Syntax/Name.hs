@@ -24,13 +24,8 @@ import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
-import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
-
-instance Alphabetical Name where
-  compareAlphabetical n1 n2 =
-    compareAlphabetical (toText n1) (toText n2)
 
 instance IsString Name where
   fromString =

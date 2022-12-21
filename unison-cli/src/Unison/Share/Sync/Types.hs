@@ -1,7 +1,13 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
 -- | Types used by the UCM client during sync.
-module Unison.Share.Sync.Types where
+module Unison.Share.Sync.Types
+  ( CheckAndSetPushError (..),
+    CodeserverTransportError (..),
+    FastForwardPushError (..),
+    GetCausalHashByPathError (..),
+    PullError (..),
+    SyncError (..),
+  )
+where
 
 import Data.Set.NonEmpty (NESet)
 import qualified Servant.Client as Servant
@@ -29,9 +35,8 @@ data FastForwardPushError
 
 -- | An error occurred while pulling code from Unison Share.
 data PullError
-  = -- | An error occurred while resolving a repo+path to a causal hash.
-    PullErrorGetCausalHashByPath GetCausalHashByPathError
-  | PullErrorNoHistoryAtPath Share.Path
+  = PullErrorNoHistoryAtPath Share.Path
+  | PullErrorNoReadPermission Share.Path
   deriving (Show)
 
 -- | An error occurred when getting causal hash by path.
@@ -57,3 +62,4 @@ data CodeserverTransportError
 data SyncError e
   = TransportError CodeserverTransportError
   | SyncError e
+  deriving stock (Functor)

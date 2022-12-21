@@ -9,11 +9,13 @@
 
 module Unison.Runtime.Interface
   ( startRuntime,
+    withRuntime,
     standalone,
     runStandalone,
     StoredCache,
     decodeStandalone,
     RuntimeHost (..),
+    Runtime (..),
   )
 where
 
@@ -550,6 +552,10 @@ startRuntime sandboxed runtimeHost version = do
         mainType = builtinMain External,
         ioTestType = builtinTest External
       }
+
+withRuntime :: MonadUnliftIO m => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
+withRuntime sandboxed runtimeHost version action =
+  UnliftIO.bracket (liftIO $ startRuntime sandboxed runtimeHost version) (liftIO . terminate) action
 
 tryM :: IO () -> IO (Maybe Error)
 tryM = fmap (either (Just . extract) (const Nothing)) . try

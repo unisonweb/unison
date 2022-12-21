@@ -1,0 +1,13 @@
+
+-- insert 10k numbers into a map
+go acc n = 
+  if n == 1000 then Map.size acc
+  else
+    k = Nat.mod ( n * n ) 115249
+    acc' = Map.insert k k acc
+    match Map.lookup k acc' with 
+      Some a -> go acc' (n + 1)
+      None -> bug "Map implementation is busted" 
+
+main = do
+  timeit "Map" '(go Map.empty 0) 

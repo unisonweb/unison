@@ -7,7 +7,6 @@ import Unison.Reference (Reference)
 import qualified Unison.Util.List as List
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation3 as R3
 import Unison.Util.Relation4 (Relation4)
 import qualified Unison.Util.Relation4 as R4
 import Unison.Util.Star3 (Star3)
@@ -29,14 +28,23 @@ type Star a n = Star3 a n Type (Type, Value)
 type R4 a n = R4.Relation4 a n Type Value
 
 starToR4 :: (Ord r, Ord n) => Star r n -> Relation4 r n Type Value
-starToR4 = R4.fromList . fmap (\(r, n, _, (t, v)) -> (r, n, t, v)) . Star3.toList
+starToR4 = R4.fromList . starToR4List
+
+-- | Flattens a Metadata.Star into a 4-tuple.
+starToR4List :: Ord r => Star r n -> [(r, n, Type, Value)]
+starToR4List s =
+  [ (f, x, y, z)
+    | f <- Set.toList (Star3.fact s),
+      x <- Set.toList (R.lookupDom f (Star3.d1 s)),
+      (y, z) <- Set.toList (R.lookupDom f (Star3.d3 s))
+  ]
 
 hasMetadata :: Ord a => a -> Type -> Value -> Star a n -> Bool
 hasMetadata a t v = Set.member (t, v) . R.lookupDom a . Star3.d3
 
 hasMetadataWithType' :: Ord a => a -> Type -> R4 a n -> Bool
-hasMetadataWithType' a t r =
-  fromMaybe False $ Set.member t . R3.d2s <$> (Map.lookup a $ R4.d1 r)
+hasMetadataWithType' =
+  R4.memberD13
 
 hasMetadataWithType :: Ord a => a -> Type -> Star a n -> Bool
 hasMetadataWithType a t = Set.member t . R.lookupDom a . Star3.d2

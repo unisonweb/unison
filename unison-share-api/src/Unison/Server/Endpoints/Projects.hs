@@ -26,20 +26,20 @@ import Servant.Docs
   )
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Types (APIGet, UnisonHash)
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Util.Monoid (foldMapM)
 
@@ -110,7 +110,7 @@ backendListEntryToProjectListing owner = \case
       ProjectListing
         { owner = owner,
           name = NameSegment.toText name,
-          hash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash)
+          hash = "#" <> Hash.toBase32HexText (unCausalHash hash)
         }
   _ -> Nothing
 
@@ -133,13 +133,15 @@ serve codebase mayRoot mayOwner = projects
   where
     projects :: Backend m [ProjectListing]
     projects = do
-      shallowRootBranch <- case mayRoot of
-        Nothing -> lift (Codebase.getShallowRootBranch codebase)
-        Just sch -> do
-          h <- Backend.expandShortCausalHash codebase sch
-          -- TODO: can this ever be missing?
-          causal <- lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
-          lift $ V2Causal.value causal
+      shallowRootBranch <-
+        Backend.hoistBackend (Codebase.runTransaction codebase) do
+          case mayRoot of
+            Nothing -> lift Codebase.getShallowRootBranch
+            Just sch -> do
+              h <- Backend.expandShortCausalHash sch
+              -- TODO: can this ever be missing?
+              causal <- lift $ Codebase.expectCausalBranchByCausalHash h
+              lift $ V2Causal.value causal
 
       ownerEntries <- lift $ Backend.lsBranch codebase shallowRootBranch
       -- If an owner is provided, we only want projects belonging to them
@@ -149,7 +151,7 @@ serve codebase mayRoot mayOwner = projects
               Nothing -> mapMaybe entryToOwner ownerEntries
       foldMapM (ownerToProjectListings shallowRootBranch) owners
 
-    ownerToProjectListings :: V2Branch.Branch m -> ProjectOwner -> Backend m [ProjectListing]
+    ownerToProjectListings :: V2Branch.Branch Sqlite.Transaction -> ProjectOwner -> Backend m [ProjectListing]
     ownerToProjectListings root owner = do
       let (ProjectOwner ownerName) = owner
       ownerPath' <- (parsePath . Text.unpack) ownerName

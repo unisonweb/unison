@@ -42,11 +42,11 @@ dependencies:
   - transformers
   - unison-codebase
   - unison-codebase-sqlite
+  - unison-core
   - unison-core1
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer
-  - unison-util
   - unison-util-base32hex
   - unison-util-base32hex-orphans-aeson
   - unison-util-relation
@@ -69,6 +69,7 @@ default-extensions:
   - ConstraintKinds
   - DeriveAnyClass
   - DeriveFunctor
+  - DeriveGeneric
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
@@ -84,7 +85,9 @@ default-extensions:
   - NumericUnderscores
   - OverloadedStrings
   - PatternSynonyms
+  - RankNTypes
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
   - TypeOperators

@@ -17,6 +17,10 @@ source-repository head
   type: git
   location: https://github.com/unisonweb/unison
 
+flag arraychecks
+  manual: True
+  default: False
+
 flag optimized
   manual: True
   default: True
@@ -24,6 +28,7 @@ flag optimized
 library
   exposed-modules:
       U.Codebase.Branch.Diff
+      U.Codebase.Projects
       Unison.Builtin
       Unison.Builtin.Decls
       Unison.Builtin.Terms
@@ -59,6 +64,7 @@ library
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
       Unison.Codebase.PushBehavior
+      Unison.Codebase.RootBranchCache
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
       Unison.Codebase.ShortCausalHash
@@ -101,6 +107,7 @@ library
       Unison.Result
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Serialize
+      Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
@@ -208,6 +215,7 @@ library
     , errors
     , exceptions
     , extra
+    , filelock
     , filepath
     , fingertree
     , free
@@ -240,7 +248,6 @@ library
     , openapi3
     , optparse-applicative >=0.16.1.0
     , pem
-    , prelude-extras
     , pretty-simple
     , primitive
     , process
@@ -259,7 +266,6 @@ library
     , servant-server
     , shellmet
     , stm
-    , strings
     , tagged
     , temporary
     , terminal-size
@@ -281,9 +287,9 @@ library
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-bytes
+    , unison-util-cache
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -300,6 +306,8 @@ library
     , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
   default-language: Haskell2010
 
 test-suite parser-typechecker-tests
@@ -309,7 +317,6 @@ test-suite parser-typechecker-tests
       Unison.Core.Test.Name
       Unison.Test.ABT
       Unison.Test.ANF
-      Unison.Test.Cache
       Unison.Test.Codebase.Branch
       Unison.Test.Codebase.Causal
       Unison.Test.Codebase.Path
@@ -394,6 +401,7 @@ test-suite parser-typechecker-tests
     , errors
     , exceptions
     , extra
+    , filelock
     , filemanip
     , filepath
     , fingertree
@@ -427,7 +435,6 @@ test-suite parser-typechecker-tests
     , openapi3
     , optparse-applicative >=0.16.1.0
     , pem
-    , prelude-extras
     , pretty-simple
     , primitive
     , process
@@ -447,7 +454,6 @@ test-suite parser-typechecker-tests
     , shellmet
     , split
     , stm
-    , strings
     , tagged
     , temporary
     , terminal-size
@@ -470,9 +476,9 @@ test-suite parser-typechecker-tests
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-bytes
+    , unison-util-cache
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -489,4 +495,6 @@ test-suite parser-typechecker-tests
     , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
   default-language: Haskell2010

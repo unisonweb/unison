@@ -1,7 +1,6 @@
-{-# LANGUAGE PatternSynonyms #-}
-
 module Unison.Codebase.Editor.Output
   ( Output (..),
+    DisplayDefinitionsOutput (..),
     NumberedOutput (..),
     NumberedArgs,
     ListDetailed,
@@ -21,8 +20,8 @@ import Data.Time (UTCTime)
 import Network.URI (URI)
 import qualified System.Console.Haskeline as Completion
 import U.Codebase.Branch.Diff (NameChanges)
+import U.Codebase.HashTags (CausalHash)
 import Unison.Auth.Types (CredentialFailure)
-import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
@@ -54,7 +53,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
@@ -104,7 +103,7 @@ data NumberedOutput
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(Branch.CausalHash, Names.Diff)]
+      [(CausalHash, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
   | ListEdits Patch PPE.PrettyPrintEnv
 
@@ -203,11 +202,7 @@ data Output
   | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
-    DisplayDefinitions
-      (Maybe FilePath)
-      PPE.PrettyPrintEnvDecl
-      (Map Reference (DisplayObject () (Decl Symbol Ann)))
-      (Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)))
+    DisplayDefinitions DisplayDefinitionsOutput
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
   | TestResults
@@ -257,11 +252,11 @@ data Output
       Path.Absolute -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
-  | DumpBitBooster Branch.CausalHash (Map Branch.CausalHash [Branch.CausalHash])
+  | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
-  | CouldntLoadBranch Branch.CausalHash
+  | CouldntLoadBranch CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
@@ -278,6 +273,14 @@ data Output
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
 
+data DisplayDefinitionsOutput = DisplayDefinitionsOutput
+  { isTest :: TermReference -> Bool,
+    outputFile :: Maybe FilePath,
+    prettyPrintEnv :: PPE.PrettyPrintEnvDecl,
+    terms :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
+    types :: Map Reference (DisplayObject () (Decl Symbol Ann))
+  }
+
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
   | ShareErrorFastForwardPush Sync.FastForwardPushError
@@ -286,9 +289,9 @@ data ShareError
   | ShareErrorTransport Sync.CodeserverTransportError
 
 data HistoryTail
-  = EndOfLog Branch.CausalHash
-  | MergeTail Branch.CausalHash [Branch.CausalHash]
-  | PageEnd Branch.CausalHash Int -- PageEnd nextHash nextIndex
+  = EndOfLog CausalHash
+  | MergeTail CausalHash [CausalHash]
+  | PageEnd CausalHash Int -- PageEnd nextHash nextIndex
   deriving (Show)
 
 data TestReportStats
@@ -323,7 +326,8 @@ isFailure o = case o of
   BadMainFunction {} -> True
   CreatedNewBranch {} -> False
   BranchAlreadyExists {} -> True
-  FindNoLocalMatches {} -> True
+  -- we do a global search after finding no local matches, so let's not call this a failure yet
+  FindNoLocalMatches {} -> False
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True
@@ -368,7 +372,7 @@ isFailure o = case o of
   EvaluationFailure {} -> True
   Evaluated {} -> False
   Typechecked {} -> False
-  DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
+  DisplayDefinitions DisplayDefinitionsOutput {terms, types} -> null terms && null types
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False

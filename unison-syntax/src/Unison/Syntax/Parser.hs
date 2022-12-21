@@ -111,7 +111,7 @@ data Error v
   | DuplicateTermNames [(v, [Ann])]
   | PatternArityMismatch Int Int Ann -- PatternArityMismatch expectedArity actualArity location
   | FloatPattern Ann
-  deriving stock (Eq, Ord)
+  deriving (Show, Eq, Ord)
 
 tokenToPair :: L.Token a -> (Ann, a)
 tokenToPair t = (ann t, L.payload t)

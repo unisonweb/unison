@@ -69,6 +69,7 @@ library
     , parser-combinators
     , text
     , text-builder
+    , unison-core
     , unison-core1
     , unison-prelude
     , unison-util-base32hex
@@ -123,6 +124,7 @@ test-suite syntax-tests
     , parser-combinators
     , text
     , text-builder
+    , unison-core
     , unison-core1
     , unison-prelude
     , unison-syntax

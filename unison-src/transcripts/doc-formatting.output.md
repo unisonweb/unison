@@ -5,7 +5,7 @@ Docs can be used as inline code comments.
 ```unison
 foo : Nat -> Nat
 foo n =
-  [: do the thing :]
+  _ = [: do the thing :]
   n + 1
 ```
 
@@ -26,7 +26,7 @@ foo n =
   foo : Nat -> Nat
   foo n =
     use Nat +
-    [: do the thing :]
+    _ = [: do the thing :]
     n + 1
 
 ```
@@ -500,7 +500,7 @@ But note it's not obvious how display should best be handling this.  At the mome
   foo : Nat -> Nat
   foo n =
     use Nat +
-    [: do the thing :]
+    _ = [: do the thing :]
     n + 1    ▶    bar
   
 

@@ -17,10 +17,8 @@ source-repository head
 
 library
   exposed-modules:
-      U.Codebase.Sqlite.V2.Decl
       U.Codebase.Sqlite.V2.HashHandle
-      U.Codebase.Sqlite.V2.SyncEntity
-      U.Codebase.Sqlite.V2.Term
+  other-modules:
       Unison.Hashing.V2.Convert2
   hs-source-dirs:
       src
@@ -64,7 +62,6 @@ library
     , unison-hashing-v2
     , unison-prelude
     , unison-sqlite
-    , unison-util
     , unison-util-base32hex
     , unison-util-term
     , vector

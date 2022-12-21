@@ -15,8 +15,6 @@ import Control.Exception
 import Data.Bits
 import qualified Data.Map.Strict as M
 import Data.Ord (comparing)
-import qualified Data.Primitive.Array as PA
-import qualified Data.Primitive.PrimArray as PA
 import qualified Data.Sequence as Sq
 import qualified Data.Set as S
 import qualified Data.Set as Set
@@ -40,6 +38,7 @@ import Unison.Runtime.ANF as ANF
     valueLinks,
   )
 import qualified Unison.Runtime.ANF as ANF
+import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
@@ -375,7 +374,7 @@ exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim2 CMPU i j) = do
   ustk <- bump ustk
   poke ustk . fromEnum $ universalCompare compare x y
   pure (denv, ustk, bstk, k)
-exec !_   !_    !_activeThreads !_    !bstk !k r (BPrim2 THRO i j) = do
+exec !_ !_ !_activeThreads !_ !bstk !k r (BPrim2 THRO i j) = do
   name <- peekOffBi @Util.Text.Text bstk i
   x <- peekOff bstk j
   throwIO (BU (traceK r k) (Util.Text.toText name) x)
@@ -1938,6 +1937,8 @@ reflectValue rty = goV
           pure (ANF.Quote v)
       | Just g <- maybeUnwrapForeign Rf.codeRef f =
           pure (ANF.Code g)
+      | Just a <- maybeUnwrapForeign Rf.ibytearrayRef f =
+          pure (ANF.BArr a)
       | otherwise = die $ err $ "foreign value: " <> (show f)
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
@@ -2010,6 +2011,7 @@ reifyValue0 (rty, rtm) = goV
     goL (ANF.Bytes b) = pure . Foreign $ Wrap Rf.bytesRef b
     goL (ANF.Quote v) = pure . Foreign $ Wrap Rf.valueRef v
     goL (ANF.Code g) = pure . Foreign $ Wrap Rf.codeRef g
+    goL (ANF.BArr a) = pure . Foreign $ Wrap Rf.ibytearrayRef a
 
 -- Universal comparison functions
 
@@ -2159,7 +2161,8 @@ universalCompare frn = cmpc False
     cmpc tyEq (Foreign fl) (Foreign fr)
       | Just sl <- maybeUnwrapForeign Rf.listRef fl,
         Just sr <- maybeUnwrapForeign Rf.listRef fr =
-          comparing Sq.length sl sr <> fold (Sq.zipWith (cmpc tyEq) sl sr)
+          fold (Sq.zipWith (cmpc tyEq) sl sr)
+            <> compare (length sl) (length sr)
       | Just al <- maybeUnwrapForeign Rf.iarrayRef fl,
         Just ar <- maybeUnwrapForeign Rf.iarrayRef fr =
           arrayCmp (cmpc tyEq) al ar
@@ -2171,7 +2174,8 @@ arrayCmp ::
   PA.Array Closure ->
   PA.Array Closure ->
   Ordering
-arrayCmp cmpc l r = comparing PA.sizeofArray l r <> go (PA.sizeofArray l)
+arrayCmp cmpc l r =
+  comparing PA.sizeofArray l r <> go (PA.sizeofArray l - 1)
   where
     go i
       | i < 0 = EQ

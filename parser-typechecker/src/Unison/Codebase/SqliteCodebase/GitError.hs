@@ -6,6 +6,7 @@ import Unison.CodebasePath (CodebasePath)
 
 data GitSqliteCodebaseError
   = GitCouldntParseRootBranchHash ReadGitRepo String
+  | CodebaseFileLockFailed
   | NoDatabaseFile ReadGitRepo CodebasePath
   | UnrecognizedSchemaVersion ReadGitRepo CodebasePath SchemaVersion
   | CodebaseRequiresMigration SchemaVersion SchemaVersion

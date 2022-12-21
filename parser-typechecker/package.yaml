@@ -8,10 +8,15 @@ flags:
   optimized:
     manual: true
     default: true
+  arraychecks:
+    manual: true
+    default: false
 
 when:
   - condition: flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  - condition: flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
 
 dependencies:
   - ListLike
@@ -41,6 +46,7 @@ dependencies:
   - errors
   - exceptions
   - extra
+  - filelock
   - filepath
   - fingertree
   - fsnotify
@@ -73,7 +79,6 @@ dependencies:
   - openapi3
   - optparse-applicative >= 0.16.1.0
   - pem
-  - prelude-extras
   - pretty-simple
   - primitive
   - process
@@ -92,7 +97,6 @@ dependencies:
   - servant-server
   - shellmet
   - stm
-  - strings
   - tagged
   - temporary
   - terminal-size
@@ -114,9 +118,9 @@ dependencies:
   - unison-pretty-printer
   - unison-sqlite
   - unison-syntax
-  - unison-util
   - unison-util-base32hex
   - unison-util-bytes
+  - unison-util-cache
   - unison-util-relation
   - unison-util-rope
   - unison-util-serialization

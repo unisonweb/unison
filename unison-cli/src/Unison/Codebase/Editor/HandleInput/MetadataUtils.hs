@@ -124,7 +124,7 @@ resolveMetadata name = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath' <- Cli.getCurrentPath
-  schLength <- liftIO (Codebase.branchHashLength codebase)
+  schLength <- Cli.runTransaction Codebase.branchHashLength
 
   let ppe :: PPE.PrettyPrintEnv
       ppe =
@@ -136,10 +136,9 @@ resolveMetadata name = do
       Just (Referent.Ref ref) -> pure ref
       -- FIXME: we want a different error message if the given name is associated with a data constructor (`Con`).
       _ -> Cli.returnEarly (MetadataAmbiguous name ppe (Set.toList terms))
-  liftIO (Codebase.getTypeOfTerm codebase ref) >>= \case
-    Just ty -> pure $ Right (Hashing.typeToReference ty, ref)
-    Nothing ->
-      pure (Left (MetadataMissingType ppe (Referent.Ref ref)))
+  Cli.runTransaction ((Codebase.getTypeOfTerm codebase ref)) <&> \case
+    Just ty -> Right (Hashing.typeToReference ty, ref)
+    Nothing -> Left (MetadataMissingType ppe (Referent.Ref ref))
 
 resolveDefaultMetadata :: Path.Absolute -> Cli [String]
 resolveDefaultMetadata path = do
@@ -172,4 +171,4 @@ getHQTerms = \case
   where
     hashOnly sh = do
       Cli.Env {codebase} <- ask
-      liftIO (Backend.termReferentsByShortHash codebase sh)
+      Cli.runTransaction (Backend.termReferentsByShortHash codebase sh)

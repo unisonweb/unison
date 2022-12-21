@@ -24,7 +24,7 @@ hoverHandler :: RequestMessage 'TextDocumentHover -> (Either ResponseError (Resp
 hoverHandler m respond =
   respond . Right =<< runMaybeT do
     let p = (m ^. params)
-    txtIdentifier <- MaybeT $ identifierAtPosition p
+    txtIdentifier <- identifierAtPosition p
     hqIdentifier <- MaybeT . pure $ HQ.fromText txtIdentifier
     cb <- asks codebase
     rt <- asks runtime

@@ -9,12 +9,12 @@ tested here.
 ```unison
 test1 : '{IO, Exception} [Result]
 test1 = do
-  fromUtf8 0xsee
+  _ = fromUtf8 0xsee
   [Ok "test1"]
 
 test2 : '{IO, Exception} [Result]
 test2 = do
-  tryEval '(bug "whoa")
+  _ = tryEval '(bug "whoa")
   [Ok "test2"]
 ```
 

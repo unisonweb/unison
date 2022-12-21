@@ -1,4 +1,16 @@
-module Unison.Syntax.TermPrinter (emptyAc, pretty, prettyBlock, prettyBlock', pretty', prettyBinding, prettyBinding', pretty0, runPretty) where
+module Unison.Syntax.TermPrinter
+  ( emptyAc,
+    pretty,
+    prettyBlock,
+    prettyBlock',
+    pretty',
+    prettyBinding,
+    prettyBinding',
+    prettyBindingWithoutTypeSignature,
+    pretty0,
+    runPretty,
+  )
+where
 
 import Control.Lens (unsnoc, (^.))
 import Control.Monad.State (evalState)
@@ -10,7 +22,6 @@ import Data.Text (unpack)
 import qualified Data.Text as Text
 import Data.Vector ()
 import qualified Text.Show.Unicode as U
-import U.Util.Monoid (foldMapM, intercalateMapM)
 import Unison.ABT (annotation, reannotateUp, pattern AbsN')
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
@@ -43,7 +54,7 @@ import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
 import qualified Unison.Type as Type
 import qualified Unison.Util.Bytes as Bytes
-import Unison.Util.Monoid (intercalateMap)
+import Unison.Util.Monoid (foldMapM, intercalateMap, intercalateMapM)
 import Unison.Util.Pretty (ColorText, Pretty, Width)
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.Util.SyntaxText as S
@@ -266,14 +277,10 @@ pretty0
             px <- pretty0 (ac 10 Normal im doc) x
             pure . paren (p >= 11 || isBlock x && p >= 3) $
               fmt S.DelayForceChar (l "'")
-                <> ( case x of
-                       Lets' _ _ -> id
-                       -- Add indentation below if we're opening parens with '(
-                       -- This is in case the contents are a long function application
-                       -- in which case the arguments should be indented.
-                       _ -> PP.indentAfterNewline "  "
-                   )
-                  px
+                -- Add indentation below since we're opening parens with '(
+                -- This is in case the contents are a long function application
+                -- in which case the arguments should be indented.
+                <> PP.indentAfterNewline "  " px
       List' xs ->
         PP.group <$> do
           xs' <- traverse (pretty0 (ac 0 Normal im doc)) xs
@@ -511,9 +518,9 @@ pretty0
           body (Constructor' (ConstructorReference DD.UnitRef 0)) | elideUnit = pure []
           body e = (: []) <$> pretty0 (ac 0 Normal im doc) e
           printBinding (v, binding) =
-            if isBlank $ Var.nameStr v
+            if Var.isAction v
               then pretty0 (ac (-1) Normal im doc) binding
-              else prettyBinding0 (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
+              else renderPrettyBinding <$> prettyBinding0 (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
           letIntro = case sc of
             Block -> id
             Normal -> \x -> fmt S.ControlKeyword "let" `PP.hang` x
@@ -710,7 +717,10 @@ printCase ::
   DocLiteralContext ->
   [MatchCase' () (Term3 v PrintAnnotation)] ->
   m (Pretty SyntaxText)
-printCase im doc ms0 = PP.lines . alignGrid <$> grid
+printCase im doc ms0 =
+  PP.orElse
+    <$> (PP.lines . alignGrid True <$> grid)
+    <*> (PP.lines . alignGrid False <$> grid)
   where
     ms = groupCases ms0
     justify rows =
@@ -718,21 +728,34 @@ printCase im doc ms0 = PP.lines . alignGrid <$> grid
       where
         alignPatterns (p, _, _) = (p, Just "")
         gbs (_, gs, bs) = zip gs bs
-    alignGrid = fmap alignCase . justify
-    alignCase (p, gbs) =
-      if not (null (drop 1 gbs))
-        then PP.hang p guardBlock
-        else p <> guardBlock
+    nojustify = map f
       where
-        guardBlock =
-          PP.lines $
-            fmap (\(g, (a, b)) -> PP.hang (PP.group (g <> a)) b) justified
-        justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
+        f (p, gs, bs) = (p, zip gs bs)
+    alignGrid alignArrows grid =
+      fmap alignCase $ if alignArrows then justify grid else nojustify grid
+      where
+        alignCase (p, gbs) =
+          if not (null (drop 1 gbs))
+            then PP.hang p guardBlock
+            else p <> guardBlock
+          where
+            guardBlock =
+              PP.lines $
+                fmap
+                  ( \(g, (a, b)) ->
+                      PP.hang
+                        ( PP.group
+                            (g <> (if alignArrows then "" else " ") <> a)
+                        )
+                        b
+                  )
+                  justified
+            justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
     grid = traverse go ms
     patLhs env vs pats =
       case pats of
         [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
-        pats -> PP.group . PP.sep ("," <> PP.softbreak)
+        pats -> PP.group . PP.sep (PP.indentAfterNewline "  " $ "," <> PP.softbreak)
           . (`evalState` vs)
           . for pats
           $ \pat -> do
@@ -764,27 +787,63 @@ printCase im doc ms0 = PP.lines . alignGrid <$> grid
             <$> pretty0 (ac 2 Normal im doc) g
         printBody b = let (im', uses) = calcImports im b in goBody im' uses b
 
-{- Render a binding, producing output of the form
+-- A pretty term binding, split into the type signature (possibly empty) and the term.
+data PrettyBinding = PrettyBinding
+  { typeSignature :: Maybe (Pretty SyntaxText),
+    term :: Pretty SyntaxText
+  }
 
-foo : t -> u
-foo a = ...
+-- Render a pretty binding.
+renderPrettyBinding :: PrettyBinding -> Pretty SyntaxText
+renderPrettyBinding PrettyBinding {typeSignature, term} =
+  case typeSignature of
+    Nothing -> term
+    Just ty -> PP.lines [ty, term]
 
-The first line is only output if the term has a type annotation as the
-outermost constructor.
+-- Render a pretty binding without a type signature.
+renderPrettyBindingWithoutTypeSignature :: PrettyBinding -> Pretty SyntaxText
+renderPrettyBindingWithoutTypeSignature PrettyBinding {term} =
+  term
 
-Binary functions with symbolic names are output infix, as follows:
-
-(+) : t -> t -> t
-a + b = ...
-
--}
+-- | Render a binding, producing output of the form
+--
+-- foo : t -> u
+-- foo a = ...
+--
+-- The first line is only output if the term has a type annotation as the
+-- outermost constructor.
+--
+-- Binary functions with symbolic names are output infix, as follows:
+--
+-- (+) : t -> t -> t
+-- a + b = ...
 prettyBinding ::
   Var v =>
   PrettyPrintEnv ->
   HQ.HashQualified Name ->
   Term2 v at ap v a ->
   Pretty SyntaxText
-prettyBinding ppe n = runPretty ppe . prettyBinding0 (ac (-1) Block Map.empty MaybeDoc) n
+prettyBinding =
+  prettyBinding_ renderPrettyBinding
+
+-- | Like 'prettyBinding', but elides the type signature (if any).
+prettyBindingWithoutTypeSignature ::
+  Var v =>
+  PrettyPrintEnv ->
+  HQ.HashQualified Name ->
+  Term2 v at ap v a ->
+  Pretty SyntaxText
+prettyBindingWithoutTypeSignature =
+  prettyBinding_ renderPrettyBindingWithoutTypeSignature
+
+prettyBinding_ ::
+  Var v =>
+  (PrettyBinding -> Pretty SyntaxText) ->
+  PrettyPrintEnv ->
+  HQ.HashQualified Name ->
+  Term2 v at ap v a ->
+  Pretty SyntaxText
+prettyBinding_ go ppe n = runPretty ppe . fmap go . prettyBinding0 (ac (-1) Block Map.empty MaybeDoc) n
 
 prettyBinding' ::
   Var v =>
@@ -801,7 +860,7 @@ prettyBinding0 ::
   AmbientContext ->
   HQ.HashQualified Name ->
   Term2 v at ap v a ->
-  m (Pretty SyntaxText)
+  m PrettyBinding
 prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
   go (symbolic && isBinary term) term
   where
@@ -820,26 +879,26 @@ prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
                 _ -> id
           tp' <- TypePrinter.pretty0 im (-1) tp
           tm' <- avoidCapture (prettyBinding0 a v tm)
-          pure $
-            PP.lines
-              [ PP.group
-                  ( renderName v
-                      <> PP.hang
-                        (fmt S.TypeAscriptionColon " :")
-                        tp'
-                  ),
-                PP.group tm'
-              ]
+          pure
+            PrettyBinding
+              { typeSignature = Just (PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") tp')),
+                term = PP.group (renderPrettyBinding tm')
+              }
         (printAnnotate env -> LamsNamedMatch' vs branches) -> do
           branches' <- printCase im doc branches
-          pure . PP.group $
-            PP.group
-              ( defnLhs v vs <> fmt S.BindingEquals " =" <> " "
-                  <> fmt
-                    S.ControlKeyword
-                    "cases"
-              )
-              `PP.hang` branches'
+          pure
+            PrettyBinding
+              { typeSignature = Nothing,
+                term =
+                  PP.group $
+                    PP.group
+                      ( defnLhs v vs <> fmt S.BindingEquals " =" <> " "
+                          <> fmt
+                            S.ControlKeyword
+                            "cases"
+                      )
+                      `PP.hang` branches'
+              }
         LamsNamedOrDelay' vs body -> do
           -- In the case where we're being called from inside `pretty0`, this
           -- call to printAnnotate is unfortunately repeating work we've already
@@ -851,10 +910,15 @@ prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
           let hang = case body' of
                 Delay' (Lets' _ _) -> PP.softHang
                 _ -> PP.hang
-          pure . PP.group $
-            PP.group (defnLhs v vs <> fmt S.BindingEquals " =")
-              `hang` uses [prettyBody]
-        t -> pure $ l "error: " <> l (show t)
+          pure
+            PrettyBinding
+              { typeSignature = Nothing,
+                term =
+                  PP.group $
+                    PP.group (defnLhs v vs <> fmt S.BindingEquals " =")
+                      `hang` uses [prettyBody]
+              }
+        t -> error ("prettyBinding0: unexpected term: " ++ show t)
       where
         defnLhs v vs
           | infix' = case vs of
@@ -951,10 +1015,6 @@ isSymbolic' :: Name -> Bool
 isSymbolic' name = case symbolyId . Name.toString $ name of
   Right _ -> True
   _ -> False
-
-isBlank :: String -> Bool
-isBlank ('_' : rest) | isJust (readMaybe rest :: Maybe Int) = True
-isBlank _ = False
 
 emptyAc :: AmbientContext
 emptyAc = ac (-1) Normal Map.empty MaybeDoc
@@ -1396,7 +1456,7 @@ immediateChildBlockTerms = \case
     handleDelay (Delay' b@(Lets' _ _)) = [b]
     handleDelay _ = []
     doLet (v, Ann' tm _) = doLet (v, tm)
-    doLet (v, LamsNamedOpt' _ body) = [body | not (isBlank $ Var.nameStr v)]
+    doLet (v, LamsNamedOpt' _ body) = [body | not (Var.isAction v)]
     doLet t = error (show t) []
 
 -- Matches with a single case, no variable shadowing, and where the pattern

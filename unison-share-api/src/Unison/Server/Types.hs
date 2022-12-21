@@ -1,10 +1,5 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 module Unison.Server.Types where
 
@@ -39,9 +34,8 @@ import Servant.Docs (DocCapture (..), DocQueryParam (..), ParamKind (..), ToPara
 import qualified Servant.Docs as Docs
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
-import qualified U.Codebase.HashTags as V2
+import U.Codebase.HashTags
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
   )
@@ -316,8 +310,8 @@ setCacheControl = addHeader @"Cache-Control" "public"
 
 branchToUnisonHash :: Branch.Branch m -> UnisonHash
 branchToUnisonHash b =
-  ("#" <>) . Hash.base32Hex . Causal.unCausalHash $ Branch.headHash b
+  ("#" <>) . Hash.base32Hex . unCausalHash $ Branch.headHash b
 
 v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
 v2CausalBranchToUnisonHash b =
-  ("#" <>) . Hash.base32Hex . V2.unCausalHash $ V2Causal.causalHash b
+  ("#" <>) . Hash.base32Hex . unCausalHash $ V2Causal.causalHash b
