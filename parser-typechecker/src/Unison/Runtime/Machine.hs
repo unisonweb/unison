@@ -15,8 +15,6 @@ import Control.Exception
 import Data.Bits
 import qualified Data.Map.Strict as M
 import Data.Ord (comparing)
-import qualified Data.Primitive.Array as PA
-import qualified Data.Primitive.PrimArray as PA
 import qualified Data.Sequence as Sq
 import qualified Data.Set as S
 import qualified Data.Set as Set
@@ -40,6 +38,7 @@ import Unison.Runtime.ANF as ANF
     valueLinks,
   )
 import qualified Unison.Runtime.ANF as ANF
+import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign

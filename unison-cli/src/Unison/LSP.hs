@@ -26,7 +26,7 @@ import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Debug as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
-import Unison.LSP.Completion (completionHandler)
+import Unison.LSP.Completion (completionHandler, completionItemResolveHandler)
 import qualified Unison.LSP.Configuration as Config
 import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
@@ -137,6 +137,7 @@ lspRequestHandlers =
     & SMM.insert STextDocumentCodeAction (mkHandler codeActionHandler)
     & SMM.insert STextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert STextDocumentCompletion (mkHandler completionHandler)
+    & SMM.insert SCompletionItemResolve (mkHandler completionItemResolveHandler)
   where
     defaultTimeout = 10_000 -- 10s
     mkHandler ::
