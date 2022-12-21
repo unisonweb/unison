@@ -1007,29 +1007,30 @@ resetRoot =
         _ -> Left (I.help resetRoot)
     )
 
-pullSilent :: InputPattern
-pullSilent =
-  pullImpl "pull.silent" Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
-
 pull :: InputPattern
-pull = pullImpl "pull" Verbosity.Default Input.PullWithHistory ""
+pull =
+  pullImpl "pull" ["pull.silent"] Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
+
+pullVerbose :: InputPattern
+pullVerbose = pullImpl "pull.verbose" [] Verbosity.Verbose Input.PullWithHistory "and lists the merged entities"
 
 pullWithoutHistory :: InputPattern
 pullWithoutHistory =
   pullImpl
     "pull.without-history"
-    Verbosity.Default
+    []
+    Verbosity.Silent
     Input.PullWithoutHistory
     "without including the remote's history. This usually results in smaller codebase sizes."
 
-pullImpl :: String -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
-pullImpl name verbosity pullMode addendum = do
+pullImpl :: String -> [String] -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
+pullImpl name aliases verbosity pullMode addendum = do
   self
   where
     self =
       InputPattern
         name
-        []
+        aliases
         I.Visible
         [(Optional, remoteNamespaceArg), (Optional, namespaceArg)]
         ( P.lines
@@ -1080,7 +1081,7 @@ pullExhaustive =
     ( P.lines
         [ P.wrap $
             "The " <> makeExample' pullExhaustive <> "command can be used in place of"
-              <> makeExample' pull
+              <> makeExample' pullVerbose
               <> "to complete namespaces"
               <> "which were pulled incompletely due to a bug in UCM"
               <> "versions M1l and earlier.  It may be extra slow!"
@@ -1088,15 +1089,15 @@ pullExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
+          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
         [url] -> do
           ns <- parseReadRemoteNamespace "remote-namespace" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
         [url, path] -> do
           ns <- parseReadRemoteNamespace "remote-namespace" url
           p <- first fromString $ Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Default
-        _ -> Left (I.help pull)
+          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
+        _ -> Left (I.help pullVerbose)
     )
 
 debugTabCompletion :: InputPattern
@@ -2340,9 +2341,9 @@ validInputs =
       push,
       pushCreate,
       pushForce,
-      pull,
+      pullVerbose,
       pullWithoutHistory,
-      pullSilent,
+      pull,
       pushExhaustive,
       pullExhaustive,
       createPullRequest,
