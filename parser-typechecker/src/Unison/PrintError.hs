@@ -17,14 +17,16 @@ import qualified Data.Text as Text
 import Data.Void (Void)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
-import Unison.Builtin.Decls (pattern TupleType', unitRef)
+import Unison.Builtin.Decls (unitRef, pattern TupleType')
 import qualified Unison.Codebase.Path as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
+import qualified Unison.HashQualified' as HQ'
 import Unison.Kind (Kind)
 import qualified Unison.Kind as Kind
 import Unison.Name (Name)
 import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (..))
 import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
@@ -400,17 +402,20 @@ renderTypeError e env src curPath = case e of
             ],
         debugSummary note
       ]
-      where
-        unitHintMsg = 
-          "\nHint: Actions within a block must have type " <> 
-             style Type2 (renderType' env expectedLeaf)    <> ".\n" <> 
-             "      Use " <> style Type1 "_ = <expr>" <> " to ignore a result."  
-        unitHint = if giveUnitHint then unitHintMsg else "" 
-        giveUnitHint = case expectedType of  
-          Type.Ref' u | u == unitRef -> case mismatchSite of 
-            Term.Let1Named' v _ _ -> Var.isAction v
-            _ -> False
+    where
+      unitHintMsg =
+        "\nHint: Actions within a block must have type "
+          <> style Type2 (renderType' env expectedLeaf)
+          <> ".\n"
+          <> "      Use "
+          <> style Type1 "_ = <expr>"
+          <> " to ignore a result."
+      unitHint = if giveUnitHint then unitHintMsg else ""
+      giveUnitHint = case expectedType of
+        Type.Ref' u | u == unitRef -> case mismatchSite of
+          Term.Let1Named' v _ _ -> Var.isAction v
           _ -> False
+        _ -> False
   AbilityCheckFailure {..}
     | [tv@(Type.Var' ev)] <- ambient,
       ev `Set.member` foldMap Type.freeVars requested ->
@@ -1555,16 +1560,17 @@ renderParseErrors s = \case
                   then unknownTypesMsg
                   else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
        in (msgs, allRanges)
-    go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::" Nothing))) =
-      let msg =
-            mconcat
-              [ "This looks like the start of an expression here but I was expecting a binding.",
-                "\nDid you mean to use a single " <> style Code ":",
-                " here for a type signature?",
-                "\n\n",
-                tokenAsErrorSite s t
-              ]
-       in (msg, [rangeForToken t])
+    go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId (HQ'.NameOnly name))))
+      | name == Name.fromSegment (NameSegment "::") =
+          let msg =
+                mconcat
+                  [ "This looks like the start of an expression here but I was expecting a binding.",
+                    "\nDid you mean to use a single " <> style Code ":",
+                    " here for a type signature?",
+                    "\n\n",
+                    tokenAsErrorSite s t
+                  ]
+           in (msg, [rangeForToken t])
     go (Parser.DidntExpectExpression tok _nextTok) =
       let msg =
             mconcat

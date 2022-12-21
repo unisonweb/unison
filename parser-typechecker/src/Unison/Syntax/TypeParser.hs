@@ -5,11 +5,14 @@ import qualified Data.Set as Set
 import qualified Text.Megaparsec as P
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NamesWithHistory as Names
-import qualified Unison.Syntax.Name as Name (toVar)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name (toVar)
 import Unison.Syntax.Parser
 import Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -110,6 +113,6 @@ forall :: Var v => TypeP v -> TypeP v
 forall rec = do
   kw <- reserved "forall" <|> reserved "∀"
   vars <- fmap (fmap L.payload) . some $ prefixDefinitionName
-  _ <- matchToken $ L.SymbolyId "." Nothing
+  _ <- matchToken $ L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment ".")))
   t <- rec
   pure $ Type.foralls (ann kw <> ann t) vars t

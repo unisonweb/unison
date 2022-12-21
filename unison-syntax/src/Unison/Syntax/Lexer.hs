@@ -1,8 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Syntax.Lexer
   ( Token (..),
@@ -11,6 +7,7 @@ module Unison.Syntax.Lexer
     Err (..),
     Pos (..),
     Lexeme (..),
+    lexemeToHQName,
     lexer,
     simpleWordyId,
     simpleSymbolyId,
@@ -51,10 +48,18 @@ import qualified Text.Megaparsec.Char as CP
 import qualified Text.Megaparsec.Char.Lexer as LP
 import qualified Text.Megaparsec.Error as EP
 import qualified Text.Megaparsec.Internal as PI
+import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (NameSegment))
+import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Syntax.HashQualified' as HQ' (toString)
+import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import qualified Unison.Util.Bytes as Bytes
 import Unison.Util.Monoid (intercalateMap)
 
@@ -129,8 +134,8 @@ data Lexeme
   | Textual String -- text literals, `"foo bar"`
   | Character Char -- character literals, `?X`
   | Backticks String (Maybe ShortHash) -- an identifier in backticks
-  | WordyId String (Maybe ShortHash) -- a (non-infix) identifier
-  | SymbolyId String (Maybe ShortHash) -- an infix identifier
+  | WordyId (HQ'.HashQualified Name) -- a (non-infix) identifier
+  | SymbolyId (HQ'.HashQualified Name) -- an infix identifier
   | Blank String -- a typed hole or placeholder
   | Numeric String -- numeric literals, left unparsed
   | Bytes Bytes.Bytes -- bytes literals
@@ -141,6 +146,13 @@ data Lexeme
 type IsVirtual = Bool -- is it a virtual semi or an actual semi?
 
 makePrisms ''Lexeme
+
+lexemeToHQName :: Lexeme -> Maybe (HQ.HashQualified Name)
+lexemeToHQName = \case
+  WordyId n -> Just (HQ'.toHQ n)
+  SymbolyId n -> Just (HQ'.toHQ n)
+  Hash sh -> Just (HQ.HashOnly sh)
+  _ -> Nothing
 
 space :: P ()
 space =
@@ -302,7 +314,7 @@ lexer0' scope rem =
       | notLayout t1 && touches t1 t2 && isSigned num =
           t1 :
           Token
-            (SymbolyId (take 1 num) Nothing)
+            (SymbolyId (HQ'.fromName (Name.unsafeFromString (take 1 num))))
             (start t2)
             (inc $ start t2) :
           Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
@@ -378,10 +390,10 @@ lexemes' eof =
       --   ability Foo where      =>   ability Foo where
       tn <- subsequentTypeName
       pure $ case (tn, docToks) of
-        (Just (WordyId tname _), ht : _)
+        (Just (WordyId tname), ht : _)
           | isTopLevel ->
               startToks
-                <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
+                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ ht, Open "=" <$ ht]
                 <> docToks0
                 <> [Close <$ last docToks]
                 <> endToks
@@ -768,8 +780,10 @@ lexemes' eof =
               pure $ (fmap Reserved <$> typ) <> t
 
     blank =
-      separated wordySep $
-        char '_' *> P.optional wordyIdSeg <&> (Blank . fromMaybe "")
+      separated wordySep do
+        _ <- char '_'
+        seg <- P.optional wordyIdSeg
+        pure (Blank (maybe "" (Text.unpack . NameSegment.toText) seg))
 
     semi = char ';' $> Semi False
     textual = Textual <$> quoted
@@ -782,39 +796,57 @@ lexemes' eof =
     wordyId :: P Lexeme
     wordyId = P.label wordyMsg . P.try $ do
       dot <- P.optional (lit ".")
-      segs <- P.sepBy1 wordyIdSeg (P.try (char '.' <* P.lookAhead (P.satisfy wordyIdChar)))
-      shorthash <- P.optional shorthash
-      pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
+      segs <- Nel.fromList <$> P.sepBy1 wordyIdSeg (P.try (char '.' <* P.lookAhead (P.satisfy wordyIdChar)))
+      hash <- P.optional shorthash
+      let name = (if isJust dot then Name.makeAbsolute else id) (Name.fromSegments segs)
+      pure (WordyId (HQ'.fromNameHash name hash))
       where
         wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
 
     symbolyId :: P Lexeme
     symbolyId = P.label symbolMsg . P.try $ do
       dot <- P.optional (lit ".")
-      segs <- P.optional segs
-      shorthash <- P.optional shorthash
+      segs <- P.optional segments
+      hash <- P.optional shorthash
       case (dot, segs) of
-        (_, Just segs) -> pure $ SymbolyId (fromMaybe "" dot <> segs) shorthash
+        (_, Just segs) -> do
+          let name = Name.fromSegments segs
+          pure (SymbolyId (HQ'.fromNameHash name hash))
         -- a single . or .#somehash is parsed as a symboly id
-        (Just dot, Nothing) -> pure $ SymbolyId dot shorthash
+        (Just dot, Nothing) -> do
+          let name = Name.fromSegment (NameSegment (Text.pack dot))
+          pure (SymbolyId (HQ'.fromNameHash name hash))
         (Nothing, Nothing) -> fail symbolMsg
       where
-        segs = symbolyIdSeg <|> (wordyIdSeg <+> lit "." <+> segs)
+        segments :: P (Nel.NonEmpty NameSegment)
+        segments =
+          symbolySegments <|> wordySegments
+
+        symbolySegments :: P (Nel.NonEmpty NameSegment)
+        symbolySegments = do
+          seg <- symbolyIdSeg
+          pure (seg Nel.:| [])
+
+        wordySegments :: P (Nel.NonEmpty NameSegment)
+        wordySegments = do
+          seg0 <- wordyIdSeg
+          seg1 Nel.:| segs <- segments
+          pure (seg0 Nel.:| seg1 : segs)
 
     symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
 
-    symbolyIdSeg :: P String
+    symbolyIdSeg :: P NameSegment
     symbolyIdSeg = do
       start <- pos
       id <- P.takeWhile1P (Just symbolMsg) symbolyIdChar
       when (Set.member id reservedOperators) $ do
         stop <- pos
         P.customFailure (Token (ReservedSymbolyId id) start stop)
-      pure id
+      pure (NameSegment (Text.pack id))
 
-    wordyIdSeg :: P String
+    wordyIdSeg :: P NameSegment
     -- wordyIdSeg = litSeg <|> (P.try do -- todo
-    wordyIdSeg = P.try $ do
+    wordyIdSeg = P.try do
       start <- pos
       ch <- P.satisfy wordyIdStartChar
       rest <- P.many (P.satisfy wordyIdChar)
@@ -822,7 +854,7 @@ lexemes' eof =
       when (Set.member word keywords) $ do
         stop <- pos
         P.customFailure (Token (ReservedWordyId word) start stop)
-      pure (ch : rest)
+      pure (NameSegment (Text.pack (ch : rest)))
 
     {-
     -- ``an-identifier-with-dashes``
@@ -1075,11 +1107,13 @@ lexemes' eof =
         findClose _ [] = Nothing
         findClose s ((h, _) : tl) = if h `elem` s then Just (h, 1) else fmap (1 +) <$> findClose s tl
 
-simpleWordyId :: String -> Lexeme
-simpleWordyId = flip WordyId Nothing
+simpleWordyId :: Name -> Lexeme
+simpleWordyId name =
+  WordyId (HQ'.fromName name)
 
-simpleSymbolyId :: String -> Lexeme
-simpleSymbolyId = flip SymbolyId Nothing
+simpleSymbolyId :: Name -> Lexeme
+simpleSymbolyId name =
+  SymbolyId (HQ'.fromName name)
 
 notLayout :: Token Lexeme -> Bool
 notLayout t = case payload t of
@@ -1375,8 +1409,8 @@ instance P.VisualStream [Token Lexeme] where
           Nothing -> '?' : [c]
       pretty (Backticks n h) =
         '`' : n ++ (toList h >>= SH.toString) ++ ['`']
-      pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
-      pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
+      pretty (WordyId n) = HQ'.toString n
+      pretty (SymbolyId n) = HQ'.toString n
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh

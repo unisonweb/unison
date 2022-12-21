@@ -182,7 +182,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
 import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toText, unsafeFromString)
 import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Name as Name (toString, toVar, unsafeFromString, unsafeFromVar)
+import qualified Unison.Syntax.Name as Name (toString, toVar, unsafeFromVar)
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TermPrinter as TP
 import Unison.Term (Term)
@@ -223,12 +223,7 @@ loop e = do
         (Text, [L.Token L.Lexeme]) ->
         Cli (TypecheckedUnisonFile Symbol Ann)
       withFile ambient sourceName lexed@(text, tokens) = do
-        let getHQ = \case
-              L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-              L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-              L.Hash sh -> Just (HQ.HashOnly sh)
-              _ -> Nothing
-            hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
+        let hqs = Set.fromList . mapMaybe (L.lexemeToHQName . L.payload) $ tokens
         rootBranch <- Cli.getRootBranch
         currentPath <- Cli.getCurrentPath
         let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
@@ -3011,12 +3006,7 @@ loadTypeDisplayObject codebase = \case
 lexedSource :: Text -> Text -> Cli (NamesWithHistory, (Text, [L.Token L.Lexeme]))
 lexedSource name src = do
   let tokens = L.lexer (Text.unpack name) (Text.unpack src)
-      getHQ = \case
-        L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.Hash sh -> Just (HQ.HashOnly sh)
-        _ -> Nothing
-      hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
+      hqs = Set.fromList . mapMaybe (L.lexemeToHQName . L.payload) $ tokens
   parseNames <- makeHistoricalParsingNames hqs
   pure (parseNames, (src, tokens))
 

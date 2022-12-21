@@ -10,13 +10,14 @@ import qualified Unison.ABT as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (..))
 import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Name as Name (toText, toVar, unsafeFromVar)
+import qualified Unison.Syntax.Name as Name (toString, toText, toVar, unsafeFromVar)
 import Unison.Syntax.Parser
 import qualified Unison.Syntax.TermParser as TermParser
 import qualified Unison.Syntax.TypeParser as TypeParser
@@ -230,11 +231,11 @@ stanza = watchExpression <|> unexpectedAction <|> binding
         Just doc -> Bindings [((ann doc, Var.joinDot v (Var.named "doc")), doc), binding]
 
 watched :: Var v => P v (UF.WatchKind, Text, Ann)
-watched = P.try $ do
-  kind <- optional wordyIdString
+watched = P.try do
+  kind <- (fmap . fmap . fmap) Name.toString (optional importWordyId)
   guid <- uniqueName 10
-  op <- optional (L.payload <$> P.lookAhead symbolyIdString)
-  guard (op == Just ">")
+  op <- optional (L.payload <$> P.lookAhead importSymbolyId)
+  guard (op == Just (Name.fromSegment (NameSegment ">")))
   tok <- anyToken
   guard $ maybe True (`L.touches` tok) kind
   pure (maybe UF.RegularWatch L.payload kind, guid, maybe mempty ann kind <> ann tok)
@@ -286,10 +287,10 @@ modifier = do
     unique = do
       tok <- openBlockWith "unique"
       uid <- do
-        o <- optional (openBlockWith "[" *> wordyIdString <* closeBlock)
+        o <- optional (openBlockWith "[" *> importWordyId <* closeBlock)
         case o of
           Nothing -> uniqueName 32
-          Just uid -> pure (fromString . L.payload $ uid)
+          Just uid -> pure (Name.toText (L.payload uid))
       pure (DD.Unique uid <$ tok)
     structural = do
       tok <- openBlockWith "structural"

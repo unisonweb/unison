@@ -21,8 +21,11 @@ import qualified Unison.Builtin.Decls as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (..))
+import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names as Names
 import Unison.NamesWithHistory (NamesWithHistory)
 import qualified Unison.NamesWithHistory as NamesWithHistory
@@ -364,9 +367,12 @@ hashQualifiedPrefixTerm = resolveHashQualified =<< hqPrefixId
 hashQualifiedInfixTerm :: Var v => TermP v
 hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 
-quasikeyword :: Ord v => String -> P v (L.Token ())
-quasikeyword kw = queryToken $ \case
-  L.WordyId s Nothing | s == kw -> Just ()
+quasikeyword :: Ord v => Text -> P v (L.Token ())
+quasikeyword kw = queryToken \case
+  L.WordyId (HQ'.NameOnly n) ->
+    case (Name.isRelative n, Name.reverseSegments n) of
+      (True, s NonEmpty.:| []) | NameSegment.toText s == kw -> Just ()
+      _ -> Nothing
   _ -> Nothing
 
 -- If the hash qualified is name only, it is treated as a var, if it
@@ -915,9 +921,9 @@ var t = Term.var (ann t) (L.payload t)
 
 seqOp :: Ord v => P v Pattern.SeqOp
 seqOp =
-  (Pattern.Snoc <$ matchToken (L.SymbolyId ":+" Nothing))
-    <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:" Nothing))
-    <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++" Nothing))
+  Pattern.Snoc <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment ":+"))))
+    <|> Pattern.Cons <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment "+:"))))
+    <|> Pattern.Concat <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment "++"))))
 
 term4 :: Var v => TermP v
 term4 = f <$> some termLeaf

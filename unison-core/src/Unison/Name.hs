@@ -5,6 +5,7 @@ module Unison.Name
 
     -- * Basic construction
     cons,
+    snoc,
     joinDot,
     fromSegment,
     fromSegments,
@@ -13,6 +14,7 @@ module Unison.Name
     -- * Basic queries
     countSegments,
     isAbsolute,
+    isRelative,
     isPrefixOf,
     beginsWithSegment,
     endsWithReverseSegments,
@@ -112,12 +114,27 @@ cons x name =
           ("cannot cons " ++ show x ++ " onto absolute name" ++ show name)
     Name Relative (y :| ys) -> Name Relative (y :| ys ++ [x])
 
+-- | Snoc a name segment onto the end of a name.
+--
+-- /O(1)/.
+snoc :: Name -> NameSegment -> Name
+snoc (Name pos (s1 :| ss)) s0 =
+  Name pos (s0 :| s1 : ss)
+
 -- | Return the number of name segments in a name.
 --
 -- /O(n)/, where /n/ is the number of name segments.
 countSegments :: Name -> Int
 countSegments (Name _ ss) =
   length ss
+
+-- | Is this name relative?
+--
+-- /O(1)/.
+isRelative :: Name -> Bool
+isRelative = \case
+  Name Absolute _ -> False
+  Name Relative _ -> True
 
 -- | @beginsWithSegment name segment@ returns whether @name@'s first name segment is @segment@.
 --

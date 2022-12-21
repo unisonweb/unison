@@ -78,6 +78,11 @@ fromNamedReference n r = HashQualified n (Reference.toShortHash r)
 fromName :: n -> HashQualified n
 fromName = NameOnly
 
+fromNameHash :: n -> Maybe ShortHash -> HashQualified n
+fromNameHash name = \case
+  Nothing -> NameOnly name
+  Just hash -> HashQualified name hash
+
 matchesNamedReferent :: Eq n => n -> Referent -> HashQualified n -> Bool
 matchesNamedReferent n r = \case
   NameOnly n' -> n' == n
