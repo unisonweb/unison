@@ -830,6 +830,7 @@ lexemes' eof =
         wordySegments :: P (Nel.NonEmpty NameSegment)
         wordySegments = do
           seg0 <- wordyIdSeg
+          _ <- lit "."
           seg1 Nel.:| segs <- segments
           pure (seg0 Nel.:| seg1 : segs)
 
