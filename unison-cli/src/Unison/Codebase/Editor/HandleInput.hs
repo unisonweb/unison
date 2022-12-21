@@ -1860,36 +1860,17 @@ handleIOTest main = do
     Cli.label \returnMatches -> do
       -- First, look at the terms in the latest typechecked file for a name-match.
       whenJustM Cli.getLatestTypecheckedFile \typecheckedFile -> do
-        let refToType :: Reference -> Type Symbol Ann
-            refToType ref =
-              typecheckedFile
-                & UF.indexByReference
-                & fst
-                -- These two unsafe functions are actually safe:
-                --   1. We can assert ref is actually a Reference.Id because it came from the latest typechecked file.
-                --   2. The reference has to be in this map because we got it from the file itself.
-                & (Map.! (Reference.unsafeId ref))
-                & snd
-        let matches :: [(TermReference, Type Symbol Ann)]
-            matches =
-              typecheckedFile
-                & UF.typecheckedToNames
-                & (\names -> Names.refTermsHQNamed names main)
-                & Set.toList
-                & map (\r -> (r, refToType r))
-
-        -- If 1+ matches (which we know will be exactly 1, since you can't have two definitions in a scratch file with
-        -- the same name), then return them. Otherwise, fall through to looking up in the codebase.
-        when (not (null matches)) (returnMatches matches)
+        whenJust (HQ.toName main) \mainName ->
+          whenJust (Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)) \(ref, _wk, _term, typ) ->
+            returnMatches [(Reference.fromId ref, typ)]
 
       -- Then, if we get here (because nothing in the scratch file matched), look at the terms in the codebase.
-      fmap catMaybes do
-        Cli.runTransaction do
-          for (Set.toList (NamesWithHistory.lookupHQTerm main parseNames)) \ref0 ->
-            runMaybeT do
-              ref <- MaybeT (pure (Referent.toTermReference ref0))
-              typ <- MaybeT (loadTypeOfTerm codebase (Referent.Ref ref))
-              pure (ref, typ)
+      Cli.runTransaction do
+        forMaybe (Set.toList (NamesWithHistory.lookupHQTerm main parseNames)) \ref0 ->
+          runMaybeT do
+            ref <- MaybeT (pure (Referent.toTermReference ref0))
+            typ <- MaybeT (loadTypeOfTerm codebase (Referent.Ref ref))
+            pure (ref, typ)
 
   ref <-
     case matches of
