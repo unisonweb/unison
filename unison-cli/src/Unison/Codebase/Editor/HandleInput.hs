@@ -1962,50 +1962,46 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
   ensureAuthenticatedWithCodeserver codeserver
 
-  Cli.Env {authHTTPClient, codebase} <- ask
-
   -- doesn't handle the case where a non-existent path is supplied
   localCausalHash <-
     Cli.runTransaction (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))) & onNothingM do
       Cli.returnEarly (EmptyPush . Path.absoluteToPath' $ localPath)
 
-  let checkAndSetPush :: Maybe Hash32 -> IO (Either (Share.SyncError Share.CheckAndSetPushError) ())
+  let checkAndSetPush :: Maybe Hash32 -> Cli ()
       checkAndSetPush remoteHash =
-        withEntitiesUploadedProgressCallback \uploadedCallback ->
-          if Just (Hash32.fromHash (unCausalHash localCausalHash)) == remoteHash
-            then pure (Right ())
-            else
-              Share.checkAndSetPush
-                authHTTPClient
-                baseURL
-                (Codebase.withConnectionIO codebase)
-                sharePath
-                remoteHash
-                localCausalHash
-                uploadedCallback
+        when (Just (Hash32.fromHash (unCausalHash localCausalHash)) /= remoteHash) do
+          let push =
+                Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
+                  Share.checkAndSetPush
+                    baseURL
+                    sharePath
+                    remoteHash
+                    localCausalHash
+                    uploadedCallback
+          push & onLeftM (pushError ShareErrorCheckAndSetPush)
 
   case behavior of
     PushBehavior.ForcePush -> do
       maybeHashJwt <-
-        Cli.ioE (Share.getCausalHashByPath authHTTPClient baseURL sharePath) \err ->
-          Cli.returnEarly (Output.ShareError (ShareErrorGetCausalHashByPath err))
-      Cli.ioE (checkAndSetPush (Share.hashJWTHash <$> maybeHashJwt)) (pushError ShareErrorCheckAndSetPush)
+        Share.getCausalHashByPath baseURL sharePath & onLeftM \err0 ->
+          (Cli.returnEarly . Output.ShareError) case err0 of
+            Share.SyncError err -> ShareErrorGetCausalHashByPath err
+            Share.TransportError err -> ShareErrorTransport err
+      checkAndSetPush (Share.hashJWTHash <$> maybeHashJwt)
       Cli.respond (ViewOnShare remote)
     PushBehavior.RequireEmpty -> do
-      Cli.ioE (checkAndSetPush Nothing) (pushError ShareErrorCheckAndSetPush)
+      checkAndSetPush Nothing
       Cli.respond (ViewOnShare remote)
     PushBehavior.RequireNonEmpty -> do
-      let push :: IO (Either (Share.SyncError Share.FastForwardPushError) ())
-          push = do
-            withEntitiesUploadedProgressCallback \uploadedCallback ->
+      let push :: Cli (Either (Share.SyncError Share.FastForwardPushError) ())
+          push =
+            Cli.with withEntitiesUploadedProgressCallback \uploadedCallback ->
               Share.fastForwardPush
-                authHTTPClient
                 baseURL
-                (Codebase.withConnectionIO codebase)
                 sharePath
                 localCausalHash
                 uploadedCallback
-      Cli.ioE push (pushError ShareErrorFastForwardPush)
+      push & onLeftM (pushError ShareErrorFastForwardPush)
       Cli.respond (ViewOnShare remote)
   where
     pathToSegments :: Path -> [Text]
@@ -2267,21 +2263,13 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   -- Auto-login to share if pulling from a non-public path
   when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
   let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
-  Cli.Env {authHTTPClient, codebase} <- ask
-  let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
-      pull =
-        withEntitiesDownloadedProgressCallback \downloadedCallback ->
-          Share.pull
-            authHTTPClient
-            baseURL
-            (Codebase.withConnectionIO codebase)
-            shareFlavoredPath
-            downloadedCallback
+  Cli.Env {codebase} <- ask
   causalHash <-
-    Cli.ioE pull \err0 ->
-      (Cli.returnEarly . Output.ShareError) case err0 of
-        Share.SyncError err -> Output.ShareErrorPull err
-        Share.TransportError err -> Output.ShareErrorTransport err
+    Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
+      Share.pull baseURL shareFlavoredPath downloadedCallback & onLeftM \err0 ->
+        (Cli.returnEarly . Output.ShareError) case err0 of
+          Share.SyncError err -> Output.ShareErrorPull err
+          Share.TransportError err -> Output.ShareErrorTransport err
   liftIO (Codebase.getBranchForHash codebase causalHash) & onNothingM do
     error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
   where
