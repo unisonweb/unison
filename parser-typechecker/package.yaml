@@ -8,10 +8,15 @@ flags:
   optimized:
     manual: true
     default: true
+  arraychecks:
+    manual: true
+    default: false
 
 when:
   - condition: flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  - condition: flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
 
 dependencies:
   - ListLike
