@@ -1,4 +1,16 @@
-module Unison.Syntax.TermPrinter (emptyAc, pretty, prettyBlock, prettyBlock', pretty', prettyBinding, prettyBinding', pretty0, runPretty) where
+module Unison.Syntax.TermPrinter
+  ( emptyAc,
+    pretty,
+    prettyBlock,
+    prettyBlock',
+    pretty',
+    prettyBinding,
+    prettyBinding',
+    prettyBindingWithoutTypeSignature,
+    pretty0,
+    runPretty,
+  )
+where
 
 import Control.Lens (unsnoc, (^.))
 import Control.Monad.State (evalState)
@@ -508,7 +520,7 @@ pretty0
           printBinding (v, binding) =
             if Var.isAction v
               then pretty0 (ac (-1) Normal im doc) binding
-              else prettyBinding0 (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
+              else renderPrettyBinding <$> prettyBinding0 (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
           letIntro = case sc of
             Block -> id
             Normal -> \x -> fmt S.ControlKeyword "let" `PP.hang` x
@@ -775,27 +787,63 @@ printCase im doc ms0 =
             <$> pretty0 (ac 2 Normal im doc) g
         printBody b = let (im', uses) = calcImports im b in goBody im' uses b
 
-{- Render a binding, producing output of the form
+-- A pretty term binding, split into the type signature (possibly empty) and the term.
+data PrettyBinding = PrettyBinding
+  { typeSignature :: Maybe (Pretty SyntaxText),
+    term :: Pretty SyntaxText
+  }
 
-foo : t -> u
-foo a = ...
+-- Render a pretty binding.
+renderPrettyBinding :: PrettyBinding -> Pretty SyntaxText
+renderPrettyBinding PrettyBinding {typeSignature, term} =
+  case typeSignature of
+    Nothing -> term
+    Just ty -> PP.lines [ty, term]
 
-The first line is only output if the term has a type annotation as the
-outermost constructor.
+-- Render a pretty binding without a type signature.
+renderPrettyBindingWithoutTypeSignature :: PrettyBinding -> Pretty SyntaxText
+renderPrettyBindingWithoutTypeSignature PrettyBinding {term} =
+  term
 
-Binary functions with symbolic names are output infix, as follows:
-
-(+) : t -> t -> t
-a + b = ...
-
--}
+-- | Render a binding, producing output of the form
+--
+-- foo : t -> u
+-- foo a = ...
+--
+-- The first line is only output if the term has a type annotation as the
+-- outermost constructor.
+--
+-- Binary functions with symbolic names are output infix, as follows:
+--
+-- (+) : t -> t -> t
+-- a + b = ...
 prettyBinding ::
   Var v =>
   PrettyPrintEnv ->
   HQ.HashQualified Name ->
   Term2 v at ap v a ->
   Pretty SyntaxText
-prettyBinding ppe n = runPretty ppe . prettyBinding0 (ac (-1) Block Map.empty MaybeDoc) n
+prettyBinding =
+  prettyBinding_ renderPrettyBinding
+
+-- | Like 'prettyBinding', but elides the type signature (if any).
+prettyBindingWithoutTypeSignature ::
+  Var v =>
+  PrettyPrintEnv ->
+  HQ.HashQualified Name ->
+  Term2 v at ap v a ->
+  Pretty SyntaxText
+prettyBindingWithoutTypeSignature =
+  prettyBinding_ renderPrettyBindingWithoutTypeSignature
+
+prettyBinding_ ::
+  Var v =>
+  (PrettyBinding -> Pretty SyntaxText) ->
+  PrettyPrintEnv ->
+  HQ.HashQualified Name ->
+  Term2 v at ap v a ->
+  Pretty SyntaxText
+prettyBinding_ go ppe n = runPretty ppe . fmap go . prettyBinding0 (ac (-1) Block Map.empty MaybeDoc) n
 
 prettyBinding' ::
   Var v =>
@@ -812,7 +860,7 @@ prettyBinding0 ::
   AmbientContext ->
   HQ.HashQualified Name ->
   Term2 v at ap v a ->
-  m (Pretty SyntaxText)
+  m PrettyBinding
 prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
   go (symbolic && isBinary term) term
   where
@@ -831,26 +879,26 @@ prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
                 _ -> id
           tp' <- TypePrinter.pretty0 im (-1) tp
           tm' <- avoidCapture (prettyBinding0 a v tm)
-          pure $
-            PP.lines
-              [ PP.group
-                  ( renderName v
-                      <> PP.hang
-                        (fmt S.TypeAscriptionColon " :")
-                        tp'
-                  ),
-                PP.group tm'
-              ]
+          pure
+            PrettyBinding
+              { typeSignature = Just (PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") tp')),
+                term = PP.group (renderPrettyBinding tm')
+              }
         (printAnnotate env -> LamsNamedMatch' vs branches) -> do
           branches' <- printCase im doc branches
-          pure . PP.group $
-            PP.group
-              ( defnLhs v vs <> fmt S.BindingEquals " =" <> " "
-                  <> fmt
-                    S.ControlKeyword
-                    "cases"
-              )
-              `PP.hang` branches'
+          pure
+            PrettyBinding
+              { typeSignature = Nothing,
+                term =
+                  PP.group $
+                    PP.group
+                      ( defnLhs v vs <> fmt S.BindingEquals " =" <> " "
+                          <> fmt
+                            S.ControlKeyword
+                            "cases"
+                      )
+                      `PP.hang` branches'
+              }
         LamsNamedOrDelay' vs body -> do
           -- In the case where we're being called from inside `pretty0`, this
           -- call to printAnnotate is unfortunately repeating work we've already
@@ -862,10 +910,15 @@ prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
           let hang = case body' of
                 Delay' (Lets' _ _) -> PP.softHang
                 _ -> PP.hang
-          pure . PP.group $
-            PP.group (defnLhs v vs <> fmt S.BindingEquals " =")
-              `hang` uses [prettyBody]
-        t -> pure $ l "error: " <> l (show t)
+          pure
+            PrettyBinding
+              { typeSignature = Nothing,
+                term =
+                  PP.group $
+                    PP.group (defnLhs v vs <> fmt S.BindingEquals " =")
+                      `hang` uses [prettyBody]
+              }
+        t -> error ("prettyBinding0: unexpected term: " ++ show t)
       where
         defnLhs v vs
           | infix' = case vs of

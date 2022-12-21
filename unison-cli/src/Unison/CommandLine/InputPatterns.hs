@@ -1537,19 +1537,20 @@ viewReflog =
 edit :: InputPattern
 edit =
   InputPattern
-    "edit"
-    []
-    I.Visible
-    [(OnePlus, definitionQueryArg)]
-    ( P.lines
-        [ "`edit foo` prepends the definition of `foo` to the top of the most "
-            <> "recently saved file.",
-          "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
-        ]
-    )
-    ( fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
-        . traverse parseHashQualifiedName
-    )
+    { patternName = "edit",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(OnePlus, definitionQueryArg)],
+      help =
+        P.lines
+          [ "`edit foo` prepends the definition of `foo` to the top of the most "
+              <> "recently saved file.",
+            "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
+          ],
+      parse =
+        fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
+          . traverse parseHashQualifiedName
+    }
 
 topicNameArg :: ArgumentType
 topicNameArg =
