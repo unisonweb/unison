@@ -1970,15 +1970,15 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
   let checkAndSetPush :: Maybe Hash32 -> Cli ()
       checkAndSetPush remoteHash =
         when (Just (Hash32.fromHash (unCausalHash localCausalHash)) /= remoteHash) do
-          Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
-            let push =
+          let push =
+                Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
                   Share.checkAndSetPush
                     baseURL
                     sharePath
                     remoteHash
                     localCausalHash
                     uploadedCallback
-            push & onLeftM (pushError ShareErrorCheckAndSetPush)
+          push & onLeftM (pushError ShareErrorCheckAndSetPush)
 
   case behavior of
     PushBehavior.ForcePush -> do
