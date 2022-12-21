@@ -800,14 +800,14 @@ notifyUser dir o = case o of
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
-  BadMainFunction main ty ppe ts ->
+  BadMainFunction what main ty ppe ts ->
     pure . P.callout "😶" $
       P.lines
         [ P.string "I found this function:",
           "",
           P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
           "",
-          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string "run") <> "it needs be a subtype of:",
+          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string what) <> "it needs be a subtype of:",
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]

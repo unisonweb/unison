@@ -2085,20 +2085,20 @@ saveExecuteResult =
 ioTest :: InputPattern
 ioTest =
   InputPattern
-    "io.test"
-    ["test.io"]
-    I.Visible
-    [(Required, exactDefinitionTermQueryArg)]
-    ( P.wrapColumn2
-        [ ( "`io.test mytest`",
-            "Runs `!mytest`, where `mytest` is a delayed test that can use the `IO` and `Exception` abilities. Note: `mytest` must already be added to the codebase."
-          )
-        ]
-    )
-    ( \case
+    { patternName = "io.test",
+      aliases = ["test.io"],
+      visibility = I.Visible,
+      argTypes = [(Required, exactDefinitionTermQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ( "`io.test mytest`",
+              "Runs `!mytest`, where `mytest` is a delayed test that can use the `IO` and `Exception` abilities."
+            )
+          ],
+      parse = \case
         [thing] -> fmap Input.IOTestI $ parseHashQualifiedName thing
         _ -> Left $ showPatternHelp ioTest
-    )
+    }
 
 makeStandalone :: InputPattern
 makeStandalone =
