@@ -106,10 +106,11 @@ library
     , unison-codebase
     , unison-codebase-sync
     , unison-core
+    , unison-hash
+    , unison-hash-orphans-sqlite
     , unison-prelude
     , unison-sqlite
     , unison-util-base32hex
-    , unison-util-base32hex-orphans-sqlite
     , unison-util-cache
     , unison-util-serialization
     , unison-util-term

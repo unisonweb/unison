@@ -1,6 +1,6 @@
 module U.Codebase.HashTags where
 
-import U.Util.Hash (Hash)
+import Unison.Hash (Hash)
 
 newtype BranchHash = BranchHash {unBranchHash :: Hash} deriving (Eq, Ord)
 

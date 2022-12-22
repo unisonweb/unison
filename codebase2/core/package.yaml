@@ -13,6 +13,7 @@ dependencies:
   - rfc5051
   - text
   - vector
+  - unison-hash
   - unison-prelude
   - unison-util-base32hex
 

@@ -1,21 +1,13 @@
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-
 module U.Codebase.Reference where
 
 import Control.Lens (Bifunctor (..), Lens, Prism, Traversal, lens, prism)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
-import Data.Text (Text)
-import Data.Word (Word64)
 import U.Codebase.ShortHash (ShortHash)
 import qualified U.Codebase.ShortHash as SH
-import U.Util.Hash (Hash)
-import qualified U.Util.Hash as Hash
+import Unison.Hash (Hash)
+import qualified Unison.Hash as Hash
+import Unison.Prelude
 
 -- | This is the canonical representation of Reference
 type Reference = Reference' Text Hash

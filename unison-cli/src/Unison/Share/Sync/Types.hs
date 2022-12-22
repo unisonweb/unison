@@ -11,7 +11,7 @@ where
 
 import Data.Set.NonEmpty (NESet)
 import qualified Servant.Client as Servant
-import U.Util.Hash32 (Hash32)
+import Unison.Hash32 (Hash32)
 import Unison.Prelude
 import qualified Unison.Sync.Types as Share
 

@@ -1,11 +1,9 @@
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Codebase.SqliteCodebase.Conversions where
 
 import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Text (pack, unpack)
+import Data.Text (pack)
 import qualified U.Codebase.Branch as V2.Branch
 import qualified U.Codebase.Causal as V2
 import qualified U.Codebase.Decl as V2.Decl
@@ -35,7 +33,8 @@ import qualified Unison.Codebase.TypeEdit as V1.TypeEdit
 import qualified Unison.ConstructorReference as V1 (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as V1.Decl
-import Unison.Hash (Hash, base32Hex)
+import Unison.Hash (Hash)
+import qualified Unison.Hash as Hash
 import qualified Unison.Hash as V1
 import qualified Unison.Kind as V1.Kind
 import Unison.NameSegment (NameSegment)
@@ -114,7 +113,7 @@ term1to2 h =
       V1.Term.Match e cases -> V2.Term.Match e (goCase <$> cases)
       V1.Term.TermLink r -> V2.Term.TermLink (rreferent1to2 h r)
       V1.Term.TypeLink r -> V2.Term.TypeLink (reference1to2 r)
-      V1.Term.Blank _ -> error ("can't serialize term with blanks (" ++ unpack (base32Hex h) ++ ")")
+      V1.Term.Blank _ -> error ("can't serialize term with blanks (" ++ show h ++ ")")
 
     goCase (V1.Term.MatchCase p g b) =
       V2.Term.MatchCase (goPat p) g b
@@ -553,7 +552,7 @@ referent2toshorthash1 hashLength ref =
 reference2toshorthash1 :: Maybe Int -> V2.Reference.Reference -> V1.ShortHash.ShortHash
 reference2toshorthash1 hashLength ref = maybe id V1.ShortHash.take hashLength $ case ref of
   (V2.Reference.ReferenceBuiltin b) -> V1.ShortHash.Builtin b
-  (V2.Reference.ReferenceDerived (V2.Reference.Id h i)) -> V1.ShortHash.ShortHash (base32Hex h) (showComponentPos i) Nothing
+  (V2.Reference.ReferenceDerived (V2.Reference.Id h i)) -> V1.ShortHash.ShortHash (Hash.toBase32HexText h) (showComponentPos i) Nothing
   where
     showComponentPos :: V2.Reference.Pos -> Maybe Text
     showComponentPos 0 = Nothing
