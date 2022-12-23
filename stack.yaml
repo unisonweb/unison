@@ -24,11 +24,13 @@ packages:
 - codebase2/core
 - codebase2/util-serialization
 - codebase2/util-term
+- lib/unison-hash
+- lib/unison-hash-orphans-aeson
+- lib/unison-hash-orphans-sqlite
+- lib/unison-hashing
 - lib/unison-prelude
 - lib/unison-sqlite
 - lib/unison-util-base32hex
-- lib/unison-util-base32hex-orphans-aeson
-- lib/unison-util-base32hex-orphans-sqlite
 - lib/unison-util-bytes
 - lib/unison-util-cache
 - lib/unison-util-relation

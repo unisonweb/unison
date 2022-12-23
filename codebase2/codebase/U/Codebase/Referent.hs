@@ -1,9 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module U.Codebase.Referent where
 
@@ -17,7 +12,7 @@ import U.Codebase.Reference (Reference, Reference')
 import qualified U.Codebase.Reference as Reference
 import U.Codebase.ShortHash (ShortHash)
 import qualified U.Codebase.ShortHash as SH
-import U.Util.Hash (Hash)
+import Unison.Hash (Hash)
 import Unison.Prelude
 
 data ConstructorType

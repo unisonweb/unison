@@ -6,7 +6,7 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 import Data.Text.Encoding (encodeUtf8)
 import EasyTest
-import qualified U.Util.Hash as Hash
+import qualified Unison.Hash as Hash
 import qualified Unison.Reference as R
 import Unison.Symbol (Symbol)
 import qualified Unison.Term as Term
