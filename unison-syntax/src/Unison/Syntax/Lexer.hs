@@ -810,7 +810,7 @@ lexemes' eof =
       hash <- P.optional shorthash
       case (dot, segs) of
         (_, Just segs) -> do
-          let name = Name.fromSegments segs
+          let name = (if isJust dot then Name.makeAbsolute else id) (Name.fromSegments segs)
           pure (SymbolyId (HQ'.fromNameHash name hash))
         -- a single . or .#somehash is parsed as a symboly id
         (Just dot, Nothing) -> do
