@@ -16,10 +16,13 @@ packages:
   codebase2/util-term
 
   lib/unison-prelude
+  lib/unison-hash
+  lib/unison-hash-orphans-aeson
+  lib/unison-hash-orphans-sqlite
+  lib/unison-hashing
+  lib/unison-prelude
   lib/unison-sqlite
   lib/unison-util-base32hex
-  lib/unison-util-base32hex-orphans-aeson
-  lib/unison-util-base32hex-orphans-sqlite
   lib/unison-util-bytes
   lib/unison-util-cache
   lib/unison-util-relation
@@ -93,6 +96,9 @@ package util-serialization
 package util-term
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
+package unison-hashing
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
 package unison-prelude
   ghc-options: -Wall         -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
@@ -100,12 +106,6 @@ package unison-sqlite
   ghc-options: -Wall         -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package unison-util-base32hex
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-util-base32hex-orphans-aeson
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-util-base32hex-orphans-sqlite
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package unison-util-bytes
