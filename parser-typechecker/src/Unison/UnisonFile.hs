@@ -85,7 +85,6 @@ typecheckingTerm uf =
   where
     bindings =
       terms uf <> testWatches <> watchesOfOtherKinds TestWatch uf
-        <&> \(v, _a, t) -> (v, t)
     -- we make sure each test has type Test.Result
     f w = let wa = ABT.annotation w in Term.ann wa w (DD.testResultType wa)
     testWatches = map (second f) $ watchesOfKind TestWatch uf
@@ -246,3 +245,15 @@ constructorsForDecls types uf =
           & fmap (DD.toDataDecl . snd)
           & concatMap DD.constructorVars
    in Set.fromList (dataConstructors <> effectConstructors)
+
+
+
+
+1. Inside each bullet, there's a phone number Bob: 123-798-1234, and that's the phone number
+2. Inside each bullet, other text number Alice: 127-717-3742 new phone
+3. Inside each bullet, there's a phone number Bob: 123-798-1234, and that's the phone number
+
+
+
+
+

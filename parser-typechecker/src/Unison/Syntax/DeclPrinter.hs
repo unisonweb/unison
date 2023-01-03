@@ -158,7 +158,7 @@ fieldNames env r name dd = do
     _ -> Nothing
   let vars :: [v]
       vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
-  let accessors :: [(v, Term.Term v ())]
+  let accessors :: [(v, (), Term.Term v ())]
       accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
   let typeLookup :: TypeLookup v ()
       typeLookup =
@@ -175,7 +175,7 @@ fieldNames env r name dd = do
             Typechecker._termsByShortname = mempty
           }
   accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
-    for accessors \(v, trm) ->
+    for accessors \(v, _a, trm) ->
       case Result.result (Typechecker.synthesize typecheckingEnv trm) of
         Nothing -> Nothing
         Just typ -> Just (v, trm, typ)

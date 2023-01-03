@@ -176,7 +176,10 @@ enclose keep rec (LetRecNamedTop' top vbs bd) =
   where
     xpnd = expandRec keep' vbs
     keep' = Set.union keep . Set.fromList . map fst $ vbs
-    lvbs = (map . fmap) (rec keep' . abstract keep' . ABT.substs xpnd) vbs
+    lvbs =
+      vbs
+        <&> \(v, trm) ->
+          (v, ABT.annotation trm, (rec keep' . abstract keep' . ABT.substs xpnd) trm)
     lbd = rec keep' . ABT.substs xpnd $ bd
 -- will be lifted, so keep this variable
 enclose keep rec (Let1NamedTop' top v b@(unAnn -> LamsNamed' vs bd) e) =
@@ -208,7 +211,7 @@ enclose keep rec t@(unLamsAnnot -> Just (vs0, mty, vs1, body)) =
     lamb = lam' a (evs ++ vs0) . annotate . lam' a vs1 $ lbody
 enclose keep rec t@(Handle' h body)
   | isStructured body =
-      Just . handle (ABT.annotation t) (rec keep h) $ apps' lamb args
+    Just . handle (ABT.annotation t) (rec keep h) $ apps' lamb args
   where
     fvs = ABT.freeVars body
     evs = Set.toList $ Set.difference fvs keep
@@ -273,7 +276,7 @@ dropPrefixes m = ABT.visitPure rw
   where
     rw (Apps' f@(Var' u) as)
       | Just n <- Map.lookup u m =
-          Just (apps' (var (ABT.annotation f) u) (drop n as))
+        Just (apps' (var (ABT.annotation f) u) (drop n as))
     rw _ = Nothing
 
 -- Performs opposite transformations to those in enclose. Named after
@@ -296,10 +299,10 @@ beta rec (LetRecNamedTop' top (fmap (fmap rec) -> vbs) (rec -> bd)) =
 
     m = Map.map length $ Map.differenceWith f (Map.fromList $ map args vbs) m0
     lvbs =
-      vbs <&> \(v, b0) -> (,) v $ case b0 of
+      vbs <&> \(v, b0) -> (v,ABT.annotation b0,) $ case b0 of
         LamsNamed' vs b
           | Just n <- Map.lookup v m ->
-              lam' (ABT.annotation b0) (drop n vs) (dropPrefixes m b)
+            lam' (ABT.annotation b0) (drop n vs) (dropPrefixes m b)
         -- shouldn't happen
         b -> dropPrefixes m b
 
@@ -321,7 +324,7 @@ beta rec (Let1NamedTop' top v l@(LamsNamed' vs bd) (rec -> e))
 beta rec (Apps' l@(LamsNamed' vs body) as)
   | n <- matchVars 0 vs as,
     n > 0 =
-      Just $ apps' (lam' al (drop n vs) (rec body)) (drop n as)
+    Just $ apps' (lam' al (drop n vs) (rec body)) (drop n as)
   | otherwise = Nothing
   where
     al = ABT.annotation l
@@ -360,9 +363,9 @@ freshFloat avoid (Var.freshIn avoid -> v0) =
     Var.User nm
       | v <- typed (Var.User $ nm <> w),
         v `Set.notMember` avoid ->
-          v
+        v
       | otherwise ->
-          freshFloat (Set.insert v0 avoid) v0
+        freshFloat (Set.insert v0 avoid) v0
     _ -> v0
   where
     w = Data.Text.pack . show $ Var.freshId v0
@@ -390,7 +393,7 @@ letFloater rec vbs e = do
   where
     rec' b
       | Just (vs0, mty, vs1, bd) <- unLamsAnnot b =
-          lam' a vs0 . maybe id (flip $ ann a) mty . lam' a vs1 <$> rec bd
+        lam' a vs0 . maybe id (flip $ ann a) mty . lam' a vs1 <$> rec bd
       where
         a = ABT.annotation b
     rec' b = rec b
@@ -443,18 +446,18 @@ floater top rec (LetRecNamed' vbs e) =
       tm -> rec tm
 floater _ rec (Let1Named' v b e)
   | Just (vs0, _, vs1, bd) <- unLamsAnnot b =
-      Just $
-        rec bd
-          >>= lamFloater True b (Just v) a (vs0 ++ vs1)
-          >>= \lv -> rec $ ABT.renames (Map.singleton v lv) e
+    Just $
+      rec bd
+        >>= lamFloater True b (Just v) a (vs0 ++ vs1)
+        >>= \lv -> rec $ ABT.renames (Map.singleton v lv) e
   where
     a = ABT.annotation b
 floater top rec tm@(LamsNamed' vs bd)
   | top = Just $ lam' a vs <$> rec bd
   | otherwise = Just $ do
-      bd <- rec bd
-      lv <- lamFloater True tm Nothing a vs bd
-      pure $ var a lv
+    bd <- rec bd
+    lv <- lamFloater True tm Nothing a vs bd
+    pure $ var a lv
   where
     a = ABT.annotation tm
 floater _ _ _ = Nothing
@@ -532,13 +535,13 @@ saturate dat = ABT.visitPure $ \case
         | m < n,
           vs <- snd $ mapAccumL frsh fvs [1 .. n - m],
           nargs <- var mempty <$> vs ->
-            Just . lam' mempty vs . apps' f $ args' ++ nargs
+          Just . lam' mempty vs . apps' f $ args' ++ nargs
         | m > n,
           (sargs, eargs) <- splitAt n args',
           sv <- Var.freshIn fvs $ typed Var.Eta ->
-            Just
-              . let1' False [(sv, apps' f sargs)]
-              $ apps' (var mempty sv) eargs
+          Just
+            . let1' False [(sv, apps' f sargs)]
+            $ apps' (var mempty sv) eargs
       _ -> Just (apps' f args')
       where
         m = length args
@@ -553,7 +556,7 @@ defaultCaseVisitor ::
 defaultCaseVisitor func m@(Match' scrut cases)
   | scrut <- addDefaultCases func scrut,
     cases <- fmap (addDefaultCases func) <$> cases =
-      Just $ match a scrut (cases ++ [dflt])
+    Just $ match a scrut (cases ++ [dflt])
   where
     a = ABT.annotation m
     v = Var.freshIn mempty $ typed Var.Blank
@@ -635,13 +638,13 @@ maskTags w = w .&. 0xFFFF
 ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureRTag s n x
   | n > 0xFFFFFFFFFFFF =
-      internalBug $ s ++ "@RTag: too large: " ++ show n
+    internalBug $ s ++ "@RTag: too large: " ++ show n
   | otherwise = x
 
 ensureCTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureCTag s n x
   | n > 0xFFFF =
-      internalBug $ s ++ "@CTag: too large: " ++ show n
+    internalBug $ s ++ "@CTag: too large: " ++ show n
   | otherwise = x
 
 instance Enum RTag where
@@ -998,7 +1001,7 @@ instance Semigroup (BranchAccum v) where
     AccumSeqView el (eml <|> Just emr) cnl
   AccumSeqView el eml cnl <> AccumSeqView er emr _
     | el /= er =
-        internalBug "AccumSeqView: trying to merge views of opposite ends"
+      internalBug "AccumSeqView: trying to merge views of opposite ends"
     | otherwise = AccumSeqView el (eml <|> emr) cnl
   AccumSeqView _ _ _ <> AccumDefault _ =
     internalBug "seq views may not have defaults"
@@ -1006,13 +1009,13 @@ instance Semigroup (BranchAccum v) where
     internalBug "seq views may not have defaults"
   AccumSeqSplit el nl dl bl <> AccumSeqSplit er nr dr _
     | el /= er =
-        internalBug
-          "AccumSeqSplit: trying to merge splits at opposite ends"
+      internalBug
+        "AccumSeqSplit: trying to merge splits at opposite ends"
     | nl /= nr =
-        internalBug
-          "AccumSeqSplit: trying to merge splits at different positions"
+      internalBug
+        "AccumSeqSplit: trying to merge splits at different positions"
     | otherwise =
-        AccumSeqSplit el nl (dl <|> dr) bl
+      AccumSeqSplit el nl (dl <|> dr) bl
   AccumDefault dl <> AccumSeqSplit er nr _ br =
     AccumSeqSplit er nr (Just dl) br
   AccumSeqSplit el nl dl bl <> AccumDefault dr =
@@ -1373,7 +1376,9 @@ tru = TCon Ty.booleanRef 1 []
 renameCtx :: Var v => v -> v -> Ctx v -> (Ctx v, Bool)
 renameCtx v u (d, ctx) | (ctx, b) <- rn [] ctx = ((d, ctx), b)
   where
-    swap w | w == v = u | otherwise = w
+    swap w
+      | w == v = u
+      | otherwise = w
 
     rn acc [] = (reverse acc, False)
     rn acc (ST d vs ccs b : es)
@@ -1451,13 +1456,13 @@ anfBlock (Match' scrut cas) = do
     AccumPure (ABTN.TAbss us bd)
       | [u] <- us,
         TBinds (directed -> bx) bd <- bd ->
-          case cx of
-            (_, []) -> do
-              d0 <- Indirect <$> binder
-              pure (sctx <> pure [ST1 d0 u BX (TFrc v)] <> bx, pure bd)
-            (d0, [ST1 d1 _ BX tm]) ->
-              pure (sctx <> (d0, [ST1 d1 u BX tm]) <> bx, pure bd)
-            _ -> internalBug "anfBlock|AccumPure: impossible"
+        case cx of
+          (_, []) -> do
+            d0 <- Indirect <$> binder
+            pure (sctx <> pure [ST1 d0 u BX (TFrc v)] <> bx, pure bd)
+          (d0, [ST1 d1 _ BX tm]) ->
+            pure (sctx <> (d0, [ST1 d1 u BX tm]) <> bx, pure bd)
+          _ -> internalBug "anfBlock|AccumPure: impossible"
       | otherwise -> internalBug "pure handler with too many variables"
     AccumRequest abr (Just df) -> do
       (r, vs) <- do
@@ -1472,7 +1477,7 @@ anfBlock (Match' scrut cas) = do
       let (d, msc)
             | (d, [ST1 _ _ BX tm]) <- cx = (d, tm)
             | (_, [ST _ _ _ _]) <- cx =
-                internalBug "anfBlock: impossible"
+              internalBug "anfBlock: impossible"
             | otherwise = (Indirect (), TFrc v)
       pure
         ( sctx <> pure [LZ hv (Right r) vs],
@@ -1610,71 +1615,71 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | Just _ <- guard = internalBug "anfInitCase: unexpected guard"
   | P.Unbound _ <- p,
     [] <- vs =
-      AccumDefault <$> anfBody bd
+    AccumDefault <$> anfBody bd
   | P.Var _ <- p,
     [v] <- vs =
-      AccumDefault . ABTN.rename v u <$> anfBody bd
+    AccumDefault . ABTN.rename v u <$> anfBody bd
   | P.Var _ <- p =
-      internalBug $ "vars: " ++ show (length vs)
+    internalBug $ "vars: " ++ show (length vs)
   | P.Int _ (fromIntegral -> i) <- p =
-      AccumIntegral Ty.intRef Nothing . EC.mapSingleton i <$> anfBody bd
+    AccumIntegral Ty.intRef Nothing . EC.mapSingleton i <$> anfBody bd
   | P.Nat _ i <- p =
-      AccumIntegral Ty.natRef Nothing . EC.mapSingleton i <$> anfBody bd
+    AccumIntegral Ty.natRef Nothing . EC.mapSingleton i <$> anfBody bd
   | P.Char _ c <- p,
     w <- fromIntegral $ fromEnum c =
-      AccumIntegral Ty.charRef Nothing . EC.mapSingleton w <$> anfBody bd
+    AccumIntegral Ty.charRef Nothing . EC.mapSingleton w <$> anfBody bd
   | P.Boolean _ b <- p,
     t <- if b then 1 else 0 =
-      AccumData Ty.booleanRef Nothing
-        . EC.mapSingleton t
-        . ([],)
-        <$> anfBody bd
+    AccumData Ty.booleanRef Nothing
+      . EC.mapSingleton t
+      . ([],)
+      <$> anfBody bd
   | P.Text _ t <- p,
     [] <- vs =
-      AccumText Nothing . Map.singleton (Util.Text.fromText t) <$> anfBody bd
+    AccumText Nothing . Map.singleton (Util.Text.fromText t) <$> anfBody bd
   | P.Constructor _ (ConstructorReference r t) ps <- p = do
-      (,) <$> expandBindings ps vs <*> anfBody bd <&> \(us, bd) ->
-        AccumData r Nothing
-          . EC.mapSingleton (fromIntegral t)
-          . (BX <$ us,)
-          . ABTN.TAbss us
-          $ bd
+    (,) <$> expandBindings ps vs <*> anfBody bd <&> \(us, bd) ->
+      AccumData r Nothing
+        . EC.mapSingleton (fromIntegral t)
+        . (BX <$ us,)
+        . ABTN.TAbss us
+        $ bd
   | P.EffectPure _ q <- p =
-      (,) <$> expandBindings [q] vs <*> anfBody bd <&> \(us, bd) ->
-        AccumPure $ ABTN.TAbss us bd
+    (,) <$> expandBindings [q] vs <*> anfBody bd <&> \(us, bd) ->
+      AccumPure $ ABTN.TAbss us bd
   | P.EffectBind _ (ConstructorReference r t) ps pk <- p = do
-      (,,) <$> expandBindings (snoc ps pk) vs
-        <*> Compose (pure <$> fresh)
-        <*> anfBody bd
-        <&> \(exp, kf, bd) ->
-          let (us, uk) =
-                maybe (internalBug "anfInitCase: unsnoc impossible") id $
-                  unsnoc exp
-              jn = Builtin "jumpCont"
-           in flip AccumRequest Nothing
-                . Map.singleton r
-                . EC.mapSingleton (fromIntegral t)
-                . (BX <$ us,)
-                . ABTN.TAbss us
-                . TShift r kf
-                . TName uk (Left jn) [kf]
-                $ bd
+    (,,) <$> expandBindings (snoc ps pk) vs
+      <*> Compose (pure <$> fresh)
+      <*> anfBody bd
+      <&> \(exp, kf, bd) ->
+        let (us, uk) =
+              maybe (internalBug "anfInitCase: unsnoc impossible") id $
+                unsnoc exp
+            jn = Builtin "jumpCont"
+         in flip AccumRequest Nothing
+              . Map.singleton r
+              . EC.mapSingleton (fromIntegral t)
+              . (BX <$ us,)
+              . ABTN.TAbss us
+              . TShift r kf
+              . TName uk (Left jn) [kf]
+              $ bd
   | P.SequenceLiteral _ [] <- p =
-      AccumSeqEmpty <$> anfBody bd
+    AccumSeqEmpty <$> anfBody bd
   | P.SequenceOp _ l op r <- p,
     Concat <- op,
     P.SequenceLiteral p ll <- l = do
-      AccumSeqSplit SLeft (length ll) Nothing
-        <$> (ABTN.TAbss <$> expandBindings [P.Var p, r] vs <*> anfBody bd)
+    AccumSeqSplit SLeft (length ll) Nothing
+      <$> (ABTN.TAbss <$> expandBindings [P.Var p, r] vs <*> anfBody bd)
   | P.SequenceOp _ l op r <- p,
     Concat <- op,
     P.SequenceLiteral p rl <- r =
-      AccumSeqSplit SLeft (length rl) Nothing
-        <$> (ABTN.TAbss <$> expandBindings [l, P.Var p] vs <*> anfBody bd)
+    AccumSeqSplit SLeft (length rl) Nothing
+      <$> (ABTN.TAbss <$> expandBindings [l, P.Var p] vs <*> anfBody bd)
   | P.SequenceOp _ l op r <- p,
     dir <- case op of Cons -> SLeft; _ -> SRight =
-      AccumSeqView dir Nothing
-        <$> (ABTN.TAbss <$> expandBindings [l, r] vs <*> anfBody bd)
+    AccumSeqView dir Nothing
+      <$> (ABTN.TAbss <$> expandBindings [l, r] vs <*> anfBody bd)
   where
     anfBody tm = Compose . bindLocal vs $ anfTerm tm
 anfInitCase _ (MatchCase p _ _) =
