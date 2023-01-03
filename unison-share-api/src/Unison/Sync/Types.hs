@@ -7,8 +7,9 @@ module Unison.Sync.Types
   ( -- * Misc. types
     Base64Bytes (..),
     RepoName (..),
-    ShareLocation (..),
-    shareLocationRepoName,
+    Path (..),
+    pathRepoName,
+    pathCodebasePath,
 
     -- ** Hash types
     HashJWT (..),
@@ -79,7 +80,7 @@ import Data.Bifunctor
 import Data.Bitraversable
 import Data.ByteArray.Encoding (Base (Base64), convertFromBase, convertToBase)
 import qualified Data.HashMap.Strict as HashMap
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -89,7 +90,6 @@ import qualified Data.Text.Encoding as Text
 import Servant.Auth.JWT
 import U.Util.Hash32 (Hash32)
 import U.Util.Hash32.Orphans.Aeson ()
-import Unison.Codebase.Editor.RemoteRepo (ShareUserHandle (..))
 import Unison.Prelude
 import qualified Unison.Util.Set as Set
 import qualified Web.JWT as JWT
@@ -110,31 +110,32 @@ instance FromJSON Base64Bytes where
 newtype RepoName = RepoName {unRepoName :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
-data ShareLocation = ShareLocation
-  { locationUserHandle :: ShareUserHandle,
-    -- This is a nonempty list, where we require the first segment to be the repo name / user name / whatever,
+data Path = Path
+  { -- This is a nonempty list, where we require the first segment to be the repo name / user name / whatever,
     -- which we need on the server side as an implementation detail of how we're representing different users' codebases.
 
     -- This could be relaxed in some other share implementation that allows access to the "root" of the shared codebase.
     -- Our share implementation doesn't have a root, just a collection of sub-roots, one per user or (eventually) organization.
-    locationPathSegments :: [Text]
+    pathSegments :: NonEmpty Text
   }
   deriving stock (Show, Eq, Ord)
 
-instance ToJSON ShareLocation where
-  toJSON (ShareLocation handle segments) =
+pathRepoName :: Path -> RepoName
+pathRepoName (Path (p :| _)) = RepoName p
+
+pathCodebasePath :: Path -> [Text]
+pathCodebasePath (Path (_ :| ps)) = ps
+
+instance ToJSON Path where
+  toJSON (Path segments) =
     object
-      [ "path" .= (shareUserHandleToText handle : segments)
+      [ "path" .= segments
       ]
 
-instance FromJSON ShareLocation where
-  parseJSON = Aeson.withObject "ShareLocation" \obj -> do
-    obj .: "path" >>= \case
-      [] -> fail "ShareLocation path must contain a user segment"
-      handle : segments -> pure $ ShareLocation (ShareUserHandle handle) segments
-
-shareLocationRepoName :: ShareLocation -> RepoName
-shareLocationRepoName ShareLocation {locationUserHandle} = RepoName (shareUserHandleToText locationUserHandle)
+instance FromJSON Path where
+  parseJSON = Aeson.withObject "Path" \obj -> do
+    pathSegments <- obj .: "path"
+    pure Path {..}
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Hash types
@@ -613,7 +614,7 @@ instance FromJSON EntityType where
 -- Get causal hash by path
 
 newtype GetCausalHashByPathRequest = GetCausalHashByPathRequest
-  { path :: ShareLocation
+  { path :: Path
   }
   deriving stock (Show, Eq, Ord)
 
@@ -630,7 +631,7 @@ instance FromJSON GetCausalHashByPathRequest where
 
 data GetCausalHashByPathResponse
   = GetCausalHashByPathSuccess (Maybe HashJWT)
-  | GetCausalHashByPathNoReadPermission ShareLocation
+  | GetCausalHashByPathNoReadPermission Path
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON GetCausalHashByPathResponse where
@@ -786,7 +787,7 @@ data FastForwardPathRequest = FastForwardPathRequest
     -- | The sequence of causals to fast-forward with, starting from the oldest new causal to the newest new causal
     hashes :: NonEmpty Hash32,
     -- | The path to fast-forward
-    path :: ShareLocation
+    path :: Path
   }
   deriving stock (Show)
 
@@ -809,7 +810,7 @@ instance FromJSON FastForwardPathRequest where
 data FastForwardPathResponse
   = FastForwardPathSuccess
   | FastForwardPathMissingDependencies (NeedDependencies Hash32)
-  | FastForwardPathNoWritePermission ShareLocation
+  | FastForwardPathNoWritePermission Path
   | -- | This wasn't a fast-forward. Here's a JWT to download the causal head, if you want it.
     FastForwardPathNotFastForward HashJWT
   | -- | There was no history at this path; the client should use the "update path" endpoint instead.
@@ -853,7 +854,7 @@ instance FromJSON InvalidParentage where
 -- Update path
 
 data UpdatePathRequest = UpdatePathRequest
-  { path :: ShareLocation,
+  { path :: Path,
     expectedHash :: Maybe Hash32, -- Nothing requires empty history at destination
     newHash :: Hash32
   }
@@ -878,7 +879,7 @@ data UpdatePathResponse
   = UpdatePathSuccess
   | UpdatePathHashMismatch HashMismatch
   | UpdatePathMissingDependencies (NeedDependencies Hash32)
-  | UpdatePathNoWritePermission ShareLocation
+  | UpdatePathNoWritePermission Path
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON UpdatePathResponse where
@@ -899,7 +900,7 @@ instance FromJSON UpdatePathResponse where
         t -> failText $ "Unexpected UpdatePathResponse type: " <> t
 
 data HashMismatch = HashMismatch
-  { path :: ShareLocation,
+  { path :: Path,
     expectedHash :: Maybe Hash32,
     actualHash :: Maybe Hash32
   }

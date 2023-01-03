@@ -115,12 +115,8 @@ readShareRemoteNamespace = do
 --
 -- >>> P.parseMaybe shareUserHandle "unison-1337"
 -- Just (ShareUserHandle {shareUserHandleToText = "unison-1337"})
---
--- >>> P.parseMaybe shareUserHandle "@unison"
--- Just (ShareUserHandle {shareUserHandleToText = "unison"})
 shareUserHandle :: P ShareUserHandle
 shareUserHandle = do
-  _ <- optional (C.char '@')
   ShareUserHandle . Text.pack <$> P.some (P.satisfy \c -> isAlphaNum c || c == '-' || c == '_')
 
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)#asdf"

@@ -90,7 +90,7 @@ checkAndSetPush ::
   -- | SQLite-connection-making function, for writing entities we pull.
   (forall a. (Sqlite.Connection -> IO a) -> IO a) ->
   -- | The repo+path to push to.
-  Share.ShareLocation ->
+  Share.Path ->
   -- | The hash that we expect this repo+path to be at on Unison Share. If not, we'll get back a hash mismatch error.
   -- This prevents accidentally pushing over data that we didn't know was there.
   Maybe Hash32 ->
@@ -99,7 +99,7 @@ checkAndSetPush ::
   -- | Callback that's given a number of entities we just uploaded.
   (Int -> IO ()) ->
   IO (Either (SyncError CheckAndSetPushError) ())
-checkAndSetPush httpClient unisonShareUrl connect shareLocation expectedHash causalHash uploadedCallback = catchSyncErrors do
+checkAndSetPush httpClient unisonShareUrl connect path expectedHash causalHash uploadedCallback = catchSyncErrors do
   -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it needs
   -- this causal (UpdatePathMissingDependencies).
   updatePath >>= \case
@@ -107,8 +107,8 @@ checkAndSetPush httpClient unisonShareUrl connect shareLocation expectedHash cau
     Share.UpdatePathHashMismatch mismatch -> pure (Left (CheckAndSetPushErrorHashMismatch mismatch))
     Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
       -- Upload the causal and all of its dependencies.
-      uploadEntities httpClient unisonShareUrl connect (Share.shareLocationRepoName shareLocation) dependencies uploadedCallback >>= \case
-        False -> pure (Left (CheckAndSetPushErrorNoWritePermission shareLocation))
+      uploadEntities httpClient unisonShareUrl connect (Share.pathRepoName path) dependencies uploadedCallback >>= \case
+        False -> pure (Left (CheckAndSetPushErrorNoWritePermission path))
         True ->
           -- After uploading the causal and all of its dependencies, try setting the remote path again.
           updatePath <&> \case
@@ -121,8 +121,8 @@ checkAndSetPush httpClient unisonShareUrl connect shareLocation expectedHash cau
             -- upload some dependency? Who knows.
             Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) ->
               Left (CheckAndSetPushErrorServerMissingDependencies dependencies)
-            Share.UpdatePathNoWritePermission _ -> Left (CheckAndSetPushErrorNoWritePermission shareLocation)
-    Share.UpdatePathNoWritePermission _ -> pure (Left (CheckAndSetPushErrorNoWritePermission shareLocation))
+            Share.UpdatePathNoWritePermission _ -> Left (CheckAndSetPushErrorNoWritePermission path)
+    Share.UpdatePathNoWritePermission _ -> pure (Left (CheckAndSetPushErrorNoWritePermission path))
   where
     updatePath :: IO Share.UpdatePathResponse
     updatePath =
@@ -130,7 +130,7 @@ checkAndSetPush httpClient unisonShareUrl connect shareLocation expectedHash cau
         httpClient
         unisonShareUrl
         Share.UpdatePathRequest
-          { path = shareLocation,
+          { path,
             expectedHash,
             newHash = causalHashToHash32 causalHash
           }
@@ -148,16 +148,16 @@ fastForwardPush ::
   -- | SQLite-connection-making function, for writing entities we pull.
   (forall a. (Sqlite.Connection -> IO a) -> IO a) ->
   -- | The repo+path to push to.
-  Share.ShareLocation ->
+  Share.Path ->
   -- | The hash of our local causal to push.
   CausalHash ->
   -- | Callback that's given a number of entities we just uploaded.
   (Int -> IO ()) ->
   IO (Either (SyncError FastForwardPushError) ())
-fastForwardPush httpClient unisonShareUrl connect shareLocation localHeadHash uploadedCallback = catchSyncErrors do
-  getCausalHashByPath httpClient unisonShareUrl shareLocation >>= \case
-    Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission shareLocation))
-    Right Nothing -> pure (Left (FastForwardPushErrorNoHistory shareLocation))
+fastForwardPush httpClient unisonShareUrl connect path localHeadHash uploadedCallback = catchSyncErrors do
+  getCausalHashByPath httpClient unisonShareUrl path >>= \case
+    Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission path))
+    Right Nothing -> pure (Left (FastForwardPushErrorNoHistory path))
     Right (Just (Share.hashJWTHash -> remoteHeadHash)) -> do
       let doLoadCausalSpineBetween = do
             -- (Temporary?) optimization - perform the "is ancestor?" check within sqlite before reconstructing the
@@ -178,14 +178,14 @@ fastForwardPush httpClient unisonShareUrl connect shareLocation localHeadHash up
       (connect \conn -> Sqlite.runTransaction conn doLoadCausalSpineBetween) >>= \case
         -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
         -- fast-forward push, so we don't bother trying - just report the error now.
-        Nothing -> pure (Left (FastForwardPushErrorNotFastForward shareLocation))
+        Nothing -> pure (Left (FastForwardPushErrorNotFastForward path))
         -- The path from remote-to-local, excluding local, was empty. So, remote == local; there's nothing to push.
         Just [] -> pure (Right ())
         Just (_ : localInnerHashes0) -> do
           -- drop remote hash
           let localInnerHashes = map hash32ToCausalHash localInnerHashes0
           doUpload (localHeadHash :| localInnerHashes) >>= \case
-            False -> pure (Left (FastForwardPushErrorNoWritePermission shareLocation))
+            False -> pure (Left (FastForwardPushErrorNoWritePermission path))
             True -> do
               let doFastForwardPath =
                     httpFastForwardPath
@@ -195,7 +195,7 @@ fastForwardPush httpClient unisonShareUrl connect shareLocation localHeadHash up
                         { expectedHash = remoteHeadHash,
                           hashes =
                             causalHashToHash32 <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
-                          path = shareLocation
+                          path
                         }
               doFastForwardPath <&> \case
                 Share.FastForwardPathSuccess -> Right ()
@@ -203,9 +203,9 @@ fastForwardPush httpClient unisonShareUrl connect shareLocation localHeadHash up
                   Left (FastForwardPushErrorServerMissingDependencies dependencies)
                 -- Weird: someone must have force-pushed no history here, or something. We observed a history at
                 -- this path but moments ago!
-                Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory shareLocation)
-                Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission shareLocation)
-                Share.FastForwardPathNotFastForward _ -> Left (FastForwardPushErrorNotFastForward shareLocation)
+                Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory path)
+                Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission path)
+                Share.FastForwardPathNotFastForward _ -> Left (FastForwardPushErrorNotFastForward path)
                 Share.FastForwardPathInvalidParentage (Share.InvalidParentage parent child) ->
                   Left (FastForwardPushInvalidParentage parent child)
   where
@@ -218,7 +218,7 @@ fastForwardPush httpClient unisonShareUrl connect shareLocation localHeadHash up
         httpClient
         unisonShareUrl
         connect
-        (Share.shareLocationRepoName shareLocation)
+        (Share.pathRepoName path)
         (NESet.singleton (causalHashToHash32 headHash))
         uploadedCallback
 
@@ -364,15 +364,15 @@ pull ::
   -- | SQLite-connection-making function, for writing entities we pull.
   (forall a. (Sqlite.Connection -> IO a) -> IO a) ->
   -- | The repo+path to pull from.
-  Share.ShareLocation ->
+  Share.Path ->
   -- | Callback that's given a number of entities we just downloaded.
   (Int -> IO ()) ->
   IO (Either (SyncError PullError) CausalHash)
-pull httpClient unisonShareUrl connect shareLocation downloadedCallback = catchSyncErrors do
-  getCausalHashByPath httpClient unisonShareUrl shareLocation >>= \case
+pull httpClient unisonShareUrl connect repoPath downloadedCallback = catchSyncErrors do
+  getCausalHashByPath httpClient unisonShareUrl repoPath >>= \case
     Left err -> pure (Left (PullErrorGetCausalHashByPath err))
     -- There's nothing at the remote path, so there's no causal to pull.
-    Right Nothing -> pure (Left (PullErrorNoHistoryAtPath shareLocation))
+    Right Nothing -> pure (Left (PullErrorNoHistoryAtPath repoPath))
     Right (Just hashJwt) -> do
       let hash = Share.hashJWTHash hashJwt
       maybeTempEntities <-
@@ -403,7 +403,7 @@ pull httpClient unisonShareUrl connect shareLocation downloadedCallback = catchS
       _success <- connect Sqlite.vacuum
       pure (Right (hash32ToCausalHash hash))
   where
-    repoName = Share.shareLocationRepoName shareLocation
+    repoName = Share.pathRepoName repoPath
 
 type WorkerCount =
   TVar Int
@@ -606,7 +606,7 @@ getCausalHashByPath ::
   AuthenticatedHttpClient ->
   -- | The Unison Share URL.
   BaseUrl ->
-  Share.ShareLocation ->
+  Share.Path ->
   IO (Either GetCausalHashByPathError (Maybe Share.HashJWT))
 getCausalHashByPath httpClient unisonShareUrl repoPath =
   httpGetCausalHashByPath httpClient unisonShareUrl (Share.GetCausalHashByPathRequest repoPath) <&> \case
