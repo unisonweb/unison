@@ -1,8 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Reference
   ( Reference,
@@ -110,8 +106,8 @@ idToShortHash = toShortHash . DerivedId
 -- but Show Reference currently depends on SH
 toShortHash :: Reference -> ShortHash
 toShortHash (Builtin b) = SH.Builtin b
-toShortHash (Derived h 0) = SH.ShortHash (H.base32Hex h) Nothing Nothing
-toShortHash (Derived h i) = SH.ShortHash (H.base32Hex h) (Just $ showSuffix i) Nothing
+toShortHash (Derived h 0) = SH.ShortHash (H.toBase32HexText h) Nothing Nothing
+toShortHash (Derived h i) = SH.ShortHash (H.toBase32HexText h) (Just $ showSuffix i) Nothing
 
 -- toShortHash . fromJust . fromShortHash == id and
 -- fromJust . fromShortHash . toShortHash == id
@@ -122,7 +118,7 @@ toShortHash (Derived h i) = SH.ShortHash (H.base32Hex h) (Just $ showSuffix i) N
 fromShortHash :: ShortHash -> Maybe Reference
 fromShortHash (SH.Builtin b) = Just (Builtin b)
 fromShortHash (SH.ShortHash prefix cycle Nothing) = do
-  h <- H.fromBase32Hex prefix
+  h <- H.fromBase32HexText prefix
   case cycle of
     Nothing -> Just (Derived h 0)
     Just i -> Derived h <$> readMay (Text.unpack i)
@@ -168,7 +164,7 @@ derivedBase32Hex :: Text -> Pos -> Reference
 derivedBase32Hex b32Hex i = DerivedId (Id (fromMaybe msg h) i)
   where
     msg = error $ "Reference.derivedBase32Hex " <> show h
-    h = H.fromBase32Hex b32Hex
+    h = H.fromBase32HexText b32Hex
 
 unsafeFromText :: Text -> Reference
 unsafeFromText = either error id . fromText

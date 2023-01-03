@@ -1,33 +1,31 @@
-name: unison-util-base32hex-orphans-sqlite
+name: unison-hashing
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
-library:
-  when:
-    - condition: false
-      other-modules: Paths_unison_util_base32hex_orphans_sqlite
-  source-dirs: src
+ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
 dependencies:
   - base
-  - sqlite-simple
-  - text
-  - unison-util-base32hex
+  - unison-hash
 
-ghc-options:
-  -Wall
-  -fno-warn-orphans
+library:
+  source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_hashing
 
 default-extensions:
   - ApplicativeDo
   - BangPatterns
   - BlockArguments
+  - DeriveAnyClass
   - DeriveFunctor
   - DeriveGeneric
   - DeriveTraversable
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
@@ -41,4 +39,5 @@ default-extensions:
   - StandaloneDeriving
   - TupleSections
   - TypeApplications
+  - TypeFamilies
   - ViewPatterns

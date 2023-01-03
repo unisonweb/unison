@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           unison-util-base32hex-orphans-sqlite
+name:           unison-hash-orphans-sqlite
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
@@ -17,7 +17,7 @@ source-repository head
 
 library
   exposed-modules:
-      U.Util.Hash32.Orphans.Sqlite
+      Unison.Hash32.Orphans.Sqlite
   hs-source-dirs:
       src
   default-extensions:
@@ -49,5 +49,6 @@ library
       base
     , sqlite-simple
     , text
+    , unison-hash
     , unison-util-base32hex
   default-language: Haskell2010

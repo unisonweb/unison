@@ -1,5 +1,5 @@
 -- | A 512-bit hash, internally represented as base32hex.
-module U.Util.Hash32
+module Unison.Hash32
   ( -- * Hash32 type
     Hash32 (..),
 
@@ -19,8 +19,8 @@ module U.Util.Hash32
 where
 
 import U.Util.Base32Hex (Base32Hex (..))
-import U.Util.Hash (Hash)
-import qualified U.Util.Hash as Hash
+import Unison.Hash (Hash)
+import qualified Unison.Hash as Hash
 import Unison.Prelude
 
 -- | A 512-bit hash, internally represented as base32hex.

@@ -1,7 +1,6 @@
-{-# LANGUAGE PatternSynonyms #-}
-
 module Unison.Codebase.Editor.Output
   ( Output (..),
+    DisplayDefinitionsOutput (..),
     NumberedOutput (..),
     NumberedArgs,
     ListDetailed,
@@ -54,7 +53,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
@@ -121,8 +120,18 @@ data Output
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
     NoMainFunction String PPE.PrettyPrintEnv [Type Symbol Ann]
-  | -- Main function found, but has improper type
-    BadMainFunction String (Type Symbol Ann) PPE.PrettyPrintEnv [Type Symbol Ann]
+  | -- | Function found, but has improper type
+    -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
+    BadMainFunction
+      String
+      -- ^ what we were trying to do (e.g. "run", "io.test")
+      String
+      -- ^ name of function
+      (Type Symbol Ann)
+      -- ^ bad type of function
+      PPE.PrettyPrintEnv
+      [Type Symbol Ann]
+      -- ^ acceptable type(s) of function
   | BranchEmpty (Either ShortCausalHash Path')
   | BranchNotEmpty Path'
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
@@ -203,11 +212,7 @@ data Output
   | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
-    DisplayDefinitions
-      (Maybe FilePath)
-      PPE.PrettyPrintEnvDecl
-      (Map Reference (DisplayObject () (Decl Symbol Ann)))
-      (Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)))
+    DisplayDefinitions DisplayDefinitionsOutput
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
   | TestResults
@@ -277,6 +282,14 @@ data Output
   | IntegrityCheck IntegrityResult
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
+
+data DisplayDefinitionsOutput = DisplayDefinitionsOutput
+  { isTest :: TermReference -> Bool,
+    outputFile :: Maybe FilePath,
+    prettyPrintEnv :: PPE.PrettyPrintEnvDecl,
+    terms :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
+    types :: Map Reference (DisplayObject () (Decl Symbol Ann))
+  }
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -369,7 +382,7 @@ isFailure o = case o of
   EvaluationFailure {} -> True
   Evaluated {} -> False
   Typechecked {} -> False
-  DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
+  DisplayDefinitions DisplayDefinitionsOutput {terms, types} -> null terms && null types
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False

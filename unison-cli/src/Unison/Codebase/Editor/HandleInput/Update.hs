@@ -53,7 +53,7 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
-import Unison.Runtime.IOSource (isTest)
+import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Name as Name (toVar, unsafeFromVar)
@@ -589,7 +589,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
         SC.terms slurp <> UF.constructorsForDecls (SC.types slurp) uf
     names = UF.typecheckedToNames uf
     tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
-    (isTestType, isTestValue) = isTest
+    (isTestType, isTestValue) = IOSource.isTest
     md v =
       if Set.member v tests
         then Metadata.singleton isTestType isTestValue

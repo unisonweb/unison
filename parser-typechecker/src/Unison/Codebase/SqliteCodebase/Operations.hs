@@ -30,7 +30,6 @@ import U.Codebase.Sqlite.Operations (NamesByPath (..))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
-import qualified U.Util.Hash as H2
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
@@ -151,7 +150,7 @@ tryFlushBuffer ::
   forall a.
   (Show a) =>
   TVar (Map Hash (BufferEntry a)) ->
-  (H2.Hash -> [a] -> Transaction ()) ->
+  (Hash -> [a] -> Transaction ()) ->
   (Hash -> Transaction ()) ->
   Hash ->
   Transaction ()

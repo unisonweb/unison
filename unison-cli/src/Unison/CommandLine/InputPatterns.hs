@@ -1537,19 +1537,20 @@ viewReflog =
 edit :: InputPattern
 edit =
   InputPattern
-    "edit"
-    []
-    I.Visible
-    [(OnePlus, definitionQueryArg)]
-    ( P.lines
-        [ "`edit foo` prepends the definition of `foo` to the top of the most "
-            <> "recently saved file.",
-          "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
-        ]
-    )
-    ( fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
-        . traverse parseHashQualifiedName
-    )
+    { patternName = "edit",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(OnePlus, definitionQueryArg)],
+      help =
+        P.lines
+          [ "`edit foo` prepends the definition of `foo` to the top of the most "
+              <> "recently saved file.",
+            "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
+          ],
+      parse =
+        fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
+          . traverse parseHashQualifiedName
+    }
 
 topicNameArg :: ArgumentType
 topicNameArg =
@@ -2084,20 +2085,20 @@ saveExecuteResult =
 ioTest :: InputPattern
 ioTest =
   InputPattern
-    "io.test"
-    ["test.io"]
-    I.Visible
-    [(Required, exactDefinitionTermQueryArg)]
-    ( P.wrapColumn2
-        [ ( "`io.test mytest`",
-            "Runs `!mytest`, where `mytest` is a delayed test that can use the `IO` and `Exception` abilities. Note: `mytest` must already be added to the codebase."
-          )
-        ]
-    )
-    ( \case
+    { patternName = "io.test",
+      aliases = ["test.io"],
+      visibility = I.Visible,
+      argTypes = [(Required, exactDefinitionTermQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ( "`io.test mytest`",
+              "Runs `!mytest`, where `mytest` is a delayed test that can use the `IO` and `Exception` abilities."
+            )
+          ],
+      parse = \case
         [thing] -> fmap Input.IOTestI $ parseHashQualifiedName thing
         _ -> Left $ showPatternHelp ioTest
-    )
+    }
 
 makeStandalone :: InputPattern
 makeStandalone =

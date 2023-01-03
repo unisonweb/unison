@@ -701,7 +701,7 @@ makeNameSearch hashLength names =
     }
 
 -- | Interpret a 'Search' as a function from name to search results.
-applySearch :: (Show r) => Search r -> HQ'.HashQualified Name -> [SR.SearchResult]
+applySearch :: Show r => Search r -> HQ'.HashQualified Name -> [SR.SearchResult]
 applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} query = do
   -- a bunch of references will match a HQ ref.
   toList (lookupRelativeHQRefs' query) <&> \ref ->
@@ -778,9 +778,9 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
       }
 
 -- TODO: Move this to its own module
-data DefinitionResults v = DefinitionResults
-  { termResults :: Map Reference (DisplayObject (Type v Ann) (Term v Ann)),
-    typeResults :: Map Reference (DisplayObject () (DD.Decl v Ann)),
+data DefinitionResults = DefinitionResults
+  { termResults :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
+    typeResults :: Map Reference (DisplayObject () (DD.Decl Symbol Ann)),
     noResults :: [HQ.HashQualified Name]
   }
 
@@ -1204,7 +1204,7 @@ definitionsBySuffixes ::
   NameSearch ->
   IncludeCycles ->
   [HQ.HashQualified Name] ->
-  Sqlite.Transaction (DefinitionResults Symbol)
+  Sqlite.Transaction DefinitionResults
 definitionsBySuffixes codebase nameSearch includeCycles query = do
   QueryResult misses results <- hqNameQuery codebase nameSearch query
   -- todo: remember to replace this with getting components directly,

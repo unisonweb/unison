@@ -45,6 +45,7 @@ library
       ConstraintKinds
       DeriveAnyClass
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -62,6 +63,7 @@ library
       PatternSynonyms
       RankNTypes
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
       TypeApplications
       TypeOperators
@@ -103,13 +105,14 @@ library
     , unison-codebase-sqlite
     , unison-core
     , unison-core1
+    , unison-hash
+    , unison-hash-orphans-aeson
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
-    , unison-util-base32hex-orphans-aeson
     , unison-util-relation
     , unliftio
     , unordered-containers

@@ -7,7 +7,6 @@ import Unison.Reference (Reference)
 import qualified Unison.Util.List as List
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation3 as R3
 import Unison.Util.Relation4 (Relation4)
 import qualified Unison.Util.Relation4 as R4
 import Unison.Util.Star3 (Star3)
@@ -44,8 +43,8 @@ hasMetadata :: Ord a => a -> Type -> Value -> Star a n -> Bool
 hasMetadata a t v = Set.member (t, v) . R.lookupDom a . Star3.d3
 
 hasMetadataWithType' :: Ord a => a -> Type -> R4 a n -> Bool
-hasMetadataWithType' a t r =
-  fromMaybe False $ Set.member t . R3.d2s <$> (Map.lookup a $ R4.d1 r)
+hasMetadataWithType' =
+  R4.memberD13
 
 hasMetadataWithType :: Ord a => a -> Type -> Star a n -> Bool
 hasMetadataWithType a t = Set.member t . R.lookupDom a . Star3.d2
