@@ -168,6 +168,24 @@ load =
         _ -> Left (I.help load)
     )
 
+clear :: InputPattern
+clear =
+  InputPattern
+    "clear"
+    []
+    I.Visible
+    []
+    ( P.wrapColumn2
+        [ ( makeExample' clear,
+            "Clears the screen."
+          )
+        ]
+    )
+    ( \case
+        [] -> pure $ Input.ClearI
+        _ -> Left (I.help clear)
+    )
+
 add :: InputPattern
 add =
   InputPattern
@@ -2324,6 +2342,7 @@ validInputs =
     [ help,
       helpTopics,
       load,
+      clear,
       add,
       previewAdd,
       update,

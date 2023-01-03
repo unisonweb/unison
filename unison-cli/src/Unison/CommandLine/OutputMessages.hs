@@ -30,6 +30,7 @@ import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
 import qualified Network.URI.Encode as URI
 import qualified Servant.Client as Servant
+import qualified System.Console.ANSI as ANSI
 import qualified System.Console.Haskeline.Completion as Completion
 import System.Directory
   ( canonicalizePath,
@@ -1847,6 +1848,10 @@ notifyUser dir o = case o of
                     else ""
              in (isCompleteTxt, P.string (Completion.replacement comp))
         )
+  ClearScreen -> do
+    ANSI.clearScreen
+    ANSI.setCursorPosition 0 0
+    pure mempty
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =

@@ -1101,6 +1101,7 @@ loop e = do
                   Cli.LoadError -> Cli.returnEarly $ SourceLoadFailed path
                   Cli.LoadSuccess contents -> pure contents
               loadUnisonFile (Text.pack path) contents
+            ClearI -> Cli.respond ClearScreen
             AddI requestedNames -> do
               description <- inputDescription input
               let vars = Set.map Name.toVar requestedNames
@@ -1591,6 +1592,7 @@ inputDescription input =
     ListDependentsI {} -> wat
     ListEditsI {} -> wat
     LoadI {} -> wat
+    ClearI {} -> pure "clear"
     NamesI {} -> wat
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat
