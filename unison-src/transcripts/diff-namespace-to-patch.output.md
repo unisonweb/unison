@@ -39,11 +39,9 @@ two.e = 6
 .> diff.namespace.to-patch one two thepatch
 
   Edited Terms:
-    1. one.b#cp6ri8mtg0 -> 6. two.b
-    2. one.b#dcgdua2lj6 -> 7. two.b
-    3. one.a            -> 8. two.a
-    4. one.d            -> 9. two.d
-    5. one.d            -> 10. two.e
+    1. one.b#cp6ri8mtg0 -> 4. two.b
+    2. one.b#dcgdua2lj6 -> 5. two.b
+    3. one.a            -> 6. two.a
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
