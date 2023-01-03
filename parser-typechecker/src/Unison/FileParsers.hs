@@ -163,14 +163,14 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
   Result (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
-    (topLevelComponents :: [[(v, Term v, Type v)]]) <-
+    (topLevelComponents :: [[(v, Ann, Term v, Type v)]]) <-
       let topLevelBindings :: Map v (Term v)
           topLevelBindings = Map.mapKeys Var.reset $ extractTopLevelBindings tdnrTerm
           extractTopLevelBindings :: (Term.Term v a -> Map v (Term.Term v a))
           extractTopLevelBindings (Term.LetRecNamedAnnotatedTop' True _ bs body) =
             Map.fromList (first snd <$> bs) <> extractTopLevelBindings body
           extractTopLevelBindings _ = Map.empty
-          tlcsFromTypechecker :: [[(v, Type.Type v Ann, RedundantTypeAnnotation)]]
+          tlcsFromTypechecker :: [[(v, Ann, Type.Type v Ann, RedundantTypeAnnotation)]]
           tlcsFromTypechecker =
             List.uniqueBy'
               (fmap vars)

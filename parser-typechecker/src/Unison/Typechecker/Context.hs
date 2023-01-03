@@ -40,7 +40,7 @@ module Unison.Typechecker.Context
   )
 where
 
-import Control.Lens (over, view, _2)
+import Control.Lens (over, view, _3)
 import qualified Control.Monad.Fail as MonadFail
 import Control.Monad.State
   ( MonadState,
@@ -67,6 +67,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
+import qualified Unison.Builtin.Decls as DDB
 import Unison.ConstructorReference
   ( ConstructorReference,
     GConstructorReference (..),
@@ -77,7 +78,6 @@ import Unison.DataDeclaration
     EffectDeclaration,
   )
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Builtin.Decls as DDB
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
@@ -307,11 +307,11 @@ data ErrorNote v loc = ErrorNote
 data InfoNote v loc
   = SolvedBlank (B.Recorded loc) v (Type v loc)
   | Decision v loc (Term.Term v loc)
-  | TopLevelComponent [(v, Type.Type v loc, RedundantTypeAnnotation)]
+  | TopLevelComponent [(v, loc, Type.Type v loc, RedundantTypeAnnotation)]
   deriving (Show)
 
-topLevelComponent :: Var v => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
-topLevelComponent = TopLevelComponent . fmap (over _2 removeSyntheticTypeVars)
+topLevelComponent :: Var v => [(v, loc, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
+topLevelComponent = TopLevelComponent . fmap (over _3 removeSyntheticTypeVars)
 
 -- The typechecker generates synthetic type variables as part of type inference.
 -- This function converts these synthetic type variables to regular named type
@@ -941,27 +941,28 @@ generalizeExistentials' t =
 noteTopLevelType ::
   (Ord loc, Var v) =>
   ABT.Subst f v a ->
+  loc ->
   Term v loc ->
   Type v loc ->
   M v loc ()
-noteTopLevelType e binding typ = case binding of
+noteTopLevelType e loc binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
     inferred <- (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
     case inferred of
       Nothing ->
         btw $
           topLevelComponent
-            [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, False)]
+            [(Var.reset (ABT.variable e), loc, generalizeAndUnTypeVar typ, False)]
       Just inferred -> do
         redundant <- isRedundant typ inferred
         btw $
           topLevelComponent
-            [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, redundant)]
+            [(Var.reset (ABT.variable e), loc, generalizeAndUnTypeVar typ, redundant)]
   -- The signature didn't exist, so was definitely redundant
   _ ->
     btw $
       topLevelComponent
-        [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
+        [(Var.reset (ABT.variable e), loc, generalizeAndUnTypeVar typ, True)]
 
 synthesizeTop ::
   Var v =>
@@ -1087,13 +1088,13 @@ synthesizeWanted (Term.Let1Top' top binding e) = do
       then pure $ generalizeExistentials ctx2 tb
       else applyM . applyCtx ctx2 $ tb
   v' <- ABT.freshen e freshenVar
-  when (Var.isAction (ABT.variable e)) $ 
+  when (Var.isAction (ABT.variable e)) $
     -- enforce that actions in a block have type ()
-    subtype tbinding (DDB.unitType (ABT.annotation binding)) 
+    subtype tbinding (DDB.unitType (ABT.annotation binding))
   appendContext [Ann v' tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
-  when top $ noteTopLevelType e binding tbinding
+  when top $ noteTopLevelType e ({- TODO is this righ? -} ABT.annotation binding) binding tbinding
   want <- coalesceWanted w wb
   -- doRetract $ Ann v' tbinding
   pure (t, want)
@@ -1527,11 +1528,11 @@ annotateLetRecBindings isTop letrec =
       withoutAnnotations <-
         resetContextAfter Nothing $ Just <$> annotateLetRecBindings' False
       -- convert from typechecker TypeVar back to regular `v` vars
-      let unTypeVar (v, t) = (v, generalizeAndUnTypeVar t)
+      let unTypeVar (v, a, t) = (v, a, generalizeAndUnTypeVar t)
       case withoutAnnotations of
         Just (_, vts') -> do
           r <- and <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
-          btw $ topLevelComponent ((\(v, b) -> (Var.reset v, b, r)) . unTypeVar <$> vts)
+          btw $ topLevelComponent ((\(v, loc, b) -> (Var.reset v, loc, b, r)) . unTypeVar <$> vts)
         -- ...(1) we'll assume all the user-provided annotations were needed
         Nothing ->
           btw $
@@ -1571,7 +1572,7 @@ annotateLetRecBindings isTop letrec =
           -- note: elements of a cycle have to be pure, otherwise order of effects
           -- is unclear and chaos ensues
           -- ensure actions in blocks have type ()
-          when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))  
+          when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))
           checkScopedWith b t []
         ensureGuardedCycle (vs `zip` bindings)
         pure (bindings, bindingTypes)
@@ -2124,7 +2125,7 @@ checkWanted want (Term.Let1' binding m) t = do
   (tbinding, wbinding) <- synthesize binding
   want <- coalesceWanted wbinding want
   markThenRetractWanted v $ do
-    when (Var.isAction (ABT.variable m)) $ 
+    when (Var.isAction (ABT.variable m)) $
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
     extendContext (Ann v tbinding)
@@ -2747,7 +2748,9 @@ equateAbilities ls rs =
           | u == v = EQ
           | ordered ctx u v = LT
           | otherwise = GT
-        cn | common = [Var.inferAbility] | otherwise = []
+        cn
+          | common = [Var.inferAbility]
+          | otherwise = []
 
 subAbilities ::
   Var v =>

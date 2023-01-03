@@ -3,7 +3,7 @@
 
 module Unison.Runtime.IOSource where
 
-import Control.Lens (view, _1)
+import Control.Lens (view, _2)
 import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
 import qualified Data.Map as Map
@@ -48,7 +48,7 @@ typecheckedFile' =
         (Just (Right file), _) -> file
 
 typecheckedFileTerms :: Map.Map Symbol R.Reference
-typecheckedFileTerms = view _1 <$> UF.hashTerms typecheckedFile
+typecheckedFileTerms = view _2 <$> UF.hashTerms typecheckedFile
 
 termNamed :: String -> R.Reference
 termNamed s =

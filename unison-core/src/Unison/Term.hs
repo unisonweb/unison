@@ -3,7 +3,7 @@
 
 module Unison.Term where
 
-import Control.Lens (Lens', Prism', lens)
+import Control.Lens (Lens', Prism', lens, view, _2)
 import Control.Monad.State (evalState)
 import qualified Control.Monad.Writer.Strict as Writer
 import Data.Bifunctor (second)
@@ -894,14 +894,14 @@ unLetRecNamedAnnotated _ = Nothing
 letRec' ::
   (Ord v, Monoid a) =>
   Bool ->
-  [(v, Term' vt v a)] ->
+  [(v, a, Term' vt v a)] ->
   Term' vt v a ->
   Term' vt v a
 letRec' isTop bindings body =
   letRec
     isTop
-    (foldMap (ABT.annotation . snd) bindings <> ABT.annotation body)
-    [((ABT.annotation b, v), b) | (v, b) <- bindings]
+    (foldMap (view _2) bindings <> ABT.annotation body)
+    [((a, v), b) | (v, a, b) <- bindings]
     body
 
 -- Prepend a binding to form a (bigger) let rec. Useful when

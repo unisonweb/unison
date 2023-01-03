@@ -176,7 +176,10 @@ enclose keep rec (LetRecNamedTop' top vbs bd) =
   where
     xpnd = expandRec keep' vbs
     keep' = Set.union keep . Set.fromList . map fst $ vbs
-    lvbs = (map . fmap) (rec keep' . abstract keep' . ABT.substs xpnd) vbs
+    lvbs =
+      vbs
+        <&> \(v, trm) ->
+          (v, ABT.annotation trm, (rec keep' . abstract keep' . ABT.substs xpnd) trm)
     lbd = rec keep' . ABT.substs xpnd $ bd
 -- will be lifted, so keep this variable
 enclose keep rec (Let1NamedTop' top v b@(unAnn -> LamsNamed' vs bd) e) =
@@ -296,7 +299,7 @@ beta rec (LetRecNamedTop' top (fmap (fmap rec) -> vbs) (rec -> bd)) =
 
     m = Map.map length $ Map.differenceWith f (Map.fromList $ map args vbs) m0
     lvbs =
-      vbs <&> \(v, b0) -> (,) v $ case b0 of
+      vbs <&> \(v, b0) -> (v,ABT.annotation b0,) $ case b0 of
         LamsNamed' vs b
           | Just n <- Map.lookup v m ->
               lam' (ABT.annotation b0) (drop n vs) (dropPrefixes m b)
@@ -1373,7 +1376,9 @@ tru = TCon Ty.booleanRef 1 []
 renameCtx :: Var v => v -> v -> Ctx v -> (Ctx v, Bool)
 renameCtx v u (d, ctx) | (ctx, b) <- rn [] ctx = ((d, ctx), b)
   where
-    swap w | w == v = u | otherwise = w
+    swap w
+      | w == v = u
+      | otherwise = w
 
     rn acc [] = (reverse acc, False)
     rn acc (ST d vs ccs b : es)
