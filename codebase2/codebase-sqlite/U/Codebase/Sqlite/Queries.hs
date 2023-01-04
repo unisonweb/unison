@@ -189,6 +189,8 @@ module U.Codebase.Sqlite.Queries
     setSchemaVersion,
     x2cTType,
     x2cTerm,
+    ReferentPrefixText,
+    ReferencePrefixText,
   )
 where
 
@@ -1786,6 +1788,12 @@ data EmptyName = EmptyName String
 -- E.g. "base.data"
 type NamespaceText = Text
 
+-- | A prefix of a referent hash, usually comes from a ShortHash or HQ Name
+type ReferentPrefixText = Text
+
+-- | A prefix of a reference hash, usually comes from a ShortHash or HQ Name
+type ReferencePrefixText = Text
+
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
@@ -1834,13 +1842,14 @@ typeNamesWithinNamespace namespaceRoot ref = do
 -- is only true on Share.
 --
 -- Get the list of term names within a given namespace which have the given suffix.
-termNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
-termNamesBySuffix namespaceRoot suffix = do
+termNamesBySuffix :: NamespaceText -> Maybe ReferentPrefixText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesBySuffix namespaceRoot mayRefPrefix suffix = do
   let (exactNamespace, namespaceGlob) = case namespaceRoot of
         "" -> ("", "*")
         exactNamespace -> (exactNamespace, globEscape exactNamespace <> ".*")
+  let refGlob = maybe "*" globEscape mayRefPrefix
   let suffixGlob = globEscape (Text.intercalate "." (toList suffix))
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (suffixGlob, namespaceGlob, exactNamespace)
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (suffixGlob, namespaceGlob, exactNamespace, refGlob)
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
@@ -1849,25 +1858,28 @@ termNamesBySuffix namespaceRoot suffix = do
         SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, referent_constructor_type FROM term_name_lookup
         WHERE reversed_name GLOB ?
               AND (namespace GLOB ? OR namespace = ?)
+              AND (referent_component_hash IS NULL OR referent_component_hash GLOB ?)
         |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
 -- Get the list of type names within a given namespace which have the given suffix.
-typeNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
-typeNamesBySuffix namespaceRoot suffix = do
+typeNamesBySuffix :: NamespaceText -> Maybe ReferencePrefixText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+typeNamesBySuffix namespaceRoot mayRefPrefix suffix = do
   let (exactNamespace, namespaceGlob) = case namespaceRoot of
         "" -> ("", "*")
         exactNamespace -> (exactNamespace, globEscape exactNamespace <> ".*")
+  let refGlob = maybe "*" globEscape mayRefPrefix
   let suffixGlob = globEscape (Text.intercalate "." (toList suffix))
-  queryListRow sql (suffixGlob, namespaceGlob, exactNamespace)
+  queryListRow sql (suffixGlob, namespaceGlob, exactNamespace, refGlob)
   where
     sql =
       [here|
         SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup FROM type_name_lookup
         WHERE reversed_name GLOB ?
               AND (namespace GLOB ? OR namespace = ?)
+              AND (reference_component_hash IS NULL OR reference_component_hash GLOB ?)
         |]
 
 -- | Get the list of a type names in the root namespace according to the name lookup index
