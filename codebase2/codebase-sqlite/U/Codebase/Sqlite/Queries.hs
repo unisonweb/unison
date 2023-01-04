@@ -1642,7 +1642,7 @@ ensureNameLookupTables = do
   -- This index allows us to find all names with a given ref within a specific namespace.
   execute_
     [here|
-      CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index, namespace);
+      CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_component_hash, reference_component_index, namespace)
     |]
 
 -- | Insert the given set of term names into the name lookup table
