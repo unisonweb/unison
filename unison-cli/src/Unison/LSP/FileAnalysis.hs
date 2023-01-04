@@ -34,6 +34,7 @@ import Unison.LSP.Diagnostics
   )
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
+import qualified Unison.LSP.Types as LSP
 import qualified Unison.LSP.VFS as VFS
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
@@ -47,10 +48,13 @@ import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
+import qualified Unison.Symbol as Symbol
 import qualified Unison.Syntax.HashQualified' as HQ' (toText)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
+import qualified Unison.Term as Term
+import Unison.Type (Type)
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
 import qualified Unison.UnisonFile as UF
@@ -58,16 +62,17 @@ import qualified Unison.UnisonFile.Names as UF
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Var as Var
+import Unison.WatchKind (pattern TestWatch)
 import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
 
 -- | Lex, parse, and typecheck a file.
 checkFile :: HasUri d Uri => d -> Lsp (Maybe FileAnalysis)
 checkFile doc = runMaybeT $ do
   let fileUri = doc ^. uri
-  (fileVersion, contents) <- MaybeT (VFS.getFileContents doc)
+  (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getParseNames
   let sourceName = getUri $ doc ^. uri
-  let lexedSource@(srcText, _) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
+  let lexedSource@(srcText, _tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   cb <- asks codebase
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
@@ -77,8 +82,7 @@ checkFile doc = runMaybeT $ do
         Nothing -> (Nothing, Nothing)
         Just (Left uf) -> (Just uf, Nothing)
         Just (Right tf) -> (Just $ UF.discardTypes tf, Just tf)
-  pped <- lift $ ppedForFileHelper parsedFile typecheckedFile
-  (diagnostics, codeActions) <- lift $ analyseFile pped fileUri srcText notes
+  (diagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
   let diagnosticRanges =
         diagnostics
           & fmap (\d -> (d ^. range, d))
@@ -87,8 +91,81 @@ checkFile doc = runMaybeT $ do
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
-  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, ..}
+  let fileSummary = mkFileSummary parsedFile typecheckedFile
+  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, ..}
   pure $ fileAnalysis
+
+-- | If a symbol is a 'User' symbol, return (Just sym), otherwise return Nothing.
+assertUserSym :: Symbol -> Maybe Symbol
+assertUserSym sym = case sym of
+  Symbol.Symbol _ (Var.User {}) -> Just sym
+  _ -> Nothing
+
+-- | Summarize the information available to us from the current state of the file.
+-- See 'FileSummary' for more information.
+mkFileSummary :: Maybe (UF.UnisonFile Symbol Ann) -> Maybe (UF.TypecheckedUnisonFile Symbol Ann) -> Maybe FileSummary
+mkFileSummary parsed typechecked = case (parsed, typechecked) of
+  (Nothing, Nothing) -> Nothing
+  (_, Just tf@(UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId})) ->
+    let (trms, testWatches, exprWatches) =
+          hashTermsId & ifoldMap \sym (ref, wk, trm, typ) ->
+            case wk of
+              Nothing -> (Map.singleton sym (Just ref, trm, getUserTypeAnnotation sym <|> Just typ), mempty, mempty)
+              Just TestWatch -> (mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)], mempty)
+              Just _ -> (mempty, mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)])
+     in Just $
+          FileSummary
+            { dataDeclsBySymbol = dataDeclarationsId',
+              dataDeclsByReference = declsRefMap dataDeclarationsId',
+              effectDeclsBySymbol = effectDeclarationsId',
+              effectDeclsByReference = declsRefMap effectDeclarationsId',
+              termsBySymbol = trms,
+              termsByReference = termsRefMap trms,
+              testWatchSummary = testWatches,
+              exprWatchSummary = exprWatches,
+              fileNames = UF.typecheckedToNames tf
+            }
+  (Just uf@(UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches}), _) ->
+    let trms =
+          terms & foldMap \(sym, trm) ->
+            (Map.singleton sym (Nothing, trm, Nothing))
+        (testWatches, exprWatches) =
+          watches & ifoldMap \wk tms ->
+            tms & foldMap \(v, trm) ->
+              case wk of
+                TestWatch -> ([(assertUserSym v, Nothing, trm, Nothing)], mempty)
+                _ -> (mempty, [(assertUserSym v, Nothing, trm, Nothing)])
+     in Just $
+          FileSummary
+            { dataDeclsBySymbol = dataDeclarationsId,
+              dataDeclsByReference = declsRefMap dataDeclarationsId,
+              effectDeclsBySymbol = effectDeclarationsId,
+              effectDeclsByReference = declsRefMap effectDeclarationsId,
+              termsBySymbol = trms,
+              termsByReference = termsRefMap trms,
+              testWatchSummary = testWatches,
+              exprWatchSummary = exprWatches,
+              fileNames = UF.toNames uf
+            }
+  where
+    declsRefMap :: (Ord v, Ord r) => Map v (r, a) -> Map r (Map v a)
+    declsRefMap m =
+      m & Map.toList
+        & fmap (\(v, (r, a)) -> (r, Map.singleton v a))
+        & Map.fromListWith (<>)
+    termsRefMap :: (Ord v, Ord r) => Map v (r, a, b) -> Map r (Map v (a, b))
+    termsRefMap m =
+      m & Map.toList
+        & fmap (\(v, (r, a, b)) -> (r, Map.singleton v (a, b)))
+        & Map.fromListWith (<>)
+    -- Gets the user provided type annotation for a term if there is one.
+    -- This type sig will have Ann's within the file if it exists.
+    getUserTypeAnnotation :: Symbol -> Maybe (Type Symbol Ann)
+    getUserTypeAnnotation v = do
+      UF.UnisonFileId {terms, watches} <- parsed
+      trm <- Prelude.lookup v (terms <> fold watches)
+      typ <- Term.getTypeAnnotation trm
+      pure typ
 
 fileAnalysisWorker :: Lsp ()
 fileAnalysisWorker = forever do
@@ -111,9 +188,10 @@ fileAnalysisWorker = forever do
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
-analyseFile :: Foldable f => PPED.PrettyPrintEnvDecl -> Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
-analyseFile ppe fileUri srcText notes = do
-  analyseNotes fileUri (PPED.suffixifiedPPE ppe) (Text.unpack srcText) notes
+analyseFile :: Foldable f => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseFile fileUri srcText notes = do
+  pped <- PPED.suffixifiedPPE <$> LSP.globalPPED
+  analyseNotes fileUri pped (Text.unpack srcText) notes
 
 analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseNotes fileUri ppe src notes = do
@@ -270,6 +348,11 @@ getFileAnalysis uri = do
   checkedFilesV <- asks checkedFilesVar
   checkedFiles <- readTVarIO checkedFilesV
   pure $ Map.lookup uri checkedFiles
+
+getFileSummary :: Uri -> MaybeT Lsp FileSummary
+getFileSummary uri = do
+  FileAnalysis {fileSummary} <- MaybeT $ getFileAnalysis uri
+  MaybeT . pure $ fileSummary
 
 -- TODO memoize per file
 ppedForFile :: Uri -> Lsp PPED.PrettyPrintEnvDecl

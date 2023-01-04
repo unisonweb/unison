@@ -1,9 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module U.Codebase.Referent where
 
@@ -17,7 +12,7 @@ import U.Codebase.Reference (Reference, Reference')
 import qualified U.Codebase.Reference as Reference
 import U.Codebase.ShortHash (ShortHash)
 import qualified U.Codebase.ShortHash as SH
-import U.Util.Hash (Hash)
+import Unison.Hash (Hash)
 import Unison.Prelude
 
 data ConstructorType
@@ -53,6 +48,11 @@ toReference :: Referent -> Reference
 toReference = \case
   Ref termRef -> termRef
   Con typeRef _ -> typeRef
+
+toTermReference :: Referent' termRef typeRef -> Maybe termRef
+toTermReference = \case
+  Ref termRef -> Just termRef
+  Con _ _ -> Nothing
 
 type Id = Id' Hash Hash
 

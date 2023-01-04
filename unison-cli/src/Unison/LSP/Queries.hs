@@ -5,14 +5,23 @@ module Unison.LSP.Queries
     findSmallestEnclosingNode,
     findSmallestEnclosingType,
     refInDecl,
+    getTypeOfReferent,
+    getTypeDeclaration,
   )
 where
 
 import Control.Lens
+import Control.Monad.Reader
+import Language.LSP.Types
 import qualified Unison.ABT as ABT
+import qualified Unison.Codebase as Codebase
+import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
+import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
+import Unison.LSP.FileAnalysis
 import Unison.LSP.Orphans ()
+import Unison.LSP.Types
 import Unison.LabeledDependency
 import qualified Unison.LabeledDependency as LD
 import Unison.Lexer.Pos (Pos (..))
@@ -20,11 +29,51 @@ import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
 import Unison.Reference (TypeReference)
+import qualified Unison.Reference as Reference
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (MatchCase (MatchCase), Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
+
+-- | Gets the type of a reference from either the parsed file or the codebase.
+getTypeOfReferent :: Uri -> Referent -> MaybeT Lsp (Type Symbol Ann)
+getTypeOfReferent fileUri ref = do
+  getFromFile <|> getFromCodebase
+  where
+    getFromFile = do
+      FileSummary {termsByReference} <- getFileSummary fileUri
+      case ref of
+        Referent.Ref (Reference.Builtin {}) -> empty
+        Referent.Ref (Reference.DerivedId termRefId) -> do
+          MaybeT . pure $ (termsByReference ^? ix (Just termRefId) . folded . _2 . _Just)
+        Referent.Con (ConstructorReference r0 cid) _type -> do
+          case r0 of
+            Reference.DerivedId r -> do
+              decl <- getTypeDeclaration fileUri r
+              MaybeT . pure $ DD.typeOfConstructor (either DD.toDataDecl id decl) cid
+            Reference.Builtin _ -> empty
+    getFromCodebase = do
+      Env {codebase} <- ask
+      MaybeT . liftIO $ Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
+
+-- | Gets a decl from either the parsed file or the codebase.
+getTypeDeclaration :: Uri -> Reference.Id -> MaybeT Lsp (Decl Symbol Ann)
+getTypeDeclaration fileUri refId = do
+  getFromFile <|> getFromCodebase
+  where
+    getFromFile :: MaybeT Lsp (Decl Symbol Ann)
+    getFromFile = do
+      FileSummary {dataDeclsByReference, effectDeclsByReference} <- getFileSummary fileUri
+      let datas = dataDeclsByReference ^.. ix refId . folded
+      let effects = effectDeclsByReference ^.. ix refId . folded
+      MaybeT . pure . listToMaybe $ fmap Right datas <> fmap Left effects
+
+    getFromCodebase = do
+      Env {codebase} <- ask
+      MaybeT . liftIO $ Codebase.runTransaction codebase $ Codebase.getTypeDeclaration codebase refId
 
 -- | Returns the reference a given term node refers to, if any.
 refInTerm :: (Term v a -> Maybe LabeledDependency)

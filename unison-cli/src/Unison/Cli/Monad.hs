@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DefaultSignatures #-}
 
 -- | The main CLI monad.
 module Unison.Cli.Monad
@@ -38,6 +37,7 @@ module Unison.Cli.Monad
 
     -- * Running transactions
     runTransaction,
+    runEitherTransaction,
 
     -- * Misc types
     LoadSourceResult (..),
@@ -381,3 +381,8 @@ runTransaction :: Sqlite.Transaction a -> Cli a
 runTransaction action = do
   Env {codebase} <- ask
   liftIO (Codebase.runTransaction codebase action)
+
+-- | Return early if a transaction returns Left.
+runEitherTransaction :: Sqlite.Transaction (Either Output a) -> Cli a
+runEitherTransaction action =
+  runTransaction action & onLeftM returnEarly

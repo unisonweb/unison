@@ -129,6 +129,7 @@ data Input
   | ResolveTypeNameI Path.HQSplit'
   | -- edits stuff:
     LoadI (Maybe FilePath)
+  | ClearI
   | AddI (Set Name)
   | PreviewAddI (Set Name)
   | UpdateI OptionalPatch (Set Name)

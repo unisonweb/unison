@@ -116,6 +116,11 @@ _TermLink = _Ctor @"TermLink"
 _TypeLink :: Prism' (F tv ta pa a) Reference
 _TypeLink = _Ctor @"TypeLink"
 
+-- | Returns the top-level type annotation for a term if it has one.
+getTypeAnnotation :: Term v a -> Maybe (Type v a)
+getTypeAnnotation (ABT.Tm' (Ann _ t)) = Just t
+getTypeAnnotation _ = Nothing
+
 type IsTop = Bool
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree

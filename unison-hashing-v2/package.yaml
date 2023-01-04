@@ -14,11 +14,15 @@ dependencies:
   - semialign
   - text
   - unison-core1
+  - unison-hash
+  - unison-hashing
   - unison-prelude
   - unison-util-base32hex
   - unison-util-relation
 
 library:
+  exposed-modules:
+    Unison.Hashing.V2
   source-dirs: src
   when:
     - condition: false
@@ -38,6 +42,7 @@ default-extensions:
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
+  - InstanceSigs
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns

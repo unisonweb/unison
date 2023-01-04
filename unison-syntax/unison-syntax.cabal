@@ -68,6 +68,7 @@ library
     , text
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-prelude
     , unison-util-base32hex
     , unison-util-bytes
@@ -121,6 +122,7 @@ test-suite syntax-tests
     , text
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-prelude
     , unison-syntax
     , unison-util-base32hex
