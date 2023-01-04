@@ -59,10 +59,10 @@ library
     , unison-codebase-sqlite
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-hashing-v2
     , unison-prelude
     , unison-sqlite
-    , unison-util
     , unison-util-base32hex
     , unison-util-term
     , vector

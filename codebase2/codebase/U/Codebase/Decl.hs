@@ -1,16 +1,10 @@
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE RecordWildCards #-}
-
 module U.Codebase.Decl where
 
-import Data.Set (Set)
-import Data.Text (Text)
-import Data.Word (Word64)
 import U.Codebase.Reference (Reference')
 import U.Codebase.Type (TypeR)
 import qualified U.Codebase.Type as Type
-import U.Util.Hash (Hash)
+import Unison.Hash (Hash)
+import Unison.Prelude
 
 type ConstructorId = Word64
 

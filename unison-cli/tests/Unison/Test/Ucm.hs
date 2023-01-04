@@ -18,7 +18,7 @@ import Control.Monad (when)
 import qualified Data.Text as Text
 import System.Directory (removeDirectoryRecursive)
 import qualified System.IO.Temp as Temp
-import U.Util.String (stripMargin)
+import U.Util.Text (stripMargin)
 import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Init as Codebase.Init
@@ -68,7 +68,7 @@ runTranscript (Codebase codebasePath fmt) transcript = do
   TR.withTranscriptRunner "Unison.Test.Ucm.runTranscript Invalid Version String" configFile $ \runner -> do
     result <- Codebase.Init.withOpenCodebase cbInit "transcript" codebasePath SC.DoLock SC.DontMigrate \codebase -> do
       Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
-      let transcriptSrc = Text.pack . stripMargin $ unTranscript transcript
+      let transcriptSrc = stripMargin . Text.pack $ unTranscript transcript
       output <- either err Text.unpack <$> runner "transcript" transcriptSrc (codebasePath, codebase)
       when debugTranscriptOutput $ traceM output
       pure output

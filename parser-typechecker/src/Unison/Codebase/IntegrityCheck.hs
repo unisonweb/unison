@@ -28,10 +28,10 @@ import qualified U.Codebase.Sqlite.Branch.Full as DBBranch
 import qualified U.Codebase.Sqlite.DbId as DB
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
-import qualified U.Util.Hash as Hash
 import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Helpers
 import qualified Unison.Debug as Debug
 import Unison.Hash (Hash)
+import qualified Unison.Hash as Hash
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import Unison.Util.Monoid (foldMapM)

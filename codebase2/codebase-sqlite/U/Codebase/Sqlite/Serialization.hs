@@ -1,10 +1,4 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module U.Codebase.Sqlite.Serialization where
 
@@ -44,11 +38,11 @@ import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Base32Hex as Base32Hex
-import U.Util.Hash32 (Hash32)
-import qualified U.Util.Hash32 as Hash32
-import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization hiding (debug)
+import Unison.Hash32 (Hash32)
+import qualified Unison.Hash32 as Hash32
 import Unison.Prelude
+import qualified Unison.Util.Monoid as Monoid
 import Prelude hiding (getChar, putChar)
 
 debug :: Bool

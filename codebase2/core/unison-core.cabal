@@ -54,8 +54,8 @@ library
     , containers
     , rfc5051
     , text
+    , unison-hash
     , unison-prelude
-    , unison-util
     , unison-util-base32hex
     , vector
   default-language: Haskell2010

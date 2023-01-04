@@ -48,15 +48,13 @@ import Control.Monad (when)
 import Control.Monad.Primitive
 import Data.Foldable as F (for_)
 import qualified Data.Kind as Kind
-import Data.Primitive.Array
-import Data.Primitive.ByteArray
-import Data.Primitive.PrimArray
 import Data.Sequence (Seq)
 import Data.Word
 import GHC.Exts as L (IsList (..))
 import GHC.Stack (HasCallStack)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF (Mem (..))
+import Unison.Runtime.Array
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 import qualified Unison.Type as Ty
@@ -111,12 +109,13 @@ data Closure
   deriving (Show, Eq, Ord)
 
 traceK :: Reference -> K -> [(Reference, Int)]
-traceK begin = dedup (begin, 1) where
-  dedup p (Mark _ _ _ _ k) = dedup p k
-  dedup p@(cur,n) (Push _ _ _ _ (CIx r _ _) k)
-    | cur == r = dedup (cur,1+n) k
-    | otherwise = p : dedup (r,1) k
-  dedup p _ = [p]
+traceK begin = dedup (begin, 1)
+  where
+    dedup p (Mark _ _ _ _ k) = dedup p k
+    dedup p@(cur, n) (Push _ _ _ _ (CIx r _ _) k)
+      | cur == r = dedup (cur, 1 + n) k
+      | otherwise = p : dedup (r, 1) k
+    dedup p _ = [p]
 
 splitData :: Closure -> Maybe (Reference, Word64, [Int], [Closure])
 splitData (Enum r t) = Just (r, t, [], [])

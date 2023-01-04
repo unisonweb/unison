@@ -14,6 +14,7 @@ dependencies:
   - ListLike
   - aeson
   - aeson-pretty
+  - ansi-terminal
   - async
   - base
   - bytes
@@ -70,16 +71,15 @@ dependencies:
   - unison-codebase
   - unison-codebase-sqlite
   - unison-codebase-sqlite-hashing-v2
-  - unison-sqlite
   - unison-core
   - unison-core1
+  - unison-hash
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer
   - unison-share-api
   - unison-sqlite
   - unison-syntax
-  - unison-util
   - unison-util-base32hex
   - unison-util-relation
   - unliftio

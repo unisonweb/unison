@@ -17,6 +17,10 @@ source-repository head
   type: git
   location: https://github.com/unisonweb/unison
 
+flag arraychecks
+  manual: True
+  default: False
+
 flag optimized
   manual: True
   default: True
@@ -105,6 +109,7 @@ library
       Unison.Result
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Serialize
+      Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
@@ -279,14 +284,15 @@ library
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-hashing-v2
     , unison-prelude
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-bytes
+    , unison-util-cache
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -303,6 +309,8 @@ library
     , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
   default-language: Haskell2010
 
 test-suite parser-typechecker-tests
@@ -312,7 +320,6 @@ test-suite parser-typechecker-tests
       Unison.Core.Test.Name
       Unison.Test.ABT
       Unison.Test.ANF
-      Unison.Test.Cache
       Unison.Test.Codebase.Branch
       Unison.Test.Codebase.Causal
       Unison.Test.Codebase.Path
@@ -466,15 +473,16 @@ test-suite parser-typechecker-tests
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-bytes
+    , unison-util-cache
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -491,4 +499,6 @@ test-suite parser-typechecker-tests
     , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
   default-language: Haskell2010

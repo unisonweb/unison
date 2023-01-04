@@ -155,7 +155,6 @@ data Src = Src SyntaxText SyntaxText
 evalAndRenderDoc ::
   forall v m.
   (Var v, Monad m) =>
-  P.Width ->
   PPE.PrettyPrintEnvDecl ->
   (Reference -> m (Maybe (Term v ()))) ->
   (Referent -> m (Maybe (Type v ()))) ->
@@ -163,21 +162,20 @@ evalAndRenderDoc ::
   (Reference -> m (Maybe (DD.Decl v ()))) ->
   Term v () ->
   m Doc
-evalAndRenderDoc width pped terms typeOf eval types tm =
-  renderDoc width pped <$> evalDoc terms typeOf eval types tm
+evalAndRenderDoc pped terms typeOf eval types tm =
+  renderDoc pped <$> evalDoc terms typeOf eval types tm
 
 -- | Renders the given doc, which must have been evaluated using 'evalDoc'
 renderDoc ::
   forall v.
   Var v =>
-  P.Width ->
   PPE.PrettyPrintEnvDecl ->
   EvaluatedDoc v ->
   Doc
-renderDoc width pped doc = renderSpecial <$> doc
+renderDoc pped doc = renderSpecial <$> doc
   where
     suffixifiedPPE = PPE.suffixifiedPPE pped
-    formatPretty = fmap Syntax.convertElement . P.render width
+    formatPretty = fmap Syntax.convertElement . P.render (P.Width 70)
 
     formatPrettyType :: PPE.PrettyPrintEnv -> Type v a -> SyntaxText
     formatPrettyType ppe typ = formatPretty (TypePrinter.prettySyntax ppe typ)
@@ -413,22 +411,22 @@ evalDoc terms typeOf eval types tm =
                 acc' = case tm of
                   Term.Ref' r
                     | Set.notMember r seen ->
-                        (: acc) <$> case r of
-                          Reference.Builtin _ ->
-                            typeOf (Referent.Ref r) <&> \case
-                              Nothing -> EvaluatedSrcTerm (MissingBuiltinTypeSig r)
-                              Just ty -> EvaluatedSrcTerm (BuiltinTypeSig r ty)
-                          ref ->
-                            terms ref >>= \case
-                              Nothing -> pure . EvaluatedSrcTerm . MissingTerm $ ref
-                              Just tm -> do
-                                typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
-                                pure $ EvaluatedSrcTerm (FoundTerm ref typ tm)
+                      (: acc) <$> case r of
+                        Reference.Builtin _ ->
+                          typeOf (Referent.Ref r) <&> \case
+                            Nothing -> EvaluatedSrcTerm (MissingBuiltinTypeSig r)
+                            Just ty -> EvaluatedSrcTerm (BuiltinTypeSig r ty)
+                        ref ->
+                          terms ref >>= \case
+                            Nothing -> pure . EvaluatedSrcTerm . MissingTerm $ ref
+                            Just tm -> do
+                              typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
+                              pure $ EvaluatedSrcTerm (FoundTerm ref typ tm)
                   Term.RequestOrCtor' (view ConstructorReference.reference_ -> r) | Set.notMember r seen -> (: acc) <$> goType r
                   _ -> pure acc
             DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns]
               | Set.notMember ref seen ->
-                  (Set.insert ref seen,) . (: acc) <$> goType ref
+                (Set.insert ref seen,) . (: acc) <$> goType ref
             _ -> pure s1
       reverse . snd <$> foldM go mempty es
 

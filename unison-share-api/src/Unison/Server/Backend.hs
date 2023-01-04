@@ -353,16 +353,15 @@ lsAtPath codebase mayRootBranch absPath = do
   lsBranch codebase b
 
 findShallowReadmeInBranchAndRender ::
-  Pretty.Width ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
   V2Branch.Branch m ->
   Backend IO (Maybe Doc.Doc)
-findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
+findShallowReadmeInBranchAndRender runtime codebase ppe namespaceBranch =
   let renderReadme :: PPED.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
       renderReadme ppe docReference = do
-        doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc width ppe
+        doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc ppe
         pure doc
 
       -- choose the first term (among conflicted terms) matching any of these names, in this order.
@@ -784,13 +783,13 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
       }
 
 -- TODO: Move this to its own module
-data DefinitionResults v = DefinitionResults
-  { termResults :: Map Reference (DisplayObject (Type v Ann) (Term v Ann)),
-    typeResults :: Map Reference (DisplayObject () (DD.Decl v Ann)),
+data DefinitionResults = DefinitionResults
+  { termResults :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
+    typeResults :: Map Reference (DisplayObject () (DD.Decl Symbol Ann)),
     noResults :: [HQ.HashQualified Name]
   }
 
-definitionResultsDependencies :: Ord v => DefinitionResults v -> Set LD.LabeledDependency
+definitionResultsDependencies :: DefinitionResults -> Set LD.LabeledDependency
 definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
   let termDeps =
         termResults
@@ -1047,7 +1046,7 @@ renderDocRefs backendPPE width codebase rt docRefs = do
   for eDocs \(ref, eDoc) -> do
     let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE docsPPED) width (Referent.Ref ref)
     let hash = Reference.toText ref
-    let renderedDoc = Doc.renderDoc width docsPPED eDoc
+    let renderedDoc = Doc.renderDoc docsPPED eDoc
     pure (name, hash, renderedDoc)
 
 docsInBranchToHtmlFiles ::
@@ -1076,7 +1075,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   where
     renderDoc' ppe runtime codebase (docReferent, name) = do
       let docReference = Referent.toReference docReferent
-      doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc defaultWidth ppe
+      doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc ppe
       let hash = Reference.toText docReference
       pure (name, hash, doc)
 
@@ -1173,11 +1172,11 @@ scopedNamesForBranchHash codebase mbh path = do
   (parseNames, localNames) <- case mbh of
     Nothing
       | shouldUseNamesIndex -> do
-          lift $ Codebase.runTransaction codebase indexNames
+        lift $ Codebase.runTransaction codebase indexNames
       | otherwise -> do
-          rootBranch <- lift $ Codebase.getRootBranch codebase
-          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-          pure (parseNames, localNames)
+        rootBranch <- lift $ Codebase.getRootBranch codebase
+        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+        pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash
@@ -1250,7 +1249,7 @@ definitionsBySuffixes ::
   NameSearch Sqlite.Transaction ->
   IncludeCycles ->
   [HQ.HashQualified Name] ->
-  Sqlite.Transaction (DefinitionResults Symbol)
+  Sqlite.Transaction DefinitionResults
 definitionsBySuffixes codebase nameSearch includeCycles query = do
   QueryResult misses results <- hqNameQuery codebase nameSearch query
   -- todo: remember to replace this with getting components directly,

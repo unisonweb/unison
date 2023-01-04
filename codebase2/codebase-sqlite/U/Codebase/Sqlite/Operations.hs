@@ -167,9 +167,9 @@ import qualified U.Codebase.TypeEdit as C
 import qualified U.Codebase.TypeEdit as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Util.Base32Hex as Base32Hex
-import qualified U.Util.Hash as H
-import qualified U.Util.Hash32 as Hash32
 import qualified U.Util.Serialization as S
+import qualified Unison.Hash as H
+import qualified Unison.Hash32 as Hash32
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
