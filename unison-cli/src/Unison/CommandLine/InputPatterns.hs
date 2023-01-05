@@ -2128,14 +2128,14 @@ runScheme =
     I.Visible
     [(Required, exactDefinitionTermQueryArg)]
     ( P.wrapColumn2
-        [ ( makeExample runScheme ["main"],
+        [ ( makeExample runScheme ["main", "args"],
             "Executes !main using native compilation via scheme."
           )
         ]
     )
     ( \case
-        [main] ->
-          Input.ExecuteSchemeI <$> parseHashQualifiedName main
+        (main:args) ->
+          flip Input.ExecuteSchemeI args <$> parseHashQualifiedName main
         _ -> Left $ showPatternHelp runScheme
     )
 
