@@ -74,6 +74,8 @@ module U.Codebase.Sqlite.Operations
     typeNamesWithinNamespace,
     termNamesBySuffix,
     typeNamesBySuffix,
+    termNamesByShortHash,
+    typeNamesByShortHash,
 
     -- * reflog
     getReflog,
@@ -123,7 +125,7 @@ import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C
 import qualified U.Codebase.Referent as C.Referent
 import qualified U.Codebase.Reflog as Reflog
-import U.Codebase.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
+import U.Codebase.ShortHash (ShortCausalHash (..), ShortHash, ShortNamespaceHash (..))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
 import qualified U.Codebase.Sqlite.Branch.Diff as S.BranchDiff
@@ -1125,13 +1127,21 @@ typeNamesWithinNamespace :: PathText -> C.Reference -> Transaction [S.ReversedSe
 typeNamesWithinNamespace namespace ref = do
   Q.typeNamesWithinNamespace (namespace) (c2sTextReference ref)
 
-termNamesBySuffix :: PathText -> Maybe Q.ReferentPrefixText -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
-termNamesBySuffix namespace mayRefPrefix suffix = do
-  Q.termNamesBySuffix namespace mayRefPrefix suffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+termNamesBySuffix :: PathText -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesBySuffix namespace suffix = do
+  Q.termNamesBySuffix namespace suffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
-typeNamesBySuffix :: PathText -> Maybe Q.ReferencePrefixText -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
-typeNamesBySuffix namespace mayRefPrefix suffix =
-  Q.typeNamesBySuffix namespace mayRefPrefix suffix <&> fmap (fmap s2cTextReference)
+typeNamesBySuffix :: PathText -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeNamesBySuffix namespace suffix =
+  Q.typeNamesBySuffix namespace suffix <&> fmap (fmap s2cTextReference)
+
+termNamesByShortHash :: PathText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesByShortHash namespace shortHash maySuffix = do
+  Q.termNamesByShortHash namespace shortHash maySuffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+
+typeNamesByShortHash :: PathText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeNamesByShortHash namespace shortHash maySuffix =
+  Q.typeNamesByShortHash namespace shortHash maySuffix <&> fmap (fmap s2cTextReference)
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them
 -- then return them.
