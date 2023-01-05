@@ -115,6 +115,8 @@ data SpecialForm
   | EmbedInline SyntaxText
   | Video [MediaSource] (Map Text Text)
   | FrontMatter (Map Text [Text])
+  | LaTeXInline Text
+  | Svg Text
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, ToSchema)
 
@@ -256,6 +258,12 @@ renderDoc pped terms typeOf eval types tm =
         where
           frontMatter' = List.multimap [(k, v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- frontMatter]
 
+      -- Embed LaTeXInline
+      DD.Doc2SpecialFormEmbedLaTeXInline latex ->
+        pure $ LaTeXInline latex
+      -- Embed Svg
+      DD.Doc2SpecialFormEmbedSvg svg ->
+        pure $ Svg svg
       -- Embed Any
       DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
         source any <&> \p -> Embed ("{{ embed {{" <> p <> "}} }}")
