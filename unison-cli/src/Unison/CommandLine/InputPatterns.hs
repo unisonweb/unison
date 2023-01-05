@@ -451,12 +451,18 @@ api =
 ui :: InputPattern
 ui =
   InputPattern
-    "ui"
-    []
-    I.Visible
-    []
-    "`ui` opens the Codebase UI in the default browser."
-    (const $ pure Input.UiI)
+    { patternName = "ui",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help = P.wrap "`ui` opens the Local UI in the default browser.",
+      parse = \case
+        [] -> pure $ Input.UiI Path.relativeEmpty'
+        [path] -> first fromString $ do
+          p <- Path.parsePath' path
+          pure $ Input.UiI p
+        _ -> Left (I.help ui)
+    }
 
 undo :: InputPattern
 undo =

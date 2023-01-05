@@ -1,6 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -30,6 +28,7 @@ import GHC.Generics ()
 import Network.HTTP.Media ((//), (/:))
 import Network.HTTP.Types (HeaderName)
 import Network.HTTP.Types.Status (ok200)
+import Network.URI.Encode as UriEncode
 import qualified Network.URI.Encode as URI
 import Network.Wai (Middleware, responseLBS)
 import Network.Wai.Handler.Warp
@@ -85,7 +84,11 @@ import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import System.Random.MWC (createSystemRandom)
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
+import Unison.HashQualified
+import Unison.Name as Name (Name, segments)
+import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend (Backend, BackendEnv, runBackend)
@@ -100,6 +103,7 @@ import qualified Unison.Server.Endpoints.NamespaceListing as NamespaceListing
 import qualified Unison.Server.Endpoints.Projects as Projects
 import Unison.Server.Errors (backendError)
 import Unison.Server.Types (mungeString, setCacheControl)
+import qualified Unison.ShortHash as ShortHash
 import Unison.Symbol (Symbol)
 
 -- HTML content type
@@ -147,16 +151,70 @@ data BaseUrl = BaseUrl
     urlPort :: Port
   }
 
-data BaseUrlPath = UI | Api
+data DefinitionReference
+  = TermReference (HashQualified Name) -- /terms/...
+  | TypeReference (HashQualified Name) -- /types/...
+  | AbilityConstructorReference (HashQualified Name) -- /ability-constructors/...
+  | DataConstructorReference (HashQualified Name) -- /data-constructors/...
+
+data Service
+  = UI Path.Absolute (Maybe DefinitionReference)
+  | Api
 
 instance Show BaseUrl where
   show url = urlHost url <> ":" <> show (urlPort url) <> "/" <> (URI.encode . unpack . urlToken $ url)
 
-urlFor :: BaseUrlPath -> BaseUrl -> String
-urlFor path baseUrl =
-  case path of
-    UI -> show baseUrl <> "/ui"
+urlFor :: Service -> BaseUrl -> String
+urlFor service baseUrl =
+  case service of
+    UI ns def ->
+      show baseUrl <> "/ui" <> Text.unpack (path ns def)
     Api -> show baseUrl <> "/api"
+  where
+    path :: Path.Absolute -> Maybe DefinitionReference -> Text
+    path ns def =
+      let nsPath = namespacePath ns
+       in case definitionPath def of
+            Just defPath -> "/latest" <> nsPath <> "/;" <> defPath
+            Nothing -> "/latest" <> nsPath
+
+    namespacePath :: Path.Absolute -> Text
+    namespacePath path =
+      if path == Path.absoluteEmpty
+        then ""
+        else "/namespaces/" <> toUrlPath (NameSegment.toText <$> Path.toList (Path.unabsolute path))
+
+    definitionPath :: Maybe DefinitionReference -> Maybe Text
+    definitionPath def =
+      toDefinitionPath <$> def
+
+    toUrlPath :: [Text] -> Text
+    toUrlPath parts =
+      parts
+        & fmap UriEncode.encodeText
+        & Text.intercalate "/"
+
+    refToUrlText :: HashQualified Name -> Text
+    refToUrlText r =
+      case r of
+        NameOnly n ->
+          n & Name.segments & fmap NameSegment.toText & toList & toUrlPath
+        HashOnly h ->
+          h & ShortHash.toText & UriEncode.encodeText
+        HashQualified n _ ->
+          n & Name.segments & fmap NameSegment.toText & toList & toUrlPath
+
+    toDefinitionPath :: DefinitionReference -> Text
+    toDefinitionPath d =
+      case d of
+        TermReference r ->
+          "/terms/" <> refToUrlText r
+        TypeReference r ->
+          "/types/" <> refToUrlText r
+        AbilityConstructorReference r ->
+          "/ability-constructors/" <> refToUrlText r
+        DataConstructorReference r ->
+          "/data-constructors/" <> refToUrlText r
 
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
@@ -349,9 +407,8 @@ server backendEnv rt codebase uiPath expectedToken =
   where
     serveServer :: Server ServerAPI
     serveServer =
-      ( serveUI uiPath
-          :<|> serveUnisonAndDocs backendEnv rt codebase
-      )
+      serveUI uiPath
+        :<|> serveUnisonAndDocs backendEnv rt codebase
 
 serveUnisonAndDocs :: BackendEnv -> Rt.Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
 serveUnisonAndDocs env rt codebase = serveUnison env codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
