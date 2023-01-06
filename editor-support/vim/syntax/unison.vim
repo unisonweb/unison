@@ -17,7 +17,7 @@
 " u_allow_hash_operator - Don't highlight seemingly incorrect C
 "			   preprocessor directives but assume them to be
 "			   operators
-"
+" 2023 Jan  6: Update for current syntax (dt)
 " 2018 Aug 23: Adapt Haskell highlighting to Unison, cleanup.
 " 2004 Feb 19: Added C preprocessor directive handling, corrected eol comments
 "	       cleaned away literate unison support (should be entirely in
@@ -34,20 +34,9 @@ elseif exists("b:current_syntax")
   finish
 endif
 
-" (Qualified) identifiers (no default highlighting)
-syn match ConId "\(\<[A-Z][a-zA-Z0-9_']*\.\)\=\<[A-Z][a-zA-Z0-9_']*\>"
-syn match VarId "\(\<[A-Z][a-zA-Z0-9_']*\.\)\=\<[a-z][a-zA-Z0-9_']*\>"
 
-" Infix operators--most punctuation characters and any (qualified) identifier
-" enclosed in `backquotes`. An operator starting with : is a constructor,
-" others are variables (e.g. functions).
-syn match uVarSym "\(\<[A-Z][a-zA-Z0-9_']*\.\)\=[-!#$%&\*\+/<=>\?@\\^|~.][-!#$%&\*\+/<=>\?@\\^|~:.]*"
-syn match uConSym "\(\<[A-Z][a-zA-Z0-9_']*\.\)\=:[-!#$%&\*\+./<=>\?@\\^|~:]*"
-syn match uVarSym "`\(\<[A-Z][a-zA-Z0-9_']*\.\)\=[a-z][a-zA-Z0-9_']*`"
-syn match uConSym "`\(\<[A-Z][a-zA-Z0-9_']*\.\)\=[A-Z][a-zA-Z0-9_']*`"
-
-" Reserved symbols--cannot be overloaded.
-syn match uDelimiter  "(\|)\|\[\|\]\|,\|_\|{\|}"
+syn match uOperator "[-!#$%&\*\+/<=>\?@\\^|~]"
+syn match uDelimiter "[\[\[(){},.]"
 
 " Strings and constants
 syn match   uSpecialChar	contained "\\\([0-9]\+\|o[0-7]\+\|x[0-9a-fA-F]\+\|[\"\\'&\\abfnrtv]\|^[A-Z^_\[\\\]]\)"
@@ -64,32 +53,14 @@ syn match   uFloat		"\<[0-9]\+\.[0-9]\+\([eE][-+]\=[0-9]\+\)\=\>"
 " "literate" comment (see lu.vim).
 syn match uModule		"\<module\>"
 syn match uImport		"\<use\>"
-syn match uInfix		"\<\(infix\|infixl\|infixr\)\>"
-syn match uTypedef		"\<\(∀\|forall\)\>"
-syn match uStatement		"\<\(unique\|ability\|type\|where\|match\|cases\|;\|let\|with\|handle\)\>"
+syn match uTypedef		"\<\(unique\|structural\|∀\|forall\)\>"
+syn match uStatement		"\<\(ability\|do\|type\|where\|match\|cases\|;\|let\|with\|handle\)\>"
 syn match uConditional		"\<\(if\|else\|then\)\>"
 
-" Not real keywords, but close.
-if exists("u_highlight_boolean")
-  " Boolean constants from the standard prelude.
-  syn match uBoolean "\<\(true\|false\)\>"
-endif
-if exists("u_highlight_types")
-  " Primitive types from the standard prelude and libraries.
-  syn match uType "\<\(Float\|Nat\|Int\|Boolean\|Remote\|Text\)\>"
-endif
-if exists("u_highlight_more_types")
-  " Types from the standard prelude libraries.
-  syn match uType "\<\(Optional\|Either\|Sequence\|Effect\)\>"
-  syn match uMaybe    "\<None\>"
-  syn match uExitCode "\<\(ExitSuccess\)\>"
-  syn match uOrdering "\<\(GT\|LT\|EQ\)\>"
-endif
-if exists("u_highlight_debug")
-  " Debugging functions from the standard prelude.
-  syn match uDebug "\<\(undefined\|error\|trace\)\>"
-endif
+syn match uBoolean "\<\(true\|false\)\>"
 
+syn match uType "\<[A-Z_][A-Za-z_'!]*\>"
+syn match uName "\<[a-z_][A-Za-z_'!]*\>"
 
 " Comments
 syn match   uLineComment      "---*\([^-!#$%&\*\+./<=>\?@\\^|~].*\)\?$"
@@ -98,9 +69,19 @@ syn region  uPragma	       start="{-#" end="#-}"
 syn region  uBelowFold	       start="^---" skip="." end="." contains=uBelowFold
 
 " Docs
-syn region  uDocBlock         start="\[:" end=":]" contains=uLink,uDocDirective
-syn match   uLink             contained "@\([A-Z][a-zA-Z0-9_']*\.\)\=\<[a-z][a-zA-Z0-9_'.]*\>"
+syn region  uDocBlock         start="{{" end="}}" contains=uLink,uDocDirective,uDocIncluded
+syn match   uLink             contained "{[A-Z][a-zA-Z0-9_']*\.[a-z][a-zA-Z0-9_'.]*}"
 syn match   uDocDirective     contained "@\[\([A-Z][a-zA-Z0-9_']*\.\)\=\<[a-z][a-zA-Z0-9_'.]*\>] \(\<[A-Z][a-zA-Z0-9_']*\.\)\=\<[a-z][a-zA-Z0-9_'.]*\>"
+syn match   uDocIncluded      contained "{{[^}]+}}"
+
+" things like 
+"    > my_func 1 3
+"    test> Function.tap.tests.t1 = check let
+"      use Nat == +
+"      ( 99, 100 ) === (withInitialValue 0 do
+"          :      :      :
+
+syn match uDebug "^[A-Za-z]*>.*\(\_s\s*\S[^\n]*\)*" 
 
 " Define the default highlighting.
 " For version 5.7 and earlier: only when not done already
@@ -113,38 +94,32 @@ if version >= 508 || !exists("did_u_syntax_inits")
     command -nargs=+ HiLink hi def link <args>
   endif
 
-  HiLink uImport			  Include
-  HiLink uInfix			  PreProc
-  HiLink uStatement			  Statement
-  HiLink uConditional			  Conditional
-  HiLink uSpecialChar			  SpecialChar
-  HiLink uTypedef			  Typedef
-  HiLink uVarSym			  uOperator
-  HiLink uConSym			  uOperator
-  HiLink uOperator			  Operator
-  HiLink uDelimiter			  Delimiter
-  HiLink uSpecialCharError		  Error
-  HiLink uString			  String
-  HiLink uCharacter			  Character
-  HiLink uNumber			  Number
-  HiLink uFloat			  Float
-  HiLink uConditional			  Conditional
-  HiLink uLiterateComment		  uComment
-  HiLink uBlockComment		  uComment
-  HiLink uLineComment			  uComment
-  HiLink uComment			  Comment
-  HiLink uBelowFold			  Comment
-  HiLink uDocBlock                String
-  HiLink uLink                    uType
-  HiLink uDocDirective            uImport
-  HiLink uPragma			  SpecialComment
-  HiLink uBoolean			  Boolean
-  HiLink uType			  Type
-  HiLink uMaybe			  uEnumConst
-  HiLink uOrdering			  uEnumConst
-  HiLink uEnumConst			  Constant
-  HiLink uDebug			  Debug
-
+  HiLink uBelowFold        Comment
+  HiLink uBlockComment     uComment
+  HiLink uBoolean          Boolean
+  HiLink uCharacter        Character
+  HiLink uComment          Comment
+  HiLink uConditional      Conditional
+  HiLink uConditional      Conditional
+  HiLink uDebug            Debug
+  HiLink uDelimiter        Delimiter
+  HiLink uDocBlock         String
+  HiLink uDocDirective     uImport
+  HiLink uDocIncluded      uImport
+  HiLink uFloat            Float
+  HiLink uImport           Include
+  HiLink uLineComment      uComment
+  HiLink uLink             uType
+  HiLink uName             Identifier
+  HiLink uNumber           Number
+  HiLink uOperator         Operator
+  HiLink uPragma           SpecialComment
+  HiLink uSpecialChar      SpecialChar
+  HiLink uSpecialCharError Error
+  HiLink uStatement        Statement
+  HiLink uString           String
+  HiLink uType             Type
+  HiLink uTypedef          Typedef
   delcommand HiLink
 endif
 
