@@ -91,6 +91,7 @@ import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadRemoteNamespace (..),
     ReadShareRemoteNamespace (..),
+    ShareUserHandle (..),
     WriteGitRemotePath (..),
     WriteGitRepo,
     WriteRemotePath (..),
@@ -179,7 +180,7 @@ import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
+import qualified Unison.Sync.Types as Share
 import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toText, unsafeFromString)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Name as Name (toString, toVar, unsafeFromString, unsafeFromVar)
@@ -1985,7 +1986,7 @@ handlePushToUnisonShare :: WriteShareRemotePath -> Path.Absolute -> PushBehavior
 handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
-  let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
+  let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
   ensureAuthenticatedWithCodeserver codeserver
 
   -- doesn't handle the case where a non-existent path is supplied
@@ -2288,7 +2289,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
   when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
-  let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
+  let shareFlavoredPath = Share.Path (shareUserHandleToText repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
   Cli.Env {codebase} <- ask
   causalHash <-
     Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
@@ -2644,7 +2645,7 @@ doFetchCompiler =
     ns =
       ReadShareRemoteNamespace
         { server = RemoteRepo.DefaultCodeserver,
-          repo = "dolio",
+          repo = ShareUserHandle "dolio",
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }

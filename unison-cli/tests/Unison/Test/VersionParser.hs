@@ -30,7 +30,7 @@ makeTest (version, path) =
       ( Just
           ( ReadShareRemoteNamespace
               { server = DefaultCodeserver,
-                repo = "unison",
+                repo = ShareUserHandle "unison",
                 path = Path.fromList ["public", "base"] <> Path.fromText path
               }
           )
