@@ -163,7 +163,7 @@ componentFromLength h size = Set.fromList [Id h i | i <- [0 .. size - 1]]
 derivedBase32Hex :: Text -> Pos -> Reference
 derivedBase32Hex b32Hex i = DerivedId (Id (fromMaybe msg h) i)
   where
-    msg = error $ "Reference.derivedBase32Hex " <> show h
+    msg = error $ "Reference.derivedBase32Hex Invalid base32HexText: " <> show (b32Hex)
     h = H.fromBase32HexText b32Hex
 
 unsafeFromText :: Text -> Reference
