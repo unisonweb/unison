@@ -143,7 +143,7 @@ match = do
 matchCases1 :: Var v => L.Token () -> P v (NonEmpty (Int, Term.MatchCase Ann (Term v Ann)))
 matchCases1 start = do
   cases <-
-    sepBy1 semi matchCase
+    sepBy semi matchCase
       <&> \cases -> [(n, c) | (n, cs) <- cases, c <- cs]
   case cases of
     [] -> P.customFailure (EmptyMatch start)
@@ -168,14 +168,20 @@ matchCase = do
         pats -> foldr pair (unit (ann . last $ pats)) pats
       unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRef 0) []
       pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2]
-  guardsAndBlocks <- some $ do
-    guard <-
-      asum
-        [ Nothing <$ P.try (reserved "|" *> quasikeyword "otherwise"),
-          optional $ reserved "|" *> infixAppOrBooleanOp
-        ]
-    t <- block "->"
-    pure (guard, t)
+  let guardedBlocks = some $ do
+        reserved "|"
+        guard <-
+          asum
+            [ Nothing <$ P.try (quasikeyword "otherwise"),
+              Just <$> infixAppOrBooleanOp
+            ]
+        t <- block "->"
+        pure (guard, t)
+  let unguardedBlock = do
+        t <- block "->"
+        pure (Nothing, t)
+  -- a pattern's RHS is either one or more guards, or a single unguarded block.
+  guardsAndBlocks <- guardedBlocks <|> (pure @[] <$> unguardedBlock)
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
   let mk (guard, t) = Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t)
   pure $ (length pats, mk <$> guardsAndBlocks)

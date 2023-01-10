@@ -108,7 +108,8 @@ data Error v
   | UnknownType (L.Token (HQ.HashQualified Name)) (Set Reference)
   | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
-  | EmptyMatch (L.Token ())
+  | -- Indicates a cases or match/with which doesn't have any patterns
+    EmptyMatch (L.Token ())
   | EmptyWatch Ann
   | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
   | UseEmpty (L.Token String) -- an empty `use` statement
