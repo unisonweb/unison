@@ -103,13 +103,13 @@ if version >= 508 || !exists("did_u_syntax_inits")
   endif
    
    HiLink       uWatch                           Debug
-   HiLink       uDocMono                         uDelimiter
-   HiLink       unisonDocDirective               uImport
-   HiLink       unisonDocQuote                   uDelimiter
-   HiLink       unisonDocCode                    uDelimiter
+   HiLink       uDocMono                         Delimiter
+   HiLink       unisonDocDirective               Import
+   HiLink       unisonDocQuote                   Delimiter
+   HiLink       unisonDocCode                    Delimiter
    HiLink       unisonDoc                        String
    HiLink       uBelowFold                       Comment
-   HiLink       uBlockComment                    uComment
+   HiLink       uBlockComment                    Comment
    HiLink       uBoolean                         Boolean
    HiLink       uCharacter                       Character
    HiLink       uComment                         Comment
@@ -118,12 +118,12 @@ if version >= 508 || !exists("did_u_syntax_inits")
    HiLink       uDebug                           Debug
    HiLink       uDelimiter                       Delimiter
    HiLink       uDocBlock                        String
-   HiLink       uDocDirective                    uImport
-   HiLink       uDocIncluded                     uImport
+   HiLink       uDocDirective                    Import
+   HiLink       uDocIncluded                     Import
    HiLink       uFloat                           Float
    HiLink       uImport                          Include
-   HiLink       uLineComment                     uComment
-   HiLink       uLink                            uType
+   HiLink       uLineComment                     Comment
+   HiLink       uLink                            Type
    HiLink       uName                            Identifier
    HiLink       uNumber                          Number
    HiLink       uOperator                        Operator
