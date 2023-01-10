@@ -168,7 +168,7 @@ matchCase = do
         pats -> foldr pair (unit (ann . last $ pats)) pats
       unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRef 0) []
       pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2]
-  guardsAndBlocks <- many $ do
+  guardsAndBlocks <- some $ do
     guard <-
       asum
         [ Nothing <$ P.try (reserved "|" *> quasikeyword "otherwise"),
