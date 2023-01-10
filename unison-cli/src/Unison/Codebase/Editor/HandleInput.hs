@@ -37,7 +37,7 @@ import System.Directory
   )
 import System.Environment (withArgs)
 import System.FilePath ((</>))
-import System.Process (callCommand, readCreateProcess, shell)
+import System.Process (callProcess, readCreateProcess, shell)
 import qualified Text.Megaparsec as P
 import qualified U.Codebase.Branch.Diff as V2Branch
 import qualified U.Codebase.Causal as V2Causal
@@ -1185,7 +1185,7 @@ loop e = do
               whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
                 Cli.returnEarly (EvaluationFailure err)
             CompileSchemeI output main -> doCompileScheme output main
-            ExecuteSchemeI main -> doRunAsScheme main
+            ExecuteSchemeI main args -> doRunAsScheme main args
             GenSchemeLibsI -> doGenerateSchemeBoot True Nothing
             FetchSchemeCompilerI -> doFetchCompiler
             IOTestI main -> handleIOTest main
@@ -1523,7 +1523,12 @@ inputDescription input =
     MergeBuiltinsI -> pure "builtins.merge"
     MergeIOBuiltinsI -> pure "builtins.mergeio"
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
-    ExecuteSchemeI nm -> pure ("run.native " <> HQ.toText nm)
+    ExecuteSchemeI nm args ->
+      pure $
+        "run.native "
+          <> HQ.toText nm
+          <> " "
+          <> Text.unwords (fmap Text.pack args)
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
     GenSchemeLibsI -> pure "compile.native.genlibs"
     FetchSchemeCompilerI -> pure "compile.native.fetch"
@@ -2749,18 +2754,18 @@ ensureSchemeExists =
         (True <$ readCreateProcess (shell "scheme -q") "")
         (\(_ :: IOException) -> pure False)
 
-runScheme :: String -> Cli ()
-runScheme file = do
+runScheme :: String -> [String] -> Cli ()
+runScheme file args0 = do
   ensureSchemeExists
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
   let includes = gendir ++ ":" ++ statdir
-      lib = "--libdirs " ++ includes
-      opt = "--optimize-level 3"
-      cmd = "scheme -q " ++ opt ++ " " ++ lib ++ " --script " ++ file
+      lib = ["--libdirs", includes]
+      opt = ["--optimize-level", "3"]
+      args = "-q" : opt ++ lib ++ ["--script", file] ++ args0
   success <-
     liftIO $
-      (True <$ callCommand cmd) `catch` \(_ :: IOException) ->
+      (True <$ callProcess "scheme" args) `catch` \(_ :: IOException) ->
         pure False
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
@@ -2791,17 +2796,17 @@ buildScheme main file = do
           ++ lns gd gen
           ++ [surround file]
 
-doRunAsScheme :: HQ.HashQualified Name -> Cli ()
-doRunAsScheme main = do
-  fullpath <- generateSchemeFile (HQ.toString main) main
-  runScheme fullpath
+doRunAsScheme :: HQ.HashQualified Name -> [String] ->  Cli ()
+doRunAsScheme main args = do
+  fullpath <- generateSchemeFile True (HQ.toString main) main
+  runScheme fullpath args
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
-  generateSchemeFile out main >>= buildScheme out
+  generateSchemeFile False out main >>= buildScheme out
 
-generateSchemeFile :: String -> HQ.HashQualified Name -> Cli String
-generateSchemeFile out main = do
+generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
+generateSchemeFile exec out main = do
   (comp, ppe) <- resolveMainRef main
   ensureCompilerExists
   doGenerateSchemeBoot False $ Just ppe
@@ -2817,7 +2822,7 @@ generateSchemeFile out main = do
       fpc = Term.constructor a fprf
       fp = Term.app a fpc outTm
       tm :: Term Symbol Ann
-      tm = Term.apps' sscm [toCmp, fp]
+      tm = Term.apps' sscm [Term.boolean a exec, toCmp, fp]
   typecheckAndEval ppe tm
   pure fullpath
   where
