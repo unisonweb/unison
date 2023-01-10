@@ -10,7 +10,6 @@ import System.IO.CodePage (withCP65001)
 import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ABT as ABT
 import qualified Unison.Test.ANF as ANF
-import qualified Unison.Test.Cache as Cache
 import qualified Unison.Test.Codebase.Branch as Branch
 import qualified Unison.Test.Codebase.Causal as Causal
 import qualified Unison.Test.Codebase.Path as Path
@@ -36,8 +35,7 @@ import qualified Unison.Test.Var as Var
 test :: Test ()
 test =
   tests
-    [ Cache.test,
-      Term.test,
+    [ Term.test,
       TermParser.test,
       TermPrinter.test,
       Type.test,

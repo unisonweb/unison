@@ -200,7 +200,7 @@ z = 99
   
     z : Nat
 
-.feature2> delete.term x
+.feature2> delete.term.verbose x
 
   Name changes:
   

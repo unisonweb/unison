@@ -2,6 +2,7 @@ module Unison.Codebase.BranchDiff where
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import U.Codebase.HashTags (PatchHash)
 import Unison.Codebase.Branch (Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Metadata as Metadata
@@ -36,14 +37,14 @@ data DiffSlice r = DiffSlice
     taddedMetadata :: Relation3 r Name Metadata.Value,
     tremovedMetadata :: Relation3 r Name Metadata.Value
   }
-  deriving (Show)
+  deriving stock (Generic, Show)
 
 data BranchDiff = BranchDiff
   { termsDiff :: DiffSlice Referent,
     typesDiff :: DiffSlice Reference,
     patchesDiff :: Map Name (DiffType PatchDiff)
   }
-  deriving (Show)
+  deriving stock (Generic, Show)
 
 diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m BranchDiff
 diff0 old new = BranchDiff terms types <$> patchDiff old new
@@ -57,7 +58,7 @@ diff0 old new = BranchDiff terms types <$> patchDiff old new
 
 patchDiff :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Map Name (DiffType PatchDiff))
 patchDiff old new = do
-  let oldDeepEdits, newDeepEdits :: Map Name (Branch.EditHash, m Patch)
+  let oldDeepEdits, newDeepEdits :: Map Name (PatchHash, m Patch)
       oldDeepEdits = Branch.deepEdits' old
       newDeepEdits = Branch.deepEdits' new
   added <- do
@@ -98,22 +99,24 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
       let nc = allNames oldTerms newTerms
           nu = allNamespaceUpdates oldTerms newTerms
        in DiffSlice
-            nu
-            (allAdds nc nu)
-            (allRemoves nc nu)
-            (remainingNameChanges nc)
-            (addedMetadata oldTerms newTerms)
-            (removedMetadata oldTerms newTerms)
+            { tallnamespaceUpdates = nu,
+              talladds = allAdds nc nu,
+              tallremoves = allRemoves nc nu,
+              trenames = remainingNameChanges nc,
+              taddedMetadata = addedMetadata oldTerms newTerms,
+              tremovedMetadata = removedMetadata oldTerms newTerms
+            }
     typesOut =
       let nc = allNames oldTypes newTypes
           nu = allNamespaceUpdates oldTypes newTypes
        in DiffSlice
-            nu
-            (allAdds nc nu)
-            (allRemoves nc nu)
-            (remainingNameChanges nc)
-            (addedMetadata oldTypes newTypes)
-            (removedMetadata oldTypes newTypes)
+            { tallnamespaceUpdates = nu,
+              talladds = allAdds nc nu,
+              tallremoves = allRemoves nc nu,
+              trenames = remainingNameChanges nc,
+              taddedMetadata = addedMetadata oldTypes newTypes,
+              tremovedMetadata = removedMetadata oldTypes newTypes
+            }
 
     allNames :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map r (Set Name, Set Name)
     allNames old new = R.outerJoinDomMultimaps (names old) (names new)

@@ -6,7 +6,7 @@ First, let's make sure it complains when we try to delete a name that doesn't
 exist.
 
 ```ucm
-.> delete foo
+.> delete.verbose foo
 
   ⚠️
   
@@ -29,7 +29,7 @@ structural type Foo = Foo ()
     structural type Foo
     foo : Nat
 
-.> delete foo
+.> delete.verbose foo
 
   Removed definitions:
   
@@ -37,7 +37,7 @@ structural type Foo = Foo ()
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
-.> delete Foo
+.> delete.verbose Foo
 
   Removed definitions:
   
@@ -45,7 +45,7 @@ structural type Foo = Foo ()
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
-.> delete Foo.Foo
+.> delete.verbose Foo.Foo
 
   Removed definitions:
   
@@ -104,7 +104,7 @@ foo = 2
 A delete should remove both versions of the term.
 
 ```ucm
-.a> delete foo
+.a> delete.verbose foo
 
   Removed definitions:
   
@@ -177,7 +177,7 @@ structural type Foo = Foo
 
 ```
 ```ucm
-.a> delete Foo
+.a> delete.verbose Foo
 
   Removed definitions:
   
@@ -194,7 +194,7 @@ structural type Foo = Foo
 
 ```
 ```ucm
-.a> delete Foo.Foo
+.a> delete.verbose Foo.Foo
 
   Removed definitions:
   
@@ -227,7 +227,7 @@ structural type foo = Foo ()
 
 ```
 ```ucm
-.> delete foo
+.> delete.verbose foo
 
   Removed definitions:
   

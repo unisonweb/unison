@@ -17,16 +17,22 @@ source-repository head
 
 library
   exposed-modules:
+      U.Util.Text
       Unison.Debug
       Unison.Prelude
+      Unison.Util.Alternative
+      Unison.Util.Lens
       Unison.Util.Map
       Unison.Util.Monoid
       Unison.Util.Set
+      Unison.Util.Timing
   hs-source-dirs:
       src
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
+      ConstraintKinds
       DeriveFunctor
       DerivingStrategies
       DoAndIfThenElse
@@ -50,6 +56,7 @@ library
     , pretty-simple
     , safe
     , text
+    , time
     , transformers
     , unliftio
     , vector

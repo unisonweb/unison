@@ -57,7 +57,7 @@ import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Map as Map
 import qualified Data.RFC5051 as RFC5051
 import qualified Data.Set as Set
-import Unison.Name.Internal (Name (..))
+import Unison.Name.Internal
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Position (Position (..))
@@ -169,14 +169,6 @@ stripReversedPrefix (Name p segs) suffix = do
   stripped <- List.stripSuffix suffix (toList segs)
   nonEmptyStripped <- List.NonEmpty.nonEmpty stripped
   pure $ Name p nonEmptyStripped
-
--- | Is this name absolute?
---
--- /O(1)/.
-isAbsolute :: Name -> Bool
-isAbsolute = \case
-  Name Absolute _ -> True
-  Name Relative _ -> False
 
 -- | @isPrefixOf x y@ returns whether @x@ is a prefix of (or equivalent to) @y@, which is false if one name is relative
 -- and the other is absolute.
@@ -320,16 +312,6 @@ searchByRankedSuffix suffix rel = case searchBySuffix suffix rel of
       minLibs [] = 0
       minLibs ns = minimum (map libCount ns)
       ok name = compareSuffix suffix name == EQ
-
--- | Return the name segments of a name.
---
--- >>> segments "a.b.c"
--- "a" :| ["b", "c"]
---
--- /O(n)/, where /n/ is the number of name segments.
-segments :: Name -> NonEmpty NameSegment
-segments (Name _ ss) =
-  List.NonEmpty.reverse ss
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as =

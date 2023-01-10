@@ -21,10 +21,10 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Vector.Primitive as BA
 import Data.Word (Word64, Word8)
 import GHC.Exts as IL (IsList (..))
-import qualified U.Util.Hash as Hash
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.Hash (Hash)
+import qualified Unison.Hash as Hash
 import Unison.Reference (Id (..), Reference (..), pattern Derived)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Exception

@@ -1,9 +1,6 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
   ( migrateSchema1To2,
@@ -56,7 +53,6 @@ import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WK
-import U.Util.Monoid (foldMapM)
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Hashing
@@ -67,7 +63,7 @@ import qualified Unison.DataDeclaration as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Unison
-import qualified Unison.Hashing.V2.Causal as Hashing
+import qualified Unison.Hashing.V2 as Hashing
 import qualified Unison.Hashing.V2.Convert as Convert
 import Unison.Parser.Ann (Ann)
 import Unison.Pattern (Pattern)
@@ -81,6 +77,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
+import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
 import Prelude hiding (log)
 
@@ -236,20 +233,18 @@ migrateCausal oldCausalHashId = fmap (either id id) . runExceptT $ do
 
   let (newParentHashes, newParentHashIds) =
         oldCausalParentHashIds
-          & fmap
-            (\oldParentHashId -> migratedCausals ^?! ix oldParentHashId)
+          & fmap (\oldParentHashId -> migratedCausals ^?! ix oldParentHashId)
           & unzip
           & bimap (Set.fromList . map unCausalHash) Set.fromList
 
   let newCausalHash :: CausalHash
       newCausalHash =
         CausalHash $
-          Hashing.hashCausal
-            ( Hashing.Causal
-                { branchHash = unBranchHash newBranchHash,
-                  parents = newParentHashes
-                }
-            )
+          Hashing.contentHash
+            Hashing.Causal
+              { branchHash = unBranchHash newBranchHash,
+                parents = newParentHashes
+              }
   newCausalHashId <- lift . lift $ Q.saveCausalHash newCausalHash
   let newCausal =
         DbCausal

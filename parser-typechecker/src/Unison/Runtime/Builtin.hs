@@ -51,7 +51,6 @@ import Data.IORef as SYS
   )
 import qualified Data.Map as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
-import qualified Data.Primitive as PA
 import Data.Set (insert)
 import qualified Data.Set as Set
 import qualified Data.Text
@@ -101,6 +100,7 @@ import System.Environment as SYS
   ( getArgs,
     getEnv,
   )
+import System.FilePath (isPathSeparator)
 import System.IO (Handle)
 import System.IO as SYS
   ( IOMode (..),
@@ -131,6 +131,7 @@ import Unison.Reference
 import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Serialize as ANF
+import qualified Unison.Runtime.Array as PA
 import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
   ( Foreign (Wrap),
@@ -1970,7 +1971,7 @@ declareForeign sand name op func0 = do
           | sanitize,
             Tracked <- sand,
             FF r w _ <- func0 =
-            FF r w (bomb name)
+              FF r w (bomb name)
           | otherwise = func0
         code = (name, (sand, uncurry Lambda (op w)))
      in (w + 1, code : codes, mapInsert w (name, func) funcs)
@@ -2102,13 +2103,15 @@ declareForeigns = do
   declareForeign Tracked "Clock.internals.nsec.v1" boxToNat $
     mkForeign (\n -> pure (fromIntegral $ nsec n :: Word64))
 
+  let chop = reverse . dropWhile isPathSeparator . reverse
+
   declareForeign Tracked "IO.getTempDirectory.impl.v3" unitToEFBox $
-    mkForeignIOF $ \() -> getTemporaryDirectory
+    mkForeignIOF $ \() -> chop <$> getTemporaryDirectory
 
   declareForeign Tracked "IO.createTempDirectory.impl.v3" boxToEFBox $
     mkForeignIOF $ \prefix -> do
       temp <- getTemporaryDirectory
-      createTempDirectory temp prefix
+      chop <$> createTempDirectory temp prefix
 
   declareForeign Tracked "IO.getCurrentDirectory.impl.v3" unitToEFBox
     . mkForeignIOF

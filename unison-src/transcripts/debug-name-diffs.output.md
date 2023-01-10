@@ -37,7 +37,7 @@ structural type a.b.Baz = Boo
     a.x.four  : ##Nat
     a.x.three : ##Nat
 
-.> delete.term a.b.one
+.> delete.term.verbose a.b.one
 
   Removed definitions:
   

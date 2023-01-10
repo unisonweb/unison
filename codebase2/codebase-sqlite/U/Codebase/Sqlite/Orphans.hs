@@ -12,7 +12,7 @@ import U.Codebase.Sqlite.DbId
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WatchKind
 import U.Util.Base32Hex
-import qualified U.Util.Hash as Hash
+import qualified Unison.Hash as Hash
 import Unison.Prelude
 import Unison.Sqlite
 

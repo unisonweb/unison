@@ -440,7 +440,7 @@ This checks to see that squashing correctly preserves deletions:
 
   Done.
 
-.delete> delete.term builtin2.Nat.+
+.delete> delete.term.verbose builtin2.Nat.+
 
   Name changes:
   
@@ -453,7 +453,7 @@ This checks to see that squashing correctly preserves deletions:
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
-.delete> delete.term builtin2.Nat.*
+.delete> delete.term.verbose builtin2.Nat.*
 
   Name changes:
   

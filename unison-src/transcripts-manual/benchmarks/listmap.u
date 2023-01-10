@@ -1,0 +1,3 @@
+
+main = do
+  timeit "List.map" '(range 0 10000 |> List.map (x -> x + 1) |> List.size) 

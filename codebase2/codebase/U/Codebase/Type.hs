@@ -1,27 +1,14 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module U.Codebase.Type where
 
 import qualified Control.Monad.Writer.Strict as Writer
 import Data.Bifunctor (Bifunctor (bimap))
-import Data.Functor (($>))
 import qualified Data.Maybe as Maybe
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Text (Text)
 import U.Codebase.Kind (Kind)
 import U.Codebase.Reference (Reference, Reference')
 import qualified U.Core.ABT as ABT
-import U.Util.Hash (Hash)
+import Unison.Hash (Hash)
+import Unison.Prelude
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | For standalone types, like those in Term.Ann

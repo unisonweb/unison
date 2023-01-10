@@ -8,8 +8,10 @@ import Data.Functor.Identity (Identity (runIdentity))
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
+import qualified Debug.RecoverRTTI as RTTI
 import GHC.Generics (Generic)
 import U.Core.ABT.Var (Var (freshIn))
+import qualified Unison.Debug as Debug
 import Prelude hiding (abs, cycle)
 
 data ABT f v r
@@ -69,12 +71,16 @@ instance
       tag (Cycle _) = 3
 
 instance (forall a. Show a => Show (f a), Show v) => Show (Term f v a) where
-  -- annotations not shown
-  showsPrec p (Term _ _ out) = case out of
-    Var v -> showParen (p >= 9) $ \x -> "Var " ++ show v ++ x
-    Cycle body -> ("Cycle " ++) . showsPrec p body
-    Abs v body -> showParen True $ (show v ++) . showString ". " . showsPrec p body
-    Tm f -> showsPrec p f
+  showsPrec p (Term _ ann out) = case out of
+    Var v -> showParen (p >= 9) $ \x -> showAnn ++ "Var " ++ show v ++ x
+    Cycle body -> (\s -> showAnn ++ "Cycle " ++ s) . showsPrec p body
+    Abs v body -> showParen True $ (\s -> showAnn ++ show v ++ s) . showString ". " . showsPrec p body
+    Tm f -> (showAnn ++) . showsPrec p f
+    where
+      showAnn =
+        if Debug.shouldDebug Debug.Annotations
+          then "(" ++ RTTI.anythingToString ann ++ ")"
+          else ""
 
 amap :: Functor f => (a -> a') -> Term f v a -> Term f v a'
 amap = fmap

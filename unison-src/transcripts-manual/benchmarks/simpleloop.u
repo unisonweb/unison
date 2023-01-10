@@ -1,0 +1,8 @@
+
+-- sum the numbers 1 to a million
+loop acc rem = match rem with
+  0 -> acc
+  _ -> loop (acc + rem) (rem - 1)
+
+main = do
+  timeit "simple_loop" '(loop 0 100000)

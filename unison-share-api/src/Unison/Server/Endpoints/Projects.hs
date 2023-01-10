@@ -1,10 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators #-}
 
 module Unison.Server.Endpoints.Projects where
 
@@ -26,14 +20,13 @@ import Servant.Docs
   )
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
-import qualified U.Util.Hash as Hash
+import U.Codebase.HashTags (CausalHash (..))
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Unison.Hash as Hash
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -111,7 +104,7 @@ backendListEntryToProjectListing owner = \case
       ProjectListing
         { owner = owner,
           name = NameSegment.toText name,
-          hash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash)
+          hash = "#" <> Hash.toBase32HexText (unCausalHash hash)
         }
   _ -> Nothing
 
@@ -141,7 +134,7 @@ serve codebase mayRoot mayOwner = projects
             Just sch -> do
               h <- Backend.expandShortCausalHash sch
               -- TODO: can this ever be missing?
-              causal <- lift $ Codebase.expectCausalBranchByCausalHash (Cv.causalHash1to2 h)
+              causal <- lift $ Codebase.expectCausalBranchByCausalHash h
               lift $ V2Causal.value causal
 
       ownerEntries <- lift $ Backend.lsBranch codebase shallowRootBranch

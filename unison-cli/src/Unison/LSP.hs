@@ -26,7 +26,7 @@ import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Debug as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
-import Unison.LSP.Completion (completionHandler)
+import Unison.LSP.Completion (completionHandler, completionItemResolveHandler)
 import qualified Unison.LSP.Configuration as Config
 import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
@@ -110,15 +110,15 @@ lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext
   -- things to be generated before serving requests.
   checkedFilesVar <- newTVarIO mempty
   dirtyFilesVar <- newTVarIO mempty
-  ppeCacheVar <- newTVarIO PPED.empty
+  ppedCacheVar <- newTVarIO PPED.empty
   parseNamesCacheVar <- newTVarIO mempty
   currentPathCacheVar <- newTVarIO Path.absoluteEmpty
   cancellationMapVar <- newTVarIO mempty
   completionsVar <- newTVarIO mempty
-  let env = Env {ppeCache = readTVarIO ppeCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, ..}
+  let env = Env {ppedCache = readTVarIO ppedCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
-  Ki.fork scope (lspToIO $ ucmWorker ppeCacheVar parseNamesCacheVar latestBranch latestPath)
+  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar parseNamesCacheVar latestBranch latestPath)
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
@@ -137,6 +137,7 @@ lspRequestHandlers =
     & SMM.insert STextDocumentCodeAction (mkHandler codeActionHandler)
     & SMM.insert STextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert STextDocumentCompletion (mkHandler completionHandler)
+    & SMM.insert SCompletionItemResolve (mkHandler completionItemResolveHandler)
   where
     defaultTimeout = 10_000 -- 10s
     mkHandler ::

@@ -33,14 +33,14 @@ usingVFS m = do
   vfsVar' <- asks vfsVar
   modifyMVar vfsVar' $ \vfs -> swap <$> runStateT m vfs
 
-getVirtualFile :: Uri -> Lsp (Maybe VirtualFile)
-getVirtualFile uri = do
+getVirtualFile :: Uri -> MaybeT Lsp VirtualFile
+getVirtualFile fileUri = do
   vfs <- asks vfsVar >>= readMVar
-  pure $ vfs ^. vfsMap . at (toNormalizedUri $ uri)
+  MaybeT . pure $ vfs ^. vfsMap . at (toNormalizedUri $ fileUri)
 
 getFileContents :: Uri -> MaybeT Lsp (FileVersion, Text)
-getFileContents uri = do
-  vf <- MaybeT $ getVirtualFile uri
+getFileContents fileUri = do
+  vf <- getVirtualFile fileUri
   pure (vf ^. lsp_version, Rope.toText $ vf ^. file_text)
 
 vfsLogger :: Colog.LogAction (StateT VFS Lsp) (Colog.WithSeverity VfsLog)
@@ -69,7 +69,7 @@ identifierAtPosition uri pos = do
 -- | Returns the prefix and suffix of the symbol which the provided position is contained in.
 identifierSplitAtPosition :: Uri -> Position -> MaybeT Lsp (Text, Text)
 identifierSplitAtPosition uri pos = do
-  vf <- MaybeT (getVirtualFile uri)
+  vf <- getVirtualFile uri
   PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix pos vf)
   let (before, after) = Text.splitAt (cursorPos ^. character . to fromIntegral) fullLine
   pure (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)

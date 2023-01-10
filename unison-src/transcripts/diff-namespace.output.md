@@ -446,7 +446,7 @@ unique type Y a b = Y a b
 
   Done.
 
-.> delete.term ns2.fromJust'
+.> delete.term.verbose ns2.fromJust'
 
   Name changes:
   

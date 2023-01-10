@@ -35,6 +35,7 @@ import Unison.LSP.Orphans ()
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
+import Unison.Names (Names)
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
@@ -47,8 +48,6 @@ import qualified Unison.Syntax.Lexer as Lexer
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
-import Unison.Util.Relation3 (Relation3)
-import Unison.Util.Relation4 (Relation4)
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
@@ -74,7 +73,7 @@ data Env = Env
     lspContext :: LanguageContextEnv Config,
     codebase :: Codebase IO Symbol Ann,
     parseNamesCache :: IO NamesWithHistory,
-    ppeCache :: IO PrettyPrintEnvDecl,
+    ppedCache :: IO PrettyPrintEnvDecl,
     currentPathCache :: IO Path.Absolute,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
@@ -128,22 +127,26 @@ data FileAnalysis = FileAnalysis
 -- If the file typechecked then all the Ref Ids and types will be filled in, otherwise
 -- they will be Nothing.
 data FileSummary = FileSummary
-  { dataDeclSummary :: Relation3 Symbol Reference.Id (DD.DataDeclaration Symbol Ann),
-    effectDeclSummary :: Relation3 Symbol Reference.Id (DD.EffectDeclaration Symbol Ann),
-    termSummary :: Relation4 Symbol (Maybe Reference.Id) (Term Symbol Ann) (Maybe (Type Symbol Ann)),
+  { dataDeclsBySymbol :: Map Symbol (Reference.Id, DD.DataDeclaration Symbol Ann),
+    dataDeclsByReference :: Map Reference.Id (Map Symbol (DD.DataDeclaration Symbol Ann)),
+    effectDeclsBySymbol :: Map Symbol (Reference.Id, DD.EffectDeclaration Symbol Ann),
+    effectDeclsByReference :: Map Reference.Id (Map Symbol (DD.EffectDeclaration Symbol Ann)),
+    termsBySymbol :: Map Symbol (Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
+    termsByReference :: Map (Maybe Reference.Id) (Map Symbol (Term Symbol Ann, Maybe (Type Symbol Ann))),
     testWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
-    exprWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))]
+    exprWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
+    fileNames :: Names
   }
   deriving stock (Show)
 
 getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO
 
-getCompletions :: Lsp CompletionTree
-getCompletions = asks completionsVar >>= readTVarIO
+getCodebaseCompletions :: Lsp CompletionTree
+getCodebaseCompletions = asks completionsVar >>= readTVarIO
 
-globalPPE :: Lsp PrettyPrintEnvDecl
-globalPPE = asks ppeCache >>= liftIO
+globalPPED :: Lsp PrettyPrintEnvDecl
+globalPPED = asks ppedCache >>= liftIO
 
 getParseNames :: Lsp NamesWithHistory
 getParseNames = asks parseNamesCache >>= liftIO

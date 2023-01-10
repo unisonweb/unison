@@ -12,8 +12,6 @@ module Unison.Codebase.Branch
     Raw,
     Star,
     NamespaceHash,
-    CausalHash,
-    EditHash,
 
     -- * Branch construction
     branch0,
@@ -94,12 +92,11 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.These (These (..))
 import U.Codebase.Branch.Type (NamespaceStats (..))
+import U.Codebase.HashTags (PatchHash (..))
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0 (..),
-    CausalHash (..),
-    EditHash,
     NamespaceHash,
     Star,
     UnwrappedBranch,
@@ -116,8 +113,8 @@ import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Patch as Patch
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Hashing.V2 as Hashing (ContentAddressable (contentHash))
 import qualified Unison.Hashing.V2.Convert as H
-import qualified Unison.Hashing.V2.Hashable as H
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment)
@@ -139,8 +136,8 @@ instance AsEmpty (Branch m) where
         | b0 == empty = Just ()
         | otherwise = Nothing
 
-instance H.Hashable (Branch0 m) where
-  hash = H.hashBranch0
+instance Hashing.ContentAddressable (Branch0 m) where
+  contentHash = H.hashBranch0
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
@@ -189,7 +186,7 @@ branch0 ::
   Metadata.Star Referent NameSegment ->
   Metadata.Star TypeReference NameSegment ->
   Map NameSegment (Branch m) ->
-  Map NameSegment (EditHash, m Patch) ->
+  Map NameSegment (PatchHash, m Patch) ->
   Branch0 m
 branch0 terms types children edits =
   Branch0
@@ -330,13 +327,13 @@ deriveDeepEdits :: forall m. Branch0 m -> Branch0 m
 deriveDeepEdits branch =
   branch {deepEdits = makeDeepEdits branch}
   where
-    makeDeepEdits :: Branch0 m -> Map Name EditHash
+    makeDeepEdits :: Branch0 m -> Map Name PatchHash
     makeDeepEdits branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
       where
-        go :: (Seq (DeepChildAcc m)) -> Map Name EditHash -> DeepState m (Map Name EditHash)
+        go :: (Seq (DeepChildAcc m)) -> Map Name PatchHash -> DeepState m (Map Name PatchHash)
         go Seq.Empty acc = pure acc
         go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
-          let edits :: Map Name EditHash
+          let edits :: Map Name PatchHash
               edits =
                 Map.mapKeysMonotonic
                   (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
@@ -378,16 +375,16 @@ head_ :: Lens' (Branch m) (Branch0 m)
 head_ = history . Causal.head_
 
 -- | a version of `deepEdits` that returns the `m Patch` as well.
-deepEdits' :: Branch0 m -> Map Name (EditHash, m Patch)
+deepEdits' :: Branch0 m -> Map Name (PatchHash, m Patch)
 deepEdits' = go id
   where
     -- can change this to an actual prefix once Name is a [NameSegment]
-    go :: (Name -> Name) -> Branch0 m -> Map Name (EditHash, m Patch)
+    go :: (Name -> Name) -> Branch0 m -> Map Name (PatchHash, m Patch)
     go addPrefix Branch0 {_children, _edits} =
       Map.mapKeys (addPrefix . Name.fromSegment) _edits
         <> foldMap f (Map.toList _children)
       where
-        f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
+        f :: (NameSegment, Branch m) -> Map Name (PatchHash, m Patch)
         f (c, b) = go (addPrefix . Name.cons c) (head b)
 
 -- | Discards the history of a Branch0's children, recursively
@@ -555,10 +552,10 @@ modifyPatches seg f = mapMOf edits update
         Nothing -> pure $ f Patch.empty
         Just (_, p) -> f <$> p
       let h = H.hashPatch p'
-      pure $ Map.insert seg (h, pure p') m
+      pure $ Map.insert seg (PatchHash h, pure p') m
 
 replacePatch :: Applicative m => NameSegment -> Patch -> Branch0 m -> Branch0 m
-replacePatch n p = over edits (Map.insert n (H.hashPatch p, pure p))
+replacePatch n p = over edits (Map.insert n (PatchHash (H.hashPatch p), pure p))
 
 deletePatch :: NameSegment -> Branch0 m -> Branch0 m
 deletePatch n = over edits (Map.delete n)

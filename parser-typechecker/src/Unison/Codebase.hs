@@ -118,10 +118,10 @@ import qualified Data.Set as Set
 import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Referent as V2
 import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified U.Codebase.Sqlite.Queries as Queries
-import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Terms as Builtin
 import Unison.Codebase.Branch (Branch)
@@ -165,6 +165,7 @@ import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
+import Unison.Util.Timing (time)
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 
@@ -175,7 +176,7 @@ runTransaction Codebase {withConnection} action =
 
 getShallowCausalFromRoot ::
   -- Optional root branch, if Nothing use the codebase's root branch.
-  Maybe V2.CausalHash ->
+  Maybe CausalHash ->
   Path.Path ->
   Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
 getShallowCausalFromRoot mayRootHash p = do
@@ -207,9 +208,9 @@ getShallowCausalAtPath path mayCausal = do
   causal <- whenNothing mayCausal getShallowRootCausal
   case path of
     Path.Empty -> pure causal
-    (ns Path.:< p) -> do
+    ns Path.:< p -> do
       b <- V2Causal.value causal
-      case (V2Branch.childAt (Cv.namesegment1to2 ns) b) of
+      case V2Branch.childAt ns b of
         Nothing -> pure (Cv.causalbranch1to2 Branch.empty)
         Just childCausal -> getShallowCausalAtPath p (Just childCausal)
 
@@ -223,15 +224,15 @@ getShallowBranchAtPath path mayBranch = do
   branch <- whenNothing mayBranch (getShallowRootCausal >>= V2Causal.value)
   case path of
     Path.Empty -> pure branch
-    (ns Path.:< p) -> do
-      case (V2Branch.childAt (Cv.namesegment1to2 ns) branch) of
+    ns Path.:< p -> do
+      case V2Branch.childAt ns branch of
         Nothing -> pure V2Branch.empty
         Just childCausal -> do
           childBranch <- V2Causal.value childCausal
           getShallowBranchAtPath p (Just childBranch)
 
 -- | Get a branch from the codebase.
-getBranchForHash :: Monad m => Codebase m v a -> Branch.CausalHash -> m (Maybe (Branch m))
+getBranchForHash :: Monad m => Codebase m v a -> CausalHash -> m (Maybe (Branch m))
 getBranchForHash codebase h =
   -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
   -- If not found, attempt to find it in the Codebase (sqlite)
@@ -270,7 +271,7 @@ lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = do
       eb2 <- SqliteCodebase.Operations.branchExists h2
       if eb1 && eb2
         then do
-          SqliteCodebase.Operations.sqlLca h1 h2 >>= \case
+          Operations.lca h1 h2 >>= \case
             Just h -> pure (getBranchForHash code h)
             Nothing -> pure (pure Nothing) -- no common ancestor
         else pure (Branch.lca b1 b2)
@@ -360,7 +361,7 @@ typeLookupForDependencies codebase s = do
 
 toCodeLookup :: MonadIO m => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
 toCodeLookup c =
-  CL.CodeLookup (getTerm c) (runTransaction c . getTypeDeclaration c)
+  CL.CodeLookup (runTransaction c . getTerm c) (runTransaction c . getTypeDeclaration c)
     <> Builtin.codeLookup
     <> IOSource.codeLookupM
 
@@ -423,7 +424,7 @@ termsOfTypeByReference c r =
     <$> termsOfTypeImpl c r
 
 -- | Get the set of terms-or-constructors mention the given type anywhere in their signature.
-termsMentioningType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
+termsMentioningType :: Var v => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
 termsMentioningType c ty =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByTypeMention)
     . Set.map (fmap Reference.DerivedId)
@@ -499,7 +500,7 @@ unsafeGetComponentLength h =
     Just size -> pure size
 
 -- | Like 'getTerm', for when the term is known to exist in the codebase.
-unsafeGetTerm :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a)
+unsafeGetTerm :: HasCallStack => Codebase m v a -> Reference.Id -> Sqlite.Transaction (Term v a)
 unsafeGetTerm codebase rid =
   getTerm codebase rid >>= \case
     Nothing -> error (reportBug "E520818" ("term " ++ show rid ++ " not found"))
@@ -520,7 +521,7 @@ unsafeGetTypeOfTermById codebase rid =
     Just ty -> pure ty
 
 -- | Like 'unsafeGetTerm', but returns the type of the term, too.
-unsafeGetTermWithType :: (HasCallStack, MonadIO m) => Codebase m v a -> Reference.Id -> m (Term v a, Type v a)
+unsafeGetTermWithType :: HasCallStack => Codebase m v a -> Reference.Id -> Sqlite.Transaction (Term v a, Type v a)
 unsafeGetTermWithType codebase rid = do
   term <- unsafeGetTerm codebase rid
   ty <-
@@ -528,7 +529,7 @@ unsafeGetTermWithType codebase rid = do
     -- inferred type). In this case, we can avoid looking up the type separately.
     case term of
       Term.Ann' _ ty -> pure ty
-      _ -> runTransaction codebase (unsafeGetTypeOfTermById codebase rid)
+      _ -> unsafeGetTypeOfTermById codebase rid
   pure (term, ty)
 
 -- | Like 'getTermComponentWithTypes', for when the term component is known to exist in the codebase.

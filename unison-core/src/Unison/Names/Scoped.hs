@@ -1,12 +1,10 @@
 module Unison.Names.Scoped where
 
 import Unison.Names (Names)
-import qualified Unison.Names as Names
 
 -- | Contains all useful permutations of names scoped to a given branch.
 data ScopedNames = ScopedNames
-  { absoluteExternalNames :: Names,
-    relativeScopedNames :: Names,
+  { relativeScopedNames :: Names,
     absoluteRootNames :: Names
   }
 
@@ -21,4 +19,4 @@ parseNames (ScopedNames {relativeScopedNames, absoluteRootNames}) = relativeScop
 -- | Includes includes relative names for anything in the path, and absolute names for
 -- everything else.
 prettyNames :: ScopedNames -> Names
-prettyNames (ScopedNames {relativeScopedNames, absoluteExternalNames}) = relativeScopedNames `Names.unionLeft` absoluteExternalNames
+prettyNames (ScopedNames {relativeScopedNames}) = relativeScopedNames

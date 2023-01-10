@@ -38,5 +38,5 @@ empty :: PrettyPrintEnvDecl
 empty = PrettyPrintEnvDecl PPE.empty PPE.empty
 
 addFallback :: PrettyPrintEnvDecl -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
-addFallback (PrettyPrintEnvDecl unA suffA) (PrettyPrintEnvDecl unB suffB) =
-  PrettyPrintEnvDecl (unA `PPE.addFallback` unB) (suffA `PPE.addFallback` suffB)
+addFallback (PrettyPrintEnvDecl unsuff1 suff1) (PrettyPrintEnvDecl unsuff2 suff2) =
+  PrettyPrintEnvDecl (unsuff1 `PPE.addFallback` unsuff2) (suff1 `PPE.addFallback` suff2)

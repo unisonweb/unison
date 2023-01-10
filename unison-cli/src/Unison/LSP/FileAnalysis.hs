@@ -10,7 +10,6 @@ import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Debug.RecoverRTTI (anythingToString)
 import Language.LSP.Types
@@ -43,11 +42,9 @@ import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPED
 import qualified Unison.PrintError as PrintError
-import qualified Unison.Reference as Reference
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
@@ -56,7 +53,6 @@ import qualified Unison.Syntax.HashQualified' as HQ' (toText)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
-import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Typechecker.Context as Context
@@ -65,11 +61,6 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Util.Relation as R
-import Unison.Util.Relation3 (Relation3)
-import qualified Unison.Util.Relation3 as R3
-import Unison.Util.Relation4 (Relation4)
-import qualified Unison.Util.Relation4 as R4
 import qualified Unison.Var as Var
 import Unison.WatchKind (pattern TestWatch)
 import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
@@ -116,7 +107,7 @@ assertUserSym sym = case sym of
 mkFileSummary :: Maybe (UF.UnisonFile Symbol Ann) -> Maybe (UF.TypecheckedUnisonFile Symbol Ann) -> Maybe FileSummary
 mkFileSummary parsed typechecked = case (parsed, typechecked) of
   (Nothing, Nothing) -> Nothing
-  (_, Just (UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId})) ->
+  (_, Just tf@(UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId})) ->
     let (trms, testWatches, exprWatches) =
           hashTermsId & ifoldMap \sym (ref, wk, trm, typ) ->
             case wk of
@@ -125,13 +116,17 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
               Just _ -> (mempty, mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)])
      in Just $
           FileSummary
-            { dataDeclSummary = map2ToR3 dataDeclarationsId',
-              effectDeclSummary = map2ToR3 effectDeclarationsId',
-              termSummary = termRelation trms,
+            { dataDeclsBySymbol = dataDeclarationsId',
+              dataDeclsByReference = declsRefMap dataDeclarationsId',
+              effectDeclsBySymbol = effectDeclarationsId',
+              effectDeclsByReference = declsRefMap effectDeclarationsId',
+              termsBySymbol = trms,
+              termsByReference = termsRefMap trms,
               testWatchSummary = testWatches,
-              exprWatchSummary = exprWatches
+              exprWatchSummary = exprWatches,
+              fileNames = UF.typecheckedToNames tf
             }
-  (Just UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches}, _) ->
+  (Just uf@(UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches}), _) ->
     let trms =
           terms & foldMap \(sym, trm) ->
             (Map.singleton sym (Nothing, trm, Nothing))
@@ -143,13 +138,27 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
                 _ -> (mempty, [(assertUserSym v, Nothing, trm, Nothing)])
      in Just $
           FileSummary
-            { dataDeclSummary = map2ToR3 dataDeclarationsId,
-              effectDeclSummary = map2ToR3 effectDeclarationsId,
-              termSummary = termRelation trms,
+            { dataDeclsBySymbol = dataDeclarationsId,
+              dataDeclsByReference = declsRefMap dataDeclarationsId,
+              effectDeclsBySymbol = effectDeclarationsId,
+              effectDeclsByReference = declsRefMap effectDeclarationsId,
+              termsBySymbol = trms,
+              termsByReference = termsRefMap trms,
               testWatchSummary = testWatches,
-              exprWatchSummary = exprWatches
+              exprWatchSummary = exprWatches,
+              fileNames = UF.toNames uf
             }
   where
+    declsRefMap :: (Ord v, Ord r) => Map v (r, a) -> Map r (Map v a)
+    declsRefMap m =
+      m & Map.toList
+        & fmap (\(v, (r, a)) -> (r, Map.singleton v a))
+        & Map.fromListWith (<>)
+    termsRefMap :: (Ord v, Ord r) => Map v (r, a, b) -> Map r (Map v (a, b))
+    termsRefMap m =
+      m & Map.toList
+        & fmap (\(v, (r, a, b)) -> (r, Map.singleton v (a, b)))
+        & Map.fromListWith (<>)
     -- Gets the user provided type annotation for a term if there is one.
     -- This type sig will have Ann's within the file if it exists.
     getUserTypeAnnotation :: Symbol -> Maybe (Type Symbol Ann)
@@ -158,37 +167,6 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
       trm <- Prelude.lookup v (terms <> fold watches)
       typ <- Term.getTypeAnnotation trm
       pure typ
-    termRelation :: Map Symbol (Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)) -> Relation4 Symbol (Maybe Reference.Id) (Term Symbol Ann) (Maybe (Type Symbol Ann))
-    termRelation m =
-      m
-        & Map.toList
-        & fmap (\(sym, (ref, trm, typ)) -> (sym, ref, trm, typ))
-        & R4.fromList
-    map2ToR3 :: (Ord k, Ord a, Ord b) => Map k (a, b) -> Relation3 k a b
-    map2ToR3 m =
-      m
-        & Map.toList
-        & fmap (\(k, (a, b)) -> (k, a, b))
-        & R3.fromList
-
--- | Get the location of user defined definitions within the file
-getFileDefLocations :: Uri -> MaybeT Lsp (Map Symbol (Set Ann))
-getFileDefLocations uri = do
-  fileDefLocations <$> getFileSummary uri
-
--- | Compute the location of user defined definitions within the file
-fileDefLocations :: FileSummary -> Map Symbol (Set Ann)
-fileDefLocations FileSummary {dataDeclSummary, effectDeclSummary, testWatchSummary, exprWatchSummary, termSummary} =
-  fold
-    [ fmap (Set.map DD.annotation) . R.domain . R3.d13 $ dataDeclSummary,
-      fmap (Set.map (DD.annotation . DD.toDataDecl)) . R.domain . R3.d13 $ effectDeclSummary,
-      (testWatchSummary <> exprWatchSummary)
-        & foldMap \(maySym, _id, trm, _typ) ->
-          case maySym of
-            Nothing -> mempty
-            Just sym -> Map.singleton sym (Set.singleton $ ABT.annotation trm),
-      fmap (Set.map ABT.annotation) . R.domain . R4.d13 $ termSummary
-    ]
 
 fileAnalysisWorker :: Lsp ()
 fileAnalysisWorker = forever do
@@ -213,8 +191,8 @@ fileAnalysisWorker = forever do
 
 analyseFile :: Foldable f => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText notes = do
-  ppe <- LSP.globalPPE
-  analyseNotes fileUri (PPE.suffixifiedPPE ppe) (Text.unpack srcText) notes
+  pped <- PPED.suffixifiedPPE <$> LSP.globalPPED
+  analyseNotes fileUri pped (Text.unpack srcText) notes
 
 getTokenMap :: [L.Token L.Lexeme] -> IM.IntervalMap Position L.Lexeme
 getTokenMap tokens =
@@ -354,18 +332,18 @@ analyseNotes fileUri ppe src notes = do
     typeHoleReplacementCodeActions diags v typ
       | not (isUserBlank v) = pure []
       | otherwise = do
-          Env {codebase} <- ask
-          ppe <- PPE.suffixifiedPPE <$> globalPPE
-          let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
-          refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
-          forMaybe (toList refs) $ \ref -> runMaybeT $ do
-            hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
-            typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
-            let prettyType = TypePrinter.prettyStr Nothing ppe typ
-            let txtName = HQ'.toText hqNameSuggestion
-            let ranges = (diags ^.. folded . range)
-            let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
-            pure $ includeEdits fileUri txtName ranges rca
+        Env {codebase} <- ask
+        ppe <- PPED.suffixifiedPPE <$> globalPPED
+        let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
+        refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
+        forMaybe (toList refs) $ \ref -> runMaybeT $ do
+          hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
+          typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
+          let prettyType = TypePrinter.prettyStr Nothing ppe typ
+          let txtName = HQ'.toText hqNameSuggestion
+          let ranges = (diags ^.. folded . range)
+          let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
+          pure $ includeEdits fileUri txtName ranges rca
     isUserBlank :: Symbol -> Bool
     isUserBlank v = case Var.typeOf v of
       Var.User name -> Text.isPrefixOf "_" name
@@ -387,13 +365,24 @@ getFileSummary uri = do
   MaybeT . pure $ fileSummary
 
 -- TODO memoize per file
-ppedForFile :: Uri -> Lsp PPE.PrettyPrintEnvDecl
+ppedForFile :: Uri -> Lsp PPED.PrettyPrintEnvDecl
 ppedForFile fileUri = do
-  pped <- globalPPE
   getFileAnalysis fileUri >>= \case
-    Just (FileAnalysis {typecheckedFile = Just tf}) -> do
-      hl <- asks codebase >>= \codebase -> liftIO (Codebase.runTransaction codebase Codebase.hashLength)
+    Just (FileAnalysis {typecheckedFile = tf, parsedFile = uf}) ->
+      ppedForFileHelper uf tf
+    _ -> ppedForFileHelper Nothing Nothing
+
+ppedForFileHelper :: Maybe (UF.UnisonFile Symbol a) -> Maybe (UF.TypecheckedUnisonFile Symbol a) -> Lsp PPED.PrettyPrintEnvDecl
+ppedForFileHelper uf tf = do
+  codebasePPED <- globalPPED
+  hashLen <- asks codebase >>= \codebase -> liftIO (Codebase.runTransaction codebase Codebase.hashLength)
+  pure $ case (uf, tf) of
+    (Nothing, Nothing) -> codebasePPED
+    (_, Just tf) ->
       let fileNames = UF.typecheckedToNames tf
-      let filePPED = PPED.fromNamesDecl hl (NamesWithHistory.fromCurrentNames fileNames)
-      pure (filePPED `PPED.addFallback` pped)
-    _ -> pure pped
+          filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
+       in filePPED `PPED.addFallback` codebasePPED
+    (Just uf, _) ->
+      let fileNames = UF.toNames uf
+          filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
+       in filePPED `PPED.addFallback` codebasePPED

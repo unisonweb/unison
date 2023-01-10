@@ -14,7 +14,6 @@ where
 
 import Control.Lens
 import Control.Monad.Reader
-import qualified Data.Set as Set
 import Language.LSP.Types
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase as Codebase
@@ -41,9 +40,27 @@ import Unison.Term (MatchCase (MatchCase), Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation3 as R3
-import qualified Unison.Util.Relation4 as R4
+
+-- | Returns a reference to whatever the symbol at the given position refers to.
+refAtPosition :: Uri -> Position -> MaybeT Lsp LabeledDependency
+refAtPosition uri pos = do
+  findInTermOrType <|> findInDecl
+  where
+    findInTermOrType :: MaybeT Lsp LabeledDependency
+    findInTermOrType =
+      nodeAtPosition uri pos >>= \case
+        Left term -> hoistMaybe $ refInTerm term
+        Right typ -> hoistMaybe $ fmap TypeReference (refInType typ)
+    findInDecl :: MaybeT Lsp LabeledDependency
+    findInDecl =
+      LD.TypeReference <$> do
+        let uPos = lspToUPos pos
+        (FileSummary {dataDeclsBySymbol, effectDeclsBySymbol}) <- getFileSummary uri
+        ( altMap (hoistMaybe . refInDecl uPos . Right . snd) dataDeclsBySymbol
+            <|> altMap (hoistMaybe . refInDecl uPos . Left . snd) effectDeclsBySymbol
+          )
+    hoistMaybe :: Maybe a -> MaybeT Lsp a
+    hoistMaybe = MaybeT . pure
 
 -- | Gets the type of a reference from either the parsed file or the codebase.
 getTypeOfReferent :: Uri -> Referent -> MaybeT Lsp (Type Symbol Ann)
@@ -51,17 +68,11 @@ getTypeOfReferent fileUri ref = do
   getFromFile <|> getFromCodebase
   where
     getFromFile = do
-      FileSummary {termSummary} <- getFileSummary fileUri
+      FileSummary {termsByReference} <- getFileSummary fileUri
       case ref of
         Referent.Ref (Reference.Builtin {}) -> empty
-        Referent.Ref (Reference.DerivedId termRefId) ->
-          do
-            termSummary
-            & R4.lookupD2 (Just termRefId)
-            & R3.d3s
-            & Set.toList
-            & fmap (MaybeT . pure)
-            & altSum
+        Referent.Ref (Reference.DerivedId termRefId) -> do
+          MaybeT . pure $ (termsByReference ^? ix (Just termRefId) . folded . _2 . _Just)
         Referent.Con (ConstructorReference r0 cid) _type -> do
           case r0 of
             Reference.DerivedId r -> do
@@ -79,35 +90,14 @@ getTypeDeclaration fileUri refId = do
   where
     getFromFile :: MaybeT Lsp (Decl Symbol Ann)
     getFromFile = do
-      FileSummary {dataDeclSummary, effectDeclSummary} <- getFileSummary fileUri
-      let datas = Set.toList . R.ran $ R3.lookupD2 refId dataDeclSummary
-      let effects = Set.toList . R.ran $ R3.lookupD2 refId effectDeclSummary
+      FileSummary {dataDeclsByReference, effectDeclsByReference} <- getFileSummary fileUri
+      let datas = dataDeclsByReference ^.. ix refId . folded
+      let effects = effectDeclsByReference ^.. ix refId . folded
       MaybeT . pure . listToMaybe $ fmap Right datas <> fmap Left effects
 
     getFromCodebase = do
       Env {codebase} <- ask
       MaybeT . liftIO $ Codebase.runTransaction codebase $ Codebase.getTypeDeclaration codebase refId
-
--- | Returns a reference to whatever the symbol at the given position refers to.
-refAtPosition :: Uri -> Position -> MaybeT Lsp LabeledDependency
-refAtPosition uri pos = do
-  findInTermOrType <|> findInDecl
-  where
-    findInTermOrType :: MaybeT Lsp LabeledDependency
-    findInTermOrType =
-      nodeAtPosition uri pos >>= \case
-        Left term -> hoistMaybe $ refInTerm term
-        Right typ -> hoistMaybe $ fmap TypeReference (refInType typ)
-    findInDecl :: MaybeT Lsp LabeledDependency
-    findInDecl =
-      LD.TypeReference <$> do
-        let uPos = lspToUPos pos
-        (FileSummary {dataDeclSummary, effectDeclSummary}) <- getFileSummary uri
-        ( altMap (hoistMaybe . refInDecl uPos . Right) (R3.d3s dataDeclSummary)
-            <|> altMap (hoistMaybe . refInDecl uPos . Left) (R3.d3s effectDeclSummary)
-          )
-    hoistMaybe :: Maybe a -> MaybeT Lsp a
-    hoistMaybe = MaybeT . pure
 
 -- | Returns the reference a given term node refers to, if any.
 refInTerm :: (Term v a -> Maybe LabeledDependency)
@@ -161,38 +151,40 @@ refInType typ = case ABT.out typ of
 -- children contain that position.
 findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (Either (Term Symbol Ann) (Type Symbol Ann))
 findSmallestEnclosingNode pos term
-  | not (ABT.annotation term `Ann.contains` pos) = Nothing
-  | otherwise = (<|> Just (Left term)) $ do
-      case ABT.out term of
-        ABT.Tm f -> case f of
-          Term.Int {} -> Just (Left term)
-          Term.Nat {} -> Just (Left term)
-          Term.Float {} -> Just (Left term)
-          Term.Boolean {} -> Just (Left term)
-          Term.Text {} -> Just (Left term)
-          Term.Char {} -> Just (Left term)
-          Term.Blank {} -> Just (Left term)
-          Term.Ref {} -> Just (Left term)
-          Term.Constructor {} -> Just (Left term)
-          Term.Request {} -> Just (Left term)
-          Term.Handle a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-          Term.App a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-          Term.Ann a typ -> findSmallestEnclosingNode pos a <|> (Right <$> findSmallestEnclosingType pos typ)
-          Term.List xs -> altSum (findSmallestEnclosingNode pos <$> xs)
-          Term.If cond a b -> findSmallestEnclosingNode pos cond <|> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-          Term.And l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
-          Term.Or l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
-          Term.Lam a -> findSmallestEnclosingNode pos a
-          Term.LetRec _isTop xs y -> altSum (findSmallestEnclosingNode pos <$> xs) <|> findSmallestEnclosingNode pos y
-          Term.Let _isTop a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-          Term.Match a cases ->
-            findSmallestEnclosingNode pos a
-              <|> altSum (cases <&> \(MatchCase _pat grd body) -> altSum (findSmallestEnclosingNode pos <$> grd) <|> findSmallestEnclosingNode pos body)
-          Term.TermLink {} -> Just (Left term)
-          Term.TypeLink {} -> Just (Left term)
-        ABT.Var _v -> Just (Left term)
-        ABT.Cycle r -> findSmallestEnclosingNode pos r
-        ABT.Abs _v r -> findSmallestEnclosingNode pos r
+  | annIsFilePosition (ABT.annotation term) && not (ABT.annotation term `Ann.contains` pos) = Nothing
+  | otherwise = do
+    let bestChild = case ABT.out term of
+          ABT.Tm f -> case f of
+            Term.Int {} -> Just (Left term)
+            Term.Nat {} -> Just (Left term)
+            Term.Float {} -> Just (Left term)
+            Term.Boolean {} -> Just (Left term)
+            Term.Text {} -> Just (Left term)
+            Term.Char {} -> Just (Left term)
+            Term.Blank {} -> Just (Left term)
+            Term.Ref {} -> Just (Left term)
+            Term.Constructor {} -> Just (Left term)
+            Term.Request {} -> Just (Left term)
+            Term.Handle a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+            Term.App a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+            Term.Ann a typ -> findSmallestEnclosingNode pos a <|> (Right <$> findSmallestEnclosingType pos typ)
+            Term.List xs -> altSum (findSmallestEnclosingNode pos <$> xs)
+            Term.If cond a b -> findSmallestEnclosingNode pos cond <|> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+            Term.And l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
+            Term.Or l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
+            Term.Lam a -> findSmallestEnclosingNode pos a
+            Term.LetRec _isTop xs y -> altSum (findSmallestEnclosingNode pos <$> xs) <|> findSmallestEnclosingNode pos y
+            Term.Let _isTop a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+            Term.Match a cases ->
+              findSmallestEnclosingNode pos a
+                <|> altSum (cases <&> \(MatchCase _pat grd body) -> altSum (findSmallestEnclosingNode pos <$> grd) <|> findSmallestEnclosingNode pos body)
+            Term.TermLink {} -> Just (Left term)
+            Term.TypeLink {} -> Just (Left term)
+          ABT.Var _v -> Just (Left term)
+          ABT.Cycle r -> findSmallestEnclosingNode pos r
+          ABT.Abs _v r -> findSmallestEnclosingNode pos r
+    let fallback = if annIsFilePosition (ABT.annotation term) then Just (Left term) else Nothing
+    bestChild <|> fallback
 
 -- | Find the the node in a type which contains the specified position, but none of its
 -- children contain that position.
@@ -200,21 +192,23 @@ findSmallestEnclosingNode pos term
 -- that a position references.
 findSmallestEnclosingType :: Pos -> Type Symbol Ann -> Maybe (Type Symbol Ann)
 findSmallestEnclosingType pos typ
-  | not (ABT.annotation typ `Ann.contains` pos) = Nothing
-  | otherwise = (<|> Just typ) $ do
-      case ABT.out typ of
-        ABT.Tm f -> case f of
-          Type.Ref {} -> Just typ
-          Type.Arrow a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
-          Type.Effect a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
-          Type.App a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
-          Type.Forall r -> findSmallestEnclosingType pos r
-          Type.Ann a _kind -> findSmallestEnclosingType pos a
-          Type.Effects es -> altSum (findSmallestEnclosingType pos <$> es)
-          Type.IntroOuter a -> findSmallestEnclosingType pos a
-        ABT.Var _v -> Just typ
-        ABT.Cycle r -> findSmallestEnclosingType pos r
-        ABT.Abs _v r -> findSmallestEnclosingType pos r
+  | annIsFilePosition (ABT.annotation typ) && not (ABT.annotation typ `Ann.contains` pos) = Nothing
+  | otherwise = do
+    let bestChild = case ABT.out typ of
+          ABT.Tm f -> case f of
+            Type.Ref {} -> Just typ
+            Type.Arrow a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
+            Type.Effect a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
+            Type.App a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
+            Type.Forall r -> findSmallestEnclosingType pos r
+            Type.Ann a _kind -> findSmallestEnclosingType pos a
+            Type.Effects es -> altSum (findSmallestEnclosingType pos <$> es)
+            Type.IntroOuter a -> findSmallestEnclosingType pos a
+          ABT.Var _v -> Just typ
+          ABT.Cycle r -> findSmallestEnclosingType pos r
+          ABT.Abs _v r -> findSmallestEnclosingType pos r
+    let fallback = if annIsFilePosition (ABT.annotation typ) then Just typ else Nothing
+    bestChild <|> fallback
 
 -- | Returns the type reference the given position applies to within a Decl, if any.
 --
@@ -232,12 +226,19 @@ refInDecl p (DD.asDataDecl -> dd) =
 -- Does not return Decl nodes.
 nodeAtPosition :: Uri -> Position -> MaybeT Lsp (Either (Term Symbol Ann) (Type Symbol Ann))
 nodeAtPosition uri (lspToUPos -> pos) = do
-  (FileSummary {termSummary, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
-  ( altMap (fmap Right . hoistMaybe . findSmallestEnclosingType pos) (catMaybes . Set.toList $ R4.d4s termSummary)
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) (R4.d3s termSummary)
+  (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
+  let (trms, typs) = termsBySymbol & foldMap \(_ref, trm, mayTyp) -> ([trm], toList mayTyp)
+  ( altMap (fmap Right . hoistMaybe . findSmallestEnclosingType pos) typs
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) trms
       <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) (testWatchSummary ^.. folded . _3)
       <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) (exprWatchSummary ^.. folded . _3)
     )
   where
     hoistMaybe :: Maybe a -> MaybeT Lsp a
     hoistMaybe = MaybeT . pure
+
+annIsFilePosition :: Ann -> Bool
+annIsFilePosition = \case
+  Ann.Intrinsic -> False
+  Ann.External -> False
+  Ann.Ann {} -> True

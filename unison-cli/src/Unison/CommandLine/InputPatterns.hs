@@ -16,7 +16,7 @@ import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
-import Unison.Codebase.Editor.Input (Input)
+import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input)
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
@@ -166,6 +166,24 @@ load =
         [] -> pure $ Input.LoadI Nothing
         [file] -> pure $ Input.LoadI . Just $ file
         _ -> Left (I.help load)
+    )
+
+clear :: InputPattern
+clear =
+  InputPattern
+    "clear"
+    []
+    I.Visible
+    []
+    ( P.wrapColumn2
+        [ ( makeExample' clear,
+            "Clears the screen."
+          )
+        ]
+    )
+    ( \case
+        [] -> pure $ Input.ClearI
+        _ -> Left (I.help clear)
     )
 
 add :: InputPattern
@@ -588,59 +606,55 @@ renameType =
               "`rename.type` takes two arguments, like `rename.type oldname newname`."
     )
 
+deleteGen :: Maybe String -> String -> (Path.HQSplit' -> DeleteTarget) -> InputPattern
+deleteGen suffix target mkTarget =
+  let cmd = maybe "delete" ("delete." <>) suffix
+      info =
+        P.sep
+          " "
+          [ backtick (P.sep " " [P.string cmd, "foo"]),
+            "removes the",
+            P.string target,
+            "name `foo` from the namespace."
+          ]
+      warn =
+        P.sep
+          " "
+          [ backtick (P.string cmd),
+            "takes an argument, like",
+            backtick (P.sep " " [P.string cmd, "name"]) <> "."
+          ]
+   in InputPattern
+        cmd
+        []
+        I.Visible
+        [(OnePlus, exactDefinitionTermQueryArg)]
+        info
+        ( \case
+            [query] -> first fromString $ do
+              p <- Path.parseHQSplit' query
+              pure $ Input.DeleteI (mkTarget p)
+            _ ->
+              Left . P.warnCallout $ P.wrap warn
+        )
+
 delete :: InputPattern
-delete =
-  InputPattern
-    "delete"
-    []
-    I.Visible
-    [(OnePlus, definitionQueryArg)]
-    "`delete foo` removes the term or type name `foo` from the namespace."
-    ( \case
-        [query] -> first fromString $ do
-          p <- Path.parseHQSplit' query
-          pure $ Input.DeleteI p
-        _ ->
-          Left . P.warnCallout $
-            P.wrap
-              "`delete` takes an argument, like `delete name`."
-    )
+delete = deleteGen Nothing "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
+
+deleteVerbose :: InputPattern
+deleteVerbose = deleteGen (Just "verbose") "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
 
 deleteTerm :: InputPattern
-deleteTerm =
-  InputPattern
-    "delete.term"
-    []
-    I.Visible
-    [(OnePlus, exactDefinitionTermQueryArg)]
-    "`delete.term foo` removes the term name `foo` from the namespace."
-    ( \case
-        [query] -> first fromString $ do
-          p <- Path.parseHQSplit' query
-          pure $ Input.DeleteTermI p
-        _ ->
-          Left . P.warnCallout $
-            P.wrap
-              "`delete.term` takes an argument, like `delete.term name`."
-    )
+deleteTerm = deleteGen (Just "term") "term" (DeleteTarget'Term DeleteOutput'NoDiff)
+
+deleteTermVerbose :: InputPattern
+deleteTermVerbose = deleteGen (Just "term.verbose") "term" (DeleteTarget'Term DeleteOutput'Diff)
 
 deleteType :: InputPattern
-deleteType =
-  InputPattern
-    "delete.type"
-    []
-    I.Visible
-    [(OnePlus, exactDefinitionTypeQueryArg)]
-    "`delete.type foo` removes the type name `foo` from the namespace."
-    ( \case
-        [query] -> first fromString $ do
-          p <- Path.parseHQSplit' query
-          pure $ Input.DeleteTypeI p
-        _ ->
-          Left . P.warnCallout $
-            P.wrap
-              "`delete.type` takes an argument, like `delete.type name`."
-    )
+deleteType = deleteGen (Just "type") "type" (DeleteTarget'Type DeleteOutput'NoDiff)
+
+deleteTypeVerbose :: InputPattern
+deleteTypeVerbose = deleteGen (Just "type.verbose") "type" (DeleteTarget'Type DeleteOutput'Diff)
 
 deleteTermReplacementCommand :: String
 deleteTermReplacementCommand = "delete.term-replacement"
@@ -870,10 +884,10 @@ deleteNamespaceParser helpText insistence =
       ["."] ->
         first fromString
           . pure
-          $ Input.DeleteBranchI insistence Nothing
+          $ Input.DeleteI (DeleteTarget'Branch insistence Nothing)
       [p] -> first fromString $ do
         p <- Path.parseSplit' Path.definitionNameSegment p
-        pure . Input.DeleteBranchI insistence $ Just p
+        pure $ Input.DeleteI (DeleteTarget'Branch insistence (Just p))
       _ -> Left helpText
   )
 
@@ -888,7 +902,7 @@ deletePatch =
     ( \case
         [p] -> first fromString $ do
           p <- Path.parseSplit' Path.definitionNameSegment p
-          pure . Input.DeletePatchI $ p
+          pure . Input.DeleteI $ DeleteTarget'Patch p
         _ -> Left (I.help deletePatch)
     )
 
@@ -1011,29 +1025,30 @@ resetRoot =
         _ -> Left (I.help resetRoot)
     )
 
-pullSilent :: InputPattern
-pullSilent =
-  pullImpl "pull.silent" Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
-
 pull :: InputPattern
-pull = pullImpl "pull" Verbosity.Default Input.PullWithHistory ""
+pull =
+  pullImpl "pull" ["pull.silent"] Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
+
+pullVerbose :: InputPattern
+pullVerbose = pullImpl "pull.verbose" [] Verbosity.Verbose Input.PullWithHistory "and lists the merged entities"
 
 pullWithoutHistory :: InputPattern
 pullWithoutHistory =
   pullImpl
     "pull.without-history"
-    Verbosity.Default
+    []
+    Verbosity.Silent
     Input.PullWithoutHistory
     "without including the remote's history. This usually results in smaller codebase sizes."
 
-pullImpl :: String -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
-pullImpl name verbosity pullMode addendum = do
+pullImpl :: String -> [String] -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
+pullImpl name aliases verbosity pullMode addendum = do
   self
   where
     self =
       InputPattern
         name
-        []
+        aliases
         I.Visible
         [(Optional, remoteNamespaceArg), (Optional, namespaceArg)]
         ( P.lines
@@ -1084,7 +1099,7 @@ pullExhaustive =
     ( P.lines
         [ P.wrap $
             "The " <> makeExample' pullExhaustive <> "command can be used in place of"
-              <> makeExample' pull
+              <> makeExample' pullVerbose
               <> "to complete namespaces"
               <> "which were pulled incompletely due to a bug in UCM"
               <> "versions M1l and earlier.  It may be extra slow!"
@@ -1092,15 +1107,15 @@ pullExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
+          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
         [url] -> do
           ns <- parseReadRemoteNamespace "remote-namespace" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
         [url, path] -> do
           ns <- parseReadRemoteNamespace "remote-namespace" url
           p <- first fromString $ Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Default
-        _ -> Left (I.help pull)
+          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
+        _ -> Left (I.help pullVerbose)
     )
 
 debugTabCompletion :: InputPattern
@@ -1541,19 +1556,20 @@ viewReflog =
 edit :: InputPattern
 edit =
   InputPattern
-    "edit"
-    []
-    I.Visible
-    [(OnePlus, definitionQueryArg)]
-    ( P.lines
-        [ "`edit foo` prepends the definition of `foo` to the top of the most "
-            <> "recently saved file.",
-          "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
-        ]
-    )
-    ( fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
-        . traverse parseHashQualifiedName
-    )
+    { patternName = "edit",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(OnePlus, definitionQueryArg)],
+      help =
+        P.lines
+          [ "`edit foo` prepends the definition of `foo` to the top of the most "
+              <> "recently saved file.",
+            "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
+          ],
+      parse =
+        fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
+          . traverse parseHashQualifiedName
+    }
 
 topicNameArg :: ArgumentType
 topicNameArg =
@@ -2088,20 +2104,20 @@ saveExecuteResult =
 ioTest :: InputPattern
 ioTest =
   InputPattern
-    "io.test"
-    ["test.io"]
-    I.Visible
-    [(Required, exactDefinitionTermQueryArg)]
-    ( P.wrapColumn2
-        [ ( "`io.test mytest`",
-            "Runs `!mytest`, where `mytest` is a delayed test that can use the `IO` and `Exception` abilities. Note: `mytest` must already be added to the codebase."
-          )
-        ]
-    )
-    ( \case
+    { patternName = "io.test",
+      aliases = ["test.io"],
+      visibility = I.Visible,
+      argTypes = [(Required, exactDefinitionTermQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ( "`io.test mytest`",
+              "Runs `!mytest`, where `mytest` is a delayed test that can use the `IO` and `Exception` abilities."
+            )
+          ],
+      parse = \case
         [thing] -> fmap Input.IOTestI $ parseHashQualifiedName thing
         _ -> Left $ showPatternHelp ioTest
-    )
+    }
 
 makeStandalone :: InputPattern
 makeStandalone =
@@ -2302,6 +2318,24 @@ printVersion =
         _ -> Left (showPatternHelp printVersion)
     )
 
+diffNamespaceToPatch :: InputPattern
+diffNamespaceToPatch =
+  InputPattern
+    { patternName = "diff.namespace.to-patch",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help = P.wrap "Create a patch from a namespace diff.",
+      parse = \case
+        [branchId1, branchId2, patch] ->
+          mapLeft fromString do
+            branchId1 <- Input.parseBranchId branchId1
+            branchId2 <- Input.parseBranchId branchId2
+            patch <- Path.parseSplit' Path.definitionNameSegment patch
+            pure (Input.DiffNamespaceToPatchI Input.DiffNamespaceToPatchInput {branchId1, branchId2, patch})
+        _ -> Left (showPatternHelp diffNamespaceToPatch)
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2309,12 +2343,14 @@ validInputs =
     [ help,
       helpTopics,
       load,
+      clear,
       add,
       previewAdd,
       update,
       previewUpdate,
       updateNoPatch,
       delete,
+      deleteVerbose,
       forkLocal,
       mergeLocal,
       squashMerge,
@@ -2325,9 +2361,9 @@ validInputs =
       push,
       pushCreate,
       pushForce,
-      pull,
+      pullVerbose,
       pullWithoutHistory,
-      pullSilent,
+      pull,
       pushExhaustive,
       pullExhaustive,
       createPullRequest,
@@ -2362,9 +2398,11 @@ validInputs =
       edit,
       renameTerm,
       deleteTerm,
+      deleteTermVerbose,
       aliasTerm,
       renameType,
       deleteType,
+      deleteTypeVerbose,
       aliasType,
       aliasMany,
       todo,
@@ -2405,7 +2443,8 @@ validInputs =
       debugNameDiff,
       gist,
       authLogin,
-      printVersion
+      printVersion,
+      diffNamespaceToPatch
     ]
 
 -- | A map of all command patterns by pattern name or alias.

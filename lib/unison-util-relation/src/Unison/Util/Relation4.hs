@@ -55,6 +55,12 @@ fromList xs = insertAll xs empty
 filter :: (Ord a, Ord b, Ord c, Ord d) => ((a, b, c, d) -> Bool) -> Relation4 a b c d -> Relation4 a b c d
 filter f = fromList . Prelude.filter f . toList
 
+memberD13 :: (Ord a, Ord c) => a -> c -> Relation4 a b c d -> Bool
+memberD13 a c r4 =
+  case Map.lookup a (d1 r4) of
+    Nothing -> False
+    Just r3 -> R3.memberD2 c r3
+
 selectD3 ::
   (Ord a, Ord b, Ord c, Ord d) =>
   c ->
