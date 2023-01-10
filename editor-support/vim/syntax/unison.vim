@@ -34,9 +34,12 @@ elseif exists("b:current_syntax")
   finish
 endif
 
+syntax include @markdown $VIMRUNTIME/syntax/markdown.vim
+
+syn cluster markdownLikeDocs contains=markdownBold,markdownItalic,markdownLinkText,markdownListMarker,markdownOrderedListMarker,markdownH1,markdownH2,markdownH3,markdownH4,markdownH5,markdownH6
 
 syn match uOperator "[-!#$%&\*\+/<=>\?@\\^|~]"
-syn match uDelimiter "[\[\[(){},.]"
+syn match uDelimiter "[\[\](){},.]"
 
 " Strings and constants
 syn match   uSpecialChar	contained "\\\([0-9]\+\|o[0-7]\+\|x[0-9a-fA-F]\+\|[\"\\'&\\abfnrtv]\|^[A-Z^_\[\\\]]\)"
@@ -51,7 +54,7 @@ syn match   uFloat		"\<[0-9]\+\.[0-9]\+\([eE][-+]\=[0-9]\+\)\=\>"
 " Keyword definitions. These must be patterns instead of keywords
 " because otherwise they would match as keywords at the start of a
 " "literate" comment (see lu.vim).
-syn match uModule		"\<module\>"
+syn match uModule		"\<namespace\>"
 syn match uImport		"\<use\>"
 syn match uTypedef		"\<\(unique\|structural\|∀\|forall\)\>"
 syn match uStatement		"\<\(ability\|do\|type\|where\|match\|cases\|;\|let\|with\|handle\)\>"
@@ -59,20 +62,26 @@ syn match uConditional		"\<\(if\|else\|then\)\>"
 
 syn match uBoolean "\<\(true\|false\)\>"
 
-syn match uType "\<[A-Z_][A-Za-z_'!]*\>"
-syn match uName "\<[a-z_][A-Za-z_'!]*\>"
+syn match uType "\<\C[A-Z][0-9A-Za-z_'!]*\>"
+syn match uName "\<\C[a-z_][0-9A-Za-z_'!]*\>"
 
 " Comments
 syn match   uLineComment      "---*\([^-!#$%&\*\+./<=>\?@\\^|~].*\)\?$"
 syn region  uBlockComment     start="{-"  end="-}" contains=uBlockComment
-syn region  uPragma	       start="{-#" end="#-}"
-syn region  uBelowFold	       start="^---" skip="." end="." contains=uBelowFold
+syn region  uPragma	      start="{-#" end="#-}"
+syn region  uBelowFold	      start="^---" skip="." end="." contains=uBelowFold
 
 " Docs
-syn region  uDocBlock         start="{{" end="}}" contains=uLink,uDocDirective,uDocIncluded
-syn match   uLink             contained "{[A-Z][a-zA-Z0-9_']*\.[a-z][a-zA-Z0-9_'.]*}"
-syn match   uDocDirective     contained "@\[\([A-Z][a-zA-Z0-9_']*\.\)\=\<[a-z][a-zA-Z0-9_'.]*\>] \(\<[A-Z][a-zA-Z0-9_']*\.\)\=\<[a-z][a-zA-Z0-9_'.]*\>"
-syn match   uDocIncluded      contained "{{[^}]+}}"
+syn region  uDocBlock         matchgroup=unisonDoc start="{{" end="}}" contains=uDocTypecheck,uDocQuasiquote,uDocDirective,uDocCode,uDocCodeInline,uDocCodeRaw,uDocMono,@markdownLikeDocs
+syn region  uDocQuasiquote    contained matchgroup=unisonDocQuote start="{{" end= "}}" contains=TOP
+syn region  uDocCode          contained matchgroup=unisonDocCode start="^\s*```\s*$" end="^\s*```\s*$" contains=TOP
+syn region  uDocTypecheck     contained matchgroup=unisonDocCode start="^\s*@typecheck\s*```\s*$" end="^\s*```\s*$" contains=TOP
+syn region  uDocCodeRaw       contained matchgroup=unisonDocCode start="^\s*```\s*raw\s*$" end="^\s*```\s*$" contains=NoSyntax
+syn region  uDocCodeInline    contained matchgroup=unisonDocCode start="`\@<!``" end="`\@<!``" contains=TOP
+syn match   uDocMono          "''[^']*''"
+syn region  uDocDirective     contained matchgroup=unisonDocDirective start="\(@\([a-zA-Z0-9_']*\)\)\?{{\@!" end="}" contains=TOP
+
+syn match uDebug "\<\(todo\|bug\|Debug.trace\)\>"
 
 " things like 
 "    > my_func 1 3
@@ -80,8 +89,7 @@ syn match   uDocIncluded      contained "{{[^}]+}}"
 "      use Nat == +
 "      ( 99, 100 ) === (withInitialValue 0 do
 "          :      :      :
-
-syn match uDebug "^[A-Za-z]*>.*\(\_s\s*\S[^\n]*\)*" 
+syn match uWatch "^[A-Za-z]*>"
 
 " Define the default highlighting.
 " For version 5.7 and earlier: only when not done already
@@ -93,34 +101,41 @@ if version >= 508 || !exists("did_u_syntax_inits")
   else
     command -nargs=+ HiLink hi def link <args>
   endif
+   
+   HiLink       uWatch                           Debug
+   HiLink       uDocMono                         Delimiter
+   HiLink       unisonDocDirective               Import
+   HiLink       unisonDocQuote                   Delimiter
+   HiLink       unisonDocCode                    Delimiter
+   HiLink       unisonDoc                        String
+   HiLink       uBelowFold                       Comment
+   HiLink       uBlockComment                    Comment
+   HiLink       uBoolean                         Boolean
+   HiLink       uCharacter                       Character
+   HiLink       uComment                         Comment
+   HiLink       uConditional                     Conditional
+   HiLink       uConditional                     Conditional
+   HiLink       uDebug                           Debug
+   HiLink       uDelimiter                       Delimiter
+   HiLink       uDocBlock                        String
+   HiLink       uDocDirective                    Import
+   HiLink       uDocIncluded                     Import
+   HiLink       uFloat                           Float
+   HiLink       uImport                          Include
+   HiLink       uLineComment                     Comment
+   HiLink       uLink                            Type
+   HiLink       uName                            Identifier
+   HiLink       uNumber                          Number
+   HiLink       uOperator                        Operator
+   HiLink       uPragma                          SpecialComment
+   HiLink       uSpecialChar                     SpecialChar
+   HiLink       uSpecialCharError                Error
+   HiLink       uStatement                       Statement
+   HiLink       uString                          String
+   HiLink       uType                            Type
+   HiLink       uTypedef                         Typedef
 
-  HiLink uBelowFold        Comment
-  HiLink uBlockComment     uComment
-  HiLink uBoolean          Boolean
-  HiLink uCharacter        Character
-  HiLink uComment          Comment
-  HiLink uConditional      Conditional
-  HiLink uConditional      Conditional
-  HiLink uDebug            Debug
-  HiLink uDelimiter        Delimiter
-  HiLink uDocBlock         String
-  HiLink uDocDirective     uImport
-  HiLink uDocIncluded      uImport
-  HiLink uFloat            Float
-  HiLink uImport           Include
-  HiLink uLineComment      uComment
-  HiLink uLink             uType
-  HiLink uName             Identifier
-  HiLink uNumber           Number
-  HiLink uOperator         Operator
-  HiLink uPragma           SpecialComment
-  HiLink uSpecialChar      SpecialChar
-  HiLink uSpecialCharError Error
-  HiLink uStatement        Statement
-  HiLink uString           String
-  HiLink uType             Type
-  HiLink uTypedef          Typedef
-  delcommand HiLink
+   delcommand   HiLink
 endif
 
 
