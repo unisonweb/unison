@@ -2762,15 +2762,15 @@ buildScheme main file = do
 
 doRunAsScheme :: HQ.HashQualified Name -> [String] ->  Cli ()
 doRunAsScheme main args = do
-  fullpath <- generateSchemeFile (HQ.toString main) main
+  fullpath <- generateSchemeFile True (HQ.toString main) main
   runScheme fullpath args
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
-  generateSchemeFile out main >>= buildScheme out
+  generateSchemeFile False out main >>= buildScheme out
 
-generateSchemeFile :: String -> HQ.HashQualified Name -> Cli String
-generateSchemeFile out main = do
+generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
+generateSchemeFile exec out main = do
   (comp, ppe) <- resolveMainRef main
   ensureCompilerExists
   doGenerateSchemeBoot False $ Just ppe
@@ -2786,7 +2786,7 @@ generateSchemeFile out main = do
       fpc = Term.constructor a fprf
       fp = Term.app a fpc outTm
       tm :: Term Symbol Ann
-      tm = Term.apps' sscm [toCmp, fp]
+      tm = Term.apps' sscm [Term.boolean a exec, toCmp, fp]
   typecheckAndEval ppe tm
   pure fullpath
   where
