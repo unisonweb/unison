@@ -168,7 +168,7 @@ matchCase = do
         pats -> foldr pair (unit (ann . last $ pats)) pats
       unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRef 0) []
       pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2]
-  let guardedBlocks = some $ do
+  let guardedBlocks = label "pattern guard" . some $ do
         reserved "|"
         guard <-
           asum
@@ -177,7 +177,7 @@ matchCase = do
             ]
         t <- block "->"
         pure (guard, t)
-  let unguardedBlock = do
+  let unguardedBlock = label "case match" $ do
         t <- block "->"
         pure (Nothing, t)
   -- a pattern's RHS is either one or more guards, or a single unguarded block.
