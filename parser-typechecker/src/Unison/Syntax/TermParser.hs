@@ -143,7 +143,7 @@ match = do
 matchCases1 :: Var v => L.Token () -> P v (NonEmpty (Int, Term.MatchCase Ann (Term v Ann)))
 matchCases1 start = do
   cases <-
-    sepBy semi matchCase
+    (sepBy semi matchCase)
       <&> \cases -> [(n, c) | (n, cs) <- cases, c <- cs]
   case cases of
     [] -> P.customFailure (EmptyMatch start)
@@ -161,7 +161,7 @@ matchCases1 start = do
 --   (42, x) -> ...
 matchCase :: Var v => P v (Int, [Term.MatchCase Ann (Term v Ann)])
 matchCase = do
-  pats <- sepBy1 (reserved ",") parsePattern
+  pats <- sepBy1 (label "\",\"" $ reserved ",") parsePattern
   let boundVars' = [v | (_, vs) <- pats, (_ann, v) <- vs]
       pat = case fst <$> pats of
         [p] -> p
@@ -187,7 +187,7 @@ matchCase = do
   pure $ (length pats, mk <$> guardsAndBlocks)
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
-parsePattern = root
+parsePattern = label "pattern" root
   where
     root = chainl1 patternCandidates patternInfixApp
     patternCandidates = constructor <|> leaf

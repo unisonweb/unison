@@ -239,7 +239,7 @@ importDotId = queryToken go
 
 -- Consume a virtual semicolon
 semi :: Ord v => P v (L.Token ())
-semi = queryToken go
+semi = label "newline or semicolon" $ queryToken go
   where
     go (L.Semi _) = Just ()
     go _ = Nothing
