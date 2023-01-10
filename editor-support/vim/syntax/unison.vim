@@ -62,8 +62,8 @@ syn match uConditional		"\<\(if\|else\|then\)\>"
 
 syn match uBoolean "\<\(true\|false\)\>"
 
-syn match uType "\<[A-Z_][0-9A-Za-z_'!]*\>"
-syn match uName "\<[a-z_][0-9A-Za-z_'!]*\>"
+syn match uType "\<\C[A-Z][0-9A-Za-z_'!]*\>"
+syn match uName "\<\C[a-z_][0-9A-Za-z_'!]*\>"
 
 " Comments
 syn match   uLineComment      "---*\([^-!#$%&\*\+./<=>\?@\\^|~].*\)\?$"
