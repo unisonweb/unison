@@ -160,11 +160,10 @@ componentFor h as = [(Id h i, a) | (i, a) <- zip [0 ..] as]
 componentFromLength :: H.Hash -> CycleSize -> Set Id
 componentFromLength h size = Set.fromList [Id h i | i <- [0 .. size - 1]]
 
-derivedBase32Hex :: Text -> Pos -> Reference
-derivedBase32Hex b32Hex i = DerivedId (Id (fromMaybe msg h) i)
+derivedBase32Hex :: Text -> Pos -> Maybe Reference
+derivedBase32Hex b32Hex i = mayH <&> \h -> DerivedId (Id h i)
   where
-    msg = error $ "Reference.derivedBase32Hex " <> show h
-    h = H.fromBase32HexText b32Hex
+    mayH = H.fromBase32HexText b32Hex
 
 unsafeFromText :: Text -> Reference
 unsafeFromText = either error id . fromText
@@ -194,18 +193,27 @@ toHash r = idToHash <$> toId r
 -- Right ##Text.take
 --
 -- derived, no cycle
--- >>> fromText "#2tWjVAuc7"
--- Reference.derivedBase32Hex Nothing
+-- >>> fromText "#dqp2oi4iderlrgp2h11sgkff6drk92omo4c84dncfhg9o0jn21cli4lhga72vlchmrb2jk0b3bdc2gie1l06sqdli8ego4q0akm3au8"
+-- Right #dqp2o
 --
 -- derived, part of cycle
--- >>> fromText "#y9ycWkiC1.12345"
--- Reference.derivedBase32Hex Nothing
+-- >>> fromText "#dqp2oi4iderlrgp2h11sgkff6drk92omo4c84dncfhg9o0jn21cli4lhga72vlchmrb2jk0b3bdc2gie1l06sqdli8ego4q0akm3au8.12345"
+-- Right #dqp2o.12345
+--
+-- Errors with 'Left' on invalid hashes
+-- >>> fromText "#invalid_hash.12345"
+-- Left "Invalid hash: \"invalid_hash\""
 fromText :: Text -> Either String Reference
 fromText t = case Text.split (== '#') t of
   [_, "", b] -> Right (Builtin b)
   [_, h] -> case Text.split (== '.') h of
-    [hash] -> Right (derivedBase32Hex hash 0)
-    [hash, suffix] -> derivedBase32Hex hash <$> readSuffix suffix
+    [hash] ->
+      case derivedBase32Hex hash 0 of
+        Nothing -> Left $ "Invalid hash: " <> show hash
+        Just r -> Right r
+    [hash, suffix] -> do
+      pos <- readSuffix suffix
+      maybe (Left $ "Invalid hash: " <> show hash) Right (derivedBase32Hex hash pos)
     _ -> bail
   _ -> bail
   where
