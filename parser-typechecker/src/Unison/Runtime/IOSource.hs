@@ -715,6 +715,7 @@ Pretty.map f p =
     Lit _ t -> Lit () (f t)
     Wrap _ p -> Wrap () (go p)
     OrElse _ p1 p2 -> OrElse () (go p1) (go p2)
+    Table _ xs -> Table () (List.map (List.map go) xs)
     Indent _ i0 iN p -> Indent () (go i0) (go iN) (go p)
     Annotated.Append _ ps -> Annotated.Append () (List.map go ps)
   Pretty (go (Pretty.get p))
