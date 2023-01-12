@@ -26,6 +26,12 @@ Note that this doesn't pose any risk of codebase corruption or cause any known i
 
 If you accept this annoyance, you can enable the LSP server on Windows by exporting the `UNISON_LSP_ENABLED=true` environment variable. 
 
+You can set this persistently in powershell using:
+
+```powershell
+[System.Environment]::SetEnvironmentVariable('UNISON_LSP_ENABLED','true')
+```
+
 See [this issue](https://github.com/unisonweb/unison/issues/3487) for more details.
 
 ### NeoVim
