@@ -1251,7 +1251,7 @@ synthesizeWanted e
       let outputType = existential' l B.Blank outputTypev
       appendContext [existential outputTypev]
       cwant <- checkCases scrutineeType outputType cases
-      pmcStuff e scrutinee scrutineeType cases
+      ensurePatternCoverage e scrutinee scrutineeType cases
       want <- coalesceWanted cwant swant
       ctx <- getContext
       pure $ (apply ctx outputType, want)
@@ -1291,7 +1291,7 @@ instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (Set v) (M v loc)
     put (Set.insert v vs)
     pure v
 
-pmcStuff ::
+ensurePatternCoverage ::
   forall v loc.
   (Ord loc, Var v) =>
   Term v loc ->
@@ -1299,16 +1299,20 @@ pmcStuff ::
   Type v loc ->
   [Term.MatchCase loc (Term v loc)] ->
   MT v loc (Result v loc) ()
-pmcStuff wholeMatch _scrutinee scrutineeType cases = do
+ensurePatternCoverage wholeMatch _scrutinee scrutineeType cases = do
   let matchLoc = ABT.annotation wholeMatch
   scrutineeType <- applyM scrutineeType
-  (redundant, _inaccessible, uncovered) <- flip evalStateT (ABT.freeVars wholeMatch) do
-    checkMatch matchLoc scrutineeType cases
-  let checkUncovered = case Nel.nonEmpty uncovered of
-        Nothing -> pure ()
-        Just xs -> failWith (UncoveredPatterns matchLoc xs)
-      checkRedundant = foldr (\a b -> failWith (RedundantPattern a) *> b) (pure ()) redundant
-  checkUncovered *> checkRedundant
+  case scrutineeType of
+    -- Don't check coverage on ability handlers yet
+    Type.Apps' (Type.Ref' r) _args | r == Type.effectRef -> pure ()
+    _ -> do
+      (redundant, _inaccessible, uncovered) <- flip evalStateT (ABT.freeVars wholeMatch) do
+        checkMatch matchLoc scrutineeType cases
+      let checkUncovered = case Nel.nonEmpty uncovered of
+            Nothing -> pure ()
+            Just xs -> failWith (UncoveredPatterns matchLoc xs)
+          checkRedundant = foldr (\a b -> failWith (RedundantPattern a) *> b) (pure ()) redundant
+      checkUncovered *> checkRedundant
 
 checkCases ::
   (Var v) =>
