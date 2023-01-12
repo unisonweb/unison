@@ -20,6 +20,13 @@ Currently the only supported configuration is to connect to the LSP via a specif
 
 By default the LSP is hosted at `127.0.0.1:5757`, but you can change the port using `UNISON_LSP_PORT=1234`.
 
+Note for Windows users: Due to an outstanding issue with GHC's IO manager on Windows, the LSP is **disabled by default** on Windows machines.
+Enabling the LSP on windows can cause UCM to hang on exit and may require the process to be killed by the operating system or via Ctrl-C.
+Note that this doesn't pose any risk of codebase corruption or cause any known issues, it's simply an annoyance.
+
+If you accept this annoyance, you can enable the LSP server on Windows by exporting the `UNISON_LSP_ENABLED=true` environment variable. 
+
+See [this issue](https://github.com/unisonweb/unison/issues/3487) for more details.
 
 ### NeoVim
 
