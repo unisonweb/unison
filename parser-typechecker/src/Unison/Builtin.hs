@@ -234,6 +234,8 @@ builtinTypesSrc =
     Rename' "STM" "io2.STM",
     B' "Ref" CT.Data,
     B' "Scope" CT.Effect,
+    B' "Ref.Ticket" CT.Data,
+    Rename' "Ref.Ticket" "io2.Ref.Ticket",
     B' "TimeSpec" CT.Data,
     Rename' "TimeSpec" "io2.Clock.internals.TimeSpec",
     B' "ImmutableArray" CT.Data,
@@ -624,7 +626,12 @@ builtinsSrc =
     B "Scope.bytearray" . forall1 "s" $ \s ->
       nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
     B "Scope.bytearrayOf" . forall1 "s" $ \s ->
-      nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s))
+      nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
+    -- TODO make sure ordering of args in these types is |> friendly
+    B "Ref.Ticket.read" . forall1 "a" $ \a -> (tickett a) --> a,
+    B "Ref.ticket" . forall1 "a" $ \a ->  reft iot a --> io (tickett a),
+    B "Ref.compareAndSwap" . forall1 "a" $ \a ->
+      (tickett a) --> a --> reft iot a --> io (tuple [boolean, tickett a])
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -836,6 +843,8 @@ codeBuiltins =
     ("Link.Term.toText", termLink --> text)
   ]
 
+
+
 stmBuiltins :: [(Text, Type)]
 stmBuiltins =
   [ ("TVar.new", forall1 "a" $ \a -> a --> stm (tvar a)),
@@ -917,6 +926,10 @@ scopet s = Type.scopeType () `app` s
 reft :: Type -> Type -> Type
 reft s a = Type.refType () `app` s `app` a
 
+-- TODO consider adding a ticketType to the Type module
+tickett :: Type -> Type
+tickett a = Type.ref () Type.ticketRef `app` a
+
 ibytearrayt :: Type
 ibytearrayt = Type.ibytearrayType ()
 
@@ -972,3 +985,6 @@ pat a = Type.ref () Type.patternRef `app` a
 
 timeSpec :: Type
 timeSpec = Type.ref () Type.timeSpecRef
+
+iot :: Type
+iot = (Type.effects () [Type.builtinIO ()])

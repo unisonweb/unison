@@ -275,6 +275,9 @@ mvarRef, tvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
 
+ticketRef :: Reference
+ticketRef  = Reference.Builtin "Ref.Ticket"
+
 tlsRef :: Reference
 tlsRef = Reference.Builtin "Tls"
 
