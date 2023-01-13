@@ -16,6 +16,7 @@ import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM (TVar)
 import Control.Exception (evaluate)
 import qualified Data.Char as Char
+import Data.Atomics (Ticket)
 import Data.Foldable (toList)
 import Data.IORef (IORef)
 import Data.Primitive.Array as PA
@@ -41,6 +42,7 @@ import Unison.Type
     mbytearrayRef,
     mvarRef,
     refRef,
+    ticketRef,
     tvarRef,
     typeLinkRef,
   )
@@ -429,6 +431,10 @@ instance ForeignConvention (TVar Closure) where
 instance ForeignConvention (IORef Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap refRef)
+
+instance ForeignConvention (Ticket Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap ticketRef)
 
 instance ForeignConvention (SuperGroup Symbol) where
   readForeign = readForeignBuiltin

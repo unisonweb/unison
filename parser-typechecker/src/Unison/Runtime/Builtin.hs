@@ -38,6 +38,7 @@ import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
+import Data.Atomics (Ticket, peekTicket, readForCAS, casIORef)
 import Data.Bits (shiftL, shiftR, (.|.))
 import qualified Data.ByteArray as BA
 import Data.ByteString (hGet, hGetSome, hPut)
@@ -1174,6 +1175,7 @@ inBxIomr arg1 arg2 fm result cont instr =
     . unenum 4 arg2 Ty.fileModeRef fm
     $ TLetD result UN (TFOp instr [arg1, fm]) cont
 
+
 -- Output Shape -- these will represent different ways of translating
 -- the result of a foreign call to a Unison Term
 --
@@ -1185,6 +1187,7 @@ inBxIomr arg1 arg2 fm result cont instr =
 -- All of these functions will take a Var named result containing the
 -- result of the foreign call
 --
+
 outMaybe :: forall v. Var v => v -> v -> ANormal v
 outMaybe maybe result =
   TMatch result . MatchSum $
@@ -1558,6 +1561,19 @@ boxToEFMBox =
       )
   where
     (arg, result, stack1, stack2, stack3, stack4, fail, output) = fresh
+
+-- a -> b -> c -> (Boolean, d)
+boxBoxBoxToBoolBox :: ForeignOp
+boxBoxBoxToBoolBox instr =
+   ([BX, BX, BX],)
+    . TAbss [arg1, arg2, arg3]
+    . TLets Direct [result1, result2] [UN, BX] (TFOp instr [arg1, arg2, arg3])
+    . TLetD unit BX (TCon Ty.unitRef 0 [])
+    . TLetD pair BX (TCon Ty.pairRef 0 [result2, unit])
+    . TLetD boolean BX (boolift result1)
+    $ TCon Ty.pairRef 0 [boolean, pair]
+  where
+    (arg1, arg2, arg3, result1, result2, unit, pair, boolean) = fresh
 
 -- a -> Maybe b
 boxToMaybeBox :: ForeignOp
@@ -2348,6 +2364,13 @@ declareForeigns = do
 
   declareForeign Untracked "Ref.write" boxBoxTo0 . mkForeign $
     \(r :: IORef Closure, c :: Closure) -> writeIORef r c
+
+  declareForeign Tracked "Ref.ticket" boxDirect . mkForeign $ (readForCAS :: IORef Closure -> IO (Ticket Closure))
+
+  declareForeign Tracked "Ref.Ticket.read" boxDirect . mkForeign $ (pure . peekTicket :: Ticket Closure -> IO Closure)
+
+  declareForeign Tracked "Ref.compareAndSwap" boxBoxBoxToBoolBox . mkForeign $
+    \(r :: IORef Closure, t :: Ticket Closure, v :: Closure) -> casIORef r t v
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \( config :: TLS.ClientParams,
