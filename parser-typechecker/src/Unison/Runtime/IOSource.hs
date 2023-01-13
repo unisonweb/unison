@@ -8,7 +8,6 @@ import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import Debug.RecoverRTTI (anythingToString)
 import Text.RawString.QQ (r)
 import qualified Unison.Builtin as Builtin
 import Unison.Codebase.CodeLookup (CodeLookup (..))
