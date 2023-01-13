@@ -69,7 +69,7 @@ desugarPattern typ v0 pat k vs = case pat of
         tpatvars = zipWith (\(v, p) t -> (v, p, t)) patvars contyps
     rest <- foldr (\(v, pat, t) b -> desugarPattern t v pat b) k tpatvars vs
     pure (Grd c rest)
-  As _ _ -> k (v0 : vs)
+  As _ rest -> desugarPattern typ v0 rest k (v0 : vs)
   EffectPure {} -> k vs
   EffectBind {} -> k vs
   SequenceLiteral {} -> handleSequence typ v0 pat k vs
