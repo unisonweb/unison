@@ -628,6 +628,8 @@ builtinsSrc =
     B "Scope.bytearrayOf" . forall1 "s" $ \s ->
       nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
     -- TODO make sure ordering of args in these types is |> friendly
+    -- TODO these aren't renamed, look at `moveUnder` at the end
+    -- TODO create refPromiseBuiltins
     B "Ref.Ticket.read" . forall1 "a" $ \a -> (tickett a) --> a,
     B "Ref.ticket" . forall1 "a" $ \a ->  reft iot a --> io (tickett a),
     B "Ref.compareAndSwap" . forall1 "a" $ \a ->
@@ -756,7 +758,7 @@ ioBuiltins =
     ("IO.delay.impl.v3", nat --> iof unit),
     ("IO.kill.impl.v3", threadId --> iof unit),
     ( "IO.ref",
-      forall1 "a" $ \a ->
+      forall1 "a" $ \a -> -- use iot
         a --> io (reft (Type.effects () [Type.builtinIO ()]) a)
     ),
     ( "validateSandboxed",
@@ -787,21 +789,21 @@ ioBuiltins =
     ("Clock.internals.sec.v1", timeSpec --> int),
     ("Clock.internals.nsec.v1", timeSpec --> nat),
     ( "IO.array",
-      forall1 "a" $ \a ->
+      forall1 "a" $ \a -> -- TODO use iot
         nat --> io (marrayt (Type.effects () [Type.builtinIO ()]) a)
     ),
     ( "IO.arrayOf",
-      forall1 "a" $ \a ->
+      forall1 "a" $ \a -> -- TODO use iot
         a --> nat --> io (marrayt (Type.effects () [Type.builtinIO ()]) a)
     ),
-    ( "IO.bytearray",
+    ( "IO.bytearray", -- TODO use iot
       nat --> io (mbytearrayt (Type.effects () [Type.builtinIO ()]))
     ),
-    ( "IO.bytearrayOf",
+    ( "IO.bytearrayOf", -- TODO iot
       nat --> nat --> io (mbytearrayt (Type.effects () [Type.builtinIO ()]))
     ),
     ( "IO.tryEval",
-      forall1 "a" $ \a ->
+      forall1 "a" $ \a -> -- TODO use iof? or is it different
         (unit --> io a) --> Type.effect () [Type.builtinIO (), DD.exceptionType ()] a
     )
   ]
@@ -910,6 +912,7 @@ a --> b = Type.arrow () a b
 
 infixr 9 -->
 
+-- TODO add iot here
 io, iof :: Type -> Type
 io = Type.effect1 () (Type.builtinIO ())
 iof = io . eithert failure
@@ -926,7 +929,7 @@ scopet s = Type.scopeType () `app` s
 reft :: Type -> Type -> Type
 reft s a = Type.refType () `app` s `app` a
 
--- TODO consider adding a ticketType to the Type module
+-- TODO consider adding a ticketType to the Type module: not really needed, look at how mvar builtins does it
 tickett :: Type -> Type
 tickett a = Type.ref () Type.ticketRef `app` a
 

@@ -44,7 +44,7 @@ namespace. However, we will also add the value:
 ```haskell
 Rename' "MVar" "io2.MVar"
 ```
-
+<!-- TODO checked this, you still do it manually -->
 because this is a type to be used with the new IO functions, which are
 currently nested under the `io2` namespace. With both of these added
 to the list, running `builtins.merge` should have a `builtin.io2.MVar`
@@ -73,6 +73,8 @@ Builtin functions also have an associated type as part of the initial
 declaration. So for the complete specification of a function, we will
 add declarations similar to:
 
+<!-- TODO Document moveUnder? -->
+
 ```haskell
 B "MVar.new" $ forall1 "a" (\a -> a --> io (mvar a))
 Rename "MVar.new" "io2.MVar.new"
@@ -80,12 +82,15 @@ B "MVar.take" $ forall1 "a" (\a -> mvar a --> ioe a)
 Rename "MVar.take" "io2.MVar.take"
 ```
 
+<!-- TODO document iot as well -->
+<!-- TODO ioe is now iof -->
 The `forall1`, `io`, `ioe` and `-->` functions are local definitions
 in `Unison.Builtin` for assistance in writing the types. `ioe`
 indicates that an error result may be returned, while `io` should
 always succeed.  `mvar` can be defined locally using some other
 helpers in scope:
 
+<!-- TODO this has changed to be Type -> Type now -->
 ```haskell
 mvar :: Var v => Type v -> Type v
 mvar a = Type.ref () Type.mvarRef `app` a
@@ -94,7 +99,7 @@ mvar a = Type.ref () Type.mvarRef `app` a
 For the actual `MVar` implementation, we'll be doing many definitions
 followed by renames, so it'll be factored into a list of the name and
 type, together with a function that generates the declaration and the
-rename.
+rename.<!-- TODO Document moveUnder -->
 
 ## Builtin function implementation -- new runtime
 
@@ -128,7 +133,8 @@ than 'any Haskell function,' so the `mkForeign` and `mkForeignIOE`
 helpers assist in wrapping Haskell functions correctly. The latter
 will catch some exceptions and yield them as explicit results.
 
-The wrapper code for these two operations looks like:
+<!-- TODO mkForeignIOE is now mkForeignIOF -->
+The wrapper code for these two operations looks like: <!-- TODO document the naming convention of builders -->
 
 ```haskell
 mvar'new :: ForeignOp
