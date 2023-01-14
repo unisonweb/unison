@@ -1567,7 +1567,7 @@ boxBoxBoxToBoolBox :: ForeignOp
 boxBoxBoxToBoolBox instr =
    ([BX, BX, BX],)
     . TAbss [arg1, arg2, arg3]
-    . TLets Direct [result1, result2] [UN, BX] (TFOp instr [arg1, arg2, arg3])
+    . TLets Direct [result1, result2] [UN, BX] (TFOp instr [arg1, arg2, arg3]) -- TODO Results in a direct compound let and crashes ucm
     . TLetD unit BX (TCon Ty.unitRef 0 [])
     . TLetD pair BX (TCon Ty.pairRef 0 [result2, unit])
     . TLetD boolean BX (boolift result1)
