@@ -236,6 +236,8 @@ builtinTypesSrc =
     B' "Scope" CT.Effect,
     B' "Ref.Ticket" CT.Data,
     Rename' "Ref.Ticket" "io2.Ref.Ticket",
+    B' "Promise" CT.Data,
+    Rename' "Promise" "io2.Promise",
     B' "TimeSpec" CT.Data,
     Rename' "TimeSpec" "io2.Clock.internals.TimeSpec",
     B' "ImmutableArray" CT.Data,
@@ -851,17 +853,21 @@ stmBuiltins =
     ("STM.atomically", forall1 "a" $ \a -> (unit --> stm a) --> io a)
   ]
 
--- TODO make sure ordering of args in these types is |> friendly
--- TODO rename cas operations
 refPromiseBuiltins :: [(Text, Type)]
 refPromiseBuiltins =
-  [ ("Ref.Ticket.read", forall1 "a" $ \a -> (ticket a) --> a),
+  [ ("Ref.Ticket.read", forall1 "a" $ \a -> ticket a --> a),
     ("Ref.ticket", forall1 "a" $ \a ->  reft iot a --> io (ticket a)),
-    ("Ref.cas", forall1 "a" $ \a -> (ticket a) --> a --> reft iot a --> io boolean)
+    ("Ref.cas", forall1 "a" $ \a -> ticket a --> a --> reft iot a --> io boolean),
+    ("Promise.new", forall1 "a" $ \a -> unit --> io (promise a)),
+    ("Promise.read", forall1 "a" $ \a -> promise a --> io a),
+    ("Promise.tryRead", forall1 "a" $ \a -> promise a --> io (optionalt a)),
+    ("Promise.write", forall1 "a" $ \a -> a --> promise a --> io boolean)
   ]
   where
     ticket :: Type -> Type
     ticket a = Type.ref () Type.ticketRef `app` a
+    promise :: Type -> Type
+    promise a = Type.ref () Type.promiseRef `app` a
 
 forall1 :: Text -> (Type -> Type) -> Type
 forall1 name body =
