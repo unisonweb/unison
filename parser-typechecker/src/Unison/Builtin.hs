@@ -752,8 +752,8 @@ ioBuiltins =
     ("IO.delay.impl.v3", nat --> iof unit),
     ("IO.kill.impl.v3", threadId --> iof unit),
     ( "IO.ref",
-      forall1 "a" $ \a -> -- use iot
-        a --> io (reft (Type.effects () [Type.builtinIO ()]) a)
+      forall1 "a" $ \a ->
+        a --> io (reft iot a)
     ),
     ( "validateSandboxed",
       forall1 "a" $ \a -> list termLink --> a --> boolean
@@ -783,21 +783,21 @@ ioBuiltins =
     ("Clock.internals.sec.v1", timeSpec --> int),
     ("Clock.internals.nsec.v1", timeSpec --> nat),
     ( "IO.array",
-      forall1 "a" $ \a -> -- TODO use iot
-        nat --> io (marrayt (Type.effects () [Type.builtinIO ()]) a)
+      forall1 "a" $ \a ->
+        nat --> io (marrayt iot a)
     ),
     ( "IO.arrayOf",
-      forall1 "a" $ \a -> -- TODO use iot
-        a --> nat --> io (marrayt (Type.effects () [Type.builtinIO ()]) a)
+      forall1 "a" $ \a ->
+        a --> nat --> io (marrayt iot a)
     ),
-    ( "IO.bytearray", -- TODO use iot
-      nat --> io (mbytearrayt (Type.effects () [Type.builtinIO ()]))
+    ( "IO.bytearray",
+      nat --> io (mbytearrayt iot)
     ),
-    ( "IO.bytearrayOf", -- TODO iot
-      nat --> nat --> io (mbytearrayt (Type.effects () [Type.builtinIO ()]))
+    ( "IO.bytearrayOf",
+      nat --> nat --> io (mbytearrayt iot)
     ),
     ( "IO.tryEval",
-      forall1 "a" $ \a -> -- TODO use iof? or is it different
+      forall1 "a" $ \a ->
         (unit --> io a) --> Type.effect () [Type.builtinIO (), DD.exceptionType ()] a
     )
   ]
@@ -916,10 +916,11 @@ a --> b = Type.arrow () a b
 
 infixr 9 -->
 
--- TODO add iot here
 io, iof :: Type -> Type
 io = Type.effect1 () (Type.builtinIO ())
 iof = io . eithert failure
+iot :: Type
+iot = (Type.effects () [Type.builtinIO ()])
 
 failure :: Type
 failure = DD.failureType ()
@@ -988,6 +989,3 @@ pat a = Type.ref () Type.patternRef `app` a
 
 timeSpec :: Type
 timeSpec = Type.ref () Type.timeSpecRef
-
-iot :: Type
-iot = (Type.effects () [Type.builtinIO ()])
