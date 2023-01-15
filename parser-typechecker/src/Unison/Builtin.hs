@@ -630,10 +630,11 @@ builtinsSrc =
     -- TODO make sure ordering of args in these types is |> friendly
     -- TODO these aren't renamed, look at `moveUnder` at the end
     -- TODO create refPromiseBuiltins
+    -- TODO rename them
     B "Ref.Ticket.read" . forall1 "a" $ \a -> (tickett a) --> a,
     B "Ref.ticket" . forall1 "a" $ \a ->  reft iot a --> io (tickett a),
     B "Ref.compareAndSwap" . forall1 "a" $ \a ->
-      (tickett a) --> a --> reft iot a --> io (tuple [boolean, tickett a])
+      (tickett a) --> a --> reft iot a --> io boolean
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=

@@ -1133,6 +1133,13 @@ inBxBx arg1 arg2 result cont instr =
     . TAbss [arg1, arg2]
     $ TLetD result UN (TFOp instr [arg1, arg2]) cont
 
+-- a -> b -> c -> ...
+inBxBxBx :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxBxBx arg1 arg2 arg3 result cont instr =
+  ([BX, BX, BX],)
+    . TAbss [arg1, arg2, arg3]
+    $ TLetD result UN (TFOp instr [arg1, arg2, arg3]) cont
+
 set'echo :: ForeignOp
 set'echo instr =
   ([BX, BX],)
@@ -1472,6 +1479,13 @@ boxBoxToBool =
   where
     (arg1, arg2, result) = fresh
 
+-- a -> b -> c -> Bool
+boxBoxBoxToBool :: ForeignOp
+boxBoxBoxToBool =
+  inBxBxBx arg1 arg2 arg3 result $ boolift result
+  where
+    (arg1, arg2, arg3, result) = fresh
+
 -- Nat -> c
 -- Works for an type that's packed into a word, just
 -- pass `wordDirect Ty.natRef`, `wordDirect Ty.floatRef`
@@ -1561,19 +1575,6 @@ boxToEFMBox =
       )
   where
     (arg, result, stack1, stack2, stack3, stack4, fail, output) = fresh
-
--- a -> b -> c -> (Boolean, d)
-boxBoxBoxToBoolBox :: ForeignOp
-boxBoxBoxToBoolBox instr =
-   ([BX, BX, BX],)
-    . TAbss [arg1, arg2, arg3]
-    . TLets Direct [result1, result2] [UN, BX] (TFOp instr [arg1, arg2, arg3]) -- TODO Results in a direct compound let and crashes ucm
-    . TLetD unit BX (TCon Ty.unitRef 0 [])
-    . TLetD pair BX (TCon Ty.pairRef 0 [result2, unit])
-    . TLetD boolean BX (boolift result1)
-    $ TCon Ty.pairRef 0 [boolean, pair]
-  where
-    (arg1, arg2, arg3, result1, result2, unit, pair, boolean) = fresh
 
 -- a -> Maybe b
 boxToMaybeBox :: ForeignOp
@@ -2365,12 +2366,14 @@ declareForeigns = do
   declareForeign Untracked "Ref.write" boxBoxTo0 . mkForeign $
     \(r :: IORef Closure, c :: Closure) -> writeIORef r c
 
-  declareForeign Tracked "Ref.ticket" boxDirect . mkForeign $ (readForCAS :: IORef Closure -> IO (Ticket Closure))
+  declareForeign Tracked "Ref.ticket" boxDirect . mkForeign $
+    \(r :: IORef Closure) -> readForCAS r
 
-  declareForeign Tracked "Ref.Ticket.read" boxDirect . mkForeign $ (pure . peekTicket :: Ticket Closure -> IO Closure)
+  declareForeign Tracked "Ref.Ticket.read" boxDirect . mkForeign $
+    \(t :: Ticket Closure) -> pure $ peekTicket t
 
-  declareForeign Tracked "Ref.compareAndSwap" boxBoxBoxToBoolBox . mkForeign $
-    \(r :: IORef Closure, t :: Ticket Closure, v :: Closure) -> casIORef r t v
+  declareForeign Tracked "Ref.compareAndSwap" boxBoxBoxToBool . mkForeign $
+    \(r :: IORef Closure, t :: Ticket Closure, v :: Closure) -> fmap fst $ casIORef r t v
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \( config :: TLS.ClientParams,
