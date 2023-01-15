@@ -857,7 +857,7 @@ refPromiseBuiltins :: [(Text, Type)]
 refPromiseBuiltins =
   [ ("Ref.Ticket.read", forall1 "a" $ \a -> (ticket a) --> a),
     ("Ref.ticket", forall1 "a" $ \a ->  reft iot a --> io (ticket a)),
-    ("Ref.compareAndSwap", forall1 "a" $ \a -> (ticket a) --> a --> reft iot a --> io boolean)
+    ("Ref.cas", forall1 "a" $ \a -> (ticket a) --> a --> reft iot a --> io boolean)
   ]
   where
     ticket :: Type -> Type

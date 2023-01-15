@@ -2372,7 +2372,7 @@ declareForeigns = do
   declareForeign Tracked "Ref.Ticket.read" boxDirect . mkForeign $
     \(t :: Ticket Closure) -> pure $ peekTicket t
 
-  declareForeign Tracked "Ref.compareAndSwap" boxBoxBoxToBool . mkForeign $
+  declareForeign Tracked "Ref.cas" boxBoxBoxToBool . mkForeign $
     \(r :: IORef Closure, t :: Ticket Closure, v :: Closure) -> fmap fst $ casIORef r t v
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
