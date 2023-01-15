@@ -150,6 +150,8 @@ import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import qualified Unison.Util.Text as Util.Text
 import qualified Unison.Util.Text.Pattern as TPat
+import Unison.Util.Promise (Promise)
+import qualified Unison.Util.Promise as Promise
 import Unison.Var
 
 type Failure = F.Failure Closure
@@ -2394,6 +2396,19 @@ declareForeigns = do
   -- [2]: https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L285
   declareForeign Tracked "Ref.cas" boxBoxBoxToBool . mkForeign $
     \(r :: IORef Closure, t :: Ticket Closure, v :: Closure) -> fmap fst $ casIORef r t v
+
+  declareForeign Tracked "Promise.new" unitDirect . mkForeign $
+    \() -> Promise.new @Closure
+
+  -- the only exceptions from Promise.read are async and shouldn't be caught
+  declareForeign Tracked "Promise.read" boxDirect . mkForeign $
+    \(p :: Promise Closure) -> Promise.read p
+
+  declareForeign Tracked "Promise.tryRead" boxToMaybeBox . mkForeign $
+    \(p :: Promise Closure) -> Promise.tryRead p
+
+  declareForeign Tracked "Promise.write" boxBoxToBool . mkForeign $
+    \(a :: Closure, p :: Promise Closure) -> Promise.write a p
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \( config :: TLS.ClientParams,
