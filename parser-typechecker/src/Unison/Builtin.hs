@@ -626,15 +626,7 @@ builtinsSrc =
     B "Scope.bytearray" . forall1 "s" $ \s ->
       nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
     B "Scope.bytearrayOf" . forall1 "s" $ \s ->
-      nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
-    -- TODO make sure ordering of args in these types is |> friendly
-    -- TODO these aren't renamed, look at `moveUnder` at the end
-    -- TODO create refPromiseBuiltins
-    -- TODO rename them
-    B "Ref.Ticket.read" . forall1 "a" $ \a -> (tickett a) --> a,
-    B "Ref.ticket" . forall1 "a" $ \a ->  reft iot a --> io (tickett a),
-    B "Ref.compareAndSwap" . forall1 "a" $ \a ->
-      (tickett a) --> a --> reft iot a --> io boolean
+      nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s))
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -651,6 +643,7 @@ builtinsSrc =
     ++ moveUnder "io2" ioBuiltins
     ++ moveUnder "io2" mvarBuiltins
     ++ moveUnder "io2" stmBuiltins
+    ++ moveUnder "io2" refPromiseBuiltins
     ++ hashBuiltins
     ++ fmap (uncurry B) codeBuiltins
 
@@ -846,8 +839,6 @@ codeBuiltins =
     ("Link.Term.toText", termLink --> text)
   ]
 
-
-
 stmBuiltins :: [(Text, Type)]
 stmBuiltins =
   [ ("TVar.new", forall1 "a" $ \a -> a --> stm (tvar a)),
@@ -859,6 +850,18 @@ stmBuiltins =
     ("STM.retry", forall1 "a" $ \a -> unit --> stm a),
     ("STM.atomically", forall1 "a" $ \a -> (unit --> stm a) --> io a)
   ]
+
+-- TODO make sure ordering of args in these types is |> friendly
+-- TODO rename cas operations
+refPromiseBuiltins :: [(Text, Type)]
+refPromiseBuiltins =
+  [ ("Ref.Ticket.read", forall1 "a" $ \a -> (ticket a) --> a),
+    ("Ref.ticket", forall1 "a" $ \a ->  reft iot a --> io (ticket a)),
+    ("Ref.compareAndSwap", forall1 "a" $ \a -> (ticket a) --> a --> reft iot a --> io boolean)
+  ]
+  where
+    ticket :: Type -> Type
+    ticket a = Type.ref () Type.ticketRef `app` a
 
 forall1 :: Text -> (Type -> Type) -> Type
 forall1 name body =
@@ -929,10 +932,6 @@ scopet s = Type.scopeType () `app` s
 
 reft :: Type -> Type -> Type
 reft s a = Type.refType () `app` s `app` a
-
--- TODO consider adding a ticketType to the Type module: not really needed, look at how mvar builtins does it
-tickett :: Type -> Type
-tickett a = Type.ref () Type.ticketRef `app` a
 
 ibytearrayt :: Type
 ibytearrayt = Type.ibytearrayType ()
