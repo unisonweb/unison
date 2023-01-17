@@ -31,6 +31,7 @@ hoverHandler m respond =
     results <- MaybeT . fmap eitherToMaybe $ (lspBackend $ Backend.prettyDefinitionsForHQName Path.empty Nothing Nothing (Backend.Suffixify True) rt cb hqIdentifier)
     let termResults = formatTermDefinition <$> toList (Backend.termDefinitions results)
     let typeResults = formatTypeDefinition <$> toList (Backend.typeDefinitions results)
+    guard (not . null $ termResults <> typeResults)
     let markup = Text.intercalate "\n\n---\n\n" $ termResults <> typeResults
     pure $
       Hover
