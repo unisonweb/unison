@@ -121,11 +121,11 @@ structural type B = T | F
 
 blah = cases
   T, x -> "hi"
-  x, F -> "bye"
+  x, y -> "bye"
 
 blorf = cases
   x, T -> x
-  T, x -> x
+  x, y -> y
 
 > blah T F
 > blah F F
@@ -141,7 +141,7 @@ blorf = cases
     ⍟ These new definitions are ok to `add`:
     
       structural type B
-      blah  : B -> B -> Text
+      blah  : B -> hod1jusqau2 -> Text
       blorf : B -> B -> B
   
   Now evaluating any watch expressions (lines starting with

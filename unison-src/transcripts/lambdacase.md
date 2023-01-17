@@ -77,11 +77,11 @@ structural type B = T | F
 
 blah = cases
   T, x -> "hi"
-  x, F -> "bye"
+  x, y -> "bye"
 
 blorf = cases
   x, T -> x
-  T, x -> x
+  x, y -> y
 
 > blah T F
 > blah F F
