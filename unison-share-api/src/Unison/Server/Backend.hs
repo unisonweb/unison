@@ -910,7 +910,7 @@ mkNamesStuff biases shallowRoot path codebase = do
       pure $ (makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly), UsePPED localNamesOnly (PPED.biasTo biases unbiasedPPED))
   where
     sqliteNameSearch :: NameSearch Sqlite.Transaction
-    sqliteNameSearch = undefined
+    sqliteNameSearch = scopedNameSearch path
 
 evalDocRef ::
   Rt.Runtime Symbol ->

@@ -18,20 +18,9 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
+import Unison.Server.NameSearch (NameSearch (..), Search (..))
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Sqlite as Sqlite
-
-data Search m r = Search
-  { lookupNames :: r -> m (Set (HQ'.HashQualified Name)),
-    lookupRelativeHQRefs' :: HQ'.HashQualified Name -> m (Set r),
-    makeResult :: HQ.HashQualified Name -> r -> Set (HQ'.HashQualified Name) -> m SR.SearchResult,
-    matchesNamedRef :: Name -> r -> HQ'.HashQualified Name -> Bool
-  }
-
-data NameSearch m = NameSearch
-  { typeSearch :: Search m Reference,
-    termSearch :: Search m Referent
-  }
 
 scopedNameSearch :: Path -> NameSearch Sqlite.Transaction
 scopedNameSearch path =
