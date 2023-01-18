@@ -120,6 +120,7 @@ import qualified Unison.Util.Set as Set
 import qualified Unison.Util.SyntaxText as UST
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
+import qualified Unison.Server.NameSearch.Sqlite as SqliteNameSearch
 
 type SyntaxText = UST.SyntaxText' Reference
 
@@ -910,7 +911,7 @@ mkNamesStuff biases shallowRoot path codebase = do
       pure $ (makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly), UsePPED localNamesOnly (PPED.biasTo biases unbiasedPPED))
   where
     sqliteNameSearch :: NameSearch Sqlite.Transaction
-    sqliteNameSearch = scopedNameSearch path
+    sqliteNameSearch = SqliteNameSearch.scopedNameSearch path
 
 evalDocRef ::
   Rt.Runtime Symbol ->
