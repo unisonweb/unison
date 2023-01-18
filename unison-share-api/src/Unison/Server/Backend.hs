@@ -86,6 +86,7 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Server.Doc as Doc
 import qualified Unison.Server.Doc.AsHtml as DocHtml
+import Unison.Server.NameSearch (NameSearch (..), Search (..), applySearch, makeNameSearch)
 import Unison.Server.QueryResult
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
@@ -1108,11 +1109,11 @@ scopedNamesForBranchHash codebase mbh path = do
   (parseNames, localNames) <- case mbh of
     Nothing
       | shouldUseNamesIndex -> do
-        lift $ Codebase.runTransaction codebase indexNames
+          lift $ Codebase.runTransaction codebase indexNames
       | otherwise -> do
-        rootBranch <- lift $ Codebase.getRootBranch codebase
-        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-        pure (parseNames, localNames)
+          rootBranch <- lift $ Codebase.getRootBranch codebase
+          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+          pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash

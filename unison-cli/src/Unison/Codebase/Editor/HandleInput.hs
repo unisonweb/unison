@@ -168,6 +168,7 @@ import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Server.Backend (ShallowListEntry (..))
 import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
+import qualified Unison.Server.NameSearch as NameSearch
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
@@ -2094,7 +2095,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
       pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
-    let nameSearch = Backend.makeNameSearch hqLength names
+    let nameSearch = NameSearch.makeNameSearch hqLength names
     Cli.runTransaction (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
@@ -3235,7 +3236,7 @@ hqNameQuery query = do
   Cli.runTransaction do
     hqLength <- Codebase.hashLength
     let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
-    let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+    let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
     Backend.hqNameQuery codebase nameSearch query
 
 -- | Select a definition from the given branch.
