@@ -1515,7 +1515,9 @@ tru = TCon Ty.booleanRef 1 []
 renameCtx :: Var v => v -> v -> Ctx v -> (Ctx v, Bool)
 renameCtx v u (d, ctx) | (ctx, b) <- rn [] ctx = ((d, ctx), b)
   where
-    swap w | w == v = u | otherwise = w
+    swap w
+      | w == v = u
+      | otherwise = w
 
     rn acc [] = (reverse acc, False)
     rn acc (ST d vs ccs b : es)

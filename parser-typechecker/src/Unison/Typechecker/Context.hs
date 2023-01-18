@@ -67,6 +67,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
+import qualified Unison.Builtin.Decls as DDB
 import Unison.ConstructorReference
   ( ConstructorReference,
     GConstructorReference (..),
@@ -77,7 +78,6 @@ import Unison.DataDeclaration
     EffectDeclaration,
   )
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Builtin.Decls as DDB
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
@@ -1087,9 +1087,9 @@ synthesizeWanted (Term.Let1Top' top binding e) = do
       then pure $ generalizeExistentials ctx2 tb
       else applyM . applyCtx ctx2 $ tb
   v' <- ABT.freshen e freshenVar
-  when (Var.isAction (ABT.variable e)) $ 
+  when (Var.isAction (ABT.variable e)) $
     -- enforce that actions in a block have type ()
-    subtype tbinding (DDB.unitType (ABT.annotation binding)) 
+    subtype tbinding (DDB.unitType (ABT.annotation binding))
   appendContext [Ann v' tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
@@ -1571,7 +1571,7 @@ annotateLetRecBindings isTop letrec =
           -- note: elements of a cycle have to be pure, otherwise order of effects
           -- is unclear and chaos ensues
           -- ensure actions in blocks have type ()
-          when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))  
+          when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))
           checkScopedWith b t []
         ensureGuardedCycle (vs `zip` bindings)
         pure (bindings, bindingTypes)
@@ -2124,7 +2124,7 @@ checkWanted want (Term.Let1' binding m) t = do
   (tbinding, wbinding) <- synthesize binding
   want <- coalesceWanted wbinding want
   markThenRetractWanted v $ do
-    when (Var.isAction (ABT.variable m)) $ 
+    when (Var.isAction (ABT.variable m)) $
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
     extendContext (Ann v tbinding)

@@ -7,6 +7,9 @@ This transcript defines unit tests for builtin functions. There's a single `.> t
 ```unison
 use Int
 
+-- used for some take/drop tests later
+bigN = Nat.shiftLeft 1 63
+
 -- Note: you can make the tests more fine-grained if you
 -- want to be able to tell which one is failing
 test> Int.tests.arithmetic =
@@ -179,7 +182,9 @@ test> Text.tests.takeDropAppend =
         Text.take 99 "yabba" == "yabba",
         Text.drop 0 "yabba" == "yabba",
         Text.drop 2 "yabba" == "bba",
-        Text.drop 99 "yabba" == ""
+        Text.drop 99 "yabba" == "",
+        Text.take bigN "yabba" == "yabba",
+        Text.drop bigN "yabba" == ""
         ]
 
 test> Text.tests.repeat =
@@ -232,7 +237,9 @@ test> Bytes.tests.at =
         checks [
           Bytes.at 1 bs == Some 13,
           Bytes.at 0 bs == Some 77,
-          Bytes.at 99 bs == None
+          Bytes.at 99 bs == None,
+          Bytes.take bigN bs == bs,
+          Bytes.drop bigN bs == empty
         ]
 
 test> Bytes.tests.compression =
@@ -272,6 +279,14 @@ test> checks [
         compare [1,2,3] [1,2,4] == -1,
         compare [1,2,2] [1,2,1,2] == +1,
         compare [1,2,3,4] [3,2,1] == -1
+      ]
+```
+
+Other list functions
+```unison
+test> checks [
+        List.take bigN [1,2,3] == [1,2,3],
+        List.drop bigN [1,2,3] == []
       ]
 ```
 

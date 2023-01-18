@@ -9,13 +9,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import EasyTest
 import qualified Text.Megaparsec as P
-import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRepo (..),
-    ReadRemoteNamespace (..),
-    ShareCodeserver(..),
-    pattern ReadGitRemoteNamespace,
-    pattern ReadShareRemoteNamespace,
-  )
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo (..), ReadRemoteNamespace (..), ShareCodeserver (..), ShareUserHandle (..), pattern ReadGitRemoteNamespace, pattern ReadShareRemoteNamespace)
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
@@ -33,7 +27,7 @@ testShare =
   scope "share" . tests $
     [ parseAugmented
         ( "unisonweb.base._releases.M4",
-          ReadRemoteNamespaceShare (ReadShareRemoteNamespace DefaultCodeserver "unisonweb" (path ["base", "_releases", "M4"]))
+          ReadRemoteNamespaceShare (ReadShareRemoteNamespace DefaultCodeserver (ShareUserHandle "unisonweb") (path ["base", "_releases", "M4"]))
         ),
       expectParseFailure ".unisonweb.base"
     ]

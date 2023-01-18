@@ -100,6 +100,7 @@ import System.Environment as SYS
   ( getArgs,
     getEnv,
   )
+import System.FilePath (isPathSeparator)
 import System.IO (Handle)
 import System.IO as SYS
   ( IOMode (..),
@@ -2102,13 +2103,15 @@ declareForeigns = do
   declareForeign Tracked "Clock.internals.nsec.v1" boxToNat $
     mkForeign (\n -> pure (fromIntegral $ nsec n :: Word64))
 
+  let chop = reverse . dropWhile isPathSeparator . reverse
+
   declareForeign Tracked "IO.getTempDirectory.impl.v3" unitToEFBox $
-    mkForeignIOF $ \() -> getTemporaryDirectory
+    mkForeignIOF $ \() -> chop <$> getTemporaryDirectory
 
   declareForeign Tracked "IO.createTempDirectory.impl.v3" boxToEFBox $
     mkForeignIOF $ \prefix -> do
       temp <- getTemporaryDirectory
-      createTempDirectory temp prefix
+      chop <$> createTempDirectory temp prefix
 
   declareForeign Tracked "IO.getCurrentDirectory.impl.v3" unitToEFBox
     . mkForeignIOF
