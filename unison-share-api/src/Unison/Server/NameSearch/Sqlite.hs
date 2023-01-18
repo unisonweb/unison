@@ -1,5 +1,26 @@
 module Unison.Server.NameSearch.Sqlite where
 
+import Control.Lens
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified U.Codebase.Sqlite.NamedRef as NamedRef
+import qualified U.Codebase.Sqlite.Operations as Ops
+import Unison.Codebase.Path
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (..))
+import Unison.Prelude
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
+import qualified Unison.Server.SearchResult as SR
+import qualified Unison.Sqlite as Sqlite
+
 data Search m r = Search
   { lookupNames :: r -> m (Set (HQ'.HashQualified Name)),
     lookupRelativeHQRefs' :: HQ'.HashQualified Name -> m (Set r),
@@ -34,20 +55,45 @@ scopedNameSearch path =
     pathText :: Text
     pathText = (Path.toText path)
     lookupNamesForTypes :: Reference -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
-    lookupNamesForTypes ref = Ops.typeNamesWithinNamespace pathText (Cv.reference1to2 ref)
+    lookupNamesForTypes ref = do
+      names <- Ops.typeNamesWithinNamespace pathText (Cv.reference1to2 ref)
+      names
+        & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Reference.toShortHash ref))
+        & Set.fromList
+        & pure
     lookupNamesForTerms :: Referent -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
-    lookupNamesForTerms ref = Ops.termNamesWithinNamespace pathText (Cv.referent1to2 ref)
+    lookupNamesForTerms ref = do
+      names <- Ops.termNamesWithinNamespace pathText (Cv.referent1to2 ref)
+      names
+        & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Referent.toShortHash ref))
+        & Set.fromList
+        & pure
     lookupRelativeHQRefsForTypes :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
-    lookupRelativeHQRefsForTypes hqName =
-      case hqName of
-        HQ'.NameOnly name ->
-          Ops.typeNamesBySuffix pathText Nothing (Name.reverseSegments name)
-        HQ'.HashQualified name sh ->
-          Ops.typeNamesBySuffix pathText (Just sh) (Name.reverseSegments name)
+    lookupRelativeHQRefsForTypes hqName = do
+      namedRefs <- case hqName of
+        HQ'.NameOnly name -> do
+          Ops.typeNamesBySuffix pathText (coerce $ Name.reverseSegments name)
+        HQ'.HashQualified name sh -> do
+          let sh2 = (either (error . Text.unpack) id $ Cv.shorthash1to2 sh)
+          Ops.typeNamesByShortHash pathText sh2 (Just . coerce $ Name.reverseSegments name)
+      namedRefs
+        & fmap (Cv.reference2to1 . NamedRef.ref)
+        & Set.fromList
+        & pure
     lookupRelativeHQRefsForTerms :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
-    lookupRelativeHQRefsForTerms hqName =
-      case hqName of
-        HQ'.NameOnly name ->
-          Ops.termNamesBySuffix pathText Nothing (Name.reverseSegments name)
-        HQ'.HashQualified name sh ->
-          Ops.termNamesBySuffix pathText (Just sh) (Name.reverseSegments name)
+    lookupRelativeHQRefsForTerms hqName = do
+      namedRefs <- case hqName of
+        HQ'.NameOnly name -> do
+          Ops.termNamesBySuffix pathText (coerce $ Name.reverseSegments name)
+        HQ'.HashQualified name sh -> do
+          let sh2 = (either (error . Text.unpack) id $ Cv.shorthash1to2 sh)
+          Ops.termNamesByShortHash pathText sh2 (Just . coerce $ Name.reverseSegments name)
+      namedRefs
+        & fmap
+          ( \(NamedRef.ref -> (ref, mayCT)) ->
+              Cv.referent2to1UsingCT (fromMaybe (error "Required constructor type for constructor but it was null") mayCT) ref
+          )
+        & Set.fromList
+        & pure
+    reversedSegmentsToName :: NamedRef.ReversedSegments -> Name
+    reversedSegmentsToName = Name.fromReverseSegments . coerce

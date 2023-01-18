@@ -4,6 +4,7 @@ import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (pack)
+import qualified Data.Text as Text
 import qualified U.Codebase.Branch as V2.Branch
 import qualified U.Codebase.Causal as V2
 import qualified U.Codebase.Decl as V2.Decl
@@ -563,3 +564,17 @@ reference2toshorthash1 hashLength ref = maybe id V1.ShortHash.take hashLength $ 
     showComponentPos :: V2.Reference.Pos -> Maybe Text
     showComponentPos 0 = Nothing
     showComponentPos n = Just (tShow n)
+
+shorthash1to2 :: V1.ShortHash.ShortHash -> Either Text V2.ShortHash
+shorthash1to2 = \case
+  V1.ShortHash.Builtin txt -> Right $ V2.Builtin txt
+  V1.ShortHash.ShortHash {prefix, cycle, cid} -> do
+    cycle2 <- case cycle of
+      Nothing -> pure Nothing
+      Just cyc ->
+        Just <$> maybeToEither ("shorthash1to2: Failed to parse cycle: " <> tShow cyc) (readMaybe . Text.unpack $ cyc)
+    cid2 <- case cid of
+      Nothing -> pure Nothing
+      Just cid' ->
+        Just <$> maybeToEither ("shorthash1to2: Failed to parse cid: " <> tShow cid') (readMaybe . Text.unpack $ cid')
+    pure $ V2.ShortHash {prefix = prefix, cycle = cycle2, cid = cid2}
