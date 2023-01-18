@@ -24,6 +24,7 @@ module Unison.Codebase.Path
     prefix,
     unprefix,
     prefixName,
+    prefixNameAbs,
     unprefixName,
     HQSplit,
     Split,
@@ -84,6 +85,7 @@ import qualified Data.Foldable as Foldable
 import Data.List.Extra (dropPrefix)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as List.NonEmpty
+import qualified Data.List.NonEmpty.Extra as NonEmpty
 import Data.Sequence (Seq ((:<|), (:|>)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
@@ -94,7 +96,7 @@ import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude hiding (empty, toList)
-import qualified Unison.Syntax.Name as Name (toString, unsafeFromText)
+import qualified Unison.Syntax.Name as Name
 import Unison.Util.Monoid (intercalateMap)
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
@@ -267,8 +269,19 @@ splitFromName name =
 unprefixName :: Absolute -> Name -> Maybe Name
 unprefixName prefix = toName . unprefix prefix . fromName'
 
-prefixName :: Absolute -> Name -> Name
-prefixName p n = fromMaybe n . toName . prefix p . fromName' $ n
+prefixNameAbs :: Absolute -> Name -> Name
+prefixNameAbs p n = Name.makeAbsolute . fromMaybe n . toName . prefix p . fromName' $ n
+
+-- | Prepend a path to a name. The resulting name will be Relative
+-- >>> Name.toText (prefixName (fromList ["a", "b"]) "c.d.e")
+-- "a.b.c.d.e"
+prefixName :: Path -> Name -> Name
+prefixName path name =
+  let revNameSegments = Name.reverseSegments name
+      pathSegments = toList path
+   in (NonEmpty.appendl revNameSegments (reverse pathSegments))
+        & Name.fromReverseSegments
+        & Name.makeRelative
 
 singleton :: NameSegment -> Path
 singleton n = fromList [n]

@@ -2904,7 +2904,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     prefixBranchId :: Input.AbsBranchId -> Name -> String
     prefixBranchId branchId name = case branchId of
       Left sch -> "#" <> SCH.toString sch <> ":" <> Name.toString (Name.makeAbsolute name)
-      Right pathPrefix -> Name.toString (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
+      Right pathPrefix -> Name.toString (Path.prefixNameAbs pathPrefix $ name)
 
     addNumberedArg' :: String -> Numbered Pretty
     addNumberedArg' s = case sn of

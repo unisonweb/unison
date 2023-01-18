@@ -861,9 +861,10 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
       fqnPPE = PPED.unsuffixifiedPPE pped
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
+  let fqnQuery = query <&> Path.prefixName path
   (DefinitionResults terms types misses, branchAtPath) <-
     (lift . Codebase.runTransaction codebase) do
-      results <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
+      results <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [fqnQuery]
       branchAtPath <- do
         causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
         V2Causal.value causalAtPath
@@ -920,12 +921,13 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
             let referent = Referent.Ref r
             pure $
               TermDefinition
-                (HQ'.toText <$> PPE.allTermNames fqnPPE referent)
-                bn
-                tag
-                (bimap mungeSyntaxText mungeSyntaxText tm)
-                (formatSuffixedType pped width typeSig)
-                docs
+                { termNames = HQ'.toText <$> PPE.allTermNames fqnPPE referent,
+                  bestTermName = bn,
+                  defnTermTag = tag,
+                  termDefinition = bimap mungeSyntaxText mungeSyntaxText tm,
+                  signature = formatSuffixedType pped width typeSig,
+                  termDocs = docs
+                }
       mkTypeDefinition ::
         ( Reference ->
           DisplayObject
