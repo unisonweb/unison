@@ -1901,7 +1901,7 @@ typeNamesBySuffix namespaceRoot suffix = do
   where
     sql =
       [here|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup FROM type_name_lookup
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
         WHERE reversed_name GLOB ?
               AND (namespace GLOB ? OR namespace = ?)
         |]
@@ -1925,7 +1925,7 @@ typeNamesByShortHash namespaceRoot shortHash maySuffix = do
   where
     sql =
       [here|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup FROM type_name_lookup
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
         WHERE (reference_builtin IS ?
                 AND reference_component_hash GLOB ?
                 AND reference_component_index IS ?
