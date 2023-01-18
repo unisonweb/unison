@@ -1851,7 +1851,7 @@ termNamesBySuffix namespaceRoot suffix = do
     unRow (a :. Only b) = (a, b)
     sql =
       [here|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, referent_constructor_type FROM term_name_lookup
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
         WHERE reversed_name GLOB ?
               AND (namespace GLOB ? OR namespace = ?)
         |]
@@ -1877,7 +1877,7 @@ termNamesByShortHash namespaceRoot shortHash maySuffix = do
     unRow (a :. Only b) = (a, b)
     sql =
       [here|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, referent_constructor_type FROM term_name_lookup
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
         WHERE (referent_builtin IS ?
                 AND referent_component_hash GLOB ?
                 AND referent_component_index IS ?
