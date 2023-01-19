@@ -38,7 +38,6 @@ import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
-import Data.Atomics (Ticket, peekTicket, readForCAS, casIORef)
 import Data.Bits (shiftL, shiftR, (.|.))
 import qualified Data.ByteArray as BA
 import Data.ByteString (hGet, hGetSome, hPut)
@@ -150,8 +149,17 @@ import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import qualified Unison.Util.Text as Util.Text
 import qualified Unison.Util.Text.Pattern as TPat
-import Unison.Util.Promise (Promise)
-import qualified Unison.Util.Promise as Promise
+import Unison.Util.RefPromise
+  ( Promise,
+    Ticket,
+    peekTicket,
+    readForCAS,
+    casIORef,
+    newPromise,
+    readPromise,
+    tryReadPromise,
+    writePromise
+  )
 import Unison.Var
 
 type Failure = F.Failure Closure
@@ -2398,17 +2406,17 @@ declareForeigns = do
     \(r :: IORef Closure, t :: Ticket Closure, v :: Closure) -> fmap fst $ casIORef r t v
 
   declareForeign Tracked "Promise.new" unitDirect . mkForeign $
-    \() -> Promise.new @Closure
+    \() -> newPromise @Closure
 
   -- the only exceptions from Promise.read are async and shouldn't be caught
   declareForeign Tracked "Promise.read" boxDirect . mkForeign $
-    \(p :: Promise Closure) -> Promise.read p
+    \(p :: Promise Closure) -> readPromise p
 
   declareForeign Tracked "Promise.tryRead" boxToMaybeBox . mkForeign $
-    \(p :: Promise Closure) -> Promise.tryRead p
+    \(p :: Promise Closure) -> tryReadPromise p
 
   declareForeign Tracked "Promise.write" boxBoxToBool . mkForeign $
-    \(a :: Closure, p :: Promise Closure) -> Promise.write a p
+    \(a :: Closure, p :: Promise Closure) -> writePromise a p
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \( config :: TLS.ClientParams,

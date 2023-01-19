@@ -152,7 +152,7 @@ library
       Unison.Util.Logger
       Unison.Util.PinBoard
       Unison.Util.Pretty.MegaParsec
-      Unison.Util.Promise
+      Unison.Util.RefPromise
       Unison.Util.Star3
       Unison.Util.Text
       Unison.Util.Text.Pattern

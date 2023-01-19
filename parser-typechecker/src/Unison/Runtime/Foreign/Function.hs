@@ -49,7 +49,7 @@ import Unison.Type
   )
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Text (Text, pack, unpack)
-import Unison.Util.Promise (Promise)
+import Unison.Util.RefPromise (Promise)
 
 -- Foreign functions operating on stacks
 data ForeignFunc where
