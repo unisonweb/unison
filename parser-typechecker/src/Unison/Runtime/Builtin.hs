@@ -2368,7 +2368,7 @@ declareForeigns = do
 
   declareForeign Tracked "IO.ref" boxDirect
     . mkForeign
-    $ \(c :: Closure) -> newIORef c
+    $ \(c :: Closure) -> evaluate c >>= newIORef
 
   -- The docs for IORef state that IORef operations can be observed
   -- out of order ([1]) but actually GHC does emit the appropriate
@@ -2381,9 +2381,9 @@ declareForeigns = do
     \(r :: IORef Closure) -> readIORef r
 
   declareForeign Untracked "Ref.write" boxBoxTo0 . mkForeign $
-    \(r :: IORef Closure, c :: Closure) -> writeIORef r c
+    \(r :: IORef Closure, c :: Closure) -> evaluate c >>= writeIORef r
 
-  declareForeign Tracked "Ref.ticket" boxDirect . mkForeign $
+  declareForeign Tracked "Ref.readForCas" boxDirect . mkForeign $
     \(r :: IORef Closure) -> readForCAS r
 
   declareForeign Tracked "Ref.Ticket.read" boxDirect . mkForeign $
@@ -2403,7 +2403,10 @@ declareForeigns = do
   -- [1]: https://github.com/ghc/ghc/blob/master/rts/PrimOps.cmm#L697
   -- [2]: https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L285
   declareForeign Tracked "Ref.cas" boxBoxBoxToBool . mkForeign $
-    \(r :: IORef Closure, t :: Ticket Closure, v :: Closure) -> fmap fst $ casIORef r t v
+    \(r :: IORef Closure, t :: Ticket Closure, v :: Closure) -> fmap fst $
+      do
+        t <- evaluate t
+        casIORef r t v
 
   declareForeign Tracked "Promise.new" unitDirect . mkForeign $
     \() -> newPromise @Closure
