@@ -1,6 +1,7 @@
 module Unison.PrettyPrintEnvDecl.Sqlite where
 
 import qualified Data.List.NonEmpty as NEL
+import qualified Data.Set as Set
 import U.Codebase.Sqlite.NamedRef (NamedRef (..))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import Unison.Codebase (Codebase)
@@ -8,6 +9,7 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Unison.Debug as Debug
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
@@ -24,8 +26,6 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Debug as Debug
-import qualified Data.Set as Set
 
 prettyPrintUsingNamesIndex :: (MonadIO m) => Codebase IO v ann -> Path -> PPG.PrettyPrintGrouper m a -> m a
 prettyPrintUsingNamesIndex codebase perspective action = do
@@ -37,9 +37,11 @@ prettyPrintUsingNamesIndex codebase perspective action = do
 ppedForReferences :: Path -> Set LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl
 ppedForReferences perspective refs = do
   hashLen <- Codebase.hashLength
+  Debug.debugLogM Debug.Server "ppedForReferences: getting all names for references"
   (termNames, typeNames) <-
     refs & foldMapM \ref ->
       namesForReference ref
+  Debug.debugLogM Debug.Server "ppedForReferences: computing term names for suffixification"
   allTermNamesToConsider <-
     termNames & foldMapM \srcName@(name, _ref) -> do
       suffixMatches <- do
@@ -48,6 +50,7 @@ ppedForReferences perspective refs = do
           let ct = fromMaybe (error "ppedForReferences: Required constructor type for constructor but it was null") mayCt
            in (Name.fromReverseSegments (coerce reversedSegments), Cv.referent2to1UsingCT ct ref)
       pure (srcName : suffixMatches)
+  Debug.debugLogM Debug.Server "ppedForReferences: computing type names for suffixification"
   allTypeNamesToConsider <-
     typeNames & foldMapM \srcName@(name, _ref) -> do
       suffixMatches <- do

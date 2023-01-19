@@ -41,9 +41,10 @@ instance FromRow ref => FromRow (NamedRef ref) where
     ref <- fromRow
     pure (NamedRef {reversedSegments, ref})
 
-toRowWithNamespace :: ToRow ref => NamedRef ref -> [SQLData]
-toRowWithNamespace nr = toRow nr <> [SQLText namespace]
+toRowWithNamespaceAndLastSegment :: ToRow ref => NamedRef ref -> [SQLData]
+toRowWithNamespaceAndLastSegment nr = toRow nr <> [SQLText namespace, SQLText lastNameSegment]
   where
+    lastNameSegment = NonEmpty.head (reversedSegments nr)
     namespace =
       nr
         & reversedSegments

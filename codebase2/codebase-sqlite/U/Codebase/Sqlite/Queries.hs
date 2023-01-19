@@ -1601,6 +1601,9 @@ ensureNameLookupTables = do
       CREATE TABLE IF NOT EXISTS term_name_lookup (
         -- The name of the term: E.g. map.List.base
         reversed_name TEXT NOT NULL,
+        -- The last name segment of the name. This is used when looking up names for
+        -- suffixification when building PPEs.
+        last_name_segment TEXT NOT NULL,
         -- The namespace containing this definition, not reversed, with a trailing '.'
         -- The trailing '.' simplifies GLOB queries, so that 'base.*' matches both things in
         -- 'base' and 'base.List', but not 'base1', which allows us to avoid an OR in our where
@@ -1620,7 +1623,7 @@ ensureNameLookupTables = do
   -- suffixification of a name.
   execute_
     [here|
-      CREATE INDEX IF NOT EXISTS term_names_by_namespace_and_reversed_name ON term_name_lookup(namespace, reversed_name)
+      CREATE INDEX IF NOT EXISTS term_names_by_namespace_and_last_name_segment ON term_name_lookup(last_name_segment, namespace)
     |]
   -- This index allows us to find all names with a given ref within a specific namespace, with
   -- an optional name suffix
@@ -1633,6 +1636,9 @@ ensureNameLookupTables = do
       CREATE TABLE IF NOT EXISTS type_name_lookup (
         -- The name of the term: E.g. List.base
         reversed_name TEXT NOT NULL,
+        -- The last name segment of the name. This is used when looking up names for
+        -- suffixification when building PPEs.
+        last_name_segment TEXT NOT NULL,
         -- The namespace containing this definition, not reversed, with a trailing '.'
         -- The trailing '.' simplifies GLOB queries, so that 'base.*' matches both things in
         -- 'base' and 'base.List', but not 'base1', which allows us to avoid an OR in our where
@@ -1651,7 +1657,7 @@ ensureNameLookupTables = do
   -- suffixification of a name.
   execute_
     [here|
-      CREATE INDEX IF NOT EXISTS type_names_by_namespace ON type_name_lookup(namespace, reversed_name)
+      CREATE INDEX IF NOT EXISTS type_names_by_namespace_and_last_name_segment ON type_name_lookup(last_name_segment, namespace)
     |]
 
   -- This index allows us to find all names with a given ref within a specific namespace.
@@ -1663,14 +1669,14 @@ ensureNameLookupTables = do
 -- | Insert the given set of term names into the name lookup table
 insertTermNames :: [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
 insertTermNames names = do
-  executeMany sql (NamedRef.toRowWithNamespace . fmap refToRow <$> names)
+  executeMany sql (NamedRef.toRowWithNamespaceAndLastSegment . fmap refToRow <$> names)
   where
     refToRow :: (Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))
     refToRow (ref, ct) = ref :. Only ct
     sql =
       [here|
-      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, namespace)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, namespace, last_name_segment)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
 
@@ -1765,12 +1771,12 @@ getNamespaceDefinitionCount namespace = do
 -- | Insert the given set of type names into the name lookup table
 insertTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
 insertTypeNames names =
-  executeMany sql (NamedRef.toRowWithNamespace <$> names)
+  executeMany sql (NamedRef.toRowWithNamespaceAndLastSegment <$> names)
   where
     sql =
       [here|
-      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index, namespace)
-        VALUES (?, ?, ?, ?, ?)
+      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index, namespace, last_name_segment)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
 
@@ -1854,15 +1860,15 @@ termNamesBySuffix namespaceRoot suffix = do
   let namespaceGlob = case namespaceRoot of
         "" -> "*"
         exactNamespace -> globEscape exactNamespace <> ".*"
-  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> "*"
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (suffixGlob, namespaceGlob)
+  let lastSegment = NonEmpty.head suffix
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (lastSegment, namespaceGlob)
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
     sql =
       [here|
         SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
-        WHERE reversed_name GLOB ?
+        WHERE last_name_segment IS ?
               AND namespace GLOB ?
         |]
 
@@ -1906,13 +1912,13 @@ typeNamesBySuffix namespaceRoot suffix = do
   let namespaceGlob = case namespaceRoot of
         "" -> "*"
         exactNamespace -> globEscape exactNamespace <> ".*"
-  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> "*"
-  queryListRow sql (suffixGlob, namespaceGlob)
+  let lastNameSegment = NonEmpty.head suffix
+  queryListRow sql (lastNameSegment, namespaceGlob)
   where
     sql =
       [here|
         SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
-        WHERE reversed_name GLOB ?
+        WHERE last_name_segment IS ?
               AND namespace GLOB ?
         |]
 
