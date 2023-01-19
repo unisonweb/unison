@@ -733,7 +733,9 @@ data DefinitionResults = DefinitionResults
 
 definitionResultsDependencies :: DefinitionResults -> Set LD.LabeledDependency
 definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
-  let termDeps =
+  let topLevelTerms = Set.fromList . fmap LD.TermReference $ Map.keys termResults
+      topLevelTypes = Set.fromList . fmap LD.TypeReference $ Map.keys typeResults
+      termDeps =
         termResults
           & foldOf
             ( folded
@@ -745,7 +747,7 @@ definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
         typeResults
           & foldOf
             (folded . folded . to DD.declDependencies . to (Set.map LD.TypeReference))
-   in termDeps <> typeDeps
+   in termDeps <> typeDeps <> topLevelTerms <> topLevelTypes
 
 expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction CausalHash
 expandShortCausalHash hash = do
@@ -817,8 +819,6 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
 
   Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building names search"
   (nameSearch, backendPPE) <- mkNamesStuff biases shallowRoot path codebase
-  -- let nameSearch :: NameSearch m
-  --     nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   (dr@(DefinitionResults terms types misses), branchAtPath) <- liftIO $ Codebase.runTransaction codebase do
     Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: starting search"
     dr <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
@@ -849,9 +849,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
             ( termEntryTag
                 <$> termListEntry codebase branchAtPath (ExactName (NameSegment bn) (Cv.referent1to2 referent))
             )
-
-        docRefs <- lift (maybe mempty (docsForTermName codebase nameSearch) (HQ.toName hqTermName))
-        renderedDocs <- lift $ renderDocRefs backendPPE width codebase rt docRefs
+        renderedDocs <- lift (maybe (pure []) docResults (HQ.toName hqTermName))
         mk renderedDocs ts bn tag
         where
           fqnTermPPE = PPED.unsuffixifiedPPE termPPED
@@ -884,7 +882,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
           Codebase.runTransaction codebase do
             typeEntryTag <$> typeListEntry codebase branchAtPath (ExactName (NameSegment bn) r)
         Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: getting type tag"
-        docs <- (maybe (pure []) docResults (HQ.toName hqTypeName))
+        docs <- liftIO (maybe (pure []) docResults (HQ.toName hqTypeName))
         pure $
           TypeDefinition
             (HQ'.toText <$> PPE.allTypeNames fqnPPE r)
