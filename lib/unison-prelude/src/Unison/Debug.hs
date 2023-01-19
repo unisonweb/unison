@@ -39,6 +39,8 @@ data DebugFlag
     Temp
   | -- | Shows Annotations when printing terms
     Annotations
+  | -- | Debug endpoints of the local UI (or Share) server
+    Server
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -61,6 +63,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "TIMING" -> pure Timing
       "TEMP" -> pure Temp
       "ANNOTATIONS" -> pure Annotations
+      "SERVER" -> pure Server
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -107,6 +110,10 @@ debugTemp = Temp `Set.member` debugFlags
 debugAnnotations :: Bool
 debugAnnotations = Annotations `Set.member` debugFlags
 {-# NOINLINE debugAnnotations #-}
+
+debugServer :: Bool
+debugServer = Server `Set.member` debugFlags
+{-# NOINLINE debugServer #-}
 
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
@@ -159,3 +166,4 @@ shouldDebug = \case
   Timing -> debugTiming
   Temp -> debugTemp
   Annotations -> debugAnnotations
+  Server -> debugServer
