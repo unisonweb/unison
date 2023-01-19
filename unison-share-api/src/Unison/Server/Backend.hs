@@ -58,6 +58,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
@@ -87,6 +88,7 @@ import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Server.Doc as Doc
 import qualified Unison.Server.Doc.AsHtml as DocHtml
 import Unison.Server.NameSearch (NameSearch (..), Search (..), applySearch, makeNameSearch)
+import qualified Unison.Server.NameSearch.Sqlite as SqliteNameSearch
 import Unison.Server.QueryResult
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
@@ -99,7 +101,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.HashQualified as HQ (toText)
 import qualified Unison.Syntax.HashQualified' as HQ' (toText)
-import Unison.Syntax.Name as Name (toText, unsafeFromText)
+import Unison.Syntax.Name as Name (toString, toText, unsafeFromText)
 import qualified Unison.Syntax.NamePrinter as NP
 import qualified Unison.Syntax.TermPrinter as TermPrinter
 import qualified Unison.Syntax.TypePrinter as TypePrinter
@@ -120,7 +122,6 @@ import qualified Unison.Util.Set as Set
 import qualified Unison.Util.SyntaxText as UST
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
-import qualified Unison.Server.NameSearch.Sqlite as SqliteNameSearch
 
 type SyntaxText = UST.SyntaxText' Reference
 
@@ -692,8 +693,11 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
         (\(sh, tms) -> mkTermResult sh <$> toList tms) <$> termRefs
       typeResults =
         (\(sh, tps) -> mkTypeResult sh <$> toList tps) <$> typeRefs
+
+  Debug.debugLogM Debug.Server "hqNameQuery: Applying Search"
   -- Now do the actual name query
   resultss <- for hqnames (\name -> liftA2 (<>) (applySearch typeSearch name) (applySearch termSearch name))
+  Debug.debugLogM Debug.Server "hqNameQuery: Done Search"
   let (misses, hits) =
         zipWith
           ( \hqname results ->
@@ -810,11 +814,15 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   -- `trunk` over those in other releases.
   -- ppe which returns names fully qualified to the current perspective,  not to the codebase root.
   let biases = maybeToList $ HQ.toName query
+
+  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building names search"
   (nameSearch, backendPPE) <- mkNamesStuff biases shallowRoot path codebase
   -- let nameSearch :: NameSearch m
   --     nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   (dr@(DefinitionResults terms types misses), branchAtPath) <- liftIO $ Codebase.runTransaction codebase do
+    Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: starting search"
     dr <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
+    Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: finished search"
     causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
     branchAtPath <- V2Causal.value causalAtPath
     pure (dr, branchAtPath)
@@ -871,10 +879,12 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
       mkTypeDefinition pped r tp = lift do
         let hqTypeName = PPE.typeNameOrHashOnly fqnPPE r
         let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
+        Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: getting type tag"
         tag <-
           Codebase.runTransaction codebase do
             typeEntryTag <$> typeListEntry codebase branchAtPath (ExactName (NameSegment bn) r)
-        docs <- (maybe mempty docResults (HQ.toName hqTypeName))
+        Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: getting type tag"
+        docs <- (maybe (pure []) docResults (HQ.toName hqTypeName))
         pure $
           TypeDefinition
             (HQ'.toText <$> PPE.allTypeNames fqnPPE r)
@@ -885,16 +895,21 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         where
           fqnPPE = PPED.unsuffixifiedPPE pped
 
-  termAndTypePPED <- PPED.biasTo biases <$> getPPED (definitionResultsDependencies dr) backendPPE
+  let deps = definitionResultsDependencies dr
+  Debug.debugLogM Debug.Server $ "prettyDefinitionsForHQName: building term and type pped. Num deps: " <> show (Set.size deps)
+  termAndTypePPED <- PPED.biasTo biases <$> getPPED deps backendPPE
+  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building type definitions"
   typeDefinitions <-
     Map.traverseWithKey (mkTypeDefinition termAndTypePPED) $
       typesToSyntax suffixifyBindings width termAndTypePPED types
+  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building term definitions"
   termDefinitions <-
     Map.traverseWithKey (mkTermDefinition termAndTypePPED) $
       termsToSyntax suffixifyBindings width termAndTypePPED terms
   let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
       renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
       renderedMisses = fmap HQ.toText misses
+  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: Returning definitions"
   pure $
     DefinitionDisplayResults
       renderedDisplayTerms
@@ -904,8 +919,11 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
 mkNamesStuff :: [Name] -> V2Branch.CausalBranch n -> Path -> Codebase IO Symbol Ann -> Backend IO (NameSearch Sqlite.Transaction, BackendPPE)
 mkNamesStuff biases shallowRoot path codebase = do
   asks useNamesIndex >>= \case
-    True -> pure (sqliteNameSearch, UseSQLiteIndex codebase path (error "name search"))
+    True -> do
+      Debug.debugLogM Debug.Server "using sqlite index"
+      pure (sqliteNameSearch, UseSQLiteIndex codebase path sqliteNameSearch)
     False -> do
+      Debug.debugLogM Debug.Server "using names object"
       hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
       (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
       pure $ (makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly), UsePPED localNamesOnly (PPED.biasTo biases unbiasedPPED))
@@ -955,6 +973,7 @@ docsForTermName ::
   Name ->
   IO [TermReference]
 docsForTermName codebase (NameSearch {termSearch}) name = do
+  Debug.debugLogM Debug.Server $ "docsForTermName: Docs for: " <> Name.toString name
   let potentialDocNames = [name, name Cons.:> "doc"]
   Codebase.runTransaction codebase do
     refs <-
@@ -978,9 +997,12 @@ renderDocRefs ::
   [TermReference] ->
   IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
 renderDocRefs backendPPE width codebase rt docRefs = do
+  Debug.debugLogM Debug.Server $ "Evaluating docs"
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
   let docDeps = foldMap (Doc.dependencies . snd) eDocs <> Set.fromList (LD.TermReference <$> docRefs)
+  Debug.debugLogM Debug.Server $ "Building pped for doc refs: " <> show (Set.size docDeps)
   docsPPED <- getPPED docDeps backendPPE
+  Debug.debugLogM Debug.Server $ "Done building pped"
   for eDocs \(ref, eDoc) -> do
     let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE docsPPED) width (Referent.Ref ref)
     let hash = Reference.toText ref
@@ -1110,11 +1132,11 @@ scopedNamesForBranchHash codebase mbh path = do
   (parseNames, localNames) <- case mbh of
     Nothing
       | shouldUseNamesIndex -> do
-          lift $ Codebase.runTransaction codebase indexNames
+        lift $ Codebase.runTransaction codebase indexNames
       | otherwise -> do
-          rootBranch <- lift $ Codebase.getRootBranch codebase
-          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-          pure (parseNames, localNames)
+        rootBranch <- lift $ Codebase.getRootBranch codebase
+        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+        pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash
@@ -1189,7 +1211,9 @@ definitionsBySuffixes ::
   [HQ.HashQualified Name] ->
   Sqlite.Transaction DefinitionResults
 definitionsBySuffixes codebase nameSearch includeCycles query = do
+  Debug.debugLogM Debug.Server "definitionsBySuffixes: before query"
   QueryResult misses results <- hqNameQuery codebase nameSearch query
+  Debug.debugLogM Debug.Server "definitionsBySuffixes: after query"
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) (searchResultsToTermRefs results)
@@ -1344,7 +1368,7 @@ loadTypeDisplayObject c = \case
       <$> Codebase.getTypeDeclaration c id
 
 data BackendPPE
-  = UseSQLiteIndex (Codebase IO Symbol Ann) Path (NameSearch IO)
+  = UseSQLiteIndex (Codebase IO Symbol Ann) Path (NameSearch Sqlite.Transaction)
   | UsePPED Names PPED.PrettyPrintEnvDecl
 
 -- selectBackendPPE :: Codebase IO Symbol Ann -> Path -> Backend IO BackendPPE

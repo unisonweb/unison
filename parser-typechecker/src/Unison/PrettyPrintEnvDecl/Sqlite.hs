@@ -24,6 +24,8 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Util.Monoid (foldMapM)
+import qualified Unison.Debug as Debug
+import qualified Data.Set as Set
 
 prettyPrintUsingNamesIndex :: (MonadIO m) => Codebase IO v ann -> Path -> PPG.PrettyPrintGrouper m a -> m a
 prettyPrintUsingNamesIndex codebase perspective action = do
@@ -53,6 +55,7 @@ ppedForReferences perspective refs = do
         Ops.typeNamesBySuffix pathText suffix <&> fmap \(NamedRef {reversedSegments, ref}) ->
           (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
       pure (srcName : suffixMatches)
+  Debug.debugLogM Debug.Server $ "ppedForReferences built pped within " <> show perspective <> " for " <> show (Set.size refs) <> " deps, " <> show (length allTermNamesToConsider) <> " terms and " <> show (length allTypeNamesToConsider) <> " types"
   pure . PPED.fromNamesDecl hashLen . NamesWithHistory.fromCurrentNames $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
   where
     pathText :: Text
