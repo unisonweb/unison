@@ -978,6 +978,7 @@ docsForTermName codebase (NameSearch {termSearch}) name = do
   Codebase.runTransaction codebase do
     refs <-
       potentialDocNames & foldMapM \name ->
+        -- TODO: Should replace this with an exact name lookup.
         lookupRelativeHQRefs' termSearch (HQ'.NameOnly name)
     filterForDocs (toList refs)
   where

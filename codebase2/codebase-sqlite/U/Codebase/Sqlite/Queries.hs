@@ -1861,7 +1861,9 @@ termNamesBySuffix namespaceRoot suffix = do
         "" -> "*"
         exactNamespace -> globEscape exactNamespace <> ".*"
   let lastSegment = NonEmpty.head suffix
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (lastSegment, namespaceGlob)
+  -- TODO: Should probably add a trailing '.' to the reversed_name column
+  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> "*"
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (lastSegment, namespaceGlob, suffixGlob)
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
@@ -1870,6 +1872,7 @@ termNamesBySuffix namespaceRoot suffix = do
         SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
         WHERE last_name_segment IS ?
               AND namespace GLOB ?
+              AND reversed_name GLOB ?
         |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
@@ -1913,13 +1916,15 @@ typeNamesBySuffix namespaceRoot suffix = do
         "" -> "*"
         exactNamespace -> globEscape exactNamespace <> ".*"
   let lastNameSegment = NonEmpty.head suffix
-  queryListRow sql (lastNameSegment, namespaceGlob)
+  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> "*"
+  queryListRow sql (lastNameSegment, namespaceGlob, suffixGlob)
   where
     sql =
       [here|
         SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
         WHERE last_name_segment IS ?
               AND namespace GLOB ?
+              AND reversed_name GLOB ?
         |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
