@@ -856,8 +856,8 @@ stmBuiltins =
 refPromiseBuiltins :: [(Text, Type)]
 refPromiseBuiltins =
   [ ("Ref.Ticket.read", forall1 "a" $ \a -> ticket a --> a),
-    ("Ref.ticket", forall1 "a" $ \a ->  reft iot a --> io (ticket a)),
-    ("Ref.cas", forall1 "a" $ \a -> ticket a --> a --> reft iot a --> io boolean),
+    ("Ref.readForCas", forall1 "a" $ \a ->  reft iot a --> io (ticket a)),
+    ("Ref.cas", forall1 "a" $ \a -> reft iot a --> ticket a --> a --> io boolean),
     ("Promise.new", forall1 "a" $ \a -> unit --> io (promise a)),
     ("Promise.read", forall1 "a" $ \a -> promise a --> io a),
     ("Promise.tryRead", forall1 "a" $ \a -> promise a --> io (optionalt a)),
