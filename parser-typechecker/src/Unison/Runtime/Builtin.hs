@@ -2419,7 +2419,7 @@ declareForeigns = do
     \(p :: Promise Closure) -> tryReadPromise p
 
   declareForeign Tracked "Promise.write" boxBoxToBool . mkForeign $
-    \(a :: Closure, p :: Promise Closure) -> writePromise a p
+    \(p :: Promise Closure, a :: Closure) -> writePromise p a
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \( config :: TLS.ClientParams,

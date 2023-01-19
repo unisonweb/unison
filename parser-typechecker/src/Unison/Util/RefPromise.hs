@@ -32,5 +32,5 @@ tryReadPromise Promise { state } = tryReadMVar state
 
 -- if the promise is empty, write the value, awake all readers and return True
 -- if full, ignore the write and return False
-writePromise :: a -> Promise a -> IO Bool
-writePromise value Promise { state } = tryPutMVar state value
+writePromise :: Promise a -> a -> IO Bool
+writePromise Promise { state } value = tryPutMVar state value

@@ -861,7 +861,7 @@ refPromiseBuiltins =
     ("Promise.new", forall1 "a" $ \a -> unit --> io (promise a)),
     ("Promise.read", forall1 "a" $ \a -> promise a --> io a),
     ("Promise.tryRead", forall1 "a" $ \a -> promise a --> io (optionalt a)),
-    ("Promise.write", forall1 "a" $ \a -> a --> promise a --> io boolean)
+    ("Promise.write", forall1 "a" $ \a -> promise a --> a --> io boolean)
   ]
   where
     ticket :: Type -> Type
