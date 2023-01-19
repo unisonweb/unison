@@ -44,4 +44,10 @@ instance FromRow ref => FromRow (NamedRef ref) where
 toRowWithNamespace :: ToRow ref => NamedRef ref -> [SQLData]
 toRowWithNamespace nr = toRow nr <> [SQLText namespace]
   where
-    namespace = Text.intercalate "." . reverse . NEL.tail . reversedSegments $ nr
+    namespace =
+      nr
+        & reversedSegments
+        & NEL.tail
+        & ("" :) -- We add an empty segment so that the namespace will be rendered with a trailing dot, see note on term_name_lookup table schema.
+        & reverse
+        & Text.intercalate "."
