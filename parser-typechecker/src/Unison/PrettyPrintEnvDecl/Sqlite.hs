@@ -42,12 +42,16 @@ ppedForReferences perspective refs = do
     refs & foldMapM \ref ->
       namesForReference ref
   Debug.debugLogM Debug.Server "ppedForReferences: computing term names for suffixification"
-  let termSuffixes = Set.fromList (termNames <&> \(name, _ref) -> (NameSegment.toText (Name.lastSegment name) NEL.:| []))
-  let typeSuffixes = Set.fromList (typeNames <&> \(name, _ref) -> (NameSegment.toText (Name.lastSegment name) NEL.:| []))
+  let termSuffixes =
+        Set.fromList (termNames <&> \(name, _ref) -> (NameSegment.toText (Name.lastSegment name)))
+          & Set.delete "doc"
+  let typeSuffixes =
+        Set.fromList (typeNames <&> \(name, _ref) -> (NameSegment.toText (Name.lastSegment name)))
+          & Set.delete "doc"
   allTermNamesToConsider <-
     termSuffixes
       & ( foldMapM \lastNameSegment -> do
-            Ops.termNamesBySuffix pathText lastNameSegment <&> fmap \(NamedRef {reversedSegments, ref = (ref, mayCt)}) ->
+            Ops.termNamesBySuffix pathText (lastNameSegment NEL.:| []) <&> fmap \(NamedRef {reversedSegments, ref = (ref, mayCt)}) ->
               let ct = fromMaybe (error "ppedForReferences: Required constructor type for constructor but it was null") mayCt
                in (Name.fromReverseSegments (coerce reversedSegments), Cv.referent2to1UsingCT ct ref)
         )
@@ -57,11 +61,13 @@ ppedForReferences perspective refs = do
     typeSuffixes
       & foldMapM
         ( \lastNameSegment -> do
-            Ops.typeNamesBySuffix pathText lastNameSegment <&> fmap \(NamedRef {reversedSegments, ref}) ->
+            Ops.typeNamesBySuffix pathText (lastNameSegment NEL.:| []) <&> fmap \(NamedRef {reversedSegments, ref}) ->
               (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
         )
       <&> (typeNames <>)
   Debug.debugLogM Debug.Server $ "ppedForReferences built pped within " <> show perspective <> " for " <> show (Set.size refs) <> " deps, " <> show (length allTermNamesToConsider) <> " terms and " <> show (length allTypeNamesToConsider) <> " types"
+  Debug.debugM Debug.Server "ppedForReferences: PPED BASE size: " $ show (length termNames + length typeNames)
+  Debug.debugM Debug.Server "ppedForReferences: PPED With suffixifications size: " $ show (length allTermNamesToConsider + length allTypeNamesToConsider)
   pure . PPED.fromNamesDecl hashLen . NamesWithHistory.fromCurrentNames $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
   where
     pathText :: Text
