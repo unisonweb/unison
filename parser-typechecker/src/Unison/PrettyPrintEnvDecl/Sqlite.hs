@@ -42,22 +42,25 @@ ppedForReferences perspective refs = do
     refs & foldMapM \ref ->
       namesForReference ref
   Debug.debugLogM Debug.Server "ppedForReferences: computing term names for suffixification"
+  let termSuffixes = Set.fromList (termNames <&> \(name, _ref) -> (NameSegment.toText (Name.lastSegment name) NEL.:| []))
+  let typeSuffixes = Set.fromList (typeNames <&> \(name, _ref) -> (NameSegment.toText (Name.lastSegment name) NEL.:| []))
   allTermNamesToConsider <-
-    termNames & foldMapM \srcName@(name, _ref) -> do
-      suffixMatches <- do
-        let suffix = (NameSegment.toText (Name.lastSegment name) NEL.:| [])
-        Ops.termNamesBySuffix pathText suffix <&> fmap \(NamedRef {reversedSegments, ref = (ref, mayCt)}) ->
-          let ct = fromMaybe (error "ppedForReferences: Required constructor type for constructor but it was null") mayCt
-           in (Name.fromReverseSegments (coerce reversedSegments), Cv.referent2to1UsingCT ct ref)
-      pure (srcName : suffixMatches)
+    termSuffixes
+      & ( foldMapM \lastNameSegment -> do
+            Ops.termNamesBySuffix pathText lastNameSegment <&> fmap \(NamedRef {reversedSegments, ref = (ref, mayCt)}) ->
+              let ct = fromMaybe (error "ppedForReferences: Required constructor type for constructor but it was null") mayCt
+               in (Name.fromReverseSegments (coerce reversedSegments), Cv.referent2to1UsingCT ct ref)
+        )
+      <&> (termNames <>)
   Debug.debugLogM Debug.Server "ppedForReferences: computing type names for suffixification"
   allTypeNamesToConsider <-
-    typeNames & foldMapM \srcName@(name, _ref) -> do
-      suffixMatches <- do
-        let suffix = (NameSegment.toText (Name.lastSegment name) NEL.:| [])
-        Ops.typeNamesBySuffix pathText suffix <&> fmap \(NamedRef {reversedSegments, ref}) ->
-          (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
-      pure (srcName : suffixMatches)
+    typeSuffixes
+      & foldMapM
+        ( \lastNameSegment -> do
+            Ops.typeNamesBySuffix pathText lastNameSegment <&> fmap \(NamedRef {reversedSegments, ref}) ->
+              (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
+        )
+      <&> (typeNames <>)
   Debug.debugLogM Debug.Server $ "ppedForReferences built pped within " <> show perspective <> " for " <> show (Set.size refs) <> " deps, " <> show (length allTermNamesToConsider) <> " terms and " <> show (length allTypeNamesToConsider) <> " types"
   pure . PPED.fromNamesDecl hashLen . NamesWithHistory.fromCurrentNames $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
   where

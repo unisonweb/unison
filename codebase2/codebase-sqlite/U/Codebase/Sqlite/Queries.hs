@@ -281,6 +281,7 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
+import qualified Unison.Debug as Debug
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import Unison.Hash32 (Hash32)
@@ -1857,6 +1858,7 @@ typeNamesWithinNamespace namespaceRoot ref = do
 -- Get the list of term names within a given namespace which have the given suffix.
 termNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termNamesBySuffix namespaceRoot suffix = do
+  Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = case namespaceRoot of
         "" -> "*"
         exactNamespace -> globEscape exactNamespace <> ".*"
@@ -1912,6 +1914,7 @@ termNamesByShortHash namespaceRoot shortHash maySuffix = do
 -- Get the list of type names within a given namespace which have the given suffix.
 typeNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
 typeNamesBySuffix namespaceRoot suffix = do
+  Debug.debugM Debug.Server "typeNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = case namespaceRoot of
         "" -> "*"
         exactNamespace -> globEscape exactNamespace <> ".*"
