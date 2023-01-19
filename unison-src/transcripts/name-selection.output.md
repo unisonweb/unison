@@ -393,11 +393,11 @@ d = c + 10
                                                          a
                                                        -> Pattern
                                                          a
-    174. builtin.io2.Ref.cas                           : Ticket
+    174. builtin.io2.Ref.cas                           : Ref
+                                                         {IO} a
+                                                       -> Ticket
                                                          a
                                                        -> a
-                                                       -> Ref
-                                                         {IO} a
                                                        ->{IO} Boolean
     175. builtin.Float.ceiling                         : Float
                                                        -> Int
@@ -1126,136 +1126,136 @@ d = c + 10
                                                        -> Nat
                                                        ->{g,
                                                        Exception} Nat
-    389. builtin.io2.TVar.readIO                       : TVar a
+    389. builtin.io2.Ref.readForCas                    : Ref
+                                                         {IO} a
+                                                       ->{IO} Ticket
+                                                         a
+    390. builtin.io2.TVar.readIO                       : TVar a
                                                        ->{IO} a
-    390. builtin.io2.Clock.internals.realtime          : '{IO} Either
+    391. builtin.io2.Clock.internals.realtime          : '{IO} Either
                                                          Failure
                                                          TimeSpec
-    391. builtin.io2.IO.ref                            : a
+    392. builtin.io2.IO.ref                            : a
                                                        ->{IO} Ref
                                                          {IO} a
-    392. builtin.Scope.ref                             : a
+    393. builtin.Scope.ref                             : a
                                                        ->{Scope
                                                          s} Ref
                                                          {Scope
                                                            s}
                                                          a
-    393. builtin.Text.repeat                           : Nat
+    394. builtin.Text.repeat                           : Nat
                                                        -> Text
                                                        -> Text
-    394. builtin.Pattern.replicate                     : Nat
+    395. builtin.Pattern.replicate                     : Nat
                                                        -> Nat
                                                        -> Pattern
                                                          a
                                                        -> Pattern
                                                          a
-    395. builtin.io2.STM.retry                         : '{STM} a
-    396. builtin.Text.reverse                          : Text
+    396. builtin.io2.STM.retry                         : '{STM} a
+    397. builtin.Text.reverse                          : Text
                                                        -> Text
-    397. builtin.Float.round                           : Float
+    398. builtin.Float.round                           : Float
                                                        -> Int
-    398. builtin.Pattern.run                           : Pattern
+    399. builtin.Pattern.run                           : Pattern
                                                          a
                                                        -> a
                                                        -> Optional
                                                          ( [a],
                                                            a)
-    399. builtin.Scope.run                             : (∀ s.
+    400. builtin.Scope.run                             : (∀ s.
                                                          '{g,
                                                          Scope s} r)
                                                        ->{g} r
-    400. builtin.io2.Clock.internals.sec               : TimeSpec
+    401. builtin.io2.Clock.internals.sec               : TimeSpec
                                                        -> Int
-    401. builtin.Code.serialize                        : Code
+    402. builtin.Code.serialize                        : Code
                                                        -> Bytes
-    402. builtin.Value.serialize                       : Value
+    403. builtin.Value.serialize                       : Value
                                                        -> Bytes
-    403. builtin.io2.Tls.ClientConfig.certificates.set : [SignedCert]
+    404. builtin.io2.Tls.ClientConfig.certificates.set : [SignedCert]
                                                        -> ClientConfig
                                                        -> ClientConfig
-    404. builtin.io2.Tls.ServerConfig.certificates.set : [SignedCert]
+    405. builtin.io2.Tls.ServerConfig.certificates.set : [SignedCert]
                                                        -> ServerConfig
                                                        -> ServerConfig
-    405. builtin.io2.TLS.ClientConfig.ciphers.set      : [Cipher]
+    406. builtin.io2.TLS.ClientConfig.ciphers.set      : [Cipher]
                                                        -> ClientConfig
                                                        -> ClientConfig
-    406. builtin.io2.Tls.ServerConfig.ciphers.set      : [Cipher]
+    407. builtin.io2.Tls.ServerConfig.ciphers.set      : [Cipher]
                                                        -> ServerConfig
                                                        -> ServerConfig
-    407. builtin.io2.Tls.ClientConfig.versions.set     : [Version]
+    408. builtin.io2.Tls.ClientConfig.versions.set     : [Version]
                                                        -> ClientConfig
                                                        -> ClientConfig
-    408. builtin.io2.Tls.ServerConfig.versions.set     : [Version]
+    409. builtin.io2.Tls.ServerConfig.versions.set     : [Version]
                                                        -> ServerConfig
                                                        -> ServerConfig
-    409. builtin.Int.shiftLeft                         : Int
+    410. builtin.Int.shiftLeft                         : Int
                                                        -> Nat
                                                        -> Int
-    410. builtin.Nat.shiftLeft                         : Nat
+    411. builtin.Nat.shiftLeft                         : Nat
                                                        -> Nat
                                                        -> Nat
-    411. builtin.Int.shiftRight                        : Int
+    412. builtin.Int.shiftRight                        : Int
                                                        -> Nat
                                                        -> Int
-    412. builtin.Nat.shiftRight                        : Nat
+    413. builtin.Nat.shiftRight                        : Nat
                                                        -> Nat
                                                        -> Nat
-    413. builtin.Int.signum                            : Int
+    414. builtin.Int.signum                            : Int
                                                        -> Int
-    414. builtin.Float.sin                             : Float
+    415. builtin.Float.sin                             : Float
                                                        -> Float
-    415. builtin.Float.sinh                            : Float
+    416. builtin.Float.sinh                            : Float
                                                        -> Float
-    416. builtin.Bytes.size                            : Bytes
+    417. builtin.Bytes.size                            : Bytes
                                                        -> Nat
-    417. builtin.ImmutableArray.size                   : ImmutableArray
+    418. builtin.ImmutableArray.size                   : ImmutableArray
                                                          a
                                                        -> Nat
-    418. builtin.ImmutableByteArray.size               : ImmutableByteArray
+    419. builtin.ImmutableByteArray.size               : ImmutableByteArray
                                                        -> Nat
-    419. builtin.List.size                             : [a]
+    420. builtin.List.size                             : [a]
                                                        -> Nat
-    420. builtin.MutableArray.size                     : MutableArray
+    421. builtin.MutableArray.size                     : MutableArray
                                                          g a
                                                        -> Nat
-    421. builtin.MutableByteArray.size                 : MutableByteArray
+    422. builtin.MutableByteArray.size                 : MutableByteArray
                                                          g
                                                        -> Nat
-    422. builtin.Text.size                             : Text
+    423. builtin.Text.size                             : Text
                                                        -> Nat
-    423. builtin.Text.patterns.space                   : Pattern
+    424. builtin.Text.patterns.space                   : Pattern
                                                          Text
-    424. builtin.Float.sqrt                            : Float
+    425. builtin.Float.sqrt                            : Float
                                                        -> Float
-    425. builtin.io2.IO.stdHandle                      : StdHandle
+    426. builtin.io2.IO.stdHandle                      : StdHandle
                                                        -> Handle
-    426. builtin.Nat.sub                               : Nat
+    427. builtin.Nat.sub                               : Nat
                                                        -> Nat
                                                        -> Int
-    427. builtin.io2.TVar.swap                         : TVar a
+    428. builtin.io2.TVar.swap                         : TVar a
                                                        -> a
                                                        ->{STM} a
-    428. builtin.io2.IO.systemTimeMicroseconds         : '{IO} Int
-    429. builtin.Bytes.take                            : Nat
+    429. builtin.io2.IO.systemTimeMicroseconds         : '{IO} Int
+    430. builtin.Bytes.take                            : Nat
                                                        -> Bytes
                                                        -> Bytes
-    430. builtin.List.take                             : Nat
+    431. builtin.List.take                             : Nat
                                                        -> [a]
                                                        -> [a]
-    431. builtin.Text.take                             : Nat
+    432. builtin.Text.take                             : Nat
                                                        -> Text
                                                        -> Text
-    432. builtin.Float.tan                             : Float
+    433. builtin.Float.tan                             : Float
                                                        -> Float
-    433. builtin.Float.tanh                            : Float
+    434. builtin.Float.tanh                            : Float
                                                        -> Float
-    434. builtin.io2.Clock.internals.threadCPUTime     : '{IO} Either
+    435. builtin.io2.Clock.internals.threadCPUTime     : '{IO} Either
                                                          Failure
                                                          TimeSpec
-    435. builtin.io2.Ref.ticket                        : Ref
-                                                         {IO} a
-                                                       ->{IO} Ticket
-                                                         a
     436. builtin.Bytes.toBase16                        : Bytes
                                                        -> Bytes
     437. builtin.Bytes.toBase32                        : Bytes

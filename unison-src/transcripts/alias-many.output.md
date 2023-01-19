@@ -370,9 +370,9 @@ Let's try it!
   266. io2.Promise.read : Promise a ->{IO} a
   267. io2.Promise.tryRead : Promise a ->{IO} Optional a
   268. io2.Promise.write : a -> Promise a ->{IO} Boolean
-  269. io2.Ref.cas : Ticket a -> a -> Ref {IO} a ->{IO} Boolean
-  270. builtin type io2.Ref.Ticket
-  271. io2.Ref.ticket : Ref {IO} a ->{IO} Ticket a
+  269. io2.Ref.cas : Ref {IO} a -> Ticket a -> a ->{IO} Boolean
+  270. io2.Ref.readForCas : Ref {IO} a ->{IO} Ticket a
+  271. builtin type io2.Ref.Ticket
   272. io2.Ref.Ticket.read : Ticket a -> a
   273. unique type io2.RuntimeFailure
   274. unique type io2.SeekMode

@@ -1339,16 +1339,16 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.io2.Promise.write : a -> Promise a ->{IO} Boolean
        
   383. -- ##Ref.cas
-       builtin.io2.Ref.cas : Ticket a
+       builtin.io2.Ref.cas : Ref {IO} a
+       -> Ticket a
        -> a
-       -> Ref {IO} a
        ->{IO} Boolean
        
-  384. -- ##Ref.Ticket
-       builtin type builtin.io2.Ref.Ticket
+  384. -- ##Ref.readForCas
+       builtin.io2.Ref.readForCas : Ref {IO} a ->{IO} Ticket a
        
-  385. -- ##Ref.ticket
-       builtin.io2.Ref.ticket : Ref {IO} a ->{IO} Ticket a
+  385. -- ##Ref.Ticket
+       builtin type builtin.io2.Ref.Ticket
        
   386. -- ##Ref.Ticket.read
        builtin.io2.Ref.Ticket.read : Ticket a -> a
