@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Unison.Server.Backend where
 
@@ -904,10 +905,10 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   termDefinitions <-
     Map.traverseWithKey (mkTermDefinition termAndTypePPED) $
       termsToSyntax suffixifyBindings width termAndTypePPED terms
+  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: Rendering definitions"
   let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
       renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
       renderedMisses = fmap HQ.toText misses
-  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: Returning definitions"
   pure $
     DefinitionDisplayResults
       renderedDisplayTerms
