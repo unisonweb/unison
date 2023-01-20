@@ -16,6 +16,7 @@ import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM (TVar)
 import Control.Exception (evaluate)
 import qualified Data.Char as Char
+import Data.Atomics (Ticket)
 import Data.Foldable (toList)
 import Data.IORef (IORef)
 import Data.Primitive.Array as PA
@@ -40,12 +41,15 @@ import Unison.Type
     marrayRef,
     mbytearrayRef,
     mvarRef,
+    promiseRef,
     refRef,
+    ticketRef,
     tvarRef,
     typeLinkRef,
   )
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Text (Text, pack, unpack)
+import Unison.Util.RefPromise (Promise)
 
 -- Foreign functions operating on stacks
 data ForeignFunc where
@@ -429,6 +433,14 @@ instance ForeignConvention (TVar Closure) where
 instance ForeignConvention (IORef Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap refRef)
+
+instance ForeignConvention (Ticket Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap ticketRef)
+
+instance ForeignConvention (Promise Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap promiseRef)
 
 instance ForeignConvention (SuperGroup Symbol) where
   readForeign = readForeignBuiltin

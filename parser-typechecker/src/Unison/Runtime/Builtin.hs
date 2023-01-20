@@ -149,6 +149,17 @@ import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import qualified Unison.Util.Text as Util.Text
 import qualified Unison.Util.Text.Pattern as TPat
+import Unison.Util.RefPromise
+  ( Promise,
+    Ticket,
+    peekTicket,
+    readForCAS,
+    casIORef,
+    newPromise,
+    readPromise,
+    tryReadPromise,
+    writePromise
+  )
 import Unison.Var
 
 type Failure = F.Failure Closure
@@ -1132,6 +1143,13 @@ inBxBx arg1 arg2 result cont instr =
     . TAbss [arg1, arg2]
     $ TLetD result UN (TFOp instr [arg1, arg2]) cont
 
+-- a -> b -> c -> ...
+inBxBxBx :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxBxBx arg1 arg2 arg3 result cont instr =
+  ([BX, BX, BX],)
+    . TAbss [arg1, arg2, arg3]
+    $ TLetD result UN (TFOp instr [arg1, arg2, arg3]) cont
+
 set'echo :: ForeignOp
 set'echo instr =
   ([BX, BX],)
@@ -1174,6 +1192,7 @@ inBxIomr arg1 arg2 fm result cont instr =
     . unenum 4 arg2 Ty.fileModeRef fm
     $ TLetD result UN (TFOp instr [arg1, fm]) cont
 
+
 -- Output Shape -- these will represent different ways of translating
 -- the result of a foreign call to a Unison Term
 --
@@ -1185,6 +1204,7 @@ inBxIomr arg1 arg2 fm result cont instr =
 -- All of these functions will take a Var named result containing the
 -- result of the foreign call
 --
+
 outMaybe :: forall v. Var v => v -> v -> ANormal v
 outMaybe maybe result =
   TMatch result . MatchSum $
@@ -1468,6 +1488,13 @@ boxBoxToBool =
   inBxBx arg1 arg2 result $ boolift result
   where
     (arg1, arg2, result) = fresh
+
+-- a -> b -> c -> Bool
+boxBoxBoxToBool :: ForeignOp
+boxBoxBoxToBool =
+  inBxBxBx arg1 arg2 arg3 result $ boolift result
+  where
+    (arg1, arg2, arg3, result) = fresh
 
 -- Nat -> c
 -- Works for an type that's packed into a word, just
@@ -2341,13 +2368,58 @@ declareForeigns = do
 
   declareForeign Tracked "IO.ref" boxDirect
     . mkForeign
-    $ \(c :: Closure) -> newIORef c
+    $ \(c :: Closure) -> evaluate c >>= newIORef
 
+  -- The docs for IORef state that IORef operations can be observed
+  -- out of order ([1]) but actually GHC does emit the appropriate
+  -- load and store barriers nowadays ([2], [3]).
+  --
+  -- [1] https://hackage.haskell.org/package/base-4.17.0.0/docs/Data-IORef.html#g:2
+  -- [2] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L286
+  -- [3] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L298
   declareForeign Untracked "Ref.read" boxDirect . mkForeign $
     \(r :: IORef Closure) -> readIORef r
 
   declareForeign Untracked "Ref.write" boxBoxTo0 . mkForeign $
-    \(r :: IORef Closure, c :: Closure) -> writeIORef r c
+    \(r :: IORef Closure, c :: Closure) -> evaluate c >>= writeIORef r
+
+  declareForeign Tracked "Ref.readForCas" boxDirect . mkForeign $
+    \(r :: IORef Closure) -> readForCAS r
+
+  declareForeign Tracked "Ref.Ticket.read" boxDirect . mkForeign $
+    \(t :: Ticket Closure) -> pure $ peekTicket t
+
+  -- In GHC, CAS returns both a Boolean and the current value of the
+  -- IORef, which can be used to retry a failed CAS.
+  -- This strategy is more efficient than returning a Boolean only
+  -- because it uses a single call to cmpxchg in assembly (see [1]) to
+  -- avoid an extra read per CAS iteration, however it's not supported
+  -- in Scheme.
+  -- Therefore, we adopt the more common signature that only returns a
+  -- Boolean, which doesn't even suffer from spurious failures because
+  -- GHC issues loads of mutable variables with memory_order_acquire
+  -- (see [2])
+  --
+  -- [1]: https://github.com/ghc/ghc/blob/master/rts/PrimOps.cmm#L697
+  -- [2]: https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L285
+  declareForeign Tracked "Ref.cas" boxBoxBoxToBool . mkForeign $
+    \(r :: IORef Closure, t :: Ticket Closure, v :: Closure) -> fmap fst $
+      do
+        t <- evaluate t
+        casIORef r t v
+
+  declareForeign Tracked "Promise.new" unitDirect . mkForeign $
+    \() -> newPromise @Closure
+
+  -- the only exceptions from Promise.read are async and shouldn't be caught
+  declareForeign Tracked "Promise.read" boxDirect . mkForeign $
+    \(p :: Promise Closure) -> readPromise p
+
+  declareForeign Tracked "Promise.tryRead" boxToMaybeBox . mkForeign $
+    \(p :: Promise Closure) -> tryReadPromise p
+
+  declareForeign Tracked "Promise.write" boxBoxToBool . mkForeign $
+    \(p :: Promise Closure, a :: Closure) -> writePromise p a
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \( config :: TLS.ClientParams,
