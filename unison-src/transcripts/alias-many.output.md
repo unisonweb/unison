@@ -369,7 +369,7 @@ Let's try it!
   265. io2.Promise.new : '{IO} Promise a
   266. io2.Promise.read : Promise a ->{IO} a
   267. io2.Promise.tryRead : Promise a ->{IO} Optional a
-  268. io2.Promise.write : a -> Promise a ->{IO} Boolean
+  268. io2.Promise.write : Promise a -> a ->{IO} Boolean
   269. io2.Ref.cas : Ref {IO} a -> Ticket a -> a ->{IO} Boolean
   270. io2.Ref.readForCas : Ref {IO} a ->{IO} Ticket a
   271. builtin type io2.Ref.Ticket

@@ -1352,9 +1352,9 @@ d = c + 10
                                                        -> a
                                                        ->{g,
                                                        Exception} ()
-    476. builtin.io2.Promise.write                     : a
-                                                       -> Promise
+    476. builtin.io2.Promise.write                     : Promise
                                                          a
+                                                       -> a
                                                        ->{IO} Boolean
     477. builtin.Ref.write                             : Ref g a
                                                        -> a

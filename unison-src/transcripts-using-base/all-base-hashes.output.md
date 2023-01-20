@@ -1336,7 +1336,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.io2.Promise.tryRead : Promise a ->{IO} Optional a
        
   382. -- ##Promise.write
-       builtin.io2.Promise.write : a -> Promise a ->{IO} Boolean
+       builtin.io2.Promise.write : Promise a -> a ->{IO} Boolean
        
   383. -- ##Ref.cas
        builtin.io2.Ref.cas : Ref {IO} a
