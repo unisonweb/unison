@@ -4,16 +4,6 @@ Ref support a CAS operation that can be used as a building block to
 change state atomically without locks.
 
 ```unison
-foo =
- use Nat drop
- drop 6  5
-
-bar =
-  use Nat eq
-  eq 3 4
-```
-
-```unison
 casTest: '{io2.IO} [Result]
 casTest = do
   test = do
@@ -109,16 +99,6 @@ multiple threads repeatedly update an atomic counter, we check that
 the value of the counter is correct after all threads are done.
 
 ```unison
-
-repeat: Nat -> '{e} a ->{e} [a]
-repeat n fa =
-  go i acc =
-    if (Nat.eq i n)
-    then acc
-    else go (i + 1) (acc :+ !fa)
-
-  go 0 []
-
 fullTest : '{IO} [Result]
 fullTest = do
   use Nat * + eq drop
