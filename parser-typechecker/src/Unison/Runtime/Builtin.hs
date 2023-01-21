@@ -2559,6 +2559,9 @@ declareForeigns = do
           Left se -> Left (Util.Text.pack (show se))
           Right a -> Right a
 
+  declareForeign Untracked "Universal.murmurHash" boxToNat . mkForeign $
+    pure . asWord64 . hash64 . serializeValueLazy
+
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
   declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress
   declareForeign Untracked "Bytes.zlib.decompress" boxToEBoxBox . mkForeign $ \bs ->
