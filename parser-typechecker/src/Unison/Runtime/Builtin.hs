@@ -36,6 +36,7 @@ import Control.Monad.Catch (MonadCatch)
 import qualified Control.Monad.Primitive as PA
 import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
+import Data.Digest.Murmur64 (hash64, asWord64)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
 import Data.Bits (shiftL, shiftR, (.|.))
