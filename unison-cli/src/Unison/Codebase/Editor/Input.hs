@@ -210,6 +210,7 @@ data Input
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   | ProjectCreateI ProjectName
+  | ProjectSwitchI ProjectName
   deriving (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput

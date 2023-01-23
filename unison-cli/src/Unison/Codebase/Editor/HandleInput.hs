@@ -71,6 +71,7 @@ import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
+import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
@@ -1401,6 +1402,7 @@ loop e = do
               description <- inputDescription input
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
             ProjectCreateI projectName -> projectCreate projectName
+            ProjectSwitchI projectName -> projectSwitch projectName
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1609,6 +1611,7 @@ inputDescription input =
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
     ProjectCreateI {} -> wat
+    ProjectSwitchI {} -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ShowDefinitionByPrefixI {} -> wat

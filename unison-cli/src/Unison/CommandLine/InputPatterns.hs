@@ -2354,6 +2354,22 @@ projectCreate =
         _ -> Left (showPatternHelp projectCreate)
     }
 
+projectSwitch :: InputPattern
+projectSwitch =
+  InputPattern
+    { patternName = "project.switch",
+      aliases = undefined,
+      visibility = I.Visible,
+      argTypes = [(Required, projectNameArg)],
+      help = P.wrap "Switch to a project.",
+      parse = \case
+        [name] ->
+          case tryInto @ProjectName (Text.pack name) of
+            Left _ -> Left "Invalid project name."
+            Right name1 -> Right (Input.ProjectSwitchI name1)
+        _ -> Left (showPatternHelp projectCreate)
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
