@@ -482,6 +482,7 @@ toHtml docNamesByRef document =
                   pure $ div_ [class_ "source rich embed"] $ codeBlock [] (Syntax.toHtml syntax)
                 EmbedInline syntax ->
                   pure $ span_ [class_ "source rich embed-inline"] $ inlineCode [] (Syntax.toHtml syntax)
+                RenderError (InvalidTerm err) -> pure $ Syntax.toHtml err
             Join docs ->
               span_ [class_ "join"] <$> renderSequence currentSectionLevelToHtml (mergeWords " " docs)
             UntitledSection docs ->

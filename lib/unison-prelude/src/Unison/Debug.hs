@@ -37,6 +37,8 @@ data DebugFlag
   | -- | Useful for adding temporary debugging statements during development.
     -- Remove uses of Debug.Temp before merging to keep things clean for the next person :)
     Temp
+  | -- | Shows Annotations when printing terms
+    Annotations
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -58,6 +60,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "LSP" -> pure LSP
       "TIMING" -> pure Timing
       "TEMP" -> pure Temp
+      "ANNOTATIONS" -> pure Annotations
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -100,6 +103,10 @@ debugTiming = Timing `Set.member` debugFlags
 debugTemp :: Bool
 debugTemp = Temp `Set.member` debugFlags
 {-# NOINLINE debugTemp #-}
+
+debugAnnotations :: Bool
+debugAnnotations = Annotations `Set.member` debugFlags
+{-# NOINLINE debugAnnotations #-}
 
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
@@ -151,3 +158,4 @@ shouldDebug = \case
   LSP -> debugLSP
   Timing -> debugTiming
   Temp -> debugTemp
+  Annotations -> debugAnnotations

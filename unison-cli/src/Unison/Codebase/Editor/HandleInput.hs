@@ -37,7 +37,7 @@ import System.Directory
   )
 import System.Environment (withArgs)
 import System.FilePath ((</>))
-import System.Process (callCommand, readCreateProcess, shell)
+import System.Process (callProcess, readCreateProcess, shell)
 import qualified Text.Megaparsec as P
 import qualified U.Codebase.Branch.Diff as V2Branch
 import qualified U.Codebase.Causal as V2Causal
@@ -91,6 +91,7 @@ import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadRemoteNamespace (..),
     ReadShareRemoteNamespace (..),
+    ShareUserHandle (..),
     WriteGitRemotePath (..),
     WriteGitRepo,
     WriteRemotePath (..),
@@ -179,7 +180,7 @@ import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
+import qualified Unison.Sync.Types as Share
 import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toText, unsafeFromString)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Name as Name (toString, toVar, unsafeFromString, unsafeFromVar)
@@ -1101,6 +1102,7 @@ loop e = do
                   Cli.LoadError -> Cli.returnEarly $ SourceLoadFailed path
                   Cli.LoadSuccess contents -> pure contents
               loadUnisonFile (Text.pack path) contents
+            ClearI -> Cli.respond ClearScreen
             AddI requestedNames -> do
               description <- inputDescription input
               let vars = Set.map Name.toVar requestedNames
@@ -1183,7 +1185,7 @@ loop e = do
               whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
                 Cli.returnEarly (EvaluationFailure err)
             CompileSchemeI output main -> doCompileScheme output main
-            ExecuteSchemeI main -> doRunAsScheme main
+            ExecuteSchemeI main args -> doRunAsScheme main args
             GenSchemeLibsI -> doGenerateSchemeBoot True Nothing
             FetchSchemeCompilerI -> doFetchCompiler
             IOTestI main -> handleIOTest main
@@ -1521,7 +1523,12 @@ inputDescription input =
     MergeBuiltinsI -> pure "builtins.merge"
     MergeIOBuiltinsI -> pure "builtins.mergeio"
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
-    ExecuteSchemeI nm -> pure ("run.native " <> HQ.toText nm)
+    ExecuteSchemeI nm args ->
+      pure $
+        "run.native "
+          <> HQ.toText nm
+          <> " "
+          <> Text.unwords (fmap Text.pack args)
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
     GenSchemeLibsI -> pure "compile.native.genlibs"
     FetchSchemeCompilerI -> pure "compile.native.fetch"
@@ -1591,6 +1598,7 @@ inputDescription input =
     ListDependentsI {} -> wat
     ListEditsI {} -> wat
     LoadI {} -> wat
+    ClearI {} -> pure "clear"
     NamesI {} -> wat
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat
@@ -1983,7 +1991,7 @@ handlePushToUnisonShare :: WriteShareRemotePath -> Path.Absolute -> PushBehavior
 handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
-  let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
+  let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
   ensureAuthenticatedWithCodeserver codeserver
 
   -- doesn't handle the case where a non-existent path is supplied
@@ -2286,7 +2294,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
   when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
-  let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
+  let shareFlavoredPath = Share.Path (shareUserHandleToText repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
   Cli.Env {codebase} <- ask
   causalHash <-
     Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
@@ -2642,7 +2650,7 @@ doFetchCompiler =
     ns =
       ReadShareRemoteNamespace
         { server = RemoteRepo.DefaultCodeserver,
-          repo = "dolio",
+          repo = ShareUserHandle "dolio",
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }
@@ -2746,18 +2754,18 @@ ensureSchemeExists =
         (True <$ readCreateProcess (shell "scheme -q") "")
         (\(_ :: IOException) -> pure False)
 
-runScheme :: String -> Cli ()
-runScheme file = do
+runScheme :: String -> [String] -> Cli ()
+runScheme file args0 = do
   ensureSchemeExists
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
   let includes = gendir ++ ":" ++ statdir
-      lib = "--libdirs " ++ includes
-      opt = "--optimize-level 3"
-      cmd = "scheme -q " ++ opt ++ " " ++ lib ++ " --script " ++ file
+      lib = ["--libdirs", includes]
+      opt = ["--optimize-level", "3"]
+      args = "-q" : opt ++ lib ++ ["--script", file] ++ args0
   success <-
     liftIO $
-      (True <$ callCommand cmd) `catch` \(_ :: IOException) ->
+      (True <$ callProcess "scheme" args) `catch` \(_ :: IOException) ->
         pure False
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
@@ -2788,17 +2796,17 @@ buildScheme main file = do
           ++ lns gd gen
           ++ [surround file]
 
-doRunAsScheme :: HQ.HashQualified Name -> Cli ()
-doRunAsScheme main = do
-  fullpath <- generateSchemeFile (HQ.toString main) main
-  runScheme fullpath
+doRunAsScheme :: HQ.HashQualified Name -> [String] ->  Cli ()
+doRunAsScheme main args = do
+  fullpath <- generateSchemeFile True (HQ.toString main) main
+  runScheme fullpath args
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
-  generateSchemeFile out main >>= buildScheme out
+  generateSchemeFile False out main >>= buildScheme out
 
-generateSchemeFile :: String -> HQ.HashQualified Name -> Cli String
-generateSchemeFile out main = do
+generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
+generateSchemeFile exec out main = do
   (comp, ppe) <- resolveMainRef main
   ensureCompilerExists
   doGenerateSchemeBoot False $ Just ppe
@@ -2814,7 +2822,7 @@ generateSchemeFile out main = do
       fpc = Term.constructor a fprf
       fp = Term.app a fpc outTm
       tm :: Term Symbol Ann
-      tm = Term.apps' sscm [toCmp, fp]
+      tm = Term.apps' sscm [Term.boolean a exec, toCmp, fp]
   typecheckAndEval ppe tm
   pure fullpath
   where

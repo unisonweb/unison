@@ -11,6 +11,7 @@ import Data.Monoid (Any (..))
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Kind as K
+import qualified Unison.LabeledDependency as LD
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.Prelude
@@ -274,6 +275,12 @@ mvarRef, tvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
 
+ticketRef :: Reference
+ticketRef  = Reference.Builtin "Ref.Ticket"
+
+promiseRef :: Reference
+promiseRef = Reference.Builtin "Promise"
+
 tlsRef :: Reference
 tlsRef = Reference.Builtin "Tls"
 
@@ -521,6 +528,9 @@ dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where
     f t@(Ref r) = Writer.tell [r] $> t
     f t = pure t
+
+labeledDependencies :: Ord v => Type v a -> Set LD.LabeledDependency
+labeledDependencies = Set.map LD.TypeReference . dependencies
 
 updateDependencies :: Ord v => Map Reference Reference -> Type v a -> Type v a
 updateDependencies typeUpdates = ABT.rebuildUp go

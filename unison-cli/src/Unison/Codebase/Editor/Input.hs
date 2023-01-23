@@ -129,6 +129,7 @@ data Input
   | ResolveTypeNameI Path.HQSplit'
   | -- edits stuff:
     LoadI (Maybe FilePath)
+  | ClearI
   | AddI (Set Name)
   | PreviewAddI (Set Name)
   | UpdateI OptionalPatch (Set Name)
@@ -155,7 +156,7 @@ data Input
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme
-    ExecuteSchemeI (HQ.HashQualified Name)
+    ExecuteSchemeI (HQ.HashQualified Name) [String]
   | -- compile to a scheme file
     CompileSchemeI String (HQ.HashQualified Name)
   | -- generate scheme libraries

@@ -47,3 +47,27 @@ automatically execute the boot file with the corresponding name on
 start up. For more information on how to accomplish that, see:
 
     https://cisco.github.io/ChezScheme/csug9.5/use.html#./use:h8
+
+---
+
+A tip for working on files in this directory:
+
+Assuming your are doing so by creating a unison test case, it can be
+faster to have scheme code for that test case generated once, and then
+just work on filling out the library functionality here. To do this,
+you can run the ucm command:
+
+    run.native <example>
+
+This will cause a corresponding scheme file to be created in:
+
+    $XDG_CACHE_DIRECTORY/unisonlanguage
+
+This can be copied back to the unison directory, and then run directly
+with something like:
+
+    scheme --libdirs chez-libs:~/.cache/unisonlanguage/scheme-libs --script foo.scm
+
+Then you can test directly against any changes to chez-libs, instead
+of having to copy them to a different location, restart ucm, etc.
+

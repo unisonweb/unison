@@ -14,6 +14,9 @@ This transcript defines unit tests for builtin functions. There's a single `.> t
 ```unison:hide
 use Int
 
+-- used for some take/drop tests later
+bigN = Nat.shiftLeft 1 63
+
 -- Note: you can make the tests more fine-grained if you
 -- want to be able to tell which one is failing
 test> Int.tests.arithmetic =
@@ -198,7 +201,9 @@ test> Text.tests.takeDropAppend =
         Text.take 99 "yabba" == "yabba",
         Text.drop 0 "yabba" == "yabba",
         Text.drop 2 "yabba" == "bba",
-        Text.drop 99 "yabba" == ""
+        Text.drop 99 "yabba" == "",
+        Text.take bigN "yabba" == "yabba",
+        Text.drop bigN "yabba" == ""
         ]
 
 test> Text.tests.repeat =
@@ -255,7 +260,9 @@ test> Bytes.tests.at =
         checks [
           Bytes.at 1 bs == Some 13,
           Bytes.at 0 bs == Some 77,
-          Bytes.at 99 bs == None
+          Bytes.at 99 bs == None,
+          Bytes.take bigN bs == bs,
+          Bytes.drop bigN bs == empty
         ]
 
 test> Bytes.tests.compression =
@@ -304,6 +311,14 @@ test> checks [
 
 ```ucm:hide
 .> add
+```
+
+Other list functions
+```unison:hide
+test> checks [
+        List.take bigN [1,2,3] == [1,2,3],
+        List.drop bigN [1,2,3] == []
+      ]
 ```
 
 ## `Any` functions
