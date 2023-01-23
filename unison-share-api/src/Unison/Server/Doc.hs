@@ -145,6 +145,8 @@ data EvaluatedSpecialForm v
   | EEmbedInline (Term v ())
   | EVideo [MediaSource] (Map Text Text)
   | EFrontMatter (Map Text [Text])
+  | ELaTeXInline Text
+  | ESvg Text
   | ERenderError (RenderError (Term v ()))
   deriving stock (Eq, Show, Generic)
 
@@ -225,6 +227,8 @@ renderDoc pped doc = renderSpecial <$> doc
       EEmbedInline any -> EmbedInline ("{{ embed {{" <> source any <> "}} }}")
       EVideo sources config -> Video sources config
       EFrontMatter frontMatter -> FrontMatter frontMatter
+      ELaTeXInline latex -> LaTeXInline latex
+      ESvg svg -> Svg svg
       ERenderError (InvalidTerm tm) -> Embed ("🆘  unable to render " <> source tm)
 
     evalErrMsg :: SyntaxText
@@ -380,10 +384,10 @@ evalDoc terms typeOf eval types tm =
 
       -- Embed LaTeXInline
       DD.Doc2SpecialFormEmbedLaTeXInline latex ->
-        pure $ LaTeXInline latex
+        pure $ ELaTeXInline latex
       -- Embed Svg
       DD.Doc2SpecialFormEmbedSvg svg ->
-        pure $ Svg svg
+        pure $ ESvg svg
       -- Embed Any
       DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
         pure $ EEmbed any
@@ -483,6 +487,8 @@ dependenciesSpecial = \case
   EEmbedInline trm -> Term.labeledDependencies trm
   EVideo {} -> mempty
   EFrontMatter {} -> mempty
+  ELaTeXInline {} -> mempty
+  ESvg {} -> mempty
   ERenderError (InvalidTerm trm) -> Term.labeledDependencies trm
   where
     sigtypDeps :: [(Referent, Type v a)] -> Set LD.LabeledDependency
