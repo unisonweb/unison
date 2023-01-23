@@ -880,6 +880,17 @@ gen'trace =
     TLets Direct [] [] (TPrm TRCE [t, v]) $
       TCon Ty.unitRef 0 []
 
+debug'text :: SuperNormal Symbol
+debug'text =
+  unop0 3 $ \[c,r,t,e] ->
+    TLetD r UN (TPrm DBTX [c]) .
+      TMatch r . MatchSum $
+        mapFromList [
+            (0, ([], none)),
+            (1, ([BX], TAbs t . TLetD e BX (left t) $ some e)),
+            (2, ([BX], TAbs t . TLetD e BX (right t) $ some e))
+          ]
+
 code'missing :: SuperNormal Symbol
 code'missing =
   unop0 1 $ \[link, b] ->
@@ -1922,6 +1933,7 @@ builtinLookup =
         ("todo", (Untracked, bug "builtin.todo")),
         ("Debug.watch", (Tracked, watch)),
         ("Debug.trace", (Tracked, gen'trace)),
+        ("Debug.toText", (Tracked, debug'text)),
         ("unsafe.coerceAbilities", (Untracked, poly'coerce)),
         ("Char.toNat", (Untracked, cast Ty.charRef Ty.natRef)),
         ("Char.fromNat", (Untracked, cast Ty.natRef Ty.charRef)),
