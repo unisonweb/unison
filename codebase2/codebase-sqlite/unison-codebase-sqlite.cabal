@@ -116,5 +116,7 @@ library
     , unison-util-serialization
     , unison-util-term
     , unliftio
+    , uuid
+    , uuid-orphans-sqlite
     , vector
   default-language: Haskell2010

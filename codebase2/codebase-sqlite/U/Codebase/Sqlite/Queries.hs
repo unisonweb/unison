@@ -213,6 +213,9 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
+import Data.UUID (UUID)
+import Data.UUID.Orphans.Sqlite ()
+import qualified Data.UUID.V4 as UUID
 import qualified Data.Vector as Vector
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
@@ -2420,3 +2423,83 @@ getReflog numEntries = queryListRow sql (Only numEntries)
       ORDER BY time DESC
       LIMIT ?
     |]
+
+newtype ProjectId = ProjectId UUID
+  deriving newtype (ToField, FromField)
+
+data Project = Project
+  { projectId :: ProjectId,
+    name :: Text
+  }
+  deriving stock (Generic)
+  deriving anyclass (ToRow, FromRow)
+
+newtype RemoteProjectId = RemoteProjectId UUID
+  deriving newtype (ToField, FromField)
+
+data RemoteProject = RemoteProject
+  { projectId :: RemoteProjectId,
+    host :: Text,
+    name :: Text
+  }
+  deriving stock (Generic)
+  deriving anyclass (ToRow, FromRow)
+
+newtype BranchId = BranchId UUID
+  deriving newtype (ToField, FromField)
+
+data Branch = Branch
+  { projectId :: ProjectId,
+    branchId :: BranchId,
+    name :: Text
+  }
+  deriving stock (Generic)
+  deriving anyclass (ToRow, FromRow)
+
+getProject :: ProjectId -> Transaction (Maybe Project)
+getProject pid = queryMaybeRow bonk (Only pid)
+  where
+    bonk =
+      [sql|
+           select id, name
+           from project
+           where id = ?
+           |]
+
+insertProject :: ProjectId -> Text -> Transaction ()
+insertProject uuid name = execute bonk (uuid, name)
+  where
+    bonk =
+      [sql|
+           insert into project (id, name)
+           values (?, ?)
+           |]
+
+getBranch :: ProjectId -> BranchId -> Transaction (Maybe Branch)
+getBranch pid bid = queryMaybeRow bonk (pid, bid)
+  where
+    bonk =
+      [sql|
+          select project_id, branch_id, name
+          from branch
+          where project_id = ?
+          and branch_id = ?
+          |]
+
+insertBranch :: ProjectId -> BranchId -> Text -> Transaction ()
+insertBranch pid bid bname = execute bonk (pid, bname)
+  where
+    bonk =
+      [sql|
+          insert into project_branch (project_id, branch_id, name)
+          values (?, ?, ?)
+          |]
+
+markProjectBranchChild :: ProjectId -> BranchId -> BranchId -> Transaction ()
+markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
+  where
+    bonk =
+      [sql|
+          insert into project_branch_parent (project_id, parent_branch_id, branch_id)
+          values (?, ?, ?)
+          |]

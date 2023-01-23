@@ -17,9 +17,9 @@ dependencies:
   - bytestring
   - containers
   - extra
+  - generic-lens
   - here
   - lens
-  - generic-lens
   - monad-validate
   - mtl
   - nonempty-containers
@@ -38,6 +38,8 @@ dependencies:
   - unison-util-serialization
   - unison-util-term
   - unliftio
+  - uuid
+  - uuid-orphans-sqlite
   - vector
 
 default-extensions:
