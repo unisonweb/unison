@@ -202,6 +202,7 @@ library
     , vector
     , wai
     , warp
+    , witch
     , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
@@ -330,6 +331,7 @@ executable cli-integration-tests
     , vector
     , wai
     , warp
+    , witch
     , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
@@ -452,6 +454,7 @@ executable transcripts
     , vector
     , wai
     , warp
+    , witch
     , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
@@ -581,6 +584,7 @@ executable unison
     , vector
     , wai
     , warp
+    , witch
     , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
@@ -713,6 +717,7 @@ test-suite cli-tests
     , vector
     , wai
     , warp
+    , witch
     , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields

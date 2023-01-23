@@ -31,6 +31,7 @@ library:
     - unison-util-base32hex
     - unison-util-relation
     - vector
+    - witch
 
 default-extensions:
   - ApplicativeDo

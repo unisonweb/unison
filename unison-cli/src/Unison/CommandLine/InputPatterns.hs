@@ -43,11 +43,13 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
+import Unison.Project (ProjectName)
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
 import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
+import Witch
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -2154,7 +2156,7 @@ runScheme =
         ]
     )
     ( \case
-        (main:args) ->
+        (main : args) ->
           flip Input.ExecuteSchemeI args <$> parseHashQualifiedName main
         _ -> Left $ showPatternHelp runScheme
     )
@@ -2334,6 +2336,22 @@ diffNamespaceToPatch =
             patch <- Path.parseSplit' Path.definitionNameSegment patch
             pure (Input.DiffNamespaceToPatchI Input.DiffNamespaceToPatchInput {branchId1, branchId2, patch})
         _ -> Left (showPatternHelp diffNamespaceToPatch)
+    }
+
+projectCreate :: InputPattern
+projectCreate =
+  InputPattern
+    { patternName = "project.create",
+      aliases = undefined,
+      visibility = I.Visible,
+      argTypes = [(Required, projectNameArg)],
+      help = P.wrap "Create a project.",
+      parse = \case
+        [name] ->
+          case tryInto @ProjectName (Text.pack name) of
+            Left _ -> Left "Invalid project name."
+            Right name1 -> Right (Input.CreateProjectI name1)
+        _ -> Left (showPatternHelp projectCreate)
     }
 
 validInputs :: [InputPattern]
@@ -2574,6 +2592,15 @@ remoteNamespaceArg =
               _ -> do
                 sharePathCompletion http input,
       globTargets = mempty
+    }
+
+-- | A project name.
+projectNameArg :: ArgumentType
+projectNameArg =
+  ArgumentType
+    { typeName = "project name",
+      suggestions = \_ _ _ _ -> pure [],
+      globTargets = Set.empty
     }
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]

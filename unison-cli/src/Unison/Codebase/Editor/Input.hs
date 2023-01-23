@@ -38,6 +38,7 @@ import Unison.Codebase.Verbosity
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
+import Unison.Project (ProjectName)
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Util.Pretty as P
@@ -208,6 +209,7 @@ data Input
   | AuthLoginI
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
+  | CreateProjectI ProjectName
   deriving (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
