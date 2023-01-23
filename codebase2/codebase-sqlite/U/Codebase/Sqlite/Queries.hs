@@ -134,6 +134,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * Name Lookup
     ensureNameLookupTables,
+    ensureScopedNameLookupTables,
     dropNameLookupTables,
     insertTermNames,
     insertTypeNames,
@@ -1585,8 +1586,58 @@ dropNameLookupTables = do
   |]
 
 -- | Ensure the name lookup tables exist.
+--
+-- These tables will be deprecated in favour of ensureScopedNameLookupTables once we've
+-- migrated all the indexes over.
 ensureNameLookupTables :: Transaction ()
 ensureNameLookupTables = do
+  execute_
+    [here|
+      CREATE TABLE IF NOT EXISTS term_name_lookup (
+        -- The name of the term: E.g. map.List.base
+        reversed_name TEXT NOT NULL,
+        -- The namespace containing this term, not reversed: E.g. base.List
+        namespace TEXT NOT NULL,
+        referent_builtin TEXT NULL,
+        referent_component_hash TEXT NULL,
+        referent_component_index INTEGER NULL,
+        referent_constructor_index INTEGER NULL,
+        referent_constructor_type INTEGER NULL,
+        PRIMARY KEY (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
+      )
+    |]
+  execute_
+    [here|
+      CREATE INDEX IF NOT EXISTS term_names_by_namespace ON term_name_lookup(namespace)
+    |]
+  -- Don't need this index at the moment, but will likely be useful later.
+  -- execute_
+  --   [here|
+  --     CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
+  --   |]
+  execute_
+    [here|
+      CREATE TABLE IF NOT EXISTS type_name_lookup (
+        -- The name of the term: E.g. List.base
+        reversed_name TEXT NOT NULL,
+        -- The namespace containing this term, not reversed: E.g. base.List
+        namespace TEXT NOT NULL,
+        reference_builtin TEXT NULL,
+        reference_component_hash INTEGER NULL,
+        reference_component_index INTEGER NULL,
+        PRIMARY KEY (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
+      );
+    |]
+  execute_
+    [here|
+      CREATE INDEX IF NOT EXISTS type_names_by_namespace ON type_name_lookup(namespace)
+    |]
+
+-- | Ensure the causal_hash scoped name lookup tables exist.
+-- this will eventually replace the tables in 'ensureNameLookupTables' after all the indexes
+-- have been migrated over.
+ensureScopedNameLookupTables :: Transaction ()
+ensureScopedNameLookupTables = do
   -- This table allows us to look up which causal hashes have a name lookup.
   execute_
     [here|
