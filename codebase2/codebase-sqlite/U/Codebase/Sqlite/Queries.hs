@@ -290,10 +290,10 @@ currentSchemaVersion = 7
 createSchema :: Transaction ()
 createSchema = do
   executeFile [hereFile|unison/sql/create.sql|]
-  execute insertSchemaVersionSql (Only currentSchemaVersion)
   addTempEntityTables
   addNamespaceStatsTables
   addReflogTable
+  execute insertSchemaVersionSql (Only currentSchemaVersion)
   where
     insertSchemaVersionSql =
       [here|
