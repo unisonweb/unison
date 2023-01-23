@@ -546,11 +546,11 @@ loop e = do
               path <- Cli.resolvePath' path'
               branchExists <- Cli.branchExistsAtPath' path'
               when (not branchExists) (Cli.respond $ CreatedNewBranch path)
-              #currentPathStack %= Nel.cons path
+              Cli.cd path
             UpI -> do
               path0 <- Cli.getCurrentPath
               whenJust (unsnoc path0) \(path, _) ->
-                #currentPathStack %= Nel.cons path
+                Cli.cd path
             PopBranchI -> do
               loopState <- State.get
               case Nel.uncons (loopState ^. #currentPathStack) of
@@ -1574,6 +1574,8 @@ inputDescription input =
       branchId2 <- hp' (input ^. #branchId2)
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
+    ProjectCreateI {} -> wundefined
+    ProjectSwitchI {} -> wundefined
     --
     ApiI -> wat
     AuthLoginI {} -> wat
@@ -1610,8 +1612,6 @@ inputDescription input =
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
-    ProjectCreateI {} -> wat
-    ProjectSwitchI {} -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ShowDefinitionByPrefixI {} -> wat

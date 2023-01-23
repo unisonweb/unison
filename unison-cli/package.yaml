@@ -84,6 +84,7 @@ dependencies:
   - unison-util-relation
   - unliftio
   - unordered-containers
+  - uuid
   - vector
   - witherable
   - wai

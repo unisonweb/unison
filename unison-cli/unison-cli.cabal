@@ -34,6 +34,7 @@ library
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
       Unison.Cli.PrettyPrintUtils
+      Unison.Cli.ProjectUtils
       Unison.Cli.TypeCheck
       Unison.Cli.UnisonConfigUtils
       Unison.Codebase.Editor.AuthorInfo
@@ -201,6 +202,7 @@ library
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
@@ -330,6 +332,7 @@ executable cli-integration-tests
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
@@ -453,6 +456,7 @@ executable transcripts
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
@@ -583,6 +587,7 @@ executable unison
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
@@ -716,6 +721,7 @@ test-suite cli-tests
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp

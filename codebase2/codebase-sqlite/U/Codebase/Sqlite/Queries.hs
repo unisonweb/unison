@@ -97,6 +97,13 @@ module U.Codebase.Sqlite.Queries
     loadWatchKindsByReference,
     clearWatches,
 
+    -- * projects
+    ProjectId (..),
+    projectExistsByName,
+    insertProject,
+    BranchId (..),
+    insertBranch,
+
     -- * indexes
 
     -- ** dependents index
@@ -2424,7 +2431,7 @@ getReflog numEntries = queryListRow sql (Only numEntries)
       LIMIT ?
     |]
 
-newtype ProjectId = ProjectId UUID
+newtype ProjectId = ProjectId {unProjectId :: UUID}
   deriving newtype (ToField, FromField)
 
 data Project = Project
@@ -2445,7 +2452,7 @@ data RemoteProject = RemoteProject
   deriving stock (Generic)
   deriving anyclass (ToRow, FromRow)
 
-newtype BranchId = BranchId UUID
+newtype BranchId = BranchId {unBranchId :: UUID}
   deriving newtype (ToField, FromField)
 
 data Branch = Branch
@@ -2465,6 +2472,18 @@ getProject pid = queryMaybeRow bonk (Only pid)
            from project
            where id = ?
            |]
+
+projectExistsByName :: Text -> Transaction Bool
+projectExistsByName name =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM project
+        WHERE name = ?
+      )
+    |]
+    (Only name)
 
 insertProject :: ProjectId -> Text -> Transaction ()
 insertProject uuid name = execute bonk (uuid, name)
