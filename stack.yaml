@@ -36,6 +36,7 @@ packages:
 - lib/unison-util-relation
 - lib/unison-util-rope
 - lib/unison-pretty-printer
+- lib/uuid-orphans-sqlite
 
 #compiler-check: match-exact
 resolver: lts-18.28

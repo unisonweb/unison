@@ -75,6 +75,9 @@ cradle:
     - path: "lib/unison-util-rope/src"
       component: "unison-util-rope:lib"
 
+    - path: "lib/uuid-orphans-sqlite/src"
+      component: "uuid-orphans-sqlite:lib"
+
     - path: "parser-typechecker/src"
       component: "unison-parser-typechecker:lib"
 
