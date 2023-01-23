@@ -155,6 +155,13 @@ packages:
       sha256: 1981a732d1917213de7f51d26255af733a61918c59eebb6c6f6ca939856839ef
   original:
     hackage: network-3.1.2.7
+- completed:
+    hackage: sqlite-simple-0.4.18.2@sha256:dda1643e723591c880dda8eeba73e93502cfa775078a79da55b5efec4c52ff66,3028
+    pantry-tree:
+      size: 1930
+      sha256: 64443740f279b344aecb3389ec8f69ea04d171916a9ed23f8fa529dd3ae75540
+  original:
+    hackage: sqlite-simple-0.4.18.2
 snapshots:
 - completed:
     size: 590100

@@ -2350,7 +2350,7 @@ projectCreate =
         [name] ->
           case tryInto @ProjectName (Text.pack name) of
             Left _ -> Left "Invalid project name."
-            Right name1 -> Right (Input.CreateProjectI name1)
+            Right name1 -> Right (Input.ProjectCreateI name1)
         _ -> Left (showPatternHelp projectCreate)
     }
 
@@ -2462,7 +2462,8 @@ validInputs =
       gist,
       authLogin,
       printVersion,
-      diffNamespaceToPatch
+      diffNamespaceToPatch,
+      projectCreate
     ]
 
 -- | A map of all command patterns by pattern name or alias.

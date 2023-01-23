@@ -70,6 +70,7 @@ import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
+import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
@@ -1399,6 +1400,7 @@ loop e = do
             DiffNamespaceToPatchI diffNamespaceToPatchInput -> do
               description <- inputDescription input
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
+            ProjectCreateI projectName -> projectCreate projectName
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1573,14 +1575,16 @@ inputDescription input =
     --
     ApiI -> wat
     AuthLoginI {} -> wat
+    ClearI {} -> pure "clear"
     CreateMessage {} -> wat
     CreatePullRequestI {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat
-    DebugNameDiffI {} -> wat
     DebugDumpNamespaceSimpleI {} -> wat
     DebugDumpNamespacesI {} -> wat
+    DebugNameDiffI {} -> wat
     DebugNumberedArgsI {} -> wat
+    DebugTabCompletionI _input -> wat
     DebugTypecheckedUnisonFileI {} -> wat
     DeprecateTermI {} -> wat
     DeprecateTypeI {} -> wat
@@ -1598,13 +1602,13 @@ inputDescription input =
     ListDependentsI {} -> wat
     ListEditsI {} -> wat
     LoadI {} -> wat
-    ClearI {} -> pure "clear"
     NamesI {} -> wat
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
+    ProjectCreateI {} -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
@@ -1616,7 +1620,6 @@ inputDescription input =
     UiI -> wat
     UpI {} -> wat
     VersionI -> wat
-    DebugTabCompletionI _input -> wat
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
     hp' = either (pure . Text.pack . show) p'
