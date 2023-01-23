@@ -1587,9 +1587,18 @@ dropNameLookupTables = do
 -- | Ensure the name lookup tables exist.
 ensureNameLookupTables :: Transaction ()
 ensureNameLookupTables = do
+  -- This table allows us to look up which causal hashes have a name lookup.
   execute_
     [here|
-      CREATE TABLE IF NOT EXISTS term_name_lookup (
+      CREATE TABLE IF NOT EXISTS name_lookups (
+        root_causal_hash_id INTEGER PRIMARY KEY REFERENCES causal(self_hash_id) ON DELETE CASCADE,
+      )
+    |]
+
+  execute_
+    [here|
+      CREATE TABLE IF NOT EXISTS scoped_term_name_lookup (
+        root_causal_hash_id INTEGER NOT NULL REFERENCES causal(self_hash_id) ON DELETE CASCADE,
         -- The name of the term: E.g. map.List.base
         reversed_name TEXT NOT NULL,
         -- The namespace containing this term, not reversed: E.g. base.List
@@ -1599,12 +1608,12 @@ ensureNameLookupTables = do
         referent_component_index INTEGER NULL,
         referent_constructor_index INTEGER NULL,
         referent_constructor_type INTEGER NULL,
-        PRIMARY KEY (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
+        PRIMARY KEY (root_causal_hash_id, reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
       )
     |]
   execute_
     [here|
-      CREATE INDEX IF NOT EXISTS term_names_by_namespace ON term_name_lookup(namespace)
+      CREATE INDEX IF NOT EXISTS term_names_by_namespace ON scoped_term_name_lookup(root_causal_hash_id, namespace)
     |]
   -- Don't need this index at the moment, but will likely be useful later.
   -- execute_
@@ -1613,7 +1622,8 @@ ensureNameLookupTables = do
   --   |]
   execute_
     [here|
-      CREATE TABLE IF NOT EXISTS type_name_lookup (
+      CREATE TABLE IF NOT EXISTS scoped_type_name_lookup (
+        root_causal_hash_id INTEGER NOT NULL,
         -- The name of the term: E.g. List.base
         reversed_name TEXT NOT NULL,
         -- The namespace containing this term, not reversed: E.g. base.List
@@ -1626,14 +1636,8 @@ ensureNameLookupTables = do
     |]
   execute_
     [here|
-      CREATE INDEX IF NOT EXISTS type_names_by_namespace ON type_name_lookup(namespace)
+      CREATE INDEX IF NOT EXISTS scoped_type_names_by_namespace ON type_name_lookup(root_causal_hash_id, namespace)
     |]
-
--- Don't need this index at the moment, but will likely be useful later.
--- execute_
---   [here|
---     CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index);
---   |]
 
 -- | Insert the given set of term names into the name lookup table
 insertTermNames :: [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
