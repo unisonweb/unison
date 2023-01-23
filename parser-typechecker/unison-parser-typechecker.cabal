@@ -152,6 +152,7 @@ library
       Unison.Util.Logger
       Unison.Util.PinBoard
       Unison.Util.Pretty.MegaParsec
+      Unison.Util.RefPromise
       Unison.Util.Star3
       Unison.Util.Text
       Unison.Util.Text.Pattern
@@ -193,6 +194,7 @@ library
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring
@@ -378,6 +380,7 @@ test-suite parser-typechecker-tests
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring

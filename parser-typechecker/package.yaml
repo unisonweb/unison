@@ -24,6 +24,7 @@ dependencies:
   - aeson
   - ansi-terminal
   - async
+  - atomic-primops
   - base
   - base16 >= 0.2.1.0
   - base64-bytestring

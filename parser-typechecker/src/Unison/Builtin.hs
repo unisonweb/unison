@@ -234,6 +234,10 @@ builtinTypesSrc =
     Rename' "STM" "io2.STM",
     B' "Ref" CT.Data,
     B' "Scope" CT.Effect,
+    B' "Ref.Ticket" CT.Data,
+    Rename' "Ref.Ticket" "io2.Ref.Ticket",
+    B' "Promise" CT.Data,
+    Rename' "Promise" "io2.Promise",
     B' "TimeSpec" CT.Data,
     Rename' "TimeSpec" "io2.Clock.internals.TimeSpec",
     B' "ImmutableArray" CT.Data,
@@ -641,6 +645,7 @@ builtinsSrc =
     ++ moveUnder "io2" ioBuiltins
     ++ moveUnder "io2" mvarBuiltins
     ++ moveUnder "io2" stmBuiltins
+    ++ moveUnder "io2" refPromiseBuiltins
     ++ hashBuiltins
     ++ fmap (uncurry B) codeBuiltins
 
@@ -750,7 +755,7 @@ ioBuiltins =
     ("IO.kill.impl.v3", threadId --> iof unit),
     ( "IO.ref",
       forall1 "a" $ \a ->
-        a --> io (reft (Type.effects () [Type.builtinIO ()]) a)
+        a --> io (reft iot a)
     ),
     ( "validateSandboxed",
       forall1 "a" $ \a -> list termLink --> a --> boolean
@@ -781,17 +786,17 @@ ioBuiltins =
     ("Clock.internals.nsec.v1", timeSpec --> nat),
     ( "IO.array",
       forall1 "a" $ \a ->
-        nat --> io (marrayt (Type.effects () [Type.builtinIO ()]) a)
+        nat --> io (marrayt iot a)
     ),
     ( "IO.arrayOf",
       forall1 "a" $ \a ->
-        a --> nat --> io (marrayt (Type.effects () [Type.builtinIO ()]) a)
+        a --> nat --> io (marrayt iot a)
     ),
     ( "IO.bytearray",
-      nat --> io (mbytearrayt (Type.effects () [Type.builtinIO ()]))
+      nat --> io (mbytearrayt iot)
     ),
     ( "IO.bytearrayOf",
-      nat --> nat --> io (mbytearrayt (Type.effects () [Type.builtinIO ()]))
+      nat --> nat --> io (mbytearrayt iot)
     ),
     ( "IO.tryEval",
       forall1 "a" $ \a ->
@@ -847,6 +852,22 @@ stmBuiltins =
     ("STM.retry", forall1 "a" $ \a -> unit --> stm a),
     ("STM.atomically", forall1 "a" $ \a -> (unit --> stm a) --> io a)
   ]
+
+refPromiseBuiltins :: [(Text, Type)]
+refPromiseBuiltins =
+  [ ("Ref.Ticket.read", forall1 "a" $ \a -> ticket a --> a),
+    ("Ref.readForCas", forall1 "a" $ \a ->  reft iot a --> io (ticket a)),
+    ("Ref.cas", forall1 "a" $ \a -> reft iot a --> ticket a --> a --> io boolean),
+    ("Promise.new", forall1 "a" $ \a -> unit --> io (promise a)),
+    ("Promise.read", forall1 "a" $ \a -> promise a --> io a),
+    ("Promise.tryRead", forall1 "a" $ \a -> promise a --> io (optionalt a)),
+    ("Promise.write", forall1 "a" $ \a -> promise a --> a --> io boolean)
+  ]
+  where
+    ticket :: Type -> Type
+    ticket a = Type.ref () Type.ticketRef `app` a
+    promise :: Type -> Type
+    promise a = Type.ref () Type.promiseRef `app` a
 
 forall1 :: Text -> (Type -> Type) -> Type
 forall1 name body =
@@ -904,6 +925,8 @@ infixr 9 -->
 io, iof :: Type -> Type
 io = Type.effect1 () (Type.builtinIO ())
 iof = io . eithert failure
+iot :: Type
+iot = (Type.effects () [Type.builtinIO ()])
 
 failure :: Type
 failure = DD.failureType ()
