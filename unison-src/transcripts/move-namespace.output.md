@@ -267,7 +267,7 @@ I should be able to move the root into a sub-namespace
 
 .> ls
 
-  1. root/ (588 terms, 80 types)
+  1. root/ (589 terms, 80 types)
 
 .> history
 
@@ -276,13 +276,13 @@ I should be able to move the root into a sub-namespace
   
   
   
-  □ 1. #3rt95kasco (start of history)
+  □ 1. #auu2tl56oq (start of history)
 
 ```
 ```ucm
 .> ls .root.at.path
 
-  1. builtin/  (583 terms, 79 types)
+  1. builtin/  (584 terms, 79 types)
   2. existing/ (1 term)
   3. happy/    (3 terms, 1 type)
   4. history/  (1 term)
@@ -292,7 +292,7 @@ I should be able to move the root into a sub-namespace
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #9h5q2s97j1
+  ⊙ 1. #97qd306bhl
   
     - Deletes:
     
@@ -303,7 +303,7 @@ I should be able to move the root into a sub-namespace
       Original name      New name
       existing.a.termInA existing.b.termInA
   
-  ⊙ 2. #uc76cu49n5
+  ⊙ 2. #m150lr1ui2
   
     + Adds / updates:
     
@@ -315,26 +315,26 @@ I should be able to move the root into a sub-namespace
       happy.b.termInA   existing.a.termInA
       history.b.termInA existing.a.termInA
   
-  ⊙ 3. #p0i5leprku
+  ⊙ 3. #jjjgo7q3n5
   
     + Adds / updates:
     
       existing.a.termInA existing.b.termInB
   
-  ⊙ 4. #6653phkspu
+  ⊙ 4. #c0mb4ochf8
   
     > Moves:
     
       Original name     New name
       history.a.termInA history.b.termInA
   
-  ⊙ 5. #96s54m0o9q
+  ⊙ 5. #usfoef2l86
   
     - Deletes:
     
       history.b.termInB
   
-  ⊙ 6. #kdt1ubsjvc
+  ⊙ 6. #gdreu1e9hl
   
     + Adds / updates:
     
@@ -345,13 +345,13 @@ I should be able to move the root into a sub-namespace
       Original name   New name(s)
       happy.b.termInA history.a.termInA
   
-  ⊙ 7. #ilms0te7e9
+  ⊙ 7. #u0lvtvmjtq
   
     + Adds / updates:
     
       history.a.termInA history.b.termInB
   
-  ⊙ 8. #s4rrj4ar8p
+  ⊙ 8. #6p6s9eutui
   
     > Moves:
     
@@ -361,7 +361,7 @@ I should be able to move the root into a sub-namespace
       happy.a.T.T2    happy.b.T.T2
       happy.a.termInA happy.b.termInA
   
-  ⊙ 9. #neo6d1tqh5
+  ⊙ 9. #iaptpdrgpv
   
     + Adds / updates:
     
@@ -371,7 +371,7 @@ I should be able to move the root into a sub-namespace
     
       happy.a.T.T
   
-  ⊙ 10. #u3uo460daa
+  ⊙ 10. #qt23b1u7cq
   
     + Adds / updates:
     
@@ -383,7 +383,7 @@ I should be able to move the root into a sub-namespace
   
   ⠇
   
-  ⊙ 11. #bqq857tsem
+  ⊙ 11. #h8kqn6r8hl
   
 
 ```
