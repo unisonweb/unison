@@ -401,6 +401,7 @@ instance Tag BPrim1 where
   tag2word CVLD = 22
   tag2word VALU = 23
   tag2word TLTT = 24
+  tag2word DBTX = 25
 
   word2tag 0 = pure SIZT
   word2tag 1 = pure USNC
@@ -427,6 +428,7 @@ instance Tag BPrim1 where
   word2tag 22 = pure CVLD
   word2tag 23 = pure VALU
   word2tag 24 = pure TLTT
+  word2tag 25 = pure DBTX
   word2tag n = unknownTag "BPrim1" n
 
 instance Tag BPrim2 where
