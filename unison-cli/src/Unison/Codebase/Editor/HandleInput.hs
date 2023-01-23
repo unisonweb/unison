@@ -71,6 +71,7 @@ import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
+import Unison.Codebase.Editor.HandleInput.ProjectCreateBranch (projectCreateBranch)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
@@ -1401,8 +1402,9 @@ loop e = do
             DiffNamespaceToPatchI diffNamespaceToPatchInput -> do
               description <- inputDescription input
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
-            ProjectCreateI projectName -> projectCreate projectName
-            ProjectSwitchI projectName -> projectSwitch projectName
+            ProjectCreateI name -> projectCreate name
+            ProjectCreateBranchI name -> projectCreateBranch name
+            ProjectSwitchI name -> projectSwitch name
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1575,6 +1577,7 @@ inputDescription input =
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     ProjectCreateI {} -> wundefined
+    ProjectCreateBranchI {} -> wundefined
     ProjectSwitchI {} -> wundefined
     --
     ApiI -> wat

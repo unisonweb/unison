@@ -43,7 +43,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectName)
+import Unison.Project (ProjectBranchName, ProjectName)
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
 import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import qualified Unison.Util.ColorText as CT
@@ -2342,7 +2342,7 @@ projectCreate :: InputPattern
 projectCreate =
   InputPattern
     { patternName = "project.create",
-      aliases = undefined,
+      aliases = [],
       visibility = I.Visible,
       argTypes = [(Required, projectNameArg)],
       help = P.wrap "Create a project.",
@@ -2354,11 +2354,27 @@ projectCreate =
         _ -> Left (showPatternHelp projectCreate)
     }
 
+projectCreateBranch :: InputPattern
+projectCreateBranch =
+  InputPattern
+    { patternName = "project.create-branch",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(Required, projectBranchNameArg)],
+      help = P.wrap "Create a project branch.",
+      parse = \case
+        [name] ->
+          case tryInto @ProjectBranchName (Text.pack name) of
+            Left _ -> Left "Invalid branch name."
+            Right name1 -> Right (Input.ProjectCreateBranchI name1)
+        _ -> Left (showPatternHelp projectCreateBranch)
+    }
+
 projectSwitch :: InputPattern
 projectSwitch =
   InputPattern
     { patternName = "project.switch",
-      aliases = undefined,
+      aliases = [],
       visibility = I.Visible,
       argTypes = [(Required, projectNameArg)],
       help = P.wrap "Switch to a project.",
@@ -2367,7 +2383,7 @@ projectSwitch =
           case tryInto @ProjectName (Text.pack name) of
             Left _ -> Left "Invalid project name."
             Right name1 -> Right (Input.ProjectSwitchI name1)
-        _ -> Left (showPatternHelp projectCreate)
+        _ -> Left (showPatternHelp projectSwitch)
     }
 
 validInputs :: [InputPattern]
@@ -2609,6 +2625,15 @@ remoteNamespaceArg =
               _ -> do
                 sharePathCompletion http input,
       globTargets = mempty
+    }
+
+-- | A project branch name.
+projectBranchNameArg :: ArgumentType
+projectBranchNameArg =
+  ArgumentType
+    { typeName = "project branch name",
+      suggestions = \_ _ _ _ -> pure [],
+      globTargets = Set.empty
     }
 
 -- | A project name.

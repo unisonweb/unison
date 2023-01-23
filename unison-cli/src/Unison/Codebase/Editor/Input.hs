@@ -38,8 +38,8 @@ import Unison.Codebase.Verbosity
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
-import Unison.Project (ProjectName)
 import Unison.Prelude
+import Unison.Project (ProjectBranchName, ProjectName)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Util.Pretty as P
 
@@ -210,6 +210,7 @@ data Input
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   | ProjectCreateI ProjectName
+  | ProjectCreateBranchI ProjectBranchName
   | ProjectSwitchI ProjectName
   deriving (Eq, Show)
 
