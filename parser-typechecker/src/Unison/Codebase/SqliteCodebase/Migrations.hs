@@ -26,6 +26,7 @@ import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchem
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5 (migrateSchema4To5)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7 (migrateSchema6To7)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8 (migrateSchema7To8)
 import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
 import Unison.Codebase.SqliteCodebase.Paths (backupCodebasePath, codebasePath)
 import Unison.Codebase.Type (LocalOrRemote (..))
@@ -55,7 +56,8 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       (4, migrateSchema3To4),
       (5, migrateSchema4To5),
       (6, migrateSchema5To6 rootCodebasePath),
-      (7, migrateSchema6To7)
+      (7, migrateSchema6To7),
+      (8, migrateSchema7To8)
     ]
 
 data CodebaseVersionStatus

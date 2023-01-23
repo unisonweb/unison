@@ -108,14 +108,6 @@ module U.Codebase.Sqlite.Queries
     getDependencyIdsForDependent,
     getDependenciesBetweenTerms,
 
-    -- ** migrations
-    currentSchemaVersion,
-    countObjects,
-    countCausals,
-    countWatches,
-    getCausalsWithoutBranchObjects,
-    removeHashObjectsByHashingVersion,
-
     -- ** type index
     addToTypeIndex,
     getReferentsByType,
@@ -165,15 +157,29 @@ module U.Codebase.Sqlite.Queries
     -- * elaborate hashes
     elaborateHashes,
 
-    -- * db misc
+    -- * migrations
+    createSchema,
     addTempEntityTables,
-    addNamespaceStatsTables,
     addReflogTable,
+    addNamespaceStatsTables,
+    addProjectTables,
+
+    -- ** schema version
+    currentSchemaVersion,
+    expectSchemaVersion,
+    setSchemaVersion,
+
+    -- ** helpers for various migrations
+    countObjects,
+    countCausals,
+    countWatches,
+    getCausalsWithoutBranchObjects,
+    removeHashObjectsByHashingVersion,
+
+    -- * db misc
     addTypeMentionsToIndexForTerm,
     addTypeToIndexForTerm,
     c2xTerm,
-    createSchema,
-    expectSchemaVersion,
     localIdsToLookups,
     s2cDecl,
     s2cTermWithType,
@@ -182,7 +188,6 @@ module U.Codebase.Sqlite.Queries
     saveSyncEntity,
     saveTermComponent,
     schemaVersion,
-    setSchemaVersion,
     x2cTType,
     x2cTerm,
   )
@@ -198,7 +203,6 @@ import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
-import qualified Data.List.Extra as List
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
@@ -279,13 +283,14 @@ import qualified Unison.Hash32 as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
 import Unison.Prelude
 import Unison.Sqlite
+import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Util.Alternative as Alternative
 import qualified Unison.Util.Lens as Lens
 
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 7
+currentSchemaVersion = 8
 
 createSchema :: Transaction ()
 createSchema = do
@@ -293,6 +298,7 @@ createSchema = do
   addTempEntityTables
   addNamespaceStatsTables
   addReflogTable
+  addProjectTables
   execute insertSchemaVersionSql (Only currentSchemaVersion)
   where
     insertSchemaVersionSql =
@@ -312,9 +318,17 @@ addReflogTable :: Transaction ()
 addReflogTable =
   executeFile [hereFile|unison/sql/002-reflog-table.sql|]
 
+addProjectTables :: Transaction ()
+addProjectTables =
+  executeFile [hereFile|unison/sql/004-project-tables.sql|]
+
 executeFile :: String -> Transaction ()
 executeFile =
-  traverse_ (execute_ . fromString) . filter (not . null) . List.splitOn ";"
+  traverse_ (execute_ . Sqlite.Sql)
+    . filter (not . Text.null)
+    . map Text.strip
+    . Text.split (== ';')
+    . Text.pack
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion = queryOneCol_ sql
