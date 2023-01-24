@@ -3,6 +3,9 @@ module Unison.Cli.ProjectUtils
   ( getCurrentProjectBranch,
     projectPath,
     projectBranchPath,
+
+    -- ** Path prisms
+    projectBranchPathPrism,
   )
 where
 
@@ -51,13 +54,17 @@ pattern UUIDNameSegment uuid <-
   where
     UUIDNameSegment uuid = NameSegment (Text.cons '_' (Text.map (\c -> if c == '-' then '_' else c) (UUID.toText uuid)))
 
--- The prism between paths like
+-- | The prism between paths like
 --
---   .__projects._XXXX
+-- @
+-- .__projects._XX_XX
+-- @
 --
 -- and the project id
 --
---   XXXX
+-- @
+-- XX-XX
+-- @
 projectPathPrism :: Prism' Path.Absolute Queries.ProjectId
 projectPathPrism =
   prism' toPath toId
@@ -76,13 +83,17 @@ projectPathPrism =
         ["__projects", UUIDNameSegment projectId] -> Just (Queries.ProjectId projectId)
         _ -> Nothing
 
--- The prism between paths like
+-- | The prism between paths like
 --
---   .__projects._XXXX.branches._YYYY
+-- @
+-- .__projects._XX_XX.branches._YY_YY
+-- @
 --
--- and the (project id, branch id) pair
+-- and the @(project id, branch id)@ pair
 --
---   (XXXX, YYYY)
+-- @
+-- (XX-XX, YY-YY)
+-- @
 projectBranchPathPrism :: Prism' Path.Absolute (Queries.ProjectId, Queries.BranchId)
 projectBranchPathPrism =
   prism' toPath toIds
