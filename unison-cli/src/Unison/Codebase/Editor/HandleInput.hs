@@ -70,13 +70,13 @@ import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
-import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
-import Unison.Codebase.Editor.HandleInput.ProjectCreateBranch (projectCreateBranch)
-import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
+import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
+import Unison.Codebase.Editor.HandleInput.ProjectCreateBranch (projectCreateBranch)
+import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.TermResolution
   ( resolveCon,
     resolveMainRef,
@@ -2805,7 +2805,7 @@ buildScheme main file = do
           ++ lns gd gen
           ++ [surround file]
 
-doRunAsScheme :: HQ.HashQualified Name -> [String] ->  Cli ()
+doRunAsScheme :: HQ.HashQualified Name -> [String] -> Cli ()
 doRunAsScheme main args = do
   fullpath <- generateSchemeFile True (HQ.toString main) main
   runScheme fullpath args

@@ -19,10 +19,9 @@ import Witch
 
 -- | Create a new project.
 --
--- If a project already exists with the given name, bail.
---
--- Otherwise, create a scaffold out a new project with a "main" branch, and add it to the namespace at a sentinel
--- location that the user isn't supposed to see.
+-- * If a project already exists with the given name, bail.
+-- * Otherwise, create a scaffold out a new project with a "main" branch, and add it to the namespace (at a magic
+--   location that the user isn't supposed to look at).
 --
 -- Big danger: we first commit the project identity and metadata (like its name) to the codebase, then manipulate our
 -- in-memory namespace and flush its contents out in a separate transaction. This means that if lightning strikes at the
@@ -61,6 +60,8 @@ projectCreate name = do
   Cli.cd path
 
 -- The initial contents of the main branch of a new project.
+--
+-- FIXME we should put a README here, or something
 mainBranchContents :: Branch0 m
 mainBranchContents =
   Branch.empty0
