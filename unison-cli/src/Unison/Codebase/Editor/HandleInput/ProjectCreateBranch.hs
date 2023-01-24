@@ -31,7 +31,7 @@ projectCreateBranch name = do
   Cli.runEitherTransaction do
     Queries.projectBranchExistsByName projectId (into @Text name) >>= \case
       False -> do
-        Queries.insertBranch projectId newBranchId (into @Text name)
+        Queries.insertProjectBranch projectId newBranchId (into @Text name)
         Queries.markProjectBranchChild projectId currentBranchId newBranchId
         pure (Right ())
       True -> pure (Left (error "branch by that name exists"))

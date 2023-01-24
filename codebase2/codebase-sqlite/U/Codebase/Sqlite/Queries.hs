@@ -107,7 +107,7 @@ module U.Codebase.Sqlite.Queries
     BranchId (..),
     projectBranchExistsByName,
     loadProjectBranchByName,
-    insertBranch,
+    insertProjectBranch,
     markProjectBranchChild,
 
     -- * indexes
@@ -2549,14 +2549,14 @@ loadProjectBranchByName projectId name =
     |]
     (projectId, name)
 
-insertBranch :: ProjectId -> BranchId -> Text -> Transaction ()
-insertBranch pid bid bname = execute bonk (pid, bname)
+insertProjectBranch :: ProjectId -> BranchId -> Text -> Transaction ()
+insertProjectBranch pid bid bname = execute bonk (pid, bid, bname)
   where
     bonk =
       [sql|
-          insert into project_branch (project_id, branch_id, name)
-          values (?, ?, ?)
-          |]
+        insert into project_branch (project_id, branch_id, name)
+        values (?, ?, ?)
+      |]
 
 markProjectBranchChild :: ProjectId -> BranchId -> BranchId -> Transaction ()
 markProjectBranchChild pid parent child = execute bonk (pid, parent, child)

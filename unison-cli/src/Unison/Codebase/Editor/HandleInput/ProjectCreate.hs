@@ -51,7 +51,7 @@ projectCreate name = do
     Queries.projectExistsByName (into @Text name) >>= \case
       False -> do
         Queries.insertProject projectId (into @Text name)
-        Queries.insertBranch projectId branchId "main"
+        Queries.insertProjectBranch projectId branchId "main"
         pure (Right ())
       True -> pure (Left (error "project by that name already exists"))
 
