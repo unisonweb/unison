@@ -135,14 +135,20 @@ module U.Codebase.Sqlite.Queries
     -- * Name Lookup
     ensureNameLookupTables,
     ensureScopedNameLookupTables,
+    copyScopedNameLookup,
     dropNameLookupTables,
     insertTermNames,
     insertTypeNames,
     removeTermNames,
     removeTypeNames,
+    insertScopedTermNames,
+    insertScopedTypeNames,
+    removeScopedTermNames,
+    removeScopedTypeNames,
     rootTermNamesByPath,
     rootTypeNamesByPath,
     getNamespaceDefinitionCount,
+    checkBranchHashNameLookupExists,
 
     -- * Reflog
     appendReflog,
@@ -1610,11 +1616,6 @@ ensureNameLookupTables = do
     [here|
       CREATE INDEX IF NOT EXISTS term_names_by_namespace ON term_name_lookup(namespace)
     |]
-  -- Don't need this index at the moment, but will likely be useful later.
-  -- execute_
-  --   [here|
-  --     CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
-  --   |]
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS type_name_lookup (
@@ -1642,42 +1643,84 @@ ensureScopedNameLookupTables = do
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS name_lookups (
-        root_causal_hash_id INTEGER PRIMARY KEY REFERENCES causal(self_hash_id) ON DELETE CASCADE,
+        root_branch_hash_id INTEGER PRIMARY KEY REFERENCES hash(id) ON DELETE CASCADE
       )
     |]
 
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS scoped_term_name_lookup (
-        root_causal_hash_id INTEGER NOT NULL REFERENCES causal(self_hash_id) ON DELETE CASCADE,
-        -- The name of the term: E.g. map.List.base
+        root_branch_hash_id INTEGER NOT NULL REFERENCES hash(id) ON DELETE CASCADE,
+
+        -- The name of the term in reversed form, with a trailing '.':
+        -- E.g. map.List.base.
+        --
+        -- The trailing '.' is helpful when performing suffix queries where we may not know
+        -- whether the suffix is complete or not, e.g. we could suffix search using any of the
+        -- following globs and it would still find 'map.List.base.':
+        --  map.List.base.*
+        --  map.List.*
+        --  map.*
         reversed_name TEXT NOT NULL,
-        -- The namespace containing this term, not reversed: E.g. base.List
+
+        -- The last name segment of the name. This is used when looking up names for
+        -- suffixification when building PPEs.
+        last_name_segment TEXT NOT NULL,
+
+        -- The namespace containing this definition, not reversed, with a trailing '.'
+        -- The trailing '.' simplifies GLOB queries, so that 'base.*' matches both things in
+        -- 'base' and 'base.List', but not 'base1', which allows us to avoid an OR in our where
+        -- clauses which in turn helps the sqlite query planner use indexes more effectively.
+        --
+        -- example value: 'base.List.'
         namespace TEXT NOT NULL,
         referent_builtin TEXT NULL,
         referent_component_hash TEXT NULL,
         referent_component_index INTEGER NULL,
         referent_constructor_index INTEGER NULL,
         referent_constructor_type INTEGER NULL,
-        PRIMARY KEY (root_causal_hash_id, reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
+        PRIMARY KEY (root_branch_hash_id, reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
       )
     |]
+
+  -- This index allows finding all names we need to consider within a given namespace for
+  -- suffixification of a name.
+  -- It may seem strange to use last_name_segment rather than a suffix search over reversed_name name here;
+  -- but SQLite will only optimize for a single prefix-glob at once, so we can't glob search
+  -- over both namespace and reversed_name, but we can EXACT match on last_name_segment and
+  -- then glob search on the namespace prefix, and have SQLite do the final glob search on
+  -- reversed_name over rows with a matching last segment without using an index and should be plenty fast.
   execute_
     [here|
-      CREATE INDEX IF NOT EXISTS term_names_by_namespace ON scoped_term_name_lookup(root_causal_hash_id, namespace)
+      CREATE INDEX IF NOT EXISTS scoped_term_names_by_namespace_and_last_name_segment ON term_name_lookup(root_branch_hash_id, last_name_segment, namespace)
     |]
-  -- Don't need this index at the moment, but will likely be useful later.
-  -- execute_
-  --   [here|
-  --     CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
-  --   |]
+  -- This index allows us to find all names with a given ref within a specific namespace
+  execute_
+    [here|
+      CREATE INDEX IF NOT EXISTS scoped_term_name_by_referent_lookup ON term_name_lookup(root_branch_hash_id, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, namespace)
+    |]
+
+  -- Allows fetching ALL names within a specific namespace prefix. We currently use this to
+  -- pretty-print on share, but will be replaced with a more precise set of queries soon.
+  execute_
+    [here|
+      CREATE INDEX IF NOT EXISTS scoped_term_names_by_namespace ON scoped_term_name_lookup(root_branch_hash_id, namespace)
+    |]
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS scoped_type_name_lookup (
-        root_causal_hash_id INTEGER NOT NULL,
+        root_branch_hash_id INTEGER NOT NULL REFERENCES hash(id),
         -- The name of the term: E.g. List.base
         reversed_name TEXT NOT NULL,
-        -- The namespace containing this term, not reversed: E.g. base.List
+        -- The last name segment of the name. This is used when looking up names for
+        -- suffixification when building PPEs.
+        last_name_segment TEXT NOT NULL,
+        -- The namespace containing this definition, not reversed, with a trailing '.'
+        -- The trailing '.' simplifies GLOB queries, so that 'base.*' matches both things in
+        -- 'base' and 'base.List', but not 'base1', which allows us to avoid an OR in our where
+        -- clauses which in turn helps the sqlite query planner use indexes more effectively.
+        --
+        -- example value: 'base.List.'
         namespace TEXT NOT NULL,
         reference_builtin TEXT NULL,
         reference_component_hash INTEGER NULL,
@@ -1685,10 +1728,66 @@ ensureScopedNameLookupTables = do
         PRIMARY KEY (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
       );
     |]
+
+  -- This index allows finding all names we need to consider within a given namespace for
+  -- suffixification of a name.
+  -- It may seem strange to use last_name_segment rather than a suffix search over reversed_name name here;
+  -- but SQLite will only optimize for a single prefix-glob at once, so we can't glob search
+  -- over both namespace and reversed_name, but we can EXACT match on last_name_segment and
+  -- then glob search on the namespace prefix, and have SQLite do the final glob search on
+  -- reversed_name over rows with a matching last segment without using an index and should be plenty fast.
   execute_
     [here|
-      CREATE INDEX IF NOT EXISTS scoped_type_names_by_namespace ON type_name_lookup(root_causal_hash_id, namespace)
+      CREATE INDEX IF NOT EXISTS scoped_type_names_by_namespace_and_last_name_segment ON type_name_lookup(root_branch_hash_id, last_name_segment, namespace)
     |]
+
+  -- This index allows us to find all names with a given ref within a specific namespace.
+  execute_
+    [here|
+      CREATE INDEX IF NOT EXISTS scoped_type_name_by_reference_lookup ON type_name_lookup(root_branch_hash_id, reference_builtin, reference_component_hash, reference_component_index, namespace)
+    |]
+
+  -- Allows fetching ALL names within a specific namespace prefix. We currently use this to
+  -- pretty-print on share, but will be replaced with a more precise set of queries soon.
+  execute_
+    [here|
+      CREATE INDEX IF NOT EXISTS scoped_type_names_by_namespace ON type_name_lookup(root_branch_hash_id, namespace)
+    |]
+
+copyScopedNameLookup :: BranchHashId -> BranchHashId -> Transaction ()
+copyScopedNameLookup fromBHId toBHId = do
+  execute termsCopySql (toBHId, fromBHId)
+  execute typesCopySql (toBHId, fromBHId)
+  where
+    termsCopySql =
+      [here|
+        INSERT INTO scoped_term_name_lookup
+        SELECT ?, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index
+        FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = ?
+      |]
+    typesCopySql =
+      [here|
+        INSERT INTO scoped_type_name_lookup
+        SELECT ?, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index
+        FROM scoped_type_name_lookup
+        WHERE root_branch_hash_id = ?
+      |]
+
+-- | Check if we've already got an index for the desired root branch hash.
+checkBranchHashNameLookupExists :: BranchHashId -> Transaction Bool
+checkBranchHashNameLookupExists hashId = do
+  queryOneCol sql (Only hashId)
+  where
+    sql =
+      [here|
+        SELECT EXISTS (
+          SELECT 1
+          FROM name_lookups
+          WHERE root_branch_hash_id = ?
+          LIMIT 1
+        )
+       |]
 
 -- | Insert the given set of term names into the name lookup table
 insertTermNames :: [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
@@ -1701,6 +1800,18 @@ insertTermNames names = do
       [here|
       INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, namespace)
         VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+        |]
+
+-- | Insert the given set of type names into the name lookup table
+insertTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
+insertTypeNames names =
+  executeMany sql (NamedRef.toRowWithNamespace <$> names)
+  where
+    sql =
+      [here|
+      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index, namespace)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
 
@@ -1730,6 +1841,71 @@ removeTypeNames names = do
       DELETE FROM type_name_lookup
         WHERE
         reversed_name IS ?
+        AND reference_builtin IS ?
+        AND reference_component_hash IS ?
+        AND reference_component_index IS ?
+        |]
+
+-- | Insert the given set of term names into the name lookup table
+insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
+insertScopedTermNames bhId names = do
+  executeMany sql (namedRefToRow <$> names)
+  where
+    namedRefToRow :: NamedRef (S.Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Only BranchHashId :. [SQLData])
+    namedRefToRow namedRef =
+      namedRef
+        & fmap refToRow
+        & NamedRef.namedRefToScopedRow
+        & \nr -> (Only bhId :. nr)
+    refToRow :: (Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))
+    refToRow (ref, ct) = ref :. Only ct
+    sql =
+      [here|
+      INSERT INTO scoped_term_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+        |]
+
+-- | Insert the given set of type names into the name lookup table
+insertScopedTypeNames :: BranchHashId -> [NamedRef (Reference.TextReference)] -> Transaction ()
+insertScopedTypeNames bhId names =
+  executeMany sql ((Only bhId :.) . NamedRef.namedRefToScopedRow <$> names)
+  where
+    sql =
+      [here|
+      INSERT INTO type_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, reference_builtin, reference_component_hash, reference_component_index)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+        |]
+
+-- | Remove the given set of term names into the name lookup table
+removeScopedTermNames :: BranchHashId -> [NamedRef Referent.TextReferent] -> Transaction ()
+removeScopedTermNames bhId names = do
+  executeMany sql ((Only bhId :.) <$> names)
+  where
+    sql =
+      [here|
+      DELETE FROM term_name_lookup
+        WHERE
+        root_branch_hash_id IS ?
+        AND reversed_name IS ?
+        AND referent_builtin IS ?
+        AND referent_component_hash IS ?
+        AND referent_component_index IS ?
+        AND referent_constructor_index IS ?
+        |]
+
+-- | Remove the given set of term names into the name lookup table
+removeScopedTypeNames :: BranchHashId -> [NamedRef (Reference.TextReference)] -> Transaction ()
+removeScopedTypeNames bhId names = do
+  executeMany sql ((Only bhId :.) <$> names)
+  where
+    sql =
+      [here|
+      DELETE FROM type_name_lookup
+        WHERE
+        root_branch_hash_id IS ?
+        AND reversed_name IS ?
         AND reference_builtin IS ?
         AND reference_component_hash IS ?
         AND reference_component_index IS ?
@@ -1791,18 +1967,6 @@ getNamespaceDefinitionCount namespace = do
           SELECT 1 FROM type_name_lookup WHERE namespace GLOB ? OR namespace = ?
         )
       |]
-
--- | Insert the given set of type names into the name lookup table
-insertTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
-insertTypeNames names =
-  executeMany sql (NamedRef.toRowWithNamespace <$> names)
-  where
-    sql =
-      [here|
-      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index, namespace)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT DO NOTHING
-        |]
 
 -- | Get the list of a term names in the root namespace according to the name lookup index
 rootTermNamesByPath :: Maybe Text -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]

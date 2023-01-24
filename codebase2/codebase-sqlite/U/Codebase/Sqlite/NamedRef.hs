@@ -5,7 +5,8 @@ import qualified Data.List.NonEmpty as NEL
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import Unison.Prelude
-import Unison.Sqlite (FromField (..), FromRow (..), SQLData (..), ToField (..), ToRow (..), field)
+import Unison.Sqlite
+import qualified Unison.Sqlite as Sqlite
 
 type ReversedSegments = NonEmpty Text
 
@@ -44,3 +45,19 @@ toRowWithNamespace :: ToRow ref => NamedRef ref -> [SQLData]
 toRowWithNamespace nr = toRow nr <> [SQLText namespace]
   where
     namespace = Text.intercalate "." . reverse . NEL.tail . reversedSegments $ nr
+
+-- | The new 'scoped' name lookup format is different than the old version.
+--
+-- Namely, this adds the 'lastNameSegment' as well as adding a trailing '.' to the db format
+-- of both the namespace and reversed_name.
+--
+--
+-- Converts a NamedRef to SQLData of the form:
+-- [reversedName, namespace, lastNameSegment] <> ref fields...
+namedRefToScopedRow :: ToRow ref => NamedRef ref -> [SQLData]
+namedRefToScopedRow (NamedRef {reversedSegments = revSegments, ref}) =
+  toRow $ (SQLText reversedName, SQLText namespace, SQLText lastNameSegment) Sqlite.:. ref
+  where
+    reversedName = (Text.intercalate "." . toList $ revSegments) <> "."
+    namespace = (Text.intercalate "." . reverse . NEL.tail $ revSegments) <> "."
+    lastNameSegment = NEL.head revSegments

@@ -70,6 +70,7 @@ module U.Codebase.Sqlite.Operations
     updateNameIndex,
     rootNamesByPath,
     NamesByPath (..),
+    checkBranchHashNameLookupExists,
 
     -- * reflog
     getReflog,
@@ -1080,6 +1081,35 @@ updateNameIndex (newTermNames, removedTermNames) (newTypeNames, removedTypeNames
   Q.removeTypeNames ((fmap c2sTextReference <$> removedTypeNames))
   Q.insertTermNames (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
   Q.insertTypeNames (fmap c2sTextReference <$> newTypeNames)
+
+buildNameLookupForBranchHash ::
+  -- The existing name lookup index to copy before applying the diff.
+  -- If Nothing, run the diff against an empty index.
+  Maybe BranchHash ->
+  BranchHash ->
+  -- |  (add terms, remove terms)
+  ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
+  -- |  (add types, remove types)
+  ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
+  Transaction ()
+buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
+  Q.ensureScopedNameLookupTables
+  case mayExistingBranchIndex of
+    Nothing -> pure ()
+    Just existingBranchIndex -> do
+      existingBranchHashId <- Q.saveBranchHash existingBranchIndex
+      newBranchHashId <- Q.saveBranchHash newBranchHash
+      Q.copyScopedNameLookup existingBranchHashId newBranchHashId
+  Q.removeTermNames ((fmap c2sTextReferent <$> removedTermNames))
+  Q.removeTypeNames ((fmap c2sTextReference <$> removedTypeNames))
+  Q.insertTermNames (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
+  Q.insertTypeNames (fmap c2sTextReference <$> newTypeNames)
+
+-- | Check whether we've already got an index for a given causal hash.
+checkBranchHashNameLookupExists :: BranchHash -> Transaction Bool
+checkBranchHashNameLookupExists bh = do
+  bhId <- Q.saveBranchHash bh
+  Q.checkBranchHashNameLookupExists bhId
 
 data NamesByPath = NamesByPath
   { termNamesInPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
