@@ -62,6 +62,7 @@ module U.Codebase.Sqlite.Queries
     loadNamespaceRoot,
     setNamespaceRoot,
     expectNamespaceRoot,
+    expectNamespaceRootBranchHashId,
 
     -- * namespace_statistics table
     saveNamespaceStats,
@@ -1089,6 +1090,11 @@ loadCausalParentsByHash hash =
       WHERE h1.base32 = ? COLLATE NOCASE
     |]
     (Only hash)
+
+expectNamespaceRootBranchHashId :: Transaction BranchHashId
+expectNamespaceRootBranchHashId = do
+  chId <- expectNamespaceRoot
+  expectCausalValueHashId chId
 
 expectNamespaceRoot :: Transaction CausalHashId
 expectNamespaceRoot =
