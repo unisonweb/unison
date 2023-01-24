@@ -20,6 +20,8 @@ module Unison.Share.API.Projects
 
     -- * Types
     Project (..),
+    ProjectBranch (..),
+    ProjectBranchIds (..),
   )
 where
 
