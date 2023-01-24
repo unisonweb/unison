@@ -10,7 +10,8 @@ library:
 
 dependencies:
   - base
-  - servant-server
+  - servant
+  - text
 
 ghc-options:
   -Wall
