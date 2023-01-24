@@ -1877,6 +1877,40 @@ termNamesBySuffix namespaceRoot suffix = do
               AND reversed_name GLOB ?
         |]
 
+nameWithLongestMatchingSuffixForTerm :: NamespaceText -> ReversedSegments -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
+nameWithLongestMatchingSuffixForTerm namespaceRoot suffix = do
+  let lastNameSegment = NonEmpty.head suffix
+  let suffixes =
+        NonEmpty.tail (NonEmpty.inits suffix)
+          & fmap ((<> "*") . globEscape . Text.intercalate ".")
+          & concatMap \partialSuffix -> [partialSuffix, lastNameSegment, globEscape namespaceRoot <> ".*"]
+  let selects =
+        replicate (length suffixes) selectMatchingSuffixSql
+          & Text.intercalate
+            "\nUNION\n"
+  result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))) <- queryMaybeRow (Sql $ sql selects) (suffixes)
+  pure (fmap unRow <$> result)
+  where
+    unRow (a :. Only b) = (a, b)
+    selectMatchingSuffixSql =
+      [here|
+      SELECT ? as reversed_suffix, reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
+      WHERE last_name_segment IS ? AND namespace GLOB ? AND reversed_name GLOB (reversed_suffix || '*')
+      |]
+    sql selects =
+      Text.unlines
+        [ [here|
+      SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM
+      (
+      |],
+          selects,
+          [here|
+      ORDER BY LENGTH(reversed_suffix) DESC
+      )
+      LIMIT 1
+      |]
+        ]
+
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
