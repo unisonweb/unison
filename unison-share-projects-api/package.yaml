@@ -12,6 +12,7 @@ dependencies:
   - base
   - servant
   - text
+  - unison-hash
 
 ghc-options:
   -Wall

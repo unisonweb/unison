@@ -10,21 +10,28 @@ module Unison.Share.API.Projects
 
     -- ** Create project
     CreateProjectAPI,
+    CreateProjectRequest (..),
     CreateProjectResponse (..),
+
+    -- ** Create project branch
+    CreateProjectBranchAPI,
+    CreateProjectBranchRequest (..),
+    CreateProjectBranchResponse (..),
 
     -- * Types
     Project (..),
-    ServerProjectId (..),
   )
 where
 
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Servant.API
+import Unison.Hash32 (Hash32)
 
 type ProjectsAPI =
   GetProjectAPI
     :<|> CreateProjectAPI
+    :<|> CreateProjectBranchAPI
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get project
@@ -68,17 +75,53 @@ data CreateProjectResponse
   deriving stock (Eq, Show)
 
 ------------------------------------------------------------------------------------------------------------------------
+-- Create project branch
+
+-- | [@POST /create-project-branch@]: Create a project branch
+type CreateProjectBranchAPI =
+  "create-project-branch"
+    :> ReqBody '[JSON] CreateProjectBranchRequest
+    :> Verb Post 200 '[JSON] CreateProjectBranchResponse
+
+-- | @POST /create-project-branch@ request.
+data CreateProjectBranchRequest = CreateProjectBranchRequest
+  { projectId :: Text,
+    branchName :: Text,
+    branchCausalHash :: Hash32,
+    branchMergeTarget :: Maybe ProjectBranchIds
+  }
+  deriving stock (Eq, Show)
+
+-- | @POST /create-project-branch@ response.
+data CreateProjectBranchResponse
+  = -- | Request payload invalid.
+    CreateProjectBranchResponseBadRequest
+  | CreateProjectBranchResponseUnauthorized
+  | CreateProjectBranchResponseSuccess !ProjectBranch
+  deriving stock (Eq, Show)
+
+------------------------------------------------------------------------------------------------------------------------
 -- Types
 
 -- | A project.
 data Project = Project
-  { id :: ServerProjectId,
+  { id :: Text,
     name :: Text
   }
   deriving stock (Eq, Generic, Show)
 
--- | A project id that was generated on the server.
-newtype ServerProjectId = ServerProjectId
-  { unServerProjectId :: Text
+-- | A project branch.
+data ProjectBranch = ProjectBranch
+  { projectId :: Text,
+    projectName :: Text,
+    branchId :: Text,
+    branchName :: Text
   }
-  deriving newtype (Eq, Show)
+  deriving stock (Eq, Generic, Show)
+
+-- | A project id and branch id.
+data ProjectBranchIds = ProjectBranchIds
+  { projectId :: Text,
+    branchId :: Text
+  }
+  deriving stock (Eq, Generic, Show)

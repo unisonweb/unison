@@ -53,4 +53,5 @@ library
       base
     , servant
     , text
+    , unison-hash
   default-language: Haskell2010
