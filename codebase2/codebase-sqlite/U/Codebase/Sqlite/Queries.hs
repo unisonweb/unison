@@ -149,6 +149,7 @@ module U.Codebase.Sqlite.Queries
     rootTypeNamesByPath,
     getNamespaceDefinitionCount,
     checkBranchHashNameLookupExists,
+    trackNewBranchHashNameLookup,
 
     -- * Reflog
     appendReflog,
@@ -1772,6 +1773,17 @@ copyScopedNameLookup fromBHId toBHId = do
         SELECT ?, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index
         FROM scoped_type_name_lookup
         WHERE root_branch_hash_id = ?
+      |]
+
+-- | Inserts a new record into the name_lookups table
+trackNewBranchHashNameLookup :: BranchHashId -> Transaction ()
+trackNewBranchHashNameLookup bhId = do
+  execute sql (Only bhId)
+  where
+    sql =
+      [here|
+        INSERT INTO name_lookups (root_branch_hash_id)
+        VALUES (?)
       |]
 
 -- | Check if we've already got an index for the desired root branch hash.

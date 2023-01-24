@@ -71,6 +71,7 @@ module U.Codebase.Sqlite.Operations
     rootNamesByPath,
     NamesByPath (..),
     checkBranchHashNameLookupExists,
+    buildNameLookupForBranchHash,
 
     -- * reflog
     getReflog,
@@ -1094,16 +1095,16 @@ buildNameLookupForBranchHash ::
   Transaction ()
 buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
   Q.ensureScopedNameLookupTables
+  newBranchHashId <- Q.saveBranchHash newBranchHash
   case mayExistingBranchIndex of
     Nothing -> pure ()
     Just existingBranchIndex -> do
       existingBranchHashId <- Q.saveBranchHash existingBranchIndex
-      newBranchHashId <- Q.saveBranchHash newBranchHash
       Q.copyScopedNameLookup existingBranchHashId newBranchHashId
-  Q.removeTermNames ((fmap c2sTextReferent <$> removedTermNames))
-  Q.removeTypeNames ((fmap c2sTextReference <$> removedTypeNames))
-  Q.insertTermNames (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
-  Q.insertTypeNames (fmap c2sTextReference <$> newTypeNames)
+  Q.removeScopedTermNames newBranchHashId ((fmap c2sTextReferent <$> removedTermNames))
+  Q.removeScopedTypeNames newBranchHashId ((fmap c2sTextReference <$> removedTypeNames))
+  Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
+  Q.insertScopedTypeNames newBranchHashId (fmap c2sTextReference <$> newTypeNames)
 
 -- | Check whether we've already got an index for a given causal hash.
 checkBranchHashNameLookupExists :: BranchHash -> Transaction Bool

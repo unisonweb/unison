@@ -656,14 +656,14 @@ updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash toBranchHash = do
         pure (referent, Just $ Cv.constructorType1to2 ct)
 
 -- | Add an index for the provided causal hash.
-ensureNameLookupForCausalHash ::
+ensureNameLookupForBranchHash ::
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   -- | An optional branch which we already have an index for.
   -- If provided, we can build the name index much faster by copying the index then computing only the changes we need to make between the two indexes.
-  Maybe CausalHash ->
+  Maybe BranchHash ->
   BranchHash ->
   Sqlite.Transaction ()
-ensureNameLookupForCausalHash getDeclType mayFromBranchHash toBranchHash = do
+ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
   Ops.checkBranchHashNameLookupExists toBranchHash >>= \case
     True -> pure ()
     False -> do
@@ -672,12 +672,13 @@ ensureNameLookupForCausalHash getDeclType mayFromBranchHash toBranchHash = do
         Just fromBH -> do
           Ops.checkBranchHashNameLookupExists fromBH >>= \case
             True -> Ops.expectBranchByBranchHash fromBH
-            False -> pure V2Branch.empty
+            False -> do
+              -- TODO: We can probably infer a good starting branch by crawling through
+              -- history looking for a Branch Hash we already have an index for.
+              pure V2Branch.empty
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
       treeDiff <- BranchDiff.diffBranches fromBranch toBranch
-      let namePrefix = case pathPrefix of
-            Path.Empty -> Nothing
-            (p Path.:< ps) -> Just $ Name.fromSegments (p :| Path.toList ps)
+      let namePrefix = Nothing
       let BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} = BranchDiff.nameChanges namePrefix treeDiff
       termNameAddsWithCT <- do
         for termNameAdds \(name, ref) -> do
@@ -685,8 +686,6 @@ ensureNameLookupForCausalHash getDeclType mayFromBranchHash toBranchHash = do
           pure $ toNamedRef (name, refWithCT)
       Ops.buildNameLookupForBranchHash mayFromBranchHash toBranchHash (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
   where
-    inferStartBranch :: BranchHash -> Sqlite.Transaction (Maybe BranchHash)
-    inferStartBranch = _
     toNamedRef :: (Name, ref) -> S.NamedRef ref
     toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
     addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
