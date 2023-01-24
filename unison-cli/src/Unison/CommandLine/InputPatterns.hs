@@ -2471,7 +2471,9 @@ validInputs =
       authLogin,
       printVersion,
       diffNamespaceToPatch,
-      projectCreate
+      projectCreate,
+      projectCreateBranch,
+      projectSwitch
     ]
 
 -- | A map of all command patterns by pattern name or alias.
