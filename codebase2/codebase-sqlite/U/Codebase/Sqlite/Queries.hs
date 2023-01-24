@@ -2489,9 +2489,13 @@ getProject pid = queryMaybeRow bonk (Only pid)
   where
     bonk =
       [sql|
-           select id, name
-           from project
-           where id = ?
+        SELECT
+          id,
+          name
+        FROM
+          project
+        WHERE
+          id = ?
            |]
 
 loadProjectByName :: Text -> Transaction (Maybe Project)
@@ -2509,8 +2513,8 @@ insertProject uuid name = execute bonk (uuid, name)
   where
     bonk =
       [sql|
-           insert into project (id, name)
-           values (?, ?)
+        INSERT INTO project (id, name)
+          VALUES (?, ?)
            |]
 
 -- | Does a project branch exist by this name?
@@ -2533,10 +2537,15 @@ getBranch pid bid = queryMaybeRow bonk (pid, bid)
   where
     bonk =
       [sql|
-          select project_id, branch_id, name
-          from project_branch
-          where project_id = ?
-          and branch_id = ?
+        SELECT
+          project_id,
+          branch_id,
+          name
+        FROM
+          project_branch
+        WHERE
+          project_id = ?
+          AND branch_id = ?
           |]
 
 loadProjectBranchByName :: ProjectId -> Text -> Transaction (Maybe Branch)
@@ -2567,8 +2576,8 @@ insertProjectBranch pid bid bname = execute bonk (pid, bid, bname)
   where
     bonk =
       [sql|
-        insert into project_branch (project_id, branch_id, name)
-        values (?, ?, ?)
+        INSERT INTO project_branch (project_id, branch_id, name)
+          VALUES (?, ?, ?)
       |]
 
 markProjectBranchChild :: ProjectId -> BranchId -> BranchId -> Transaction ()
@@ -2576,6 +2585,6 @@ markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
   where
     bonk =
       [sql|
-          insert into project_branch_parent (project_id, parent_branch_id, branch_id)
-          values (?, ?, ?)
+        INSERT INTO project_branch_parent (project_id, parent_branch_id, branch_id)
+          VALUES (?, ?, ?)
           |]
