@@ -47,9 +47,9 @@ projectBranchPath projectId branchId =
 
 pattern UUIDNameSegment :: UUID -> NameSegment
 pattern UUIDNameSegment uuid <-
-  NameSegment (Text.uncons -> Just ('_', UUID.fromText -> Just uuid))
+  NameSegment (Text.uncons -> Just ('_', UUID.fromText . Text.map (\c -> if c == '_' then '-' else c) -> Just uuid))
   where
-    UUIDNameSegment uuid = NameSegment (Text.cons '_' (UUID.toText uuid))
+    UUIDNameSegment uuid = NameSegment (Text.cons '_' (Text.map (\c -> if c == '-' then '_' else c) (UUID.toText uuid)))
 
 -- The prism between paths like
 --
