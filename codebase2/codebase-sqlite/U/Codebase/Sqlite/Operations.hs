@@ -1096,9 +1096,11 @@ buildNameLookupForBranchHash ::
 buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
   Q.ensureScopedNameLookupTables
   newBranchHashId <- Q.saveBranchHash newBranchHash
+  Q.trackNewBranchHashNameLookup newBranchHashId
   case mayExistingBranchIndex of
     Nothing -> pure ()
     Just existingBranchIndex -> do
+      unlessM (checkBranchHashNameLookupExists existingBranchIndex) $ error "buildNameLookupForBranchHash: existingBranchIndex was provided, but no index was found for that branch hash."
       existingBranchHashId <- Q.saveBranchHash existingBranchIndex
       Q.copyScopedNameLookup existingBranchHashId newBranchHashId
   Q.removeScopedTermNames newBranchHashId ((fmap c2sTextReferent <$> removedTermNames))

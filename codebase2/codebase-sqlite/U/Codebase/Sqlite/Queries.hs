@@ -1635,7 +1635,7 @@ ensureNameLookupTables = do
       CREATE INDEX IF NOT EXISTS type_names_by_namespace ON type_name_lookup(namespace)
     |]
 
--- | Ensure the causal_hash scoped name lookup tables exist.
+-- | Ensure the scoped name lookup tables exist.
 -- this will eventually replace the tables in 'ensureNameLookupTables' after all the indexes
 -- have been migrated over.
 ensureScopedNameLookupTables :: Transaction ()
@@ -1666,6 +1666,7 @@ ensureScopedNameLookupTables = do
 
         -- The last name segment of the name. This is used when looking up names for
         -- suffixification when building PPEs.
+        -- E.g. for the name 'base.List.map' this would be 'map'
         last_name_segment TEXT NOT NULL,
 
         -- The namespace containing this definition, not reversed, with a trailing '.'
@@ -1715,6 +1716,7 @@ ensureScopedNameLookupTables = do
         reversed_name TEXT NOT NULL,
         -- The last name segment of the name. This is used when looking up names for
         -- suffixification when building PPEs.
+        -- E.g. for the name 'base.List.map' this would be 'map'
         last_name_segment TEXT NOT NULL,
         -- The namespace containing this definition, not reversed, with a trailing '.'
         -- The trailing '.' simplifies GLOB queries, so that 'base.*' matches both things in
@@ -1755,6 +1757,9 @@ ensureScopedNameLookupTables = do
       CREATE INDEX IF NOT EXISTS scoped_type_names_by_namespace ON type_name_lookup(root_branch_hash_id, namespace)
     |]
 
+-- | Copies existing name lookup rows but replaces their branch hash id;
+-- This is a low-level operation used as part of deriving a new name lookup index
+-- from an existing one as performantly as possible.
 copyScopedNameLookup :: BranchHashId -> BranchHashId -> Transaction ()
 copyScopedNameLookup fromBHId toBHId = do
   execute termsCopySql (toBHId, fromBHId)
@@ -1885,7 +1890,7 @@ insertScopedTypeNames bhId names =
   where
     sql =
       [here|
-      INSERT INTO type_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, reference_builtin, reference_component_hash, reference_component_index)
+      INSERT INTO scoped_type_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, reference_builtin, reference_component_hash, reference_component_index)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
@@ -1897,7 +1902,7 @@ removeScopedTermNames bhId names = do
   where
     sql =
       [here|
-      DELETE FROM term_name_lookup
+      DELETE FROM scoped_term_name_lookup
         WHERE
         root_branch_hash_id IS ?
         AND reversed_name IS ?
@@ -1914,7 +1919,7 @@ removeScopedTypeNames bhId names = do
   where
     sql =
       [here|
-      DELETE FROM type_name_lookup
+      DELETE FROM scoped_type_name_lookup
         WHERE
         root_branch_hash_id IS ?
         AND reversed_name IS ?

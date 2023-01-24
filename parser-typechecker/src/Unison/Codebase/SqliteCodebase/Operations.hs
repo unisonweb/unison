@@ -655,11 +655,13 @@ updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash toBranchHash = do
         ct <- getDeclType ref
         pure (referent, Just $ Cv.constructorType1to2 ct)
 
--- | Add an index for the provided causal hash.
+-- | Add an index for the provided branch hash if one doesn't already exist.
 ensureNameLookupForBranchHash ::
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
-  -- | An optional branch which we already have an index for.
-  -- If provided, we can build the name index much faster by copying the index then computing only the changes we need to make between the two indexes.
+  -- | An optional branch which we may already have an index for.
+  -- This should be a branch which is relatively similar to the branch we're creating a name
+  -- lookup for, e.g. a recent ancestor of the new branch. The more similar it is, the faster
+  -- the less work we'll need to do.
   Maybe BranchHash ->
   BranchHash ->
   Sqlite.Transaction ()
@@ -667,15 +669,15 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
   Ops.checkBranchHashNameLookupExists toBranchHash >>= \case
     True -> pure ()
     False -> do
-      fromBranch <- case mayFromBranchHash of
-        Nothing -> pure V2Branch.empty
+      (fromBranch, mayExistingLookupBH) <- case mayFromBranchHash of
+        Nothing -> pure (V2Branch.empty, Nothing)
         Just fromBH -> do
           Ops.checkBranchHashNameLookupExists fromBH >>= \case
-            True -> Ops.expectBranchByBranchHash fromBH
+            True -> (,Just fromBH) <$> Ops.expectBranchByBranchHash fromBH
             False -> do
               -- TODO: We can probably infer a good starting branch by crawling through
               -- history looking for a Branch Hash we already have an index for.
-              pure V2Branch.empty
+              pure (V2Branch.empty, Nothing)
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
       treeDiff <- BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
@@ -684,7 +686,7 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
         for termNameAdds \(name, ref) -> do
           refWithCT <- addReferentCT ref
           pure $ toNamedRef (name, refWithCT)
-      Ops.buildNameLookupForBranchHash mayFromBranchHash toBranchHash (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
+      Ops.buildNameLookupForBranchHash mayExistingLookupBH toBranchHash (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
   where
     toNamedRef :: (Name, ref) -> S.NamedRef ref
     toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
