@@ -24,10 +24,11 @@ denoted by `$CUSTOM`, then the compiler commands will look in:
 for the `unison/` directory containing the library files.
 
 The compiler commands also expect Chez Scheme to be installed
-separately, and for `scheme` to be callable on the user's path. For
-information on how to install, see:
+separately, and for `scheme` to be callable on the user's path. The
+continuation library now makes use of features in the Racket fork of
+Chez. For information on how to install, see:
 
-    https://github.com/cisco/ChezScheme/blob/main/BUILDING
+    https://github.com/racket/ChezScheme/blob/master/BUILDING
 
 For more information on Chez Scheme in general, see:
 
