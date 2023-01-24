@@ -2533,7 +2533,7 @@ getBranch pid bid = queryMaybeRow bonk (pid, bid)
     bonk =
       [sql|
           select project_id, branch_id, name
-          from branch
+          from project_branch
           where project_id = ?
           and branch_id = ?
           |]
@@ -2543,7 +2543,7 @@ loadProjectBranchByName projectId name =
   queryMaybeRow
     [sql|
       SELECT project_id, branch_id, name
-      FROM branch
+      FROM project_branch
       WHERE project_id = ?
         AND name = ?
     |]
