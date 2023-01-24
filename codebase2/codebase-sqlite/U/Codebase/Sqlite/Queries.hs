@@ -102,7 +102,9 @@ module U.Codebase.Sqlite.Queries
     projectExistsByName,
     insertProject,
     BranchId (..),
+    projectBranchExistsByName,
     insertBranch,
+    markProjectBranchChild,
 
     -- * indexes
 
@@ -2463,16 +2465,7 @@ data Branch = Branch
   deriving stock (Generic)
   deriving anyclass (ToRow, FromRow)
 
-getProject :: ProjectId -> Transaction (Maybe Project)
-getProject pid = queryMaybeRow bonk (Only pid)
-  where
-    bonk =
-      [sql|
-           select id, name
-           from project
-           where id = ?
-           |]
-
+-- | Does a project exist by this name?
 projectExistsByName :: Text -> Transaction Bool
 projectExistsByName name =
   queryOneCol
@@ -2485,6 +2478,16 @@ projectExistsByName name =
     |]
     (Only name)
 
+getProject :: ProjectId -> Transaction (Maybe Project)
+getProject pid = queryMaybeRow bonk (Only pid)
+  where
+    bonk =
+      [sql|
+           select id, name
+           from project
+           where id = ?
+           |]
+
 insertProject :: ProjectId -> Text -> Transaction ()
 insertProject uuid name = execute bonk (uuid, name)
   where
@@ -2493,6 +2496,20 @@ insertProject uuid name = execute bonk (uuid, name)
            insert into project (id, name)
            values (?, ?)
            |]
+
+-- | Does a project branch exist by this name?
+projectBranchExistsByName :: ProjectId -> Text -> Transaction Bool
+projectBranchExistsByName projectId name =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM project_branch
+        WHERE project_id = ?
+        AND name = ?
+      )
+    |]
+    (projectId, name)
 
 getBranch :: ProjectId -> BranchId -> Transaction (Maybe Branch)
 getBranch pid bid = queryMaybeRow bonk (pid, bid)
