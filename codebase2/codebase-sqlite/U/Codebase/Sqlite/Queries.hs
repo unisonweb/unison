@@ -99,10 +99,14 @@ module U.Codebase.Sqlite.Queries
 
     -- * projects
     ProjectId (..),
+    Project (..),
     projectExistsByName,
+    loadProjectByName,
     insertProject,
+    Branch (..),
     BranchId (..),
     projectBranchExistsByName,
+    loadProjectBranchByName,
     insertBranch,
     markProjectBranchChild,
 
@@ -2478,6 +2482,7 @@ projectExistsByName name =
     |]
     (Only name)
 
+-- FIXME rename loadProject
 getProject :: ProjectId -> Transaction (Maybe Project)
 getProject pid = queryMaybeRow bonk (Only pid)
   where
@@ -2487,6 +2492,16 @@ getProject pid = queryMaybeRow bonk (Only pid)
            from project
            where id = ?
            |]
+
+loadProjectByName :: Text -> Transaction (Maybe Project)
+loadProjectByName name =
+  queryMaybeRow
+    [sql|
+      SELECT id, name
+      FROM project
+      WHERE name = ?
+    |]
+    (Only name)
 
 insertProject :: ProjectId -> Text -> Transaction ()
 insertProject uuid name = execute bonk (uuid, name)
@@ -2511,6 +2526,7 @@ projectBranchExistsByName projectId name =
     |]
     (projectId, name)
 
+-- FIXME rename loadProjectBranch
 getBranch :: ProjectId -> BranchId -> Transaction (Maybe Branch)
 getBranch pid bid = queryMaybeRow bonk (pid, bid)
   where
@@ -2521,6 +2537,17 @@ getBranch pid bid = queryMaybeRow bonk (pid, bid)
           where project_id = ?
           and branch_id = ?
           |]
+
+loadProjectBranchByName :: ProjectId -> Text -> Transaction (Maybe Branch)
+loadProjectBranchByName projectId name =
+  queryMaybeRow
+    [sql|
+      SELECT project_id, branch_id, name
+      FROM branch
+      WHERE project_id = ?
+        AND name = ?
+    |]
+    (projectId, name)
 
 insertBranch :: ProjectId -> BranchId -> Text -> Transaction ()
 insertBranch pid bid bname = execute bonk (pid, bname)

@@ -715,20 +715,6 @@ deleteTermReplacement = deleteReplacement True
 deleteTypeReplacement :: InputPattern
 deleteTypeReplacement = deleteReplacement False
 
-parseHashQualifiedName ::
-  String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
-parseHashQualifiedName s =
-  maybe
-    ( Left
-        . P.warnCallout
-        . P.wrap
-        $ P.string s
-          <> " is not a well-formed name, hash, or hash-qualified name. "
-          <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
-    )
-    Right
-    $ HQ.fromString s
-
 aliasTerm :: InputPattern
 aliasTerm =
   InputPattern
@@ -1382,18 +1368,6 @@ loadPullRequest =
           pure $ Input.LoadPullRequestI baseRepo headRepo destPath
         _ -> Left (I.help loadPullRequest)
     )
-
-parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
-parseWriteGitRepo label input = do
-  first
-    (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeGitRepo label (Text.pack input))
-
-parseWriteRemotePath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
-parseWriteRemotePath label input = do
-  first
-    (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeRemotePath label (Text.pack input))
 
 squashMerge :: InputPattern
 squashMerge =
@@ -2363,10 +2337,9 @@ projectCreateBranch =
       argTypes = [(Required, projectBranchNameArg)],
       help = P.wrap "Create a project branch.",
       parse = \case
-        [name] ->
-          case tryInto @ProjectBranchName (Text.pack name) of
-            Left _ -> Left "Invalid branch name."
-            Right name1 -> Right (Input.ProjectCreateBranchI name1)
+        [branchNameString] -> do
+          branchName <- parseProjectBranchName branchNameString
+          Right (Input.ProjectCreateBranchI branchName)
         _ -> Left (showPatternHelp projectCreateBranch)
     }
 
@@ -2376,13 +2349,16 @@ projectSwitch =
     { patternName = "project.switch",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [(Required, projectNameArg)],
+      argTypes = [(Required, projectNameArg), (Optional, projectBranchNameArg)],
       help = P.wrap "Switch to a project.",
       parse = \case
-        [name] ->
-          case tryInto @ProjectName (Text.pack name) of
-            Left _ -> Left "Invalid project name."
-            Right name1 -> Right (Input.ProjectSwitchI name1)
+        [projectNameString] -> do
+          projectName <- parseProjectName projectNameString
+          Right (Input.ProjectSwitchI Input.ProjectSwitchInput {projectName, maybeBranchName = Nothing})
+        [projectNameString, branchNameString] -> do
+          projectName <- parseProjectName projectNameString
+          branchName <- parseProjectBranchName branchNameString
+          Right (Input.ProjectSwitchI Input.ProjectSwitchInput {projectName, maybeBranchName = Just branchName})
         _ -> Left (showPatternHelp projectSwitch)
     }
 
@@ -2644,6 +2620,40 @@ projectNameArg =
       suggestions = \_ _ _ _ -> pure [],
       globTargets = Set.empty
     }
+
+parseProjectName :: String -> Either (P.Pretty P.ColorText) ProjectName
+parseProjectName s =
+  mapLeft (\_ -> "Invalid project name.") (tryInto @ProjectName (Text.pack s))
+
+parseProjectBranchName :: String -> Either (P.Pretty P.ColorText) ProjectBranchName
+parseProjectBranchName s =
+  mapLeft (\_ -> "Invalid branch name.") (tryInto @ProjectBranchName (Text.pack s))
+
+parseHashQualifiedName ::
+  String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
+parseHashQualifiedName s =
+  maybe
+    ( Left
+        . P.warnCallout
+        . P.wrap
+        $ P.string s
+          <> " is not a well-formed name, hash, or hash-qualified name. "
+          <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
+    )
+    Right
+    $ HQ.fromString s
+
+parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
+parseWriteGitRepo label input = do
+  first
+    (fromString . show) -- turn any parsing errors into a Pretty.
+    (P.parse UriParser.writeGitRepo label (Text.pack input))
+
+parseWriteRemotePath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
+parseWriteRemotePath label input = do
+  first
+    (fromString . show) -- turn any parsing errors into a Pretty.
+    (P.parse UriParser.writeRemotePath label (Text.pack input))
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
