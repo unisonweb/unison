@@ -2604,3 +2604,40 @@ markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
         INSERT INTO project_branch_parent (project_id, parent_branch_id, branch_id)
           VALUES (?, ?, ?)
           |]
+
+getRemoteProject :: RemoteProjectId -> Transaction (Maybe RemoteProject)
+getRemoteProject rpid =
+  queryMaybeRow
+    [sql|
+      SELECT
+        id,
+        host,
+        name
+      FROM
+        remote_project
+      WHERE
+        id = ?
+    |]
+    (Only rpid)
+
+insertRemoteProject :: RemoteProjectId -> Text -> Text -> Transaction ()
+insertRemoteProject rpid host name =
+  execute
+    [sql|
+      INSERT INTO remote_project (id, host, name)
+        VALUES (?, ?, ?)
+        |]
+    (rpid, host, name)
+
+setRemoteProjectName :: RemoteProjectId -> Text -> Transaction ()
+setRemoteProjectName rpid name =
+  execute
+    [sql|
+      UPDATE
+        remote_project
+      SET
+        name = ?
+      WHERE
+        id = ?
+        |]
+    (name, rpid)
