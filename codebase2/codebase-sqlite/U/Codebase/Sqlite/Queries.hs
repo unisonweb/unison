@@ -2470,6 +2470,18 @@ data Branch = Branch
   deriving stock (Generic)
   deriving anyclass (ToRow, FromRow)
 
+newtype RemoteBranchId = RemoteBranchId {unRemoteBranchId :: UUID}
+  deriving newtype (ToField, FromField)
+
+data RemoteBranch = RemoteBranch
+  { remoteProjectId :: ProjectId,
+    host :: Text,
+    remoteBranchId :: BranchId,
+    name :: Text
+  }
+  deriving stock (Generic)
+  deriving anyclass (ToRow, FromRow)
+
 -- | Does a project exist by this name?
 projectExistsByName :: Text -> Transaction Bool
 projectExistsByName name =
@@ -2605,8 +2617,8 @@ markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
           VALUES (?, ?, ?)
           |]
 
-getRemoteProject :: RemoteProjectId -> Transaction (Maybe RemoteProject)
-getRemoteProject rpid =
+getRemoteProject :: RemoteProjectId -> Text -> Transaction (Maybe RemoteProject)
+getRemoteProject rpid host =
   queryMaybeRow
     [sql|
       SELECT
@@ -2617,8 +2629,9 @@ getRemoteProject rpid =
         remote_project
       WHERE
         id = ?
+        and host = ?
     |]
-    (Only rpid)
+    (rpid, host)
 
 insertRemoteProject :: RemoteProjectId -> Text -> Text -> Transaction ()
 insertRemoteProject rpid host name =
@@ -2641,3 +2654,53 @@ setRemoteProjectName rpid name =
         id = ?
         |]
     (name, rpid)
+
+getRemoteBranch :: RemoteProjectId -> Text -> RemoteBranchId -> Transaction (Maybe RemoteBranch)
+getRemoteBranch rpid host rbid =
+  queryMaybeRow
+    [sql|
+      SELECT
+        project_id,
+        host,
+        branch_id,
+        name
+      FROM
+        remote_project_branch
+      WHERE
+        project_id = ?
+        AND host = ?
+        AND branch_id = ?
+    |]
+    (rpid, host, rbid)
+
+insertRemoteProjectBranch :: RemoteProjectId -> Text -> RemoteBranchId -> Text -> Transaction ()
+insertRemoteProjectBranch rpid host rbid name =
+  execute
+    [sql|
+      INSERT INTO remote_project_branch (
+        project_id,
+        host,
+        branch_id,
+        name)
+      VALUES (
+        ?,
+        ?,
+        ?,
+        ?)
+        |]
+    (rpid, host, rbid, name)
+
+setRemoteProjectBranchName :: RemoteProjectId -> Text -> RemoteBranchId -> Text -> Transaction ()
+setRemoteProjectBranchName rpid host rbid name =
+  execute
+    [sql|
+      UPDATE
+        remote_project_branch
+      SET
+        name = ?
+      WHERE
+        project_id = ?
+        AND host = ?
+        AND branch_id = ?
+        |]
+    (name, rpid, host, rbid)
