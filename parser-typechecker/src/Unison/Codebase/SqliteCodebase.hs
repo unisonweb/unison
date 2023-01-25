@@ -27,7 +27,7 @@ import qualified System.Console.ANSI as ANSI
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
-import U.Codebase.HashTags (BranchHash, CausalHash, PatchHash (..))
+import U.Codebase.HashTags (CausalHash, PatchHash (..))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -52,7 +52,6 @@ import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
-import Unison.Codebase.Path (Path)
 import Unison.Codebase.RootBranchCache
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
@@ -344,10 +343,6 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             referentsByPrefix =
               CodebaseOps.referentsByPrefix getDeclType
 
-            updateNameLookup :: Path -> Maybe BranchHash -> BranchHash -> Sqlite.Transaction ()
-            updateNameLookup =
-              CodebaseOps.updateNameLookupIndex getDeclType
-
         let codebase =
               C.Codebase
                 { getTerm,
@@ -374,7 +369,6 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
                   termReferentsByPrefix = referentsByPrefix,
-                  updateNameLookup,
                   withConnection = withConn,
                   withConnectionIO = withConnection debugName root
                 }
