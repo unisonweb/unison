@@ -1068,9 +1068,11 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
+-- | Apply a set of name updates to an existing index.
 buildNameLookupForBranchHash ::
   -- The existing name lookup index to copy before applying the diff.
   -- If Nothing, run the diff against an empty index.
+  -- If Just, the name lookup must exist or an error will be thrown.
   Maybe BranchHash ->
   BranchHash ->
   -- |  (add terms, remove terms)
