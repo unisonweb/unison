@@ -1087,6 +1087,17 @@ crypto'hash instr =
   where
     (alg, x, vl) = fresh
 
+murmur'hash :: ForeignOp
+murmur'hash instr =
+  ([BX],)
+    . TAbss [x]
+    . TLetD vl BX (TPrm VALU [x])
+    . TLetD result UN (TFOp instr [vl])
+    $ TCon Ty.natRef 0 [result]
+  where
+    (x, vl, result) = fresh
+
+
 crypto'hmac :: ForeignOp
 crypto'hmac instr =
   ([BX, BX, BX],)
@@ -2559,7 +2570,7 @@ declareForeigns = do
           Left se -> Left (Util.Text.pack (show se))
           Right a -> Right a
 
-  declareForeign Untracked "Universal.murmurHash" boxToNat . mkForeign $
+  declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
     pure . asWord64 . hash64 . serializeValueLazy
 
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
