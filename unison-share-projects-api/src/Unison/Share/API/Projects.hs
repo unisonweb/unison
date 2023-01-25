@@ -25,7 +25,10 @@ module Unison.Share.API.Projects
   )
 where
 
+import Data.Aeson
+import Data.Aeson.Types
 import Data.Text (Text)
+import qualified Data.Text as Text
 import GHC.Generics (Generic)
 import Servant.API
 import Unison.Hash32 (Hash32)
@@ -53,6 +56,19 @@ data GetProjectResponse
   | GetProjectResponseSuccess !Project
   deriving stock (Eq, Show)
 
+instance FromJSON GetProjectResponse where
+  parseJSON =
+    withSumType "GetProjectResponse" \typ val ->
+      case typ of
+        "not-found" -> pure GetProjectResponseNotFound
+        "success" -> GetProjectResponseSuccess <$> parseJSON val
+        _ -> fail (Text.unpack ("unknown GetProjectResponse type: " <> typ))
+
+instance ToJSON GetProjectResponse where
+  toJSON = \case
+    GetProjectResponseNotFound -> toSumType "not-found" (object [])
+    GetProjectResponseSuccess project -> toSumType "success" (toJSON project)
+
 ------------------------------------------------------------------------------------------------------------------------
 -- Create project
 
@@ -64,9 +80,21 @@ type CreateProjectAPI =
 
 -- | @POST /create-project@ request.
 data CreateProjectRequest = CreateProjectRequest
-  { name :: Text
+  { projectName :: Text
   }
   deriving stock (Eq, Show)
+
+instance FromJSON CreateProjectRequest where
+  parseJSON =
+    withObject "CreateProjectRequest" \o -> do
+      projectName <- parseField o "projectName"
+      pure CreateProjectRequest {projectName}
+
+instance ToJSON CreateProjectRequest where
+  toJSON CreateProjectRequest {projectName} =
+    object
+      [ "projectName" .= projectName
+      ]
 
 -- | @POST /create-project@ response.
 data CreateProjectResponse
@@ -75,6 +103,21 @@ data CreateProjectResponse
   | CreateProjectResponseUnauthorized
   | CreateProjectResponseSuccess !Project
   deriving stock (Eq, Show)
+
+instance FromJSON CreateProjectResponse where
+  parseJSON =
+    withSumType "CreateProjectResponse" \typ val ->
+      case typ of
+        "bad-request" -> pure CreateProjectResponseBadRequest
+        "unauthorized" -> pure CreateProjectResponseUnauthorized
+        "success" -> CreateProjectResponseSuccess <$> parseJSON val
+        _ -> fail (Text.unpack ("unknown CreateProjectResponse type: " <> typ))
+
+instance ToJSON CreateProjectResponse where
+  toJSON = \case
+    CreateProjectResponseBadRequest -> toSumType "bad-request" (object [])
+    CreateProjectResponseUnauthorized -> toSumType "unauthorized" (object [])
+    CreateProjectResponseSuccess project -> toSumType "success" (toJSON project)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Create project branch
@@ -107,10 +150,24 @@ data CreateProjectBranchResponse
 
 -- | A project.
 data Project = Project
-  { id :: Text,
-    name :: Text
+  { projectId :: Text,
+    projectName :: Text
   }
   deriving stock (Eq, Generic, Show)
+
+instance FromJSON Project where
+  parseJSON =
+    withObject "Project" \o -> do
+      projectId <- parseField o "projectId"
+      projectName <- parseField o "projectName"
+      pure Project {projectId, projectName}
+
+instance ToJSON Project where
+  toJSON Project {projectId, projectName} =
+    object
+      [ "projectId" .= projectId,
+        "projectName" .= projectName
+      ]
 
 -- | A project branch.
 data ProjectBranch = ProjectBranch
@@ -127,3 +184,17 @@ data ProjectBranchIds = ProjectBranchIds
     branchId :: Text
   }
   deriving stock (Eq, Generic, Show)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Aeson helpers. These could be extracted to a different module or package.
+
+toSumType :: Text -> Value -> Value
+toSumType typ payload =
+  object ["type" .= typ, "payload" .= payload]
+
+withSumType :: String -> (Text -> Value -> Parser a) -> Value -> Parser a
+withSumType name k =
+  withObject name \o -> do
+    typ <- parseField o "type"
+    val <- parseField o "payload"
+    k typ val

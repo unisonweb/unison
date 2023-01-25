@@ -50,7 +50,8 @@ library
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      base
+      aeson
+    , base
     , servant
     , text
     , unison-hash

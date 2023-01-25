@@ -9,6 +9,7 @@ library:
       other-modules: Paths_unison_share_projects_api
 
 dependencies:
+  - aeson
   - base
   - servant
   - text
