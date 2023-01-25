@@ -2502,9 +2502,13 @@ loadProjectByName :: Text -> Transaction (Maybe Project)
 loadProjectByName name =
   queryMaybeRow
     [sql|
-      SELECT id, name
-      FROM project
-      WHERE name = ?
+      SELECT
+        id,
+        name
+      FROM
+        project
+      WHERE
+        name = ?
     |]
     (Only name)
 
@@ -2522,12 +2526,15 @@ projectBranchExistsByName :: ProjectId -> Text -> Transaction Bool
 projectBranchExistsByName projectId name =
   queryOneCol
     [sql|
-      SELECT EXISTS (
-        SELECT 1
-        FROM project_branch
-        WHERE project_id = ?
-        AND name = ?
-      )
+      SELECT
+        EXISTS (
+          SELECT
+            1
+          FROM
+            project_branch
+          WHERE
+            project_id = ?
+            AND name = ?)
     |]
     (projectId, name)
 
@@ -2552,9 +2559,14 @@ loadProjectBranchByName :: ProjectId -> Text -> Transaction (Maybe Branch)
 loadProjectBranchByName projectId name =
   queryMaybeRow
     [sql|
-      SELECT project_id, branch_id, name
-      FROM project_branch
-      WHERE project_id = ?
+      SELECT
+        project_id,
+        branch_id,
+        name
+      FROM
+        project_branch
+      WHERE
+        project_id = ?
         AND name = ?
     |]
     (projectId, name)
@@ -2563,10 +2575,14 @@ loadProjectAndBranchNames :: ProjectId -> BranchId -> Transaction (Maybe (Text, 
 loadProjectAndBranchNames projectId branchId =
   queryMaybeRow
     [sql|
-      SELECT project.name, project_branch.name
-      FROM project
+      SELECT
+        project.name,
+        project_branch.name
+      FROM
+        project
         JOIN project_branch ON project.id = project_branch.project_id
-      WHERE project_branch.project_id = ?
+      WHERE
+        project_branch.project_id = ?
         AND project_branch.branch_id = ?
     |]
     (projectId, branchId)
