@@ -759,6 +759,7 @@ ioBuiltins =
       forall1 "a" $ \a ->
         a --> io (reft iot a)
     ),
+    ( "IO.callProcess", text --> list text --> io nat),
     ( "validateSandboxed",
       forall1 "a" $ \a -> list termLink --> a --> boolean
     ),

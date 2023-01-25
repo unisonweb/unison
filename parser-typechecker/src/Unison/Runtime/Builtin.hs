@@ -100,6 +100,7 @@ import System.Environment as SYS
   ( getArgs,
     getEnv,
   )
+import System.Exit as SYS (ExitCode(..))
 import System.FilePath (isPathSeparator)
 import System.IO (Handle)
 import System.IO as SYS
@@ -122,6 +123,11 @@ import System.IO as SYS
     stdout,
   )
 import System.IO.Temp (createTempDirectory)
+import System.Process as SYS
+  ( proc,
+    waitForProcess,
+    withCreateProcess
+  )
 import qualified System.X509 as X
 import Unison.ABT.Normalized hiding (TTm)
 import qualified Unison.Builtin as Ty (builtinTypes)
@@ -1483,6 +1489,16 @@ boxBoxTo0 instr =
   where
     (arg1, arg2) = fresh
 
+-- a -> b ->{E} Nat
+boxBoxToNat :: ForeignOp
+boxBoxToNat instr =
+  ([BX, BX],)
+    . TAbss [arg1, arg2]
+    . TLetD result UN (TFOp instr [arg1, arg2])
+    $ TCon Ty.natRef 0 [result]
+  where
+    (arg1, arg2, result) = fresh
+
 -- a -> b -> Option c
 
 -- a -> Bool
@@ -2259,6 +2275,13 @@ declareForeigns = do
       1 -> pure (Just SYS.stdout)
       2 -> pure (Just SYS.stderr)
       _ -> pure Nothing
+
+  declareForeign Tracked "IO.callProcess" boxBoxToNat . mkForeign $
+    \(exe, map Util.Text.unpack -> args) ->
+      withCreateProcess (proc exe args) $ \_ _ _ p ->
+        waitForProcess p >>= \case
+          ExitSuccess -> pure 0
+          ExitFailure n -> pure n
 
   declareForeign Tracked "MVar.new" boxDirect
     . mkForeign
