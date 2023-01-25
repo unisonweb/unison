@@ -67,7 +67,6 @@ module U.Codebase.Sqlite.Operations
     termsMentioningType,
 
     -- ** name lookup index
-    updateNameIndex,
     rootNamesByPath,
     NamesByPath (..),
     checkBranchHashNameLookupExists,
@@ -1069,20 +1068,6 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
--- | Given lists of names to add and remove, update the index accordingly.
-updateNameIndex ::
-  -- |  (add terms, remove terms)
-  ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
-  -- |  (add types, remove types)
-  ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
-  Transaction ()
-updateNameIndex (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
-  Q.ensureNameLookupTables
-  Q.removeTermNames ((fmap c2sTextReferent <$> removedTermNames))
-  Q.removeTypeNames ((fmap c2sTextReference <$> removedTypeNames))
-  Q.insertTermNames (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
-  Q.insertTypeNames (fmap c2sTextReference <$> newTypeNames)
-
 buildNameLookupForBranchHash ::
   -- The existing name lookup index to copy before applying the diff.
   -- If Nothing, run the diff against an empty index.
@@ -1120,13 +1105,16 @@ data NamesByPath = NamesByPath
   }
 
 -- | Get all the term and type names for the root namespace from the lookup table.
+-- Requires that an index for this branch hash already exists, which is currently
+-- only true on Share.
 rootNamesByPath ::
   -- | A relative namespace string, e.g. Just "base.List"
   Maybe Text ->
   Transaction NamesByPath
 rootNamesByPath path = do
-  termNamesInPath <- Q.rootTermNamesByPath path
-  typeNamesInPath <- Q.rootTypeNamesByPath path
+  bhId <- Q.expectNamespaceRootBranchHashId
+  termNamesInPath <- Q.termNamesWithinNamespace bhId path
+  typeNamesInPath <- Q.typeNamesWithinNamespace bhId path
   pure $
     NamesByPath
       { termNamesInPath = convertTerms <$> termNamesInPath,
