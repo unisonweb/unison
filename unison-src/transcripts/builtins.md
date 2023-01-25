@@ -356,6 +356,19 @@ openFile]
 .> add
 ```
 
+## Universal hash functions
+
+Just exercises the function
+
+```unison
+> Universal.murmurHash 1
+test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
+```
+
+```ucm:hide
+.> add
+```
+
 ## Run the tests
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.

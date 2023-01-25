@@ -69,7 +69,7 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   58. Tuple/              (1 term)
   59. Unit                (type)
   60. Unit/               (1 term)
-  61. Universal/          (6 terms)
+  61. Universal/          (7 terms)
   62. Value               (builtin type)
   63. Value/              (5 terms)
   64. bug                 (a -> b)
