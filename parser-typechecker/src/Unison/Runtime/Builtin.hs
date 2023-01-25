@@ -124,7 +124,10 @@ import System.IO as SYS
   )
 import System.IO.Temp (createTempDirectory)
 import System.Process as SYS
-  ( proc,
+  ( getProcessExitCode,
+    proc,
+    runInteractiveProcess,
+    terminateProcess,
     waitForProcess,
     withCreateProcess
   )
@@ -1019,6 +1022,19 @@ infixr 0 -->
 (-->) :: a -> b -> (a, b)
 x --> y = (x, y)
 
+start'process :: ForeignOp
+start'process instr =
+  ([BX, BX],)
+    . TAbss [exe, args]
+    . TLets Direct [hin,hout,herr,hproc] [BX,BX,BX,BX] (TFOp instr [exe, args])
+    . TLetD un BX (TCon Ty.unitRef 0 [])
+    . TLetD p3 BX (TCon Ty.pairRef 0 [hproc, un])
+    . TLetD p2 BX (TCon Ty.pairRef 0 [herr, p3])
+    . TLetD p1 BX (TCon Ty.pairRef 0 [hout, p2])
+    $ TCon Ty.pairRef 0 [hin, p1]
+  where
+    (exe,args,hin,hout,herr,hproc,un,p3,p2,p1) = fresh
+
 set'buffering :: ForeignOp
 set'buffering instr =
   ([BX, BX],)
@@ -1228,6 +1244,16 @@ outMaybe maybe result =
     mapFromList
       [ (0, ([], none)),
         (1, ([BX], TAbs maybe $ some maybe))
+      ]
+
+outMaybeNat :: Var v => v -> v -> v -> ANormal v
+outMaybeNat tag result n =
+  TMatch tag . MatchSum $
+    mapFromList
+      [ (0, ([], none)),
+        (1, ([UN],
+          TAbs result .
+            TLetD n BX (TCon Ty.natRef 0 [n]) $ some n))
       ]
 
 outMaybeNTup :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
@@ -1619,6 +1645,12 @@ boxToMaybeBox =
   inBx arg result $ outMaybe maybe result
   where
     (arg, maybe, result) = fresh
+
+-- a -> Maybe Nat
+boxToMaybeNat :: ForeignOp
+boxToMaybeNat = inBx arg tag $ outMaybeNat tag result n
+  where
+    (arg, tag, result, n) = fresh
 
 -- a -> Maybe (Nat, b)
 boxToMaybeNTup :: ForeignOp
@@ -2276,12 +2308,26 @@ declareForeigns = do
       2 -> pure (Just SYS.stderr)
       _ -> pure Nothing
 
-  declareForeign Tracked "IO.callProcess" boxBoxToNat . mkForeign $
+  let exitDecode ExitSuccess = 0
+      exitDecode (ExitFailure n) = n
+
+  declareForeign Tracked "IO.process.call" boxBoxToNat . mkForeign $
     \(exe, map Util.Text.unpack -> args) ->
       withCreateProcess (proc exe args) $ \_ _ _ p ->
-        waitForProcess p >>= \case
-          ExitSuccess -> pure 0
-          ExitFailure n -> pure n
+        exitDecode <$> waitForProcess p
+
+  declareForeign Tracked "IO.process.start" start'process . mkForeign $
+    \(exe, map Util.Text.unpack -> args) ->
+      runInteractiveProcess exe args Nothing Nothing
+
+  declareForeign Tracked "IO.process.kill" boxTo0 . mkForeign $
+    terminateProcess
+
+  declareForeign Tracked "IO.process.wait" boxToNat . mkForeign $
+    \ph -> exitDecode <$> waitForProcess ph
+
+  declareForeign Tracked "IO.process.exitCode" boxToMaybeNat . mkForeign $
+    fmap (fmap exitDecode) . getProcessExitCode
 
   declareForeign Tracked "MVar.new" boxDirect
     . mkForeign
