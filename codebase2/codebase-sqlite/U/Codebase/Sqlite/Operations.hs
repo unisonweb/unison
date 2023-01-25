@@ -1083,9 +1083,11 @@ updateNameIndex (newTermNames, removedTermNames) (newTypeNames, removedTypeNames
   Q.insertTermNames (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
   Q.insertTypeNames (fmap c2sTextReference <$> newTypeNames)
 
+-- | Apply a set of name updates to an existing index.
 buildNameLookupForBranchHash ::
   -- The existing name lookup index to copy before applying the diff.
   -- If Nothing, run the diff against an empty index.
+  -- If Just, the name lookup must exist or an error will be thrown.
   Maybe BranchHash ->
   BranchHash ->
   -- |  (add terms, remove terms)
