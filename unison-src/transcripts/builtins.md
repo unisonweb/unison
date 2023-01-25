@@ -362,7 +362,7 @@ Just exercises the function
 
 ```unison
 > Universal.murmurHash 1
-test> checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
+test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
 ```
 
 ```ucm:hide

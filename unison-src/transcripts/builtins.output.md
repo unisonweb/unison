@@ -380,7 +380,8 @@ openFile]
 Just exercises the function
 
 ```unison
-test> checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
+> Universal.murmurHash 1
+test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
 ```
 
 ```ucm
@@ -391,14 +392,18 @@ test> checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
   
     ⍟ These new definitions are ok to `add`:
     
-      test.boua3l3u3g : [Result]
+      Universal.murmurHash.tests : [Result]
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    1 | test> checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
+    1 | > Universal.murmurHash 1
+          ⧩
+          919612540558110011
+  
+    2 | test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
     
-    🚫 FAILED Failed
+    ✅ Passed Passed
 
 ```
 ## Run the tests
@@ -433,51 +438,10 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Text.tests.patterns                 Passed
   ◉ Text.tests.repeat                   Passed
   ◉ Text.tests.takeDropAppend           Passed
+  ◉ Universal.murmurHash.tests          Passed
   
-  ✗ test.boua3l3u3g   Failed
+  ✅ 24 test(s) passing
   
-  🚫 1 test(s) failing, ✅ 23 test(s) passing
-  
-  Tip: Use view test.boua3l3u3g to view the source of a test.
+  Tip: Use view Any.test1 to view the source of a test.
 
 ```
-
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  Cached test results (`help testcache` to learn more)
-  
-  ◉ Any.test1                           Passed
-  ◉ Any.test2                           Passed
-  ◉ Boolean.tests.andTable              Passed
-  ◉ Boolean.tests.notTable              Passed
-  ◉ Boolean.tests.orTable               Passed
-  ◉ Bytes.tests.at                      Passed
-  ◉ Bytes.tests.compression             Passed
-  ◉ Bytes.tests.fromBase64UrlUnpadded   Passed
-  ◉ Int.tests.arithmetic                Passed
-  ◉ Int.tests.bitTwiddling              Passed
-  ◉ Int.tests.conversions               Passed
-  ◉ Nat.tests.arithmetic                Passed
-  ◉ Nat.tests.bitTwiddling              Passed
-  ◉ Nat.tests.conversions               Passed
-  ◉ Sandbox.test1                       Passed
-  ◉ Sandbox.test2                       Passed
-  ◉ Sandbox.test3                       Passed
-  ◉ test.rtjqan7bcs                     Passed
-  ◉ Text.tests.alignment                Passed
-  ◉ Text.tests.literalsEq               Passed
-  ◉ Text.tests.patterns                 Passed
-  ◉ Text.tests.repeat                   Passed
-  ◉ Text.tests.takeDropAppend           Passed
-  
-  ✗ test.boua3l3u3g   Failed
-  
-  🚫 1 test(s) failing, ✅ 23 test(s) passing
-  
-  Tip: Use view test.boua3l3u3g to view the source of a test.
-
