@@ -399,7 +399,7 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 
     1 | > Universal.murmurHash 1
           ⧩
-          919612540558110011
+          5006114823290027883
   
     2 | test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
     
