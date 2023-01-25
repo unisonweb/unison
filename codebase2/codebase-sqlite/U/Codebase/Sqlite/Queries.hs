@@ -1773,14 +1773,14 @@ copyScopedNameLookup fromBHId toBHId = do
   where
     termsCopySql =
       [here|
-        INSERT INTO scoped_term_name_lookup
-        SELECT ?, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index
+        INSERT INTO scoped_term_name_lookup(root_branch_hash_id, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
+        SELECT ?, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
         FROM scoped_term_name_lookup
         WHERE root_branch_hash_id = ?
       |]
     typesCopySql =
       [here|
-        INSERT INTO scoped_type_name_lookup
+        INSERT INTO scoped_type_name_lookup(root_branch_hash_id, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index)
         SELECT ?, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index
         FROM scoped_type_name_lookup
         WHERE root_branch_hash_id = ?
