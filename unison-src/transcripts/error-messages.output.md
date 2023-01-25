@@ -162,19 +162,32 @@ foo = with -- unclosed
 ### Matching
 
 ```unison
+-- No cases
 foo = match 1 with
-  2 -- no right-hand-side
 ```
 
 ```ucm
 
     😶
     
-    I expected some patterns after a match / with but I didn't
-    find any.
+    I expected some patterns after a match / with or cases but I
+    didn't find any.
     
-        1 | foo = match 1 with
+        2 | foo = match 1 with
     
+
+```
+```unison
+foo = match 1 with
+  2 -- no right-hand-side
+```
+
+```ucm
+
+  offset=8:
+  unexpected <outdent>
+  expecting ",", case match, or pattern guard
+      3 | 
 
 ```
 ```unison
@@ -194,6 +207,56 @@ foo = cases
     1 arguments:
         4 |   3 -> ()
     
+
+```
+```unison
+-- Missing a '->'
+x = match Some a with
+      None -> 
+        1
+      Some _
+        2
+```
+
+```ucm
+
+  offset=16:
+  unexpected <outdent>
+  expecting ",", blank, case match, false, pattern guard, or true
+      7 | 
+
+```
+```unison
+-- Missing patterns
+x = match Some a with
+      None -> 1
+           -> 2
+           -> 3
+```
+
+```ucm
+
+  offset=12:
+  unexpected ->
+  expecting newline or semicolon
+      4 |            -> 2
+  
+
+```
+```unison
+-- Guards following an unguarded case
+x = match Some a with
+      None     -> 1
+        | true -> 2
+```
+
+```ucm
+
+  offset=12:
+  unexpected |
+  expecting newline or semicolon
+      4 |         | true -> 2
+  
 
 ```
 ### Watches
