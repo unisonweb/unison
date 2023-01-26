@@ -455,6 +455,7 @@ builtinsSrc =
     B "Universal.<" $ forall1 "a" (\a -> a --> a --> boolean),
     B "Universal.>=" $ forall1 "a" (\a -> a --> a --> boolean),
     B "Universal.<=" $ forall1 "a" (\a -> a --> a --> boolean),
+    B "Universal.murmurHash" $ forall1 "a" (\a -> a --> nat),
     B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "Any.Any" $ forall1 "a" (\a -> a --> anyt),

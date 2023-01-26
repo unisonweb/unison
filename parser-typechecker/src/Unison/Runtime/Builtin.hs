@@ -36,6 +36,7 @@ import Control.Monad.Catch (MonadCatch)
 import qualified Control.Monad.Primitive as PA
 import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
+import Data.Digest.Murmur64 (hash64, asWord64)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
 import Data.Bits (shiftL, shiftR, (.|.))
@@ -1107,6 +1108,17 @@ crypto'hash instr =
     $ TFOp instr [alg, vl]
   where
     (alg, x, vl) = fresh
+
+murmur'hash :: ForeignOp
+murmur'hash instr =
+  ([BX],)
+    . TAbss [x]
+    . TLetD vl BX (TPrm VALU [x])
+    . TLetD result UN (TFOp instr [vl])
+    $ TCon Ty.natRef 0 [result]
+  where
+    (x, vl, result) = fresh
+
 
 crypto'hmac :: ForeignOp
 crypto'hmac instr =
@@ -2626,6 +2638,9 @@ declareForeigns = do
         pure $ case e of
           Left se -> Left (Util.Text.pack (show se))
           Right a -> Right a
+
+  declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
+    pure . asWord64 . hash64 . serializeValueLazy
 
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
   declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress

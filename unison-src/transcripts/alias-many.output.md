@@ -658,13 +658,14 @@ Let's try it!
   474. Universal.> : a -> a -> Boolean
   475. Universal.>= : a -> a -> Boolean
   476. Universal.compare : a -> a -> Int
-  477. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
-  478. builtin type Value
-  479. Value.dependencies : Value -> [Term]
-  480. Value.deserialize : Bytes -> Either Text Value
-  481. Value.load : Value ->{IO} Either [Term] a
-  482. Value.serialize : Value -> Bytes
-  483. Value.value : a -> Value
+  477. Universal.murmurHash : a -> Nat
+  478. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
+  479. builtin type Value
+  480. Value.dependencies : Value -> [Term]
+  481. Value.deserialize : Bytes -> Either Text Value
+  482. Value.load : Value ->{IO} Either [Term] a
+  483. Value.serialize : Value -> Bytes
+  484. Value.value : a -> Value
   
 
 .builtin> alias.many 94-104 .mylib
