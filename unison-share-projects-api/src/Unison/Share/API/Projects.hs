@@ -62,7 +62,7 @@ type GetProjectAPI =
   "project"
     :> QueryParam "id" Text
     :> QueryParam "name" Text
-    :> Verb Get 200 '[JSON] GetProjectResponse
+    :> Verb 'GET 200 '[JSON] GetProjectResponse
 
 -- | @GET /project@ response.
 data GetProjectResponse
@@ -90,7 +90,7 @@ instance ToJSON GetProjectResponse where
 type CreateProjectAPI =
   "create-project"
     :> ReqBody '[JSON] CreateProjectRequest
-    :> Verb Post 200 '[JSON] CreateProjectResponse
+    :> Verb 'POST 200 '[JSON] CreateProjectResponse
 
 -- | @POST /create-project@ request.
 data CreateProjectRequest = CreateProjectRequest
@@ -144,7 +144,7 @@ type GetProjectBranchAPI =
     :> QueryParam' '[Required, Strict] "projectId" Text
     :> QueryParam "branchId" Text
     :> QueryParam "branchName" Text
-    :> Verb Get 200 '[JSON] GetProjectBranchResponse
+    :> Verb 'GET 200 '[JSON] GetProjectBranchResponse
 
 -- | @GET /project-branch@ response.
 data GetProjectBranchResponse
@@ -172,7 +172,7 @@ instance ToJSON GetProjectBranchResponse where
 type CreateProjectBranchAPI =
   "create-project-branch"
     :> ReqBody '[JSON] CreateProjectBranchRequest
-    :> Verb Post 200 '[JSON] CreateProjectBranchResponse
+    :> Verb 'POST 200 '[JSON] CreateProjectBranchResponse
 
 -- | @POST /create-project-branch@ request.
 data CreateProjectBranchRequest = CreateProjectBranchRequest
@@ -232,7 +232,7 @@ instance ToJSON CreateProjectBranchResponse where
 type SetProjectBranchHeadAPI =
   "set-project-branch-head"
     :> ReqBody '[JSON] SetProjectBranchHeadRequest
-    :> Verb Post 200 '[JSON] SetProjectBranchHeadResponse
+    :> Verb 'POST 200 '[JSON] SetProjectBranchHeadResponse
 
 -- | @POST /set-project-branch-head@ request.
 data SetProjectBranchHeadRequest = SetProjectBranchHeadRequest
