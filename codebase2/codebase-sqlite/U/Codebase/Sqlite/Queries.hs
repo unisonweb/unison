@@ -2439,6 +2439,7 @@ getReflog numEntries = queryListRow sql (Only numEntries)
     |]
 
 newtype ProjectId = ProjectId {unProjectId :: UUID}
+  deriving stock (Show, Eq)
   deriving newtype (ToField, FromField)
 
 data Project = Project
@@ -2704,3 +2705,110 @@ setRemoteProjectBranchName rpid host rbid name =
         AND branch_id = ?
         |]
     (name, rpid, host, rbid)
+
+insertBranchRemoteMapping :: ProjectId -> BranchId -> RemoteProjectId -> Text -> RemoteBranchId -> Transaction ()
+insertBranchRemoteMapping pid bid rpid host rbid =
+  execute
+    [sql|
+      INSERT INTO project_branch_remote_mapping (
+        local_project_id,
+        local_branch_id,
+        remote_project_id,
+        remote_branch_id,
+        remote_host)
+      VALUES (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?)
+        |]
+    (pid, bid, rpid, rbid, host)
+
+data SetProjectBranchDefaultPushError
+  = UnknownAlias ProjectId Text
+  deriving stock (Show, Eq)
+
+setProjectBranchDefaultPush :: ProjectId -> BranchId -> Either Text (RemoteProjectId, Text) -> RemoteBranchId -> Transaction (Either SetProjectBranchDefaultPushError ())
+setProjectBranchDefaultPush pid bid serverProjectRef rbid =
+  case serverProjectRef of
+    Left aliasName -> do
+      mAliasResolution <-
+        queryMaybeRow @(RemoteProjectId, Text)
+          [sql|
+          SELECT
+            remote_project_id,
+            remote_host,
+          FROM
+            project_remote_alias
+          WHERE
+            local_project_id = ?
+            and remote_name = ?
+          |]
+          (pid, aliasName)
+      case mAliasResolution of
+        Nothing -> pure (Left (UnknownAlias pid aliasName))
+        Just (rpid, host) -> do
+          let insertArgs = (pid, bid, rbid, host, aliasName, rbid)
+              updateArgs = (rpid, host, aliasName, rbid)
+              args = insertArgs :. updateArgs
+          execute
+            [sql|
+              INSERT INTO project_branch_default_push (
+                local_project_id,
+                local_branch_id,
+                named_remote_project_id,
+                named_remote_host,
+                named_remote_name,
+                remote_branch_id)
+              VALUES (
+                ?,
+                ?,
+                ?,
+                ?,
+                ?,
+                ?)
+              ON CONFLICT (
+                local_project_id,
+                local_branch_id)
+                DO UPDATE SET
+                  unnamed_remote_name = NULL,
+                  unnamed_remote_project_id = NULL,
+                  named_remote_project_id = ?,
+                  named_remote_host = ?,
+                  named_remote_name = ?,
+                  remote_branch_id = ?)
+                |]
+            args
+          pure (Right ())
+    Right (rpid, host) -> do
+      let insertArgs = (pid, bid, rbid, host, rbid)
+          updateArgs = (rpid, host, rbid)
+          args = insertArgs :. updateArgs
+      execute
+        [sql|
+          INSERT INTO project_branch_default_push (
+            local_project_id,
+            local_branch_id,
+            unnamed_remote_project_id,
+            unnamed_remote_host,
+            remote_branch_id)
+          VALUES (
+            ?,
+            ?,
+            ?,
+            ?,
+            ?)
+          ON CONFLICT (
+            local_project_id,
+            local_branch_id)
+            DO UPDATE SET
+              named_remote_name = NULL,
+              named_remote_project_id = NULL,
+              named_remote_host = NULL,
+              unnamed_remote_project_id = ?,
+              unnamed_remote_host = ?,
+              remote_branch_id = ?)
+            |]
+        args
+      pure (Right ())
