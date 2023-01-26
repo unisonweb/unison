@@ -23,6 +23,11 @@ module Unison.Share.API.Projects
     CreateProjectBranchRequest (..),
     CreateProjectBranchResponse (..),
 
+    -- ** Set project branch head
+    SetProjectBranchHeadAPI,
+    SetProjectBranchHeadRequest (..),
+    SetProjectBranchHeadResponse (..),
+
     -- * Types
     Project (..),
     ProjectBranch (..),
@@ -45,6 +50,7 @@ type ProjectsAPI =
     :<|> CreateProjectAPI
     :<|> GetProjectBranchAPI
     :<|> CreateProjectBranchAPI
+    :<|> SetProjectBranchHeadAPI
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get project
@@ -96,7 +102,7 @@ instance FromJSON CreateProjectRequest where
   parseJSON =
     withObject "CreateProjectRequest" \o -> do
       projectName <- parseField o "projectName"
-      pure CreateProjectRequest {projectName}
+      pure CreateProjectRequest {..}
 
 instance ToJSON CreateProjectRequest where
   toJSON (CreateProjectRequest projectName) =
@@ -218,6 +224,66 @@ instance ToJSON CreateProjectBranchResponse where
     CreateProjectBranchResponseBadRequest -> toSumType "bad-request" (object [])
     CreateProjectBranchResponseUnauthorized -> toSumType "unauthorized" (object [])
     CreateProjectBranchResponseSuccess branch -> toSumType "success" (toJSON branch)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Set project branch head
+
+-- | [@POST /set-project-branch-head@]: Make a project branch point at an already-uploaded causal
+type SetProjectBranchHeadAPI =
+  "set-project-branch-head"
+    :> ReqBody '[JSON] SetProjectBranchHeadRequest
+    :> Verb Post 200 '[JSON] SetProjectBranchHeadResponse
+
+-- | @POST /set-project-branch-head@ request.
+data SetProjectBranchHeadRequest = SetProjectBranchHeadRequest
+  { projectId :: Text,
+    branchId :: Text,
+    -- | If @Nothing@, just set (force-push semantics). If @Just@, check-and-set (push-with-lease).
+    branchOldCausalHash :: Maybe Hash32,
+    branchNewCausalHash :: Hash32
+  }
+  deriving stock (Eq, Show)
+
+instance FromJSON SetProjectBranchHeadRequest where
+  parseJSON =
+    withObject "SetProjectBranchHeadRequest" \o -> do
+      projectId <- parseField o "projectId"
+      branchId <- parseField o "branchId"
+      branchOldCausalHash <- parseFieldMaybe' o "branchOldCausalHash"
+      branchNewCausalHash <- parseField o "branchNewCausalHash"
+      pure SetProjectBranchHeadRequest {..}
+
+instance ToJSON SetProjectBranchHeadRequest where
+  toJSON (SetProjectBranchHeadRequest projectId branchId branchOldCausalHash branchNewCausalHash) =
+    objectWithMaybes
+      [ "projectId" .= projectId,
+        "branchId" .= branchId,
+        "branchNewCausalHash" .= branchNewCausalHash
+      ]
+      ["branchOldCausalHash" .=? branchOldCausalHash]
+
+-- | @POST /set-project-branch-hash@ response.
+data SetProjectBranchHeadResponse
+  = -- | Request payload invalid.
+    SetProjectBranchHeadResponseBadRequest
+  | SetProjectBranchHeadResponseUnauthorized
+  | SetProjectBranchHeadResponseSuccess
+  deriving stock (Eq, Show)
+
+instance FromJSON SetProjectBranchHeadResponse where
+  parseJSON =
+    withSumType "SetProjectBranchHeadResponse" \typ _val ->
+      case typ of
+        "bad-request" -> pure SetProjectBranchHeadResponseBadRequest
+        "unauthorized" -> pure SetProjectBranchHeadResponseUnauthorized
+        "success" -> pure SetProjectBranchHeadResponseSuccess
+        _ -> fail (Text.unpack ("unknown SetProjectBranchHeadResponse type: " <> typ))
+
+instance ToJSON SetProjectBranchHeadResponse where
+  toJSON = \case
+    SetProjectBranchHeadResponseBadRequest -> toSumType "bad-request" (object [])
+    SetProjectBranchHeadResponseUnauthorized -> toSumType "unauthorized" (object [])
+    SetProjectBranchHeadResponseSuccess -> toSumType "success" (object [])
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Types
