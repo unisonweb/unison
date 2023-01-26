@@ -78,6 +78,7 @@ dependencies:
   - unison-prelude
   - unison-pretty-printer
   - unison-share-api
+  - unison-share-projects-api
   - unison-sqlite
   - unison-syntax
   - unison-util-base32hex
