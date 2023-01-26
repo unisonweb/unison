@@ -18,6 +18,7 @@
     handle
     request
     unison-force
+    identity
     record-case)
 
   (import (chezscheme)
@@ -122,6 +123,8 @@
       [(data-case scrut c ...)
        (record-case (data-payload scrut) c ...)]))
 
+  (define (identity x) x)
+  
   ; forces something that is expected to be a thunk, defined with
   ; e.g. `name` above. In some cases, we might have a normal value,
   ; so just do nothing in that case.

@@ -1,14 +1,26 @@
+; This library implements various functions and macros that are used
+; internally to the unison scheme libraries. This provides e.g. a
+; measure of abstraction for the particular scheme platform. A useful
+; feature of one implementation might need to be implemented on top of
+; other features of another, and would go in this library.
+;
+; This library won't be directly imported by the generated unison
+; code, so if some function is needed for those, it should be
+; re-exported by (unison boot).
 (library (unison core)
   (export
     define-virtual-register
     define-init-registers
 
-    identity
-
     describe-value
     decode-value
 
-    universal-compare)
+    universal-compare
+
+    fx1-
+    list-head
+
+    display-condition)
 
   (import (chezscheme))
 
@@ -56,8 +68,6 @@
                          (rec (cdr l) (+ 1 n))))]))])
          #'(define (name) set ... #t))]))
 
-  (define (identity x) x)
-  
   ; Recovers the original function name from the partial
   ; application name.
   (define (extract-name i)
