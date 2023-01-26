@@ -259,6 +259,9 @@ filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
+processHandleRef :: Reference
+processHandleRef = Reference.Builtin "ProcessHandle"
+
 scopeRef, refRef :: Reference
 scopeRef = Reference.Builtin "Scope"
 refRef = Reference.Builtin "Ref"
@@ -347,6 +350,9 @@ char a = ref a charRef
 
 fileHandle :: Ord v => a -> Type v a
 fileHandle a = ref a fileHandleRef
+
+processHandle :: Ord v => a -> Type v a
+processHandle a = ref a processHandleRef
 
 threadId :: Ord v => a -> Type v a
 threadId a = ref a threadIdRef
