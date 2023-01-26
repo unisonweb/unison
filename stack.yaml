@@ -16,6 +16,7 @@ packages:
 - unison-cli
 - unison-hashing-v2
 - unison-share-api
+- unison-share-projects-api
 - unison-syntax
 - codebase2/codebase
 - codebase2/codebase-sqlite

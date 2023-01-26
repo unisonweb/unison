@@ -77,6 +77,7 @@ import Unison.Runtime.MCode
 import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
   ( ActiveThreads,
+    Tracer (..),
     CCache (..),
     apply0,
     baseCCache,
@@ -99,7 +100,6 @@ import Unison.Syntax.TermPrinter
 import qualified Unison.Term as Tm
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty as P
-import qualified Unison.Util.Text as UT
 import qualified UnliftIO
 import qualified UnliftIO.Concurrent as UnliftIO
 
@@ -366,20 +366,18 @@ evalInContext ppe ctx activeThreads w = do
       prettyError (PE _ p) = p
       prettyError (BU tr nm c) = either id (bugMsg ppe tr nm) $ decom c
 
-      tr tx c = case decom c of
-        Right dv -> do
-          putStrLn $ "trace: " ++ UT.unpack tx
-          putStrLn . toANSI 50 $ pretty ppe dv
-        Left _ -> do
-          putStrLn $ "trace: " ++ UT.unpack tx
-          putStrLn "Couldn't decompile value."
-          print c
+      debugText fancy c = case decom c of
+        Right dv -> SimpleTrace . fmt $ pretty ppe dv
+        Left _ -> MsgTrace ("Couldn't decompile value") (show c)
+        where
+        fmt | fancy = toANSI 50
+            | otherwise = toPlain 50
 
   result <-
     traverse (const $ readIORef r)
       . first prettyError
       <=< try
-      $ apply0 (Just hook) ((ccache ctx) {tracer = tr}) activeThreads w
+      $ apply0 (Just hook) ((ccache ctx) {tracer = debugText}) activeThreads w
   pure $ decom =<< result
 
 executeMainComb ::
@@ -618,9 +616,7 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
     <*> newTVarIO (rty <> builtinTypeNumbering)
     <*> newTVarIO (sbs <> baseSandboxInfo)
   where
-    uglyTrace tx c = do
-      putStrLn $ "trace: " ++ UT.unpack tx
-      print c
+    uglyTrace _ c = SimpleTrace $ show c
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     combs =

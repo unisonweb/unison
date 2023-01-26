@@ -1,0 +1,61 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           unison-share-projects-api
+version:        0.0.0
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+copyright:      Copyright (C) 2013-2023 Unison Computing, PBC and contributors
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+library
+  exposed-modules:
+      Unison.Share.API.Projects
+  hs-source-dirs:
+      src
+  default-extensions:
+      BlockArguments
+      ConstraintKinds
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveGeneric
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      GADTs
+      GeneralizedNewtypeDeriving
+      KindSignatures
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      NumericUnderscores
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+      TypeApplications
+      TypeOperators
+      ViewPatterns
+  ghc-options: -Wall
+  build-depends:
+      aeson
+    , base
+    , servant
+    , text
+    , unison-hash
+    , unison-hash-orphans-aeson
+    , unison-prelude
+    , unordered-containers
+  default-language: Haskell2010

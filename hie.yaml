@@ -120,6 +120,9 @@ cradle:
     - path: "unison-share-api/src"
       component: "unison-share-api:lib"
 
+    - path: "unison-share-projects-api/src"
+      component: "unison-share-projects-api:lib"
+
     - path: "unison-syntax/src"
       component: "unison-syntax:lib"
 

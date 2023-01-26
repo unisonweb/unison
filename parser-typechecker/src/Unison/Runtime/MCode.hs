@@ -387,6 +387,8 @@ data BPrim1
   | CVLD -- validate
   | VALU
   | TLTT -- value, Term.Link.toText
+  -- debug
+  | DBTX -- debug text
   deriving (Show, Eq, Ord)
 
 data BPrim2
@@ -415,8 +417,8 @@ data BPrim2
   | IDXB
   | CATB -- take,drop,index,append
   -- general
-  | THRO
-  | TRCE -- throw
+  | THRO -- throw
+  | TRCE -- trace
   -- code
   | SDBX -- sandbox
   deriving (Show, Eq, Ord)
@@ -1176,6 +1178,7 @@ emitPOp ANF.SDBX = emitBP2 SDBX
 -- error call
 emitPOp ANF.EROR = emitBP2 THRO
 emitPOp ANF.TRCE = emitBP2 TRCE
+emitPOp ANF.DBTX = emitBP1 DBTX
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case

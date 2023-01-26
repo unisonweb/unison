@@ -19,7 +19,7 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   8.  Char/               (3 terms)
   9.  Code                (builtin type)
   10. Code/               (8 terms)
-  11. Debug/              (2 terms)
+  11. Debug/              (3 terms)
   12. Doc                 (type)
   13. Doc/                (6 terms)
   14. Either              (type)
