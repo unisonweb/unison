@@ -154,7 +154,7 @@
   ; Removes the prompt from the first frame of a meta-continuation.
   (define (strip-prompt mc)
     (let ([mf (car mc)])
-      (cons (make-meta-frame #f (meta-frame-resume-k mf) (cdr mc)))))
+      (cons (make-meta-frame #f (meta-frame-resume-k mf)) (cdr mc))))
 
   ; This funcion is used to reinstate a captured continuation. It
   ; should be called with:
