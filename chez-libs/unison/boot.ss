@@ -17,7 +17,8 @@
     func-wrap
     handle
     request
-    unison-force)
+    unison-force
+    record-case)
 
   (import (chezscheme)
           (unison cont))
