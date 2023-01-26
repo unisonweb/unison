@@ -14,6 +14,10 @@ module Unison.Share.API.Projects
     CreateProjectRequest (..),
     CreateProjectResponse (..),
 
+    -- ** Get project branch
+    GetProjectBranchAPI,
+    GetProjectBranchResponse (..),
+
     -- ** Create project branch
     CreateProjectBranchAPI,
     CreateProjectBranchRequest (..),
@@ -39,6 +43,7 @@ import Unison.Prelude
 type ProjectsAPI =
   GetProjectAPI
     :<|> CreateProjectAPI
+    :<|> GetProjectBranchAPI
     :<|> CreateProjectBranchAPI
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -121,6 +126,38 @@ instance ToJSON CreateProjectResponse where
     CreateProjectResponseBadRequest -> toSumType "bad-request" (object [])
     CreateProjectResponseUnauthorized -> toSumType "unauthorized" (object [])
     CreateProjectResponseSuccess project -> toSumType "success" (toJSON project)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Get project branch
+
+-- | [@GET /project-branch?projectId=XXX&branchId=YYY@]: Get a project branch by id.
+--
+-- [@GET /project-branch?projectId=XXX&branchName=YYY@]: Get a project branch by name.
+type GetProjectBranchAPI =
+  "project-branch"
+    :> QueryParam' '[Required, Strict] "projectId" Text
+    :> QueryParam "branchId" Text
+    :> QueryParam "branchName" Text
+    :> Verb Get 200 '[JSON] GetProjectBranchResponse
+
+-- | @GET /project-branch@ response.
+data GetProjectBranchResponse
+  = GetProjectBranchResponseNotFound
+  | GetProjectBranchResponseSuccess !ProjectBranch
+  deriving stock (Eq, Show)
+
+instance FromJSON GetProjectBranchResponse where
+  parseJSON =
+    withSumType "GetProjectBranchResponse" \typ val ->
+      case typ of
+        "not-found" -> pure GetProjectBranchResponseNotFound
+        "success" -> GetProjectBranchResponseSuccess <$> parseJSON val
+        _ -> fail (Text.unpack ("unknown GetProjectBranchResponse type: " <> typ))
+
+instance ToJSON GetProjectBranchResponse where
+  toJSON = \case
+    GetProjectBranchResponseNotFound -> toSumType "not-found" (object [])
+    GetProjectBranchResponseSuccess branch -> toSumType "success" (toJSON branch)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Create project branch
