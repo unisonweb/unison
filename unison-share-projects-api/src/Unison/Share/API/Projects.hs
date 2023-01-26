@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Unison.Share.API.Projects
   ( -- * API
@@ -27,11 +28,13 @@ where
 
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Text (Text)
+import qualified Data.HashMap.Strict as HashMap
+import Data.Monoid (Endo (..))
 import qualified Data.Text as Text
-import GHC.Generics (Generic)
 import Servant.API
 import Unison.Hash32 (Hash32)
+import Unison.Hash32.Orphans.Aeson ()
+import Unison.Prelude
 
 type ProjectsAPI =
   GetProjectAPI
@@ -91,7 +94,7 @@ instance FromJSON CreateProjectRequest where
       pure CreateProjectRequest {projectName}
 
 instance ToJSON CreateProjectRequest where
-  toJSON CreateProjectRequest {projectName} =
+  toJSON (CreateProjectRequest projectName) =
     object
       [ "projectName" .= projectName
       ]
@@ -137,6 +140,25 @@ data CreateProjectBranchRequest = CreateProjectBranchRequest
   }
   deriving stock (Eq, Show)
 
+instance FromJSON CreateProjectBranchRequest where
+  parseJSON =
+    withObject "CreateProjectBranchRequest" \o -> do
+      projectId <- parseField o "projectId"
+      branchName <- parseField o "branchName"
+      branchCausalHash <- parseField o "branchCausalHash"
+      branchMergeTarget <- parseFieldMaybe' o "branchMergeTarget"
+      pure CreateProjectBranchRequest {..}
+
+instance ToJSON CreateProjectBranchRequest where
+  toJSON (CreateProjectBranchRequest projectId branchName branchCausalHash branchMergeTarget) =
+    objectWithMaybes
+      [ "projectId" .= projectId,
+        "branchName" .= branchName,
+        "branchCausalHash" .= branchCausalHash
+      ]
+      [ "branchMergeTarget" .=? branchMergeTarget
+      ]
+
 -- | @POST /create-project-branch@ response.
 data CreateProjectBranchResponse
   = -- | Request payload invalid.
@@ -144,6 +166,21 @@ data CreateProjectBranchResponse
   | CreateProjectBranchResponseUnauthorized
   | CreateProjectBranchResponseSuccess !ProjectBranch
   deriving stock (Eq, Show)
+
+instance FromJSON CreateProjectBranchResponse where
+  parseJSON =
+    withSumType "CreateProjectBranchResponse" \typ val ->
+      case typ of
+        "bad-request" -> pure CreateProjectBranchResponseBadRequest
+        "unauthorized" -> pure CreateProjectBranchResponseUnauthorized
+        "success" -> CreateProjectBranchResponseSuccess <$> parseJSON val
+        _ -> fail (Text.unpack ("unknown CreateProjectBranchResponse type: " <> typ))
+
+instance ToJSON CreateProjectBranchResponse where
+  toJSON = \case
+    CreateProjectBranchResponseBadRequest -> toSumType "bad-request" (object [])
+    CreateProjectBranchResponseUnauthorized -> toSumType "unauthorized" (object [])
+    CreateProjectBranchResponseSuccess branch -> toSumType "success" (toJSON branch)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Types
@@ -163,7 +200,7 @@ instance FromJSON Project where
       pure Project {projectId, projectName}
 
 instance ToJSON Project where
-  toJSON Project {projectId, projectName} =
+  toJSON (Project projectId projectName) =
     object
       [ "projectId" .= projectId,
         "projectName" .= projectName
@@ -178,6 +215,24 @@ data ProjectBranch = ProjectBranch
   }
   deriving stock (Eq, Generic, Show)
 
+instance FromJSON ProjectBranch where
+  parseJSON =
+    withObject "ProjectBranch" \o -> do
+      projectId <- parseField o "projectId"
+      projectName <- parseField o "projectName"
+      branchId <- parseField o "branchId"
+      branchName <- parseField o "branchName"
+      pure ProjectBranch {..}
+
+instance ToJSON ProjectBranch where
+  toJSON (ProjectBranch projectId projectName branchId branchName) =
+    object
+      [ "projectId" .= projectId,
+        "projectName" .= projectName,
+        "branchId" .= branchId,
+        "branchName" .= branchName
+      ]
+
 -- | A project id and branch id.
 data ProjectBranchIds = ProjectBranchIds
   { projectId :: Text,
@@ -185,8 +240,52 @@ data ProjectBranchIds = ProjectBranchIds
   }
   deriving stock (Eq, Generic, Show)
 
+instance FromJSON ProjectBranchIds where
+  parseJSON =
+    withObject "ProjectBranchIds" \o -> do
+      projectId <- parseField o "projectId"
+      branchId <- parseField o "branchId"
+      pure ProjectBranchIds {..}
+
+instance ToJSON ProjectBranchIds where
+  toJSON (ProjectBranchIds projectId branchId) =
+    object
+      [ "projectId" .= projectId,
+        "branchId" .= branchId
+      ]
+
 ------------------------------------------------------------------------------------------------------------------------
 -- Aeson helpers. These could be extracted to a different module or package.
+
+-- | Like 'object', but takes a second list of pairs whose values are Maybes; Nothing values' keys are not put into the
+-- object at all.
+--
+-- For example, the Haskell value
+--
+-- @
+-- Foo
+--   { bar = 5
+--   , qux = Nothing
+--   }
+-- @
+--
+-- would be serialized as the JSON
+--
+-- @
+-- { "bar" = 5 }
+-- @
+--
+-- using this combinator.
+objectWithMaybes :: [Pair] -> [Endo Object] -> Value
+objectWithMaybes nonMaybeFields maybeFields =
+  Object (appEndo (fold maybeFields) (HashMap.fromList nonMaybeFields))
+
+-- | Like ('.='), but omits the key/value pair if the value is Nothing.
+(.=?) :: ToJSON a => Text -> Maybe a -> Endo Object
+k .=? mv =
+  case mv of
+    Nothing -> mempty
+    Just v -> Endo (HashMap.insert k (toJSON v))
 
 toSumType :: Text -> Value -> Value
 toSumType typ payload =

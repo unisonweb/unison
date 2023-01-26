@@ -14,6 +14,9 @@ dependencies:
   - servant
   - text
   - unison-hash
+  - unison-hash-orphans-aeson
+  - unison-prelude
+  - unordered-containers
 
 ghc-options:
   -Wall
