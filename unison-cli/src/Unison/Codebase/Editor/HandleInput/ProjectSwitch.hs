@@ -9,16 +9,17 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import Unison.Cli.ProjectUtils (projectBranchPath)
-import Unison.Codebase.Editor.Input (ProjectSwitchInput (..))
 import Unison.Prelude
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Witch (into, unsafeFrom)
 
 -- | "Switch" to a project branch.
 --
 -- Temporary restriction: this command currently does not try to download a missing remote project from Share.
-projectSwitch :: ProjectSwitchInput -> Cli ()
-projectSwitch ProjectSwitchInput {projectName, maybeBranchName} = do
-  let branchName = fromMaybe (unsafeFrom @Text "main") maybeBranchName
+projectSwitch :: ProjectAndBranch ProjectName (Maybe ProjectBranchName) -> Cli ()
+projectSwitch projectAndBranch = do
+  let projectName = projectAndBranch ^. #project
+  let branchName = fromMaybe (unsafeFrom @Text "main") (projectAndBranch ^. #branch)
 
   (projectId, branchId) <-
     Cli.label \foundIds -> do

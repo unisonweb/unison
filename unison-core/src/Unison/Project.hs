@@ -1,6 +1,8 @@
+-- | Projects.
 module Unison.Project
   ( ProjectName,
     ProjectBranchName,
+    ProjectAndBranch (..),
   )
 where
 
@@ -62,3 +64,10 @@ instance TryFrom Text ProjectBranchName where
       isValidChar :: Char -> Bool
       isValidChar c =
         isValidStartChar c || Char.isNumber c || c == '-' || c == '.' || c == '/'
+
+-- | A generic data structure that contains information about a project and a branch in that project.
+data ProjectAndBranch a b = ProjectAndBranch
+  { project :: a,
+    branch :: b
+  }
+  deriving stock (Eq, Generic, Show)

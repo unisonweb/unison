@@ -43,7 +43,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
 import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import qualified Unison.Util.ColorText as CT
@@ -2338,7 +2338,7 @@ projectCreateBranch =
       help = P.wrap "Create a project branch.",
       parse = \case
         [branchNameString] -> do
-          branchName <- parseProjectBranchName branchNameString
+          branchName <- parseProjectBranchName (Text.pack branchNameString)
           Right (Input.ProjectCreateBranchI branchName)
         _ -> Left (showPatternHelp projectCreateBranch)
     }
@@ -2349,16 +2349,19 @@ projectSwitch =
     { patternName = "project.switch",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [(Required, projectNameArg), (Optional, projectBranchNameArg)],
+      argTypes = [(Required, projectAndBranchNamesArg)],
       help = P.wrap "Switch to a project.",
       parse = \case
-        [projectNameString] -> do
-          projectName <- parseProjectName projectNameString
-          Right (Input.ProjectSwitchI Input.ProjectSwitchInput {projectName, maybeBranchName = Nothing})
-        [projectNameString, branchNameString] -> do
-          projectName <- parseProjectName projectNameString
-          branchName <- parseProjectBranchName branchNameString
-          Right (Input.ProjectSwitchI Input.ProjectSwitchInput {projectName, maybeBranchName = Just branchName})
+        [projectAndBranchNamesString] ->
+          case Text.split (== ':') (Text.pack projectAndBranchNamesString) of
+            [projectNameString] -> do
+              project <- parseProjectName projectNameString
+              Right (Input.ProjectSwitchI ProjectAndBranch {project, branch = Nothing})
+            [projectNameString, branchNameString] -> do
+              project <- parseProjectName projectNameString
+              branch <- parseProjectBranchName branchNameString
+              Right (Input.ProjectSwitchI ProjectAndBranch {project, branch = Just branch})
+            _ -> Left (showPatternHelp projectSwitch)
         _ -> Left (showPatternHelp projectSwitch)
     }
 
@@ -2605,11 +2608,20 @@ remoteNamespaceArg =
       globTargets = mempty
     }
 
+-- | A project name and optional branch name, separated by a colon.
+projectAndBranchNamesArg :: ArgumentType
+projectAndBranchNamesArg =
+  ArgumentType
+    { typeName = "project-and-branch-names",
+      suggestions = \_ _ _ _ -> pure [],
+      globTargets = Set.empty
+    }
+
 -- | A project branch name.
 projectBranchNameArg :: ArgumentType
 projectBranchNameArg =
   ArgumentType
-    { typeName = "project branch name",
+    { typeName = "project-branch-name",
       suggestions = \_ _ _ _ -> pure [],
       globTargets = Set.empty
     }
@@ -2618,18 +2630,18 @@ projectBranchNameArg =
 projectNameArg :: ArgumentType
 projectNameArg =
   ArgumentType
-    { typeName = "project name",
+    { typeName = "project-name",
       suggestions = \_ _ _ _ -> pure [],
       globTargets = Set.empty
     }
 
-parseProjectName :: String -> Either (P.Pretty P.ColorText) ProjectName
+parseProjectName :: Text -> Either (P.Pretty P.ColorText) ProjectName
 parseProjectName s =
-  mapLeft (\_ -> "Invalid project name.") (tryInto @ProjectName (Text.pack s))
+  mapLeft (\_ -> "Invalid project name.") (tryInto @ProjectName s)
 
-parseProjectBranchName :: String -> Either (P.Pretty P.ColorText) ProjectBranchName
+parseProjectBranchName :: Text -> Either (P.Pretty P.ColorText) ProjectBranchName
 parseProjectBranchName s =
-  mapLeft (\_ -> "Invalid branch name.") (tryInto @ProjectBranchName (Text.pack s))
+  mapLeft (\_ -> "Invalid branch name.") (tryInto @ProjectBranchName s)
 
 parseHashQualifiedName ::
   String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)

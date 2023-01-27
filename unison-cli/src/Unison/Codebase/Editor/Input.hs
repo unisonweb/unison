@@ -2,7 +2,6 @@ module Unison.Codebase.Editor.Input
   ( Input (..),
     DiffNamespaceToPatchInput (..),
     GistInput (..),
-    ProjectSwitchInput (..),
     PushRemoteBranchInput (..),
     TestInput (..),
     Event (..),
@@ -40,7 +39,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Util.Pretty as P
 
@@ -213,7 +212,14 @@ data Input
   | ProjectCreateI ProjectName
   | ProjectCreateBranchI ProjectBranchName
   | ProjectPushI ProjectBranchName
-  | ProjectSwitchI ProjectSwitchInput
+  | -- | The project name and branch name to switch to.
+    --
+    -- If a local project does not exist with the given name, we will re-parse this name as a Share slug + project name
+    -- (e.g. "@arya/lens").
+    --
+    -- If the branch is unspecified, we will pick a branch somehow. FIXME: this comment is imprecise because we haven't
+    -- nailed down the default branch mechanism yet.
+    ProjectSwitchI (ProjectAndBranch ProjectName (Maybe ProjectBranchName))
   deriving (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
@@ -229,17 +235,6 @@ data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
 -- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
 data GistInput = GistInput
   { repo :: WriteGitRepo
-  }
-  deriving stock (Eq, Show)
-
-data ProjectSwitchInput = ProjectSwitchInput
-  { -- | The project name to switch to.
-    --
-    -- If a local project does not exist with this name, we will re-parse this name as a Share slug + project name (e.g.
-    -- @arya/lens).
-    projectName :: ProjectName,
-    -- | Optional branch name to switch to. If left unspecified, we will pick a branch somehow.
-    maybeBranchName :: Maybe ProjectBranchName
   }
   deriving stock (Eq, Show)
 
