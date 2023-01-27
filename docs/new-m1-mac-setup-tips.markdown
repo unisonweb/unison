@@ -1,18 +1,20 @@
 
 # M1 Mac Haskell toolchain setup
 
-If you are a newcomer to the Haskell ecosystem trying to set up your dev environment on a Mac M1 computer, welcome, you can do this! The tips in this document provide one way to get a working development setup, but are not the only path forward. If you haven't downloaded the Haskell toolchain before, our recommendation is to use GHCup. If you're a veteran Haskell developer, much of this won't apply to you as it's likely you already have a working development environment.
+If you are a newcomer to the Haskell ecosystem trying to set up your dev environment on a Mac M1 computer, welcome, you can do this! The tips in this document provide one way to get a working development setup, but are not the only path forward. If you haven't downloaded the Haskell toolchain before, our recommendation is to use GHCup. We've found that issues can arise if you mix ARM native binaries with x86 binaries to be run with Rosetta. If you're a veteran Haskell developer, much of this won't apply to you as it's likely you already have a working development environment.
 
-Here are the versions you'll need to build the Unison executable (as of January 24th, 2023)
+Here is a working set of versions you can use to build the Unison executable:
 
 GHC version: 8.10.7
 Stack version: 2.7.5
 Cabal version 3.6.2.0
 Haskell language server version: 1.7.0.0
 
+The GHC version for the project can be confirmed by looking at the `resolver` key in this project's `stack.yaml`.
+
 ## Newcomer setup tips
 
-[Install GHCup using the instructions on their website.](https://www.haskell.org/ghcup/) Once it's isnstalled make sure `ghcup` is on your path.
+[Install GHCup using the instructions on their website.](https://www.haskell.org/ghcup/) Once it's installed make sure `ghcup` is on your path.
 
 ```
 export PATH="$HOME/.ghcup/bin:$PATH"
@@ -20,7 +22,7 @@ export PATH="$HOME/.ghcup/bin:$PATH"
 
 GHCup has a nice ui for setting Haskell toolchain versions for the project. Enter `ghcup tui` to open it up and follow the instructions for installing and setting the versions there. GHCup will try to download M1 native binaries for the versions given.
 
-Check your clang version. For [hand-wavey reasons](https://gitlab.haskell.org/haskell/ghcup-hs/-/issues/301) we recommend you use llvm version 12.
+Check your clang version. For [hand-wavey reasons](https://gitlab.haskell.org/haskell/ghcup-hs/-/issues/301) we recommend you use llvm version 12. See troubleshooting note below about changing your LLVM if your version is different.
 
 ```shell
 $ clang --version
@@ -147,7 +149,7 @@ Note that you may need to clean the cache for the project after this failure wit
 
 1. Make sure your stack state is clean. `stack clean --full` removes the project's stack work directories (things in .stack-work).
 2. [Wait for this bug to be fixed (or help fix this bug!)](https://github.com/commercialhaskell/stack/issues/5607)
-3. Or Subshell out your stack commands $(stack blahblah)
+3. Or subshell out your stack commands `$(stack commandHere)`
 4. Or use bash instead of zsh
 
 ### Help! Everything is broken and I want to start over
