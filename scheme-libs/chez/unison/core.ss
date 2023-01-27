@@ -20,7 +20,7 @@
     fx1-
     list-head
 
-    display-condition)
+    exception->string)
 
   (import (chezscheme))
 
@@ -108,4 +108,9 @@
       [(equal? l r) 1]
       [(and (number? l) (number? r)) (if (< l r) 0 2)]
       [else (raise "universal-compare: unimplemented")]))
+
+  (define (exception->string e)
+    (let-values ([(port result) (open-string-output-port)])
+                 (display-condition e port)
+                 (result)))
   )

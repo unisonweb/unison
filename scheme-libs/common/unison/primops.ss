@@ -112,9 +112,7 @@
   (define (reify-exn thunk)
     (guard
       (e [else
-           (let-values ([(port result) (open-string-output-port)])
-             (display-condition e port)
-             (list 0 '() (result) e))])
+           (list 0 '() (exception->string e) e) ])
       (thunk)))
 
   ; Core implemented primops, upon which primops-in-unison can be built.
