@@ -42,7 +42,7 @@ If these instructions don't work for you or are incomplete, please file an issue
 
 The build uses [Stack](http://docs.haskellstack.org/). If you don't already have it installed, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform.  (Hint: `brew update && brew install stack`)
 
-If you have not set up the Haskell toolchain before and are trying to contribute to Unison on an M1 Mac, we have [some tips specifically for you](docs/new-m1-mac-setup-tips.markdown/new).
+If you have not set up the Haskell toolchain before and are trying to contribute to Unison on an M1 Mac, we have [some tips specifically for you](docs/m1-mac-setup-tips.markdown/new).
 
 ```sh
 $ git clone https://github.com/unisonweb/unison.git
