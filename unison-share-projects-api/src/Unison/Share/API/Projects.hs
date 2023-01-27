@@ -207,6 +207,7 @@ data CreateProjectBranchResponse
   = -- | Request payload invalid.
     CreateProjectBranchResponseBadRequest
   | CreateProjectBranchResponseUnauthorized
+  | CreateProjectBranchResponseNotFound
   | CreateProjectBranchResponseSuccess !ProjectBranch
   deriving stock (Eq, Show)
 
@@ -223,6 +224,7 @@ instance ToJSON CreateProjectBranchResponse where
   toJSON = \case
     CreateProjectBranchResponseBadRequest -> toSumType "bad-request" (object [])
     CreateProjectBranchResponseUnauthorized -> toSumType "unauthorized" (object [])
+    CreateProjectBranchResponseNotFound -> toSumType "not-found" (object [])
     CreateProjectBranchResponseSuccess branch -> toSumType "success" (toJSON branch)
 
 ------------------------------------------------------------------------------------------------------------------------
