@@ -14,6 +14,9 @@
       (fn)
       (get-output-string (current-output-port))))
 
+  ; if loading the dynamic library is successful, returns true
+  ; otherwise, returns a lambda that will throw the original error
+  ; with some helpful messaging.
   (define try-load-shared (lambda (name message)
     (guard (x [else (lambda ()
       (printf "\n🚨🚨🚨 (crypto.ss) Unable to load shared library ~s 🚨🚨🚨\n---> ~a\n\nOriginal exception:\n" name message)
@@ -25,6 +28,8 @@
   (define libcrypto (try-load-shared "libcrypto.3.dylib" "Do you have openssl installed?"))
   (define libb2 (try-load-shared "libb2.dylib" "Do you have libb2 installed?"))
 
+  ; if the "source" library was loaded, call (fn), otherwise returns a lambda
+  ; that will throw the original source-library-loading exception when called.
   (define (if-loaded source fn)
     (case source
       (#t (fn))
@@ -47,7 +52,7 @@
     (let ([buffer (make-bytevector (/ bits 8))])
       (if (= 1 (EVP_Digest text (bytevector-length text) buffer #f kind #f))
         buffer
-        #f))))
+        (error "crypto.ss digest" "libssl was unable to hash the data for some reason")))))
 
   (define EVP_sha1 (if-loaded libcrypto (lambda () (foreign-procedure "EVP_sha1" () void*))))
   (define EVP_sha256 (if-loaded libcrypto (lambda () (foreign-procedure "EVP_sha256" () void*))))
@@ -89,13 +94,13 @@
     (let ([buffer (make-bytevector (/ size 8))])
       (if (= 0 (blake2s-raw buffer text #f (/ size 8) (string-length text) 0))
         buffer
-        #f))))
+        (error "crypto.ss blake2s" "libb2 was unable to hash the data for some reason")))))
 
   (define blake2b (lambda (text size)
     (let ([buffer (make-bytevector (/ size 8))])
       (if (= 0 (blake2b-raw buffer text #f (/ size 8) (string-length text) 0))
         buffer
-        #f))))
+        (error "crypto.ss blake2b" "libb2 was unable to hash the data for some reason")))))
 
   (define (unison-FOp-crypto.HashAlgorithm.Sha1) sha1)
   (define (unison-FOp-crypto.hashBytes algo text)
