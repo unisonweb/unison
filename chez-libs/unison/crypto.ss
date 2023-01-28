@@ -9,19 +9,29 @@
           (unison string)
           (unison bytevector))
 
+  (define (capture-output fn)
+    (parameterize ((current-output-port (open-output-string)))
+      (fn)
+      (get-output-string (current-output-port))))
+
   (define try-load-shared (lambda (name message)
-    (guard (x [else (begin
-      (printf "\n🚨🚨🚨 Unable to load shared library ~s🚨🚨🚨\n---> ~a\n\nOriginal exception:\n" name message)
+    (guard (x [else (lambda ()
+      (printf "\n🚨🚨🚨 (crypto.ss) Unable to load shared library ~s 🚨🚨🚨\n---> ~a\n\nOriginal exception:\n" name message)
       (raise x)
     )])
     (load-shared-object name)
     #t)))
 
-  (define _libcrypto (try-load-shared "libcrypto.3.dylib" "Do you have openssl installed?"))
-  (define _libb2 (try-load-shared "libb2.dylib" "Do you have libb2 installed?"))
+  (define libcrypto (try-load-shared "libcrypto.3.dylib" "Do you have openssl installed?"))
+  (define libb2 (try-load-shared "libb2.dylib" "Do you have libb2 installed?"))
+
+  (define (if-loaded source fn)
+    (case source
+      (#t (fn))
+      (else (lambda args (source)))))
 
   (define EVP_Digest
-    (foreign-procedure "EVP_Digest"
+    (if-loaded libcrypto (lambda () (foreign-procedure "EVP_Digest"
       (
         u8*       ; input buffer
         unsigned-int ; length of input
@@ -31,7 +41,7 @@
         boolean      ; note: not a boolean, we just need to be able to pass NULL (0)
       )
       ; 1 if success, 0 or -1 for failure
-      int))
+      int))))
 
   (define digest (lambda (text kind bits)
     (let ([buffer (make-bytevector (/ bits 8))])
@@ -39,11 +49,11 @@
         buffer
         #f))))
 
-  (define EVP_sha1 (foreign-procedure "EVP_sha1" () void*))
-  (define EVP_sha256 (foreign-procedure "EVP_sha256" () void*))
-  (define EVP_sha512 (foreign-procedure "EVP_sha512" () void*))
-  (define EVP_sha3_256 (foreign-procedure "EVP_sha3_256" () void*))
-  (define EVP_sha3_512 (foreign-procedure "EVP_sha3_512" () void*))
+  (define EVP_sha1 (if-loaded libcrypto (lambda () (foreign-procedure "EVP_sha1" () void*))))
+  (define EVP_sha256 (if-loaded libcrypto (lambda () (foreign-procedure "EVP_sha256" () void*))))
+  (define EVP_sha512 (if-loaded libcrypto (lambda () (foreign-procedure "EVP_sha512" () void*))))
+  (define EVP_sha3_256 (if-loaded libcrypto (lambda () (foreign-procedure "EVP_sha3_256" () void*))))
+  (define EVP_sha3_512 (if-loaded libcrypto (lambda () (foreign-procedure "EVP_sha3_512" () void*))))
 
   (define sha1 (lambda (text) (digest text (EVP_sha1) 160)))
   (define sha256 (lambda (text) (digest text (EVP_sha256) 256)))
@@ -52,7 +62,7 @@
   (define sha3_512 (lambda (text) (digest text (EVP_sha3_512) 512)))
 
   (define blake2b-raw
-    (foreign-procedure "blake2b"
+    (if-loaded libb2 (lambda () (foreign-procedure "blake2b"
       (
         u8* ; output buffer
         string ; input buffer
@@ -61,10 +71,10 @@
         int ; input length
         int ; key length
       ) int
-    ))
+    ))))
 
   (define blake2s-raw
-    (foreign-procedure "blake2s"
+    (if-loaded libb2 (lambda () (foreign-procedure "blake2s"
       (
         u8* ; output buffer
         string ; input buffer
@@ -73,7 +83,7 @@
         int ; input length
         int ; key length
       ) int
-    ))
+    ))))
 
   (define blake2s (lambda (text size)
     (let ([buffer (make-bytevector (/ size 8))])
