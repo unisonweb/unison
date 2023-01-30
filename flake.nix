@@ -55,7 +55,9 @@
           unison-env = pkgs.mkShell {
             packages = with pkgs; [
               mystack
-              haskell.compiler."ghc${ghc-version}"
+              (haskell.compiler."ghc${ghc-version}".override {
+                useLLVM = pkgs.stdenv.isAarch64;
+              })
               myormolu
               myhls
               pkg-config
