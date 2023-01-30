@@ -96,7 +96,8 @@ y = "hello"
 
 Notice that `master` now has the definition of `y` we wrote.
 
-We can also delete the fork if we're done with it. (Don't worry, it's still in the `history` and can be resurrected at any time.)
+We can also delete the fork if we're done with it. (Don't worry, even though the history at that path is now empty, 
+it's still in the `history` of the parent namespace and can be resurrected at any time.)
 
 ```ucm
 .> delete.namespace .feature1
@@ -105,23 +106,14 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
 
 .> history .feature1
 
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  ⊙ 1. #hsbtlt2og6
-  
-    - Deletes:
-    
-      y
-  
-  □ 2. #q95r47tc4l (start of history)
+  ☝️  The namespace .feature1 is empty.
 
 .> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #1487pemruj
+  ⊙ 1. #492bge1qkb
   
     - Deletes:
     

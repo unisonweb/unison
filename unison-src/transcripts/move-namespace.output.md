@@ -150,7 +150,9 @@ b.termInB = 11
     b.termInB : Nat
 
 ```
-Now, if we soft-delete a namespace, but move another over it we expect the history to be replaced, and we expect the history from the source to be wiped out.
+Deleting a namespace should not leave behind any history,
+if we move another to that location we expect the history to simply be the history
+of the moved namespace. 
 
 ```ucm
 .history> delete.namespace b
@@ -276,7 +278,7 @@ I should be able to move the root into a sub-namespace
   
   
   
-  □ 1. #eur72kuror (start of history)
+  □ 1. #bn675bbtpm (start of history)
 
 ```
 ```ucm
@@ -292,7 +294,7 @@ I should be able to move the root into a sub-namespace
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #uu7qrred6m
+  ⊙ 1. #vor04lbt72
   
     - Deletes:
     
@@ -303,7 +305,7 @@ I should be able to move the root into a sub-namespace
       Original name      New name
       existing.a.termInA existing.b.termInA
   
-  ⊙ 2. #91mc5pd4t0
+  ⊙ 2. #tk3qtdeoov
   
     + Adds / updates:
     
@@ -315,20 +317,20 @@ I should be able to move the root into a sub-namespace
       happy.b.termInA   existing.a.termInA
       history.b.termInA existing.a.termInA
   
-  ⊙ 3. #ndr3vmlmv7
+  ⊙ 3. #r971i7m95i
   
     + Adds / updates:
     
       existing.a.termInA existing.b.termInB
   
-  ⊙ 4. #2jqg9n2e8u
+  ⊙ 4. #6qh988adub
   
     > Moves:
     
       Original name     New name
       history.a.termInA history.b.termInA
   
-  ⊙ 5. #dsj92ppiqi
+  ⊙ 5. #g19mlrid0i
   
     - Deletes:
     
