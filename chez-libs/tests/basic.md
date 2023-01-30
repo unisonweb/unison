@@ -6,7 +6,7 @@
 .> pull dolio.public.internal.trunk.compiler
 ```
 
-```unison
+```unison:hide
 generateSchemeBuiltinLibrary _ =
 	fh = open (FilePath "../unison/builtin-generated.ss") Write
 	putText fh (generateBaseFile builtinSpec)
@@ -17,7 +17,28 @@ schemeToFile dest link =
 	putText fh (generateScheme false link)
 	close fh
 
-runChez fileName = IO.Process.call "scheme" ["--libdirs", "../", "--script", fileName]
+a |> f = f a
+
+right = cases
+	Left _ -> None
+	Right a -> Some a
+
+orDefault a = cases
+  None   -> a
+  Some a -> a
+
+readAll fid =
+	getBytes fid 1024
+		|> fromUtf8.impl
+		|> right
+		|> orDefault "Not utf8 output"
+
+runChez fileName =
+	(stdin, stdout, stderr, pid) = IO.Process.start "scheme" ["--libdirs", "../:./", "--script", fileName]
+	exitCode = match wait pid with
+		0 -> ""
+		code -> "Non-zero exit code! " ++ (toText code) ++ "\n"
+	exitCode ++ readAll stdout ++ readAll stderr
 
 runInScheme id term =
 	fileName = "basic-" ++ (Nat.toText id) ++ ".ss"
@@ -25,7 +46,7 @@ runInScheme id term =
 	runChez fileName
 ```
 
-```ucm
+```ucm:hide
 .> add
 .> run generateSchemeBuiltinLibrary
 ```
