@@ -86,7 +86,7 @@ data ShouldDownloadBase
   deriving (Show, Eq)
 
 data ShouldSaveCodebase
-  = SaveCodebase
+  = SaveCodebase (Maybe FilePath)
   | DontSaveCodebase
   deriving (Show, Eq)
 
@@ -392,9 +392,20 @@ rtsStatsOption =
    in optional (option OptParse.str meta)
 
 saveCodebaseFlag :: Parser ShouldSaveCodebase
-saveCodebaseFlag = flag DontSaveCodebase SaveCodebase (long "save-codebase" <> help saveHelp)
+saveCodebaseFlag = flag DontSaveCodebase (SaveCodebase Nothing) (long "save-codebase" <> help saveHelp)
   where
     saveHelp = "if set the resulting codebase will be saved to a new directory, otherwise it will be deleted"
+
+saveCodebaseToFlag :: Parser ShouldSaveCodebase
+saveCodebaseToFlag = do
+  path <-
+    optional . strOption $
+      long "save-codebase-to"
+        <> short 'S'
+        <> help "Where the codebase should be created. Implies --save-codebase"
+  pure (case path of
+    Just _ -> SaveCodebase path
+    _ -> DontSaveCodebase)
 
 downloadBaseFlag :: Parser ShouldDownloadBase
 downloadBaseFlag =
@@ -457,7 +468,8 @@ fileArgument varName =
 transcriptParser :: Parser Command
 transcriptParser = do
   -- ApplicativeDo
-  shouldSaveCodebase <- saveCodebaseFlag
+  shouldSaveCodebase <- saveCodebaseToFlag
+  -- shouldSaveCodebase <- saveCodebaseFlag
   mrtsStatsFp <- rtsStatsOption
   files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
   pure (Transcript DontFork shouldSaveCodebase mrtsStatsFp files)
@@ -465,7 +477,8 @@ transcriptParser = do
 transcriptForkParser :: Parser Command
 transcriptForkParser = do
   -- ApplicativeDo
-  shouldSaveCodebase <- saveCodebaseFlag
+  -- shouldSaveCodebase <- saveCodebaseFlag
+  shouldSaveCodebase <- saveCodebaseToFlag
   mrtsStatsFp <- rtsStatsOption
   files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
   pure (Transcript UseFork shouldSaveCodebase mrtsStatsFp files)
