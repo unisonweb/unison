@@ -1,6 +1,7 @@
 
 ```ucm:hide
 .> builtins.merge
+.> pull unison.public.base.latest.Bytes
 .> pull unison.public.base.latest.IO
 .> pull dolio.public.internal.trunk.compiler
 ```
@@ -8,15 +9,24 @@
 ```unison
 printHello = '(printLine "Hello")
 
+generateBaseFiles _ =
+	h = open (FilePath "bootSpec.ss") Write
+	putText h (generateBaseFile bootSpec)
+	close h
+	h2 = open (FilePath "builtinSpec.ss") Write
+	putText h2 (generateBaseFile builtinSpec)
+	close h2
+
 schemeToFile dest link = 
-	fop = open (FilePath dest) Write
+	h = open (FilePath dest) Write
 	text = generateScheme true link
-	putText fop text
-	close fop
+	putText h text
+	close h
 ```
 
 ```ucm:hide
 .> add
+.> run generateBaseFiles
 ```
 
 ```unison
@@ -33,7 +43,7 @@ $ scheme --libdirs ../:~/.cache/unisonlanguage/scheme-libs/ --script test-1.ss
 ```
 
 ```unison
-printBytes = printLine (toHexString (base.Bytes.fromList [100, 200, 16]))
+printBytes _ = printLine (toHex (Bytes.fromList [100, 200, 16]))
 ```
 
 ```ucm:hide
@@ -41,7 +51,7 @@ printBytes = printLine (toHexString (base.Bytes.fromList [100, 200, 16]))
 ```
 
 ```unison
-test2 = '(schemeToFile "test-2.ss" (termLink test2))
+test2 = '(schemeToFile "test-2.ss" (termLink printBytes))
 ```
 
 ```ucm

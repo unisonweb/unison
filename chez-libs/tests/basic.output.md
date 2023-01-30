@@ -2,11 +2,19 @@
 ```unison
 printHello = '(printLine "Hello")
 
+generateBaseFiles _ =
+	h = open (FilePath "bootSpec.ss") Write
+	putText h (generateBaseFile bootSpec)
+	close h
+	h2 = open (FilePath "builtinSpec.ss") Write
+	putText h2 (generateBaseFile builtinSpec)
+	close h2
+
 schemeToFile dest link = 
-	fop = open (FilePath dest) Write
+	h = open (FilePath dest) Write
 	text = generateScheme true link
-	putText fop text
-	close fop
+	putText h text
+	close h
 ```
 
 ```ucm
@@ -17,17 +25,9 @@ schemeToFile dest link =
   
     ⍟ These new definitions are ok to `add`:
     
-      printHello   : '{IO, Exception} ()
-      schemeToFile : Text -> Term ->{IO, Exception} ()
-
-```
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    printHello   : '{IO, Exception} ()
-    schemeToFile : Text -> Term ->{IO, Exception} ()
+      generateBaseFiles : ∀ _. _ ->{IO, Exception} ()
+      printHello        : '{IO, Exception} ()
+      schemeToFile      : Text -> Term ->{IO, Exception} ()
 
 ```
 ```unison
@@ -55,6 +55,49 @@ Now run the following:
 ```bash
 
 $ scheme --libdirs ../:~/.cache/unisonlanguage/scheme-libs/ --script test-1.ss
+
+```
+
+```unison
+printBytes _ = printLine (toHex (Bytes.fromList [100, 200, 16]))
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      printBytes : ∀ _. _ ->{IO, Exception} ()
+
+```
+```unison
+test2 = '(schemeToFile "test-2.ss" (termLink printBytes))
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      test2 : '{IO, Exception} ()
+
+```
+```ucm
+.> run test2
+
+  ()
+
+```
+Now run the following:
+```bash
+
+$ scheme --libdirs ../:~/.cache/unisonlanguage/scheme-libs/ --script test-2.ss
 
 ```
 
