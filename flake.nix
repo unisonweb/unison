@@ -62,6 +62,7 @@
             supportedGhcVersions = [ ghc-version ];
           };
           myormolu = make-ormolu pkgs.haskellPackages;
+          nativePackages = pkgs.lib.optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [ Cocoa ]);
 
           unison-env = pkgs.mkShell {
             packages = with pkgs; [
@@ -73,7 +74,7 @@
               myhls
               pkg-config
               zlib
-            ];
+            ] ++ nativePackages;
             # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
             shellHook = ''
               export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
