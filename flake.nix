@@ -12,7 +12,18 @@
         let
           pkgs = nixpkgs.legacyPackages."${system}".extend self.overlay;
 
-          mystack = pkgs.stack;
+          mystack = pkgs.symlinkJoin {
+            name = "stack";
+            paths = [ pkgs.stack ];
+            buildInputs = [ pkgs.makeWrapper ];
+            postBuild = let
+              flags = [ "--no-nix" "--system-ghc" "--no-install-ghc" ];
+              add-flags =
+                "--add-flags '${pkgs.lib.concatStringsSep " " flags}'";
+            in ''
+              wrapProgram "$out/bin/stack" ${add-flags}
+            '';
+          };
           ghc-version = "8107";
           ghc = pkgs.haskell.packages."ghc${ghc-version}";
           make-ormolu = p:
