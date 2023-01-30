@@ -312,7 +312,7 @@ serveIndex path = do
                 "No codebase UI configured."
                   <> " Set the "
                   <> ucmUIVar
-                  <> " environment variable to the directory where the UI is installed."
+                  <> " environment variable to the directory where the UI is installed, or run ./dev-ui-install.sh."
           }
 
 serveUI :: FilePath -> Server WebUI

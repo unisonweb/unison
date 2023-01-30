@@ -4,7 +4,7 @@ printHello = '(printLine "Hello")
 
 schemeToFile dest link = 
 	fop = open (FilePath dest) Write
-	text = generateScheme false link
+	text = generateScheme true link
 	putText fop text
 	close fop
 ```
@@ -51,3 +51,10 @@ test1 = '(schemeToFile "test-1.ss" (termLink printHello))
   ()
 
 ```
+Now run the following:
+```bash
+
+$ scheme --libdirs ../:~/.cache/unisonlanguage/scheme-libs/ --script test-1.ss
+
+```
+
