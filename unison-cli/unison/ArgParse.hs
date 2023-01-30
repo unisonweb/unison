@@ -468,20 +468,26 @@ fileArgument varName =
 transcriptParser :: Parser Command
 transcriptParser = do
   -- ApplicativeDo
-  shouldSaveCodebase <- saveCodebaseToFlag
-  -- shouldSaveCodebase <- saveCodebaseFlag
+  shouldSaveCodebaseTo <- saveCodebaseToFlag
+  shouldSaveCodebase <- saveCodebaseFlag
   mrtsStatsFp <- rtsStatsOption
   files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
-  pure (Transcript DontFork shouldSaveCodebase mrtsStatsFp files)
+  pure (let saveCodebase = case shouldSaveCodebaseTo of
+                              DontSaveCodebase -> shouldSaveCodebase
+                              _ -> shouldSaveCodebaseTo
+        in Transcript DontFork saveCodebase mrtsStatsFp files)
 
 transcriptForkParser :: Parser Command
 transcriptForkParser = do
   -- ApplicativeDo
-  -- shouldSaveCodebase <- saveCodebaseFlag
-  shouldSaveCodebase <- saveCodebaseToFlag
+  shouldSaveCodebaseTo <- saveCodebaseToFlag
+  shouldSaveCodebase <- saveCodebaseFlag
   mrtsStatsFp <- rtsStatsOption
   files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
-  pure (Transcript UseFork shouldSaveCodebase mrtsStatsFp files)
+  pure (let saveCodebase = case shouldSaveCodebaseTo of
+                              DontSaveCodebase -> shouldSaveCodebase
+                              _ -> shouldSaveCodebaseTo
+        in Transcript UseFork saveCodebase mrtsStatsFp files)
 
 unisonHelp :: String -> String -> P.Doc
 unisonHelp (P.text -> executable) (P.text -> version) =
