@@ -3,12 +3,9 @@
 printHello = '(printLine "Hello")
 
 generateBaseFiles _ =
-	h = open (FilePath "bootSpec.ss") Write
-	putText h (generateBaseFile bootSpec)
+	h = open (FilePath "unison/builtin-generated.ss") Write
+	putText h (generateBaseFile builtinSpec)
 	close h
-	h2 = open (FilePath "builtinSpec.ss") Write
-	putText h2 (generateBaseFile builtinSpec)
-	close h2
 
 schemeToFile dest link = 
 	h = open (FilePath dest) Write
@@ -54,7 +51,7 @@ test1 = '(schemeToFile "test-1.ss" (termLink printHello))
 Now run the following:
 ```bash
 
-$ scheme --libdirs ../:~/.cache/unisonlanguage/scheme-libs/ --script test-1.ss
+$ scheme --libdirs ../:./ --script test-1.ss
 
 ```
 
@@ -97,7 +94,7 @@ test2 = '(schemeToFile "test-2.ss" (termLink printBytes))
 Now run the following:
 ```bash
 
-$ scheme --libdirs ../:~/.cache/unisonlanguage/scheme-libs/ --script test-2.ss
+$ scheme --libdirs ../:./ --script test-2.ss
 
 ```
 
