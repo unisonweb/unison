@@ -1,12 +1,21 @@
 
 ```unison
-printHello = '(printLine "Hello")
+generateSchemeBuiltinLibrary _ =
+	fh = open (FilePath "../unison/builtin-generated.ss") Write
+	putText fh (generateBaseFile builtinSpec)
+	close fh
 
 schemeToFile dest link = 
-	fop = open (FilePath dest) Write
-	text = generateScheme false link
-	putText fop text
-	close fop
+	fh = open (FilePath dest) Write
+	putText fh (generateScheme false link)
+	close fh
+
+runChez fileName = IO.Process.call "scheme" ["--libdirs", "../", "--script", fileName]
+
+runInScheme id term =
+	fileName = "basic-" ++ (Nat.toText id) ++ ".ss"
+	schemeToFile fileName term
+	runChez fileName
 ```
 
 ```ucm
@@ -17,8 +26,14 @@ schemeToFile dest link =
   
     ⍟ These new definitions are ok to `add`:
     
-      printHello   : '{IO, Exception} ()
-      schemeToFile : Text -> Term ->{IO, Exception} ()
+      generateSchemeBuiltinLibrary : ∀ _. _ ->{IO, Exception} ()
+      runChez                      : Text ->{IO} Nat
+      runInScheme                  : Nat
+                                     -> Term
+                                     ->{IO, Exception} Nat
+      schemeToFile                 : Text
+                                     -> Term
+                                     ->{IO, Exception} ()
 
 ```
 ```ucm
@@ -26,12 +41,22 @@ schemeToFile dest link =
 
   ⍟ I've added these definitions:
   
-    printHello   : '{IO, Exception} ()
-    schemeToFile : Text -> Term ->{IO, Exception} ()
+    generateSchemeBuiltinLibrary : ∀ _. _ ->{IO, Exception} ()
+    runChez                      : Text ->{IO} Nat
+    runInScheme                  : Nat
+                                   -> Term
+                                   ->{IO, Exception} Nat
+    schemeToFile                 : Text
+                                   -> Term
+                                   ->{IO, Exception} ()
+
+.> run generateSchemeBuiltinLibrary
+
+  ()
 
 ```
 ```unison
-test1 = '(schemeToFile "test-1.ss" (termLink printHello))
+test1_term = '(printLine "Hello")
 ```
 
 ```ucm
@@ -42,12 +67,27 @@ test1 = '(schemeToFile "test-1.ss" (termLink printHello))
   
     ⍟ These new definitions are ok to `add`:
     
-      test1 : '{IO, Exception} ()
+      test1_term : '{IO, Exception} ()
+
+```
+```unison
+test1 = '(runInScheme 1 (termLink test1_term))
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      test1 : '{IO, Exception} Nat
 
 ```
 ```ucm
 .> run test1
 
-  ()
+  0
 
 ```
