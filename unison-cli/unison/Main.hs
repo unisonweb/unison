@@ -334,35 +334,27 @@ initHTTPClient = do
   HTTP.setGlobalManager manager
 
 prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> IO FilePath
-prepareTranscriptDir shouldFork mCodePathOption = case (shouldFork, mCodePathOption) of
-    (DontFork, Just (CreateCodebaseWhenMissing path)) -> do
+prepareTranscriptDir shouldFork mCodePathOption = do
+  tmp <- case mCodePathOption of
+    Just (CreateCodebaseWhenMissing path) -> pure path
+    _ -> Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
+  let cbInit = SC.init
+  case shouldFork of
+    UseFork -> do
+      -- A forked codebase does not need to Create a codebase, because it already exists
+      getCodebaseOrExit mCodePathOption SC.MigrateAutomatically $ const (pure ())
+      path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
       PT.putPrettyLn $
         P.lines
-          [ P.wrap "Transcript will be run on a new codebase at: ",
+          [ P.wrap "Transcript will be run on a copy of the codebase at: ",
             "",
             P.indentN 2 (P.string path)
           ]
-      CodebaseInit.withNewUcmCodebaseOrExit SC.init "main.transcript" path SC.DoLock (const $ pure ())
-      pure path
-    _ -> do
-      tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
-      let cbInit = SC.init
-      case shouldFork of
-        UseFork -> do
-          -- A forked codebase does not need to Create a codebase, because it already exists
-          getCodebaseOrExit mCodePathOption SC.MigrateAutomatically $ const (pure ())
-          path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
-          PT.putPrettyLn $
-            P.lines
-              [ P.wrap "Transcript will be run on a copy of the codebase at: ",
-                "",
-                P.indentN 2 (P.string path)
-              ]
-          Path.copyDir (CodebaseInit.codebasePath cbInit path) (CodebaseInit.codebasePath cbInit tmp)
-        DontFork -> do
-          PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-          CodebaseInit.withNewUcmCodebaseOrExit cbInit "main.transcript" tmp SC.DoLock (const $ pure ())
-      pure tmp
+      Path.copyDir (CodebaseInit.codebasePath cbInit path) (CodebaseInit.codebasePath cbInit tmp)
+    DontFork -> do
+      PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
+      CodebaseInit.withNewUcmCodebaseOrExit cbInit "main.transcript" tmp SC.DoLock (const $ pure ())
+  pure tmp
 
 runTranscripts' ::
   String ->
