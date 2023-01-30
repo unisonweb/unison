@@ -9,6 +9,7 @@ import Colog.Core (LogAction (LogAction))
 import qualified Colog.Core as Colog
 import Compat (onWindows)
 import Control.Monad.Reader
+import Data.ByteString.Builder.Extra (defaultChunkSize)
 import Data.Char (toLower)
 import GHC.IO.Exception (ioe_errno)
 import qualified Ki
@@ -19,7 +20,6 @@ import Language.LSP.Types.SMethodMap
 import qualified Language.LSP.Types.SMethodMap as SMM
 import Language.LSP.VFS
 import qualified Network.Simple.TCP as TCP
-import Network.Socket (socketToHandle)
 import System.Environment (lookupEnv)
 import System.IO (hPutStrLn)
 import Unison.Codebase
@@ -58,12 +58,18 @@ spawnLsp codebase runtime latestBranch latestPath =
     UnliftIO.handleIO (handleFailure lspPort) $ do
       TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
         Ki.scoped \scope -> do
-          sockHandle <- socketToHandle sock ReadWriteMode
+          let clientInput = do
+                -- The server will be in the process of shutting down if the socket is closed,
+                -- so just return empty input in the meantime.
+                fromMaybe "" <$> TCP.recv sock defaultChunkSize
+          let clientOutput output = do
+                TCP.sendLazy sock output
+
           -- currently we have an independent VFS for each LSP client since each client might have
           -- different un-saved state for the same file.
           initVFS $ \vfs -> do
             vfsVar <- newMVar vfs
-            void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope latestBranch latestPath)
+            void $ runServerWith lspServerLogger lspClientLogger clientInput clientOutput (serverDefinition vfsVar codebase runtime scope latestBranch latestPath)
   where
     handleFailure :: String -> IOException -> IO ()
     handleFailure lspPort ioerr =
