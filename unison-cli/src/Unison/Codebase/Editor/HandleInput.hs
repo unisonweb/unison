@@ -884,9 +884,7 @@ loop e = do
                 if hasConfirmed || insistence == Force
                   then do
                     description <- inputDescription input
-                    Cli.stepAt
-                      description
-                      (Path.empty, const Branch.empty0)
+                    Cli.updateRoot Branch.empty description
                     Cli.respond DeletedEverything
                   else Cli.respond DeleteEverythingConfirmation
               DeleteTarget'Branch insistence (Just p@(parentPath, childName)) -> do
