@@ -20,7 +20,9 @@
     fx1-
     list-head
 
-    exception->string)
+    exception->string
+    record-case
+    fluid-let)
 
   (import (chezscheme))
 
