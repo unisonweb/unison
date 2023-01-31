@@ -25,7 +25,8 @@
     freeze-string!
     string-copy!
 
-    freeze-bytevector!)
+    freeze-bytevector!
+    freeze-vector!)
 
   (import (rnrs) (racket exn))
 
@@ -84,5 +85,8 @@
 
   (define freeze-string! unsafe-string->immutable-string!)
   (define freeze-bytevector! unsafe-bytes->immutable-bytes!)
+
+  (define freeze-vector! unsafe-vector*->immutable-vector!)
+
   )
 

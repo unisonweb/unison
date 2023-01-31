@@ -261,20 +261,9 @@
               (vector-set! dst (+ doff i) (vector-ref src (+ soff i)))
               (next (fx1- i))))))))
 
-  (define (unison-FOp-MutableArray.freeze! vec)
-    (freeze-vector! vec)
-    vec)
+  (define unison-FOp-MutableArray.freeze! freeze-vector!)
 
-  (define (unison-FOp-MutableArray.freeze src off len)
-    (let ([dst (make-vector len)])
-      (let next ([i (fx1- len)])
-        (if (< i 0)
-          (begin
-            (freeze-vector! dst)
-            (list 1 dst))
-          (begin
-            (vector-set! dst i (vector-ref src (+ off i)))
-            (next (fx1- i)))))))
+  (define unison-FOp-MutableArray.freeze freeze-subvector)
 
   (define (unison-FOp-MutableArray.read src i)
     (catch-array

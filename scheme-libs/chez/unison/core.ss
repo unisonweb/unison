@@ -27,7 +27,8 @@
     freeze-string!
     string-copy!
 
-    freeze-bytevector!)
+    freeze-bytevector!
+    freeze-vector!)
 
   (import (chezscheme))
 
@@ -129,4 +130,7 @@
     (($primitive $bytevector-set-immutable!) bs)
     bs)
 
+  (define (freeze-vector! v)
+    (($primitive $vector-set-immutable!) v)
+    v)
   )
