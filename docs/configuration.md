@@ -5,6 +5,7 @@
     * [`UNISON_DEBUG`](#unison_debug)
     * [`UNISON_PAGER`](#unison_pager)
     * [`UNISON_LSP_PORT`](#unison_lsp_port)
+    * [`UNISON_LSP_ENABLED`](#unison_lsp_enabled)
     * [`UNISON_SHARE_HOST`](#unison_share_host)
     * [`UNISON_SHARE_ACCESS_TOKEN`](#unison_share_access_token)
     * [Local Codebase Server](#local-codebase-server)
@@ -48,6 +49,31 @@ E.g.
 
 ```sh
 $ UNISON_LSP_PORT=8080 ucm
+```
+
+### `UNISON_LSP_ENABLED`
+
+Allows explicitly enabling or disabling the LSP server.
+Acceptable values are 'true' or 'false'
+
+Note for Windows users: Due to an outstanding issue with GHC's IO manager on Windows, the LSP is **disabled by default** on Windows machines.
+Enabling the LSP on windows can cause UCM to hang on exit and may require the process to be killed by the operating system or via Ctrl-C.
+Note that this doesn't pose any risk of codebase corruption or cause any known issues, it's simply an annoyance.
+
+If you accept this annoyance, you can enable the LSP server on Windows by exporting the `UNISON_LSP_ENABLED=true` environment variable. 
+
+You can set this persistently in powershell using:
+
+```powershell
+[System.Environment]::SetEnvironmentVariable('UNISON_LSP_ENABLED','true')
+```
+
+See [this issue](https://github.com/unisonweb/unison/issues/3487) for more details.
+
+E.g.
+
+```sh
+$ UNISON_LSP_ENABLED=true ucm
 ```
 
 ### `UNISON_SHARE_HOST`

@@ -34,8 +34,10 @@ library
   default-extensions:
       ApplicativeDo
       BlockArguments
+      DeriveFoldable
       DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
@@ -56,6 +58,7 @@ library
     , text
     , time
     , unison-core
+    , unison-hash
     , unison-prelude
     , unison-util-base32hex
   default-language: Haskell2010

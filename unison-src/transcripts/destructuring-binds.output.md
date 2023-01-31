@@ -71,14 +71,6 @@ ex2 tup = match tup with
         (also named ex1)
 
 ```
-Syntactically, the left-hand side of the bind can be any pattern and can even include guards, for instance, see below. Because a destructuring bind desugars to a regular pattern match, pattern match coverage will eventually cause this to not typecheck:
-
-```unison
-ex3 =
-  Some x | x > 10 = Some 19
-  x + 1
-```
-
 ## Corner cases
 
 Destructuring binds can't be recursive: the left-hand side bound variables aren't available on the right hand side. For instance, this doesn't typecheck:

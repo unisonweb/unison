@@ -30,6 +30,7 @@ import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
 import qualified Network.URI.Encode as URI
 import qualified Servant.Client as Servant
+import qualified System.Console.ANSI as ANSI
 import qualified System.Console.Haskeline.Completion as Completion
 import System.Directory
   ( canonicalizePath,
@@ -42,9 +43,6 @@ import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
-import qualified U.Util.Hash as Hash
-import U.Util.Hash32 (Hash32)
-import qualified U.Util.Hash32 as Hash32
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
 import qualified Unison.Builtin.Decls as DD
@@ -57,9 +55,11 @@ import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRepo,
     ReadRemoteNamespace,
+    ShareUserHandle (..),
     WriteGitRepo,
     WriteRemotePath (..),
     WriteShareRemotePath (..),
+    shareUserHandleToText,
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
@@ -87,6 +87,8 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
+import Unison.Hash32 (Hash32)
+import qualified Unison.Hash32 as Hash32
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.LabeledDependency as LD
@@ -800,14 +802,14 @@ notifyUser dir o = case o of
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
-  BadMainFunction main ty ppe ts ->
+  BadMainFunction what main ty ppe ts ->
     pure . P.callout "😶" $
       P.lines
         [ P.string "I found this function:",
           "",
           P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
           "",
-          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string "run") <> "it needs be a subtype of:",
+          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string what) <> "it needs be a subtype of:",
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
@@ -1233,7 +1235,7 @@ notifyUser dir o = case o of
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"
-            <> P.group ("(" <> P.text (Hash.base32Hex $ unCausalHash hash) <> ")")
+            <> P.group ("(" <> P.text (Hash.toBase32HexText $ unCausalHash hash) <> ")")
             <> "from the repository at"
             <> prettyReadGitRepo repo
       CouldntLoadSyncedBranch ns h ->
@@ -1534,10 +1536,10 @@ notifyUser dir o = case o of
           Nothing -> go (renderLine head [] : output) queue
           Just tails -> go (renderLine head tails : output) (queue ++ tails)
           where
-            renderHash = take 10 . Text.unpack . Hash.base32Hex . unCausalHash
+            renderHash = take 10 . Text.unpack . Hash.toBase32HexText . unCausalHash
             renderLine head tail =
               (renderHash head) ++ "|" ++ intercalateMap " " renderHash tail
-                ++ case Map.lookup (Hash.base32Hex . unCausalHash $ head) tags of
+                ++ case Map.lookup (Hash.toBase32HexText . unCausalHash $ head) tags of
                   Just t -> "|tag: " ++ t
                   Nothing -> ""
             -- some specific hashes that we want to label in the output
@@ -1730,9 +1732,9 @@ notifyUser dir o = case o of
       (Share.FastForwardPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
       (Share.FastForwardPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
     ShareErrorPull e -> case e of
-      (Share.PullErrorGetCausalHashByPath err) -> handleGetCausalHashByPathError err
-      (Share.PullErrorNoHistoryAtPath sharePath) ->
+      Share.PullErrorNoHistoryAtPath sharePath ->
         P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
+      Share.PullErrorNoReadPermission sharePath -> noReadPermission sharePath
     ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
     ShareErrorTransport te -> case te of
       DecodeFailure msg resp ->
@@ -1848,6 +1850,10 @@ notifyUser dir o = case o of
                     else ""
              in (isCompleteTxt, P.string (Completion.replacement comp))
         )
+  ClearScreen -> do
+    ANSI.clearScreen
+    ANSI.setCursorPosition 0 0
+    pure mempty
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
@@ -1868,7 +1874,7 @@ notifyUser dir o = case o of
       ( WriteRemotePathShare
           WriteShareRemotePath
             { server = RemoteRepo.DefaultCodeserver,
-              repo = Share.unRepoName (Share.pathRepoName sharePath),
+              repo = ShareUserHandle $ Share.unRepoName (Share.pathRepoName sharePath),
               path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
             }
       )
@@ -1909,7 +1915,7 @@ prettyShareLink WriteShareRemotePath {repo, path} =
         Path.toList path
           & fmap (URI.encodeText . NameSegment.toText)
           & Text.intercalate "/"
-   in P.green . P.text $ shareOrigin <> "/@" <> repo <> "/p/code/latest/namespaces/" <> encodedPath
+   in P.green . P.text $ shareOrigin <> "/@" <> shareUserHandleToText repo <> "/p/code/latest/namespaces/" <> encodedPath
 
 prettyFilePath :: FilePath -> Pretty
 prettyFilePath fp =
@@ -3237,7 +3243,7 @@ endangeredDependentsTable ppeDecl m =
 
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
 displayBranchHash :: CausalHash -> String
-displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . unCausalHash
+displayBranchHash = ("#" <>) . Text.unpack . Hash.toBase32HexText . unCausalHash
 
 prettyHumanReadableTime :: UTCTime -> UTCTime -> Pretty
 prettyHumanReadableTime now time =

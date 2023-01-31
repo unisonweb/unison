@@ -1,10 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Endpoints.NamespaceListing (serve, NamespaceListingAPI, NamespaceListing (..), NamespaceObject (..), NamedNamespace (..), NamedPatch (..), KindExpression (..)) where
@@ -28,11 +22,11 @@ import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Sqlite.Operations as Operations
-import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Hash as Hash
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -82,7 +76,7 @@ data NamespaceListing = NamespaceListing
     namespaceListingHash :: UnisonHash,
     namespaceListingChildren :: [NamespaceObject]
   }
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
 
 instance ToJSON NamespaceListing where
   toEncoding = genericToEncoding defaultOptions

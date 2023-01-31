@@ -27,6 +27,7 @@ import qualified Data.X509 as X509
 import Network.Socket (Socket)
 import qualified Network.TLS as TLS (ClientParams, Context, ServerParams)
 import System.Clock (TimeSpec)
+import System.Process (ProcessHandle)
 import System.IO (Handle)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -190,6 +191,8 @@ instance BuiltinForeign Text where foreignRef = Tagged Ty.textRef
 instance BuiltinForeign Bytes where foreignRef = Tagged Ty.bytesRef
 
 instance BuiltinForeign Handle where foreignRef = Tagged Ty.fileHandleRef
+
+instance BuiltinForeign ProcessHandle where foreignRef = Tagged Ty.processHandleRef
 
 instance BuiltinForeign Socket where foreignRef = Tagged Ty.socketRef
 

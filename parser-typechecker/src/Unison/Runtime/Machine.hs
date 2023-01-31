@@ -51,7 +51,6 @@ import qualified Unison.Type as Rf
 import qualified Unison.Util.Bytes as By
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty (toPlainUnbroken)
-import Unison.Util.Text (Text)
 import qualified Unison.Util.Text as Util.Text
 import UnliftIO (IORef)
 import qualified UnliftIO
@@ -69,11 +68,16 @@ type Tag = Word64
 -- dynamic environment
 type DEnv = EnumMap Word64 Closure
 
+data Tracer
+  = NoTrace
+  | MsgTrace String String
+  | SimpleTrace String
+
 -- code caching environment
 data CCache = CCache
   { foreignFuncs :: EnumMap Word64 ForeignFunc,
     sandboxed :: Bool,
-    tracer :: Unison.Util.Text.Text -> Closure -> IO (),
+    tracer :: Bool -> Closure -> Tracer,
     combs :: TVar (EnumMap Word64 Combs),
     combRefs :: TVar (EnumMap Word64 Reference),
     tagRefs :: TVar (EnumMap Word64 Reference),
@@ -120,7 +124,7 @@ baseCCache sandboxed = do
     <*> newTVarIO baseSandboxInfo
   where
     ffuncs | sandboxed = sandboxedForeigns | otherwise = builtinForeigns
-    noTrace _ _ = pure ()
+    noTrace _ _ = NoTrace
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
 
@@ -351,6 +355,23 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 VALU i) = do
   bstk <- bump bstk
   pokeBi bstk =<< reflectValue m c
   pure (denv, ustk, bstk, k)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 DBTX i)
+  | sandboxed env =
+      die "attempted to use sandboxed operation: Debug.toText"
+  | otherwise = do
+      clo <- peekOff bstk i
+      ustk <- bump ustk
+      bstk <- case tracer env False clo of
+        NoTrace -> bstk <$ poke ustk 0
+        MsgTrace _ tx -> do
+          poke ustk 1
+          bstk <- bump bstk
+          bstk <$ pokeBi bstk (Util.Text.pack tx)
+        SimpleTrace tx -> do
+          poke ustk 2
+          bstk <- bump bstk
+          bstk <$ pokeBi bstk (Util.Text.pack tx)
+      pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim1 op i) = do
   (ustk, bstk) <- bprim1 ustk bstk op i
   pure (denv, ustk, bstk, k)
@@ -383,7 +404,15 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim2 TRCE i j)
   | otherwise = do
       tx <- peekOffBi bstk i
       clo <- peekOff bstk j
-      tracer env tx clo
+      case tracer env True clo of
+        NoTrace -> pure ()
+        SimpleTrace str -> do
+          putStrLn $ "trace: " ++ Util.Text.unpack tx
+          putStrLn str
+        MsgTrace msg str -> do
+          putStrLn $ "trace: " ++ Util.Text.unpack tx
+          putStrLn msg
+          putStrLn str
       pure (denv, ustk, bstk, k)
 exec !_ !denv !_trackThreads !ustk !bstk !k _ (BPrim2 op i j) = do
   (ustk, bstk) <- bprim2 ustk bstk op i j
@@ -1337,28 +1366,32 @@ bprim1 !ustk !bstk UCNS i =
       pure (ustk, bstk)
 bprim1 !ustk !bstk TTOI i =
   peekOffBi bstk i >>= \t -> case readm $ Util.Text.unpack t of
-    Nothing -> do
+    Just n
+      | fromIntegral (minBound :: Int) <= n,
+        n <= fromIntegral (maxBound :: Int) -> do
+          ustk <- bumpn ustk 2
+          poke ustk 1
+          pokeOff ustk 1 (fromInteger n)
+          pure (ustk, bstk)
+    _ -> do
       ustk <- bump ustk
       poke ustk 0
-      pure (ustk, bstk)
-    Just n -> do
-      ustk <- bumpn ustk 2
-      poke ustk 1
-      pokeOff ustk 1 n
       pure (ustk, bstk)
   where
     readm ('+' : s) = readMaybe s
     readm s = readMaybe s
 bprim1 !ustk !bstk TTON i =
   peekOffBi bstk i >>= \t -> case readMaybe $ Util.Text.unpack t of
-    Nothing -> do
+    Just n
+      | 0 <= n,
+        n <= fromIntegral (maxBound :: Word) -> do
+          ustk <- bumpn ustk 2
+          poke ustk 1
+          pokeOffN ustk 1 (fromInteger n)
+          pure (ustk, bstk)
+    _ -> do
       ustk <- bump ustk
       poke ustk 0
-      pure (ustk, bstk)
-    Just n -> do
-      ustk <- bumpn ustk 2
-      poke ustk 1
-      pokeOffN ustk 1 n
       pure (ustk, bstk)
 bprim1 !ustk !bstk TTOF i =
   peekOffBi bstk i >>= \t -> case readMaybe $ Util.Text.unpack t of
@@ -1445,6 +1478,7 @@ bprim1 !ustk !bstk CVLD _ = pure (ustk, bstk)
 bprim1 !ustk !bstk TLTT _ = pure (ustk, bstk)
 bprim1 !ustk !bstk LOAD _ = pure (ustk, bstk)
 bprim1 !ustk !bstk VALU _ = pure (ustk, bstk)
+bprim1 !ustk !bstk DBTX _ = pure (ustk, bstk)
 {-# INLINE bprim1 #-}
 
 bprim2 ::
@@ -1464,7 +1498,11 @@ bprim2 !ustk !bstk DRPT i j = do
   n <- peekOff ustk i
   t <- peekOffBi bstk j
   bstk <- bump bstk
-  pokeBi bstk $ Util.Text.drop n t
+  -- Note; if n < 0, the Nat argument was greater than the maximum
+  -- signed integer. As an approximation, just return the empty
+  -- string, as a string larger than this would require an absurd
+  -- amount of memory.
+  pokeBi bstk $ if n < 0 then Util.Text.empty else Util.Text.drop n t
   pure (ustk, bstk)
 bprim2 !ustk !bstk CATT i j = do
   x <- peekOffBi bstk i
@@ -1476,7 +1514,10 @@ bprim2 !ustk !bstk TAKT i j = do
   n <- peekOff ustk i
   t <- peekOffBi bstk j
   bstk <- bump bstk
-  pokeBi bstk $ Util.Text.take n t
+  -- Note: if n < 0, the Nat argument was greater than the maximum
+  -- signed integer. As an approximation, we just return the original
+  -- string, because it's unlikely such a large string exists.
+  pokeBi bstk $ if n < 0 then t else Util.Text.take n t
   pure (ustk, bstk)
 bprim2 !ustk !bstk EQLT i j = do
   x <- peekOffBi @Util.Text.Text bstk i
@@ -1500,13 +1541,21 @@ bprim2 !ustk !bstk DRPS i j = do
   n <- peekOff ustk i
   s <- peekOffS bstk j
   bstk <- bump bstk
-  pokeS bstk $ Sq.drop n s
+  -- Note: if n < 0, then the Nat argument was larger than the largest
+  -- signed integer. Seq actually doesn't handle this well, despite it
+  -- being possible to build (lazy) sequences this large. So,
+  -- approximate by yielding the empty sequence.
+  pokeS bstk $ if n < 0 then Sq.empty else Sq.drop n s
   pure (ustk, bstk)
 bprim2 !ustk !bstk TAKS i j = do
   n <- peekOff ustk i
   s <- peekOffS bstk j
   bstk <- bump bstk
-  pokeS bstk $ Sq.take n s
+  -- Note: if n < 0, then the Nat argument was greater than the
+  -- largest signed integer. It is possible to build such large
+  -- sequences, but the internal size will actually be wrong then. So,
+  -- we just return the original sequence as an approximation.
+  pokeS bstk $ if n < 0 then s else Sq.take n s
   pure (ustk, bstk)
 bprim2 !ustk !bstk CONS i j = do
   x <- peekOff bstk i
@@ -1576,13 +1625,17 @@ bprim2 !ustk !bstk TAKB i j = do
   n <- peekOff ustk i
   b <- peekOffBi bstk j
   bstk <- bump bstk
-  pokeBi bstk $ By.take n b
+  -- If n < 0, the Nat argument was larger than the maximum signed
+  -- integer. Building a value this large would reuire an absurd
+  -- amount of memory, so just assume n is larger.
+  pokeBi bstk $ if n < 0 then b else By.take n b
   pure (ustk, bstk)
 bprim2 !ustk !bstk DRPB i j = do
   n <- peekOff ustk i
   b <- peekOffBi bstk j
   bstk <- bump bstk
-  pokeBi bstk $ By.drop n b
+  -- See above for n < 0
+  pokeBi bstk $ if n < 0 then By.empty else By.drop n b
   pure (ustk, bstk)
 bprim2 !ustk !bstk IDXB i j = do
   n <- peekOff ustk i

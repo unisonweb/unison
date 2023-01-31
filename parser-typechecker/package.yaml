@@ -24,6 +24,7 @@ dependencies:
   - aeson
   - ansi-terminal
   - async
+  - atomic-primops
   - base
   - base16 >= 0.2.1.0
   - base64-bytestring
@@ -69,6 +70,7 @@ dependencies:
   - monad-validate
   - mtl
   - mutable-containers
+  - murmur-hash
   - mwc-random
   - natural-transformation
   - network
@@ -113,6 +115,7 @@ dependencies:
   - unison-codebase-sync
   - unison-core
   - unison-core1
+  - unison-hash
   - unison-hashing-v2
   - unison-prelude
   - unison-pretty-printer

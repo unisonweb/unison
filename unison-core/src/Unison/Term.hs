@@ -916,7 +916,7 @@ letRec' isTop bindings body =
 --   =>
 --   let rec x = 42; y = "hi" in (x,y)
 consLetRec ::
-  Ord v =>
+  (Ord v, Semigroup a) =>
   Bool -> -- isTop parameter
   a -> -- annotation for overall let rec
   (a, v, Term' vt v a) -> -- the binding
@@ -927,19 +927,24 @@ consLetRec isTop a (ab, vb, b) body = case body of
   _ -> letRec isTop a [((ab, vb), b)] body
 
 letRec ::
-  Ord v =>
+  forall v vt a.
+  (Ord v) =>
   Bool ->
+  -- Annotation spanning the full let rec
   a ->
   [((a, v), Term' vt v a)] ->
   Term' vt v a ->
   Term' vt v a
 letRec _ _ [] e = e
-letRec isTop a bindings e =
+letRec isTop blockAnn bindings e =
   ABT.cycle'
-    a
-    (foldr (uncurry ABT.abs' . fst) z bindings)
+    blockAnn
+    (foldr addAbs body bindings)
   where
-    z = ABT.tm' a (LetRec isTop (map snd bindings) e)
+    addAbs :: ((a, v), b) -> ABT.Term f v a -> ABT.Term f v a
+    addAbs ((_a, v), _b) t = ABT.abs' blockAnn v t
+    body :: Term' vt v a
+    body = ABT.tm' blockAnn (LetRec isTop (map snd bindings) e)
 
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
@@ -961,14 +966,14 @@ let1_ isTop bindings e = foldr f e bindings
 
 -- | annotations are applied to each nested Let expression
 let1 ::
-  Ord v =>
+  (Ord v, Semigroup a) =>
   IsTop ->
   [((a, v), Term2 vt at ap v a)] ->
   Term2 vt at ap v a ->
   Term2 vt at ap v a
 let1 isTop bindings e = foldr f e bindings
   where
-    f ((ann, v), b) body = ABT.tm' ann (Let isTop b (ABT.abs' ann v body))
+    f ((ann, v), b) body = ABT.tm' (ann <> ABT.annotation body) (Let isTop b (ABT.abs' (ABT.annotation body) v body))
 
 let1' ::
   (Semigroup a, Ord v) =>
@@ -979,9 +984,20 @@ let1' ::
 let1' isTop bindings e = foldr f e bindings
   where
     ann = ABT.annotation
-    f (v, b) body = ABT.tm' a (Let isTop b (ABT.abs' a v body))
+    f (v, b) body = ABT.tm' (a <> ABT.annotation body) (Let isTop b (ABT.abs' (ABT.annotation body) v body))
       where
         a = ann b <> ann body
+
+-- | Like 'let1', but for a single binding, avoiding the Semigroup constraint.
+singleLet ::
+  Ord v =>
+  IsTop ->
+  -- Annotation spanning the whole let-binding
+  a ->
+  (v, Term2 vt at ap v a) ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
+singleLet isTop a (v, body) e = ABT.tm' a (Let isTop body (ABT.abs' a v e))
 
 -- let1' :: Var v => [(Text, Term0 vt v)] -> Term0 vt v -> Term0 vt v
 -- let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e

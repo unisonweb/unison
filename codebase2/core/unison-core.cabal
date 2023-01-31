@@ -52,8 +52,10 @@ library
   build-depends:
       base
     , containers
+    , recover-rtti
     , rfc5051
     , text
+    , unison-hash
     , unison-prelude
     , unison-util-base32hex
     , vector

@@ -86,7 +86,7 @@ uniqueBase32Namegen rng =
             serialize $ VarInt (L.line pos)
             serialize $ VarInt (L.column pos)
           h = Hashable.accumulate' $ bytes <> posBytes
-          b58 = Hash.base32Hex h
+          b58 = Hash.toBase32HexText h
        in if Char.isDigit (Text.head b58)
             then go pos lenInBase32Hex rng
             else Just . Text.take lenInBase32Hex $ b58
@@ -108,7 +108,8 @@ data Error v
   | UnknownType (L.Token (HQ.HashQualified Name)) (Set Reference)
   | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
-  | EmptyMatch (L.Token ())
+  | -- Indicates a cases or match/with which doesn't have any patterns
+    EmptyMatch (L.Token ())
   | EmptyWatch Ann
   | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
   | UseEmpty (L.Token String) -- an empty `use` statement
@@ -238,7 +239,7 @@ importDotId = queryToken go
 
 -- Consume a virtual semicolon
 semi :: Ord v => P v (L.Token ())
-semi = queryToken go
+semi = label "newline or semicolon" $ queryToken go
   where
     go (L.Semi _) = Just ()
     go _ = Nothing

@@ -120,5 +120,5 @@ resolveMainRef main = do
   lookupTermRefWithType codebase main >>= \case
     [(rf, ty)]
       | Typechecker.fitsScheme ty mainType -> pure (rf, ppe)
-      | otherwise -> Cli.returnEarly (BadMainFunction smain ty ppe [mainType])
+      | otherwise -> Cli.returnEarly (BadMainFunction "main" smain ty ppe [mainType])
     _ -> Cli.returnEarly (NoMainFunction smain ppe [mainType])

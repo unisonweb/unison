@@ -121,8 +121,18 @@ data Output
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
     NoMainFunction String PPE.PrettyPrintEnv [Type Symbol Ann]
-  | -- Main function found, but has improper type
-    BadMainFunction String (Type Symbol Ann) PPE.PrettyPrintEnv [Type Symbol Ann]
+  | -- | Function found, but has improper type
+    -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
+    BadMainFunction
+      String
+      -- ^ what we were trying to do (e.g. "run", "io.test")
+      String
+      -- ^ name of function
+      (Type Symbol Ann)
+      -- ^ bad type of function
+      PPE.PrettyPrintEnv
+      [Type Symbol Ann]
+      -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
   | BranchNotEmpty Path'
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
@@ -273,6 +283,7 @@ data Output
   | IntegrityCheck IntegrityResult
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
+  | ClearScreen
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
   { isTest :: TermReference -> Bool,
@@ -434,6 +445,7 @@ isFailure o = case o of
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
   DisplayDebugNameDiff {} -> False
+  ClearScreen -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

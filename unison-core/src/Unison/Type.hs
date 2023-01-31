@@ -11,6 +11,7 @@ import Data.Monoid (Any (..))
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Kind as K
+import qualified Unison.LabeledDependency as LD
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.Prelude
@@ -258,6 +259,9 @@ filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
+processHandleRef :: Reference
+processHandleRef = Reference.Builtin "ProcessHandle"
+
 scopeRef, refRef :: Reference
 scopeRef = Reference.Builtin "Scope"
 refRef = Reference.Builtin "Ref"
@@ -273,6 +277,12 @@ mbytearrayRef = Reference.Builtin "MutableByteArray"
 mvarRef, tvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
+
+ticketRef :: Reference
+ticketRef  = Reference.Builtin "Ref.Ticket"
+
+promiseRef :: Reference
+promiseRef = Reference.Builtin "Promise"
 
 tlsRef :: Reference
 tlsRef = Reference.Builtin "Tls"
@@ -340,6 +350,9 @@ char a = ref a charRef
 
 fileHandle :: Ord v => a -> Type v a
 fileHandle a = ref a fileHandleRef
+
+processHandle :: Ord v => a -> Type v a
+processHandle a = ref a processHandleRef
 
 threadId :: Ord v => a -> Type v a
 threadId a = ref a threadIdRef
@@ -521,6 +534,9 @@ dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where
     f t@(Ref r) = Writer.tell [r] $> t
     f t = pure t
+
+labeledDependencies :: Ord v => Type v a -> Set LD.LabeledDependency
+labeledDependencies = Set.map LD.TypeReference . dependencies
 
 updateDependencies :: Ord v => Map Reference Reference -> Type v a -> Type v a
 updateDependencies typeUpdates = ABT.rebuildUp go

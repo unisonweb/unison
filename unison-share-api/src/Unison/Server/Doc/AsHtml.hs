@@ -11,7 +11,6 @@ import qualified Data.Char as Char
 import Data.Foldable
 import Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Unison.Syntax.Name as Name (toText)
 import Data.Maybe
 import Data.Sequence (Seq)
 import Data.Text (Text)
@@ -27,6 +26,7 @@ import Unison.Server.Doc
 import qualified Unison.Server.Doc as Doc
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
+import qualified Unison.Syntax.Name as Name (toText)
 
 data NamedLinkHref
   = Href Text
@@ -474,10 +474,15 @@ toHtml docNamesByRef document =
                 Doc.FrontMatter fm -> do
                   Writer.tell (pure $ FrontMatterContent fm)
                   pure mempty
+                LaTeXInline latex ->
+                  pure $ div_ [class_ "source rich embed latex-inline"] $ codeBlock [] (L.toHtml latex)
+                Svg svg ->
+                  pure $ iframe_ [class_ "embed svg", sandbox_ "true", srcdoc_ svg] $ sequence_ []
                 Embed syntax ->
                   pure $ div_ [class_ "source rich embed"] $ codeBlock [] (Syntax.toHtml syntax)
                 EmbedInline syntax ->
                   pure $ span_ [class_ "source rich embed-inline"] $ inlineCode [] (Syntax.toHtml syntax)
+                RenderError (InvalidTerm err) -> pure $ Syntax.toHtml err
             Join docs ->
               span_ [class_ "join"] <$> renderSequence currentSectionLevelToHtml (mergeWords " " docs)
             UntitledSection docs ->

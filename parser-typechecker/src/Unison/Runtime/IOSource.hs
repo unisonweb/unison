@@ -194,6 +194,16 @@ doc2FrontMatterRef = typeNamed "Doc2.FrontMatter"
 
 pattern Doc2FrontMatterRef <- ((== doc2FrontMatterRef) -> True)
 
+doc2LaTeXInlineRef :: R.Reference
+doc2LaTeXInlineRef = typeNamed "Doc2.LaTeXInline"
+
+pattern Doc2LaTeXInlineRef <- ((== doc2LaTeXInlineRef) -> True)
+
+doc2SvgRef :: R.Reference
+doc2SvgRef = typeNamed "Doc2.Svg"
+
+pattern Doc2SvgRef <- ((== doc2SvgRef) -> True)
+
 pattern Doc2Word txt <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2WordId -> True))) (Term.Text' txt)
 
 pattern Doc2Code d <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2CodeId -> True))) d
@@ -301,6 +311,10 @@ pattern Doc2MediaSource src mimeType <- Term.Apps' (Term.Constructor' (Construct
 pattern Doc2SpecialFormEmbedVideo sources config <- Doc2SpecialFormEmbed (Term.App' _ (Term.Apps' (Term.Constructor' (ConstructorReference Doc2VideoRef _)) [Term.List' (toList -> sources), Term.List' (toList -> config)]))
 
 pattern Doc2SpecialFormEmbedFrontMatter frontMatter <- Doc2SpecialFormEmbed (Term.App' _ (Term.App' (Term.Constructor' (ConstructorReference Doc2FrontMatterRef _)) (Term.List' (toList -> frontMatter))))
+
+pattern Doc2SpecialFormEmbedLaTeXInline latex <- Doc2SpecialFormEmbedInline (Term.App' _ (Term.App' (Term.Constructor' (ConstructorReference Doc2LaTeXInlineRef _)) (Term.Text' latex)))
+
+pattern Doc2SpecialFormEmbedSvg svg <- Doc2SpecialFormEmbed (Term.App' _ (Term.App' (Term.Constructor' (ConstructorReference Doc2SvgRef _)) (Term.Text' svg)))
 
 -- pulls out `vs body` in `Doc2.Term (Any '(vs -> body))`, where
 -- vs can be any number of parameters
@@ -553,6 +567,15 @@ unique[b2ada5dfd4112ca3a7ba0a6483ce3d82811400c56eff8e6eca1b3fbf] type Doc2.Video
 -- Useful for embedded data into a Doc, like title, date, tags etc:
 unique[ea60b6205a6b25449a8784de87c113833bacbcdfe32829c7a76985d5] type Doc2.FrontMatter
   = FrontMatter [(Text, Text)]
+
+-- Similar to using triple backticks with a latex pragma (```latex), but for
+-- when you'd want to render LaTeX inline
+unique[d1dc0515a2379df8a4c91571fe2f9bf9322adaf97677c87b806e49572447c688] type Doc2.LaTeXInline
+  = LaTeXInline Text
+
+-- Used for embedding SVGs
+unique[ae4e05d8bede04825145db1a6a2222fdf2d890b3044d86fd4368f53b265de7f9] type Doc2.Svg
+  = Svg Text
 
 -- ex: Doc2.term 'List.map
 Doc2.term : 'a -> Doc2.Term

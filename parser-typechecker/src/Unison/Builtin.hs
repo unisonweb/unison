@@ -204,6 +204,8 @@ builtinTypesSrc =
     Rename' "IO" "io2.IO",
     B' "Handle" CT.Data,
     Rename' "Handle" "io2.Handle",
+    B' "ProcessHandle" CT.Data,
+    Rename' "ProcessHandle" "io2.ProcessHandle",
     B' "Socket" CT.Data,
     Rename' "Socket" "io2.Socket",
     B' "ThreadId" CT.Data,
@@ -234,6 +236,10 @@ builtinTypesSrc =
     Rename' "STM" "io2.STM",
     B' "Ref" CT.Data,
     B' "Scope" CT.Effect,
+    B' "Ref.Ticket" CT.Data,
+    Rename' "Ref.Ticket" "io2.Ref.Ticket",
+    B' "Promise" CT.Data,
+    Rename' "Promise" "io2.Promise",
     B' "TimeSpec" CT.Data,
     Rename' "TimeSpec" "io2.Clock.internals.TimeSpec",
     B' "ImmutableArray" CT.Data,
@@ -449,6 +455,7 @@ builtinsSrc =
     B "Universal.<" $ forall1 "a" (\a -> a --> a --> boolean),
     B "Universal.>=" $ forall1 "a" (\a -> a --> a --> boolean),
     B "Universal.<=" $ forall1 "a" (\a -> a --> a --> boolean),
+    B "Universal.murmurHash" $ forall1 "a" (\a -> a --> nat),
     B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "Any.Any" $ forall1 "a" (\a -> a --> anyt),
@@ -544,6 +551,8 @@ builtinsSrc =
     B "ThreadId.toText" $ threadId --> text,
     B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a),
     B "Debug.trace" $ forall1 "a" (\a -> text --> a --> unit),
+    B "Debug.toText" $
+      forall1 "a" (\a -> a --> optionalt (eithert text text)),
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b),
@@ -641,6 +650,7 @@ builtinsSrc =
     ++ moveUnder "io2" ioBuiltins
     ++ moveUnder "io2" mvarBuiltins
     ++ moveUnder "io2" stmBuiltins
+    ++ moveUnder "io2" refPromiseBuiltins
     ++ hashBuiltins
     ++ fmap (uncurry B) codeBuiltins
 
@@ -750,8 +760,15 @@ ioBuiltins =
     ("IO.kill.impl.v3", threadId --> iof unit),
     ( "IO.ref",
       forall1 "a" $ \a ->
-        a --> io (reft (Type.effects () [Type.builtinIO ()]) a)
+        a --> io (reft iot a)
     ),
+    ( "IO.process.call", text --> list text --> io nat),
+    ( "IO.process.start",
+      text --> list text -->
+        io (tuple [handle, handle, handle, phandle])),
+    ( "IO.process.kill", phandle --> io unit),
+    ( "IO.process.wait", phandle --> io nat),
+    ( "IO.process.exitCode", phandle --> io (optionalt nat)),
     ( "validateSandboxed",
       forall1 "a" $ \a -> list termLink --> a --> boolean
     ),
@@ -781,17 +798,17 @@ ioBuiltins =
     ("Clock.internals.nsec.v1", timeSpec --> nat),
     ( "IO.array",
       forall1 "a" $ \a ->
-        nat --> io (marrayt (Type.effects () [Type.builtinIO ()]) a)
+        nat --> io (marrayt iot a)
     ),
     ( "IO.arrayOf",
       forall1 "a" $ \a ->
-        a --> nat --> io (marrayt (Type.effects () [Type.builtinIO ()]) a)
+        a --> nat --> io (marrayt iot a)
     ),
     ( "IO.bytearray",
-      nat --> io (mbytearrayt (Type.effects () [Type.builtinIO ()]))
+      nat --> io (mbytearrayt iot)
     ),
     ( "IO.bytearrayOf",
-      nat --> nat --> io (mbytearrayt (Type.effects () [Type.builtinIO ()]))
+      nat --> nat --> io (mbytearrayt iot)
     ),
     ( "IO.tryEval",
       forall1 "a" $ \a ->
@@ -847,6 +864,22 @@ stmBuiltins =
     ("STM.retry", forall1 "a" $ \a -> unit --> stm a),
     ("STM.atomically", forall1 "a" $ \a -> (unit --> stm a) --> io a)
   ]
+
+refPromiseBuiltins :: [(Text, Type)]
+refPromiseBuiltins =
+  [ ("Ref.Ticket.read", forall1 "a" $ \a -> ticket a --> a),
+    ("Ref.readForCas", forall1 "a" $ \a ->  reft iot a --> io (ticket a)),
+    ("Ref.cas", forall1 "a" $ \a -> reft iot a --> ticket a --> a --> io boolean),
+    ("Promise.new", forall1 "a" $ \a -> unit --> io (promise a)),
+    ("Promise.read", forall1 "a" $ \a -> promise a --> io a),
+    ("Promise.tryRead", forall1 "a" $ \a -> promise a --> io (optionalt a)),
+    ("Promise.write", forall1 "a" $ \a -> promise a --> a --> io boolean)
+  ]
+  where
+    ticket :: Type -> Type
+    ticket a = Type.ref () Type.ticketRef `app` a
+    promise :: Type -> Type
+    promise a = Type.ref () Type.promiseRef `app` a
 
 forall1 :: Text -> (Type -> Type) -> Type
 forall1 name body =
@@ -904,6 +937,8 @@ infixr 9 -->
 io, iof :: Type -> Type
 io = Type.effect1 () (Type.builtinIO ())
 iof = io . eithert failure
+iot :: Type
+iot = (Type.effects () [Type.builtinIO ()])
 
 failure :: Type
 failure = DD.failureType ()
@@ -929,10 +964,11 @@ iarrayt a = Type.iarrayType () `app` a
 marrayt :: Type -> Type -> Type
 marrayt g a = Type.marrayType () `app` g `app` a
 
-socket, threadId, handle, unit :: Type
+socket, threadId, handle, phandle, unit :: Type
 socket = Type.socket ()
 threadId = Type.threadId ()
 handle = Type.fileHandle ()
+phandle = Type.processHandle ()
 unit = DD.unitType ()
 
 tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Type

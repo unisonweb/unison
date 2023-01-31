@@ -22,7 +22,7 @@ import ArgParse
     UsageRenderer,
     parseCLIArgs,
   )
-import Compat (defaultInterruptHandler, onWindows, withInterruptHandler)
+import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
@@ -264,7 +264,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
               -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
               -- Windows when we move to GHC 9.*
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
-              when (not onWindows) . void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTMVar rootVar) (readTVar pathVar)
+              void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTMVar rootVar) (readTVar pathVar)
               Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
                 case exitOption of
                   DoNotExit -> do

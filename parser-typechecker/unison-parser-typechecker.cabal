@@ -152,6 +152,7 @@ library
       Unison.Util.Logger
       Unison.Util.PinBoard
       Unison.Util.Pretty.MegaParsec
+      Unison.Util.RefPromise
       Unison.Util.Star3
       Unison.Util.Text
       Unison.Util.Text.Pattern
@@ -193,6 +194,7 @@ library
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring
@@ -237,6 +239,7 @@ library
     , mmorph
     , monad-validate
     , mtl
+    , murmur-hash
     , mutable-containers
     , mwc-random
     , natural-transformation
@@ -282,6 +285,7 @@ library
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-hashing-v2
     , unison-prelude
     , unison-pretty-printer
@@ -377,6 +381,7 @@ test-suite parser-typechecker-tests
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring
@@ -424,6 +429,7 @@ test-suite parser-typechecker-tests
     , mmorph
     , monad-validate
     , mtl
+    , murmur-hash
     , mutable-containers
     , mwc-random
     , natural-transformation
@@ -470,6 +476,7 @@ test-suite parser-typechecker-tests
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
