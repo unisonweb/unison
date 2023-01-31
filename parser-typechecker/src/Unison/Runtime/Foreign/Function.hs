@@ -358,6 +358,27 @@ instance
   ( ForeignConvention a,
     ForeignConvention b,
     ForeignConvention c,
+    ForeignConvention d
+  ) =>
+  ForeignConvention (a, b, c, d)
+  where
+  readForeign us bs ustk bstk = do
+    (us, bs, a) <- readForeign us bs ustk bstk
+    (us, bs, b) <- readForeign us bs ustk bstk
+    (us, bs, c) <- readForeign us bs ustk bstk
+    (us, bs, d) <- readForeign us bs ustk bstk
+    pure (us, bs, (a, b, c, d))
+
+  writeForeign ustk bstk (a, b, c, d) = do
+    (ustk, bstk) <- writeForeign ustk bstk d
+    (ustk, bstk) <- writeForeign ustk bstk c
+    (ustk, bstk) <- writeForeign ustk bstk b
+    writeForeign ustk bstk a
+
+instance
+  ( ForeignConvention a,
+    ForeignConvention b,
+    ForeignConvention c,
     ForeignConvention d,
     ForeignConvention e
   ) =>
