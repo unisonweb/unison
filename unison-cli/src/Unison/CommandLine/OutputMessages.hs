@@ -1854,6 +1854,9 @@ notifyUser dir o = case o of
     ANSI.clearScreen
     ANSI.setCursorPosition 0 0
     pure mempty
+  PulledEmptyBranch remote ->
+    pure . P.warnCallout . P.wrap $
+      P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
@@ -3179,7 +3182,6 @@ prettyWhichBranchEmpty :: WhichBranchEmpty -> Pretty
 prettyWhichBranchEmpty = \case
   WhichBranchEmptyHash hash -> P.shown hash
   WhichBranchEmptyPath path -> prettyPath' path
-  WhichBranchEmptyRemote remote -> prettyReadRemoteNamespace remote
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

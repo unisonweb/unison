@@ -2861,7 +2861,7 @@ doPullRemoteBranch mayRepo path syncMode pullMode verbosity description = do
         Cli.returnEarly (Output.GitError err)
     ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
   when (Branch.isEmpty0 (Branch.head remoteBranch)) do
-    Cli.respond (BranchEmpty (WhichBranchEmptyRemote ns))
+    Cli.respond (PulledEmptyBranch ns)
   let unchangedMsg = PullAlreadyUpToDate ns path
   destAbs <- Cli.resolvePath' path
   let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path

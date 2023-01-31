@@ -1,7 +1,7 @@
 module Unison.Codebase.Editor.Output
   ( Output (..),
     DisplayDefinitionsOutput (..),
-    WhichBranchEmpty(..),
+    WhichBranchEmpty (..),
     NumberedOutput (..),
     NumberedArgs,
     ListDetailed,
@@ -284,6 +284,7 @@ data Output
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
   | ClearScreen
+  | PulledEmptyBranch ReadRemoteNamespace
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
   { isTest :: TermReference -> Bool,
@@ -297,7 +298,6 @@ data DisplayDefinitionsOutput = DisplayDefinitionsOutput
 data WhichBranchEmpty
   = WhichBranchEmptyHash ShortCausalHash
   | WhichBranchEmptyPath Path'
-  | WhichBranchEmptyRemote ReadRemoteNamespace
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -446,6 +446,7 @@ isFailure o = case o of
   DisplayDebugCompletions {} -> False
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False
+  PulledEmptyBranch {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
