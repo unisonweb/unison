@@ -22,15 +22,15 @@ The deleted namespace shouldn't appear in `ls` output.
 
 ## history
 
-The history of the namespace should still exist if requested explicitly.
+The history of the namespace should be empty.
 
 ```ucm
 .> history mynamespace
 ```
 
-Merging an empty namespace should still copy its history if it has some.
+Merging an empty namespace should be a no-op
 
-```ucm
+```ucm:error
 .empty> history
 .empty> merge .mynamespace
 .empty> history

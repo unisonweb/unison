@@ -143,7 +143,7 @@ match = do
 matchCases1 :: Var v => L.Token () -> P v (NonEmpty (Int, Term.MatchCase Ann (Term v Ann)))
 matchCases1 start = do
   cases <-
-    sepBy1 semi matchCase
+    (sepBy semi matchCase)
       <&> \cases -> [(n, c) | (n, cs) <- cases, c <- cs]
   case cases of
     [] -> P.customFailure (EmptyMatch start)
@@ -161,27 +161,33 @@ matchCases1 start = do
 --   (42, x) -> ...
 matchCase :: Var v => P v (Int, [Term.MatchCase Ann (Term v Ann)])
 matchCase = do
-  pats <- sepBy1 (reserved ",") parsePattern
+  pats <- sepBy1 (label "\",\"" $ reserved ",") parsePattern
   let boundVars' = [v | (_, vs) <- pats, (_ann, v) <- vs]
       pat = case fst <$> pats of
         [p] -> p
         pats -> foldr pair (unit (ann . last $ pats)) pats
       unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRef 0) []
       pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2]
-  guardsAndBlocks <- many $ do
-    guard <-
-      asum
-        [ Nothing <$ P.try (reserved "|" *> quasikeyword "otherwise"),
-          optional $ reserved "|" *> infixAppOrBooleanOp
-        ]
-    t <- block "->"
-    pure (guard, t)
+  let guardedBlocks = label "pattern guard" . some $ do
+        reserved "|"
+        guard <-
+          asum
+            [ Nothing <$ P.try (quasikeyword "otherwise"),
+              Just <$> infixAppOrBooleanOp
+            ]
+        t <- block "->"
+        pure (guard, t)
+  let unguardedBlock = label "case match" $ do
+        t <- block "->"
+        pure (Nothing, t)
+  -- a pattern's RHS is either one or more guards, or a single unguarded block.
+  guardsAndBlocks <- guardedBlocks <|> (pure @[] <$> unguardedBlock)
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
   let mk (guard, t) = Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t)
   pure $ (length pats, mk <$> guardsAndBlocks)
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
-parsePattern = root
+parsePattern = label "pattern" root
   where
     root = chainl1 patternCandidates patternInfixApp
     patternCandidates = constructor <|> leaf
@@ -978,13 +984,13 @@ destructuringBind = do
   --   Some 42
   --   vs
   --   Some 42 = List.head elems
-  (p, boundVars, guard) <- P.try $ do
+  (p, boundVars) <- P.try $ do
     (p, boundVars) <- parsePattern
     let boundVars' = snd <$> boundVars
-    guard <- optional $ reserved "|" *> infixAppOrBooleanOp
     P.lookAhead (openBlockWith "=")
-    pure (p, boundVars', guard)
+    pure (p, boundVars')
   scrute <- block "=" -- Dwight K. Scrute ("The People's Scrutinee")
+  let guard = Nothing
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
       thecase t = Term.MatchCase p (fmap (absChain boundVars) guard) $ absChain boundVars t
   pure $
