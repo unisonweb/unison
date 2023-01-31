@@ -18,7 +18,12 @@
     fx1-
     list-head
 
-    exception->string)
+    exception->string
+    record-case
+    fluid-let
+
+    freeze-string!
+    string-copy!)
 
   (import (rnrs) (racket exn))
 
@@ -47,5 +52,33 @@
 
   (define exception->string exn->string)
 
-  )
+  (define-syntax record-case
+    (syntax-rules (else)
+      ; no else
+      [(record-case expr
+         [(tag0 tag1 ...) (v ...) e ...]
+         ...)
+       (let ([val expr])
+         (case (car val)
+           [(tag0 tag1 ...)
+            (let-values ([(v ...) (apply values (cdr val))])
+              e ...)]
+            ...))]
+
+      ; with else
+      [(record-case expr
+         [(tag0 tag1 ...) (v ...) e ...]
+         ...
+         [else ee ...])
+       (let ([val expr])
+         (case (car val)
+           [(tag0 tag1 ...)
+            (let-values ([(v ...) (apply values (cdr val))])
+              e ...)]
+           ...
+           [else ee ...]))]))
+
+  (define (fluid-let) '())
+
+  (define freeze-string! unsafe-string->immutable-string!))
 

@@ -22,7 +22,10 @@
 
     exception->string
     record-case
-    fluid-let)
+    fluid-let
+
+    freeze-string!
+    string-copy!)
 
   (import (chezscheme))
 
@@ -115,4 +118,8 @@
     (let-values ([(port result) (open-string-output-port)])
                  (display-condition e port)
                  (result)))
-  )
+
+  (define (freeze-string! s)
+    (($primitive $string-set-immutable!) s)
+    s))
+

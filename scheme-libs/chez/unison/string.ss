@@ -1,9 +1,9 @@
-; This library wraps some chez functionality to provide immutable
-; strings. There is a wrapper for making immutable strings in chez,
-; but it copies its input, so relying on that would involve every
-; string operation building a fresh mutable string, then making an
-; immutable copy. This library instead directly freezes the newly
-; created mutable strings.
+; This library wraps some implementation-specific functionality to
+; provide immutable strings. Both have mechanisms for (efficiently)
+; marking strings immutable, but there is no standard API for working
+; entirely in terms of immutable strings. This module takes the
+; freezing function, re-exported by (unison core) and implements the
+; API needed for unison.
 (library (unison string)
   (export
     istring
@@ -18,15 +18,11 @@
     utf8-bytevector->istring
     utf-8-transcoder)
 
-  (import (chezscheme))
+  (import (rnrs) (unison core))
 
-  (define (freeze-s! s)
-    (($primitive $string-set-immutable!) s)
-    s)
+  (define istring (lambda l (freeze-string! (apply string l))))
 
-  (define istring (lambda l (freeze-s! (apply string l))))
-
-  (define (make-istring n c) (freeze-s! (make-string n c)))
+  (define (make-istring n c) (freeze-string! (make-string n c)))
 
   (define (istring-repeat n s)
     (let* ([k (string-length s)]
@@ -36,25 +32,25 @@
           (begin
             (string-copy! s 0 t (* i k) k)
             (loop (+ i 1)))
-          (freeze-s! t)))))
+          (freeze-string! t)))))
 
-  (define istring-append (lambda l (freeze-s! (apply string-append l))))
+  (define istring-append (lambda l (freeze-string! (apply string-append l))))
 
-  (define (istring-drop n s) (freeze-s! (substring s n (- (string-length s) n))))
+  (define (istring-drop n s) (freeze-string! (substring s n (- (string-length s) n))))
 
-  (define (number->istring n) (freeze-s! (number->string n)))
+  (define (number->istring n) (freeze-string! (number->string n)))
 
   (define (signed-number->istring n)
-    (freeze-s!
+    (freeze-string!
       (if (>= n 0)
         (string-append "+" (number->string n))
         (number->string n))))
 
-  (define (list->istring l) (freeze-s! (list->string l)))
+  (define (list->istring l) (freeze-string! (list->string l)))
 
-  (define (istring-take n s) (freeze-s! (substring s 0 n)))
+  (define (istring-take n s) (freeze-string! (substring s 0 n)))
 
   (define utf-8-transcoder (make-transcoder (utf-8-codec)))
 
   (define (utf8-bytevector->istring bs)
-    (freeze-s! (bytevector->string bs utf-8-transcoder))))
+    (freeze-string! (bytevector->string bs utf-8-transcoder))))
