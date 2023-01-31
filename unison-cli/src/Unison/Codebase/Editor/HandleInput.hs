@@ -444,7 +444,12 @@ loop e = do
               description <- inputDescription input
               dest <- Cli.resolvePath' dest0
               ok <- Cli.updateAtM description dest (const $ pure srcb)
-              Cli.respond if ok then Success else BranchEmpty src0
+              Cli.respond
+                if ok
+                  then Success
+                  else BranchEmpty case src0 of
+                    Left hash -> WhichBranchEmptyHash hash
+                    Right path -> WhichBranchEmptyPath path
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
               srcb <- Cli.expectBranchAtPath' src0
@@ -1285,7 +1290,7 @@ loop e = do
               Cli.Env {codebase} <- ask
               path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
               Cli.getMaybeBranchAt path >>= \case
-                Nothing -> Cli.respond $ BranchEmpty (Right (Path.absoluteToPath' path))
+                Nothing -> Cli.respond $ BranchEmpty (WhichBranchEmptyPath (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <-
                     Cli.runTransaction (NamespaceDependencies.namespaceDependencies codebase (Branch.head b))
@@ -2855,6 +2860,8 @@ doPullRemoteBranch mayRepo path syncMode pullMode verbosity description = do
       Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
         Cli.returnEarly (Output.GitError err)
     ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
+  when (Branch.isEmpty0 (Branch.head remoteBranch)) do
+    Cli.respond (PulledEmptyBranch ns)
   let unchangedMsg = PullAlreadyUpToDate ns path
   destAbs <- Cli.resolvePath' path
   let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
