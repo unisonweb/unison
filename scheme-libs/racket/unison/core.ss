@@ -23,7 +23,9 @@
     fluid-let
 
     freeze-string!
-    string-copy!)
+    string-copy!
+
+    freeze-bytevector!)
 
   (import (rnrs) (racket exn))
 
@@ -80,5 +82,7 @@
 
   (define (fluid-let) '())
 
-  (define freeze-string! unsafe-string->immutable-string!))
+  (define freeze-string! unsafe-string->immutable-string!)
+  (define freeze-bytevector! unsafe-bytes->immutable-bytes!)
+  )
 

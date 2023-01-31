@@ -298,8 +298,7 @@
       (lambda ()
         (list 1 (bytevector-u8-ref arr i)))))
 
-  (define (unison-FOp-MutableByteArray.freeze! arr)
-    (freeze-bv! arr))
+  (define unison-FOp-MutableByteArray.freeze! freeze-bytevector!)
 
   (define (unison-FOp-MutableByteArray.write8 arr i b)
     (catch-array

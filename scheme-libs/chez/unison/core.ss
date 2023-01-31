@@ -25,7 +25,9 @@
     fluid-let
 
     freeze-string!
-    string-copy!)
+    string-copy!
+
+    freeze-bytevector!)
 
   (import (chezscheme))
 
@@ -121,5 +123,10 @@
 
   (define (freeze-string! s)
     (($primitive $string-set-immutable!) s)
-    s))
+    s)
 
+  (define (freeze-bytevector! bs)
+    (($primitive $bytevector-set-immutable!) bs)
+    bs)
+
+  )

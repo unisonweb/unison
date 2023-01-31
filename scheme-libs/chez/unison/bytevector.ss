@@ -1,35 +1,32 @@
 ; This library implements missing bytevector functionality for unison
 ; builtins. The main missing bits are better support for immutable
-; bytevectors. Chez does provide a way to make an immutable
-; bytevector, but it copies its input, so implementing things that way
-; would make many unncessary copies. This library instead implements
-; functions on immutable bytevectors by directly freezing the newly
-; created mutable vector. It also provides the freezing function,
-; which is itself a unison builtin.
+; bytevectors. Both chez and racket have support for immutable
+; bytevectors, but there is no standard API for dealing with them that
+; implements all the functions we'd want. This library exports the
+; desired functionality on top of an unsafe in-place freeze
+; re-exported from the (unison core) module.
 (library (unison bytevector)
   (export
-    freeze-bv!
+    freeze-bytevector!
     ibytevector-drop
     ibytevector-take
     u8-list->ibytevector)
 
-  (import (chezscheme))
-
-  (define (freeze-bv! bs)
-    (($primitive $bytevector-set-immutable!) bs)
-    bs)
+  (import (rnrs)
+          (unison core))
 
   (define (ibytevector-drop n bs)
     (let* ([l (bytevector-length bs)]
            [k (max 0 (- l n))]
            [br (make-bytevector k)])
       (bytevector-copy! bs n br 0 k)
-      (freeze-bv! br)))
+      (freeze-bytevector! br)))
 
   (define (ibytevector-take n bs)
     (let* ([sz (min n (bytevector-length bs))]
            [br (make-bytevector sz)])
       (bytevector-copy! bs 0 br 0 sz)
-      (freeze-bv! br)))
+      (freeze-bytevector! br)))
 
-  (define (u8-list->ibytevector l) (freeze-bv! (u8-list->bytevector l))))
+  (define (u8-list->ibytevector l)
+    (freeze-bytevector! (u8-list->bytevector l))))
