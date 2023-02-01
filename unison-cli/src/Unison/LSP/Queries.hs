@@ -25,7 +25,6 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Debug as Debug
 import Unison.LSP.Conversions (lspToUPos)
 import Unison.LSP.FileAnalysis (getFileSummary)
 import Unison.LSP.Orphans ()
@@ -232,11 +231,12 @@ refInDecl p (DD.asDataDecl -> dd) =
 nodeAtPosition :: Uri -> Position -> MaybeT Lsp (Either (Term Symbol Ann) (Type Symbol Ann))
 nodeAtPosition uri (lspToUPos -> pos) = do
   (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
+
   let (trms, typs) = termsBySymbol & foldMap \(_ref, trm, mayTyp) -> ([trm], toList mayTyp)
-  ( altMap (fmap Right . hoistMaybe . findSmallestEnclosingType pos) typs
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . wipeInferredTypeAnnotations) trms
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . wipeInferredTypeAnnotations) (testWatchSummary ^.. folded . _3)
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . wipeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _3)
+  ( altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) trms
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (testWatchSummary ^.. folded . _3)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _3)
+      <|> altMap (fmap Right . hoistMaybe . findSmallestEnclosingType pos) typs
     )
   where
     hoistMaybe :: Maybe a -> MaybeT Lsp a
@@ -257,11 +257,10 @@ annIsFilePosition = \case
 -- So for now we crawl the term and remove any Ann nodes from within. The downside being you
 -- can no longer hover on Type signatures within a term, but the benefit is that hover
 -- actually works.
-wipeInferredTypeAnnotations :: Ord v => Term.Term v Ann -> Term.Term v Ann
-wipeInferredTypeAnnotations =
+removeInferredTypeAnnotations :: Ord v => Term.Term v Ann -> Term.Term v Ann
+removeInferredTypeAnnotations =
   Lens.transformOf (field @"out" . traversed) \case
     ABT.Term {out = ABT.Tm (Term.Ann trm typ)}
       -- If the type's annotation is identical to the term's annotation, then this must be an inferred type
-      | ABT.annotation typ == ABT.annotation trm ->
-          Debug.debugLog Debug.Temp "Wiped Annotation" trm
+      | ABT.annotation typ == ABT.annotation trm -> trm
     t -> t
