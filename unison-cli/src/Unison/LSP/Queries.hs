@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 -- | Rewrites of some codebase queries, but which check the scratch file for info first.
 module Unison.LSP.Queries
   ( getTypeOfReferent,
@@ -13,7 +15,9 @@ module Unison.LSP.Queries
 where
 
 import Control.Lens
+import qualified Control.Lens as Lens
 import Control.Monad.Reader
+import Data.Generics.Product (field)
 import Language.LSP.Types
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase as Codebase
@@ -21,6 +25,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Debug as Debug
 import Unison.LSP.Conversions (lspToUPos)
 import Unison.LSP.FileAnalysis (getFileSummary)
 import Unison.LSP.Orphans ()
@@ -153,38 +158,38 @@ findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (Either (Term Symbo
 findSmallestEnclosingNode pos term
   | annIsFilePosition (ABT.annotation term) && not (ABT.annotation term `Ann.contains` pos) = Nothing
   | otherwise = do
-    let bestChild = case ABT.out term of
-          ABT.Tm f -> case f of
-            Term.Int {} -> Just (Left term)
-            Term.Nat {} -> Just (Left term)
-            Term.Float {} -> Just (Left term)
-            Term.Boolean {} -> Just (Left term)
-            Term.Text {} -> Just (Left term)
-            Term.Char {} -> Just (Left term)
-            Term.Blank {} -> Just (Left term)
-            Term.Ref {} -> Just (Left term)
-            Term.Constructor {} -> Just (Left term)
-            Term.Request {} -> Just (Left term)
-            Term.Handle a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-            Term.App a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-            Term.Ann a typ -> findSmallestEnclosingNode pos a <|> (Right <$> findSmallestEnclosingType pos typ)
-            Term.List xs -> altSum (findSmallestEnclosingNode pos <$> xs)
-            Term.If cond a b -> findSmallestEnclosingNode pos cond <|> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-            Term.And l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
-            Term.Or l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
-            Term.Lam a -> findSmallestEnclosingNode pos a
-            Term.LetRec _isTop xs y -> altSum (findSmallestEnclosingNode pos <$> xs) <|> findSmallestEnclosingNode pos y
-            Term.Let _isTop a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-            Term.Match a cases ->
-              findSmallestEnclosingNode pos a
-                <|> altSum (cases <&> \(MatchCase _pat grd body) -> altSum (findSmallestEnclosingNode pos <$> grd) <|> findSmallestEnclosingNode pos body)
-            Term.TermLink {} -> Just (Left term)
-            Term.TypeLink {} -> Just (Left term)
-          ABT.Var _v -> Just (Left term)
-          ABT.Cycle r -> findSmallestEnclosingNode pos r
-          ABT.Abs _v r -> findSmallestEnclosingNode pos r
-    let fallback = if annIsFilePosition (ABT.annotation term) then Just (Left term) else Nothing
-    bestChild <|> fallback
+      let bestChild = case ABT.out term of
+            ABT.Tm f -> case f of
+              Term.Int {} -> Just (Left term)
+              Term.Nat {} -> Just (Left term)
+              Term.Float {} -> Just (Left term)
+              Term.Boolean {} -> Just (Left term)
+              Term.Text {} -> Just (Left term)
+              Term.Char {} -> Just (Left term)
+              Term.Blank {} -> Just (Left term)
+              Term.Ref {} -> Just (Left term)
+              Term.Constructor {} -> Just (Left term)
+              Term.Request {} -> Just (Left term)
+              Term.Handle a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+              Term.App a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+              Term.Ann a typ -> findSmallestEnclosingNode pos a <|> (Right <$> findSmallestEnclosingType pos typ)
+              Term.List xs -> altSum (findSmallestEnclosingNode pos <$> xs)
+              Term.If cond a b -> findSmallestEnclosingNode pos cond <|> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+              Term.And l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
+              Term.Or l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
+              Term.Lam a -> findSmallestEnclosingNode pos a
+              Term.LetRec _isTop xs y -> altSum (findSmallestEnclosingNode pos <$> xs) <|> findSmallestEnclosingNode pos y
+              Term.Let _isTop a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+              Term.Match a cases ->
+                findSmallestEnclosingNode pos a
+                  <|> altSum (cases <&> \(MatchCase _pat grd body) -> altSum (findSmallestEnclosingNode pos <$> grd) <|> findSmallestEnclosingNode pos body)
+              Term.TermLink {} -> Just (Left term)
+              Term.TypeLink {} -> Just (Left term)
+            ABT.Var _v -> Just (Left term)
+            ABT.Cycle r -> findSmallestEnclosingNode pos r
+            ABT.Abs _v r -> findSmallestEnclosingNode pos r
+      let fallback = if annIsFilePosition (ABT.annotation term) then Just (Left term) else Nothing
+      bestChild <|> fallback
 
 -- | Find the the node in a type which contains the specified position, but none of its
 -- children contain that position.
@@ -194,21 +199,21 @@ findSmallestEnclosingType :: Pos -> Type Symbol Ann -> Maybe (Type Symbol Ann)
 findSmallestEnclosingType pos typ
   | annIsFilePosition (ABT.annotation typ) && not (ABT.annotation typ `Ann.contains` pos) = Nothing
   | otherwise = do
-    let bestChild = case ABT.out typ of
-          ABT.Tm f -> case f of
-            Type.Ref {} -> Just typ
-            Type.Arrow a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
-            Type.Effect a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
-            Type.App a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
-            Type.Forall r -> findSmallestEnclosingType pos r
-            Type.Ann a _kind -> findSmallestEnclosingType pos a
-            Type.Effects es -> altSum (findSmallestEnclosingType pos <$> es)
-            Type.IntroOuter a -> findSmallestEnclosingType pos a
-          ABT.Var _v -> Just typ
-          ABT.Cycle r -> findSmallestEnclosingType pos r
-          ABT.Abs _v r -> findSmallestEnclosingType pos r
-    let fallback = if annIsFilePosition (ABT.annotation typ) then Just typ else Nothing
-    bestChild <|> fallback
+      let bestChild = case ABT.out typ of
+            ABT.Tm f -> case f of
+              Type.Ref {} -> Just typ
+              Type.Arrow a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
+              Type.Effect a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
+              Type.App a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
+              Type.Forall r -> findSmallestEnclosingType pos r
+              Type.Ann a _kind -> findSmallestEnclosingType pos a
+              Type.Effects es -> altSum (findSmallestEnclosingType pos <$> es)
+              Type.IntroOuter a -> findSmallestEnclosingType pos a
+            ABT.Var _v -> Just typ
+            ABT.Cycle r -> findSmallestEnclosingType pos r
+            ABT.Abs _v r -> findSmallestEnclosingType pos r
+      let fallback = if annIsFilePosition (ABT.annotation typ) then Just typ else Nothing
+      bestChild <|> fallback
 
 -- | Returns the type reference the given position applies to within a Decl, if any.
 --
@@ -229,9 +234,9 @@ nodeAtPosition uri (lspToUPos -> pos) = do
   (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
   let (trms, typs) = termsBySymbol & foldMap \(_ref, trm, mayTyp) -> ([trm], toList mayTyp)
   ( altMap (fmap Right . hoistMaybe . findSmallestEnclosingType pos) typs
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) trms
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) (testWatchSummary ^.. folded . _3)
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos) (exprWatchSummary ^.. folded . _3)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . wipeInferredTypeAnnotations) trms
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . wipeInferredTypeAnnotations) (testWatchSummary ^.. folded . _3)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . wipeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _3)
     )
   where
     hoistMaybe :: Maybe a -> MaybeT Lsp a
@@ -242,3 +247,21 @@ annIsFilePosition = \case
   Ann.Intrinsic -> False
   Ann.External -> False
   Ann.Ann {} -> True
+
+-- | Okay, so currently during synthesis in typechecking the typechecker adds `Ann` nodes
+-- to the term specifying types of subterms. This is a problem because we the types in these
+-- Ann nodes are just tagged with the full `Ann` from the term it was inferred for, even
+-- though none of these types exist in the file, and at a glance we can't tell whether a type
+-- is inferred or user-specified.
+--
+-- So for now we crawl the term and remove any Ann nodes from within. The downside being you
+-- can no longer hover on Type signatures within a term, but the benefit is that hover
+-- actually works.
+wipeInferredTypeAnnotations :: Ord v => Term.Term v Ann -> Term.Term v Ann
+wipeInferredTypeAnnotations =
+  Lens.transformOf (field @"out" . traversed) \case
+    ABT.Term {out = ABT.Tm (Term.Ann trm typ)}
+      -- If the type's annotation is identical to the term's annotation, then this must be an inferred type
+      | ABT.annotation typ == ABT.annotation trm ->
+          Debug.debugLog Debug.Temp "Wiped Annotation" trm
+    t -> t
