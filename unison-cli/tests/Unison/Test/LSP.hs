@@ -110,6 +110,32 @@ term = let
         True,
         Left (Term.Boolean True)
       ),
+      ( "Test annotations for types with arrows",
+        [here|
+structural type Thing = This | That
+
+term : Thing -> Thing -> Thi^ng
+term a b = This
+        |],
+        True,
+        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+      ),
+      ( "Test annotations for types with effects",
+        [here|
+unique ability Foo a where
+    foo : a
+
+unique ability Bar b where
+    bar : b
+
+structural type Thing = This | That
+
+term : (Thing -> {Foo a, Bar b} Th^ing) -> {Foo a, Bar b} Thing
+term f = f This
+        |],
+        True,
+        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+      ),
       -- ( "Test annotations for blocks with destructuring binds",
       --   [here|
       -- term = let
