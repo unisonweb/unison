@@ -555,85 +555,85 @@ builtinsSrc =
       forall1 "a" (\a -> a --> optionalt (eithert text text)),
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
-        (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b),
+        (a --> Type.effect1 e1 b) --> (a --> Type.effect1 e2 b),
     B "Scope.run" . forall2 "r" "g" $ \r g ->
-      (forall1 "s" $ \s -> unit --> Type.effect () [scopet s, g] r) --> Type.effect1 () g r,
+      (forall1 "s" $ \s -> unit --> Type.effect [scopet s, g] r) --> Type.effect1 g r,
     B "Scope.ref" . forall2 "a" "s" $ \a s ->
-      a --> Type.effect1 () (scopet s) (reft (Type.effects () [scopet s]) a),
+      a --> Type.effect1 (scopet s) (reft (Type.effects () [scopet s]) a),
     B "Ref.read" . forall2 "a" "g" $ \a g ->
-      reft g a --> Type.effect1 () g a,
+      reft g a --> Type.effect1 g a,
     B "Ref.write" . forall2 "a" "g" $ \a g ->
-      reft g a --> a --> Type.effect1 () g unit,
+      reft g a --> a --> Type.effect1 g unit,
     B "MutableArray.size" . forall2 "g" "a" $ \g a -> marrayt g a --> nat,
     B "MutableByteArray.size" . forall1 "g" $ \g -> mbytearrayt g --> nat,
     B "ImmutableArray.size" . forall1 "a" $ \a -> iarrayt a --> nat,
     B "ImmutableByteArray.size" $ ibytearrayt --> nat,
     B "MutableArray.copyTo!" . forall2 "g" "a" $ \g a ->
       marrayt g a --> nat --> marrayt g a --> nat --> nat
-        --> Type.effect () [g, DD.exceptionType ()] unit,
+        --> Type.effect [g, DD.exceptionType ()] unit,
     B "MutableByteArray.copyTo!" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> mbytearrayt g --> nat --> nat
-        --> Type.effect () [g, DD.exceptionType ()] unit,
+        --> Type.effect [g, DD.exceptionType ()] unit,
     B "MutableArray.read" . forall2 "g" "a" $ \g a ->
-      marrayt g a --> nat --> Type.effect () [g, DD.exceptionType ()] a,
+      marrayt g a --> nat --> Type.effect [g, DD.exceptionType ()] a,
     B "MutableByteArray.read8" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+      mbytearrayt g --> nat --> Type.effect [g, DD.exceptionType ()] nat,
     B "MutableByteArray.read16be" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+      mbytearrayt g --> nat --> Type.effect [g, DD.exceptionType ()] nat,
     B "MutableByteArray.read24be" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+      mbytearrayt g --> nat --> Type.effect [g, DD.exceptionType ()] nat,
     B "MutableByteArray.read32be" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+      mbytearrayt g --> nat --> Type.effect [g, DD.exceptionType ()] nat,
     B "MutableByteArray.read40be" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+      mbytearrayt g --> nat --> Type.effect [g, DD.exceptionType ()] nat,
     B "MutableByteArray.read64be" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+      mbytearrayt g --> nat --> Type.effect [g, DD.exceptionType ()] nat,
     B "MutableArray.write" . forall2 "g" "a" $ \g a ->
-      marrayt g a --> nat --> a --> Type.effect () [g, DD.exceptionType ()] unit,
+      marrayt g a --> nat --> a --> Type.effect [g, DD.exceptionType ()] unit,
     B "MutableByteArray.write8" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+      mbytearrayt g --> nat --> nat --> Type.effect [g, DD.exceptionType ()] unit,
     B "MutableByteArray.write16be" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+      mbytearrayt g --> nat --> nat --> Type.effect [g, DD.exceptionType ()] unit,
     B "MutableByteArray.write32be" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+      mbytearrayt g --> nat --> nat --> Type.effect [g, DD.exceptionType ()] unit,
     B "MutableByteArray.write64be" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+      mbytearrayt g --> nat --> nat --> Type.effect [g, DD.exceptionType ()] unit,
     B "ImmutableArray.copyTo!" . forall2 "g" "a" $ \g a ->
       marrayt g a --> nat --> iarrayt a --> nat --> nat
-        --> Type.effect () [g, DD.exceptionType ()] unit,
+        --> Type.effect [g, DD.exceptionType ()] unit,
     B "ImmutableByteArray.copyTo!" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> ibytearrayt --> nat --> nat
-        --> Type.effect () [g, DD.exceptionType ()] unit,
+        --> Type.effect [g, DD.exceptionType ()] unit,
     B "ImmutableArray.read" . forall1 "a" $ \a ->
-      iarrayt a --> nat --> Type.effect1 () (DD.exceptionType ()) a,
+      iarrayt a --> nat --> Type.effect1 (DD.exceptionType ()) a,
     B "ImmutableByteArray.read8" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> Type.effect1 (DD.exceptionType ()) nat,
     B "ImmutableByteArray.read16be" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> Type.effect1 (DD.exceptionType ()) nat,
     B "ImmutableByteArray.read24be" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> Type.effect1 (DD.exceptionType ()) nat,
     B "ImmutableByteArray.read32be" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> Type.effect1 (DD.exceptionType ()) nat,
     B "ImmutableByteArray.read40be" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> Type.effect1 (DD.exceptionType ()) nat,
     B "ImmutableByteArray.read64be" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> Type.effect1 (DD.exceptionType ()) nat,
     B "MutableArray.freeze!" . forall2 "g" "a" $ \g a ->
-      marrayt g a --> Type.effect1 () g (iarrayt a),
+      marrayt g a --> Type.effect1 g (iarrayt a),
     B "MutableByteArray.freeze!" . forall1 "g" $ \g ->
-      mbytearrayt g --> Type.effect1 () g ibytearrayt,
+      mbytearrayt g --> Type.effect1 g ibytearrayt,
     B "MutableArray.freeze" . forall2 "g" "a" $ \g a ->
-      marrayt g a --> nat --> nat --> Type.effect1 () g (iarrayt a),
+      marrayt g a --> nat --> nat --> Type.effect1 g (iarrayt a),
     B "MutableByteArray.freeze" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> nat --> Type.effect1 () g ibytearrayt,
+      mbytearrayt g --> nat --> nat --> Type.effect1 g ibytearrayt,
     B "Scope.array" . forall2 "s" "a" $ \s a ->
-      nat --> Type.effect1 () (scopet s) (marrayt (scopet s) a),
+      nat --> Type.effect1 (scopet s) (marrayt (scopet s) a),
     B "Scope.arrayOf" . forall2 "s" "a" $ \s a ->
-      a --> nat --> Type.effect1 () (scopet s) (marrayt (scopet s) a),
+      a --> nat --> Type.effect1 (scopet s) (marrayt (scopet s) a),
     B "Scope.bytearray" . forall1 "s" $ \s ->
-      nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
+      nat --> Type.effect1 (scopet s) (mbytearrayt (scopet s)),
     B "Scope.bytearrayOf" . forall1 "s" $ \s ->
-      nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s))
+      nat --> nat --> Type.effect1 (scopet s) (mbytearrayt (scopet s))
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -762,13 +762,14 @@ ioBuiltins =
       forall1 "a" $ \a ->
         a --> io (reft iot a)
     ),
-    ( "IO.process.call", text --> list text --> io nat),
+    ("IO.process.call", text --> list text --> io nat),
     ( "IO.process.start",
-      text --> list text -->
-        io (tuple [handle, handle, handle, phandle])),
-    ( "IO.process.kill", phandle --> io unit),
-    ( "IO.process.wait", phandle --> io nat),
-    ( "IO.process.exitCode", phandle --> io (optionalt nat)),
+      text --> list text
+        --> io (tuple [handle, handle, handle, phandle])
+    ),
+    ("IO.process.kill", phandle --> io unit),
+    ("IO.process.wait", phandle --> io nat),
+    ("IO.process.exitCode", phandle --> io (optionalt nat)),
     ( "validateSandboxed",
       forall1 "a" $ \a -> list termLink --> a --> boolean
     ),
@@ -812,7 +813,7 @@ ioBuiltins =
     ),
     ( "IO.tryEval",
       forall1 "a" $ \a ->
-        (unit --> io a) --> Type.effect () [Type.builtinIO (), DD.exceptionType ()] a
+        (unit --> io a) --> Type.effect [Type.builtinIO (), DD.exceptionType ()] a
     )
   ]
 
@@ -868,7 +869,7 @@ stmBuiltins =
 refPromiseBuiltins :: [(Text, Type)]
 refPromiseBuiltins =
   [ ("Ref.Ticket.read", forall1 "a" $ \a -> ticket a --> a),
-    ("Ref.readForCas", forall1 "a" $ \a ->  reft iot a --> io (ticket a)),
+    ("Ref.readForCas", forall1 "a" $ \a -> reft iot a --> io (ticket a)),
     ("Ref.cas", forall1 "a" $ \a -> reft iot a --> ticket a --> a --> io boolean),
     ("Promise.new", forall1 "a" $ \a -> unit --> io (promise a)),
     ("Promise.read", forall1 "a" $ \a -> promise a --> io a),
@@ -935,8 +936,9 @@ a --> b = Type.arrow () a b
 infixr 9 -->
 
 io, iof :: Type -> Type
-io = Type.effect1 () (Type.builtinIO ())
+io = Type.effect1 (Type.builtinIO ())
 iof = io . eithert failure
+
 iot :: Type
 iot = (Type.effects () [Type.builtinIO ()])
 
@@ -1002,7 +1004,7 @@ value = Type.value ()
 termLink = Type.termLink ()
 
 stm, tvar, pat :: Type -> Type
-stm = Type.effect1 () (Type.ref () Type.stmRef)
+stm = Type.effect1 (Type.ref () Type.stmRef)
 tvar a = Type.ref () Type.tvarRef `app` a
 pat a = Type.ref () Type.patternRef `app` a
 

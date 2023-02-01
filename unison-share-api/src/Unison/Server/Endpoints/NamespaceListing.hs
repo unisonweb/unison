@@ -134,7 +134,7 @@ instance ToJSON KindExpression where
   toEncoding = genericToEncoding defaultOptions
 
 backendListEntryToNamespaceObject ::
-  Var v =>
+  (Var v, Monoid a) =>
   PPE.PrettyPrintEnv ->
   Maybe Width ->
   Backend.ShallowListEntry v a ->
@@ -243,7 +243,8 @@ serveFromIndex codebase mayRootHash path' = do
   makeNamespaceListing shallowPPE listingFQN listingHash listingEntries
 
 makeNamespaceListing ::
-  ( PPE.PrettyPrintEnv ->
+  ( Monoid a =>
+    PPE.PrettyPrintEnv ->
     UnisonName ->
     UnisonHash ->
     [Backend.ShallowListEntry Symbol a] ->

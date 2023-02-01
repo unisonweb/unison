@@ -181,7 +181,7 @@ renderDoc pped doc = renderSpecial <$> doc
     suffixifiedPPE = PPE.suffixifiedPPE pped
     formatPretty = fmap Syntax.convertElement . P.render (P.Width 70)
 
-    formatPrettyType :: PPE.PrettyPrintEnv -> Type v a -> SyntaxText
+    formatPrettyType :: Monoid a => PPE.PrettyPrintEnv -> Type v a -> SyntaxText
     formatPrettyType ppe typ = formatPretty (TypePrinter.prettySyntax ppe typ)
 
     source :: Term v () -> SyntaxText

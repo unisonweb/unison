@@ -413,7 +413,7 @@ dependentsOfComponent h =
     <$> SqliteCodebase.Operations.dependentsOfComponentImpl h
 
 -- | Get the set of terms-or-constructors that have the given type.
-termsOfType :: Var v => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
+termsOfType :: (Var v, Monoid a) => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
 termsOfType c ty = termsOfTypeByReference c $ Hashing.typeToReference ty
 
 -- | Get all terms which match the exact type the provided reference points to.
@@ -424,7 +424,7 @@ termsOfTypeByReference c r =
     <$> termsOfTypeImpl c r
 
 -- | Get the set of terms-or-constructors mention the given type anywhere in their signature.
-termsMentioningType :: Var v => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
+termsMentioningType :: (Var v, Monoid a) => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
 termsMentioningType c ty =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByTypeMention)
     . Set.map (fmap Reference.DerivedId)

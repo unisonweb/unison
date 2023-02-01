@@ -818,7 +818,7 @@ renderPrettyBindingWithoutTypeSignature PrettyBinding {term} =
 -- (+) : t -> t -> t
 -- a + b = ...
 prettyBinding ::
-  Var v =>
+  (Var v, Monoid at) =>
   PrettyPrintEnv ->
   HQ.HashQualified Name ->
   Term2 v at ap v a ->
@@ -828,7 +828,7 @@ prettyBinding =
 
 -- | Like 'prettyBinding', but elides the type signature (if any).
 prettyBindingWithoutTypeSignature ::
-  Var v =>
+  (Var v, Monoid at) =>
   PrettyPrintEnv ->
   HQ.HashQualified Name ->
   Term2 v at ap v a ->
@@ -837,7 +837,7 @@ prettyBindingWithoutTypeSignature =
   prettyBinding_ renderPrettyBindingWithoutTypeSignature
 
 prettyBinding_ ::
-  Var v =>
+  (Var v, Monoid at) =>
   (PrettyBinding -> Pretty SyntaxText) ->
   PrettyPrintEnv ->
   HQ.HashQualified Name ->
@@ -846,7 +846,7 @@ prettyBinding_ ::
 prettyBinding_ go ppe n = runPretty ppe . fmap go . prettyBinding0 (ac (-1) Block Map.empty MaybeDoc) n
 
 prettyBinding' ::
-  Var v =>
+  (Var v, Monoid a) =>
   PrettyPrintEnv ->
   Width ->
   HQ.HashQualified Name ->
@@ -856,7 +856,7 @@ prettyBinding' ppe width v t =
   PP.render width . PP.syntaxToColor $ prettyBinding ppe v t
 
 prettyBinding0 ::
-  MonadPretty v m =>
+  (MonadPretty v m, Monoid at) =>
   AmbientContext ->
   HQ.HashQualified Name ->
   Term2 v at ap v a ->

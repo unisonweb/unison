@@ -279,7 +279,7 @@ mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
 
 ticketRef :: Reference
-ticketRef  = Reference.Builtin "Ref.Ticket"
+ticketRef = Reference.Builtin "Ref.Ticket"
 
 promiseRef :: Reference
 promiseRef = Reference.Builtin "Promise"
@@ -472,21 +472,43 @@ arrows ts result = foldr go result ts
   where
     go = uncurry arrow
 
--- The types of effectful computations
-effect :: Ord v => a -> [Type v a] -> Type v a -> Type v a
-effect a es (Effect1' fs t) =
+-- | The types of effectful computations
+effect ::
+  (Ord v, Monoid a) =>
+  -- | The list of effects
+  [Type v a] ->
+  -- | The RHS of the effects
+  Type v a ->
+  Type v a
+effect es (Effect1' fs t) =
   let es' = (es >>= flattenEffects) ++ flattenEffects fs
-   in ABT.tm' a (Effect (ABT.tm' a (Effects es')) t)
-effect a es t = ABT.tm' a (Effect (ABT.tm' a (Effects es)) t)
+      effectsAnn = foldMap ABT.annotation es'
+      fullAnn = effectsAnn <> ABT.annotation t
+   in ABT.tm' fullAnn (Effect (ABT.tm' effectsAnn (Effects es')) t)
+effect es t =
+  let effectsAnn = foldMap ABT.annotation es
+      fullAnn = effectsAnn <> ABT.annotation t
+   in ABT.tm' fullAnn (Effect (ABT.tm' effectsAnn (Effects es)) t)
 
-effects :: Ord v => a -> [Type v a] -> Type v a
+-- | Create an 'Effects' node from the provided effect types,
+-- flattening out any nested 'Effects' nodes.
+effects ::
+  (Ord v) =>
+  a ->
+  -- | The effects
+  [Type v a] ->
+  Type v a
 effects a es = ABT.tm' a (Effects $ es >>= flattenEffects)
 
-effect1 :: Ord v => a -> Type v a -> Type v a -> Type v a
-effect1 a es (Effect1' fs t) =
+-- | Create an 'Effect' node from an 'Effects' node and a result type.
+-- Also flattens any effects on the result type in with the provided effects.
+effect1 :: (Ord v, Monoid a) => Type v a -> Type v a -> Type v a
+effect1 es (Effect1' fs t) =
   let es' = flattenEffects es ++ flattenEffects fs
-   in ABT.tm' a (Effect (ABT.tm' a (Effects es')) t)
-effect1 a es t = ABT.tm' a (Effect es t)
+      effectsAnn = foldMap ABT.annotation es'
+      fullAnn = effectsAnn <> ABT.annotation t
+   in ABT.tm' fullAnn (Effect (ABT.tm' effectsAnn (Effects es')) t)
+effect1 es t = ABT.tm' (ABT.annotation es <> ABT.annotation t) (Effect es t)
 
 flattenEffects :: Type v a -> [Type v a]
 flattenEffects (Effects' es) = es >>= flattenEffects
@@ -577,7 +599,7 @@ freeEffectVars t =
 -- Becomes
 --
 --   (a ->{e1} b) ->{e2} [a] ->{e3} [b]
-existentializeArrows :: (Ord v, Monad m) => m v -> Type v a -> m (Type v a)
+existentializeArrows :: (Ord v, Monad m, Monoid a) => m v -> Type v a -> m (Type v a)
 existentializeArrows newVar t = ABT.visit go t
   where
     go t@(Arrow' a b) = case b of
@@ -595,32 +617,32 @@ existentializeArrows newVar t = ABT.visit go t
         a <- existentializeArrows newVar a
         b <- existentializeArrows newVar b
         let ann = ABT.annotation t
-        pure $ arrow ann a (effect ann [var ann e] b)
+        pure $ arrow ann a (effect [var ann e] b)
     go _ = Nothing
 
-purifyArrows :: (Ord v) => Type v a -> Type v a
+purifyArrows :: (Ord v, Monoid a) => Type v a -> Type v a
 purifyArrows = ABT.visitPure go
   where
     go t@(Arrow' a b) = case b of
       Effect1' _ _ -> Nothing
-      _ -> Just $ arrow ann a (effect ann [] b)
+      _ -> Just $ arrow ann a (effect [] b)
       where
         ann = ABT.annotation t
     go _ = Nothing
 
 -- Remove free effect variables from the type that are in the set
-removeEffectVars :: ABT.Var v => Set v -> Type v a -> Type v a
+removeEffectVars :: (ABT.Var v, Monoid a) => Set v -> Type v a -> Type v a
 removeEffectVars removals t =
   let z = effects () []
       t' = ABT.substsInheritAnnotation ((,z) <$> Set.toList removals) t
       -- leave explicitly empty `{}` alone
       removeEmpty (Effect1' (Effects' []) v) = Just (ABT.visitPure removeEmpty v)
-      removeEmpty t@(Effect1' e v) =
+      removeEmpty (Effect1' e v) =
         case flattenEffects e of
           [] -> Just (ABT.visitPure removeEmpty v)
-          es -> Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
-      removeEmpty t@(Effects' es) =
-        Just $ effects (ABT.annotation t) (es >>= flattenEffects)
+          es -> Just (effect es $ ABT.visitPure removeEmpty v)
+      removeEmpty et@(Effects' es) =
+        Just $ effects (ABT.annotation et) (es >>= flattenEffects)
       removeEmpty _ = Nothing
    in ABT.visitPure removeEmpty t'
 
@@ -628,7 +650,7 @@ removeEffectVars removals t =
 -- Used for type-based search, we apply this transformation to both the
 -- indexed type and the query type, so the user can supply `a -> b` that will
 -- match `a ->{e} b` (but not `a ->{IO} b`).
-removeAllEffectVars :: ABT.Var v => Type v a -> Type v a
+removeAllEffectVars :: (ABT.Var v, Monoid a) => Type v a -> Type v a
 removeAllEffectVars t =
   let allEffectVars = foldMap go (ABT.subterms t)
       go (Effects' vs) = Set.fromList [v | Var' v <- vs]
@@ -637,7 +659,7 @@ removeAllEffectVars t =
       (vs, tu) = unforall' t
    in generalize vs (removeEffectVars allEffectVars tu)
 
-removePureEffects :: ABT.Var v => Type v a -> Type v a
+removePureEffects :: (ABT.Var v, Monoid a) => Type v a -> Type v a
 removePureEffects t
   | not Settings.removePureEffects = t
   | otherwise =
@@ -745,22 +767,22 @@ cleanupVars1 t =
     _ -> error "cleanupVars1: expected exactly one result"
 
 -- This removes duplicates and normalizes the order of ability lists
-cleanupAbilityLists :: Var v => Type v a -> Type v a
+cleanupAbilityLists :: (Var v, Monoid a) => Type v a -> Type v a
 cleanupAbilityLists = ABT.visitPure go
   where
     -- leave explicitly empty `{}` alone
     go (Effect1' (Effects' []) _v) = Nothing
-    go t@(Effect1' e v) =
+    go (Effect1' e v) =
       let es = Set.toList . Set.fromList $ flattenEffects e
        in case es of
             [] -> Just (ABT.visitPure go v)
-            _ -> Just (effect (ABT.annotation t) es $ ABT.visitPure go v)
+            _ -> Just (effect es $ ABT.visitPure go v)
     go _ = Nothing
 
-cleanups :: Var v => [Type v a] -> [Type v a]
+cleanups :: (Var v, Monoid a) => [Type v a] -> [Type v a]
 cleanups ts = cleanupVars $ map cleanupAbilityLists ts
 
-cleanup :: Var v => Type v a -> Type v a
+cleanup :: (Var v, Monoid a) => Type v a -> Type v a
 cleanup t | not Settings.cleanupTypes = t
 cleanup t = cleanupVars1 . cleanupAbilityLists $ t
 

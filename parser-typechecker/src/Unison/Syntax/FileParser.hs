@@ -422,4 +422,4 @@ effectDeclaration mod = do
                 if any (`headIs` L.payload name) es
                   then es
                   else Type.apps' (toTypeVar name) (toTypeVar <$> typeArgs) : es
-           in Type.cleanupAbilityLists $ Type.effect (ABT.annotation t) es' t
+           in Type.cleanupAbilityLists $ Type.effect es' t

@@ -54,10 +54,10 @@ import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Star3 as Memory.Star3
 import Unison.Var (Var)
 
-typeToReference :: Var v => Memory.Type.Type v a -> Memory.Reference.Reference
+typeToReference :: (Var v, Monoid a) => Memory.Type.Type v a -> Memory.Reference.Reference
 typeToReference = h2mReference . Hashing.typeToReference . m2hType . Memory.Type.removeAllEffectVars
 
-typeToReferenceMentions :: Var v => Memory.Type.Type v a -> Set Memory.Reference.Reference
+typeToReferenceMentions :: (Var v, Monoid a) => Memory.Type.Type v a -> Set Memory.Reference.Reference
 typeToReferenceMentions =
   Set.map h2mReference . Hashing.typeToReferenceMentions . m2hType . Memory.Type.removeAllEffectVars
 

@@ -531,7 +531,7 @@ formatTypeName' ppe r =
     $ PPE.typeName ppe r
 
 termEntryToNamedTerm ::
-  Var v => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
+  (Var v, Monoid a) => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
 termEntryToNamedTerm ppe typeWidth te@TermEntry {termEntryType = mayType, termEntryTag = tag, termEntryHash} =
   NamedTerm
     { termName = termEntryHQName te,
@@ -805,11 +805,11 @@ getShallowCausalAtPathFromRootHash mayRootHash path = do
     Just h -> Codebase.expectCausalBranchByCausalHash h
   Codebase.getShallowCausalAtPath path (Just shallowRoot)
 
-formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
+formatType' :: (Var v, Monoid a) => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
 formatType' ppe w =
   Pretty.render w . TypePrinter.prettySyntax ppe
 
-formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> Syntax.SyntaxText
+formatType :: (Var v, Monoid a) => PPE.PrettyPrintEnv -> Width -> Type v a -> Syntax.SyntaxText
 formatType ppe w = mungeSyntaxText . formatType' ppe w
 
 formatSuffixedType ::
@@ -1257,7 +1257,7 @@ displayType codebase = \case
     pure (UserObject decl)
 
 termsToSyntax ::
-  Var v =>
+  (Var v, Monoid a) =>
   Ord a =>
   Suffixify ->
   Width ->
@@ -1287,7 +1287,7 @@ termsToSyntax suff width ppe0 terms =
           $ TermPrinter.prettyBinding (ppeBody r) n tm
 
 typesToSyntax ::
-  Var v =>
+  (Var v, Monoid a) =>
   Ord a =>
   Suffixify ->
   Width ->

@@ -38,7 +38,7 @@ import qualified Unison.Var as Var
 type SyntaxText = S.SyntaxText' Reference
 
 prettyDecl ::
-  Var v =>
+  (Var v, Monoid a) =>
   PrettyPrintEnvDecl ->
   Reference ->
   HQ.HashQualified Name ->
@@ -49,7 +49,7 @@ prettyDecl ppe r hq d = case d of
   Right dd -> prettyDataDecl ppe r hq dd
 
 prettyEffectDecl ::
-  Var v =>
+  (Var v, Monoid a) =>
   PrettyPrintEnv ->
   Reference ->
   HQ.HashQualified Name ->
@@ -58,7 +58,7 @@ prettyEffectDecl ::
 prettyEffectDecl ppe r name = prettyGADT ppe CT.Effect r name . toDataDecl
 
 prettyGADT ::
-  Var v =>
+  (Var v, Monoid a) =>
   PrettyPrintEnv ->
   CT.ConstructorType ->
   Reference ->

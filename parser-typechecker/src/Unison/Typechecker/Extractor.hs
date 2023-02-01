@@ -260,7 +260,7 @@ unknownSymbol =
     C.UnknownSymbol loc v -> pure (loc, v)
     _ -> mzero
 
-unknownTerm :: Var v => ErrorExtractor v loc (loc, v, [C.Suggestion v loc], C.Type v loc)
+unknownTerm :: (Var v, Monoid loc) => ErrorExtractor v loc (loc, v, [C.Suggestion v loc], C.Type v loc)
 unknownTerm =
   cause >>= \case
     C.UnknownTerm loc v suggestions expectedType -> do

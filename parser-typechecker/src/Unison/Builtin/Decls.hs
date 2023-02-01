@@ -431,7 +431,7 @@ builtinEffectDecls =
     v = Var.named
     var name = Type.var () (v name)
     arr = Type.arrow'
-    self t = Type.cleanupAbilityLists $ Type.effect () [var "Exception"] t
+    self t = Type.cleanupAbilityLists $ Type.effect [var "Exception"] t
     exception =
       DataDeclaration
         Structural

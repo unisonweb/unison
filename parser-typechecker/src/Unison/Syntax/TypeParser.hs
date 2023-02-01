@@ -6,10 +6,10 @@ import qualified Text.Megaparsec as P
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.NamesWithHistory as Names
-import qualified Unison.Syntax.Name as Name (toVar)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name (toVar)
 import Unison.Syntax.Parser
 import Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -73,7 +73,7 @@ effect :: Var v => TypeP v
 effect = do
   es <- effectList
   t <- type2
-  pure (Type.effect1 (ann es <> ann t) es t)
+  pure (Type.effect1 es t)
 
 effectList :: Var v => TypeP v
 effectList = do
@@ -102,7 +102,7 @@ arrow :: Var v => TypeP v -> TypeP v
 arrow rec =
   let eff = mkArr <$> optional effectList
       mkArr Nothing a b = Type.arrow (ann a <> ann b) a b
-      mkArr (Just es) a b = Type.arrow (ann a <> ann b) a (Type.effect1 (ann es <> ann b) es b)
+      mkArr (Just es) a b = Type.arrow (ann a <> ann b) a (Type.effect1 es b)
    in chainr1 (effect <|> rec) (reserved "->" *> eff)
 
 -- "forall a b . List a -> List b -> Maybe Text"

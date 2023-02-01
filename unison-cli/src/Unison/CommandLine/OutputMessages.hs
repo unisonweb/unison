@@ -669,8 +669,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
+        pure $
+          P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -968,12 +968,12 @@ notifyUser dir o = case o of
         then P.lit "nothing to show"
         else numberedEntries ppe entries
     where
-      numberedEntries :: Var v => PPE.PrettyPrintEnv -> [ShallowListEntry v a] -> Pretty
+      numberedEntries :: (Var v, Monoid a) => PPE.PrettyPrintEnv -> [ShallowListEntry v a] -> Pretty
       numberedEntries ppe entries =
         (P.column3 . fmap f) ([(1 :: Integer) ..] `zip` fmap (formatEntry ppe) entries)
         where
           f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
-      formatEntry :: Var v => PPE.PrettyPrintEnv -> ShallowListEntry v a -> (Pretty, Pretty)
+      formatEntry :: (Var v, Monoid a) => PPE.PrettyPrintEnv -> ShallowListEntry v a -> (Pretty, Pretty)
       formatEntry ppe = \case
         ShallowTermEntry termEntry ->
           ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment . Backend.termEntryHQName $ termEntry,
@@ -1979,6 +1979,7 @@ formatMissingStuff terms types =
 displayDefinitions' ::
   Var v =>
   Ord a1 =>
+  Monoid a1 =>
   PPED.PrettyPrintEnvDecl ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
@@ -2184,7 +2185,7 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted =
             ]
 
 unsafePrettyTermResultSig' ::
-  Var v =>
+  (Var v, Monoid a) =>
   PPE.PrettyPrintEnv ->
   SR'.TermResult' v a ->
   Pretty
@@ -2197,7 +2198,7 @@ unsafePrettyTermResultSig' ppe = \case
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms#0
 -- Optional.None, Maybe.Nothing : Maybe a
 unsafePrettyTermResultSigFull' ::
-  Var v =>
+  (Var v, Monoid a) =>
   PPE.PrettyPrintEnv ->
   SR'.TermResult' v a ->
   Pretty
@@ -2374,7 +2375,7 @@ runNumbered m =
   let (a, (_, args)) = State.runState m (0, mempty)
    in (a, Foldable.toList args)
 
-todoOutput :: Var v => PPED.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
+todoOutput :: (Var v, Monoid a) => PPED.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
 todoOutput ppe todo = runNumbered do
   conflicts <- todoConflicts
   edits <- todoEdits
@@ -2459,12 +2460,12 @@ todoOutput ppe todo = runNumbered do
     unscore (_score, b, c) = (b, c)
 
 listOfDefinitions ::
-  Var v => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
+  (Var v, Monoid a) => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
 listOfDefinitions fscope ppe detailed results =
   pure $ listOfDefinitions' fscope ppe detailed results
 
 listOfLinks ::
-  Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
+  (Var v, Monoid a) => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
 listOfLinks _ [] =
   pure . P.callout "😶" . P.wrap $
     "No results. Try using the "
@@ -2496,7 +2497,7 @@ data ShowNumbers = ShowNumbers | HideNumbers
 --                                       numbered args
 showDiffNamespace ::
   forall v.
-  Var v =>
+  (Var v) =>
   ShowNumbers ->
   PPE.PrettyPrintEnv ->
   Input.AbsBranchId ->
@@ -2505,7 +2506,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-      ("The namespaces are identical.", mempty)
+    ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
@@ -2674,7 +2675,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
                  in P.column2UnzippedM @Numbered mempty hlefts hrights
            in buildTable olds' news'
 
-    prettyUpdateType :: OBD.UpdateTypeDisplay v a -> Numbered Pretty
+    prettyUpdateType :: Monoid a => OBD.UpdateTypeDisplay v a -> Numbered Pretty
     {-
        1. ability Foo#pqr x y
           2. - AllRightsReserved : License
@@ -2734,7 +2735,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
               0 -> mempty
               c -> " (+" <> P.shown c <> " metadata)"
 
-    prettyAddTerms :: forall a. [OBD.AddedTermDisplay v a] -> Numbered Pretty
+    prettyAddTerms :: forall a. Monoid a => [OBD.AddedTermDisplay v a] -> Numbered Pretty
     prettyAddTerms = fmap (P.column3 . mconcat) . traverse prettyGroup . reorderTerms
       where
         reorderTerms = sortOn (not . Referent.isConstructor . view _2)
@@ -2745,6 +2746,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
               boxLeft = case hqmds of _ : _ : _ -> P.boxLeft; _ -> id
           pure $ zip3 nums (boxLeft names) decls
         prettyLine ::
+          Monoid a =>
           Referent ->
           Maybe (Type v a) ->
           (HQ'.HashQualified Name, [OBD.MetadataDisplay v a]) ->
@@ -2800,7 +2802,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           n <- numHQ' newPath hq (Referent.Ref r)
           pure (n, prettyDecl hq odecl)
 
-    prettyRemoveTerms :: forall a. [OBD.RemovedTermDisplay v a] -> Numbered Pretty
+    prettyRemoveTerms :: forall a. Monoid a => [OBD.RemovedTermDisplay v a] -> Numbered Pretty
     prettyRemoveTerms = fmap (P.column3 . mconcat) . traverse prettyGroup . reorderTerms
       where
         reorderTerms = sortOn (not . Referent.isConstructor . view _2)
@@ -2821,7 +2823,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           pure (n, phq' hq, mempty)
 
     downArrow = P.bold "↓"
-    mdTypeLine :: Input.AbsBranchId -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
+    mdTypeLine :: Monoid a => Input.AbsBranchId -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
     mdTypeLine p (OBD.TypeDisplay hq r odecl mddiff) = do
       n <- numHQ' p hq (Referent.Ref r)
       fmap ((n,) . P.linesNonEmpty) . sequence $
@@ -2832,6 +2834,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -- + 2. MIT               : License
     -- - 3. AllRightsReserved : License
     mdTermLine ::
+      Monoid a =>
       Input.AbsBranchId ->
       P.Width ->
       OBD.TermDisplay v a ->
@@ -2844,7 +2847,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
             prettyMetadataDiff mddiff
           ]
 
-    prettyUpdateTerm :: OBD.UpdateTermDisplay v a -> Numbered Pretty
+    prettyUpdateTerm :: Monoid a => OBD.UpdateTermDisplay v a -> Numbered Pretty
     prettyUpdateTerm (OBD.UpdateTermDisplay Nothing newTerms) =
       if null newTerms
         then error "Super invalid UpdateTermDisplay"
@@ -2869,7 +2872,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
             fmap (P.Width . HQ'.nameLength Name.toText . view #name) news
               <> fmap (P.Width . HQ'.nameLength Name.toText . view _1) olds
 
-    prettyMetadataDiff :: OBD.MetadataDiff (OBD.MetadataDisplay v a) -> Numbered Pretty
+    prettyMetadataDiff :: Monoid a => OBD.MetadataDiff (OBD.MetadataDisplay v a) -> Numbered Pretty
     prettyMetadataDiff OBD.MetadataDiff {..} =
       P.column2M $
         map (elem oldPath "- ") removedMetadata
@@ -2879,7 +2882,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           num <- numHQ p hq r
           pure (x <> num <> " " <> phq hq, ": " <> prettyType otype)
 
-    prettyType :: Maybe (Type v a) -> Pretty
+    prettyType :: Monoid a => Maybe (Type v a) -> Pretty
     prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe)
     prettyDecl hq =
       maybe
@@ -2940,7 +2943,7 @@ noResults fscope =
           <> "can be used to search outside the current namespace."
 
 listOfDefinitions' ::
-  Var v =>
+  (Var v, Monoid a) =>
   Input.FindScope ->
   PPE.PrettyPrintEnv -> -- for printing types of terms :-\
   E.ListDetailed ->

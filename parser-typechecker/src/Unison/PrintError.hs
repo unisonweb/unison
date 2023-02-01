@@ -111,7 +111,7 @@ fromOverHere src spots0 removing =
         _ -> "\n  from these spots, respectively:\n\n" <> showSource src spots
 
 showTypeWithProvenance ::
-  (Var v, Annotated a, Ord style) =>
+  (Var v, Annotated a, Ord style, Monoid a) =>
   Env ->
   String ->
   style ->
@@ -140,7 +140,7 @@ describeStyle _ = ""
 -- Render an informational typechecking note
 renderTypeInfo ::
   forall v loc sty.
-  (Var v, Annotated loc, Ord loc, Show loc) =>
+  (Var v, Annotated loc, Ord loc, Show loc, Monoid loc) =>
   TypeInfo v loc ->
   Env ->
   Pretty (AnnotatedText sty)
@@ -163,7 +163,7 @@ renderTypeInfo i env = case i of
 -- Render a type error
 renderTypeError ::
   forall v loc.
-  (Var v, Annotated loc, Ord loc, Show loc) =>
+  (Var v, Annotated loc, Ord loc, Show loc, Monoid loc) =>
   TypeError v loc ->
   Env ->
   String ->
@@ -918,7 +918,7 @@ renderTypeError e env src curPath = case e of
           ]
 
 renderCompilerBug ::
-  (Var v, Annotated loc, Ord loc, Show loc) =>
+  (Var v, Annotated loc, Ord loc, Show loc, Monoid loc) =>
   Env ->
   String ->
   C.CompilerBug v loc ->
@@ -993,7 +993,10 @@ renderCompilerBug env _src bug = mconcat $ case bug of
   C.OtherBug str -> ["OtherBug:\n", fromString str]
 
 renderContext ::
-  (Var v, Ord loc) => Env -> C.Context v loc -> Pretty (AnnotatedText a)
+  (Var v, Ord loc, Monoid loc) =>
+  Env ->
+  C.Context v loc ->
+  Pretty (AnnotatedText a)
 renderContext env ctx@(C.Context es) =
   "  Γ\n    "
     <> intercalateMap "\n    " (showElem ctx . fst) (reverse es)
@@ -1001,7 +1004,8 @@ renderContext env ctx@(C.Context es) =
     shortName :: (Var v, IsString loc) => v -> loc
     shortName = fromString . Text.unpack . Var.name
     showElem ::
-      (Var v, Ord loc) =>
+      forall v loc a.
+      (Var v, Monoid loc, Ord loc) =>
       C.Context v loc ->
       C.Element v loc ->
       Pretty (AnnotatedText a)
@@ -1009,7 +1013,7 @@ renderContext env ctx@(C.Context es) =
       TypeVar.Universal x -> "@" <> renderVar x
       e -> Pr.shown e
     showElem ctx (C.Solved _ v (Type.Monotype t)) =
-      "'" <> shortName v <> " = " <> renderType' env (C.apply ctx t)
+      "'" <> shortName v <> " = " <> renderType' env (C.apply @v @loc ctx t)
     showElem ctx (C.Ann v t) =
       shortName v <> " : " <> renderType' env (C.apply ctx t)
     showElem _ (C.Marker v) = "|" <> shortName v <> "|"
@@ -1022,14 +1026,14 @@ renderTerm env e =
         else fromString s
 
 -- | renders a type with no special styling
-renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
+renderType' :: (IsString s, Var v, Monoid loc) => Env -> Type v loc -> s
 renderType' env typ =
   fromString . Pr.toPlain defaultWidth $ renderType env (const id) typ
 
 -- | `f` may do some styling based on `loc`.
 -- | You can pass `(const id)` if no styling is needed, or call `renderType'`.
 renderType ::
-  Var v =>
+  (Var v, Monoid loc) =>
   Env ->
   (loc -> Pretty (AnnotatedText a) -> Pretty (AnnotatedText a)) ->
   Type v loc ->
@@ -1066,7 +1070,7 @@ renderType env f t = renderType0 env f (0 :: Int) (Type.removePureEffects t)
         go = renderType0 env f
 
 renderSuggestion ::
-  (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
+  (IsString s, Semigroup s, Var v, Monoid loc) => Env -> C.Suggestion v loc -> s
 renderSuggestion env sug =
   fromString (Text.unpack $ C.suggestionName sug) <> " : "
     <> renderType'
@@ -1085,7 +1089,7 @@ commas = intercalateMap ", "
 renderVar :: (IsString a, Var v) => v -> a
 renderVar = fromString . Text.unpack . Var.name
 
-renderVar' :: (Var v, Annotated a) => Env -> C.Context v a -> v -> String
+renderVar' :: (Var v, Annotated a, Monoid a) => Env -> C.Context v a -> v -> String
 renderVar' env ctx v = case C.lookupSolved ctx v of
   Nothing -> "unsolved"
   Just t -> renderType' env $ Type.getPolytype t
@@ -1110,7 +1114,7 @@ showConstructor env r =
     PPE.patternName env r
 
 styleInOverallType ::
-  (Var v, Annotated a, Eq a) =>
+  (Var v, Annotated a, Eq a, Monoid a) =>
   Env ->
   C.Type v a ->
   C.Type v a ->
@@ -1169,7 +1173,7 @@ showLexerOutput :: Bool
 showLexerOutput = False
 
 renderNoteAsANSI ::
-  (Var v, Annotated a, Show a, Ord a) =>
+  (Var v, Annotated a, Show a, Ord a, Monoid a) =>
   Pr.Width ->
   Env ->
   String ->
@@ -1182,7 +1186,7 @@ renderParseErrorAsANSI :: Var v => Pr.Width -> String -> Parser.Err v -> String
 renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
 
 printNoteWithSource ::
-  (Var v, Annotated a, Show a, Ord a) =>
+  (Var v, Annotated a, Show a, Ord a, Monoid a) =>
   Env ->
   String ->
   Path.Absolute ->
@@ -1795,7 +1799,7 @@ findTerm = go
     go Empty = Nothing
 
 prettyTypecheckError ::
-  (Var v, Ord loc, Show loc, Parser.Annotated loc) =>
+  (Var v, Ord loc, Show loc, Parser.Annotated loc, Monoid loc) =>
   C.ErrorNote v loc ->
   Env ->
   String ->
@@ -1805,7 +1809,7 @@ prettyTypecheckError note env src curPath =
   renderTypeError (typeErrorFromNote note) env src curPath
 
 prettyTypeInfo ::
-  (Var v, Ord loc, Show loc, Parser.Annotated loc) =>
+  (Var v, Ord loc, Show loc, Parser.Annotated loc, Monoid loc) =>
   C.InfoNote v loc ->
   Env ->
   Pretty ColorText

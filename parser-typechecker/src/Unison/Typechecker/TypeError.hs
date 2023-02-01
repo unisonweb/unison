@@ -115,7 +115,7 @@ data TypeInfo v loc = TopLevelComponent
 type TypeNote v loc = Either (TypeError v loc) (TypeInfo v loc)
 
 typeErrorFromNote ::
-  (Ord loc, Show loc, Var v) => C.ErrorNote v loc -> TypeError v loc
+  (Ord loc, Show loc, Var v, Monoid loc) => C.ErrorNote v loc -> TypeError v loc
 typeErrorFromNote n = case Ex.extract allErrors n of
   Just msg -> msg
   Nothing -> Other n
@@ -127,7 +127,7 @@ typeInfoFromNote n = case n of
   _ -> Nothing
 
 allErrors ::
-  (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
+  (Var v, Ord loc, Monoid loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 allErrors =
   asum
     [ and,
@@ -189,13 +189,13 @@ unknownType = do
   n <- Ex.errorNote
   pure $ UnknownType v loc n
 
-unknownTerm :: Var v => Ex.ErrorExtractor v loc (TypeError v loc)
+unknownTerm :: (Var v, Monoid loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 unknownTerm = do
   (loc, v, suggs, typ) <- Ex.unknownTerm
   n <- Ex.errorNote
   pure $ UnknownTerm v loc suggs (Type.cleanup typ) n
 
-generalMismatch :: (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
+generalMismatch :: (Var v, Ord loc, Monoid loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 generalMismatch = do
   ctx <- Ex.typeMismatch
   let sub t = C.apply ctx t
@@ -227,7 +227,7 @@ and,
   or,
   cond,
   matchGuard ::
-    (Var v, Ord loc) =>
+    (Var v, Ord loc, Monoid loc) =>
     Ex.ErrorExtractor v loc (TypeError v loc)
 and = booleanMismatch0 AndMismatch (Ex.inSynthesizeApp >> Ex.inAndApp)
 or = booleanMismatch0 OrMismatch (Ex.inSynthesizeApp >> Ex.inOrApp)
@@ -243,7 +243,7 @@ unguardedCycle = do
 
 -- | helper function to support `and` / `or` / `cond`
 booleanMismatch0 ::
-  (Var v, Ord loc) =>
+  (Var v, Ord loc, Monoid loc) =>
   BooleanMismatch ->
   Ex.SubseqExtractor v loc () ->
   Ex.ErrorExtractor v loc (TypeError v loc)
@@ -261,7 +261,7 @@ booleanMismatch0 b ex = do
   pure (BooleanMismatch b mismatchSite (sub foundType) n)
 
 existentialMismatch0 ::
-  (Var v, Ord loc) =>
+  (Var v, Ord loc, Monoid loc) =>
   ExistentialMismatch ->
   Ex.SubseqExtractor v loc loc ->
   Ex.ErrorExtractor v loc (TypeError v loc)
@@ -290,12 +290,12 @@ existentialMismatch0 em getExpectedLoc = do
 ifBody,
   listBody,
   matchBody ::
-    (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
+    (Var v, Ord loc, Monoid loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 ifBody = existentialMismatch0 IfBody (Ex.inSynthesizeApp >> Ex.inIfBody)
 listBody = existentialMismatch0 ListBody (Ex.inSynthesizeApp >> Ex.inVector)
 matchBody = existentialMismatch0 CaseBody (Ex.inMatchBody >> Ex.inMatch)
 
-applyingNonFunction :: Var v => Ex.ErrorExtractor v loc (TypeError v loc)
+applyingNonFunction :: (Var v, Monoid loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 applyingNonFunction = do
   _ <- Ex.typeMismatch
   n <- Ex.errorNote
@@ -320,7 +320,7 @@ applyingNonFunction = do
 --    `b` was chosen as `B`
 --    `c` was chosen as `C`
 -- (many colors / groups)
-applyingFunction :: forall v loc. (Var v) => Ex.ErrorExtractor v loc (TypeError v loc)
+applyingFunction :: forall v loc. (Var v, Monoid loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 applyingFunction = do
   n <- Ex.errorNote
   ctx <- Ex.typeMismatch

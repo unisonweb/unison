@@ -89,7 +89,7 @@ makeLenses ''Env
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
 synthesize ::
-  (Monad f, Var v, Ord loc) =>
+  (Monad f, Var v, Ord loc, Monoid loc) =>
   Env v loc ->
   Term v loc ->
   ResultT (Notes v loc) f (Type v loc)
@@ -298,7 +298,7 @@ typeDirectedNameResolution oldNotes oldType env = do
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
 check ::
-  (Monad f, Var v, Ord loc) =>
+  (Monad f, Var v, Ord loc, Monoid loc) =>
   Env v loc ->
   Term v loc ->
   Type v loc ->
@@ -315,7 +315,7 @@ check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
 --     tweak (Type.ForallNamed' v body) = Type.forall() v (tweak body)
 --     tweak t = Type.arrow() t t
 -- | Returns `True` if the expression is well-typed, `False` otherwise
-wellTyped :: (Monad f, Var v, Ord loc) => Env v loc -> Term v loc -> f Bool
+wellTyped :: (Monad f, Var v, Ord loc, Monoid loc) => Env v loc -> Term v loc -> f Bool
 wellTyped env term = go <$> runResultT (synthesize env term)
   where
     go (may, _) = isJust may
