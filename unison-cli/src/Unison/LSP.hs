@@ -58,11 +58,14 @@ spawnLsp codebase runtime latestBranch latestPath =
     UnliftIO.handleIO (handleFailure lspPort) $ do
       TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
         Ki.scoped \scope -> do
-          let clientInput = do
+          -- If the socket is closed, reading/writing will throw an exception,
+          -- but since the socket is closed, this connection will be shutting down
+          -- immediately anyways, so we just ignore it.
+          let clientInput = handleAny (\_ -> pure "") do
                 -- The server will be in the process of shutting down if the socket is closed,
                 -- so just return empty input in the meantime.
                 fromMaybe "" <$> TCP.recv sock defaultChunkSize
-          let clientOutput output = do
+          let clientOutput output = handleAny (\_ -> pure ()) do
                 TCP.sendLazy sock output
 
           -- currently we have an independent VFS for each LSP client since each client might have
