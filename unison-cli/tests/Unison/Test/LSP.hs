@@ -136,6 +136,19 @@ term f = f This
         True,
         Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
       ),
+      ( "Test annotations for effects themselves",
+        [here|
+structural ability Foo a where
+    foo : a
+
+structural type Thing = This | That
+
+term : () -> {F^oo a} Thing
+term _ = This
+        |],
+        True,
+        Right (Type.Ref (Reference.unsafeFromText "#h4uhcub76va4tckj1iccnsb07rh0fhgpigqapb4jh5n07s0tugec4nm2vikuv973mab7oh4ne07o6armcnnl7mbfjtb4imphgrjgimg"))
+      ),
       -- ( "Test annotations for blocks with destructuring binds",
       --   [here|
       -- term = let
