@@ -1218,7 +1218,7 @@ tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm
         (ann t1 <> ann t2)
         ( Term.app
             (ann t1)
-            (Term.constructor (ann t1) (ConstructorReference DD.pairRef 0))
+            (Term.constructor (ann t1 <> ann t2) (ConstructorReference DD.pairRef 0))
             t1
         )
         t2
