@@ -222,9 +222,13 @@ analyseNotes fileUri ppe src notes = do
               (_v, locs) <- toList defns
               (r, rs) <- withNeighbours (locs >>= aToR)
               pure (r, ("duplicate definition",) <$> rs)
-            TypeError.Other e -> do
-              Debug.debugM Debug.LSP "No Diagnostic configured for type error: " e
-              empty
+            -- These type errors don't have custom type error conversions, but some
+            -- still have valid diagnostics.
+            TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
+              Context.PatternArityMismatch loc _typ _numArgs -> singleRange loc
+              _ -> do
+                Debug.debugM Debug.LSP "No Diagnostic configured for type error: " e
+                empty
           diags = noteDiagnostic currentPath note ranges
       -- Sort on match accuracy first, then name.
       codeActions <- case cause of
