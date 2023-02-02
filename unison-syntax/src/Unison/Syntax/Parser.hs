@@ -370,7 +370,11 @@ string = queryToken getString
 tupleOrParenthesized :: Ord v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
 tupleOrParenthesized p unit pair = seq' "(" go p
   where
+    -- Parens without any contents are parsed as a 'unit'
+    go a [] = unit a
+    -- Parens with a single element are parsed as just that element
     go _ [t] = t
+    -- Parens with multiple elements are parsed as a tuple, ending in an implicit unit
     go _ xs = foldr pair (unit External) xs
 
 seq :: Ord v => (Ann -> [a] -> a) -> P v a -> P v a
