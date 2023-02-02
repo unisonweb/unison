@@ -142,18 +142,23 @@ findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (SourceNode Ann)
 findSmallestEnclosingNode pos term
   | annIsFilePosition (ABT.annotation term) && not (ABT.annotation term `Ann.contains` pos) = Nothing
   | otherwise = do
+      -- For leaf nodes we require that they be an in-file position, not Intrinsic or
+      -- external.
+      -- In some rare cases it's possible for an External/Intrinsic node to have children that
+      -- ARE in the file, so we need to make sure we still crawl their children.
+      let guardInFile = guard (annIsFilePosition (ABT.annotation term))
       let bestChild = case ABT.out term of
             ABT.Tm f -> case f of
-              Term.Int {} -> Just (TermNode term)
-              Term.Nat {} -> Just (TermNode term)
-              Term.Float {} -> Just (TermNode term)
-              Term.Boolean {} -> Just (TermNode term)
-              Term.Text {} -> Just (TermNode term)
-              Term.Char {} -> Just (TermNode term)
-              Term.Blank {} -> Just (TermNode term)
-              Term.Ref {} -> Just (TermNode term)
-              Term.Constructor {} -> Just (TermNode term)
-              Term.Request {} -> Just (TermNode term)
+              Term.Int {} -> guardInFile *> Just (TermNode term)
+              Term.Nat {} -> guardInFile *> Just (TermNode term)
+              Term.Float {} -> guardInFile *> Just (TermNode term)
+              Term.Boolean {} -> guardInFile *> Just (TermNode term)
+              Term.Text {} -> guardInFile *> Just (TermNode term)
+              Term.Char {} -> guardInFile *> Just (TermNode term)
+              Term.Blank {} -> guardInFile *> Just (TermNode term)
+              Term.Ref {} -> guardInFile *> Just (TermNode term)
+              Term.Constructor {} -> guardInFile *> Just (TermNode term)
+              Term.Request {} -> guardInFile *> Just (TermNode term)
               Term.Handle a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
               Term.App a b ->
                 -- We crawl the body of the App first because the annotations for certain
@@ -175,38 +180,32 @@ findSmallestEnclosingNode pos term
               Term.Match a cases ->
                 findSmallestEnclosingNode pos a
                   <|> altSum (cases <&> \(MatchCase pat grd body) -> ((PatternNode <$> findSmallestEnclosingPattern pos pat) <|> (grd >>= findSmallestEnclosingNode pos) <|> findSmallestEnclosingNode pos body))
-              Term.TermLink {} -> Just (TermNode term)
-              Term.TypeLink {} -> Just (TermNode term)
-            ABT.Var _v -> Just (TermNode term)
+              Term.TermLink {} -> guardInFile *> Just (TermNode term)
+              Term.TypeLink {} -> guardInFile *> Just (TermNode term)
+            ABT.Var _v -> guardInFile *> Just (TermNode term)
             ABT.Cycle r -> findSmallestEnclosingNode pos r
             ABT.Abs _v r -> findSmallestEnclosingNode pos r
       let fallback = if annIsFilePosition (ABT.annotation term) then Just (TermNode term) else Nothing
-      case bestChild of
-        Just child -> case child of
-          TermNode te -> do
-            guard (annIsFilePosition $ ABT.annotation te)
-            pure child
-          TypeNode te -> do
-            guard (annIsFilePosition $ ABT.annotation te)
-            pure child
-          PatternNode pat -> do
-            guard (annIsFilePosition $ Pattern.annotation pat)
-            pure child
-        Nothing -> fallback
+      bestChild <|> fallback
 
 findSmallestEnclosingPattern :: Pos -> Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
 findSmallestEnclosingPattern pos pat
   | annIsFilePosition (Pattern.annotation pat) && not (Pattern.annotation pat `Ann.contains` pos) = Nothing
   | otherwise = do
+      -- For leaf nodes we require that they be an in-file position, not Intrinsic or
+      -- external.
+      -- In some rare cases it's possible for an External/Intrinsic node to have children that
+      -- ARE in the file, so we need to make sure we still crawl their children.
+      let guardInFile = guard (annIsFilePosition (Pattern.annotation pat))
       let bestChild = case pat of
-            Pattern.Unbound {} -> Just pat
-            Pattern.Var {} -> Just pat
-            Pattern.Boolean {} -> Just pat
-            Pattern.Int {} -> Just pat
-            Pattern.Nat {} -> Just pat
-            Pattern.Float {} -> Just pat
-            Pattern.Text {} -> Just pat
-            Pattern.Char {} -> Just pat
+            Pattern.Unbound {} -> guardInFile *> Just pat
+            Pattern.Var {} -> guardInFile *> Just pat
+            Pattern.Boolean {} -> guardInFile *> Just pat
+            Pattern.Int {} -> guardInFile *> Just pat
+            Pattern.Nat {} -> guardInFile *> Just pat
+            Pattern.Float {} -> guardInFile *> Just pat
+            Pattern.Text {} -> guardInFile *> Just pat
+            Pattern.Char {} -> guardInFile *> Just pat
             Pattern.Constructor _loc _conRef pats -> altSum (findSmallestEnclosingPattern pos <$> pats)
             Pattern.As _loc p -> findSmallestEnclosingPattern pos p
             Pattern.EffectPure _loc p -> findSmallestEnclosingPattern pos p
@@ -224,9 +223,14 @@ findSmallestEnclosingType :: Pos -> Type Symbol Ann -> Maybe (Type Symbol Ann)
 findSmallestEnclosingType pos typ
   | annIsFilePosition (ABT.annotation typ) && not (ABT.annotation typ `Ann.contains` pos) = Nothing
   | otherwise = do
+      -- For leaf nodes we require that they be an in-file position, not Intrinsic or
+      -- external.
+      -- In some rare cases it's possible for an External/Intrinsic node to have children that
+      -- ARE in the file, so we need to make sure we still crawl their children.
+      let guardInFile = guard (annIsFilePosition (ABT.annotation typ))
       let bestChild = case ABT.out typ of
             ABT.Tm f -> case f of
-              Type.Ref {} -> Just typ
+              Type.Ref {} -> guardInFile *> Just typ
               Type.Arrow a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
               Type.Effect a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
               Type.App a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
@@ -234,7 +238,7 @@ findSmallestEnclosingType pos typ
               Type.Ann a _kind -> findSmallestEnclosingType pos a
               Type.Effects es -> altSum (findSmallestEnclosingType pos <$> es)
               Type.IntroOuter a -> findSmallestEnclosingType pos a
-            ABT.Var _v -> Just typ
+            ABT.Var _v -> guardInFile *> Just typ
             ABT.Cycle r -> findSmallestEnclosingType pos r
             ABT.Abs _v r -> findSmallestEnclosingType pos r
       let fallback = if annIsFilePosition (ABT.annotation typ) then Just typ else Nothing
