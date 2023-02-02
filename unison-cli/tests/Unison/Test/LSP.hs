@@ -127,6 +127,14 @@ term = let
         True,
         trm (Term.Boolean True)
       ),
+      ( "Test annotations for destructuring tuples (they have a special parser)",
+        [here|
+term = let
+  (true, fal^se)
+        |],
+        True,
+        trm (Term.Boolean False)
+      ),
       ( "Test annotations within pattern binds",
         [here|
 term = let

@@ -20,7 +20,6 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.DataDeclaration as Decl
 import Unison.LSP.FileAnalysis
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
@@ -129,14 +128,12 @@ refInType typ = case ABT.out typ of
 data SourceNode a
   = TermNode (Term Symbol a)
   | TypeNode (Type Symbol a)
-  | DeclNode (Decl Symbol a)
   | PatternNode (Pattern.Pattern a)
   deriving stock (Eq, Show)
 
 instance Functor SourceNode where
   fmap f (TermNode t) = TermNode (Term.amap f t)
   fmap f (TypeNode t) = TypeNode (fmap f t)
-  fmap f (DeclNode t) = DeclNode (Decl.amap f t)
   fmap f (PatternNode t) = PatternNode (fmap f t)
 
 -- | Find the the node in a term which contains the specified position, but none of its
@@ -158,7 +155,15 @@ findSmallestEnclosingNode pos term
               Term.Constructor {} -> Just (TermNode term)
               Term.Request {} -> Just (TermNode term)
               Term.Handle a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-              Term.App a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+              Term.App a b ->
+                -- We crawl the body of the App first because the annotations for certain
+                -- lambda syntaxes get a bit squirrelly.
+                -- Specifically Tuple constructor apps will have an annotation which spans the
+                -- whole tuple, e.g. the annotation of the tuple constructor for `(1, 2)` will
+                -- cover ALL of `(1, 2)`, so we check the body of the tuple app first to see
+                -- if the cursor is on 1 or 2 before falling back on the annotation of the
+                -- 'function' of the app.
+                findSmallestEnclosingNode pos b <|> findSmallestEnclosingNode pos a
               Term.Ann a typ -> findSmallestEnclosingNode pos a <|> (TypeNode <$> findSmallestEnclosingType pos typ)
               Term.List xs -> altSum (findSmallestEnclosingNode pos <$> xs)
               Term.If cond a b -> findSmallestEnclosingNode pos cond <|> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
@@ -176,7 +181,18 @@ findSmallestEnclosingNode pos term
             ABT.Cycle r -> findSmallestEnclosingNode pos r
             ABT.Abs _v r -> findSmallestEnclosingNode pos r
       let fallback = if annIsFilePosition (ABT.annotation term) then Just (TermNode term) else Nothing
-      bestChild <|> fallback
+      case bestChild of
+        Just child -> case child of
+          TermNode te -> do
+            guard (annIsFilePosition $ ABT.annotation te)
+            pure child
+          TypeNode te -> do
+            guard (annIsFilePosition $ ABT.annotation te)
+            pure child
+          PatternNode pat -> do
+            guard (annIsFilePosition $ Pattern.annotation pat)
+            pure child
+        Nothing -> fallback
 
 findSmallestEnclosingPattern :: Pos -> Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
 findSmallestEnclosingPattern pos pat
