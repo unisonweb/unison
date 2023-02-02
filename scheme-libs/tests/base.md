@@ -1,8 +1,7 @@
 
 ```ucm
 .> builtins.merge
-.> pull unison.public.base.latest.IO base.IO
-.> pull unison.public.base.main.IO.Process base.IO.Process
+.> pull unison.public.base.latest base
 .> pull dolio.public.internal.trunk.compiler
 ```
 
@@ -37,7 +36,7 @@ runChez fileName =
 	(stdin, stdout, stderr, pid) = IO.Process.start "scheme" ["--libdirs", "../chez:../common", "--script", fileName]
 	exitCode = match wait pid with
 		0 -> ""
-		code -> "Non-zero exit code! " ++ (toText code) ++ "\n"
+		code -> "Non-zero exit code! " ++ (Nat.toText code) ++ "\n"
 	exitCode ++ readAll stdout ++ readAll stderr
 
 runInScheme id term =

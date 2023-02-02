@@ -10,4 +10,5 @@ if [ ! -d "base.unison" ]; then
 fi
 
 ./ucm transcript.fork -c base.unison basic.md
+./ucm transcript.fork -c base.unison bytes.md
 

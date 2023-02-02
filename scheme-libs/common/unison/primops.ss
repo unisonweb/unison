@@ -101,6 +101,7 @@
     unison-POp-VALU
     unison-POp-VWLS
 
+    unison-POp-PAKB
     unison-POp-UPKB
     unison-POp-ADDI
     unison-POp-DIVI
@@ -121,6 +122,7 @@
           (unison bytevector)
           (unison vector))
 
+  ; (define unison-POp-PAKB u8-list->bytevector)
   (define unison-POp-UPKB bytevector->u8-list)
   (define unison-POp-ADDI +)
   (define unison-POp-DIVI /)

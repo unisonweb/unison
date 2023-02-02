@@ -4,13 +4,11 @@
 
   Done.
 
-.> pull unison.public.base.latest.IO base.IO
+.> pull unison.public.base.latest base
 
   ✅
   
-  ✅ Successfully pulled into newly created namespace base.IO.
-
-.> pull unison.public.base.main.IO.Process base.IO.Process
+  ✅ Successfully pulled into newly created namespace base.
 
 .> pull dolio.public.internal.trunk.compiler
 
@@ -46,7 +44,7 @@ runChez fileName =
 	(stdin, stdout, stderr, pid) = IO.Process.start "scheme" ["--libdirs", "../chez:../common", "--script", fileName]
 	exitCode = match wait pid with
 		0 -> ""
-		code -> "Non-zero exit code! " ++ (toText code) ++ "\n"
+		code -> "Non-zero exit code! " ++ (Nat.toText code) ++ "\n"
 	exitCode ++ readAll stdout ++ readAll stderr
 
 runInScheme id term =
@@ -70,10 +68,10 @@ runInScheme id term =
       right                        : Either a b -> Optional b
       runChez                      : Text ->{IO, Exception} Text
       runInScheme                  : Nat
-                                     -> Term
+                                     -> Link.Term
                                      ->{IO, Exception} Text
       schemeToFile                 : Text
-                                     -> Term
+                                     -> Link.Term
                                      ->{IO, Exception} ()
       |>                           : a -> (a ->{g} t) ->{g} t
 
@@ -89,10 +87,10 @@ runInScheme id term =
     right                        : Either a b -> Optional b
     runChez                      : Text ->{IO, Exception} Text
     runInScheme                  : Nat
-                                   -> Term
+                                   -> Link.Term
                                    ->{IO, Exception} Text
     schemeToFile                 : Text
-                                   -> Term
+                                   -> Link.Term
                                    ->{IO, Exception} ()
     |>                           : a -> (a ->{g} t) ->{g} t
 
