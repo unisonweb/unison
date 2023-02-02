@@ -122,7 +122,6 @@
           (unison bytevector)
           (unison vector))
 
-  ; (define unison-POp-PAKB u8-list->bytevector)
   (define unison-POp-UPKB bytevector->u8-list)
   (define unison-POp-ADDI +)
   (define unison-POp-DIVI /)
