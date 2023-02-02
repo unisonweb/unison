@@ -37,6 +37,23 @@ data Pattern loc
   | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
   deriving (Ord, Generic, Functor, Foldable, Traversable)
 
+annotation :: Pattern loc -> loc
+annotation = \case
+  Unbound loc -> loc
+  Var loc -> loc
+  Boolean loc _ -> loc
+  Int loc _ -> loc
+  Nat loc _ -> loc
+  Float loc _ -> loc
+  Text loc _ -> loc
+  Char loc _ -> loc
+  Constructor loc _ _ -> loc
+  As loc _ -> loc
+  EffectPure loc _ -> loc
+  EffectBind loc _ _ _ -> loc
+  SequenceLiteral loc _ -> loc
+  SequenceOp loc _ _ _ -> loc
+
 data SeqOp
   = Cons
   | Snoc

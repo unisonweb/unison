@@ -333,9 +333,11 @@ initHTTPClient = do
   manager <- HTTP.newTlsManagerWith managerSettings
   HTTP.setGlobalManager manager
 
-prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> IO FilePath
-prepareTranscriptDir shouldFork mCodePathOption = do
-  tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
+prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> ShouldSaveCodebase -> IO FilePath
+prepareTranscriptDir shouldFork mCodePathOption shouldSaveCodebase = do
+  tmp <- case shouldSaveCodebase of
+    SaveCodebase (Just path) -> pure path
+    _ -> Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
   let cbInit = SC.init
   case shouldFork of
     UseFork -> do
@@ -430,12 +432,12 @@ runTranscripts renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption
       Exit.exitWith (Exit.ExitFailure 1)
     Success markdownFiles -> pure markdownFiles
   progName <- getProgName
-  transcriptDir <- prepareTranscriptDir shouldFork mCodePathOption
+  transcriptDir <- prepareTranscriptDir shouldFork mCodePathOption shouldSaveTempCodebase
   completed <-
     runTranscripts' progName (Just transcriptDir) transcriptDir markdownFiles
   case shouldSaveTempCodebase of
     DontSaveCodebase -> removeDirectoryRecursive transcriptDir
-    SaveCodebase ->
+    SaveCodebase _ ->
       when completed $ do
         PT.putPrettyLn $
           P.callout
