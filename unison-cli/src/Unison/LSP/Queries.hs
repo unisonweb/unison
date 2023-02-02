@@ -7,6 +7,7 @@ module Unison.LSP.Queries
     refInDecl,
     getTypeOfReferent,
     getTypeDeclaration,
+    SourceNode (..),
   )
 where
 
@@ -19,6 +20,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.DataDeclaration as Decl
 import Unison.LSP.FileAnalysis
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
@@ -27,6 +29,7 @@ import qualified Unison.LabeledDependency as LD
 import Unison.Lexer.Pos (Pos (..))
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
+import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.Reference (TypeReference)
 import qualified Unison.Reference as Reference
@@ -123,27 +126,40 @@ refInType typ = case ABT.out typ of
   ABT.Cycle _r -> Nothing
   ABT.Abs _v _r -> Nothing
 
+data SourceNode a
+  = TermNode (Term Symbol a)
+  | TypeNode (Type Symbol a)
+  | DeclNode (Decl Symbol a)
+  | PatternNode (Pattern.Pattern a)
+  deriving stock (Eq, Show)
+
+instance Functor SourceNode where
+  fmap f (TermNode t) = TermNode (Term.amap f t)
+  fmap f (TypeNode t) = TypeNode (fmap f t)
+  fmap f (DeclNode t) = DeclNode (Decl.amap f t)
+  fmap f (PatternNode t) = PatternNode (fmap f t)
+
 -- | Find the the node in a term which contains the specified position, but none of its
 -- children contain that position.
-findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (Either (Term Symbol Ann) (Type Symbol Ann))
+findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (SourceNode Ann)
 findSmallestEnclosingNode pos term
   | annIsFilePosition (ABT.annotation term) && not (ABT.annotation term `Ann.contains` pos) = Nothing
   | otherwise = do
       let bestChild = case ABT.out term of
             ABT.Tm f -> case f of
-              Term.Int {} -> Just (Left term)
-              Term.Nat {} -> Just (Left term)
-              Term.Float {} -> Just (Left term)
-              Term.Boolean {} -> Just (Left term)
-              Term.Text {} -> Just (Left term)
-              Term.Char {} -> Just (Left term)
-              Term.Blank {} -> Just (Left term)
-              Term.Ref {} -> Just (Left term)
-              Term.Constructor {} -> Just (Left term)
-              Term.Request {} -> Just (Left term)
+              Term.Int {} -> Just (TermNode term)
+              Term.Nat {} -> Just (TermNode term)
+              Term.Float {} -> Just (TermNode term)
+              Term.Boolean {} -> Just (TermNode term)
+              Term.Text {} -> Just (TermNode term)
+              Term.Char {} -> Just (TermNode term)
+              Term.Blank {} -> Just (TermNode term)
+              Term.Ref {} -> Just (TermNode term)
+              Term.Constructor {} -> Just (TermNode term)
+              Term.Request {} -> Just (TermNode term)
               Term.Handle a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
               Term.App a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-              Term.Ann a typ -> findSmallestEnclosingNode pos a <|> (Right <$> findSmallestEnclosingType pos typ)
+              Term.Ann a typ -> findSmallestEnclosingNode pos a <|> (TypeNode <$> findSmallestEnclosingType pos typ)
               Term.List xs -> altSum (findSmallestEnclosingNode pos <$> xs)
               Term.If cond a b -> findSmallestEnclosingNode pos cond <|> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
               Term.And l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
@@ -153,13 +169,35 @@ findSmallestEnclosingNode pos term
               Term.Let _isTop a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
               Term.Match a cases ->
                 findSmallestEnclosingNode pos a
-                  <|> altSum (cases <&> \(MatchCase _pat grd body) -> altSum (findSmallestEnclosingNode pos <$> grd) <|> findSmallestEnclosingNode pos body)
-              Term.TermLink {} -> Just (Left term)
-              Term.TypeLink {} -> Just (Left term)
-            ABT.Var _v -> Just (Left term)
+                  <|> altSum (cases <&> \(MatchCase pat grd body) -> ((PatternNode <$> findSmallestEnclosingPattern pos pat) <|> (grd >>= findSmallestEnclosingNode pos) <|> findSmallestEnclosingNode pos body))
+              Term.TermLink {} -> Just (TermNode term)
+              Term.TypeLink {} -> Just (TermNode term)
+            ABT.Var _v -> Just (TermNode term)
             ABT.Cycle r -> findSmallestEnclosingNode pos r
             ABT.Abs _v r -> findSmallestEnclosingNode pos r
-      let fallback = if annIsFilePosition (ABT.annotation term) then Just (Left term) else Nothing
+      let fallback = if annIsFilePosition (ABT.annotation term) then Just (TermNode term) else Nothing
+      bestChild <|> fallback
+
+findSmallestEnclosingPattern :: Pos -> Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
+findSmallestEnclosingPattern pos pat
+  | annIsFilePosition (Pattern.annotation pat) && not (Pattern.annotation pat `Ann.contains` pos) = Nothing
+  | otherwise = do
+      let bestChild = case pat of
+            Pattern.Unbound {} -> Just pat
+            Pattern.Var {} -> Just pat
+            Pattern.Boolean {} -> Just pat
+            Pattern.Int {} -> Just pat
+            Pattern.Nat {} -> Just pat
+            Pattern.Float {} -> Just pat
+            Pattern.Text {} -> Just pat
+            Pattern.Char {} -> Just pat
+            Pattern.Constructor _loc _conRef pats -> altSum (findSmallestEnclosingPattern pos <$> pats)
+            Pattern.As _loc p -> findSmallestEnclosingPattern pos p
+            Pattern.EffectPure _loc p -> findSmallestEnclosingPattern pos p
+            Pattern.EffectBind _loc _conRef pats p -> altSum (findSmallestEnclosingPattern pos <$> pats) <|> findSmallestEnclosingPattern pos p
+            Pattern.SequenceLiteral _loc pats -> altSum (findSmallestEnclosingPattern pos <$> pats)
+            Pattern.SequenceOp _loc p1 _op p2 -> findSmallestEnclosingPattern pos p1 <|> findSmallestEnclosingPattern pos p2
+      let fallback = if annIsFilePosition (Pattern.annotation pat) then Just pat else Nothing
       bestChild <|> fallback
 
 -- | Find the the node in a type which contains the specified position, but none of its
