@@ -262,7 +262,11 @@ findSmallestEnclosingType pos typ
             ABT.Tm f -> case f of
               Type.Ref {} -> guardInFile *> Just typ
               Type.Arrow a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
-              Type.Effect a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
+              Type.Effect effs rhs ->
+                -- There's currently a bug in the annotations for effects which cause them to
+                -- span larger than they should. As  a workaround for now we just make sure to
+                -- search the RHS before the effects.
+                findSmallestEnclosingType pos rhs <|> findSmallestEnclosingType pos effs
               Type.App a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
               Type.Forall r -> findSmallestEnclosingType pos r
               Type.Ann a _kind -> findSmallestEnclosingType pos a
