@@ -71,6 +71,10 @@ mvarEq :: MVar () -> MVar () -> Bool
 mvarEq l r = l == r
 {-# NOINLINE mvarEq #-}
 
+socketEq :: Socket -> Socket -> Bool
+socketEq l r = l == r
+{-# NOINLINE socketEq #-}
+
 refEq :: IORef () -> IORef () -> Bool
 refEq l r = l == r
 {-# NOINLINE refEq #-}
@@ -133,6 +137,7 @@ ref2eq r
   -- matter what type the MVar holds.
   | r == Ty.mvarRef = Just $ promote mvarEq
   -- Ditto
+  | r == Ty.socketRef = Just $ promote socketEq
   | r == Ty.refRef = Just $ promote refEq
   | r == Ty.threadIdRef = Just $ promote tidEq
   | r == Ty.marrayRef = Just $ promote marrEq
