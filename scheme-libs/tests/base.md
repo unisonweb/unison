@@ -8,13 +8,13 @@
 
 ```unison
 generateSchemeBuiltinLibrary _ =
-	fh = open (FilePath "../unison/builtin-generated.ss") Write
+	fh = open (FilePath "../chez/unison/builtin-generated.ss") Write
 	putText fh (generateBaseFile builtinSpec)
 	close fh
 
 schemeToFile dest link = 
 	fh = open (FilePath dest) Write
-	putText fh (generateScheme false link)
+	putText fh (generateScheme true link)
 	close fh
 
 a |> f = f a
@@ -34,7 +34,7 @@ readAll fid =
 		|> orDefault "Not utf8 output"
 
 runChez fileName =
-	(stdin, stdout, stderr, pid) = IO.Process.start "scheme" ["--libdirs", "../:./", "--script", fileName]
+	(stdin, stdout, stderr, pid) = IO.Process.start "scheme" ["--libdirs", "../chez:../common", "--script", fileName]
 	exitCode = match wait pid with
 		0 -> ""
 		code -> "Non-zero exit code! " ++ (toText code) ++ "\n"
