@@ -21,7 +21,7 @@ scheme.SchemeDefn.toIndentedText n = cases
   Define name args body ->
     use List +:
     use Nat +
-    bods = match name with
+    formattedBody = match name with
             "builtin-Char.toNat" -> "(char->integer x0)"
             "builtin-Char.fromNat" -> "(integer->char x0)"
             _ -> SchemeTerm.toIndentedText (n + 2) body
@@ -29,17 +29,7 @@ scheme.SchemeDefn.toIndentedText n = cases
       (n + 2)
       [ "define-unison",
         parens (Text.join " " (name +: args)),
-        bods ]
-
-generateScheme : Boolean -> Link.Term ->{IO, Exception} Text
-generateScheme exec base =
-  found = intermediateCode base
-  bref = #b64k0j6eu8 <| #i3vare757c base
-  header =
-    use Text ++
-    "(top-level-program\n" ++ generateImports 2 mainImports ++ "\n; end toplevel\n"
-  footer = if exec then executeFooter bref else compileFooter bref
-  Text.join "\n\n; divider\n\n" [header, generateDefns false 2 found, footer]
+        formattedBody ]
 
 schemeOutput : Boolean -> Nat -> (Link.Term, SuperGroup) ->{Exception} Text
 schemeOutput genIntermediate n = cases
@@ -56,26 +46,6 @@ schemeOutput genIntermediate n = cases
         (List.map (SchemeDefn.toIndentedText n) (SuperGroup.toScheme ref anf))
     int ++ exe
 
-
-scheme.generateDefns :
-  Boolean -> Nat -> Map Link.Term SuperGroup ->{Exception} Text
-scheme.generateDefns genIntermediate n found =
-  use List map
-  use Reference toScheme
-  use Text ++ join
-  hrefs =
-    Map.foldLeft (rs -> Set.union rs << SuperGroup.handled) Set.empty found
-  link tl = toScheme (fromTermLink tl)
-  hdef r =
-    err = "unhandled ability: " ++ toSchemeSym r
-    errk =
-      SExpr [Sym "lambda", SExpr [Sym "_"], SExpr [Sym "raise", String err]]
-    SExpr [Sym "define", toScheme r, errk]
-  hdefs = map (SchemeTerm.toIndentedText n << hdef) (Set.toList hrefs)
-  defs =
-    join (pad! n) (map (schemeOutput genIntermediate n) (Map.toList found))
-  join (pad! n) hdefs ++ "\n; hdefs -> defs \n" ++ pad! n ++ defs
-
 ```
 
 ```ucm
@@ -91,18 +61,10 @@ scheme.generateDefns genIntermediate n found =
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      generateScheme                   : Boolean
-                                         -> Link.Term
-                                         ->{IO, Exception} Text
       scheme.SchemeDefn.toIndentedText : Nat
                                          -> SchemeDefn
                                          -> Text
       scheme.builtinLinks              : Map Text Link.Term
-      scheme.generateDefns             : Boolean
-                                         -> Nat
-                                         -> Map
-                                           Link.Term SuperGroup
-                                         ->{Exception} Text
       schemeOutput                     : Boolean
                                          -> Nat
                                          -> ( Link.Term,
