@@ -27,8 +27,8 @@ import qualified Data.X509 as X509
 import Network.Socket (Socket)
 import qualified Network.TLS as TLS (ClientParams, Context, ServerParams)
 import System.Clock (TimeSpec)
-import System.Process (ProcessHandle)
 import System.IO (Handle)
+import System.Process (ProcessHandle)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF (SuperGroup, Value)
@@ -155,7 +155,10 @@ ref2cmp r
 instance Eq Foreign where
   Wrap rl t == Wrap rr u
     | rl == rr, Just (~~) <- ref2eq rl = t ~~ u
-  _ == _ = error "Eq Foreign"
+  Wrap rl1 _ == Wrap rl2 _ =
+    error $
+      "Attempting to check equality of two values of different types: "
+        <> show (rl1, rl2)
 
 instance Ord Foreign where
   Wrap rl t `compare` Wrap rr u
