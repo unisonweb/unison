@@ -3,6 +3,8 @@
 .> builtins.merge
 .> pull unison.public.base.latest base
 .> pull dolio.public.internal.trunk.compiler
+.> pull dolio.public.internal.trunk.impls impls
+.> pull dolio.public.internal.trunk.Reference Reference
 ```
 
 ```unison
