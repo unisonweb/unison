@@ -43,6 +43,7 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Parser (ann)
 import Unison.Term (MatchCase (MatchCase), Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -250,13 +251,13 @@ findSmallestEnclosingNode pos term
 findSmallestEnclosingPattern :: Pos -> Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
 findSmallestEnclosingPattern pos pat
   | Just validTargets <- cleanImplicitUnit pat = findSmallestEnclosingPattern pos validTargets
-  | annIsFilePosition (Pattern.annotation pat) && not (Pattern.annotation pat `Ann.contains` pos) = Nothing
+  | annIsFilePosition (ann pat) && not (ann pat `Ann.contains` pos) = Nothing
   | otherwise = do
       -- For leaf nodes we require that they be an in-file position, not Intrinsic or
       -- external.
       -- In some rare cases it's possible for an External/Intrinsic node to have children that
       -- ARE in the file, so we need to make sure we still crawl their children.
-      let guardInFile = guard (annIsFilePosition (Pattern.annotation pat))
+      let guardInFile = guard (annIsFilePosition (ann pat))
       let bestChild = case pat of
             Pattern.Unbound {} -> guardInFile *> Just pat
             Pattern.Var {} -> guardInFile *> Just pat
@@ -272,7 +273,7 @@ findSmallestEnclosingPattern pos pat
             Pattern.EffectBind _loc _conRef pats p -> altSum (findSmallestEnclosingPattern pos <$> pats) <|> findSmallestEnclosingPattern pos p
             Pattern.SequenceLiteral _loc pats -> altSum (findSmallestEnclosingPattern pos <$> pats)
             Pattern.SequenceOp _loc p1 _op p2 -> findSmallestEnclosingPattern pos p1 <|> findSmallestEnclosingPattern pos p2
-      let fallback = if annIsFilePosition (Pattern.annotation pat) then Just pat else Nothing
+      let fallback = if annIsFilePosition (ann pat) then Just pat else Nothing
       bestChild <|> fallback
   where
     -- tuple patterns always end in an implicit unit, but it's annotated with the span of the whole
