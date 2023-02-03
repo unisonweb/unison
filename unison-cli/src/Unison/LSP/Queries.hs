@@ -11,6 +11,7 @@ module Unison.LSP.Queries
     findSmallestEnclosingNode,
     findSmallestEnclosingType,
     refInDecl,
+    SourceNode (..),
   )
 where
 
@@ -20,6 +21,7 @@ import Control.Monad.Reader
 import Data.Generics.Product (field)
 import Language.LSP.Types
 import qualified Unison.ABT as ABT
+import qualified Unison.Builtin.Decls as Builtins
 import qualified Unison.Codebase as Codebase
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -34,6 +36,7 @@ import qualified Unison.LabeledDependency as LD
 import Unison.Lexer.Pos (Pos (..))
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
+import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.Reference (TypeReference)
 import qualified Unison.Reference as Reference
@@ -48,13 +51,14 @@ import qualified Unison.Type as Type
 -- | Returns a reference to whatever the symbol at the given position refers to.
 refAtPosition :: Uri -> Position -> MaybeT Lsp LabeledDependency
 refAtPosition uri pos = do
-  findInTermOrType <|> findInDecl
+  findInNode <|> findInDecl
   where
-    findInTermOrType :: MaybeT Lsp LabeledDependency
-    findInTermOrType =
+    findInNode :: MaybeT Lsp LabeledDependency
+    findInNode =
       nodeAtPosition uri pos >>= \case
-        Left term -> hoistMaybe $ refInTerm term
-        Right typ -> hoistMaybe $ fmap TypeReference (refInType typ)
+        TermNode term -> hoistMaybe $ refInTerm term
+        TypeNode typ -> hoistMaybe $ fmap TypeReference (refInType typ)
+        PatternNode pat -> hoistMaybe $ refInPattern pat
     findInDecl :: MaybeT Lsp LabeledDependency
     findInDecl =
       LD.TypeReference <$> do
@@ -151,27 +155,70 @@ refInType typ = case ABT.out typ of
   ABT.Cycle _r -> Nothing
   ABT.Abs _v _r -> Nothing
 
+-- Returns the reference a given type node refers to, if any.
+refInPattern :: Pattern.Pattern a -> Maybe LabeledDependency
+refInPattern = \case
+  Pattern.Unbound {} -> Nothing
+  Pattern.Var {} -> Nothing
+  Pattern.Boolean {} -> Nothing
+  Pattern.Int {} -> Nothing
+  Pattern.Nat {} -> Nothing
+  Pattern.Float {} -> Nothing
+  Pattern.Text {} -> Nothing
+  Pattern.Char {} -> Nothing
+  Pattern.Constructor _loc conRef _ -> Just (LD.ConReference conRef CT.Data)
+  Pattern.As _loc _pat -> Nothing
+  Pattern.EffectPure {} -> Nothing
+  Pattern.EffectBind _loc conRef _ _ -> Just (LD.ConReference conRef CT.Effect)
+  Pattern.SequenceLiteral {} -> Nothing
+  Pattern.SequenceOp {} -> Nothing
+
+data SourceNode a
+  = TermNode (Term Symbol a)
+  | TypeNode (Type Symbol a)
+  | PatternNode (Pattern.Pattern a)
+  deriving stock (Eq, Show)
+
+instance Functor SourceNode where
+  fmap f (TermNode t) = TermNode (Term.amap f t)
+  fmap f (TypeNode t) = TypeNode (fmap f t)
+  fmap f (PatternNode t) = PatternNode (fmap f t)
+
 -- | Find the the node in a term which contains the specified position, but none of its
 -- children contain that position.
-findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (Either (Term Symbol Ann) (Type Symbol Ann))
+findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (SourceNode Ann)
 findSmallestEnclosingNode pos term
   | annIsFilePosition (ABT.annotation term) && not (ABT.annotation term `Ann.contains` pos) = Nothing
+  | Just r <- cleanImplicitUnit term = findSmallestEnclosingNode pos r
   | otherwise = do
+      -- For leaf nodes we require that they be an in-file position, not Intrinsic or
+      -- external.
+      -- In some rare cases it's possible for an External/Intrinsic node to have children that
+      -- ARE in the file, so we need to make sure we still crawl their children.
+      let guardInFile = guard (annIsFilePosition (ABT.annotation term))
       let bestChild = case ABT.out term of
             ABT.Tm f -> case f of
-              Term.Int {} -> Just (Left term)
-              Term.Nat {} -> Just (Left term)
-              Term.Float {} -> Just (Left term)
-              Term.Boolean {} -> Just (Left term)
-              Term.Text {} -> Just (Left term)
-              Term.Char {} -> Just (Left term)
-              Term.Blank {} -> Just (Left term)
-              Term.Ref {} -> Just (Left term)
-              Term.Constructor {} -> Just (Left term)
-              Term.Request {} -> Just (Left term)
+              Term.Int {} -> guardInFile *> Just (TermNode term)
+              Term.Nat {} -> guardInFile *> Just (TermNode term)
+              Term.Float {} -> guardInFile *> Just (TermNode term)
+              Term.Boolean {} -> guardInFile *> Just (TermNode term)
+              Term.Text {} -> guardInFile *> Just (TermNode term)
+              Term.Char {} -> guardInFile *> Just (TermNode term)
+              Term.Blank {} -> guardInFile *> Just (TermNode term)
+              Term.Ref {} -> guardInFile *> Just (TermNode term)
+              Term.Constructor {} -> guardInFile *> Just (TermNode term)
+              Term.Request {} -> guardInFile *> Just (TermNode term)
               Term.Handle a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-              Term.App a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-              Term.Ann a typ -> findSmallestEnclosingNode pos a <|> (Right <$> findSmallestEnclosingType pos typ)
+              Term.App a b ->
+                -- We crawl the body of the App first because the annotations for certain
+                -- lambda syntaxes get a bit squirrelly.
+                -- Specifically Tuple constructor apps will have an annotation which spans the
+                -- whole tuple, e.g. the annotation of the tuple constructor for `(1, 2)` will
+                -- cover ALL of `(1, 2)`, so we check the body of the tuple app first to see
+                -- if the cursor is on 1 or 2 before falling back on the annotation of the
+                -- 'function' of the app.
+                findSmallestEnclosingNode pos b <|> findSmallestEnclosingNode pos a
+              Term.Ann a typ -> findSmallestEnclosingNode pos a <|> (TypeNode <$> findSmallestEnclosingType pos typ)
               Term.List xs -> altSum (findSmallestEnclosingNode pos <$> xs)
               Term.If cond a b -> findSmallestEnclosingNode pos cond <|> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
               Term.And l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
@@ -181,14 +228,62 @@ findSmallestEnclosingNode pos term
               Term.Let _isTop a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
               Term.Match a cases ->
                 findSmallestEnclosingNode pos a
-                  <|> altSum (cases <&> \(MatchCase _pat grd body) -> altSum (findSmallestEnclosingNode pos <$> grd) <|> findSmallestEnclosingNode pos body)
-              Term.TermLink {} -> Just (Left term)
-              Term.TypeLink {} -> Just (Left term)
-            ABT.Var _v -> Just (Left term)
+                  <|> altSum (cases <&> \(MatchCase pat grd body) -> ((PatternNode <$> findSmallestEnclosingPattern pos pat) <|> (grd >>= findSmallestEnclosingNode pos) <|> findSmallestEnclosingNode pos body))
+              Term.TermLink {} -> guardInFile *> Just (TermNode term)
+              Term.TypeLink {} -> guardInFile *> Just (TermNode term)
+            ABT.Var _v -> guardInFile *> Just (TermNode term)
             ABT.Cycle r -> findSmallestEnclosingNode pos r
             ABT.Abs _v r -> findSmallestEnclosingNode pos r
-      let fallback = if annIsFilePosition (ABT.annotation term) then Just (Left term) else Nothing
+      let fallback = if annIsFilePosition (ABT.annotation term) then Just (TermNode term) else Nothing
       bestChild <|> fallback
+  where
+    -- tuples always end in an implicit unit, but it's annotated with the span of the whole
+    -- tuple, which is problematic, so we need to detect and remove implicit tuples.
+    -- We can detect them because we know that the last element of a tuple is always its
+    -- implicit unit.
+    cleanImplicitUnit :: Term Symbol Ann -> Maybe (Term Symbol Ann)
+    cleanImplicitUnit = \case
+      ABT.Tm' (Term.App (ABT.Tm' (Term.App (ABT.Tm' (Term.Constructor (ConstructorReference ref 0))) x)) trm)
+        | ref == Builtins.pairRef && Term.amap (const ()) trm == Builtins.unitTerm () -> Just x
+      _ -> Nothing
+
+findSmallestEnclosingPattern :: Pos -> Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
+findSmallestEnclosingPattern pos pat
+  | Just validTargets <- cleanImplicitUnit pat = findSmallestEnclosingPattern pos validTargets
+  | annIsFilePosition (Pattern.annotation pat) && not (Pattern.annotation pat `Ann.contains` pos) = Nothing
+  | otherwise = do
+      -- For leaf nodes we require that they be an in-file position, not Intrinsic or
+      -- external.
+      -- In some rare cases it's possible for an External/Intrinsic node to have children that
+      -- ARE in the file, so we need to make sure we still crawl their children.
+      let guardInFile = guard (annIsFilePosition (Pattern.annotation pat))
+      let bestChild = case pat of
+            Pattern.Unbound {} -> guardInFile *> Just pat
+            Pattern.Var {} -> guardInFile *> Just pat
+            Pattern.Boolean {} -> guardInFile *> Just pat
+            Pattern.Int {} -> guardInFile *> Just pat
+            Pattern.Nat {} -> guardInFile *> Just pat
+            Pattern.Float {} -> guardInFile *> Just pat
+            Pattern.Text {} -> guardInFile *> Just pat
+            Pattern.Char {} -> guardInFile *> Just pat
+            Pattern.Constructor _loc _conRef pats -> altSum (findSmallestEnclosingPattern pos <$> pats)
+            Pattern.As _loc p -> findSmallestEnclosingPattern pos p
+            Pattern.EffectPure _loc p -> findSmallestEnclosingPattern pos p
+            Pattern.EffectBind _loc _conRef pats p -> altSum (findSmallestEnclosingPattern pos <$> pats) <|> findSmallestEnclosingPattern pos p
+            Pattern.SequenceLiteral _loc pats -> altSum (findSmallestEnclosingPattern pos <$> pats)
+            Pattern.SequenceOp _loc p1 _op p2 -> findSmallestEnclosingPattern pos p1 <|> findSmallestEnclosingPattern pos p2
+      let fallback = if annIsFilePosition (Pattern.annotation pat) then Just pat else Nothing
+      bestChild <|> fallback
+  where
+    -- tuple patterns always end in an implicit unit, but it's annotated with the span of the whole
+    -- tuple, which is problematic, so we need to detect and remove implicit tuples.
+    -- We can detect them because we know that the last element of a tuple is always its
+    -- implicit unit.
+    cleanImplicitUnit :: Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
+    cleanImplicitUnit = \case
+      (Pattern.Constructor _loc (ConstructorReference conRef 0) [pat1, Pattern.Constructor _ (ConstructorReference mayUnitRef 0) _])
+        | conRef == Builtins.pairRef && mayUnitRef == Builtins.unitRef -> Just pat1
+      _ -> Nothing
 
 -- | Find the the node in a type which contains the specified position, but none of its
 -- children contain that position.
@@ -198,17 +293,26 @@ findSmallestEnclosingType :: Pos -> Type Symbol Ann -> Maybe (Type Symbol Ann)
 findSmallestEnclosingType pos typ
   | annIsFilePosition (ABT.annotation typ) && not (ABT.annotation typ `Ann.contains` pos) = Nothing
   | otherwise = do
+      -- For leaf nodes we require that they be an in-file position, not Intrinsic or
+      -- external.
+      -- In some rare cases it's possible for an External/Intrinsic node to have children that
+      -- ARE in the file, so we need to make sure we still crawl their children.
+      let guardInFile = guard (annIsFilePosition (ABT.annotation typ))
       let bestChild = case ABT.out typ of
             ABT.Tm f -> case f of
-              Type.Ref {} -> Just typ
+              Type.Ref {} -> guardInFile *> Just typ
               Type.Arrow a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
-              Type.Effect a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
+              Type.Effect effs rhs ->
+                -- There's currently a bug in the annotations for effects which cause them to
+                -- span larger than they should. As  a workaround for now we just make sure to
+                -- search the RHS before the effects.
+                findSmallestEnclosingType pos rhs <|> findSmallestEnclosingType pos effs
               Type.App a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
               Type.Forall r -> findSmallestEnclosingType pos r
               Type.Ann a _kind -> findSmallestEnclosingType pos a
               Type.Effects es -> altSum (findSmallestEnclosingType pos <$> es)
               Type.IntroOuter a -> findSmallestEnclosingType pos a
-            ABT.Var _v -> Just typ
+            ABT.Var _v -> guardInFile *> Just typ
             ABT.Cycle r -> findSmallestEnclosingType pos r
             ABT.Abs _v r -> findSmallestEnclosingType pos r
       let fallback = if annIsFilePosition (ABT.annotation typ) then Just typ else Nothing
@@ -228,7 +332,7 @@ refInDecl p (DD.asDataDecl -> dd) =
 
 -- | Returns the ABT node at the provided position.
 -- Does not return Decl nodes.
-nodeAtPosition :: Uri -> Position -> MaybeT Lsp (Either (Term Symbol Ann) (Type Symbol Ann))
+nodeAtPosition :: Uri -> Position -> MaybeT Lsp (SourceNode Ann)
 nodeAtPosition uri (lspToUPos -> pos) = do
   (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
 
@@ -236,7 +340,7 @@ nodeAtPosition uri (lspToUPos -> pos) = do
   ( altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) trms
       <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (testWatchSummary ^.. folded . _3)
       <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _3)
-      <|> altMap (fmap Right . hoistMaybe . findSmallestEnclosingType pos) typs
+      <|> altMap (fmap TypeNode . hoistMaybe . findSmallestEnclosingType pos) typs
     )
   where
     hoistMaybe :: Maybe a -> MaybeT Lsp a

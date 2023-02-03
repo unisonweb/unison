@@ -4,7 +4,6 @@
 module Unison.Test.LSP (test) where
 
 import qualified Crypto.Random as Random
-import Data.Bifunctor (bimap)
 import Data.List.Extra (firstJust)
 import Data.String.Here.Uninterpolated (here)
 import Data.Text
@@ -20,15 +19,14 @@ import qualified Unison.LSP.Queries as LSPQ
 import qualified Unison.Lexer.Pos as Lexer
 import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Parser.Ann as Ann
+import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import qualified Unison.Reference as Reference
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
-import Unison.Term (Term)
 import qualified Unison.Term as Term
-import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import Unison.Util.Monoid (foldMapM)
@@ -41,6 +39,15 @@ test = do
         annotationNesting
       ]
 
+trm :: Term.F Symbol () () (ABT.Term (Term.F Symbol () ()) Symbol ()) -> LSPQ.SourceNode ()
+trm = LSPQ.TermNode . ABT.tm
+
+typ :: Type.F (ABT.Term Type.F Symbol ()) -> LSPQ.SourceNode ()
+typ = LSPQ.TypeNode . ABT.tm
+
+pat :: Pattern.Pattern () -> LSPQ.SourceNode ()
+pat = LSPQ.PatternNode
+
 -- | Test that we can find the correct reference for a given cursor position.
 refFinding :: Test ()
 refFinding =
@@ -48,12 +55,12 @@ refFinding =
     [ ( "Binary Op lhs",
         [here|term = tr^ue && false|],
         True,
-        Left (Term.Boolean True)
+        trm (Term.Boolean True)
       ),
       ( "Binary Op rhs",
         [here|term = true && fa^lse|],
         True,
-        Left (Term.Boolean False)
+        trm (Term.Boolean False)
       ),
       ( "Custom Op lhs",
         [here|
@@ -61,7 +68,7 @@ a &&& b = a && b
 term = tr^ue &&& false
 |],
         True,
-        Left (Term.Boolean True)
+        trm (Term.Boolean True)
       ),
       ( "Simple type annotation on non-typechecking file",
         [here|
@@ -70,7 +77,7 @@ term : Thi^ng
 term = "this won't typecheck"
 |],
         False,
-        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
       ),
       ( "Simple type annotation on typechecking file",
         [here|
@@ -79,7 +86,7 @@ term : Thi^ng
 term = This
 |],
         True,
-        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
       ),
       ( "Test annotations within bindings for do-block elements",
         [here|
@@ -89,7 +96,7 @@ term = do
   first && second
         |],
         True,
-        Left (Term.Boolean True)
+        trm (Term.Boolean True)
       ),
       ( "Test annotations within bindings for let-block elements",
         [here|
@@ -99,7 +106,7 @@ term = let
   first && second
         |],
         True,
-        Left (Term.Boolean True)
+        trm (Term.Boolean True)
       ),
       ( "Test annotations within actions for let-block elements",
         [here|
@@ -108,18 +115,74 @@ term = let
   first && tr^ue
         |],
         True,
-        Left (Term.Boolean True)
+        trm (Term.Boolean True)
       ),
-      -- ( "Test annotations for blocks with destructuring binds",
-      --   [here|
-      -- term = let
-      -- (first, second) = (false, true)
-      -- (third, fourth) = (false, tr^ue)
-      -- first && second && third && fourth
-      --   |],
-      --   True,
-      --   Left (Term.Boolean True)
-      -- ),
+      ( "Test annotations for blocks with destructuring binds",
+        [here|
+structural type Identity a = Identity a
+term = let
+  (Identity a) = Identity tr^ue
+  a
+        |],
+        True,
+        trm (Term.Boolean True)
+      ),
+      ( "Test annotations for destructuring tuples (they have a special parser)",
+        [here|
+term = let
+  (true, fal^se)
+        |],
+        True,
+        trm (Term.Boolean False)
+      ),
+      ( "Test annotations within pattern binds",
+        [here|
+term = let
+  (third, tr^ue) = (false, true)
+  true
+  |],
+        True,
+        pat (Pattern.Boolean () True)
+      ),
+      ( "Test annotations for types with arrows",
+        [here|
+structural type Thing = This | That
+
+term : Thing -> Thing -> Thi^ng
+term a b = This
+        |],
+        True,
+        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+      ),
+      ( "Test annotations for types with effects",
+        [here|
+unique ability Foo a where
+    foo : a
+
+unique ability Bar b where
+    bar : b
+
+structural type Thing = This | That
+
+term : (Thing -> {Foo a, Bar b} Th^ing) -> {Foo a, Bar b} Thing
+term f = f This
+        |],
+        True,
+        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+      ),
+      ( "Test annotations for effects themselves",
+        [here|
+structural ability Foo a where
+    foo : a
+
+structural type Thing = This | That
+
+term : () -> {F^oo a} Thing
+term _ = This
+        |],
+        True,
+        Right (Type.Ref (Reference.unsafeFromText "#h4uhcub76va4tckj1iccnsb07rh0fhgpigqapb4jh5n07s0tugec4nm2vikuv973mab7oh4ne07o6armcnnl7mbfjtb4imphgrjgimg"))
+      ),
       ( "Test annotations for blocks recursive binds",
         [here|
 term = let
@@ -128,7 +191,7 @@ term = let
   f true
         |],
         True,
-        Left (Term.Boolean False)
+        trm (Term.Boolean False)
       )
     ]
 
@@ -142,7 +205,7 @@ extractCursor txt =
        in pure $ (Lexer.Pos line col, before <> after)
     _ -> crash "expected exactly one cursor"
 
-makeNodeSelectionTest :: (String, Text, Bool, Either ((Term.F Symbol Ann Ann (Term Symbol Ann))) (Type.F (Type Symbol Ann))) -> Test ()
+makeNodeSelectionTest :: (String, Text, Bool, LSPQ.SourceNode ()) -> Test ()
 makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ do
   (pos, src) <- extractCursor testSrc
   (notes, mayParsedFile, mayTypecheckedFile) <- typecheckSrc name src
@@ -152,7 +215,7 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
           UF.terms pf
             & firstJust \(_v, trm) ->
               LSPQ.findSmallestEnclosingNode pos trm
-    expectEqual (Just $ bimap ABT.Tm ABT.Tm expected) (bimap ABT.out ABT.out <$> pfResult)
+    expectEqual (Just expected) (void <$> pfResult)
 
   when testTypechecked $
     scope "typechecked file" $ do
@@ -162,7 +225,7 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
               & toList
               & firstJust \(_refId, _wk, trm, _typ) ->
                 LSPQ.findSmallestEnclosingNode pos trm
-      expectEqual (Just $ bimap ABT.Tm ABT.Tm expected) (bimap ABT.out ABT.out <$> tfResult)
+      expectEqual (Just expected) (void <$> tfResult)
 
 -- | Tests which assert that the annotation for each ABT node spans at least the span of
 -- its children, i.e. all child annotations are contained within the annotation of their parent.
