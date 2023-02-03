@@ -2873,15 +2873,12 @@ delete ::
   [Path.HQSplit'] -> -- targets for deletion
   Cli ()
 delete input doutput getTerms getTypes hqs' = do
-  -- Takes the list of entities to delete and gets the absolute paths
-  -- persists the original hash qualified term for error reporting
+  -- persists the original hash qualified entity for error reporting
   hq <- traverse (\t -> fmap (t,) (Cli.resolveSplit' t)) hqs'
-  -- from the query to delete, get terms and types
   typesTermsTuple <- traverse (\(hashQualified, absolute) -> do
     types <- getTypes absolute
     terms <- getTerms absolute
     return (hashQualified, types, terms)) hq
-  -- filter the list of targets down to those which don't exist
   let notFounds = List.filter (\(_, types, terms) -> Set.null terms && Set.null types) typesTermsTuple
   -- if there are any entities which cannot be deleted because they don't exist, short circuit.
   if not $ null notFounds then do
@@ -2910,7 +2907,8 @@ checkDeletes typesTermsTuples doutput inputs = do
   let allTermsToDelete :: Set LabeledDependency
       allTermsToDelete = Set.unions (fmap Names.labeledReferences toDelete)
   -- get the endangered dependencies for each entity to delete
-  endangered <- Cli.runTransaction $ traverse (\targetToDelete -> getEndangeredDependents targetToDelete allTermsToDelete rootNames) toDelete
+  endangered <- Cli.runTransaction $ traverse (\targetToDelete ->
+    getEndangeredDependents targetToDelete allTermsToDelete rootNames) toDelete
   -- If the overall dependency map is not completely empty, abort deletion
   let endangeredDeletions = List.filter (\m -> not $ null m || Map.foldr (\s b -> null s || b ) False m ) endangered
   if null endangeredDeletions then do
@@ -2958,7 +2956,7 @@ getEndangeredDependents targetNamesToDelete allTermsToDelete rootNames = do
   -- left over after deleting target
   let remainingRefs :: Set LabeledDependency
       remainingRefs =  Names.labeledReferences remainingNames
-  -- remove the other targets for deletion from the remaining terms mimicking the state if transaction succeeds
+  -- remove the other targets for deletion from the remaining terms
   let remainingRefsWithoutOtherTargets :: Set LabeledDependency
       remainingRefsWithoutOtherTargets = Set.difference remainingRefs allOtherNamesToDelete
   -- deleting and not left over
