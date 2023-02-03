@@ -181,7 +181,7 @@ incrementFoo = cases
 .> delete.verbose Foo Foo.Foo incrementFoo
 ```
 
-If you mess up on one of the names of your deletion set, you cannot run the command
+If you mess up on one of the names of your command, delete short circuits
 
 ```unison:hide
 e = 11
@@ -193,4 +193,17 @@ h = e + f + g
 ```ucm:error
 .> add
 .> delete.verbose e f gg
+```
+
+Cyclical terms which are guarded by a lambda are allowed to be deleted
+
+```unison:hide
+ping _ = 1 Nat.+ !pong
+pong _ = 4 Nat.+ !ping
+```
+
+```ucm
+.> add
+.> delete.verbose ping
+.> view pong
 ```

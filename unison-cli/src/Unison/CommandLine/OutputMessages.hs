@@ -771,8 +771,11 @@ notifyUser dir o = case o of
     pure . P.warnCallout $ "I don't know about that patch."
   NameNotFound _ ->
     pure . P.warnCallout $ "I don't know about that name."
-  NamesNotFound _ ->
-    pure . P.warnCallout $ "I don't know about those names."
+  NamesNotFound hqs ->
+    pure $
+      P.warnCallout "The following names were not found in the codebase. Check your spelling."
+        <> P.newline
+        <> (P.syntaxToColor $ P.indent "  " (P.lines (fmap prettyName hqs) ))
   TermNotFound _ ->
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->

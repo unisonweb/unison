@@ -213,6 +213,8 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
+import qualified Unison.Codebase.Path as HQSplit'
+import qualified Unison.HashQualified' as HashQualified
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -2883,8 +2885,10 @@ delete input doutput getTerms getTypes hqs' = do
   let notFounds = List.filter (\(_, types, terms) -> Set.null terms && Set.null types) typesTermsTuple
   -- if there are any entities which cannot be deleted because they don't exist, short circuit.
   if not $ null notFounds then do
-    let first (m,_,_) = m
-    Cli.returnEarly $ NamesNotFound $ fmap first notFounds
+    let transformNotFounds :: [(Path.HQSplit', Set Reference, Set referent)] -> [Name]
+        transformNotFounds notFounds =
+          mapMaybe (\(split,_,_) -> Path.toName' $ HashQualified.toName (HQSplit'.unsplitHQ' split)) notFounds
+    Cli.returnEarly $ NamesNotFound (transformNotFounds notFounds)
   else do
     checkDeletes typesTermsTuple doutput input
 
@@ -2913,12 +2917,8 @@ checkDeletes typesTermsTuples doutput inputs = do
   endangered <- Cli.runTransaction $ traverse (\targetToDelete -> getEndangeredDependents targetToDelete allTermsToDelete rootNames) toDelete
   -- If the overall dependency map is not completely empty, there are dependencies of the deletion
   let endangeredDeletions = List.filter (\m -> not $ null m || Map.foldr (\s b -> null s || b ) False m ) endangered
-  if not $ null endangeredDeletions then do
-      ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
-      let combineRefs = List.foldl (Map.unionWith NESet.union) Map.empty endangeredDeletions
-      Cli.respondNumbered (CantDeleteDefinitions ppeDecl combineRefs)
-  else do
-    let deleteTypesTerms = splitsNames >>= (\(split, _, types, terms) -> (List.map (BranchUtil.makeDeleteTypeName split) . Set.toList $ types) ++ (List.map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms ))
+  if null endangeredDeletions then do
+    let deleteTypesTerms = splitsNames >>= (\(split, _, types, terms) -> (map (BranchUtil.makeDeleteTypeName split) . Set.toList $ types) ++ (map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms ))
     before <- Cli.getRootBranch0
     description <- inputDescription inputs
     Cli.stepManyAt description deleteTypesTerms
@@ -2929,6 +2929,10 @@ checkDeletes typesTermsTuples doutput inputs = do
         Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
       DeleteOutput'NoDiff -> do
         Cli.respond Success
+  else do
+      ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+      let combineRefs = List.foldl (Map.unionWith NESet.union) Map.empty endangeredDeletions
+      Cli.respondNumbered (CantDeleteDefinitions ppeDecl combineRefs)
 
 -- | Goal: When deleting, we might be removing the last name of a given definition (i.e. the
 -- definition is going "extinct"). In this case we may wish to take some action or warn the

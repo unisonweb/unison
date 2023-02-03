@@ -155,7 +155,7 @@ data Output
   | BranchNotFound Path'
   | EmptyPush Path'
   | NameNotFound Path.HQSplit'
-  | NamesNotFound [Path.HQSplit']
+  | NamesNotFound [Name]
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
   | TermNotFound Path.HQSplit'

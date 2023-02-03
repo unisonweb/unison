@@ -606,7 +606,6 @@ renameType =
               "`rename.type` takes two arguments, like `rename.type oldname newname`."
     )
 
--- NOTE: mkTarget should take a list of hash qualified split arguments and create a delete target type that has been adapted to
 deleteGen :: Maybe String -> String -> ([Path.HQSplit'] -> DeleteTarget) -> InputPattern
 deleteGen suffix target mkTarget =
   let cmd = maybe "delete" ("delete." <>) suffix
@@ -632,9 +631,9 @@ deleteGen suffix target mkTarget =
         [(OnePlus, exactDefinitionTermQueryArg)]
         info
         ( \case
-            [] -> Left . P.warnCallout $ P.wrap warn --- hmmmmmmm
+            [] -> Left . P.warnCallout $ P.wrap warn
             queries -> first fromString $ do
-              paths <- (traverse Path.parseHQSplit' queries) -- maybe??? not sure
+              paths <- traverse Path.parseHQSplit' queries
               pure $ Input.DeleteI (mkTarget paths)
         )
 
