@@ -78,7 +78,7 @@ checkFile doc = runMaybeT $ do
   (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getParseNames
   let sourceName = getUri $ doc ^. uri
-  let lexedSource@(srcText, _tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
+  let lexedSource@(srcText, tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   cb <- asks codebase
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
@@ -97,7 +97,7 @@ checkFile doc = runMaybeT $ do
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
-  let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
+  let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints tokens <$> parsedFile <*> typecheckedFile)
   let fileSummary = mkFileSummary parsedFile typecheckedFile
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, typeSignatureHints, ..}
   pure $ fileAnalysis
@@ -417,8 +417,8 @@ ppedForFileHelper uf tf = do
           filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
        in filePPED `PPED.addFallback` codebasePPED
 
-mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
-mkTypeSignatureHints parsedFile typecheckedFile = do
+mkTypeSignatureHints :: [L.Token L.Lexeme] -> UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
+mkTypeSignatureHints tokens parsedFile typecheckedFile = do
   let symbolsWithoutTypeSigs :: Map Symbol Ann
       symbolsWithoutTypeSigs =
         UF.terms parsedFile
@@ -435,12 +435,22 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
           & Zip.zip symbolsWithoutTypeSigs
           & imapMaybe
             ( \v (ann, (ref, _wk, _trm, typ)) -> do
-                startPos <- annStart ann
+                startPos <- findStart (Var.nameStr v) tokens <|> annStart ann
                 name <- Name.fromText (Var.name v)
                 pure $ TypeSignatureHint name (Referent.fromTermReferenceId ref) startPos typ
             )
    in typeHints
   where
+    findStart :: String -> [L.Token L.Lexeme] -> Maybe Position
+    findStart sym = \case
+      [] -> Nothing
+      -- Detect top-level definitions
+      (L.Token {L.payload = L.WordyId str _, L.start} : L.Token {L.payload = L.Open "="} : _)
+        | str == sym -> Just $ uToLspPos start
+      (L.Token {L.payload = L.SymbolyId str _, L.start} : L.Token {L.payload = L.Close} : L.Token {L.payload = L.Open "="} : _)
+        | str == sym -> Just $ uToLspPos start
+      (_ : rest) -> findStart sym rest
+
     annStart :: Ann -> Maybe Position
     annStart = \case
       Ann.Intrinsic -> Nothing
