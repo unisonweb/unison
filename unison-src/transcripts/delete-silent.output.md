@@ -3,7 +3,7 @@
 
   ⚠️
   
-  I don't know about that name.
+  I don't know about those names.
 
 ```
 ```unison

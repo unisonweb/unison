@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use tuple-section" #-}
 module Unison.Codebase.Editor.HandleInput
   ( loop,
   )
@@ -343,44 +345,6 @@ loop e = do
             names <- displayNames uf
             ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
             Cli.respond $ Typechecked (Text.pack sourceName) ppe sr uf
-
-          delete ::
-            DeleteOutput ->
-            ((Path.Absolute, HQ'.HQSegment) -> Cli (Set Referent)) -> -- compute matching terms
-            ((Path.Absolute, HQ'.HQSegment) -> Cli (Set Reference)) -> -- compute matching types
-            Path.HQSplit' ->
-            Cli ()
-          delete doutput getTerms getTypes hq' = do
-            hq <- Cli.resolveSplit' hq'
-            terms <- getTerms hq
-            types <- getTypes hq
-            when (Set.null terms && Set.null types) (Cli.returnEarly (NameNotFound hq'))
-            -- Mitchell: stripping hash seems wrong here...
-            resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq')
-            rootNames <- Branch.toNames <$> Cli.getRootBranch0
-            let name = Path.unsafeToName (Path.unsplit resolvedPath)
-                toRel :: Ord ref => Set ref -> R.Relation Name ref
-                toRel = R.fromList . fmap (name,) . toList
-                -- these names are relative to the root
-                toDelete = Names (toRel terms) (toRel types)
-            endangerments <- Cli.runTransaction (getEndangeredDependents toDelete rootNames)
-            if null endangerments
-              then do
-                let makeDeleteTermNames = map (BranchUtil.makeDeleteTermName resolvedPath) . Set.toList $ terms
-                let makeDeleteTypeNames = map (BranchUtil.makeDeleteTypeName resolvedPath) . Set.toList $ types
-                before <- Cli.getRootBranch0
-                description <- inputDescription input
-                Cli.stepManyAt description (makeDeleteTermNames ++ makeDeleteTypeNames)
-                case doutput of
-                  DeleteOutput'Diff -> do
-                    after <- Cli.getRootBranch0
-                    (ppe, diff) <- diffHelper before after
-                    Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
-                  DeleteOutput'NoDiff -> do
-                    Cli.respond Success
-              else do
-                ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
-                Cli.respondNumbered (CantDeleteDefinitions ppeDecl endangerments)
        in Cli.time "InputPattern" case input of
             ApiI -> do
               Cli.Env {serverBaseUrl} <- ask
@@ -868,9 +832,9 @@ loop e = do
                 ]
               Cli.respond Success
             DeleteI dtarget -> case dtarget of
-              DeleteTarget'TermOrType doutput hq -> delete doutput Cli.getTermsAt Cli.getTypesAt hq
-              DeleteTarget'Type doutput hq -> delete doutput (const (pure Set.empty)) Cli.getTypesAt hq
-              DeleteTarget'Term doutput hq -> delete doutput Cli.getTermsAt (const (pure Set.empty)) hq
+              DeleteTarget'TermOrType doutput hqs -> delete input doutput Cli.getTermsAt Cli.getTypesAt hqs
+              DeleteTarget'Type doutput hqs -> delete input doutput (const (pure Set.empty)) Cli.getTypesAt hqs
+              DeleteTarget'Term doutput hqs -> delete input doutput Cli.getTermsAt (const (pure Set.empty)) hqs
               DeleteTarget'Patch src' -> do
                 _ <- Cli.expectPatchAt src'
                 description <- inputDescription input
@@ -899,7 +863,7 @@ loop e = do
                         (Branch.toNames (Branch.head branch))
                 afterDelete <- do
                   rootNames <- Branch.toNames <$> Cli.getRootBranch0
-                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete rootNames)
+                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete [] rootNames) -- hmm
                   case (null endangerments, insistence) of
                     (True, _) -> pure (Cli.respond Success)
                     (False, Force) -> do
@@ -1456,24 +1420,24 @@ inputDescription input =
       pure ("copy.patch " <> src <> " " <> dest)
     DeleteI dtarget -> do
       case dtarget of
-        DeleteTarget'TermOrType DeleteOutput'NoDiff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete " <> thing)
-        DeleteTarget'TermOrType DeleteOutput'Diff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete.verbose " <> thing)
-        DeleteTarget'Term DeleteOutput'NoDiff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete.term " <> thing)
-        DeleteTarget'Term DeleteOutput'Diff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete.term.verbose " <> thing)
+        DeleteTarget'TermOrType DeleteOutput'NoDiff things0 -> do
+          thing <- traverse hqs' things0
+          pure ("delete " <> Text.intercalate " " thing)
+        DeleteTarget'TermOrType DeleteOutput'Diff things0 -> do
+          thing <- traverse hqs' things0
+          pure ("delete.verbose " <> Text.intercalate " " thing)
+        DeleteTarget'Term DeleteOutput'NoDiff things0 -> do
+          thing <- traverse hqs' things0
+          pure ("delete.term " <> Text.intercalate " "thing)
+        DeleteTarget'Term DeleteOutput'Diff things0 -> do
+          thing <- traverse hqs' things0
+          pure ("delete.term.verbose " <> Text.intercalate " " thing)
         DeleteTarget'Type DeleteOutput'NoDiff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete.type " <> thing)
+          thing <- traverse hqs' thing0
+          pure ("delete.type " <> Text.intercalate " "thing)
         DeleteTarget'Type DeleteOutput'Diff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete.type.verbose " <> thing)
+          thing <- traverse hqs' thing0
+          pure ("delete.type.verbose " <> Text.intercalate " " thing)
         DeleteTarget'Branch Try opath0 -> do
           opath <- ops' opath0
           pure ("delete.namespace " <> opath)
@@ -2899,24 +2863,107 @@ loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
         (ppe, diff) <- diffHelper original (Branch.head patched)
         Cli.respondNumbered (ShowDiffAfterMergePropagate dest0 dest patchPath ppe diff)
 
+delete ::
+  Input ->
+  DeleteOutput ->
+  ((Path.Absolute, HQ'.HQSegment) -> Cli (Set Referent)) -> -- compute matching terms
+  ((Path.Absolute, HQ'.HQSegment) -> Cli (Set Reference)) -> -- compute matching types
+  [Path.HQSplit'] -> -- targets for deletion
+  Cli ()
+delete input doutput getTerms getTypes hqs' = do
+  -- Takes the list of entities to delete and gets the absolute paths
+  -- persists the original hash qualified term for error reporting
+  hq <- traverse (\t -> fmap (t,) (Cli.resolveSplit' t) ) hqs'
+  -- from the query to delete, get terms and types
+  typesTermsTuple <- traverse (\(hashQualified, absolute) -> do
+    types <- getTypes absolute
+    terms <- getTerms absolute
+    return (hashQualified, types, terms)) hq
+  -- filter the list of targets down to those which don't exist
+  let notFounds = List.filter (\(_, types, terms) -> Set.null terms && Set.null types) typesTermsTuple
+  -- if there are any entities which cannot be deleted because they don't exist, short circuit.
+  -- TODO: confirm this is the desired behavior
+  if not $ null notFounds then do
+    let first (m,_,_) = m
+    Cli.returnEarly $ NamesNotFound $ fmap first notFounds
+  else do
+    checkDeletes typesTermsTuple doutput input
+
+toSplitName :: (Path.HQSplit', Set Reference, Set Referent) -> Cli (Path.Split, Name, Set Reference, Set Referent)
+toSplitName hq = do
+  let first (m,_,_) = m
+  let second (_,m,_) = m
+  let third (_,_,m) = m
+  resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> first hq)
+  return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), second hq, third hq)
+
+-- Takes a list of entities to delete, paired with their associated terms and types
+checkDeletes :: [(Path.HQSplit', Set Reference, Set Referent)] -> DeleteOutput -> Input -> Cli ()
+checkDeletes typesTermsTuples doutput inputs = do
+  -- get the splits, names, with terms, and types
+  splitsNames <- traverse toSplitName typesTermsTuples
+  let toRel :: Ord ref => Set ref -> Name -> R.Relation Name ref
+      toRel setRef name = R.fromList (fmap (name,) (toList setRef))
+  let toDelete :: [Names] = fmap (\(_, names, types, terms) -> Names (toRel terms names) (toRel types names)) splitsNames
+  -- make sure endangered is compeletely contained in paths
+  rootNames <- Branch.toNames <$> Cli.getRootBranch0
+  -- compute only once for the entire deletion set
+  let allTermsToDelete :: Set LabeledDependency
+      allTermsToDelete = Set.unions (fmap Names.labeledReferences toDelete)
+  -- get the set of endangered dependencies for each entity to delete
+  endangered <- Cli.runTransaction $ traverse (\targetToDelete -> getEndangeredDependents targetToDelete allTermsToDelete rootNames) toDelete
+  -- If the overall dependency map is not completely empty, there are dependencies of the deletion
+  let endangeredDeletions = List.filter (\m -> not $ null m || Map.foldr (\s b -> null s || b ) False m ) endangered
+  if not $ null endangeredDeletions then do
+      ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+      let combineRefs = List.foldl (Map.unionWith NESet.union) Map.empty endangeredDeletions
+      Cli.respondNumbered (CantDeleteDefinitions ppeDecl combineRefs)
+  else do
+    let deleteTypesTerms = splitsNames >>= (\(split, _, types, terms) -> (List.map (BranchUtil.makeDeleteTypeName split) . Set.toList $ types) ++ (List.map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms ))
+    before <- Cli.getRootBranch0
+    description <- inputDescription inputs
+    Cli.stepManyAt description deleteTypesTerms
+    case doutput of
+      DeleteOutput'Diff -> do
+        after <- Cli.getRootBranch0
+        (ppe, diff) <- diffHelper before after
+        Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
+      DeleteOutput'NoDiff -> do
+        Cli.respond Success
+
 -- | Goal: When deleting, we might be removing the last name of a given definition (i.e. the
 -- definition is going "extinct"). In this case we may wish to take some action or warn the
 -- user about these "endangered" definitions which would now contain unnamed references.
 getEndangeredDependents ::
-  -- | Which names we want to delete
+  -- | Single target for deletion
   Names ->
+  -- | Which names we want to delete (including the target)
+  Set LabeledDependency ->
   -- | All names from the root branch
   Names ->
   -- | map from references going extinct to the set of endangered dependents
   Sqlite.Transaction (Map LabeledDependency (NESet LabeledDependency))
-getEndangeredDependents namesToDelete rootNames = do
+-- get the things that depend on me. root names is everything underneath my namespace
+getEndangeredDependents targetNamesToDelete allTermsToDelete rootNames = do
+  -- names of terms left over after target deletion (but not including all other names to delete)
   let remainingNames :: Names
-      remainingNames = rootNames `Names.difference` namesToDelete
-      refsToDelete, remainingRefs, extinct :: Set LabeledDependency
-      refsToDelete = Names.labeledReferences namesToDelete
-      remainingRefs = Names.labeledReferences remainingNames -- left over after delete
-      extinct = refsToDelete `Set.difference` remainingRefs -- deleting and not left over
-      accumulateDependents :: LabeledDependency -> Sqlite.Transaction (Map LabeledDependency (Set LabeledDependency))
+      remainingNames = rootNames `Names.difference` targetNamesToDelete
+  -- the target for deletion, expressed as a set of LabeledDependencies
+  let refsToDelete :: Set LabeledDependency
+      refsToDelete = Names.labeledReferences targetNamesToDelete
+  -- remove the target from the set of names to delete
+  let allOtherNamesSet :: Set LabeledDependency
+      allOtherNamesSet = Set.difference allTermsToDelete refsToDelete
+  let remainingRefs :: Set LabeledDependency
+  -- refs left over after deleting target
+      remainingRefs =  Names.labeledReferences remainingNames
+  -- remove the other targets for deletion from the remaining terms mimicking the state if transaction succeeds
+  let remainingRefsWithoutOtherTargets :: Set LabeledDependency
+      remainingRefsWithoutOtherTargets = Set.difference remainingRefs allOtherNamesSet
+  -- deleting and not left over
+  let extinct :: Set LabeledDependency
+      extinct = refsToDelete `Set.difference` remainingRefsWithoutOtherTargets
+  let accumulateDependents :: LabeledDependency -> Sqlite.Transaction (Map LabeledDependency (Set LabeledDependency))
       accumulateDependents ld =
         let ref = LD.fold id Referent.toReference ld
          in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents Queries.ExcludeOwnComponent ref
@@ -2929,7 +2976,7 @@ getEndangeredDependents namesToDelete rootNames = do
   let extinctToEndangered :: Map LabeledDependency (NESet LabeledDependency)
       extinctToEndangered =
         allDependentsOfExtinct & Map.mapMaybe \endangeredDeps ->
-          let remainingEndangered = endangeredDeps `Set.intersection` remainingRefs
+          let remainingEndangered = endangeredDeps `Set.intersection` remainingRefsWithoutOtherTargets
            in NESet.nonEmptySet remainingEndangered
   pure extinctToEndangered
 
@@ -3417,3 +3464,4 @@ stripUnisonFileReferences unisonFile term =
             | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
           x -> ABT.tm x
    in ABT.cata alg term
+

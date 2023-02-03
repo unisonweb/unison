@@ -771,6 +771,8 @@ notifyUser dir o = case o of
     pure . P.warnCallout $ "I don't know about that patch."
   NameNotFound _ ->
     pure . P.warnCallout $ "I don't know about that name."
+  NamesNotFound _ ->
+    pure . P.warnCallout $ "I don't know about those names."
   TermNotFound _ ->
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->

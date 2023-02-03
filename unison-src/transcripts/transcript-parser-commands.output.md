@@ -39,7 +39,7 @@ z
 
   ⚠️
   
-  I don't know about that name.
+  I don't know about those names.
 
 ```
 ```ucm
@@ -47,7 +47,7 @@ z
 
   ⚠️
   
-  I don't know about that name.
+  I don't know about those names.
 
 ```
 However handling of blocks of other languages should be supported.

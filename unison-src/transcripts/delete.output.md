@@ -10,7 +10,7 @@ exist.
 
   ⚠️
   
-  I don't know about that name.
+  I don't know about those names.
 
 ```
 Now for some easy cases. Deleting an unambiguous term, then deleting an
@@ -237,3 +237,151 @@ structural type foo = Foo ()
   Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
+We want to be able to delete multiple terms at once
+
+```unison
+a = "a"
+b = "b"
+c = "c"
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    a : Text
+    b : Text
+    c : Text
+
+.> delete.verbose a b c
+
+  Removed definitions:
+  
+    1. a : Text
+    2. b : Text
+    3. c : Text
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
+
+```
+We can delete terms and types in the same invocation of delete
+
+```unison
+structural type Foo = Foo ()
+a = "a"
+b = "b"
+c = "c"
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    structural type Foo
+    a : Text
+    b : Text
+    c : Text
+
+.> delete.verbose a b c Foo
+
+  Removed definitions:
+  
+    1. structural type Foo
+    2. a : Text
+    3. b : Text
+    4. c : Text
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
+
+.> delete.verbose Foo.Foo
+
+  Name changes:
+  
+    Original      Changes
+    1. Foo.Foo ┐  2. Foo.Foo (removed)
+    3. foo.Foo ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
+
+```
+We can delete a type and its constructors
+
+```unison
+structural type Foo = Foo ()
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    structural type Foo
+
+.> delete.verbose Foo Foo.Foo
+
+  Removed definitions:
+  
+    1. structural type Foo
+  
+  Name changes:
+  
+    Original      Changes
+    2. Foo.Foo ┐  3. Foo.Foo (removed)
+    4. foo.Foo ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
+
+```
+You should not be able to delete terms which are referenced by other terms
+
+```unison
+a = 1
+b = 2
+c = 3
+d = a + b + c
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    a : Nat
+    b : Nat
+      (also named b.foo)
+    c : Nat
+    d : Nat
+
+.> delete.verbose a b c
+
+  ⚠️
+  
+  I didn't delete the following definitions because they are
+  still in use:
+  
+  Dependency   Referenced In
+  c            1. d
+               
+  a            2. d
+
+```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  ⚠️
+  
+  I didn't delete the following definitions because they are
+  still in use:
+  
+  Dependency   Referenced In
+  c            1. d
+               
+  a            2. d
+
