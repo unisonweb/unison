@@ -863,7 +863,7 @@ loop e = do
                         (Branch.toNames (Branch.head branch))
                 afterDelete <- do
                   rootNames <- Branch.toNames <$> Cli.getRootBranch0
-                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete [] rootNames) -- hmm
+                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete Set.empty rootNames)
                   case (null endangerments, insistence) of
                     (True, _) -> pure (Cli.respond Success)
                     (False, Force) -> do
@@ -2882,7 +2882,6 @@ delete input doutput getTerms getTypes hqs' = do
   -- filter the list of targets down to those which don't exist
   let notFounds = List.filter (\(_, types, terms) -> Set.null terms && Set.null types) typesTermsTuple
   -- if there are any entities which cannot be deleted because they don't exist, short circuit.
-  -- TODO: confirm this is the desired behavior
   if not $ null notFounds then do
     let first (m,_,_) = m
     Cli.returnEarly $ NamesNotFound $ fmap first notFounds
@@ -2900,7 +2899,7 @@ toSplitName hq = do
 -- Takes a list of entities to delete, paired with their associated terms and types
 checkDeletes :: [(Path.HQSplit', Set Reference, Set Referent)] -> DeleteOutput -> Input -> Cli ()
 checkDeletes typesTermsTuples doutput inputs = do
-  -- get the splits, names, with terms, and types
+  -- get the splits and names with terms and types
   splitsNames <- traverse toSplitName typesTermsTuples
   let toRel :: Ord ref => Set ref -> Name -> R.Relation Name ref
       toRel setRef name = R.fromList (fmap (name,) (toList setRef))
@@ -2943,23 +2942,21 @@ getEndangeredDependents ::
   Names ->
   -- | map from references going extinct to the set of endangered dependents
   Sqlite.Transaction (Map LabeledDependency (NESet LabeledDependency))
--- get the things that depend on me. root names is everything underneath my namespace
 getEndangeredDependents targetNamesToDelete allTermsToDelete rootNames = do
-  -- names of terms left over after target deletion (but not including all other names to delete)
+  -- names of terms left over after target deletion
   let remainingNames :: Names
       remainingNames = rootNames `Names.difference` targetNamesToDelete
-  -- the target for deletion, expressed as a set of LabeledDependencies
   let refsToDelete :: Set LabeledDependency
       refsToDelete = Names.labeledReferences targetNamesToDelete
   -- remove the target from the set of names to delete
-  let allOtherNamesSet :: Set LabeledDependency
-      allOtherNamesSet = Set.difference allTermsToDelete refsToDelete
+  let allOtherNamesToDelete :: Set LabeledDependency
+      allOtherNamesToDelete = Set.difference allTermsToDelete refsToDelete
+  -- left over after deleting target
   let remainingRefs :: Set LabeledDependency
-  -- refs left over after deleting target
       remainingRefs =  Names.labeledReferences remainingNames
   -- remove the other targets for deletion from the remaining terms mimicking the state if transaction succeeds
   let remainingRefsWithoutOtherTargets :: Set LabeledDependency
-      remainingRefsWithoutOtherTargets = Set.difference remainingRefs allOtherNamesSet
+      remainingRefsWithoutOtherTargets = Set.difference remainingRefs allOtherNamesToDelete
   -- deleting and not left over
   let extinct :: Set LabeledDependency
       extinct = refsToDelete `Set.difference` remainingRefsWithoutOtherTargets

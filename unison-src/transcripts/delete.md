@@ -147,7 +147,7 @@ c = 3
 d = a + b + c
 ```
 
-```ucm
+```ucm:error
 .> add
 .> delete.verbose a b c
 ```
@@ -190,7 +190,7 @@ g = 13 + f
 h = e + f + g
 ```
 
-```ucm
+```ucm:error
 .> add
 .> delete.verbose e f gg
 ```
