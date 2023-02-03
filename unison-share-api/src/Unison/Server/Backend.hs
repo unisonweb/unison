@@ -12,6 +12,7 @@ module Unison.Server.Backend where
 
 import Control.Error.Util (hush)
 import Control.Lens hiding ((??))
+import qualified Control.Lens.Cons as Cons
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Bifunctor (Bifunctor (..), first)
@@ -961,6 +962,29 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
+
+-- | Fetch the docs associated with the given name.
+-- Returns all references with a Doc type which are at the name provided, or at '<name>.doc'.
+docsForDefinitionName ::
+  Codebase IO Symbol Ann ->
+  NameSearch ->
+  Name ->
+  IO [TermReference]
+docsForDefinitionName codebase (NameSearch {termSearch}) name = do
+  let potentialDocNames = [name, name Cons.:> "doc"]
+  let refs =
+        potentialDocNames & foldMap \name ->
+          -- TODO: Should replace this with an exact name lookup.
+          lookupRelativeHQRefs' termSearch (HQ'.NameOnly name)
+  Codebase.runTransaction codebase $ filterForDocs (toList refs)
+  where
+    filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
+    filterForDocs rs = do
+      rts <- fmap join . for rs $ \case
+        Referent.Ref r ->
+          maybe [] (pure . (r,)) <$> Codebase.getTypeOfTerm codebase r
+        _ -> pure []
+      pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
 
 renderDoc ::
   PPED.PrettyPrintEnvDecl ->
