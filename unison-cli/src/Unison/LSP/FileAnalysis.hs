@@ -48,7 +48,6 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPED
 import qualified Unison.PrintError as PrintError
-import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.Result (Note)
 import qualified Unison.Result as Result
@@ -61,19 +60,12 @@ import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Term as Term
 import Unison.Type (Type)
-import Unison.Term (Term)
-import qualified Unison.Term as Term
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Util.Relation as R
-import Unison.Util.Relation3 (Relation3)
-import qualified Unison.Util.Relation3 as R3
-import Unison.Util.Relation4 (Relation4)
-import qualified Unison.Util.Relation4 as R4
 import qualified Unison.Var as Var
 import Unison.WatchKind (pattern TestWatch)
 import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
@@ -189,16 +181,26 @@ getFileDefLocations uri = do
 
 -- | Compute the location of user defined definitions within the file
 fileDefLocations :: FileSummary -> Map Symbol (Set Ann)
-fileDefLocations FileSummary {dataDeclSummary, effectDeclSummary, testWatchSummary, exprWatchSummary, termSummary} =
+fileDefLocations FileSummary {dataDeclsBySymbol, effectDeclsBySymbol, testWatchSummary, exprWatchSummary, termsBySymbol} =
   fold
-    [ fmap (Set.map DD.annotation) . R.domain . R3.d13 $ dataDeclSummary,
-      fmap (Set.map (DD.annotation . DD.toDataDecl)) . R.domain . R3.d13 $ effectDeclSummary,
+    [ dataDeclsBySymbol <&> \(_, decl) ->
+        decl
+          & DD.annotation
+          & Set.singleton,
+      effectDeclsBySymbol <&> \(_, decl) ->
+        decl
+          & DD.toDataDecl
+          & DD.annotation
+          & Set.singleton,
       (testWatchSummary <> exprWatchSummary)
         & foldMap \(maySym, _id, trm, _typ) ->
           case maySym of
             Nothing -> mempty
             Just sym -> Map.singleton sym (Set.singleton $ ABT.annotation trm),
-      fmap (Set.map ABT.annotation) . R.domain . R4.d13 $ termSummary
+      termsBySymbol <&> \(_id, trm, _typ) ->
+        trm
+          & ABT.annotation
+          & Set.singleton
     ]
 
 fileAnalysisWorker :: Lsp ()

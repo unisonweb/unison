@@ -48,8 +48,6 @@ import qualified Unison.Syntax.Lexer as Lexer
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
-import Unison.Util.Relation3 (Relation3)
-import Unison.Util.Relation4 (Relation4)
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
