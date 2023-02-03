@@ -2889,21 +2889,23 @@ delete input doutput getTerms getTypes hqs' = do
   else do
     checkDeletes typesTermsTuple doutput input
 
-toSplitName :: (Path.HQSplit', Set Reference, Set Referent) -> Cli (Path.Split, Name, Set Reference, Set Referent)
-toSplitName hq = do
-  resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq^._1)
-  return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq^._2, hq^._3)
 
 checkDeletes :: [(Path.HQSplit', Set Reference, Set Referent)] -> DeleteOutput -> Input -> Cli ()
 checkDeletes typesTermsTuples doutput inputs = do
+  let toSplitName ::
+        (Path.HQSplit', Set Reference, Set Referent) ->
+        Cli (Path.Split, Name, Set Reference, Set Referent)
+      toSplitName hq = do
+        resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq^._1)
+        return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq^._2, hq^._3)
   -- get the splits and names with terms and types
   splitsNames <- traverse toSplitName typesTermsTuples
   let toRel :: Ord ref => Set ref -> Name -> R.Relation Name ref
       toRel setRef name = R.fromList (fmap (name,) (toList setRef))
-  let toDelete :: [Names] = fmap (\(_, names, types, terms) -> Names (toRel terms names) (toRel types names)) splitsNames
+  let toDelete = fmap (\(_, names, types, terms) -> Names (toRel terms names) (toRel types names)) splitsNames
   -- make sure endangered is compeletely contained in paths
   rootNames <- Branch.toNames <$> Cli.getRootBranch0
-  -- compute only once for the entire deletion set
+  -- get only once for the entire deletion set
   let allTermsToDelete :: Set LabeledDependency
       allTermsToDelete = Set.unions (fmap Names.labeledReferences toDelete)
   -- get the endangered dependencies for each entity to delete
@@ -2938,7 +2940,7 @@ checkDeletes typesTermsTuples doutput inputs = do
 getEndangeredDependents ::
   -- | Single target for deletion
   Names ->
-  -- | Which names we want to delete (including the target)
+  -- | All names we want to delete (including the target)
   Set LabeledDependency ->
   -- | All names from the root branch
   Names ->

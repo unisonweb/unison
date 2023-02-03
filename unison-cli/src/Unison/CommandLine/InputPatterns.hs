@@ -637,8 +637,6 @@ deleteGen suffix target mkTarget =
               pure $ Input.DeleteI (mkTarget paths)
         )
 
-
--- NOTE: creates an input pattern using deleteGen
 delete :: InputPattern
 delete = deleteGen Nothing "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
 
