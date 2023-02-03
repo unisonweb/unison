@@ -9,7 +9,6 @@ import qualified Colog.Core as Colog
 import Control.Lens
 import Control.Monad.Reader
 import Control.Monad.State
-import Data.Char
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Set.Lens (setOf)
@@ -24,6 +23,7 @@ import Language.LSP.VFS as VFS hiding (character)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.Prelude
+import qualified Unison.Syntax.Lexer as Lexer
 import UnliftIO
 
 -- | Some VFS combinators require Monad State, this provides it in a transactionally safe
@@ -74,12 +74,8 @@ identifierSplitAtPosition uri pos = do
   let (before, after) = Text.splitAt (cursorPos ^. character . to fromIntegral) fullLine
   pure (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)
   where
-    -- TODO: Should probably use something from the Lexer here
-    isIdentifierChar = \case
-      c
-        | isSpace c -> False
-        | elem c ("[]()`'\"" :: String) -> False
-        | otherwise -> True
+    isIdentifierChar c =
+      Lexer.wordyIdChar c || Lexer.symbolyIdChar c
 
 -- | Returns the prefix of the symbol at the provided location, and the range that prefix
 -- spans.
