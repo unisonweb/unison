@@ -152,7 +152,7 @@ term : Thing -> Thing -> Thi^ng
 term a b = This
         |],
         True,
-        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
       ),
       ( "Test annotations for types with effects",
         [here|
@@ -168,7 +168,7 @@ term : (Thing -> {Foo a, Bar b} Th^ing) -> {Foo a, Bar b} Thing
 term f = f This
         |],
         True,
-        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
       ),
       ( "Test annotations for effects themselves",
         [here|
@@ -181,7 +181,46 @@ term : () -> {F^oo a} Thing
 term _ = This
         |],
         True,
-        Right (Type.Ref (Reference.unsafeFromText "#h4uhcub76va4tckj1iccnsb07rh0fhgpigqapb4jh5n07s0tugec4nm2vikuv973mab7oh4ne07o6armcnnl7mbfjtb4imphgrjgimg"))
+        typ (Type.Ref (Reference.unsafeFromText "#h4uhcub76va4tckj1iccnsb07rh0fhgpigqapb4jh5n07s0tugec4nm2vikuv973mab7oh4ne07o6armcnnl7mbfjtb4imphgrjgimg"))
+      ),
+      ( "Test annotations for types with arrows",
+        [here|
+structural type Thing = This | That
+
+term : Thing -> Thing -> Thi^ng
+term a b = This
+        |],
+        True,
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+      ),
+      ( "Test annotations for types with effects",
+        [here|
+unique ability Foo a where
+    foo : a
+
+unique ability Bar b where
+    bar : b
+
+structural type Thing = This | That
+
+term : (Thing -> {Foo a, Bar b} Th^ing) -> {Foo a, Bar b} Thing
+term f = f This
+        |],
+        True,
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+      ),
+      ( "Test annotations for effects themselves",
+        [here|
+structural ability Foo a where
+    foo : a
+
+structural type Thing = This | That
+
+term : () -> {F^oo a} Thing
+term _ = This
+        |],
+        True,
+        typ (Type.Ref (Reference.unsafeFromText "#h4uhcub76va4tckj1iccnsb07rh0fhgpigqapb4jh5n07s0tugec4nm2vikuv973mab7oh4ne07o6armcnnl7mbfjtb4imphgrjgimg"))
       ),
       ( "Test annotations for blocks recursive binds",
         [here|
