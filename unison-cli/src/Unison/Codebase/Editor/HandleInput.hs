@@ -2874,18 +2874,19 @@ delete ::
   Cli ()
 delete input doutput getTerms getTypes hqs' = do
   -- persists the original hash qualified entity for error reporting
-  hq <- traverse (\t -> fmap (t,) (Cli.resolveSplit' t)) hqs'
-  typesTermsTuple <- traverse (\(hashQualified, absolute) -> do
-    types <- getTypes absolute
-    terms <- getTerms absolute
-    return (hashQualified, types, terms)) hq
+  typesTermsTuple <- traverse (\hq -> do
+      absolute <- Cli.resolveSplit' hq
+      types <- getTypes absolute
+      terms <- getTerms absolute
+      return (hq, types, terms)
+    ) hqs'
   let notFounds = List.filter (\(_, types, terms) -> Set.null terms && Set.null types) typesTermsTuple
   -- if there are any entities which cannot be deleted because they don't exist, short circuit.
   if not $ null notFounds then do
-    let transformNotFounds :: [(Path.HQSplit', Set Reference, Set referent)] -> [Name]
-        transformNotFounds notFounds =
+    let toName :: [(Path.HQSplit', Set Reference, Set referent)] -> [Name]
+        toName notFounds =
           mapMaybe (\(split,_,_) -> Path.toName' $ HashQualified.toName (HQSplit'.unsplitHQ' split)) notFounds
-    Cli.returnEarly $ NamesNotFound (transformNotFounds notFounds)
+    Cli.returnEarly $ NamesNotFound (toName notFounds)
   else do
     checkDeletes typesTermsTuple doutput input
 
