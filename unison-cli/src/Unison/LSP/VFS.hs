@@ -9,7 +9,6 @@ import qualified Colog.Core as Colog
 import Control.Lens
 import Control.Monad.Reader
 import Control.Monad.State
-import Data.Char
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Set.Lens (setOf)
@@ -18,12 +17,13 @@ import qualified Data.Text.Utf16.Rope as Rope
 import Data.Tuple (swap)
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Types
-import Language.LSP.Types.Lens (HasCharacter (character), HasParams (params), HasPosition (position), HasTextDocument (textDocument), HasUri (uri))
+import Language.LSP.Types.Lens (HasCharacter (character), HasParams (params), HasTextDocument (textDocument), HasUri (uri))
 import qualified Language.LSP.Types.Lens as LSP
 import Language.LSP.VFS as VFS hiding (character)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.Prelude
+import qualified Unison.Syntax.Lexer as Lexer
 import UnliftIO
 
 -- | Some VFS combinators require Monad State, this provides it in a transactionally safe
@@ -62,32 +62,28 @@ markAllFilesDirty = do
   markFilesDirty $ Map.keys (vfs ^. vfsMap)
 
 -- | Returns the name or symbol which the provided position is contained in.
-identifierAtPosition :: (HasPosition p Position, HasTextDocument p TextDocumentIdentifier) => p -> MaybeT Lsp Text
-identifierAtPosition p = do
-  identifierSplitAtPosition p <&> \(before, after) -> (before <> after)
+identifierAtPosition :: Uri -> Position -> MaybeT Lsp Text
+identifierAtPosition uri pos = do
+  identifierSplitAtPosition uri pos <&> \(before, after) -> (before <> after)
 
 -- | Returns the prefix and suffix of the symbol which the provided position is contained in.
-identifierSplitAtPosition :: (HasPosition p Position, HasTextDocument p docId, HasUri docId Uri) => p -> MaybeT Lsp (Text, Text)
-identifierSplitAtPosition p = do
-  vf <- getVirtualFile (p ^. textDocument . uri)
-  PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix (p ^. position) vf)
+identifierSplitAtPosition :: Uri -> Position -> MaybeT Lsp (Text, Text)
+identifierSplitAtPosition uri pos = do
+  vf <- getVirtualFile uri
+  PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix pos vf)
   let (before, after) = Text.splitAt (cursorPos ^. character . to fromIntegral) fullLine
-  pure $ (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)
+  pure (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)
   where
-    -- TODO: Should probably use something from the Lexer here
-    isIdentifierChar = \case
-      c
-        | isSpace c -> False
-        | elem c ("[]()`'\"" :: String) -> False
-        | otherwise -> True
+    isIdentifierChar c =
+      Lexer.wordyIdChar c || Lexer.symbolyIdChar c
 
 -- | Returns the prefix of the symbol at the provided location, and the range that prefix
 -- spans.
-completionPrefix :: (HasPosition p Position, HasTextDocument p docId, HasUri docId Uri) => p -> MaybeT Lsp (Range, Text)
-completionPrefix p = do
-  (before, _) <- identifierSplitAtPosition p
-  let posLine = p ^. position . LSP.line
-  let posChar = (p ^. position . LSP.character)
+completionPrefix :: Uri -> Position -> MaybeT Lsp (Range, Text)
+completionPrefix uri pos = do
+  (before, _) <- identifierSplitAtPosition uri pos
+  let posLine = pos ^. LSP.line
+  let posChar = pos ^. LSP.character
   let range = mkRange posLine (posChar - fromIntegral (Text.length before)) posLine posChar
   pure (range, before)
 

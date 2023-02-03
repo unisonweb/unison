@@ -72,7 +72,7 @@ checkFile doc = runMaybeT $ do
   (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getParseNames
   let sourceName = getUri $ doc ^. uri
-  let lexedSource@(srcText, _tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
+  let lexedSource@(srcText, tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   cb <- asks codebase
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
@@ -92,6 +92,7 @@ checkFile doc = runMaybeT $ do
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
   let fileSummary = mkFileSummary parsedFile typecheckedFile
+  let tokenMap = getTokenMap tokens
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, ..}
   pure $ fileAnalysis
 
@@ -192,6 +193,15 @@ analyseFile :: Foldable f => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnos
 analyseFile fileUri srcText notes = do
   pped <- PPED.suffixifiedPPE <$> LSP.globalPPED
   analyseNotes fileUri pped (Text.unpack srcText) notes
+
+getTokenMap :: [L.Token L.Lexeme] -> IM.IntervalMap Position L.Lexeme
+getTokenMap tokens =
+  tokens
+    & mapMaybe
+      ( \token ->
+          IM.singleton <$> (annToInterval $ Parser.ann token) <*> pure (L.payload token)
+      )
+    & fold
 
 analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseNotes fileUri ppe src notes = do

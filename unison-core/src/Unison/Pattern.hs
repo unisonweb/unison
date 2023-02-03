@@ -5,7 +5,6 @@
 
 module Unison.Pattern where
 
-import qualified Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -90,7 +89,21 @@ application (Constructor _ _ (_ : _)) = True
 application _ = False
 
 loc :: Pattern loc -> loc
-loc p = head $ Foldable.toList p
+loc = \case
+  Unbound loc -> loc
+  Var loc -> loc
+  Boolean loc _ -> loc
+  Int loc _ -> loc
+  Nat loc _ -> loc
+  Float loc _ -> loc
+  Text loc _ -> loc
+  Char loc _ -> loc
+  Constructor loc _ _ -> loc
+  As loc _ -> loc
+  EffectPure loc _ -> loc
+  EffectBind loc _ _ _ -> loc
+  SequenceLiteral loc _ -> loc
+  SequenceOp loc _ _ _ -> loc
 
 setLoc :: Pattern loc -> loc -> Pattern loc
 setLoc p loc = case p of
