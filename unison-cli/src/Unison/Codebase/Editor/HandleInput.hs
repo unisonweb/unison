@@ -2875,7 +2875,7 @@ delete ::
 delete input doutput getTerms getTypes hqs' = do
   -- Takes the list of entities to delete and gets the absolute paths
   -- persists the original hash qualified term for error reporting
-  hq <- traverse (\t -> fmap (t,) (Cli.resolveSplit' t) ) hqs'
+  hq <- traverse (\t -> fmap (t,) (Cli.resolveSplit' t)) hqs'
   -- from the query to delete, get terms and types
   typesTermsTuple <- traverse (\(hashQualified, absolute) -> do
     types <- getTypes absolute
@@ -2894,13 +2894,9 @@ delete input doutput getTerms getTypes hqs' = do
 
 toSplitName :: (Path.HQSplit', Set Reference, Set Referent) -> Cli (Path.Split, Name, Set Reference, Set Referent)
 toSplitName hq = do
-  let first (m,_,_) = m
-  let second (_,m,_) = m
-  let third (_,_,m) = m
-  resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> first hq)
-  return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), second hq, third hq)
+  resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq^._1)
+  return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq^._2, hq^._3)
 
--- Takes a list of entities to delete, paired with their associated terms and types
 checkDeletes :: [(Path.HQSplit', Set Reference, Set Referent)] -> DeleteOutput -> Input -> Cli ()
 checkDeletes typesTermsTuples doutput inputs = do
   -- get the splits and names with terms and types
@@ -2913,12 +2909,16 @@ checkDeletes typesTermsTuples doutput inputs = do
   -- compute only once for the entire deletion set
   let allTermsToDelete :: Set LabeledDependency
       allTermsToDelete = Set.unions (fmap Names.labeledReferences toDelete)
-  -- get the set of endangered dependencies for each entity to delete
+  -- get the endangered dependencies for each entity to delete
   endangered <- Cli.runTransaction $ traverse (\targetToDelete -> getEndangeredDependents targetToDelete allTermsToDelete rootNames) toDelete
-  -- If the overall dependency map is not completely empty, there are dependencies of the deletion
+  -- If the overall dependency map is not completely empty, abort deletion
   let endangeredDeletions = List.filter (\m -> not $ null m || Map.foldr (\s b -> null s || b ) False m ) endangered
   if null endangeredDeletions then do
-    let deleteTypesTerms = splitsNames >>= (\(split, _, types, terms) -> (map (BranchUtil.makeDeleteTypeName split) . Set.toList $ types) ++ (map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms ))
+    let deleteTypesTerms =
+          splitsNames >>= (\(split, _, types, terms) ->
+            (map (BranchUtil.makeDeleteTypeName split) . Set.toList $ types) ++
+            (map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms )
+          )
     before <- Cli.getRootBranch0
     description <- inputDescription inputs
     Cli.stepManyAt description deleteTypesTerms
