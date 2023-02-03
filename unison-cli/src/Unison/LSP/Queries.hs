@@ -11,8 +11,6 @@ module Unison.LSP.Queries
     findSmallestEnclosingNode,
     findSmallestEnclosingType,
     refInDecl,
-    getTypeOfReferent,
-    getTypeDeclaration,
     SourceNode (..),
   )
 where
@@ -23,6 +21,7 @@ import Control.Monad.Reader
 import Data.Generics.Product (field)
 import Language.LSP.Types
 import qualified Unison.ABT as ABT
+import qualified Unison.Builtin.Decls as Builtins
 import qualified Unison.Codebase as Codebase
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -52,13 +51,14 @@ import qualified Unison.Type as Type
 -- | Returns a reference to whatever the symbol at the given position refers to.
 refAtPosition :: Uri -> Position -> MaybeT Lsp LabeledDependency
 refAtPosition uri pos = do
-  findInTermOrType <|> findInDecl
+  findInNode <|> findInDecl
   where
-    findInTermOrType :: MaybeT Lsp LabeledDependency
-    findInTermOrType =
+    findInNode :: MaybeT Lsp LabeledDependency
+    findInNode =
       nodeAtPosition uri pos >>= \case
-        Left term -> hoistMaybe $ refInTerm term
-        Right typ -> hoistMaybe $ fmap TypeReference (refInType typ)
+        TermNode term -> hoistMaybe $ refInTerm term
+        TypeNode typ -> hoistMaybe $ fmap TypeReference (refInType typ)
+        PatternNode pat -> hoistMaybe $ refInPattern pat
     findInDecl :: MaybeT Lsp LabeledDependency
     findInDecl =
       LD.TypeReference <$> do
@@ -155,6 +155,24 @@ refInType typ = case ABT.out typ of
   ABT.Cycle _r -> Nothing
   ABT.Abs _v _r -> Nothing
 
+-- Returns the reference a given type node refers to, if any.
+refInPattern :: Pattern.Pattern a -> Maybe LabeledDependency
+refInPattern = \case
+  Pattern.Unbound {} -> Nothing
+  Pattern.Var {} -> Nothing
+  Pattern.Boolean {} -> Nothing
+  Pattern.Int {} -> Nothing
+  Pattern.Nat {} -> Nothing
+  Pattern.Float {} -> Nothing
+  Pattern.Text {} -> Nothing
+  Pattern.Char {} -> Nothing
+  Pattern.Constructor _loc conRef _ -> Just (LD.ConReference conRef CT.Data)
+  Pattern.As _loc _pat -> Nothing
+  Pattern.EffectPure {} -> Nothing
+  Pattern.EffectBind _loc conRef _ _ -> Just (LD.ConReference conRef CT.Effect)
+  Pattern.SequenceLiteral {} -> Nothing
+  Pattern.SequenceOp {} -> Nothing
+
 data SourceNode a
   = TermNode (Term Symbol a)
   | TypeNode (Type Symbol a)
@@ -171,6 +189,7 @@ instance Functor SourceNode where
 findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (SourceNode Ann)
 findSmallestEnclosingNode pos term
   | annIsFilePosition (ABT.annotation term) && not (ABT.annotation term `Ann.contains` pos) = Nothing
+  | Just r <- cleanImplicitUnit term = findSmallestEnclosingNode pos r
   | otherwise = do
       -- For leaf nodes we require that they be an in-file position, not Intrinsic or
       -- external.
@@ -217,9 +236,20 @@ findSmallestEnclosingNode pos term
             ABT.Abs _v r -> findSmallestEnclosingNode pos r
       let fallback = if annIsFilePosition (ABT.annotation term) then Just (TermNode term) else Nothing
       bestChild <|> fallback
+  where
+    -- tuples always end in an implicit unit, but it's annotated with the span of the whole
+    -- tuple, which is problematic, so we need to detect and remove implicit tuples.
+    -- We can detect them because we know that the last element of a tuple is always its
+    -- implicit unit.
+    cleanImplicitUnit :: Term Symbol Ann -> Maybe (Term Symbol Ann)
+    cleanImplicitUnit = \case
+      ABT.Tm' (Term.App (ABT.Tm' (Term.App (ABT.Tm' (Term.Constructor (ConstructorReference ref 0))) x)) trm)
+        | ref == Builtins.pairRef && Term.amap (const ()) trm == Builtins.unitTerm () -> Just x
+      _ -> Nothing
 
 findSmallestEnclosingPattern :: Pos -> Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
 findSmallestEnclosingPattern pos pat
+  | Just validTargets <- cleanImplicitUnit pat = findSmallestEnclosingPattern pos validTargets
   | annIsFilePosition (Pattern.annotation pat) && not (Pattern.annotation pat `Ann.contains` pos) = Nothing
   | otherwise = do
       -- For leaf nodes we require that they be an in-file position, not Intrinsic or
@@ -244,6 +274,16 @@ findSmallestEnclosingPattern pos pat
             Pattern.SequenceOp _loc p1 _op p2 -> findSmallestEnclosingPattern pos p1 <|> findSmallestEnclosingPattern pos p2
       let fallback = if annIsFilePosition (Pattern.annotation pat) then Just pat else Nothing
       bestChild <|> fallback
+  where
+    -- tuple patterns always end in an implicit unit, but it's annotated with the span of the whole
+    -- tuple, which is problematic, so we need to detect and remove implicit tuples.
+    -- We can detect them because we know that the last element of a tuple is always its
+    -- implicit unit.
+    cleanImplicitUnit :: Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
+    cleanImplicitUnit = \case
+      (Pattern.Constructor _loc (ConstructorReference conRef 0) [pat1, Pattern.Constructor _ (ConstructorReference mayUnitRef 0) _])
+        | conRef == Builtins.pairRef && mayUnitRef == Builtins.unitRef -> Just pat1
+      _ -> Nothing
 
 -- | Find the the node in a type which contains the specified position, but none of its
 -- children contain that position.
@@ -292,7 +332,7 @@ refInDecl p (DD.asDataDecl -> dd) =
 
 -- | Returns the ABT node at the provided position.
 -- Does not return Decl nodes.
-nodeAtPosition :: Uri -> Position -> MaybeT Lsp (Either (Term Symbol Ann) (Type Symbol Ann))
+nodeAtPosition :: Uri -> Position -> MaybeT Lsp (SourceNode Ann)
 nodeAtPosition uri (lspToUPos -> pos) = do
   (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
 
@@ -300,7 +340,7 @@ nodeAtPosition uri (lspToUPos -> pos) = do
   ( altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) trms
       <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (testWatchSummary ^.. folded . _3)
       <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _3)
-      <|> altMap (fmap Right . hoistMaybe . findSmallestEnclosingType pos) typs
+      <|> altMap (fmap TypeNode . hoistMaybe . findSmallestEnclosingType pos) typs
     )
   where
     hoistMaybe :: Maybe a -> MaybeT Lsp a

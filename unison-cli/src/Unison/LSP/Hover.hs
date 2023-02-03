@@ -16,6 +16,7 @@ import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import qualified Unison.LabeledDependency as LD
 import Unison.Parser.Ann (Ann)
+import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Reference as Reference
@@ -69,17 +70,20 @@ hoverInfo uri pos =
     hoverInfoForLiteral :: MaybeT Lsp Text
     hoverInfoForLiteral = do
       LSPQ.nodeAtPosition uri pos >>= \case
-        Left term -> do
-          typ <- hoistMaybe $ builtinTypeForLiterals term
+        LSPQ.TermNode term -> do
+          typ <- hoistMaybe $ builtinTypeForTermLiterals term
           pure (": " <> typ)
-        Right {} -> empty
+        LSPQ.TypeNode {} -> empty
+        LSPQ.PatternNode pat -> do
+          typ <- hoistMaybe $ builtinTypeForPatternLiterals pat
+          pure (": " <> typ)
 
     hoistMaybe :: Maybe a -> MaybeT Lsp a
     hoistMaybe = MaybeT . pure
 
 -- | Get the type for term literals.
-builtinTypeForLiterals :: Term.Term Symbol Ann -> Maybe Text
-builtinTypeForLiterals term =
+builtinTypeForTermLiterals :: Term.Term Symbol Ann -> Maybe Text
+builtinTypeForTermLiterals term =
   case ABT.out term of
     ABT.Tm f -> case f of
       Term.Int {} -> Just "Int"
@@ -108,3 +112,20 @@ builtinTypeForLiterals term =
     ABT.Var {} -> Nothing
     ABT.Cycle {} -> Nothing
     ABT.Abs {} -> Nothing
+
+builtinTypeForPatternLiterals :: Pattern.Pattern Ann -> Maybe Text
+builtinTypeForPatternLiterals = \case
+  Pattern.Unbound _ -> Nothing
+  Pattern.Var _ -> Nothing
+  Pattern.Boolean _ _ -> Just "Boolean"
+  Pattern.Int _ _ -> Just "Int"
+  Pattern.Nat _ _ -> Just "Nat"
+  Pattern.Float _ _ -> Just "Float"
+  Pattern.Text _ _ -> Just "Text"
+  Pattern.Char _ _ -> Just "Char"
+  Pattern.Constructor _ _ _ -> Nothing
+  Pattern.As _ _ -> Nothing
+  Pattern.EffectPure _ _ -> Nothing
+  Pattern.EffectBind _ _ _ _ -> Nothing
+  Pattern.SequenceLiteral _ _ -> Nothing
+  Pattern.SequenceOp _ _ _ _ -> Nothing

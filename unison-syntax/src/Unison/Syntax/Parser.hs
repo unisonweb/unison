@@ -371,7 +371,7 @@ tupleOrParenthesized :: Ord v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
 tupleOrParenthesized p unit pair = seq' "(" go p
   where
     go _ [t] = t
-    go _ xs = foldr pair (unit External) xs
+    go a xs = foldr pair (unit a) xs
 
 seq :: Ord v => (Ann -> [a] -> a) -> P v a -> P v a
 seq = seq' "["
