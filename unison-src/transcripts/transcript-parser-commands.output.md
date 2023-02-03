@@ -39,7 +39,8 @@ z
 
   ⚠️
   
-  I don't know about those names.
+  The following names were not found in the codebase. Check your spelling.
+    foo
 
 ```
 ```ucm
@@ -47,7 +48,8 @@ z
 
   ⚠️
   
-  I don't know about those names.
+  The following names were not found in the codebase. Check your spelling.
+    lineToken.call
 
 ```
 However handling of blocks of other languages should be supported.
