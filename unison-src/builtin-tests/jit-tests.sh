@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+#set -ex
 
 ucm=$(stack exec -- which unison)
 
