@@ -1,0 +1,7 @@
+
+
+tests : '{IO,Exception} ()
+tests = Tests.main do
+  check "Nat.+" do 1 + 1 == 2 
+  check "Nat.*" do 10 * 100 == 1000 
+  check "Nat./" do 100 / 10 == 10 

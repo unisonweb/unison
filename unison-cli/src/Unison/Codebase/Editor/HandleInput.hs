@@ -2766,7 +2766,10 @@ runScheme file args0 = do
   ensureSchemeExists
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
-  let includes = gendir ++ ":" ++ statdir
+  let includes =
+        gendir ++ ":" ++
+        (statdir </> "common") ++ ":" ++
+        (statdir </> "chez")
       lib = ["--libdirs", includes]
       opt = ["--optimize-level", "3"]
       args = "-q" : opt ++ lib ++ ["--script", file] ++ args0
