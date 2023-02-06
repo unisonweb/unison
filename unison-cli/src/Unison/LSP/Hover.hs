@@ -9,17 +9,21 @@ import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import qualified Unison.ABT as ABT
+import qualified Unison.Doc.AsMarkdown as Doc
 import qualified Unison.HashQualified as HQ
 import Unison.LSP.FileAnalysis (ppedForFile)
 import qualified Unison.LSP.Queries as LSPQ
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import qualified Unison.LabeledDependency as LD
+import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
+import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Reference as Reference
+import qualified Unison.Server.Backend as Backend
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.Name as Name
@@ -56,17 +60,25 @@ hoverInfo uri pos =
       symAtCursor <- VFS.identifierAtPosition uri pos
       ref <- LSPQ.refAtPosition uri pos
       pped <- lift $ ppedForFile uri
-      case ref of
-        LD.TypeReference (Reference.Builtin {}) -> pure (symAtCursor <> " : <builtin>")
-        LD.TypeReference ref@(Reference.DerivedId refId) -> do
-          nameAtCursor <- MaybeT . pure $ Name.fromText symAtCursor
-          decl <- LSPQ.getTypeDeclaration uri refId
-          let typ = Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly nameAtCursor) decl
-          pure typ
-        LD.TermReferent ref -> do
-          typ <- LSPQ.getTypeOfReferent uri ref
-          let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
-          pure (symAtCursor <> " : " <> renderedType)
+      let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
+      let fqn = case ref of
+            LD.TypeReference ref -> PPE.typeName unsuffixifiedPPE ref
+            LD.TermReferent ref -> PPE.termName unsuffixifiedPPE ref
+      renderedDocs <- lift $ renderedDocForFQN fqn
+      typeSig <-
+        case ref of
+          LD.TypeReference (Reference.Builtin {}) -> do
+            pure (symAtCursor <> " : <builtin>")
+          LD.TypeReference ref@(Reference.DerivedId refId) -> do
+            nameAtCursor <- MaybeT . pure $ Name.fromText symAtCursor
+            decl <- LSPQ.getTypeDeclaration uri refId
+            let typ = Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly nameAtCursor) decl
+            pure typ
+          LD.TermReferent ref -> do
+            typ <- LSPQ.getTypeOfReferent uri ref
+            let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
+            pure (symAtCursor <> " : " <> renderedType)
+      pure . Text.unlines $ [typeSig] <> renderedDocs
     hoverInfoForLiteral :: MaybeT Lsp Text
     hoverInfoForLiteral = do
       LSPQ.nodeAtPosition uri pos >>= \case
@@ -80,6 +92,20 @@ hoverInfo uri pos =
 
     hoistMaybe :: Maybe a -> MaybeT Lsp a
     hoistMaybe = MaybeT . pure
+
+    renderedDocForFQN :: HQ.HashQualified Name -> Lsp [Text]
+    renderedDocForFQN fqn =
+      fromMaybe [] <$> runMaybeT do
+        pped <- lift $ ppedForFile uri
+        name <- MaybeT . pure $ HQ.toName fqn
+        nameSearch <- lift $ getNameSearch
+        Env {codebase, runtime} <- ask
+        liftIO $ do
+          docRefs <- Backend.docsForDefinitionName codebase nameSearch name
+          for docRefs $ \docRef -> do
+            (_, _, doc) <- Backend.renderDoc pped (Pretty.Width 80) runtime codebase docRef
+            let (_, contents, _) = Doc.toMarkdown mempty doc
+            pure contents
 
 -- | Get the type for term literals.
 builtinTypeForTermLiterals :: Term.Term Symbol Ann -> Maybe Text

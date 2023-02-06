@@ -74,6 +74,7 @@ data Env = Env
     codebase :: Codebase IO Symbol Ann,
     parseNamesCache :: IO NamesWithHistory,
     ppedCache :: IO PrettyPrintEnvDecl,
+    nameSearchCache :: IO Backend.NameSearch,
     currentPathCache :: IO Path.Absolute,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
@@ -147,6 +148,9 @@ getCodebaseCompletions = asks completionsVar >>= readTVarIO
 
 globalPPED :: Lsp PrettyPrintEnvDecl
 globalPPED = asks ppedCache >>= liftIO
+
+getNameSearch :: Lsp Backend.NameSearch
+getNameSearch = asks nameSearchCache >>= liftIO
 
 getParseNames :: Lsp NamesWithHistory
 getParseNames = asks parseNamesCache >>= liftIO
