@@ -1,7 +1,7 @@
 -- | Render Unison.Server.Doc as plain markdown, used in the LSP
 module Unison.Doc.AsMarkdown (toMarkdown) where
 
-import qualified CMark as M
+import qualified CMarkGFM as M
 import Control.Monad.State.Class (MonadState)
 import qualified Control.Monad.State.Class as State
 import Control.Monad.Trans.State (evalStateT)
@@ -10,14 +10,12 @@ import qualified Control.Monad.Writer.Class as Writer
 import Control.Monad.Writer.Lazy (runWriterT)
 import qualified Data.Char as Char
 import Data.Foldable
-import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe
-import Data.Sequence (Seq)
-import Data.Text (Text)
+import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Name (Name)
+import Unison.Prelude
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Server.Doc
@@ -25,6 +23,7 @@ import qualified Unison.Server.Doc as Doc
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
 import qualified Unison.Syntax.Name as Name (toText)
+import Unison.Util.Monoid (foldMapM)
 
 markdownOptions :: [M.CMarkOption]
 markdownOptions = [M.optSafe]
@@ -49,10 +48,6 @@ embeddedSource ref =
    in case ref of
         Term s -> embeddedSource' s
         Type s -> embeddedSource' s
-
-inlineCode :: [Text] -> Markdown -> Markdown
-inlineCode classNames =
-  code_ [classes_ ("inline-code" : classNames)]
 
 normalizeHref :: Map Referent Name -> Doc -> NamedLinkHref
 normalizeHref docNamesByRef = go InvalidHref
@@ -183,8 +178,10 @@ toText sep doc =
         . filter (not . isEmpty)
         . map (toText sep)
 
--- | Markdown formatted text.
-type Markdown = Text
+-- | Markdown node
+type Markdown = M.Node
+
+type MarkdownText = Text
 
 data SideContent
   = FrontMatterContent (Map Text [Text])
@@ -192,12 +189,11 @@ data SideContent
 
 newtype FrontMatterData = FrontMatterData (Map Text [Text])
 
-toMarkdown :: Map Referent Name -> Doc -> (FrontMatterData, Markdown)
+toMarkdown :: Map Referent Name -> Doc -> (FrontMatterData, Markdown, Markdown)
 toMarkdown docNamesByRef document =
   ( FrontMatterData frontMatterContent,
-    article_ [class_ "unison-doc"] $ do
-      content
-      div_ [class_ "tooltips", style_ "display: none;"] tooltips
+    content,
+    tooltips
   )
   where
     tooltips =
@@ -220,27 +216,22 @@ toMarkdown docNamesByRef document =
       (MonadState Int m, MonadWriter (Seq SideContent) m) =>
       Nat ->
       Doc ->
-      m (Markdown)
+      m [Markdown]
     toMarkdown_ sectionLevel doc =
       let -- Make it simple to retain the sectionLevel when recurring.
           -- the Section variant increments it locally
           currentSectionLevelToMarkdown ::
             (MonadState Int m, MonadWriter (Seq SideContent) m) =>
             Doc ->
-            m Markdown
-          currentSectionLevelToMarkdown =
-            nodeToMarkdown <$> toMarkdown_ sectionLevel
+            m [Markdown]
+          currentSectionLevelToMarkdown = toMarkdown_ sectionLevel
 
-          renderSequence :: (a -> m (Markdown)) -> [a] -> m (Markdown)
-          renderSequence f xs =
-            sequence_ <$> traverse f xs
-
-          sectionContentToHtml ::
+          sectionContentToMarkdown ::
             (MonadState Int m, MonadWriter (Seq SideContent) m) =>
-            (Doc -> m (Markdown)) ->
+            (Doc -> m [Markdown]) ->
             Doc ->
-            m (Markdown)
-          sectionContentToHtml renderer doc_ =
+            m [Markdown]
+          sectionContentToMarkdown renderer doc_ =
             -- Block elements can't be children for <p> elements
             case doc_ of
               Paragraph [CodeBlock {}] -> renderer doc_
@@ -260,124 +251,87 @@ toMarkdown docNamesByRef document =
               Paragraph [Special (Signature _)] -> renderer doc_
               Paragraph [Special Eval {}] -> renderer doc_
               Paragraph [Special (Embed _)] -> renderer doc_
-              Paragraph [UntitledSection ds] ->
-                renderSequence (sectionContentToHtml renderer) ds
+              Paragraph [UntitledSection ds] -> do
+                contents <- foldMapM renderer ds
+                pure [paragraph contents]
               Paragraph [Column _] -> renderer doc_
-              Paragraph _ -> p_ [] <$> renderer doc_
+              Paragraph _ -> renderer doc_
               _ ->
                 renderer doc_
        in case doc of
             Tooltip triggerContent tooltipContent -> do
               tooltipNo <- State.get
-              let tooltipId = "tooltip-" <> (Text.pack . show $ tooltipNo)
               State.put (tooltipNo + 1)
-              tooltip <-
-                div_ [class_ "tooltip-content", id_ tooltipId]
-                  <$> currentSectionLevelToMarkdown tooltipContent
-              Writer.tell (pure $ TooltipContent tooltip)
-
-              span_
-                [ class_ "tooltip-trigger",
-                  data_ "tooltip-content-id" tooltipId
-                ]
-                <$> currentSectionLevelToMarkdown triggerContent
-            Word word ->
-              pure (M.TEXT word)
-            Code code ->
-              M.CODE . nodeToMarkdown <$> currentSectionLevelToMarkdown code
-            CodeBlock lang code ->
-              M.CODE_BLOCK lang <$> currentSectionLevelToMarkdown code
-            Bold d ->
-              strong_ [] <$> currentSectionLevelToMarkdown d
-            Italic d ->
-              span_ [class_ "italic"] <$> currentSectionLevelToMarkdown d
-            Strikethrough d ->
-              span_ [class_ "strikethrough"] <$> currentSectionLevelToMarkdown d
-            Style cssclass_ d ->
-              div_ [class_ $ textToClass cssclass_] <$> currentSectionLevelToMarkdown d
-            Anchor id' d ->
-              a_ [id_ id', href_ $ "#" <> id'] <$> currentSectionLevelToMarkdown d
-            Blockquote d ->
-              blockquote_ [] <$> currentSectionLevelToMarkdown d
+              tooltip <- currentSectionLevelToMarkdown tooltipContent
+              Writer.tell (Seq.fromList . fmap TooltipContent $ tooltip)
+              currentSectionLevelToMarkdown triggerContent
+            Word word -> pure [text word]
+            Code contents -> do
+              result <- currentSectionLevelToMarkdown contents
+              pure [code result]
+            CodeBlock lang contents -> do
+              result <- currentSectionLevelToMarkdown contents
+              pure [codeBlock lang result]
+            Bold d -> do
+              result <- currentSectionLevelToMarkdown d
+              pure [bold result]
+            Italic d -> do
+              result <- currentSectionLevelToMarkdown d
+              pure [italic result]
+            Strikethrough d -> do
+              result <- currentSectionLevelToMarkdown d
+              pure [strikethrough result]
+            Style {} -> pure []
+            Anchor id' d -> do
+              label <- nodeToMarkdownText <$> currentSectionLevelToMarkdown d
+              pure [link id' label]
+            Blockquote d -> do
+              contents <- currentSectionLevelToMarkdown d
+              pure [blockquote contents]
             Blankline ->
-              pure
-                ( div_ [] $ do
-                    br_ []
-                    br_ []
-                )
+              pure [linebreak, linebreak]
             Linebreak ->
-              pure $ br_ []
+              pure [linebreak]
             SectionBreak ->
-              pure $ hr_ []
-            Aside d ->
-              span_
-                [class_ "aside-anchor"]
-                . aside_ []
-                <$> currentSectionLevelToMarkdown d
+              pure [sectionBreak]
+            Aside d -> do
+              contents <- currentSectionLevelToMarkdown d
+              pure [aside contents]
             Callout icon content -> do
-              callout <- currentSectionLevelToMarkdown content
-              pure $
-                div_ [cls] $ do
-                  ico
-                  div_ [class_ "callout-content"] callout
+              contents <- currentSectionLevelToMarkdown content
+              pure [callout (text ico) contents]
               where
-                (ico :: Markdown) =
+                (ico :: Text) =
                   case icon of
                     Just emoji ->
                       ( toText "" $ emoji
                       )
-                    Nothing ->
-                      ("")
-            Table rows ->
-              let cellToHtml c =
-                    td_ [] <$> currentSectionLevelToMarkdown c
-
-                  rowToHtml cells =
-                    tr_ [] <$> renderSequence cellToHtml (mergeWords " " cells)
-
-                  rows_ =
-                    renderSequence rowToHtml rows
-               in table_ [] . tbody_ [] <$> rows_
-            Folded isFolded summary details -> do
-              summary' <- currentSectionLevelToMarkdown summary
+                    Nothing -> ("")
+            Table rows -> do
+              renderedRows <- traverse (traverse currentSectionLevelToMarkdown) rows
+              pure [table renderedRows]
+            -- TODO: test out fold behaviour
+            Folded _isFolded _summary details -> do
+              -- summary' <- currentSectionLevelToMarkdown summary
               details' <- currentSectionLevelToMarkdown details
-
-              pure $
-                foldedToHtml [class_ "folded"] $
-                  IsFolded
-                    isFolded
-                    [summary']
-                    -- We include the summary in the details slot to make it
-                    -- symmetric with code folding, which currently always
-                    -- includes the type signature in the details portion
-                    [div_ [] summary', details']
+              pure $ details'
             Paragraph docs ->
               case docs of
                 [d] ->
                   currentSectionLevelToMarkdown d
-                ds ->
-                  span_ [class_ "span"] <$> renderSequence currentSectionLevelToMarkdown (mergeWords " " ds)
-            BulletedList items ->
-              let itemToHtml i =
-                    li_ [] <$> currentSectionLevelToMarkdown i
-               in ul_ [] <$> renderSequence itemToHtml (mergeWords " " items)
-            NumberedList startNum items ->
-              let itemToHtml i =
-                    li_ [] <$> currentSectionLevelToMarkdown i
-               in ol_ [start_ $ Text.pack $ show startNum]
-                    <$> renderSequence itemToHtml (mergeWords " " items)
+                ds -> do
+                  rendered <- foldMapM currentSectionLevelToMarkdown ds
+                  pure [paragraph rendered]
+            BulletedList items -> do
+              rendered <- traverse currentSectionLevelToMarkdown items
+              pure [bulletList rendered]
+            NumberedList startNum items -> do
+              rendered <- traverse currentSectionLevelToMarkdown items
+              pure [numberedList startNum rendered]
             Section title docs -> do
-              let sectionId =
-                    Text.toLower $
-                      Text.filter (\c -> c == '-' || Char.isAlphaNum c) $
-                        toText "-" title
-
-              titleEl <-
-                h sectionLevel sectionId <$> currentSectionLevelToMarkdown title
-
-              docs' <- renderSequence (sectionContentToHtml (toMarkdown_ (sectionLevel + 1))) docs
-
-              pure $ section_ [] $ titleEl *> docs'
+              renderedTitle <- currentSectionLevelToMarkdown title
+              body <- foldMapM (sectionContentToMarkdown (toMarkdown_ (sectionLevel + 1))) docs
+              pure $ (heading sectionLevel renderedTitle : body)
             NamedLink label href ->
               case normalizeHref docNamesByRef href of
                 Href h ->
@@ -486,13 +440,94 @@ toMarkdown docNamesByRef document =
             Group content ->
               span_ [class_ "group"] <$> currentSectionLevelToMarkdown content
 
-nodeToMarkdown :: M.Node -> Markdown
-nodeToMarkdown = M.nodeToCommonmark markdownOptions Nothing
+nodeToMarkdownText :: [M.Node] -> MarkdownText
+nodeToMarkdownText = \case
+  [] -> mempty
+  [n] -> M.nodeToCommonmark markdownOptions Nothing n
+  nodes -> M.nodeToCommonmark markdownOptions Nothing (M.Node Nothing M.PARAGRAPH nodes)
 
 type BlockType = Text
 
-codeBlock :: BlockType -> Markdown -> Markdown
-codeBlock typ contents = nodeToMarkdown (M.Node Nothing (M.CODE_BLOCK typ contents) [])
+codeBlock :: BlockType -> [Markdown] -> Markdown
+codeBlock typ contents = M.Node Nothing (M.CODE_BLOCK typ $ nodeToMarkdownText contents) []
+
+code :: [Markdown] -> Markdown
+code contents = M.Node Nothing (M.CODE $ nodeToMarkdownText contents) []
+
+text :: Text -> Markdown
+text contents = M.Node Nothing (M.TEXT contents) []
+
+bold :: [Markdown] -> Markdown
+bold contents = M.Node Nothing M.STRONG contents
+
+italic :: [Markdown] -> Markdown
+italic contents = M.Node Nothing M.EMPH contents
+
+strikethrough :: [Markdown] -> Markdown
+strikethrough contents = M.Node Nothing M.STRIKETHROUGH contents
+
+paragraph :: [Markdown] -> Markdown
+paragraph contents = M.Node Nothing M.PARAGRAPH contents
+
+link :: Text -> Text -> Markdown
+link url label = M.Node Nothing (M.LINK url label) []
+
+blockquote :: [Markdown] -> Markdown
+blockquote contents = M.Node Nothing M.BLOCK_QUOTE contents
+
+linebreak :: Markdown
+linebreak = M.Node Nothing M.LINEBREAK []
+
+sectionBreak :: Markdown
+sectionBreak = M.Node Nothing M.THEMATIC_BREAK []
+
+table :: [[[Markdown]]] -> Markdown
+table rows =
+  rows
+    & (fmap . fmap) (M.Node Nothing M.TABLE_CELL)
+    & fmap (M.Node Nothing M.TABLE_ROW)
+    & M.Node Nothing (M.TABLE [M.NoAlignment])
+
+aside :: [Markdown] -> Markdown
+aside = blockquote
+
+callout :: Markdown -> [Markdown] -> Markdown
+callout ico contents = blockquote $ ico : linebreak : contents
+
+bulletList :: [[Markdown]] -> Markdown
+bulletList items =
+  items
+    & fmap (M.Node Nothing M.ITEM)
+    & M.Node Nothing (M.LIST listAttrs)
+  where
+    listAttrs =
+      M.ListAttributes
+        { listType = M.BULLET_LIST,
+          -- Whether the list is 'tight', a.k.a. items are separated by a single newline,
+          -- or 'loose', a.k.a. items are separated by two newlines.
+          listTight = True,
+          listStart = 1,
+          listDelim = M.PERIOD_DELIM
+        }
+
+numberedList :: Word64 -> [[Markdown]] -> Markdown
+numberedList startNum items =
+  items
+    & fmap (M.Node Nothing M.ITEM)
+    & M.Node Nothing (M.LIST listAttrs)
+  where
+    listAttrs =
+      M.ListAttributes
+        { listType = M.ORDERED_LIST,
+          -- Whether the list is 'tight', a.k.a. items are separated by a single newline,
+          -- or 'loose', a.k.a. items are separated by two newlines.
+          listTight = True,
+          listStart = fromIntegral startNum,
+          listDelim = M.PERIOD_DELIM
+        }
+
+heading :: Word64 -> [Markdown] -> Markdown
+heading level contents = M.Node Nothing (M.HEADING $ fromIntegral level) contents
 
 -- HELPERS --------------------------------------------------------------------
 

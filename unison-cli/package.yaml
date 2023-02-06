@@ -19,7 +19,7 @@ dependencies:
   - base
   - bytes
   - bytestring
-  - cmark
+  - cmark-gfm
   - concurrent-output
   - configurator
   - containers >= 0.6.3
