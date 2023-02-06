@@ -19,10 +19,11 @@ import UnliftIO.STM
 ucmWorker ::
   TVar PrettyPrintEnvDecl ->
   TVar NamesWithHistory ->
+  TVar Backend.NameSearch ->
   STM (Branch IO) ->
   STM Path.Absolute ->
   Lsp ()
-ucmWorker ppeVar parseNamesVar getLatestRoot getLatestPath = do
+ucmWorker ppeVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
   Env {codebase, completionsVar} <- ask
   let loop :: (Branch IO, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
@@ -33,6 +34,7 @@ ucmWorker ppeVar parseNamesVar getLatestRoot getLatestPath = do
         atomically $ do
           writeTVar parseNamesVar parseNames
           writeTVar ppeVar ppe
+          writeTVar nameSearchCacheVar (Backend.makeNameSearch hl parseNames)
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
         atomically do

@@ -43,6 +43,7 @@ import qualified Unison.LSP.VFS as VFS
 import Unison.Parser.Ann
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPED
+import qualified Unison.Server.Backend as Backend
 import Unison.Symbol
 import UnliftIO
 import UnliftIO.Foreign (Errno (..), eADDRINUSE)
@@ -136,10 +137,11 @@ lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext
   currentPathCacheVar <- newTVarIO Path.absoluteEmpty
   cancellationMapVar <- newTVarIO mempty
   completionsVar <- newTVarIO mempty
-  let env = Env {ppedCache = readTVarIO ppedCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, ..}
+  nameSearchCacheVar <- newTVarIO $ Backend.makeNameSearch 0 mempty
+  let env = Env {ppedCache = readTVarIO ppedCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, nameSearchCache = readTVarIO nameSearchCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
-  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar parseNamesCacheVar latestBranch latestPath)
+  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar parseNamesCacheVar nameSearchCacheVar latestBranch latestPath)
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
