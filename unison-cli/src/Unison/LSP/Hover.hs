@@ -49,7 +49,7 @@ hoverHandler m respond =
 
 hoverInfo :: Uri -> Position -> MaybeT Lsp Text
 hoverInfo uri pos =
-  markdownify <$> (hoverInfoForRef <|> hoverInfoForLiteral)
+  (hoverInfoForRef <|> hoverInfoForLiteral)
   where
     markdownify :: Text -> Text
     markdownify rendered = Text.unlines ["```unison", rendered, "```"]
@@ -78,17 +78,18 @@ hoverInfo uri pos =
             typ <- LSPQ.getTypeOfReferent uri ref
             let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
             pure (symAtCursor <> " : " <> renderedType)
-      pure . Text.unlines $ [typeSig] <> renderedDocs
+      pure . Text.unlines $ [markdownify typeSig] <> renderedDocs
     hoverInfoForLiteral :: MaybeT Lsp Text
-    hoverInfoForLiteral = do
-      LSPQ.nodeAtPosition uri pos >>= \case
-        LSPQ.TermNode term -> do
-          typ <- hoistMaybe $ builtinTypeForTermLiterals term
-          pure (": " <> typ)
-        LSPQ.TypeNode {} -> empty
-        LSPQ.PatternNode pat -> do
-          typ <- hoistMaybe $ builtinTypeForPatternLiterals pat
-          pure (": " <> typ)
+    hoverInfoForLiteral =
+      markdownify <$> do
+        LSPQ.nodeAtPosition uri pos >>= \case
+          LSPQ.TermNode term -> do
+            typ <- hoistMaybe $ builtinTypeForTermLiterals term
+            pure (": " <> typ)
+          LSPQ.TypeNode {} -> empty
+          LSPQ.PatternNode pat -> do
+            typ <- hoistMaybe $ builtinTypeForPatternLiterals pat
+            pure (": " <> typ)
 
     hoistMaybe :: Maybe a -> MaybeT Lsp a
     hoistMaybe = MaybeT . pure

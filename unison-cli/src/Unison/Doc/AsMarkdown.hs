@@ -214,8 +214,7 @@ toMarkdown docNamesByRef doc =
               toMarkdown_ triggerContent
             Word word -> pure $ text word
             Code contents -> do
-              result <- toMarkdown_ contents
-              pure $ inlineCode result
+              pure $ inlineCodeText $ toText "" contents
             CodeBlock lang contents -> do
               result <- toMarkdown_ contents
               pure $ codeBlock lang result
@@ -358,7 +357,7 @@ markdownToText :: Markdown -> MarkdownText
 markdownToText (Markdown ns) = case toList ns of
   [] -> mempty
   [n] -> M.nodeToCommonmark markdownOptions Nothing n
-  nodes -> M.nodeToCommonmark markdownOptions Nothing (M.Node Nothing M.PARAGRAPH nodes)
+  nodes -> M.nodeToCommonmark markdownOptions Nothing (M.Node Nothing M.DOCUMENT nodes)
 
 type BlockType = Text
 
@@ -368,8 +367,8 @@ codeBlock typ contents = markdownNode (M.Node Nothing (M.CODE_BLOCK typ $ markdo
 codeBlockText :: BlockType -> Text -> Markdown
 codeBlockText typ contents = markdownNode $ M.Node Nothing (M.CODE_BLOCK typ contents) []
 
-inlineCode :: Markdown -> Markdown
-inlineCode contents = markdownNode $ M.Node Nothing (M.CODE $ markdownToText contents) []
+-- inlineCode :: Markdown -> Markdown
+-- inlineCode contents = markdownNode $ M.Node Nothing (M.CODE $ markdownToText contents) []
 
 inlineCodeText :: Text -> Markdown
 inlineCodeText contents = markdownNode $ M.Node Nothing (M.CODE contents) []
