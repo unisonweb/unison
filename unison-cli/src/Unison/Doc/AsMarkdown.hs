@@ -8,7 +8,6 @@ import Control.Monad.Trans.State (evalStateT)
 import Control.Monad.Writer.Class (MonadWriter)
 import qualified Control.Monad.Writer.Class as Writer
 import Control.Monad.Writer.Lazy (runWriterT)
-import qualified Data.Char as Char
 import Data.Foldable
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
@@ -22,7 +21,6 @@ import Unison.Server.Doc
 import qualified Unison.Server.Doc as Doc
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
-import qualified Unison.Syntax.Name as Name (toText)
 import Unison.Util.Monoid (foldMapM)
 
 markdownOptions :: [M.CMarkOption]
@@ -100,8 +98,8 @@ foldedToHtml isFolded =
             summary_ [class_ "folded-content folded-summary"] $ sequence_ summary
             div_ [class_ "folded-content folded-details"] $ sequence_ details
 
-foldedToHtmlSource :: Bool -> EmbeddedSource -> Markdown
-foldedToHtmlSource isFolded source =
+foldedToHtmlSource :: EmbeddedSource -> Markdown
+foldedToHtmlSource source =
   case source of
     Builtin summary ->
       foldedToHtml
@@ -268,7 +266,7 @@ toMarkdown docNamesByRef document =
             Word word -> pure [text word]
             Code contents -> do
               result <- currentSectionLevelToMarkdown contents
-              pure [code result]
+              pure [inlineCode result]
             CodeBlock lang contents -> do
               result <- currentSectionLevelToMarkdown contents
               pure [codeBlock lang result]
@@ -332,35 +330,19 @@ toMarkdown docNamesByRef document =
               renderedTitle <- currentSectionLevelToMarkdown title
               body <- foldMapM (sectionContentToMarkdown (toMarkdown_ (sectionLevel + 1))) docs
               pure $ (heading sectionLevel renderedTitle : body)
-            NamedLink label href ->
-              case normalizeHref docNamesByRef href of
-                Href h ->
-                  -- Fragments (starting with a #) are links internal to the page
-                  if Text.isPrefixOf "#" h
-                    then a_ [class_ "named-link", href_ h] <$> currentSectionLevelToMarkdown label
-                    else a_ [class_ "named-link", href_ h, rel_ "noopener", target_ "_blank"] <$> currentSectionLevelToMarkdown label
-                DocLinkHref name ->
-                  let href = "/" <> Text.replace "." "/" (Name.toText name) <> ".html"
-                   in a_ [class_ "named-link doc-link", href_ href] <$> currentSectionLevelToMarkdown label
-                ReferenceHref ref ->
-                  span_ [class_ "named-link", data_ "ref" ref, data_ "ref-type" "term"] <$> currentSectionLevelToMarkdown label
-                InvalidHref ->
-                  span_ [class_ "named-link invalid-href"] <$> currentSectionLevelToMarkdown label
-            Image altText src caption ->
-              let altAttr =
-                    [alt_ $ toText " " altText]
-
-                  image =
-                    img_ (altAttr ++ [src_ $ toText "" src])
-
-                  imageWithCaption c = do
-                    caption' <- currentSectionLevelToMarkdown c
-
-                    pure $
-                      div_ [class_ "image-with-caption"] $ do
-                        image
-                        div_ [class_ "caption"] caption'
-               in maybe (pure image) imageWithCaption caption
+            NamedLink label url -> do
+              renderedLabel <- currentSectionLevelToMarkdown label
+              pure $ case normalizeHref docNamesByRef url of
+                Href h -> [link h (nodeToMarkdownText renderedLabel)]
+                -- We don't currently support linking to other docs within markdown.
+                DocLinkHref _name -> renderedLabel
+                ReferenceHref _ref -> renderedLabel
+                InvalidHref -> renderedLabel
+            Image altText src caption -> do
+              renderedAltText <- nodeToMarkdownText <$> currentSectionLevelToMarkdown altText
+              renderedCaption <- traverse currentSectionLevelToMarkdown caption
+              let srcText = toText "" src
+              pure $ [image srcText renderedAltText] <> (fromMaybe [] renderedCaption)
             Special specialForm ->
               case specialForm of
                 Source sources ->
@@ -376,31 +358,25 @@ toMarkdown docNamesByRef document =
                           sources
                    in pure $ div_ [class_ "folded-sources"] $ sequence_ sources'
                 Example syntax ->
-                  pure $ span_ [class_ "source rich example-inline"] $ inlineCode [] (Syntax.toHtml syntax)
+                  pure [inlineCodeText (Syntax.toPlainText syntax)]
                 ExampleBlock syntax ->
-                  pure $ div_ [class_ "source rich example"] $ codeBlock [] (Syntax.toHtml syntax)
+                  pure [codeBlockText "unison" (Syntax.toPlainText syntax)]
                 Link syntax ->
-                  pure (inlineCode ["rich", "source"] $ Syntax.toHtml syntax)
+                  -- TODO: Is this correct?
+                  pure [inlineCodeText (Syntax.toPlainText syntax)]
                 Signature signatures ->
-                  pure
-                    ( codeBlock
-                        [class_ "rich source signatures"]
-                        ( mapM_
-                            (div_ [class_ "signature"] . Syntax.toHtml)
-                            signatures
-                        )
-                    )
+                  pure (codeBlockText "unison " . Syntax.toPlainText <$> signatures)
                 SignatureInline sig ->
-                  pure (inlineCode ["rich", "source", "signature-inline"] $ Syntax.toHtml sig)
-                Eval source result ->
-                  pure $
-                    div_ [class_ "source rich eval"] $
-                      codeBlock [] $
-                        div_ [] $ do
-                          Syntax.toHtml source
-                          div_ [class_ "result"] $ do
-                            "⧨"
-                            div_ [] $ Syntax.toHtml result
+                  pure [inlineCodeText $ Syntax.toPlainText sig]
+                Eval source result -> do
+                  pure
+                    [ codeBlock "unison" $
+                        Text.lines
+                          [ Syntax.toPlainText source,
+                            "⧨",
+                            Syntax.toPlainText result
+                          ]
+                    ]
                 EvalInline source result ->
                   pure $
                     span_ [class_ "source rich eval-inline"] $
@@ -451,8 +427,14 @@ type BlockType = Text
 codeBlock :: BlockType -> [Markdown] -> Markdown
 codeBlock typ contents = M.Node Nothing (M.CODE_BLOCK typ $ nodeToMarkdownText contents) []
 
-code :: [Markdown] -> Markdown
-code contents = M.Node Nothing (M.CODE $ nodeToMarkdownText contents) []
+codeBlockText :: BlockType -> Text -> Markdown
+codeBlockText typ contents = M.Node Nothing (M.CODE_BLOCK typ contents) []
+
+inlineCode :: [Markdown] -> Markdown
+inlineCode contents = M.Node Nothing (M.CODE $ nodeToMarkdownText contents) []
+
+inlineCodeText :: Text -> Markdown
+inlineCodeText contents = M.Node Nothing (M.CODE contents) []
 
 text :: Text -> Markdown
 text contents = M.Node Nothing (M.TEXT contents) []
@@ -471,6 +453,9 @@ paragraph contents = M.Node Nothing M.PARAGRAPH contents
 
 link :: Text -> Text -> Markdown
 link url label = M.Node Nothing (M.LINK url label) []
+
+image :: Text -> Text -> Markdown
+image url label = M.Node Nothing (M.IMAGE url label) []
 
 blockquote :: [Markdown] -> Markdown
 blockquote contents = M.Node Nothing M.BLOCK_QUOTE contents
@@ -528,27 +513,3 @@ numberedList startNum items =
 
 heading :: Word64 -> [Markdown] -> Markdown
 heading level contents = M.Node Nothing (M.HEADING $ fromIntegral level) contents
-
--- HELPERS --------------------------------------------------------------------
-
--- | Unison Doc allows endlessly deep section nesting with
--- titles, but HTML only supports to h1-h6, so we clamp
--- the sectionLevel when converting
-h :: Nat -> Text -> (Markdown -> Markdown)
-h n anchorId =
-  case n of
-    1 -> h1_ [id_ anchorId]
-    2 -> h2_ [id_ anchorId]
-    3 -> h3_ [id_ anchorId]
-    4 -> h4_ [id_ anchorId]
-    5 -> h5_ [id_ anchorId]
-    6 -> h6_ [id_ anchorId]
-    _ -> h6_ [id_ anchorId]
-
-badge :: Markdown -> Markdown
-badge =
-  span_ [class_ "badge"]
-
-textToClass :: Text -> Text
-textToClass =
-  Text.replace " " "__"

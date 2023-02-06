@@ -173,6 +173,9 @@ reference (Segment _ el) =
 toPlain :: SyntaxText -> String
 toPlain (AnnotatedText at) = join (toList $ segment <$> at)
 
+toPlainText :: SyntaxText -> Text
+toPlainText = Text.pack . toPlain
+
 -- HTML -----------------------------------------------------------------------
 
 toHtml :: SyntaxText -> Html ()
