@@ -13,7 +13,9 @@ module Unison.Cli.MonadUtils
 
     -- ** Resolving branch identifiers
     resolveAbsBranchId,
+    resolveAbsBranchIdV2,
     resolveBranchId,
+    resolveBranchIdToAbsBranchId,
     resolveShortCausalHash,
 
     -- ** Getting/setting branches
@@ -78,15 +80,16 @@ import Control.Monad.State
 import qualified Data.Configurator as Configurator
 import qualified Data.Configurator.Types as Configurator
 import qualified Data.Set as Set
+import qualified U.Codebase.Branch as V2 (Branch)
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (CausalHash (..))
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.BranchUtil as BranchUtil
-import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Patch (Patch (..))
@@ -95,13 +98,13 @@ import Unison.Codebase.Path (Path, Path' (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Util.Set as Set
@@ -145,31 +148,53 @@ resolveAbsBranchId = \case
   Left hash -> resolveShortCausalHash hash
   Right path -> getBranchAt path
 
+-- | V2 version of 'resolveAbsBranchId2'.
+resolveAbsBranchIdV2 :: Input.AbsBranchId -> Sqlite.Transaction (Either Output.Output (V2.Branch Sqlite.Transaction))
+resolveAbsBranchIdV2 = \case
+  Left shortHash -> do
+    resolveShortCausalHashToCausalHash shortHash >>= \case
+      Left output -> pure (Left output)
+      Right hash -> succeed (Codebase.expectCausalBranchByCausalHash hash)
+  Right path -> succeed (Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path))
+  where
+    succeed getCausal = do
+      causal <- getCausal
+      branch <- V2Causal.value causal
+      pure (Right branch)
+
 -- | Resolve a @BranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
 -- branches by path are OK - the empty branch will be returned).
-resolveBranchId  :: Input.BranchId -> Cli (Branch IO)
+resolveBranchId :: Input.BranchId -> Cli (Branch IO)
 resolveBranchId branchId = do
-  absBranchId <- traverseOf _Right resolvePath' branchId
+  absBranchId <- resolveBranchIdToAbsBranchId branchId
   resolveAbsBranchId absBranchId
+
+-- | Resolve a @BranchId@ to an @AbsBranchId@.
+resolveBranchIdToAbsBranchId :: Input.BranchId -> Cli Input.AbsBranchId
+resolveBranchIdToAbsBranchId =
+  traverseOf _Right resolvePath'
 
 -- | Resolve a @ShortCausalHash@ to the corresponding @Branch IO@, or fail if no such branch hash is found.
 resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
-resolveShortCausalHash hash = do
+resolveShortCausalHash shortHash = do
   Cli.time "resolveShortCausalHash" do
     Cli.Env {codebase} <- ask
-    (hashSet, len) <-
-      Cli.runTransaction do
-        hashSet <- Codebase.causalHashesByPrefix hash
-        len <- Codebase.branchHashLength
-        pure (hashSet, len)
-    h <-
-      Set.asSingleton hashSet & onNothing do
-        Cli.returnEarly
-          if Set.null hashSet
-            then Output.NoBranchWithHash hash
-            else Output.BranchHashAmbiguous hash (Set.map (SCH.fromHash len) hashSet)
-    branch <- liftIO (Codebase.getBranchForHash codebase h)
+    hash <- Cli.runEitherTransaction (resolveShortCausalHashToCausalHash shortHash)
+    branch <- liftIO (Codebase.getBranchForHash codebase hash)
     pure (fromMaybe Branch.empty branch)
+
+resolveShortCausalHashToCausalHash :: ShortCausalHash -> Sqlite.Transaction (Either Output.Output CausalHash)
+resolveShortCausalHashToCausalHash shortHash = do
+  hashes <- Codebase.causalHashesByPrefix shortHash
+  case Set.asSingleton hashes of
+    Nothing ->
+      fmap Left do
+        if Set.null hashes
+          then pure (Output.NoBranchWithHash shortHash)
+          else do
+            len <- Codebase.branchHashLength
+            pure (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash len) hashes))
+    Just hash -> pure (Right hash)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting/Setting branches
@@ -212,13 +237,13 @@ getCurrentBranch0 = do
   Branch.head <$> getCurrentBranch
 
 -- | Get the last saved root hash.
-getLastSavedRootHash :: Cli V2Branch.CausalHash
+getLastSavedRootHash :: Cli CausalHash
 getLastSavedRootHash = do
   use #lastSavedRootHash
 
 -- | Set a new root branch.
 -- Note: This does _not_ update the codebase, the caller is responsible for that.
-setLastSavedRootHash :: V2Branch.CausalHash -> Cli ()
+setLastSavedRootHash :: CausalHash -> Cli ()
 setLastSavedRootHash ch = do
   #lastSavedRootHash .= ch
 
@@ -384,7 +409,7 @@ updateRoot :: Branch IO -> Text -> Cli ()
 updateRoot new reason =
   Cli.time "updateRoot" do
     Cli.Env {codebase} <- ask
-    let newHash = Cv.causalHash1to2 $ Branch.headHash new
+    let newHash = Branch.headHash new
     oldHash <- getLastSavedRootHash
     when (oldHash /= newHash) do
       setRootBranch new

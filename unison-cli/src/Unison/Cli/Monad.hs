@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DefaultSignatures #-}
 
 -- | The main CLI monad.
 module Unison.Cli.Monad
@@ -38,6 +37,7 @@ module Unison.Cli.Monad
 
     -- * Running transactions
     runTransaction,
+    runEitherTransaction,
 
     -- * Misc types
     LoadSourceResult (..),
@@ -60,7 +60,7 @@ import Data.Unique (Unique, newUnique)
 import GHC.OverloadedLabels (IsLabel (..))
 import System.CPUTime (getCPUTime)
 import Text.Printf (printf)
-import qualified U.Codebase.Branch as V2Branch
+import U.Codebase.HashTags (CausalHash)
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
@@ -166,7 +166,7 @@ data Env = Env
 -- There's an additional pseudo @"currentPath"@ field lens, for convenience.
 data LoopState = LoopState
   { root :: TMVar (Branch IO),
-    lastSavedRootHash :: V2Branch.CausalHash,
+    lastSavedRootHash :: CausalHash,
     -- the current position in the namespace
     currentPathStack :: List.NonEmpty Path.Absolute,
     -- TBD
@@ -204,7 +204,7 @@ instance
       )
 
 -- | Create an initial loop state given a root branch and the current path.
-loopState0 :: V2Branch.CausalHash -> TMVar (Branch IO) -> Path.Absolute -> LoopState
+loopState0 :: CausalHash -> TMVar (Branch IO) -> Path.Absolute -> LoopState
 loopState0 lastSavedRootHash b p = do
   LoopState
     { root = b,
@@ -381,3 +381,8 @@ runTransaction :: Sqlite.Transaction a -> Cli a
 runTransaction action = do
   Env {codebase} <- ask
   liftIO (Codebase.runTransaction codebase action)
+
+-- | Return early if a transaction returns Left.
+runEitherTransaction :: Sqlite.Transaction (Either Output a) -> Cli a
+runEitherTransaction action =
+  runTransaction action & onLeftM returnEarly

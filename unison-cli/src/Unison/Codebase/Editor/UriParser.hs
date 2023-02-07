@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.Codebase.Editor.UriParser
   ( repoPath,
     writeGitRepo,
@@ -17,12 +15,14 @@ import qualified Data.Text as Text
 import Data.Void
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as C
+import qualified U.Util.Base32Hex as Base32Hex
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadGitRepo (..),
     ReadRemoteNamespace (..),
     ReadShareRemoteNamespace (..),
     ShareCodeserver (DefaultCodeserver),
+    ShareUserHandle (..),
     WriteGitRemotePath (..),
     WriteGitRepo (..),
     WriteRemotePath (..),
@@ -31,9 +31,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
-import qualified Unison.Hash as Hash
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer
 import qualified Unison.Util.Pretty as P
@@ -91,7 +89,7 @@ writeShareRemotePath =
   P.label "write share remote path" $
     WriteShareRemotePath
       <$> pure DefaultCodeserver
-      <*> (NameSegment.toText <$> nameSegment)
+      <*> shareUserHandle
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
 
 -- >>> P.parseMaybe readShareRemoteNamespace ".unisonweb.base._releases.M4"
@@ -104,8 +102,20 @@ readShareRemoteNamespace = do
     ReadShareRemoteNamespace
       <$> pure DefaultCodeserver
       -- <*> sch <- P.optional shortBranchHash
-      <*> (NameSegment.toText <$> nameSegment)
+      <*> shareUserHandle
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
+
+-- | We're lax in our share user rules here, Share is the source of truth
+-- for this stuff and can provide better error messages if required.
+--
+-- >>> P.parseMaybe shareUserHandle "unison"
+-- Just (ShareUserHandle {shareUserHandleToText = "unison"})
+--
+-- >>> P.parseMaybe shareUserHandle "unison-1337"
+-- Just (ShareUserHandle {shareUserHandleToText = "unison-1337"})
+shareUserHandle :: P ShareUserHandle
+shareUserHandle = do
+  ShareUserHandle . Text.pack <$> P.some (P.satisfy \c -> isAlphaNum c || c == '-' || c == '_')
 
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)#asdf"
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)#asdf."
@@ -368,4 +378,4 @@ shortCausalHash :: P ShortCausalHash
 shortCausalHash = P.label "short causal hash" $ do
   void $ C.char '#'
   ShortCausalHash
-    <$> P.takeWhile1P (Just "base32hex chars") (`elem` Hash.validBase32HexChars)
+    <$> P.takeWhile1P (Just "base32hex chars") (`elem` Base32Hex.validChars)

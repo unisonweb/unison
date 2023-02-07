@@ -20,8 +20,39 @@ Currently the only supported configuration is to connect to the LSP via a specif
 
 By default the LSP is hosted at `127.0.0.1:5757`, but you can change the port using `UNISON_LSP_PORT=1234`.
 
+Note for Windows users: Due to an outstanding issue with GHC's IO manager on Windows, the LSP is **disabled by default** on Windows machines.
+Enabling the LSP on windows can cause UCM to hang on exit and may require the process to be killed by the operating system or via Ctrl-C.
+Note that this doesn't pose any risk of codebase corruption or cause any known issues, it's simply an annoyance.
+
+If you accept this annoyance, you can enable the LSP server on Windows by exporting the `UNISON_LSP_ENABLED=true` environment variable. 
+
+You can set this persistently in powershell using:
+
+```powershell
+[System.Environment]::SetEnvironmentVariable('UNISON_LSP_ENABLED','true')
+```
+
+See [this issue](https://github.com/unisonweb/unison/issues/3487) for more details.
 
 ### NeoVim
+
+Before configuring the LSP, install the Vim plugin for filetype detection and syntax highlighting.
+For [Packer](https://github.com/wbthomason/packer.nvim) you can install the package as follow:
+
+```lua
+-- You may need to increase the git clone timeout setting in Packer!
+use {
+  "unisonweb/unison",
+  branch = "trunk",
+  rtp = "/editor-support/vim"
+}
+```
+
+or [Plug](https://github.com/junegunn/vim-plug):
+
+```vim
+Plug 'unisonweb/unison', { 'branch': 'trunk', 'rtp': 'editor-support/vim' }
+```
 
 Configuration for [coc-nvim](https://github.com/neoclide/coc.nvim), enter the following in the relevant place of your CocConfig
 
@@ -34,6 +65,12 @@ Configuration for [coc-nvim](https://github.com/neoclide/coc.nvim), enter the fo
       "settings": {}
     }
   }
+```
+
+For [lspconfig](https://github.com/neovim/nvim-lspconfig), you can use the following setup function:
+
+```lua
+require('lspconfig').unison.setup({})
 ```
 
 Note that you'll need to start UCM _before_ you try connecting to it in your editor or your editor might give up.

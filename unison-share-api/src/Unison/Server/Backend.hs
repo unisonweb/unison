@@ -31,6 +31,8 @@ import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Projects as Projects
 import qualified U.Codebase.Referent as V2Referent
 import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified Unison.ABT as ABT
@@ -41,7 +43,6 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
 import Unison.Codebase.Path (Path)
@@ -119,7 +120,7 @@ type SyntaxText = UST.SyntaxText' Reference
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
   | ShallowTypeEntry TypeEntry
-  | ShallowBranchEntry NameSegment Branch.CausalHash NamespaceStats
+  | ShallowBranchEntry NameSegment CausalHash NamespaceStats
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
@@ -141,8 +142,8 @@ data BackendError
   | CouldntExpandBranchHash ShortCausalHash
   | AmbiguousBranchHash ShortCausalHash (Set ShortCausalHash)
   | AmbiguousHashForDefinition ShortHash
-  | NoBranchForHash Branch.CausalHash
-  | CouldntLoadBranch Branch.CausalHash
+  | NoBranchForHash CausalHash
+  | CouldntLoadBranch CausalHash
   | MissingSignatureForTerm Reference
   | NoSuchDefinition (HQ.HashQualified Name)
   deriving stock (Show)
@@ -227,13 +228,13 @@ shallowNames :: forall m v a. Monad m => Codebase m v a -> V2Branch.Branch m -> 
 shallowNames codebase b = do
   newTerms <-
     V2Branch.terms b
-      & Map.mapKeys (Name.fromSegment . Cv.namesegment2to1)
+      & Map.mapKeys Name.fromSegment
       & fmap Map.keysSet
       & traverse . Set.traverse %%~ Cv.referent2to1 (Codebase.getDeclType codebase)
 
   let newTypes =
         V2Branch.types b
-          & Map.mapKeys (Name.fromSegment . Cv.namesegment2to1)
+          & Map.mapKeys Name.fromSegment
           & fmap Map.keysSet
           & traverse . Set.traverse %~ Cv.reference2to1
   pure (Names (R.fromMultimap newTerms) (R.fromMultimap newTypes))
@@ -361,7 +362,7 @@ findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
 
       -- choose the first term (among conflicted terms) matching any of these names, in this order.
       -- we might later want to return all of them to let the front end decide
-      toCheck = V2Branch.NameSegment <$> ["README", "Readme", "ReadMe", "readme"]
+      toCheck = NameSegment <$> ["README", "Readme", "ReadMe", "readme"]
       readme :: Maybe Reference
       readme = listToMaybe $ do
         name <- toCheck
@@ -427,7 +428,7 @@ termListEntry codebase branch (ExactName nameSegment ref) = do
     isConflicted =
       branch
         & V2Branch.terms
-        & Map.lookup (coerce @NameSegment @V2Branch.NameSegment nameSegment)
+        & Map.lookup nameSegment
         & maybe 0 Map.size
         & (> 1)
 
@@ -495,7 +496,7 @@ typeListEntry codebase b (ExactName nameSegment ref) = do
     isConflicted =
       b
         & V2Branch.types
-        & Map.lookup (coerce @NameSegment @V2Branch.NameSegment nameSegment)
+        & Map.lookup nameSegment
         & maybe 0 Map.size
         & (> 1)
 
@@ -554,26 +555,26 @@ lsBranch ::
   V2Branch.Branch n ->
   m [ShallowListEntry Symbol Ann]
 lsBranch codebase b0 = do
-  let flattenRefs :: Map V2Branch.NameSegment (Map ref v) -> [(ref, V2Branch.NameSegment)]
+  let flattenRefs :: Map NameSegment (Map ref v) -> [(ref, NameSegment)]
       flattenRefs m = do
         (ns, refs) <- Map.toList m
         r <- Map.keys refs
         pure (r, ns)
   termEntries <- for (flattenRefs $ V2Branch.terms b0) $ \(r, ns) -> do
-    ShallowTermEntry <$> termListEntry codebase b0 (ExactName (coerce @V2Branch.NameSegment ns) r)
+    ShallowTermEntry <$> termListEntry codebase b0 (ExactName ns r)
   typeEntries <-
     Codebase.runTransaction codebase do
       for (flattenRefs $ V2Branch.types b0) \(r, ns) -> do
         let v1Ref = Cv.reference2to1 r
-        ShallowTypeEntry <$> typeListEntry codebase b0 (ExactName (coerce @V2Branch.NameSegment ns) v1Ref)
+        ShallowTypeEntry <$> typeListEntry codebase b0 (ExactName ns v1Ref)
   childrenWithStats <- Codebase.runTransaction codebase (V2Branch.childStats b0)
   let branchEntries :: [ShallowListEntry Symbol Ann] = do
         (ns, (h, stats)) <- Map.toList $ childrenWithStats
         guard $ V2Branch.hasDefinitions stats
-        pure $ ShallowBranchEntry (Cv.namesegment2to1 ns) (Cv.causalHash2to1 . V2Causal.causalHash $ h) stats
+        pure $ ShallowBranchEntry ns (V2Causal.causalHash h) stats
       patchEntries :: [ShallowListEntry Symbol Ann] = do
         (ns, _h) <- Map.toList $ V2Branch.patches b0
-        pure $ ShallowPatchEntry (Cv.namesegment2to1 ns)
+        pure $ ShallowPatchEntry ns
   pure . List.sortOn listEntryName $
     termEntries
       ++ typeEntries
@@ -700,7 +701,7 @@ makeNameSearch hashLength names =
     }
 
 -- | Interpret a 'Search' as a function from name to search results.
-applySearch :: (Show r) => Search r -> HQ'.HashQualified Name -> [SR.SearchResult]
+applySearch :: Show r => Search r -> HQ'.HashQualified Name -> [SR.SearchResult]
 applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} query = do
   -- a bunch of references will match a HQ ref.
   toList (lookupRelativeHQRefs' query) <&> \ref ->
@@ -777,13 +778,13 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
       }
 
 -- TODO: Move this to its own module
-data DefinitionResults v = DefinitionResults
-  { termResults :: Map Reference (DisplayObject (Type v Ann) (Term v Ann)),
-    typeResults :: Map Reference (DisplayObject () (DD.Decl v Ann)),
+data DefinitionResults = DefinitionResults
+  { termResults :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
+    typeResults :: Map Reference (DisplayObject () (DD.Decl Symbol Ann)),
     noResults :: [HQ.HashQualified Name]
   }
 
-expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction Branch.CausalHash
+expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction CausalHash
 expandShortCausalHash hash = do
   hashSet <- lift $ Codebase.causalHashesByPrefix hash
   len <- lift $ Codebase.branchHashLength
@@ -795,13 +796,13 @@ expandShortCausalHash hash = do
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
 getShallowCausalAtPathFromRootHash ::
-  Maybe Branch.CausalHash ->
+  Maybe CausalHash ->
   Path ->
   Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
 getShallowCausalAtPathFromRootHash mayRootHash path = do
   shallowRoot <- case mayRootHash of
     Nothing -> Codebase.getShallowRootCausal
-    Just h -> Codebase.expectCausalBranchByCausalHash (Cv.causalHash1to2 h)
+    Just h -> Codebase.expectCausalBranchByCausalHash h
   Codebase.getShallowCausalAtPath path (Just shallowRoot)
 
 formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
@@ -830,7 +831,7 @@ prettyDefinitionsForHQName ::
   -- this path.
   Path ->
   -- | The root branch to use
-  Maybe Branch.CausalHash ->
+  Maybe CausalHash ->
   Maybe Width ->
   -- | Whether to suffixify bindings in the rendered syntax
   Suffixify ->
@@ -843,7 +844,7 @@ prettyDefinitionsForHQName ::
 prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebase query = do
   (shallowRoot, hqLength) <-
     (lift . Codebase.runTransaction codebase) do
-      shallowRoot <- resolveCausalHashV2 (fmap Cv.causalHash1to2 mayRoot)
+      shallowRoot <- resolveCausalHashV2 mayRoot
       hqLength <- Codebase.hashLength
       pure (shallowRoot, hqLength)
   (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
@@ -860,11 +861,13 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
       fqnPPE = PPED.unsuffixifiedPPE pped
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
-  DefinitionResults terms types misses <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
-  branchAtPath <- do
+  (DefinitionResults terms types misses, branchAtPath) <-
     (lift . Codebase.runTransaction codebase) do
-      causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
-      V2Causal.value causalAtPath
+      results <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
+      branchAtPath <- do
+        causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
+        V2Causal.value causalAtPath
+      pure (results, branchAtPath)
   let width = mayDefaultWidth renderWidth
       -- Return only references which refer to docs.
       filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
@@ -971,19 +974,19 @@ renderDoc ppe width rt codebase r = do
   let hash = Reference.toText r
   (name,hash,)
     <$> let tm = Term.ref () r
-         in Doc.renderDoc
+         in Doc.evalAndRenderDoc
               ppe
               terms
-              (Codebase.runTransaction codebase . typeOf)
+              typeOf
               eval
-              (Codebase.runTransaction codebase . decls)
+              decls
               tm
   where
     terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
     terms (Reference.DerivedId r) =
-      fmap Term.unannotate <$> Codebase.getTerm codebase r
+      fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.getTerm codebase r)
 
-    typeOf r = fmap void <$> Codebase.getTypeOfReferent codebase r
+    typeOf r = fmap void <$> Codebase.runTransaction codebase (Codebase.getTypeOfReferent codebase r)
     eval (Term.amap (const mempty) -> tm) = do
       let ppes = PPED.suffixifiedPPE ppe
       let codeLookup = Codebase.toCodeLookup codebase
@@ -999,7 +1002,8 @@ renderDoc ppe width rt codebase r = do
         Nothing -> pure ()
       pure $ r <&> Term.amap (const mempty)
 
-    decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> Codebase.getTypeDeclaration codebase r
+    decls (Reference.DerivedId r) =
+      fmap (DD.amap (const ())) <$> Codebase.runTransaction codebase (Codebase.getTypeDeclaration codebase r)
     decls _ = pure Nothing
 
 docsInBranchToHtmlFiles ::
@@ -1122,19 +1126,19 @@ scopedNamesForBranchHash codebase mbh path = do
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
   (parseNames, localNames) <- case mbh of
     Nothing
-      | shouldUseNamesIndex -> lift $ Codebase.runTransaction codebase indexNames
+      | shouldUseNamesIndex -> do
+          lift $ Codebase.runTransaction codebase indexNames
       | otherwise -> do
           rootBranch <- lift $ Codebase.getRootBranch codebase
           let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
           pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
-      let v1CausalHash = Cv.causalHash2to1 ch
       rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash
       if (ch == rootHash) && shouldUseNamesIndex
         then lift $ Codebase.runTransaction codebase indexNames
         else do
-          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just v1CausalHash) codebase
+          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just ch) codebase
           pure (parseNames, localNames)
 
   let localPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
@@ -1148,18 +1152,21 @@ scopedNamesForBranchHash codebase mbh path = do
         (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE addFallback)
     indexNames :: Sqlite.Transaction (Names, Names)
     indexNames = do
-      scopedNames <- Codebase.namesAtPath path
+      branch <- Codebase.getShallowRootBranch
+      mayProjectRoot <- Projects.inferNamesRoot path branch
+      let namesRoot = fromMaybe path mayProjectRoot
+      scopedNames <- Codebase.namesAtPath namesRoot path
       pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::
-  Monad m => Maybe Branch.CausalHash -> Codebase m v a -> Backend m (Branch m)
+  Monad m => Maybe CausalHash -> Codebase m v a -> Backend m (Branch m)
 resolveCausalHash h codebase = case h of
   Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
     whenNothing mayBranch (throwError $ NoBranchForHash bhash)
 
-resolveCausalHashV2 :: Maybe V2Branch.CausalHash -> Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+resolveCausalHashV2 :: Maybe CausalHash -> Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
 resolveCausalHashV2 h = case h of
   Nothing -> Codebase.getShallowRootCausal
   Just ch -> Codebase.expectCausalBranchByCausalHash ch
@@ -1178,7 +1185,7 @@ resolveRootBranchHashV2 ::
 resolveRootBranchHashV2 mayRoot = case mayRoot of
   Nothing -> lift Codebase.getShallowRootCausal
   Just sch -> do
-    h <- Cv.causalHash1to2 <$> expandShortCausalHash sch
+    h <- expandShortCausalHash sch
     lift (resolveCausalHashV2 (Just h))
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
@@ -1193,15 +1200,13 @@ data IncludeCycles
   | DontIncludeCycles
 
 definitionsBySuffixes ::
-  forall m.
-  MonadIO m =>
   Codebase m Symbol Ann ->
   NameSearch ->
   IncludeCycles ->
   [HQ.HashQualified Name] ->
-  m (DefinitionResults Symbol)
+  Sqlite.Transaction DefinitionResults
 definitionsBySuffixes codebase nameSearch includeCycles query = do
-  QueryResult misses results <- Codebase.runTransaction codebase (hqNameQuery codebase nameSearch query)
+  QueryResult misses results <- hqNameQuery codebase nameSearch query
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) (searchResultsToTermRefs results)
@@ -1209,12 +1214,11 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
     let typeRefsWithoutCycles = searchResultsToTypeRefs results
     typeRefs <- case includeCycles of
       IncludeCycles ->
-        Codebase.runTransaction codebase do
-          Monoid.foldMapM
-            Codebase.componentReferencesForReference
-            typeRefsWithoutCycles
+        Monoid.foldMapM
+          Codebase.componentReferencesForReference
+          typeRefsWithoutCycles
       DontIncludeCycles -> pure typeRefsWithoutCycles
-    Codebase.runTransaction codebase (Map.foldMapM (\ref -> (ref,) <$> displayType codebase ref) typeRefs)
+    Map.foldMapM (\ref -> (ref,) <$> displayType codebase ref) typeRefs
   pure (DefinitionResults terms types misses)
   where
     searchResultsToTermRefs :: [SR.SearchResult] -> Set Reference
@@ -1230,7 +1234,7 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
           SR.Tp' _ r _ -> Just r
           _ -> Nothing
 
-displayTerm :: MonadIO m => Codebase m Symbol Ann -> Reference -> m (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+displayTerm :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
 displayTerm codebase = \case
   ref@(Reference.Builtin _) -> do
     pure case Map.lookup ref B.termRefTypes of

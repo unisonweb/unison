@@ -16,6 +16,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BSC
 import qualified Data.HashMap.Strict as HM
 import Data.IntervalMap.Lazy (IntervalMap)
+import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -29,18 +30,23 @@ import Language.LSP.VFS
 import Unison.Codebase
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
+import qualified Unison.DataDeclaration as DD
 import Unison.LSP.Orphans ()
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
+import Unison.Names (Names)
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
+import qualified Unison.Reference as Reference
 import Unison.Result (Note)
 import qualified Unison.Server.Backend as Backend
 import Unison.Symbol
 import qualified Unison.Syntax.Lexer as Lexer
+import Unison.Term (Term)
+import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
 import UnliftIO
 
@@ -105,18 +111,39 @@ data FileAnalysis = FileAnalysis
   { fileUri :: Uri,
     fileVersion :: FileVersion,
     lexedSource :: LexedSource,
+    tokenMap :: IM.IntervalMap Position Lexer.Lexeme,
     parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     notes :: Seq (Note Symbol Ann),
     diagnostics :: IntervalMap Position [Diagnostic],
-    codeActions :: IntervalMap Position [CodeAction]
+    codeActions :: IntervalMap Position [CodeAction],
+    fileSummary :: Maybe FileSummary
   }
+
+-- | A file that parses might not always type-check, but often we just want to get as much
+-- information as we have available. This provides a type where we can summarize the
+-- information available in a Unison file.
+--
+-- If the file typechecked then all the Ref Ids and types will be filled in, otherwise
+-- they will be Nothing.
+data FileSummary = FileSummary
+  { dataDeclsBySymbol :: Map Symbol (Reference.Id, DD.DataDeclaration Symbol Ann),
+    dataDeclsByReference :: Map Reference.Id (Map Symbol (DD.DataDeclaration Symbol Ann)),
+    effectDeclsBySymbol :: Map Symbol (Reference.Id, DD.EffectDeclaration Symbol Ann),
+    effectDeclsByReference :: Map Reference.Id (Map Symbol (DD.EffectDeclaration Symbol Ann)),
+    termsBySymbol :: Map Symbol (Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
+    termsByReference :: Map (Maybe Reference.Id) (Map Symbol (Term Symbol Ann, Maybe (Type Symbol Ann))),
+    testWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
+    exprWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
+    fileNames :: Names
+  }
+  deriving stock (Show)
 
 getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO
 
-getCompletions :: Lsp CompletionTree
-getCompletions = asks completionsVar >>= readTVarIO
+getCodebaseCompletions :: Lsp CompletionTree
+getCodebaseCompletions = asks completionsVar >>= readTVarIO
 
 globalPPED :: Lsp PrettyPrintEnvDecl
 globalPPED = asks ppedCache >>= liftIO

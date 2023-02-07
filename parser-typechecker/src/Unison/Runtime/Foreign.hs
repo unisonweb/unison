@@ -28,6 +28,7 @@ import Network.Socket (Socket)
 import qualified Network.TLS as TLS (ClientParams, Context, ServerParams)
 import System.Clock (TimeSpec)
 import System.IO (Handle)
+import System.Process (ProcessHandle)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF (SuperGroup, Value)
@@ -43,6 +44,72 @@ data Foreign where
 
 promote :: (a -> a -> r) -> b -> c -> r
 promote (~~) x y = unsafeCoerce x ~~ unsafeCoerce y
+
+-- These functions are explicit aliases of the overloaded function.
+-- When the overloaded function is used in their place, it seems to
+-- cause issues with regard to `promote` above. Somehow, the
+-- unsafeCoerce can cause memory faults, even when the values are
+-- being coerced to appropriate types. Having an explicit, noinline
+-- alias seems to prevent the faults.
+txtEq :: Text -> Text -> Bool
+txtEq l r = l == r
+{-# NOINLINE txtEq #-}
+
+txtCmp :: Text -> Text -> Ordering
+txtCmp l r = compare l r
+{-# NOINLINE txtCmp #-}
+
+bytesEq :: Bytes -> Bytes -> Bool
+bytesEq l r = l == r
+{-# NOINLINE bytesEq #-}
+
+bytesCmp :: Bytes -> Bytes -> Ordering
+bytesCmp l r = compare l r
+{-# NOINLINE bytesCmp #-}
+
+mvarEq :: MVar () -> MVar () -> Bool
+mvarEq l r = l == r
+{-# NOINLINE mvarEq #-}
+
+socketEq :: Socket -> Socket -> Bool
+socketEq l r = l == r
+{-# NOINLINE socketEq #-}
+
+refEq :: IORef () -> IORef () -> Bool
+refEq l r = l == r
+{-# NOINLINE refEq #-}
+
+tidEq :: ThreadId -> ThreadId -> Bool
+tidEq l r = l == r
+{-# NOINLINE tidEq #-}
+
+tidCmp :: ThreadId -> ThreadId -> Ordering
+tidCmp l r = compare l r
+{-# NOINLINE tidCmp #-}
+
+marrEq :: MutableArray () () -> MutableArray () () -> Bool
+marrEq l r = l == r
+{-# NOINLINE marrEq #-}
+
+mbarrEq :: MutableByteArray () -> MutableByteArray () -> Bool
+mbarrEq l r = l == r
+{-# NOINLINE mbarrEq #-}
+
+barrEq :: ByteArray -> ByteArray -> Bool
+barrEq l r = l == r
+{-# NOINLINE barrEq #-}
+
+barrCmp :: ByteArray -> ByteArray -> Ordering
+barrCmp l r = compare l r
+{-# NOINLINE barrCmp #-}
+
+cpatEq :: CPattern -> CPattern -> Bool
+cpatEq l r = l == r
+{-# NOINLINE cpatEq #-}
+
+cpatCmp :: CPattern -> CPattern -> Ordering
+cpatCmp l r = compare l r
+{-# NOINLINE cpatCmp #-}
 
 tylEq :: Reference -> Reference -> Bool
 tylEq r l = r == l
@@ -62,37 +129,41 @@ tmlCmp r l = compare r l
 
 ref2eq :: Reference -> Maybe (a -> b -> Bool)
 ref2eq r
-  | r == Ty.textRef = Just $ promote ((==) @Text)
+  | r == Ty.textRef = Just $ promote txtEq
   | r == Ty.termLinkRef = Just $ promote tmlEq
   | r == Ty.typeLinkRef = Just $ promote tylEq
-  | r == Ty.bytesRef = Just $ promote ((==) @Bytes)
+  | r == Ty.bytesRef = Just $ promote bytesEq
   -- Note: MVar equality is just reference equality, so it shouldn't
   -- matter what type the MVar holds.
-  | r == Ty.mvarRef = Just $ promote ((==) @(MVar ()))
+  | r == Ty.mvarRef = Just $ promote mvarEq
   -- Ditto
-  | r == Ty.refRef = Just $ promote ((==) @(IORef ()))
-  | r == Ty.threadIdRef = Just $ promote ((==) @ThreadId)
-  | r == Ty.marrayRef = Just $ promote ((==) @(MutableArray () ()))
-  | r == Ty.mbytearrayRef = Just $ promote ((==) @(MutableByteArray ()))
-  | r == Ty.ibytearrayRef = Just $ promote ((==) @ByteArray)
-  | r == Ty.patternRef = Just $ promote ((==) @CPattern)
+  | r == Ty.socketRef = Just $ promote socketEq
+  | r == Ty.refRef = Just $ promote refEq
+  | r == Ty.threadIdRef = Just $ promote tidEq
+  | r == Ty.marrayRef = Just $ promote marrEq
+  | r == Ty.mbytearrayRef = Just $ promote mbarrEq
+  | r == Ty.ibytearrayRef = Just $ promote barrEq
+  | r == Ty.patternRef = Just $ promote cpatEq
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
 ref2cmp r
-  | r == Ty.textRef = Just $ promote (compare @Text)
+  | r == Ty.textRef = Just $ promote txtCmp
   | r == Ty.termLinkRef = Just $ promote tmlCmp
   | r == Ty.typeLinkRef = Just $ promote tylCmp
-  | r == Ty.bytesRef = Just $ promote (compare @Bytes)
-  | r == Ty.threadIdRef = Just $ promote (compare @ThreadId)
-  | r == Ty.ibytearrayRef = Just $ promote (compare @ByteArray)
-  | r == Ty.patternRef = Just $ promote (compare @CPattern)
+  | r == Ty.bytesRef = Just $ promote bytesCmp
+  | r == Ty.threadIdRef = Just $ promote tidCmp
+  | r == Ty.ibytearrayRef = Just $ promote barrCmp
+  | r == Ty.patternRef = Just $ promote cpatCmp
   | otherwise = Nothing
 
 instance Eq Foreign where
   Wrap rl t == Wrap rr u
     | rl == rr, Just (~~) <- ref2eq rl = t ~~ u
-  _ == _ = error "Eq Foreign"
+  Wrap rl1 _ == Wrap rl2 _ =
+    error $
+      "Attempting to check equality of two values of different types: "
+        <> show (rl1, rl2)
 
 instance Ord Foreign where
   Wrap rl t `compare` Wrap rr u
@@ -128,6 +199,8 @@ instance BuiltinForeign Text where foreignRef = Tagged Ty.textRef
 instance BuiltinForeign Bytes where foreignRef = Tagged Ty.bytesRef
 
 instance BuiltinForeign Handle where foreignRef = Tagged Ty.fileHandleRef
+
+instance BuiltinForeign ProcessHandle where foreignRef = Tagged Ty.processHandleRef
 
 instance BuiltinForeign Socket where foreignRef = Tagged Ty.socketRef
 

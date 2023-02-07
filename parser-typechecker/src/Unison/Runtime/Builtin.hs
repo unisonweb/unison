@@ -36,6 +36,7 @@ import Control.Monad.Catch (MonadCatch)
 import qualified Control.Monad.Primitive as PA
 import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
+import Data.Digest.Murmur64 (hash64, asWord64)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
 import Data.Bits (shiftL, shiftR, (.|.))
@@ -51,7 +52,6 @@ import Data.IORef as SYS
   )
 import qualified Data.Map as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
-import qualified Data.Primitive as PA
 import Data.Set (insert)
 import qualified Data.Set as Set
 import qualified Data.Text
@@ -101,6 +101,8 @@ import System.Environment as SYS
   ( getArgs,
     getEnv,
   )
+import System.Exit as SYS (ExitCode(..))
+import System.FilePath (isPathSeparator)
 import System.IO (Handle)
 import System.IO as SYS
   ( IOMode (..),
@@ -122,6 +124,14 @@ import System.IO as SYS
     stdout,
   )
 import System.IO.Temp (createTempDirectory)
+import System.Process as SYS
+  ( getProcessExitCode,
+    proc,
+    runInteractiveProcess,
+    terminateProcess,
+    waitForProcess,
+    withCreateProcess
+  )
 import qualified System.X509 as X
 import Unison.ABT.Normalized hiding (TTm)
 import qualified Unison.Builtin as Ty (builtinTypes)
@@ -131,6 +141,7 @@ import Unison.Reference
 import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Serialize as ANF
+import qualified Unison.Runtime.Array as PA
 import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
   ( Foreign (Wrap),
@@ -148,6 +159,17 @@ import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import qualified Unison.Util.Text as Util.Text
 import qualified Unison.Util.Text.Pattern as TPat
+import Unison.Util.RefPromise
+  ( Promise,
+    Ticket,
+    peekTicket,
+    readForCAS,
+    casIORef,
+    newPromise,
+    readPromise,
+    tryReadPromise,
+    writePromise
+  )
 import Unison.Var
 
 type Failure = F.Failure Closure
@@ -868,6 +890,17 @@ gen'trace =
     TLets Direct [] [] (TPrm TRCE [t, v]) $
       TCon Ty.unitRef 0 []
 
+debug'text :: SuperNormal Symbol
+debug'text =
+  unop0 3 $ \[c,r,t,e] ->
+    TLetD r UN (TPrm DBTX [c]) .
+      TMatch r . MatchSum $
+        mapFromList [
+            (0, ([], none)),
+            (1, ([BX], TAbs t . TLetD e BX (left t) $ some e)),
+            (2, ([BX], TAbs t . TLetD e BX (right t) $ some e))
+          ]
+
 code'missing :: SuperNormal Symbol
 code'missing =
   unop0 1 $ \[link, b] ->
@@ -990,6 +1023,19 @@ infixr 0 -->
 (-->) :: a -> b -> (a, b)
 x --> y = (x, y)
 
+start'process :: ForeignOp
+start'process instr =
+  ([BX, BX],)
+    . TAbss [exe, args]
+    . TLets Direct [hin,hout,herr,hproc] [BX,BX,BX,BX] (TFOp instr [exe, args])
+    . TLetD un BX (TCon Ty.unitRef 0 [])
+    . TLetD p3 BX (TCon Ty.pairRef 0 [hproc, un])
+    . TLetD p2 BX (TCon Ty.pairRef 0 [herr, p3])
+    . TLetD p1 BX (TCon Ty.pairRef 0 [hout, p2])
+    $ TCon Ty.pairRef 0 [hin, p1]
+  where
+    (exe,args,hin,hout,herr,hproc,un,p3,p2,p1) = fresh
+
 set'buffering :: ForeignOp
 set'buffering instr =
   ([BX, BX],)
@@ -1063,6 +1109,17 @@ crypto'hash instr =
   where
     (alg, x, vl) = fresh
 
+murmur'hash :: ForeignOp
+murmur'hash instr =
+  ([BX],)
+    . TAbss [x]
+    . TLetD vl BX (TPrm VALU [x])
+    . TLetD result UN (TFOp instr [vl])
+    $ TCon Ty.natRef 0 [result]
+  where
+    (x, vl, result) = fresh
+
+
 crypto'hmac :: ForeignOp
 crypto'hmac instr =
   ([BX, BX, BX],)
@@ -1131,6 +1188,13 @@ inBxBx arg1 arg2 result cont instr =
     . TAbss [arg1, arg2]
     $ TLetD result UN (TFOp instr [arg1, arg2]) cont
 
+-- a -> b -> c -> ...
+inBxBxBx :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxBxBx arg1 arg2 arg3 result cont instr =
+  ([BX, BX, BX],)
+    . TAbss [arg1, arg2, arg3]
+    $ TLetD result UN (TFOp instr [arg1, arg2, arg3]) cont
+
 set'echo :: ForeignOp
 set'echo instr =
   ([BX, BX],)
@@ -1173,6 +1237,7 @@ inBxIomr arg1 arg2 fm result cont instr =
     . unenum 4 arg2 Ty.fileModeRef fm
     $ TLetD result UN (TFOp instr [arg1, fm]) cont
 
+
 -- Output Shape -- these will represent different ways of translating
 -- the result of a foreign call to a Unison Term
 --
@@ -1184,12 +1249,23 @@ inBxIomr arg1 arg2 fm result cont instr =
 -- All of these functions will take a Var named result containing the
 -- result of the foreign call
 --
+
 outMaybe :: forall v. Var v => v -> v -> ANormal v
 outMaybe maybe result =
   TMatch result . MatchSum $
     mapFromList
       [ (0, ([], none)),
         (1, ([BX], TAbs maybe $ some maybe))
+      ]
+
+outMaybeNat :: Var v => v -> v -> v -> ANormal v
+outMaybeNat tag result n =
+  TMatch tag . MatchSum $
+    mapFromList
+      [ (0, ([], none)),
+        (1, ([UN],
+          TAbs result .
+            TLetD n BX (TCon Ty.natRef 0 [n]) $ some n))
       ]
 
 outMaybeNTup :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
@@ -1451,6 +1527,16 @@ boxBoxTo0 instr =
   where
     (arg1, arg2) = fresh
 
+-- a -> b ->{E} Nat
+boxBoxToNat :: ForeignOp
+boxBoxToNat instr =
+  ([BX, BX],)
+    . TAbss [arg1, arg2]
+    . TLetD result UN (TFOp instr [arg1, arg2])
+    $ TCon Ty.natRef 0 [result]
+  where
+    (arg1, arg2, result) = fresh
+
 -- a -> b -> Option c
 
 -- a -> Bool
@@ -1467,6 +1553,13 @@ boxBoxToBool =
   inBxBx arg1 arg2 result $ boolift result
   where
     (arg1, arg2, result) = fresh
+
+-- a -> b -> c -> Bool
+boxBoxBoxToBool :: ForeignOp
+boxBoxBoxToBool =
+  inBxBxBx arg1 arg2 arg3 result $ boolift result
+  where
+    (arg1, arg2, arg3, result) = fresh
 
 -- Nat -> c
 -- Works for an type that's packed into a word, just
@@ -1564,6 +1657,12 @@ boxToMaybeBox =
   inBx arg result $ outMaybe maybe result
   where
     (arg, maybe, result) = fresh
+
+-- a -> Maybe Nat
+boxToMaybeNat :: ForeignOp
+boxToMaybeNat = inBx arg tag $ outMaybeNat tag result n
+  where
+    (arg, tag, result, n) = fresh
 
 -- a -> Maybe (Nat, b)
 boxToMaybeNTup :: ForeignOp
@@ -1894,6 +1993,7 @@ builtinLookup =
         ("todo", (Untracked, bug "builtin.todo")),
         ("Debug.watch", (Tracked, watch)),
         ("Debug.trace", (Tracked, gen'trace)),
+        ("Debug.toText", (Tracked, debug'text)),
         ("unsafe.coerceAbilities", (Untracked, poly'coerce)),
         ("Char.toNat", (Untracked, cast Ty.charRef Ty.natRef)),
         ("Char.fromNat", (Untracked, cast Ty.natRef Ty.charRef)),
@@ -1970,7 +2070,7 @@ declareForeign sand name op func0 = do
           | sanitize,
             Tracked <- sand,
             FF r w _ <- func0 =
-            FF r w (bomb name)
+              FF r w (bomb name)
           | otherwise = func0
         code = (name, (sand, uncurry Lambda (op w)))
      in (w + 1, code : codes, mapInsert w (name, func) funcs)
@@ -2102,13 +2202,15 @@ declareForeigns = do
   declareForeign Tracked "Clock.internals.nsec.v1" boxToNat $
     mkForeign (\n -> pure (fromIntegral $ nsec n :: Word64))
 
+  let chop = reverse . dropWhile isPathSeparator . reverse
+
   declareForeign Tracked "IO.getTempDirectory.impl.v3" unitToEFBox $
-    mkForeignIOF $ \() -> getTemporaryDirectory
+    mkForeignIOF $ \() -> chop <$> getTemporaryDirectory
 
   declareForeign Tracked "IO.createTempDirectory.impl.v3" boxToEFBox $
     mkForeignIOF $ \prefix -> do
       temp <- getTemporaryDirectory
-      createTempDirectory temp prefix
+      chop <$> createTempDirectory temp prefix
 
   declareForeign Tracked "IO.getCurrentDirectory.impl.v3" unitToEFBox
     . mkForeignIOF
@@ -2217,6 +2319,27 @@ declareForeigns = do
       1 -> pure (Just SYS.stdout)
       2 -> pure (Just SYS.stderr)
       _ -> pure Nothing
+
+  let exitDecode ExitSuccess = 0
+      exitDecode (ExitFailure n) = n
+
+  declareForeign Tracked "IO.process.call" boxBoxToNat . mkForeign $
+    \(exe, map Util.Text.unpack -> args) ->
+      withCreateProcess (proc exe args) $ \_ _ _ p ->
+        exitDecode <$> waitForProcess p
+
+  declareForeign Tracked "IO.process.start" start'process . mkForeign $
+    \(exe, map Util.Text.unpack -> args) ->
+      runInteractiveProcess exe args Nothing Nothing
+
+  declareForeign Tracked "IO.process.kill" boxTo0 . mkForeign $
+    terminateProcess
+
+  declareForeign Tracked "IO.process.wait" boxToNat . mkForeign $
+    \ph -> exitDecode <$> waitForProcess ph
+
+  declareForeign Tracked "IO.process.exitCode" boxToMaybeNat . mkForeign $
+    fmap (fmap exitDecode) . getProcessExitCode
 
   declareForeign Tracked "MVar.new" boxDirect
     . mkForeign
@@ -2338,13 +2461,58 @@ declareForeigns = do
 
   declareForeign Tracked "IO.ref" boxDirect
     . mkForeign
-    $ \(c :: Closure) -> newIORef c
+    $ \(c :: Closure) -> evaluate c >>= newIORef
 
+  -- The docs for IORef state that IORef operations can be observed
+  -- out of order ([1]) but actually GHC does emit the appropriate
+  -- load and store barriers nowadays ([2], [3]).
+  --
+  -- [1] https://hackage.haskell.org/package/base-4.17.0.0/docs/Data-IORef.html#g:2
+  -- [2] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L286
+  -- [3] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L298
   declareForeign Untracked "Ref.read" boxDirect . mkForeign $
     \(r :: IORef Closure) -> readIORef r
 
   declareForeign Untracked "Ref.write" boxBoxTo0 . mkForeign $
-    \(r :: IORef Closure, c :: Closure) -> writeIORef r c
+    \(r :: IORef Closure, c :: Closure) -> evaluate c >>= writeIORef r
+
+  declareForeign Tracked "Ref.readForCas" boxDirect . mkForeign $
+    \(r :: IORef Closure) -> readForCAS r
+
+  declareForeign Tracked "Ref.Ticket.read" boxDirect . mkForeign $
+    \(t :: Ticket Closure) -> pure $ peekTicket t
+
+  -- In GHC, CAS returns both a Boolean and the current value of the
+  -- IORef, which can be used to retry a failed CAS.
+  -- This strategy is more efficient than returning a Boolean only
+  -- because it uses a single call to cmpxchg in assembly (see [1]) to
+  -- avoid an extra read per CAS iteration, however it's not supported
+  -- in Scheme.
+  -- Therefore, we adopt the more common signature that only returns a
+  -- Boolean, which doesn't even suffer from spurious failures because
+  -- GHC issues loads of mutable variables with memory_order_acquire
+  -- (see [2])
+  --
+  -- [1]: https://github.com/ghc/ghc/blob/master/rts/PrimOps.cmm#L697
+  -- [2]: https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L285
+  declareForeign Tracked "Ref.cas" boxBoxBoxToBool . mkForeign $
+    \(r :: IORef Closure, t :: Ticket Closure, v :: Closure) -> fmap fst $
+      do
+        t <- evaluate t
+        casIORef r t v
+
+  declareForeign Tracked "Promise.new" unitDirect . mkForeign $
+    \() -> newPromise @Closure
+
+  -- the only exceptions from Promise.read are async and shouldn't be caught
+  declareForeign Tracked "Promise.read" boxDirect . mkForeign $
+    \(p :: Promise Closure) -> readPromise p
+
+  declareForeign Tracked "Promise.tryRead" boxToMaybeBox . mkForeign $
+    \(p :: Promise Closure) -> tryReadPromise p
+
+  declareForeign Tracked "Promise.write" boxBoxToBool . mkForeign $
+    \(p :: Promise Closure, a :: Closure) -> writePromise p a
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \( config :: TLS.ClientParams,
@@ -2470,6 +2638,9 @@ declareForeigns = do
         pure $ case e of
           Left se -> Left (Util.Text.pack (show se))
           Right a -> Right a
+
+  declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
+    pure . asWord64 . hash64 . serializeValueLazy
 
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
   declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress

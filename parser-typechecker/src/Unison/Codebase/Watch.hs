@@ -97,9 +97,11 @@ watchDirectory dir allow = do
         if allow file
           then
             let handle :: IOException -> IO ()
-                handle e = do
-                  liftIO $ putStrLn $ "‼  Got an exception while reading: " <> file
-                  liftIO $ print (e :: IOException)
+                handle _e =
+                  -- Sometimes we notice a change and try to read a file while it's being written.
+                  -- This typically occurs when UCM is writing to the scratch file and can be
+                  -- ignored anyways.
+                  pure ()
                 go :: IO (Maybe (FilePath, Text))
                 go = liftIO $ do
                   contents <- readUtf8 file

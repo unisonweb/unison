@@ -1,5 +1,4 @@
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Unison.Syntax.TermParser where
 
@@ -8,7 +7,7 @@ import qualified Data.Char as Char
 import Data.Foldable (foldrM)
 import qualified Data.List as List
 import qualified Data.List.Extra as List.Extra
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Maybe as Maybe
 import qualified Data.Sequence as Sequence
@@ -144,7 +143,7 @@ match = do
 matchCases1 :: Var v => L.Token () -> P v (NonEmpty (Int, Term.MatchCase Ann (Term v Ann)))
 matchCases1 start = do
   cases <-
-    sepBy1 semi matchCase
+    (sepBy semi matchCase)
       <&> \cases -> [(n, c) | (n, cs) <- cases, c <- cs]
   case cases of
     [] -> P.customFailure (EmptyMatch start)
@@ -162,27 +161,33 @@ matchCases1 start = do
 --   (42, x) -> ...
 matchCase :: Var v => P v (Int, [Term.MatchCase Ann (Term v Ann)])
 matchCase = do
-  pats <- sepBy1 (reserved ",") parsePattern
+  pats <- sepBy1 (label "\",\"" $ reserved ",") parsePattern
   let boundVars' = [v | (_, vs) <- pats, (_ann, v) <- vs]
       pat = case fst <$> pats of
         [p] -> p
         pats -> foldr pair (unit (ann . last $ pats)) pats
       unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRef 0) []
       pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2]
-  guardsAndBlocks <- many $ do
-    guard <-
-      asum
-        [ Nothing <$ P.try (reserved "|" *> quasikeyword "otherwise"),
-          optional $ reserved "|" *> infixAppOrBooleanOp
-        ]
-    t <- block "->"
-    pure (guard, t)
+  let guardedBlocks = label "pattern guard" . some $ do
+        reserved "|"
+        guard <-
+          asum
+            [ Nothing <$ P.try (quasikeyword "otherwise"),
+              Just <$> infixAppOrBooleanOp
+            ]
+        t <- block "->"
+        pure (guard, t)
+  let unguardedBlock = label "case match" $ do
+        t <- block "->"
+        pure (Nothing, t)
+  -- a pattern's RHS is either one or more guards, or a single unguarded block.
+  guardsAndBlocks <- guardedBlocks <|> (pure @[] <$> unguardedBlock)
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
   let mk (guard, t) = Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t)
   pure $ (length pats, mk <$> guardsAndBlocks)
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
-parsePattern = root
+parsePattern = label "pattern" root
   where
     root = chainl1 patternCandidates patternInfixApp
     patternCandidates = constructor <|> leaf
@@ -234,7 +239,7 @@ parsePattern = root
         else pure (Pattern.Var (ann v), [tokenToPair v])
     unbound :: P v (Pattern Ann, [(Ann, v)])
     unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-    ctor :: CT.ConstructorType -> _ -> P v (L.Token ConstructorReference)
+    ctor :: CT.ConstructorType -> (L.Token (HQ.HashQualified Name) -> Set ConstructorReference -> Error v) -> P v (L.Token ConstructorReference)
     ctor ct err = do
       -- this might be a var, so we avoid consuming it at first
       tok <- P.try (P.lookAhead hqPrefixId)
@@ -979,13 +984,13 @@ destructuringBind = do
   --   Some 42
   --   vs
   --   Some 42 = List.head elems
-  (p, boundVars, guard) <- P.try $ do
+  (p, boundVars) <- P.try $ do
     (p, boundVars) <- parsePattern
     let boundVars' = snd <$> boundVars
-    guard <- optional $ reserved "|" *> infixAppOrBooleanOp
     P.lookAhead (openBlockWith "=")
-    pure (p, boundVars', guard)
+    pure (p, boundVars')
   scrute <- block "=" -- Dwight K. Scrute ("The People's Scrutinee")
+  let guard = Nothing
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
       thecase t = Term.MatchCase p (fmap (absChain boundVars) guard) $ absChain boundVars t
   pure $
@@ -995,8 +1000,15 @@ destructuringBind = do
          in Term.match a scrute [thecase t]
     )
 
+-- | Rules for the annotation of the resulting binding is as follows:
+-- * If the binding has a type signature, the top level scope of the annotation for the type
+-- Ann node will contain the _entire_ binding, including the type signature.
+-- * The body expression of the binding contains the entire lhs (including the name of the
+-- binding) and the entire body.
+-- * If the binding is a lambda, the  lambda node includes the entire LHS of the binding,
+-- including the name as well.
 binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
-binding = label "binding" $ do
+binding = label "binding" do
   typ <- optional typedecl
   -- a ++ b = ...
   let infixLhs = do
@@ -1014,12 +1026,12 @@ binding = label "binding" $ do
   case typ of
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
-      (loc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
+      (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
       body <- block "="
       verifyRelativeName' (fmap Name.unsafeFromVar name)
-      pure $ mkBinding loc (L.payload name) args body
+      pure $ mkBinding (lhsLoc <> ann body) (L.payload name) args body
     Just (nameT, typ) -> do
-      (_, name, args) <- lhs
+      (lhsLoc, name, args) <- lhs
       verifyRelativeName' (fmap Name.unsafeFromVar name)
       when (L.payload name /= L.payload nameT) $
         customFailure $ SignatureNeedsAccompanyingBody nameT
@@ -1027,7 +1039,7 @@ binding = label "binding" $ do
       pure $
         fmap
           (\e -> Term.ann (ann nameT <> ann e) e typ)
-          (mkBinding (ann nameT) (L.payload name) args body)
+          (mkBinding (ann lhsLoc <> ann body) (L.payload name) args body)
   where
     mkBinding loc f [] body = ((loc, f), body)
     mkBinding loc f args body =
@@ -1106,7 +1118,7 @@ substImports ns imports =
           NamesWithHistory.hasTypeNamed (Name.unsafeFromVar full) ns
       ]
 
-block' :: Var v => IsTop -> String -> P v (L.Token ()) -> P v b -> TermP v
+block' :: Var v => IsTop -> String -> P v (L.Token ()) -> P v (L.Token ()) -> TermP v
 block' isTop = block'' isTop False
 
 block'' ::
@@ -1129,43 +1141,45 @@ block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
     statement = asum [Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm]
     go :: L.Token () -> [BlockElement v] -> P v (Term v Ann)
     go open bs =
-      let finish tm = case Components.minimize' tm of
+      let finish :: Term.Term v Ann -> TermP v
+          finish tm = case Components.minimize' tm of
             Left dups -> customFailure $ DuplicateTermNames (toList dups)
             Right tm -> pure tm
-          toTm bs = do
-            (bs, body) <- body bs
-            finish =<< foldrM step body bs
+          toTm :: [BlockElement v] -> TermP v
+          toTm [] = customFailure $ EmptyBlock (const s <$> open)
+          toTm (be : bes) = do
+            let (bs, blockResult) = determineBlockResult (be :| bes)
+            finish =<< foldrM step blockResult bs
             where
-              step elem body = case elem of
+              step :: BlockElement v -> Term v Ann -> TermP v
+              step elem result = case elem of
                 Binding ((a, v), tm) ->
                   pure $
                     Term.consLetRec
                       isTop
-                      (ann a <> ann body)
+                      (ann a <> ann result)
                       (a, v, tm)
-                      body
+                      result
                 Action tm ->
                   pure $
                     Term.consLetRec
                       isTop
-                      (ann tm <> ann body)
+                      (ann tm <> ann result)
                       (ann tm, positionalVar (ann tm) (Var.named "_"), tm)
-                      body
+                      result
                 DestructuringBind (_, f) ->
-                  f <$> finish body
-          body bs = case reverse bs of
-            Binding ((a, _v), _) : _ ->
-              pure $
-                if implicitUnitAtEnd
-                  then (bs, DD.unitTerm a)
-                  else (bs, Term.var a (positionalVar a Var.missingResult))
-            Action e : bs -> pure (reverse bs, e)
-            DestructuringBind (a, _) : _ ->
-              pure $
-                if implicitUnitAtEnd
-                  then (bs, DD.unitTerm a)
-                  else (bs, Term.var a (positionalVar a Var.missingResult))
-            [] -> customFailure $ EmptyBlock (const s <$> open)
+                  f <$> finish result
+          determineBlockResult :: NonEmpty (BlockElement v) -> ([BlockElement v], Term v Ann)
+          determineBlockResult bs = case NonEmpty.reverse bs of
+            Binding ((a, _v), _) :| _ ->
+              if implicitUnitAtEnd
+                then (toList bs, DD.unitTerm a)
+                else (toList bs, Term.var a (positionalVar a Var.missingResult))
+            Action e :| bs -> (reverse (toList bs), e)
+            DestructuringBind (a, _) :| _ ->
+              if implicitUnitAtEnd
+                then (toList bs, DD.unitTerm a)
+                else (toList bs, Term.var a (positionalVar a Var.missingResult))
        in toTm bs
 
 number :: Var v => TermP v

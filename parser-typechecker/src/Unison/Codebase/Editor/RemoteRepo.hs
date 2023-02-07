@@ -1,6 +1,3 @@
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Editor.RemoteRepo where
@@ -8,13 +5,13 @@ module Unison.Codebase.Editor.RemoteRepo where
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
 import qualified Data.Text as Text
-import qualified U.Util.Monoid as Monoid
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.Prelude
 import Unison.Share.Types
+import qualified Unison.Util.Monoid as Monoid
 
 data ReadRepo
   = ReadRepoGit ReadGitRepo
@@ -24,6 +21,9 @@ data ReadRepo
 data ShareCodeserver
   = DefaultCodeserver
   | CustomCodeserver CodeserverURI
+  deriving stock (Eq, Ord, Show)
+
+newtype ShareUserHandle = ShareUserHandle {shareUserHandleToText :: Text}
   deriving stock (Eq, Ord, Show)
 
 -- |
@@ -36,12 +36,12 @@ data ShareCodeserver
 -- "share"
 -- >>> displayShareCodeserver (CustomCodeserver . fromJust $ parseURI "https://share-next.unison-lang.org/api" >>= codeserverFromURI ) "unison" ["base", "List"]
 -- "share(https://share-next.unison-lang.org:443/api).unison.base.List"
-displayShareCodeserver :: ShareCodeserver -> Text -> Path -> Text
-displayShareCodeserver cs repo path =
+displayShareCodeserver :: ShareCodeserver -> ShareUserHandle -> Path -> Text
+displayShareCodeserver cs shareUser path =
   let shareServer = case cs of
         DefaultCodeserver -> ""
         CustomCodeserver cu -> "share(" <> tShow cu <> ")."
-   in shareServer <> repo <> maybePrintPath path
+   in shareServer <> shareUserHandleToText shareUser <> maybePrintPath path
 
 data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}
   deriving stock (Eq, Ord, Show)
@@ -117,7 +117,7 @@ data ReadGitRemoteNamespace = ReadGitRemoteNamespace
 
 data ReadShareRemoteNamespace = ReadShareRemoteNamespace
   { server :: ShareCodeserver,
-    repo :: Text,
+    repo :: ShareUserHandle,
     -- sch :: Maybe ShortCausalHash, -- maybe later
     path :: Path
   }
@@ -153,7 +153,7 @@ data WriteGitRemotePath = WriteGitRemotePath
 
 data WriteShareRemotePath = WriteShareRemotePath
   { server :: ShareCodeserver,
-    repo :: Text,
+    repo :: ShareUserHandle,
     path :: Path
   }
   deriving stock (Eq, Show)

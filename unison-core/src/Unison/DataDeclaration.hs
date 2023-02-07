@@ -17,8 +17,10 @@ module Unison.DataDeclaration
     constructorIds,
     declConstructorReferents,
     declDependencies,
+    labeledDeclDependencies,
     declFields,
     dependencies,
+    labeledDependencies,
     generateRecordAccessors,
     unhashComponent,
     mkDataDecl',
@@ -41,6 +43,7 @@ import qualified Unison.ABT as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import qualified Unison.LabeledDependency as LD
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Pattern as Pattern
@@ -70,6 +73,9 @@ asDataDecl = either toDataDecl id
 declDependencies :: Ord v => Decl v a -> Set Reference
 declDependencies = either (dependencies . toDataDecl) dependencies
 
+labeledDeclDependencies :: Ord v => Decl v a -> Set LD.LabeledDependency
+labeledDeclDependencies = Set.map LD.TypeReference . declDependencies
+
 constructorType :: Decl v a -> CT.ConstructorType
 constructorType = \case
   Left {} -> CT.Effect
@@ -84,7 +90,7 @@ data DataDeclaration v a = DataDeclaration
     bound :: [v],
     constructors' :: [(a, v, Type v a)]
   }
-  deriving (Eq, Show, Functor)
+  deriving (Eq, Ord, Show, Functor)
 
 constructors_ :: Lens' (DataDeclaration v a) [(a, v, Type v a)]
 constructors_ = lens getter setter
@@ -95,7 +101,7 @@ constructors_ = lens getter setter
 newtype EffectDeclaration v a = EffectDeclaration
   { toDataDecl :: DataDeclaration v a
   }
-  deriving (Eq, Show, Functor)
+  deriving (Eq, Ord, Show, Functor)
 
 asDataDecl_ :: Iso' (EffectDeclaration v a) (DataDeclaration v a)
 asDataDecl_ = iso toDataDecl EffectDeclaration
@@ -253,6 +259,9 @@ bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constru
 dependencies :: Ord v => DataDeclaration v a -> Set Reference
 dependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
+
+labeledDependencies :: Ord v => DataDeclaration v a -> Set LD.LabeledDependency
+labeledDependencies = Set.map LD.TypeReference . dependencies
 
 mkEffectDecl' ::
   Modifier -> a -> [v] -> [(a, v, Type v a)] -> EffectDeclaration v a

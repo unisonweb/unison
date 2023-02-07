@@ -7,7 +7,10 @@ module Unison.LSP where
 
 import Colog.Core (LogAction (LogAction))
 import qualified Colog.Core as Colog
+import Compat (onWindows)
 import Control.Monad.Reader
+import Data.ByteString.Builder.Extra (defaultChunkSize)
+import Data.Char (toLower)
 import GHC.IO.Exception (ioe_errno)
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
@@ -17,8 +20,8 @@ import Language.LSP.Types.SMethodMap
 import qualified Language.LSP.Types.SMethodMap as SMM
 import Language.LSP.VFS
 import qualified Network.Simple.TCP as TCP
-import Network.Socket (socketToHandle)
 import System.Environment (lookupEnv)
+import System.IO (hPutStrLn)
 import Unison.Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
@@ -26,7 +29,7 @@ import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Debug as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
-import Unison.LSP.Completion (completionHandler)
+import Unison.LSP.Completion (completionHandler, completionItemResolveHandler)
 import qualified Unison.LSP.Configuration as Config
 import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
@@ -49,17 +52,27 @@ getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
 
 -- | Spawn an LSP server on the configured port.
 spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM (Branch IO) -> STM (Path.Absolute) -> IO ()
-spawnLsp codebase runtime latestBranch latestPath = TCP.withSocketsDo do
-  lspPort <- getLspPort
-  UnliftIO.handleIO (handleFailure lspPort) $ do
-    TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
-      Ki.scoped \scope -> do
-        sockHandle <- socketToHandle sock ReadWriteMode
-        -- currently we have an independent VFS for each LSP client since each client might have
-        -- different un-saved state for the same file.
-        initVFS $ \vfs -> do
-          vfsVar <- newMVar vfs
-          void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope latestBranch latestPath)
+spawnLsp codebase runtime latestBranch latestPath =
+  ifEnabled . TCP.withSocketsDo $ do
+    lspPort <- getLspPort
+    UnliftIO.handleIO (handleFailure lspPort) $ do
+      TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
+        Ki.scoped \scope -> do
+          -- If the socket is closed, reading/writing will throw an exception,
+          -- but since the socket is closed, this connection will be shutting down
+          -- immediately anyways, so we just ignore it.
+          let clientInput = handleAny (\_ -> pure "") do
+                -- The server will be in the process of shutting down if the socket is closed,
+                -- so just return empty input in the meantime.
+                fromMaybe "" <$> TCP.recv sock defaultChunkSize
+          let clientOutput output = handleAny (\_ -> pure ()) do
+                TCP.sendLazy sock output
+
+          -- currently we have an independent VFS for each LSP client since each client might have
+          -- different un-saved state for the same file.
+          initVFS $ \vfs -> do
+            vfsVar <- newMVar vfs
+            void $ runServerWith lspServerLogger lspClientLogger clientInput clientOutput (serverDefinition vfsVar codebase runtime scope latestBranch latestPath)
   where
     handleFailure :: String -> IOException -> IO ()
     handleFailure lspPort ioerr =
@@ -75,6 +88,14 @@ spawnLsp codebase runtime latestBranch latestPath = TCP.withSocketsDo do
     lspServerLogger = Colog.filterBySeverity Colog.Error Colog.getSeverity $ Colog.cmap (fmap tShow) (LogAction print)
     -- Where to send logs that occur after a client connects
     lspClientLogger = Colog.cmap (fmap tShow) LSP.defaultClientLogger
+    ifEnabled :: IO () -> IO ()
+    ifEnabled runServer = do
+      -- Default LSP to disabled on Windows unless explicitly enabled
+      lookupEnv "UNISON_LSP_ENABLED" >>= \case
+        Just (fmap toLower -> "false") -> pure ()
+        Just (fmap toLower -> "true") -> runServer
+        Just x -> hPutStrLn stderr $ "Invalid value for UNISON_LSP_ENABLED, expected 'true' or 'false' but found: " <> x
+        Nothing -> when (not onWindows) runServer
 
 serverDefinition ::
   MVar VFS ->
@@ -137,6 +158,7 @@ lspRequestHandlers =
     & SMM.insert STextDocumentCodeAction (mkHandler codeActionHandler)
     & SMM.insert STextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert STextDocumentCompletion (mkHandler completionHandler)
+    & SMM.insert SCompletionItemResolve (mkHandler completionItemResolveHandler)
   where
     defaultTimeout = 10_000 -- 10s
     mkHandler ::

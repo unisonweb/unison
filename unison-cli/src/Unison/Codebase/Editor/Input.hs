@@ -24,7 +24,7 @@ module Unison.Codebase.Editor.Input
 where
 
 import qualified Data.Text as Text
-import qualified Unison.Codebase.Branch as Branch
+import U.Codebase.HashTags (CausalHash)
 import qualified Unison.Codebase.Branch.Merge as Branch
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Path (Path')
@@ -44,7 +44,7 @@ import qualified Unison.Util.Pretty as P
 
 data Event
   = UnisonFileChanged SourceName Source
-  | IncomingRootBranch (Set Branch.CausalHash)
+  | IncomingRootBranch (Set CausalHash)
 
 type Source = Text -- "id x = x\nconst a b = a"
 
@@ -129,6 +129,7 @@ data Input
   | ResolveTypeNameI Path.HQSplit'
   | -- edits stuff:
     LoadI (Maybe FilePath)
+  | ClearI
   | AddI (Set Name)
   | PreviewAddI (Set Name)
   | UpdateI OptionalPatch (Set Name)
@@ -155,7 +156,7 @@ data Input
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme
-    ExecuteSchemeI (HQ.HashQualified Name)
+    ExecuteSchemeI (HQ.HashQualified Name) [String]
   | -- compile to a scheme file
     CompileSchemeI String (HQ.HashQualified Name)
   | -- generate scheme libraries

@@ -25,8 +25,8 @@ import U.Codebase.Sqlite.TempEntity (TempEntity)
 import qualified U.Codebase.Sqlite.TempEntity as Sqlite
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
-import U.Util.Hash32 (Hash32)
-import qualified U.Util.Hash32 as Hash32
+import Unison.Hash32 (Hash32)
+import qualified Unison.Hash32 as Hash32
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.Types as Share

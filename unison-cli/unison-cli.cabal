@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -129,6 +129,7 @@ library
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -184,14 +185,15 @@ library
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -201,12 +203,12 @@ library
     , wai
     , warp
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   if !os(windows)
     build-depends:
         unix
-  default-language: Haskell2010
 
 executable cli-integration-tests
   main-is: Suite.hs
@@ -252,6 +254,7 @@ executable cli-integration-tests
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -310,14 +313,15 @@ executable cli-integration-tests
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -327,9 +331,9 @@ executable cli-integration-tests
     , wai
     , warp
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010
 
 executable transcripts
   main-is: Transcripts.hs
@@ -371,6 +375,7 @@ executable transcripts
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -430,14 +435,15 @@ executable transcripts
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -447,9 +453,9 @@ executable transcripts
     , wai
     , warp
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010
 
 executable unison
   main-is: Main.hs
@@ -496,6 +502,7 @@ executable unison
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -557,14 +564,15 @@ executable unison
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -574,9 +582,9 @@ executable unison
     , wai
     , warp
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010
 
 test-suite cli-tests
   type: exitcode-stdio-1.0
@@ -627,6 +635,7 @@ test-suite cli-tests
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -687,14 +696,15 @@ test-suite cli-tests
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
+    , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
@@ -704,6 +714,6 @@ test-suite cli-tests
     , wai
     , warp
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010

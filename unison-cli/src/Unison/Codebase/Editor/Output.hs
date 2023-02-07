@@ -1,7 +1,7 @@
-{-# LANGUAGE PatternSynonyms #-}
-
 module Unison.Codebase.Editor.Output
   ( Output (..),
+    DisplayDefinitionsOutput (..),
+    WhichBranchEmpty (..),
     NumberedOutput (..),
     NumberedArgs,
     ListDetailed,
@@ -21,8 +21,8 @@ import Data.Time (UTCTime)
 import Network.URI (URI)
 import qualified System.Console.Haskeline as Completion
 import U.Codebase.Branch.Diff (NameChanges)
+import U.Codebase.HashTags (CausalHash)
 import Unison.Auth.Types (CredentialFailure)
-import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
@@ -54,7 +54,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
@@ -104,7 +104,7 @@ data NumberedOutput
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(Branch.CausalHash, Names.Diff)]
+      [(CausalHash, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
   | ListEdits Patch PPE.PrettyPrintEnv
 
@@ -121,9 +121,19 @@ data Output
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
     NoMainFunction String PPE.PrettyPrintEnv [Type Symbol Ann]
-  | -- Main function found, but has improper type
-    BadMainFunction String (Type Symbol Ann) PPE.PrettyPrintEnv [Type Symbol Ann]
-  | BranchEmpty (Either ShortCausalHash Path')
+  | -- | Function found, but has improper type
+    -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
+    BadMainFunction
+      String
+      -- ^ what we were trying to do (e.g. "run", "io.test")
+      String
+      -- ^ name of function
+      (Type Symbol Ann)
+      -- ^ bad type of function
+      PPE.PrettyPrintEnv
+      [Type Symbol Ann]
+      -- ^ acceptable type(s) of function
+  | BranchEmpty WhichBranchEmpty
   | BranchNotEmpty Path'
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -203,11 +213,7 @@ data Output
   | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
-    DisplayDefinitions
-      (Maybe FilePath)
-      PPE.PrettyPrintEnvDecl
-      (Map Reference (DisplayObject () (Decl Symbol Ann)))
-      (Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)))
+    DisplayDefinitions DisplayDefinitionsOutput
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
   | TestResults
@@ -257,11 +263,11 @@ data Output
       Path.Absolute -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
-  | DumpBitBooster Branch.CausalHash (Map Branch.CausalHash [Branch.CausalHash])
+  | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
-  | CouldntLoadBranch Branch.CausalHash
+  | CouldntLoadBranch CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
@@ -277,6 +283,21 @@ data Output
   | IntegrityCheck IntegrityResult
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
+  | ClearScreen
+  | PulledEmptyBranch ReadRemoteNamespace
+
+data DisplayDefinitionsOutput = DisplayDefinitionsOutput
+  { isTest :: TermReference -> Bool,
+    outputFile :: Maybe FilePath,
+    prettyPrintEnv :: PPE.PrettyPrintEnvDecl,
+    terms :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
+    types :: Map Reference (DisplayObject () (Decl Symbol Ann))
+  }
+
+-- | A branch was empty. But how do we refer to that branch?
+data WhichBranchEmpty
+  = WhichBranchEmptyHash ShortCausalHash
+  | WhichBranchEmptyPath Path'
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -286,9 +307,9 @@ data ShareError
   | ShareErrorTransport Sync.CodeserverTransportError
 
 data HistoryTail
-  = EndOfLog Branch.CausalHash
-  | MergeTail Branch.CausalHash [Branch.CausalHash]
-  | PageEnd Branch.CausalHash Int -- PageEnd nextHash nextIndex
+  = EndOfLog CausalHash
+  | MergeTail CausalHash [CausalHash]
+  | PageEnd CausalHash Int -- PageEnd nextHash nextIndex
   deriving (Show)
 
 data TestReportStats
@@ -369,7 +390,7 @@ isFailure o = case o of
   EvaluationFailure {} -> True
   Evaluated {} -> False
   Typechecked {} -> False
-  DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
+  DisplayDefinitions DisplayDefinitionsOutput {terms, types} -> null terms && null types
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False
@@ -424,6 +445,8 @@ isFailure o = case o of
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
   DisplayDebugNameDiff {} -> False
+  ClearScreen -> False
+  PulledEmptyBranch {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

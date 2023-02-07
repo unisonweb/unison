@@ -17,12 +17,15 @@ source-repository head
 
 library
   exposed-modules:
+      Unison.Hashing.V2
+  other-modules:
       Unison.Hashing.V2.ABT
       Unison.Hashing.V2.Branch
       Unison.Hashing.V2.Causal
+      Unison.Hashing.V2.ConstructorId
       Unison.Hashing.V2.DataDeclaration
-      Unison.Hashing.V2.Hashable
       Unison.Hashing.V2.Kind
+      Unison.Hashing.V2.NameSegment
       Unison.Hashing.V2.Patch
       Unison.Hashing.V2.Pattern
       Unison.Hashing.V2.Reference
@@ -49,6 +52,7 @@ library
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -70,8 +74,9 @@ library
     , semialign
     , text
     , unison-core1
+    , unison-hash
+    , unison-hashing
     , unison-prelude
-    , unison-util
     , unison-util-base32hex
     , unison-util-relation
   default-language: Haskell2010

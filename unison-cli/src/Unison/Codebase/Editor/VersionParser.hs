@@ -42,6 +42,6 @@ defaultBaseLib = fmap makeNS $ release <|> unknown
     makeNS t =
       ReadShareRemoteNamespace
         { server = DefaultCodeserver,
-          repo = "unison",
+          repo = ShareUserHandle "unison",
           path = "public" Path.:< "base" Path.:< Path.fromText t
         }
