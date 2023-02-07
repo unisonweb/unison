@@ -213,8 +213,8 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
-import qualified Unison.Codebase.Path as HQSplit'
 import qualified Unison.HashQualified' as HashQualified
+import Unison.Codebase.Path (containsAbsolutePath)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -2875,37 +2875,47 @@ delete ::
 delete input doutput getTerms getTypes hqs' = do
   -- persists the original hash qualified entity for error reporting
   typesTermsTuple <- traverse (\hq -> do
-      absolute <- Cli.resolveSplit' hq
-      types <- getTypes absolute
-      terms <- getTerms absolute
-      return (hq, types, terms)
+      absoluteSplit <- Cli.resolveSplit' hq
+      types <- getTypes absoluteSplit
+      terms <- getTerms absoluteSplit
+      return (absoluteSplit, hq, types, terms)
     ) hqs'
-  let notFounds = List.filter (\(_, types, terms) -> Set.null terms && Set.null types) typesTermsTuple
+  let notFounds = List.filter (\(_,_, types, terms) -> Set.null terms && Set.null types) typesTermsTuple
   -- if there are any entities which cannot be deleted because they don't exist, short circuit.
-  if not $ null notFounds then do
-    let toName :: [(Path.HQSplit', Set Reference, Set referent)] -> [Name]
-        toName notFounds =
-          mapMaybe (\(split,_,_) -> Path.toName' $ HashQualified.toName (HQSplit'.unsplitHQ' split)) notFounds
+  currentPath <- Cli.getCurrentPath
+
+  let splitsWithRefs :: [(Path.HQSplitAbsolute, Path.HQSplit, Set Reference, Set Referent)]
+      outOfScopes :: ((Path.Absolute, HQ'.HQSegment), Path.HQSplit', Set Reference, Set Referent)
+      (outOfScopes, splitsWithRefs) = typesTermsTuple
+        & map (\everything@(absoluteHQSplit@(absoluteNamespacePath, hqSegment), hq, types, terms) ->
+            case Path.tryStripAbsolutePrefix currentPath absoluteNamespacePath of
+              Nothing -> Left everything -- out  of scope
+              Just rel -> Right (absoluteHQSplit, (rel, hqSegment), types, terms)
+          )
+        & partitionEithers
+  let toName :: [((Path.Absolute, HQ'.HQSegment), Path.HQSplit', Set Reference, Set Referent)] -> [Name]
+      toName errors =
+          mapMaybe (\(abs, split,_,_) -> Path.toName' $ HashQualified.toName (Path.unsplitHQ' split)) errors
+  when (not $ null notFounds) do
     Cli.returnEarly $ NamesNotFound (toName notFounds)
-  else do
-    checkDeletes typesTermsTuple doutput input
+  when (not $ null outOfScopes) do
+    Cli.returnEarly $ NamesOutOfScope (toName outOfScopes)
+  checkDeletes splitsWithRefs doutput input
 
-
-checkDeletes :: [(Path.HQSplit', Set Reference, Set Referent)] -> DeleteOutput -> Input -> Cli ()
-checkDeletes typesTermsTuples doutput inputs = do
+checkDeletes :: [(Path.HQSplitAbsolute, Path.HQSplit, Set Reference, Set Referent)] -> DeleteOutput -> Input -> Cli ()
+checkDeletes splitsWithRefs doutput inputs = do
   let toSplitName ::
-        (Path.HQSplit', Set Reference, Set Referent) ->
-        Cli (Path.Split, Name, Set Reference, Set Referent)
-      toSplitName hq = do
-        resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq^._1)
-        return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq^._2, hq^._3)
+        (Path.HQSplitAbsolute, Path.HQSplit, Set Reference, Set Referent) ->
+        Cli (Path.HQSplitAbsolute, Path.HQSplit, Name, Set Reference, Set Referent)
+      toSplitName (absSplit, relSplit, types, terms) = do
+        return (absSplit, relSplit, Path.unsafeToName (Path.unsplit $ second HQ.toName relSplit), types, terms)
   -- get the splits and names with terms and types
-  splitsNames <- traverse toSplitName typesTermsTuples
+  splitsNames <- traverse toSplitName splitsWithRefs
   let toRel :: Ord ref => Set ref -> Name -> R.Relation Name ref
       toRel setRef name = R.fromList (fmap (name,) (toList setRef))
-  let toDelete = fmap (\(_, names, types, terms) -> Names (toRel terms names) (toRel types names)) splitsNames
+  let toDelete = fmap (\(_, _, names, types, terms) -> Names (toRel terms names) (toRel types names)) splitsNames
   -- make sure endangered is compeletely contained in paths
-  rootNames <- Branch.toNames <$> Cli.getRootBranch0
+  rootNames <- Branch.toNames <$> Cli.getCurrentBranch0 -- RLM NOTE YOU CHANGED THIS HERE TMP
   -- get only once for the entire deletion set
   let allTermsToDelete :: Set LabeledDependency
       allTermsToDelete = Set.unions (fmap Names.labeledReferences toDelete)
@@ -2914,11 +2924,20 @@ checkDeletes typesTermsTuples doutput inputs = do
     getEndangeredDependents targetToDelete allTermsToDelete rootNames) toDelete
   -- If the overall dependency map is not completely empty, abort deletion
   let endangeredDeletions = List.filter (\m -> not $ null m || Map.foldr (\s b -> null s || b ) False m ) endangered
+  -- .base > delete .base.List.map
+  -- abs split = (".base.List", "map")
+  -- rel split = ("List", "map")
+  -- rel split from root = ("base.List", "map")
   if null endangeredDeletions then do
     let deleteTypesTerms =
-          splitsNames >>= (\(split, _, types, terms) ->
-            (map (BranchUtil.makeDeleteTypeName split) . Set.toList $ types) ++
-            (map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms )
+          splitsNames >>= (\((absNamespace, nameSegment), _relSplit, _, types, terms) ->
+            -- The 'make*" combinators from BranchUtil take a _relative_ split, but they expect them to be relative to the codebase root.
+            -- They should probably take an Absolute split instead to avoid this confusion.
+            -- We have a relative split here, but it's relative to the current UCM namespace,
+            -- so we need to use the absolute split here, converted into a relative split, so it's relative to the codebase root.
+            let relSplitFromRoot = (Path.unabsolute absNamespace, HQ'.toName nameSegment)
+            in (map (BranchUtil.makeDeleteTypeName relSplitFromRoot) . Set.toList $ types) ++
+               (map (BranchUtil.makeDeleteTermName relSplitFromRoot) . Set.toList $ terms )
           )
     before <- Cli.getRootBranch0
     description <- inputDescription inputs
@@ -2947,12 +2966,12 @@ getEndangeredDependents ::
   Names ->
   -- | map from references going extinct to the set of endangered dependents
   Sqlite.Transaction (Map LabeledDependency (NESet LabeledDependency))
-getEndangeredDependents targetNamesToDelete allTermsToDelete rootNames = do
+getEndangeredDependents toDelete allTermsToDelete currentNames = do
   -- names of terms left over after target deletion
   let remainingNames :: Names
-      remainingNames = rootNames `Names.difference` targetNamesToDelete
+      remainingNames = currentNames `Names.difference` toDelete
   let refsToDelete :: Set LabeledDependency
-      refsToDelete = Names.labeledReferences targetNamesToDelete
+      refsToDelete = Names.labeledReferences toDelete
   -- remove the target from the set of names to delete
   let allOtherNamesToDelete :: Set LabeledDependency
       allOtherNamesToDelete = Set.difference allTermsToDelete refsToDelete

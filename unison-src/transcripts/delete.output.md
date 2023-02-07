@@ -428,6 +428,63 @@ incrementFoo = cases
   Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
+You should not be able to delete terms outside your namespace scope? determine desired behavior
+
+```unison
+namespaceA.a = 30
+namespaceB.b = 31
+```
+
+-- RLM NOTE: this currently fails, you can do this.
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    namespaceA.a : Nat
+    namespaceB.b : Nat
+
+.namespaceA> delete.term .namespaceB.b
+
+  Done.
+
+```
+Temporary compromise for performance, (so we don't consider the entire codebase for dependencies) we only consider endangerments in the currently scoped namespace. In the future we'd like a warning.
+
+```unison
+namespaceA.a = 30
+namespaceB.b = 31
+namespaceC.c = 32
+```
+
+```ucm
+.> add
+
+  ⊡ Ignored previously added definitions: namespaceA.a
+  
+  ⍟ I've added these definitions:
+  
+    namespaceB.b : Nat
+    namespaceC.c : Nat
+
+.namespaceA> delete.term a
+
+  Done.
+
+.> ls
+
+  1. a           (Nat)
+  2. b           (Nat)
+  3. b/          (2 terms, 1 type)
+  4. builtin/    (414 terms, 63 types)
+  5. c           (Nat)
+  6. d           (Nat)
+  7. foo/        (1 term)
+  8. namespaceB/ (1 term)
+  9. namespaceC/ (1 term)
+
+```
 If you mess up on one of the names of your command, delete short circuits
 
 ```unison

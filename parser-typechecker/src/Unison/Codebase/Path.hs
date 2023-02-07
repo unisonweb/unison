@@ -26,6 +26,7 @@ module Unison.Codebase.Path
     prefixName,
     unprefixName,
     HQSplit,
+    HQSplitAbsolute,
     Split,
     Split',
     HQSplit',
@@ -33,6 +34,8 @@ module Unison.Codebase.Path
 
     -- * utilities
     longestPathPrefix,
+    containsAbsolutePath,
+    tryStripAbsolutePrefix,
 
     -- * tests
     isCurrentPath,
@@ -81,7 +84,7 @@ where
 import Control.Lens hiding (cons, snoc, unsnoc, pattern Empty)
 import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
-import Data.List.Extra (dropPrefix)
+import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Sequence (Seq ((:<|), (:|>)))
@@ -183,13 +186,34 @@ type HQSplitAbsolute = (Absolute, HQ'.HQSegment)
 unprefix :: Absolute -> Path' -> Path
 unprefix (Absolute prefix) (Path' p) = case p of
   Left abs -> unabsolute abs
-  Right (unrelative -> rel) -> fromList $ dropPrefix (toList prefix) (toList rel)
+  Right (unrelative -> rel) -> fromList $ List.dropPrefix (toList prefix) (toList rel)
+
+-- | Try to strip off the absolute prefix from a path, return the remaining relative path
+-- if the prefix matches, otherwise return Nothing.
+--
+-- >>> tryStripAbsolutePrefix (Absolute ("a" :< "b" :< Empty)) (Absolute ("a" :< "b" :< "c" :< Empty))
+--
+-- >>> tryStripAbsolutePrefix (Absolute ("a" :< "b" :< Empty)) (Absolute ("x" :< "y" :< "z" :< Empty))
+tryStripAbsolutePrefix :: Absolute -> Absolute -> Maybe Path
+tryStripAbsolutePrefix (Absolute prefix) (Absolute path) =
+  List.stripPrefix (toList prefix) (toList path) <&> fromList
 
 -- too many types
 prefix :: Absolute -> Path' -> Path
 prefix (Absolute (Path prefix)) (Path' p) = case p of
   Left (unabsolute -> abs) -> abs
   Right (unrelative -> rel) -> Path $ prefix <> toSeq rel
+
+-- >>> containsAbsolutePath (Absolute ("a" :< "b" :< "x" :< Empty)) (Absolute ("a" :< "b" :< "c" :< Empty))
+-- False
+--
+-- >>> containsAbsolutePath (Absolute ("a" :< "b" :< "c" :< Empty)) (Absolute ("a" :< "b" :< "c" :< "d" :< Empty))
+-- True
+-- >>> containsAbsolutePath (Absolute ("a" :< "b" :< "c" :< "d" :< Empty)) (Absolute ("a" :< "b" :< "c" :< Empty))
+-- False
+containsAbsolutePath :: Absolute -> Absolute -> Bool
+containsAbsolutePath target test=
+  toList (unabsolute target) `List.isPrefixOf` toList (unabsolute test)
 
 -- | Finds the longest shared path prefix of two paths.
 -- Returns (shared prefix, path to first location from shared prefix, path to second location from shared prefix)

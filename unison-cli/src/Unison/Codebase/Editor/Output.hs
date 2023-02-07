@@ -156,6 +156,7 @@ data Output
   | EmptyPush Path'
   | NameNotFound Path.HQSplit'
   | NamesNotFound [Name]
+  | NamesOutOfScope [Name]
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
   | TermNotFound Path.HQSplit'
@@ -360,6 +361,7 @@ isFailure o = case o of
   BranchNotFound {} -> True
   NameNotFound {} -> True
   NamesNotFound _ -> True
+  NamesOutOfScope _ -> True
   PatchNotFound {} -> True
   TypeNotFound {} -> True
   TypeNotFound' {} -> True

@@ -181,6 +181,32 @@ incrementFoo = cases
 .> delete.verbose Foo Foo.Foo incrementFoo
 ```
 
+You should not be able to delete terms outside your namespace scope? determine desired behavior
+
+```unison:hide
+namespaceA.a = 30
+namespaceB.b = 31
+```
+
+```ucm:error
+.> add
+.namespaceA> delete.term .namespaceB.b
+```
+
+Temporary compromise for performance, (so we don't consider the entire codebase for dependencies) we only consider endangerments in the currently scoped namespace. In the future we'd like a warning.
+
+```unison:hide
+namespaceA.a = 30
+namespaceB.b = 31
+namespaceC.c = 32
+```
+
+```ucm
+.> add
+.namespaceA> delete.term a
+.> ls
+```
+
 If you mess up on one of the names of your command, delete short circuits
 
 ```unison:hide
