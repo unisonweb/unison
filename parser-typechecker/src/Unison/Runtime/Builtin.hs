@@ -2359,7 +2359,7 @@ declareForeigns = do
   declareForeign Tracked "Tls.handshake.impl.v3" boxToEF0 . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.handshake tls
 
-  declareForeign Tracked "Tls.send.impl.v3" boxBoxToEFBox . mkForeignTls $
+  declareForeign Tracked "Tls.send.impl.v3" boxBoxToEF0 . mkForeignTls $
     \( tls :: TLS.Context,
        bytes :: Bytes.Bytes
        ) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
@@ -2389,7 +2389,7 @@ declareForeigns = do
       bs <- TLS.recvData tls
       pure $ Bytes.fromArray bs
 
-  declareForeign Tracked "Tls.terminate.impl.v3" boxToEFBox . mkForeignTls $
+  declareForeign Tracked "Tls.terminate.impl.v3" boxToEF0 . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.bye tls
 
   declareForeign Untracked "Code.dependencies" boxDirect
