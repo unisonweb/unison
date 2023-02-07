@@ -28,7 +28,7 @@
     freeze-bytevector!
     freeze-vector!)
 
-  (import (rnrs) (racket exn))
+  (import (rnrs) (racket exn) (racket unsafe ops) (unison isolated-string-copy))
 
   (define (fx1- n) (fx- n 1))
 
