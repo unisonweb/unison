@@ -1,7 +1,12 @@
+We had bugs in the calling conventions for both send and terminate which would 
+cause pattern matching on the resulting (Right ()) would cause a runtime error.
+
+
+
 ```unison
 use builtin.io2.Tls newClient send handshake terminate
 
-frank: '{IO, Exception} ()
+frank: '{IO} ()
 frank = do 
   (Right socket) = clientSocket.impl "example.com" "443"
   config = ClientConfig.default "example.com" 0xs
@@ -20,7 +25,7 @@ frank = do
   
     ⍟ These new definitions are ok to `add`:
     
-      frank : '{IO, Exception} ()
+      frank : '{IO} ()
 
 ```
 ```ucm
@@ -28,22 +33,10 @@ frank = do
 
   ⍟ I've added these definitions:
   
-    frank : '{IO, Exception} ()
+    frank : '{IO} ()
 
 .> run frank
 
-  dumpData: bad closure: Foreign (Wrap ##Tls _)
-  expected type: #00nv2
+  ()
 
 ```
-
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  dumpData: bad closure: Foreign (Wrap ##Tls _)
-  expected type: #00nv2
-
