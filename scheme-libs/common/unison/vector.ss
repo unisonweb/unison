@@ -1,4 +1,5 @@
 
+#!r6rs
 (library (unison vector)
   (export
     freeze-vector!
