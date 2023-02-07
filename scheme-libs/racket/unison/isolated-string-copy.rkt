@@ -5,7 +5,7 @@
 ; as racket/base has name clashes with rnrs
 ; and the #r6rs language can't handle name
 ; clashes (the normal racket language can)
-(module nother racket
+(module isolated-string-copy racket
     (provide string-copy!)
 
     (require racket/base))
