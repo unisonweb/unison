@@ -17,6 +17,8 @@ Note: This should be forked off of the codebase created by base.md
       Tests.checkEqual : Text -> a1 -> a1 ->{Tests} ()
       Tests.main       : '{IO, Exception, Tests} ()
                          -> '{IO, Exception} ()
+      Tests.run        : '{IO, Exception, Tests} ()
+                         ->{IO, Exception} Boolean
 
 .> add
 
@@ -29,6 +31,8 @@ Note: This should be forked off of the codebase created by base.md
     Tests.checkEqual : Text -> a1 -> a1 ->{Tests} ()
     Tests.main       : '{IO, Exception, Tests} ()
                        -> '{IO, Exception} ()
+    Tests.run        : '{IO, Exception, Tests} ()
+                       ->{IO, Exception} Boolean
 
 .> load unison-src/builtin-tests/tests.u
 
