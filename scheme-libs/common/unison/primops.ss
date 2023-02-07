@@ -21,6 +21,7 @@
 ; Unison.Runtime.Builtin, so the POp/FOp implementation must
 ; take/return arguments that match what is expected in those wrappers.
 
+#!r6rs
 (library (unison primops)
   (export
     ; unison-FOp-Bytes.decodeNat16be
