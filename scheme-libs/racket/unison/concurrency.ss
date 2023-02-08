@@ -21,6 +21,7 @@
                  thread
                  printf
                  sleep)
+           (break-thread kill) ; TODO need to see whether the compiler wraps the exception for me
            (thread fork))
           (only (racket unsafe ops) unsafe-struct*-cas!))
 
