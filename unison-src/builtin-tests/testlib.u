@@ -1,0 +1,54 @@
+
+unique ability Tests where
+  pass : Text -> ()
+  fail : Text -> Text -> ()   
+  exception : Text -> Failure -> ()
+
+Tests.check msg b = 
+  match catch b with 
+    Left e -> exception msg e
+    Right true -> pass msg
+    Right false -> fail msg ""
+
+Tests.checkEqual msg a1 a2 = 
+  match catch '(a1 === a2) with
+    Left e -> exception msg e
+    Right true -> pass msg
+    Right false -> fail msg "not equal"
+
+Tests.main : '{IO,Exception,Tests} () -> '{IO,Exception} ()
+Tests.main suite = do
+  if Tests.run suite then ()
+  else bug "test suite failed" 
+
+Tests.run : '{IO,Exception,Tests} () ->{IO,Exception} Boolean
+Tests.run suite =
+  h passed failed = cases
+    { _ } -> (passed, failed) 
+    { pass msg -> k } -> 
+      printLine (" ✅  " ++ msg)
+      handle !k with h (passed + 1) failed
+    { fail msg reason -> k } -> 
+      printLine (" 🆘  " ++ msg ++ "   " ++ reason)
+      handle !k with h passed (failed + 1)
+    { exception msg failure@(Failure _ cause payload) -> k} -> 
+      printLine (" 💥  " ++ msg ++ " " ++ cause)
+      handle !k with h passed (failed + 1)
+
+  printLine ""
+  printLine "*** Test suite ***"
+  printLine ""
+
+  (passed, failed) = handle !suite with h 0 0 
+
+  printLine ""
+  printLine ""
+  printLine "Summary of results:"
+  printLine ""
+
+  if failed == 0 then
+    printLine ("  ✅✅✅  " ++ Nat.toText passed ++ " PASSED")
+  else
+    printLine ("  🆘🆘🆘  " ++ Nat.toText failed ++ " FAILED, " 
+                           ++ Nat.toText passed ++ " passed")
+  failed == 0

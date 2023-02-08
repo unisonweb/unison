@@ -279,7 +279,7 @@ mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
 
 ticketRef :: Reference
-ticketRef  = Reference.Builtin "Ref.Ticket"
+ticketRef = Reference.Builtin "Ref.Ticket"
 
 promiseRef :: Reference
 promiseRef = Reference.Builtin "Promise"
