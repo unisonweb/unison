@@ -6,19 +6,22 @@
     make-promise
     promise-read
     promise-write
-    promise-try-read)
+    promise-try-read
+    fork)
 
   (import (rnrs)
           (rnrs records syntactic)
-          (only (racket base)
-                make-semaphore
-                semaphore-peek-evt
-                sync/enable-break
-                semaphore-post
-                parameterize-break
-                thread
-                printf
-                sleep)
+          (rename
+           (only (racket base)
+                 make-semaphore
+                 semaphore-peek-evt
+                 sync/enable-break
+                 semaphore-post
+                 parameterize-break
+                 thread
+                 printf
+                 sleep)
+           (thread fork))
           (only (racket unsafe ops) unsafe-struct*-cas!))
 
   (define none '(0))
