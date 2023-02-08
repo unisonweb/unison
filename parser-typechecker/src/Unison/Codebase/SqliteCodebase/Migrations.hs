@@ -36,11 +36,11 @@ import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sqlite.Connection as Sqlite.Connection
 import Unison.Util.Monoid (foldMapM)
+import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as Pretty
 import qualified UnliftIO
 
 -- | Mapping from schema version to the migration required to get there.
--- Each migration may only be run on a schema of its immediate predecessor,
 -- E.g. The migration at index 2 must be run on a codebase at version 1.
 migrations ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
@@ -136,13 +136,16 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
                   putMVar regionVar region
                   pure region
               result <- do
+                -- Ideally we'd check everything here, but certain codebases are known to have objects
+                -- with missing Hash Objects, we'll want to clean that up in a future migration.
+                -- integrityCheckAllHashObjects,
                 let checks =
-                      [ -- Ideally we'd check everything here, but certain codebases are known to have objects
-                        -- with missing Hash Objects, we'll want to clean that up in a future migration.
-                        -- integrityCheckAllHashObjects,
-                        integrityCheckAllBranches,
-                        integrityCheckAllCausals
-                      ]
+                      Monoid.whenM
+                        (schemaVersion < 7) -- Only certain migrations actually make changes which reasonably need to be checked
+                        [ integrityCheckAllBranches,
+                          integrityCheckAllCausals
+                        ]
+
                 zip [(1 :: Int) ..] checks & foldMapM \(i, check) -> do
                   Region.setConsoleRegion
                     region
