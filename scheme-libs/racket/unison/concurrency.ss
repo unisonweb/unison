@@ -24,7 +24,8 @@
                  sleep
                  printf)
            (break-thread kill) ; TODO need to see whether the compiler wraps the exception for me
-           (thread fork))
+           (thread fork)
+           (sleep sleep-secs))
           (only (racket unsafe ops) unsafe-struct*-cas!))
 
   (define none (cons 0 ()))
@@ -62,6 +63,8 @@
            (let ([ok (parameterize-break #f (if (cas!) (awake-readers) #f))])
              (if ok #t (loop)))]))))
 
+  (define (sleep n) (sleep-secs (/ n 1000000)))
+
   ;;; tests
 
   (define (spawn-promise-reader name p)
@@ -76,9 +79,9 @@
       (printf "Current promise is ~a ~n" (promise-try-read p))
       (spawn-promise-reader "foo" p)
       (spawn-promise-reader "bar" p)
-      (sleep 3)
+      (sleep-secs 3)
       (promise-write p 42)
-      (sleep 1)
+      (sleep-secs 1)
       (promise-write p 73)
       (spawn-promise-reader "baz" p)
       (printf "Current promise is ~a ~n" (promise-try-read p))
