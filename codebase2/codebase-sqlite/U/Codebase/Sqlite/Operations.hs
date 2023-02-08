@@ -1096,7 +1096,6 @@ buildNameLookupForBranchHash ::
   ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
   Transaction ()
 buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
-  Q.ensureScopedNameLookupTables
   newBranchHashId <- Q.saveBranchHash newBranchHash
   Q.trackNewBranchHashNameLookup newBranchHashId
   case mayExistingBranchIndex of
