@@ -48,7 +48,7 @@ less str = do
     lessArgs :: [String]
     lessArgs =
       [ "--no-init", -- don't clear the screen on exit
-        "--raw-control-chars", -- pass through colors and stuff
+        "--RAW-CONTROL-CHARS", -- pass through colors and stuff
         "--prompt=[less] Use space/arrow keys to navigate, or 'q' to return to ucm:",
         "--quit-if-one-screen" -- self-explanatory
       ]
