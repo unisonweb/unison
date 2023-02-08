@@ -31,6 +31,7 @@ module Unison.Syntax.Lexer
     wordyIdStartChar,
     wordyId,
     symbolyId,
+    symbolyIdChar,
     wordyId0,
     symbolyId0,
   )

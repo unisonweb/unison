@@ -444,7 +444,12 @@ loop e = do
               description <- inputDescription input
               dest <- Cli.resolvePath' dest0
               ok <- Cli.updateAtM description dest (const $ pure srcb)
-              Cli.respond if ok then Success else BranchEmpty src0
+              Cli.respond
+                if ok
+                  then Success
+                  else BranchEmpty case src0 of
+                    Left hash -> WhichBranchEmptyHash hash
+                    Right path -> WhichBranchEmptyPath path
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
               srcb <- Cli.expectBranchAtPath' src0
@@ -1285,7 +1290,7 @@ loop e = do
               Cli.Env {codebase} <- ask
               path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
               Cli.getMaybeBranchAt path >>= \case
-                Nothing -> Cli.respond $ BranchEmpty (Right (Path.absoluteToPath' path))
+                Nothing -> Cli.respond $ BranchEmpty (WhichBranchEmptyPath (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <-
                     Cli.runTransaction (NamespaceDependencies.namespaceDependencies codebase (Branch.head b))
@@ -2756,24 +2761,40 @@ ensureSchemeExists =
         (True <$ readCreateProcess (shell "scheme -q") "")
         (\(_ :: IOException) -> pure False)
 
-runScheme :: String -> [String] -> Cli ()
-runScheme file args0 = do
+racketOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
+racketOpts gendir statdir file args = libs ++ [file] ++ args
+  where
+    includes = [gendir, statdir </> "common", statdir </> "racket"]
+    libs = concatMap (\dir -> ["-S",dir]) includes
+
+chezOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
+chezOpts gendir statdir file args =
+  "-q" : opt ++ libs ++ ["--script", file] ++ args
+  where
+    includes = [gendir, statdir </> "common", statdir </> "chez"]
+    libs = ["--libdirs", List.intercalate ":" includes]
+    opt = ["--optimize-level", "3"]
+
+data SchemeBackend = Racket | Chez
+
+runScheme :: SchemeBackend -> String -> [String] -> Cli ()
+runScheme bk file args0 = do
   ensureSchemeExists
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
-  let includes = gendir ++ ":" ++ statdir
-      lib = ["--libdirs", includes]
-      opt = ["--optimize-level", "3"]
-      args = "-q" : opt ++ lib ++ ["--script", file] ++ args0
+  let cmd = case bk of Racket -> "racket" ; Chez -> "scheme"
+      opts = case bk of
+        Racket -> racketOpts gendir statdir file args0
+        Chez -> chezOpts gendir statdir file args0
   success <-
     liftIO $
-      (True <$ callProcess "scheme" args) `catch` \(_ :: IOException) ->
-        pure False
+      (True <$ callProcess cmd opts)
+        `catch` \(_ :: IOException) -> pure False
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
-buildScheme :: String -> String -> Cli ()
-buildScheme main file = do
+buildChez :: String -> String -> Cli ()
+buildChez main file = do
   ensureSchemeExists
   statDir <- getSchemeStaticLibDir
   genDir <- getSchemeGenLibDir
@@ -2801,11 +2822,11 @@ buildScheme main file = do
 doRunAsScheme :: HQ.HashQualified Name -> [String] -> Cli ()
 doRunAsScheme main args = do
   fullpath <- generateSchemeFile True (HQ.toString main) main
-  runScheme fullpath args
+  runScheme Racket fullpath args
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
-  generateSchemeFile False out main >>= buildScheme out
+  generateSchemeFile False out main >>= buildChez out
 
 generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do
@@ -2855,6 +2876,8 @@ doPullRemoteBranch mayRepo path syncMode pullMode verbosity description = do
       Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
         Cli.returnEarly (Output.GitError err)
     ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
+  when (Branch.isEmpty0 (Branch.head remoteBranch)) do
+    Cli.respond (PulledEmptyBranch ns)
   let unchangedMsg = PullAlreadyUpToDate ns path
   destAbs <- Cli.resolvePath' path
   let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path

@@ -6,7 +6,7 @@ If you are a newcomer to the Haskell ecosystem trying to set up your dev environ
 Here is a working set of versions you can use to build the Unison executable:
 
 GHC version: 8.10.7
-Stack version: 2.7.5
+Stack version: 2.9.1
 Cabal version 3.6.2.0
 Haskell language server version: 1.7.0.0
 
@@ -45,7 +45,7 @@ The GHCup Haskell installer, version 0.1.19.0
 $ which stack
 ~/.ghcup/bin/stack
 $ stack --version
-Version 2.7.5, Git revision 717ec96c15520748f3fcee00f72504ddccaa30b5 (dirty) (163 commits) aarch64
+Version 2.9.1, Git revision 13c9c8772a6dce093dbeacc08bb5877bdb6cfc2e (dirty) (155 commits) aarch64
 ```
 
 ```shell
@@ -79,7 +79,7 @@ Cradle type: Stack
 
 Tool versions found on the $PATH
 cabal:		3.6.2.0
-stack:		2.7.5
+stack:		2.9.1
 ghc:		8.10.7
 ```
 
@@ -88,7 +88,7 @@ If you're a VS Code user, you can download the Haskell extension for IDE support
 ```json
     "haskell.manageHLS": "GHCup",
     "haskell.toolchain": {
-      "stack": "2.7.5",
+      "stack": "2.9.1",
       "ghc": "8.10.7",
       "cabal": "recommended",
       "hls": "1.7.0.0"

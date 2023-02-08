@@ -46,7 +46,7 @@ data MatchCase loc a = MatchCase
     matchGuard :: Maybe a,
     matchBody :: a
   }
-  deriving (Show, Eq, Foldable, Functor, Generic, Generic1, Traversable)
+  deriving (Show, Eq, Ord, Foldable, Functor, Generic, Generic1, Traversable)
 
 matchPattern_ :: Lens' (MatchCase loc a) (Pattern loc)
 matchPattern_ = lens matchPattern setter
@@ -93,7 +93,7 @@ data F typeVar typeAnn patternAnn a
     Match a [MatchCase patternAnn a]
   | TermLink Referent
   | TypeLink Reference
-  deriving (Foldable, Functor, Generic, Generic1, Traversable)
+  deriving (Ord, Foldable, Functor, Generic, Generic1, Traversable)
 
 _Ref :: Prism' (F tv ta pa a) Reference
 _Ref = _Ctor @"Ref"

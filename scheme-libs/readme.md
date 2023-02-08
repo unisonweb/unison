@@ -13,7 +13,10 @@ directory. See:
 
     https://hackage.haskell.org/package/directory/docs/System-Directory.html#t:XdgDirectory
 
-for more information.
+for more information. The full directory structure should be copied,
+since the jit compilation commands supply both the common/
+subdirectory and an implementation specific subdirectory as library
+search paths.
 
 UCM can also be told to look in another directory by setting the
 `SchemeLibs.Static` item in the unison config file. If this path is
@@ -21,7 +24,7 @@ denoted by `$CUSTOM`, then the compiler commands will look in:
 
     $CUSTOM/scheme-libs/
 
-for the `unison/` directory containing the library files.
+for the subdirectories containing the library files.
 
 The compiler commands also expect Chez Scheme to be installed
 separately, and for `scheme` to be callable on the user's path. The
