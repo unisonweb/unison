@@ -7,7 +7,8 @@
     promise-read
     promise-write
     promise-try-read
-    fork)
+    fork
+    kill)
 
   (import (rnrs)
           (rnrs records syntactic)
@@ -15,12 +16,13 @@
            (only (racket base)
                  make-semaphore
                  semaphore-peek-evt
-                 sync/enable-break
                  semaphore-post
-                 parameterize-break
+                 sync/enable-break
                  thread
-                 printf
-                 sleep)
+                 break-thread
+                 parameterize-break
+                 sleep
+                 printf)
            (break-thread kill) ; TODO need to see whether the compiler wraps the exception for me
            (thread fork))
           (only (racket unsafe ops) unsafe-struct*-cas!))
