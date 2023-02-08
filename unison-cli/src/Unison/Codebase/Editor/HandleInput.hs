@@ -1404,7 +1404,7 @@ loop e = do
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
             ProjectCreateI name -> projectCreate name
             ProjectCreateBranchI name -> projectCreateBranch name
-            ProjectSwitchI input -> projectSwitch input
+            ProjectSwitchI input -> projectSwitch wundefined -- input
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"

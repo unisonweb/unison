@@ -100,6 +100,7 @@ module U.Codebase.Sqlite.Queries
     -- * projects
     ProjectId (..),
     Project (..),
+    projectExists,
     projectExistsByName,
     loadProjectByName,
     insertProject,
@@ -2482,6 +2483,19 @@ data RemoteBranch = RemoteBranch
   }
   deriving stock (Generic)
   deriving anyclass (ToRow, FromRow)
+
+-- | Does a project exist with this id?
+projectExists :: ProjectId -> Transaction Bool
+projectExists projectId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM project
+        WHERE id = ?
+      )
+    |]
+    (Only projectId)
 
 -- | Does a project exist by this name?
 projectExistsByName :: Text -> Transaction Bool
