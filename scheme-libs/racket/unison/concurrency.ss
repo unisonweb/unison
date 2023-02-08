@@ -2,13 +2,18 @@
 
 (library (unison concurrency)
   (export
-    promise
+    ref-new
+    ref-read
+    ref-write
+    ref-cas
+    promise ; TODO do I need to export the type?
     promise-new
     promise-read
     promise-write
     promise-try-read
     fork
-    kill)
+    kill
+    sleep)
 
   (import (rnrs)
           (rnrs records syntactic)
