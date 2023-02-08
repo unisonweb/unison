@@ -984,13 +984,13 @@ destructuringBind = do
   --   Some 42
   --   vs
   --   Some 42 = List.head elems
-  (p, boundVars, guard) <- P.try $ do
+  (p, boundVars) <- P.try $ do
     (p, boundVars) <- parsePattern
     let boundVars' = snd <$> boundVars
-    guard <- optional $ reserved "|" *> infixAppOrBooleanOp
     P.lookAhead (openBlockWith "=")
-    pure (p, boundVars', guard)
+    pure (p, boundVars')
   scrute <- block "=" -- Dwight K. Scrute ("The People's Scrutinee")
+  let guard = Nothing
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
       thecase t = Term.MatchCase p (fmap (absChain boundVars) guard) $ absChain boundVars t
   pure $

@@ -101,12 +101,34 @@
     unison-POp-VALU
     unison-POp-VWLS
 
+    unison-POp-UPKB
+    unison-POp-ADDI
+    unison-POp-DIVI
+    unison-POp-EQLI
+    unison-POp-MODI
+    unison-POp-LEQI
+    unison-POp-POWN
+    unison-POp-VWRS
+
+    unison-FOp-crypto.HashAlgorithm.Sha1
+    unison-FOp-crypto.hashBytes
     )
 
   (import (chezscheme)
           (unison core)
           (unison string)
+          (unison crypto)
           (unison bytevector))
+
+  (define unison-POp-UPKB bytevector->u8-list)
+  (define unison-POp-ADDI +)
+  (define unison-POp-DIVI /)
+  (define (unison-POp-EQLI a b)
+    (if (= a b) 1 0)
+  )
+  (define unison-POp-MODI mod)
+  (define unison-POp-LEQI <=)
+  (define unison-POp-POWN expt)
 
   (define (reify-exn thunk)
     (call/1cc
@@ -145,11 +167,8 @@
   (define (unison-POp-FTOT f) (number->istring f))
   (define (unison-POp-IDXB n bs) (bytevector-u8-ref bs n))
   (define (unison-POp-IDXS n l)
-    (call/1cc
-      (lambda (k)
-        (with-exception-handler
-          (lambda (e) (list 0))
-          (lambda () (list-ref l n))))))
+    (guard (x [else (list 0)])
+      (list 1 (list-ref l n))))
   (define (unison-POp-IORN m n) (fxlogior m n))
   (define (unison-POp-ITOT i) (signed-number->istring i))
   (define (unison-POp-LEQN m n) (if (fx<= m n) 1 0))
@@ -182,6 +201,12 @@
     (if (null? l)
       (list 0)
       (list 1 (car l) (cdr l))))
+  (define (unison-POp-VWRS l)
+    (if (null? l)
+      (list 0)
+      (let ([r (reverse l)])
+      (list 1 (reverse (cdr l)) (car l)))))
+
   (define (unison-POp-XORN m n) (fxxor m n))
   (define (unison-POp-VALU c) (decode-value c))
 

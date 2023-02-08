@@ -71,23 +71,27 @@ authLogin host = do
   -- and it all works out fine.
   redirectURIVar <- liftIO newEmptyMVar
   (verifier, challenge, state) <- generateParams
-  let codeHandler code mayNextURI = do
+  let codeHandler :: (Code -> Maybe URI -> (Response -> IO ResponseReceived) -> IO ResponseReceived)
+      codeHandler code mayNextURI respond = do
         redirectURI <- readMVar redirectURIVar
         result <- exchangeCode httpClient tokenEndpoint code verifier redirectURI
-        putMVar authResultVar result
-        case result of
+        respReceived <- case result of
           Left err -> do
             Debug.debugM Debug.Auth "Auth Error" err
-            pure $ Wai.responseLBS internalServerError500 [] "Something went wrong, please try again."
+            respond $ Wai.responseLBS internalServerError500 [] "Something went wrong, please try again."
           Right _ ->
             case mayNextURI of
-              Nothing -> pure $ Wai.responseLBS found302 [] "Authorization successful. You may close this page and return to UCM."
+              Nothing -> respond $ Wai.responseLBS found302 [] "Authorization successful. You may close this page and return to UCM."
               Just nextURI ->
-                pure $
+                respond $
                   Wai.responseLBS
                     found302
                     [("LOCATION", BSC.pack $ show @URI nextURI)]
                     "Authorization successful. You may close this page and return to UCM."
+        -- Wait until we've responded to the browser before putting the result,
+        -- otherwise the server will shut down prematurely.
+        putMVar authResultVar result
+        pure respReceived
   tokens <-
     Cli.with (Warp.withApplication (pure $ authTransferServer codeHandler)) \port -> do
       let redirectURI = "http://localhost:" <> show port <> "/redirect"
@@ -105,11 +109,11 @@ authLogin host = do
 -- | A server in the format expected for a Wai Application
 -- This is a temporary server which is spun up only until we get a code back from the
 -- auth server.
-authTransferServer :: (Code -> Maybe URI -> IO Response) -> Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
+authTransferServer :: (Code -> Maybe URI -> (Response -> IO ResponseReceived) -> IO ResponseReceived) -> Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
 authTransferServer callback req respond =
   case (requestMethod req, pathInfo req, getQueryParams req) of
     ("GET", ["redirect"], (Just code, maybeNextURI)) -> do
-      callback code maybeNextURI >>= respond
+      callback code maybeNextURI respond
     _ -> respond (responseLBS status404 [] "Not Found")
   where
     getQueryParams req = do

@@ -86,6 +86,11 @@ Deleting the root namespace should require confirmation if not forced.
   undo, or `builtins.merge` to restore the absolute basics to
   the current path.
 
+-- Should have an empty history
+.> history .
+
+  ☝️  The namespace . is empty.
+
 ```
 Deleting the root namespace shouldn't require confirmation if forced.
 
@@ -95,5 +100,10 @@ Deleting the root namespace shouldn't require confirmation if forced.
   Okay, I deleted everything except the history. Use `undo` to
   undo, or `builtins.merge` to restore the absolute basics to
   the current path.
+
+-- Should have an empty history
+.> history .
+
+  ☝️  The namespace . is empty.
 
 ```
