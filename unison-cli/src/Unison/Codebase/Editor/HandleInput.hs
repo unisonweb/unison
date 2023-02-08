@@ -884,12 +884,10 @@ loop e = do
                 if hasConfirmed || insistence == Force
                   then do
                     description <- inputDescription input
-                    Cli.stepAt
-                      description
-                      (Path.empty, const Branch.empty0)
+                    Cli.updateRoot Branch.empty description
                     Cli.respond DeletedEverything
                   else Cli.respond DeleteEverythingConfirmation
-              DeleteTarget'Branch insistence (Just p) -> do
+              DeleteTarget'Branch insistence (Just p@(parentPath, childName)) -> do
                 branch <- Cli.expectBranchAtPath' (Path.unsplit' p)
                 description <- inputDescription input
                 absPath <- Cli.resolveSplit' p
@@ -911,8 +909,12 @@ loop e = do
                       ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                       Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
                       Cli.returnEarlyWithoutOutput
-                Cli.stepAt description $
-                  BranchUtil.makeDeleteBranch (Path.convert absPath)
+                parentPathAbs <- Cli.resolvePath' parentPath
+                -- We have to modify the parent in order to also wipe out the history at the
+                -- child.
+                Cli.updateAt description parentPathAbs \parentBranch ->
+                  parentBranch
+                    & Branch.modifyAt (Path.singleton childName) \_ -> Branch.empty
                 afterDelete
             DisplayI outputLoc names' -> do
               currentBranch0 <- Cli.getCurrentBranch0
@@ -2796,7 +2798,7 @@ buildScheme main file = do
           ++ lns gd gen
           ++ [surround file]
 
-doRunAsScheme :: HQ.HashQualified Name -> [String] ->  Cli ()
+doRunAsScheme :: HQ.HashQualified Name -> [String] -> Cli ()
 doRunAsScheme main args = do
   fullpath <- generateSchemeFile True (HQ.toString main) main
   runScheme fullpath args

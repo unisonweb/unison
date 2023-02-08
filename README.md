@@ -42,6 +42,8 @@ If these instructions don't work for you or are incomplete, please file an issue
 
 The build uses [Stack](http://docs.haskellstack.org/). If you don't already have it installed, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform.  (Hint: `brew update && brew install stack`)
 
+If you have not set up the Haskell toolchain before and are trying to contribute to Unison on an M1 Mac, we have [some tips specifically for you](docs/m1-mac-setup-tips.markdown/new).
+
 ```sh
 $ git clone https://github.com/unisonweb/unison.git
 $ cd unison
@@ -49,7 +51,7 @@ $ stack --version # we'll want to know this version if you run into trouble
 $ stack build --fast --test && stack exec unison
 ```
 
-To run the Unison Local UI while building from source, you can use the `/dev-ui-install.sh` script. It will download the latest release of [unison-local-ui](https://github.com/unisonweb/unison-local-ui) and put it in the expected location for the unison executable created by `stack build`. When you start unison, you'll see a url where Unison Local UI is running. 
+To run the Unison Local UI while building from source, you can use the `/dev-ui-install.sh` script. It will download the latest release of [unison-local-ui](https://github.com/unisonweb/unison-local-ui) and put it in the expected location for the unison executable created by `stack build`. When you start unison, you'll see a url where Unison Local UI is running.
 
 See [`development.markdown`](development.markdown) for a list of build commands you'll likely use during development.
 
@@ -61,7 +63,7 @@ View Language Server setup instructions [here](docs/language-server.markdown).
 Codebase Server
 ---------------
 
-When `ucm` starts it starts a Codebase web server that is used by the 
+When `ucm` starts it starts a Codebase web server that is used by the
 [Unison Local UI](https://github.com/unisonweb/unison-local-ui). It selects a random
 port and a unique token that must be used when starting the UI to correctly
 connect to the server.
