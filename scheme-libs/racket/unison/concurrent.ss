@@ -1,6 +1,6 @@
 #!r6rs
 
-(library (unison concurrency)
+(library (unison concurrent)
   (export
     ref-new
     ref-read
