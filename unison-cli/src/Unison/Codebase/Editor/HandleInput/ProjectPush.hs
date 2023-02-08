@@ -5,8 +5,11 @@ module Unison.Codebase.Editor.HandleInput.ProjectPush
 where
 
 import Control.Lens ((^.))
+import Data.Text as Text
+import Data.Text.IO as Text
 import Unison.Cli.Monad (Cli)
-import Unison.Cli.ProjectUtils (getCurrentProjectBranch)
+import qualified Unison.Cli.Monad as Cli
+import Unison.Cli.ProjectUtils (getCurrentProjectBranch, loggeth)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Witch (unsafeFrom)
@@ -14,7 +17,10 @@ import Witch (unsafeFrom)
 -- | Push a project branch.
 projectPush :: Maybe (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) -> Cli ()
 projectPush maybeProjectAndBranch = do
-  (projectId, currentBranchId) <- getCurrentProjectBranch & onNothingM (error "not on branch")
+  (projectId, currentBranchId) <-
+    getCurrentProjectBranch & onNothingM do
+      loggeth ["Not currently on a branch"]
+      Cli.returnEarlyWithoutOutput
 
   -- Resolve where to push:
   --   if (project/branch names provided)
@@ -37,12 +43,20 @@ projectPush maybeProjectAndBranch = do
   --     else
   --
 
-  projectAndBranch <-
-    case maybeProjectAndBranch of
-      Just projectAndBranch -> pure projectAndBranch
-      Nothing -> error "must provide project and branch"
-
-  let projectName = projectAndBranch ^. #project
-  let branchName = fromMaybe (unsafeFrom @Text "main") (projectAndBranch ^. #branch)
-
-  pure ()
+  case maybeProjectAndBranch of
+    Nothing -> do
+      maybeRemoteIds <- undefined :: Cli (Either Text (Text, Text))
+      case maybeRemoteIds of
+        Left ancestorRemoteProjectId -> do
+          loggeth ["We don't have a remote branch mapping, but our ancestor maps to project: ", ancestorRemoteProjectId]
+          loggeth ["Creating remote branch not implemented"]
+          Cli.returnEarlyWithoutOutput
+        Right (remoteProjectId, remoteBranchId) -> do
+          loggeth ["Found remote branch mapping: ", remoteProjectId, ":", remoteBranchId]
+          loggeth ["Pushing to existing branch not implemented"]
+          Cli.returnEarlyWithoutOutput
+    Just projectAndBranch -> do
+      let _projectName = projectAndBranch ^. #project
+      let _branchName = fromMaybe (unsafeFrom @Text "main") (projectAndBranch ^. #branch)
+      loggeth ["Specifying project/branch to push to not implemented"]
+      Cli.returnEarlyWithoutOutput

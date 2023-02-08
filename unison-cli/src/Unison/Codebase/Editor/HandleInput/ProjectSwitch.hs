@@ -10,7 +10,7 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli (stepAt)
-import Unison.Cli.ProjectUtils (getCurrentProjectBranch, projectBranchPath)
+import Unison.Cli.ProjectUtils (getCurrentProjectBranch, loggeth, projectBranchPath)
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
@@ -40,7 +40,7 @@ switchToBranch :: ProjectBranchName -> Cli ()
 switchToBranch branchName = do
   (projectId, currentBranchId) <-
     getCurrentProjectBranch & onNothingM do
-      liftIO (putStrLn "[coolbeans] Not currently on a branch")
+      loggeth ["Not currently on a branch"]
       Cli.returnEarlyWithoutOutput
   (outcome, newBranchId) <-
     Cli.runTransaction do
@@ -53,10 +53,10 @@ switchToBranch branchName = do
         Just branch -> pure (SwitchedToExistingBranch, branch ^. #branchId)
   let path = projectBranchPath projectId newBranchId
   case outcome of
-    SwitchedToExistingBranch -> pure ()
+    SwitchedToExistingBranch -> loggeth ["I just switch to a new branch"]
     SwitchedToNewBranch -> do
       Cli.stepAt "project.switch" (Path.unabsolute path, id) -- id creates empty branch
-      liftIO (putStrLn "[coolbeans] I created a new branch")
+      loggeth ["I just created a new branch"]
   Cli.cd path
 
 -- Switch to a project+branch.
@@ -73,7 +73,7 @@ switchToProjectAndBranch projectName branchName = do
               Nothing -> Nothing
               Just branch -> Just (projectId, branch ^. #branchId)
     maybeIds & onNothing do
-      liftIO (putStrLn "[coolbeans] No such project")
+      loggeth ["Not found: ", into @Text projectName, ":", into @Text branchName]
       Cli.returnEarlyWithoutOutput
 
   Cli.cd (projectBranchPath projectId branchId)

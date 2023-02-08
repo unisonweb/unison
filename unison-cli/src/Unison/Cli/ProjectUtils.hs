@@ -6,11 +6,15 @@ module Unison.Cli.ProjectUtils
 
     -- ** Path prisms
     projectBranchPathPrism,
+
+    -- ** Temp
+    loggeth,
   )
 where
 
 import Control.Lens
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified U.Codebase.Sqlite.Queries as Queries
@@ -18,6 +22,7 @@ import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.MonadUtils as Cli
 import qualified Unison.Codebase.Path as Path
 import Unison.NameSegment (NameSegment (..))
+import Unison.Prelude
 
 -- | Get the current project+branch that a user is on.
 --
@@ -114,3 +119,8 @@ projectBranchPathPrism =
         ["__projects", UUIDNameSegment projectId, "branches", UUIDNameSegment branchId] ->
           Just (Queries.ProjectId projectId, Queries.BranchId branchId)
         _ -> Nothing
+
+-- Dumb temporary debug logger to use for the new project commands
+loggeth :: [Text] -> Cli ()
+loggeth =
+  liftIO . Text.putStrLn . Text.concat . ("[coolbeans] " :)
