@@ -36,6 +36,7 @@ import Control.Monad.Catch (MonadCatch)
 import qualified Control.Monad.Primitive as PA
 import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
+import Data.Digest.Murmur64 (hash64, asWord64)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
 import Data.Bits (shiftL, shiftR, (.|.))
@@ -880,6 +881,17 @@ gen'trace =
     TLets Direct [] [] (TPrm TRCE [t, v]) $
       TCon Ty.unitRef 0 []
 
+debug'text :: SuperNormal Symbol
+debug'text =
+  unop0 3 $ \[c,r,t,e] ->
+    TLetD r UN (TPrm DBTX [c]) .
+      TMatch r . MatchSum $
+        mapFromList [
+            (0, ([], none)),
+            (1, ([BX], TAbs t . TLetD e BX (left t) $ some e)),
+            (2, ([BX], TAbs t . TLetD e BX (right t) $ some e))
+          ]
+
 code'missing :: SuperNormal Symbol
 code'missing =
   unop0 1 $ \[link, b] ->
@@ -1074,6 +1086,17 @@ crypto'hash instr =
     $ TFOp instr [alg, vl]
   where
     (alg, x, vl) = fresh
+
+murmur'hash :: ForeignOp
+murmur'hash instr =
+  ([BX],)
+    . TAbss [x]
+    . TLetD vl BX (TPrm VALU [x])
+    . TLetD result UN (TFOp instr [vl])
+    $ TCon Ty.natRef 0 [result]
+  where
+    (x, vl, result) = fresh
+
 
 crypto'hmac :: ForeignOp
 crypto'hmac instr =
@@ -1922,6 +1945,7 @@ builtinLookup =
         ("todo", (Untracked, bug "builtin.todo")),
         ("Debug.watch", (Tracked, watch)),
         ("Debug.trace", (Tracked, gen'trace)),
+        ("Debug.toText", (Tracked, debug'text)),
         ("unsafe.coerceAbilities", (Untracked, poly'coerce)),
         ("Char.toNat", (Untracked, cast Ty.charRef Ty.natRef)),
         ("Char.fromNat", (Untracked, cast Ty.natRef Ty.charRef)),
@@ -2545,6 +2569,9 @@ declareForeigns = do
         pure $ case e of
           Left se -> Left (Util.Text.pack (show se))
           Right a -> Right a
+
+  declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
+    pure . asWord64 . hash64 . serializeValueLazy
 
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
   declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress

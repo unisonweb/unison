@@ -1301,6 +1301,7 @@ data POp
   | PRNT
   | INFO
   | TRCE
+  | DBTX
   | -- STM
     ATOM
   | TFRC -- try force
