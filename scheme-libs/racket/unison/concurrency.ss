@@ -59,4 +59,26 @@
           [(some? value) #f]
           [else
            (let ([ok (parameterize-break #f (if (cas!) (awake-readers) #f))])
-             (if ok #t (loop)))])))))
+             (if ok #t (loop)))]))))
+
+  ;;; tests
+
+  (define (spawn-promise-reader name p)
+    (fork
+     (lambda ()
+       (printf "Thread ~a started ~n" name)
+       (printf "Thread ~a finished with result ~a ~n" name (promise-read p)))))
+
+  (define (test-promise)
+    (let ([p (make-promise)])
+      (printf "Main thread started ~n")
+      (printf "Current promise is ~a ~n" (promise-try-read p))
+      (spawn-promise-reader "foo" p)
+      (spawn-promise-reader "bar" p)
+      (sleep 3)
+      (promise-write p 42)
+      (sleep 1)
+      (promise-write p 73)
+      (spawn-promise-reader "baz" p)
+      (printf "Current promise is ~a ~n" (promise-try-read p))
+      (printf "Main thread finished ~n"))))
