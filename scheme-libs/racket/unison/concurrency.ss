@@ -3,7 +3,7 @@
 (library (unison concurrency)
   (export
     promise
-    make-promise
+    promise-new
     promise-read
     promise-write
     promise-try-read
@@ -41,15 +41,13 @@
   (define (some? option) (eq? 1 (car option)))
   (define (get option) (cdr option))
 
-  (define-record-type
-    (promise new-promise promise?)
-    (fields semaphore event (mutable value)))
+  (define-record-type promise (fields semaphore event (mutable value)))
 
-  (define (make-promise)
+  (define (promise-new)
     (let* ([sem (make-semaphore)]
            [evt (semaphore-peek-evt sem)]
            [value none])
-      (new-promise sem evt value)))
+      (make-promise sem evt value)))
 
   (define (promise-try-read promise) (promise-value promise))
 
@@ -82,7 +80,7 @@
        (printf "Thread ~a finished with result ~a ~n" name (promise-read p)))))
 
   (define (test-promise)
-    (let ([p (make-promise)])
+    (let ([p (promise-new)])
       (printf "Main thread started ~n")
       (printf "Current promise is ~a ~n" (promise-try-read p))
       (spawn-promise-reader "foo" p)
