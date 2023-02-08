@@ -25,7 +25,9 @@ module Unison.Codebase.Path
     unprefix,
     prefixName,
     unprefixName,
+    AbsoluteSplit,
     HQSplit,
+    HQSplitAbsolute,
     Split,
     Split',
     HQSplit',
@@ -165,6 +167,8 @@ unsplitHQ (p, a) = fmap (snoc p) a
 
 unsplitHQ' :: HQSplit' -> HQ'.HashQualified Path'
 unsplitHQ' (p, a) = fmap (snoc' p) a
+
+type AbsoluteSplit = (Absolute, NameSegment)
 
 type Split = (Path, NameSegment)
 

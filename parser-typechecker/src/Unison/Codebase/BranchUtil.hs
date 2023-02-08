@@ -29,7 +29,6 @@ import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Metadata (Metadata)
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch)
-import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.HashQualified' (HashQualified (HashQualified, NameOnly))
 import qualified Unison.HashQualified' as HQ'
@@ -113,24 +112,24 @@ getBranch (p, seg) b = case Path.toList p of
     (Branch.head <$> Map.lookup h (Branch._children b))
       >>= getBranch (Path.fromList p, seg)
 
-makeAddTermName :: Path.Split -> Referent -> Metadata -> (Path, Branch0 m -> Branch0 m)
+makeAddTermName :: (p, NameSegment) -> Referent -> Metadata -> (p, Branch0 m -> Branch0 m)
 makeAddTermName (p, name) r md = (p, Branch.addTermName r name md)
 
-makeDeleteTermName :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
+makeDeleteTermName :: (p, NameSegment) -> Referent -> (p, Branch0 m -> Branch0 m)
 makeDeleteTermName (p, name) r = (p, Branch.deleteTermName r name)
 
-makeReplacePatch :: Applicative m => Path.Split -> Patch -> (Path, Branch0 m -> Branch0 m)
+makeReplacePatch :: Applicative m => (p, NameSegment) -> Patch -> (p, Branch0 m -> Branch0 m)
 makeReplacePatch (p, name) patch = (p, Branch.replacePatch name patch)
 
-makeDeletePatch :: Path.Split -> (Path, Branch0 m -> Branch0 m)
+makeDeletePatch :: (p, NameSegment) -> (p, Branch0 m -> Branch0 m)
 makeDeletePatch (p, name) = (p, Branch.deletePatch name)
 
-makeAddTypeName :: Path.Split -> Reference -> Metadata -> (Path, Branch0 m -> Branch0 m)
+makeAddTypeName :: (p, NameSegment) -> Reference -> Metadata -> (p, Branch0 m -> Branch0 m)
 makeAddTypeName (p, name) r md = (p, Branch.addTypeName r name md)
 
-makeDeleteTypeName :: Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
+makeDeleteTypeName :: (p, NameSegment) -> Reference -> (p, Branch0 m -> Branch0 m)
 makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)
 
 makeSetBranch ::
-  Path.Split -> Branch m -> (Path, Branch0 m -> Branch0 m)
+  (p, NameSegment) -> Branch m -> (p, Branch0 m -> Branch0 m)
 makeSetBranch (p, name) b = (p, Branch.setChildBranch name b)

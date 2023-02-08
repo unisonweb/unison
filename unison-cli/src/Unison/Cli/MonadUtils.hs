@@ -77,6 +77,7 @@ where
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State
+import Data.Bifunctor (first)
 import qualified Data.Configurator as Configurator
 import qualified Data.Configurator.Types as Configurator
 import qualified Data.Set as Set
@@ -94,7 +95,7 @@ import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
-import Unison.Codebase.Path (Path, Path' (..))
+import Unison.Codebase.Path (Path' (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import qualified Unison.Codebase.ShortCausalHash as SCH
@@ -295,36 +296,36 @@ branchExistsAtPath' path' = do
 
 stepAt ::
   Text ->
-  (Path, Branch0 IO -> Branch0 IO) ->
+  (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
 stepAt cause = stepManyAt @[] cause . pure
 
 stepAt' ::
   Text ->
-  (Path, Branch0 IO -> Cli (Branch0 IO)) ->
+  (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepAt' cause = stepManyAt' @[] cause . pure
 
 stepAtNoSync' ::
-  (Path, Branch0 IO -> Cli (Branch0 IO)) ->
+  (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepAtNoSync' = stepManyAtNoSync' @[] . pure
 
 stepAtNoSync ::
-  (Path, Branch0 IO -> Branch0 IO) ->
+  (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
 stepAtNoSync = stepManyAtNoSync @[] . pure
 
 stepAtM ::
   Text ->
-  (Path, Branch0 IO -> IO (Branch0 IO)) ->
+  (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
 stepAtM cause = stepManyAtM @[] cause . pure
 
 stepManyAt ::
   Foldable f =>
   Text ->
-  f (Path, Branch0 IO -> Branch0 IO) ->
+  f (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
 stepManyAt reason actions = do
   stepManyAtNoSync actions
@@ -333,7 +334,7 @@ stepManyAt reason actions = do
 stepManyAt' ::
   Foldable f =>
   Text ->
-  f (Path, Branch0 IO -> Cli (Branch0 IO)) ->
+  f (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepManyAt' reason actions = do
   res <- stepManyAtNoSync' actions
@@ -342,26 +343,28 @@ stepManyAt' reason actions = do
 
 stepManyAtNoSync' ::
   Foldable f =>
-  f (Path, Branch0 IO -> Cli (Branch0 IO)) ->
+  f (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepManyAtNoSync' actions = do
   origRoot <- getRootBranch
-  newRoot <- Branch.stepManyAtM actions origRoot
+  let relativeActions = first Path.unabsolute <$> toList actions
+  newRoot <- Branch.stepManyAtM relativeActions origRoot
   setRootBranch newRoot
   pure (origRoot /= newRoot)
 
 -- Like stepManyAt, but doesn't update the last saved root
 stepManyAtNoSync ::
   Foldable f =>
-  f (Path, Branch0 IO -> Branch0 IO) ->
+  f (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
-stepManyAtNoSync actions =
-  void . modifyRootBranch $ Branch.stepManyAt actions
+stepManyAtNoSync actions = do
+  let relativeActions = first Path.unabsolute <$> toList actions
+  void . modifyRootBranch $ Branch.stepManyAt relativeActions
 
 stepManyAtM ::
   Foldable f =>
   Text ->
-  f (Path, Branch0 IO -> IO (Branch0 IO)) ->
+  f (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
 stepManyAtM reason actions = do
   stepManyAtMNoSync actions
@@ -369,11 +372,12 @@ stepManyAtM reason actions = do
 
 stepManyAtMNoSync ::
   Foldable f =>
-  f (Path, Branch0 IO -> IO (Branch0 IO)) ->
+  f (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
 stepManyAtMNoSync actions = do
   oldRoot <- getRootBranch
-  newRoot <- liftIO (Branch.stepManyAtM actions oldRoot)
+  let relativeActions = first Path.unabsolute <$> toList actions
+  newRoot <- liftIO (Branch.stepManyAtM relativeActions oldRoot)
   setRootBranch newRoot
 
 -- | Sync the in-memory root branch.

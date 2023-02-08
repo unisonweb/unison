@@ -315,7 +315,7 @@ loop e = do
                   -- Save the modified patch
                   Cli.stepAtM
                     description
-                    ( Path.unabsolute patchPath'',
+                    ( patchPath'',
                       Branch.modifyPatches
                         patchName
                         (const (if isTerm then termPatch else typePatch))
@@ -326,7 +326,7 @@ loop e = do
               Cli.respond (SearchTermsNotFoundDetailed isTerm misses (Set.toList opHits))
             description <- inputDescription input
             traverse_ (go description) (if isTerm then tmRefs else tpRefs)
-          saveAndApplyPatch :: Path -> NameSegment -> Patch -> Cli ()
+          saveAndApplyPatch :: Path.Absolute -> NameSegment -> Patch -> Cli ()
           saveAndApplyPatch patchPath'' patchName patch' = do
             description <- inputDescription input
             Cli.stepAtM
@@ -356,9 +356,9 @@ loop e = do
             types <- getTypes hq
             when (Set.null terms && Set.null types) (Cli.returnEarly (NameNotFound hq'))
             -- Mitchell: stripping hash seems wrong here...
-            resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq')
+            resolvedPath <- Cli.resolveSplit' (HQ'.toName <$> hq')
             rootNames <- Branch.toNames <$> Cli.getRootBranch0
-            let name = Path.unsafeToName (Path.unsplit resolvedPath)
+            let name = Path.unsafeToName (Path.unsplit (first Path.unabsolute resolvedPath))
                 toRel :: Ord ref => Set ref -> R.Relation Name ref
                 toRel = R.fromList . fmap (name,) . toList
                 -- these names are relative to the root
@@ -524,8 +524,8 @@ loop e = do
               dest <- Cli.resolveSplit' dest'
               Cli.stepManyAt
                 description
-                [ BranchUtil.makeDeletePatch (Path.convert src),
-                  BranchUtil.makeReplacePatch (Path.convert dest) p
+                [ BranchUtil.makeDeletePatch src,
+                  BranchUtil.makeReplacePatch dest p
                 ]
               Cli.respond Success
             CopyPatchI src dest' -> do
@@ -535,7 +535,7 @@ loop e = do
               dest <- Cli.resolveSplit' dest'
               Cli.stepAt
                 description
-                (BranchUtil.makeReplacePatch (Path.convert dest) p)
+                (BranchUtil.makeReplacePatch dest p)
               Cli.respond Success
             SwitchBranchI maybePath' -> do
               path' <-
@@ -634,7 +634,7 @@ loop e = do
                     pure (BranchUtil.getTermMetadataAt (Path.convert path, ()) srcTerm root0)
               Cli.stepAt
                 description
-                (BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata)
+                (BranchUtil.makeAddTermName dest srcTerm srcMetadata)
               Cli.respond Success
             AliasTypeI src' dest' -> do
               src <- traverseOf _Right Cli.resolveSplit' src'
@@ -665,7 +665,7 @@ loop e = do
                     pure (BranchUtil.getTypeMetadataAt (Path.convert path, ()) srcType root0)
               Cli.stepAt
                 description
-                (BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata)
+                (BranchUtil.makeAddTypeName dest srcType srcMetadata)
               Cli.respond Success
 
             -- this implementation will happily produce name conflicts,
@@ -689,20 +689,20 @@ loop e = do
                   Branch0 IO ->
                   Branch0 IO ->
                   Path.Absolute ->
-                  ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)]) ->
+                  ([Path.HQSplit], [(Path.Absolute, Branch0 m -> Branch0 m)]) ->
                   Path.HQSplit ->
-                  ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
+                  ([Path.HQSplit], [(Path.Absolute, Branch0 m -> Branch0 m)])
                 go root0 currentBranch0 dest (missingSrcs, actions) hqsrc =
                   let src :: Path.Split
                       src = second HQ'.toName hqsrc
-                      proposedDest :: Path.Split
+                      proposedDest :: Path.AbsoluteSplit
                       proposedDest = second HQ'.toName hqProposedDest
-                      hqProposedDest :: Path.HQSplit
-                      hqProposedDest = first Path.unabsolute $ Path.resolve dest hqsrc
+                      hqProposedDest :: Path.HQSplitAbsolute
+                      hqProposedDest = Path.resolve dest hqsrc
                       -- `Nothing` if src doesn't exist
-                      doType :: Maybe [(Path, Branch0 m -> Branch0 m)]
+                      doType :: Maybe [(Path.Absolute, Branch0 m -> Branch0 m)]
                       doType = case ( BranchUtil.getType hqsrc currentBranch0,
-                                      BranchUtil.getType hqProposedDest root0
+                                      BranchUtil.getType (first Path.unabsolute hqProposedDest) root0
                                     ) of
                         (null -> True, _) -> Nothing -- missing src
                         (rsrcs, existing) ->
@@ -711,9 +711,9 @@ loop e = do
                           where
                             addAlias r = BranchUtil.makeAddTypeName proposedDest r (oldMD r)
                             oldMD r = BranchUtil.getTypeMetadataAt src r currentBranch0
-                      doTerm :: Maybe [(Path, Branch0 m -> Branch0 m)]
+                      doTerm :: Maybe [(Path.Absolute, Branch0 m -> Branch0 m)]
                       doTerm = case ( BranchUtil.getTerm hqsrc currentBranch0,
-                                      BranchUtil.getTerm hqProposedDest root0
+                                      BranchUtil.getTerm (first Path.unabsolute hqProposedDest) root0
                                     ) of
                         (null -> True, _) -> Nothing -- missing src
                         (rsrcs, existing) ->
@@ -801,9 +801,9 @@ loop e = do
               guidPath <- Cli.resolveSplit' (authorPath' |> "guid")
               Cli.stepManyAt
                 description
-                [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef) mempty,
-                  BranchUtil.makeAddTermName (Path.convert copyrightHolderPath) (d copyrightHolderRef) mempty,
-                  BranchUtil.makeAddTermName (Path.convert guidPath) (d guidRef) mempty
+                [ BranchUtil.makeAddTermName authorPath (d authorRef) mempty,
+                  BranchUtil.makeAddTermName copyrightHolderPath (d copyrightHolderRef) mempty,
+                  BranchUtil.makeAddTermName guidPath (d guidRef) mempty
                 ]
               currentPath <- Cli.getCurrentPath
               finalBranch <- Cli.getCurrentBranch0
@@ -835,15 +835,15 @@ loop e = do
               when (not (Set.null destTerms)) do
                 Cli.returnEarly (TermAlreadyExists dest' destTerms)
               description <- inputDescription input
-              let p = Path.convert src
+              let relSrc = Path.convert @Path.HQSplitAbsolute @Path.HQSplit src
               srcMetadata <- do
                 root0 <- Cli.getRootBranch0
-                pure (BranchUtil.getTermMetadataAt p srcTerm root0)
+                pure (BranchUtil.getTermMetadataAt relSrc srcTerm root0)
               Cli.stepManyAt
                 description
                 [ -- Mitchell: throwing away any hash-qualification here seems wrong!
-                  BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
-                  BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata
+                  BranchUtil.makeDeleteTermName (over _2 HQ'.toName src) srcTerm,
+                  BranchUtil.makeAddTermName dest srcTerm srcMetadata
                 ]
               Cli.respond Success
             MoveTypeI src' dest' -> do
@@ -861,15 +861,15 @@ loop e = do
               when (not (Set.null destTypes)) do
                 Cli.returnEarly (TypeAlreadyExists dest' destTypes)
               description <- inputDescription input
-              let p = Path.convert src
+              let p = Path.convert @Path.HQSplitAbsolute @Path.HQSplit src
               srcMetadata <- do
                 root0 <- Cli.getRootBranch0
                 pure (BranchUtil.getTypeMetadataAt p srcType root0)
               Cli.stepManyAt
                 description
                 [ -- Mitchell: throwing away any hash-qualification here seems wrong!
-                  BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
-                  BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata
+                  BranchUtil.makeDeleteTypeName (over _2 HQ'.toName src) srcType,
+                  BranchUtil.makeAddTypeName dest srcType srcMetadata
                 ]
               Cli.respond Success
             DeleteI dtarget -> case dtarget of
@@ -882,7 +882,7 @@ loop e = do
                 src <- Cli.resolveSplit' src'
                 Cli.stepAt
                   description
-                  (BranchUtil.makeDeletePatch (Path.convert src))
+                  (BranchUtil.makeDeletePatch src)
                 Cli.respond Success
               DeleteTarget'Branch insistence Nothing -> do
                 hasConfirmed <- confirmedCommand input
@@ -986,7 +986,7 @@ loop e = do
               Cli.stepAt
                 description
                 -- Mitchell: throwing away HQ seems wrong
-                (BranchUtil.makeDeleteTypeName (Path.convert (over _2 HQ'.toName path)) ty)
+                (BranchUtil.makeDeleteTypeName (over _2 HQ'.toName path) ty)
             ResolveTermNameI path' -> do
               path <- Cli.resolveSplit' path'
               term <- do
@@ -1005,7 +1005,7 @@ loop e = do
                 & Set.delete term
                 & Set.toList
                 -- Mitchell: throwing away HQ seems wrong
-                & map (BranchUtil.makeDeleteTermName (Path.convert (over _2 HQ'.toName path)))
+                & map (BranchUtil.makeDeleteTermName (over _2 HQ'.toName path))
                 & Cli.stepManyAt description
             ReplaceI from to patchPath -> do
               Cli.Env {codebase} <- ask
@@ -1060,7 +1060,7 @@ loop e = do
                             )
                             patch
                     (patchPath'', patchName) <- Cli.resolveSplit' patchPath'
-                    saveAndApplyPatch (Path.convert patchPath'') patchName patch'
+                    saveAndApplyPatch patchPath'' patchName patch'
 
                   replaceTypes :: Reference -> Reference -> Cli ()
                   replaceTypes fr tr = do
@@ -1071,7 +1071,7 @@ loop e = do
                             (R.insert fr (TypeEdit.Replace tr) . R.deleteDom fr)
                             patch
                     (patchPath'', patchName) <- Cli.resolveSplit' patchPath'
-                    saveAndApplyPatch (Path.convert patchPath'') patchName patch'
+                    saveAndApplyPatch patchPath'' patchName patch'
 
                   ambiguous :: HQ.HashQualified Name -> [TermReference] -> Cli a
                   ambiguous t rs =
@@ -1119,7 +1119,7 @@ loop e = do
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
-              Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
+              Cli.stepAtNoSync (currentPath, doSlurpAdds adds uf)
               Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
@@ -1134,7 +1134,7 @@ loop e = do
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
-              Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
+              Cli.stepAtNoSync (currentPath, doSlurpAdds adds uf)
               Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               addDefaultMetadata adds
@@ -1824,7 +1824,7 @@ handleDiffNamespaceToPatch description input = do
   -- If there's already a patch at the given path, overwrite it.
   Cli.stepAtM
     description
-    (Path.unabsolute patchPath, Branch.modifyPatches patchName (const patch))
+    (patchPath, Branch.modifyPatches patchName (const patch))
   where
     -- Given {old reference} and {new references}, create term edit patch entries as follows:
     --
@@ -2444,7 +2444,7 @@ propagatePatch inputDescription patch scopePath = do
   Cli.time "propagatePatch" do
     Cli.stepAt'
       (inputDescription <> " (applying patch)")
-      (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
+      (scopePath, Propagate.propagateAndApply patch)
 
 -- | Show todo output if there are any conflicts or edits.
 doShowTodoOutput :: Patch -> Path.Absolute -> Cli ()
@@ -2765,7 +2765,7 @@ racketOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
 racketOpts gendir statdir file args = libs ++ [file] ++ args
   where
     includes = [gendir, statdir </> "common", statdir </> "racket"]
-    libs = concatMap (\dir -> ["-S",dir]) includes
+    libs = concatMap (\dir -> ["-S", dir]) includes
 
 chezOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
 chezOpts gendir statdir file args =
@@ -2782,7 +2782,7 @@ runScheme bk file args0 = do
   ensureSchemeExists
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
-  let cmd = case bk of Racket -> "racket" ; Chez -> "scheme"
+  let cmd = case bk of Racket -> "racket"; Chez -> "scheme"
       opts = case bk of
         Racket -> racketOpts gendir statdir file args0
         Chez -> chezOpts gendir statdir file args0
