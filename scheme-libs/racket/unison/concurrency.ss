@@ -14,6 +14,10 @@
           (rnrs records syntactic)
           (rename
            (only (racket base)
+                 box
+                 unbox
+                 set-box!
+                 box-cas!
                  make-semaphore
                  semaphore-peek-evt
                  semaphore-post
@@ -23,6 +27,10 @@
                  parameterize-break
                  sleep
                  printf)
+           (box ref-new)
+           (unbox ref-read)
+           (set-box! ref-write)
+           (box-cas! ref-cas)
            (break-thread kill) ; TODO need to see whether the compiler wraps the exception for me
            (thread fork)
            (sleep sleep-secs))
