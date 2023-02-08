@@ -212,14 +212,7 @@ data Input
   | ProjectCreateI ProjectName
   | ProjectCreateBranchI ProjectBranchName
   | ProjectPushI ProjectBranchName
-  | -- | The project name and branch name to switch to.
-    --
-    -- If a local project does not exist with the given name, we will re-parse this name as a Share slug + project name
-    -- (e.g. "@arya/lens").
-    --
-    -- If the branch is unspecified, we will pick a branch somehow. FIXME: this comment is imprecise because we haven't
-    -- nailed down the default branch mechanism yet.
-    ProjectSwitchI (ProjectAndBranch ProjectName (Maybe ProjectBranchName))
+  | ProjectSwitchI (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
   deriving (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput

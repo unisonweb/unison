@@ -75,6 +75,7 @@ import qualified System.IO as IO
 import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import qualified UnliftIO
+import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromException), into, tryInto)
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
 
 -- | Like 'fold' but for Alternative.

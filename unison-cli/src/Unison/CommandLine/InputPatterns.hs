@@ -2352,16 +2352,10 @@ projectSwitch =
       argTypes = [(Required, projectAndBranchNamesArg)],
       help = P.wrap "Switch to a project.",
       parse = \case
-        [projectAndBranchNamesString] ->
-          case Text.split (== ':') (Text.pack projectAndBranchNamesString) of
-            [projectNameString] -> do
-              project <- parseProjectName projectNameString
-              Right (Input.ProjectSwitchI ProjectAndBranch {project, branch = Nothing})
-            [projectNameString, branchNameString] -> do
-              project <- parseProjectName projectNameString
-              branch <- parseProjectBranchName branchNameString
-              Right (Input.ProjectSwitchI ProjectAndBranch {project, branch = Just branch})
-            _ -> Left (showPatternHelp projectSwitch)
+        [name] ->
+          case tryInto @(ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) (Text.pack name) of
+            Left _ -> Left (showPatternHelp projectSwitch)
+            Right projectAndBranch -> Right (Input.ProjectSwitchI projectAndBranch)
         _ -> Left (showPatternHelp projectSwitch)
     }
 
