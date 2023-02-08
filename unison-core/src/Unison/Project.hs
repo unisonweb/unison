@@ -4,6 +4,7 @@
 -- package, but for now we have just defined the one blessed project/branch name syntax that we allow.
 module Unison.Project
   ( ProjectName,
+    classifyProjectName,
     ProjectBranchName,
     ProjectAndBranch (..),
   )
@@ -32,16 +33,10 @@ instance TryFrom Text ProjectName where
 
 projectNameParser :: Megaparsec.Parsec Void Text ProjectName
 projectNameParser = do
-  userPrefix <- userPrefixParser <|> pure mempty
+  userSlug <- userSlugParser <|> pure mempty
   projectSlug <- projectSlugParser
-  pure (ProjectName (Text.Builder.run (userPrefix <> projectSlug)))
+  pure (ProjectName (Text.Builder.run (userSlug <> projectSlug)))
   where
-    userPrefixParser :: Megaparsec.Parsec Void Text Text.Builder
-    userPrefixParser = do
-      userSlug <- userSlugParser
-      slash <- Megaparsec.char '/'
-      pure (userSlug <> Text.Builder.char slash)
-
     projectSlugParser :: Megaparsec.Parsec Void Text Text.Builder
     projectSlugParser = do
       c0 <- Megaparsec.satisfy isStartChar
@@ -51,6 +46,16 @@ projectNameParser = do
         isStartChar :: Char -> Bool
         isStartChar c =
           Char.isAlpha c || c == '_'
+
+-- | Given a valid project name, "classify" it as beginning with a user slug, or not.
+--
+-- >>> classifyProjectName "lens"
+-- (Nothing, "lens")
+--
+-- >>> classifyProjectName "@arya/lens"
+-- (Just "arya", "lens")
+classifyProjectName :: ProjectName -> (Maybe Text, Text)
+classifyProjectName (ProjectName name) = undefined
 
 -- | The name of a branch of a project.
 --
@@ -67,16 +72,10 @@ instance TryFrom Text ProjectBranchName where
 
 projectBranchNameParser :: Megaparsec.Parsec Void Text ProjectBranchName
 projectBranchNameParser = do
-  userPrefix <- userPrefixParser <|> pure mempty
+  userSlug <- userSlugParser <|> pure mempty
   branchSlug <- branchSlugParser
-  pure (ProjectBranchName (Text.Builder.run (userPrefix <> branchSlug)))
+  pure (ProjectBranchName (Text.Builder.run (userSlug <> branchSlug)))
   where
-    userPrefixParser :: Megaparsec.Parsec Void Text Text.Builder
-    userPrefixParser = do
-      userSlug <- userSlugParser
-      colon <- Megaparsec.char ':'
-      pure (userSlug <> Text.Builder.char colon)
-
     branchSlugParser :: Megaparsec.Parsec Void Text Text.Builder
     branchSlugParser = do
       c0 <- Megaparsec.satisfy isStartChar
@@ -94,10 +93,10 @@ data ProjectAndBranch a b = ProjectAndBranch
   }
   deriving stock (Eq, Generic, Show)
 
--- | @project:branch@ syntax for project+branch pair, with both sides optional. Missing value means "the current one".
+-- | @project/branch@ syntax for project+branch pair, with both sides optional. Missing value means "the current one".
 instance From (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) Text where
   from ProjectAndBranch {project, branch} =
-    Text.Builder.run (textify project <> Text.Builder.char ':' <> textify branch)
+    Text.Builder.run (textify project <> Text.Builder.char '/' <> textify branch)
     where
       textify :: From thing Text => Maybe thing -> Text.Builder
       textify =
@@ -114,15 +113,15 @@ projectAndBranchNamesParser ::
     (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
 projectAndBranchNamesParser = do
   project <- optional projectNameParser
-  _ <- Megaparsec.char ':'
+  _ <- Megaparsec.char '/'
   branch <- optional projectBranchNameParser
   pure ProjectAndBranch {project, branch}
 
 ------------------------------------------------------------------------------------------------------------------------
 
--- Projects and branches may begin with a "user slug", which looks like "@arya".
+-- Projects and branches may begin with a "user slug", which looks like "@arya/".
 --
--- slug       = @ start-char char*
+-- slug       = @ start-char char* /
 -- start-char = alpha | _
 -- char       = start-char | -
 userSlugParser :: Megaparsec.Parsec Void Text Text.Builder.Builder
@@ -130,7 +129,8 @@ userSlugParser = do
   c0 <- Megaparsec.char '@'
   c1 <- Megaparsec.satisfy isStartChar
   c2 <- Megaparsec.takeWhileP Nothing (\c -> isStartChar c || c == '-')
-  pure (Text.Builder.char c0 <> Text.Builder.char c1 <> Text.Builder.text c2)
+  c3 <- Megaparsec.char '/'
+  pure (Text.Builder.char c0 <> Text.Builder.char c1 <> Text.Builder.text c2 <> Text.Builder.char c3)
   where
     isStartChar :: Char -> Bool
     isStartChar c =

@@ -15,7 +15,6 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectName)
-import Witch
 
 -- | Create a new project.
 --

@@ -13,7 +13,6 @@ import Unison.Cli.ProjectUtils (getCurrentProjectBranch, projectBranchPath)
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectBranchName)
-import Witch (into)
 
 -- | Create a new branch in a project:
 --

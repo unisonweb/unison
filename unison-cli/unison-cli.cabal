@@ -184,6 +184,7 @@ library
     , servant-client
     , stm
     , text
+    , text-builder
     , text-rope
     , these
     , time
@@ -315,6 +316,7 @@ executable cli-integration-tests
     , shellmet
     , stm
     , text
+    , text-builder
     , text-rope
     , these
     , time
@@ -439,6 +441,7 @@ executable transcripts
     , shellmet
     , stm
     , text
+    , text-builder
     , text-rope
     , these
     , time
@@ -571,6 +574,7 @@ executable unison
     , template-haskell
     , temporary
     , text
+    , text-builder
     , text-rope
     , these
     , time
@@ -706,6 +710,7 @@ test-suite cli-tests
     , stm
     , temporary
     , text
+    , text-builder
     , text-rope
     , these
     , time

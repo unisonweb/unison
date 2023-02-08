@@ -49,7 +49,6 @@ import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
-import Witch
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =

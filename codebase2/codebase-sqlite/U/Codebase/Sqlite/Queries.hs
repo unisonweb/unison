@@ -102,6 +102,7 @@ module U.Codebase.Sqlite.Queries
     Project (..),
     projectExists,
     projectExistsByName,
+    expectProject,
     loadProjectByName,
     insertProject,
     Branch (..),
@@ -2512,18 +2513,22 @@ projectExistsByName name =
 
 -- FIXME rename loadProject
 getProject :: ProjectId -> Transaction (Maybe Project)
-getProject pid = queryMaybeRow bonk (Only pid)
-  where
-    bonk =
-      [sql|
-        SELECT
-          id,
-          name
-        FROM
-          project
-        WHERE
-          id = ?
-           |]
+getProject pid = queryMaybeRow loadProjectSql (Only pid)
+
+expectProject :: ProjectId -> Transaction Project
+expectProject pid = queryOneRow loadProjectSql (Only pid)
+
+loadProjectSql :: Sql
+loadProjectSql =
+  [sql|
+    SELECT
+      id,
+      name
+    FROM
+      project
+    WHERE
+      id = ?
+  |]
 
 loadProjectByName :: Text -> Transaction (Maybe Project)
 loadProjectByName name =

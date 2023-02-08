@@ -38,7 +38,6 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text.Lazy
-import Data.Void (Void)
 import qualified Ki
 import qualified Network.HTTP.Client as Http.Client
 import qualified Network.HTTP.Types as HTTP
