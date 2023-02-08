@@ -1,4 +1,7 @@
 -- | Projects.
+--
+-- The syntax-related parsing code (what makes a valid project name, etc) could conceivably be moved into a different
+-- package, but for now we have just defined the one blessed project/branch name syntax that we allow.
 module Unison.Project
   ( ProjectName,
     ProjectBranchName,
@@ -90,6 +93,30 @@ data ProjectAndBranch a b = ProjectAndBranch
     branch :: b
   }
   deriving stock (Eq, Generic, Show)
+
+-- | @project:branch@ syntax for project+branch pair, with both sides optional. Missing value means "the current one".
+instance From (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) Text where
+  from ProjectAndBranch {project, branch} =
+    Text.Builder.run (textify project <> Text.Builder.char ':' <> textify branch)
+    where
+      textify :: From thing Text => Maybe thing -> Text.Builder
+      textify =
+        maybe mempty (Text.Builder.text . into)
+
+instance TryFrom Text (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) where
+  tryFrom =
+    maybeTryFrom (Megaparsec.parseMaybe projectAndBranchNamesParser)
+
+projectAndBranchNamesParser ::
+  Megaparsec.Parsec
+    Void
+    Text
+    (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
+projectAndBranchNamesParser = do
+  project <- optional projectNameParser
+  _ <- Megaparsec.char ':'
+  branch <- optional projectBranchNameParser
+  pure ProjectAndBranch {project, branch}
 
 ------------------------------------------------------------------------------------------------------------------------
 
