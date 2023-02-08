@@ -273,7 +273,7 @@ CREATE TABLE scoped_term_name_lookup (
 
 -- This index allows finding all names we need to consider within a given namespace for
 -- suffixification of a name.
--- It may seem strange to use last_name_segment rather than a suffix search over reversed_name name here;
+-- It may seem strange to use last_name_segment rather than a suffix search over reversed_name name her
 -- but SQLite will only optimize for a single prefix-glob at once, so we can't glob search
 -- over both namespace and reversed_name, but we can EXACT match on last_name_segment and
 -- then glob search on the namespace prefix, and have SQLite do the final glob search on
@@ -311,16 +311,16 @@ CREATE TABLE scoped_type_name_lookup (
 
 -- This index allows finding all names we need to consider within a given namespace for
 -- suffixification of a name.
--- It may seem strange to use last_name_segment rather than a suffix search over reversed_name name here;
+-- It may seem strange to use last_name_segment rather than a suffix search over reversed_name name here
 -- but SQLite will only optimize for a single prefix-glob at once, so we can't glob search
 -- over both namespace and reversed_name, but we can EXACT match on last_name_segment and
 -- then glob search on the namespace prefix, and have SQLite do the final glob search on
 -- reversed_name over rows with a matching last segment without using an index and should be plenty fast.
-CREATE INDEX scoped_type_names_by_namespace_and_last_name_segment ON scoped_type_name_lookup(root_branch_hash_id, last_name_segment, namespace)
+CREATE INDEX scoped_type_names_by_namespace_and_last_name_segment ON scoped_type_name_lookup(root_branch_hash_id, last_name_segment, namespace);
 
 
 -- This index allows us to find all names with a given ref within a specific namespace.
-CREATE INDEX scoped_type_name_by_reference_lookup ON scoped_type_name_lookup(root_branch_hash_id, reference_builtin, reference_component_hash, reference_component_index, namespace)
+CREATE INDEX scoped_type_name_by_reference_lookup ON scoped_type_name_lookup(root_branch_hash_id, reference_builtin, reference_component_hash, reference_component_index, namespace);
 
 
 -- Allows fetching ALL names within a specific namespace prefix. We currently use this to
