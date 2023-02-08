@@ -7,7 +7,10 @@ module Unison.Project
 where
 
 import qualified Data.Char as Char
-import qualified Data.Text as Text
+import qualified Text.Builder
+import qualified Text.Builder as Text (Builder)
+import qualified Text.Megaparsec as Megaparsec
+import qualified Text.Megaparsec.Char as Megaparsec
 import Unison.Prelude
 import Witch
 
@@ -21,22 +24,30 @@ newtype ProjectName
 instance From ProjectName Text
 
 instance TryFrom Text ProjectName where
-  -- project-name            = project-name-start-char project-name-char*
-  -- project-name-start-char = alpha | _ | @
-  -- project-name-char       = project-name-start-char | num | - | /
-  tryFrom = do
-    maybeTryFrom \name -> do
-      (c, cs) <- Text.uncons name
-      guard (isValidStartChar c && Text.all isValidChar cs)
-      Just (ProjectName name)
-    where
-      isValidStartChar :: Char -> Bool
-      isValidStartChar c =
-        Char.isAlpha c || c == '_' || c == '@'
+  tryFrom =
+    maybeTryFrom (Megaparsec.parseMaybe projectNameParser)
 
-      isValidChar :: Char -> Bool
-      isValidChar c =
-        isValidStartChar c || Char.isNumber c || c == '-' || c == '/'
+projectNameParser :: Megaparsec.Parsec Void Text ProjectName
+projectNameParser = do
+  userPrefix <- userPrefixParser <|> pure mempty
+  projectSlug <- projectSlugParser
+  pure (ProjectName (Text.Builder.run (userPrefix <> projectSlug)))
+  where
+    userPrefixParser :: Megaparsec.Parsec Void Text Text.Builder
+    userPrefixParser = do
+      userSlug <- userSlugParser
+      slash <- Megaparsec.char '/'
+      pure (userSlug <> Text.Builder.char slash)
+
+    projectSlugParser :: Megaparsec.Parsec Void Text Text.Builder
+    projectSlugParser = do
+      c0 <- Megaparsec.satisfy isStartChar
+      c1 <- Megaparsec.takeWhileP Nothing (\c -> isStartChar c || c == '-')
+      pure (Text.Builder.char c0 <> Text.Builder.text c1)
+      where
+        isStartChar :: Char -> Bool
+        isStartChar c =
+          Char.isAlpha c || c == '_'
 
 -- | The name of a branch of a project.
 --
@@ -48,22 +59,30 @@ newtype ProjectBranchName
 instance From ProjectBranchName Text
 
 instance TryFrom Text ProjectBranchName where
-  -- branch-name            = branch-name-start-char branch-name-char*
-  -- branch-name-start-char = alpha | _
-  -- branch-name-char       = branch-name-start-char | num | - | . | /
-  tryFrom = do
-    maybeTryFrom \name -> do
-      (c, cs) <- Text.uncons name
-      guard (isValidStartChar c && Text.all isValidChar cs)
-      Just (ProjectBranchName name)
-    where
-      isValidStartChar :: Char -> Bool
-      isValidStartChar c =
-        Char.isAlpha c || c == '_'
+  tryFrom =
+    maybeTryFrom (Megaparsec.parseMaybe projectBranchNameParser)
 
-      isValidChar :: Char -> Bool
-      isValidChar c =
-        isValidStartChar c || Char.isNumber c || c == '-' || c == '.' || c == '/'
+projectBranchNameParser :: Megaparsec.Parsec Void Text ProjectBranchName
+projectBranchNameParser = do
+  userPrefix <- userPrefixParser <|> pure mempty
+  branchSlug <- branchSlugParser
+  pure (ProjectBranchName (Text.Builder.run (userPrefix <> branchSlug)))
+  where
+    userPrefixParser :: Megaparsec.Parsec Void Text Text.Builder
+    userPrefixParser = do
+      userSlug <- userSlugParser
+      colon <- Megaparsec.char ':'
+      pure (userSlug <> Text.Builder.char colon)
+
+    branchSlugParser :: Megaparsec.Parsec Void Text Text.Builder
+    branchSlugParser = do
+      c0 <- Megaparsec.satisfy isStartChar
+      c1 <- Megaparsec.takeWhileP Nothing (\c -> isStartChar c || c == '-')
+      pure (Text.Builder.char c0 <> Text.Builder.text c1)
+      where
+        isStartChar :: Char -> Bool
+        isStartChar c =
+          Char.isAlpha c || c == '_'
 
 -- | A generic data structure that contains information about a project and a branch in that project.
 data ProjectAndBranch a b = ProjectAndBranch
@@ -71,3 +90,21 @@ data ProjectAndBranch a b = ProjectAndBranch
     branch :: b
   }
   deriving stock (Eq, Generic, Show)
+
+------------------------------------------------------------------------------------------------------------------------
+
+-- Projects and branches may begin with a "user slug", which looks like "@arya".
+--
+-- slug       = @ start-char char*
+-- start-char = alpha | _
+-- char       = start-char | -
+userSlugParser :: Megaparsec.Parsec Void Text Text.Builder.Builder
+userSlugParser = do
+  c0 <- Megaparsec.char '@'
+  c1 <- Megaparsec.satisfy isStartChar
+  c2 <- Megaparsec.takeWhileP Nothing (\c -> isStartChar c || c == '-')
+  pure (Text.Builder.char c0 <> Text.Builder.char c1 <> Text.Builder.text c2)
+  where
+    isStartChar :: Char -> Bool
+    isStartChar c =
+      Char.isAlpha c || c == '_'

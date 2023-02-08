@@ -64,6 +64,7 @@ import Data.Text.Encoding as X (decodeUtf8, encodeUtf8)
 import qualified Data.Text.IO as Text
 import Data.Traversable as X (for)
 import Data.Typeable as X (Typeable)
+import Data.Void as X (Void)
 import Data.Word as X
 import Debug.Trace as X
 import GHC.Generics as X (Generic, Generic1)

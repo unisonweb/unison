@@ -17,7 +17,7 @@ import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Sqlite as Sqlite
 import Witch (into, unsafeFrom)
 
--- | Switch to (or create) a project branch.
+-- | Switch to (or create) a project or project branch.
 projectSwitch :: ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) -> Cli ()
 projectSwitch projectAndBranch =
   case (projectAndBranch ^. #project, projectAndBranch ^. #branch) of

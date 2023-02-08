@@ -19,11 +19,13 @@ library:
     - fuzzyfind
     - generic-lens
     - lens
+    - megaparsec
     - memory
     - mtl
     - rfc5051
     - safe
     - text
+    - text-builder
     - transformers
     - unison-core
     - unison-hash
