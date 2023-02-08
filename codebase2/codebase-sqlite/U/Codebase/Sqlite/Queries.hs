@@ -185,6 +185,7 @@ module U.Codebase.Sqlite.Queries
     setSchemaVersion,
     x2cTType,
     x2cTerm,
+    checkBranchExistsForCausalHash,
   )
 where
 
@@ -1862,6 +1863,21 @@ entityExists hash = do
     Nothing -> pure False
     -- then check if is causal hash or if object exists for hash id
     Just hashId -> isCausalHash hashId ||^ isObjectHash hashId
+
+-- | Checks whether the codebase contains the actual branch value for a given causal hash.
+checkBranchExistsForCausalHash :: CausalHash -> Transaction Bool
+checkBranchExistsForCausalHash ch = do
+  loadCausalHashIdByCausalHash ch >>= \case
+    Nothing -> pure False
+    Just chId -> queryOneCol sql (Only chId)
+  where
+    sql =
+      [here|
+      SELECT EXISTS
+      ( SELECT 1 FROM causal c JOIN object o ON c.value_hash_id = o.primary_hash_id
+        WHERE c.self_hash_id = ?
+      )
+      |]
 
 -- | Insert a new `temp_entity` row, and its associated 1+ `temp_entity_missing_dependency` rows.
 --
