@@ -1,5 +1,28 @@
 concurrency.tests = Tests.main do checkEqual "scaffolding" 2 3
 
+
+
+
+--  A short script to test mutable references with local scope.
+
+--  ```ucm:hide
+--  .> builtins.mergeio
+--  ```
+
+--  ```unison
+--  test = Scope.run 'let
+--    r = Scope.ref 0
+--    Ref.write r 1
+--    i = Ref.read r
+--    Ref.write r 2
+--    j = Ref.read r
+--    Ref.write r 5
+--    (i, j, Ref.read r)
+
+--  > test
+--  ```
+
+
 --  # tests for Promise and CAS on Refs
 
 --  Ref support a CAS operation that can be used as a building block to
@@ -24,6 +47,11 @@ concurrency.tests = Tests.main do checkEqual "scaffolding" 2 3
 --  .> add
 --  .> io.test casTest
 --  ```
+
+-- TODO here: insert test to exercise fork, sleep and tryEval
+-- fork a thread that sleeps and changes a Ref when interrupted (sets "completed" or "interrupted")
+-- main thread sleeps a bit less, then kills it
+-- assert by spinning on the ref
 
 --  Promise is a simple one-shot awaitable condition.
 
@@ -127,24 +155,4 @@ concurrency.tests = Tests.main do checkEqual "scaffolding" 2 3
 --  ```ucm
 --  .> add
 --  .> io.test fullTest
---  ```
-
-
---  A short script to test mutable references with local scope.
-
---  ```ucm:hide
---  .> builtins.mergeio
---  ```
-
---  ```unison
---  test = Scope.run 'let
---    r = Scope.ref 0
---    Ref.write r 1
---    i = Ref.read r
---    Ref.write r 2
---    j = Ref.read r
---    Ref.write r 5
---    (i, j, Ref.read r)
-
---  > test
 --  ```
