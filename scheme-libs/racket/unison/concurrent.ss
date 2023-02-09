@@ -1,5 +1,9 @@
 #!r6rs
 
+;; TODO some ops return Either Failure (fork, kill, sleep)
+;; ^ separate point, they shouldn't
+;; TODO some others are in the exception ability (tryEval)
+;; I'm not handling the mapping right now
 (library (unison concurrent)
   (export
     ref-new
@@ -16,6 +20,7 @@
 
   (import (rnrs)
           (rnrs records syntactic)
+          (unison data)
           (rename
            (only (racket base)
                  box
@@ -38,12 +43,8 @@
            (break-thread kill) ; TODO need to see whether the compiler wraps the exception for me
            (thread fork)
            (sleep sleep-secs))
-          (only (racket unsafe ops) unsafe-struct*-cas!))
-
-  (define none (cons 0 ()))
-  (define (some a) (cons 1 a))
-  (define (some? option) (eq? 1 (car option)))
-  (define (get option) (cdr option))
+          (only (racket unsafe ops) unsafe-struct*-cas!)
+          (unison data))
 
   (define-record-type promise (fields semaphore event (mutable value)))
 
@@ -59,7 +60,7 @@
     (let loop ()
       (let* ([value (promise-value promise)])
         (cond
-          [(some? value) (get value)]
+          [(some? value) (option-get value)]
           [else (sync/enable-break (promise-event promise)) (loop)]))))
 
   (define (promise-write promise new-value)
