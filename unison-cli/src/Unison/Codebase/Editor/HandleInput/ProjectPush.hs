@@ -6,7 +6,6 @@ where
 
 import Control.Lens ((^.))
 import Data.Text as Text
-import qualified Text.Builder
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -33,27 +32,6 @@ projectPush maybeProjectAndBranch = do
     getCurrentProjectBranch & onNothingM do
       loggeth ["Not currently on a branch"]
       Cli.returnEarlyWithoutOutput
-
-  -- Resolve where to push:
-  --   if (project/branch names provided)
-  --     if (ids in remote_project / remote_project_branch tables)
-  --       use those
-  --     else
-  --       ask Share
-  --   else if (default push location exists),
-  --     if (its remote branch id is non-null)
-  --       use that
-  --     else
-  --       if (this branch name exists in that project)
-  --         use that
-  --       else
-  --         create a branch with this name
-  --   else
-  --     ask Share for my username
-  --     if (I'm not logged in)
-  --       fail -- don't know where to push
-  --     else
-  --
 
   case maybeProjectAndBranch of
     Nothing -> do

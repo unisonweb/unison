@@ -42,7 +42,6 @@ import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Reference as V2 (Reference)
 import qualified U.Codebase.Reflog as Reflog
-import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
@@ -55,7 +54,7 @@ import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, 
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
 import Unison.Cli.UnisonConfigUtils (resolveConfiguredUrl)
-import Unison.Codebase (Codebase, Preprocessing (..), PushGitBranchOpts (..))
+import Unison.Codebase (Codebase, Preprocessing (..))
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
@@ -70,6 +69,7 @@ import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
+import Unison.Codebase.Editor.HandleInput.Push (handlePushRemoteBranch, handleGist)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
@@ -86,20 +86,14 @@ import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
-import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
+import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull))
 import qualified Unison.Codebase.Editor.Propagate as Propagate
 import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRemoteNamespace (..),
-    ReadRemoteNamespace (..),
+  ( ReadRemoteNamespace (..),
     ReadShareRemoteNamespace (..),
     ShareUserHandle (..),
-    WriteGitRemotePath (..),
-    WriteGitRepo,
-    WriteRemotePath (..),
-    WriteShareRemotePath (..),
     printNamespace,
     writePathToRead,
-    writeToReadGit,
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.Slurp as Slurp
@@ -113,8 +107,6 @@ import qualified Unison.Codebase.Patch as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
-import Unison.Codebase.PushBehavior (PushBehavior)
-import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Conversions
@@ -122,7 +114,6 @@ import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
-import Unison.Codebase.Type (GitPushBehavior (..))
 import Unison.Codebase.TypeEdit (TypeEdit)
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
@@ -135,8 +126,6 @@ import qualified Unison.CommandLine.InputPatterns as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
-import Unison.Hash32 (Hash32)
-import qualified Unison.Hash32 as Hash32
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
@@ -1775,11 +1764,6 @@ handleDependents hq = do
     #numberedArgs .= map (Text.unpack . Reference.toText . fst) results
     Cli.respond (ListDependents hqLength ld results)
 
--- | Handle a @gist@ command.
-handleGist :: GistInput -> Cli ()
-handleGist (GistInput repo) =
-  doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
-
 handleDiffNamespaceToPatch :: Text -> DiffNamespaceToPatchInput -> Cli ()
 handleDiffNamespaceToPatch description input = do
   Cli.Env {codebase} <- ask
@@ -1906,169 +1890,6 @@ handleIOTest main = do
   -- Don't cache IO tests
   tm' <- evalUnisonTerm False ppe False tm
   Cli.respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
-
--- | Handle a @push@ command.
-handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
-handlePushRemoteBranch PushRemoteBranchInput {maybeRemoteRepo = mayRepo, localPath = path, pushBehavior, syncMode} =
-  Cli.time "handlePushRemoteBranch" do
-    repo <- mayRepo & onNothing (resolveConfiguredUrl Push path)
-    doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
-
--- | Either perform a "normal" push (updating a remote path), which takes a 'PushBehavior' (to control whether creating
--- a new namespace is allowed), or perform a "gisty" push, which doesn't update any paths (and also is currently only
--- uploaded for remote git repos, not remote Share repos).
-data PushFlavor
-  = NormalPush WriteRemotePath PushBehavior
-  | GistyPush WriteGitRepo
-
--- Internal helper that implements pushing to a remote repo, which generalizes @gist@ and @push@.
-doPushRemoteBranch ::
-  -- | The repo to push to.
-  PushFlavor ->
-  -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
-  Path' ->
-  SyncMode.SyncMode ->
-  Cli ()
-doPushRemoteBranch pushFlavor localPath0 syncMode = do
-  Cli.Env {codebase} <- ask
-  localPath <- Cli.resolvePath' localPath0
-  case pushFlavor of
-    NormalPush (writeRemotePath@(WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath})) pushBehavior -> do
-      sourceBranch <- Cli.getBranchAt localPath
-      let withRemoteRoot :: Branch IO -> Either Output (Branch IO)
-          withRemoteRoot remoteRoot = do
-            let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if
-                -- this rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch`
-                -- already.
-                f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
-            case Branch.modifyAtM remotePath f remoteRoot of
-              Nothing -> Left (RefusedToPush pushBehavior writeRemotePath)
-              Just newRemoteRoot -> Right newRemoteRoot
-      let opts =
-            PushGitBranchOpts
-              { behavior =
-                  case pushBehavior of
-                    PushBehavior.ForcePush -> GitPushBehaviorForce
-                    PushBehavior.RequireEmpty -> GitPushBehaviorFf
-                    PushBehavior.RequireNonEmpty -> GitPushBehaviorFf,
-                syncMode
-              }
-      result <-
-        Cli.ioE (Codebase.pushGitBranch codebase repo opts (\remoteRoot -> pure (withRemoteRoot remoteRoot))) \err ->
-          Cli.returnEarly (Output.GitError err)
-      _branch <- result & onLeft Cli.returnEarly
-      Cli.respond Success
-    NormalPush (WriteRemotePathShare sharePath) pushBehavior -> handlePushToUnisonShare sharePath localPath pushBehavior
-    GistyPush repo -> do
-      sourceBranch <- Cli.getBranchAt localPath
-      let opts =
-            PushGitBranchOpts
-              { behavior = GitPushBehaviorGist,
-                syncMode
-              }
-      result <-
-        Cli.ioE (Codebase.pushGitBranch codebase repo opts (\_remoteRoot -> pure (Right sourceBranch))) \err ->
-          Cli.returnEarly (Output.GitError err)
-      _branch <- result & onLeft Cli.returnEarly
-      schLength <- Cli.runTransaction Codebase.branchHashLength
-      Cli.respond $
-        GistCreated
-          ( ReadRemoteNamespaceGit
-              ReadGitRemoteNamespace
-                { repo = writeToReadGit repo,
-                  sch = Just (SCH.fromHash schLength (Branch.headHash sourceBranch)),
-                  path = Path.empty
-                }
-          )
-  where
-    -- Per `pushBehavior`, we are either:
-    --
-    --   (1) force-pushing, in which case the remote branch state doesn't matter
-    --   (2) updating an empty branch, which fails if the branch isn't empty (`push.create`)
-    --   (3) updating a non-empty branch, which fails if the branch is empty (`push`)
-    shouldPushTo :: PushBehavior -> Branch m -> Bool
-    shouldPushTo pushBehavior remoteBranch =
-      case pushBehavior of
-        PushBehavior.ForcePush -> True
-        PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
-        PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
-
-handlePushToUnisonShare :: WriteShareRemotePath -> Path.Absolute -> PushBehavior -> Cli ()
-handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
-  let codeserver = Codeserver.resolveCodeserver server
-  let baseURL = codeserverBaseURL codeserver
-  let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
-  ensureAuthenticatedWithCodeserver codeserver
-
-  -- doesn't handle the case where a non-existent path is supplied
-  localCausalHash <-
-    Cli.runTransaction (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))) & onNothingM do
-      Cli.returnEarly (EmptyPush . Path.absoluteToPath' $ localPath)
-
-  let checkAndSetPush :: Maybe Hash32 -> Cli ()
-      checkAndSetPush remoteHash =
-        when (Just (Hash32.fromHash (unCausalHash localCausalHash)) /= remoteHash) do
-          let push =
-                Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
-                  Share.checkAndSetPush
-                    baseURL
-                    sharePath
-                    remoteHash
-                    localCausalHash
-                    uploadedCallback
-          push & onLeftM (pushError ShareErrorCheckAndSetPush)
-
-  case behavior of
-    PushBehavior.ForcePush -> do
-      maybeHashJwt <-
-        Share.getCausalHashByPath baseURL sharePath & onLeftM \err0 ->
-          (Cli.returnEarly . Output.ShareError) case err0 of
-            Share.SyncError err -> ShareErrorGetCausalHashByPath err
-            Share.TransportError err -> ShareErrorTransport err
-      checkAndSetPush (Share.hashJWTHash <$> maybeHashJwt)
-      Cli.respond (ViewOnShare remote)
-    PushBehavior.RequireEmpty -> do
-      checkAndSetPush Nothing
-      Cli.respond (ViewOnShare remote)
-    PushBehavior.RequireNonEmpty -> do
-      let push :: Cli (Either (Share.SyncError Share.FastForwardPushError) ())
-          push =
-            Cli.with withEntitiesUploadedProgressCallback \uploadedCallback ->
-              Share.fastForwardPush
-                baseURL
-                sharePath
-                localCausalHash
-                uploadedCallback
-      push & onLeftM (pushError ShareErrorFastForwardPush)
-      Cli.respond (ViewOnShare remote)
-  where
-    pathToSegments :: Path -> [Text]
-    pathToSegments =
-      coerce Path.toList
-
-    -- Provide the given action a callback that displays to the terminal.
-    withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
-    withEntitiesUploadedProgressCallback action = do
-      entitiesUploadedVar <- newTVarIO 0
-      Console.Regions.displayConsoleRegions do
-        Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
-          Console.Regions.setConsoleRegion region do
-            entitiesUploaded <- readTVar entitiesUploadedVar
-            pure $
-              "\n  Uploaded "
-                <> tShow entitiesUploaded
-                <> " entities...\n\n"
-          result <- action (\n -> atomically (modifyTVar' entitiesUploadedVar (+ n)))
-          entitiesUploaded <- readTVarIO entitiesUploadedVar
-          Console.Regions.finishConsoleRegion region $
-            "\n  Uploaded " <> tShow entitiesUploaded <> " entities."
-          pure result
-
-    pushError :: (a -> Output.ShareError) -> Share.SyncError a -> Cli b
-    pushError f err0 = do
-      Cli.returnEarly case err0 of
-        Share.SyncError err -> Output.ShareError (f err)
-        Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> [HQ.HashQualified Name] -> Cli ()
@@ -2233,66 +2054,6 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
       case Name.segments name of
         "lib" Nel.:| _ : _ -> True
         _ -> False
-
--- Takes a maybe (namespace address triple); returns it as-is if `Just`;
--- otherwise, tries to load a value from .unisonConfig, and complains
--- if needed.
-resolveConfiguredUrl :: PushPull -> Path' -> Cli WriteRemotePath
-resolveConfiguredUrl pushPull destPath' = do
-  destPath <- Cli.resolvePath' destPath'
-  whenNothingM (remoteMappingForPath pushPull destPath) do
-    let gitUrlConfigKey = gitUrlKey destPath
-    -- Fall back to deprecated GitUrl key
-    Cli.getConfig gitUrlConfigKey >>= \case
-      Just url ->
-        (WriteRemotePathGit <$> P.parse UriParser.deprecatedWriteGitRemotePath (Text.unpack gitUrlConfigKey) url) & onLeft \err ->
-          Cli.returnEarly (ConfiguredRemoteMappingParseError pushPull destPath url (show err))
-      Nothing -> Cli.returnEarly (NoConfiguredRemoteMapping pushPull destPath)
-
--- | Tries to look up a remote mapping for a given path.
--- Will also resolve paths relative to any mapping which is configured for a parent of that
--- path.
---
--- E.g.
---
--- A config which maps:
---
--- .myshare.foo -> .me.public.foo
---
--- Will resolve the following local paths into share paths like so:
---
--- .myshare.foo -> .me.public.foo
--- .myshare.foo.bar -> .me.public.foo.bar
--- .myshare.foo.bar.baz -> .me.public.foo.bar.baz
--- .myshare -> <Nothing>
-remoteMappingForPath :: PushPull -> Path.Absolute -> Cli (Maybe WriteRemotePath)
-remoteMappingForPath pushPull dest = do
-  pathPrefixes dest & Foldable.firstJustM \(prefix, suffix) -> do
-    let remoteMappingConfigKey = remoteMappingKey prefix
-    Cli.getConfig remoteMappingConfigKey >>= \case
-      Just url -> do
-        let parseResult = P.parse UriParser.writeRemotePath (Text.unpack remoteMappingConfigKey) url
-         in case parseResult of
-              Left err -> Cli.returnEarly (ConfiguredRemoteMappingParseError pushPull dest url (show err))
-              Right wrp -> do
-                let remote = wrp & RemoteRepo.remotePath_ %~ \p -> Path.resolve p suffix
-                 in pure $ Just remote
-      Nothing -> pure Nothing
-  where
-    -- Produces a list of path prefixes and suffixes, from longest prefix to shortest
-    --
-    -- E.g.
-    --
-    -- >>> pathPrefixes ("a" :< "b" :< Path.absoluteEmpty)
-    -- fromList [(.a.b,),(.a,b),(.,a.b)]
-    pathPrefixes :: Path.Absolute -> Seq (Path.Absolute, Path.Path)
-    pathPrefixes p =
-      Path.unabsolute p
-        & Path.toSeq
-        & \seq ->
-          Seq.zip (Seq.inits seq) (Seq.tails seq)
-            & Seq.reverse
-            <&> bimap (Path.Absolute . Path.Path) (Path.Path)
 
 importRemoteShareBranch :: ReadShareRemoteNamespace -> Cli (Branch IO)
 importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
