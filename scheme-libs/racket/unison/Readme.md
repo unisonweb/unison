@@ -9,14 +9,13 @@ Welcome to Racket v8.7 [cs].
 ```
 
 ## crypto
-NOTE: you must have the `crypto` racket library installed, which can be optained via `raco pkg install crypto-lib`.
-
-```clj
-$ racket -S scheme-libs/racket
-> (require unison/crypto)
-> (unison-FOp-crypto.hashBytes (unison-FOp-crypto.HashAlgorithm.Sha1) #"")
-#"\3329\243\356^kK\r2U\277\357\225`\30\220\257\330\a\t"
-> (require openssl/sha1)
-> (bytes->hex-string (unison-FOp-crypto.hashBytes (unison-FOp-crypto.HashAlgorithm.Sha1) #""))
-"da39a3ee5e6b4b0d3255bfef95601890afd80709"
+NOTE: Our crypto functions require on both `libcrypto` (from openssl) and `libb2`. You may have to tell racket where to find `libb2`, by adding an entry to the hash table in your [`config.rktd` file](https://docs.racket-lang.org/raco/config-file.html). This is what I had, for an M1 mac w/ libb2 installed via Homebrew:
 ```
+(lib-search-dirs . (#f "/opt/homebrew/Cellar/libb2/0.98.1/lib/"))
+```
+
+You can then run the tests with
+```bash
+$ raco test scheme-libs/racket/unison/crypto.rkt
+```
+On success, it has no output.
