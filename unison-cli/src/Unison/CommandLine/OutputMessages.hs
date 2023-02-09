@@ -1695,6 +1695,12 @@ notifyUser dir o = case o of
         [ "Failed to parse a URI from the hostname: " <> P.shown host <> ".",
           "Host names should NOT include a schema or path."
         ]
+    Auth.FailedToFetchUserInfo userInfoEndpoint err ->
+      P.lines
+        [ "Failed to parse the response from user info endpoint: " <> P.shown userInfoEndpoint <> ".",
+          P.text err,
+          "Please `auth.login` then try again, if this error persists please file a bug report and include the above error message."
+        ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
   ShareError x -> (pure . P.fatalCallout) case x of
     ShareErrorCheckAndSetPush e -> case e of

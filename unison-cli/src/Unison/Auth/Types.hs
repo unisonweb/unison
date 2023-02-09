@@ -15,6 +15,7 @@ module Unison.Auth.Types
     ProfileName,
     CredentialFailure (..),
     CodeserverCredentials (..),
+    UserInfo (..),
     getCodeserverCredentials,
     setCodeserverCredentials,
     codeserverCredentials,
@@ -44,6 +45,7 @@ data CredentialFailure
   | RefreshFailure Text
   | InvalidTokenResponse URI Text
   | InvalidHost CodeserverURI
+  | FailedToFetchUserInfo URI Text
   deriving stock (Show, Eq)
   deriving anyclass (Exception)
 
@@ -148,18 +150,45 @@ instance Aeson.FromJSON Credentials where
     activeProfile <- obj .: "active_profile"
     pure Credentials {..}
 
+data UserInfo = UserInfo
+  { userId :: Text, -- E.g. U-1234-5678
+    name :: Maybe Text,
+    handle :: Text -- The user's handle, no @ sign, e.g. "JohnSmith"
+  }
+  deriving (Show, Eq)
+
+instance ToJSON UserInfo where
+  toJSON (UserInfo userId name handle) =
+    Aeson.object
+      [ "user_id" .= userId,
+        "name" .= name,
+        "handle" .= handle
+      ]
+
+instance FromJSON UserInfo where
+  parseJSON = Aeson.withObject "UserInfo" $ \obj -> do
+    userId <- obj .: "user_id"
+    name <- obj .:? "name"
+    handle <- obj .: "handle"
+    pure (UserInfo {..})
+
 -- | Credentials for a specific codeserver
 data CodeserverCredentials = CodeserverCredentials
   { -- The most recent set of authentication tokens
     tokens :: Tokens,
     -- URI where the discovery document for this codeserver can be fetched.
-    discoveryURI :: URI
+    discoveryURI :: URI,
+    userInfo :: UserInfo
   }
   deriving (Eq)
 
 instance ToJSON CodeserverCredentials where
-  toJSON (CodeserverCredentials tokens discoveryURI) =
-    Aeson.object ["tokens" .= tokens, "discovery_uri" .= show discoveryURI]
+  toJSON (CodeserverCredentials tokens discoveryURI mayUserInfo) =
+    Aeson.object
+      [ "tokens" .= tokens,
+        "discovery_uri" .= show discoveryURI,
+        "user_info" .= mayUserInfo
+      ]
 
 instance FromJSON CodeserverCredentials where
   parseJSON =
@@ -170,13 +199,14 @@ instance FromJSON CodeserverCredentials where
         discoveryURI <- case parseURI discoveryURIString of
           Nothing -> fail "discovery_uri is not a valid URI"
           Just uri -> pure uri
+        userInfo <- v .: "user_info"
         pure $ CodeserverCredentials {..}
 
 emptyCredentials :: Credentials
 emptyCredentials = Credentials mempty defaultProfileName
 
-codeserverCredentials :: URI -> Tokens -> CodeserverCredentials
-codeserverCredentials discoveryURI tokens = CodeserverCredentials {discoveryURI, tokens}
+codeserverCredentials :: URI -> Tokens -> UserInfo -> CodeserverCredentials
+codeserverCredentials discoveryURI tokens userInfo = CodeserverCredentials {discoveryURI, tokens, userInfo}
 
 getCodeserverCredentials :: CodeserverId -> Credentials -> Either CredentialFailure CodeserverCredentials
 getCodeserverCredentials host (Credentials {credentials, activeProfile}) =

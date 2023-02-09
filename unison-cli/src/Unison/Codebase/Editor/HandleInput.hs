@@ -1399,7 +1399,7 @@ loop e = do
             UpdateBuiltinsI -> Cli.respond NotImplemented
             QuitI -> Cli.haltRepl
             GistI input -> handleGist input
-            AuthLoginI -> authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
+            AuthLoginI -> void $ authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
             VersionI -> do
               Cli.Env {ucmVersion} <- ask
               Cli.respond $ PrintVersion ucmVersion
@@ -1999,7 +1999,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
-  ensureAuthenticatedWithCodeserver codeserver
+  _userInfo <- ensureAuthenticatedWithCodeserver codeserver
 
   -- doesn't handle the case where a non-existent path is supplied
   localCausalHash <-
@@ -2300,7 +2300,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
-  when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
+  when (not $ RemoteRepo.isPublic rrn) . void $ ensureAuthenticatedWithCodeserver codeserver
   let shareFlavoredPath = Share.Path (shareUserHandleToText repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
   Cli.Env {codebase} <- ask
   causalHash <-
@@ -2765,7 +2765,7 @@ racketOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
 racketOpts gendir statdir file args = libs ++ [file] ++ args
   where
     includes = [gendir, statdir </> "common", statdir </> "racket"]
-    libs = concatMap (\dir -> ["-S",dir]) includes
+    libs = concatMap (\dir -> ["-S", dir]) includes
 
 chezOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
 chezOpts gendir statdir file args =
@@ -2782,7 +2782,7 @@ runScheme bk file args0 = do
   ensureSchemeExists
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
-  let cmd = case bk of Racket -> "racket" ; Chez -> "scheme"
+  let cmd = case bk of Racket -> "racket"; Chez -> "scheme"
       opts = case bk of
         Racket -> racketOpts gendir statdir file args0
         Chez -> chezOpts gendir statdir file args0

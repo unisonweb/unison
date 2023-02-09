@@ -23,3 +23,6 @@ fetchDiscoveryDoc discoveryURI = liftIO . UnliftIO.try @_ @CredentialFailure $ d
   case Aeson.eitherDecode (HTTP.responseBody $ resp) of
     Left err -> UnliftIO.throwIO $ InvalidDiscoveryDocument discoveryURI (Text.pack err)
     Right doc -> pure doc
+
+-- fetchUserInfo :: MonadIO m => DiscoveryDoc -> AccessToken -> m (Either CredentialFailure UserInfo)
+-- fetchUserInfo = do _
