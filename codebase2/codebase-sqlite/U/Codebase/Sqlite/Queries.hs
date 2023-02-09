@@ -246,7 +246,6 @@ import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
 import Data.UUID (UUID)
 import Data.UUID.Orphans.Sqlite ()
-import qualified Data.UUID.V4 as UUID
 import qualified Data.Vector as Vector
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
