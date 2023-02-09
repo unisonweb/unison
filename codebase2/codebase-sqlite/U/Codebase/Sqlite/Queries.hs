@@ -112,6 +112,21 @@ module U.Codebase.Sqlite.Queries
     loadProjectAndBranchNames,
     insertProjectBranch,
     markProjectBranchChild,
+    loadProject,
+    loadProjectBranch,
+
+    -- ** remote projects
+    RemoteProjectId (..),
+    loadRemoteProject,
+    insertRemoteProject,
+    setRemoteProjectName,
+
+    -- ** remote project branches
+    RemoteBranchId (..),
+    loadRemoteBranch,
+    insertRemoteProjectBranch,
+    setRemoteProjectBranchName,
+    insertBranchRemoteMapping,
 
     -- * indexes
 
