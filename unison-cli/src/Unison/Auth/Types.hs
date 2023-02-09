@@ -183,11 +183,11 @@ data CodeserverCredentials = CodeserverCredentials
   deriving (Eq)
 
 instance ToJSON CodeserverCredentials where
-  toJSON (CodeserverCredentials tokens discoveryURI mayUserInfo) =
+  toJSON (CodeserverCredentials tokens discoveryURI userInfo) =
     Aeson.object
       [ "tokens" .= tokens,
         "discovery_uri" .= show discoveryURI,
-        "user_info" .= mayUserInfo
+        "user_info" .= userInfo
       ]
 
 instance FromJSON CodeserverCredentials where
