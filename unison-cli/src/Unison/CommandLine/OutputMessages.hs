@@ -1697,7 +1697,7 @@ notifyUser dir o = case o of
         ]
     Auth.FailedToFetchUserInfo userInfoEndpoint err ->
       P.lines
-        [ "Failed to parse the response from user info endpoint: " <> P.shown userInfoEndpoint <> ".",
+        [ "Failed to parse the response from user info endpoint: " <> P.shown userInfoEndpoint,
           P.text err,
           "Please `auth.login` then try again, if this error persists please file a bug report and include the above error message."
         ]
