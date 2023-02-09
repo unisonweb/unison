@@ -2936,7 +2936,7 @@ checkDeletes typesTermsTuples doutput inputs = do
       allTermsToDelete = Set.unions (fmap Names.labeledReferences toDelete)
   -- get the endangered dependencies for each entity to delete
   endangered <- Cli.runTransaction $ traverse (\targetToDelete ->
-    getEndangeredDependents targetToDelete allTermsToDelete rootNames) toDelete
+    getEndangeredDependents targetToDelete (allTermsToDelete) rootNames) toDelete
   -- If the overall dependency map is not completely empty, abort deletion
   let endangeredDeletions = List.filter (\m -> not $ null m || Map.foldr (\s b -> null s || b ) False m ) endangered
   if null endangeredDeletions then do
@@ -2964,7 +2964,7 @@ checkDeletes typesTermsTuples doutput inputs = do
 -- definition is going "extinct"). In this case we may wish to take some action or warn the
 -- user about these "endangered" definitions which would now contain unnamed references.
 getEndangeredDependents ::
-  -- | Single target for deletion
+  -- | Prospective target for deletion
   Names ->
   -- | All names we want to delete (including the target)
   Set LabeledDependency ->
@@ -2972,24 +2972,22 @@ getEndangeredDependents ::
   Names ->
   -- | map from references going extinct to the set of endangered dependents
   Sqlite.Transaction (Map LabeledDependency (NESet LabeledDependency))
-getEndangeredDependents targetNamesToDelete allTermsToDelete rootNames = do
+getEndangeredDependents targetToDelete othersToDelete rootNames = do
   -- names of terms left over after target deletion
   let remainingNames :: Names
-      remainingNames = rootNames `Names.difference` targetNamesToDelete
+      remainingNames = rootNames `Names.difference` targetToDelete
+  -- target refs for deletion
   let refsToDelete :: Set LabeledDependency
-      refsToDelete = Names.labeledReferences targetNamesToDelete
-  -- remove the target from the set of names to delete
-  let allOtherNamesToDelete :: Set LabeledDependency
-      allOtherNamesToDelete = Set.difference allTermsToDelete refsToDelete
-  -- left over after deleting target
+      refsToDelete = Names.labeledReferences targetToDelete
+  -- refs left over after deleting target
   let remainingRefs :: Set LabeledDependency
       remainingRefs =  Names.labeledReferences remainingNames
   -- remove the other targets for deletion from the remaining terms
   let remainingRefsWithoutOtherTargets :: Set LabeledDependency
-      remainingRefsWithoutOtherTargets = Set.difference remainingRefs allOtherNamesToDelete
+      remainingRefsWithoutOtherTargets = Set.difference remainingRefs othersToDelete
   -- deleting and not left over
   let extinct :: Set LabeledDependency
-      extinct = refsToDelete `Set.difference` remainingRefsWithoutOtherTargets
+      extinct = refsToDelete `Set.difference` remainingRefs
   let accumulateDependents :: LabeledDependency -> Sqlite.Transaction (Map LabeledDependency (Set LabeledDependency))
       accumulateDependents ld =
         let ref = LD.fold id Referent.toReference ld
