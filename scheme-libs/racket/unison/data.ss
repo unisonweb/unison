@@ -13,7 +13,8 @@
    right?
    left?
    either-get
-   either-get)
+   either-get
+   unit)
 
   ; Option a
   (define none (cons 0 ()))
