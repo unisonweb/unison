@@ -208,6 +208,7 @@ data CreateProjectBranchResponse
     CreateProjectBranchResponseBadRequest
   | CreateProjectBranchResponseUnauthorized
   | CreateProjectBranchResponseNotFound
+  | CreateProjectBranchResponseMissingCausalHash !Hash32
   | CreateProjectBranchResponseSuccess !ProjectBranch
   deriving stock (Eq, Show)
 
@@ -217,6 +218,7 @@ instance FromJSON CreateProjectBranchResponse where
       case typ of
         "bad-request" -> pure CreateProjectBranchResponseBadRequest
         "unauthorized" -> pure CreateProjectBranchResponseUnauthorized
+        "missing-causal-hash" -> CreateProjectBranchResponseMissingCausalHash <$> parseJSON val
         "success" -> CreateProjectBranchResponseSuccess <$> parseJSON val
         _ -> fail (Text.unpack ("unknown CreateProjectBranchResponse type: " <> typ))
 
@@ -225,6 +227,7 @@ instance ToJSON CreateProjectBranchResponse where
     CreateProjectBranchResponseBadRequest -> toSumType "bad-request" (object [])
     CreateProjectBranchResponseUnauthorized -> toSumType "unauthorized" (object [])
     CreateProjectBranchResponseNotFound -> toSumType "not-found" (object [])
+    CreateProjectBranchResponseMissingCausalHash hash -> toSumType "missing-causal-hash" (toJSON hash)
     CreateProjectBranchResponseSuccess branch -> toSumType "success" (toJSON branch)
 
 ------------------------------------------------------------------------------------------------------------------------
