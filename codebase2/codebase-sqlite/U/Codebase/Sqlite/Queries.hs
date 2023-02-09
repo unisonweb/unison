@@ -2511,9 +2511,8 @@ projectExistsByName name =
     |]
     (Only name)
 
--- FIXME rename loadProject
-getProject :: ProjectId -> Transaction (Maybe Project)
-getProject pid = queryMaybeRow loadProjectSql (Only pid)
+loadProject :: ProjectId -> Transaction (Maybe Project)
+loadProject pid = queryMaybeRow loadProjectSql (Only pid)
 
 expectProject :: ProjectId -> Transaction Project
 expectProject pid = queryOneRow loadProjectSql (Only pid)
@@ -2570,9 +2569,8 @@ projectBranchExistsByName projectId name =
     |]
     (projectId, name)
 
--- FIXME rename loadProjectBranch
-getBranch :: ProjectId -> BranchId -> Transaction (Maybe Branch)
-getBranch pid bid = queryMaybeRow bonk (pid, bid)
+loadProjectBranch :: ProjectId -> BranchId -> Transaction (Maybe Branch)
+loadProjectBranch pid bid = queryMaybeRow bonk (pid, bid)
   where
     bonk =
       [sql|
@@ -2637,8 +2635,8 @@ markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
           VALUES (?, ?, ?)
           |]
 
-getRemoteProject :: RemoteProjectId -> Text -> Transaction (Maybe RemoteProject)
-getRemoteProject rpid host =
+loadRemoteProject :: RemoteProjectId -> Text -> Transaction (Maybe RemoteProject)
+loadRemoteProject rpid host =
   queryMaybeRow
     [sql|
       SELECT
@@ -2675,8 +2673,8 @@ setRemoteProjectName rpid name =
         |]
     (name, rpid)
 
-getRemoteBranch :: RemoteProjectId -> Text -> RemoteBranchId -> Transaction (Maybe RemoteBranch)
-getRemoteBranch rpid host rbid =
+loadRemoteBranch :: RemoteProjectId -> Text -> RemoteBranchId -> Transaction (Maybe RemoteBranch)
+loadRemoteBranch rpid host rbid =
   queryMaybeRow
     [sql|
       SELECT
