@@ -2588,7 +2588,7 @@ loadProjectBranch :: ProjectId -> BranchId -> Transaction (Maybe Branch)
 loadProjectBranch pid bid = queryMaybeRow loadProjectBranchSql (pid, bid)
 
 expectProjectBranch :: ProjectId -> BranchId -> Transaction Branch
-expectProjectBranch projectId branchId = 
+expectProjectBranch projectId branchId =
   queryOneRow loadProjectBranchSql (projectId, branchId)
 
 loadProjectBranchSql :: Sql
@@ -2654,6 +2654,60 @@ markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
         INSERT INTO project_branch_parent (project_id, parent_branch_id, branch_id)
           VALUES (?, ?, ?)
           |]
+
+loadRemoteForLocal :: ProjectId -> BranchId -> Transaction (Maybe RemoteProjectId, Maybe RemoteBranchId)
+loadRemoteForLocal pid bid =
+  queryMaybeRow
+    [sql|
+      WITH RECURSIVE t AS (
+        SELECT
+          pb.project_id,
+          pb.branch_id,
+          pbp.parent_branch_id,
+          pbrm.remote_project_id,
+          pbrm.remote_branch_id,
+          0 AS depth,
+        FROM
+          project_branch AS pb,
+          LEFT OUTER JOIN project_branch_parent AS pbp USING (project_id, branch_id)
+          LEFT OUTER JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = pb.project_id
+            AND pbrm.local_branch_id = pb.branch_id
+            AND pbrm.remote_host = 'TODO: share uri',
+        WHERE
+          pb.project_id = ?
+          AND pb.branch_id = ?
+        UNION ALL
+        SELECT
+          t.project_id,
+          t.parent_branch_id,
+          pbp.parent_branch_id,
+          pbrm.remote_project_id,
+          pbrm.remote_branch_id,
+          t.depth + 1,
+        FROM
+          t,
+          LEFT OUTER JOIN project_branch_parent AS pbp ON pbp.project_id = t.project_id
+          AND pbp.branch_id = t.parent_branch_id,
+        LEFT OUTER JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = t.project_id
+        AND pbrm.local_branch_id = t.parent_branch_id
+        AND pbrm.remote_host = 'TODO: share uri',
+      )
+      SELECT
+        remote_project_id,
+        CASE WHEN branch_id = ? THEN
+          remote_branch_id
+        ELSE
+          NULL
+        END
+      FROM
+        t
+      WHERE
+        remote_project_id IS NOT NULL
+      ORDER BY
+        depth
+      LIMIT 1
+    |]
+    (pid, bid, bid)
 
 loadRemoteProject :: RemoteProjectId -> Text -> Transaction (Maybe RemoteProject)
 loadRemoteProject rpid host =
