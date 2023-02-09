@@ -51,22 +51,6 @@ create table project_branch_remote_mapping (
 )
 without rowid;
 
-create table project_remote_alias (
-  local_project_id uuid not null references project (id),
-  remote_project_id text not null,
-  remote_host text not null,
-  remote_name text not null,
-
-  primary key (local_project_id, remote_name),
-
-  unique (local_project_id, remote_project_id, remote_host, remote_name),
-
-  foreign key (remote_project_id, remote_host)
-    references remote_project (id, host)
-    on delete cascade
-)
-without rowid;
-
 create table remote_project (
   id text not null,
   host text not null,
