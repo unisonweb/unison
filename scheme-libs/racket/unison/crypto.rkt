@@ -66,11 +66,8 @@
                 _int         ; input-len
                 _pointer     ; md
                 _pointer     ; null
-            -> (r : _int)
-            ; TODO: the return value is actually an unsigned char, and
-            ; I'm not sure what it means, or how to tell if it failed
-            -> (when (= 0 r)
-                    (error 'HMAC "failed with return value ~a" r))))))
+            -> _pointer ; unused
+            ))))
 
 (define (libb2-raw fn)
     (if (string? libb2)
