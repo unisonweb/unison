@@ -16,7 +16,6 @@ import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Writer (WriterT (..))
 import Data.Bifunctor (first, second)
 import qualified Data.Foldable as Foldable
-import qualified Data.Foldable.Extra as Foldable
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as Nel
@@ -38,7 +37,6 @@ import System.Directory
 import System.Environment (withArgs)
 import System.FilePath ((</>))
 import System.Process (callProcess, readCreateProcess, shell)
-import qualified Text.Megaparsec as P
 import qualified U.Codebase.Branch.Diff as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
@@ -56,7 +54,7 @@ import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
-import Unison.Cli.UnisonConfigUtils (gitUrlKey, remoteMappingKey)
+import Unison.Cli.UnisonConfigUtils (resolveConfiguredUrl)
 import Unison.Codebase (Codebase, Preprocessing (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
@@ -107,7 +105,6 @@ import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.Slurp as Slurp
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import qualified Unison.Codebase.Editor.TodoOutput as TO
-import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.IntegrityCheck as IntegrityCheck (integrityCheckFullCodebase)
 import qualified Unison.Codebase.MainTerm as MainTerm
 import qualified Unison.Codebase.Metadata as Metadata
