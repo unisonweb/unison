@@ -20,6 +20,7 @@
     unison-force
     identity
     record-case
+    request-case
     bytevector)
 
   (import (rnrs)
@@ -104,13 +105,37 @@
     (syntax-rules ()
       [(handle [r ...] h e ...)
        (prompt p
-         (let-marks (list (quote r) ...) (cons p h) e ...))]))
+         (let ([v (let-marks (list (quote r) ...) (cons p h) e ...)])
+           (h (list 0 v))))]))
 
   ; wrapper that more closely matches ability requests
   (define-syntax request
     (syntax-rules ()
       [(request r t . args)
        ((cdr (ref-mark (quote r))) (list (quote r) t . args))]))
+
+  ; Wrapper around record-case that more closely matches request
+  ; matching. This gets around having to manage an intermediate
+  ; variable name during code emission that doesn't correspond to an
+  ; actual ANF name, which was causing variable numbering problems in
+  ; the code emitter. Hygienic macros are a much more convenient
+  ; mechanism for this.
+  (define-syntax request-case
+    (syntax-rules (pure)
+      [(request-case scrut
+         [pure (pv ...) pe ...]
+         [ability
+           [effect (ev ...) ee ...]
+           ...]
+         ...)
+
+       (record-case scrut
+         [0 (pv ...) pe ...]
+         [ability subscrut
+           (record-case subscrut
+             [effect (ev ...) ee ...]
+             ...)]
+         ...)]))
 
   (define-record-type
     data
