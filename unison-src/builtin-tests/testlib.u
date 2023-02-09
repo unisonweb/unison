@@ -4,12 +4,14 @@ unique ability Tests where
   fail : Text -> Text -> ()   
   exception : Text -> Failure -> ()
 
+Tests.check : Text -> '{g, Exception} Boolean ->{g, Tests} ()
 Tests.check msg b = 
   match catch b with 
     Left e -> exception msg e
     Right true -> pass msg
     Right false -> fail msg ""
 
+Tests.checkEqual : Text -> a -> a ->{Tests} ()
 Tests.checkEqual msg a1 a2 = 
   match catch '(a1 === a2) with
     Left e -> exception msg e
