@@ -8,39 +8,124 @@ import Control.Monad.Reader
 import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
-import qualified Unison.Codebase.Path as Path
+import qualified Unison.ABT as ABT
+import qualified Unison.HashQualified as HQ
+import Unison.LSP.FileAnalysis (ppedForFile)
+import qualified Unison.LSP.Queries as LSPQ
 import Unison.LSP.Types
-import Unison.LSP.VFS
+import qualified Unison.LSP.VFS as VFS
+import qualified Unison.LabeledDependency as LD
+import Unison.Parser.Ann (Ann)
+import qualified Unison.Pattern as Pattern
 import Unison.Prelude
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.Syntax as Server
-import qualified Unison.Server.Types as Backend
-import qualified Unison.Syntax.HashQualified as HQ (fromText)
+import qualified Unison.PrettyPrintEnvDecl as PPED
+import qualified Unison.Reference as Reference
+import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.Name as Name
+import qualified Unison.Syntax.TypePrinter as TypePrinter
+import qualified Unison.Term as Term
+import qualified Unison.Util.Pretty as Pretty
 
--- | Rudimentary hover handler
+-- | Hover help handler
 --
--- TODO: Add docs, use FileAnalysis to select hover target.
+-- TODO:
+--   * Add docs
+--   * Resolve fqn on hover
 hoverHandler :: RequestMessage 'TextDocumentHover -> (Either ResponseError (ResponseResult 'TextDocumentHover) -> Lsp ()) -> Lsp ()
 hoverHandler m respond =
   respond . Right =<< runMaybeT do
-    let p = (m ^. params)
-    txtIdentifier <- identifierAtPosition p
-    hqIdentifier <- MaybeT . pure $ HQ.fromText txtIdentifier
-    cb <- asks codebase
-    rt <- asks runtime
-    results <- MaybeT . fmap eitherToMaybe $ (lspBackend $ Backend.prettyDefinitionsForHQName Path.empty Nothing Nothing (Backend.Suffixify True) rt cb hqIdentifier)
-    let termResults = formatTermDefinition <$> toList (Backend.termDefinitions results)
-    let typeResults = formatTypeDefinition <$> toList (Backend.typeDefinitions results)
-    let markup = Text.intercalate "\n\n---\n\n" $ termResults <> typeResults
+    let pos = (m ^. params . position)
+    hoverTxt <- hoverInfo (m ^. params . textDocument . uri) pos
     pure $
       Hover
-        { _contents = HoverContents (MarkupContent MkPlainText markup),
+        { _contents = HoverContents (MarkupContent MkMarkdown hoverTxt),
           _range = Nothing -- TODO add range info
         }
-  where
-    formatTermDefinition :: Backend.TermDefinition -> Text
-    formatTermDefinition (Backend.TermDefinition {bestTermName, signature}) =
-      bestTermName <> " : " <> Text.pack (Server.toPlain signature)
 
-    formatTypeDefinition :: Backend.TypeDefinition -> Text
-    formatTypeDefinition (Backend.TypeDefinition {bestTypeName}) = bestTypeName
+hoverInfo :: Uri -> Position -> MaybeT Lsp Text
+hoverInfo uri pos =
+  markdownify <$> (hoverInfoForRef <|> hoverInfoForLiteral)
+  where
+    markdownify :: Text -> Text
+    markdownify rendered = Text.unlines ["```unison", rendered, "```"]
+    prettyWidth :: Pretty.Width
+    prettyWidth = 40
+    hoverInfoForRef :: MaybeT Lsp Text
+    hoverInfoForRef = do
+      symAtCursor <- VFS.identifierAtPosition uri pos
+      ref <- LSPQ.refAtPosition uri pos
+      pped <- lift $ ppedForFile uri
+      case ref of
+        LD.TypeReference (Reference.Builtin {}) -> pure (symAtCursor <> " : <builtin>")
+        LD.TypeReference ref@(Reference.DerivedId refId) -> do
+          nameAtCursor <- MaybeT . pure $ Name.fromText symAtCursor
+          decl <- LSPQ.getTypeDeclaration uri refId
+          let typ = Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly nameAtCursor) decl
+          pure typ
+        LD.TermReferent ref -> do
+          typ <- LSPQ.getTypeOfReferent uri ref
+          let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
+          pure (symAtCursor <> " : " <> renderedType)
+    hoverInfoForLiteral :: MaybeT Lsp Text
+    hoverInfoForLiteral = do
+      LSPQ.nodeAtPosition uri pos >>= \case
+        LSPQ.TermNode term -> do
+          typ <- hoistMaybe $ builtinTypeForTermLiterals term
+          pure (": " <> typ)
+        LSPQ.TypeNode {} -> empty
+        LSPQ.PatternNode pat -> do
+          typ <- hoistMaybe $ builtinTypeForPatternLiterals pat
+          pure (": " <> typ)
+
+    hoistMaybe :: Maybe a -> MaybeT Lsp a
+    hoistMaybe = MaybeT . pure
+
+-- | Get the type for term literals.
+builtinTypeForTermLiterals :: Term.Term Symbol Ann -> Maybe Text
+builtinTypeForTermLiterals term =
+  case ABT.out term of
+    ABT.Tm f -> case f of
+      Term.Int {} -> Just "Int"
+      Term.Nat {} -> Just "Nat"
+      Term.Float {} -> Just "Float"
+      Term.Boolean {} -> Just "Boolean"
+      Term.Text {} -> Just "Text"
+      Term.Char {} -> Just "Char"
+      Term.Blank {} -> Nothing
+      Term.Ref {} -> Nothing
+      Term.Constructor {} -> Nothing
+      Term.Request {} -> Nothing
+      Term.Handle {} -> Nothing
+      Term.App {} -> Nothing
+      Term.Ann {} -> Nothing
+      Term.List {} -> Nothing
+      Term.If {} -> Nothing
+      Term.And {} -> Nothing
+      Term.Or {} -> Nothing
+      Term.Lam {} -> Nothing
+      Term.LetRec {} -> Nothing
+      Term.Let {} -> Nothing
+      Term.Match {} -> Nothing
+      Term.TermLink {} -> Nothing
+      Term.TypeLink {} -> Nothing
+    ABT.Var {} -> Nothing
+    ABT.Cycle {} -> Nothing
+    ABT.Abs {} -> Nothing
+
+builtinTypeForPatternLiterals :: Pattern.Pattern Ann -> Maybe Text
+builtinTypeForPatternLiterals = \case
+  Pattern.Unbound _ -> Nothing
+  Pattern.Var _ -> Nothing
+  Pattern.Boolean _ _ -> Just "Boolean"
+  Pattern.Int _ _ -> Just "Int"
+  Pattern.Nat _ _ -> Just "Nat"
+  Pattern.Float _ _ -> Just "Float"
+  Pattern.Text _ _ -> Just "Text"
+  Pattern.Char _ _ -> Just "Char"
+  Pattern.Constructor _ _ _ -> Nothing
+  Pattern.As _ _ -> Nothing
+  Pattern.EffectPure _ _ -> Nothing
+  Pattern.EffectBind _ _ _ _ -> Nothing
+  Pattern.SequenceLiteral _ _ -> Nothing
+  Pattern.SequenceOp _ _ _ _ -> Nothing

@@ -788,7 +788,7 @@ notifyUser dir o = case o of
     pure . P.warnCallout $ "A patch by that name already exists."
   BranchEmpty b ->
     pure . P.warnCallout . P.wrap $
-      P.group (either P.shown prettyPath' b) <> "is an empty namespace."
+      P.group (prettyWhichBranchEmpty b) <> "is an empty namespace."
   BranchNotEmpty path ->
     pure . P.warnCallout $
       P.lines
@@ -1513,12 +1513,12 @@ notifyUser dir o = case o of
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
-        "✅ Successfully updated" <> prettyPath' dest <> "from"
+        "Successfully updated" <> prettyPath' dest <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "✅ Successfully pulled into newly created namespace " <> P.group (prettyPath' dest <> ".")
+        "Successfully pulled into newly created namespace " <> P.group (prettyPath' dest <> ".")
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
@@ -1859,6 +1859,9 @@ notifyUser dir o = case o of
     ANSI.clearScreen
     ANSI.setCursorPosition 0 0
     pure mempty
+  PulledEmptyBranch remote ->
+    pure . P.warnCallout . P.wrap $
+      P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
@@ -3178,6 +3181,12 @@ prettyWriteGitRepo RemoteRepo.WriteGitRepo {url} = P.blue (P.text url)
 -- prettyWriteRepo = \case
 --   RemoteRepo.WriteRepoGit RemoteRepo.WriteGitRepo {url} -> P.blue (P.text url)
 --   RemoteRepo.WriteRepoShare s -> P.blue (P.text (RemoteRepo.printShareRepo s))
+
+-- | Pretty-print a 'WhichBranchEmpty'.
+prettyWhichBranchEmpty :: WhichBranchEmpty -> Pretty
+prettyWhichBranchEmpty = \case
+  WhichBranchEmptyHash hash -> P.shown hash
+  WhichBranchEmptyPath path -> prettyPath' path
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

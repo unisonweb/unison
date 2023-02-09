@@ -21,6 +21,7 @@
 ; Unison.Runtime.Builtin, so the POp/FOp implementation must
 ; take/return arguments that match what is expected in those wrappers.
 
+#!r6rs
 (library (unison primops)
   (export
     ; unison-FOp-Bytes.decodeNat16be
@@ -101,31 +102,50 @@
     unison-POp-VALU
     unison-POp-VWLS
 
+    unison-POp-UPKB
+    unison-POp-ADDI
+    unison-POp-DIVI
+    unison-POp-EQLI
+    unison-POp-MODI
+    unison-POp-LEQI
+    unison-POp-POWN
+    unison-POp-VWRS
+
+    unison-FOp-crypto.HashAlgorithm.Sha1
+    unison-FOp-crypto.hashBytes
     )
 
-  (import (chezscheme)
+  (import (rnrs)
           (unison core)
           (unison string)
-          (unison bytevector))
+          (unison crypto)
+          (unison bytevector)
+          (unison vector))
+
+  (define unison-POp-UPKB bytevector->u8-list)
+  (define unison-POp-ADDI +)
+  (define unison-POp-DIVI /)
+  (define (unison-POp-EQLI a b)
+    (if (= a b) 1 0)
+  )
+  (define unison-POp-MODI mod)
+  (define unison-POp-LEQI <=)
+  (define unison-POp-POWN expt)
 
   (define (reify-exn thunk)
-    (call/1cc
-      (lambda (k)
-        (with-exception-handler
-          (lambda (e)
-            (let-values ([(port result) (open-string-output-port)])
-              (display-condition e port)
-              (k (list 0 '() (result) e))))
-          thunk))))
+    (guard
+      (e [else
+           (list 0 '() (exception->string e) e) ])
+      (thunk)))
 
   ; Core implemented primops, upon which primops-in-unison can be built.
   (define (unison-POp-ADDN m n) (fx+ m n))
-  (define (unison-POp-ANDN m n) (fxlogand m n))
+  (define (unison-POp-ANDN m n) (fxand m n))
   (define unison-POp-BLDS list)
   (define (unison-POp-CATS l r) (append l r))
   (define (unison-POp-CATT l r) (istring-append l r))
   (define (unison-POp-CMPU l r) (universal-compare l r))
-  (define (unison-POp-COMN n) (fxlognot n))
+  (define (unison-POp-COMN n) (fxnot n))
   (define (unison-POp-CONS x xs) (cons x xs))
   (define (unison-POp-DECI n) (fx1- n))
   (define (unison-POp-DIVN m n) (fxdiv m n))
@@ -133,7 +153,7 @@
   (define (unison-POp-DRPS n l)
     (let ([m (max 0 (min n (length l)))]) (list-tail l m)))
   (define (unison-POp-DRPT n t) (istring-drop n t))
-  (define (unison-POp-EQLN m n) (if (fx= m n) 1 0))
+  (define (unison-POp-EQLN m n) (if (fx=? m n) 1 0))
   (define (unison-POp-EQLT s t) (if (string=? s t) 1 0))
   (define (unison-POp-EQLU x y) (if (equal? x y) 1 0))
   (define (unison-POp-EROR fnm x)
@@ -145,17 +165,14 @@
   (define (unison-POp-FTOT f) (number->istring f))
   (define (unison-POp-IDXB n bs) (bytevector-u8-ref bs n))
   (define (unison-POp-IDXS n l)
-    (call/1cc
-      (lambda (k)
-        (with-exception-handler
-          (lambda (e) (list 0))
-          (lambda () (list-ref l n))))))
-  (define (unison-POp-IORN m n) (fxlogior m n))
+    (guard (x [else (list 0)])
+      (list 1 (list-ref l n))))
+  (define (unison-POp-IORN m n) (fxior m n))
   (define (unison-POp-ITOT i) (signed-number->istring i))
-  (define (unison-POp-LEQN m n) (if (fx<= m n) 1 0))
+  (define (unison-POp-LEQN m n) (if (fx<=? m n) 1 0))
   (define (unison-POp-LZRO m) (- 64 (fxlength m)))
   (define (unison-POp-MULN m n) (fx* m n))
-  (define (unison-POp-MODN m n) (fxmodulo m n))
+  (define (unison-POp-MODN m n) (fxmod m n))
   (define (unison-POp-NTOT m) (number->istring m))
   (define (unison-POp-PAKB l) (u8-list->ibytevector l))
   (define (unison-POp-PAKT l) (list->istring l))
@@ -182,6 +199,12 @@
     (if (null? l)
       (list 0)
       (list 1 (car l) (cdr l))))
+  (define (unison-POp-VWRS l)
+    (if (null? l)
+      (list 0)
+      (let ([r (reverse l)])
+      (list 1 (reverse (cdr l)) (car l)))))
+
   (define (unison-POp-XORN m n) (fxxor m n))
   (define (unison-POp-VALU c) (decode-value c))
 
@@ -239,20 +262,9 @@
               (vector-set! dst (+ doff i) (vector-ref src (+ soff i)))
               (next (fx1- i))))))))
 
-  (define (unison-FOp-MutableArray.freeze! vec)
-    (($primitive $vector-set-immutable!) vec)
-    vec)
+  (define unison-FOp-MutableArray.freeze! freeze-vector!)
 
-  (define (unison-FOp-MutableArray.freeze src off len)
-    (let ([dst (make-vector len)])
-      (let next ([i (fx1- len)])
-        (if (< i 0)
-          (begin
-            (($primitive $vector-set-immutable!) dst)
-            (list 1 dst))
-          (begin
-            (vector-set! dst i (vector-ref src (+ off i)))
-            (next (fx1- i)))))))
+  (define unison-FOp-MutableArray.freeze freeze-subvector)
 
   (define (unison-FOp-MutableArray.read src i)
     (catch-array
@@ -276,8 +288,7 @@
       (lambda ()
         (list 1 (bytevector-u8-ref arr i)))))
 
-  (define (unison-FOp-MutableByteArray.freeze! arr)
-    (freeze-bv! arr))
+  (define unison-FOp-MutableByteArray.freeze! freeze-bytevector!)
 
   (define (unison-FOp-MutableByteArray.write8 arr i b)
     (catch-array

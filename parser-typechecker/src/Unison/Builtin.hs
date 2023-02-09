@@ -204,6 +204,8 @@ builtinTypesSrc =
     Rename' "IO" "io2.IO",
     B' "Handle" CT.Data,
     Rename' "Handle" "io2.Handle",
+    B' "ProcessHandle" CT.Data,
+    Rename' "ProcessHandle" "io2.ProcessHandle",
     B' "Socket" CT.Data,
     Rename' "Socket" "io2.Socket",
     B' "ThreadId" CT.Data,
@@ -453,6 +455,7 @@ builtinsSrc =
     B "Universal.<" $ forall1 "a" (\a -> a --> a --> boolean),
     B "Universal.>=" $ forall1 "a" (\a -> a --> a --> boolean),
     B "Universal.<=" $ forall1 "a" (\a -> a --> a --> boolean),
+    B "Universal.murmurHash" $ forall1 "a" (\a -> a --> nat),
     B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "Any.Any" $ forall1 "a" (\a -> a --> anyt),
@@ -759,6 +762,13 @@ ioBuiltins =
       forall1 "a" $ \a ->
         a --> io (reft iot a)
     ),
+    ( "IO.process.call", text --> list text --> io nat),
+    ( "IO.process.start",
+      text --> list text -->
+        io (tuple [handle, handle, handle, phandle])),
+    ( "IO.process.kill", phandle --> io unit),
+    ( "IO.process.wait", phandle --> io nat),
+    ( "IO.process.exitCode", phandle --> io (optionalt nat)),
     ( "validateSandboxed",
       forall1 "a" $ \a -> list termLink --> a --> boolean
     ),
@@ -954,10 +964,11 @@ iarrayt a = Type.iarrayType () `app` a
 marrayt :: Type -> Type -> Type
 marrayt g a = Type.marrayType () `app` g `app` a
 
-socket, threadId, handle, unit :: Type
+socket, threadId, handle, phandle, unit :: Type
 socket = Type.socket ()
 threadId = Type.threadId ()
 handle = Type.fileHandle ()
+phandle = Type.processHandle ()
 unit = DD.unitType ()
 
 tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Type
