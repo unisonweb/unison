@@ -132,6 +132,11 @@
             (bytes->hex-string (hmacBytes (HashAlgorithm.Sha1) #"key" #"message"))
             "2088df74d5f2146b48146caf4965377e9d0be3a4"))
 
+    (test-case "blake2b-256 hmac"
+        (check-equal?
+            (bytes->hex-string (hmacBytes (HashAlgorithm.Blake2b_256) #"key" #"message"))
+            "442d98a3872d3f56220f89e2b23d0645610b37c33dd3315ef224d0e39ada6751"))
+
     (test-case "sha1 basic"
         (check-equal?
         (bytes->hex-string (hashBytes (HashAlgorithm.Sha1) #""))
