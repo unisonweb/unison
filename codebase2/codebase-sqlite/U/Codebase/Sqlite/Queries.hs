@@ -108,6 +108,7 @@ module U.Codebase.Sqlite.Queries
     Branch (..),
     BranchId (..),
     projectBranchExistsByName,
+    expectProjectBranch,
     loadProjectBranchByName,
     loadProjectAndBranchNames,
     insertProjectBranch,
@@ -2584,20 +2585,25 @@ projectBranchExistsByName projectId name =
     (projectId, name)
 
 loadProjectBranch :: ProjectId -> BranchId -> Transaction (Maybe Branch)
-loadProjectBranch pid bid = queryMaybeRow bonk (pid, bid)
-  where
-    bonk =
-      [sql|
-        SELECT
-          project_id,
-          branch_id,
-          name
-        FROM
-          project_branch
-        WHERE
-          project_id = ?
-          AND branch_id = ?
-          |]
+loadProjectBranch pid bid = queryMaybeRow loadProjectBranchSql (pid, bid)
+
+expectProjectBranch :: ProjectId -> BranchId -> Transaction Branch
+expectProjectBranch projectId branchId = 
+  queryOneRow loadProjectBranchSql (projectId, branchId)
+
+loadProjectBranchSql :: Sql
+loadProjectBranchSql =
+  [sql|
+    SELECT
+      project_id,
+      branch_id,
+      name
+    FROM
+      project_branch
+    WHERE
+      project_id = ?
+      AND branch_id = ?
+  |]
 
 loadProjectBranchByName :: ProjectId -> Text -> Transaction (Maybe Branch)
 loadProjectBranchByName projectId name =

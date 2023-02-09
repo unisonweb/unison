@@ -4,13 +4,15 @@
 -- package, but for now we have just defined the one blessed project/branch name syntax that we allow.
 module Unison.Project
   ( ProjectName,
-    classifyProjectName,
+    prependUserSlugToProjectName,
     ProjectBranchName,
+    prependUserSlugToProjectBranchName,
     ProjectAndBranch (..),
   )
 where
 
 import qualified Data.Char as Char
+import qualified Data.Text as Text
 import qualified Text.Builder
 import qualified Text.Builder as Text (Builder)
 import qualified Text.Megaparsec as Megaparsec
@@ -47,15 +49,28 @@ projectNameParser = do
         isStartChar c =
           Char.isAlpha c || c == '_'
 
--- | Given a valid project name, "classify" it as beginning with a user slug, or not.
+-- | Prepend a user slug to a project name, if it doesn't already have one.
 --
--- >>> classifyProjectName "lens"
--- (Nothing, "lens")
+-- >>> prependUserSlugToProjectName "arya" "lens"
+-- "@arya/lens"
 --
--- >>> classifyProjectName "@arya/lens"
--- (Just "arya", "lens")
-classifyProjectName :: ProjectName -> (Maybe Text, Text)
-classifyProjectName (ProjectName name) = undefined
+-- >>> prependUserSlugToProjectName "runar" "@unison/base"
+-- "@unison/base"
+--
+-- >>> prependUserSlugToProjectName "???invalid???" "@unison/base"
+-- "@unison/base"
+prependUserSlugToProjectName :: Text -> ProjectName -> ProjectName
+prependUserSlugToProjectName userSlug (ProjectName projectName) =
+  if Text.head projectName == '@'
+    then ProjectName projectName
+    else fromMaybe (ProjectName projectName) (Megaparsec.parseMaybe projectNameParser newProjectName)
+  where
+    newProjectName =
+      Text.Builder.run $
+        Text.Builder.char '@'
+          <> Text.Builder.text userSlug
+          <> Text.Builder.char '/'
+          <> Text.Builder.text projectName
 
 -- | The name of a branch of a project.
 --
@@ -85,6 +100,29 @@ projectBranchNameParser = do
         isStartChar :: Char -> Bool
         isStartChar c =
           Char.isAlpha c || c == '_'
+
+-- | Prepend a user slug to a project branch name, if it doesn't already have one.
+--
+-- >>> prependUserSlugToProjectBranchName "arya" "topic"
+-- "@arya/topic"
+--
+-- >>> prependUserSlugToProjectBranchName "runar" "@unison/main"
+-- "@unison/main"
+--
+-- >>> prependUserSlugToProjectBranchName "???invalid???" "@unison/main"
+-- "@unison/main"
+prependUserSlugToProjectBranchName :: Text -> ProjectBranchName -> ProjectBranchName
+prependUserSlugToProjectBranchName userSlug (ProjectBranchName branchName) =
+  if Text.head branchName == '@'
+    then ProjectBranchName branchName
+    else fromMaybe (ProjectBranchName branchName) (Megaparsec.parseMaybe projectBranchNameParser newBranchName)
+  where
+    newBranchName =
+      Text.Builder.run $
+        Text.Builder.char '@'
+          <> Text.Builder.text userSlug
+          <> Text.Builder.char '/'
+          <> Text.Builder.text branchName
 
 -- | A generic data structure that contains information about a project and a branch in that project.
 data ProjectAndBranch a b = ProjectAndBranch

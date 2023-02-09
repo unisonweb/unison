@@ -14,7 +14,13 @@ import Unison.Cli.ProjectUtils (getCurrentProjectBranch, loggeth)
 import qualified Unison.Cli.Share.Projects as Share
 import qualified Unison.Codebase.Editor.HandleInput.AuthLogin as AuthLogin
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, classifyProjectName)
+import Unison.Project
+  ( ProjectAndBranch,
+    ProjectBranchName,
+    ProjectName,
+    prependUserSlugToProjectBranchName,
+    prependUserSlugToProjectName,
+  )
 import qualified Unison.Share.API.Projects as Share.API
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Sqlite as Sqlite
@@ -23,7 +29,7 @@ import Witch (unsafeFrom)
 -- | Push a project branch.
 projectPush :: Maybe (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) -> Cli ()
 projectPush maybeProjectAndBranch = do
-  (projectId, currentBranchId) <-
+  (projectId, branchId) <-
     getCurrentProjectBranch & onNothingM do
       loggeth ["Not currently on a branch"]
       Cli.returnEarlyWithoutOutput
@@ -57,20 +63,18 @@ projectPush maybeProjectAndBranch = do
           loggeth ["Getting current logged-in user on Share"]
           myUserHandle <- oinkGetLoggedInUser
           loggeth ["Got current logged-in user on Share: ", myUserHandle]
-          project <- Cli.runTransaction (Queries.expectProject projectId)
+          (project, branch) <-
+            Cli.runTransaction do
+              project <- Queries.expectProject projectId
+              branch <- Queries.expectProjectBranch projectId branchId
+              pure (project, branch)
           let localProjectName = unsafeFrom @Text (project ^. #name)
-          let remoteProjectName =
-                case classifyProjectName localProjectName of
-                  (Nothing, name) ->
-                    Text.Builder.run $
-                      Text.Builder.char '@'
-                        <> Text.Builder.text myUserHandle
-                        <> Text.Builder.char '/'
-                        <> Text.Builder.text name
-                  (Just _, _) -> into @Text localProjectName
-          loggeth ["Making create-project request for project", remoteProjectName]
-          response <-
-            Share.createProject Share.API.CreateProjectRequest {projectName = remoteProjectName} & onLeftM \err -> do
+          let remoteProjectName = prependUserSlugToProjectName myUserHandle localProjectName
+          response <- do
+            let request = Share.API.CreateProjectRequest {projectName = into @Text remoteProjectName}
+            loggeth ["Making create-project request for project"]
+            loggeth [tShow request]
+            Share.createProject request & onLeftM \err -> do
               loggeth ["Creating a project failed"]
               loggeth [tShow err]
               Cli.returnEarlyWithoutOutput
@@ -85,8 +89,34 @@ projectPush maybeProjectAndBranch = do
               Share.API.CreateProjectResponseSuccess remoteProject -> pure remoteProject
           loggeth ["Share says: success!"]
           loggeth [tShow remoteProject]
-          -- TODO push this branch
-          Cli.returnEarlyWithoutOutput
+          let localBranchName = unsafeFrom @Text (branch ^. #name)
+          let remoteBranchName = prependUserSlugToProjectBranchName myUserHandle localBranchName
+          loggeth ["Making create-branch request for branch", into @Text remoteProjectName]
+          response <- do
+            let request =
+                  Share.API.CreateProjectBranchRequest
+                    { projectId = remoteProject ^. #projectId,
+                      branchName = into @Text remoteBranchName,
+                      branchCausalHash = wundefined,
+                      branchMergeTarget = wundefined
+                    }
+            loggeth ["Making create-project request for project"]
+            loggeth [tShow request]
+            Share.createProjectBranch request & onLeftM \err -> do
+              loggeth ["Creating a branch failed"]
+              loggeth [tShow err]
+              Cli.returnEarlyWithoutOutput
+          remoteBranch <-
+            case response of
+              Share.API.CreateProjectBranchResponseBadRequest -> do
+                loggeth ["Share says: bad request"]
+                Cli.returnEarlyWithoutOutput
+              Share.API.CreateProjectBranchResponseUnauthorized -> do
+                loggeth ["Share says: unauthorized"]
+                Cli.returnEarlyWithoutOutput
+              Share.API.CreateProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
+          loggeth ["Share says: success!"]
+          loggeth [tShow remoteBranch]
         Just projectAndBranch ->
           case projectAndBranch ^. #branch of
             Nothing -> do
