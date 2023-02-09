@@ -71,15 +71,6 @@
 (define blake2s-raw (libb2-raw "blake2s"))
 (define blake2b-raw (libb2-raw "blake2b"))
 
-; (define (make-blake2 raw name) (lambda (text size)
-;     (let ([buffer (make-bytevector (/ size 8))])
-;         (if (= 0 (raw buffer text #f (/ size 8) (string-length text) 0))
-;             buffer
-;             (error "crypto.ss" "libb2 ~a was unable to hash the data for some reason" name)))))
-
-; (define blake2s (make-blake2 blake2s-raw "blake2s"))
-; (define blake2b (make-blake2 blake2b-raw "blake2b"))
-
 (define HashAlgorithm.Sha1 (lc-algo "EVP_sha1" 160))
 (define HashAlgorithm.Sha2_256 (lc-algo "EVP_sha256" 256))
 (define HashAlgorithm.Sha2_512 (lc-algo "EVP_sha512" 512))
@@ -89,6 +80,9 @@
 (define (HashAlgorithm.Blake2b_256) (cons 'blake2b 256))
 (define (HashAlgorithm.Blake2b_512) (cons 'blake2b 512))
 
+; kind is a pair of (algorithm bits)
+; where algorithm is either an EVP_pointer for libcrypto functions,
+; or the tag 'blake2s or 'blake2b for libb2 functions.
 (define (hashBytes input kind)
     (let* ([bytes (/ (cdr kind) 8)]
            [output (make-bytes bytes)]
