@@ -2963,16 +2963,19 @@ checkDeletes typesTermsTuples doutput inputs = do
 -- | Goal: When deleting, we might be removing the last name of a given definition (i.e. the
 -- definition is going "extinct"). In this case we may wish to take some action or warn the
 -- user about these "endangered" definitions which would now contain unnamed references.
+-- The argument `otherDesiredDeletions` is included in this function because the user might want to
+-- delete a term and all its dependencies in one command, so we give this function access to
+-- the full set of entities that the user wishes to delete.
 getEndangeredDependents ::
   -- | Prospective target for deletion
   Names ->
-  -- | All names we want to delete (including the target)
+  -- | All entities we want to delete (including the target)
   Set LabeledDependency ->
   -- | All names from the root branch
   Names ->
   -- | map from references going extinct to the set of endangered dependents
   Sqlite.Transaction (Map LabeledDependency (NESet LabeledDependency))
-getEndangeredDependents targetToDelete othersToDelete rootNames = do
+getEndangeredDependents targetToDelete otherDesiredDeletions rootNames = do
   -- names of terms left over after target deletion
   let remainingNames :: Names
       remainingNames = rootNames `Names.difference` targetToDelete
@@ -2984,7 +2987,7 @@ getEndangeredDependents targetToDelete othersToDelete rootNames = do
       remainingRefs =  Names.labeledReferences remainingNames
   -- remove the other targets for deletion from the remaining terms
   let remainingRefsWithoutOtherTargets :: Set LabeledDependency
-      remainingRefsWithoutOtherTargets = Set.difference remainingRefs othersToDelete
+      remainingRefsWithoutOtherTargets = Set.difference remainingRefs otherDesiredDeletions
   -- deleting and not left over
   let extinct :: Set LabeledDependency
       extinct = refsToDelete `Set.difference` remainingRefs
