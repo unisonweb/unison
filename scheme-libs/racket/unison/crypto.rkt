@@ -110,16 +110,49 @@
 
         output))
 
-(define (hmacBytes kind key input)
-    (let* ([bytes (/ (cdr kind) 8)]
-           [output (make-bytes bytes)]
-           [algo (car kind)])
-        (case algo
-            ['blake2s (blake2s-raw output input key bytes (bytes-length input) (bytes-length key))]
-            ['blake2b (blake2b-raw output input key bytes (bytes-length input) (bytes-length key))]
-            [else (HMAC algo key (bytes-length key) input (bytes-length input) output #f)])
+; Mutates and returns the first argument
+(define (xor one two)
+    (for ([i (in-range (bytes-length one))])
+        (bytes-set! one i
+            (bitwise-xor
+                (bytes-ref one i)
+                (bytes-ref two i))))
+    one)
 
-        output))
+; doing the blake hmac by hand. libcrypto
+; supports hmac natively, so we just defer to that
+(define (hmacBlake kind key input)
+    (let* (
+        [bytes (/ (cdr kind) 8)]
+        [blocksize (case (car kind) ['blake2b 128] ['blake2s 64])]
+
+        [key_
+            (let ([key_ (make-bytes blocksize 0)])
+                (bytes-copy! key_ 0
+                    (if (< blocksize (bytes-length key))
+                        (hashBytes kind key)
+                        key))
+                key_)]
+
+        [opad (xor (make-bytes blocksize #x5c) key_)]
+        [ipad (xor (make-bytes blocksize #x36) key_)]
+
+        [full (bytes-append
+                    opad
+                    (hashBytes kind (bytes-append ipad input)))])
+        (hashBytes kind full)))
+
+(define (hmacBytes kind key input)
+    (case (car kind)
+        ['blake2s (hmacBlake kind key input)]
+        ['blake2b (hmacBlake kind key input)]
+        [else 
+            (let* ([bytes (/ (cdr kind) 8)]
+                [output (make-bytes bytes)]
+                [algo (car kind)])
+                    (HMAC algo key (bytes-length key) input (bytes-length input) output #f)
+                    output
+                    )]))
 
 
 ; These will only be evaluated by `raco test`
@@ -136,6 +169,16 @@
         (check-equal?
             (bytes->hex-string (hmacBytes (HashAlgorithm.Blake2b_256) #"key" #"message"))
             "442d98a3872d3f56220f89e2b23d0645610b37c33dd3315ef224d0e39ada6751"))
+
+    (test-case "blake2b-512 hmac"
+        (check-equal?
+            (bytes->hex-string (hmacBytes (HashAlgorithm.Blake2b_512) #"key" #"message"))
+            "04e9ada930688cde75eec939782eed653073dd621d7643f813702976257cf037d325b50eedd417c01b6ad1f978fbe2980a93d27d854044e8626df6fa279d6680"))
+
+    (test-case "blake2s-256 hmac"
+        (check-equal?
+            (bytes->hex-string (hmacBytes (HashAlgorithm.Blake2s_256) #"key" #"message"))
+            "bba8fa28708ae80d249e317318c95c859f3f77512be23910d5094d9110454d6f"))
 
     (test-case "sha1 basic"
         (check-equal?
