@@ -13,15 +13,16 @@
 #!r6rs
 (library (unison boot)
   (export
-    name
+    bytevector
+    control
     define-unison
     handle
-    request
-    unison-force
     identity
+    name
     record-case
+    request
     request-case
-    bytevector)
+    unison-force)
 
   (import (rnrs)
           (unison core)
@@ -100,19 +101,63 @@
              ...)
          body))))
 
-  ; wrapper that more closely matches `handle` constructs
+  ; Wrapper that more closely matches `handle` constructs
+  ;
+  ; Note: this uses the prompt _twice_ to achieve the sort of dynamic
+  ; scoping we want. First we push an outer delimiter, then install
+  ; the continuation marks corresponding to the handled abilities
+  ; (which tells which propt to use for that ability and which
+  ; functions to use for each request). Then we re-delimit by the same
+  ; prompt.
+  ;
+  ; If we just used one delimiter, we'd have a problem. If we pushed
+  ; the marks _after_ the delimiter, then the continuation captured
+  ; when handling would contain those marks, and would effectively
+  ; retain the handler for requests within the continuation. If the
+  ; marks were outside the prompt, we'd be in a similar situation,
+  ; except where the handler would be automatically handling requests
+  ; within its own implementation (although, in both these cases we'd
+  ; get control errors, because we would be using the _function_ part
+  ; of the handler without the necessary delimiters existing on the
+  ; continuation). Both of these situations are wrong for _shallow_
+  ; handlers.
+  ;
+  ; Instead, what we need to be able to do is capture the continuation
+  ; _up to_ the marks, then _discard_ the marks, and this is what the
+  ; multiple delimiters accomplish. There might be more efficient ways
+  ; to accomplish this with some specialized mark functions, but I'm
+  ; uncertain of what pitfalls there are with regard to that (whehter
+  ; they work might depend on exact frame structure of the
+  ; metacontinuation).
   (define-syntax handle
     (syntax-rules ()
       [(handle [r ...] h e ...)
-       (prompt p
-         (let ([v (let-marks (list (quote r) ...) (cons p h) e ...)])
-           (h (list 0 v))))]))
+       (let ([p (make-prompt)])
+         (prompt0-at p
+           (let-marks (list (quote r) ...) (cons p h)
+             (prompt0-at p
+               (let ([v (begin e ...)])
+                 (h (list 0 v)))))))]))
 
   ; wrapper that more closely matches ability requests
   (define-syntax request
     (syntax-rules ()
       [(request r t . args)
        ((cdr (ref-mark (quote r))) (list (quote r) t . args))]))
+
+  ; See the explanation of `handle` for a more thorough understanding
+  ; of why this is doing two control operations.
+  ;
+  ; In-unison 'control' corresponds to a (shallow) handler jump, so we
+  ; need to capture the continuation _and_ discard some dynamic scope
+  ; information. The capture is accomplished via control0-at, and then
+  ; abort-to does the discard, based on the convention used in
+  ; `handle`.
+  (define-syntax control
+    (syntax-rules ()
+      [(control r k e ...)
+       (let ([p (car (ref-mark r))])
+         (control0-at p k (abort-to p e ...)))]))
 
   ; Wrapper around record-case that more closely matches request
   ; matching. This gets around having to manage an intermediate

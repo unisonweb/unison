@@ -2,27 +2,23 @@
 #!r6rs
 (library (unison cont)
   (export
-    prompt
-    control)
+    abort-to
+    make-prompt
+    prompt0-at
+    control0-at)
 
   (import
     (rnrs)
     (unison core)
-    (only (racket)
-          make-continuation-prompt-tag)
-    (only (racket control)
-          prompt0-at
-          control0-at))
 
-  (define-syntax prompt
-    (syntax-rules ()
-      [(prompt p e ...)
-       (let ([p (make-continuation-prompt-tag)])
-         (prompt0-at p
-           e ...))]))
+    (rename
+      (only (racket)
+            make-continuation-prompt-tag)
+      (make-continuation-prompt-tag make-prompt))
 
-  (define-syntax control
-    (syntax-rules ()
-      [(control r k e ...)
-       (control0-at (car (ref-mark r)) k e ...)])))
-
+    (rename
+      (only (racket control)
+            abort/cc
+            prompt0-at
+            control0-at)
+      (abort/cc abort-to))))
