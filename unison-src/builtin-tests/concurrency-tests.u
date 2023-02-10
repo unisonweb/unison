@@ -35,6 +35,8 @@ casTest = do
    v2 = Ref.cas ref ticket 15
    check "CAS fails when there was an intervening write" '(not v2)
 
+-- TODO test both Left and Right on the catchAll
+-- and try access the failure as well
 threadTest = do
   ref = IO.ref None
   millis = 1000
