@@ -25,13 +25,13 @@ casTest = do
 
 threadTest = do
   ref = IO.ref None
-  seconds = 1000000
+  millis = 1000
   thread = do
-    match catchAll do sleep (3 * seconds) with
+    match catchAll do sleep (500 * millis) with
       Left _ -> Ref.write ref (Some "interrupted")
       Right _ -> Ref.write ref (Some "completed")
   t = fork thread
-  sleep (2 * seconds)
+  sleep (200 * millis)
   kill t
   r = while (Optional.isNone) do Ref.read ref
   checkEqual "Thread has been interrupted" r (Some "interrupted")
