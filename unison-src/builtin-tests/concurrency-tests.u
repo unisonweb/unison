@@ -1,4 +1,10 @@
-concurrency.tests = Tests.main do checkEqual "scaffolding" 2 3
+concurrency.tests = Tests.main do
+  !simpleRefTest
+  !casTest
+  !threadTest
+  !promiseSequentialTest
+  !promiseConcurrentTest
+  !fullTest
 
 simpleRefTest = do
   Scope.run do

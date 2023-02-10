@@ -14,36 +14,6 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm
 .> run concurrency.tests
 
-  💔💥
-  
-  I've encountered a call to builtin.bug with the following
-  value:
-  
-    "test suite failed"
-  
-  
-  Stack trace:
-    bug
-    #ghf0c4cddk
+  ()
 
 ```
-
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  💔💥
-  
-  I've encountered a call to builtin.bug with the following
-  value:
-  
-    "test suite failed"
-  
-  
-  Stack trace:
-    bug
-    #ghf0c4cddk
-
