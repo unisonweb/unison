@@ -2,7 +2,7 @@
 
 module Unison.Util.Text.Pattern where
 
-import Data.Char (isDigit, isLetter, isPunctuation, isSpace)
+import Data.Char (isAlphaNum, isControl, isLetter, isLower, isMark, isNumber, isPrint, isPunctuation, isSeparator, isSpace, isSymbol, isUpper)
 import qualified Data.Text as DT
 import Unison.Util.Text (Text)
 import qualified Unison.Util.Text as Text
@@ -13,18 +13,35 @@ data Pattern
   | Capture Pattern -- capture all the text consumed by the inner pattern, discarding its subcaptures
   | Many Pattern -- zero or more repetitions (at least 1 can be written: Join [p, Many p])
   | Replicate Int Int Pattern -- m to n occurrences of a pattern, optional = 0-1
-  | AnyChar -- consume a single char
   | Eof -- succeed if given the empty text, fail otherwise
   | Literal Text -- succeed if input starts with the given text, advance by that text
-  | CharRange Char Char -- consume 1 char in the given range, or fail
-  | CharIn [Char] -- consume 1 char in the given set, or fail
-  | NotCharIn [Char] -- consume 1 char NOT in the given set, or fail
-  | NotCharRange Char Char -- consume 1 char NOT in the given range, or fail
-  | Digit -- consume 1 digit (according to Char.isDigit)
-  | Letter -- consume 1 letter (according to Char.isLetter)
-  | Space -- consume 1 space character (according to Char.isSpace)
-  | Punctuation -- consume 1 punctuation char (according to Char.isPunctuation)
-  deriving (Eq, Ord)
+  | Char CharPattern -- succeed if input starts with a char matching the given pattern, advance by 1 char
+  deriving (Show, Eq, Ord)
+
+data CharPattern
+  = Any -- any char
+  | Not CharPattern -- negation of the given pattern
+  | Union CharPattern CharPattern -- match if either pattern matches
+  | Intersect CharPattern CharPattern -- match if both patterns match
+  | CharRange Char Char -- match if char is in the given range
+  | CharSet [Char] -- match if char is in the given set
+  | CharClass CharClass -- match if char is in the given class
+  deriving (Show, Eq, Ord)
+
+data CharClass
+  = AlphaNum -- alphabetic or numeric characters
+  | Upper -- uppercase alphabetic characters
+  | Lower -- lowercase alphabetic characters
+  | Whitespace -- whitespace characters (space, tab, newline, etc.)
+  | Control -- non-printing control characters
+  | Printable -- letters, numbers, punctuation, symbols, spaces
+  | MarkChar -- accents, diacritics, etc.
+  | Number -- numeric characters in any script
+  | Punctuation -- connectors, brackets, quotes
+  | Symbol -- symbols (math, currency, etc.)
+  | Separator -- spaces, line separators, paragraph separators
+  | Letter -- letters in any script
+  deriving (Show, Eq, Ord)
 
 -- Wrapper type. Holds a pattern together with its compilation. This is used as
 -- the semantic value of a unison `Pattern a`. Laziness avoids building the
@@ -98,13 +115,13 @@ compile (Literal txt) !err !success = go
     go acc t
       | Text.take (Text.size txt) t == txt = success acc (Text.drop (Text.size txt) t)
       | otherwise = err acc t
-compile AnyChar !err !success = go
+compile (Char Any) !err !success = go
   where
     go acc t = case Text.drop 1 t of
       rem
         | Text.size t > Text.size rem -> success acc rem
         | otherwise -> err acc rem
-compile (Capture (Many AnyChar)) !_ !success = \acc t -> success (pushCapture t acc) Text.empty
+compile (Capture (Many (Char Any))) !_ !success = \acc t -> success (pushCapture t acc) Text.empty
 compile (Capture c) !err !success = go
   where
     err' _ _ acc0 t0 = err acc0 t0
@@ -122,38 +139,15 @@ compile (Join ps) !err !success = go ps
       let pc = compile p err psc
           psc = compile (Join ps) err success
        in pc
-compile (NotCharIn cs) !err !success = go
+compile (Char cp) !err !success = go
   where
-    ok = charNotInPred cs
+    ok = charPatternPred cp
     go acc t = case Text.uncons t of
       Just (ch, rem) | ok ch -> success acc rem
-      _ -> err acc t
-compile (CharIn cs) !err !success = go
-  where
-    ok = charInPred cs
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | ok ch -> success acc rem
-      _ -> err acc t
-compile (CharRange c1 c2) !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | ch >= c1 && ch <= c2 -> success acc rem
-      _ -> err acc t
-compile (NotCharRange c1 c2) !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | not (ch >= c1 && ch <= c2) -> success acc rem
       _ -> err acc t
 compile (Many p) !_ !success = case p of
-  AnyChar -> (\acc _ -> success acc Text.empty)
-  CharIn cs -> walker (charInPred cs)
-  NotCharIn cs -> walker (charNotInPred cs)
-  CharRange c1 c2 -> walker (\ch -> ch >= c1 && ch <= c2)
-  NotCharRange c1 c2 -> walker (\ch -> ch < c1 || ch > c2)
-  Digit -> walker isDigit
-  Letter -> walker isLetter
-  Punctuation -> walker isPunctuation
-  Space -> walker isSpace
+  Char Any -> (\acc _ -> success acc Text.empty)
+  Char cp -> walker (charPatternPred cp)
   p -> go
     where
       go = compile p success success'
@@ -169,25 +163,18 @@ compile (Many p) !_ !success = case p of
             rem
               | DT.null rem -> go acc t
               | otherwise ->
-                  -- moving the remainder to the root of the tree is much more efficient
-                  -- since the next uncons will be O(1) rather than O(log n)
-                  -- this can't unbalance the tree too badly since these promoted chunks
-                  -- are being consumed and will get removed by a subsequent uncons
-                  success acc (Text.appendUnbalanced (Text.fromText rem) t)
+                -- moving the remainder to the root of the tree is much more efficient
+                -- since the next uncons will be O(1) rather than O(log n)
+                -- this can't unbalance the tree too badly since these promoted chunks
+                -- are being consumed and will get removed by a subsequent uncons
+                success acc (Text.appendUnbalanced (Text.fromText rem) t)
     {-# INLINE walker #-}
 compile (Replicate m n p) !err !success = case p of
-  AnyChar -> \acc t ->
+  Char Any -> \acc t ->
     if Text.size t < m
       then err acc t
       else success acc (Text.drop n t)
-  CharIn cs -> dropper (charInPred cs)
-  NotCharIn cs -> dropper (charNotInPred cs)
-  CharRange c1 c2 -> dropper (\ch -> ch >= c1 && c1 <= c2)
-  NotCharRange c1 c2 -> dropper (\ch -> ch < c1 || ch > c2)
-  Digit -> dropper isDigit
-  Letter -> dropper isLetter
-  Punctuation -> dropper isPunctuation
-  Space -> dropper isSpace
+  Char cp -> dropper (charPatternPred cp)
   _ -> try "Replicate" (go1 m) err (go2 (n - m))
   where
     go1 0 = \_err success stk rem -> success stk rem
@@ -198,32 +185,35 @@ compile (Replicate m n p) !err !success = case p of
     dropper ok acc t
       | (i, rest) <- Text.dropWhileMax ok n t, i >= m = success acc rest
       | otherwise = err acc t
-compile Digit !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | isDigit ch -> success acc rem
-      _ -> err acc t
-compile Letter !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | isLetter ch -> success acc rem
-      _ -> err acc t
-compile Punctuation !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | isPunctuation ch -> success acc rem
-      _ -> err acc t
-compile Space !err !success = go
-  where
-    go acc t = case Text.uncons t of
-      Just (ch, rem) | isSpace ch -> success acc rem
-      _ -> err acc t
 
 charInPred, charNotInPred :: [Char] -> Char -> Bool
 charInPred [] = const False
 charInPred (c : chs) = let ok = charInPred chs in \ci -> ci == c || ok ci
 charNotInPred [] = const True
 charNotInPred (c : chs) = let ok = charNotInPred chs in (\ci -> ci /= c && ok ci)
+
+charPatternPred :: CharPattern -> Char -> Bool
+charPatternPred Any = const True
+charPatternPred (Not cp) = let notOk = charPatternPred cp in \ci -> not (notOk ci)
+charPatternPred (Union cp1 cp2) = let ok1 = charPatternPred cp1; ok2 = charPatternPred cp2 in \ci -> ok1 ci || ok2 ci
+charPatternPred (Intersect cp1 cp2) = let ok1 = charPatternPred cp1; ok2 = charPatternPred cp2 in \ci -> ok1 ci && ok2 ci
+charPatternPred (CharRange c1 c2) = \ci -> ci >= c1 && ci <= c2
+charPatternPred (CharSet cs) = charInPred cs
+charPatternPred (CharClass cc) = charClassPred cc
+
+charClassPred :: CharClass -> Char -> Bool
+charClassPred AlphaNum = isAlphaNum
+charClassPred Upper = isUpper
+charClassPred Lower = isLower
+charClassPred Whitespace = isSpace
+charClassPred Control = isControl
+charClassPred Printable = isPrint
+charClassPred MarkChar = isMark
+charClassPred Number = isNumber
+charClassPred Punctuation = isPunctuation
+charClassPred Symbol = isSymbol
+charClassPred Separator = isSeparator
+charClassPred Letter = isLetter
 
 -- runs c and if it fails, restores state to what it was before
 try :: String -> Compiled r -> Compiled r
