@@ -5,7 +5,7 @@ ucm=$(stack exec -- which unison)
 
 base_codebase=${XDG_CACHE_HOME:-"$HOME/.cache"}/unisonlanguage/base.unison
 
-if [ ! -d $base_dir ]; then
+if [ ! -d $base_codebase ]; then
     $ucm transcript -S $base_codebase unison-src/builtin-tests/base.md
 fi
 
