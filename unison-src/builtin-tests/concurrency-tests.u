@@ -2,18 +2,11 @@ concurrency.tests = Tests.main do
   !simpleRefTest
   !simpleRefTestScope
   !ticketTest
-  !minimal
-  --  !casTest
+  !casTest
   --  !threadTest
   --  !promiseSequentialTest
   --  !promiseConcurrentTest
   --  !fullTest
-
-minimal = do
-  r = IO.ref 0
-  t = Ref.readForCas r
-  _ = Ref.cas r t 3
-  ()
 
 simpleRefTest = do
   r = IO.ref 0
