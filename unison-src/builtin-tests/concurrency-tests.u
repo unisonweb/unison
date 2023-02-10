@@ -25,10 +25,6 @@ casTest = do
    v2 = Ref.cas ref ticket 15
    check "CAS fails when there was an intervening write" '(not v2)
 
--- TODO here: insert test to exercise fork, sleep and tryEval
--- fork a thread that sleeps and changes a Ref when interrupted (sets "completed" or "interrupted")
--- main thread sleeps a bit less, then kills it
-
 threadTest = do
   ref = IO.ref None
   millis = 1000
