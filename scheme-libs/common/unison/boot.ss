@@ -51,6 +51,15 @@
   ; unison-like automatic partial application and such.
   (define-syntax define-unison
     (lambda (x)
+      (define (fast-path-symbol name)
+        (string->symbol
+          (string-append
+            "fast-path-"
+            (symbol->string name))))
+
+      (define (fast-path-name name)
+        (datum->syntax name (fast-path-symbol (syntax->datum name))))
+
       ; Helper function. Turns a list of syntax objects into a
       ; list-syntax object.
       (define (list->syntax l) #`(#,@l))
@@ -85,8 +94,9 @@
                [(a ... z . r) (apply (#,fast a ... z) r)])]))
 
       (define (func-wrap name args body)
-        #`(let ([fast-path (lambda (#,@args) #,@body)])
-            #,(func-cases name #'fast-path args)))
+        (with-syntax ([fp (fast-path-name name)])
+          #`(let ([fp (lambda (#,@args) #,@body)])
+              #,(func-cases name #'fp args))))
 
       (syntax-case x ()
         [(define-unison (name a ...) e ...)
