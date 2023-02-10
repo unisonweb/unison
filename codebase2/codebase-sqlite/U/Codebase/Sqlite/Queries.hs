@@ -121,6 +121,7 @@ module U.Codebase.Sqlite.Queries
     loadRemoteProject,
     insertRemoteProject,
     setRemoteProjectName,
+    loadRemoteProjectBranchByLocalProjectBranch,
 
     -- ** remote project branches
     RemoteBranchId (..),
@@ -2655,8 +2656,12 @@ markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
           VALUES (?, ?, ?)
           |]
 
-loadRemoteForLocal :: ProjectId -> BranchId -> Transaction (Maybe RemoteProjectId, Maybe RemoteBranchId)
-loadRemoteForLocal pid bid =
+-- TODO: Get this from some canonical place
+unisonShareUri :: Text
+unisonShareUri = "https://api.unison-lang.org"
+
+loadRemoteProjectBranchByLocalProjectBranch :: ProjectId -> BranchId -> Transaction (Maybe (RemoteProjectId, Maybe RemoteBranchId))
+loadRemoteProjectBranchByLocalProjectBranch pid bid =
   queryMaybeRow
     [sql|
       WITH RECURSIVE t AS (
@@ -2672,7 +2677,7 @@ loadRemoteForLocal pid bid =
           LEFT OUTER JOIN project_branch_parent AS pbp USING (project_id, branch_id)
           LEFT OUTER JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = pb.project_id
             AND pbrm.local_branch_id = pb.branch_id
-            AND pbrm.remote_host = 'TODO: share uri',
+            AND pbrm.remote_host = ?,
         WHERE
           pb.project_id = ?
           AND pb.branch_id = ?
@@ -2690,7 +2695,7 @@ loadRemoteForLocal pid bid =
           AND pbp.branch_id = t.parent_branch_id,
         LEFT OUTER JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = t.project_id
         AND pbrm.local_branch_id = t.parent_branch_id
-        AND pbrm.remote_host = 'TODO: share uri',
+        AND pbrm.remote_host = ?,
       )
       SELECT
         remote_project_id,
@@ -2707,7 +2712,7 @@ loadRemoteForLocal pid bid =
         depth
       LIMIT 1
     |]
-    (pid, bid, bid)
+    (unisonShareUri, pid, bid, unisonShareUri, bid)
 
 loadRemoteProject :: RemoteProjectId -> Text -> Transaction (Maybe RemoteProject)
 loadRemoteProject rpid host =
