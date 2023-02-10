@@ -26,7 +26,8 @@
 
   (import (rnrs)
           (unison core)
-          (unison cont))
+          (unison cont)
+          (unison crypto))
 
   ; Computes a symbol for automatically generated partial application
   ; cases, based on number of arguments applied. The partial

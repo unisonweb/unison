@@ -103,6 +103,7 @@
     unison-POp-VWLS
 
     unison-POp-UPKB
+    unison-POp-PAKB
     unison-POp-ADDI
     unison-POp-DIVI
     unison-POp-EQLI
@@ -111,8 +112,16 @@
     unison-POp-POWN
     unison-POp-VWRS
 
-    unison-FOp-crypto.HashAlgorithm.Sha1
     unison-FOp-crypto.hashBytes
+    unison-FOp-crypto.hmacBytes
+    unison-FOp-crypto.HashAlgorithm.Sha1
+    unison-FOp-crypto.HashAlgorithm.Sha2_256
+    unison-FOp-crypto.HashAlgorithm.Sha2_512
+    unison-FOp-crypto.HashAlgorithm.Sha3_256
+    unison-FOp-crypto.HashAlgorithm.Sha3_512
+    unison-FOp-crypto.HashAlgorithm.Blake2s_256
+    unison-FOp-crypto.HashAlgorithm.Blake2b_256
+    unison-FOp-crypto.HashAlgorithm.Blake2b_512
     )
 
   (import (rnrs)
