@@ -30,7 +30,8 @@ simpleRefTestScope = do
 ticketTest = do
  r = IO.ref 3
  t = Ref.readForCas r
- checkEqual "Ticket test stub" true true
+ v = Ticket.read t
+ checkEqual "Ticket contains the Ref value" v 3
 
 casTest = do
    ref = IO.ref 0
