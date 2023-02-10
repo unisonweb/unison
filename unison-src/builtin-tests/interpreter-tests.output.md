@@ -2,6 +2,10 @@
 Note: This should be forked off of the codebase created by base.md
 
 ```ucm
+.> builtins.merge
+
+  Done.
+
 .> load unison-src/builtin-tests/testlib.u
 
   I found and typechecked these definitions in

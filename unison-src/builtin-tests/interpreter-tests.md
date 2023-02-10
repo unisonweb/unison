@@ -2,6 +2,7 @@
 Note: This should be forked off of the codebase created by base.md
 
 ```ucm
+.> builtins.merge
 .> load unison-src/builtin-tests/testlib.u
 .> add
 .> load unison-src/builtin-tests/tests.u

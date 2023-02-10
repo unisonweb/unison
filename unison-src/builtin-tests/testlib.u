@@ -1,3 +1,4 @@
+use builtin.Universal ==
 
 unique ability Tests where
   pass : Text -> ()
