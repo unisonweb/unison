@@ -106,10 +106,10 @@
   ; call-by-name bindings
   (define-syntax name
     (syntax-rules ()
-      ((name ([v (f . args)] ...) body)
+      ((name ([v (f . args)] ...) body ...)
        (let ([v (lambda r (apply f (append (list . args) r)))]
              ...)
-         body))))
+         body ...))))
 
   ; Wrapper that more closely matches `handle` constructs
   ;
