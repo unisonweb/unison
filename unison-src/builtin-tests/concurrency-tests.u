@@ -23,6 +23,18 @@ casTest = do
 -- fork a thread that sleeps and changes a Ref when interrupted (sets "completed" or "interrupted")
 -- main thread sleeps a bit less, then kills it
 
+threadTest = do
+  ref = IO.ref None
+  seconds = 1000000
+  thread = do
+    match catchAll do sleep (3 * seconds) with
+      Left _ -> Ref.write ref (Some "interrupted")
+      Right _ -> Ref.write ref (Some "completed")
+  t = fork thread
+  sleep (2 * seconds)
+  kill t
+  r = while (Optional.isNone) do Ref.read ref
+  checkEqual "Thread has been interrupted" r (Some "interrupted")
 
 
 promiseSequentialTest = do
