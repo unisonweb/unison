@@ -1,6 +1,6 @@
 concurrency.tests = Tests.main do
   !simpleRefTest
-  --  !simpleRefTestScope
+  !simpleRefTestScope
   --  !casTest
   --  !threadTest
   --  !promiseSequentialTest
