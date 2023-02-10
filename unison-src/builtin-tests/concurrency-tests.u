@@ -1,5 +1,6 @@
 concurrency.tests = Tests.main do
   !simpleRefTest
+  --  !simpleRefTestScope
   --  !casTest
   --  !threadTest
   --  !promiseSequentialTest
@@ -7,6 +8,15 @@ concurrency.tests = Tests.main do
   --  !fullTest
 
 simpleRefTest = do
+  r = IO.ref 0
+  Ref.write r 1
+  i = Ref.read r
+  Ref.write r 2
+  j = Ref.read r
+  Ref.write r 5
+  checkEqual "Ref read-write"  (i, j, Ref.read r) (1, 2, 5)
+
+simpleRefTestScope = do
   Scope.run do
     r = Scope.ref 0
     Ref.write r 1

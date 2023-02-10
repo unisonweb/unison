@@ -58,6 +58,7 @@
     unison-FOp-Scope.array
     unison-FOp-Scope.ref
 
+    unison-FOp-IO.ref
     unison-FOp-Ref.read
     unison-FOp-Ref.write
 
@@ -305,6 +306,7 @@
   (define (unison-FOp-Scope.array n) (make-vector n))
 
   (define (unison-FOp-Scope.ref a) (ref-new a))
+  (define (unison-FOp-IO.ref a) (ref-new a))
   (define (unison-FOp-Ref.read ref) (ref-read ref))
   (define (unison-FOp-Ref.write ref a) (ref-write ref a)))
 
