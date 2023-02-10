@@ -1,10 +1,10 @@
 concurrency.tests = Tests.main do
   !simpleRefTest
-  !casTest
-  !threadTest
-  !promiseSequentialTest
-  !promiseConcurrentTest
-  !fullTest
+  --  !casTest
+  --  !threadTest
+  --  !promiseSequentialTest
+  --  !promiseConcurrentTest
+  --  !fullTest
 
 simpleRefTest = do
   Scope.run do

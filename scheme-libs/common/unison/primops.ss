@@ -120,7 +120,8 @@
           (unison string)
           (unison crypto)
           (unison bytevector)
-          (unison vector))
+          (unison vector)
+          (unison concurrent))
 
   (define unison-POp-UPKB bytevector->u8-list)
   (define unison-POp-ADDI +)
@@ -299,5 +300,7 @@
   (define (unison-FOp-Scope.bytearray n) (make-bytevector n))
   (define (unison-FOp-Scope.array n) (make-vector n))
 
-  )
+  (define (unison-FOp-Scope.ref a) (ref-new a))
+  (define (unison-FOp-Ref.read ref) (ref-read ref))
+  (define (unison-FOp-Ref.write ref a) (ref-write ref a)))
 
