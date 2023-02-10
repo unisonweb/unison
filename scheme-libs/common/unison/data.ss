@@ -37,6 +37,7 @@
      (cdr option)
      (raise "Cannot get the value of an empty option ")))
 
+  ; TODO this might be reduntant, #<void> works
   ; Unit
   (define unit (cons 0 ()))
 
