@@ -2,7 +2,6 @@
 #!r6rs
 (library (unison cont)
   (export
-    abort-to
     make-prompt
     prompt0-at
     control0-at)
@@ -18,7 +17,5 @@
 
     (rename
       (only (racket control)
-            abort/cc
             prompt0-at
-            control0-at)
-      (abort/cc abort-to))))
+            control0-at))))

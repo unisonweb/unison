@@ -144,10 +144,9 @@
       [(handle [r ...] h e ...)
        (let ([p (make-prompt)])
          (prompt0-at p
-           (let-marks (list (quote r) ...) (cons p h)
-             (prompt0-at p
-               (let ([v (begin e ...)])
-                 (h (list 0 v)))))))]))
+           (let ([v (let-marks (list (quote r) ...) (cons p h)
+                      (prompt0-at p e ...))])
+             (h (list 0 v)))))]))
 
   ; wrapper that more closely matches ability requests
   (define-syntax request
@@ -160,14 +159,14 @@
   ;
   ; In-unison 'control' corresponds to a (shallow) handler jump, so we
   ; need to capture the continuation _and_ discard some dynamic scope
-  ; information. The capture is accomplished via control0-at, and then
-  ; abort-to does the discard, based on the convention used in
-  ; `handle`.
+  ; information. The capture is accomplished via the first
+  ; control0-at, while the second does the discard, based on the
+  ; convention used in `handle`.
   (define-syntax control
     (syntax-rules ()
       [(control r k e ...)
        (let ([p (car (ref-mark r))])
-         (control0-at p k (abort-to p e ...)))]))
+         (control0-at p k (control0-at p _k e ...)))]))
 
   ; Wrapper around record-case that more closely matches request
   ; matching. This gets around having to manage an intermediate
