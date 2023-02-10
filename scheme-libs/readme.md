@@ -65,8 +65,5 @@ testSuite.scm tests.scm
 When running `tests.scm` directly with Racket, you'll need to add this `scheme-libs` directory and the generated builtins library to the path. 
 
 ```
-~/unison » ls ~/.cache/unisonlanguage/scheme-libs/unison
-boot-generated.ss    builtin-generated.ss
+racket -S ~/.cache/unisonlanguage/scheme-libs/ -S ~/.local/share/unisonlanguage/scheme-libs/racket/ -S ~/.local/share/unisonlanguage/scheme-libs/common/  ~/.cache/unisonlanguage/scheme-tmp/tests.scm
 ```
-
-TODO: what is the actual `racket` flags to pass to do this?
