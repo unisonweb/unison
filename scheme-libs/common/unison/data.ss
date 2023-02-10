@@ -16,6 +16,8 @@
    either-get
    unit)
 
+  (import (rnrs))
+
   ; Option a
   (define none (cons 0 ()))
 
@@ -30,9 +32,10 @@
 
   ; Option a -> a (or #f)
   (define (option-get option)
-    (cond
-      ([(some? option) (cdr option)]
-       [else #f])))
+    (if
+     (some? option)
+     (cdr option)
+     (raise "Cannot get the value of an empty option ")))
 
   ; Unit
   (define unit (cons 0 ()))
