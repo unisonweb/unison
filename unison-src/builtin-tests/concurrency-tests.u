@@ -1,6 +1,7 @@
 concurrency.tests = Tests.main do
   !simpleRefTest
   !simpleRefTestScope
+  !ticketTest
   --  !casTest
   --  !threadTest
   --  !promiseSequentialTest
@@ -25,6 +26,11 @@ simpleRefTestScope = do
     j = Ref.read r
     Ref.write r 5
     checkEqual "Ref read-write"  (i, j, Ref.read r) (1, 2, 5)
+
+ticketTest = do
+ r = IO.ref 3
+ t = Ref.readForCas r
+ checkEqual "Ticket test stub" true true
 
 casTest = do
    ref = IO.ref 0
