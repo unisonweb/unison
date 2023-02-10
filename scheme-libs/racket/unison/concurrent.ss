@@ -39,7 +39,6 @@
            (box ref-new)
            (unbox ref-read)
            (set-box! ref-write)
-           (box-cas! ref-cas)
            (break-thread kill) ; TODO need to see whether the compiler wraps the exception for me
            (thread fork)
            (sleep sleep-secs))
@@ -73,5 +72,8 @@
           [else
            (let ([ok (parameterize-break #f (if (cas!) (awake-readers) #f))])
              (if ok #t (loop)))]))))
+
+  (define (ref-cas ref ticket value)
+    (if (box-cas! ref ticket value) true false))
 
   (define (sleep n) (sleep-secs (/ n 1000000))))

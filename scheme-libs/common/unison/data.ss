@@ -14,7 +14,9 @@
    left?
    either-get
    either-get
-   unit)
+   unit
+   false
+   true)
 
   (import (rnrs))
 
@@ -40,6 +42,10 @@
   ; TODO this might be reduntant, #<void> works
   ; Unit
   (define unit (cons 0 ()))
+
+  ; Booleans are represented as numbers
+  (define false 0)
+  (define true 1)
 
   ; a -> Either b a
   (define (right a)(cons 1 a))

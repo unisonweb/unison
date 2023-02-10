@@ -63,6 +63,7 @@
     unison-FOp-Ref.write
     unison-FOp-Ref.readForCas
     unison-FOp-Ref.Ticket.read
+    unison-FOp-Ref.cas
 
     unison-POp-ADDN
     unison-POp-ANDN
@@ -312,5 +313,6 @@
   (define (unison-FOp-Ref.read ref) (ref-read ref))
   (define (unison-FOp-Ref.write ref a) (ref-write ref a))
   (define (unison-FOp-Ref.readForCas ref) (ref-read ref))
-  (define (unison-FOp-Ref.Ticket.read ticket) ticket))
+  (define (unison-FOp-Ref.Ticket.read ticket) ticket)
+  (define (unison-FOp-Ref.cas ref ticket value) (ref-cas ref ticket value)))
 
