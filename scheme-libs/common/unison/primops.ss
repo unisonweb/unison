@@ -56,6 +56,10 @@
 
     unison-FOp-Scope.bytearray
     unison-FOp-Scope.array
+    unison-FOp-Scope.ref
+
+    unison-FOp-Ref.read
+    unison-FOp-Ref.write
 
     unison-POp-ADDN
     unison-POp-ANDN
