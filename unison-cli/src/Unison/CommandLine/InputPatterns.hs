@@ -1149,31 +1149,38 @@ push =
           explainRemote Push
         ]
     )
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
+    parsePushArgs
+  where
+    parsePushArgs :: [String] -> Either (P.Pretty CT.ColorText) Input.Input
+    parsePushArgs = \case
+      [] ->
+        Right $
+          Input.PushRemoteBranchI
+            Input.PushRemoteBranchInput'Default
+      pushTargetStr : rest -> do
+        pushTarget <- case tryFrom (Text.pack pushTargetStr) of
+          Left _ -> case parseWriteRemotePath "remote-path" pushTargetStr of
+            Left _ -> Left (I.help push)
+            Right x -> Right (Input.PathyTarget x)
+          Right x -> Right (Input.ProjyTarget x)
+
+        mPushSource <- case rest of
+          [] -> Right Nothing
+          [path] -> case tryFrom (Text.pack path) of
+            Left _ -> case Path.parsePath' path of
+              Left _ -> Left (I.help push)
+              Right x -> Right (Just $ Input.PathySource x)
+            Right x -> Right (Just $ Input.ProjySource x)
+          _ -> Left (I.help push)
+        Right $
+          Input.PushRemoteBranchI $
+            Input.PushRemoteBranchInput'Explicit
+              Input.PushRemoteBranchInput'
+                { localPath = mPushSource,
+                  maybeRemoteRepo = pushTarget,
                   pushBehavior = PushBehavior.RequireNonEmpty,
                   syncMode = SyncMode.ShortCircuit
                 }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
-    )
 
 pushCreate :: InputPattern
 pushCreate =
@@ -1204,31 +1211,29 @@ pushCreate =
           explainRemote Push
         ]
     )
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
-                  pushBehavior = PushBehavior.RequireEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.RequireEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
-    )
+    (parseOldPush SyncMode.ShortCircuit)
+
+parseOldPush :: SyncMode.SyncMode -> [String] -> Either (P.Pretty CT.ColorText) Input.Input
+parseOldPush s = \case
+  [] ->
+    Right $
+      Input.PushRemoteBranchI
+        Input.PushRemoteBranchInput'Default
+  url : rest -> do
+    pushPath <- Input.PathyTarget <$> parseWriteRemotePath "remote-path" url
+    p <- case rest of
+      [] -> Right Nothing
+      [path] -> Just . Input.PathySource <$> first fromString (Path.parsePath' path)
+      _ -> Left (I.help push)
+    Right $
+      Input.PushRemoteBranchI $
+        Input.PushRemoteBranchInput'Explicit
+          Input.PushRemoteBranchInput'
+            { localPath = p,
+              maybeRemoteRepo = pushPath,
+              pushBehavior = PushBehavior.RequireEmpty,
+              syncMode = s
+            }
 
 pushForce :: InputPattern
 pushForce =
@@ -1238,31 +1243,7 @@ pushForce =
     I.Hidden
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     (P.wrap "Like `push`, but overwrites any remote namespace.")
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
-                  pushBehavior = PushBehavior.ForcePush,
-                  syncMode = SyncMode.ShortCircuit
-                }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.ForcePush,
-                  syncMode = SyncMode.ShortCircuit
-                }
-    )
+    (parseOldPush SyncMode.ShortCircuit)
 
 pushExhaustive :: InputPattern
 pushExhaustive =
@@ -1280,31 +1261,7 @@ pushExhaustive =
               <> "versions M1l and earlier. It may be extra slow!"
         ]
     )
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.Complete
-                }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.Complete
-                }
-    )
+    (parseOldPush SyncMode.Complete)
 
 createPullRequest :: InputPattern
 createPullRequest =

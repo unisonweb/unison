@@ -151,8 +151,9 @@ projectAndBranchNamesParser ::
     (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
 projectAndBranchNamesParser = do
   project <- optional projectNameParser
-  _ <- Megaparsec.char '/'
-  branch <- optional projectBranchNameParser
+  branch <- optional do
+    _ <- Megaparsec.char '/'
+    projectBranchNameParser
   pure ProjectAndBranch {project, branch}
 
 ------------------------------------------------------------------------------------------------------------------------
