@@ -13,7 +13,7 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.ProjectUtils (getCurrentProjectBranch, loggeth)
+import Unison.Cli.ProjectUtils (getCurrentProjectBranch, loggeth, projectBranchPath)
 import qualified Unison.Cli.Share.Projects as Share
 import qualified Unison.Cli.UnisonConfigUtils as UnisonConfigUtils
 import Unison.Codebase (PushGitBranchOpts (..))
@@ -92,6 +92,7 @@ handleGist (GistInput repo) = do
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
 handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMode} = do
   case sourceTarget of
+    -- push <implicit> to <implicit>
     PushSourceTarget0 ->
       getCurrentProjectBranch >>= \case
         Nothing -> do
@@ -99,27 +100,98 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
           remotePath <- UnisonConfigUtils.resolveConfiguredUrl Push Path.currentPath
           pushLooseCodeToLooseCode localPath remotePath pushBehavior syncMode
         Just localProjectAndBranch -> pushProjectBranchToProjectBranch localProjectAndBranch Nothing
+    -- push <implicit> to .some.path
     PushSourceTarget1 (PathyTarget remotePath) -> do
       localPath <- Cli.getCurrentPath
       pushLooseCodeToLooseCode localPath remotePath pushBehavior syncMode
-    PushSourceTarget1 (ProjyTarget remoteProjectAndBranch) ->
+    -- push <implicit> to @some/project
+    PushSourceTarget1 (ProjyTarget remoteProjectAndBranch0) ->
       getCurrentProjectBranch >>= \case
         Nothing -> do
           localPath <- Cli.getCurrentPath
+          remoteProjectAndBranch <- resolveProjectAndBranchMaybeNamesToNames remoteProjectAndBranch0
           pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
-        Just localProjectAndBranch ->
-          pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch)
+        Just localProjectAndBranch -> do
+          pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch0)
+    -- push .some.path to .some.path
     PushSourceTarget2 (PathySource localPath0) (PathyTarget remotePath) -> do
       localPath <- Cli.resolvePath' localPath0
       pushLooseCodeToLooseCode localPath remotePath pushBehavior syncMode
-    PushSourceTarget2 (PathySource localPath0) (ProjyTarget remoteProjectAndBranch) -> do
+    -- push .some.path to @some/project
+    PushSourceTarget2 (PathySource localPath0) (ProjyTarget remoteProjectAndBranch0) -> do
       localPath <- Cli.resolvePath' localPath0
+      remoteProjectAndBranch <- resolveProjectAndBranchMaybeNamesToNames remoteProjectAndBranch0
       pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
-    PushSourceTarget2 (ProjySource localProjectAndBranch) (PathyTarget remotePath) -> do
-      localPath <- wundefined
-      pushLooseCodeToLooseCode localPath remotePath pushBehavior syncMode
-    PushSourceTarget2 (ProjySource localProjectAndBranch) (ProjyTarget remoteProjectAndBranch) ->
-      pushProjectBranchToProjectBranch wundefined (Just remoteProjectAndBranch)
+    -- push @some/project to .some.path
+    PushSourceTarget2 (ProjySource localProjectAndBranch0) (PathyTarget remotePath) -> do
+      localProjectAndBranch <- resolveProjectAndBranchMaybeNamesToIds localProjectAndBranch0
+      pushLooseCodeToLooseCode (projectBranchPath localProjectAndBranch) remotePath pushBehavior syncMode
+    -- push @some/project to @some/project
+    PushSourceTarget2 (ProjySource localProjectAndBranch0) (ProjyTarget remoteProjectAndBranch) -> do
+      localProjectAndBranch <- resolveProjectAndBranchMaybeNamesToIds localProjectAndBranch0
+      pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch)
+
+resolveProjectAndBranchMaybeNamesToIds ::
+  ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
+  Cli (ProjectAndBranch Queries.ProjectId Queries.BranchId)
+resolveProjectAndBranchMaybeNamesToIds = \case
+  ProjectAndBranch Nothing Nothing ->
+    getCurrentProjectBranch >>= \case
+      Nothing -> do
+        loggeth ["not on a project branch yo"]
+        Cli.returnEarlyWithoutOutput
+      Just projectAndBranch -> pure projectAndBranch
+  ProjectAndBranch Nothing (Just branchName) ->
+    getCurrentProjectBranch >>= \case
+      Nothing -> do
+        loggeth ["not on a project branch yo"]
+        Cli.returnEarlyWithoutOutput
+      Just (ProjectAndBranch projectId _branchId) ->
+        Cli.runTransaction (Queries.loadProjectBranchByName projectId (into @Text branchName)) >>= \case
+          Nothing -> do
+            loggeth ["no branch in project ", tShow projectId, " with name ", into @Text branchName]
+            Cli.returnEarlyWithoutOutput
+          Just branch -> pure (ProjectAndBranch projectId (branch ^. #branchId))
+  ProjectAndBranch (Just projectName) maybeBranchName -> do
+    let branchName = fromMaybe (unsafeFrom @Text "main") maybeBranchName
+    maybeProjectAndBranch <-
+      Cli.runTransaction do
+        runMaybeT do
+          project <- MaybeT (Queries.loadProjectByName (into @Text projectName))
+          let projectId = project ^. #projectId
+          branch <- MaybeT (Queries.loadProjectBranchByName projectId (into @Text branchName))
+          pure (ProjectAndBranch projectId (branch ^. #branchId))
+    case maybeProjectAndBranch of
+      Nothing -> do
+        loggeth [into @Text (ProjectAndBranch (Just projectName) (Just branchName)), " not found!"]
+        Cli.returnEarlyWithoutOutput
+      Just projectAndBranch -> pure projectAndBranch
+
+resolveProjectAndBranchMaybeNamesToNames ::
+  ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
+  Cli (ProjectAndBranch ProjectName ProjectBranchName)
+resolveProjectAndBranchMaybeNamesToNames = \case
+  ProjectAndBranch Nothing Nothing ->
+    getCurrentProjectBranch >>= \case
+      Nothing -> do
+        loggeth ["not on a project branch"]
+        Cli.returnEarlyWithoutOutput
+      Just (ProjectAndBranch projectId branchId) ->
+        Cli.runTransaction do
+          project <- Queries.expectProject projectId
+          branch <- Queries.expectProjectBranch projectId branchId
+          pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) (unsafeFrom @Text (branch ^. #name)))
+  ProjectAndBranch Nothing (Just branchName) -> do
+    getCurrentProjectBranch >>= \case
+      Nothing -> do
+        loggeth ["not on a project branch"]
+        Cli.returnEarlyWithoutOutput
+      Just (ProjectAndBranch projectId _branchId) ->
+        Cli.runTransaction do
+          project <- Queries.expectProject projectId
+          pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
+  ProjectAndBranch (Just projectName) Nothing -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
+  ProjectAndBranch (Just projectName) (Just branchName) -> pure (ProjectAndBranch projectName branchName)
 
 -- | Push a local namespace ("loose code") to a remote namespace ("loose code").
 pushLooseCodeToLooseCode ::
@@ -161,7 +233,12 @@ pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode = do
             syncMode
           }
   Cli.Env {codebase} <- ask
-  let push = Codebase.pushGitBranch codebase (gitRemotePath ^. #repo) opts (\remoteRoot -> pure (withRemoteRoot remoteRoot))
+  let push =
+        Codebase.pushGitBranch
+          codebase
+          (gitRemotePath ^. #repo)
+          opts
+          (\remoteRoot -> pure (withRemoteRoot remoteRoot))
   result <-
     liftIO push & onLeftM \err ->
       Cli.returnEarly (Output.GitError err)
@@ -260,9 +337,9 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemotePath {server, rep
 -- | Push a local namespace ("loose code") to a remote project branch.
 pushLooseCodeToProjectBranch ::
   Path.Absolute ->
-  ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
+  ProjectAndBranch ProjectName ProjectBranchName ->
   Cli ()
-pushLooseCodeToProjectBranch = wundefined
+pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = wundefined
 
 -- | Push a local project branch to a remote project branch. If the remote project branch is left unspecified, we either
 -- use a pre-existing mapping for the local branch, or else infer what remote branch to push to (possibly creating it).

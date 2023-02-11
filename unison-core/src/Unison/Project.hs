@@ -134,16 +134,27 @@ data ProjectAndBranch a b = ProjectAndBranch
 -- | @project/branch@ syntax for project+branch pair, with both sides optional. Missing value means "the current one".
 instance From (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) Text where
   from ProjectAndBranch {project, branch} =
-    Text.Builder.run (textify project <> Text.Builder.char '/' <> textify branch)
-    where
-      textify :: From thing Text => Maybe thing -> Text.Builder
-      textify =
-        maybe mempty (Text.Builder.text . into)
+    case (project, branch) of
+      (Nothing, Nothing) -> Text.singleton '/'
+      (Nothing, Just branch1) -> Text.Builder.run (Text.Builder.char '/' <> Text.Builder.text (into @Text branch1))
+      (Just project1, Nothing) -> into @Text project1
+      (Just project1, Just branch1) ->
+        Text.Builder.run $
+          Text.Builder.text (into @Text project1)
+            <> Text.Builder.char '/'
+            <> Text.Builder.text (into @Text branch1)
 
 instance TryFrom Text (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) where
   tryFrom =
     maybeTryFrom (Megaparsec.parseMaybe projectAndBranchNamesParser)
 
+-- Valid things:
+--
+--   project
+--   project/
+--   project/branch
+--   /branch
+--   /
 projectAndBranchNamesParser ::
   Megaparsec.Parsec
     Void
@@ -151,9 +162,13 @@ projectAndBranchNamesParser ::
     (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
 projectAndBranchNamesParser = do
   project <- optional projectNameParser
-  branch <- optional do
-    _ <- Megaparsec.char '/'
-    projectBranchNameParser
+  branch <-
+    if isJust project
+      then
+        optional (Megaparsec.char '/') >>= \case
+          Nothing -> pure Nothing
+          Just _ -> optional projectBranchNameParser
+      else Megaparsec.char '/' >> optional projectBranchNameParser
   pure ProjectAndBranch {project, branch}
 
 ------------------------------------------------------------------------------------------------------------------------
