@@ -57,7 +57,7 @@
 
   (define (promise-read promise)
     (let loop ()
-      (let* ([value (promise-value promise)])
+      (let ([value (promise-value promise)])
         (cond
           [(some? value) (option-get value)]
           [else (sync/enable-break (promise-event promise)) (loop)]))))
@@ -68,10 +68,10 @@
              [cas! (lambda () (unsafe-struct*-cas! promise 2 value (some new-value)))]
              [awake-readers (lambda () (semaphore-post (promise-semaphore promise)))])
         (cond
-          [(some? value) #f]
+          [(some? value) false]
           [else
-           (let ([ok (parameterize-break #f (if (cas!) (awake-readers) #f))])
-             (if ok #t (loop)))]))))
+           (let ([ok (parameterize-break #f (if (cas!) (awake-readers) false))])
+             (if ok true (loop)))]))))
 
   (define (ref-cas ref ticket value)
     (if (box-cas! ref ticket value) true false))

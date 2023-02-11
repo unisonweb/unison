@@ -57,6 +57,7 @@ threadTest = do
   r = while (Optional.isNone) do Ref.read ref
   checkEqual "Thread has been interrupted" r (Some "interrupted")
 
+-- TODO exercise Promise.tryRead
 
 promiseSequentialTest = do
   use Nat eq
