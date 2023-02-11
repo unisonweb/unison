@@ -67,14 +67,27 @@ import Witch (unsafeFrom)
 -- | Handle a @gist@ command.
 handleGist :: GistInput -> Cli ()
 handleGist (GistInput repo) =
-  doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
+  doPushRemoteBranch (GistyPush repo) Path.currentPath SyncMode.ShortCircuit
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
-handlePushRemoteBranch PushRemoteBranchInput {maybeRemoteRepo = mayRepo, localPath = path, pushBehavior, syncMode} =
-  Cli.time "handlePushRemoteBranch" do
-    repo <- mayRepo & onNothing (UnisonConfigUtils.resolveConfiguredUrl Push path)
-    doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
+handlePushRemoteBranch PushRemoteBranchInput {localPath, maybeRemoteRepo, pushBehavior, syncMode} =
+  case (localPath, maybeRemoteRepo) of
+    (Nothing, Nothing) ->
+      getCurrentProjectBranch >>= \case
+        Nothing -> do
+          remotePath <- UnisonConfigUtils.resolveConfiguredUrl Push Path.currentPath
+          doPushRemoteBranch (NormalPush remotePath pushBehavior) Path.currentPath SyncMode.ShortCircuit
+        Just (projectId, branchId) -> projectPush projectId branchId Nothing
+    (Nothing, Just (PathyTarget remotePath)) ->
+      doPushRemoteBranch (NormalPush remotePath pushBehavior) Path.currentPath syncMode
+    (Nothing, Just (ProjyTarget remoteProjectAndBranch)) -> wundefined
+    (Just (PathySource localPath1), Just (PathyTarget remotePath)) ->
+      doPushRemoteBranch (NormalPush remotePath pushBehavior) localPath1 syncMode
+    (Just (PathySource localPath1), Just (ProjyTarget remoteProjectAndBranch)) -> wundefined
+    (Just (ProjySource projectAndBranch), Just (PathyTarget remotePath)) ->
+      doPushRemoteBranch (NormalPush remotePath pushBehavior) wundefined syncMode
+    (Just (ProjySource projectAndBranch), Just (ProjyTarget remoteProjectAndBranch)) -> wundefined
 
 -- | Either perform a "normal" push (updating a remote path), which takes a 'PushBehavior' (to control whether creating
 -- a new namespace is allowed), or perform a "gisty" push, which doesn't update any paths (and also is currently only
@@ -233,92 +246,90 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
         Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
 
 -- | Push a project branch.
-projectPush :: Maybe (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) -> Cli ()
-projectPush maybeProjectAndBranch = do
-  (projectId, branchId) <-
-    getCurrentProjectBranch & onNothingM do
-      loggeth ["Not currently on a branch"]
-      Cli.returnEarlyWithoutOutput
-
-  case maybeProjectAndBranch of
-    Nothing -> do
-      Cli.runTransaction oinkResolveRemoteIds >>= \case
-        Nothing -> do
-          loggeth ["We don't have a remote branch mapping for this branch or any ancestor"]
-          loggeth ["Getting current logged-in user on Share"]
-          myUserHandle <- oinkGetLoggedInUser
-          loggeth ["Got current logged-in user on Share: ", myUserHandle]
-          (project, branch) <-
-            Cli.runTransaction do
-              project <- Queries.expectProject projectId
-              branch <- Queries.expectProjectBranch projectId branchId
-              pure (project, branch)
-          let localProjectName = unsafeFrom @Text (project ^. #name)
-          let remoteProjectName = prependUserSlugToProjectName myUserHandle localProjectName
-          response <- do
-            let request = Share.API.CreateProjectRequest {projectName = into @Text remoteProjectName}
-            loggeth ["Making create-project request for project"]
-            loggeth [tShow request]
-            Share.createProject request & onLeftM \err -> do
-              loggeth ["Creating a project failed"]
-              loggeth [tShow err]
+projectPush ::
+  Queries.ProjectId ->
+  Queries.BranchId ->
+  Maybe (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) ->
+  Cli ()
+projectPush projectId branchId = \case
+  Nothing -> do
+    Cli.runTransaction oinkResolveRemoteIds >>= \case
+      Nothing -> do
+        loggeth ["We don't have a remote branch mapping for this branch or any ancestor"]
+        loggeth ["Getting current logged-in user on Share"]
+        myUserHandle <- oinkGetLoggedInUser
+        loggeth ["Got current logged-in user on Share: ", myUserHandle]
+        (project, branch) <-
+          Cli.runTransaction do
+            project <- Queries.expectProject projectId
+            branch <- Queries.expectProjectBranch projectId branchId
+            pure (project, branch)
+        let localProjectName = unsafeFrom @Text (project ^. #name)
+        let remoteProjectName = prependUserSlugToProjectName myUserHandle localProjectName
+        response <- do
+          let request = Share.API.CreateProjectRequest {projectName = into @Text remoteProjectName}
+          loggeth ["Making create-project request for project"]
+          loggeth [tShow request]
+          Share.createProject request & onLeftM \err -> do
+            loggeth ["Creating a project failed"]
+            loggeth [tShow err]
+            Cli.returnEarlyWithoutOutput
+        remoteProject <-
+          case response of
+            Share.API.CreateProjectResponseBadRequest -> do
+              loggeth ["Share says: bad request"]
               Cli.returnEarlyWithoutOutput
-          remoteProject <-
-            case response of
-              Share.API.CreateProjectResponseBadRequest -> do
-                loggeth ["Share says: bad request"]
-                Cli.returnEarlyWithoutOutput
-              Share.API.CreateProjectResponseUnauthorized -> do
-                loggeth ["Share says: unauthorized"]
-                Cli.returnEarlyWithoutOutput
-              Share.API.CreateProjectResponseSuccess remoteProject -> pure remoteProject
-          loggeth ["Share says: success!"]
-          loggeth [tShow remoteProject]
-          let localBranchName = unsafeFrom @Text (branch ^. #name)
-          let remoteBranchName = prependUserSlugToProjectBranchName myUserHandle localBranchName
-          loggeth ["Making create-branch request for branch", into @Text remoteProjectName]
-          response <- do
-            let request =
-                  Share.API.CreateProjectBranchRequest
-                    { projectId = remoteProject ^. #projectId,
-                      branchName = into @Text remoteBranchName,
-                      branchCausalHash = wundefined,
-                      branchMergeTarget = wundefined
-                    }
-            loggeth ["Making create-project request for project"]
-            loggeth [tShow request]
-            Share.createProjectBranch request & onLeftM \err -> do
-              loggeth ["Creating a branch failed"]
-              loggeth [tShow err]
+            Share.API.CreateProjectResponseUnauthorized -> do
+              loggeth ["Share says: unauthorized"]
               Cli.returnEarlyWithoutOutput
-          remoteBranch <-
-            case response of
-              Share.API.CreateProjectBranchResponseBadRequest -> do
-                loggeth ["Share says: bad request"]
-                Cli.returnEarlyWithoutOutput
-              Share.API.CreateProjectBranchResponseUnauthorized -> do
-                loggeth ["Share says: unauthorized"]
-                Cli.returnEarlyWithoutOutput
-              Share.API.CreateProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
-          loggeth ["Share says: success!"]
-          loggeth [tShow remoteBranch]
-        Just projectAndBranch ->
-          case projectAndBranch ^. #branch of
-            Nothing -> do
-              let ancestorRemoteProjectId = projectAndBranch ^. #project
-              loggeth ["We don't have a remote branch mapping, but our ancestor maps to project: ", ancestorRemoteProjectId]
-              loggeth ["Creating remote branch not implemented"]
+            Share.API.CreateProjectResponseSuccess remoteProject -> pure remoteProject
+        loggeth ["Share says: success!"]
+        loggeth [tShow remoteProject]
+        let localBranchName = unsafeFrom @Text (branch ^. #name)
+        let remoteBranchName = prependUserSlugToProjectBranchName myUserHandle localBranchName
+        loggeth ["Making create-branch request for branch", into @Text remoteProjectName]
+        response <- do
+          let request =
+                Share.API.CreateProjectBranchRequest
+                  { projectId = remoteProject ^. #projectId,
+                    branchName = into @Text remoteBranchName,
+                    branchCausalHash = wundefined,
+                    branchMergeTarget = wundefined
+                  }
+          loggeth ["Making create-project request for project"]
+          loggeth [tShow request]
+          Share.createProjectBranch request & onLeftM \err -> do
+            loggeth ["Creating a branch failed"]
+            loggeth [tShow err]
+            Cli.returnEarlyWithoutOutput
+        remoteBranch <-
+          case response of
+            Share.API.CreateProjectBranchResponseBadRequest -> do
+              loggeth ["Share says: bad request"]
               Cli.returnEarlyWithoutOutput
-            Just remoteBranchId -> do
-              let remoteProjectId = projectAndBranch ^. #project
-              loggeth ["Found remote branch mapping: ", remoteProjectId, ":", remoteBranchId]
-              loggeth ["Pushing to existing branch not implemented"]
+            Share.API.CreateProjectBranchResponseUnauthorized -> do
+              loggeth ["Share says: unauthorized"]
               Cli.returnEarlyWithoutOutput
-    Just projectAndBranch -> do
-      let _projectName = projectAndBranch ^. #project
-      let _branchName = fromMaybe (unsafeFrom @Text "main") (projectAndBranch ^. #branch)
-      loggeth ["Specifying project/branch to push to not implemented"]
-      Cli.returnEarlyWithoutOutput
+            Share.API.CreateProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
+        loggeth ["Share says: success!"]
+        loggeth [tShow remoteBranch]
+      Just projectAndBranch ->
+        case projectAndBranch ^. #branch of
+          Nothing -> do
+            let ancestorRemoteProjectId = projectAndBranch ^. #project
+            loggeth ["We don't have a remote branch mapping, but our ancestor maps to project: ", ancestorRemoteProjectId]
+            loggeth ["Creating remote branch not implemented"]
+            Cli.returnEarlyWithoutOutput
+          Just remoteBranchId -> do
+            let remoteProjectId = projectAndBranch ^. #project
+            loggeth ["Found remote branch mapping: ", remoteProjectId, ":", remoteBranchId]
+            loggeth ["Pushing to existing branch not implemented"]
+            Cli.returnEarlyWithoutOutput
+  Just projectAndBranch -> do
+    let _projectName = projectAndBranch ^. #project
+    let _branchName = fromMaybe (unsafeFrom @Text "main") (projectAndBranch ^. #branch)
+    loggeth ["Specifying project/branch to push to not implemented"]
+    Cli.returnEarlyWithoutOutput
 
 oinkResolveRemoteIds :: Sqlite.Transaction (Maybe (ProjectAndBranch Text (Maybe Text)))
 oinkResolveRemoteIds = undefined

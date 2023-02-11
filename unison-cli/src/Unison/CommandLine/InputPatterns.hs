@@ -1085,7 +1085,9 @@ pullExhaustive =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
-            "The " <> makeExample' pullExhaustive <> "command can be used in place of"
+            "The "
+              <> makeExample' pullExhaustive
+              <> "command can be used in place of"
               <> makeExample' pullVerbose
               <> "to complete namespaces"
               <> "which were pulled incompletely due to a bug in UCM"
@@ -1149,38 +1151,26 @@ push =
           explainRemote Push
         ]
     )
-    parsePushArgs
-  where
-    parsePushArgs :: [String] -> Either (P.Pretty CT.ColorText) Input.Input
-    parsePushArgs = \case
-      [] ->
-        Right $
-          Input.PushRemoteBranchI
-            Input.PushRemoteBranchInput'Default
-      pushTargetStr : rest -> do
-        pushTarget <- case tryFrom (Text.pack pushTargetStr) of
-          Left _ -> case parseWriteRemotePath "remote-path" pushTargetStr of
-            Left _ -> Left (I.help push)
-            Right x -> Right (Input.PathyTarget x)
-          Right x -> Right (Input.ProjyTarget x)
-
-        mPushSource <- case rest of
-          [] -> Right Nothing
-          [path] -> case tryFrom (Text.pack path) of
-            Left _ -> case Path.parsePath' path of
-              Left _ -> Left (I.help push)
-              Right x -> Right (Just $ Input.PathySource x)
-            Right x -> Right (Just $ Input.ProjySource x)
+    \args -> do
+      (source, target) <-
+        case args of
+          [] -> Right (Nothing, Nothing)
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Nothing, Just target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Just source, Just target)
           _ -> Left (I.help push)
-        Right $
-          Input.PushRemoteBranchI $
-            Input.PushRemoteBranchInput'Explicit
-              Input.PushRemoteBranchInput'
-                { localPath = mPushSource,
-                  maybeRemoteRepo = pushTarget,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { localPath = source,
+              maybeRemoteRepo = target,
+              pushBehavior = PushBehavior.RequireNonEmpty,
+              syncMode = SyncMode.ShortCircuit
+            }
 
 pushCreate :: InputPattern
 pushCreate =
@@ -1211,28 +1201,25 @@ pushCreate =
           explainRemote Push
         ]
     )
-    (parseOldPush SyncMode.ShortCircuit)
-
-parseOldPush :: SyncMode.SyncMode -> [String] -> Either (P.Pretty CT.ColorText) Input.Input
-parseOldPush s = \case
-  [] ->
-    Right $
-      Input.PushRemoteBranchI
-        Input.PushRemoteBranchInput'Default
-  url : rest -> do
-    pushPath <- Input.PathyTarget <$> parseWriteRemotePath "remote-path" url
-    p <- case rest of
-      [] -> Right Nothing
-      [path] -> Just . Input.PathySource <$> first fromString (Path.parsePath' path)
-      _ -> Left (I.help push)
-    Right $
-      Input.PushRemoteBranchI $
-        Input.PushRemoteBranchInput'Explicit
-          Input.PushRemoteBranchInput'
-            { localPath = p,
-              maybeRemoteRepo = pushPath,
+    \args -> do
+      (source, target) <-
+        case args of
+          [] -> Right (Nothing, Nothing)
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Nothing, Just target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Just source, Just target)
+          _ -> Left (I.help pushForce)
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { localPath = source,
+              maybeRemoteRepo = target,
               pushBehavior = PushBehavior.RequireEmpty,
-              syncMode = s
+              syncMode = SyncMode.ShortCircuit
             }
 
 pushForce :: InputPattern
@@ -1243,7 +1230,26 @@ pushForce =
     I.Hidden
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     (P.wrap "Like `push`, but overwrites any remote namespace.")
-    (parseOldPush SyncMode.ShortCircuit)
+    \args -> do
+      (source, target) <-
+        case args of
+          [] -> Right (Nothing, Nothing)
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Nothing, Just target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Just source, Just target)
+          _ -> Left (I.help pushForce)
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { localPath = source,
+              maybeRemoteRepo = target,
+              pushBehavior = PushBehavior.ForcePush,
+              syncMode = SyncMode.ShortCircuit
+            }
 
 pushExhaustive :: InputPattern
 pushExhaustive =
@@ -1254,14 +1260,35 @@ pushExhaustive =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
-            "The " <> makeExample' pushExhaustive <> "command can be used in place of"
+            "The "
+              <> makeExample' pushExhaustive
+              <> "command can be used in place of"
               <> makeExample' push
               <> "to repair remote namespaces"
               <> "which were pushed incompletely due to a bug in UCM"
               <> "versions M1l and earlier. It may be extra slow!"
         ]
     )
-    (parseOldPush SyncMode.Complete)
+    \args -> do
+      (source, target) <-
+        case args of
+          [] -> Right (Nothing, Nothing)
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Nothing, Just target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Just source, Just target)
+          _ -> Left (I.help pushExhaustive)
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { localPath = source,
+              maybeRemoteRepo = target,
+              pushBehavior = PushBehavior.RequireNonEmpty,
+              syncMode = SyncMode.Complete
+            }
 
 createPullRequest :: InputPattern
 createPullRequest =
@@ -1594,7 +1621,8 @@ helpTopicsMap =
     testCacheMsg =
       P.callout "🎈" . P.lines $
         [ P.wrap $
-            "Unison caches the results of " <> P.blue "test>"
+            "Unison caches the results of "
+              <> P.blue "test>"
               <> "watch expressions. Since these expressions are pure and"
               <> "always yield the same result when evaluated, there's no need"
               <> "to run them more than once!",
@@ -1606,7 +1634,8 @@ helpTopicsMap =
     pathnamesMsg =
       P.callout "\129488" . P.lines $
         [ P.wrap $
-            "There are two kinds of namespaces," <> P.group (P.blue "absolute" <> ",")
+            "There are two kinds of namespaces,"
+              <> P.group (P.blue "absolute" <> ",")
               <> "such as"
               <> P.group ("(" <> P.blue ".foo.bar")
               <> "or"
@@ -1629,12 +1658,15 @@ helpTopicsMap =
           P.indentN 2 $ P.green "x" <> " = 41",
           "",
           P.wrap $
-            "then doing an" <> P.blue "add"
+            "then doing an"
+              <> P.blue "add"
               <> "will create the definition with the absolute name"
               <> P.group (P.blue ".foo.bar.x" <> " = 41"),
           "",
           P.wrap $
-            "and you can refer to" <> P.green "x" <> "by its absolute name "
+            "and you can refer to"
+              <> P.green "x"
+              <> "by its absolute name "
               <> P.blue ".foo.bar.x"
               <> "elsewhere"
               <> "in your code. For instance:",
@@ -2593,6 +2625,26 @@ parseProjectBranchName :: Text -> Either (P.Pretty P.ColorText) ProjectBranchNam
 parseProjectBranchName s =
   mapLeft (\_ -> "Invalid branch name.") (tryInto @ProjectBranchName s)
 
+-- | Parse a 'Input.PushSource'.
+parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource
+parsePushSource sourceStr =
+  case tryFrom (Text.pack sourceStr) of
+    Left _ ->
+      case Path.parsePath' sourceStr of
+        Left _ -> Left (I.help push)
+        Right path -> Right (Input.PathySource path)
+    Right branch -> Right (Input.ProjySource branch)
+
+-- | Parse a 'Input.PushTarget'.
+parsePushTarget :: String -> Either (P.Pretty CT.ColorText) Input.PushTarget
+parsePushTarget targetStr =
+  case tryFrom (Text.pack targetStr) of
+    Left _ ->
+      case parseWriteRemotePath "remote-path" targetStr of
+        Left _ -> Left (I.help push)
+        Right path -> Right (Input.PathyTarget path)
+    Right branch -> Right (Input.ProjyTarget branch)
+
 parseHashQualifiedName ::
   String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
 parseHashQualifiedName s =
@@ -2641,7 +2693,8 @@ explainRemote pushPull =
 showErrorFancy :: P.ShowErrorComponent e => P.ErrorFancy e -> String
 showErrorFancy (P.ErrorFail msg) = msg
 showErrorFancy (P.ErrorIndentation ord ref actual) =
-  "incorrect indentation (got " <> show (P.unPos actual)
+  "incorrect indentation (got "
+    <> show (P.unPos actual)
     <> ", should be "
     <> p
     <> show (P.unPos ref)

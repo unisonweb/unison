@@ -3,7 +3,6 @@ module Unison.Codebase.Editor.Input
     DiffNamespaceToPatchInput (..),
     GistInput (..),
     PushRemoteBranchInput (..),
-    PushRemoteBranchInput' (..),
     PushTarget (..),
     PushSource (..),
     TestInput (..),
@@ -244,16 +243,9 @@ data PushSource
   | ProjySource (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
   deriving stock (Eq, Show)
 
-data PushRemoteBranchInput
-  = PushRemoteBranchInput'Default
-  | PushRemoteBranchInput'Explicit PushRemoteBranchInput'
-  deriving stock (Eq, Show)
-
-data PushRemoteBranchInput' = PushRemoteBranchInput'
-  { -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
-    localPath :: Maybe PushSource,
-    -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
-    maybeRemoteRepo :: PushTarget,
+data PushRemoteBranchInput = PushRemoteBranchInput
+  { localPath :: Maybe PushSource,
+    maybeRemoteRepo :: Maybe PushTarget,
     -- | The push behavior (whether the remote branch is required to be empty or non-empty).
     pushBehavior :: PushBehavior,
     syncMode :: SyncMode
