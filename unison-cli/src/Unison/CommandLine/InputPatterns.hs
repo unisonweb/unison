@@ -2312,21 +2312,6 @@ projectCreate =
         _ -> Left (showPatternHelp projectCreate)
     }
 
-projectCreateBranch :: InputPattern
-projectCreateBranch =
-  InputPattern
-    { patternName = "project.create-branch",
-      aliases = [],
-      visibility = I.Visible,
-      argTypes = [(Required, projectBranchNameArg)],
-      help = P.wrap "Create a project branch.",
-      parse = \case
-        [branchNameString] -> do
-          branchName <- parseProjectBranchName (Text.pack branchNameString)
-          Right (Input.ProjectCreateBranchI branchName)
-        _ -> Left (showPatternHelp projectCreateBranch)
-    }
-
 projectSwitch :: InputPattern
 projectSwitch =
   InputPattern
@@ -2453,7 +2438,6 @@ validInputs =
       printVersion,
       diffNamespaceToPatch,
       projectCreate,
-      projectCreateBranch,
       projectSwitch
     ]
 

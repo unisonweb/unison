@@ -19,17 +19,21 @@ import Witch (unsafeFrom)
 
 -- | Switch to (or create) a project or project branch.
 projectSwitch :: ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) -> Cli ()
-projectSwitch projectAndBranch =
-  case (projectAndBranch ^. #project, projectAndBranch ^. #branch) of
-    (Just projectName, Just branchName) -> switchToProjectAndBranch projectName branchName
-    (Just projectName, Nothing) -> switchToProject projectName
-    (Nothing, Just branchName) -> switchToBranch branchName
-    (Nothing, Nothing) -> pure ()
+projectSwitch = \case
+  ProjectAndBranch (Just projectName) (Just branchName) ->
+    switchToProjectAndBranch (ProjectAndBranch projectName branchName)
+  ProjectAndBranch (Just projectName) Nothing -> switchToProject projectName
+  ProjectAndBranch Nothing (Just branchName) -> switchToBranch branchName
+  ProjectAndBranch Nothing Nothing -> pure ()
 
 -- Switch to a project name (going to branch "main" for now, but ideally we'd store the last branch a user was on).
 switchToProject :: ProjectName -> Cli ()
 switchToProject projectName =
-  switchToProjectAndBranch projectName (unsafeFrom @Text "main")
+  switchToProjectAndBranch
+    ProjectAndBranch
+      { project = projectName,
+        branch = unsafeFrom @Text "main"
+      }
 
 data SwitchToBranchOutcome
   = SwitchedToExistingBranch
@@ -38,7 +42,7 @@ data SwitchToBranchOutcome
 -- Switch to a branch in the current project. If it doesn't exist, create it.
 switchToBranch :: ProjectBranchName -> Cli ()
 switchToBranch branchName = do
-  (projectId, currentBranchId) <-
+  ProjectAndBranch {project = projectId, branch = currentBranchId} <-
     getCurrentProjectBranch & onNothingM do
       loggeth ["Not currently on a branch"]
       Cli.returnEarlyWithoutOutput
@@ -51,7 +55,7 @@ switchToBranch branchName = do
           Queries.markProjectBranchChild projectId currentBranchId newBranchId
           pure (SwitchedToNewBranch, newBranchId)
         Just branch -> pure (SwitchedToExistingBranch, branch ^. #branchId)
-  let path = projectBranchPath projectId newBranchId
+  let path = projectBranchPath ProjectAndBranch {project = projectId, branch = newBranchId}
   case outcome of
     SwitchedToExistingBranch -> loggeth ["I just switch to a new branch"]
     SwitchedToNewBranch -> do
@@ -60,10 +64,10 @@ switchToBranch branchName = do
   Cli.cd path
 
 -- Switch to a project+branch.
-switchToProjectAndBranch :: ProjectName -> ProjectBranchName -> Cli ()
-switchToProjectAndBranch projectName branchName = do
-  (projectId, branchId) <- do
-    maybeIds <-
+switchToProjectAndBranch :: ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
+switchToProjectAndBranch ProjectAndBranch {project = projectName, branch = branchName} = do
+  projectAndBranch <- do
+    maybeProjectAndBranch <-
       Cli.runTransaction do
         Queries.loadProjectByName (into @Text projectName) >>= \case
           Nothing -> pure Nothing
@@ -71,9 +75,9 @@ switchToProjectAndBranch projectName branchName = do
             let projectId = project ^. #projectId
             Queries.loadProjectBranchByName projectId (into @Text branchName) <&> \case
               Nothing -> Nothing
-              Just branch -> Just (projectId, branch ^. #branchId)
-    maybeIds & onNothing do
+              Just branch -> Just ProjectAndBranch {project = projectId, branch = branch ^. #branchId}
+    maybeProjectAndBranch & onNothing do
       loggeth ["Not found: ", into @Text projectName, ":", into @Text branchName]
       Cli.returnEarlyWithoutOutput
 
-  Cli.cd (projectBranchPath projectId branchId)
+  Cli.cd (projectBranchPath projectAndBranch)

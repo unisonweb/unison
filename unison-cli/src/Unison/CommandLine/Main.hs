@@ -45,6 +45,7 @@ import qualified Unison.CommandLine.Welcome as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
+import Unison.Project (ProjectAndBranch (..))
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
@@ -80,7 +81,7 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
       promptString <-
         case preview projectBranchPathPrism currentPath of
           Nothing -> pure ((P.green . P.shown) currentPath)
-          Just (projectId, branchId) -> do
+          Just (ProjectAndBranch projectId branchId) -> do
             lift (Codebase.runTransaction codebase (Queries.loadProjectAndBranchNames projectId branchId)) <&> \case
               -- If the project branch has been deleted from sqlite, just show a borked prompt
               Nothing -> P.red "???"

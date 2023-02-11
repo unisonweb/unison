@@ -23,6 +23,7 @@ import qualified Unison.Cli.MonadUtils as Cli
 import qualified Unison.Codebase.Path as Path
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
+import Unison.Project (ProjectAndBranch (..))
 
 -- | Get the current project+branch that a user is on.
 --
@@ -30,7 +31,7 @@ import Unison.Prelude
 -- is, it only returns Just if the user's current namespace is the root of a branch, and no deeper.
 --
 -- This should be fine: we don't want users to be able to cd around willy-nilly within projects (right?...)
-getCurrentProjectBranch :: Cli (Maybe (Queries.ProjectId, Queries.BranchId))
+getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Queries.ProjectId Queries.BranchId))
 getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
   pure (preview projectBranchPathPrism path)
@@ -45,11 +46,11 @@ projectPath projectId =
 
 -- | Get the path that a branch is stored at. Users aren't supposed to go here.
 --
--- >>> projectBranchPath "ABCD" "DEFG"
+-- >>> projectBranchPath ProjectAndBranch { project = "ABCD", branch = "DEFG" }
 -- .__projects._ABCD.branches._DEFG
-projectBranchPath :: Queries.ProjectId -> Queries.BranchId -> Path.Absolute
-projectBranchPath projectId branchId =
-  review projectBranchPathPrism (projectId, branchId)
+projectBranchPath :: ProjectAndBranch Queries.ProjectId Queries.BranchId -> Path.Absolute
+projectBranchPath =
+  review projectBranchPathPrism
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -99,12 +100,12 @@ projectPathPrism =
 -- @
 -- (XX-XX, YY-YY)
 -- @
-projectBranchPathPrism :: Prism' Path.Absolute (Queries.ProjectId, Queries.BranchId)
+projectBranchPathPrism :: Prism' Path.Absolute (ProjectAndBranch Queries.ProjectId Queries.BranchId)
 projectBranchPathPrism =
   prism' toPath toIds
   where
-    toPath :: (Queries.ProjectId, Queries.BranchId) -> Path.Absolute
-    toPath (projectId, branchId) =
+    toPath :: ProjectAndBranch Queries.ProjectId Queries.BranchId -> Path.Absolute
+    toPath ProjectAndBranch {project = projectId, branch = branchId} =
       Path.Absolute $
         Path.fromList
           [ "__projects",
@@ -113,11 +114,11 @@ projectBranchPathPrism =
             UUIDNameSegment (Queries.unBranchId branchId)
           ]
 
-    toIds :: Path.Absolute -> Maybe (Queries.ProjectId, Queries.BranchId)
+    toIds :: Path.Absolute -> Maybe (ProjectAndBranch Queries.ProjectId Queries.BranchId)
     toIds path =
       case Path.toList (Path.unabsolute path) of
         ["__projects", UUIDNameSegment projectId, "branches", UUIDNameSegment branchId] ->
-          Just (Queries.ProjectId projectId, Queries.BranchId branchId)
+          Just ProjectAndBranch {project = Queries.ProjectId projectId, branch = Queries.BranchId branchId}
         _ -> Nothing
 
 -- Dumb temporary debug logger to use for the new project commands

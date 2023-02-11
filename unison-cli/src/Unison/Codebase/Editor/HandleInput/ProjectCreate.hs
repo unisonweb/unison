@@ -14,7 +14,7 @@ import Unison.Codebase.Branch (Branch0)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
-import Unison.Project (ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectName)
 
 -- | Create a new project.
 --
@@ -54,7 +54,7 @@ projectCreate name = do
         pure (Right ())
       True -> pure (Left (error "project by that name already exists"))
 
-  let path = projectBranchPath projectId branchId
+  let path = projectBranchPath ProjectAndBranch {project = projectId, branch = branchId}
   Cli.stepAt "project.create" (Path.unabsolute path, const mainBranchContents)
   Cli.cd path
 

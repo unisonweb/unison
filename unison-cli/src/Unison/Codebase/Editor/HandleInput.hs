@@ -73,7 +73,6 @@ import Unison.Codebase.Editor.HandleInput.Push (handlePushRemoteBranch, handleGi
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
-import Unison.Codebase.Editor.HandleInput.ProjectCreateBranch (projectCreateBranch)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.TermResolution
   ( resolveCon,
@@ -1396,7 +1395,6 @@ loop e = do
               description <- inputDescription input
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
             ProjectCreateI name -> projectCreate name
-            ProjectCreateBranchI name -> projectCreateBranch name
             ProjectSwitchI input -> projectSwitch input
 
 magicMainWatcherString :: String
@@ -1570,7 +1568,6 @@ inputDescription input =
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     ProjectCreateI {} -> wundefined
-    ProjectCreateBranchI {} -> wundefined
     ProjectSwitchI {} -> wundefined
     --
     ApiI -> wat

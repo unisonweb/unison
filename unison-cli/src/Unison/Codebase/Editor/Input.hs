@@ -213,7 +213,6 @@ data Input
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   | ProjectCreateI ProjectName
-  | ProjectCreateBranchI ProjectBranchName
   | ProjectPushI ProjectBranchName
   | ProjectSwitchI (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
   deriving (Eq, Show)
