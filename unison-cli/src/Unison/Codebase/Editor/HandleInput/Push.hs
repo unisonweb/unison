@@ -31,7 +31,6 @@ import Unison.Codebase.Editor.RemoteRepo
     ReadRemoteNamespace (..),
     ShareUserHandle (..),
     WriteGitRemotePath (..),
-    WriteGitRepo,
     WriteRemotePath (..),
     WriteShareRemotePath (..),
     writeToReadGit,
@@ -66,49 +65,66 @@ import Witch (unsafeFrom)
 
 -- | Handle a @gist@ command.
 handleGist :: GistInput -> Cli ()
-handleGist (GistInput repo) =
-  doPushRemoteBranch (GistyPush repo) Path.currentPath SyncMode.ShortCircuit
+handleGist (GistInput repo) = do
+  Cli.Env {codebase} <- ask
+  localPath <- Cli.resolvePath' Path.currentPath
+  sourceBranch <- Cli.getBranchAt localPath
+  let opts =
+        PushGitBranchOpts
+          { behavior = GitPushBehaviorGist,
+            syncMode = SyncMode.ShortCircuit
+          }
+  result <-
+    Cli.ioE (Codebase.pushGitBranch codebase repo opts (\_remoteRoot -> pure (Right sourceBranch))) \err ->
+      Cli.returnEarly (Output.GitError err)
+  _branch <- result & onLeft Cli.returnEarly
+  schLength <- Cli.runTransaction Codebase.branchHashLength
+  Cli.respond $
+    GistCreated
+      ( ReadRemoteNamespaceGit
+          ReadGitRemoteNamespace
+            { repo = writeToReadGit repo,
+              sch = Just (SCH.fromHash schLength (Branch.headHash sourceBranch)),
+              path = Path.empty
+            }
+      )
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
-handlePushRemoteBranch PushRemoteBranchInput {localPath, maybeRemoteRepo, pushBehavior, syncMode} =
-  case (localPath, maybeRemoteRepo) of
+handlePushRemoteBranch PushRemoteBranchInput {localPath = maybeSource, maybeRemoteRepo = maybeTarget, pushBehavior, syncMode} = do
+  case (maybeSource, maybeTarget) of
     (Nothing, Nothing) ->
       getCurrentProjectBranch >>= \case
         Nothing -> do
           remotePath <- UnisonConfigUtils.resolveConfiguredUrl Push Path.currentPath
-          doPushRemoteBranch (NormalPush remotePath pushBehavior) Path.currentPath SyncMode.ShortCircuit
+          doPushRemoteBranch remotePath pushBehavior Path.currentPath SyncMode.ShortCircuit
         Just (projectId, branchId) -> projectPush projectId branchId Nothing
     (Nothing, Just (PathyTarget remotePath)) ->
-      doPushRemoteBranch (NormalPush remotePath pushBehavior) Path.currentPath syncMode
+      doPushRemoteBranch remotePath pushBehavior Path.currentPath syncMode
     (Nothing, Just (ProjyTarget remoteProjectAndBranch)) -> wundefined
+    (Just (PathySource localPath1), Nothing) -> wundefined
     (Just (PathySource localPath1), Just (PathyTarget remotePath)) ->
-      doPushRemoteBranch (NormalPush remotePath pushBehavior) localPath1 syncMode
+      doPushRemoteBranch remotePath pushBehavior localPath1 syncMode
     (Just (PathySource localPath1), Just (ProjyTarget remoteProjectAndBranch)) -> wundefined
-    (Just (ProjySource projectAndBranch), Just (PathyTarget remotePath)) ->
-      doPushRemoteBranch (NormalPush remotePath pushBehavior) wundefined syncMode
-    (Just (ProjySource projectAndBranch), Just (ProjyTarget remoteProjectAndBranch)) -> wundefined
-
--- | Either perform a "normal" push (updating a remote path), which takes a 'PushBehavior' (to control whether creating
--- a new namespace is allowed), or perform a "gisty" push, which doesn't update any paths (and also is currently only
--- uploaded for remote git repos, not remote Share repos).
-data PushFlavor
-  = NormalPush WriteRemotePath PushBehavior
-  | GistyPush WriteGitRepo
+    (Just (ProjySource localProjectAndBranch), Nothing) -> wundefined
+    (Just (ProjySource localProjectAndBranch), Just (PathyTarget remotePath)) ->
+      doPushRemoteBranch remotePath pushBehavior wundefined syncMode
+    (Just (ProjySource localProjectAndBranch), Just (ProjyTarget remoteProjectAndBranch)) -> wundefined
 
 -- Internal helper that implements pushing to a remote repo, which generalizes @gist@ and @push@.
 doPushRemoteBranch ::
   -- | The repo to push to.
-  PushFlavor ->
+  WriteRemotePath ->
+  PushBehavior ->
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
   Path' ->
   SyncMode.SyncMode ->
   Cli ()
-doPushRemoteBranch pushFlavor localPath0 syncMode = do
+doPushRemoteBranch writeRemotePath pushBehavior localPath0 syncMode = do
   Cli.Env {codebase} <- ask
   localPath <- Cli.resolvePath' localPath0
-  case pushFlavor of
-    NormalPush (writeRemotePath@(WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath})) pushBehavior -> do
+  case writeRemotePath of
+    WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath} -> do
       sourceBranch <- Cli.getBranchAt localPath
       let withRemoteRoot :: Branch IO -> Either Output (Branch IO)
           withRemoteRoot remoteRoot = do
@@ -133,28 +149,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
           Cli.returnEarly (Output.GitError err)
       _branch <- result & onLeft Cli.returnEarly
       Cli.respond Success
-    NormalPush (WriteRemotePathShare sharePath) pushBehavior -> handlePushToUnisonShare sharePath localPath pushBehavior
-    GistyPush repo -> do
-      sourceBranch <- Cli.getBranchAt localPath
-      let opts =
-            PushGitBranchOpts
-              { behavior = GitPushBehaviorGist,
-                syncMode
-              }
-      result <-
-        Cli.ioE (Codebase.pushGitBranch codebase repo opts (\_remoteRoot -> pure (Right sourceBranch))) \err ->
-          Cli.returnEarly (Output.GitError err)
-      _branch <- result & onLeft Cli.returnEarly
-      schLength <- Cli.runTransaction Codebase.branchHashLength
-      Cli.respond $
-        GistCreated
-          ( ReadRemoteNamespaceGit
-              ReadGitRemoteNamespace
-                { repo = writeToReadGit repo,
-                  sch = Just (SCH.fromHash schLength (Branch.headHash sourceBranch)),
-                  path = Path.empty
-                }
-          )
+    WriteRemotePathShare sharePath -> handlePushToUnisonShare sharePath localPath pushBehavior
   where
     -- Per `pushBehavior`, we are either:
     --
@@ -175,7 +170,6 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
   let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
   ensureAuthenticatedWithCodeserver codeserver
 
-  -- doesn't handle the case where a non-existent path is supplied
   localCausalHash <-
     Cli.runTransaction (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))) & onNothingM do
       Cli.returnEarly (EmptyPush . Path.absoluteToPath' $ localPath)
