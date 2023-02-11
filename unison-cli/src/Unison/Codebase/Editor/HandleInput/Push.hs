@@ -22,7 +22,7 @@ import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.HandleInput.AuthLogin (ensureAuthenticatedWithCodeserver)
 import qualified Unison.Codebase.Editor.HandleInput.AuthLogin as AuthLogin
-import Unison.Codebase.Editor.Input
+import Unison.Codebase.Editor.Input (GistInput (..), PushRemoteBranchInput (..), PushSource (..), PushSourceTarget (..), PushTarget (..))
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Push))
@@ -79,39 +79,36 @@ handleGist (GistInput repo) = do
   _branch <- result & onLeft Cli.returnEarly
   schLength <- Cli.runTransaction Codebase.branchHashLength
   Cli.respond $
-    GistCreated
-      ( ReadRemoteNamespaceGit
-          ReadGitRemoteNamespace
-            { repo = writeToReadGit repo,
-              sch = Just (SCH.fromHash schLength (Branch.headHash sourceBranch)),
-              path = Path.empty
-            }
-      )
+    GistCreated $
+      ReadRemoteNamespaceGit
+        ReadGitRemoteNamespace
+          { repo = writeToReadGit repo,
+            sch = Just (SCH.fromHash schLength (Branch.headHash sourceBranch)),
+            path = Path.empty
+          }
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
-handlePushRemoteBranch PushRemoteBranchInput {localPath = maybeSource, maybeRemoteRepo = maybeTarget, pushBehavior, syncMode} = do
-  case (maybeSource, maybeTarget) of
-    (Nothing, Nothing) ->
+handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMode} = do
+  case sourceTarget of
+    PushSourceTarget0 ->
       getCurrentProjectBranch >>= \case
         Nothing -> do
           remotePath <- UnisonConfigUtils.resolveConfiguredUrl Push Path.currentPath
-          doPushRemoteBranch remotePath pushBehavior Path.currentPath SyncMode.ShortCircuit
+          pushLooseCode remotePath pushBehavior Path.currentPath SyncMode.ShortCircuit
         Just (projectId, branchId) -> projectPush projectId branchId Nothing
-    (Nothing, Just (PathyTarget remotePath)) ->
-      doPushRemoteBranch remotePath pushBehavior Path.currentPath syncMode
-    (Nothing, Just (ProjyTarget remoteProjectAndBranch)) -> wundefined
-    (Just (PathySource localPath1), Nothing) -> wundefined
-    (Just (PathySource localPath1), Just (PathyTarget remotePath)) ->
-      doPushRemoteBranch remotePath pushBehavior localPath1 syncMode
-    (Just (PathySource localPath1), Just (ProjyTarget remoteProjectAndBranch)) -> wundefined
-    (Just (ProjySource localProjectAndBranch), Nothing) -> wundefined
-    (Just (ProjySource localProjectAndBranch), Just (PathyTarget remotePath)) ->
-      doPushRemoteBranch remotePath pushBehavior wundefined syncMode
-    (Just (ProjySource localProjectAndBranch), Just (ProjyTarget remoteProjectAndBranch)) -> wundefined
+    PushSourceTarget1 (PathyTarget remotePath) ->
+      pushLooseCode remotePath pushBehavior Path.currentPath syncMode
+    PushSourceTarget1 (ProjyTarget remoteProjectAndBranch) -> wundefined
+    PushSourceTarget2 (PathySource localPath1) (PathyTarget remotePath) ->
+      pushLooseCode remotePath pushBehavior localPath1 syncMode
+    PushSourceTarget2 (PathySource localPath1) (ProjyTarget remoteProjectAndBranch) -> wundefined
+    PushSourceTarget2 (ProjySource localProjectAndBranch) (PathyTarget remotePath) ->
+      pushLooseCode remotePath pushBehavior wundefined syncMode
+    PushSourceTarget2 (ProjySource localProjectAndBranch) (ProjyTarget remoteProjectAndBranch) -> wundefined
 
--- Internal helper that implements pushing to a remote repo, which generalizes @gist@ and @push@.
-doPushRemoteBranch ::
+-- | Push "loose code" (i.e. push to a specific remote namespace outside of a project).
+pushLooseCode ::
   -- | The repo to push to.
   WriteRemotePath ->
   PushBehavior ->
@@ -119,7 +116,7 @@ doPushRemoteBranch ::
   Path' ->
   SyncMode.SyncMode ->
   Cli ()
-doPushRemoteBranch writeRemotePath pushBehavior localPath0 syncMode = do
+pushLooseCode writeRemotePath pushBehavior localPath0 syncMode = do
   Cli.Env {codebase} <- ask
   localPath <- Cli.resolvePath' localPath0
   case writeRemotePath of

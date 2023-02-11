@@ -1152,22 +1152,21 @@ push =
         ]
     )
     \args -> do
-      (source, target) <-
+      sourceTarget <-
         case args of
-          [] -> Right (Nothing, Nothing)
+          [] -> Right Input.PushSourceTarget0
           [targetStr] -> do
             target <- parsePushTarget targetStr
-            Right (Nothing, Just target)
+            Right (Input.PushSourceTarget1 target)
           [targetStr, sourceStr] -> do
             target <- parsePushTarget targetStr
             source <- parsePushSource sourceStr
-            Right (Just source, Just target)
+            Right (Input.PushSourceTarget2 source target)
           _ -> Left (I.help push)
       Right $
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
-            { localPath = source,
-              maybeRemoteRepo = target,
+            { sourceTarget,
               pushBehavior = PushBehavior.RequireNonEmpty,
               syncMode = SyncMode.ShortCircuit
             }
@@ -1202,22 +1201,21 @@ pushCreate =
         ]
     )
     \args -> do
-      (source, target) <-
+      sourceTarget <-
         case args of
-          [] -> Right (Nothing, Nothing)
+          [] -> Right Input.PushSourceTarget0
           [targetStr] -> do
             target <- parsePushTarget targetStr
-            Right (Nothing, Just target)
+            Right (Input.PushSourceTarget1 target)
           [targetStr, sourceStr] -> do
             target <- parsePushTarget targetStr
             source <- parsePushSource sourceStr
-            Right (Just source, Just target)
+            Right (Input.PushSourceTarget2 source target)
           _ -> Left (I.help pushForce)
       Right $
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
-            { localPath = source,
-              maybeRemoteRepo = target,
+            { sourceTarget,
               pushBehavior = PushBehavior.RequireEmpty,
               syncMode = SyncMode.ShortCircuit
             }
@@ -1231,22 +1229,21 @@ pushForce =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     (P.wrap "Like `push`, but overwrites any remote namespace.")
     \args -> do
-      (source, target) <-
+      sourceTarget <-
         case args of
-          [] -> Right (Nothing, Nothing)
+          [] -> Right Input.PushSourceTarget0
           [targetStr] -> do
             target <- parsePushTarget targetStr
-            Right (Nothing, Just target)
+            Right (Input.PushSourceTarget1 target)
           [targetStr, sourceStr] -> do
             target <- parsePushTarget targetStr
             source <- parsePushSource sourceStr
-            Right (Just source, Just target)
+            Right (Input.PushSourceTarget2 source target)
           _ -> Left (I.help pushForce)
       Right $
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
-            { localPath = source,
-              maybeRemoteRepo = target,
+            { sourceTarget,
               pushBehavior = PushBehavior.ForcePush,
               syncMode = SyncMode.ShortCircuit
             }
@@ -1270,22 +1267,21 @@ pushExhaustive =
         ]
     )
     \args -> do
-      (source, target) <-
+      sourceTarget <-
         case args of
-          [] -> Right (Nothing, Nothing)
+          [] -> Right Input.PushSourceTarget0
           [targetStr] -> do
             target <- parsePushTarget targetStr
-            Right (Nothing, Just target)
+            Right (Input.PushSourceTarget1 target)
           [targetStr, sourceStr] -> do
             target <- parsePushTarget targetStr
             source <- parsePushSource sourceStr
-            Right (Just source, Just target)
+            Right (Input.PushSourceTarget2 source target)
           _ -> Left (I.help pushExhaustive)
       Right $
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
-            { localPath = source,
-              maybeRemoteRepo = target,
+            { sourceTarget,
               pushBehavior = PushBehavior.RequireNonEmpty,
               syncMode = SyncMode.Complete
             }
