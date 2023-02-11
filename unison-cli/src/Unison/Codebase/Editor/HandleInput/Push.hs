@@ -5,6 +5,7 @@ import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, rea
 import Control.Lens
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
+import qualified Data.Set.NonEmpty as Set.NonEmpty
 import Data.Text as Text
 import qualified System.Console.Regions as Console.Regions
 import U.Codebase.HashTags (CausalHash (..))
@@ -112,7 +113,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
           localPath <- Cli.getCurrentPath
           remoteProjectAndBranch <- resolveProjectAndBranchMaybeNamesToNames remoteProjectAndBranch0
           pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
-        Just localProjectAndBranch -> do
+        Just localProjectAndBranch ->
           pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch0)
     -- push .some.path to .some.path
     PushSourceTarget2 (PathySource localPath0) (PathyTarget remotePath) -> do
@@ -330,7 +331,7 @@ pushProjectBranchToProjectBranch ::
   ProjectAndBranch Queries.ProjectId Queries.BranchId ->
   Maybe (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) ->
   Cli ()
-pushProjectBranchToProjectBranch ProjectAndBranch {project = localProjectId, branch = localBranchId} = \case
+pushProjectBranchToProjectBranch (ProjectAndBranch localProjectId localBranchId) = \case
   Nothing -> do
     Cli.runTransaction oinkResolveRemoteIds >>= \case
       Nothing -> do
@@ -340,80 +341,32 @@ pushProjectBranchToProjectBranch ProjectAndBranch {project = localProjectId, bra
             localProject <- Queries.expectProject localProjectId
             localBranch <- Queries.expectProjectBranch localProjectId localBranchId
             pure (localProject, localBranch)
-        loggeth ["Getting current logged-in user on Share"]
         myUserHandle <- oinkGetLoggedInUser
-        loggeth ["Got current logged-in user on Share: ", myUserHandle]
-        let localProjectName = unsafeFrom @Text (localProject ^. #name)
         let (remoteProjectUserSlug, remoteProjectName) =
-              case projectNameUserSlug localProjectName of
-                Nothing -> (myUserHandle, prependUserSlugToProjectName myUserHandle localProjectName)
-                Just userSlug -> (userSlug, localProjectName)
-        do
-          loggeth ["uploading entities"]
-          Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
-            let upload =
-                  Share.uploadEntities
-                    (codeserverBaseURL Codeserver.defaultCodeserver)
-                    (Share.RepoName remoteProjectUserSlug)
-                    wundefined
-                    uploadedCallback
-            upload & onLeftM \err -> do
-              loggeth ["upload entities error"]
-              loggeth [tShow err]
-              Cli.returnEarlyWithoutOutput
-        remoteProject <- do
-          let request = Share.API.CreateProjectRequest {projectName = into @Text remoteProjectName}
-          loggeth ["Making create-project request for project"]
-          loggeth [tShow request]
-          response <-
-            Share.createProject request & onLeftM \err -> do
-              loggeth ["Creating a project failed"]
-              loggeth [tShow err]
-              Cli.returnEarlyWithoutOutput
-          case response of
-            Share.API.CreateProjectResponseBadRequest -> do
-              loggeth ["Share says: bad request"]
-              Cli.returnEarlyWithoutOutput
-            Share.API.CreateProjectResponseUnauthorized -> do
-              loggeth ["Share says: unauthorized"]
-              Cli.returnEarlyWithoutOutput
-            Share.API.CreateProjectResponseSuccess remoteProject -> pure remoteProject
-        loggeth ["Share says: success!"]
-        loggeth [tShow remoteProject]
+              let localProjectName = unsafeFrom @Text (localProject ^. #name)
+               in case projectNameUserSlug localProjectName of
+                    Nothing -> (myUserHandle, prependUserSlugToProjectName myUserHandle localProjectName)
+                    Just userSlug -> (userSlug, localProjectName)
+        localBranchCausalHash <- wundefined
+        oinkUpload localBranchCausalHash remoteProjectUserSlug
+        remoteProject <- oinkCreateRemoteProject (into @Text remoteProjectName)
         let localBranchName = unsafeFrom @Text (localBranch ^. #name)
         let remoteBranchName = prependUserSlugToProjectBranchName myUserHandle localBranchName
-        loggeth ["Making create-branch request for branch", into @Text remoteProjectName]
-        response <- do
-          let request =
-                Share.API.CreateProjectBranchRequest
-                  { projectId = remoteProject ^. #projectId,
-                    branchName = into @Text remoteBranchName,
-                    branchCausalHash = wundefined,
-                    branchMergeTarget = wundefined
-                  }
-          loggeth ["Making create-project request for project"]
-          loggeth [tShow request]
-          Share.createProjectBranch request & onLeftM \err -> do
-            loggeth ["Creating a branch failed"]
-            loggeth [tShow err]
-            Cli.returnEarlyWithoutOutput
         remoteBranch <-
-          case response of
-            Share.API.CreateProjectBranchResponseBadRequest -> do
-              loggeth ["Share says: bad request"]
-              Cli.returnEarlyWithoutOutput
-            Share.API.CreateProjectBranchResponseUnauthorized -> do
-              loggeth ["Share says: unauthorized"]
-              Cli.returnEarlyWithoutOutput
-            Share.API.CreateProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
-        loggeth ["Share says: success!"]
-        loggeth [tShow remoteBranch]
+          oinkCreateRemoteBranch
+            Share.API.CreateProjectBranchRequest
+              { projectId = remoteProject ^. #projectId,
+                branchName = into @Text remoteBranchName,
+                branchCausalHash = localBranchCausalHash,
+                branchMergeTarget = Nothing
+              }
+        pure ()
       Just projectAndBranch ->
         case projectAndBranch ^. #branch of
           Nothing -> do
             let ancestorRemoteProjectId = projectAndBranch ^. #project
             loggeth ["We don't have a remote branch mapping, but our ancestor maps to project: ", ancestorRemoteProjectId]
-            loggeth ["Creating remote branch not implemented"]
+            myUserHandle <- oinkGetLoggedInUser
             Cli.returnEarlyWithoutOutput
           Just remoteBranchId -> do
             let remoteProjectId = projectAndBranch ^. #project
@@ -426,13 +379,75 @@ pushProjectBranchToProjectBranch ProjectAndBranch {project = localProjectId, bra
     loggeth ["Specifying project/branch to push to not implemented"]
     Cli.returnEarlyWithoutOutput
 
+oinkUpload localBranchCausalHash remoteProjectUserSlug = do
+  loggeth ["uploading entities"]
+  Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
+    let upload =
+          Share.uploadEntities
+            (codeserverBaseURL Codeserver.defaultCodeserver)
+            (Share.RepoName remoteProjectUserSlug)
+            (Set.NonEmpty.singleton localBranchCausalHash)
+            uploadedCallback
+    upload & onLeftM \err -> do
+      loggeth ["upload entities error"]
+      loggeth [tShow err]
+      Cli.returnEarlyWithoutOutput
+
+oinkCreateRemoteProject projectName = do
+  let request = Share.API.CreateProjectRequest {projectName}
+  loggeth ["Making create-project request for project"]
+  loggeth [tShow request]
+  response <-
+    Share.createProject request & onLeftM \err -> do
+      loggeth ["Creating a project failed"]
+      loggeth [tShow err]
+      Cli.returnEarlyWithoutOutput
+  case response of
+    Share.API.CreateProjectResponseBadRequest -> do
+      loggeth ["Share says: bad request"]
+      Cli.returnEarlyWithoutOutput
+    Share.API.CreateProjectResponseUnauthorized -> do
+      loggeth ["Share says: unauthorized"]
+      Cli.returnEarlyWithoutOutput
+    Share.API.CreateProjectResponseSuccess remoteProject -> do
+      loggeth ["Share says: success!"]
+      loggeth [tShow remoteProject]
+      loggeth ["TODO insert remote_project"]
+      pure remoteProject
+
+oinkCreateRemoteBranch request = do
+  loggeth ["creating remote branch"]
+  loggeth [tShow request]
+  response <-
+    Share.createProjectBranch request & onLeftM \err -> do
+      loggeth ["Creating a branch failed"]
+      loggeth [tShow err]
+      Cli.returnEarlyWithoutOutput
+  case response of
+    Share.API.CreateProjectBranchResponseBadRequest -> do
+      loggeth ["Share says: bad request"]
+      Cli.returnEarlyWithoutOutput
+    Share.API.CreateProjectBranchResponseUnauthorized -> do
+      loggeth ["Share says: unauthorized"]
+      Cli.returnEarlyWithoutOutput
+    Share.API.CreateProjectBranchResponseSuccess remoteBranch -> do
+      loggeth ["Share says: success!"]
+      loggeth [tShow remoteBranch]
+      loggeth ["TODO insert remote_project_branch"]
+      loggeth ["TODO insert remote_project"]
+      loggeth ["TODO insert project_branch_remote_mapping"]
+      pure remoteBranch
+
 oinkResolveRemoteIds :: Sqlite.Transaction (Maybe (ProjectAndBranch Text (Maybe Text)))
 oinkResolveRemoteIds = undefined
 
 oinkGetLoggedInUser :: Cli Text
 oinkGetLoggedInUser = do
+  loggeth ["Getting current logged-in user on Share"]
   AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
-  wundefined
+  myUserHandle <- wundefined
+  loggeth ["Got current logged-in user on Share: ", myUserHandle]
+  pure myUserHandle
 
 -- Provide the given action a callback that displays to the terminal.
 withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
