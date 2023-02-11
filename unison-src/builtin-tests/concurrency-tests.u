@@ -3,7 +3,7 @@ concurrency.tests = Tests.main do
   !simpleRefTestScope
   !ticketTest
   !casTest
-  --  !threadTest
+  !threadTest
   --  !promiseSequentialTest
   --  !promiseConcurrentTest
   --  !fullTest
@@ -45,17 +45,23 @@ casTest = do
 -- TODO test both Left and Right on the catchAll
 -- and try access the failure as well
 threadTest = do
-  ref = IO.ref None
   millis = 1000
-  thread = do
-    match catchAll do sleep (500 * millis) with
+  thread ref =
+    match catchAll do sleep (300 * millis) with
       Left _ -> Ref.write ref (Some "interrupted")
       Right _ -> Ref.write ref (Some "completed")
-  t = fork thread
+  ref1 = IO.ref None
+  ref2 = IO.ref None
+  t1 = fork do thread ref1
+  t2 = fork do thread ref2
   sleep (200 * millis)
-  kill t
-  r = while (Optional.isNone) do Ref.read ref
-  checkEqual "Thread has been interrupted" r (Some "interrupted")
+  kill t1
+  sleep (200 * millis)
+  kill t2
+  r1 = while (Optional.isNone) do Ref.read ref1
+  checkEqual "Thread has been interrupted" r1 (Some "interrupted")
+  r2 = while (Optional.isNone) do Ref.read ref2
+  checkEqual "Thread has completed" r2 (Some "completed")
 
 -- TODO exercise Promise.tryRead
 
