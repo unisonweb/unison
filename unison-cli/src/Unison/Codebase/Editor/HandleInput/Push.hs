@@ -67,8 +67,7 @@ import Witch (unsafeFrom)
 handleGist :: GistInput -> Cli ()
 handleGist (GistInput repo) = do
   Cli.Env {codebase} <- ask
-  localPath <- Cli.resolvePath' Path.currentPath
-  sourceBranch <- Cli.getBranchAt localPath
+  sourceBranch <- Cli.getCurrentBranch
   let opts =
         PushGitBranchOpts
           { behavior = GitPushBehaviorGist,
