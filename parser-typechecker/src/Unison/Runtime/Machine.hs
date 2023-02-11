@@ -1366,28 +1366,32 @@ bprim1 !ustk !bstk UCNS i =
       pure (ustk, bstk)
 bprim1 !ustk !bstk TTOI i =
   peekOffBi bstk i >>= \t -> case readm $ Util.Text.unpack t of
-    Nothing -> do
+    Just n
+      | fromIntegral (minBound :: Int) <= n,
+        n <= fromIntegral (maxBound :: Int) -> do
+          ustk <- bumpn ustk 2
+          poke ustk 1
+          pokeOff ustk 1 (fromInteger n)
+          pure (ustk, bstk)
+    _ -> do
       ustk <- bump ustk
       poke ustk 0
-      pure (ustk, bstk)
-    Just n -> do
-      ustk <- bumpn ustk 2
-      poke ustk 1
-      pokeOff ustk 1 n
       pure (ustk, bstk)
   where
     readm ('+' : s) = readMaybe s
     readm s = readMaybe s
 bprim1 !ustk !bstk TTON i =
   peekOffBi bstk i >>= \t -> case readMaybe $ Util.Text.unpack t of
-    Nothing -> do
+    Just n
+      | 0 <= n,
+        n <= fromIntegral (maxBound :: Word) -> do
+          ustk <- bumpn ustk 2
+          poke ustk 1
+          pokeOffN ustk 1 (fromInteger n)
+          pure (ustk, bstk)
+    _ -> do
       ustk <- bump ustk
       poke ustk 0
-      pure (ustk, bstk)
-    Just n -> do
-      ustk <- bumpn ustk 2
-      poke ustk 1
-      pokeOffN ustk 1 n
       pure (ustk, bstk)
 bprim1 !ustk !bstk TTOF i =
   peekOffBi bstk i >>= \t -> case readMaybe $ Util.Text.unpack t of

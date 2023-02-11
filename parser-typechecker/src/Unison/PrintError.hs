@@ -14,10 +14,9 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NES
 import qualified Data.Text as Text
-import Data.Void (Void)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
-import Unison.Builtin.Decls (pattern TupleType', unitRef)
+import Unison.Builtin.Decls (unitRef, pattern TupleType')
 import qualified Unison.Codebase.Path as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
@@ -400,17 +399,20 @@ renderTypeError e env src curPath = case e of
             ],
         debugSummary note
       ]
-      where
-        unitHintMsg = 
-          "\nHint: Actions within a block must have type " <> 
-             style Type2 (renderType' env expectedLeaf)    <> ".\n" <> 
-             "      Use " <> style Type1 "_ = <expr>" <> " to ignore a result."  
-        unitHint = if giveUnitHint then unitHintMsg else "" 
-        giveUnitHint = case expectedType of  
-          Type.Ref' u | u == unitRef -> case mismatchSite of 
-            Term.Let1Named' v _ _ -> Var.isAction v
-            _ -> False
+    where
+      unitHintMsg =
+        "\nHint: Actions within a block must have type "
+          <> style Type2 (renderType' env expectedLeaf)
+          <> ".\n"
+          <> "      Use "
+          <> style Type1 "_ = <expr>"
+          <> " to ignore a result."
+      unitHint = if giveUnitHint then unitHintMsg else ""
+      giveUnitHint = case expectedType of
+        Type.Ref' u | u == unitRef -> case mismatchSite of
+          Term.Let1Named' v _ _ -> Var.isAction v
           _ -> False
+        _ -> False
   AbilityCheckFailure {..}
     | [tv@(Type.Var' ev)] <- ambient,
       ev `Set.member` foldMap Type.freeVars requested ->
@@ -1637,7 +1639,7 @@ renderParseErrors s = \case
                         <> style ErrorSite "match"
                         <> "/"
                         <> style ErrorSite "with"
-                        <> " but I didn't find any."
+                        <> " or cases but I didn't find any."
                     ),
                   "",
                   tokenAsErrorSite s tok

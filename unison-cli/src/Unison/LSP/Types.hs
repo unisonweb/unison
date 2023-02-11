@@ -16,6 +16,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BSC
 import qualified Data.HashMap.Strict as HM
 import Data.IntervalMap.Lazy (IntervalMap)
+import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -110,6 +111,7 @@ data FileAnalysis = FileAnalysis
   { fileUri :: Uri,
     fileVersion :: FileVersion,
     lexedSource :: LexedSource,
+    tokenMap :: IM.IntervalMap Position Lexer.Lexeme,
     parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     notes :: Seq (Note Symbol Ann),

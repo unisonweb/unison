@@ -50,7 +50,7 @@ completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseE
 completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
     let fileUri = (m ^. params . textDocument . uri)
-    (range, prefix) <- VFS.completionPrefix (m ^. params)
+    (range, prefix) <- VFS.completionPrefix (m ^. params . textDocument . uri) (m ^. params . position)
     ppe <- PPED.suffixifiedPPE <$> lift globalPPED
     codebaseCompletions <- lift getCodebaseCompletions
     Config {maxCompletions} <- lift getConfig

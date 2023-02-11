@@ -22,7 +22,7 @@ import ArgParse
     UsageRenderer,
     parseCLIArgs,
   )
-import Compat (defaultInterruptHandler, onWindows, withInterruptHandler)
+import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
@@ -264,7 +264,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
               -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
               -- Windows when we move to GHC 9.*
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
-              when (not onWindows) . void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTMVar rootVar) (readTVar pathVar)
+              void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTMVar rootVar) (readTVar pathVar)
               Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
                 case exitOption of
                   DoNotExit -> do
@@ -333,9 +333,11 @@ initHTTPClient = do
   manager <- HTTP.newTlsManagerWith managerSettings
   HTTP.setGlobalManager manager
 
-prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> IO FilePath
-prepareTranscriptDir shouldFork mCodePathOption = do
-  tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
+prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> ShouldSaveCodebase -> IO FilePath
+prepareTranscriptDir shouldFork mCodePathOption shouldSaveCodebase = do
+  tmp <- case shouldSaveCodebase of
+    SaveCodebase (Just path) -> pure path
+    _ -> Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
   let cbInit = SC.init
   case shouldFork of
     UseFork -> do
@@ -430,12 +432,12 @@ runTranscripts renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption
       Exit.exitWith (Exit.ExitFailure 1)
     Success markdownFiles -> pure markdownFiles
   progName <- getProgName
-  transcriptDir <- prepareTranscriptDir shouldFork mCodePathOption
+  transcriptDir <- prepareTranscriptDir shouldFork mCodePathOption shouldSaveTempCodebase
   completed <-
     runTranscripts' progName (Just transcriptDir) transcriptDir markdownFiles
   case shouldSaveTempCodebase of
     DontSaveCodebase -> removeDirectoryRecursive transcriptDir
-    SaveCodebase ->
+    SaveCodebase _ ->
       when completed $ do
         PT.putPrettyLn $
           P.callout
