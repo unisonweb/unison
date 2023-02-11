@@ -11,6 +11,8 @@ module Unison.Share.Sync
     CheckAndSetPushError (..),
     fastForwardPush,
     FastForwardPushError (..),
+    uploadEntities,
+    UploadEntitiesError (..),
 
     -- ** Pull
     pull,
@@ -698,6 +700,7 @@ data UploadDispatcherJob
 
 data UploadEntitiesError
   = UploadEntitiesNoWritePermission
+  deriving stock (Show)
 
 -- | Upload a set of entities to Unison Share. If the server responds that it cannot yet store any hash(es) due to
 -- missing dependencies, send those dependencies too, and on and on, until the server stops responding that it's missing

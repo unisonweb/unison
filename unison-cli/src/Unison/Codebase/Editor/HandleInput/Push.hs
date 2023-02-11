@@ -54,6 +54,7 @@ import Unison.Project
     ProjectName,
     prependUserSlugToProjectBranchName,
     prependUserSlugToProjectName,
+    projectNameUserSlug,
   )
 import qualified Unison.Share.API.Projects as Share.API
 import qualified Unison.Share.Codeserver as Codeserver
@@ -310,24 +311,6 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemotePath {server, rep
     pathToSegments =
       coerce Path.toList
 
-    -- Provide the given action a callback that displays to the terminal.
-    withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
-    withEntitiesUploadedProgressCallback action = do
-      entitiesUploadedVar <- newTVarIO 0
-      Console.Regions.displayConsoleRegions do
-        Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
-          Console.Regions.setConsoleRegion region do
-            entitiesUploaded <- readTVar entitiesUploadedVar
-            pure $
-              "\n  Uploaded "
-                <> tShow entitiesUploaded
-                <> " entities...\n\n"
-          result <- action (\n -> atomically (modifyTVar' entitiesUploadedVar (+ n)))
-          entitiesUploaded <- readTVarIO entitiesUploadedVar
-          Console.Regions.finishConsoleRegion region $
-            "\n  Uploaded " <> tShow entitiesUploaded <> " entities."
-          pure result
-
     pushError :: (a -> Output.ShareError) -> Share.SyncError a -> Cli b
     pushError f err0 = do
       Cli.returnEarly case err0 of
@@ -352,25 +335,41 @@ pushProjectBranchToProjectBranch ProjectAndBranch {project = localProjectId, bra
     Cli.runTransaction oinkResolveRemoteIds >>= \case
       Nothing -> do
         loggeth ["We don't have a remote branch mapping for this branch or any ancestor"]
-        loggeth ["Getting current logged-in user on Share"]
-        myUserHandle <- oinkGetLoggedInUser
-        loggeth ["Got current logged-in user on Share: ", myUserHandle]
         (localProject, localBranch) <-
           Cli.runTransaction do
             localProject <- Queries.expectProject localProjectId
             localBranch <- Queries.expectProjectBranch localProjectId localBranchId
             pure (localProject, localBranch)
+        loggeth ["Getting current logged-in user on Share"]
+        myUserHandle <- oinkGetLoggedInUser
+        loggeth ["Got current logged-in user on Share: ", myUserHandle]
         let localProjectName = unsafeFrom @Text (localProject ^. #name)
-        let remoteProjectName = prependUserSlugToProjectName myUserHandle localProjectName
-        response <- do
+        let (remoteProjectUserSlug, remoteProjectName) =
+              case projectNameUserSlug localProjectName of
+                Nothing -> (myUserHandle, prependUserSlugToProjectName myUserHandle localProjectName)
+                Just userSlug -> (userSlug, localProjectName)
+        do
+          loggeth ["uploading entities"]
+          Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
+            let upload =
+                  Share.uploadEntities
+                    (codeserverBaseURL Codeserver.defaultCodeserver)
+                    (Share.RepoName remoteProjectUserSlug)
+                    wundefined
+                    uploadedCallback
+            upload & onLeftM \err -> do
+              loggeth ["upload entities error"]
+              loggeth [tShow err]
+              Cli.returnEarlyWithoutOutput
+        remoteProject <- do
           let request = Share.API.CreateProjectRequest {projectName = into @Text remoteProjectName}
           loggeth ["Making create-project request for project"]
           loggeth [tShow request]
-          Share.createProject request & onLeftM \err -> do
-            loggeth ["Creating a project failed"]
-            loggeth [tShow err]
-            Cli.returnEarlyWithoutOutput
-        remoteProject <-
+          response <-
+            Share.createProject request & onLeftM \err -> do
+              loggeth ["Creating a project failed"]
+              loggeth [tShow err]
+              Cli.returnEarlyWithoutOutput
           case response of
             Share.API.CreateProjectResponseBadRequest -> do
               loggeth ["Share says: bad request"]
@@ -434,3 +433,21 @@ oinkGetLoggedInUser :: Cli Text
 oinkGetLoggedInUser = do
   AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   wundefined
+
+-- Provide the given action a callback that displays to the terminal.
+withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
+withEntitiesUploadedProgressCallback action = do
+  entitiesUploadedVar <- newTVarIO 0
+  Console.Regions.displayConsoleRegions do
+    Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
+      Console.Regions.setConsoleRegion region do
+        entitiesUploaded <- readTVar entitiesUploadedVar
+        pure $
+          "\n  Uploaded "
+            <> tShow entitiesUploaded
+            <> " entities...\n\n"
+      result <- action (\n -> atomically (modifyTVar' entitiesUploadedVar (+ n)))
+      entitiesUploaded <- readTVarIO entitiesUploadedVar
+      Console.Regions.finishConsoleRegion region $
+        "\n  Uploaded " <> tShow entitiesUploaded <> " entities."
+      pure result

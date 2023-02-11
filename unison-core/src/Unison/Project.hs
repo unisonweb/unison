@@ -4,6 +4,7 @@
 -- package, but for now we have just defined the one blessed project/branch name syntax that we allow.
 module Unison.Project
   ( ProjectName,
+    projectNameUserSlug,
     prependUserSlugToProjectName,
     ProjectBranchName,
     prependUserSlugToProjectBranchName,
@@ -48,6 +49,19 @@ projectNameParser = do
         isStartChar :: Char -> Bool
         isStartChar c =
           Char.isAlpha c || c == '_'
+
+-- | Get the user slug at the beginning of a project name, if there is one.
+--
+-- >>> projectNameUserSlug "@arya/lens"
+-- Just "arya"
+--
+-- >>> projectNameUserSlug "lens"
+-- Nothing
+projectNameUserSlug :: ProjectName -> Maybe Text
+projectNameUserSlug (ProjectName projectName) =
+  if Text.head projectName == '@'
+    then Just (Text.takeWhile (/= '/') (Text.drop 1 projectName))
+    else Nothing
 
 -- | Prepend a user slug to a project name, if it doesn't already have one.
 --
