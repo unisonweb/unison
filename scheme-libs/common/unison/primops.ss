@@ -87,6 +87,7 @@
     unison-POp-EQLU
     unison-POp-EROR
     unison-POp-FTOT
+    unison-POp-FORK
     unison-POp-IDXB
     unison-POp-IDXS
     unison-POp-IORN
@@ -313,6 +314,7 @@
   (define (unison-FOp-Scope.bytearray n) (make-bytevector n))
   (define (unison-FOp-Scope.array n) (make-vector n))
 
+  (define (unison-POp-FORK thunk) (fork thunk))
   (define (unison-FOp-Scope.ref a) (ref-new a))
   (define (unison-FOp-IO.ref a) (ref-new a))
   (define (unison-FOp-Ref.read ref) (ref-read ref))
@@ -324,4 +326,3 @@
   (define (unison-FOp-Promise.read promise) (promise-read promise))
   (define (unison-FOp-Promise.tryRead promise) (promise-try-read promise))
   (define (unison-FOp-Promise.write promise a) (promise-write promise a)))
-

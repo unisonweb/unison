@@ -5,7 +5,7 @@ concurrency.tests = Tests.main do
   !casTest
   -- !threadTest
   !promiseSequentialTest
-  -- !promiseConcurrentTest
+  !promiseConcurrentTest
   --  !fullTest
 
 simpleRefTest = do
