@@ -76,4 +76,6 @@
   (define (ref-cas ref ticket value)
     (if (box-cas! ref ticket value) true false))
 
-  (define (sleep n) (sleep-secs (/ n 1000000))))
+  (define (sleep n)
+    (sleep-secs (/ n 1000000))
+    (right unit)))

@@ -70,6 +70,9 @@
     unison-FOp-Promise.tryRead
     unison-FOp-Promise.write
 
+    unison-FOp-IO.delay.impl.v3
+    unison-POp-FORK
+
     unison-POp-ADDN
     unison-POp-ANDN
     unison-POp-BLDS
@@ -87,7 +90,6 @@
     unison-POp-EQLU
     unison-POp-EROR
     unison-POp-FTOT
-    unison-POp-FORK
     unison-POp-IDXB
     unison-POp-IDXS
     unison-POp-IORN
@@ -315,6 +317,7 @@
   (define (unison-FOp-Scope.array n) (make-vector n))
 
   (define (unison-POp-FORK thunk) (fork thunk))
+  (define (unison-FOp-IO.delay.impl.v3 micros) (sleep micros))
   (define (unison-FOp-Scope.ref a) (ref-new a))
   (define (unison-FOp-IO.ref a) (ref-new a))
   (define (unison-FOp-Ref.read ref) (ref-read ref))

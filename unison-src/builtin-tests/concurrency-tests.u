@@ -79,13 +79,14 @@ promiseSequentialTest = do
   --  v3 = Promise.tryRead p
   --  checkEqual "Once the Promise is full, tryRead is the same as read" v3 (Some v2)
 
-
--- TODO add a sleep to the write here
 promiseConcurrentTest = do
   use Nat eq
   use concurrent fork
+  millis = 1000
   p = !Promise.new
-  _ = fork '(Promise.write p 5)
+  _ = fork do
+     unsafeRun! do sleep (200 * millis)
+     Promise.write p 5
   v = Promise.read p
   checkEqual "Reads awaits for completion of the Promise" v 5
 
