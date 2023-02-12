@@ -1,21 +1,12 @@
 concurrency.tests = Tests.main do
-  !minimal
-  --  !simpleRefTest
-  --  !simpleRefTestScope
-  --  !ticketTest
-  --  !casTest
-  --  -- !threadTest
-  --  !promiseSequentialTest
-  --  -- !promiseConcurrentTest
-  --  --  !fullTest
-
-minimal = do
-  p = !Promise.new
-  v = Promise.tryRead p
-  checkEqual "mmm" v None
-  Promise.write_ p 42
-  v1 = Promise.tryRead p
-  checkEqual "mmm" v1 (Some 42)
+  !simpleRefTest
+  !simpleRefTestScope
+  !ticketTest
+  !casTest
+  -- !threadTest
+  !promiseSequentialTest
+  -- !promiseConcurrentTest
+  --  !fullTest
 
 simpleRefTest = do
   r = IO.ref 0
@@ -71,22 +62,21 @@ threadTest = do
   r2 = while (Optional.isNone) do Ref.read ref2
   checkEqual "Thread has completed" r2 (Some "completed")
 
--- TODO use write_
 
 promiseSequentialTest = do
   use Nat eq
   use Promise read write
   p = !Promise.new
   v0 = Promise.tryRead p
-  checkEqual "Promise should be empty when created" v0 (Some 0)
-  ignore (write p 0)
+  checkEqual "Promise should be empty when created" v0 None
+  Promise.write_ p 0
   v1 = read p
   checkEqual "Promise should read a value that's been written" v1 0
-  ignore(write p 1)
+  Promise.write_ p 1
   v2 = read p
-  checkEqual "Promise can only be written to once" v2 0
+  checkEqual "Promise can only be written to once" v2 v1
   v3 = Promise.tryRead p
-  checkEqual "Once the Promise is full, tryRead is the same as read" v3 (Some 4)
+  checkEqual "Once the Promise is full, tryRead is the same as read" v3 (Some v2)
 
 
 -- TODO add a sleep to the write here
