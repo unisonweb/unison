@@ -3,8 +3,8 @@ concurrency.tests = Tests.main do
   !simpleRefTestScope
   !ticketTest
   !casTest
-  !threadTest
-  --  !promiseSequentialTest
+  -- !threadTest
+  !promiseSequentialTest
   --  !promiseConcurrentTest
   --  !fullTest
 
