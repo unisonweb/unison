@@ -3,9 +3,10 @@ concurrency.tests = Tests.main do
   !simpleRefTestScope
   !ticketTest
   !casTest
-  -- !threadTest
   !promiseSequentialTest
   !promiseConcurrentTest
+  --  !forkKillTest
+  --  !tryEvalForkTest
   !fullTest
 
 simpleRefTest = do
@@ -42,8 +43,36 @@ casTest = do
    v2 = Ref.cas ref ticket 15
    check "CAS fails when there was an intervening write" '(not v2)
 
--- TODO try to access the failure details
-threadTest = do
+promiseSequentialTest = do
+  use Nat eq
+  use Promise read write
+  p = !Promise.new
+  v0 = Promise.tryRead p
+  checkEqual "Promise should be empty when created" v0 None
+  Promise.write_ p 0
+  v1 = read p
+  checkEqual "Promise should read a value that's been written" v1 0
+  Promise.write_ p 1
+  v2 = read p
+  checkEqual "Promise can only be written to once" v2 v1
+  -- TODO fix bug in boot.ss here
+  --  v3 = Promise.tryRead p
+  --  checkEqual "Once the Promise is full, tryRead is the same as read" v3 (Some v2)
+
+millis = 1000
+sleep_ n = unsafeRun! do sleep n
+
+promiseConcurrentTest = do
+  use Nat eq
+  use concurrent fork
+  p = !Promise.new
+  _ = fork do
+     sleep_ (200 * millis)
+     Promise.write p 5
+  v = Promise.read p
+  checkEqual "Reads awaits for completion of the Promise" v 5
+
+forkKillTest = do
   millis = 1000
   thread ref =
     match catchAll do sleep (300 * millis) with
@@ -62,33 +91,8 @@ threadTest = do
   r2 = while (Optional.isNone) do Ref.read ref2
   checkEqual "Thread has completed" r2 (Some "completed")
 
-
-promiseSequentialTest = do
-  use Nat eq
-  use Promise read write
-  p = !Promise.new
-  v0 = Promise.tryRead p
-  checkEqual "Promise should be empty when created" v0 None
-  Promise.write_ p 0
-  v1 = read p
-  checkEqual "Promise should read a value that's been written" v1 0
-  Promise.write_ p 1
-  v2 = read p
-  checkEqual "Promise can only be written to once" v2 v1
-  -- TODO fix bug in boot.ss here
-  --  v3 = Promise.tryRead p
-  --  checkEqual "Once the Promise is full, tryRead is the same as read" v3 (Some v2)
-
-promiseConcurrentTest = do
-  use Nat eq
-  use concurrent fork
-  millis = 1000
-  p = !Promise.new
-  _ = fork do
-     unsafeRun! do sleep (200 * millis)
-     Promise.write p 5
-  v = Promise.read p
-  checkEqual "Reads awaits for completion of the Promise" v 5
+-- TODO
+tryEvalForkTest = bug "TODO"
 
 atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 atomicUpdate ref f =
