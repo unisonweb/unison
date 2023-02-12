@@ -72,6 +72,7 @@
 
     unison-FOp-IO.delay.impl.v3
     unison-POp-FORK
+    unison-FOp-IO.kill.impl.v3
 
     unison-POp-ADDN
     unison-POp-ANDN
@@ -318,6 +319,7 @@
 
   (define (unison-POp-FORK thunk) (fork thunk))
   (define (unison-FOp-IO.delay.impl.v3 micros) (sleep micros))
+  (define (unison-FOp-IO.kill.impl.v3 threadId) (kill threadId))
   (define (unison-FOp-Scope.ref a) (ref-new a))
   (define (unison-FOp-IO.ref a) (ref-new a))
   (define (unison-FOp-Ref.read ref) (ref-read ref))
@@ -329,3 +331,4 @@
   (define (unison-FOp-Promise.read promise) (promise-read promise))
   (define (unison-FOp-Promise.tryRead promise) (promise-try-read promise))
   (define (unison-FOp-Promise.write promise a) (promise-write promise a)))
+

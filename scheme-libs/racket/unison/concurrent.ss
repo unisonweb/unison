@@ -1,9 +1,5 @@
 #!r6rs
 
-;; TODO some ops return Either Failure (fork, kill, sleep)
-;; ^ separate point, they shouldn't
-;; TODO some others are in the exception ability (tryEval)
-;; I'm not handling the mapping right now
 (library (unison concurrent)
   (export
     ref-new
@@ -39,7 +35,6 @@
            (box ref-new)
            (unbox ref-read)
            (set-box! ref-write)
-           (break-thread kill) ; TODO need to see whether the compiler wraps the exception for me
            (thread fork)
            (sleep sleep-secs))
           (only (racket unsafe ops) unsafe-struct*-cas!)
@@ -78,4 +73,8 @@
 
   (define (sleep n)
     (sleep-secs (/ n 1000000))
+    (right unit))
+
+  (define (kill threadId)
+    (break-thread threadId)
     (right unit)))
