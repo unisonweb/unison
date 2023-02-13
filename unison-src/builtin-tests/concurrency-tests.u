@@ -5,7 +5,7 @@ concurrency.tests = Tests.main do
   !casTest
   !promiseSequentialTest
   !promiseConcurrentTest
-  --  !forkKillTest
+  !forkKillTest
   --  !tryEvalForkTest
   !fullTest
 
@@ -79,10 +79,10 @@ forkKillTest = do
     sleep_ (400 * millis)
     Ref.write ref "done"
   sleep_ (200 * millis)
-  kill_ thread -- TODO fix bug in boot.hs here
+  kill_ thread
   sleep_ (300 * millis)
   v = Ref.read ref
-  checkEqual "Thread was killed" v "done"
+  checkEqual "Thread was killed" v "initial"
 
 tryEvalForkTest = bug "Depends on the Exception ability being implemented"
 
