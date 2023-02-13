@@ -332,77 +332,107 @@ pushProjectBranchToProjectBranch ::
   ProjectAndBranch Queries.ProjectId Queries.BranchId ->
   Maybe (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) ->
   Cli ()
-pushProjectBranchToProjectBranch (ProjectAndBranch localProjectId localBranchId) = \case
-  Nothing -> do
-    Cli.runTransaction oinkResolveRemoteIds >>= \case
-      Nothing -> do
-        loggeth ["We don't have a remote branch mapping for this branch or any ancestor"]
+pushProjectBranchToProjectBranch localProjectAndBranchIds = \case
+  Nothing -> pushProjectBranchToImplicitProjectBranch localProjectAndBranchIds
+  Just remoteProjectAndBranchNames ->
+    pushProjectBranchToExplicitProjectBranch
+      localProjectAndBranchIds
+      remoteProjectAndBranchNames
 
-        -- Load local project and branch from database
-        (localProject, localBranch) <-
-          Cli.runTransaction do
-            localProject <- Queries.expectProject localProjectId
-            localBranch <- Queries.expectProjectBranch localProjectId localBranchId
-            pure (localProject, localBranch)
+pushProjectBranchToImplicitProjectBranch :: ProjectAndBranch Queries.ProjectId Queries.BranchId -> Cli ()
+pushProjectBranchToImplicitProjectBranch localProjectAndBranchIds =
+  Cli.runTransaction oinkResolveRemoteIds >>= \case
+    Nothing -> pushProjectBranchToBrandNewProjectBranch localProjectAndBranchIds
+    Just (ProjectAndBranch remoteProjectId maybeRemoteBranchId) ->
+      case maybeRemoteBranchId of
+        Nothing -> pushProjectBranchToNewProjectBranch localProjectAndBranchIds (ProjectAndBranch remoteProjectId ())
+        Just remoteBranchId ->
+          pushProjectBranchToExistingProjectBranch
+            localProjectAndBranchIds
+            (ProjectAndBranch remoteProjectId remoteBranchId)
 
-        -- Get my user handle from Share
-        myUserHandle <- oinkGetLoggedInUser
+-- "brand new" = new project and new branch
+pushProjectBranchToBrandNewProjectBranch :: ProjectAndBranch Queries.ProjectId Queries.BranchId -> Cli ()
+pushProjectBranchToBrandNewProjectBranch localProjectAndBranchIds = do
+  loggeth ["We don't have a remote branch mapping for this branch or any ancestor"]
 
-        -- Get the remote project user slug and remote project name.
-        --
-        -- Example 1 - the local project is called "foo" and the user is "bob":
-        --   remoteProjectUserSlug = "bob"
-        --   remoteProjectName     = "@bob/foo"
-        --
-        -- Example 2 - the local project is called "@foo/bar" and the user is "bob":
-        --   remoteProjectUserSlug = "foo"
-        --   remoteProjectName     = "@foo/bar"
-        let (remoteProjectUserSlug, remoteProjectName) =
-              let localProjectName = unsafeFrom @Text (localProject ^. #name)
-               in case projectNameUserSlug localProjectName of
-                    Nothing -> (myUserHandle, prependUserSlugToProjectName myUserHandle localProjectName)
-                    Just userSlug -> (userSlug, localProjectName)
+  -- Load local project and branch from database
+  ProjectAndBranch localProject localBranch <-
+    Cli.runTransaction (expectProjectAndBranch localProjectAndBranchIds)
 
-        -- Upload the branch to Share. We use the remote project user slug as the "Share repo" to upload to.
-        localBranchCausalHash <- do
-          let localPath = projectBranchPath (ProjectAndBranch localProjectId localBranchId)
-          let localPathSegments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute localPath))
-          Cli.runTransaction (Operations.loadCausalHashAtPath localPathSegments) & onNothingM do
-            Cli.returnEarly (EmptyPush (Path.absoluteToPath' localPath))
-        oinkUpload (Hash32.fromHash (unCausalHash localBranchCausalHash)) remoteProjectUserSlug
+  -- Get my user handle from Share
+  myUserHandle <- oinkGetLoggedInUser
 
-        -- The branch contents are uploaded, so create the remote project and remote branch.
-        remoteProject <- oinkCreateRemoteProject (into @Text remoteProjectName)
-        let localBranchName = unsafeFrom @Text (localBranch ^. #name)
-        let remoteBranchName = prependUserSlugToProjectBranchName myUserHandle localBranchName
-        remoteBranch <-
-          oinkCreateRemoteBranch
-            Share.API.CreateProjectBranchRequest
-              { projectId = remoteProject ^. #projectId,
-                branchName = into @Text remoteBranchName,
-                branchCausalHash = Hash32.fromHash (unCausalHash localBranchCausalHash),
-                branchMergeTarget = Nothing
-              }
+  -- Get the remote project user slug and remote project name.
+  --
+  -- Example 1 - the local project is called "foo" and the user is "bob":
+  --   remoteProjectUserSlug = "bob"
+  --   remoteProjectName     = "@bob/foo"
+  --
+  -- Example 2 - the local project is called "@foo/bar" and the user is "bob":
+  --   remoteProjectUserSlug = "foo"
+  --   remoteProjectName     = "@foo/bar"
+  let (remoteProjectUserSlug, remoteProjectName) =
+        let localProjectName = unsafeFrom @Text (localProject ^. #name)
+         in case projectNameUserSlug localProjectName of
+              Nothing -> (myUserHandle, prependUserSlugToProjectName myUserHandle localProjectName)
+              Just userSlug -> (userSlug, localProjectName)
 
-        pure ()
-      Just remoteProjectAndBranchIds ->
-        case remoteProjectAndBranchIds ^. #branch of
-          Nothing -> do
-            let ancestorRemoteProjectId = remoteProjectAndBranchIds ^. #project
-            loggeth
-              [ "We don't have a remote branch mapping, but our ancestor maps to project: ",
-                ancestorRemoteProjectId
-              ]
-            myUserHandle <- oinkGetLoggedInUser
-            wundefined
-          Just remoteBranchId -> do
-            let remoteProjectId = remoteProjectAndBranchIds ^. #project
-            loggeth ["Found remote branch mapping: ", remoteProjectId, ":", remoteBranchId]
-            loggeth ["Pushing to existing branch not implemented"]
-            wundefined
-  Just remoteProjectAndBranchNames -> do
-    loggeth ["Specifying project/branch to push to not implemented"]
-    wundefined
+  -- Upload the branch to Share. We use the remote project user slug as the "Share repo" to upload to.
+  localBranchCausalHash <- do
+    let localPath = projectBranchPath localProjectAndBranchIds
+    let localPathSegments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute localPath))
+    Cli.runTransaction (Operations.loadCausalHashAtPath localPathSegments) & onNothingM do
+      Cli.returnEarly (EmptyPush (Path.absoluteToPath' localPath))
+  oinkUpload (Hash32.fromHash (unCausalHash localBranchCausalHash)) remoteProjectUserSlug
+
+  -- The branch contents are uploaded, so create the remote project and remote branch.
+  remoteProject <- oinkCreateRemoteProject (into @Text remoteProjectName)
+  let localBranchName = unsafeFrom @Text (localBranch ^. #name)
+  let remoteBranchName = prependUserSlugToProjectBranchName myUserHandle localBranchName
+  remoteBranch <-
+    oinkCreateRemoteBranch
+      Share.API.CreateProjectBranchRequest
+        { projectId = remoteProject ^. #projectId,
+          branchName = into @Text remoteBranchName,
+          branchCausalHash = Hash32.fromHash (unCausalHash localBranchCausalHash),
+          branchMergeTarget = Nothing
+        }
+
+  pure ()
+
+-- "new" = existing project, new branch
+pushProjectBranchToNewProjectBranch ::
+  ProjectAndBranch Queries.ProjectId Queries.BranchId ->
+  ProjectAndBranch Text () ->
+  Cli ()
+pushProjectBranchToNewProjectBranch localProjectAndBranchIds (ProjectAndBranch remoteProjectId ()) = do
+  loggeth
+    [ "We don't have a remote branch mapping, but our ancestor maps to project: ",
+      remoteProjectId
+    ]
+  myUserHandle <- oinkGetLoggedInUser
+  wundefined
+
+pushProjectBranchToExistingProjectBranch ::
+  ProjectAndBranch Queries.ProjectId Queries.BranchId ->
+  ProjectAndBranch Text Text ->
+  Cli ()
+pushProjectBranchToExistingProjectBranch localProjectAndBranchIds (ProjectAndBranch remoteProjectId remoteBranchId) = wundefined
+
+pushProjectBranchToExplicitProjectBranch ::
+  ProjectAndBranch Queries.ProjectId Queries.BranchId ->
+  ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
+  Cli ()
+pushProjectBranchToExplicitProjectBranch = wundefined
+
+expectProjectAndBranch ::
+  ProjectAndBranch Queries.ProjectId Queries.BranchId ->
+  Sqlite.Transaction (ProjectAndBranch Queries.Project Queries.Branch)
+expectProjectAndBranch (ProjectAndBranch projectId branchId) = do
+  project <- Queries.expectProject projectId
+  branch <- Queries.expectProjectBranch projectId branchId
+  pure (ProjectAndBranch project branch)
 
 oinkUpload localBranchCausalHash remoteProjectUserSlug = do
   loggeth ["uploading entities"]
