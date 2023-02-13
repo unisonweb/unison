@@ -375,33 +375,19 @@ bazinga0 localProjectAndBranch localBranchCausalHash32 =
 bazinga1 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli (Share.RepoName, Cli ())
 bazinga1 (ProjectAndBranch localProject localBranch) localBranchCausalHash32 = do
   myUserHandle <- oinkGetLoggedInUser
-
+  let localProjectName = unsafeFrom @Text (localProject ^. #name)
   let localBranchName = unsafeFrom @Text (localBranch ^. #name)
-
-  -- Derive the remote project name from the user's handle and the local project name.
-  --
-  -- Example 1 - user "bob" has local project "foo"
-  --   remoteProjectName = "@bob/foo"
-  --
-  -- Example 2 - user "bob" has local project "@unison/base"
-  --   remoteProjectName = "@unison/base"
-  let remoteProjectName =
-        let localProjectName = unsafeFrom @Text (localProject ^. #name)
-         in prependUserSlugToProjectName myUserHandle localProjectName
-
-  let (remoteBranchUserSlug, remoteBranchName) =
-        deriveRemoteBranchName myUserHandle localBranchName
-
+  let remoteProjectName = prependUserSlugToProjectName myUserHandle localProjectName
+  let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
   afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
-
   pure (Share.RepoName remoteBranchUserSlug, afterUpload)
 
 bazinga2 :: Queries.Branch -> Hash32 -> Text -> Cli (Share.RepoName, Cli ())
 bazinga2 localBranch localBranchCausalHash32 remoteProjectId = do
   myUserHandle <- oinkGetLoggedInUser
 
-  let (remoteBranchUserSlug, remoteBranchName) =
-        deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
+  let localBranchName = unsafeFrom @Text (localBranch ^. #name)
+      (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
 
   afterUpload <-
     Share.getProjectBranchByName remoteProjectId (into @Text remoteBranchName) >>= \case
@@ -492,21 +478,19 @@ bazinga4 localProjectAndBranch localBranchCausalHash32 remoteProjectAndBranchNam
 
     -- "push @arya/lens"
     ProjectAndBranch (Just remoteProjectName) Nothing -> do
-      let localBranchName = unsafeFrom @Text (localProjectAndBranch ^. #branch . #name)
-
       myUserHandle <- oinkGetLoggedInUser
-
-      let (remoteBranchUserSlug, remoteBranchName) =
-            deriveRemoteBranchName myUserHandle localBranchName
-
+      let localBranchName = unsafeFrom @Text (localProjectAndBranch ^. #branch . #name)
+      let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
       afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
-
       pure (Share.RepoName remoteBranchUserSlug, afterUpload)
 
     -- "push @unison/base/@runar/topic"
     ProjectAndBranch (Just remoteProjectName) (Just remoteBranchName) -> do
-      wundefined
+      repoName <- projectBranchRepoName (ProjectAndBranch remoteProjectName remoteBranchName)
+      afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
+      pure (repoName, afterUpload)
 
+-- we have the remote project and branch names, but we don't know whether either already exist
 oompaLoompa :: ProjectAndBranch ProjectName ProjectBranchName -> Hash32 -> Cli (Cli ())
 oompaLoompa (ProjectAndBranch projectName branchName) localBranchCausalHash32 = do
   let doCreateBranch :: Share.API.Project -> Cli ()
@@ -558,12 +542,17 @@ remoteProjectRepoName project =
         Nothing -> wundefined
         Just userSlug -> pure (Share.RepoName userSlug)
 
--- We need to compute the "repo name" of the branch that we want to push to, because that's what the Share upload
--- API requires (currently).
---
--- We do this in a (slightly) racy way: ask share what the branch's project/branch name is, then go right back to
--- share with an upload request. So if a project or branch is renamed in between these calls, this will fail.
---
+remoteProjectBranchRepoName :: Share.API.ProjectBranch -> Cli Share.RepoName
+remoteProjectBranchRepoName branch =
+  case tryInto @ProjectName (branch ^. #projectName) of
+    -- This shouldn't happen often - Share gave us a branch name that we don't consider valid?
+    Left _ -> wundefined
+    Right projectName ->
+      case tryInto @ProjectBranchName (branch ^. #branchName) of
+        -- This shouldn't happen often - Share gave us a project name that we don't consider valid?
+        Left _ -> wundefined
+        Right branchName -> projectBranchRepoName (ProjectAndBranch projectName branchName)
+
 -- A couple example repo names derived from the project/branch names:
 --
 --   "@unison/base" / "@arya/topic" => "arya", because the branch "@arya/topic" has a user component
@@ -573,24 +562,16 @@ remoteProjectRepoName project =
 --   "something"    / "weird"       => oh no, we probably have to fail here, because even though we tried to design an
 --                                     API that allows any ol' project and branch name, we don't really know *where* to
 --                                     upload (i.e. the repo name of) a project that doesn't have a user component
-remoteProjectBranchRepoName :: Share.API.ProjectBranch -> Cli Share.RepoName
-remoteProjectBranchRepoName branch =
-  case tryInto @ProjectBranchName (branch ^. #branchName) of
-    -- This shouldn't happen often - Share gave us a branch name that we don't consider valid?
-    Left _ -> wundefined
-    Right branchName ->
-      case projectBranchNameUserSlug branchName of
-        Nothing ->
-          case tryInto @ProjectName (branch ^. #projectName) of
-            -- This shouldn't happen often - Share gave us a project name that we don't consider valid?
-            Left _ -> wundefined
-            Right projectName ->
-              case projectNameUserSlug projectName of
-                -- eep, neither project nor branch name have a user slug, so it doesn't seem like we know what to use
-                -- for the repo name. just bail.
-                Nothing -> wundefined
-                Just userSlug -> pure (Share.RepoName userSlug)
+projectBranchRepoName :: ProjectAndBranch ProjectName ProjectBranchName -> Cli Share.RepoName
+projectBranchRepoName (ProjectAndBranch projectName branchName) =
+  case projectBranchNameUserSlug branchName of
+    Nothing ->
+      case projectNameUserSlug projectName of
+        -- eep, neither project nor branch name have a user slug, so it doesn't seem like we know what to use for the
+        -- repo name. just bail.
+        Nothing -> wundefined
         Just userSlug -> pure (Share.RepoName userSlug)
+    Just userSlug -> pure (Share.RepoName userSlug)
 
 expectProjectAndBranch ::
   ProjectAndBranch Queries.ProjectId Queries.BranchId ->
