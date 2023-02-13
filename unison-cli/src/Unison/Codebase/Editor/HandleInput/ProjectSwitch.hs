@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.HandleInput.ProjectSwitch
 where
 
 import Control.Lens ((^.))
+import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
@@ -18,13 +19,12 @@ import qualified Unison.Sqlite as Sqlite
 import Witch (unsafeFrom)
 
 -- | Switch to (or create) a project or project branch.
-projectSwitch :: ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) -> Cli ()
+projectSwitch :: These ProjectName ProjectBranchName -> Cli ()
 projectSwitch = \case
-  ProjectAndBranch (Just projectName) (Just branchName) ->
+  These projectName branchName ->
     switchToProjectAndBranch (ProjectAndBranch projectName branchName)
-  ProjectAndBranch (Just projectName) Nothing -> switchToProject projectName
-  ProjectAndBranch Nothing (Just branchName) -> switchToBranch branchName
-  ProjectAndBranch Nothing Nothing -> pure ()
+  This projectName -> switchToProject projectName
+  That branchName -> switchToBranch branchName
 
 -- Switch to a project name (going to branch "main" for now, but ideally we'd store the last branch a user was on).
 switchToProject :: ProjectName -> Cli ()

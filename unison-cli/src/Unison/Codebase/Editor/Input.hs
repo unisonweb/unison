@@ -27,6 +27,7 @@ module Unison.Codebase.Editor.Input
 where
 
 import qualified Data.Text as Text
+import Data.These (These)
 import U.Codebase.HashTags (CausalHash)
 import qualified Unison.Codebase.Branch.Merge as Branch
 import Unison.Codebase.Editor.RemoteRepo
@@ -42,7 +43,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
+import Unison.Project (ProjectBranchName, ProjectName)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Util.Pretty as P
 
@@ -214,7 +215,7 @@ data Input
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   | ProjectCreateI ProjectName
   | ProjectPushI ProjectBranchName
-  | ProjectSwitchI (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
+  | ProjectSwitchI (These ProjectName ProjectBranchName)
   deriving (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
@@ -235,12 +236,12 @@ data GistInput = GistInput
 
 data PushTarget
   = PathyTarget WriteRemotePath
-  | ProjyTarget (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
+  | ProjyTarget (These ProjectName ProjectBranchName)
   deriving stock (Eq, Show)
 
 data PushSource
   = PathySource Path'
-  | ProjySource (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
+  | ProjySource (These ProjectName ProjectBranchName)
   deriving stock (Eq, Show)
 
 -- | Push source and target: either neither is specified, or only a target, or both.

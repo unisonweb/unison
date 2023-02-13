@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.These (These)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
@@ -2322,7 +2323,7 @@ projectSwitch =
       help = P.wrap "Switch to a project.",
       parse = \case
         [name] ->
-          case tryInto @(ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) (Text.pack name) of
+          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
             Left _ -> Left (showPatternHelp projectSwitch)
             Right projectAndBranch -> Right (Input.ProjectSwitchI projectAndBranch)
         _ -> Left (showPatternHelp projectSwitch)

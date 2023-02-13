@@ -11,6 +11,7 @@ import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set.NonEmpty as Set.NonEmpty
 import Data.Text as Text
+import Data.These (These (..))
 import qualified System.Console.Regions as Console.Regions
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Sqlite.Operations as Operations
@@ -140,16 +141,10 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
       pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch)
 
 resolveProjectAndBranchMaybeNamesToIds ::
-  ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
+  These ProjectName ProjectBranchName ->
   Cli (ProjectAndBranch Queries.ProjectId Queries.BranchId)
 resolveProjectAndBranchMaybeNamesToIds = \case
-  ProjectAndBranch Nothing Nothing ->
-    getCurrentProjectBranch >>= \case
-      Nothing -> do
-        loggeth ["not on a project branch yo"]
-        Cli.returnEarlyWithoutOutput
-      Just projectAndBranch -> pure projectAndBranch
-  ProjectAndBranch Nothing (Just branchName) ->
+  That branchName ->
     getCurrentProjectBranch >>= \case
       Nothing -> do
         loggeth ["not on a project branch yo"]
@@ -160,8 +155,8 @@ resolveProjectAndBranchMaybeNamesToIds = \case
             loggeth ["no branch in project ", tShow projectId, " with name ", into @Text branchName]
             Cli.returnEarlyWithoutOutput
           Just branch -> pure (ProjectAndBranch projectId (branch ^. #branchId))
-  ProjectAndBranch (Just projectName) maybeBranchName -> do
-    let branchName = fromMaybe (unsafeFrom @Text "main") maybeBranchName
+  This projectName -> resolveProjectAndBranchMaybeNamesToIds (These projectName (unsafeFrom @Text "main"))
+  These projectName branchName -> do
     maybeProjectAndBranch <-
       Cli.runTransaction do
         runMaybeT do
@@ -171,25 +166,15 @@ resolveProjectAndBranchMaybeNamesToIds = \case
           pure (ProjectAndBranch projectId (branch ^. #branchId))
     case maybeProjectAndBranch of
       Nothing -> do
-        loggeth [into @Text (ProjectAndBranch (Just projectName) (Just branchName)), " not found!"]
+        loggeth [into @Text (These projectName branchName), " not found!"]
         Cli.returnEarlyWithoutOutput
       Just projectAndBranch -> pure projectAndBranch
 
 resolveProjectAndBranchMaybeNamesToNames ::
-  ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
+  These ProjectName ProjectBranchName ->
   Cli (ProjectAndBranch ProjectName ProjectBranchName)
 resolveProjectAndBranchMaybeNamesToNames = \case
-  ProjectAndBranch Nothing Nothing ->
-    getCurrentProjectBranch >>= \case
-      Nothing -> do
-        loggeth ["not on a project branch"]
-        Cli.returnEarlyWithoutOutput
-      Just (ProjectAndBranch projectId branchId) ->
-        Cli.runTransaction do
-          project <- Queries.expectProject projectId
-          branch <- Queries.expectProjectBranch projectId branchId
-          pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) (unsafeFrom @Text (branch ^. #name)))
-  ProjectAndBranch Nothing (Just branchName) -> do
+  That branchName -> do
     getCurrentProjectBranch >>= \case
       Nothing -> do
         loggeth ["not on a project branch"]
@@ -198,8 +183,8 @@ resolveProjectAndBranchMaybeNamesToNames = \case
         Cli.runTransaction do
           project <- Queries.expectProject projectId
           pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
-  ProjectAndBranch (Just projectName) Nothing -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
-  ProjectAndBranch (Just projectName) (Just branchName) -> pure (ProjectAndBranch projectName branchName)
+  This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
+  These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
 -- | Push a local namespace ("loose code") to a remote namespace ("loose code").
 pushLooseCodeToLooseCode ::
@@ -335,7 +320,7 @@ pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = wundefined
 -- use a pre-existing mapping for the local branch, or else infer what remote branch to push to (possibly creating it).
 pushProjectBranchToProjectBranch ::
   ProjectAndBranch Queries.ProjectId Queries.BranchId ->
-  Maybe (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) ->
+  Maybe (These ProjectName ProjectBranchName) ->
   Cli ()
 pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndBranchNames = do
   -- Load local project and branch from database
@@ -439,16 +424,12 @@ bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId) = do
 bazinga4 ::
   ProjectAndBranch Queries.Project Queries.Branch ->
   Hash32 ->
-  ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
+  These ProjectName ProjectBranchName ->
   Cli (Share.RepoName, Cli ())
 bazinga4 localProjectAndBranch localBranchCausalHash32 remoteProjectAndBranchNames = do
   case remoteProjectAndBranchNames of
-    -- "push /" (meaning infer the project and branch) is the same as "push"
-    ProjectAndBranch Nothing Nothing -> do
-      bazinga0 localProjectAndBranch localBranchCausalHash32
-
     -- "push /topic"
-    ProjectAndBranch Nothing (Just remoteBranchName) ->
+    That remoteBranchName ->
       Cli.runTransaction oinkResolveRemoteProjectId >>= \case
         Nothing -> wundefined
         Just remoteProjectId -> do
@@ -481,7 +462,7 @@ bazinga4 localProjectAndBranch localBranchCausalHash32 remoteProjectAndBranchNam
           pure (repoName, afterUpload)
 
     -- "push @arya/lens"
-    ProjectAndBranch (Just remoteProjectName) Nothing -> do
+    This remoteProjectName -> do
       myUserHandle <- oinkGetLoggedInUser
       let localBranchName = unsafeFrom @Text (localProjectAndBranch ^. #branch . #name)
       let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
@@ -489,7 +470,7 @@ bazinga4 localProjectAndBranch localBranchCausalHash32 remoteProjectAndBranchNam
       pure (Share.RepoName remoteBranchUserSlug, afterUpload)
 
     -- "push @unison/base/@runar/topic"
-    ProjectAndBranch (Just remoteProjectName) (Just remoteBranchName) -> do
+    These remoteProjectName remoteBranchName -> do
       repoName <- projectBranchRepoName (ProjectAndBranch remoteProjectName remoteBranchName)
       afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
       pure (repoName, afterUpload)
