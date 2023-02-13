@@ -179,7 +179,9 @@ initCommand = command "init" (info initParser (progDesc initHelp))
 
 runDesc :: String -> String -> String
 runDesc cmd location =
-  "Execute a definition from " <> location <> ", passing on the provided arguments. "
+  "Execute a definition from "
+    <> location
+    <> ", passing on the provided arguments. "
     <> " To pass flags to your program, use `"
     <> cmd
     <> " -- --my-flag`"
@@ -369,7 +371,8 @@ runSymbolParser =
 runFileParser :: Parser Command
 runFileParser =
   Run
-    <$> ( RunFromFile <$> fileArgument "path/to/file"
+    <$> ( RunFromFile
+            <$> fileArgument "path/to/file"
             <*> strArgument (metavar "SYMBOL")
         )
     <*> runArgumentParser
@@ -403,9 +406,11 @@ saveCodebaseToFlag = do
       long "save-codebase-to"
         <> short 'S'
         <> help "Where the codebase should be created. Implies --save-codebase"
-  pure (case path of
-    Just _ -> SaveCodebase path
-    _ -> DontSaveCodebase)
+  pure
+    ( case path of
+        Just _ -> SaveCodebase path
+        _ -> DontSaveCodebase
+    )
 
 downloadBaseFlag :: Parser ShouldDownloadBase
 downloadBaseFlag =
@@ -472,10 +477,12 @@ transcriptParser = do
   shouldSaveCodebase <- saveCodebaseFlag
   mrtsStatsFp <- rtsStatsOption
   files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
-  pure (let saveCodebase = case shouldSaveCodebaseTo of
-                              DontSaveCodebase -> shouldSaveCodebase
-                              _ -> shouldSaveCodebaseTo
-        in Transcript DontFork saveCodebase mrtsStatsFp files)
+  pure
+    ( let saveCodebase = case shouldSaveCodebaseTo of
+            DontSaveCodebase -> shouldSaveCodebase
+            _ -> shouldSaveCodebaseTo
+       in Transcript DontFork saveCodebase mrtsStatsFp files
+    )
 
 transcriptForkParser :: Parser Command
 transcriptForkParser = do
@@ -484,10 +491,12 @@ transcriptForkParser = do
   shouldSaveCodebase <- saveCodebaseFlag
   mrtsStatsFp <- rtsStatsOption
   files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
-  pure (let saveCodebase = case shouldSaveCodebaseTo of
-                              DontSaveCodebase -> shouldSaveCodebase
-                              _ -> shouldSaveCodebaseTo
-        in Transcript UseFork saveCodebase mrtsStatsFp files)
+  pure
+    ( let saveCodebase = case shouldSaveCodebaseTo of
+            DontSaveCodebase -> shouldSaveCodebase
+            _ -> shouldSaveCodebaseTo
+       in Transcript UseFork saveCodebase mrtsStatsFp files
+    )
 
 unisonHelp :: String -> String -> P.Doc
 unisonHelp (P.text -> executable) (P.text -> version) =

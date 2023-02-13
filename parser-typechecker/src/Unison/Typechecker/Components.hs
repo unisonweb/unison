@@ -14,10 +14,10 @@ import Unison.Term (Term')
 import qualified Unison.Term as Term
 import Unison.Var (Var)
 
-unordered :: Var v => [(v, Term' vt v a)] -> [[(v, Term' vt v a)]]
+unordered :: (Var v) => [(v, Term' vt v a)] -> [[(v, Term' vt v a)]]
 unordered = ABT.components
 
-ordered :: Var v => [(v, Term' vt v a)] -> [[(v, Term' vt v a)]]
+ordered :: (Var v) => [(v, Term' vt v a)] -> [[(v, Term' vt v a)]]
 ordered = ABT.orderedComponents
 
 -- | Algorithm for minimizing cycles of a `let rec`. This can
@@ -41,7 +41,8 @@ minimize ::
 minimize (Term.LetRecNamedAnnotatedTop' isTop blockAnn bs e) =
   let bindings = first snd <$> bs
       group =
-        map (fst . head &&& map (ABT.annotation . snd)) . groupBy ((==) `on` fst)
+        map (fst . head &&& map (ABT.annotation . snd))
+          . groupBy ((==) `on` fst)
           . sortBy
             (compare `on` fst)
       grouped = group bindings

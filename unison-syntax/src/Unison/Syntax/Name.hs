@@ -55,7 +55,7 @@ toText (Name pos (x0 :| xs)) =
       Relative -> ""
 
 -- | Convert a name to a string representation, then parse that as a var.
-toVar :: Var v => Name -> v
+toVar :: (Var v) => Name -> v
 toVar =
   Var.named . toText
 
@@ -102,12 +102,12 @@ unsafeFromString =
 --
 -- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
 -- no attempt at rejecting bogus names like "foo...bar...baz".
-unsafeFromText :: HasCallStack => Text -> Name
+unsafeFromText :: (HasCallStack) => Text -> Name
 unsafeFromText = either (error . Text.unpack) id . fromTextEither
 
 -- | Unsafely parse a name from a var, by first rendering the var as a string.
 --
 -- See 'unsafeFromText'.
-unsafeFromVar :: Var v => v -> Name
+unsafeFromVar :: (Var v) => v -> Name
 unsafeFromVar =
   unsafeFromText . Var.name

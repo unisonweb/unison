@@ -353,6 +353,6 @@ instance ToHttpApiData Name where
 
 deriving newtype instance ToSchema NameSegment
 
-deriving anyclass instance ToSchema n => ToSchema (HQ.HashQualified n)
+deriving anyclass instance (ToSchema n) => ToSchema (HQ.HashQualified n)
 
-deriving anyclass instance ToSchema n => ToSchema (HQ'.HashQualified n)
+deriving anyclass instance (ToSchema n) => ToSchema (HQ'.HashQualified n)

@@ -31,7 +31,7 @@ starToR4 :: (Ord r, Ord n) => Star r n -> Relation4 r n Type Value
 starToR4 = R4.fromList . starToR4List
 
 -- | Flattens a Metadata.Star into a 4-tuple.
-starToR4List :: Ord r => Star r n -> [(r, n, Type, Value)]
+starToR4List :: (Ord r) => Star r n -> [(r, n, Type, Value)]
 starToR4List s =
   [ (f, x, y, z)
     | f <- Set.toList (Star3.fact s),
@@ -39,14 +39,14 @@ starToR4List s =
       (y, z) <- Set.toList (R.lookupDom f (Star3.d3 s))
   ]
 
-hasMetadata :: Ord a => a -> Type -> Value -> Star a n -> Bool
+hasMetadata :: (Ord a) => a -> Type -> Value -> Star a n -> Bool
 hasMetadata a t v = Set.member (t, v) . R.lookupDom a . Star3.d3
 
-hasMetadataWithType' :: Ord a => a -> Type -> R4 a n -> Bool
+hasMetadataWithType' :: (Ord a) => a -> Type -> R4 a n -> Bool
 hasMetadataWithType' =
   R4.memberD13
 
-hasMetadataWithType :: Ord a => a -> Type -> Star a n -> Bool
+hasMetadataWithType :: (Ord a) => a -> Type -> Star a n -> Bool
 hasMetadataWithType a t = Set.member t . R.lookupDom a . Star3.d2
 
 inserts :: (Ord a, Ord n) => [(a, Type, Value)] -> Star a n -> Star a n

@@ -45,8 +45,10 @@ test =
           scope "<>" . expect' $
             Text.toText (t1s <> t2s <> t3s) == t1 <> t2 <> t3
           scope "Ord" . expect' $
-            (t1 <> t2 <> t3) `compare` t3
-              == (t1s <> t2s <> t3s) `compare` t3s
+            (t1 <> t2 <> t3)
+              `compare` t3
+              == (t1s <> t2s <> t3s)
+              `compare` t3s
           scope "take" . expect' $
             Text.toText (Text.take k (t1s <> t2s)) == T.take k (t1 <> t2)
           scope "drop" . expect' $

@@ -16,6 +16,31 @@ To get cracking with Unison:
 
 On startup, Unison prints a url for the codebase UI. If you did step 3 above, then visiting that URL in a browser will give you a nice interface to your codebase.
 
+## Add a pre-commit hook for autoformatting with Ormolu
+
+We use 0.5.3.0 of Ormolu and CI will fail if your code isn't properly formatted. You can add the following to `.git/hooks/pre-commit` to make sure all your commits get formatted (this assumes you've got [`rg`](https://github.com/BurntSushi/ripgrep) installed and on your path):
+
+```
+#!/bin/bash
+
+set -e
+
+if [[ -z "${SKIP_FORMATTING}" ]]; then
+    git diff --cached --name-only | rg '.hs$' | xargs -n1 ormolu  --ghc-opt '-XBangPatterns' --ghc-opt '-XCPP' --ghc-opt '-XPatternSynonyms' -i
+    git add $(git diff --cached --name-only)
+fi
+```
+
+Note that you can always wrap a comment around some code you don't want Ormolu to touch, using:
+
+```
+{- ORMOLU_DISABLE -}
+dontFormatMe = do blah
+                    blah
+                  blah
+{- ORMOLU_ENABLE -}
+```
+
 ## Running Tests
 
 * `stack test --fast` builds and runs most test suites, see below for exceptions to this (e.g. transcript tests).

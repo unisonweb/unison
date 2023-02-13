@@ -2130,7 +2130,7 @@ saveDeclComponent hh@HashHandle {toReferenceDecl, toReferenceDeclMentions} maybe
   pure oId
 
 -- | implementation detail of {s,w}2c*Term* & s2cDecl
-localIdsToLookups :: Monad m => (t -> m Text) -> (d -> m Hash) -> LocalIds' t d -> m (LocalTextId -> Text, LocalDefnId -> Hash)
+localIdsToLookups :: (Monad m) => (t -> m Text) -> (d -> m Hash) -> LocalIds' t d -> m (LocalTextId -> Text, LocalDefnId -> Hash)
 localIdsToLookups loadText loadHash localIds = do
   texts <- traverse loadText $ LocalIds.textLookup localIds
   hashes <- traverse loadHash $ LocalIds.defnLookup localIds
@@ -2174,7 +2174,7 @@ localIdsToTypeRefLookup localIds = do
 
 c2sDecl ::
   forall m t d.
-  Monad m =>
+  (Monad m) =>
   (Text -> m t) ->
   (Hash -> m d) ->
   C.Decl Symbol ->
@@ -2210,7 +2210,7 @@ c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
 
 -- | implementation detail of c2{s,w}Term
 --  The Type is optional, because we don't store them for watch expression results.
-c2xTerm :: forall m t d. Monad m => (Text -> m t) -> (Hash -> m d) -> C.Term Symbol -> Maybe (C.Term.Type Symbol) -> m (LocalIds' t d, S.Term.Term, Maybe (S.Term.Type))
+c2xTerm :: forall m t d. (Monad m) => (Text -> m t) -> (Hash -> m d) -> C.Term Symbol -> Maybe (C.Term.Type Symbol) -> m (LocalIds' t d, S.Term.Term, Maybe (S.Term.Type))
 c2xTerm saveText saveDefn tm tp =
   done =<< (runWriterT . flip evalStateT mempty) do
     sterm <- ABT.transformM go tm

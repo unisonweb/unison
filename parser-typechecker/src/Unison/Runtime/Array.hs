@@ -226,8 +226,8 @@ checkCMBArray _ = id
 #endif
 
 readArray ::
-  CheckCtx =>
-  PrimMonad m =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
   MutableArray (PrimState m) a ->
   Int ->
   m a
@@ -235,8 +235,8 @@ readArray = checkIMArray "readArray" PA.readArray
 {-# INLINE readArray #-}
 
 writeArray ::
-  CheckCtx =>
-  PrimMonad m =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
   MutableArray (PrimState m) a ->
   Int ->
   a ->
@@ -245,8 +245,8 @@ writeArray = checkIMArray "writeArray" PA.writeArray
 {-# INLINE writeArray #-}
 
 copyArray ::
-  CheckCtx =>
-  PrimMonad m =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
   MutableArray (PrimState m) a ->
   Int ->
   Array a ->
@@ -257,8 +257,8 @@ copyArray = checkCArray "copyArray" PA.copyArray
 {-# INLINE copyArray #-}
 
 cloneMutableArray ::
-  CheckCtx =>
-  PrimMonad m =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
   MutableArray (PrimState m) a ->
   Int ->
   Int ->
@@ -267,8 +267,8 @@ cloneMutableArray = checkRMArray "cloneMutableArray" PA.cloneMutableArray
 {-# INLINE cloneMutableArray #-}
 
 copyMutableArray ::
-  CheckCtx =>
-  PrimMonad m =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
   MutableArray (PrimState m) a ->
   Int ->
   MutableArray (PrimState m) a ->
@@ -280,9 +280,9 @@ copyMutableArray = checkCMArray "copyMutableArray" PA.copyMutableArray
 
 readByteArray ::
   forall a m.
-  CheckCtx =>
-  PrimMonad m =>
-  Prim a =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
+  (Prim a) =>
   MutableByteArray (PrimState m) ->
   Int ->
   m a
@@ -291,9 +291,9 @@ readByteArray = checkIMBArray @a "readByteArray" undefined PA.readByteArray
 
 writeByteArray ::
   forall a m.
-  CheckCtx =>
-  PrimMonad m =>
-  Prim a =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
+  (Prim a) =>
   MutableByteArray (PrimState m) ->
   Int ->
   a ->
@@ -303,8 +303,8 @@ writeByteArray = checkIMBArray @a "writeByteArray" undefined PA.writeByteArray
 
 indexByteArray ::
   forall a.
-  CheckCtx =>
-  Prim a =>
+  (CheckCtx) =>
+  (Prim a) =>
   ByteArray ->
   Int ->
   a
@@ -312,8 +312,8 @@ indexByteArray = checkIBArray @a "indexByteArray" undefined PA.indexByteArray
 {-# INLINE indexByteArray #-}
 
 copyByteArray ::
-  CheckCtx =>
-  PrimMonad m =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
   MutableByteArray (PrimState m) ->
   Int ->
   ByteArray ->
@@ -324,8 +324,8 @@ copyByteArray = checkCBArray "copyByteArray" PA.copyByteArray
 {-# INLINE copyByteArray #-}
 
 copyMutableByteArray ::
-  CheckCtx =>
-  PrimMonad m =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
   MutableByteArray (PrimState m) ->
   Int ->
   MutableByteArray (PrimState m) ->
@@ -336,8 +336,8 @@ copyMutableByteArray = checkCMBArray "copyMutableByteArray" PA.copyMutableByteAr
 {-# INLINE copyMutableByteArray #-}
 
 moveByteArray ::
-  CheckCtx =>
-  PrimMonad m =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
   MutableByteArray (PrimState m) ->
   Int ->
   MutableByteArray (PrimState m) ->
@@ -348,9 +348,9 @@ moveByteArray = checkCMBArray "moveByteArray" PA.moveByteArray
 {-# INLINE moveByteArray #-}
 
 readPrimArray ::
-  CheckCtx =>
-  PrimMonad m =>
-  Prim a =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
+  (Prim a) =>
   MutablePrimArray (PrimState m) a ->
   Int ->
   m a
@@ -358,9 +358,9 @@ readPrimArray = checkIMPArray "readPrimArray" PA.readPrimArray
 {-# INLINE readPrimArray #-}
 
 writePrimArray ::
-  CheckCtx =>
-  PrimMonad m =>
-  Prim a =>
+  (CheckCtx) =>
+  (PrimMonad m) =>
+  (Prim a) =>
   MutablePrimArray (PrimState m) a ->
   Int ->
   a ->
@@ -369,8 +369,8 @@ writePrimArray = checkIMPArray "writePrimArray" PA.writePrimArray
 {-# INLINE writePrimArray #-}
 
 indexPrimArray ::
-  CheckCtx =>
-  Prim a =>
+  (CheckCtx) =>
+  (Prim a) =>
   PrimArray a ->
   Int ->
   a

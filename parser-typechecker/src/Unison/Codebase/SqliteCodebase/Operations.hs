@@ -96,9 +96,11 @@ data BufferEntry a = BufferEntry
   }
   deriving (Eq, Show)
 
-prettyBufferEntry :: Show a => Hash -> BufferEntry a -> String
+prettyBufferEntry :: (Show a) => Hash -> BufferEntry a -> String
 prettyBufferEntry (h :: Hash) BufferEntry {..} =
-  "BufferEntry " ++ show h ++ "\n"
+  "BufferEntry "
+    ++ show h
+    ++ "\n"
     ++ "  { beComponentTargetSize = "
     ++ show beComponentTargetSize
     ++ "\n"
@@ -721,7 +723,7 @@ initializeNameLookupIndexFromV2Root getDeclType = do
     -- Collects two maps, one with all term names and one with all type names.
     -- Note that unlike the `Name` type in `unison-core1`, this list of name segments is
     -- in reverse order, e.g. `["map", "List", "base"]`
-    nameMapsFromV2Branch :: Monad m => [NameSegment] -> V2Branch.CausalBranch m -> m (Map (NonEmpty NameSegment) (Set C.Referent.Referent), Map (NonEmpty NameSegment) (Set C.Reference.Reference))
+    nameMapsFromV2Branch :: (Monad m) => [NameSegment] -> V2Branch.CausalBranch m -> m (Map (NonEmpty NameSegment) (Set C.Referent.Referent), Map (NonEmpty NameSegment) (Set C.Reference.Reference))
     nameMapsFromV2Branch reversedNamePrefix cb = do
       b <- V2Causal.value cb
       let (shallowTermNames, shallowTypeNames) = (Map.keysSet <$> V2Branch.terms b, Map.keysSet <$> V2Branch.types b)

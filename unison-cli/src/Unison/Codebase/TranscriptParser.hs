@@ -177,7 +177,7 @@ type TranscriptRunner =
 
 withTranscriptRunner ::
   forall m r.
-  UnliftIO.MonadUnliftIO m =>
+  (UnliftIO.MonadUnliftIO m) =>
   UCMVersion ->
   Maybe FilePath ->
   (TranscriptRunner -> m r) ->
@@ -334,7 +334,9 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                 pure $ Right QuitI
               Just (s, idx) -> do
                 putStr $
-                  "\r⚙️   Processing stanza " ++ show idx ++ " of "
+                  "\r⚙️   Processing stanza "
+                    ++ show idx
+                    ++ " of "
                     ++ show (length stanzas)
                     ++ "."
                 IO.hFlush IO.stdout

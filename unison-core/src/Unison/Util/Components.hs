@@ -31,7 +31,7 @@ import Unison.Prelude
 --
 -- Uses Tarjan's algorithm:
 --   https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
-components :: Ord v => (t -> Set v) -> [(v, t)] -> [[(v, t)]]
+components :: (Ord v) => (t -> Set v) -> [(v, t)] -> [[(v, t)]]
 components freeVars bs =
   let varIds =
         Map.fromList (map fst bs `zip` reverse [(1 :: Int) .. length bs])

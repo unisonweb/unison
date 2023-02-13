@@ -28,19 +28,19 @@ instance FromField (ConstructorType) where
 data NamedRef ref = NamedRef {reversedSegments :: ReversedSegments, ref :: ref}
   deriving stock (Show, Functor, Foldable, Traversable)
 
-instance ToRow ref => ToRow (NamedRef ref) where
+instance (ToRow ref) => ToRow (NamedRef ref) where
   toRow (NamedRef {reversedSegments = segments, ref}) =
     [toField reversedName] <> toRow ref
     where
       reversedName = Text.intercalate "." . toList $ segments
 
-instance FromRow ref => FromRow (NamedRef ref) where
+instance (FromRow ref) => FromRow (NamedRef ref) where
   fromRow = do
     reversedSegments <- NonEmpty.fromList . Text.splitOn "." <$> field
     ref <- fromRow
     pure (NamedRef {reversedSegments, ref})
 
-toRowWithNamespace :: ToRow ref => NamedRef ref -> [SQLData]
+toRowWithNamespace :: (ToRow ref) => NamedRef ref -> [SQLData]
 toRowWithNamespace nr = toRow nr <> [SQLText namespace]
   where
     namespace = Text.intercalate "." . reverse . NEL.tail . reversedSegments $ nr

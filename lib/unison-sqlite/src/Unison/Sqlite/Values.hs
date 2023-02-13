@@ -16,7 +16,7 @@ newtype Values a
   = Values (List.NonEmpty a)
   deriving stock (Show)
 
-instance Sqlite.Simple.ToRow a => Sqlite.Simple.ToRow (Values a) where
+instance (Sqlite.Simple.ToRow a) => Sqlite.Simple.ToRow (Values a) where
   toRow (Values values) =
     foldMap Sqlite.Simple.toRow values
 
@@ -26,7 +26,7 @@ instance Sqlite.Simple.ToRow a => Sqlite.Simple.ToRow (Values a) where
 -- @
 -- VALUES (?, ?), (?, ?), (?, ?)
 -- @
-valuesSql :: Sqlite.Simple.ToRow a => Values a -> Sql
+valuesSql :: (Sqlite.Simple.ToRow a) => Values a -> Sql
 valuesSql (Values values) =
   Sql ("VALUES " <> Text.intercalate "," (replicate (length values) (valueSql columns)))
   where

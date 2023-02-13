@@ -126,7 +126,7 @@ requalify hq r = case hq of
   HashQualified n _ -> fromNamedReferent n r
   HashOnly _ -> fromReferent r
 
-instance Name.Alphabetical n => Name.Alphabetical (HashQualified n) where
+instance (Name.Alphabetical n) => Name.Alphabetical (HashQualified n) where
   -- Ordered alphabetically, based on the name. Hashes come last.
   compareAlphabetical a b =
     case (toName a, toName b) of
@@ -140,7 +140,7 @@ instance Name.Alphabetical n => Name.Alphabetical (HashQualified n) where
         (Just _, Nothing) -> GT
         (Just sh, Just sh2) -> compare sh sh2
 
-instance Convert n n2 => Convert (HashQualified n) (HashQualified n2) where
+instance (Convert n n2) => Convert (HashQualified n) (HashQualified n2) where
   convert = fmap Name.convert
 
 instance Convert n (HashQualified n) where

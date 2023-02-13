@@ -52,7 +52,7 @@ unsafeFromText txt = fromMaybe msg . fromText $ txt
   where
     msg = error $ "HashQualified.unsafeFromText " <> show txt
 
-unsafeFromVar :: Var v => v -> HashQualified Name
+unsafeFromVar :: (Var v) => v -> HashQualified Name
 unsafeFromVar = unsafeFromText . Var.name
 
 toString :: HashQualified Name -> String
@@ -63,6 +63,6 @@ toText :: HashQualified Name -> Text
 toText =
   HashQualified.toTextWith Name.toText
 
-toVar :: Var v => HashQualified Name -> v
+toVar :: (Var v) => HashQualified Name -> v
 toVar =
   Var.named . toText

@@ -193,7 +193,7 @@ pattern CapV k ua ba us bs <-
 
 {-# COMPLETE DataC, PApV, CapV, Foreign, BlackHole #-}
 
-marshalToForeign :: HasCallStack => Closure -> Foreign
+marshalToForeign :: (HasCallStack) => Closure -> Foreign
 marshalToForeign (Foreign x) = x
 marshalToForeign c =
   error $ "marshalToForeign: unhandled closure: " ++ show c
@@ -502,19 +502,19 @@ pokeOffD :: Stack 'UN -> Int -> Double -> IO ()
 pokeOffD (US _ _ sp stk) i d = writeByteArray stk (sp - i) d
 {-# INLINE pokeOffD #-}
 
-pokeBi :: BuiltinForeign b => Stack 'BX -> b -> IO ()
+pokeBi :: (BuiltinForeign b) => Stack 'BX -> b -> IO ()
 pokeBi bstk x = poke bstk (Foreign $ wrapBuiltin x)
 {-# INLINE pokeBi #-}
 
-pokeOffBi :: BuiltinForeign b => Stack 'BX -> Int -> b -> IO ()
+pokeOffBi :: (BuiltinForeign b) => Stack 'BX -> Int -> b -> IO ()
 pokeOffBi bstk i x = pokeOff bstk i (Foreign $ wrapBuiltin x)
 {-# INLINE pokeOffBi #-}
 
-peekBi :: BuiltinForeign b => Stack 'BX -> IO b
+peekBi :: (BuiltinForeign b) => Stack 'BX -> IO b
 peekBi bstk = unwrapForeign . marshalToForeign <$> peek bstk
 {-# INLINE peekBi #-}
 
-peekOffBi :: BuiltinForeign b => Stack 'BX -> Int -> IO b
+peekOffBi :: (BuiltinForeign b) => Stack 'BX -> Int -> IO b
 peekOffBi bstk i = unwrapForeign . marshalToForeign <$> peekOff bstk i
 {-# INLINE peekOffBi #-}
 
@@ -678,7 +678,7 @@ instance MEM 'BX where
 
   asize (BS ap fp _ _) = fp - ap
 
-frameView :: MEM b => Show (Elem b) => Stack b -> IO ()
+frameView :: (MEM b) => (Show (Elem b)) => Stack b -> IO ()
 frameView stk = putStr "|" >> gof False 0
   where
     fsz = fsize stk
@@ -702,7 +702,7 @@ uscount seg = words $ sizeofByteArray seg
 bscount :: Seg 'BX -> Int
 bscount seg = sizeofArray seg
 
-closureTermRefs :: Monoid m => (Reference -> m) -> (Closure -> m)
+closureTermRefs :: (Monoid m) => (Reference -> m) -> (Closure -> m)
 closureTermRefs f (PAp (CIx r _ _) _ cs) =
   f r <> foldMap (closureTermRefs f) cs
 closureTermRefs f (DataB1 _ _ c) = closureTermRefs f c
@@ -717,7 +717,7 @@ closureTermRefs f (Foreign fo)
       foldMap (closureTermRefs f) cs
 closureTermRefs _ _ = mempty
 
-contTermRefs :: Monoid m => (Reference -> m) -> K -> m
+contTermRefs :: (Monoid m) => (Reference -> m) -> K -> m
 contTermRefs f (Mark _ _ _ m k) =
   foldMap (closureTermRefs f) m <> contTermRefs f k
 contTermRefs f (Push _ _ _ _ (CIx r _ _) k) =

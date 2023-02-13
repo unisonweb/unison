@@ -58,5 +58,5 @@ fromSuffixNames len names = PrettyPrintEnv terms' types'
 
 -- | Reduce the provided names to their minimal unique suffix within the scope of the given
 -- relation.
-shortestUniqueSuffixes :: Ord ref => ref -> Rel.Relation Name ref -> [(a, HQ'.HashQualified Name)] -> [(a, HQ'.HashQualified Name)]
+shortestUniqueSuffixes :: (Ord ref) => ref -> Rel.Relation Name ref -> [(a, HQ'.HashQualified Name)] -> [(a, HQ'.HashQualified Name)]
 shortestUniqueSuffixes ref rel names = names <&> second (fmap (\name -> Name.shortestUniqueSuffix name ref rel))
