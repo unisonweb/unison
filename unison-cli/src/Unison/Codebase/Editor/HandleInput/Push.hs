@@ -1,5 +1,9 @@
 -- | @push@ input handler
-module Unison.Codebase.Editor.HandleInput.Push where
+module Unison.Codebase.Editor.HandleInput.Push
+  ( handleGist,
+    handlePushRemoteBranch,
+  )
+where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import Control.Lens ((^.))
