@@ -376,6 +376,8 @@ bazinga1 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli (Sh
 bazinga1 (ProjectAndBranch localProject localBranch) localBranchCausalHash32 = do
   myUserHandle <- oinkGetLoggedInUser
 
+  let localBranchName = unsafeFrom @Text (localBranch ^. #name)
+
   -- Derive the remote project name from the user's handle and the local project name.
   --
   -- Example 1 - user "bob" has local project "foo"
@@ -388,32 +390,9 @@ bazinga1 (ProjectAndBranch localProject localBranch) localBranchCausalHash32 = d
          in prependUserSlugToProjectName myUserHandle localProjectName
 
   let (remoteBranchUserSlug, remoteBranchName) =
-        deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
+        deriveRemoteBranchName myUserHandle localBranchName
 
-  afterUpload <- do
-    let doCreateBranch :: Share.API.Project -> Cli ()
-        doCreateBranch remoteProject = do
-          _remoteBranch <-
-            oinkCreateRemoteBranch
-              Share.API.CreateProjectBranchRequest
-                { projectId = remoteProject ^. #projectId,
-                  branchName = into @Text remoteBranchName,
-                  branchCausalHash = localBranchCausalHash32,
-                  branchMergeTarget = Nothing
-                }
-          pure ()
-    Share.getProjectByName (into @Text remoteProjectName) >>= \case
-      Share.API.GetProjectResponseNotFound ->
-        pure do
-          remoteProject <- oinkCreateRemoteProject (into @Text remoteProjectName)
-          doCreateBranch remoteProject
-      Share.API.GetProjectResponseSuccess remoteProject -> do
-        Share.getProjectBranchByName (remoteProject ^. #projectId) (into @Text remoteBranchName) >>= \case
-          Share.API.GetProjectBranchResponseNotFound -> pure (doCreateBranch remoteProject)
-          Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
-            -- TODO don't proceed with push if local head not ahead of remote head
-            wundefined
-            pure (pure ())
+  afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
 
   pure (Share.RepoName remoteBranchUserSlug, afterUpload)
 
@@ -428,7 +407,7 @@ bazinga2 localBranch localBranchCausalHash32 remoteProjectId = do
     Share.getProjectBranchByName remoteProjectId (into @Text remoteBranchName) >>= \case
       Share.API.GetProjectBranchResponseNotFound ->
         pure do
-          remoteBranch <-
+          _remoteBranch <-
             oinkCreateRemoteBranch
               Share.API.CreateProjectBranchRequest
                 { projectId = remoteProjectId,
@@ -454,29 +433,7 @@ bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId) = do
         Cli.returnEarlyWithoutOutput
       Share.API.GetProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
 
-  -- We need to compute the "repo name" of the branch that we want to push to, because that's what the Share upload
-  -- API requires (currently).
-  --
-  -- We do this in a (slightly) racy way: ask share what the branch's project/branch name is, then go right back to
-  -- share with an upload request. So if a project or branch is renamed in between these calls, this will fail.
-  --
-  -- A couple example repo names derived from the project/branch names:
-  --
-  --   "@unison/base" / "@arya/topic" => "arya", because the branch "@arya/topic" has a user component
-  --
-  --   "@unison/base" / "main"        => "unison", because the branch "main" doesn't have a user component
-  --
-  --   "something"    / "weird"       => oh no, we probably have to fail here, because even though we tried to design an
-  --                                     API that allows any ol' project and branch name, we don't really know *where*
-  --                                     to upload (i.e. the repo name of) a project that doesn't have a user component
-  repoName <-
-    case tryInto @ProjectBranchName (remoteBranch ^. #branchName) of
-      -- This shouldn't happen often - Share gave us a branch name that we don't consider valid?
-      Left _ -> wundefined
-      Right remoteBranchName ->
-        case projectBranchNameUserSlug remoteBranchName of
-          Nothing -> remoteProjectBranchRepoName remoteBranch
-          Just userSlug -> pure (Share.RepoName userSlug)
+  repoName <- remoteProjectBranchRepoName remoteBranch
 
   Share.getProjectBranchById remoteProjectId remoteBranchId >>= \case
     Share.API.GetProjectBranchResponseNotFound ->
@@ -535,11 +492,46 @@ bazinga4 localProjectAndBranch localBranchCausalHash32 remoteProjectAndBranchNam
 
     -- "push @arya/lens"
     ProjectAndBranch (Just remoteProjectName) Nothing -> do
-      wundefined
+      let localBranchName = unsafeFrom @Text (localProjectAndBranch ^. #branch . #name)
+
+      myUserHandle <- oinkGetLoggedInUser
+
+      let (remoteBranchUserSlug, remoteBranchName) =
+            deriveRemoteBranchName myUserHandle localBranchName
+
+      afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
+
+      pure (Share.RepoName remoteBranchUserSlug, afterUpload)
 
     -- "push @unison/base/@runar/topic"
     ProjectAndBranch (Just remoteProjectName) (Just remoteBranchName) -> do
       wundefined
+
+oompaLoompa :: ProjectAndBranch ProjectName ProjectBranchName -> Hash32 -> Cli (Cli ())
+oompaLoompa (ProjectAndBranch projectName branchName) localBranchCausalHash32 = do
+  let doCreateBranch :: Share.API.Project -> Cli ()
+      doCreateBranch remoteProject = do
+        _remoteBranch <-
+          oinkCreateRemoteBranch
+            Share.API.CreateProjectBranchRequest
+              { projectId = remoteProject ^. #projectId,
+                branchName = into @Text branchName,
+                branchCausalHash = localBranchCausalHash32,
+                branchMergeTarget = wundefined
+              }
+        pure ()
+  Share.getProjectByName (into @Text projectName) >>= \case
+    Share.API.GetProjectResponseNotFound ->
+      pure do
+        remoteProject <- oinkCreateRemoteProject (into @Text projectName)
+        doCreateBranch remoteProject
+    Share.API.GetProjectResponseSuccess remoteProject ->
+      Share.getProjectBranchByName (remoteProject ^. #projectId) (into @Text branchName) >>= \case
+        Share.API.GetProjectBranchResponseNotFound -> pure (doCreateBranch remoteProject)
+        Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
+          -- TODO don't proceed with push if local head not ahead of remote head
+          wundefined
+          pure (pure ())
 
 -- Derive the remote branch user slug and remote branch name from the user's handle and the local branch name.
 --
@@ -566,6 +558,21 @@ remoteProjectRepoName project =
         Nothing -> wundefined
         Just userSlug -> pure (Share.RepoName userSlug)
 
+-- We need to compute the "repo name" of the branch that we want to push to, because that's what the Share upload
+-- API requires (currently).
+--
+-- We do this in a (slightly) racy way: ask share what the branch's project/branch name is, then go right back to
+-- share with an upload request. So if a project or branch is renamed in between these calls, this will fail.
+--
+-- A couple example repo names derived from the project/branch names:
+--
+--   "@unison/base" / "@arya/topic" => "arya", because the branch "@arya/topic" has a user component
+--
+--   "@unison/base" / "main"        => "unison", because the branch "main" doesn't have a user component
+--
+--   "something"    / "weird"       => oh no, we probably have to fail here, because even though we tried to design an
+--                                     API that allows any ol' project and branch name, we don't really know *where* to
+--                                     upload (i.e. the repo name of) a project that doesn't have a user component
 remoteProjectBranchRepoName :: Share.API.ProjectBranch -> Cli Share.RepoName
 remoteProjectBranchRepoName branch =
   case tryInto @ProjectBranchName (branch ^. #branchName) of
