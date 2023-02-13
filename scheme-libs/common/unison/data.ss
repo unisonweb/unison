@@ -39,19 +39,19 @@
      (car (cdr option))
      (raise "Cannot get the value of an empty option ")))
 
-  ; TODO this might be reduntant, #<void> works
+  ; #<void> works as well
   ; Unit
-  (define unit (cons 0 ()))
+  (define unit `(0))
 
   ; Booleans are represented as numbers
   (define false 0)
   (define true 1)
 
   ; a -> Either b a
-  (define (right a)(cons 1 a))
+  (define (right a) `(1 ,a))
 
   ; b -> Either b a
-  (define (left b) (cons 0 b))
+  (define (left b) `(0 ,b))
 
   ; Either a b -> Boolean
   (define (right? either) (eq? 1 (car either)))
@@ -60,4 +60,4 @@
   (define (left? either) (eq? 0 (car either)))
 
   ; Either a b -> a | b
-  (define (either-get either) (cdr either)))
+  (define (either-get either) (car (cdr either))))
