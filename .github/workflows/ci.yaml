@@ -32,8 +32,7 @@ jobs:
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    needs: checkout 
-    needs: ormolu
+    needs: [checkout, ormolu]
     defaults: 
       run:
         working-directory: unison
