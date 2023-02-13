@@ -404,7 +404,7 @@ bazinga1 (ProjectAndBranch localProject localBranch) localBranchCausalHash32 = d
       Share.getProjectBranchByName (remoteProject ^. #projectId) (into @Text remoteBranchName) >>= \case
         Share.API.GetProjectBranchResponseNotFound -> pure ()
         Share.API.GetProjectBranchResponseSuccess remoteBranch ->
-          -- TODO don't proceed with push if local hash not ahead of
+          -- TODO don't proceed with push if local head not ahead of remote head
           wundefined
 
   pure (remoteBranchUserSlug, afterUpload)
@@ -427,14 +427,11 @@ bazinga2 localBranch localBranchCausalHash32 remoteProjectId = do
               }
         pure ()
 
-  Share.getProjectById remoteProjectId >>= \case
-    Share.API.GetProjectResponseNotFound -> pure ()
-    Share.API.GetProjectResponseSuccess remoteProject -> do
-      Share.getProjectBranchByName (remoteProject ^. #projectId) (into @Text remoteBranchName) >>= \case
-        Share.API.GetProjectBranchResponseNotFound -> pure ()
-        Share.API.GetProjectBranchResponseSuccess remoteBranch ->
-          -- TODO don't proceed with push if local hash not ahead of
-          wundefined
+  Share.getProjectBranchByName remoteProjectId (into @Text remoteBranchName) >>= \case
+    Share.API.GetProjectBranchResponseNotFound -> pure ()
+    Share.API.GetProjectBranchResponseSuccess remoteBranch ->
+      -- TODO don't proceed with push if local head not ahead of remote head
+      wundefined
 
   pure (remoteBranchUserSlug, afterUpload)
 
@@ -481,7 +478,13 @@ bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId) = do
                   Just userSlug -> pure userSlug
           Just userSlug -> pure userSlug
 
-  -- FIXME check if remote branch exists
+  Share.getProjectBranchById remoteProjectId remoteBranchId >>= \case
+    Share.API.GetProjectBranchResponseNotFound ->
+      -- remote branch or project deleted
+      wundefined
+    Share.API.GetProjectBranchResponseSuccess remoteBranch ->
+      -- TODO don't proceed with push if local head not ahead of remote head
+      wundefined
 
   -- Nothing to do in "after upload" callback: because project branch already exist.
   pure (repoName, pure ())
