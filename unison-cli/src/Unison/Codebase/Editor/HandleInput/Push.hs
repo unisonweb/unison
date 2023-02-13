@@ -2,7 +2,7 @@
 module Unison.Codebase.Editor.HandleInput.Push where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens
+import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set.NonEmpty as Set.NonEmpty
@@ -345,53 +345,118 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
     case maybeRemoteProjectAndBranchNames of
       Nothing ->
         Cli.runTransaction oinkResolveRemoteIds >>= \case
-          Nothing -> do
-            -- Derive the remote project name from the user's handle and the local project name.
-            --
-            -- Example 1 - user "bob" has local project "foo"
-            --   remoteProjectName = "@bob/foo"
-            --
-            -- Example 2 - user "bob" has local project "@unison/base"
-            --   remoteProjectName = "@unison/base"
-            let remoteProjectName =
-                  let localProjectName = unsafeFrom @Text (localProject ^. #name)
-                   in prependUserSlugToProjectName myUserHandle localProjectName
-            let (remoteBranchUserSlug, remoteBranchName) =
-                  deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
-            let afterUpload localBranchCausalHash32 = do
-                  remoteProject <- oinkCreateRemoteProject (into @Text remoteProjectName)
-                  remoteBranch <-
-                    oinkCreateRemoteBranch
-                      Share.API.CreateProjectBranchRequest
-                        { projectId = remoteProject ^. #projectId,
-                          branchName = into @Text remoteBranchName,
-                          branchCausalHash = localBranchCausalHash32,
-                          branchMergeTarget = Nothing
-                        }
-                  pure ()
-            pure (remoteBranchUserSlug, afterUpload)
+          Nothing -> pure (bazinga1 (ProjectAndBranch localProject localBranch) myUserHandle)
           Just (ProjectAndBranch remoteProjectId maybeRemoteBranchId) ->
             case maybeRemoteBranchId of
-              Nothing -> do
-                let (remoteBranchUserSlug, remoteBranchName) =
-                      deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
-                let afterUpload localBranchCausalHash32 = do
-                      remoteBranch <-
-                        oinkCreateRemoteBranch
-                          Share.API.CreateProjectBranchRequest
-                            { projectId = remoteProjectId,
-                              branchName = into @Text remoteBranchName,
-                              branchCausalHash = localBranchCausalHash32,
-                              branchMergeTarget = wundefined
-                            }
-                      pure ()
-                pure (remoteBranchUserSlug, afterUpload)
-              Just remoteBranchId ->
-                wundefined
+              Nothing -> pure (bazinga2 localBranch remoteProjectId myUserHandle)
+              Just remoteBranchId -> bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId)
       Just remoteProjectAndBranchNames -> wundefined
 
   localBranchCausalHash32 <- oinkUpload localProjectAndBranchIds (Share.RepoName repoName)
   afterUpload localBranchCausalHash32
+
+bazinga1 ::
+  ProjectAndBranch Queries.Project Queries.Branch ->
+  Text ->
+  (Text, Hash32 -> Cli ())
+bazinga1 (ProjectAndBranch localProject localBranch) myUserHandle =
+  (remoteBranchUserSlug, afterUpload)
+  where
+    -- Derive the remote project name from the user's handle and the local project name.
+    --
+    -- Example 1 - user "bob" has local project "foo"
+    --   remoteProjectName = "@bob/foo"
+    --
+    -- Example 2 - user "bob" has local project "@unison/base"
+    --   remoteProjectName = "@unison/base"
+    remoteProjectName =
+      let localProjectName = unsafeFrom @Text (localProject ^. #name)
+       in prependUserSlugToProjectName myUserHandle localProjectName
+
+    (remoteBranchUserSlug, remoteBranchName) =
+      deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
+
+    afterUpload localBranchCausalHash32 = do
+      remoteProject <- oinkCreateRemoteProject (into @Text remoteProjectName)
+      remoteBranch <-
+        oinkCreateRemoteBranch
+          Share.API.CreateProjectBranchRequest
+            { projectId = remoteProject ^. #projectId,
+              branchName = into @Text remoteBranchName,
+              branchCausalHash = localBranchCausalHash32,
+              branchMergeTarget = Nothing
+            }
+      pure ()
+
+bazinga2 :: Queries.Branch -> Text -> Text -> (Text, Hash32 -> Cli ())
+bazinga2 localBranch remoteProjectId myUserHandle =
+  (remoteBranchUserSlug, afterUpload)
+  where
+    (remoteBranchUserSlug, remoteBranchName) =
+      deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
+
+    afterUpload localBranchCausalHash32 = do
+      remoteBranch <-
+        oinkCreateRemoteBranch
+          Share.API.CreateProjectBranchRequest
+            { projectId = remoteProjectId,
+              branchName = into @Text remoteBranchName,
+              branchCausalHash = localBranchCausalHash32,
+              branchMergeTarget = wundefined
+            }
+      pure ()
+
+bazinga3 :: ProjectAndBranch Text Text -> Cli (Text, Hash32 -> Cli ())
+bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId) = do
+  loggeth ["getProjectBranchById ", remoteProjectId, " ", remoteBranchId]
+  response <-
+    Share.getProjectBranchById remoteProjectId remoteBranchId & onLeftM \err -> do
+      loggeth ["getProjectBranchById error"]
+      loggeth [tShow err]
+      Cli.returnEarlyWithoutOutput
+
+  remoteBranch <-
+    case response of
+      Share.API.GetProjectBranchResponseNotFound -> do
+        loggeth ["GetProjectBranchResponseNotFound"]
+        Cli.returnEarlyWithoutOutput
+      Share.API.GetProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
+
+  -- We need to compute the "repo name" of the branch that we want to push to, because that's what the Share upload
+  -- API requires (currently).
+  --
+  -- We do this in a (slightly) racy way: ask share what the branch's project/branch name is, then go right back to
+  -- share with an upload request. So if a project or branch is renamed in between these calls, this will fail.
+  --
+  -- A couple example repo names derived from the project/branch names:
+  --
+  --   "@unison/base" / "@arya/topic" => "arya", because the branch "@arya/topic" has a user component
+  --
+  --   "@unison/base" / "main"        => "unison", because the branch "main" doesn't have a user component
+  --
+  --   "something"    / "weird"       => oh no, we probably have to fail here, because even though we tried to design an
+  --                                     API that allows any ol' project and branch name, we don't really know *where*
+  --                                     to upload (i.e. the repo name of) a project that doesn't have a user component
+  repoName <-
+    case tryInto @ProjectBranchName (remoteBranch ^. #branchName) of
+      -- This shouldn't happen often - Share gave us a branch name that we don't consider valid?
+      Left _ -> wundefined
+      Right remoteBranchName ->
+        case projectBranchNameUserSlug remoteBranchName of
+          Nothing ->
+            case tryInto @ProjectName (remoteBranch ^. #projectName) of
+              -- This shouldn't happen often - Share gave us a project name that we don't consider valid?
+              Left _ -> wundefined
+              Right remoteProjectName ->
+                case projectNameUserSlug remoteProjectName of
+                  -- eep, neither project nor branch name have a user slug, so it doesn't seem like we know what to use
+                  -- for the repo name. just bail.
+                  Nothing -> wundefined
+                  Just userSlug -> pure userSlug
+          Just userSlug -> pure userSlug
+
+  -- Nothing to do in "after upload" callback: because project branch already exist.
+  pure (repoName, \_ -> pure ())
 
 -- Derive the remote branch user slug and remote branch name from the user's handle and the local branch name.
 --
