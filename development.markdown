@@ -16,7 +16,7 @@ To get cracking with Unison:
 
 On startup, Unison prints a url for the codebase UI. If you did step 3 above, then visiting that URL in a browser will give you a nice interface to your codebase.
 
-## Add a pre-commit hook for autoformatting with Ormolu
+## Autoformatting your code with Ormolu
 
 We use 0.5.3.0 of Ormolu and CI will fail if your code isn't properly formatted. You can add the following to `.git/hooks/pre-commit` to make sure all your commits get formatted (this assumes you've got [`rg`](https://github.com/BurntSushi/ripgrep) installed and on your path):
 
@@ -31,7 +31,13 @@ if [[ -z "${SKIP_FORMATTING}" ]]; then
 fi
 ```
 
-Note that you can always wrap a comment around some code you don't want Ormolu to touch, using:
+If you've got an existing PR that somehow hasn't been formatted correctly, you can install the correct version of Ormolu locally, then do:
+
+```
+ormolu --mode inplace $(find . -name '*.hs')
+```
+
+Also note that you can always wrap a comment around some code you don't want Ormolu to touch, using:
 
 ```
 {- ORMOLU_DISABLE -}
