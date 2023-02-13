@@ -69,11 +69,11 @@ import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
-import Unison.Codebase.Editor.HandleInput.Push (handlePushRemoteBranch, handleGist)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
+import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.TermResolution
   ( resolveCon,
     resolveMainRef,
@@ -370,6 +370,7 @@ loop e = do
                 ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                 Cli.respondNumbered (CantDeleteDefinitions ppeDecl endangerments)
        in Cli.time "InputPattern" case input of
+            ProjectPushI _ -> wundefined
             ApiI -> do
               Cli.Env {serverBaseUrl} <- ask
               whenJust serverBaseUrl \baseUrl ->
@@ -2529,7 +2530,7 @@ racketOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
 racketOpts gendir statdir file args = libs ++ [file] ++ args
   where
     includes = [gendir, statdir </> "common", statdir </> "racket"]
-    libs = concatMap (\dir -> ["-S",dir]) includes
+    libs = concatMap (\dir -> ["-S", dir]) includes
 
 chezOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
 chezOpts gendir statdir file args =
@@ -2546,7 +2547,7 @@ runScheme bk file args0 = do
   ensureSchemeExists
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
-  let cmd = case bk of Racket -> "racket" ; Chez -> "scheme"
+  let cmd = case bk of Racket -> "racket"; Chez -> "scheme"
       opts = case bk of
         Racket -> racketOpts gendir statdir file args0
         Chez -> chezOpts gendir statdir file args0

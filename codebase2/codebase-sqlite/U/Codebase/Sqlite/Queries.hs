@@ -2457,8 +2457,7 @@ getReflog numEntries = queryListRow sql (Only numEntries)
     |]
 
 newtype ProjectId = ProjectId {unProjectId :: UUID}
-  deriving stock (Show, Eq)
-  deriving newtype (ToField, FromField)
+  deriving newtype (ToField, FromField, Show, Eq)
 
 data Project = Project
   { projectId :: ProjectId,
@@ -2467,8 +2466,8 @@ data Project = Project
   deriving stock (Generic)
   deriving anyclass (ToRow, FromRow)
 
-newtype RemoteProjectId = RemoteProjectId UUID
-  deriving newtype (ToField, FromField)
+newtype RemoteProjectId = RemoteProjectId {unRemoteProjectId :: Text}
+  deriving newtype (ToField, FromField, Show, Eq)
 
 data RemoteProject = RemoteProject
   { projectId :: RemoteProjectId,
@@ -2479,7 +2478,7 @@ data RemoteProject = RemoteProject
   deriving anyclass (ToRow, FromRow)
 
 newtype BranchId = BranchId {unBranchId :: UUID}
-  deriving newtype (ToField, FromField)
+  deriving newtype (ToField, FromField, Show, Eq)
 
 data Branch = Branch
   { projectId :: ProjectId,
@@ -2489,13 +2488,13 @@ data Branch = Branch
   deriving stock (Generic)
   deriving anyclass (ToRow, FromRow)
 
-newtype RemoteBranchId = RemoteBranchId {unRemoteBranchId :: UUID}
-  deriving newtype (ToField, FromField)
+newtype RemoteBranchId = RemoteBranchId {unRemoteBranchId :: Text}
+  deriving newtype (ToField, FromField, Eq, Show)
 
 data RemoteBranch = RemoteBranch
-  { remoteProjectId :: ProjectId,
+  { remoteProjectId :: RemoteProjectId,
     host :: Text,
-    remoteBranchId :: BranchId,
+    remoteBranchId :: RemoteBranchId,
     name :: Text
   }
   deriving stock (Generic)

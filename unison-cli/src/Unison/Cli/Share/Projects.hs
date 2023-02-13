@@ -14,6 +14,7 @@ import Control.Monad.Reader (ask)
 import Data.Proxy
 import Servant.API ((:<|>) (..))
 import Servant.Client
+import U.Codebase.Sqlite.Queries (RemoteBranchId (..), RemoteProjectId (..))
 import qualified Unison.Auth.HTTPClient as Auth
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -22,8 +23,8 @@ import Unison.Share.API.Projects
 import Unison.Share.Codeserver (defaultCodeserver)
 import Unison.Share.Types (codeserverBaseURL)
 
-getProjectById :: Text -> Cli GetProjectResponse
-getProjectById projectId =
+getProjectById :: RemoteProjectId -> Cli GetProjectResponse
+getProjectById (RemoteProjectId projectId) =
   servantClientToCli (getProject0 (Just projectId) Nothing)
 
 getProjectByName :: Text -> Cli GetProjectResponse
@@ -34,12 +35,12 @@ createProject :: CreateProjectRequest -> Cli CreateProjectResponse
 createProject request =
   servantClientToCli (createProject0 request)
 
-getProjectBranchById :: Text -> Text -> Cli GetProjectBranchResponse
-getProjectBranchById projectId branchId =
+getProjectBranchById :: RemoteProjectId -> RemoteBranchId -> Cli GetProjectBranchResponse
+getProjectBranchById (RemoteProjectId projectId) (RemoteBranchId branchId) =
   servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing)
 
-getProjectBranchByName :: Text -> Text -> Cli GetProjectBranchResponse
-getProjectBranchByName projectId branchName =
+getProjectBranchByName :: RemoteProjectId -> Text -> Cli GetProjectBranchResponse
+getProjectBranchByName (RemoteProjectId projectId) branchName =
   servantClientToCli (getProjectBranch0 projectId Nothing (Just branchName))
 
 createProjectBranch :: CreateProjectBranchRequest -> Cli CreateProjectBranchResponse
