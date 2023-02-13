@@ -37,6 +37,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           path: unison
+      - uses: mrkkrp/ormolu-action@v10
 
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
