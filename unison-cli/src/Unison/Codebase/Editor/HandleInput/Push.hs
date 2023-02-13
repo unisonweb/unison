@@ -398,21 +398,10 @@ bazinga1 (ProjectAndBranch localProject localBranch) localBranchCausalHash32 = d
               }
         pure ()
 
-  getProjectResponse <-
-    Share.getProjectByName (into @Text remoteProjectName) & onLeftM \err -> do
-      loggeth ["getProjectByName error"]
-      loggeth [tShow err]
-      Cli.returnEarlyWithoutOutput
-
-  case getProjectResponse of
+  Share.getProjectByName (into @Text remoteProjectName) >>= \case
     Share.API.GetProjectResponseNotFound -> pure ()
     Share.API.GetProjectResponseSuccess remoteProject -> do
-      getProjectBranchResponse <-
-        Share.getProjectBranchByName (remoteProject ^. #projectId) (into @Text remoteBranchName) & onLeftM \err -> do
-          loggeth ["getProjectBranchByName error"]
-          loggeth [tShow err]
-          Cli.returnEarlyWithoutOutput
-      case getProjectBranchResponse of
+      Share.getProjectBranchByName (remoteProject ^. #projectId) (into @Text remoteBranchName) >>= \case
         Share.API.GetProjectBranchResponseNotFound -> pure ()
         Share.API.GetProjectBranchResponseSuccess remoteBranch ->
           -- TODO don't proceed with push if local hash not ahead of
@@ -438,21 +427,10 @@ bazinga2 localBranch localBranchCausalHash32 remoteProjectId = do
               }
         pure ()
 
-  getProjectResponse <-
-    Share.getProjectById remoteProjectId & onLeftM \err -> do
-      loggeth ["getProjectById error"]
-      loggeth [tShow err]
-      Cli.returnEarlyWithoutOutput
-
-  case getProjectResponse of
+  Share.getProjectById remoteProjectId >>= \case
     Share.API.GetProjectResponseNotFound -> pure ()
     Share.API.GetProjectResponseSuccess remoteProject -> do
-      getProjectBranchResponse <-
-        Share.getProjectBranchByName (remoteProject ^. #projectId) (into @Text remoteBranchName) & onLeftM \err -> do
-          loggeth ["getProjectBranchByName error"]
-          loggeth [tShow err]
-          Cli.returnEarlyWithoutOutput
-      case getProjectBranchResponse of
+      Share.getProjectBranchByName (remoteProject ^. #projectId) (into @Text remoteBranchName) >>= \case
         Share.API.GetProjectBranchResponseNotFound -> pure ()
         Share.API.GetProjectBranchResponseSuccess remoteBranch ->
           -- TODO don't proceed with push if local hash not ahead of
@@ -463,14 +441,8 @@ bazinga2 localBranch localBranchCausalHash32 remoteProjectId = do
 bazinga3 :: ProjectAndBranch Text Text -> Cli (Text, Cli ())
 bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId) = do
   loggeth ["getProjectBranchById ", remoteProjectId, " ", remoteBranchId]
-  response <-
-    Share.getProjectBranchById remoteProjectId remoteBranchId & onLeftM \err -> do
-      loggeth ["getProjectBranchById error"]
-      loggeth [tShow err]
-      Cli.returnEarlyWithoutOutput
-
   remoteBranch <-
-    case response of
+    Share.getProjectBranchById remoteProjectId remoteBranchId >>= \case
       Share.API.GetProjectBranchResponseNotFound -> do
         loggeth ["GetProjectBranchResponseNotFound"]
         Cli.returnEarlyWithoutOutput
@@ -564,12 +536,7 @@ oinkCreateRemoteProject projectName = do
   let request = Share.API.CreateProjectRequest {projectName}
   loggeth ["Making create-project request for project"]
   loggeth [tShow request]
-  response <-
-    Share.createProject request & onLeftM \err -> do
-      loggeth ["Creating a project failed"]
-      loggeth [tShow err]
-      Cli.returnEarlyWithoutOutput
-  case response of
+  Share.createProject request >>= \case
     Share.API.CreateProjectResponseBadRequest -> do
       loggeth ["Share says: bad request"]
       Cli.returnEarlyWithoutOutput
@@ -585,12 +552,7 @@ oinkCreateRemoteProject projectName = do
 oinkCreateRemoteBranch request = do
   loggeth ["creating remote branch"]
   loggeth [tShow request]
-  response <-
-    Share.createProjectBranch request & onLeftM \err -> do
-      loggeth ["Creating a branch failed"]
-      loggeth [tShow err]
-      Cli.returnEarlyWithoutOutput
-  case response of
+  Share.createProjectBranch request >>= \case
     Share.API.CreateProjectBranchResponseBadRequest -> do
       loggeth ["Share says: bad request"]
       Cli.returnEarlyWithoutOutput

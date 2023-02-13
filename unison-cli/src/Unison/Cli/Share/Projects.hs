@@ -22,38 +22,38 @@ import Unison.Share.API.Projects
 import Unison.Share.Codeserver (defaultCodeserver)
 import Unison.Share.Types (codeserverBaseURL)
 
-getProjectById :: Text -> Cli (Either ClientError GetProjectResponse)
+getProjectById :: Text -> Cli GetProjectResponse
 getProjectById projectId =
   servantClientToCli (getProject0 (Just projectId) Nothing)
 
-getProjectByName :: Text -> Cli (Either ClientError GetProjectResponse)
+getProjectByName :: Text -> Cli GetProjectResponse
 getProjectByName projectName =
   servantClientToCli (getProject0 Nothing (Just projectName))
 
-createProject :: CreateProjectRequest -> Cli (Either ClientError CreateProjectResponse)
+createProject :: CreateProjectRequest -> Cli CreateProjectResponse
 createProject request =
   servantClientToCli (createProject0 request)
 
-getProjectBranchById :: Text -> Text -> Cli (Either ClientError GetProjectBranchResponse)
+getProjectBranchById :: Text -> Text -> Cli GetProjectBranchResponse
 getProjectBranchById projectId branchId =
   servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing)
 
-getProjectBranchByName :: Text -> Text -> Cli (Either ClientError GetProjectBranchResponse)
+getProjectBranchByName :: Text -> Text -> Cli GetProjectBranchResponse
 getProjectBranchByName projectId branchName =
   servantClientToCli (getProjectBranch0 projectId Nothing (Just branchName))
 
-createProjectBranch :: CreateProjectBranchRequest -> Cli (Either ClientError CreateProjectBranchResponse)
+createProjectBranch :: CreateProjectBranchRequest -> Cli CreateProjectBranchResponse
 createProjectBranch request =
   servantClientToCli (createProjectBranch0 request)
 
-setProjectBranchHead :: SetProjectBranchHeadRequest -> Cli (Either ClientError SetProjectBranchHeadResponse)
+setProjectBranchHead :: SetProjectBranchHeadRequest -> Cli SetProjectBranchHeadResponse
 setProjectBranchHead request =
   servantClientToCli (setProjectBranchHead0 request)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Low-level servant client generation and wrapping
 
-servantClientToCli :: ClientM a -> Cli (Either ClientError a)
+servantClientToCli :: ClientM a -> Cli a
 servantClientToCli action = do
   Cli.Env {authHTTPClient = Auth.AuthenticatedHttpClient httpManager} <- ask
 
@@ -63,7 +63,10 @@ servantClientToCli action = do
         -- just hard-code the default codeserver here.
         mkClientEnv httpManager (codeserverBaseURL defaultCodeserver)
 
-  liftIO (runClientM action clientEnv)
+  liftIO (runClientM action clientEnv) & onLeftM \err -> do
+    liftIO (print err)
+    liftIO (putStrLn "FIXME: ^ make this prettier")
+    Cli.returnEarlyWithoutOutput
 
 getProject0 :: Maybe Text -> Maybe Text -> ClientM GetProjectResponse
 createProject0 :: CreateProjectRequest -> ClientM CreateProjectResponse
