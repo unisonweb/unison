@@ -32,6 +32,8 @@ jobs:
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    needs: checkout 
+    needs: ormolu
     defaults: 
       run:
         working-directory: unison
@@ -46,8 +48,6 @@ jobs:
           - macOS-11.0
           - windows-2019
     steps:
-      - needs: checkout 
-      - needs: ormolu
 
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
