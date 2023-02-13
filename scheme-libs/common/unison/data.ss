@@ -21,10 +21,10 @@
   (import (rnrs))
 
   ; Option a
-  (define none (cons 0 ()))
+  (define none `(0))
 
   ; a -> Option a
-  (define (some a) (cons 1 a))
+  (define (some a) `(1 ,a))
 
   ; Option a -> Bool
   (define (some? option) (eq? 1 (car option)))
@@ -36,7 +36,7 @@
   (define (option-get option)
     (if
      (some? option)
-     (cdr option)
+     (car (cdr option))
      (raise "Cannot get the value of an empty option ")))
 
   ; TODO this might be reduntant, #<void> works
