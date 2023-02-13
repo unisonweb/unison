@@ -101,13 +101,13 @@ data CreateProjectRequest = CreateProjectRequest
 instance FromJSON CreateProjectRequest where
   parseJSON =
     withObject "CreateProjectRequest" \o -> do
-      projectName <- parseField o "projectName"
+      projectName <- parseField o "project-name"
       pure CreateProjectRequest {..}
 
 instance ToJSON CreateProjectRequest where
   toJSON (CreateProjectRequest projectName) =
     object
-      [ "projectName" .= projectName
+      [ "project-name" .= projectName
       ]
 
 -- | @POST /create-project@ response.
@@ -186,20 +186,20 @@ data CreateProjectBranchRequest = CreateProjectBranchRequest
 instance FromJSON CreateProjectBranchRequest where
   parseJSON =
     withObject "CreateProjectBranchRequest" \o -> do
-      projectId <- parseField o "projectId"
-      branchName <- parseField o "branchName"
-      branchCausalHash <- parseField o "branchCausalHash"
-      branchMergeTarget <- parseFieldMaybe' o "branchMergeTarget"
+      projectId <- parseField o "project-id"
+      branchName <- parseField o "branch-name"
+      branchCausalHash <- parseField o "branch-head"
+      branchMergeTarget <- parseFieldMaybe' o "branch-merge-target"
       pure CreateProjectBranchRequest {..}
 
 instance ToJSON CreateProjectBranchRequest where
   toJSON (CreateProjectBranchRequest projectId branchName branchCausalHash branchMergeTarget) =
     objectWithMaybes
-      [ "projectId" .= projectId,
-        "branchName" .= branchName,
-        "branchCausalHash" .= branchCausalHash
+      [ "project-id" .= projectId,
+        "branch-name" .= branchName,
+        "branch-head" .= branchCausalHash
       ]
-      [ "branchMergeTarget" .=? branchMergeTarget
+      [ "branch-merge-target" .=? branchMergeTarget
       ]
 
 -- | @POST /create-project-branch@ response.
@@ -247,20 +247,20 @@ data SetProjectBranchHeadRequest = SetProjectBranchHeadRequest
 instance FromJSON SetProjectBranchHeadRequest where
   parseJSON =
     withObject "SetProjectBranchHeadRequest" \o -> do
-      projectId <- parseField o "projectId"
-      branchId <- parseField o "branchId"
-      branchOldCausalHash <- parseFieldMaybe' o "branchOldCausalHash"
-      branchNewCausalHash <- parseField o "branchNewCausalHash"
+      projectId <- parseField o "project-id"
+      branchId <- parseField o "branch-id"
+      branchOldCausalHash <- parseFieldMaybe' o "branch-old-head"
+      branchNewCausalHash <- parseField o "branch-new-head"
       pure SetProjectBranchHeadRequest {..}
 
 instance ToJSON SetProjectBranchHeadRequest where
   toJSON (SetProjectBranchHeadRequest projectId branchId branchOldCausalHash branchNewCausalHash) =
     objectWithMaybes
-      [ "projectId" .= projectId,
-        "branchId" .= branchId,
-        "branchNewCausalHash" .= branchNewCausalHash
+      [ "project-id" .= projectId,
+        "branch-id" .= branchId,
+        "branch-new-head" .= branchNewCausalHash
       ]
-      ["branchOldCausalHash" .=? branchOldCausalHash]
+      ["branch-old-head" .=? branchOldCausalHash]
 
 -- | @POST /set-project-branch-hash@ response.
 data SetProjectBranchHeadResponse
@@ -298,15 +298,15 @@ data Project = Project
 instance FromJSON Project where
   parseJSON =
     withObject "Project" \o -> do
-      projectId <- parseField o "projectId"
-      projectName <- parseField o "projectName"
+      projectId <- parseField o "project-id"
+      projectName <- parseField o "project-name"
       pure Project {projectId, projectName}
 
 instance ToJSON Project where
   toJSON (Project projectId projectName) =
     object
-      [ "projectId" .= projectId,
-        "projectName" .= projectName
+      [ "project-id" .= projectId,
+        "project-name" .= projectName
       ]
 
 -- | A project branch.
@@ -314,26 +314,29 @@ data ProjectBranch = ProjectBranch
   { projectId :: Text,
     projectName :: Text,
     branchId :: Text,
-    branchName :: Text
+    branchName :: Text,
+    branchHead :: Hash32
   }
   deriving stock (Eq, Generic, Show)
 
 instance FromJSON ProjectBranch where
   parseJSON =
     withObject "ProjectBranch" \o -> do
-      projectId <- parseField o "projectId"
-      projectName <- parseField o "projectName"
-      branchId <- parseField o "branchId"
-      branchName <- parseField o "branchName"
+      projectId <- parseField o "project-id"
+      projectName <- parseField o "project-name"
+      branchId <- parseField o "branch-id"
+      branchName <- parseField o "branch-name"
+      branchHead <- parseField o "branch-head"
       pure ProjectBranch {..}
 
 instance ToJSON ProjectBranch where
-  toJSON (ProjectBranch projectId projectName branchId branchName) =
+  toJSON (ProjectBranch projectId projectName branchId branchName branchHead) =
     object
-      [ "projectId" .= projectId,
-        "projectName" .= projectName,
-        "branchId" .= branchId,
-        "branchName" .= branchName
+      [ "project-id" .= projectId,
+        "project-name" .= projectName,
+        "branch-id" .= branchId,
+        "branch-name" .= branchName,
+        "branch-head" .= branchHead
       ]
 
 -- | A project id and branch id.
@@ -346,15 +349,15 @@ data ProjectBranchIds = ProjectBranchIds
 instance FromJSON ProjectBranchIds where
   parseJSON =
     withObject "ProjectBranchIds" \o -> do
-      projectId <- parseField o "projectId"
-      branchId <- parseField o "branchId"
+      projectId <- parseField o "project-id"
+      branchId <- parseField o "branch-id"
       pure ProjectBranchIds {..}
 
 instance ToJSON ProjectBranchIds where
   toJSON (ProjectBranchIds projectId branchId) =
     object
-      [ "projectId" .= projectId,
-        "branchId" .= branchId
+      [ "project-id" .= projectId,
+        "branch-id" .= branchId
       ]
 
 ------------------------------------------------------------------------------------------------------------------------
