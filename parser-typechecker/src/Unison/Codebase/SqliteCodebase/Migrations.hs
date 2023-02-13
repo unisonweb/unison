@@ -15,6 +15,7 @@ import qualified U.Codebase.Reference as C.Reference
 import U.Codebase.Sqlite.DbId (SchemaVersion (..))
 import qualified U.Codebase.Sqlite.Queries as Q
 import Unison.Codebase (CodebasePath)
+import Unison.Codebase.Init (BackupStrategy (..))
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUnknownSchemaVersion))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals, prettyPrintIntegrityErrors)
@@ -89,9 +90,10 @@ ensureCodebaseIsUpToDate ::
   TVar (Map Hash Ops2.TermBufferEntry) ->
   TVar (Map Hash Ops2.DeclBufferEntry) ->
   Bool ->
+  BackupStrategy ->
   Sqlite.Connection ->
   m (Either Codebase.OpenCodebaseError ())
-ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt conn =
+ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy conn =
   (liftIO . UnliftIO.try) do
     regionVar <- newEmptyMVar
     let finalizeRegion :: IO ()
@@ -110,7 +112,9 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
             let currentSchemaVersion = fst . head $ Map.toDescList migs
             when (schemaVersion > currentSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral schemaVersion)
             let migrationsToRun = Map.filterWithKey (\v _ -> v > schemaVersion) migs
-            when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase conn schemaVersion root shouldPrompt
+            when (localOrRemote == Local && (not . null) migrationsToRun) $ case backupStrategy of
+              Backup -> backupCodebase conn schemaVersion root shouldPrompt
+              NoBackup -> pure ()
             -- This is a bit of a hack, hopefully we can remove this when we have a more
             -- reliable way to freeze old migration code in time.
             -- The problem is that 'saveObject' has been changed to flush temp entity tables,
