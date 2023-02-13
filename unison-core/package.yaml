@@ -26,6 +26,7 @@ library:
     - safe
     - text
     - text-builder
+    - these
     - transformers
     - unison-core
     - unison-hash

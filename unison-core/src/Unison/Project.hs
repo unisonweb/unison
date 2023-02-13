@@ -15,6 +15,7 @@ where
 
 import qualified Data.Char as Char
 import qualified Data.Text as Text
+import Data.These (These (..))
 import qualified Text.Builder
 import qualified Text.Builder as Text (Builder)
 import qualified Text.Megaparsec as Megaparsec
@@ -159,45 +160,41 @@ data ProjectAndBranch a b = ProjectAndBranch
   }
   deriving stock (Eq, Generic, Show)
 
--- | @project/branch@ syntax for project+branch pair, with both sides optional. Missing value means "the current one".
-instance From (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) Text where
-  from ProjectAndBranch {project, branch} =
-    case (project, branch) of
-      (Nothing, Nothing) -> Text.singleton '/'
-      (Nothing, Just branch1) -> Text.Builder.run (Text.Builder.char '/' <> Text.Builder.text (into @Text branch1))
-      (Just project1, Nothing) -> into @Text project1
-      (Just project1, Just branch1) ->
-        Text.Builder.run $
-          Text.Builder.text (into @Text project1)
-            <> Text.Builder.char '/'
-            <> Text.Builder.text (into @Text branch1)
+-- | @project/branch@ syntax for project+branch pair, with up to one
+-- side optional. Missing value means "the current one".
+instance From (These ProjectName ProjectBranchName) Text where
+  from = \case
+    This project1 -> into @Text project1
+    That branch1 -> Text.Builder.run (Text.Builder.char '/' <> Text.Builder.text (into @Text branch1))
+    These project1 branch1 ->
+      Text.Builder.run $
+        Text.Builder.text (into @Text project1)
+          <> Text.Builder.char '/'
+          <> Text.Builder.text (into @Text branch1)
 
-instance TryFrom Text (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) where
+instance TryFrom Text (These ProjectName ProjectBranchName) where
   tryFrom =
     maybeTryFrom (Megaparsec.parseMaybe projectAndBranchNamesParser)
 
 -- Valid things:
 --
---   project
---   project/
---   project/branch
---   /branch
---   /
+--   1. project
+--   2. project/branch
+--   3. /branch
 projectAndBranchNamesParser ::
   Megaparsec.Parsec
     Void
     Text
-    (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
+    (These ProjectName ProjectBranchName)
 projectAndBranchNamesParser = do
-  project <- optional projectNameParser
-  branch <-
-    if isJust project
-      then
-        optional (Megaparsec.char '/') >>= \case
-          Nothing -> pure Nothing
-          Just _ -> optional projectBranchNameParser
-      else Megaparsec.char '/' >> optional projectBranchNameParser
-  pure ProjectAndBranch {project, branch}
+  optional projectNameParser >>= \case
+    Nothing -> That <$> branchParser
+    Just prj ->
+      optional branchParser <&> \case
+        Nothing -> This prj
+        Just br -> These prj br
+  where
+    branchParser = Megaparsec.char '/' >> projectBranchNameParser
 
 ------------------------------------------------------------------------------------------------------------------------
 
