@@ -314,7 +314,8 @@ data ProjectBranch = ProjectBranch
   { projectId :: Text,
     projectName :: Text,
     branchId :: Text,
-    branchName :: Text
+    branchName :: Text,
+    branchHead :: Hash32
   }
   deriving stock (Eq, Generic, Show)
 
@@ -325,15 +326,17 @@ instance FromJSON ProjectBranch where
       projectName <- parseField o "projectName"
       branchId <- parseField o "branchId"
       branchName <- parseField o "branchName"
+      branchHead <- parseField o "branchHead"
       pure ProjectBranch {..}
 
 instance ToJSON ProjectBranch where
-  toJSON (ProjectBranch projectId projectName branchId branchName) =
+  toJSON (ProjectBranch projectId projectName branchId branchName branchHead) =
     object
       [ "projectId" .= projectId,
         "projectName" .= projectName,
         "branchId" .= branchId,
-        "branchName" .= branchName
+        "branchName" .= branchName,
+        "branchHead" .= branchHead
       ]
 
 -- | A project id and branch id.
