@@ -273,6 +273,7 @@ data SetProjectBranchHeadResponse
     SetProjectBranchHeadResponseBadRequest
   | SetProjectBranchHeadResponseUnauthorized
   | SetProjectBranchHeadResponseSuccess
+  | SetProjectBranchResponseMissingCausalHash !Hash32
   deriving stock (Eq, Show)
 
 instance FromJSON SetProjectBranchHeadResponse where
