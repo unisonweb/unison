@@ -7,6 +7,7 @@ module Unison.Project
     projectNameUserSlug,
     prependUserSlugToProjectName,
     ProjectBranchName,
+    projectBranchNameUserSlug,
     prependUserSlugToProjectBranchName,
     ProjectAndBranch (..),
   )
@@ -114,6 +115,19 @@ projectBranchNameParser = do
         isStartChar :: Char -> Bool
         isStartChar c =
           Char.isAlpha c || c == '_'
+
+-- | Get the user slug at the beginning of a project branch name, if there is one.
+--
+-- >>> projectBranchNameUserSlug "@arya/topic"
+-- Just "arya"
+--
+-- >>> projectBranchNameUserSlug "topic"
+-- Nothing
+projectBranchNameUserSlug :: ProjectBranchName -> Maybe Text
+projectBranchNameUserSlug (ProjectBranchName branchName) =
+  if Text.head branchName == '@'
+    then Just (Text.takeWhile (/= '/') (Text.drop 1 branchName))
+    else Nothing
 
 -- | Prepend a user slug to a project branch name, if it doesn't already have one.
 --
