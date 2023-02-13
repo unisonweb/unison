@@ -334,77 +334,88 @@ pushProjectBranchToProjectBranch ::
   Maybe (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)) ->
   Cli ()
 pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndBranchNames = do
-  -- Get my user handle from Share
-  myUserHandle <- oinkGetLoggedInUser
-
   -- Load local project and branch from database
-  ProjectAndBranch localProject localBranch <-
+  localProjectAndBranch <-
     Cli.runTransaction (expectProjectAndBranch localProjectAndBranchIds)
 
+  -- Get two pieces of information that are computed in various ways depending on whether the user has specified a
+  -- target or not, the state of the database, etc:
+  --
+  --   repoName
+  --     The "repo name" to upload to in the upload-entities request. For a contributor branch, for example, this will
+  --     be the username of the contributor. This action might short-circuit, as in the case when
+  --
+  --   afterUpload
+  --     A callback invoked after successfully uploading branch contents.
   (repoName, afterUpload) <-
     case maybeRemoteProjectAndBranchNames of
       Nothing ->
         Cli.runTransaction oinkResolveRemoteIds >>= \case
-          Nothing -> pure (bazinga1 (ProjectAndBranch localProject localBranch) myUserHandle)
+          Nothing -> bazinga1 localProjectAndBranch
           Just (ProjectAndBranch remoteProjectId maybeRemoteBranchId) ->
             case maybeRemoteBranchId of
-              Nothing -> pure (bazinga2 localBranch remoteProjectId myUserHandle)
+              Nothing -> bazinga2 (localProjectAndBranch ^. #branch) remoteProjectId
               Just remoteBranchId -> bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId)
-      Just remoteProjectAndBranchNames -> wundefined
+      Just remoteProjectAndBranchNames -> bazinga4 localProjectAndBranch remoteProjectAndBranchNames
 
   localBranchCausalHash32 <- oinkUpload localProjectAndBranchIds (Share.RepoName repoName)
   afterUpload localBranchCausalHash32
 
-bazinga1 ::
-  ProjectAndBranch Queries.Project Queries.Branch ->
-  Text ->
-  (Text, Hash32 -> Cli ())
-bazinga1 (ProjectAndBranch localProject localBranch) myUserHandle =
-  (remoteBranchUserSlug, afterUpload)
-  where
-    -- Derive the remote project name from the user's handle and the local project name.
-    --
-    -- Example 1 - user "bob" has local project "foo"
-    --   remoteProjectName = "@bob/foo"
-    --
-    -- Example 2 - user "bob" has local project "@unison/base"
-    --   remoteProjectName = "@unison/base"
-    remoteProjectName =
-      let localProjectName = unsafeFrom @Text (localProject ^. #name)
-       in prependUserSlugToProjectName myUserHandle localProjectName
+bazinga1 :: ProjectAndBranch Queries.Project Queries.Branch -> Cli (Text, Hash32 -> Cli ())
+bazinga1 (ProjectAndBranch localProject localBranch) = do
+  myUserHandle <- oinkGetLoggedInUser
 
-    (remoteBranchUserSlug, remoteBranchName) =
-      deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
+  -- Derive the remote project name from the user's handle and the local project name.
+  --
+  -- Example 1 - user "bob" has local project "foo"
+  --   remoteProjectName = "@bob/foo"
+  --
+  -- Example 2 - user "bob" has local project "@unison/base"
+  --   remoteProjectName = "@unison/base"
+  let remoteProjectName =
+        let localProjectName = unsafeFrom @Text (localProject ^. #name)
+         in prependUserSlugToProjectName myUserHandle localProjectName
 
-    afterUpload localBranchCausalHash32 = do
-      remoteProject <- oinkCreateRemoteProject (into @Text remoteProjectName)
-      remoteBranch <-
-        oinkCreateRemoteBranch
-          Share.API.CreateProjectBranchRequest
-            { projectId = remoteProject ^. #projectId,
-              branchName = into @Text remoteBranchName,
-              branchCausalHash = localBranchCausalHash32,
-              branchMergeTarget = Nothing
-            }
-      pure ()
+  let (remoteBranchUserSlug, remoteBranchName) =
+        deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
 
-bazinga2 :: Queries.Branch -> Text -> Text -> (Text, Hash32 -> Cli ())
-bazinga2 localBranch remoteProjectId myUserHandle =
-  (remoteBranchUserSlug, afterUpload)
-  where
-    (remoteBranchUserSlug, remoteBranchName) =
-      deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
+  let afterUpload localBranchCausalHash32 = do
+        remoteProject <- oinkCreateRemoteProject (into @Text remoteProjectName)
+        remoteBranch <-
+          oinkCreateRemoteBranch
+            Share.API.CreateProjectBranchRequest
+              { projectId = remoteProject ^. #projectId,
+                branchName = into @Text remoteBranchName,
+                branchCausalHash = localBranchCausalHash32,
+                branchMergeTarget = Nothing
+              }
+        pure ()
 
-    afterUpload localBranchCausalHash32 = do
-      remoteBranch <-
-        oinkCreateRemoteBranch
-          Share.API.CreateProjectBranchRequest
-            { projectId = remoteProjectId,
-              branchName = into @Text remoteBranchName,
-              branchCausalHash = localBranchCausalHash32,
-              branchMergeTarget = wundefined
-            }
-      pure ()
+  -- FIXME check if remote branch exists
+
+  pure (remoteBranchUserSlug, afterUpload)
+
+bazinga2 :: Queries.Branch -> Text -> Cli (Text, Hash32 -> Cli ())
+bazinga2 localBranch remoteProjectId = do
+  myUserHandle <- oinkGetLoggedInUser
+
+  let (remoteBranchUserSlug, remoteBranchName) =
+        deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
+
+  let afterUpload localBranchCausalHash32 = do
+        remoteBranch <-
+          oinkCreateRemoteBranch
+            Share.API.CreateProjectBranchRequest
+              { projectId = remoteProjectId,
+                branchName = into @Text remoteBranchName,
+                branchCausalHash = localBranchCausalHash32,
+                branchMergeTarget = wundefined
+              }
+        pure ()
+
+  -- FIXME check if remote branch exists
+
+  pure (remoteBranchUserSlug, afterUpload)
 
 bazinga3 :: ProjectAndBranch Text Text -> Cli (Text, Hash32 -> Cli ())
 bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId) = do
@@ -455,8 +466,17 @@ bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId) = do
                   Just userSlug -> pure userSlug
           Just userSlug -> pure userSlug
 
+  -- FIXME check if remote branch exists
+
   -- Nothing to do in "after upload" callback: because project branch already exist.
   pure (repoName, \_ -> pure ())
+
+bazinga4 ::
+  ProjectAndBranch Queries.Project Queries.Branch ->
+  ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
+  Cli (Text, Hash32 -> Cli ())
+bazinga4 localProjectAndBranch remoteProjectAndBranchNames = do
+  wundefined
 
 -- Derive the remote branch user slug and remote branch name from the user's handle and the local branch name.
 --
