@@ -9,7 +9,6 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified System.Console.Regions as Region
-import System.Directory (copyFile)
 import System.FilePath ((</>))
 import Text.Printf (printf)
 import qualified U.Codebase.Reference as C.Reference
@@ -27,7 +26,7 @@ import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5 (migrateSchem
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7 (migrateSchema6To7)
 import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
-import Unison.Codebase.SqliteCodebase.Paths (backupCodebasePath, codebasePath)
+import Unison.Codebase.SqliteCodebase.Paths (backupCodebasePath)
 import Unison.Codebase.Type (LocalOrRemote (..))
 import qualified Unison.ConstructorType as CT
 import Unison.Hash (Hash)
@@ -111,7 +110,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
             let currentSchemaVersion = fst . head $ Map.toDescList migs
             when (schemaVersion > currentSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral schemaVersion)
             let migrationsToRun = Map.filterWithKey (\v _ -> v > schemaVersion) migs
-            when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase root shouldPrompt
+            when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase conn schemaVersion root shouldPrompt
             -- This is a bit of a hack, hopefully we can remove this when we have a more
             -- reliable way to freeze old migration code in time.
             -- The problem is that 'saveObject' has been changed to flush temp entity tables,
@@ -162,10 +161,10 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
           Region.setConsoleRegion region ("🏁 Migrations complete 🏁" :: Text)
 
 -- | Copy the sqlite database to a new file with a unique name based on current time.
-backupCodebase :: CodebasePath -> Bool -> IO ()
-backupCodebase root shouldPrompt = do
-  backupPath <- backupCodebasePath <$> getPOSIXTime
-  copyFile (root </> codebasePath) (root </> backupPath)
+backupCodebase :: Sqlite.Connection -> SchemaVersion -> CodebasePath -> Bool -> IO ()
+backupCodebase conn schemaVersion root shouldPrompt = do
+  backupPath <- getPOSIXTime <&> (\t -> root </> backupCodebasePath schemaVersion t)
+  Sqlite.vacuumInto conn (Text.pack backupPath)
   putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
   putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
   when shouldPrompt do
