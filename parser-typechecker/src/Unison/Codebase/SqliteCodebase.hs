@@ -10,6 +10,7 @@ module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
     MigrationStrategy (..),
     CodebaseLockOption (..),
+    copyCodebase,
   )
 where
 
@@ -764,3 +765,11 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
             (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", url] ++ Git.gitVerbosity ++ maybe [] (pure @[]) mayGitBranch
             when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
             pure True
+
+-- | Given two codebase roots (e.g. "./mycodebase"), safely copy the codebase
+-- at the source to the destination.
+-- Note: this does not copy the .unisonConfig file.
+copyCodebase :: MonadIO m => CodebasePath -> CodebasePath -> m ()
+copyCodebase src dest = liftIO $ do
+  withConnection ("copy-from:" <> src) src $ \srcConn -> do
+    Sqlite.vacuumInto srcConn (makeCodebasePath dest)

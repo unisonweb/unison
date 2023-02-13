@@ -168,7 +168,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
 backupCodebase :: Sqlite.Connection -> SchemaVersion -> CodebasePath -> Bool -> IO ()
 backupCodebase conn schemaVersion root shouldPrompt = do
   backupPath <- getPOSIXTime <&> (\t -> root </> backupCodebasePath schemaVersion t)
-  Sqlite.vacuumInto conn (Text.pack backupPath)
+  Sqlite.vacuumInto conn backupPath
   putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
   putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
   when shouldPrompt do
