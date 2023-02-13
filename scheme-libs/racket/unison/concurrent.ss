@@ -31,11 +31,12 @@
                  break-thread
                  parameterize-break
                  sleep
-                 printf)
+                 printf
+                 exn:break?
+                 with-handlers)
            (box ref-new)
            (unbox ref-read)
            (set-box! ref-write)
-           (thread fork)
            (sleep sleep-secs))
           (only (racket unsafe ops) unsafe-struct*-cas!)
           (unison data))
@@ -74,6 +75,14 @@
   (define (sleep n)
     (sleep-secs (/ n 1000000))
     (right unit))
+
+  ;; Swallows uncaught breaks/thread kills rather than logging them to
+  ;; match the behaviour of the Haskell runtime
+  (define (fork thunk)
+    (thread
+     (lambda ()
+       (with-handlers ([exn:break? (lambda (x) ())])
+         (thunk)))))
 
   (define (kill threadId)
     (break-thread threadId)
