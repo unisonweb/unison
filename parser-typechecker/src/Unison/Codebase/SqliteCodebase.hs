@@ -9,6 +9,7 @@
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
     MigrationStrategy (..),
+    BackupStrategy (..),
     CodebaseLockOption (..),
     copyCodebase,
   )
@@ -48,7 +49,7 @@ import Unison.Codebase.Editor.RemoteRepo
     writeToReadGit,
   )
 import qualified Unison.Codebase.GitError as GitError
-import Unison.Codebase.Init (CodebaseLockOption (..), MigrationStrategy (..))
+import Unison.Codebase.Init (BackupStrategy (..), CodebaseLockOption (..), MigrationStrategy (..))
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
