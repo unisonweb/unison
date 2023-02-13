@@ -2657,7 +2657,7 @@ doFetchCompiler =
     ns =
       ReadShareRemoteNamespace
         { server = RemoteRepo.DefaultCodeserver,
-          repo = ShareUserHandle "dolio",
+          repo = ShareUserHandle "unison",
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }
