@@ -2307,7 +2307,7 @@ declareForeigns = do
     $ \(hs, n) ->
       maybe mempty Bytes.fromArray <$> SYS.recv hs n
 
-  declareForeign Tracked "IO.kill.impl.v3" boxTo0 $ mkForeignIOF killThread
+  declareForeign Tracked "IO.kill.impl.v3" boxToEF0 $ mkForeignIOF killThread
 
   declareForeign Tracked "IO.delay.impl.v3" natToEFUnit $
     mkForeignIOF threadDelay
