@@ -72,16 +72,16 @@ data GetProjectResponse
 
 instance FromJSON GetProjectResponse where
   parseJSON =
-    withSumType "GetProjectResponse" \typ val ->
+    withSumType "GetProjectResponse" \typ -> withObject "GetProjectResponse" \obj ->
       case typ of
         "not-found" -> pure GetProjectResponseNotFound
-        "success" -> GetProjectResponseSuccess <$> parseJSON val
+        "success" -> GetProjectResponseSuccess <$> obj .: "project"
         _ -> fail (Text.unpack ("unknown GetProjectResponse type: " <> typ))
 
 instance ToJSON GetProjectResponse where
   toJSON = \case
     GetProjectResponseNotFound -> toSumType "not-found" (object [])
-    GetProjectResponseSuccess project -> toSumType "success" (toJSON project)
+    GetProjectResponseSuccess project -> toSumType "success" (object ["project" .= project])
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Create project
@@ -120,18 +120,18 @@ data CreateProjectResponse
 
 instance FromJSON CreateProjectResponse where
   parseJSON =
-    withSumType "CreateProjectResponse" \typ val ->
+    withSumType "CreateProjectResponse" \typ -> withObject "CreateProjectResponse" \obj ->
       case typ of
         "bad-request" -> pure CreateProjectResponseBadRequest
         "unauthorized" -> pure CreateProjectResponseUnauthorized
-        "success" -> CreateProjectResponseSuccess <$> parseJSON val
+        "success" -> CreateProjectResponseSuccess <$> obj .: "project"
         _ -> fail (Text.unpack ("unknown CreateProjectResponse type: " <> typ))
 
 instance ToJSON CreateProjectResponse where
   toJSON = \case
     CreateProjectResponseBadRequest -> toSumType "bad-request" (object [])
     CreateProjectResponseUnauthorized -> toSumType "unauthorized" (object [])
-    CreateProjectResponseSuccess project -> toSumType "success" (toJSON project)
+    CreateProjectResponseSuccess project -> toSumType "success" (object ["project" .= project])
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get project branch
@@ -154,16 +154,16 @@ data GetProjectBranchResponse
 
 instance FromJSON GetProjectBranchResponse where
   parseJSON =
-    withSumType "GetProjectBranchResponse" \typ val ->
+    withSumType "GetProjectBranchResponse" \typ -> withObject "GetProjectBranchResponse" \obj ->
       case typ of
         "not-found" -> pure GetProjectBranchResponseNotFound
-        "success" -> GetProjectBranchResponseSuccess <$> parseJSON val
+        "success" -> GetProjectBranchResponseSuccess <$> obj .: "branch"
         _ -> fail (Text.unpack ("unknown GetProjectBranchResponse type: " <> typ))
 
 instance ToJSON GetProjectBranchResponse where
   toJSON = \case
     GetProjectBranchResponseNotFound -> toSumType "not-found" (object [])
-    GetProjectBranchResponseSuccess branch -> toSumType "success" (toJSON branch)
+    GetProjectBranchResponseSuccess branch -> toSumType "success" (object ["branch" .= branch])
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Create project branch
@@ -214,21 +214,22 @@ data CreateProjectBranchResponse
 
 instance FromJSON CreateProjectBranchResponse where
   parseJSON =
-    withSumType "CreateProjectBranchResponse" \typ val ->
-      case typ of
-        "bad-request" -> pure CreateProjectBranchResponseBadRequest
-        "unauthorized" -> pure CreateProjectBranchResponseUnauthorized
-        "missing-causal-hash" -> CreateProjectBranchResponseMissingCausalHash <$> parseJSON val
-        "success" -> CreateProjectBranchResponseSuccess <$> parseJSON val
-        _ -> fail (Text.unpack ("unknown CreateProjectBranchResponse type: " <> typ))
+    withSumType "CreateProjectBranchResponse" \typ ->
+      withObject "CreateProjectBranchResponse" \obj ->
+        case typ of
+          "bad-request" -> pure CreateProjectBranchResponseBadRequest
+          "unauthorized" -> pure CreateProjectBranchResponseUnauthorized
+          "missing-causal-hash" -> CreateProjectBranchResponseMissingCausalHash <$> obj .: "causalHash"
+          "success" -> CreateProjectBranchResponseSuccess <$> obj .: "branch"
+          _ -> fail (Text.unpack ("unknown CreateProjectBranchResponse type: " <> typ))
 
 instance ToJSON CreateProjectBranchResponse where
   toJSON = \case
     CreateProjectBranchResponseBadRequest -> toSumType "bad-request" (object [])
     CreateProjectBranchResponseUnauthorized -> toSumType "unauthorized" (object [])
     CreateProjectBranchResponseNotFound -> toSumType "not-found" (object [])
-    CreateProjectBranchResponseMissingCausalHash hash -> toSumType "missing-causal-hash" (toJSON hash)
-    CreateProjectBranchResponseSuccess branch -> toSumType "success" (toJSON branch)
+    CreateProjectBranchResponseMissingCausalHash hash -> toSumType "missing-causal-hash" (object ["causalHash" .= hash])
+    CreateProjectBranchResponseSuccess branch -> toSumType "success" (object ["branch" .= branch])
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Set project branch head
@@ -273,22 +274,25 @@ data SetProjectBranchHeadResponse
     SetProjectBranchHeadResponseBadRequest
   | SetProjectBranchHeadResponseUnauthorized
   | SetProjectBranchHeadResponseSuccess
-  | SetProjectBranchResponseMissingCausalHash !Hash32
+  | SetProjectBranchHeadResponseMissingCausalHash !Hash32
   deriving stock (Eq, Show)
 
 instance FromJSON SetProjectBranchHeadResponse where
   parseJSON =
-    withSumType "SetProjectBranchHeadResponse" \typ _val ->
-      case typ of
-        "bad-request" -> pure SetProjectBranchHeadResponseBadRequest
-        "unauthorized" -> pure SetProjectBranchHeadResponseUnauthorized
-        "success" -> pure SetProjectBranchHeadResponseSuccess
-        _ -> fail (Text.unpack ("unknown SetProjectBranchHeadResponse type: " <> typ))
+    withSumType "SetProjectBranchHeadResponse" \typ val ->
+      val & withObject "SetProjectBranchHeadResponse" \obj ->
+        case typ of
+          "bad-request" -> pure SetProjectBranchHeadResponseBadRequest
+          "unauthorized" -> pure SetProjectBranchHeadResponseUnauthorized
+          "missing-causal-hash" -> SetProjectBranchHeadResponseMissingCausalHash <$> (obj .: "causalHash")
+          "success" -> pure SetProjectBranchHeadResponseSuccess
+          _ -> fail (Text.unpack ("unknown SetProjectBranchHeadResponse type: " <> typ))
 
 instance ToJSON SetProjectBranchHeadResponse where
   toJSON = \case
     SetProjectBranchHeadResponseBadRequest -> toSumType "bad-request" (object [])
     SetProjectBranchHeadResponseUnauthorized -> toSumType "unauthorized" (object [])
+    SetProjectBranchHeadResponseMissingCausalHash ch -> toSumType "missing-causal-hash" (object ["causalHash" .= ch])
     SetProjectBranchHeadResponseSuccess -> toSumType "success" (object [])
 
 ------------------------------------------------------------------------------------------------------------------------
