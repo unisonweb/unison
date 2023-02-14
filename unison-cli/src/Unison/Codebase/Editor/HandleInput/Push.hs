@@ -318,7 +318,7 @@ pushLooseCodeToProjectBranch ::
 pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
   localBranchCausalHash <- Cli.runEitherTransaction (loadCausalHashToPush localPath)
   -- FIXME share code with `pushProjectBranchToProjectBranch`?
-  (repoName, afterUpload) <- wundefined
+  (repoName, afterUpload) <- bazinga7 localBranchCausalHash remoteProjectAndBranch
   oinkUpload repoName localBranchCausalHash
   afterUpload
 
