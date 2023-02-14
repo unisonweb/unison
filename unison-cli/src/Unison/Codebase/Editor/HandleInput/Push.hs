@@ -146,17 +146,16 @@ branchNameSpecToIds ::
   Cli (ProjectAndBranch ProjectId ProjectBranchId)
 branchNameSpecToIds = \case
   This projectName -> branchNameSpecToIds (These projectName (unsafeFrom @Text "main"))
-  That branchName ->
-    getCurrentProjectBranch >>= \case
-      Nothing -> do
+  That branchName -> do
+    ProjectAndBranch projectId _branchId <-
+      getCurrentProjectBranch & onNothingM do
         loggeth ["not on a project branch yo"]
         Cli.returnEarlyWithoutOutput
-      Just (ProjectAndBranch projectId _branchId) ->
-        Cli.runTransaction (Queries.loadProjectBranchByName projectId (into @Text branchName)) >>= \case
-          Nothing -> do
-            loggeth ["no branch in project ", tShow projectId, " with name ", into @Text branchName]
-            Cli.returnEarlyWithoutOutput
-          Just branch -> pure (ProjectAndBranch projectId (branch ^. #branchId))
+    branch <-
+      Cli.runTransaction (Queries.loadProjectBranchByName projectId (into @Text branchName)) & onNothingM do
+        loggeth ["no branch in project ", tShow projectId, " with name ", into @Text branchName]
+        Cli.returnEarlyWithoutOutput
+    pure (ProjectAndBranch projectId (branch ^. #branchId))
   These projectName branchName -> do
     maybeProjectAndBranch <-
       Cli.runTransaction do
@@ -165,11 +164,9 @@ branchNameSpecToIds = \case
           let projectId = project ^. #projectId
           branch <- MaybeT (Queries.loadProjectBranchByName projectId (into @Text branchName))
           pure (ProjectAndBranch projectId (branch ^. #branchId))
-    case maybeProjectAndBranch of
-      Nothing -> do
-        loggeth [into @Text (These projectName branchName), " not found!"]
-        Cli.returnEarlyWithoutOutput
-      Just projectAndBranch -> pure projectAndBranch
+    maybeProjectAndBranch & onNothing do
+      loggeth [into @Text (These projectName branchName), " not found!"]
+      Cli.returnEarlyWithoutOutput
 
 branchNameSpecToNames ::
   These ProjectName ProjectBranchName ->
@@ -177,14 +174,13 @@ branchNameSpecToNames ::
 branchNameSpecToNames = \case
   This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
-    getCurrentProjectBranch >>= \case
-      Nothing -> do
+    ProjectAndBranch projectId _branchId <-
+      getCurrentProjectBranch & onNothingM do
         loggeth ["not on a project branch"]
         Cli.returnEarlyWithoutOutput
-      Just (ProjectAndBranch projectId _branchId) ->
-        Cli.runTransaction do
-          project <- Queries.expectProject projectId
-          pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
+    Cli.runTransaction do
+      project <- Queries.expectProject projectId
+      pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
 -- Push a local namespace ("loose code") to a remote namespace ("loose code").
