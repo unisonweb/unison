@@ -330,13 +330,16 @@ pushProjectBranchToProjectBranch ::
   Cli ()
 pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndBranchNames = do
   -- Load local project and branch from database and get the causal hash to push
-  (localProjectAndBranch, localBranchCausalHash) <-
+  (ProjectAndBranch localProject localBranch, localBranchCausalHash) <-
     Cli.runEitherTransaction do
       loadCausalHashToPush (projectBranchPath localProjectAndBranchIds) >>= \case
         Left output -> pure (Left output)
         Right hash -> do
           localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
           pure (Right (localProjectAndBranch, hash))
+
+  let localProjectName = unsafeFrom @Text (localProject ^. #name)
+  let localBranchName = unsafeFrom @Text (localBranch ^. #name)
 
   -- Get two pieces of information that are computed in various ways depending on whether the user has specified a
   -- target or not, the state of the database, etc:
@@ -349,9 +352,8 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
   --     An action invoked after successfully uploading branch contents.
   (repoName, afterUpload) <-
     case maybeRemoteProjectAndBranchNames of
-      Nothing -> bazinga0 localProjectAndBranch localBranchCausalHash
-      Just remoteProjectAndBranchNames ->
-        bazinga4 localProjectAndBranch localBranchCausalHash remoteProjectAndBranchNames
+      Nothing -> bazinga0 (ProjectAndBranch localProjectName localBranchName) localBranchCausalHash
+      Just remoteProjectAndBranchNames -> bazinga4 localBranchName localBranchCausalHash remoteProjectAndBranchNames
 
   oinkUpload repoName localBranchCausalHash
   afterUpload
@@ -365,7 +367,7 @@ loadCausalHashToPush path =
   where
     segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
 
-bazinga0 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli (Share.RepoName, Cli ())
+bazinga0 :: ProjectAndBranch ProjectName ProjectBranchName -> Hash32 -> Cli (Share.RepoName, Cli ())
 bazinga0 localProjectAndBranch localBranchCausalHash32 =
   Cli.runTransaction oinkResolveRemoteIds >>= \case
     Nothing -> bazinga1 localProjectAndBranch localBranchCausalHash32
@@ -374,22 +376,19 @@ bazinga0 localProjectAndBranch localBranchCausalHash32 =
         Nothing -> bazinga2 (localProjectAndBranch ^. #branch) localBranchCausalHash32 remoteProjectId
         Just remoteBranchId -> bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId)
 
-bazinga1 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli (Share.RepoName, Cli ())
-bazinga1 (ProjectAndBranch localProject localBranch) localBranchCausalHash32 = do
+bazinga1 :: ProjectAndBranch ProjectName ProjectBranchName -> Hash32 -> Cli (Share.RepoName, Cli ())
+bazinga1 (ProjectAndBranch localProjectName localBranchName) localBranchCausalHash32 = do
   myUserHandle <- oinkGetLoggedInUser
-  let localProjectName = unsafeFrom @Text (localProject ^. #name)
-  let localBranchName = unsafeFrom @Text (localBranch ^. #name)
   let remoteProjectName = prependUserSlugToProjectName myUserHandle localProjectName
   let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
   afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
   pure (Share.RepoName remoteBranchUserSlug, afterUpload)
 
-bazinga2 :: Queries.Branch -> Hash32 -> RemoteProjectId -> Cli (Share.RepoName, Cli ())
-bazinga2 localBranch localBranchCausalHash32 remoteProjectId = do
+bazinga2 :: ProjectBranchName -> Hash32 -> RemoteProjectId -> Cli (Share.RepoName, Cli ())
+bazinga2 localBranchName localBranchCausalHash32 remoteProjectId = do
   myUserHandle <- oinkGetLoggedInUser
 
-  let localBranchName = unsafeFrom @Text (localBranch ^. #name)
-      (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
+  let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
 
   afterUpload <-
     Share.getProjectBranchByName remoteProjectId (into @Text remoteBranchName) >>= \case
@@ -436,18 +435,16 @@ bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId) = do
   pure (repoName, afterUpload)
 
 bazinga4 ::
-  ProjectAndBranch Queries.Project Queries.Branch ->
+  ProjectBranchName ->
   Hash32 ->
   These ProjectName ProjectBranchName ->
   Cli (Share.RepoName, Cli ())
-bazinga4 localProjectAndBranch localBranchCausalHash32 remoteProjectAndBranchNames = do
+bazinga4 localBranchName localBranchCausalHash32 remoteProjectAndBranchNames = do
   case remoteProjectAndBranchNames of
     -- "push /topic"
     That remoteBranchName -> bazinga5 localBranchCausalHash32 remoteBranchName
     -- "push @arya/lens"
-    This remoteProjectName ->
-      let localBranchName = unsafeFrom @Text (localProjectAndBranch ^. #branch . #name)
-       in bazinga6 localBranchName localBranchCausalHash32 remoteProjectName
+    This remoteProjectName -> bazinga6 localBranchName localBranchCausalHash32 remoteProjectName
     -- "push @unison/base/@runar/topic"
     These remoteProjectName remoteBranchName ->
       bazinga7 localBranchCausalHash32 (ProjectAndBranch remoteProjectName remoteBranchName)
