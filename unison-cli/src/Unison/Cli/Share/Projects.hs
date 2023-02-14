@@ -19,7 +19,7 @@ import qualified Unison.Auth.HTTPClient as Auth
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import Unison.Prelude
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.API.Projects
 import Unison.Share.Codeserver (defaultCodeserver)
 import Unison.Share.Types (codeserverBaseURL)
@@ -36,8 +36,8 @@ createProject :: CreateProjectRequest -> Cli CreateProjectResponse
 createProject request =
   servantClientToCli (createProject0 request)
 
-getProjectBranchById :: RemoteProjectId -> RemoteProjectBranchId -> Cli GetProjectBranchResponse
-getProjectBranchById (RemoteProjectId projectId) (RemoteProjectBranchId branchId) =
+getProjectBranchById :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli GetProjectBranchResponse
+getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjectBranchId branchId)) =
   servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing)
 
 getProjectBranchByName :: RemoteProjectId -> ProjectBranchName -> Cli GetProjectBranchResponse

@@ -347,7 +347,7 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
     case maybeRemoteProjectAndBranchNames of
       Nothing -> bazinga0 localProjectAndBranch localBranchCausalHash
       Just (This remoteProjectName) -> bazinga6 localProjectAndBranch localBranchCausalHash remoteProjectName
-      Just (That remoteBranchName) -> bazinga5 localBranchCausalHash remoteBranchName
+      Just (That remoteBranchName) -> bazinga5 localProjectAndBranch localBranchCausalHash remoteBranchName
       Just (These remoteProjectName remoteBranchName) ->
         bazinga7
           (Just localProjectAndBranch)
@@ -363,15 +363,20 @@ loadCausalHashToPush path =
   where
     segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
 
+-- pushing to implicit target
 bazinga0 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli (Share.RepoName, Cli ())
 bazinga0 localProjectAndBranch localBranchCausalHash32 =
-  Cli.runTransaction (Queries.loadRemoteProjectBranchByLocalProjectBranch wundefined wundefined) >>= \case
+  Cli.runTransaction (Queries.loadRemoteProjectBranchByLocalProjectBranch localProjectId localBranchId) >>= \case
     Nothing -> bazinga1 localProjectAndBranch localBranchCausalHash32
     Just (remoteProjectId, maybeRemoteBranchId) ->
       case maybeRemoteBranchId of
         Nothing -> bazinga2 localProjectAndBranch localBranchCausalHash32 remoteProjectId
         Just remoteBranchId -> bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId)
+  where
+    localProjectId = localProjectAndBranch ^. #project . #projectId
+    localBranchId = localProjectAndBranch ^. #branch . #branchId
 
+-- "push" with no remote mapping
 bazinga1 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli (Share.RepoName, Cli ())
 bazinga1 localProjectAndBranch localBranchCausalHash32 = do
   myUserHandle <- oinkGetLoggedInUser
@@ -382,105 +387,92 @@ bazinga1 localProjectAndBranch localBranchCausalHash32 = do
   let (remoteBranchUserSlug, remoteBranchName) =
         deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localProjectAndBranch ^. #branch . #name))
   afterUpload <-
-    oompaLoompa
+    oompaLoompa0
       (Just localProjectAndBranch)
       localBranchCausalHash32
       (ProjectAndBranch remoteProjectName remoteBranchName)
   pure (Share.RepoName remoteBranchUserSlug, afterUpload)
 
+-- "push" with remote mapping for project (from ancestor branch)
 bazinga2 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> RemoteProjectId -> Cli (Share.RepoName, Cli ())
-bazinga2 (ProjectAndBranch _localProject localBranch) localBranchCausalHash32 remoteProjectId = do
+bazinga2 localProjectAndBranch localBranchCausalHash remoteProjectId = do
   myUserHandle <- oinkGetLoggedInUser
-
   let (remoteBranchUserSlug, remoteBranchName) =
-        deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
+        deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localProjectAndBranch ^. #branch . #name))
+  afterUpload <-
+    oompaLoompa1
+      localProjectAndBranch
+      localBranchCausalHash
+      (ProjectAndBranch remoteProjectId remoteBranchName)
+  pure (Share.RepoName remoteBranchUserSlug, afterUpload)
+
+-- "push" with remote mapping for branch
+bazinga3 :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli (Share.RepoName, Cli ())
+bazinga3 remoteProjectAndBranch = do
+  remoteBranch <-
+    Share.getProjectBranchById remoteProjectAndBranch >>= \case
+      Share.API.GetProjectBranchResponseNotFound -> do
+        loggeth ["GetProjectBranchResponseNotFound"]
+        Cli.returnEarlyWithoutOutput
+      Share.API.GetProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
+  repoName <- remoteProjectBranchRepoName remoteBranch
+  afterUpload <- oompaLoompa2 remoteProjectAndBranch
+  pure (repoName, afterUpload)
+
+-- "push /branch"
+bazinga5 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> ProjectBranchName -> Cli (Share.RepoName, Cli ())
+bazinga5 localProjectAndBranch localBranchCausalHash remoteBranchName = do
+  Cli.runTransaction (Queries.loadRemoteProjectBranchByLocalProjectBranch wundefined wundefined) >>= \case
+    Nothing -> wundefined
+    Just (remoteProjectId, _maybeRemoteBranchId) ->
+      -- FIXME if maybeRemoteBranchId is Nothing, we do want to establish a remote mapping for this branch. otherwise,
+      -- we don't. (so maybe we just create a new mapping if one doesn't already exist in our create-branch helper?)
+      bazinga8 localProjectAndBranch localBranchCausalHash (ProjectAndBranch remoteProjectId remoteBranchName)
+
+-- "push /branch" with a remote mapping for the project (either from this branch or one of our ancestors)
+bazinga8 ::
+  ProjectAndBranch Queries.Project Queries.Branch ->
+  Hash32 ->
+  ProjectAndBranch RemoteProjectId ProjectBranchName ->
+  Cli (Share.RepoName, Cli ())
+bazinga8 localProjectAndBranch localBranchCausalHash (ProjectAndBranch remoteProjectId remoteBranchName) = do
+  repoName <-
+    case projectBranchNameUserSlug remoteBranchName of
+      Nothing ->
+        Share.getProjectById remoteProjectId >>= \case
+          Share.API.GetProjectResponseNotFound -> wundefined
+          Share.API.GetProjectResponseSuccess remoteProject -> remoteProjectRepoName remoteProject
+      Just userSlug -> pure (Share.RepoName userSlug)
 
   afterUpload <-
     Share.getProjectBranchByName remoteProjectId remoteBranchName >>= \case
       Share.API.GetProjectBranchResponseNotFound ->
         pure do
-          _remoteBranch <-
+          remoteBranch <-
             oinkCreateRemoteBranch
               Share.API.CreateProjectBranchRequest
                 { projectId = unRemoteProjectId remoteProjectId,
                   branchName = into @Text remoteBranchName,
-                  branchCausalHash = localBranchCausalHash32,
+                  branchCausalHash = localBranchCausalHash,
                   branchMergeTarget = wundefined
                 }
           pure ()
       Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
         -- TODO don't proceed with push if local head not ahead of remote head
-        doFastForward <- wundefined
-        pure (doFastForward)
-
-  pure (Share.RepoName remoteBranchUserSlug, afterUpload)
-
-bazinga3 :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli (Share.RepoName, Cli ())
-bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId) = do
-  loggeth ["getProjectBranchById ", tShow remoteProjectId, " ", tShow remoteBranchId]
-  remoteBranch <-
-    Share.getProjectBranchById remoteProjectId remoteBranchId >>= \case
-      Share.API.GetProjectBranchResponseNotFound -> do
-        loggeth ["GetProjectBranchResponseNotFound"]
-        Cli.returnEarlyWithoutOutput
-      Share.API.GetProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
-
-  repoName <- remoteProjectBranchRepoName remoteBranch
-
-  afterUpload <-
-    Share.getProjectBranchById remoteProjectId remoteBranchId >>= \case
-      Share.API.GetProjectBranchResponseNotFound ->
-        -- remote branch or project deleted
         wundefined
-      Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
-        -- TODO don't proceed with push if local head not ahead of remote head
-        doFastForward <- wundefined
-        pure doFastForward
+        pure (pure ())
 
   pure (repoName, afterUpload)
 
-bazinga5 :: Hash32 -> ProjectBranchName -> Cli (Share.RepoName, Cli ())
-bazinga5 localBranchCausalHash32 remoteBranchName =
-  Cli.runTransaction oinkResolveRemoteProjectId >>= \case
-    Nothing -> wundefined
-    Just remoteProjectId -> do
-      repoName <-
-        case projectBranchNameUserSlug remoteBranchName of
-          Nothing ->
-            Share.getProjectById remoteProjectId >>= \case
-              Share.API.GetProjectResponseNotFound -> wundefined
-              Share.API.GetProjectResponseSuccess remoteProject -> remoteProjectRepoName remoteProject
-          Just userSlug -> pure (Share.RepoName userSlug)
-
-      afterUpload <-
-        Share.getProjectBranchByName remoteProjectId remoteBranchName >>= \case
-          Share.API.GetProjectBranchResponseNotFound ->
-            pure do
-              remoteBranch <-
-                oinkCreateRemoteBranch
-                  Share.API.CreateProjectBranchRequest
-                    { projectId = unRemoteProjectId remoteProjectId,
-                      branchName = into @Text remoteBranchName,
-                      branchCausalHash = localBranchCausalHash32,
-                      branchMergeTarget = wundefined
-                    }
-              pure ()
-          Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
-            -- TODO don't proceed with push if local head not ahead of remote head
-            wundefined
-            pure (pure ())
-
-      pure (repoName, afterUpload)
-
 bazinga6 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> ProjectName -> Cli (Share.RepoName, Cli ())
-bazinga6 localProjectAndBranch localBranchCausalHash32 remoteProjectName = do
+bazinga6 localProjectAndBranch localBranchCausalHash remoteProjectName = do
   myUserHandle <- oinkGetLoggedInUser
   let (remoteBranchUserSlug, remoteBranchName) =
         deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localProjectAndBranch ^. #branch . #name))
   afterUpload <-
-    oompaLoompa
+    oompaLoompa0
       (Just localProjectAndBranch)
-      localBranchCausalHash32
+      localBranchCausalHash
       (ProjectAndBranch remoteProjectName remoteBranchName)
   pure (Share.RepoName remoteBranchUserSlug, afterUpload)
 
@@ -489,18 +481,18 @@ bazinga7 ::
   Hash32 ->
   ProjectAndBranch ProjectName ProjectBranchName ->
   Cli (Share.RepoName, Cli ())
-bazinga7 maybeLocalProjectAndBranch localBranchCausalHash32 remoteProjectAndBranch = do
+bazinga7 maybeLocalProjectAndBranch localBranchCausalHash remoteProjectAndBranch = do
   repoName <- projectBranchRepoName remoteProjectAndBranch
-  afterUpload <- oompaLoompa maybeLocalProjectAndBranch localBranchCausalHash32 remoteProjectAndBranch
+  afterUpload <- oompaLoompa0 maybeLocalProjectAndBranch localBranchCausalHash remoteProjectAndBranch
   pure (repoName, afterUpload)
 
 -- we have the remote project and branch names, but we don't know whether either already exist
-oompaLoompa ::
+oompaLoompa0 ::
   Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
   Hash32 ->
   ProjectAndBranch ProjectName ProjectBranchName ->
   Cli (Cli ())
-oompaLoompa _maybeLocalProjectAndBranch localBranchCausalHash32 (ProjectAndBranch projectName branchName) = do
+oompaLoompa0 _maybeLocalProjectAndBranch localBranchCausalHash (ProjectAndBranch projectName branchName) = do
   let doCreateBranch :: Share.API.Project -> Cli ()
       doCreateBranch remoteProject = do
         _remoteBranch <-
@@ -508,7 +500,7 @@ oompaLoompa _maybeLocalProjectAndBranch localBranchCausalHash32 (ProjectAndBranc
             Share.API.CreateProjectBranchRequest
               { projectId = remoteProject ^. #projectId,
                 branchName = into @Text branchName,
-                branchCausalHash = localBranchCausalHash32,
+                branchCausalHash = localBranchCausalHash,
                 branchMergeTarget = wundefined
               }
         pure ()
@@ -524,6 +516,42 @@ oompaLoompa _maybeLocalProjectAndBranch localBranchCausalHash32 (ProjectAndBranc
           -- TODO don't proceed with push if local head not ahead of remote head
           doFastForward <- wundefined
           pure doFastForward
+
+-- we have the remote project id and remote branch name, but we don't know whether the remote branch exists
+oompaLoompa1 ::
+  ProjectAndBranch Queries.Project Queries.Branch ->
+  Hash32 ->
+  ProjectAndBranch RemoteProjectId ProjectBranchName ->
+  Cli (Cli ())
+oompaLoompa1 _localProjectAndBranch localBranchCausalHash (ProjectAndBranch remoteProjectId remoteBranchName) =
+  Share.getProjectBranchByName remoteProjectId remoteBranchName >>= \case
+    Share.API.GetProjectBranchResponseNotFound ->
+      pure do
+        _remoteBranch <-
+          oinkCreateRemoteBranch
+            Share.API.CreateProjectBranchRequest
+              { projectId = unRemoteProjectId remoteProjectId,
+                branchName = into @Text remoteBranchName,
+                branchCausalHash = localBranchCausalHash,
+                branchMergeTarget = wundefined
+              }
+        pure ()
+    Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
+      -- TODO don't proceed with push if local head not ahead of remote head
+      doFastForward <- wundefined
+      pure (doFastForward)
+
+-- we have the remote project id and remote branch id
+oompaLoompa2 :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli (Cli ())
+oompaLoompa2 remoteProjectAndBranch = do
+  Share.getProjectBranchById remoteProjectAndBranch >>= \case
+    Share.API.GetProjectBranchResponseNotFound ->
+      -- remote branch or project deleted
+      wundefined
+    Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
+      -- TODO don't proceed with push if local head not ahead of remote head
+      doFastForward <- wundefined
+      pure doFastForward
 
 -- Derive the remote branch user slug and remote branch name from the user's handle and the local branch name.
 --
@@ -590,14 +618,14 @@ expectProjectAndBranch (ProjectAndBranch projectId branchId) = do
   pure (ProjectAndBranch project branch)
 
 oinkUpload :: Share.RepoName -> Hash32 -> Cli ()
-oinkUpload repoName causalHash32 = do
+oinkUpload repoName causalHash = do
   loggeth ["uploading entities"]
   Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
     let upload =
           Share.uploadEntities
             (codeserverBaseURL Codeserver.defaultCodeserver)
             repoName
-            (Set.NonEmpty.singleton causalHash32)
+            (Set.NonEmpty.singleton causalHash)
             uploadedCallback
     upload & onLeftM \err -> do
       loggeth ["upload entities error"]
@@ -640,14 +668,6 @@ oinkCreateRemoteBranch request = do
       loggeth ["TODO insert remote_project"]
       loggeth ["TODO insert project_branch_remote_mapping"]
       pure remoteBranch
-
-oinkResolveRemoteIds :: Sqlite.Transaction (Maybe (ProjectAndBranch RemoteProjectId (Maybe RemoteProjectBranchId)))
-oinkResolveRemoteIds =
-  undefined
-    Queries.loadRemoteProjectBranchByLocalProjectBranch
-
-oinkResolveRemoteProjectId :: Sqlite.Transaction (Maybe RemoteProjectId)
-oinkResolveRemoteProjectId = undefined
 
 oinkGetLoggedInUser :: Cli Text
 oinkGetLoggedInUser = do
