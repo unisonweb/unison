@@ -310,6 +310,17 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemotePath {server, rep
         Share.SyncError err -> Output.ShareError (f err)
         Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
 
+uploadeo ::
+  Hash32 ->
+  -- An action that returns the "repo name" to upload to via the upload-entities API (for a contributor branch for
+  -- example, this will be the username of the contributor), and an action to run after branch contents are uploaded.
+  Cli (Share.RepoName, Cli ()) ->
+  Cli ()
+uploadeo localBranchCausalHash action = do
+  (repoName, afterUpload) <- action
+  oinkUpload repoName localBranchCausalHash
+  afterUpload
+
 -- Push a local namespace ("loose code") to a remote project branch.
 pushLooseCodeToProjectBranch ::
   Path.Absolute ->
@@ -317,10 +328,7 @@ pushLooseCodeToProjectBranch ::
   Cli ()
 pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
   localBranchCausalHash <- Cli.runEitherTransaction (loadCausalHashToPush localPath)
-  -- FIXME share code with `pushProjectBranchToProjectBranch`?
-  (repoName, afterUpload) <- bazinga7 localBranchCausalHash remoteProjectAndBranch
-  oinkUpload repoName localBranchCausalHash
-  afterUpload
+  uploadeo localBranchCausalHash (bazinga7 localBranchCausalHash remoteProjectAndBranch)
 
 -- | Push a local project branch to a remote project branch. If the remote project branch is left unspecified, we either
 -- use a pre-existing mapping for the local branch, or else infer what remote branch to push to (possibly creating it).
@@ -341,25 +349,14 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
   let localProjectName = unsafeFrom @Text (localProject ^. #name)
   let localBranchName = unsafeFrom @Text (localBranch ^. #name)
 
-  -- Get two pieces of information that are computed in various ways depending on whether the user has specified a
-  -- target or not, the state of the database, etc:
-  --
-  --   repoName
-  --     The "repo name" to upload to in the upload-entities request. For a contributor branch, for example, this will
-  --     be the username of the contributor.
-  --
-  --   afterUpload
-  --     An action invoked after successfully uploading branch contents.
-  (repoName, afterUpload) <-
+  uploadeo
+    localBranchCausalHash
     case maybeRemoteProjectAndBranchNames of
       Nothing -> bazinga0 (ProjectAndBranch localProjectName localBranchName) localBranchCausalHash
       Just (This remoteProjectName) -> bazinga6 localBranchName localBranchCausalHash remoteProjectName
       Just (That remoteBranchName) -> bazinga5 localBranchCausalHash remoteBranchName
       Just (These remoteProjectName remoteBranchName) ->
         bazinga7 localBranchCausalHash (ProjectAndBranch remoteProjectName remoteBranchName)
-
-  oinkUpload repoName localBranchCausalHash
-  afterUpload
 
 loadCausalHashToPush :: Path.Absolute -> Sqlite.Transaction (Either Output Hash32)
 loadCausalHashToPush path =
