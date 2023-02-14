@@ -6,7 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Push
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (to, (^.))
+import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set.NonEmpty as Set.NonEmpty
@@ -391,7 +391,7 @@ bazinga2 localBranchName localBranchCausalHash32 remoteProjectId = do
   let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
 
   afterUpload <-
-    Share.getProjectBranchByName remoteProjectId (into @Text remoteBranchName) >>= \case
+    Share.getProjectBranchByName remoteProjectId remoteBranchName >>= \case
       Share.API.GetProjectBranchResponseNotFound ->
         pure do
           _remoteBranch <-
@@ -448,7 +448,7 @@ bazinga5 localBranchCausalHash32 remoteBranchName =
           Just userSlug -> pure (Share.RepoName userSlug)
 
       afterUpload <-
-        Share.getProjectBranchByName remoteProjectId (into @Text remoteBranchName) >>= \case
+        Share.getProjectBranchByName remoteProjectId remoteBranchName >>= \case
           Share.API.GetProjectBranchResponseNotFound ->
             pure do
               remoteBranch <-
@@ -494,13 +494,13 @@ oompaLoompa (ProjectAndBranch projectName branchName) localBranchCausalHash32 = 
                 branchMergeTarget = wundefined
               }
         pure ()
-  Share.getProjectByName (into @Text projectName) >>= \case
+  Share.getProjectByName projectName >>= \case
     Share.API.GetProjectResponseNotFound ->
       pure do
-        remoteProject <- oinkCreateRemoteProject (into @Text projectName)
+        remoteProject <- oinkCreateRemoteProject projectName
         doCreateBranch remoteProject
     Share.API.GetProjectResponseSuccess remoteProject ->
-      Share.getProjectBranchByName (remoteProject ^. #projectId . to RemoteProjectId) (into @Text branchName) >>= \case
+      Share.getProjectBranchByName (RemoteProjectId (remoteProject ^. #projectId)) branchName >>= \case
         Share.API.GetProjectBranchResponseNotFound -> pure (doCreateBranch remoteProject)
         Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
           -- TODO don't proceed with push if local head not ahead of remote head
@@ -586,8 +586,9 @@ oinkUpload repoName causalHash32 = do
       loggeth [tShow err]
       Cli.returnEarlyWithoutOutput
 
+oinkCreateRemoteProject :: ProjectName -> Cli Share.API.Project
 oinkCreateRemoteProject projectName = do
-  let request = Share.API.CreateProjectRequest {projectName}
+  let request = Share.API.CreateProjectRequest {projectName = into @Text projectName}
   loggeth ["Making create-project request for project"]
   loggeth [tShow request]
   Share.createProject request >>= \case
@@ -603,6 +604,7 @@ oinkCreateRemoteProject projectName = do
       loggeth ["TODO insert remote_project"]
       pure remoteProject
 
+oinkCreateRemoteBranch :: Share.API.CreateProjectBranchRequest -> Cli Share.API.ProjectBranch
 oinkCreateRemoteBranch request = do
   loggeth ["creating remote branch"]
   loggeth [tShow request]
