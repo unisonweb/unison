@@ -40,8 +40,8 @@ getProjectBranchById :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -
 getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjectBranchId branchId)) =
   servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing)
 
-getProjectBranchByName :: RemoteProjectId -> ProjectBranchName -> Cli GetProjectBranchResponse
-getProjectBranchByName (RemoteProjectId projectId) branchName =
+getProjectBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli GetProjectBranchResponse
+getProjectBranchByName (ProjectAndBranch (RemoteProjectId projectId) branchName) =
   servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)))
 
 createProjectBranch :: CreateProjectBranchRequest -> Cli CreateProjectBranchResponse
