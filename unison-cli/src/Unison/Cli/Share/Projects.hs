@@ -14,7 +14,7 @@ import Control.Monad.Reader (ask)
 import Data.Proxy
 import Servant.API ((:<|>) (..))
 import Servant.Client
-import U.Codebase.Sqlite.Queries (RemoteBranchId (..), RemoteProjectId (..))
+import U.Codebase.Sqlite.DbId (RemoteProjectBranchId (..), RemoteProjectId (..))
 import qualified Unison.Auth.HTTPClient as Auth
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -35,8 +35,8 @@ createProject :: CreateProjectRequest -> Cli CreateProjectResponse
 createProject request =
   servantClientToCli (createProject0 request)
 
-getProjectBranchById :: RemoteProjectId -> RemoteBranchId -> Cli GetProjectBranchResponse
-getProjectBranchById (RemoteProjectId projectId) (RemoteBranchId branchId) =
+getProjectBranchById :: RemoteProjectId -> RemoteProjectBranchId -> Cli GetProjectBranchResponse
+getProjectBranchById (RemoteProjectId projectId) (RemoteProjectBranchId branchId) =
   servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing)
 
 getProjectBranchByName :: RemoteProjectId -> Text -> Cli GetProjectBranchResponse

@@ -98,7 +98,6 @@ module U.Codebase.Sqlite.Queries
     clearWatches,
 
     -- * projects
-    ProjectId (..),
     Project (..),
     projectExists,
     projectExistsByName,
@@ -106,7 +105,6 @@ module U.Codebase.Sqlite.Queries
     loadProjectByName,
     insertProject,
     Branch (..),
-    BranchId (..),
     projectBranchExistsByName,
     expectProjectBranch,
     loadProjectBranchByName,
@@ -117,14 +115,12 @@ module U.Codebase.Sqlite.Queries
     loadProjectBranch,
 
     -- ** remote projects
-    RemoteProjectId (..),
     loadRemoteProject,
     insertRemoteProject,
     setRemoteProjectName,
     loadRemoteProjectBranchByLocalProjectBranch,
 
     -- ** remote project branches
-    RemoteBranchId (..),
     loadRemoteBranch,
     insertRemoteProjectBranch,
     setRemoteProjectBranchName,
@@ -246,8 +242,6 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
-import Data.UUID (UUID)
-import Data.UUID.Orphans.Sqlite ()
 import qualified Data.Vector as Vector
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
@@ -269,6 +263,10 @@ import U.Codebase.Sqlite.DbId
     HashVersion,
     ObjectId (..),
     PatchObjectId (..),
+    ProjectBranchId (..),
+    ProjectId (..),
+    RemoteProjectBranchId,
+    RemoteProjectId (..),
     SchemaVersion,
     TextId,
   )
@@ -2432,32 +2430,29 @@ loadNamespaceStatsByHashId bhId = do
   where
     sql =
       [here|
-          SELECT num_contained_terms, num_contained_types, num_contained_patches
-          FROM namespace_statistics
-          WHERE namespace_hash_id = ?
-        |]
+        SELECT num_contained_terms, num_contained_types, num_contained_patches
+        FROM namespace_statistics
+        WHERE namespace_hash_id = ?
+      |]
 
 appendReflog :: Reflog.Entry CausalHashId Text -> Transaction ()
 appendReflog entry = execute sql entry
   where
     sql =
       [here|
-    INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason) VALUES (?, ?, ?, ?)
-    |]
+        INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason) VALUES (?, ?, ?, ?)
+      |]
 
 getReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
 getReflog numEntries = queryListRow sql (Only numEntries)
   where
     sql =
       [here|
-    SELECT time, from_root_causal_id, to_root_causal_id, reason
-      FROM reflog
-      ORDER BY time DESC
-      LIMIT ?
-    |]
-
-newtype ProjectId = ProjectId {unProjectId :: UUID}
-  deriving newtype (ToField, FromField, Show, Eq)
+        SELECT time, from_root_causal_id, to_root_causal_id, reason
+          FROM reflog
+          ORDER BY time DESC
+          LIMIT ?
+      |]
 
 data Project = Project
   { projectId :: ProjectId,
@@ -2465,9 +2460,6 @@ data Project = Project
   }
   deriving stock (Generic)
   deriving anyclass (ToRow, FromRow)
-
-newtype RemoteProjectId = RemoteProjectId {unRemoteProjectId :: Text}
-  deriving newtype (ToField, FromField, Show, Eq)
 
 data RemoteProject = RemoteProject
   { projectId :: RemoteProjectId,
@@ -2477,24 +2469,18 @@ data RemoteProject = RemoteProject
   deriving stock (Generic)
   deriving anyclass (ToRow, FromRow)
 
-newtype BranchId = BranchId {unBranchId :: UUID}
-  deriving newtype (ToField, FromField, Show, Eq)
-
 data Branch = Branch
   { projectId :: ProjectId,
-    branchId :: BranchId,
+    branchId :: ProjectBranchId,
     name :: Text
   }
   deriving stock (Generic)
   deriving anyclass (ToRow, FromRow)
 
-newtype RemoteBranchId = RemoteBranchId {unRemoteBranchId :: Text}
-  deriving newtype (ToField, FromField, Eq, Show)
-
 data RemoteBranch = RemoteBranch
-  { remoteProjectId :: RemoteProjectId,
+  { projectId :: RemoteProjectId,
+    branchId :: RemoteProjectBranchId,
     host :: Text,
-    remoteBranchId :: RemoteBranchId,
     name :: Text
   }
   deriving stock (Generic)
@@ -2584,10 +2570,11 @@ projectBranchExistsByName projectId name =
     |]
     (projectId, name)
 
-loadProjectBranch :: ProjectId -> BranchId -> Transaction (Maybe Branch)
-loadProjectBranch pid bid = queryMaybeRow loadProjectBranchSql (pid, bid)
+loadProjectBranch :: ProjectId -> ProjectBranchId -> Transaction (Maybe Branch)
+loadProjectBranch pid bid =
+  queryMaybeRow loadProjectBranchSql (pid, bid)
 
-expectProjectBranch :: ProjectId -> BranchId -> Transaction Branch
+expectProjectBranch :: ProjectId -> ProjectBranchId -> Transaction Branch
 expectProjectBranch projectId branchId =
   queryOneRow loadProjectBranchSql (projectId, branchId)
 
@@ -2621,7 +2608,7 @@ loadProjectBranchByName projectId name =
     |]
     (projectId, name)
 
-loadProjectAndBranchNames :: ProjectId -> BranchId -> Transaction (Maybe (Text, Text))
+loadProjectAndBranchNames :: ProjectId -> ProjectBranchId -> Transaction (Maybe (Text, Text))
 loadProjectAndBranchNames projectId branchId =
   queryMaybeRow
     [sql|
@@ -2637,7 +2624,7 @@ loadProjectAndBranchNames projectId branchId =
     |]
     (projectId, branchId)
 
-insertProjectBranch :: ProjectId -> BranchId -> Text -> Transaction ()
+insertProjectBranch :: ProjectId -> ProjectBranchId -> Text -> Transaction ()
 insertProjectBranch pid bid bname = execute bonk (pid, bid, bname)
   where
     bonk =
@@ -2646,7 +2633,7 @@ insertProjectBranch pid bid bname = execute bonk (pid, bid, bname)
           VALUES (?, ?, ?)
       |]
 
-markProjectBranchChild :: ProjectId -> BranchId -> BranchId -> Transaction ()
+markProjectBranchChild :: ProjectId -> ProjectBranchId -> ProjectBranchId -> Transaction ()
 markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
   where
     bonk =
@@ -2659,7 +2646,10 @@ markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
 unisonShareUri :: Text
 unisonShareUri = "https://api.unison-lang.org"
 
-loadRemoteProjectBranchByLocalProjectBranch :: ProjectId -> BranchId -> Transaction (Maybe (RemoteProjectId, Maybe RemoteBranchId))
+loadRemoteProjectBranchByLocalProjectBranch ::
+  ProjectId ->
+  ProjectBranchId ->
+  Transaction (Maybe (RemoteProjectId, Maybe RemoteProjectBranchId))
 loadRemoteProjectBranchByLocalProjectBranch pid bid =
   queryMaybeRow
     [sql|
@@ -2751,25 +2741,25 @@ setRemoteProjectName rpid name =
         |]
     (name, rpid)
 
-loadRemoteBranch :: RemoteProjectId -> Text -> RemoteBranchId -> Transaction (Maybe RemoteBranch)
+loadRemoteBranch :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Transaction (Maybe RemoteBranch)
 loadRemoteBranch rpid host rbid =
   queryMaybeRow
     [sql|
       SELECT
         project_id,
-        host,
         branch_id,
+        host,
         name
       FROM
         remote_project_branch
       WHERE
         project_id = ?
-        AND host = ?
         AND branch_id = ?
+        AND host = ?
     |]
     (rpid, host, rbid)
 
-insertRemoteProjectBranch :: RemoteProjectId -> Text -> RemoteBranchId -> Text -> Transaction ()
+insertRemoteProjectBranch :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Text -> Transaction ()
 insertRemoteProjectBranch rpid host rbid name =
   execute
     [sql|
@@ -2786,7 +2776,7 @@ insertRemoteProjectBranch rpid host rbid name =
         |]
     (rpid, host, rbid, name)
 
-setRemoteProjectBranchName :: RemoteProjectId -> Text -> RemoteBranchId -> Text -> Transaction ()
+setRemoteProjectBranchName :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Text -> Transaction ()
 setRemoteProjectBranchName rpid host rbid name =
   execute
     [sql|
@@ -2801,7 +2791,13 @@ setRemoteProjectBranchName rpid host rbid name =
         |]
     (name, rpid, host, rbid)
 
-insertBranchRemoteMapping :: ProjectId -> BranchId -> RemoteProjectId -> Text -> RemoteBranchId -> Transaction ()
+insertBranchRemoteMapping ::
+  ProjectId ->
+  ProjectBranchId ->
+  RemoteProjectId ->
+  Text ->
+  RemoteProjectBranchId ->
+  Transaction ()
 insertBranchRemoteMapping pid bid rpid host rbid =
   execute
     [sql|

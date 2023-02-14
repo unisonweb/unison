@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.HandleInput.ProjectCreate
 where
 
 import qualified Data.UUID.V4 as UUID
+import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -43,8 +44,8 @@ import Unison.Project (ProjectAndBranch (..), ProjectName)
 -- much time getting everything perfectly correct before we get there.
 projectCreate :: ProjectName -> Cli ()
 projectCreate name = do
-  projectId <- liftIO (Queries.ProjectId <$> UUID.nextRandom)
-  branchId <- liftIO (Queries.BranchId <$> UUID.nextRandom)
+  projectId <- liftIO (ProjectId <$> UUID.nextRandom)
+  branchId <- liftIO (ProjectBranchId <$> UUID.nextRandom)
 
   Cli.runEitherTransaction do
     Queries.projectExistsByName (into @Text name) >>= \case

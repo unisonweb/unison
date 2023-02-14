@@ -7,6 +7,7 @@ where
 import Control.Lens ((^.))
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
+import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -50,7 +51,7 @@ switchToBranch branchName = do
     Cli.runTransaction do
       Queries.loadProjectBranchByName projectId (into @Text branchName) >>= \case
         Nothing -> do
-          newBranchId <- Sqlite.unsafeIO (Queries.BranchId <$> UUID.nextRandom)
+          newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
           Queries.insertProjectBranch projectId newBranchId (into @Text branchName)
           Queries.markProjectBranchChild projectId currentBranchId newBranchId
           pure (SwitchedToNewBranch, newBranchId)
