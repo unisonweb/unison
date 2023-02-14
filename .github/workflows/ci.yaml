@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           path: unison
-      - uses: mrkkrp/ormolu-action@v10
+      - uses: mrkkrp/ormolu-action@v10 # v10 uses ormolu 0.5.3.0
 
   build:
     name: ${{ matrix.os }}
