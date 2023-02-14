@@ -130,7 +130,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
               case e of
                 Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
                 Right contents -> do
-                  getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup)\(initRes, _, theCodebase) -> do
+                  getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup) \(initRes, _, theCodebase) -> do
                     withRuntimes RTI.OneOff \(rt, sbrt) -> do
                       let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpRootNotifier _ = pure ()
@@ -156,7 +156,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
           case e of
             Left _ -> exitError "I had trouble reading this input."
             Right contents -> do
-              getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup)\(initRes, _, theCodebase) -> do
+              getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup) \(initRes, _, theCodebase) -> do
                 withRuntimes RTI.OneOff \(rt, sbrt) -> do
                   let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpRootNotifier _ = pure ()
