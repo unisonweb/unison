@@ -527,10 +527,7 @@ oompaLoompa2 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
       loggeth ["project or branch deleted on Share"]
       Cli.returnEarlyWithoutOutput
     Share.API.GetProjectBranchResponseSuccess remoteBranch ->
-      oompaLoompaFastForward
-        (Just localProjectAndBranch)
-        localBranchHead
-        remoteBranch
+      oompaLoompaFastForward (Just localProjectAndBranch) localBranchHead remoteBranch
 
 -- we know remote project exists but remote branch doesn't
 oompaLoompaCreateBranch ::
@@ -542,15 +539,14 @@ oompaLoompaCreateBranch
   maybeLocalProjectAndBranch
   localBranchHead
   (ProjectAndBranch remoteProjectId remoteBranchName) = do
-    _remoteBranch <-
-      oinkCreateRemoteBranch
-        Share.API.CreateProjectBranchRequest
-          { projectId = unRemoteProjectId remoteProjectId,
-            branchName = into @Text remoteBranchName,
-            branchCausalHash = localBranchHead,
-            branchMergeTarget = wundefined
-          }
-    pure ()
+    oinkCreateRemoteBranch
+      maybeLocalProjectAndBranch
+      Share.API.CreateProjectBranchRequest
+        { projectId = unRemoteProjectId remoteProjectId,
+          branchName = into @Text remoteBranchName,
+          branchCausalHash = localBranchHead,
+          branchMergeTarget = wundefined
+        }
 
 oompaLoompaFastForward ::
   Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
@@ -691,24 +687,28 @@ oinkCreateRemoteProject projectName = do
       loggeth ["TODO insert remote_project"]
       pure remoteProject
 
-oinkCreateRemoteBranch :: Share.API.CreateProjectBranchRequest -> Cli Share.API.ProjectBranch
-oinkCreateRemoteBranch request = do
+oinkCreateRemoteBranch ::
+  Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
+  Share.API.CreateProjectBranchRequest ->
+  Cli ()
+oinkCreateRemoteBranch maybeLocalProjectAndBranch request = do
   loggeth ["creating remote branch"]
   loggeth [tShow request]
-  Share.createProjectBranch request >>= \case
-    Share.API.CreateProjectBranchResponseBadRequest -> do
-      loggeth ["Share says: bad request"]
-      Cli.returnEarlyWithoutOutput
-    Share.API.CreateProjectBranchResponseUnauthorized -> do
-      loggeth ["Share says: unauthorized"]
-      Cli.returnEarlyWithoutOutput
-    Share.API.CreateProjectBranchResponseSuccess remoteBranch -> do
-      loggeth ["Share says: success!"]
-      loggeth [tShow remoteBranch]
-      loggeth ["TODO insert remote_project_branch"]
-      loggeth ["TODO insert remote_project"]
-      loggeth ["TODO insert project_branch_remote_mapping"]
-      pure remoteBranch
+  remoteBranch <-
+    Share.createProjectBranch request >>= \case
+      Share.API.CreateProjectBranchResponseBadRequest -> do
+        loggeth ["Share says: bad request"]
+        Cli.returnEarlyWithoutOutput
+      Share.API.CreateProjectBranchResponseUnauthorized -> do
+        loggeth ["Share says: unauthorized"]
+        Cli.returnEarlyWithoutOutput
+      Share.API.CreateProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
+  loggeth ["Share says: success!"]
+  loggeth [tShow remoteBranch]
+  loggeth ["TODO insert remote_project_branch"]
+  loggeth ["TODO insert remote_project"]
+  loggeth ["TODO insert project_branch_remote_mapping"]
+  pure ()
 
 oinkGetLoggedInUser :: Cli Text
 oinkGetLoggedInUser = do
