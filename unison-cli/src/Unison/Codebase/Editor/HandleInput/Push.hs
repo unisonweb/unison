@@ -315,7 +315,12 @@ pushLooseCodeToProjectBranch ::
   Path.Absolute ->
   ProjectAndBranch ProjectName ProjectBranchName ->
   Cli ()
-pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = wundefined
+pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
+  localBranchCausalHash <- Cli.runEitherTransaction (loadCausalHashToPush localPath)
+  -- FIXME share code with `pushProjectBranchToProjectBranch`?
+  (repoName, afterUpload) <- wundefined
+  oinkUpload repoName localBranchCausalHash
+  afterUpload
 
 -- | Push a local project branch to a remote project branch. If the remote project branch is left unspecified, we either
 -- use a pre-existing mapping for the local branch, or else infer what remote branch to push to (possibly creating it).
@@ -438,51 +443,60 @@ bazinga4 ::
 bazinga4 localProjectAndBranch localBranchCausalHash32 remoteProjectAndBranchNames = do
   case remoteProjectAndBranchNames of
     -- "push /topic"
-    That remoteBranchName ->
-      Cli.runTransaction oinkResolveRemoteProjectId >>= \case
-        Nothing -> wundefined
-        Just remoteProjectId -> do
-          repoName <-
-            case projectBranchNameUserSlug remoteBranchName of
-              Nothing ->
-                Share.getProjectById remoteProjectId >>= \case
-                  Share.API.GetProjectResponseNotFound -> wundefined
-                  Share.API.GetProjectResponseSuccess remoteProject -> remoteProjectRepoName remoteProject
-              Just userSlug -> pure (Share.RepoName userSlug)
-
-          afterUpload <-
-            Share.getProjectBranchByName remoteProjectId (into @Text remoteBranchName) >>= \case
-              Share.API.GetProjectBranchResponseNotFound ->
-                pure do
-                  remoteBranch <-
-                    oinkCreateRemoteBranch
-                      Share.API.CreateProjectBranchRequest
-                        { projectId = unRemoteProjectId remoteProjectId,
-                          branchName = into @Text remoteBranchName,
-                          branchCausalHash = localBranchCausalHash32,
-                          branchMergeTarget = wundefined
-                        }
-                  pure ()
-              Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
-                -- TODO don't proceed with push if local head not ahead of remote head
-                wundefined
-                pure (pure ())
-
-          pure (repoName, afterUpload)
-
+    That remoteBranchName -> bazinga5 localBranchCausalHash32 remoteBranchName
     -- "push @arya/lens"
-    This remoteProjectName -> do
-      myUserHandle <- oinkGetLoggedInUser
+    This remoteProjectName ->
       let localBranchName = unsafeFrom @Text (localProjectAndBranch ^. #branch . #name)
-      let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
-      afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
-      pure (Share.RepoName remoteBranchUserSlug, afterUpload)
-
+       in bazinga6 localBranchName localBranchCausalHash32 remoteProjectName
     -- "push @unison/base/@runar/topic"
-    These remoteProjectName remoteBranchName -> do
-      repoName <- projectBranchRepoName (ProjectAndBranch remoteProjectName remoteBranchName)
-      afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
+    These remoteProjectName remoteBranchName ->
+      bazinga7 localBranchCausalHash32 (ProjectAndBranch remoteProjectName remoteBranchName)
+
+bazinga5 :: Hash32 -> ProjectBranchName -> Cli (Share.RepoName, Cli ())
+bazinga5 localBranchCausalHash32 remoteBranchName =
+  Cli.runTransaction oinkResolveRemoteProjectId >>= \case
+    Nothing -> wundefined
+    Just remoteProjectId -> do
+      repoName <-
+        case projectBranchNameUserSlug remoteBranchName of
+          Nothing ->
+            Share.getProjectById remoteProjectId >>= \case
+              Share.API.GetProjectResponseNotFound -> wundefined
+              Share.API.GetProjectResponseSuccess remoteProject -> remoteProjectRepoName remoteProject
+          Just userSlug -> pure (Share.RepoName userSlug)
+
+      afterUpload <-
+        Share.getProjectBranchByName remoteProjectId (into @Text remoteBranchName) >>= \case
+          Share.API.GetProjectBranchResponseNotFound ->
+            pure do
+              remoteBranch <-
+                oinkCreateRemoteBranch
+                  Share.API.CreateProjectBranchRequest
+                    { projectId = unRemoteProjectId remoteProjectId,
+                      branchName = into @Text remoteBranchName,
+                      branchCausalHash = localBranchCausalHash32,
+                      branchMergeTarget = wundefined
+                    }
+              pure ()
+          Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
+            -- TODO don't proceed with push if local head not ahead of remote head
+            wundefined
+            pure (pure ())
+
       pure (repoName, afterUpload)
+
+bazinga6 :: ProjectBranchName -> Hash32 -> ProjectName -> Cli (Share.RepoName, Cli ())
+bazinga6 localBranchName localBranchCausalHash32 remoteProjectName = do
+  myUserHandle <- oinkGetLoggedInUser
+  let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
+  afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
+  pure (Share.RepoName remoteBranchUserSlug, afterUpload)
+
+bazinga7 :: Hash32 -> ProjectAndBranch ProjectName ProjectBranchName -> Cli (Share.RepoName, Cli ())
+bazinga7 localBranchCausalHash32 remoteProjectAndBranch = do
+  repoName <- projectBranchRepoName remoteProjectAndBranch
+  afterUpload <- oompaLoompa remoteProjectAndBranch localBranchCausalHash32
+  pure (repoName, afterUpload)
 
 -- we have the remote project and branch names, but we don't know whether either already exist
 oompaLoompa :: ProjectAndBranch ProjectName ProjectBranchName -> Hash32 -> Cli (Cli ())
