@@ -435,33 +435,15 @@ bazinga8 ::
   Hash32 ->
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
   Cli (Share.RepoName, Cli ())
-bazinga8 localProjectAndBranch localBranchCausalHash (ProjectAndBranch remoteProjectId remoteBranchName) = do
+bazinga8 localProjectAndBranch localBranchCausalHash remoteProjectAndBranch = do
   repoName <-
-    case projectBranchNameUserSlug remoteBranchName of
+    case projectBranchNameUserSlug (remoteProjectAndBranch ^. #branch) of
       Nothing ->
-        Share.getProjectById remoteProjectId >>= \case
+        Share.getProjectById (remoteProjectAndBranch ^. #project) >>= \case
           Share.API.GetProjectResponseNotFound -> wundefined
           Share.API.GetProjectResponseSuccess remoteProject -> remoteProjectRepoName remoteProject
       Just userSlug -> pure (Share.RepoName userSlug)
-
-  afterUpload <-
-    Share.getProjectBranchByName remoteProjectId remoteBranchName >>= \case
-      Share.API.GetProjectBranchResponseNotFound ->
-        pure do
-          remoteBranch <-
-            oinkCreateRemoteBranch
-              Share.API.CreateProjectBranchRequest
-                { projectId = unRemoteProjectId remoteProjectId,
-                  branchName = into @Text remoteBranchName,
-                  branchCausalHash = localBranchCausalHash,
-                  branchMergeTarget = wundefined
-                }
-          pure ()
-      Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
-        -- TODO don't proceed with push if local head not ahead of remote head
-        wundefined
-        pure (pure ())
-
+  afterUpload <- oompaLoompa1 localProjectAndBranch localBranchCausalHash remoteProjectAndBranch
   pure (repoName, afterUpload)
 
 bazinga6 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> ProjectName -> Cli (Share.RepoName, Cli ())
