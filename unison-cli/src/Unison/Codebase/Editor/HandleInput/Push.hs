@@ -119,7 +119,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
       getCurrentProjectBranch >>= \case
         Nothing -> do
           localPath <- Cli.getCurrentPath
-          remoteProjectAndBranch <- resolveProjectAndBranchMaybeNamesToNames remoteProjectAndBranch0
+          remoteProjectAndBranch <- branchNameSpecToNames remoteProjectAndBranch0
           pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
         Just localProjectAndBranch ->
           pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch0)
@@ -130,21 +130,22 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
     -- push .some.path to @some/project
     PushSourceTarget2 (PathySource localPath0) (ProjyTarget remoteProjectAndBranch0) -> do
       localPath <- Cli.resolvePath' localPath0
-      remoteProjectAndBranch <- resolveProjectAndBranchMaybeNamesToNames remoteProjectAndBranch0
+      remoteProjectAndBranch <- branchNameSpecToNames remoteProjectAndBranch0
       pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
     -- push @some/project to .some.path
     PushSourceTarget2 (ProjySource localProjectAndBranch0) (PathyTarget remotePath) -> do
-      localProjectAndBranch <- resolveProjectAndBranchMaybeNamesToIds localProjectAndBranch0
+      localProjectAndBranch <- branchNameSpecToIds localProjectAndBranch0
       pushLooseCodeToLooseCode (projectBranchPath localProjectAndBranch) remotePath pushBehavior syncMode
     -- push @some/project to @some/project
     PushSourceTarget2 (ProjySource localProjectAndBranch0) (ProjyTarget remoteProjectAndBranch) -> do
-      localProjectAndBranch <- resolveProjectAndBranchMaybeNamesToIds localProjectAndBranch0
+      localProjectAndBranch <- branchNameSpecToIds localProjectAndBranch0
       pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch)
 
-resolveProjectAndBranchMaybeNamesToIds ::
+branchNameSpecToIds ::
   These ProjectName ProjectBranchName ->
   Cli (ProjectAndBranch ProjectId ProjectBranchId)
-resolveProjectAndBranchMaybeNamesToIds = \case
+branchNameSpecToIds = \case
+  This projectName -> branchNameSpecToIds (These projectName (unsafeFrom @Text "main"))
   That branchName ->
     getCurrentProjectBranch >>= \case
       Nothing -> do
@@ -156,7 +157,6 @@ resolveProjectAndBranchMaybeNamesToIds = \case
             loggeth ["no branch in project ", tShow projectId, " with name ", into @Text branchName]
             Cli.returnEarlyWithoutOutput
           Just branch -> pure (ProjectAndBranch projectId (branch ^. #branchId))
-  This projectName -> resolveProjectAndBranchMaybeNamesToIds (These projectName (unsafeFrom @Text "main"))
   These projectName branchName -> do
     maybeProjectAndBranch <-
       Cli.runTransaction do
@@ -171,10 +171,11 @@ resolveProjectAndBranchMaybeNamesToIds = \case
         Cli.returnEarlyWithoutOutput
       Just projectAndBranch -> pure projectAndBranch
 
-resolveProjectAndBranchMaybeNamesToNames ::
+branchNameSpecToNames ::
   These ProjectName ProjectBranchName ->
   Cli (ProjectAndBranch ProjectName ProjectBranchName)
-resolveProjectAndBranchMaybeNamesToNames = \case
+branchNameSpecToNames = \case
+  This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
     getCurrentProjectBranch >>= \case
       Nothing -> do
@@ -184,7 +185,6 @@ resolveProjectAndBranchMaybeNamesToNames = \case
         Cli.runTransaction do
           project <- Queries.expectProject projectId
           pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
-  This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
 -- | Push a local namespace ("loose code") to a remote namespace ("loose code").
