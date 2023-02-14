@@ -1827,7 +1827,7 @@ rootTypeNamesByPath mayNamespace = do
         SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
         WHERE namespace GLOB ? OR namespace = ?
         ORDER BY (namespace GLOB ? OR namespace = ?) DESC
-        |]
+      |]
 
 -- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool

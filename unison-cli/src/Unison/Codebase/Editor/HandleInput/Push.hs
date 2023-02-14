@@ -411,7 +411,7 @@ bazinga3 localProjectAndBranch localBranchCausalHash remoteProjectAndBranch = do
   afterUpload <- oompaLoompa2 localProjectAndBranch localBranchCausalHash remoteProjectAndBranch
   pure (repoName, afterUpload)
 
--- "push /foo"
+-- "push /foo", remote mapping unknown
 bazinga5 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> ProjectBranchName -> Cli (Share.RepoName, Cli ())
 bazinga5 localProjectAndBranch localBranchCausalHash remoteBranchName = do
   Cli.runTransaction (Queries.loadRemoteProjectBranchByLocalProjectBranch localProjectId localBranchId) >>= \case
@@ -435,7 +435,9 @@ bazinga8 localProjectAndBranch localBranchCausalHash remoteProjectAndBranch = do
     case projectBranchNameUserSlug (remoteProjectAndBranch ^. #branch) of
       Nothing ->
         Share.getProjectById (remoteProjectAndBranch ^. #project) >>= \case
-          Share.API.GetProjectResponseNotFound -> wundefined
+          Share.API.GetProjectResponseNotFound -> do
+            loggeth ["project deleted on share"]
+            Cli.returnEarlyWithoutOutput
           Share.API.GetProjectResponseSuccess remoteProject -> remoteProjectRepoName remoteProject
       Just userSlug -> pure (Share.RepoName userSlug)
   afterUpload <- oompaLoompa1 localProjectAndBranch localBranchCausalHash remoteProjectAndBranch
@@ -521,9 +523,9 @@ oompaLoompa2 ::
   Cli (Cli ())
 oompaLoompa2 localProjectAndBranch localBranchCausalHash remoteProjectAndBranch = do
   Share.getProjectBranchById remoteProjectAndBranch >>= \case
-    Share.API.GetProjectBranchResponseNotFound ->
-      -- remote branch or project deleted
-      wundefined
+    Share.API.GetProjectBranchResponseNotFound -> do
+      loggeth ["project or branch deleted on Share"]
+      Cli.returnEarlyWithoutOutput
     Share.API.GetProjectBranchResponseSuccess remoteBranch ->
       oompaLoompaFastForward
         (Just localProjectAndBranch)
@@ -556,9 +558,41 @@ oompaLoompaFastForward ::
   Share.API.ProjectBranch ->
   Cli (Cli ())
 oompaLoompaFastForward maybeLocalProjectAndBranch localBranchCausalHash remoteBranch = do
-  -- TODO don't proceed with push if local head not ahead of remote head
-  -- TODO otherwise make fast-forward request
-  wundefined
+  Cli.runTransaction wouldBeFastForward >>= \case
+    False -> do
+      loggeth ["local head behind remote"]
+      Cli.returnEarlyWithoutOutput
+    True ->
+      pure do
+        let request =
+              Share.API.SetProjectBranchHeadRequest
+                { projectId = remoteBranch ^. #projectId,
+                  branchId = remoteBranch ^. #branchId,
+                  branchOldCausalHash = Just remoteBranchHead,
+                  branchNewCausalHash = localBranchCausalHash
+                }
+        Share.setProjectBranchHead request >>= \case
+          Share.API.SetProjectBranchHeadResponseBadRequest -> do
+            loggeth ["SetProjectBranchHeadResponseBadRequest"]
+            Cli.returnEarlyWithoutOutput
+          Share.API.SetProjectBranchHeadResponseUnauthorized -> do
+            loggeth ["SetProjectBranchHeadResponseUnauthorized"]
+            Cli.returnEarlyWithoutOutput
+          Share.API.SetProjectBranchHeadResponseSuccess -> do
+            loggeth ["SetProjectBranchHeadResponseSuccess"]
+  where
+    remoteBranchHead = remoteBranch ^. #branchHead
+
+    wouldBeFastForward :: Sqlite.Transaction Bool
+    wouldBeFastForward = do
+      maybeHashIds <-
+        runMaybeT $
+          (,)
+            <$> MaybeT (Queries.loadCausalHashIdByCausalHash (CausalHash (Hash32.toHash localBranchCausalHash)))
+            <*> MaybeT (Queries.loadCausalHashIdByCausalHash (CausalHash (Hash32.toHash remoteBranchHead)))
+      case maybeHashIds of
+        Nothing -> pure False
+        Just (localBranchHead1, remoteBranchHead1) -> Queries.before remoteBranchHead1 localBranchHead1
 
 -- Derive the remote branch user slug and remote branch name from the user's handle and the local branch name.
 --
