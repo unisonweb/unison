@@ -327,14 +327,14 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
   -- Load local project and branch from database and get the causal hash to push
   (localProjectAndBranch, localBranchCausalHash) <-
     Cli.runEitherTransaction do
-      localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
-
       let path = projectBranchPath localProjectAndBranchIds
       let segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
-      Operations.loadCausalHashAtPath segments <&> \case
+      Operations.loadCausalHashAtPath segments >>= \case
         -- If there is nothing to push, fail with some message
-        Nothing -> Left (EmptyPush (Path.absoluteToPath' path))
-        Just (CausalHash hash) -> Right (localProjectAndBranch, Hash32.fromHash hash)
+        Nothing -> pure (Left (EmptyPush (Path.absoluteToPath' path)))
+        Just (CausalHash hash) -> do
+          localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
+          pure (Right (localProjectAndBranch, Hash32.fromHash hash))
 
   -- Get two pieces of information that are computed in various ways depending on whether the user has specified a
   -- target or not, the state of the database, etc:
