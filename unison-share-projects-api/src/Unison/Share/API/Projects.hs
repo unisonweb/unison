@@ -273,8 +273,11 @@ data SetProjectBranchHeadResponse
   = -- | Request payload invalid.
     SetProjectBranchHeadResponseBadRequest
   | SetProjectBranchHeadResponseUnauthorized
+  | SetProjectBranchHeadResponseNotFound
   | SetProjectBranchHeadResponseSuccess
   | SetProjectBranchHeadResponseMissingCausalHash !Hash32
+  | -- | (expected, actual)
+    SetProjectBranchHeadResponseExpectedCausalHashMismatch !Hash32 !Hash32
   deriving stock (Eq, Show)
 
 instance FromJSON SetProjectBranchHeadResponse where
@@ -284,7 +287,12 @@ instance FromJSON SetProjectBranchHeadResponse where
         case typ of
           "bad-request" -> pure SetProjectBranchHeadResponseBadRequest
           "unauthorized" -> pure SetProjectBranchHeadResponseUnauthorized
+          "not-found" -> pure SetProjectBranchHeadResponseNotFound
           "missing-causal-hash" -> SetProjectBranchHeadResponseMissingCausalHash <$> (obj .: "causalHash")
+          "expected-causal-hash-mismatch" -> do
+            expected <- obj .: "expected"
+            actual <- obj .: "actual"
+            pure (SetProjectBranchHeadResponseExpectedCausalHashMismatch expected actual)
           "success" -> pure SetProjectBranchHeadResponseSuccess
           _ -> fail (Text.unpack ("unknown SetProjectBranchHeadResponse type: " <> typ))
 
@@ -293,6 +301,9 @@ instance ToJSON SetProjectBranchHeadResponse where
     SetProjectBranchHeadResponseBadRequest -> toSumType "bad-request" (object [])
     SetProjectBranchHeadResponseUnauthorized -> toSumType "unauthorized" (object [])
     SetProjectBranchHeadResponseMissingCausalHash ch -> toSumType "missing-causal-hash" (object ["causalHash" .= ch])
+    SetProjectBranchHeadResponseExpectedCausalHashMismatch expected actual ->
+      toSumType "expected-causal-hash-mismatch" (object ["expected" .= expected, "actual" .= actual])
+    SetProjectBranchHeadResponseNotFound -> toSumType "not-found" (object [])
     SetProjectBranchHeadResponseSuccess -> toSumType "success" (object [])
 
 ------------------------------------------------------------------------------------------------------------------------
