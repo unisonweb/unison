@@ -772,7 +772,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
 -- | Given two codebase roots (e.g. "./mycodebase"), safely copy the codebase
 -- at the source to the destination.
 -- Note: this does not copy the .unisonConfig file.
-copyCodebase :: MonadIO m => CodebasePath -> CodebasePath -> m ()
+copyCodebase :: (MonadIO m) => CodebasePath -> CodebasePath -> m ()
 copyCodebase src dest = liftIO $ do
   createDirectoryIfMissing True (makeCodebaseDirPath dest)
   withConnection ("copy-from:" <> src) src $ \srcConn -> do
