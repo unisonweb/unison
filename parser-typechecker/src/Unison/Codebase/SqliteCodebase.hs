@@ -772,5 +772,6 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
 -- Note: this does not copy the .unisonConfig file.
 copyCodebase :: MonadIO m => CodebasePath -> CodebasePath -> m ()
 copyCodebase src dest = liftIO $ do
+  createDirectoryIfMissing True (makeCodebaseDirPath dest)
   withConnection ("copy-from:" <> src) src $ \srcConn -> do
     Sqlite.vacuumInto srcConn (makeCodebasePath dest)
