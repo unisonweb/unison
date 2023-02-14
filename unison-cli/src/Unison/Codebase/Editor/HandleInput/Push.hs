@@ -187,7 +187,7 @@ branchNameSpecToNames = \case
           pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
--- | Push a local namespace ("loose code") to a remote namespace ("loose code").
+-- Push a local namespace ("loose code") to a remote namespace ("loose code").
 pushLooseCodeToLooseCode ::
   Path.Absolute ->
   WriteRemotePath ->
@@ -199,7 +199,7 @@ pushLooseCodeToLooseCode localPath remotePath pushBehavior syncMode = do
     WriteRemotePathGit gitRemotePath -> pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode
     WriteRemotePathShare shareRemotePath -> pushLooseCodeToShareLooseCode localPath shareRemotePath pushBehavior
 
--- | Push a local namespace ("loose code") to a Git-hosted remote namespace ("loose code").
+-- Push a local namespace ("loose code") to a Git-hosted remote namespace ("loose code").
 pushLooseCodeToGitLooseCode ::
   Path.Absolute ->
   WriteGitRemotePath ->
@@ -251,7 +251,7 @@ pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode = do
         PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
--- | Push a local namespace ("loose code") to a Share-hosted remote namespace ("loose code").
+-- Push a local namespace ("loose code") to a Share-hosted remote namespace ("loose code").
 pushLooseCodeToShareLooseCode :: Path.Absolute -> WriteShareRemotePath -> PushBehavior -> Cli ()
 pushLooseCodeToShareLooseCode localPath remote@WriteShareRemotePath {server, repo, path = remotePath} behavior = do
   let codeserver = Codeserver.resolveCodeserver server
@@ -310,7 +310,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemotePath {server, rep
         Share.SyncError err -> Output.ShareError (f err)
         Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
 
--- | Push a local namespace ("loose code") to a remote project branch.
+-- Push a local namespace ("loose code") to a remote project branch.
 pushLooseCodeToProjectBranch ::
   Path.Absolute ->
   ProjectAndBranch ProjectName ProjectBranchName ->
@@ -324,18 +324,17 @@ pushProjectBranchToProjectBranch ::
   Maybe (These ProjectName ProjectBranchName) ->
   Cli ()
 pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndBranchNames = do
-  -- Load local project and branch from database
-  localProjectAndBranch <-
-    Cli.runTransaction (expectProjectAndBranch localProjectAndBranchIds)
+  -- Load local project and branch from database and get the causal hash to push
+  (localProjectAndBranch, localBranchCausalHash) <-
+    Cli.runEitherTransaction do
+      localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
 
-  -- Get the causal hash to push
-  localBranchCausalHash <- do
-    let path = projectBranchPath localProjectAndBranchIds
-    let segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
-    Cli.runTransaction (Operations.loadCausalHashAtPath segments) & onNothingM do
-      -- If there is nothing to push fail with some message
-      Cli.returnEarly (EmptyPush (Path.absoluteToPath' path))
-  let localBranchCausalHash32 = Hash32.fromHash (unCausalHash localBranchCausalHash)
+      let path = projectBranchPath localProjectAndBranchIds
+      let segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
+      Operations.loadCausalHashAtPath segments <&> \case
+        -- If there is nothing to push, fail with some message
+        Nothing -> Left (EmptyPush (Path.absoluteToPath' path))
+        Just (CausalHash hash) -> Right (localProjectAndBranch, Hash32.fromHash hash)
 
   -- Get two pieces of information that are computed in various ways depending on whether the user has specified a
   -- target or not, the state of the database, etc:
@@ -348,11 +347,11 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
   --     An action invoked after successfully uploading branch contents.
   (repoName, afterUpload) <-
     case maybeRemoteProjectAndBranchNames of
-      Nothing -> bazinga0 localProjectAndBranch localBranchCausalHash32
+      Nothing -> bazinga0 localProjectAndBranch localBranchCausalHash
       Just remoteProjectAndBranchNames ->
-        bazinga4 localProjectAndBranch localBranchCausalHash32 remoteProjectAndBranchNames
+        bazinga4 localProjectAndBranch localBranchCausalHash remoteProjectAndBranchNames
 
-  oinkUpload repoName localBranchCausalHash32
+  oinkUpload repoName localBranchCausalHash
   afterUpload
 
 bazinga0 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli (Share.RepoName, Cli ())
