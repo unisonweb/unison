@@ -86,7 +86,7 @@ data InitResult
   deriving (Show, Eq)
 
 createCodebaseWithResult ::
-  MonadIO m =>
+  (MonadIO m) =>
   Init m v a ->
   DebugName ->
   CodebasePath ->
@@ -98,7 +98,7 @@ createCodebaseWithResult cbInit debugName dir lockOption action =
     errorMessage -> (dir, (CouldntCreateCodebase errorMessage))
 
 withOpenOrCreateCodebase ::
-  MonadIO m =>
+  (MonadIO m) =>
   Init m v a ->
   DebugName ->
   CodebaseInitOptions ->
@@ -136,7 +136,7 @@ withOpenOrCreateCodebase cbInit debugName initOptions lockOption migrationStrate
       OpenCodebaseRequiresMigration {} -> pure (Left (resolvedPath, InitErrorOpen err))
       OpenCodebaseFileLockFailed {} -> pure (Left (resolvedPath, InitErrorOpen err))
 
-createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> CodebaseLockOption -> (Codebase m v a -> m r) -> m (Either Pretty r)
+createCodebase :: (MonadIO m) => Init m v a -> DebugName -> CodebasePath -> CodebaseLockOption -> (Codebase m v a -> m r) -> m (Either Pretty r)
 createCodebase cbInit debugName path lockOption action = do
   prettyDir <- P.string <$> canonicalizePath path
   withCreatedCodebase cbInit debugName path lockOption action <&> mapLeft \case
@@ -149,7 +149,7 @@ createCodebase cbInit debugName path lockOption action = do
 
 -- previously: initCodebaseOrExit :: CodebasePath -> m (m (), Codebase m v a)
 -- previously: FileCodebase.initCodebase :: CodebasePath -> m (m (), Codebase m v a)
-withNewUcmCodebaseOrExit :: MonadIO m => Init m Symbol Ann -> DebugName -> CodebasePath -> CodebaseLockOption -> (Codebase m Symbol Ann -> m r) -> m r
+withNewUcmCodebaseOrExit :: (MonadIO m) => Init m Symbol Ann -> DebugName -> CodebasePath -> CodebaseLockOption -> (Codebase m Symbol Ann -> m r) -> m r
 withNewUcmCodebaseOrExit cbInit debugName path lockOption action = do
   prettyDir <- P.string <$> canonicalizePath path
   let codebaseSetup codebase = do
@@ -161,13 +161,13 @@ withNewUcmCodebaseOrExit cbInit debugName path lockOption action = do
       Right result -> pure result
 
 -- | try to init a codebase where none exists and then exit regardless (i.e. `ucm --codebase dir init`)
-initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> DebugName -> Maybe CodebasePath -> CodebaseLockOption -> m ()
+initCodebaseAndExit :: (MonadIO m) => Init m Symbol Ann -> DebugName -> Maybe CodebasePath -> CodebaseLockOption -> m ()
 initCodebaseAndExit i debugName mdir lockOption = do
   codebaseDir <- Codebase.getCodebaseDir mdir
   withNewUcmCodebaseOrExit i debugName codebaseDir lockOption (const $ pure ())
 
 withTemporaryUcmCodebase ::
-  MonadUnliftIO m =>
+  (MonadUnliftIO m) =>
   Init m Symbol Ann ->
   DebugName ->
   CodebaseLockOption ->

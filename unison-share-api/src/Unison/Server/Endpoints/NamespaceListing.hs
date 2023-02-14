@@ -47,7 +47,8 @@ import Unison.Util.Pretty (Width)
 import Unison.Var (Var)
 
 type NamespaceListingAPI =
-  "list" :> QueryParam "rootBranch" ShortCausalHash
+  "list"
+    :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "namespace" Path.Path
     :> APIGet NamespaceListing
@@ -134,7 +135,7 @@ instance ToJSON KindExpression where
   toEncoding = genericToEncoding defaultOptions
 
 backendListEntryToNamespaceObject ::
-  Var v =>
+  (Var v) =>
   PPE.PrettyPrintEnv ->
   Maybe Width ->
   Backend.ShallowListEntry v a ->

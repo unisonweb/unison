@@ -23,7 +23,7 @@ import UnliftIO (liftIO)
 data AuthorInfo v a = AuthorInfo
   {guid, author, copyrightHolder :: (Reference.Id, Term v a, Type v a)}
 
-createAuthorInfo :: forall m v a. MonadIO m => Var v => a -> Text -> m (AuthorInfo v a)
+createAuthorInfo :: forall m v a. (MonadIO m) => (Var v) => a -> Text -> m (AuthorInfo v a)
 createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
   where
     createAuthorInfo' :: [Word8] -> AuthorInfo v a

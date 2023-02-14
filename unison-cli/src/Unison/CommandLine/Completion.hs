@@ -64,7 +64,7 @@ import Prelude hiding (readFile, writeFile)
 
 -- | A completion func for use with Haskeline
 haskelineTabComplete ::
-  MonadIO m =>
+  (MonadIO m) =>
   Map String IP.InputPattern ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
@@ -92,7 +92,7 @@ data CompletionType
 
 -- | The empty completor.
 noCompletions ::
-  MonadIO m =>
+  (MonadIO m) =>
   String ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
@@ -339,14 +339,14 @@ fixupCompletion q cs@(h : t) =
         else cs
 
 sharePathCompletion ::
-  MonadIO m =>
+  (MonadIO m) =>
   AuthenticatedHttpClient ->
   String ->
   m [Completion]
 sharePathCompletion = shareCompletion (NESet.singleton NamespaceCompletion)
 
 shareCompletion ::
-  MonadIO m =>
+  (MonadIO m) =>
   NESet CompletionType ->
   AuthenticatedHttpClient ->
   String ->
@@ -391,7 +391,7 @@ shareCompletion completionTypes authHTTPClient str =
             )
           & pure
 
-fetchShareNamespaceInfo :: MonadIO m => AuthenticatedHttpClient -> Text -> Path.Path -> m (Maybe NamespaceListing)
+fetchShareNamespaceInfo :: (MonadIO m) => AuthenticatedHttpClient -> Text -> Path.Path -> m (Maybe NamespaceListing)
 fetchShareNamespaceInfo (AuthenticatedHttpClient httpManager) userHandle path = runMaybeT do
   let uri =
         (Share.codeserverToURI Codeserver.defaultCodeserver)
@@ -406,7 +406,7 @@ fetchShareNamespaceInfo (AuthenticatedHttpClient httpManager) userHandle path = 
   resp <- either (const empty) pure $ fullResp
   MaybeT . pure . Aeson.decode @Server.NamespaceListing $ HTTP.responseBody resp
 
-searchUsers :: MonadIO m => AuthenticatedHttpClient -> Text -> m [Text]
+searchUsers :: (MonadIO m) => AuthenticatedHttpClient -> Text -> m [Text]
 searchUsers _ "" = pure []
 searchUsers (AuthenticatedHttpClient httpManager) userHandlePrefix =
   fromMaybe [] <$> runMaybeT do

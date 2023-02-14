@@ -115,10 +115,10 @@ fromByteString b = snoc empty (byteStringToChunk b)
 toByteString :: Bytes -> B.ByteString
 toByteString b = B.concat (map chunkToByteString (chunks b))
 
-toArray :: BA.ByteArray b => Bytes -> b
+toArray :: (BA.ByteArray b) => Bytes -> b
 toArray b = chunkToArray $ V.concat (chunks b)
 
-fromArray :: BA.ByteArrayAccess b => b -> Bytes
+fromArray :: (BA.ByteArrayAccess b) => b -> Bytes
 fromArray b = snoc empty (arrayToChunk b)
 
 byteStringToChunk, chunkFromByteString :: B.ByteString -> Chunk
@@ -341,7 +341,7 @@ toBase16 bs = foldl' step empty (chunks bs)
             BE.convertToBase BE.Base16 (chunkToArray @BA.Bytes b)
         )
 
-chunkToArray, arrayFromChunk :: BA.ByteArray b => Chunk -> b
+chunkToArray, arrayFromChunk :: (BA.ByteArray b) => Chunk -> b
 chunkToArray bs = BA.allocAndFreeze (V.length bs) $ \ptr ->
   let go !ind =
         if ind < V.length bs
@@ -350,7 +350,7 @@ chunkToArray bs = BA.allocAndFreeze (V.length bs) $ \ptr ->
    in go 0
 arrayFromChunk = chunkToArray
 
-arrayToChunk, chunkFromArray :: BA.ByteArrayAccess b => b -> Chunk
+arrayToChunk, chunkFromArray :: (BA.ByteArrayAccess b) => b -> Chunk
 arrayToChunk bs = case BA.convert bs :: Block Word8 of
   Block bs -> V.Vector 0 n (ByteArray bs)
   where

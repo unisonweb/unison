@@ -46,11 +46,11 @@ data Token
   | Hashed !Hash
   | Nat !Word64
 
-accumulateToken :: Tokenizable t => t -> Token
+accumulateToken :: (Tokenizable t) => t -> Token
 accumulateToken = Hashed . hashTokenizable
 
 -- | Tokenize then accumulate a type into a Hash.
-hashTokenizable :: Tokenizable t => t -> Hash
+hashTokenizable :: (Tokenizable t) => t -> Hash
 hashTokenizable = accumulate . tokens
 
 -- | Tokenizable converts a value into a set of hashing tokens which will later be accumulated
@@ -71,7 +71,7 @@ hashTokenizable = accumulate . tokens
 class Tokenizable t where
   tokens :: t -> [Token]
 
-instance Tokenizable a => Tokenizable [a] where
+instance (Tokenizable a) => Tokenizable [a] where
   tokens = map accumulateToken
 
 instance (Tokenizable a, Tokenizable b) => Tokenizable (a, b) where
@@ -133,7 +133,7 @@ accumulate = Hash.fromByteString . BA.convert . CH.hashFinalize . go CH.hashInit
       let tbytes = encodeUtf8 txt
        in [encodeLength (B.length tbytes), tbytes]
     toBS (Hashed h) = [Hash.toByteString h]
-    encodeLength :: Integral n => n -> B.ByteString
+    encodeLength :: (Integral n) => n -> B.ByteString
     encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral
 
 class Hashable1 f where

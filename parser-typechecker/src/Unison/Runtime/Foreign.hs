@@ -240,7 +240,7 @@ instance BuiltinForeign TimeSpec where foreignRef = Tagged Ty.timeSpecRef
 
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm
-  HashAlgorithm :: Hash.HashAlgorithm a => Reference -> a -> HashAlgorithm
+  HashAlgorithm :: (Hash.HashAlgorithm a) => Reference -> a -> HashAlgorithm
 
 newtype Tls = Tls TLS.Context
 
@@ -254,15 +254,15 @@ instance BuiltinForeign CPattern where
 instance BuiltinForeign CharPattern where
   foreignRef = Tagged Ty.charClassRef
 
-wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
+wrapBuiltin :: forall f. (BuiltinForeign f) => f -> Foreign
 wrapBuiltin x = Wrap r x
   where
     Tagged r = foreignRef :: Tagged f Reference
 
-unwrapBuiltin :: BuiltinForeign f => Foreign -> f
+unwrapBuiltin :: (BuiltinForeign f) => Foreign -> f
 unwrapBuiltin (Wrap _ x) = unsafeCoerce x
 
-maybeUnwrapBuiltin :: forall f. BuiltinForeign f => Foreign -> Maybe f
+maybeUnwrapBuiltin :: forall f. (BuiltinForeign f) => Foreign -> Maybe f
 maybeUnwrapBuiltin (Wrap r x)
   | r == r0 = Just (unsafeCoerce x)
   | otherwise = Nothing

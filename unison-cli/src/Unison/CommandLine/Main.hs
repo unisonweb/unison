@@ -15,7 +15,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Lazy.IO as Text.Lazy
 import qualified Ki
 import qualified System.Console.Haskeline as Line
-import System.IO (hPutStrLn, stderr, hGetEcho, hSetEcho, stdin)
+import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
 import Text.Pretty.Simple (pShow)
 import qualified U.Codebase.Sqlite.Operations as Operations

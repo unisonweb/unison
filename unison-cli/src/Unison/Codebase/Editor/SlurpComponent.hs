@@ -126,7 +126,7 @@ closeWithDependencies uf inputs = seenDefns {ctors = constructorDeps}
     typeNames :: Map Reference Symbol
     typeNames = invert (fst <$> UF.dataDeclarations' uf) <> invert (fst <$> UF.effectDeclarations' uf)
 
-    invert :: forall k v. Ord k => Ord v => Map k v -> Map v k
+    invert :: forall k v. (Ord k) => (Ord v) => Map k v -> Map v k
     invert m = Map.fromList (swap <$> Map.toList m)
 
 fromTypes :: Set Symbol -> SlurpComponent

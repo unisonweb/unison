@@ -25,7 +25,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import Unison.Prelude
 
-bimap :: Ord a' => (a -> a') -> (b -> b') -> Map a b -> Map a' b'
+bimap :: (Ord a') => (a -> a') -> (b -> b') -> Map a b -> Map a' b'
 bimap fa fb = Map.fromList . map (B.bimap fa fb) . Map.toList
 
 bitraverse :: (Applicative f, Ord a') => (a -> f a') -> (b -> f b') -> Map a b -> f (Map a' b')
@@ -36,12 +36,12 @@ bitraversed keyT valT f m =
   bitraverse (keyT f) (valT f) m
 
 -- | 'swap' throws away data if the input contains duplicate values
-swap :: Ord b => Map a b -> Map b a
+swap :: (Ord b) => Map a b -> Map b a
 swap =
   Map.foldlWithKey' (\z a b -> Map.insert b a z) mempty
 
 -- | Upsert an element into a map.
-upsert :: Ord k => (Maybe v -> v) -> k -> Map k v -> Map k v
+upsert :: (Ord k) => (Maybe v -> v) -> k -> Map k v -> Map k v
 upsert f =
   Map.alter (Just . f)
 
@@ -50,7 +50,7 @@ valuesVector =
   Vector.fromList . Map.elems
 
 -- | Like 'Map.delete', but returns the value as well.
-deleteLookup :: Ord k => k -> Map k v -> (Maybe v, Map k v)
+deleteLookup :: (Ord k) => k -> Map k v -> (Maybe v, Map k v)
 deleteLookup =
   Map.alterF (,Nothing)
 
@@ -85,7 +85,7 @@ unionWithM f m1 m2 =
 -- @
 -- remap f = Map.fromList . map f . Map.toList
 -- @
-remap :: Ord k1 => ((k0, v0) -> (k1, v1)) -> Map k0 v0 -> Map k1 v1
+remap :: (Ord k1) => ((k0, v0) -> (k1, v1)) -> Map k0 v0 -> Map k1 v1
 remap f =
   Map.fromList . map f . Map.toList
 

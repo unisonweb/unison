@@ -52,7 +52,7 @@ tm s =
     Parser.run (Parser.root TermParser.term) s parsingEnv
 
 showParseError ::
-  Var v =>
+  (Var v) =>
   String ->
   MPE.ParseError Parser.Input (Parser.Error v) ->
   String

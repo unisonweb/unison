@@ -36,13 +36,13 @@ extract = runReader . runMaybeT
 subseqExtractor :: (C.ErrorNote v loc -> [Ranged a]) -> SubseqExtractor v loc a
 subseqExtractor f = SubseqExtractor' f
 
-traceSubseq :: Show a => String -> SubseqExtractor' n a -> SubseqExtractor' n a
+traceSubseq :: (Show a) => String -> SubseqExtractor' n a -> SubseqExtractor' n a
 traceSubseq s ex = SubseqExtractor' $ \n ->
   let rs = runSubseq ex n
    in trace (if null s then show rs else s ++ ": " ++ show rs) rs
 
 traceNote ::
-  Show a => String -> ErrorExtractor v loc a -> ErrorExtractor v loc a
+  (Show a) => String -> ErrorExtractor v loc a -> ErrorExtractor v loc a
 traceNote s ex = extractor $ \n ->
   let result = extract ex n
    in trace (if null s then show result else s ++ ": " ++ show result) result
@@ -260,7 +260,7 @@ unknownSymbol =
     C.UnknownSymbol loc v -> pure (loc, v)
     _ -> mzero
 
-unknownTerm :: Var v => ErrorExtractor v loc (loc, v, [C.Suggestion v loc], C.Type v loc)
+unknownTerm :: (Var v) => ErrorExtractor v loc (loc, v, [C.Suggestion v loc], C.Type v loc)
 unknownTerm =
   cause >>= \case
     C.UnknownTerm loc v suggestions expectedType -> do
