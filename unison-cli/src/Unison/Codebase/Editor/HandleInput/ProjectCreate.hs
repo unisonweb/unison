@@ -13,15 +13,17 @@ import qualified Unison.Cli.MonadUtils as Cli (stepAt)
 import Unison.Cli.ProjectUtils (projectBranchPath)
 import Unison.Codebase.Branch (Branch0)
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectName)
 
 -- | Create a new project.
 --
--- * If a project already exists with the given name, bail.
--- * Otherwise, create a scaffold out a new project with a "main" branch, and add it to the namespace (at a magic
---   location that the user isn't supposed to look at).
+-- 1. If a project already exists with the given name, bail.
+--
+-- 2. Otherwise, create a scaffold out a new project with a "main" branch, and add it to the namespace (at a magic
+--    location that the user isn't supposed to look at).
 --
 -- Big danger: we first commit the project identity and metadata (like its name) to the codebase, then manipulate our
 -- in-memory namespace and flush its contents out in a separate transaction. This means that if lightning strikes at the
@@ -53,7 +55,7 @@ projectCreate name = do
         Queries.insertProject projectId (into @Text name)
         Queries.insertProjectBranch projectId branchId "main"
         pure (Right ())
-      True -> pure (Left (error "project by that name already exists"))
+      True -> pure (Left (Output.ProjectNameAlreadyExists name))
 
   let path = projectBranchPath ProjectAndBranch {project = projectId, branch = branchId}
   Cli.stepAt "project.create" (Path.unabsolute path, const mainBranchContents)
