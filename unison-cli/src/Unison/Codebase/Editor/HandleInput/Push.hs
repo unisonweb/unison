@@ -539,13 +539,27 @@ oompaLoompaCreateBranch
   maybeLocalProjectAndBranch
   localBranchHead
   (ProjectAndBranch remoteProjectId remoteBranchName) = do
+    mergeTargetSuggestion <- runMaybeT do
+      ProjectAndBranch localProject localBranch <- MaybeT (pure maybeLocalProjectAndBranch)
+      (prj, bch) <-
+        MaybeT $
+          Cli.runTransaction
+            ( Queries.loadDefaultMergeTargetForLocalProjectBranch
+                (localProject ^. #projectId)
+                (localBranch ^. #branchId)
+            )
+      pure
+        ( Share.API.ProjectBranchIds
+            (unRemoteProjectId prj)
+            (unRemoteProjectBranchId bch)
+        )
     oinkCreateRemoteBranch
       maybeLocalProjectAndBranch
       Share.API.CreateProjectBranchRequest
         { projectId = unRemoteProjectId remoteProjectId,
           branchName = into @Text remoteBranchName,
           branchCausalHash = localBranchHead,
-          branchMergeTarget = wundefined
+          branchMergeTarget = mergeTargetSuggestion
         }
 
 oompaLoompaFastForward ::

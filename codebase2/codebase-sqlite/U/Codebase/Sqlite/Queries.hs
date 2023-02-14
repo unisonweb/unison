@@ -119,6 +119,7 @@ module U.Codebase.Sqlite.Queries
     insertRemoteProject,
     setRemoteProjectName,
     loadRemoteProjectBranchByLocalProjectBranch,
+    loadDefaultMergeTargetForLocalProjectBranch,
 
     -- ** remote project branches
     loadRemoteBranch,
@@ -2646,62 +2647,114 @@ markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
 unisonShareUri :: Text
 unisonShareUri = "https://api.unison-lang.org"
 
+data LoadRemoteBranchFlag
+  = IncludeSelfRemote
+  | ExcludeSelfRemote
+  deriving stock (Show, Eq)
+
+-- | Determine the remote mapping for a local project/branch by
+-- looking at the mapping for the given pair, then falling back to the
+-- project of the nearest ancestor.
 loadRemoteProjectBranchByLocalProjectBranch ::
   ProjectId ->
   ProjectBranchId ->
   Transaction (Maybe (RemoteProjectId, Maybe RemoteProjectBranchId))
-loadRemoteProjectBranchByLocalProjectBranch pid bid =
-  queryMaybeRow
-    [sql|
-      WITH RECURSIVE t AS (
+loadRemoteProjectBranchByLocalProjectBranch p b = do
+  loadRemoteProjectBranchByLocalProjectBranchGen IncludeSelfRemote p b <&> fmap fixup
+  where
+    -- If the depth is 0 then the local project/branch we provided has
+    -- a remote mapping. Otherwise we found some ancestor's remote
+    -- mapping and we only wish to retain the project portion.
+    fixup = \case
+      (project, branch, depth) -> case depth of
+        0 -> (project, Just branch)
+        _ -> (project, Nothing)
+
+-- | Load the default merge target for a local branch (i.e. The nearest
+-- ancestor's remote mapping)
+loadDefaultMergeTargetForLocalProjectBranch ::
+  ProjectId ->
+  ProjectBranchId ->
+  Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId))
+loadDefaultMergeTargetForLocalProjectBranch p b = do
+  loadRemoteProjectBranchByLocalProjectBranchGen ExcludeSelfRemote p b <&> fmap fixup
+  where
+    fixup = \case
+      (project, branch, _) -> (project, branch)
+
+-- Parameterized query for finding the remote mapping for a branch and
+-- the default merge target for a branch.
+loadRemoteProjectBranchByLocalProjectBranchGen ::
+  LoadRemoteBranchFlag ->
+  ProjectId ->
+  ProjectBranchId ->
+  Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId, Int64))
+loadRemoteProjectBranchByLocalProjectBranchGen loadRemoteBranchFlag pid bid =
+  queryMaybeRow theSql (unisonShareUri, pid, bid, unisonShareUri, bid)
+  where
+    theSql = mainQuery <> whereClause <> orderAndLimit
+    mainQuery =
+      [sql|
+        WITH RECURSIVE t AS (
+          SELECT
+            pb.project_id,
+            pb.branch_id,
+            pbp.parent_branch_id,
+            pbrm.remote_project_id,
+            pbrm.remote_branch_id,
+            0 AS depth,
+          FROM
+            project_branch AS pb,
+            LEFT OUTER JOIN project_branch_parent AS pbp USING (project_id, branch_id)
+            LEFT OUTER JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = pb.project_id
+              AND pbrm.local_branch_id = pb.branch_id
+              AND pbrm.remote_host = ?,
+          WHERE
+            pb.project_id = ?
+            AND pb.branch_id = ?
+          UNION ALL
+          SELECT
+            t.project_id,
+            t.parent_branch_id,
+            pbp.parent_branch_id,
+            pbrm.remote_project_id,
+            pbrm.remote_branch_id,
+            t.depth + 1,
+          FROM
+            t,
+            LEFT OUTER JOIN project_branch_parent AS pbp ON pbp.project_id = t.project_id
+            AND pbp.branch_id = t.parent_branch_id,
+          LEFT OUTER JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = t.project_id
+          AND pbrm.local_branch_id = t.parent_branch_id
+          AND pbrm.remote_host = ?,
+        )
         SELECT
-          pb.project_id,
-          pb.branch_id,
-          pbp.parent_branch_id,
-          pbrm.remote_project_id,
-          pbrm.remote_branch_id,
-          0 AS depth,
+          remote_project_id,
+          remote_branch_id,
+          depth
         FROM
-          project_branch AS pb,
-          LEFT OUTER JOIN project_branch_parent AS pbp USING (project_id, branch_id)
-          LEFT OUTER JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = pb.project_id
-            AND pbrm.local_branch_id = pb.branch_id
-            AND pbrm.remote_host = ?,
-        WHERE
-          pb.project_id = ?
-          AND pb.branch_id = ?
-        UNION ALL
-        SELECT
-          t.project_id,
-          t.parent_branch_id,
-          pbp.parent_branch_id,
-          pbrm.remote_project_id,
-          pbrm.remote_branch_id,
-          t.depth + 1,
-        FROM
-          t,
-          LEFT OUTER JOIN project_branch_parent AS pbp ON pbp.project_id = t.project_id
-          AND pbp.branch_id = t.parent_branch_id,
-        LEFT OUTER JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = t.project_id
-        AND pbrm.local_branch_id = t.parent_branch_id
-        AND pbrm.remote_host = ?,
-      )
-      SELECT
-        remote_project_id,
-        CASE WHEN branch_id = ? THEN
-          remote_branch_id
-        ELSE
-          NULL
-        END
-      FROM
-        t
-      WHERE
-        remote_project_id IS NOT NULL
-      ORDER BY
-        depth
-      LIMIT 1
-    |]
-    (unisonShareUri, pid, bid, unisonShareUri, bid)
+          t
+        |]
+
+    orderAndLimit =
+      [sql|
+        ORDER BY
+          depth
+        LIMIT 1
+      |]
+
+    whereClause =
+      [sql| WHERE |]
+        <> foldr
+          (\a b -> a <> [sql| AND |] <> b)
+          [sql| TRUE |]
+          [ [sql| remote_project_id IS NOT NULL |],
+            selfRemoteFilter
+          ]
+
+    selfRemoteFilter = case loadRemoteBranchFlag of
+      IncludeSelfRemote -> [sql| TRUE |]
+      ExcludeSelfRemote -> [sql| depth > 0 |]
 
 loadRemoteProject :: RemoteProjectId -> Text -> Transaction (Maybe RemoteProject)
 loadRemoteProject rpid host =
