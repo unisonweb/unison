@@ -182,10 +182,10 @@ snipWithContext margin source =
           text', text2' :: [String]
           (text', text2') =
             splitAt takeLineCount (drop dropLineCount (lines (text source)))
-       in AnnotatedExcerpt startLine' (unlines text') group' :
-          snipWithContext
-            margin
-            (AnnotatedExcerpt (endLine' + 1) (unlines text2') rest')
+       in AnnotatedExcerpt startLine' (unlines text') group'
+            : snipWithContext
+              margin
+              (AnnotatedExcerpt (endLine' + 1) (unlines text2') rest')
   where
     withinMargin :: Range -> Range -> Bool
     withinMargin (Range _start1 (Pos end1 _)) (Range (Pos start2 _) _end2) =

@@ -58,7 +58,7 @@ termNamed s =
 codeLookup :: CodeLookup Symbol Identity Ann
 codeLookup = CL.fromTypecheckedUnisonFile typecheckedFile
 
-codeLookupM :: Applicative m => CodeLookup Symbol m Ann
+codeLookupM :: (Applicative m) => CodeLookup Symbol m Ann
 codeLookupM = hoist (pure . runIdentity) codeLookup
 
 typeNamedId :: String -> R.Id

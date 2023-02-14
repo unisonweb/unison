@@ -360,19 +360,19 @@ delete x y r = r {domain = domain', range = range'}
     erase e s = if S.singleton e == s then Nothing else Just $ S.delete e s
 
 -- | The Set of values associated with a value in the domain.
-lookupDom' :: Ord a => a -> Relation a b -> Maybe (Set b)
+lookupDom' :: (Ord a) => a -> Relation a b -> Maybe (Set b)
 lookupDom' x r = M.lookup x (domain r)
 
 -- | The Set of values associated with a value in the range.
-lookupRan' :: Ord b => b -> Relation a b -> Maybe (Set a)
+lookupRan' :: (Ord b) => b -> Relation a b -> Maybe (Set a)
 lookupRan' y r = M.lookup y (range r)
 
 -- | True if the element @ x @ exists in the domain of @ r @.
-memberDom :: Ord a => a -> Relation a b -> Bool
+memberDom :: (Ord a) => a -> Relation a b -> Bool
 memberDom x r = isJust $ lookupDom' x r
 
 -- | True if the element exists in the range.
-memberRan :: Ord b => b -> Relation a b -> Bool
+memberRan :: (Ord b) => b -> Relation a b -> Bool
 memberRan y r = isJust $ lookupRan' y r
 
 filterDom :: (Ord a, Ord b) => (a -> Bool) -> Relation a b -> Relation a b
@@ -417,10 +417,10 @@ notMember :: (Ord a, Ord b) => a -> b -> Relation a b -> Bool
 notMember x y r = not $ member x y r
 
 -- | True if a value appears more than one time in the relation.
-manyDom :: Ord a => a -> Relation a b -> Bool
+manyDom :: (Ord a) => a -> Relation a b -> Bool
 manyDom a = (> 1) . S.size . lookupDom a
 
-manyRan :: Ord b => b -> Relation a b -> Bool
+manyRan :: (Ord b) => b -> Relation a b -> Bool
 manyRan b = (> 1) . S.size . lookupRan b
 
 -- | Returns the domain in the relation, as a Set, in its entirety.
@@ -441,7 +441,7 @@ ran r = M.keysSet (range r)
 -- The cases of 'Nothing' are purged.
 --
 -- It is similar to 'concat'.
-compactSet :: Ord a => Set (Maybe (Set a)) -> Set a
+compactSet :: (Ord a) => Set (Maybe (Set a)) -> Set a
 compactSet = S.fold (S.union . fromMaybe S.empty) S.empty
 
 -- $selectops
@@ -566,10 +566,10 @@ insertManyDom ::
   (Foldable f, Ord a, Ord b) => f a -> b -> Relation a b -> Relation a b
 insertManyDom as b r = foldl' (flip $ flip insert b) r as
 
-lookupRan :: Ord b => b -> Relation a b -> Set a
+lookupRan :: (Ord b) => b -> Relation a b -> Set a
 lookupRan b r = fromMaybe S.empty $ lookupRan' b r
 
-lookupDom :: Ord a => a -> Relation a b -> Set b
+lookupDom :: (Ord a) => a -> Relation a b -> Set b
 lookupDom a r = fromMaybe S.empty $ lookupDom' a r
 
 -- Efficiently locate the `Set b` for which the corresponding `a` tests
@@ -708,7 +708,7 @@ toMultimap :: Relation a b -> Map a (Set b)
 toMultimap = domain
 
 -- Returns Nothing if Relation isn't one-to-one.
-toMap :: Ord a => Relation a b -> Maybe (Map a b)
+toMap :: (Ord a) => Relation a b -> Maybe (Map a b)
 toMap r =
   let mm = toMultimap r
    in if all (\s -> S.size s == 1) mm
@@ -752,12 +752,12 @@ instance (Ord a, Ord b) => Semigroup (Relation a b) where
   (<>) = union
 
 toUnzippedMultimap ::
-  Ord a => Ord b => Ord c => Relation a (b, c) -> Map a (Set b, Set c)
+  (Ord a) => (Ord b) => (Ord c) => Relation a (b, c) -> Map a (Set b, Set c)
 toUnzippedMultimap r = (\s -> (S.map fst s, S.map snd s)) <$> toMultimap r
 
 collectRan ::
-  Ord a =>
-  Ord c =>
+  (Ord a) =>
+  (Ord c) =>
   (b -> Maybe c) ->
   Relation a b ->
   Relation a c

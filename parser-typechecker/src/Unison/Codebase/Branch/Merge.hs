@@ -40,7 +40,7 @@ data MergeMode = RegularMerge | SquashMerge deriving (Eq, Ord, Show)
 
 merge'' ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (Branch m -> Branch m -> m (Maybe (Branch m))) -> -- lca calculator
   MergeMode ->
   Branch m ->
@@ -111,7 +111,7 @@ merge'' lca mode (Branch x) (Branch y) =
 
 merge0 ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (Branch m -> Branch m -> m (Maybe (Branch m))) ->
   MergeMode ->
   Branch0 m ->

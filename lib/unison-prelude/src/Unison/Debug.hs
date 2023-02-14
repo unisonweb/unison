@@ -114,7 +114,7 @@ debugAnnotations = Annotations `Set.member` debugFlags
 -- Or, use in pattern matching to view arguments.
 -- E.g.
 -- myFunc (debug Git "argA" -> argA) = ...
-debug :: Show a => DebugFlag -> String -> a -> a
+debug :: (Show a) => DebugFlag -> String -> a -> a
 debug flag msg a =
   if shouldDebug flag
     then pTraceShowId (pTrace (msg <> ":\n") a)
@@ -142,7 +142,7 @@ debugLogM flag msg =
   whenDebug flag $ pTraceM msg
 
 -- | A 'when' block which is triggered if the given flag is being debugged.
-whenDebug :: Monad m => DebugFlag -> m () -> m ()
+whenDebug :: (Monad m) => DebugFlag -> m () -> m ()
 whenDebug flag action = do
   when (shouldDebug flag) action
 

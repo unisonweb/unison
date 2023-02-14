@@ -45,16 +45,16 @@ bothOrd h1 h2 a1 a2 b1 b2 =
       then cyclicOrd h1 h2 b1 b2
       else pure b
 
-instance CyclicOrd a => CyclicOrd [a] where
+instance (CyclicOrd a) => CyclicOrd [a] where
   cyclicOrd h1 h2 (x : xs) (y : ys) = bothOrd h1 h2 x y xs ys
   cyclicOrd _ _ [] [] = pure EQ
   cyclicOrd _ _ [] _ = pure LT
   cyclicOrd _ _ _ [] = pure GT
 
-instance CyclicOrd a => CyclicOrd (S.Seq a) where
+instance (CyclicOrd a) => CyclicOrd (S.Seq a) where
   cyclicOrd h1 h2 xs ys = cyclicOrd h1 h2 (toList xs) (toList ys)
 
-instance CyclicOrd a => CyclicOrd (Vector a) where
+instance (CyclicOrd a) => CyclicOrd (Vector a) where
   cyclicOrd h1 h2 xs ys = go 0 h1 h2 xs ys
     where
       go !i !h1 !h2 !xs !ys =
