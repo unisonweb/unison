@@ -327,14 +327,11 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
   -- Load local project and branch from database and get the causal hash to push
   (localProjectAndBranch, localBranchCausalHash) <-
     Cli.runEitherTransaction do
-      let path = projectBranchPath localProjectAndBranchIds
-      let segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
-      Operations.loadCausalHashAtPath segments >>= \case
-        -- If there is nothing to push, fail with some message
-        Nothing -> pure (Left (EmptyPush (Path.absoluteToPath' path)))
-        Just (CausalHash hash) -> do
+      loadCausalHashToPush (projectBranchPath localProjectAndBranchIds) >>= \case
+        Left output -> pure (Left output)
+        Right hash -> do
           localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
-          pure (Right (localProjectAndBranch, Hash32.fromHash hash))
+          pure (Right (localProjectAndBranch, hash))
 
   -- Get two pieces of information that are computed in various ways depending on whether the user has specified a
   -- target or not, the state of the database, etc:
@@ -353,6 +350,15 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
 
   oinkUpload repoName localBranchCausalHash
   afterUpload
+
+loadCausalHashToPush :: Path.Absolute -> Sqlite.Transaction (Either Output Hash32)
+loadCausalHashToPush path =
+  Operations.loadCausalHashAtPath segments <&> \case
+    -- If there is nothing to push, fail with some message
+    Nothing -> Left (EmptyPush (Path.absoluteToPath' path))
+    Just (CausalHash hash) -> Right (Hash32.fromHash hash)
+  where
+    segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
 
 bazinga0 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli (Share.RepoName, Cli ())
 bazinga0 localProjectAndBranch localBranchCausalHash32 =
