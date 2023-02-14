@@ -353,7 +353,10 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
   (repoName, afterUpload) <-
     case maybeRemoteProjectAndBranchNames of
       Nothing -> bazinga0 (ProjectAndBranch localProjectName localBranchName) localBranchCausalHash
-      Just remoteProjectAndBranchNames -> bazinga4 localBranchName localBranchCausalHash remoteProjectAndBranchNames
+      Just (This remoteProjectName) -> bazinga6 localBranchName localBranchCausalHash remoteProjectName
+      Just (That remoteBranchName) -> bazinga5 localBranchCausalHash remoteBranchName
+      Just (These remoteProjectName remoteBranchName) ->
+        bazinga7 localBranchCausalHash (ProjectAndBranch remoteProjectName remoteBranchName)
 
   oinkUpload repoName localBranchCausalHash
   afterUpload
@@ -433,21 +436,6 @@ bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId) = do
         pure doFastForward
 
   pure (repoName, afterUpload)
-
-bazinga4 ::
-  ProjectBranchName ->
-  Hash32 ->
-  These ProjectName ProjectBranchName ->
-  Cli (Share.RepoName, Cli ())
-bazinga4 localBranchName localBranchCausalHash32 remoteProjectAndBranchNames = do
-  case remoteProjectAndBranchNames of
-    -- "push /topic"
-    That remoteBranchName -> bazinga5 localBranchCausalHash32 remoteBranchName
-    -- "push @arya/lens"
-    This remoteProjectName -> bazinga6 localBranchName localBranchCausalHash32 remoteProjectName
-    -- "push @unison/base/@runar/topic"
-    These remoteProjectName remoteBranchName ->
-      bazinga7 localBranchCausalHash32 (ProjectAndBranch remoteProjectName remoteBranchName)
 
 bazinga5 :: Hash32 -> ProjectBranchName -> Cli (Share.RepoName, Cli ())
 bazinga5 localBranchCausalHash32 remoteBranchName =
