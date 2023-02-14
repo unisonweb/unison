@@ -24,3 +24,5 @@ tests = Tests.main do
   check "Blake2s_256 hmacBytes" do hmacBytes Blake2s_256 (toUtf8 "key") (toUtf8 "") === 0xs67148074efc0f6741b474ef81c4d98d266e880d372fe723d2569b1d414d234be
   check "Blake2b_256 hmacBytes" do hmacBytes Blake2b_256 (toUtf8 "key") (toUtf8 "") === 0xs4224e1297e51239a642e21f756bde2785716f872298178180d7f3d1d36a5e4e4
   check "Blake2b_512 hmacBytes" do hmacBytes Blake2b_512 (toUtf8 "key") (toUtf8 "") === 0xs019fe04bf010b8d72772e6b46897ecf74b4878c394ff2c4d5cfa0b7cc9bbefcb28c36de23cef03089db9c3d900468c89804f135e9fdef7ec9b3c7abe50ed33d3
+
+  !concurrency.tests

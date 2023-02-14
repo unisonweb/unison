@@ -11,9 +11,3 @@ to `Tests.check` and `Tests.checkEqual`).
   ()
 
 ```
-```ucm
-.> run concurrency.tests
-
-  ()
-
-```

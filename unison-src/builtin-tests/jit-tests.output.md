@@ -9,7 +9,3 @@ to `Tests.check` and `Tests.checkEqual`).
 .> run.native tests
 
 ```
-```ucm
-.> run.native concurrency.tests
-
-```

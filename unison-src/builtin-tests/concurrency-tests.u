@@ -1,4 +1,4 @@
-concurrency.tests = Tests.main do
+concurrency.tests = do
   !simpleRefTest
   !simpleRefTestScope
   !ticketTest
