@@ -324,7 +324,7 @@ pushLooseCodeToProjectBranch ::
   Cli ()
 pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
   localBranchCausalHash <- Cli.runEitherTransaction (loadCausalHashToPush localPath)
-  uploadeo localBranchCausalHash (bazinga7 localBranchCausalHash remoteProjectAndBranch)
+  uploadeo localBranchCausalHash (bazinga7 Nothing localBranchCausalHash remoteProjectAndBranch)
 
 -- | Push a local project branch to a remote project branch. If the remote project branch is left unspecified, we either
 -- use a pre-existing mapping for the local branch, or else infer what remote branch to push to (possibly creating it).
@@ -334,7 +334,7 @@ pushProjectBranchToProjectBranch ::
   Cli ()
 pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndBranchNames = do
   -- Load local project and branch from database and get the causal hash to push
-  (ProjectAndBranch localProject localBranch, localBranchCausalHash) <-
+  (localProjectAndBranch, localBranchCausalHash) <-
     Cli.runEitherTransaction do
       loadCausalHashToPush (projectBranchPath localProjectAndBranchIds) >>= \case
         Left output -> pure (Left output)
@@ -342,17 +342,17 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
           localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
           pure (Right (localProjectAndBranch, hash))
 
-  let localProjectName = unsafeFrom @Text (localProject ^. #name)
-  let localBranchName = unsafeFrom @Text (localBranch ^. #name)
-
   uploadeo
     localBranchCausalHash
     case maybeRemoteProjectAndBranchNames of
-      Nothing -> bazinga0 (ProjectAndBranch localProjectName localBranchName) localBranchCausalHash
-      Just (This remoteProjectName) -> bazinga6 localBranchName localBranchCausalHash remoteProjectName
+      Nothing -> bazinga0 localProjectAndBranch localBranchCausalHash
+      Just (This remoteProjectName) -> bazinga6 localProjectAndBranch localBranchCausalHash remoteProjectName
       Just (That remoteBranchName) -> bazinga5 localBranchCausalHash remoteBranchName
       Just (These remoteProjectName remoteBranchName) ->
-        bazinga7 localBranchCausalHash (ProjectAndBranch remoteProjectName remoteBranchName)
+        bazinga7
+          (Just localProjectAndBranch)
+          localBranchCausalHash
+          (ProjectAndBranch remoteProjectName remoteBranchName)
 
 loadCausalHashToPush :: Path.Absolute -> Sqlite.Transaction (Either Output Hash32)
 loadCausalHashToPush path =
@@ -363,28 +363,37 @@ loadCausalHashToPush path =
   where
     segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
 
-bazinga0 :: ProjectAndBranch ProjectName ProjectBranchName -> Hash32 -> Cli (Share.RepoName, Cli ())
+bazinga0 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli (Share.RepoName, Cli ())
 bazinga0 localProjectAndBranch localBranchCausalHash32 =
-  Cli.runTransaction oinkResolveRemoteIds >>= \case
+  Cli.runTransaction (Queries.loadRemoteProjectBranchByLocalProjectBranch wundefined wundefined) >>= \case
     Nothing -> bazinga1 localProjectAndBranch localBranchCausalHash32
-    Just (ProjectAndBranch remoteProjectId maybeRemoteBranchId) ->
+    Just (remoteProjectId, maybeRemoteBranchId) ->
       case maybeRemoteBranchId of
-        Nothing -> bazinga2 (localProjectAndBranch ^. #branch) localBranchCausalHash32 remoteProjectId
+        Nothing -> bazinga2 localProjectAndBranch localBranchCausalHash32 remoteProjectId
         Just remoteBranchId -> bazinga3 (ProjectAndBranch remoteProjectId remoteBranchId)
 
-bazinga1 :: ProjectAndBranch ProjectName ProjectBranchName -> Hash32 -> Cli (Share.RepoName, Cli ())
-bazinga1 (ProjectAndBranch localProjectName localBranchName) localBranchCausalHash32 = do
+bazinga1 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli (Share.RepoName, Cli ())
+bazinga1 localProjectAndBranch localBranchCausalHash32 = do
   myUserHandle <- oinkGetLoggedInUser
-  let remoteProjectName = prependUserSlugToProjectName myUserHandle localProjectName
-  let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
-  afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
+  let remoteProjectName =
+        prependUserSlugToProjectName
+          myUserHandle
+          (unsafeFrom @Text (localProjectAndBranch ^. #project . #name))
+  let (remoteBranchUserSlug, remoteBranchName) =
+        deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localProjectAndBranch ^. #branch . #name))
+  afterUpload <-
+    oompaLoompa
+      (Just localProjectAndBranch)
+      localBranchCausalHash32
+      (ProjectAndBranch remoteProjectName remoteBranchName)
   pure (Share.RepoName remoteBranchUserSlug, afterUpload)
 
-bazinga2 :: ProjectBranchName -> Hash32 -> RemoteProjectId -> Cli (Share.RepoName, Cli ())
-bazinga2 localBranchName localBranchCausalHash32 remoteProjectId = do
+bazinga2 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> RemoteProjectId -> Cli (Share.RepoName, Cli ())
+bazinga2 (ProjectAndBranch _localProject localBranch) localBranchCausalHash32 remoteProjectId = do
   myUserHandle <- oinkGetLoggedInUser
 
-  let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
+  let (remoteBranchUserSlug, remoteBranchName) =
+        deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localBranch ^. #name))
 
   afterUpload <-
     Share.getProjectBranchByName remoteProjectId remoteBranchName >>= \case
@@ -463,22 +472,35 @@ bazinga5 localBranchCausalHash32 remoteBranchName =
 
       pure (repoName, afterUpload)
 
-bazinga6 :: ProjectBranchName -> Hash32 -> ProjectName -> Cli (Share.RepoName, Cli ())
-bazinga6 localBranchName localBranchCausalHash32 remoteProjectName = do
+bazinga6 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> ProjectName -> Cli (Share.RepoName, Cli ())
+bazinga6 localProjectAndBranch localBranchCausalHash32 remoteProjectName = do
   myUserHandle <- oinkGetLoggedInUser
-  let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
-  afterUpload <- oompaLoompa (ProjectAndBranch remoteProjectName remoteBranchName) localBranchCausalHash32
+  let (remoteBranchUserSlug, remoteBranchName) =
+        deriveRemoteBranchName myUserHandle (unsafeFrom @Text (localProjectAndBranch ^. #branch . #name))
+  afterUpload <-
+    oompaLoompa
+      (Just localProjectAndBranch)
+      localBranchCausalHash32
+      (ProjectAndBranch remoteProjectName remoteBranchName)
   pure (Share.RepoName remoteBranchUserSlug, afterUpload)
 
-bazinga7 :: Hash32 -> ProjectAndBranch ProjectName ProjectBranchName -> Cli (Share.RepoName, Cli ())
-bazinga7 localBranchCausalHash32 remoteProjectAndBranch = do
+bazinga7 ::
+  Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
+  Hash32 ->
+  ProjectAndBranch ProjectName ProjectBranchName ->
+  Cli (Share.RepoName, Cli ())
+bazinga7 maybeLocalProjectAndBranch localBranchCausalHash32 remoteProjectAndBranch = do
   repoName <- projectBranchRepoName remoteProjectAndBranch
-  afterUpload <- oompaLoompa remoteProjectAndBranch localBranchCausalHash32
+  afterUpload <- oompaLoompa maybeLocalProjectAndBranch localBranchCausalHash32 remoteProjectAndBranch
   pure (repoName, afterUpload)
 
 -- we have the remote project and branch names, but we don't know whether either already exist
-oompaLoompa :: ProjectAndBranch ProjectName ProjectBranchName -> Hash32 -> Cli (Cli ())
-oompaLoompa (ProjectAndBranch projectName branchName) localBranchCausalHash32 = do
+oompaLoompa ::
+  Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
+  Hash32 ->
+  ProjectAndBranch ProjectName ProjectBranchName ->
+  Cli (Cli ())
+oompaLoompa _maybeLocalProjectAndBranch localBranchCausalHash32 (ProjectAndBranch projectName branchName) = do
   let doCreateBranch :: Share.API.Project -> Cli ()
       doCreateBranch remoteProject = do
         _remoteBranch <-
@@ -620,7 +642,9 @@ oinkCreateRemoteBranch request = do
       pure remoteBranch
 
 oinkResolveRemoteIds :: Sqlite.Transaction (Maybe (ProjectAndBranch RemoteProjectId (Maybe RemoteProjectBranchId)))
-oinkResolveRemoteIds = undefined
+oinkResolveRemoteIds =
+  undefined
+    Queries.loadRemoteProjectBranchByLocalProjectBranch
 
 oinkResolveRemoteProjectId :: Sqlite.Transaction (Maybe RemoteProjectId)
 oinkResolveRemoteProjectId = undefined
