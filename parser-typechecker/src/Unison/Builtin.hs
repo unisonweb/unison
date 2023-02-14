@@ -253,7 +253,8 @@ builtinTypesSrc =
     B' "ImmutableArray" CT.Data,
     B' "MutableArray" CT.Data,
     B' "ImmutableByteArray" CT.Data,
-    B' "MutableByteArray" CT.Data
+    B' "MutableByteArray" CT.Data,
+    B' "Char.Class" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -665,7 +666,32 @@ builtinsSrc =
     B "Scope.bytearray" . forall1 "s" $ \s ->
       nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
     B "Scope.bytearrayOf" . forall1 "s" $ \s ->
-      nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s))
+      nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
+    B "Char.Class.any" charClass,
+    B "Char.Class.not" $ charClass --> charClass,
+    B "Char.Class.and" $ charClass --> charClass --> charClass,
+    B "Char.Class.or" $ charClass --> charClass --> charClass,
+    B "Char.Class.range" $ char --> char --> charClass,
+    B "Char.Class.anyOf" $ list char --> charClass,
+    B "Char.Class.alphanumeric" charClass,
+    B "Char.Class.upper" charClass,
+    B "Char.Class.lower" charClass,
+    B "Char.Class.whitespace" charClass,
+    B "Char.Class.control" charClass,
+    B "Char.Class.printable" charClass,
+    B "Char.Class.mark" charClass,
+    B "Char.Class.number" charClass,
+    B "Char.Class.punctuation" charClass,
+    B "Char.Class.symbol" charClass,
+    B "Char.Class.separator" charClass,
+    B "Char.Class.letter" charClass,
+    B "Char.Class.is" $
+      charClass
+        --> char
+        --> boolean,
+    B
+      "Text.patterns.char"
+      $ charClass --> pat text
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -1040,6 +1066,9 @@ stm, tvar, pat :: Type -> Type
 stm = Type.effect1 () (Type.ref () Type.stmRef)
 tvar a = Type.ref () Type.tvarRef `app` a
 pat a = Type.ref () Type.patternRef `app` a
+
+charClass :: Type
+charClass = Type.ref () Type.charClassRef
 
 timeSpec :: Type
 timeSpec = Type.ref () Type.timeSpecRef

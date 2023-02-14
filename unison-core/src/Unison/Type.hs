@@ -293,6 +293,9 @@ stmRef = Reference.Builtin "STM"
 patternRef :: Reference
 patternRef = Reference.Builtin "Pattern"
 
+charClassRef :: Reference
+charClassRef = Reference.Builtin "Char.Class"
+
 tlsClientConfigRef :: Reference
 tlsClientConfigRef = Reference.Builtin "Tls.ClientConfig"
 
@@ -641,7 +644,7 @@ removePureEffects :: (ABT.Var v) => Type v a -> Type v a
 removePureEffects t
   | not Settings.removePureEffects = t
   | otherwise =
-      generalize vs $ removeEffectVars fvs tu
+    generalize vs $ removeEffectVars fvs tu
   where
     (vs, tu) = unforall' t
     vss = Set.fromList vs

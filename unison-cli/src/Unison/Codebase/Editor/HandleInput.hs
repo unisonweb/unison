@@ -36,8 +36,14 @@ import System.Directory
     getXdgDirectory,
   )
 import System.Environment (withArgs)
+import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
-import System.Process (callProcess, readCreateProcess, shell)
+import System.Process
+  ( callProcess,
+    readCreateProcess,
+    readCreateProcessWithExitCode,
+    shell,
+  )
 import qualified Text.Megaparsec as P
 import qualified U.Codebase.Branch.Diff as V2Branch
 import qualified U.Codebase.Causal as V2Causal
@@ -2661,7 +2667,7 @@ doFetchCompiler =
     ns =
       ReadShareRemoteNamespace
         { server = RemoteRepo.DefaultCodeserver,
-          repo = ShareUserHandle "dolio",
+          repo = ShareUserHandle "unison",
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }
@@ -2743,37 +2749,51 @@ typecheckAndEval ppe tm = do
     a = External
     rendered = P.toPlainUnbroken $ TP.pretty ppe tm
 
-ensureSchemeExists :: Cli ()
-ensureSchemeExists =
+ensureSchemeExists :: SchemeBackend -> Cli ()
+ensureSchemeExists bk =
   liftIO callScheme >>= \case
     True -> pure ()
     False -> Cli.returnEarly (PrintMessage msg)
   where
-    msg =
-      P.lines
-        [ "I can't seem to call scheme. See",
-          "",
-          P.indentN
-            2
-            "https://github.com/cisco/ChezScheme/blob/main/BUILDING",
-          "",
-          "for how to install Chez Scheme."
-        ]
+    msg = case bk of
+      Racket ->
+        P.lines
+          [ "I can't seem to call racket. See",
+            "",
+            P.indentN
+              2
+              "https://download.racket-lang.org/",
+            "",
+            "for how to install Racket."
+          ]
+      Chez ->
+        P.lines
+          [ "I can't seem to call scheme. See",
+            "",
+            P.indentN
+              2
+              "https://github.com/cisco/ChezScheme/blob/main/BUILDING",
+            "",
+            "for how to install Chez Scheme."
+          ]
 
+    cmd = case bk of
+      Racket -> "racket -l- raco help"
+      Chez -> "scheme -q"
     callScheme =
-      catch
-        (True <$ readCreateProcess (shell "scheme -q") "")
-        (\(_ :: IOException) -> pure False)
+      readCreateProcessWithExitCode (shell cmd) "" >>= \case
+        (ExitSuccess, _, _) -> pure True
+        (ExitFailure _, _, _) -> pure False
 
-racketOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
-racketOpts gendir statdir file args = libs ++ [file] ++ args
+racketOpts :: FilePath -> FilePath -> [String] -> [String]
+racketOpts gendir statdir args = libs ++ args
   where
     includes = [gendir, statdir </> "common", statdir </> "racket"]
     libs = concatMap (\dir -> ["-S", dir]) includes
 
-chezOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
-chezOpts gendir statdir file args =
-  "-q" : opt ++ libs ++ ["--script", file] ++ args
+chezOpts :: FilePath -> FilePath -> [String] -> [String]
+chezOpts gendir statdir args =
+  "-q" : opt ++ libs ++ ["--script"] ++ args
   where
     includes = [gendir, statdir </> "common", statdir </> "chez"]
     libs = ["--libdirs", List.intercalate ":" includes]
@@ -2782,14 +2802,14 @@ chezOpts gendir statdir file args =
 data SchemeBackend = Racket | Chez
 
 runScheme :: SchemeBackend -> String -> [String] -> Cli ()
-runScheme bk file args0 = do
-  ensureSchemeExists
+runScheme bk file args = do
+  ensureSchemeExists bk
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
   let cmd = case bk of Racket -> "racket"; Chez -> "scheme"
       opts = case bk of
-        Racket -> racketOpts gendir statdir file args0
-        Chez -> chezOpts gendir statdir file args0
+        Racket -> racketOpts gendir statdir (file : args)
+        Chez -> chezOpts gendir statdir (file : args)
   success <-
     liftIO $
       (True <$ callProcess cmd opts)
@@ -2797,11 +2817,28 @@ runScheme bk file args0 = do
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
-buildChez :: String -> String -> Cli ()
-buildChez main file = do
-  ensureSchemeExists
+buildScheme :: SchemeBackend -> String -> String -> Cli ()
+buildScheme bk main file = do
+  ensureSchemeExists bk
   statDir <- getSchemeStaticLibDir
   genDir <- getSchemeGenLibDir
+  build genDir statDir main file
+  where
+    build
+      | Racket <- bk = buildRacket
+      | Chez <- bk = buildChez
+
+buildRacket :: String -> String -> String -> String -> Cli ()
+buildRacket genDir statDir main file =
+  let args = ["-l", "raco", "--", "exe", "-o", main, file]
+      opts = racketOpts genDir statDir args
+   in void . liftIO $
+        catch
+          (True <$ callProcess "racket" opts)
+          (\(_ :: IOException) -> pure False)
+
+buildChez :: String -> String -> String -> String -> Cli ()
+buildChez genDir statDir main file = do
   let cmd = shell "scheme -q --optimize-level 3"
   void . liftIO $ readCreateProcess cmd (build statDir genDir)
   where
@@ -2830,7 +2867,7 @@ doRunAsScheme main args = do
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
-  generateSchemeFile False out main >>= buildChez out
+  generateSchemeFile True out main >>= buildScheme Racket out
 
 generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do
