@@ -116,14 +116,14 @@ module U.Codebase.Sqlite.Queries
 
     -- ** remote projects
     loadRemoteProject,
-    insertRemoteProject,
+    ensureRemoteProject,
     setRemoteProjectName,
     loadRemoteProjectBranchByLocalProjectBranch,
     loadDefaultMergeTargetForLocalProjectBranch,
 
     -- ** remote project branches
     loadRemoteBranch,
-    insertRemoteProjectBranch,
+    ensureRemoteProjectBranch,
     setRemoteProjectBranchName,
     insertBranchRemoteMapping,
 
@@ -2772,12 +2772,23 @@ loadRemoteProject rpid host =
     |]
     (rpid, host)
 
-insertRemoteProject :: RemoteProjectId -> Text -> Text -> Transaction ()
-insertRemoteProject rpid host name =
+ensureRemoteProject :: RemoteProjectId -> Text -> Text -> Transaction ()
+ensureRemoteProject rpid host name =
   execute
     [sql|
-      INSERT INTO remote_project (id, host, name)
-        VALUES (?, ?, ?)
+      INSERT INTO remote_project (
+        id,
+        host,
+        name)
+      VALUES (
+        ?,
+        ?,
+        ?)
+      ON CONFLICT (
+        rpid,
+        host)
+        -- should this update the name instead?
+        DO NOTHING
         |]
     (rpid, host, name)
 
@@ -2812,8 +2823,8 @@ loadRemoteBranch rpid host rbid =
     |]
     (rpid, host, rbid)
 
-insertRemoteProjectBranch :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Text -> Transaction ()
-insertRemoteProjectBranch rpid host rbid name =
+ensureRemoteProjectBranch :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Text -> Transaction ()
+ensureRemoteProjectBranch rpid host rbid name =
   execute
     [sql|
       INSERT INTO remote_project_branch (
@@ -2826,8 +2837,14 @@ insertRemoteProjectBranch rpid host rbid name =
         ?,
         ?,
         ?)
+      ON CONFLICT (
+        project_id,
+        branch_id,
+        host)
+        -- should this update the name instead?
+        DO NOTHING
         |]
-    (rpid, host, rbid, name)
+    (rpid, host, rbid, name, name)
 
 setRemoteProjectBranchName :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Text -> Transaction ()
 setRemoteProjectBranchName rpid host rbid name =

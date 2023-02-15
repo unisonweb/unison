@@ -733,7 +733,7 @@ oinkCreateRemoteBranch ::
   Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
   Share.API.CreateProjectBranchRequest ->
   Cli ()
-oinkCreateRemoteBranch _maybeLocalProjectAndBranch request = do
+oinkCreateRemoteBranch maybeLocalProjectAndBranch request = do
   loggeth ["creating remote branch"]
   loggeth [tShow request]
   remoteBranch <-
@@ -747,10 +747,25 @@ oinkCreateRemoteBranch _maybeLocalProjectAndBranch request = do
       Share.API.CreateProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
   loggeth ["Share says: success!"]
   loggeth [tShow remoteBranch]
-  loggeth ["TODO insert remote_project_branch"]
-  loggeth ["TODO insert remote_project"]
-  loggeth ["TODO insert project_branch_remote_mapping"]
-  pure ()
+  let remoteProjectId = RemoteProjectId (remoteBranch ^. #projectId)
+  let remoteBranchId = RemoteProjectBranchId (remoteBranch ^. #branchId)
+  let remoteProjectName = remoteBranch ^. #projectName
+  let remoteBranchName = remoteBranch ^. #branchName
+  Cli.runTransaction do
+    Queries.ensureRemoteProject remoteProjectId shareUrl remoteProjectName
+    Queries.ensureRemoteProjectBranch remoteProjectId shareUrl remoteBranchId remoteBranchName
+    case maybeLocalProjectAndBranch of
+      Nothing -> pure ()
+      Just (ProjectAndBranch localProject localBranch) -> do
+        Queries.insertBranchRemoteMapping
+          (localProject ^. #projectId)
+          (localBranch ^. #branchId)
+          remoteProjectId
+          shareUrl
+          remoteBranchId
+
+shareUrl :: Text
+shareUrl = wundefined
 
 oinkGetLoggedInUser :: Cli Text
 oinkGetLoggedInUser = do
