@@ -18,7 +18,7 @@ data BranchCache m = BranchCache
 -- as long as they're reachable by something else in the app.
 --
 -- This means you don't need to worry about a Branch not being GC'd because it's in the cache.
-newBranchCache :: forall m. MonadIO m => m (BranchCache Sqlite.Transaction)
+newBranchCache :: forall m. (MonadIO m) => m (BranchCache Sqlite.Transaction)
 newBranchCache = do
   var <- newTVarIO mempty
   pure $

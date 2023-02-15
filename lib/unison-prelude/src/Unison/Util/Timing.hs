@@ -12,7 +12,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import qualified Unison.Debug as Debug
 import UnliftIO (MonadIO, liftIO)
 
-time :: MonadIO m => String -> m a -> m a
+time :: (MonadIO m) => String -> m a -> m a
 time label ma =
   if Debug.shouldDebug Debug.Timing
     then do
@@ -29,7 +29,7 @@ time label ma =
     else ma
 
 -- Mitchell says: this function doesn't look like it would work at all; let's just delete it
-unsafeTime :: Monad m => String -> m a -> m a
+unsafeTime :: (Monad m) => String -> m a -> m a
 unsafeTime label ma =
   if Debug.shouldDebug Debug.Timing
     then do

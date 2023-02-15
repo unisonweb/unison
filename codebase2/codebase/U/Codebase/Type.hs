@@ -38,17 +38,17 @@ type TypeD v = ABT.Term FD v ()
 
 type TypeR r v = ABT.Term (F' r) v ()
 
-rmap :: Ord v => (r -> r') -> ABT.Term (F' r) v a -> ABT.Term (F' r') v a
+rmap :: (Ord v) => (r -> r') -> ABT.Term (F' r) v a -> ABT.Term (F' r') v a
 rmap f = ABT.transform \case
   Ref r -> Ref (f r)
   x -> unsafeCoerce x
 
-typeD2T :: Ord v => Hash -> TypeD v -> TypeT v
+typeD2T :: (Ord v) => Hash -> TypeD v -> TypeT v
 typeD2T h = rmap $ bimap id $ Maybe.fromMaybe h
 
 dependencies :: (Ord v, Ord r) => ABT.Term (F' r) v a -> Set r
 dependencies = Writer.execWriter . ABT.visit' f
   where
-    f :: Ord r => F' r a -> Writer.Writer (Set r) (F' r a)
+    f :: (Ord r) => F' r a -> Writer.Writer (Set r) (F' r a)
     f t@(Ref r) = Writer.tell (Set.singleton r) $> t
     f t = pure t

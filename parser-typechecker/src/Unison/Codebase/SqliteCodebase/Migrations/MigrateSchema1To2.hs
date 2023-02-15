@@ -312,7 +312,8 @@ migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
           ++ allMissingChildCausals
 
   when (not . null $ allMissingReferences) $
-    throwE $ Sync.Missing allMissingReferences
+    throwE $
+      Sync.Missing allMissingReferences
 
   let remapPatchObjectId patchObjId = case Map.lookup (unPatchObjectId patchObjId) migratedObjects of
         Nothing -> error $ "Expected patch: " <> show patchObjId <> " to be migrated"
@@ -554,7 +555,9 @@ migrateTermComponent getDeclType termBuffer declBuffer oldHash = fmap (either id
          in filter (`Map.notMember` referencesMap) (missingTermRefs <> missingTypeRefs)
 
   when (not . null $ allMissingReferences) $
-    throwE $ Sync.Missing . nubOrd $ (someReferenceIdToEntity <$> allMissingReferences)
+    throwE $
+      Sync.Missing . nubOrd $
+        (someReferenceIdToEntity <$> allMissingReferences)
 
   let getMigratedReference :: Old SomeReferenceId -> New SomeReferenceId
       getMigratedReference ref =
@@ -648,7 +651,7 @@ migrateDeclComponent termBuffer declBuffer oldHash = fmap (either id id) . runEx
             . DD.constructors_ -- Get the data constructors
             . traversed -- traverse the list of them
             . _3 -- Select the Type term.
-          %~ remapTerm
+            %~ remapTerm
 
   let declNameToOldReference :: Map (DeclName v) (Old Reference.Id)
       declNameToOldReference = Map.fromList . fmap swap . Map.toList . fmap fst $ remappedReferences

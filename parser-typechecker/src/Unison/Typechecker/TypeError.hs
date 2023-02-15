@@ -189,7 +189,7 @@ unknownType = do
   n <- Ex.errorNote
   pure $ UnknownType v loc n
 
-unknownTerm :: Var v => Ex.ErrorExtractor v loc (TypeError v loc)
+unknownTerm :: (Var v) => Ex.ErrorExtractor v loc (TypeError v loc)
 unknownTerm = do
   (loc, v, suggs, typ) <- Ex.unknownTerm
   n <- Ex.errorNote
@@ -295,7 +295,7 @@ ifBody = existentialMismatch0 IfBody (Ex.inSynthesizeApp >> Ex.inIfBody)
 listBody = existentialMismatch0 ListBody (Ex.inSynthesizeApp >> Ex.inVector)
 matchBody = existentialMismatch0 CaseBody (Ex.inMatchBody >> Ex.inMatch)
 
-applyingNonFunction :: Var v => Ex.ErrorExtractor v loc (TypeError v loc)
+applyingNonFunction :: (Var v) => Ex.ErrorExtractor v loc (TypeError v loc)
 applyingNonFunction = do
   _ <- Ex.typeMismatch
   n <- Ex.errorNote

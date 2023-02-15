@@ -51,7 +51,7 @@ typecheck ambient names sourceName source =
         (fst source)
 
 typecheckHelper ::
-  MonadIO m =>
+  (MonadIO m) =>
   Codebase IO Symbol Ann ->
   IO Parser.UniqueName ->
   [Type Symbol Ann] ->

@@ -19,14 +19,14 @@ lockfileConfig =
   where
     sleepTimeMicros = 100_000 -- 100ms
 
-getCredentialJSONFilePath :: MonadIO m => m FilePath
+getCredentialJSONFilePath :: (MonadIO m) => m FilePath
 getCredentialJSONFilePath = do
   unisonDataDir <- getXdgDirectory XdgData "unisonlanguage"
   pure (unisonDataDir </> "credentials.json")
 
 -- | Atomically update the credential storage file.
 -- Creates an empty file automatically if one doesn't exist.
-atomicallyModifyCredentialsFile :: MonadIO m => (Credentials -> Credentials) -> m Credentials
+atomicallyModifyCredentialsFile :: (MonadIO m) => (Credentials -> Credentials) -> m Credentials
 atomicallyModifyCredentialsFile f = liftIO $ do
   credentialJSONPath <- getCredentialJSONFilePath
   doesFileExist credentialJSONPath >>= \case

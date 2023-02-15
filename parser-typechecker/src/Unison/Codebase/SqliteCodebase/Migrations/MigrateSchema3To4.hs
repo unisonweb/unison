@@ -218,12 +218,13 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
   -- get a list of any unmigrated children, and also track whether any re-mappings actually
   -- occurred, so we don't do extra work when nothing changed.
   let ((unmigratedChildren, Any changes), remappedBranch) =
-        dbBranch & DBBranch.childrenHashes_ %%~ \(ids@(childBranchObjId, childCausalHashId)) -> do
-          case Map.lookup childCausalHashId canonicalBranchForCausalMap of
-            Nothing -> (([childCausalHashId], Any False), ids)
-            Just (_, canonicalObjId) ->
-              let changed = canonicalObjId /= childBranchObjId
-               in (([], Any changed), (canonicalObjId, childCausalHashId))
+        dbBranch
+          & DBBranch.childrenHashes_ %%~ \(ids@(childBranchObjId, childCausalHashId)) -> do
+            case Map.lookup childCausalHashId canonicalBranchForCausalMap of
+              Nothing -> (([childCausalHashId], Any False), ids)
+              Just (_, canonicalObjId) ->
+                let changed = canonicalObjId /= childBranchObjId
+                 in (([], Any changed), (canonicalObjId, childCausalHashId))
   when (not . null $ unmigratedChildren) $ throwError (Sync.Missing unmigratedChildren)
   when changes $ do
     liftT $ replaceBranch objId remappedBranch

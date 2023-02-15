@@ -52,7 +52,8 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 
 type FuzzyFindAPI =
-  "find" :> QueryParam "rootBranch" SCH.ShortCausalHash
+  "find"
+    :> QueryParam "rootBranch" SCH.ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "limit" Int
     :> QueryParam "renderWidth" Width
@@ -128,7 +129,7 @@ instance ToSample FoundResult where
 
 serveFuzzyFind ::
   forall m.
-  MonadIO m =>
+  (MonadIO m) =>
   Codebase m Symbol Ann ->
   Maybe SCH.ShortCausalHash ->
   Maybe Path.Path ->

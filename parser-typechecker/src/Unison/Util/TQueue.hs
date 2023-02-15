@@ -8,7 +8,7 @@ import UnliftIO.STM hiding (TQueue)
 
 data TQueue a = TQueue (TVar (Seq a)) (TVar Word64)
 
-newIO :: MonadIO m => m (TQueue a)
+newIO :: (MonadIO m) => m (TQueue a)
 newIO = TQueue <$> newTVarIO mempty <*> newTVarIO 0
 
 size :: TQueue a -> STM Int
@@ -68,7 +68,7 @@ enqueue (TQueue v count) a = do
   modifyTVar' v (|> a)
   modifyTVar' count (+ 1)
 
-raceIO :: MonadIO m => STM a -> STM b -> m (Either a b)
+raceIO :: (MonadIO m) => STM a -> STM b -> m (Either a b)
 raceIO a b = liftIO do
   aa <- Async.async $ atomically a
   ab <- Async.async $ atomically b

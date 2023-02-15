@@ -146,7 +146,7 @@ addQueryParam key val uri =
       newParam = (key, Just val)
    in uri {uriQuery = BSC.unpack $ renderQuery True (existingQuery <> [newParam])}
 
-generateParams :: MonadIO m => m (PKCEVerifier, PKCEChallenge, OAuthState)
+generateParams :: (MonadIO m) => m (PKCEVerifier, PKCEChallenge, OAuthState)
 generateParams = liftIO $ do
   verifier <- BE.convertToBase @ByteString BE.Base64URLUnpadded <$> getRandomBytes 50
   let digest = Crypto.hashWith Crypto.SHA256 verifier
@@ -156,7 +156,7 @@ generateParams = liftIO $ do
 
 -- | Exchange an authorization code for tokens.
 exchangeCode ::
-  MonadIO m =>
+  (MonadIO m) =>
   HTTP.Manager ->
   URI ->
   Code ->

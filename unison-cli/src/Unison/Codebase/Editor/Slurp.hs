@@ -22,8 +22,8 @@ import Unison.Prelude
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent
-import qualified Unison.Syntax.Name as Name (toText, unsafeFromVar)
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Name as Name (toText, unsafeFromVar)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Map as Map
@@ -156,12 +156,12 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars = \case
     constructorsUnderConsideration =
       Map.toList (UF.dataDeclarationsId' uf)
         <> (fmap . fmap . fmap) DD.toDataDecl (Map.toList (UF.effectDeclarationsId' uf))
-          & filter (\(typeV, _) -> Set.member (TypeVar typeV) involvedVars)
-          & concatMap (\(_typeV, (_refId, decl)) -> DD.constructors' decl)
-          & fmap
-            ( \(_ann, v, _typ) -> Name.unsafeFromVar v
-            )
-          & Set.fromList
+        & filter (\(typeV, _) -> Set.member (TypeVar typeV) involvedVars)
+        & concatMap (\(_typeV, (_refId, decl)) -> DD.constructors' decl)
+        & fmap
+          ( \(_ann, v, _typ) -> Name.unsafeFromVar v
+          )
+        & Set.fromList
 
     deprecatedConstructors :: Set Name
     deprecatedConstructors =
@@ -215,7 +215,7 @@ computeSelfStatuses vars varReferences codebaseNames =
                 [r] | LD.referent r == ld -> Duplicated
                 _ -> Updated
 
-computeDepStatuses :: Ord k => Map k (Set k) -> Map k DefnStatus -> Map k DepStatus
+computeDepStatuses :: (Ord k) => Map k (Set k) -> Map k DefnStatus -> Map k DepStatus
 computeDepStatuses varDeps selfStatuses =
   selfStatuses & Map.mapWithKey \name status -> do
     varDeps
@@ -456,11 +456,11 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatu
         (Rel.mapRan Referent.Ref $ Names.types fileNames)
         (SC.types duplicates)
 
-    varFromName :: Var v => Name -> v
+    varFromName :: (Var v) => Name -> v
     varFromName name = Var.named (Name.toText name)
 
 -- | Sort out a set of variables by whether it is a term or type.
-partitionVars :: Foldable f => f TaggedVar -> SlurpComponent
+partitionVars :: (Foldable f) => f TaggedVar -> SlurpComponent
 partitionVars =
   foldMap
     ( \case

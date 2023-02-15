@@ -23,13 +23,13 @@ import qualified Unison.Util.Relation as Relation
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 
-toNames :: Var v => UnisonFile v a -> Names
+toNames :: (Var v) => UnisonFile v a -> Names
 toNames uf = datas <> effects
   where
     datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeFromVar) (Map.toList (UF.dataDeclarationsId uf))
     effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeFromVar) (Map.toList (UF.effectDeclarationsId uf))
 
-typecheckedToNames :: Var v => TypecheckedUnisonFile v a -> Names
+typecheckedToNames :: (Var v) => TypecheckedUnisonFile v a -> Names
 typecheckedToNames uf = Names (terms <> ctors) types
   where
     terms =
@@ -53,7 +53,7 @@ typecheckedToNames uf = Names (terms <> ctors) types
         . UF.hashConstructors
         $ uf
 
-typecheckedUnisonFile0 :: Ord v => TypecheckedUnisonFile v a
+typecheckedUnisonFile0 :: (Ord v) => TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFileId Map.empty Map.empty mempty mempty mempty
 
 -- Substitutes free type and term variables occurring in the terms of this
@@ -65,7 +65,7 @@ typecheckedUnisonFile0 = TypecheckedUnisonFileId Map.empty Map.empty mempty memp
 -- we are done parsing, whereas `math.sqrt#abc` can be resolved immediately
 -- as it can't refer to a local definition.
 bindNames ::
-  Var v =>
+  (Var v) =>
   Names ->
   UnisonFile v a ->
   Names.ResolutionResult v a (UnisonFile v a)
@@ -88,7 +88,7 @@ bindNames names (UnisonFileId d e ts ws) = do
 -- left.
 environmentFor ::
   forall v a.
-  Var v =>
+  (Var v) =>
   Names ->
   Map v (DataDeclaration v a) ->
   Map v (EffectDeclaration v a) ->
