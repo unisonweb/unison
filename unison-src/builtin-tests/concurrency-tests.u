@@ -7,6 +7,7 @@ concurrency.tests = do
   !promiseConcurrentTest
   !forkKillTest
   !tryEvalForkTest
+  !tryEvalKillTest
   !fullTest
 
 simpleRefTest = do
@@ -85,6 +86,13 @@ forkKillTest = do
   checkEqual "Thread was killed" v "initial"
 
 tryEvalForkTest = do
+  t = fork do
+    match catchAll do sleep_ (500 * millis) with
+      Left _ -> unsafeRun! do IO.console.printLine "interrupted"
+      Right _ -> unsafeRun! do IO.console.printLine "finished"
+  sleep_ (600 * millis)
+
+tryEvalKillTest = do
   t = fork do
     match catchAll do sleep_ (500 * millis) with
       Left _ -> unsafeRun! do IO.console.printLine "interrupted"
