@@ -211,8 +211,7 @@ instance ToJSON CreateProjectBranchRequest where
 
 -- | @POST /create-project-branch@ response.
 data CreateProjectBranchResponse
-  = -- | Request payload invalid.
-    CreateProjectBranchResponseUnauthorized Unauthorized
+  = CreateProjectBranchResponseUnauthorized Unauthorized
   | CreateProjectBranchResponseNotFound NotFound
   | CreateProjectBranchResponseMissingCausalHash !Hash32
   | CreateProjectBranchResponseSuccess !ProjectBranch
