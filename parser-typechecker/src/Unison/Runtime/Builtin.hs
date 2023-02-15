@@ -36,6 +36,7 @@ import Control.Monad.Catch (MonadCatch)
 import qualified Control.Monad.Primitive as PA
 import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
+import Data.Digest.Murmur64 (hash64, asWord64)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
 import Data.Bits (shiftL, shiftR, (.|.))
@@ -100,6 +101,7 @@ import System.Environment as SYS
   ( getArgs,
     getEnv,
   )
+import System.Exit as SYS (ExitCode(..))
 import System.FilePath (isPathSeparator)
 import System.IO (Handle)
 import System.IO as SYS
@@ -122,6 +124,14 @@ import System.IO as SYS
     stdout,
   )
 import System.IO.Temp (createTempDirectory)
+import System.Process as SYS
+  ( getProcessExitCode,
+    proc,
+    runInteractiveProcess,
+    terminateProcess,
+    waitForProcess,
+    withCreateProcess
+  )
 import qualified System.X509 as X
 import Unison.ABT.Normalized hiding (TTm)
 import qualified Unison.Builtin as Ty (builtinTypes)
@@ -1013,6 +1023,19 @@ infixr 0 -->
 (-->) :: a -> b -> (a, b)
 x --> y = (x, y)
 
+start'process :: ForeignOp
+start'process instr =
+  ([BX, BX],)
+    . TAbss [exe, args]
+    . TLets Direct [hin,hout,herr,hproc] [BX,BX,BX,BX] (TFOp instr [exe, args])
+    . TLetD un BX (TCon Ty.unitRef 0 [])
+    . TLetD p3 BX (TCon Ty.pairRef 0 [hproc, un])
+    . TLetD p2 BX (TCon Ty.pairRef 0 [herr, p3])
+    . TLetD p1 BX (TCon Ty.pairRef 0 [hout, p2])
+    $ TCon Ty.pairRef 0 [hin, p1]
+  where
+    (exe,args,hin,hout,herr,hproc,un,p3,p2,p1) = fresh
+
 set'buffering :: ForeignOp
 set'buffering instr =
   ([BX, BX],)
@@ -1085,6 +1108,17 @@ crypto'hash instr =
     $ TFOp instr [alg, vl]
   where
     (alg, x, vl) = fresh
+
+murmur'hash :: ForeignOp
+murmur'hash instr =
+  ([BX],)
+    . TAbss [x]
+    . TLetD vl BX (TPrm VALU [x])
+    . TLetD result UN (TFOp instr [vl])
+    $ TCon Ty.natRef 0 [result]
+  where
+    (x, vl, result) = fresh
+
 
 crypto'hmac :: ForeignOp
 crypto'hmac instr =
@@ -1222,6 +1256,16 @@ outMaybe maybe result =
     mapFromList
       [ (0, ([], none)),
         (1, ([BX], TAbs maybe $ some maybe))
+      ]
+
+outMaybeNat :: Var v => v -> v -> v -> ANormal v
+outMaybeNat tag result n =
+  TMatch tag . MatchSum $
+    mapFromList
+      [ (0, ([], none)),
+        (1, ([UN],
+          TAbs result .
+            TLetD n BX (TCon Ty.natRef 0 [n]) $ some n))
       ]
 
 outMaybeNTup :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
@@ -1483,6 +1527,16 @@ boxBoxTo0 instr =
   where
     (arg1, arg2) = fresh
 
+-- a -> b ->{E} Nat
+boxBoxToNat :: ForeignOp
+boxBoxToNat instr =
+  ([BX, BX],)
+    . TAbss [arg1, arg2]
+    . TLetD result UN (TFOp instr [arg1, arg2])
+    $ TCon Ty.natRef 0 [result]
+  where
+    (arg1, arg2, result) = fresh
+
 -- a -> b -> Option c
 
 -- a -> Bool
@@ -1603,6 +1657,12 @@ boxToMaybeBox =
   inBx arg result $ outMaybe maybe result
   where
     (arg, maybe, result) = fresh
+
+-- a -> Maybe Nat
+boxToMaybeNat :: ForeignOp
+boxToMaybeNat = inBx arg tag $ outMaybeNat tag result n
+  where
+    (arg, tag, result, n) = fresh
 
 -- a -> Maybe (Nat, b)
 boxToMaybeNTup :: ForeignOp
@@ -2260,6 +2320,27 @@ declareForeigns = do
       2 -> pure (Just SYS.stderr)
       _ -> pure Nothing
 
+  let exitDecode ExitSuccess = 0
+      exitDecode (ExitFailure n) = n
+
+  declareForeign Tracked "IO.process.call" boxBoxToNat . mkForeign $
+    \(exe, map Util.Text.unpack -> args) ->
+      withCreateProcess (proc exe args) $ \_ _ _ p ->
+        exitDecode <$> waitForProcess p
+
+  declareForeign Tracked "IO.process.start" start'process . mkForeign $
+    \(exe, map Util.Text.unpack -> args) ->
+      runInteractiveProcess exe args Nothing Nothing
+
+  declareForeign Tracked "IO.process.kill" boxTo0 . mkForeign $
+    terminateProcess
+
+  declareForeign Tracked "IO.process.wait" boxToNat . mkForeign $
+    \ph -> exitDecode <$> waitForProcess ph
+
+  declareForeign Tracked "IO.process.exitCode" boxToMaybeNat . mkForeign $
+    fmap (fmap exitDecode) . getProcessExitCode
+
   declareForeign Tracked "MVar.new" boxDirect
     . mkForeign
     $ \(c :: Closure) -> newMVar c
@@ -2446,7 +2527,7 @@ declareForeigns = do
   declareForeign Tracked "Tls.handshake.impl.v3" boxToEF0 . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.handshake tls
 
-  declareForeign Tracked "Tls.send.impl.v3" boxBoxToEFBox . mkForeignTls $
+  declareForeign Tracked "Tls.send.impl.v3" boxBoxToEF0 . mkForeignTls $
     \( tls :: TLS.Context,
        bytes :: Bytes.Bytes
        ) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
@@ -2476,7 +2557,7 @@ declareForeigns = do
       bs <- TLS.recvData tls
       pure $ Bytes.fromArray bs
 
-  declareForeign Tracked "Tls.terminate.impl.v3" boxToEFBox . mkForeignTls $
+  declareForeign Tracked "Tls.terminate.impl.v3" boxToEF0 . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.bye tls
 
   declareForeign Untracked "Code.dependencies" boxDirect
@@ -2557,6 +2638,9 @@ declareForeigns = do
         pure $ case e of
           Left se -> Left (Util.Text.pack (show se))
           Right a -> Right a
+
+  declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
+    pure . asWord64 . hash64 . serializeValueLazy
 
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
   declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress

@@ -96,7 +96,8 @@ y = "hello"
 
 Notice that `master` now has the definition of `y` we wrote.
 
-We can also delete the fork if we're done with it. (Don't worry, it's still in the `history` and can be resurrected at any time.)
+We can also delete the fork if we're done with it. (Don't worry, even though the history at that path is now empty, 
+it's still in the `history` of the parent namespace and can be resurrected at any time.)
 
 ```ucm
 .> delete.namespace .feature1
@@ -105,29 +106,20 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
 
 .> history .feature1
 
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  ⊙ 1. #hsbtlt2og6
-  
-    - Deletes:
-    
-      y
-  
-  □ 2. #q95r47tc4l (start of history)
+  ☝️  The namespace .feature1 is empty.
 
 .> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #khhiq1sc3o
+  ⊙ 1. #492bge1qkb
   
     - Deletes:
     
       feature1.y
   
-  ⊙ 2. #0t16m7j03m
+  ⊙ 2. #qdsgea37fc
   
     + Adds / updates:
     
@@ -138,26 +130,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ 3. #l4cc5snm7c
+  ⊙ 3. #ppkkh269f7
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ 4. #0ujfvnropc
+  ⊙ 4. #u8aiheqfug
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ 5. #jd5q4ga1jk
+  ⊙ 5. #es9cmc7kok
   
     + Adds / updates:
     
       x
   
-  □ 6. #67ki96tn2j (start of history)
+  □ 6. #jo7t8m4dft (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
