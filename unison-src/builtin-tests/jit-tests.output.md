@@ -8,4 +8,34 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm
 .> run.native tests
 
+  💔💥
+  
+  The program halted with an unhandled exception:
+  
+    Failure
+      (typeLink ANFDecodeError) "unrecognized POp tag" (Any 118)
+  
+  
+  Stack trace:
+    ##raise
+
 ```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  💔💥
+  
+  The program halted with an unhandled exception:
+  
+    Failure
+      (typeLink ANFDecodeError) "unrecognized POp tag" (Any 118)
+  
+  
+  Stack trace:
+    ##raise
+
