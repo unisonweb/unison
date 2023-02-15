@@ -51,7 +51,7 @@ data ArgumentType = ArgumentType
     -- | Generate completion suggestions for this argument type
     suggestions ::
       forall m v a.
-      MonadIO m =>
+      (MonadIO m) =>
       String ->
       Codebase m v a ->
       AuthenticatedHttpClient ->
@@ -86,7 +86,8 @@ argType ip i = go (i, argTypes ip)
     -- The argument list spec is invalid if something follows a vararg
     go args =
       error $
-        "Input pattern " <> show (patternName ip)
+        "Input pattern "
+          <> show (patternName ip)
           <> " has an invalid argument list: "
           <> show args
 

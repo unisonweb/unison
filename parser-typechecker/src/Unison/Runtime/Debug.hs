@@ -33,7 +33,7 @@ traceCombs _ False c = c
 traceCombs w True c = trace (prettyCombs w c "") c
 
 tracePretty ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   Bool ->
   Term v ->
@@ -42,7 +42,7 @@ tracePretty _ False tm = tm
 tracePretty ppe True tm = trace (toANSI 50 $ pretty ppe tm) tm
 
 tracePrettyGroup ::
-  Var v =>
+  (Var v) =>
   Word64 ->
   Bool ->
   SuperGroup v ->

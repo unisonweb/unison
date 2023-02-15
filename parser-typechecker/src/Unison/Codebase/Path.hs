@@ -531,7 +531,7 @@ instance Convert (path, NameSegment) (path, HQ'.HQSegment) where
   convert (path, name) =
     (path, HQ'.fromName name)
 
-instance Convert path0 path1 => Convert (path0, name) (path1, name) where
+instance (Convert path0 path1) => Convert (path0, name) (path1, name) where
   convert =
     over _1 convert
 

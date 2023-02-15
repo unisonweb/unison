@@ -67,7 +67,8 @@ data BranchDiffOutput v a = BranchDiffOutput
 
 isEmpty :: BranchDiffOutput v a -> Bool
 isEmpty BranchDiffOutput {..} =
-  null updatedTypes && null updatedTerms
+  null updatedTypes
+    && null updatedTerms
     && null newTypeConflicts
     && null newTermConflicts
     && null resolvedTypeConflicts
@@ -172,7 +173,7 @@ type PatchDisplay = (Name, P.PatchDiff)
 
 toOutput ::
   forall m v a.
-  Monad m =>
+  (Monad m) =>
   (Referent -> m (Maybe (Type v a))) ->
   (Reference -> m (Maybe (DeclOrBuiltin v a))) ->
   Int ->
@@ -194,7 +195,7 @@ toOutput
         --       any of the old references associated with the name
         -- removes: not-attached metadata that had been attached to any of
         --       the old references associated with the name
-        getNewMetadataDiff :: Ord r => Bool -> DiffSlice r -> Name -> Set r -> r -> MetadataDiff Metadata.Value
+        getNewMetadataDiff :: (Ord r) => Bool -> DiffSlice r -> Name -> Set r -> r -> MetadataDiff Metadata.Value
         getNewMetadataDiff hidePropagatedMd s n rs_old r_new =
           let old_metadatas :: [Set Metadata.Value] =
                 toList . R.toMultimap . R.restrictDom rs_old . R3.lookupD2 n $
@@ -215,7 +216,7 @@ toOutput
         -- must not have been removed and the name must not have been removed or added
         -- or updated 😅
         -- "getMetadataUpdates" = a defn has been updated via change of metadata
-        getMetadataUpdates :: Ord r => DiffSlice r -> Map Name (Set r, Set r)
+        getMetadataUpdates :: (Ord r) => DiffSlice r -> Map Name (Set r, Set r)
         getMetadataUpdates s =
           Map.fromList
             [ (n, (Set.singleton r, Set.singleton r)) -- the reference is unchanged
@@ -237,7 +238,7 @@ toOutput
                 v /= isPropagatedValue
             ]
 
-    let isSimpleUpdate, isNewConflict, isResolvedConflict :: Eq r => (Set r, Set r) -> Bool
+    let isSimpleUpdate, isNewConflict, isResolvedConflict :: (Eq r) => (Set r, Set r) -> Bool
         isSimpleUpdate (old, new) = Set.size old == 1 && Set.size new == 1
         isNewConflict (_old, new) = Set.size new > 1 -- should already be the case that old /= new
         isResolvedConflict (old, new) = Set.size old > 1 && Set.size new == 1
@@ -384,7 +385,8 @@ toOutput
       for typeAdds $ \(r, nsmd) -> do
         hqmds :: [(HashQualified Name, [MetadataDisplay v a])] <-
           for nsmd $ \(n, mdRefs) ->
-            (,) <$> pure (Names.hqTypeName hqLen names2 n r)
+            (,)
+              <$> pure (Names.hqTypeName hqLen names2 n r)
               <*> fillMetadata ppe mdRefs
         (hqmds,r,) <$> declOrBuiltin r
 
@@ -401,7 +403,8 @@ toOutput
               ]
       for termAdds $ \(r, nsmd) -> do
         hqmds <- for nsmd $ \(n, mdRefs) ->
-          (,) <$> pure (Names.hqTermName hqLen names2 n r)
+          (,)
+            <$> pure (Names.hqTermName hqLen names2 n r)
             <*> fillMetadata ppe mdRefs
         (hqmds,r,) <$> typeOf r
 
@@ -413,18 +416,22 @@ toOutput
     removedTypes :: [RemovedTypeDisplay v a] <-
       let typeRemoves :: [(Reference, [Name])] =
             sortOn snd $
-              Map.toList . fmap toList . R.toMultimap . BranchDiff.tallremoves $ typesDiff
+              Map.toList . fmap toList . R.toMultimap . BranchDiff.tallremoves $
+                typesDiff
        in for typeRemoves $ \(r, ns) ->
-            (,,) <$> pure ((\n -> Names.hqTypeName hqLen names1 n r) <$> ns)
+            (,,)
+              <$> pure ((\n -> Names.hqTypeName hqLen names1 n r) <$> ns)
               <*> pure r
               <*> declOrBuiltin r
 
     removedTerms :: [RemovedTermDisplay v a] <-
       let termRemoves :: [(Referent, [Name])] =
             sortOn snd $
-              Map.toList . fmap toList . R.toMultimap . BranchDiff.tallremoves $ termsDiff
+              Map.toList . fmap toList . R.toMultimap . BranchDiff.tallremoves $
+                termsDiff
        in for termRemoves $ \(r, ns) ->
-            (,,) <$> pure ((\n -> Names.hqTermName hqLen names1 n r) <$> ns)
+            (,,)
+              <$> pure ((\n -> Names.hqTermName hqLen names1 n r) <$> ns)
               <*> pure r
               <*> typeOf r
 
@@ -436,7 +443,8 @@ toOutput
     let renamedTerm :: Map Referent (Set Name, Set Name) -> m [RenameTermDisplay v a]
         renamedTerm renames =
           for (sortOn snd $ Map.toList renames) $ \(r, (ol'names, new'names)) ->
-            (,,,) <$> pure r
+            (,,,)
+              <$> pure r
               <*> typeOf r
               <*> pure (Set.map (\n -> Names.hqTermName hqLen names1 n r) ol'names)
               <*> pure (Set.map (\n -> Names.hqTermName hqLen names2 n r) new'names)
@@ -444,7 +452,8 @@ toOutput
     let renamedType :: Map Reference (Set Name, Set Name) -> m [RenameTypeDisplay v a]
         renamedType renames =
           for (sortOn snd $ Map.toList renames) $ \(r, (ol'names, new'names)) ->
-            (,,,) <$> pure r
+            (,,,)
+              <$> pure r
               <*> declOrBuiltin r
               <*> pure (Set.map (\n -> Names.hqTypeName hqLen names1 n r) ol'names)
               <*> pure (Set.map (\n -> Names.hqTypeName hqLen names2 n r) new'names)
@@ -472,13 +481,13 @@ toOutput
           renamedTerms
         }
     where
-      fillMetadata :: Traversable t => PPE.PrettyPrintEnv -> t Metadata.Value -> m (t (MetadataDisplay v a))
+      fillMetadata :: (Traversable t) => PPE.PrettyPrintEnv -> t Metadata.Value -> m (t (MetadataDisplay v a))
       fillMetadata ppe = traverse $ -- metadata values are all terms
         \(Referent.Ref -> mdRef) ->
           let name = PPE.termName ppe mdRef
            in (name,mdRef,) <$> typeOf mdRef
-      getMetadata :: Ord r => r -> Name -> R3.Relation3 r Name Metadata.Value -> Set Metadata.Value
+      getMetadata :: (Ord r) => r -> Name -> R3.Relation3 r Name Metadata.Value -> Set Metadata.Value
       getMetadata r n = R.lookupDom n . R3.lookupD1 r
 
-      getAddedMetadata :: Ord r => r -> Name -> BranchDiff.DiffSlice r -> Set Metadata.Value
+      getAddedMetadata :: (Ord r) => r -> Name -> BranchDiff.DiffSlice r -> Set Metadata.Value
       getAddedMetadata r n slice = getMetadata r n $ BranchDiff.taddedMetadata slice

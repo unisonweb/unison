@@ -20,7 +20,7 @@ import Web.JWT
 import qualified Web.JWT as JWT
 
 -- | Checks whether a JWT access token is expired.
-isExpired :: MonadIO m => AccessToken -> m Bool
+isExpired :: (MonadIO m) => AccessToken -> m Bool
 isExpired accessToken = liftIO do
   jwt <- JWT.decode accessToken `whenNothing` (throwIO $ InvalidJWT "Failed to decode JWT")
   now <- getPOSIXTime
@@ -48,7 +48,7 @@ newTokenProvider manager host = UnliftIO.try @_ @CredentialFailure $ do
 -- | Don't yet support automatically refreshing tokens.
 --
 -- Specification: https://datatracker.ietf.org/doc/html/rfc6749#section-6
-performTokenRefresh :: MonadIO m => URI -> Tokens -> m (Either CredentialFailure Tokens)
+performTokenRefresh :: (MonadIO m) => URI -> Tokens -> m (Either CredentialFailure Tokens)
 performTokenRefresh discoveryURI (Tokens {refreshToken = currentRefreshToken}) = runExceptT $
   case currentRefreshToken of
     Nothing ->

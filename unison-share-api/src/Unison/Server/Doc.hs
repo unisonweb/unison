@@ -95,7 +95,7 @@ data DocG specialForm
   deriving stock (Eq, Show, Generic, Functor, Foldable, Traversable)
   deriving anyclass (ToJSON)
 
-deriving instance ToSchema specialForm => ToSchema (DocG specialForm)
+deriving instance (ToSchema specialForm) => ToSchema (DocG specialForm)
 
 type UnisonHash = Text
 
@@ -103,7 +103,7 @@ data Ref a = Term a | Type a
   deriving stock (Eq, Show, Generic, Functor, Foldable, Traversable)
   deriving anyclass (ToJSON)
 
-instance ToSchema a => ToSchema (Ref a)
+instance (ToSchema a) => ToSchema (Ref a)
 
 data MediaSource = MediaSource {mediaSourceUrl :: Text, mediaSourceMimeType :: Maybe Text}
   deriving stock (Eq, Show, Generic)
@@ -172,7 +172,7 @@ evalAndRenderDoc pped terms typeOf eval types tm =
 -- | Renders the given doc, which must have been evaluated using 'evalDoc'
 renderDoc ::
   forall v.
-  Var v =>
+  (Var v) =>
   PPE.PrettyPrintEnvDecl ->
   EvaluatedDoc v ->
   Doc
@@ -241,7 +241,8 @@ renderDoc pped doc = renderSpecial <$> doc
           MissingDecl r -> [(Type (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r)))]
           BuiltinDecl r ->
             let name =
-                  formatPretty . NP.styleHashQualified (NP.fmt (S.TypeReference r))
+                  formatPretty
+                    . NP.styleHashQualified (NP.fmt (S.TypeReference r))
                     . PPE.typeName suffixifiedPPE
                     $ r
              in [Type (Reference.toText r, DO.BuiltinObject name)]
@@ -447,7 +448,7 @@ data RenderError trm
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON)
 
-deriving anyclass instance ToSchema trm => ToSchema (RenderError trm)
+deriving anyclass instance (ToSchema trm) => ToSchema (RenderError trm)
 
 data EvaluatedSrc v
   = EvaluatedSrcDecl (EvaluatedDecl v)
@@ -468,11 +469,11 @@ data EvaluatedTerm v
   deriving stock (Show, Eq, Generic)
 
 -- Determines all dependencies which will be required to render a doc.
-dependencies :: Ord v => EvaluatedDoc v -> Set LD.LabeledDependency
+dependencies :: (Ord v) => EvaluatedDoc v -> Set LD.LabeledDependency
 dependencies = foldMap dependenciesSpecial
 
 -- | Determines all dependencies of a special form
-dependenciesSpecial :: forall v. Ord v => EvaluatedSpecialForm v -> Set LD.LabeledDependency
+dependenciesSpecial :: forall v. (Ord v) => EvaluatedSpecialForm v -> Set LD.LabeledDependency
 dependenciesSpecial = \case
   ESource srcs -> srcDeps srcs
   EFoldedSource srcs -> srcDeps srcs

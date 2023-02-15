@@ -40,7 +40,7 @@ filterUseless :: [FilePath] -> [FilePath]
 filterUseless = (\\ [".", ".."])
 
 -- | Returns a list of nodes in a tree via a depth-first walk.
-mtreeList :: Monad m => (a -> m [a]) -> a -> m [a]
+mtreeList :: (Monad m) => (a -> m [a]) -> a -> m [a]
 mtreeList children root = do
   xs <- children root
   subChildren <- mapM (mtreeList children) xs

@@ -56,6 +56,23 @@
 
     unison-FOp-Scope.bytearray
     unison-FOp-Scope.array
+    unison-FOp-Scope.ref
+
+    unison-FOp-IO.ref
+    unison-FOp-Ref.read
+    unison-FOp-Ref.write
+    unison-FOp-Ref.readForCas
+    unison-FOp-Ref.Ticket.read
+    unison-FOp-Ref.cas
+
+    unison-FOp-Promise.new
+    unison-FOp-Promise.read
+    unison-FOp-Promise.tryRead
+    unison-FOp-Promise.write
+
+    unison-FOp-IO.delay.impl.v3
+    unison-POp-FORK
+    unison-FOp-IO.kill.impl.v3
 
     unison-POp-ADDN
     unison-POp-ANDN
@@ -103,6 +120,7 @@
     unison-POp-VWLS
 
     unison-POp-UPKB
+    unison-POp-PAKB
     unison-POp-ADDI
     unison-POp-DIVI
     unison-POp-EQLI
@@ -111,8 +129,16 @@
     unison-POp-POWN
     unison-POp-VWRS
 
-    unison-FOp-crypto.HashAlgorithm.Sha1
     unison-FOp-crypto.hashBytes
+    unison-FOp-crypto.hmacBytes
+    unison-FOp-crypto.HashAlgorithm.Sha1
+    unison-FOp-crypto.HashAlgorithm.Sha2_256
+    unison-FOp-crypto.HashAlgorithm.Sha2_512
+    unison-FOp-crypto.HashAlgorithm.Sha3_256
+    unison-FOp-crypto.HashAlgorithm.Sha3_512
+    unison-FOp-crypto.HashAlgorithm.Blake2s_256
+    unison-FOp-crypto.HashAlgorithm.Blake2b_256
+    unison-FOp-crypto.HashAlgorithm.Blake2b_512
     )
 
   (import (rnrs)
@@ -120,7 +146,8 @@
           (unison string)
           (unison crypto)
           (unison bytevector)
-          (unison vector))
+          (unison vector)
+          (unison concurrent))
 
   (define unison-POp-UPKB bytevector->u8-list)
   (define unison-POp-ADDI +)
@@ -299,5 +326,18 @@
   (define (unison-FOp-Scope.bytearray n) (make-bytevector n))
   (define (unison-FOp-Scope.array n) (make-vector n))
 
-  )
+  (define (unison-POp-FORK thunk) (fork thunk))
+  (define (unison-FOp-IO.delay.impl.v3 micros) (sleep micros))
+  (define (unison-FOp-IO.kill.impl.v3 threadId) (kill threadId))
+  (define (unison-FOp-Scope.ref a) (ref-new a))
+  (define (unison-FOp-IO.ref a) (ref-new a))
+  (define (unison-FOp-Ref.read ref) (ref-read ref))
+  (define (unison-FOp-Ref.write ref a) (ref-write ref a))
+  (define (unison-FOp-Ref.readForCas ref) (ref-read ref))
+  (define (unison-FOp-Ref.Ticket.read ticket) ticket)
+  (define (unison-FOp-Ref.cas ref ticket value) (ref-cas ref ticket value))
+  (define (unison-FOp-Promise.new) (promise-new))
+  (define (unison-FOp-Promise.read promise) (promise-read promise))
+  (define (unison-FOp-Promise.tryRead promise) (promise-try-read promise))
+  (define (unison-FOp-Promise.write promise a) (promise-write promise a)))
 

@@ -89,43 +89,43 @@ altMap f = altSum . fmap f . toList
 -- @@
 -- onNothing (throwIO MissingPerson) $ mayThing
 -- @@
-onNothing :: Applicative m => m a -> Maybe a -> m a
+onNothing :: (Applicative m) => m a -> Maybe a -> m a
 onNothing m may = maybe m pure may
 
-onNothingM :: Monad m => m a -> m (Maybe a) -> m a
+onNothingM :: (Monad m) => m a -> m (Maybe a) -> m a
 onNothingM =
   flip whenNothingM
 
 -- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
-whenNothing :: Applicative m => Maybe a -> m a -> m a
+whenNothing :: (Applicative m) => Maybe a -> m a -> m a
 whenNothing may m = maybe m pure may
 
-whenNothingM :: Monad m => m (Maybe a) -> m a -> m a
+whenNothingM :: (Monad m) => m (Maybe a) -> m a -> m a
 whenNothingM mx my =
   mx >>= maybe my pure
 
-whenJust :: Applicative m => Maybe a -> (a -> m ()) -> m ()
+whenJust :: (Applicative m) => Maybe a -> (a -> m ()) -> m ()
 whenJust mx f =
   maybe (pure ()) f mx
 
-whenJustM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
+whenJustM :: (Monad m) => m (Maybe a) -> (a -> m ()) -> m ()
 whenJustM mx f = do
   mx >>= maybe (pure ()) f
 
-onLeft :: Applicative m => (a -> m b) -> Either a b -> m b
+onLeft :: (Applicative m) => (a -> m b) -> Either a b -> m b
 onLeft =
   flip whenLeft
 
-onLeftM :: Monad m => (a -> m b) -> m (Either a b) -> m b
+onLeftM :: (Monad m) => (a -> m b) -> m (Either a b) -> m b
 onLeftM =
   flip whenLeftM
 
-whenLeft :: Applicative m => Either a b -> (a -> m b) -> m b
+whenLeft :: (Applicative m) => Either a b -> (a -> m b) -> m b
 whenLeft = \case
   Left a -> \f -> f a
   Right b -> \_ -> pure b
 
-whenLeftM :: Monad m => m (Either a b) -> (a -> m b) -> m b
+whenLeftM :: (Monad m) => m (Either a b) -> (a -> m b) -> m b
 whenLeftM m f =
   m >>= \case
     Left x -> f x
@@ -146,7 +146,7 @@ throwEitherM = throwEitherMWith id
 throwEitherMWith :: forall e e' m a. (MonadIO m, Exception e') => (e -> e') -> m (Either e a) -> m a
 throwEitherMWith f action = throwExceptT . withExceptT f $ (ExceptT action)
 
-tShow :: Show a => a -> Text
+tShow :: (Show a) => a -> Text
 tShow = Text.pack . show
 
 -- | Strictly read an entire file decoding UTF8.
@@ -206,5 +206,5 @@ reportBug bugId msg =
     ]
 
 {-# WARNING wundefined "You left this wundefined." #-}
-wundefined :: HasCallStack => a
+wundefined :: (HasCallStack) => a
 wundefined = undefined

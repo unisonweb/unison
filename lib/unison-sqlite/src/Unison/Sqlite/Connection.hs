@@ -101,7 +101,7 @@ import UnliftIO.Exception
 -- does not automatically enforce foreign key integrity, because it elected to maintain backwards compatibility with
 -- code that was written before the foreign key integrity feature was implemented.
 withConnection ::
-  MonadUnliftIO m =>
+  (MonadUnliftIO m) =>
   -- | Connection name, for debugging.
   String ->
   -- | Path to SQLite database file.
@@ -168,7 +168,7 @@ logQuery sql params result =
 
 -- Without results, with parameters
 
-execute :: Sqlite.ToRow a => Connection -> Sql -> a -> IO ()
+execute :: (Sqlite.ToRow a) => Connection -> Sql -> a -> IO ()
 execute conn@(Connection _ _ conn0) s params = do
   logQuery s (Just params) Nothing
   Sqlite.execute conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
@@ -180,7 +180,7 @@ execute conn@(Connection _ _ conn0) s params = do
           sql = s
         }
 
-executeMany :: Sqlite.ToRow a => Connection -> Sql -> [a] -> IO ()
+executeMany :: (Sqlite.ToRow a) => Connection -> Sql -> [a] -> IO ()
 executeMany conn@(Connection _ _ conn0) s = \case
   [] -> pure ()
   params -> do
@@ -397,7 +397,7 @@ queryOneColCheck conn s params check =
 
 -- With results, without parameters, without checks
 
-queryListRow_ :: Sqlite.FromRow a => Connection -> Sql -> IO [a]
+queryListRow_ :: (Sqlite.FromRow a) => Connection -> Sql -> IO [a]
 queryListRow_ conn@(Connection _ _ conn0) s = do
   result <-
     Sqlite.query_ conn0 (coerce s)
@@ -412,28 +412,28 @@ queryListRow_ conn@(Connection _ _ conn0) s = do
   logQuery s Nothing (Just result)
   pure result
 
-queryListCol_ :: forall a. Sqlite.FromField a => Connection -> Sql -> IO [a]
+queryListCol_ :: forall a. (Sqlite.FromField a) => Connection -> Sql -> IO [a]
 queryListCol_ conn s =
   coerce @(IO [Sqlite.Only a]) @(IO [a]) (queryListRow_ conn s)
 
-queryMaybeRow_ :: Sqlite.FromRow a => Connection -> Sql -> IO (Maybe a)
+queryMaybeRow_ :: (Sqlite.FromRow a) => Connection -> Sql -> IO (Maybe a)
 queryMaybeRow_ conn s =
   queryListRowCheck_ conn s \case
     [] -> Right Nothing
     [x] -> Right (Just x)
     xs -> Left (SomeSqliteExceptionReason (ExpectedAtMostOneRowException (anythingToString xs)))
 
-queryMaybeCol_ :: forall a. Sqlite.FromField a => Connection -> Sql -> IO (Maybe a)
+queryMaybeCol_ :: forall a. (Sqlite.FromField a) => Connection -> Sql -> IO (Maybe a)
 queryMaybeCol_ conn s =
   coerce @(IO (Maybe (Sqlite.Only a))) @(IO (Maybe a)) (queryMaybeRow_ conn s)
 
-queryOneRow_ :: Sqlite.FromRow a => Connection -> Sql -> IO a
+queryOneRow_ :: (Sqlite.FromRow a) => Connection -> Sql -> IO a
 queryOneRow_ conn s =
   queryListRowCheck_ conn s \case
     [x] -> Right x
     xs -> Left (SomeSqliteExceptionReason (ExpectedExactlyOneRowException (anythingToString xs)))
 
-queryOneCol_ :: forall a. Sqlite.FromField a => Connection -> Sql -> IO a
+queryOneCol_ :: forall a. (Sqlite.FromField a) => Connection -> Sql -> IO a
 queryOneCol_ conn s =
   coerce @(IO (Sqlite.Only a)) @(IO a) (queryOneRow_ conn s)
 
@@ -443,7 +443,7 @@ queryListRowCheck_ :: (Sqlite.FromRow a, SqliteExceptionReason e) => Connection 
 queryListRowCheck_ conn s check =
   gqueryListCheck_ conn s (mapLeft SomeSqliteExceptionReason . check)
 
-gqueryListCheck_ :: Sqlite.FromRow a => Connection -> Sql -> ([a] -> Either SomeSqliteExceptionReason r) -> IO r
+gqueryListCheck_ :: (Sqlite.FromRow a) => Connection -> Sql -> ([a] -> Either SomeSqliteExceptionReason r) -> IO r
 gqueryListCheck_ conn s check = do
   xs <- queryListRow_ conn s
   case check xs of
@@ -550,7 +550,7 @@ rollback conn =
   execute_ conn "ROLLBACK"
 
 -- | Perform an action within a named savepoint. The action is provided a rollback action.
-withSavepoint :: MonadUnliftIO m => Connection -> Text -> (m () -> m a) -> m a
+withSavepoint :: (MonadUnliftIO m) => Connection -> Text -> (m () -> m a) -> m a
 withSavepoint conn name action =
   withRunInIO \runInIO ->
     withSavepointIO conn name \rollback ->

@@ -115,7 +115,7 @@ import UnliftIO.STM
 -- .unisonConfig things
 
 -- | Lookup a config value by key.
-getConfig :: Configurator.Configured a => Text -> Cli (Maybe a)
+getConfig :: (Configurator.Configured a) => Text -> Cli (Maybe a)
 getConfig key = do
   Cli.Env {config} <- ask
   liftIO (Configurator.lookup config key)
@@ -323,7 +323,7 @@ stepAtM ::
 stepAtM cause = stepManyAtM @[] cause . pure
 
 stepManyAt ::
-  Foldable f =>
+  (Foldable f) =>
   Text ->
   f (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
@@ -332,7 +332,7 @@ stepManyAt reason actions = do
   syncRoot reason
 
 stepManyAt' ::
-  Foldable f =>
+  (Foldable f) =>
   Text ->
   f (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
@@ -342,7 +342,7 @@ stepManyAt' reason actions = do
   pure res
 
 stepManyAtNoSync' ::
-  Foldable f =>
+  (Foldable f) =>
   f (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepManyAtNoSync' actions = do
@@ -354,7 +354,7 @@ stepManyAtNoSync' actions = do
 
 -- Like stepManyAt, but doesn't update the last saved root
 stepManyAtNoSync ::
-  Foldable f =>
+  (Foldable f) =>
   f (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
 stepManyAtNoSync actions = do
@@ -362,7 +362,7 @@ stepManyAtNoSync actions = do
   void . modifyRootBranch $ Branch.stepManyAt relativeActions
 
 stepManyAtM ::
-  Foldable f =>
+  (Foldable f) =>
   Text ->
   f (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
@@ -371,7 +371,7 @@ stepManyAtM reason actions = do
   syncRoot reason
 
 stepManyAtMNoSync ::
-  Foldable f =>
+  (Foldable f) =>
   f (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
 stepManyAtMNoSync actions = do
