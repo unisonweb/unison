@@ -267,7 +267,6 @@
     (list 1 (cdr (command-line))))
 
   (define (unison-FOp-Text.fromUtf8.impl.v3 s)
-  (display "Ok\n")
     (right (bytevector->string s utf-8-transcoder)))
 
   (define (unison-FOp-Text.toUtf8 s)

@@ -6,8 +6,7 @@
          racket/tcp
          racket/port
          unison/data
-         openssl
-         )
+         openssl)
 
 (provide
     (prefix-out unison-FOp-IO.   (combine-out
@@ -20,7 +19,7 @@
         send.impl.v3
         terminate.impl.v3)))
 
-; tests in here
+; TODO check out the tests in here
 ; unison-src/transcripts-using-base/net.md
 
 (define (clientSocket.impl.v3 host port)
@@ -44,22 +43,26 @@
         (right (cons (cons in out) config)))))
 
 (define (handshake.impl.v3 tls)
-    (let ([ports (car tls)]
-          [config (cdr tls)])
-        (ssl-set-verify! (car ports) #t)
-        (right none)))
+    (ssl-set-verify! (car (car tls)) #t)
+    (right none))
 
 (define (send.impl.v3 tls data)
     (let* ([ports (car tls)]
            [output (cdr ports)]
            [config (cdr tls)])
         (write-bytes data output)
-    (right none)))
+        (right none)))
 
 (define (receive.impl.v3 tls)
     (right (port->bytes (car (car tls)) #:close? #f)))
 
 (define (terminate.impl.v3 tls)
+    ; NOTE: This actually does more than the unison impl,
+    ; which only sends the `close_notify` message, and doesn't
+    ; mark the port as no longer usable in the runtime.
+    ; Not sure if this is an important difference.
+    ; Racket's openssl lib doesn't expose a way to *just* call
+    ; SSL_Shutdown on a port without also closing it.
     (let ([ports (car tls)])
         (ssl-abandon-port (car ports))
         (ssl-abandon-port (cdr ports))
