@@ -328,7 +328,7 @@
   (define (unison-FOp-Scope.array n) (make-vector n))
 
   (define (unison-POp-FORK thunk) (fork thunk))
-  (define (unison-POp-TFRC thunk) (display "stub"))
+  (define (unison-POp-TFRC thunk) (try-eval thunk))
   (define (unison-FOp-IO.delay.impl.v3 micros) (sleep micros))
   (define (unison-FOp-IO.kill.impl.v3 threadId) (kill threadId))
   (define (unison-FOp-Scope.ref a) (ref-new a))

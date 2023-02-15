@@ -12,7 +12,8 @@
     promise-try-read
     fork
     kill
-    sleep)
+    sleep
+    try-eval)
 
   (import (rnrs)
           (rnrs records syntactic)
@@ -86,4 +87,9 @@
 
   (define (kill threadId)
     (break-thread threadId)
-    (right unit)))
+    (right unit))
+
+  (define (try-eval thunk)
+    (with-handlers ([exn:break? (lambda (x) ())])
+      (display "semi-stub")
+      (thunk))))
