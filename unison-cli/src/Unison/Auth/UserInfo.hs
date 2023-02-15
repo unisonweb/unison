@@ -11,7 +11,7 @@ import Unison.Auth.Types
 import Unison.Prelude
 
 -- | Get user info for an authenticated user.
-getUserInfo :: MonadIO m => DiscoveryDoc -> AccessToken -> m (Either CredentialFailure UserInfo)
+getUserInfo :: (MonadIO m) => DiscoveryDoc -> AccessToken -> m (Either CredentialFailure UserInfo)
 getUserInfo (DiscoveryDoc {userInfoEndpoint}) accessToken = liftIO $ do
   unauthenticatedHttpClient <- HTTP.getGlobalManager
   req <- HTTP.requestFromURI userInfoEndpoint <&> HTTP.applyBearerAuth (Text.encodeUtf8 accessToken)
