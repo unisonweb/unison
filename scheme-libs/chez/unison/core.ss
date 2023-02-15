@@ -1,14 +1,36 @@
+; This library implements various functions and macros that are used
+; internally to the unison scheme libraries. This provides e.g. a
+; measure of abstraction for the particular scheme platform. A useful
+; feature of one implementation might need to be implemented on top of
+; other features of another, and would go in this library.
+;
+; This library won't be directly imported by the generated unison
+; code, so if some function is needed for those, it should be
+; re-exported by (unison boot).
 (library (unison core)
   (export
     define-virtual-register
     define-init-registers
 
-    identity
-
     describe-value
     decode-value
 
-    universal-compare)
+    universal-compare
+
+    fx1-
+    list-head
+
+    exception->string
+    record-case
+    fluid-let
+
+    freeze-string!
+    string-copy!
+
+    freeze-bytevector!
+    freeze-vector!
+
+    bytevector)
 
   (import (chezscheme))
 
@@ -56,8 +78,6 @@
                          (rec (cdr l) (+ 1 n))))]))])
          #'(define (name) set ... #t))]))
 
-  (define (identity x) x)
-  
   ; Recovers the original function name from the partial
   ; application name.
   (define (extract-name i)
@@ -98,4 +118,21 @@
       [(equal? l r) 1]
       [(and (number? l) (number? r)) (if (< l r) 0 2)]
       [else (raise "universal-compare: unimplemented")]))
+
+  (define (exception->string e)
+    (let-values ([(port result) (open-string-output-port)])
+                 (display-condition e port)
+                 (result)))
+
+  (define (freeze-string! s)
+    (($primitive $string-set-immutable!) s)
+    s)
+
+  (define (freeze-bytevector! bs)
+    (($primitive $bytevector-set-immutable!) bs)
+    bs)
+
+  (define (freeze-vector! v)
+    (($primitive $vector-set-immutable!) v)
+    v)
   )
