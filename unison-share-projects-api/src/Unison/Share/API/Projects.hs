@@ -32,6 +32,8 @@ module Unison.Share.API.Projects
     Project (..),
     ProjectBranch (..),
     ProjectBranchIds (..),
+    NotFound (..),
+    Unauthorized (..),
   )
 where
 
@@ -67,6 +69,7 @@ type GetProjectAPI =
 -- | @GET /project@ response.
 data GetProjectResponse
   = GetProjectResponseNotFound NotFound
+  | GetProjectResponseUnauthorized Unauthorized
   | GetProjectResponseSuccess !Project
   deriving stock (Eq, Show)
 
@@ -75,12 +78,14 @@ instance FromJSON GetProjectResponse where
     withSumType "GetProjectResponse" \typ val ->
       case typ of
         "not-found" -> GetProjectResponseNotFound <$> parseJSON val
+        "unauthorized" -> GetProjectResponseUnauthorized <$> parseJSON val
         "success" -> GetProjectResponseSuccess <$> parseJSON val
         _ -> fail (Text.unpack ("unknown GetProjectResponse type: " <> typ))
 
 instance ToJSON GetProjectResponse where
   toJSON = \case
     GetProjectResponseNotFound notFound -> toSumType "not-found" (toJSON notFound)
+    GetProjectResponseUnauthorized unauthorized -> toSumType "unauthorized" (toJSON unauthorized)
     GetProjectResponseSuccess project -> toSumType "success" (toJSON project)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -113,6 +118,7 @@ instance ToJSON CreateProjectRequest where
 -- | @POST /create-project@ response.
 data CreateProjectResponse
   = CreateProjectResponseUnauthorized Unauthorized
+  | CreateProjectResponseNotFound !NotFound
   | CreateProjectResponseSuccess !Project
   deriving stock (Eq, Show)
 
@@ -120,12 +126,14 @@ instance FromJSON CreateProjectResponse where
   parseJSON =
     withSumType "CreateProjectResponse" \typ val ->
       case typ of
+        "not-found" -> CreateProjectResponseNotFound <$> parseJSON val
         "unauthorized" -> CreateProjectResponseUnauthorized <$> parseJSON val
         "success" -> CreateProjectResponseSuccess <$> parseJSON val
         _ -> fail (Text.unpack ("unknown CreateProjectResponse type: " <> typ))
 
 instance ToJSON CreateProjectResponse where
   toJSON = \case
+    CreateProjectResponseNotFound notFound -> toSumType "not-found" (toJSON notFound)
     CreateProjectResponseUnauthorized unauthorized -> toSumType "unauthorized" (toJSON unauthorized)
     CreateProjectResponseSuccess project -> toSumType "success" (toJSON project)
 
@@ -145,6 +153,7 @@ type GetProjectBranchAPI =
 -- | @GET /project-branch@ response.
 data GetProjectBranchResponse
   = GetProjectBranchResponseNotFound NotFound
+  | GetProjectBranchResponseUnauthorized Unauthorized
   | GetProjectBranchResponseSuccess !ProjectBranch
   deriving stock (Eq, Show)
 
@@ -153,12 +162,14 @@ instance FromJSON GetProjectBranchResponse where
     withSumType "GetProjectBranchResponse" \typ val ->
       case typ of
         "not-found" -> GetProjectBranchResponseNotFound <$> parseJSON val
+        "unauthorized" -> GetProjectBranchResponseUnauthorized <$> parseJSON val
         "success" -> GetProjectBranchResponseSuccess <$> parseJSON val
         _ -> fail (Text.unpack ("unknown GetProjectBranchResponse type: " <> typ))
 
 instance ToJSON GetProjectBranchResponse where
   toJSON = \case
     GetProjectBranchResponseNotFound notFound -> toSumType "not-found" (toJSON notFound)
+    GetProjectBranchResponseUnauthorized unauthorized -> toSumType "unauthorized" (toJSON unauthorized)
     GetProjectBranchResponseSuccess branch -> toSumType "success" (toJSON branch)
 
 ------------------------------------------------------------------------------------------------------------------------
