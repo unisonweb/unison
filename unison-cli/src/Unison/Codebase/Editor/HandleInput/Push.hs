@@ -567,7 +567,7 @@ oompaLoompaFastForward ::
   Hash32 ->
   Share.API.ProjectBranch ->
   Cli (Cli ())
-oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch = do
+oompaLoompaFastForward _maybeLocalProjectAndBranch localBranchHead remoteBranch = do
   Cli.runTransaction wouldBeFastForward >>= \case
     False -> do
       loggeth ["local head behind remote"]
@@ -619,26 +619,51 @@ deriveRemoteBranchName myUserHandle branchName =
     Nothing -> (myUserHandle, prependUserSlugToProjectBranchName myUserHandle branchName)
     Just userSlug -> (userSlug, branchName)
 
+expectProjectName :: Text -> Cli ProjectName
+expectProjectName projectName =
+  case tryInto projectName of
+    -- This shouldn't happen often - Share gave us a project name that we don't consider valid?
+    Left err -> do
+      loggeth ["Invalid project name: ", tShow err]
+      Cli.returnEarlyWithoutOutput
+    Right x -> pure x
+
+expectUserSlug :: ProjectName -> Cli Share.RepoName
+expectUserSlug projectName =
+  case projectNameUserSlug projectName of
+    Nothing -> do
+      loggeth
+        [ "Expected project name: ",
+          tShow projectName,
+          " to contain a user slug.",
+          "\n",
+          tShow projectName
+        ]
+      Cli.returnEarlyWithoutOutput
+    Just userSlug -> pure (Share.RepoName userSlug)
+
+expectBranchName :: Text -> Cli ProjectBranchName
+expectBranchName branchName = case tryInto branchName of
+  Left err -> do
+    loggeth
+      [ "Expected text: ",
+        tShow branchName,
+        " to be a valid project branch name.",
+        "\n",
+        tShow err
+      ]
+    Cli.returnEarlyWithoutOutput
+  Right x -> pure x
+
 remoteProjectRepoName :: Share.API.Project -> Cli Share.RepoName
 remoteProjectRepoName project =
-  case tryInto @ProjectName (project ^. #projectName) of
-    -- This shouldn't happen often - Share gave us a project name that we don't consider valid?
-    Left _ -> wundefined
-    Right projectName ->
-      case projectNameUserSlug projectName of
-        Nothing -> wundefined
-        Just userSlug -> pure (Share.RepoName userSlug)
+  expectUserSlug <=< expectProjectName $ (project ^. #projectName)
 
 remoteProjectBranchRepoName :: Share.API.ProjectBranch -> Cli Share.RepoName
-remoteProjectBranchRepoName branch =
-  case tryInto @ProjectName (branch ^. #projectName) of
-    -- This shouldn't happen often - Share gave us a branch name that we don't consider valid?
-    Left _ -> wundefined
-    Right projectName ->
-      case tryInto @ProjectBranchName (branch ^. #branchName) of
-        -- This shouldn't happen often - Share gave us a project name that we don't consider valid?
-        Left _ -> wundefined
-        Right branchName -> projectBranchRepoName (ProjectAndBranch projectName branchName)
+remoteProjectBranchRepoName branch = do
+  pn <- expectProjectName (branch ^. #projectName)
+  bn <- expectBranchName (branch ^. #branchName)
+  projectBranchRepoName (ProjectAndBranch pn bn)
 
 -- A couple example repo names derived from the project/branch names:
 --
@@ -654,9 +679,12 @@ projectBranchRepoName (ProjectAndBranch projectName branchName) =
   case projectBranchNameUserSlug branchName of
     Nothing ->
       case projectNameUserSlug projectName of
-        -- eep, neither project nor branch name have a user slug, so it doesn't seem like we know what to use for the
-        -- repo name. just bail.
-        Nothing -> wundefined
+        Nothing -> do
+          loggeth
+            [ "Cannot determine repo name: neither project nor branch name have a user slug.\n",
+              tShow (ProjectAndBranch projectName branchName)
+            ]
+          Cli.returnEarlyWithoutOutput
         Just userSlug -> pure (Share.RepoName userSlug)
     Just userSlug -> pure (Share.RepoName userSlug)
 
@@ -705,7 +733,7 @@ oinkCreateRemoteBranch ::
   Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
   Share.API.CreateProjectBranchRequest ->
   Cli ()
-oinkCreateRemoteBranch maybeLocalProjectAndBranch request = do
+oinkCreateRemoteBranch _maybeLocalProjectAndBranch request = do
   loggeth ["creating remote branch"]
   loggeth [tShow request]
   remoteBranch <-

@@ -1404,6 +1404,7 @@ magicMainWatcherString = "main"
 inputDescription :: Input -> Cli Text
 inputDescription input =
   case input of
+    ProjectPushI {} -> wundefined
     SaveExecuteResultI _str -> pure "save-execute-result"
     ForkLocalBranchI src0 dest0 -> do
       src <- hp' src0

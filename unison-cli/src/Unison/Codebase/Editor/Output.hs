@@ -39,7 +39,6 @@ import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import qualified Unison.Codebase.ShortCausalHash as SCH
-import Unison.Project (ProjectName)
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.InputPattern as Input
 import Unison.DataDeclaration (Decl)
@@ -55,6 +54,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
+import Unison.Project (ProjectName)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -333,6 +333,7 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  ProjectNameAlreadyExists {} -> True
   NoLastRunResult {} -> True
   SaveTermNameConflict {} -> True
   RunResult {} -> False
