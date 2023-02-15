@@ -86,19 +86,26 @@ forkKillTest = do
   checkEqual "Thread was killed" v "initial"
 
 tryEvalForkTest = do
+  ref = IO.ref "initial"
   t = fork do
-    match catchAll do sleep_ (500 * millis) with
-      Left _ -> unsafeRun! do IO.console.printLine "interrupted"
-      Right _ -> unsafeRun! do IO.console.printLine "finished"
-  sleep_ (600 * millis)
+    match catchAll do sleep_ (400 * millis) with
+      Left _ -> unsafeRun! do Ref.write ref "interrupted"
+      Right _ -> unsafeRun! do Ref.write ref "finished"
+  sleep_ (500 * millis)
+  v = Ref.read ref
+  checkEqual "tryEval is a no-op on success" v "finished"
 
 tryEvalKillTest = do
+  ref = IO.ref "initial"              
   t = fork do
-    match catchAll do sleep_ (500 * millis) with
-      Left _ -> unsafeRun! do IO.console.printLine "interrupted"
-      Right _ -> unsafeRun! do IO.console.printLine "finished"
-  sleep_ (300 * millis)
+    match catchAll do sleep_ (400 * millis) with
+      Left _ -> unsafeRun! do Ref.write ref "interrupted"
+      Right _ -> unsafeRun! do Ref.write ref "finished"
+  sleep_ (200 * millis)
   kill_ t
+  sleep_ (300 * millis)
+  v = Ref.read ref
+  checkEqual "Thread was killed" v "interrupted"
 
 atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 atomicUpdate ref f =
