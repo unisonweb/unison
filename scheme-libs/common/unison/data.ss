@@ -17,7 +17,9 @@
    unit
    false
    true
-   failure)
+   any
+   failure
+   exception)
 
   (import (rnrs))
 
@@ -66,6 +68,10 @@
   ; a -> Any
   (define (any a) `(0 ,a))
 
-  ; Type -> Text -> a -> Failure
-  (define (failure typeLink msg a)
-    `(0 ,typeLink ,msg ,(any a))))
+  ; Type -> Text -> Any -> Failure
+  (define (failure typeLink msg any)
+    `(0 ,typeLink ,msg ,any))
+
+  ; Type -> Text -> a ->{Exception} b
+  (define (exception typeLink msg a)
+    (failure typeLink msg (any a))))
