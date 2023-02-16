@@ -91,5 +91,4 @@
 
   (define (try-eval thunk)
     (with-handlers ([exn:break? (lambda (x) ())])
-      (display "semi-stub")
-      (thunk))))
+      (right (thunk)))))
