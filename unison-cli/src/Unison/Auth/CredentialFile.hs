@@ -3,12 +3,11 @@
 module Unison.Auth.CredentialFile (atomicallyModifyCredentialsFile) where
 
 import qualified Data.Aeson as Aeson
-import qualified Data.Text as Text
 import System.FilePath (takeDirectory, (</>))
 import System.IO.LockFile
 import Unison.Auth.Types
+import qualified Unison.Debug as Debug
 import Unison.Prelude
-import qualified UnliftIO
 import UnliftIO.Directory
 
 lockfileConfig :: LockingParameters
@@ -39,7 +38,12 @@ atomicallyModifyCredentialsFile f = liftIO $ do
   withLockFile lockfileConfig (withLockExt credentialJSONPath) $ do
     credentials <-
       Aeson.eitherDecodeFileStrict credentialJSONPath >>= \case
-        Left err -> UnliftIO.throwIO $ CredentialParseFailure credentialJSONPath (Text.pack err)
+        -- If something goes wrong, just wipe the credentials file so we're in a clean slate.
+        -- In the worst case the user will simply need to log in again.
+        Left err -> do
+          Debug.debugM Debug.Auth "Error decoding credentials file" err
+          Aeson.encodeFile credentialJSONPath emptyCredentials
+          pure emptyCredentials
         Right creds -> pure creds
     let newCredentials = f credentials
     when (newCredentials /= credentials) $ do

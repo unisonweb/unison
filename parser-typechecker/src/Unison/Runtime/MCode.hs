@@ -1436,6 +1436,9 @@ sectionTypes _ = []
 
 instrTypes :: Instr -> [Word64]
 instrTypes (Pack _ w _) = [w `shiftR` 16]
+instrTypes (Reset ws) = setToList ws
+instrTypes (Capture w) = [w]
+instrTypes (SetDyn w _) = [w]
 instrTypes _ = []
 
 branchDeps :: Branch -> [Word64]

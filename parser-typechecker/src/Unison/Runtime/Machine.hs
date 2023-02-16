@@ -1772,9 +1772,14 @@ resolve env _ _ (Env n i) =
     Just r -> pure $ PAp (CIx r n i) unull bnull
     Nothing -> die $ "resolve: missing reference for comb: " ++ show n
 resolve _ _ bstk (Stk i) = peekOff bstk i
-resolve _ denv _ (Dyn i) = case EC.lookup i denv of
+resolve env denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
-  _ -> die $ "resolve: unhandled ability request: " ++ show i
+  Nothing -> readTVarIO (tagRefs env) >>= err
+    where
+      unhandled rs = case EC.lookup i rs of
+        Just r -> show r
+        Nothing -> show i
+      err rs = die $ "resolve: unhandled ability request: " ++ unhandled rs
 
 combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
 combSection env (CIx _ n i) =
