@@ -726,7 +726,9 @@ oinkCreateRemoteProject projectName = do
     Share.API.CreateProjectResponseSuccess remoteProject -> do
       loggeth ["Share says: success!"]
       loggeth [tShow remoteProject]
-      loggeth ["TODO insert remote_project"]
+      let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
+      Cli.runTransaction do
+        Queries.ensureRemoteProject remoteProjectId shareUrl (remoteProject ^. #projectName)
       pure remoteProject
 
 oinkCreateRemoteBranch ::
