@@ -90,5 +90,6 @@
     (right unit))
 
   (define (try-eval thunk)
-    (with-handlers ([exn:break? (lambda (x) ())])
+    (with-handlers
+      ([exn:break? (lambda (x) (left (failure "reference" "thread killed" ())))])
       (right (thunk)))))
