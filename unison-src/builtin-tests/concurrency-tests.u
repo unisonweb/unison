@@ -89,7 +89,7 @@ tryEvalForkTest = do
   ref = IO.ref "initial"
   t = fork do
     match catchAll do sleep_ (400 * millis) with
-      Left _ -> unsafeRun! do Ref.write ref "interrupted"
+      Left _ -> ()
       Right _ -> unsafeRun! do Ref.write ref "finished"
   sleep_ (500 * millis)
   v = Ref.read ref
@@ -99,13 +99,13 @@ tryEvalKillTest = do
   ref = IO.ref "initial"              
   t = fork do
     match catchAll do sleep_ (400 * millis) with
-      Left _ -> unsafeRun! do Ref.write ref "interrupted"
+      Left (Failure typ msg a) -> unsafeRun! do Ref.write ref msg
       Right _ -> unsafeRun! do Ref.write ref "finished"
   sleep_ (200 * millis)
   kill_ t
   sleep_ (300 * millis)
   v = Ref.read ref
-  checkEqual "Thread was killed, with finalisers" v "interrupted"
+  checkEqual "Thread was killed, with finalisers" v "thread killed"
 
 atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 atomicUpdate ref f =
