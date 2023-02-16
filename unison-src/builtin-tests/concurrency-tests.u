@@ -105,7 +105,7 @@ tryEvalKillTest = do
   kill_ t
   sleep_ (300 * millis)
   v = Ref.read ref
-  checkEqual "Thread was killed" v "interrupted"
+  checkEqual "Thread was killed, with finalisers" v "interrupted"
 
 atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 atomicUpdate ref f =
