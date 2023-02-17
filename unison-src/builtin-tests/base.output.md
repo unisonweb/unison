@@ -11,6 +11,6 @@
   ✅
   
   Successfully updated .unison.internal from
-  unison.public.internal.primops.
+  unison.public.internal.trunk.
 
 ```
