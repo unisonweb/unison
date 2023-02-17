@@ -89,6 +89,7 @@
     (break-thread threadId)
     (right unit))
 
+  ;; TODO Add proper type links to the various exception types once we have them
   (define (try-eval thunk)
     (with-handlers
       ([exn:break? (lambda (x) (exception "ThreadKilled" "thread killed" x))])
