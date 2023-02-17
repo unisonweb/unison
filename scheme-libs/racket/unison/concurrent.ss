@@ -91,5 +91,5 @@
 
   (define (try-eval thunk)
     (with-handlers
-      ([exn:break? (lambda (x) (exception "referenceId" "thread killed" ()))])
+      ([exn:break? (lambda (x) (exception "ThreadKilled" "thread killed" x))])
       (right (thunk)))))
