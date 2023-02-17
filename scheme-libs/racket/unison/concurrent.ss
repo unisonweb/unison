@@ -33,14 +33,18 @@
                  parameterize-break
                  sleep
                  printf
+                 with-handlers
                  exn:break?
-                 with-handlers)
+                 exn:fail:read?
+                 exn:fail:filesystem?
+                 exn:fail:network?
+                 exn:fail?)
            (box ref-new)
            (unbox ref-read)
            (set-box! ref-write)
            (sleep sleep-secs))
-          (only (racket unsafe ops) unsafe-struct*-cas!)
-          (unison data))
+          (only (racket exn) exn->string)
+          (only (racket unsafe ops) unsafe-struct*-cas!))
 
   (define-record-type promise (fields semaphore event (mutable value)))
 
@@ -89,8 +93,15 @@
     (break-thread threadId)
     (right unit))
 
+  (define (exn:io? e)
+    (or (exn:fail:read? e)
+        (exn:fail:filesystem? e)
+        (exn:fail:network? e)))
+
   ;; TODO Add proper type links to the various exception types once we have them
   (define (try-eval thunk)
     (with-handlers
-      ([exn:break? (lambda (x) (exception "ThreadKilled" "thread killed" x))])
+      ([exn:break? (lambda (e) (exception "ThreadKilled" "thread killed" ()))]
+       [exn:io? (lambda (e) (exception "IOException" (exn->string e) ()))]
+       [exn:fail? (lambda (e) (exception "MiscFailure" (exn->string e) ()))])
       (right (thunk)))))
