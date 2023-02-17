@@ -35,10 +35,12 @@
                  printf
                  with-handlers
                  exn:break?
+                 exn:fail?
                  exn:fail:read?
                  exn:fail:filesystem?
                  exn:fail:network?
-                 exn:fail?)
+                 exn:fail:contract:divide-by-zero?
+                 exn:fail:contract:non-fixnum-result?)
            (box ref-new)
            (unbox ref-read)
            (set-box! ref-write)
@@ -98,11 +100,16 @@
         (exn:fail:filesystem? e)
         (exn:fail:network? e)))
 
-  ;; TODO Add proper type links to the various exception types once we have them
+  (define (exn:arith? e)
+    (or (exn:fail:contract:divide-by-zero? e)
+        (exn:fail:contract:non-fixnum-result? e)))
+
+  ;; TODO Replace strings with proper type links once we have them
   (define (try-eval thunk)
     (with-handlers
-      ([exn:break? (lambda (e) (exception "ThreadKilled" "thread killed" ()))]
-       [exn:io? (lambda (e) (exception "IOException" (exn->string e) ()))]
-       [exn:fail? (lambda (e) (exception "MiscFailure" (exn->string e) ()))]
+      ([exn:break? (lambda (e) (exception "ThreadKilledFailure" "thread killed" ()))]
+       [exn:io? (lambda (e) (exception "IOFailure" (exn->string e) ()))]
+       [exn:arith? (lambda (e) (exception "ArithmeticFailure" (exn->string e) ()))]
+       [exn:fail? (lambda (e) (exception "RuntimeFailure" (exn->string e) ()))]
        [(lambda (x) #t) (lambda (e) (exception "MiscFailure" "unknown exception" e))])
       (right (thunk)))))
