@@ -101,7 +101,7 @@ manageLinks silent srcs' metadataNames op = do
                   where
                     go types src = op (src, mdType, mdValue) types
              in over Branch.terms tmUpdates . over Branch.types tyUpdates
-      let steps = map (\(path, _hq) -> (Path.unabsolute path, step)) srcs
+      let steps = map (\(path, _hq) -> (path, step)) srcs
       Cli.stepManyAtNoSync steps
   if silent
     then Cli.respond DefaultMetadataNotification
