@@ -103,5 +103,6 @@
     (with-handlers
       ([exn:break? (lambda (e) (exception "ThreadKilled" "thread killed" ()))]
        [exn:io? (lambda (e) (exception "IOException" (exn->string e) ()))]
-       [exn:fail? (lambda (e) (exception "MiscFailure" (exn->string e) ()))])
+       [exn:fail? (lambda (e) (exception "MiscFailure" (exn->string e) ()))]
+       [(lambda (x) #t) (lambda (e) (exception "MiscFailure" "unknown exception" e))])
       (right (thunk)))))
