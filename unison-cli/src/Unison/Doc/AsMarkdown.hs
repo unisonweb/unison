@@ -11,6 +11,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import qualified Unison.Debug as Debug
+import Unison.Doc.Markdown.Types
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Referent (Referent)
@@ -20,9 +21,6 @@ import qualified Unison.Server.Doc as Doc
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
 import Unison.Util.Monoid (foldMapM)
-
-markdownOptions :: [M.CMarkOption]
-markdownOptions = [M.optSafe]
 
 data NamedLinkHref
   = Href Text
@@ -130,10 +128,6 @@ toText doc =
         & fmap toText
         & filter (not . Text.null)
         & Text.unwords
-
--- | Markdown node
-newtype Markdown = Markdown (Seq M.Node)
-  deriving (Show)
 
 toNodes :: Markdown -> [M.Node]
 toNodes (Markdown ns) = toList ns

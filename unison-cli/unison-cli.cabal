@@ -71,6 +71,7 @@ library
       Unison.CommandLine.Types
       Unison.CommandLine.Welcome
       Unison.Doc.AsMarkdown
+      Unison.Doc.Markdown.Types
       Unison.LSP
       Unison.LSP.CancelRequest
       Unison.LSP.CodeAction
