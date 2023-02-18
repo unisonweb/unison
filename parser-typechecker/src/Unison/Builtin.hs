@@ -899,6 +899,7 @@ codeBuiltins =
     ("Code.isMissing", termLink --> io boolean),
     ("Code.serialize", code --> bytes),
     ("Code.deserialize", bytes --> eithert text code),
+    ("Code.serialize.small", code --> bytes),
     ("Code.cache_", list (tuple [termLink, code]) --> io (list termLink)),
     ("Code.validate", list (tuple [termLink, code]) --> io (optionalt failure)),
     ("Code.lookup", termLink --> io (optionalt code)),
@@ -906,6 +907,7 @@ codeBuiltins =
     ("Value.dependencies", value --> list termLink),
     ("Value.serialize", value --> bytes),
     ("Value.deserialize", bytes --> eithert text value),
+    ("Value.serialize.small", value --> bytes),
     ("Value.value", forall1 "a" $ \a -> a --> value),
     ( "Value.load",
       forall1 "a" $ \a -> value --> io (eithert (list termLink) a)

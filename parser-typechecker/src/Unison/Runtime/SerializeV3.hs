@@ -1,6 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.Runtime.Serialize where
+module Unison.Runtime.SerializeV3 where
 
 import Control.Applicative (liftA2)
 import Control.Monad (replicateM)

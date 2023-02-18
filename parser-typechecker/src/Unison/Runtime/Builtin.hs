@@ -2603,7 +2603,11 @@ declareForeigns = do
   declareForeign Untracked "Code.serialize" boxDirect
     . mkForeign
     $ \(sg :: SuperGroup Symbol) ->
-      pure . Bytes.fromArray $ serializeGroup builtinForeignNames sg
+      pure . Bytes.fromArray $ serializeGroupV3 builtinForeignNames sg
+  declareForeign Untracked "Code.serialize.small" boxDirect
+    . mkForeign
+    $ \(sg :: SuperGroup Symbol) ->
+      pure . Bytes.fromArray $ serializeGroupV4 builtinForeignNames sg
   declareForeign Untracked "Code.deserialize" boxToEBoxBox
     . mkForeign
     $ pure . deserializeGroup @Symbol . Bytes.toArray
@@ -2614,7 +2618,10 @@ declareForeigns = do
     $ pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
   declareForeign Untracked "Value.serialize" boxDirect
     . mkForeign
-    $ pure . Bytes.fromArray . serializeValue
+    $ pure . Bytes.fromArray . serializeValueV3
+  declareForeign Untracked "Value.serialize.small" boxDirect
+    . mkForeign
+    $ pure . Bytes.fromArray . serializeValueV4
   declareForeign Untracked "Value.deserialize" boxToEBoxBox
     . mkForeign
     $ pure . deserializeValue . Bytes.toArray
@@ -2655,7 +2662,7 @@ declareForeigns = do
             L.ByteString ->
             Hash.Digest a
           hashlazy _ l = Hash.hashlazy l
-       in pure . Bytes.fromArray . hashlazy alg $ serializeValueLazy x
+       in pure . Bytes.fromArray . hashlazy alg $ serializeValueLazyV3 x
 
   declareForeign Untracked "crypto.hmac" crypto'hmac . mkForeign $
     \(HashAlgorithm _ alg, key, x) ->
@@ -2666,7 +2673,7 @@ declareForeigns = do
               . HMAC.updates
                 (HMAC.initialize $ Bytes.toArray @BA.Bytes key)
               $ L.toChunks s
-       in pure . Bytes.fromArray . hmac alg $ serializeValueLazy x
+       in pure . Bytes.fromArray . hmac alg $ serializeValueLazyV3 x
 
   let catchAll :: (MonadCatch m, MonadIO m, NFData a) => m a -> m (Either Util.Text.Text a)
       catchAll e = do
@@ -2676,7 +2683,7 @@ declareForeigns = do
           Right a -> Right a
 
   declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
-    pure . asWord64 . hash64 . serializeValueLazy
+    pure . asWord64 . hash64 . serializeValueLazyV3
 
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
   declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress

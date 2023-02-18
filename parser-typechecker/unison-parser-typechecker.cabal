@@ -107,6 +107,8 @@ library
       Unison.Result
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Serialize
+      Unison.Runtime.ANF.SerializeV3
+      Unison.Runtime.ANF.SerializeV4
       Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Debug
@@ -118,9 +120,11 @@ library
       Unison.Runtime.IOSource
       Unison.Runtime.Machine
       Unison.Runtime.MCode
-      Unison.Runtime.MCode.Serialize
+      Unison.Runtime.MCode.SerializeV3
+      Unison.Runtime.MCode.SerializeV4
       Unison.Runtime.Pattern
-      Unison.Runtime.Serialize
+      Unison.Runtime.SerializeV3
+      Unison.Runtime.SerializeV4
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector

@@ -59,7 +59,7 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as RF
 import qualified Unison.Referent as RF (pattern Ref)
 import Unison.Runtime.ANF
-import Unison.Runtime.ANF.Serialize (getGroup, putGroup)
+import Unison.Runtime.ANF.SerializeV3 (getGroup, putGroup)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
@@ -74,7 +74,7 @@ import Unison.Runtime.MCode
     emitComb,
     emptyRNs,
   )
-import Unison.Runtime.MCode.Serialize
+import Unison.Runtime.MCode.SerializeV3
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
@@ -91,7 +91,7 @@ import Unison.Runtime.Machine
     refNumsTy,
   )
 import Unison.Runtime.Pattern
-import Unison.Runtime.Serialize as SER
+import Unison.Runtime.SerializeV3 as SER
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.HashQualified as HQ (toString)
