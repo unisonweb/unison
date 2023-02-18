@@ -153,7 +153,10 @@
   (define-syntax request
     (syntax-rules ()
       [(request r t . args)
-       ((cdr (ref-mark (quote r))) (list (quote r) t . args))]))
+      (let ((ref-mark-result (ref-mark (quote r))))
+        (if (equal? #f ref-mark-result)
+            (raise (list . args))
+            ((cdr ref-mark-result) (list (quote r) t . args))))]))
 
   ; See the explanation of `handle` for a more thorough understanding
   ; of why this is doing two control operations.

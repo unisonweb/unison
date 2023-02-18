@@ -24,9 +24,9 @@
 
 (define (clientSocket.impl.v3 host port)
     (with-handlers
-        [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) ()))]
+        [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
          [(lambda _ #t) (lambda (e) (exception "MiscFailure" "Unknown exception" e))] ]
-    
+
         (let-values ([(input output) (tcp-connect host (string->number port))])
             (right (list input output)))))
 
