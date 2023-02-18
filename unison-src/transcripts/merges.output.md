@@ -113,13 +113,13 @@ it's still in the `history` of the parent namespace and can be resurrected at an
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #pfspc3m714
+  ⊙ 1. #pm8r81tu91
   
     - Deletes:
     
       feature1.y
   
-  ⊙ 2. #t9gdv3652e
+  ⊙ 2. #arb3og17hn
   
     + Adds / updates:
     
@@ -130,26 +130,26 @@ it's still in the `history` of the parent namespace and can be resurrected at an
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ 3. #fnah4umom7
+  ⊙ 3. #gofgj6bkdt
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ 4. #fsd9t403lp
+  ⊙ 4. #e4v05cpph8
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ 5. #64tba28sdf
+  ⊙ 5. #orj3vffp3b
   
     + Adds / updates:
     
       x
   
-  □ 6. #uql7vkh78v (start of history)
+  □ 6. #1lf26oeiv7 (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
