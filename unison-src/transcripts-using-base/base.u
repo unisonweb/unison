@@ -347,7 +347,9 @@ saveSelfContained x path =
   deps = Value.transitiveDeps v
   cv = Value.value (deps, v)
   bs = Bytes.toBase32 (Value.serialize cv)
+  bs2 = Bytes.toBase32 (Value.serialize.small cv)
   writeFile path bs
+  writeFile (path ++ ".small") bs2
 
 readFile : Text ->{IO,Exception} Bytes
 readFile path =

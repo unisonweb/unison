@@ -2711,10 +2711,10 @@ This transcript is intended to make visible accidental changes to the hashing al
        runTest : '{IO, TempDirs, Exception, Stream Result} a
        ->{IO} [Result]
        
-  780. -- #va4fcp72qog4dvo8dn4gipr2i1big1lqgpcqfuv9kc98ut8le1bj23s68df7svam7b5sg01s4uf95o458f4rs90mtp71nj84t90ra1o
+  780. -- #39hftmcvsq00gvdoub37d67bu4ac235km2lduin48afirrik0h2n01he725t1hfg5i3qsohkp3kht4deq4r2fqt9ogtn0m8dbfctbqo
        saveSelfContained : a -> Text ->{IO, Exception} ()
        
-  781. -- #5hbn4gflbo8l4jq0s9l1r0fpee6ie44fbbl6j6km67l25inaaq5avg18g7j6mig2m6eaod04smif7el34tcclvvf8oll39rfonupt2o
+  781. -- #i33hhevo9lhhqnds6ur6v1meivgo1p87is41g410jsiqcmkhq4d19np1dhtsjh14pjr6d2bokv4q40o4ifcsvahgh8gh39k55rs47lg
        saveTestCase : Text
        -> (a -> Text)
        -> a
