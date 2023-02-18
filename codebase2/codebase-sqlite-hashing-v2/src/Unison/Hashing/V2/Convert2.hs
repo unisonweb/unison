@@ -27,13 +27,13 @@ convertReference' idConv = \case
   V2.ReferenceBuiltin x -> H2.ReferenceBuiltin x
   V2.ReferenceDerived x -> H2.ReferenceDerivedId (idConv x)
 
-v2ToH2Type :: forall v. Ord v => V2.Type.TypeR V2.TypeRef v -> H2.Type v ()
+v2ToH2Type :: forall v. (Ord v) => V2.Type.TypeR V2.TypeRef v -> H2.Type v ()
 v2ToH2Type = v2ToH2Type' convertReference
 
-v2ToH2TypeD :: forall v. Ord v => Hash -> V2.Type.TypeD v -> H2.Type v ()
+v2ToH2TypeD :: forall v. (Ord v) => Hash -> V2.Type.TypeD v -> H2.Type v ()
 v2ToH2TypeD defaultHash = v2ToH2Type' (convertReference' (convertId defaultHash))
 
-v2ToH2Type' :: forall r v. Ord v => (r -> H2.Reference) -> V2.Type.TypeR r v -> H2.Type v ()
+v2ToH2Type' :: forall r v. (Ord v) => (r -> H2.Reference) -> V2.Type.TypeR r v -> H2.Type v ()
 v2ToH2Type' mkReference = ABT.transform convertF
   where
     convertF :: forall a. V2.Type.F' r a -> H2.TypeF a

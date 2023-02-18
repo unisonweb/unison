@@ -15,8 +15,8 @@ import Control.Concurrent (ThreadId)
 import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM (TVar)
 import Control.Exception (evaluate)
-import qualified Data.Char as Char
 import Data.Atomics (Ticket)
+import qualified Data.Char as Char
 import Data.Foldable (toList)
 import Data.IORef (IORef)
 import Data.Primitive.Array as PA
@@ -48,8 +48,8 @@ import Unison.Type
     typeLinkRef,
   )
 import Unison.Util.Bytes (Bytes)
-import Unison.Util.Text (Text, pack, unpack)
 import Unison.Util.RefPromise (Promise)
+import Unison.Util.Text (Text, pack, unpack)
 
 -- Foreign functions operating on stacks
 data ForeignFunc where
@@ -151,7 +151,7 @@ instance ForeignConvention POSIXTime where
   readForeign = readForeignAs (fromIntegral :: Int -> POSIXTime)
   writeForeign = writeForeignAs (round :: POSIXTime -> Int)
 
-instance ForeignConvention a => ForeignConvention (Maybe a) where
+instance (ForeignConvention a) => ForeignConvention (Maybe a) where
   readForeign (i : us) bs ustk bstk =
     peekOff ustk i >>= \case
       0 -> pure (us, bs, Nothing)
@@ -217,7 +217,7 @@ instance ForeignConvention IOException where
   writeForeign = writeForeignAs (ioeEncode . ioe_type)
 
 readForeignAs ::
-  ForeignConvention a =>
+  (ForeignConvention a) =>
   (a -> b) ->
   [Int] ->
   [Int] ->
@@ -227,7 +227,7 @@ readForeignAs ::
 readForeignAs f us bs ustk bstk = fmap f <$> readForeign us bs ustk bstk
 
 writeForeignAs ::
-  ForeignConvention b =>
+  (ForeignConvention b) =>
   (a -> b) ->
   Stack 'UN ->
   Stack 'BX ->
@@ -236,7 +236,7 @@ writeForeignAs ::
 writeForeignAs f ustk bstk x = writeForeign ustk bstk (f x)
 
 readForeignEnum ::
-  Enum a =>
+  (Enum a) =>
   [Int] ->
   [Int] ->
   Stack 'UN ->
@@ -245,7 +245,7 @@ readForeignEnum ::
 readForeignEnum = readForeignAs toEnum
 
 writeForeignEnum ::
-  Enum a =>
+  (Enum a) =>
   Stack 'UN ->
   Stack 'BX ->
   a ->
@@ -253,7 +253,7 @@ writeForeignEnum ::
 writeForeignEnum = writeForeignAs fromEnum
 
 readForeignBuiltin ::
-  BuiltinForeign b =>
+  (BuiltinForeign b) =>
   [Int] ->
   [Int] ->
   Stack 'UN ->
@@ -262,7 +262,7 @@ readForeignBuiltin ::
 readForeignBuiltin = readForeignAs (unwrapBuiltin . marshalToForeign)
 
 writeForeignBuiltin ::
-  BuiltinForeign b =>
+  (BuiltinForeign b) =>
   Stack 'UN ->
   Stack 'BX ->
   b ->
@@ -324,7 +324,7 @@ instance
     (ustk, bstk) <- writeForeign ustk bstk y
     writeForeign ustk bstk x
 
-instance ForeignConvention a => ForeignConvention (Failure a) where
+instance (ForeignConvention a) => ForeignConvention (Failure a) where
   readForeign us bs ustk bstk = do
     (us, bs, typeref) <- readTypelink us bs ustk bstk
     (us, bs, message) <- readForeign us bs ustk bstk
@@ -491,13 +491,14 @@ instance ForeignConvention PA.ByteArray where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap ibytearrayRef)
 
-instance {-# OVERLAPPABLE #-} BuiltinForeign b => ForeignConvention b where
+instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
   readForeign = readForeignBuiltin
   writeForeign = writeForeignBuiltin
 
-instance {-# OVERLAPPABLE #-} BuiltinForeign b => ForeignConvention [b] where
+instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention [b] where
   readForeign us (i : bs) _ bstk =
-    (us,bs,) . fmap (unwrapForeign . marshalToForeign)
+    (us,bs,)
+      . fmap (unwrapForeign . marshalToForeign)
       . toList
       <$> peekOffS bstk i
   readForeign _ _ _ _ = foreignCCError "[b]"

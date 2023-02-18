@@ -11,6 +11,11 @@ then reference those tests (which should be of type `'{IO,Exception,Tests} ()`, 
 to `Tests.check` and `Tests.checkEqual`).
 
 ```ucm:hide
+.> load unison-src/builtin-tests/concurrency-tests.u
+.> add
+```
+
+```ucm:hide
 .> load unison-src/builtin-tests/tests.u
 .> add
 ```
@@ -18,13 +23,3 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm
 .> run tests
 ```
-
-```ucm:hide
-.> load unison-src/builtin-tests/concurrency-tests.u
-.> add
-```
-
-```ucm
-.> run concurrency.tests
-```
-

@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Unison.Prelude
 
-multimap :: Foldable f => Ord k => f (k, v) -> Map k [v]
+multimap :: (Foldable f) => (Ord k) => f (k, v) -> Map k [v]
 multimap kvs =
   -- preserve the order of the values from the original list
   reverse <$> foldl' step Map.empty kvs
@@ -49,7 +49,7 @@ nubOrdOn = uniqueBy
 uniqueBy' :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]
 uniqueBy' f = reverse . uniqueBy f . reverse . toList
 
-safeHead :: Foldable f => f a -> Maybe a
+safeHead :: (Foldable f) => f a -> Maybe a
 safeHead = headMay . toList
 
 validate :: (Semigroup e, Foldable f) => (a -> Either e b) -> f a -> Either e [b]
@@ -72,7 +72,7 @@ intercalateMapWith sep f xs = result
 
 -- Take runs of consecutive occurrences of r within a list,
 -- and in each run, overwrite all but the first occurrence of r with w.
-quenchRuns :: Eq a => a -> a -> [a] -> [a]
+quenchRuns :: (Eq a) => a -> a -> [a] -> [a]
 quenchRuns r w = reverse . go False r w []
   where
     go inRun r w acc = \case

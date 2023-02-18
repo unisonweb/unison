@@ -65,7 +65,7 @@ ex4 =
         (Range (Pos 1 1) (Pos 1 5), Green)
       ]
 
-ex :: Ord a => AnnotatedExcerpt a
+ex :: (Ord a) => AnnotatedExcerpt a
 ex =
   [r|The Tempest | Act 1, Scene 1
 

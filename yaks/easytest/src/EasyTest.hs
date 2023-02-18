@@ -54,11 +54,11 @@ atomicLogger = do
     let dummy = foldl' (\_ ch -> ch == 'a') True msg
      in dummy `seq` bracket (takeMVar lock) (\_ -> putMVar lock ()) (\_ -> putStrLn msg)
 
-expect' :: HasCallStack => Bool -> Test ()
+expect' :: (HasCallStack) => Bool -> Test ()
 expect' False = crash "unexpected"
 expect' True = pure ()
 
-expect :: HasCallStack => Bool -> Test ()
+expect :: (HasCallStack) => Bool -> Test ()
 expect False = crash "unexpected"
 expect True = ok
 
@@ -80,15 +80,15 @@ expectNotEqual forbidden actual =
     then ok
     else crash $ unlines ["", show actual, "** did equal the forbidden value **", show forbidden]
 
-expectJust :: HasCallStack => Maybe a -> Test a
+expectJust :: (HasCallStack) => Maybe a -> Test a
 expectJust Nothing = crash "expected Just, got Nothing"
 expectJust (Just a) = ok >> pure a
 
-expectRight :: HasCallStack => Either e a -> Test a
+expectRight :: (HasCallStack) => Either e a -> Test a
 expectRight (Left _) = crash "expected Right, got Left"
 expectRight (Right a) = ok >> pure a
 
-expectLeft :: HasCallStack => Either e a -> Test e
+expectLeft :: (HasCallStack) => Either e a -> Test e
 expectLeft (Left e) = ok >> pure e
 expectLeft (Right _) = crash "expected Left, got Right"
 
@@ -197,11 +197,11 @@ note msg = do
   pure ()
 
 -- | Log a showable value
-note' :: Show s => s -> Test ()
+note' :: (Show s) => s -> Test ()
 note' = note . show
 
 -- | Generate a random value
-random :: Random a => Test a
+random :: (Random a) => Test a
 random = do
   rng <- asks rng
   liftIO . atomically $ do
@@ -211,7 +211,7 @@ random = do
     pure a
 
 -- | Generate a bounded random value. Inclusive on both sides.
-random' :: Random a => a -> a -> Test a
+random' :: (Random a) => a -> a -> Test a
 random' lower upper = do
   rng <- asks rng
   liftIO . atomically $ do
@@ -318,11 +318,11 @@ tuple4 =
   (,,,) <$> random <*> random <*> random <*> random
 
 -- | Generate a `Data.Map k v` of the given size.
-mapOf :: Ord k => Int -> Test k -> Test v -> Test (Map k v)
+mapOf :: (Ord k) => Int -> Test k -> Test v -> Test (Map k v)
 mapOf n k v = Map.fromList <$> listOf n (pair k v)
 
 -- | Generate a `[Data.Map k v]` of the given sizes.
-mapsOf :: Ord k => [Int] -> Test k -> Test v -> Test [Map k v]
+mapsOf :: (Ord k) => [Int] -> Test k -> Test v -> Test [Map k v]
 mapsOf sizes k v = sizes `forM` \n -> mapOf n k v
 
 -- | Catch all exceptions that could occur in the given `Test`
@@ -374,14 +374,14 @@ skip :: Test ()
 skip = Test (Nothing <$ putResult Skipped)
 
 -- | Record a failure at the current scope
-crash :: HasCallStack => String -> Test a
+crash :: (HasCallStack) => String -> Test a
 crash msg = do
   let trace = callStack
       msg' = msg ++ " " ++ prettyCallStack trace
   Test (Just <$> putResult Failed) >> noteScoped ("FAILURE " ++ msg') >> Test (pure Nothing)
 
 -- | Overwrites the env so that note_ (the logger) is a no op
-nologging :: HasCallStack => Test a -> Test a
+nologging :: (HasCallStack) => Test a -> Test a
 nologging (Test t) = Test $ do
   env <- ask
   liftIO $ runWrap (env {note_ = \_ -> pure ()}) t
@@ -396,7 +396,7 @@ attempt (Test t) = nologging $ do
 
 -- | Placeholder wrapper for a failing test. The test being wrapped is expected/known to fail.
 -- Will produce a failure if the test being wrapped suddenly becomes a success.
-pending :: HasCallStack => Test a -> Test a
+pending :: (HasCallStack) => Test a -> Test a
 pending test = do
   m <- attempt test
   case m of

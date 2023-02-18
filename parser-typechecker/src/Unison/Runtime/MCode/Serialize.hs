@@ -19,11 +19,11 @@ import Unison.Runtime.MCode hiding (MatchT)
 import Unison.Runtime.Serialize
 import qualified Unison.Util.Text as Util.Text
 
-putComb :: MonadPut m => Comb -> m ()
+putComb :: (MonadPut m) => Comb -> m ()
 putComb (Lam ua ba uf bf body) =
   pInt ua *> pInt ba *> pInt uf *> pInt bf *> putSection body
 
-getComb :: MonadGet m => m Comb
+getComb :: (MonadGet m) => m Comb
 getComb = Lam <$> gInt <*> gInt <*> gInt <*> gInt <*> getSection
 
 data SectionT
@@ -59,7 +59,7 @@ instance Tag SectionT where
   word2tag 8 = pure ExitT
   word2tag i = unknownTag "SectionT" i
 
-putSection :: MonadPut m => Section -> m ()
+putSection :: (MonadPut m) => Section -> m ()
 putSection (App b r a) =
   putTag AppT *> serialize b *> putRef r *> putArgs a
 putSection (Call b w a) =
@@ -79,7 +79,7 @@ putSection (Die s) =
 putSection Exit =
   putTag ExitT
 
-getSection :: MonadGet m => m Section
+getSection :: (MonadGet m) => m Section
 getSection =
   getTag >>= \case
     AppT -> App <$> deserialize <*> getRef <*> getArgs
@@ -152,7 +152,7 @@ instance Tag InstrT where
   word2tag 17 = pure TryForceT
   word2tag n = unknownTag "InstrT" n
 
-putInstr :: MonadPut m => Instr -> m ()
+putInstr :: (MonadPut m) => Instr -> m ()
 putInstr (UPrim1 up i) =
   putTag UPrim1T *> putTag up *> pInt i
 putInstr (UPrim2 up i j) =
@@ -190,7 +190,7 @@ putInstr (Seq a) =
 putInstr (TryForce i) =
   putTag TryForceT *> pInt i
 
-getInstr :: MonadGet m => m Instr
+getInstr :: (MonadGet m) => m Instr
 getInstr =
   getTag >>= \case
     UPrim1T -> UPrim1 <$> getTag <*> gInt
@@ -257,7 +257,7 @@ instance Tag ArgsT where
   word2tag 12 = pure DArgVT
   word2tag n = unknownTag "ArgsT" n
 
-putArgs :: MonadPut m => Args -> m ()
+putArgs :: (MonadPut m) => Args -> m ()
 putArgs ZArgs = putTag ZArgsT
 putArgs (UArg1 i) = putTag UArg1T *> pInt i
 putArgs (UArg2 i j) = putTag UArg1T *> pInt i *> pInt j
@@ -274,7 +274,7 @@ putArgs (DArgN ua ba) =
   putTag DArgNT *> putIntArr ua *> putIntArr ba
 putArgs (DArgV i j) = putTag DArgVT *> pInt i *> pInt j
 
-getArgs :: MonadGet m => m Args
+getArgs :: (MonadGet m) => m Args
 getArgs =
   getTag >>= \case
     ZArgsT -> pure ZArgs
@@ -303,22 +303,22 @@ instance Tag RefT where
   word2tag 2 = pure DynT
   word2tag n = unknownTag "RefT" n
 
-putRef :: MonadPut m => Ref -> m ()
+putRef :: (MonadPut m) => Ref -> m ()
 putRef (Stk i) = putTag StkT *> pInt i
 putRef (Env i j) = putTag EnvT *> pWord i *> pWord j
 putRef (Dyn i) = putTag DynT *> pWord i
 
-getRef :: MonadGet m => m Ref
+getRef :: (MonadGet m) => m Ref
 getRef =
   getTag >>= \case
     StkT -> Stk <$> gInt
     EnvT -> Env <$> gWord <*> gWord
     DynT -> Dyn <$> gWord
 
-putCombIx :: MonadPut m => CombIx -> m ()
+putCombIx :: (MonadPut m) => CombIx -> m ()
 putCombIx (CIx r n i) = putReference r *> pWord n *> pWord i
 
-getCombIx :: MonadGet m => m CombIx
+getCombIx :: (MonadGet m) => m CombIx
 getCombIx = CIx <$> getReference <*> gWord <*> gWord
 
 data MLitT = MIT | MDT | MTT | MMT | MYT
@@ -337,14 +337,14 @@ instance Tag MLitT where
   word2tag 4 = pure MYT
   word2tag n = unknownTag "MLitT" n
 
-putLit :: MonadPut m => MLit -> m ()
+putLit :: (MonadPut m) => MLit -> m ()
 putLit (MI i) = putTag MIT *> pInt i
 putLit (MD d) = putTag MDT *> putFloat d
 putLit (MT t) = putTag MTT *> putText (Util.Text.toText t)
 putLit (MM r) = putTag MMT *> putReferent r
 putLit (MY r) = putTag MYT *> putReference r
 
-getLit :: MonadGet m => m MLit
+getLit :: (MonadGet m) => m MLit
 getLit =
   getTag >>= \case
     MIT -> MI <$> gInt
@@ -367,7 +367,7 @@ instance Tag BranchT where
   word2tag 3 = pure TestTT
   word2tag n = unknownTag "BranchT" n
 
-putBranch :: MonadPut m => Branch -> m ()
+putBranch :: (MonadPut m) => Branch -> m ()
 putBranch (Test1 w s d) =
   putTag Test1T *> pWord w *> putSection s *> putSection d
 putBranch (Test2 a sa b sb d) =
@@ -382,32 +382,34 @@ putBranch (TestW d m) =
 putBranch (TestT d m) =
   putTag TestTT *> putSection d *> putMap (putText . Util.Text.toText) putSection m
 
-getBranch :: MonadGet m => m Branch
+getBranch :: (MonadGet m) => m Branch
 getBranch =
   getTag >>= \case
     Test1T -> Test1 <$> gWord <*> getSection <*> getSection
     Test2T ->
-      Test2 <$> gWord <*> getSection
+      Test2
+        <$> gWord
+        <*> getSection
         <*> gWord
         <*> getSection
         <*> getSection
     TestWT -> TestW <$> getSection <*> getEnumMap gWord getSection
     TestTT -> TestT <$> getSection <*> getMap (Util.Text.fromText <$> getText) getSection
 
-gInt :: MonadGet m => m Int
+gInt :: (MonadGet m) => m Int
 gInt = unVarInt <$> deserialize
 
-pInt :: MonadPut m => Int -> m ()
+pInt :: (MonadPut m) => Int -> m ()
 pInt i = serialize (VarInt i)
 
-gWord :: MonadGet m => m Word64
+gWord :: (MonadGet m) => m Word64
 gWord = unVarInt <$> deserialize
 
-pWord :: MonadPut m => Word64 -> m ()
+pWord :: (MonadPut m) => Word64 -> m ()
 pWord w = serialize (VarInt w)
 
-putIntArr :: MonadPut m => PrimArray Int -> m ()
+putIntArr :: (MonadPut m) => PrimArray Int -> m ()
 putIntArr pa = putFoldable pInt $ toList pa
 
-getIntArr :: MonadGet m => m (PrimArray Int)
+getIntArr :: (MonadGet m) => m (PrimArray Int)
 getIntArr = fromList <$> getList gInt

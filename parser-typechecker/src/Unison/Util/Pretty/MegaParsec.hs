@@ -42,10 +42,11 @@ prettyPrintParseError input errBundle =
           message = [expected] <> catMaybes [found]
        in P.oxfordCommasWith "." message
 
-showErrorFancy :: Parser.ShowErrorComponent e => Parser.ErrorFancy e -> String
+showErrorFancy :: (Parser.ShowErrorComponent e) => Parser.ErrorFancy e -> String
 showErrorFancy (Parser.ErrorFail msg) = msg
 showErrorFancy (Parser.ErrorIndentation ord ref actual) =
-  "incorrect indentation (got " <> show (Parser.unPos actual)
+  "incorrect indentation (got "
+    <> show (Parser.unPos actual)
     <> ", should be "
     <> p
     <> show (Parser.unPos ref)

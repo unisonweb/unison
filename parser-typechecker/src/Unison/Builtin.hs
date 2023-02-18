@@ -110,7 +110,7 @@ builtinDataDecls =
 builtinEffectDecls :: [(Symbol, (R.Id, EffectDeclaration))]
 builtinEffectDecls = [(v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinEffectDecls]
 
-codeLookup :: Applicative m => CodeLookup Symbol m Ann
+codeLookup :: (Applicative m) => CodeLookup Symbol m Ann
 codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
   pure $
     lookup r [(r, Right x) | (r, x) <- snd <$> builtinDataDecls]

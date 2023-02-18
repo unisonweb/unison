@@ -365,7 +365,7 @@ loop e = do
             resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq')
             rootNames <- Branch.toNames <$> Cli.getRootBranch0
             let name = Path.unsafeToName (Path.unsplit resolvedPath)
-                toRel :: Ord ref => Set ref -> R.Relation Name ref
+                toRel :: (Ord ref) => Set ref -> R.Relation Name ref
                 toRel = R.fromList . fmap (name,) . toList
                 -- these names are relative to the root
                 toDelete = Names (toRel terms) (toRel types)
@@ -502,13 +502,15 @@ loop e = do
               squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
               -- Perform all child updates in a single step.
               Cli.updateAt description destAbs $ Branch.step \destBranch0 ->
-                destBranch0 & Branch.children
-                  %~ ( \childMap ->
-                         childMap & at "base" ?~ baseb
-                           & at "head" ?~ headb
-                           & at "merged" ?~ mergedb
-                           & at "squashed" ?~ squashedb
-                     )
+                destBranch0
+                  & Branch.children
+                    %~ ( \childMap ->
+                           childMap
+                             & at "base" ?~ baseb
+                             & at "head" ?~ headb
+                             & at "merged" ?~ mergedb
+                             & at "squashed" ?~ squashedb
+                       )
               let base = snoc dest0 "base"
                   head = snoc dest0 "head"
                   merged = snoc dest0 "merged"
@@ -1323,7 +1325,7 @@ loop e = do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
                   getCausal b = (Branch.headHash b, pure $ Branch._history b)
-                  goCausal :: forall m. Monad m => [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
+                  goCausal :: forall m. (Monad m) => [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
                   goCausal [] = pure ()
                   goCausal ((h, mc) : queue) = do
                     ifM (seen h) (goCausal queue) do
@@ -1331,7 +1333,7 @@ loop e = do
                         Causal.One h _bh b -> goBranch h b mempty queue
                         Causal.Cons h _bh b tail -> goBranch h b [fst tail] (tail : queue)
                         Causal.Merge h _bh b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
-                  goBranch :: forall m. Monad m => CausalHash -> Branch0 m -> [CausalHash] -> [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
+                  goBranch :: forall m. (Monad m) => CausalHash -> Branch0 m -> [CausalHash] -> [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
                   goBranch h b (Set.fromList -> causalParents) queue = case b of
                     Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ _ ->
                       let wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
@@ -1348,7 +1350,9 @@ loop e = do
                             set h
                             goCausal (map getCausal (Foldable.toList children0) ++ queue)
                   prettyDump (h, Output.DN.DumpNamespace terms types patches children causalParents) =
-                    P.lit "Namespace " <> P.shown h <> P.newline
+                    P.lit "Namespace "
+                      <> P.shown h
+                      <> P.newline
                       <> ( P.indentN 2 $
                              P.linesNonEmpty
                                [ Monoid.unlessM (null causalParents) $ P.lit "Causal Parents:" <> P.newline <> P.indentN 2 (P.lines (map P.shown $ Set.toList causalParents)),
@@ -1405,7 +1409,7 @@ loop e = do
             UpdateBuiltinsI -> Cli.respond NotImplemented
             QuitI -> Cli.haltRepl
             GistI input -> handleGist input
-            AuthLoginI -> authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
+            AuthLoginI -> void $ authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
             VersionI -> do
               Cli.Env {ucmVersion} <- ask
               Cli.respond $ PrintVersion ucmVersion
@@ -2005,7 +2009,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
-  ensureAuthenticatedWithCodeserver codeserver
+  _userInfo <- ensureAuthenticatedWithCodeserver codeserver
 
   -- doesn't handle the case where a non-existent path is supplied
   localCausalHash <-
@@ -2306,7 +2310,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
-  when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
+  when (not $ RemoteRepo.isPublic rrn) . void $ ensureAuthenticatedWithCodeserver codeserver
   let shareFlavoredPath = Share.Path (shareUserHandleToText repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
   Cli.Env {codebase} <- ask
   causalHash <-
@@ -2557,7 +2561,7 @@ searchResultsFor ns terms types =
 
 searchBranchScored ::
   forall score.
-  Ord score =>
+  (Ord score) =>
   Names ->
   (Name -> Name -> Maybe score) ->
   [HQ.HashQualified Name] ->
@@ -3144,7 +3148,7 @@ parseType input src = do
   Type.bindNames Name.unsafeFromVar mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->
     Cli.returnEarly (ParseResolutionFailures src (toList errs))
 
-getTermsIncludingHistorical :: Monad m => Path.HQSplit -> Branch0 m -> Cli (Set Referent)
+getTermsIncludingHistorical :: (Monad m) => Path.HQSplit -> Branch0 m -> Cli (Set Referent)
 getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
   [] -> case hq of
     HQ'.HashQualified n hs -> do
@@ -3166,7 +3170,7 @@ data GetTermResult
 --
 -- Otherwise, returns `Nothing`.
 addWatch ::
-  Var v =>
+  (Var v) =>
   String ->
   Maybe (TypecheckedUnisonFile v Ann) ->
   Maybe (v, TypecheckedUnisonFile v Ann)
@@ -3278,7 +3282,7 @@ createWatcherFile v tm typ =
               [(magicMainWatcherString, [(v2, tm, typ)])]
 
 executePPE ::
-  Var v =>
+  (Var v) =>
   TypecheckedUnisonFile v a ->
   Cli PPE.PrettyPrintEnv
 executePPE unisonFile =
@@ -3308,7 +3312,7 @@ hqNameQuery query = do
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-fuzzySelectDefinition :: MonadIO m => Position -> Branch0 m0 -> m (Maybe [HQ.HashQualified Name])
+fuzzySelectDefinition :: (MonadIO m) => Position -> Branch0 m0 -> m (Maybe [HQ.HashQualified Name])
 fuzzySelectDefinition pos searchBranch0 = liftIO do
   let termsAndTypes =
         Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
@@ -3322,7 +3326,7 @@ fuzzySelectDefinition pos searchBranch0 = liftIO do
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
-fuzzySelectNamespace :: MonadIO m => Position -> Branch0 m0 -> m (Maybe [Path'])
+fuzzySelectNamespace :: (MonadIO m) => Position -> Branch0 m0 -> m (Maybe [Path'])
 fuzzySelectNamespace pos searchBranch0 = liftIO do
   let intoPath' :: Path -> Path'
       intoPath' = case pos of

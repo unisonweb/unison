@@ -16,7 +16,10 @@
    either-get
    unit
    false
-   true)
+   true
+   any
+   failure
+   exception)
 
   (import (rnrs))
 
@@ -60,4 +63,15 @@
   (define (left? either) (eq? 0 (car either)))
 
   ; Either a b -> a | b
-  (define (either-get either) (car (cdr either))))
+  (define (either-get either) (car (cdr either)))
+
+  ; a -> Any
+  (define (any a) `(0 ,a))
+
+  ; Type -> Text -> Any -> Failure
+  (define (failure typeLink msg any)
+    `(0 ,typeLink ,msg ,any))
+
+  ; Type -> Text -> a ->{Exception} b
+  (define (exception typeLink msg a)
+    (failure typeLink msg (any a))))

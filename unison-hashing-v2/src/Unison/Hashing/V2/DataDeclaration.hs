@@ -49,7 +49,7 @@ constructorTypes = (snd <$>) . constructors
 constructors :: DataDeclaration v a -> [(v, Type v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v, t) | (_, v, t) <- ctors]
 
-toABT :: ABT.Var v => DataDeclaration v () -> ABT.Term F v ()
+toABT :: (ABT.Var v) => DataDeclaration v () -> ABT.Term F v ()
 toABT dd = ABT.tm $ Modified (modifier dd) dd'
   where
     dd' = ABT.absChain (bound dd) (ABT.tm (Constructors (ABT.transform Type <$> constructorTypes dd)))
@@ -92,7 +92,7 @@ hashDecls unsafeVarToName decls = do
   pure [(v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls']]
 
 bindReferences ::
-  Var v =>
+  (Var v) =>
   (v -> Name.Name) ->
   Set v ->
   Map Name.Name Reference ->

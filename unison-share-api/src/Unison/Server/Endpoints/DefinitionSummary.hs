@@ -50,7 +50,11 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 
 type TermSummaryAPI =
-  "definitions" :> "terms" :> "by-hash" :> Capture "hash" Referent :> "summary"
+  "definitions"
+    :> "terms"
+    :> "by-hash"
+    :> Capture "hash" Referent
+    :> "summary"
     -- Optional name to include in summary.
     -- It's propagated through to the response as-is.
     -- If missing, the short hash will be used instead.
@@ -113,7 +117,11 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
         else UserObject termSig
 
 type TypeSummaryAPI =
-  "definitions" :> "types" :> "by-hash" :> Capture "hash" Reference :> "summary"
+  "definitions"
+    :> "types"
+    :> "by-hash"
+    :> Capture "hash" Reference
+    :> "summary"
     -- Optional name to include in summary.
     -- It's propagated through to the response as-is.
     -- If missing, the short hash will be used instead.
