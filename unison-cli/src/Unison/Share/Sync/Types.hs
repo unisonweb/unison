@@ -62,4 +62,4 @@ data CodeserverTransportError
 data SyncError e
   = TransportError CodeserverTransportError
   | SyncError e
-  deriving stock (Functor)
+  deriving stock (Functor, Show)

@@ -149,7 +149,7 @@ data WriteGitRemotePath = WriteGitRemotePath
   { repo :: WriteGitRepo,
     path :: Path
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Generic, Show)
 
 data WriteShareRemotePath = WriteShareRemotePath
   { server :: ShareCodeserver,

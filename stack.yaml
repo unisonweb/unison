@@ -37,6 +37,7 @@ packages:
 - lib/unison-util-relation
 - lib/unison-util-rope
 - lib/unison-pretty-printer
+- lib/uuid-orphans-sqlite
 
 #compiler-check: match-exact
 resolver: lts-18.28
@@ -75,6 +76,9 @@ extra-deps:
 - terminal-size-0.3.3
 # lts 18.28 provides 3.1.1.1 but we need at least 3.1.2.7
 - network-3.1.2.7
+# 0.4.18.0 is in lts-18.28, but 0.4.18.2 adds generic
+# implementations of ToRow and FromRow
+- sqlite-simple-0.4.18.2
 
 ghc-options:
  # All packages

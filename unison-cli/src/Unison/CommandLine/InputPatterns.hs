@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.These (These)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
@@ -43,6 +44,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
+import Unison.Project (ProjectBranchName, ProjectName)
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
 import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import qualified Unison.Util.ColorText as CT
@@ -713,20 +715,6 @@ deleteTermReplacement = deleteReplacement True
 deleteTypeReplacement :: InputPattern
 deleteTypeReplacement = deleteReplacement False
 
-parseHashQualifiedName ::
-  String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
-parseHashQualifiedName s =
-  maybe
-    ( Left
-        . P.warnCallout
-        . P.wrap
-        $ P.string s
-          <> " is not a well-formed name, hash, or hash-qualified name. "
-          <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
-    )
-    Right
-    $ HQ.fromString s
-
 aliasTerm :: InputPattern
 aliasTerm =
   InputPattern
@@ -1098,7 +1086,9 @@ pullExhaustive =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
-            "The " <> makeExample' pullExhaustive <> "command can be used in place of"
+            "The "
+              <> makeExample' pullExhaustive
+              <> "command can be used in place of"
               <> makeExample' pullVerbose
               <> "to complete namespaces"
               <> "which were pulled incompletely due to a bug in UCM"
@@ -1162,31 +1152,25 @@ push =
           explainRemote Push
         ]
     )
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
-    )
+    \args -> do
+      sourceTarget <-
+        case args of
+          [] -> Right Input.PushSourceTarget0
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Input.PushSourceTarget1 target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Input.PushSourceTarget2 source target)
+          _ -> Left (I.help push)
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { sourceTarget,
+              pushBehavior = PushBehavior.RequireNonEmpty,
+              syncMode = SyncMode.ShortCircuit
+            }
 
 pushCreate :: InputPattern
 pushCreate =
@@ -1217,31 +1201,25 @@ pushCreate =
           explainRemote Push
         ]
     )
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
-                  pushBehavior = PushBehavior.RequireEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.RequireEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
-    )
+    \args -> do
+      sourceTarget <-
+        case args of
+          [] -> Right Input.PushSourceTarget0
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Input.PushSourceTarget1 target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Input.PushSourceTarget2 source target)
+          _ -> Left (I.help pushForce)
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { sourceTarget,
+              pushBehavior = PushBehavior.RequireEmpty,
+              syncMode = SyncMode.ShortCircuit
+            }
 
 pushForce :: InputPattern
 pushForce =
@@ -1251,31 +1229,25 @@ pushForce =
     I.Hidden
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     (P.wrap "Like `push`, but overwrites any remote namespace.")
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
-                  pushBehavior = PushBehavior.ForcePush,
-                  syncMode = SyncMode.ShortCircuit
-                }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.ForcePush,
-                  syncMode = SyncMode.ShortCircuit
-                }
-    )
+    \args -> do
+      sourceTarget <-
+        case args of
+          [] -> Right Input.PushSourceTarget0
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Input.PushSourceTarget1 target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Input.PushSourceTarget2 source target)
+          _ -> Left (I.help pushForce)
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { sourceTarget,
+              pushBehavior = PushBehavior.ForcePush,
+              syncMode = SyncMode.ShortCircuit
+            }
 
 pushExhaustive :: InputPattern
 pushExhaustive =
@@ -1286,38 +1258,34 @@ pushExhaustive =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
-            "The " <> makeExample' pushExhaustive <> "command can be used in place of"
+            "The "
+              <> makeExample' pushExhaustive
+              <> "command can be used in place of"
               <> makeExample' push
               <> "to repair remote namespaces"
               <> "which were pushed incompletely due to a bug in UCM"
               <> "versions M1l and earlier. It may be extra slow!"
         ]
     )
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.Complete
-                }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.Complete
-                }
-    )
+    \args -> do
+      sourceTarget <-
+        case args of
+          [] -> Right Input.PushSourceTarget0
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Input.PushSourceTarget1 target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Input.PushSourceTarget2 source target)
+          _ -> Left (I.help pushExhaustive)
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { sourceTarget,
+              pushBehavior = PushBehavior.RequireNonEmpty,
+              syncMode = SyncMode.Complete
+            }
 
 createPullRequest :: InputPattern
 createPullRequest =
@@ -1380,18 +1348,6 @@ loadPullRequest =
           pure $ Input.LoadPullRequestI baseRepo headRepo destPath
         _ -> Left (I.help loadPullRequest)
     )
-
-parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
-parseWriteGitRepo label input = do
-  first
-    (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeGitRepo label (Text.pack input))
-
-parseWriteRemotePath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
-parseWriteRemotePath label input = do
-  first
-    (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeRemotePath label (Text.pack input))
 
 squashMerge :: InputPattern
 squashMerge =
@@ -1662,7 +1618,8 @@ helpTopicsMap =
     testCacheMsg =
       P.callout "🎈" . P.lines $
         [ P.wrap $
-            "Unison caches the results of " <> P.blue "test>"
+            "Unison caches the results of "
+              <> P.blue "test>"
               <> "watch expressions. Since these expressions are pure and"
               <> "always yield the same result when evaluated, there's no need"
               <> "to run them more than once!",
@@ -1674,7 +1631,8 @@ helpTopicsMap =
     pathnamesMsg =
       P.callout "\129488" . P.lines $
         [ P.wrap $
-            "There are two kinds of namespaces," <> P.group (P.blue "absolute" <> ",")
+            "There are two kinds of namespaces,"
+              <> P.group (P.blue "absolute" <> ",")
               <> "such as"
               <> P.group ("(" <> P.blue ".foo.bar")
               <> "or"
@@ -1697,12 +1655,15 @@ helpTopicsMap =
           P.indentN 2 $ P.green "x" <> " = 41",
           "",
           P.wrap $
-            "then doing an" <> P.blue "add"
+            "then doing an"
+              <> P.blue "add"
               <> "will create the definition with the absolute name"
               <> P.group (P.blue ".foo.bar.x" <> " = 41"),
           "",
           P.wrap $
-            "and you can refer to" <> P.green "x" <> "by its absolute name "
+            "and you can refer to"
+              <> P.green "x"
+              <> "by its absolute name "
               <> P.blue ".foo.bar.x"
               <> "elsewhere"
               <> "in your code. For instance:",
@@ -2154,7 +2115,7 @@ runScheme =
         ]
     )
     ( \case
-        (main:args) ->
+        (main : args) ->
           flip Input.ExecuteSchemeI args <$> parseHashQualifiedName main
         _ -> Left $ showPatternHelp runScheme
     )
@@ -2336,6 +2297,38 @@ diffNamespaceToPatch =
         _ -> Left (showPatternHelp diffNamespaceToPatch)
     }
 
+projectCreate :: InputPattern
+projectCreate =
+  InputPattern
+    { patternName = "project.create",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(Required, projectNameArg)],
+      help = P.wrap "Create a project.",
+      parse = \case
+        [name] ->
+          case tryInto @ProjectName (Text.pack name) of
+            Left _ -> Left "Invalid project name."
+            Right name1 -> Right (Input.ProjectCreateI name1)
+        _ -> Left (showPatternHelp projectCreate)
+    }
+
+projectSwitch :: InputPattern
+projectSwitch =
+  InputPattern
+    { patternName = "project.switch",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(Required, projectAndBranchNamesArg)],
+      help = P.wrap "Switch to a project.",
+      parse = \case
+        [name] ->
+          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+            Left _ -> Left (showPatternHelp projectSwitch)
+            Right projectAndBranch -> Right (Input.ProjectSwitchI projectAndBranch)
+        _ -> Left (showPatternHelp projectSwitch)
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2444,7 +2437,9 @@ validInputs =
       gist,
       authLogin,
       printVersion,
-      diffNamespaceToPatch
+      diffNamespaceToPatch,
+      projectCreate,
+      projectSwitch
     ]
 
 -- | A map of all command patterns by pattern name or alias.
@@ -2576,6 +2571,87 @@ remoteNamespaceArg =
       globTargets = mempty
     }
 
+-- | A project name and optional branch name, separated by a colon.
+projectAndBranchNamesArg :: ArgumentType
+projectAndBranchNamesArg =
+  ArgumentType
+    { typeName = "project-and-branch-names",
+      suggestions = \_ _ _ _ -> pure [],
+      globTargets = Set.empty
+    }
+
+-- | A project branch name.
+projectBranchNameArg :: ArgumentType
+projectBranchNameArg =
+  ArgumentType
+    { typeName = "project-branch-name",
+      suggestions = \_ _ _ _ -> pure [],
+      globTargets = Set.empty
+    }
+
+-- | A project name.
+projectNameArg :: ArgumentType
+projectNameArg =
+  ArgumentType
+    { typeName = "project-name",
+      suggestions = \_ _ _ _ -> pure [],
+      globTargets = Set.empty
+    }
+
+parseProjectName :: Text -> Either (P.Pretty P.ColorText) ProjectName
+parseProjectName s =
+  mapLeft (\_ -> "Invalid project name.") (tryInto @ProjectName s)
+
+parseProjectBranchName :: Text -> Either (P.Pretty P.ColorText) ProjectBranchName
+parseProjectBranchName s =
+  mapLeft (\_ -> "Invalid branch name.") (tryInto @ProjectBranchName s)
+
+-- | Parse a 'Input.PushSource'.
+parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource
+parsePushSource sourceStr =
+  case tryFrom (Text.pack sourceStr) of
+    Left _ ->
+      case Path.parsePath' sourceStr of
+        Left _ -> Left (I.help push)
+        Right path -> Right (Input.PathySource path)
+    Right branch -> Right (Input.ProjySource branch)
+
+-- | Parse a 'Input.PushTarget'.
+parsePushTarget :: String -> Either (P.Pretty CT.ColorText) Input.PushTarget
+parsePushTarget targetStr =
+  case tryFrom (Text.pack targetStr) of
+    Left _ ->
+      case parseWriteRemotePath "remote-path" targetStr of
+        Left _ -> Left (I.help push)
+        Right path -> Right (Input.PathyTarget path)
+    Right branch -> Right (Input.ProjyTarget branch)
+
+parseHashQualifiedName ::
+  String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
+parseHashQualifiedName s =
+  maybe
+    ( Left
+        . P.warnCallout
+        . P.wrap
+        $ P.string s
+          <> " is not a well-formed name, hash, or hash-qualified name. "
+          <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
+    )
+    Right
+    $ HQ.fromString s
+
+parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
+parseWriteGitRepo label input = do
+  first
+    (fromString . show) -- turn any parsing errors into a Pretty.
+    (P.parse UriParser.writeGitRepo label (Text.pack input))
+
+parseWriteRemotePath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
+parseWriteRemotePath label input = do
+  first
+    (fromString . show) -- turn any parsing errors into a Pretty.
+    (P.parse UriParser.writeRemotePath label (Text.pack input))
+
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
 
@@ -2598,7 +2674,8 @@ explainRemote pushPull =
 showErrorFancy :: P.ShowErrorComponent e => P.ErrorFancy e -> String
 showErrorFancy (P.ErrorFail msg) = msg
 showErrorFancy (P.ErrorIndentation ord ref actual) =
-  "incorrect indentation (got " <> show (P.unPos actual)
+  "incorrect indentation (got "
+    <> show (P.unPos actual)
     <> ", should be "
     <> p
     <> show (P.unPos ref)
