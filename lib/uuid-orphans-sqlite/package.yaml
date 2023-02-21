@@ -1,47 +1,43 @@
-name: unison-prelude
+name: uuid-orphans-sqlite
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 library:
-  source-dirs: src
   when:
     - condition: false
-      other-modules: Paths_unison_prelude
+      other-modules: Paths_uuid_orphans_sqlite
+  source-dirs: src
 
 dependencies:
   - base
-  - bytestring
-  - containers
-  - either
-  - extra
-  - lens
-  - mtl
-  - pretty-simple
-  - safe
-  - text
-  - time
-  - transformers
-  - unliftio
-  - vector
-  - witch
-  - witherable
+  - sqlite-simple
+  - uuid
 
 ghc-options:
   -Wall
+  -fno-warn-orphans
 
 default-extensions:
   - ApplicativeDo
   - BangPatterns
   - BlockArguments
-  - ConstraintKinds
   - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
+  - DerivingVia
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
-  - ScopedTypeVariables
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
   - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
+  - ViewPatterns

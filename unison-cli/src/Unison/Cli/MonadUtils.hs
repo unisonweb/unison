@@ -210,12 +210,15 @@ getRootBranch0 =
   Branch.head <$> getRootBranch
 
 -- | Set a new root branch.
+--
 -- Note: This does _not_ update the codebase, the caller is responsible for that.
 setRootBranch :: Branch IO -> Cli ()
 setRootBranch b = do
   void $ modifyRootBranch (const b)
 
--- | Get the root branch.
+-- | Modify the root branch.
+--
+-- Note: This does _not_ update the codebase, the caller is responsible for that.
 modifyRootBranch :: (Branch IO -> Branch IO) -> Cli (Branch IO)
 modifyRootBranch f = do
   rootVar <- use #root

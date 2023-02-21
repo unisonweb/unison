@@ -114,6 +114,7 @@ import Unison.PrintError
     printNoteWithSource,
     renderCompilerBug,
   )
+import Unison.Project (ProjectName)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -222,7 +223,8 @@ notifyNumbered o = case o of
               p,
               "",
               tip $
-                "You can use " <> IP.makeExample' IP.todo
+                "You can use "
+                  <> IP.makeExample' IP.todo
                   <> "to see if this generated any work to do in this namespace"
                   <> "and "
                   <> IP.makeExample' IP.test
@@ -240,7 +242,8 @@ notifyNumbered o = case o of
       ( \p ->
           P.lines
             [ P.wrap $
-                "Here's what's changed in " <> prettyPath' dest'
+                "Here's what's changed in "
+                  <> prettyPath' dest'
                   <> "after applying the patch at "
                   <> P.group (prettyPath' patchPath' <> ":"),
               "",
@@ -331,7 +334,9 @@ notifyNumbered o = case o of
             [ p,
               "",
               tip $
-                "Add" <> prettyName "License" <> "values for"
+                "Add"
+                  <> prettyName "License"
+                  <> "values for"
                   <> prettyName (Name.fromSegment authorNS)
                   <> "under"
                   <> P.group (prettyPath' authorPath' <> ".")
@@ -416,7 +421,8 @@ notifyNumbered o = case o of
             P.indentN 2 $ prettyDiff diff
           ]
       ex =
-        "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
+        "Use"
+          <> IP.makeExample IP.history ["#som3n4m3space"]
           <> "to view history starting from a given namespace hash."
   DeletedDespiteDependents ppeDecl endangerments ->
     ( P.warnCallout $
@@ -434,7 +440,8 @@ notifyNumbered o = case o of
 undoTip :: P.Pretty P.ColorText
 undoTip =
   tip $
-    "You can use" <> IP.makeExample' IP.undo
+    "You can use"
+      <> IP.makeExample' IP.undo
       <> "or"
       <> IP.makeExample' IP.viewReflog
       <> "to undo this change."
@@ -544,12 +551,13 @@ prettyWriteRemotePath =
   P.group . P.blue . P.text . RemoteRepo.printWriteRemotePath
 
 notifyUser :: FilePath -> Output -> IO Pretty
-notifyUser dir o = case o of
+notifyUser dir = \case
   SaveTermNameConflict name ->
     pure
       . P.warnCallout
       . P.wrap
-      $ "Cannot save the last run result into" <> P.backticked (P.string (Name.toString name))
+      $ "Cannot save the last run result into"
+        <> P.backticked (P.string (Name.toString name))
         <> "because that name conflicts with a name in the scratch file."
   NoLastRunResult ->
     pure
@@ -612,7 +620,8 @@ notifyUser dir o = case o of
               P.wrap $ "Now might be a good time to make a backup of your codebase. 😬",
               "",
               P.wrap $
-                "After that, you might try using the" <> makeExample' IP.forkLocal
+                "After that, you might try using the"
+                  <> makeExample' IP.forkLocal
                   <> "command to inspect the namespaces listed above, and decide which"
                   <> "one you want as your root."
                   <> "You can also use"
@@ -690,7 +699,8 @@ notifyUser dir o = case o of
       cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
   TestIncrementalOutputStart ppe (n, total) r _src -> do
     putPretty' $
-      P.shown (total - n) <> " tests left to run, current test: "
+      P.shown (total - n)
+        <> " tests left to run, current test: "
         <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
     pure mempty
   TestIncrementalOutputEnd _ppe (_n, _total) _r result -> do
@@ -711,7 +721,8 @@ notifyUser dir o = case o of
   MetadataMissingType ppe ref ->
     pure . P.fatalCallout . P.lines $
       [ P.wrap $
-          "The metadata value " <> P.red (prettyTermName ppe ref)
+          "The metadata value "
+            <> P.red (prettyTermName ppe ref)
             <> "is missing a type signature in the codebase.",
         "",
         P.wrap $
@@ -720,7 +731,8 @@ notifyUser dir o = case o of
             <> "are being deleted external to UCM."
       ]
   MetadataAmbiguous hq _ppe [] ->
-    pure . P.warnCallout
+    pure
+      . P.warnCallout
       . P.wrap
       $ "I couldn't find any metadata matching "
         <> P.syntaxToColor (prettyHashQualified hq)
@@ -797,7 +809,8 @@ notifyUser dir o = case o of
     pure . P.callout "😶" $
       P.lines
         [ P.wrap $
-            "I looked for a function" <> P.backticked (P.string main)
+            "I looked for a function"
+              <> P.backticked (P.string main)
               <> "in the most recently typechecked file and codebase but couldn't find one. It has to have the type:",
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
@@ -862,7 +875,9 @@ notifyUser dir o = case o of
   DeletedEverything ->
     pure . P.wrap . P.lines $
       [ "Okay, I deleted everything except the history.",
-        "Use " <> IP.makeExample' IP.undo <> " to undo, or "
+        "Use "
+          <> IP.makeExample' IP.undo
+          <> " to undo, or "
           <> IP.makeExample' IP.mergeBuiltins
           <> " to restore the absolute "
           <> "basics to the current path."
@@ -870,7 +885,8 @@ notifyUser dir o = case o of
   DeleteEverythingConfirmation ->
     pure . P.warnCallout . P.lines $
       [ "Are you sure you want to clear away everything?",
-        "You could use " <> IP.makeExample' IP.cd
+        "You could use "
+          <> IP.makeExample' IP.cd
           <> " to switch to a new namespace instead."
       ]
   DeleteBranchConfirmation _uniqueDeletions -> error "todo"
@@ -1047,11 +1063,11 @@ notifyUser dir o = case o of
 
         let prettyBindings =
               P.bracket . P.lines $
-                P.wrap "The watch expression(s) reference these definitions:" :
-                "" :
-                  [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
-                    | (v, b) <- bindings
-                  ]
+                P.wrap "The watch expression(s) reference these definitions:"
+                  : ""
+                  : [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
+                      | (v, b) <- bindings
+                    ]
             prettyWatches =
               P.sep
                 "\n\n"
@@ -1153,12 +1169,14 @@ notifyUser dir o = case o of
             <> P.backticked' (P.string localPath) "."
       CodebaseRequiresMigration (SchemaVersion fromSv) (SchemaVersion toSv) -> do
         P.wrap $
-          "The specified codebase codebase is on version " <> P.shown fromSv
+          "The specified codebase codebase is on version "
+            <> P.shown fromSv
             <> " but needs to be on version "
             <> P.shown toSv
       UnrecognizedSchemaVersion repo localPath (SchemaVersion v) ->
         P.wrap $
-          "I don't know how to interpret schema version " <> P.shown v
+          "I don't know how to interpret schema version "
+            <> P.shown v
             <> "in the repository at"
             <> prettyReadGitRepo repo
             <> "in the cache directory at"
@@ -1179,12 +1197,18 @@ notifyUser dir o = case o of
             <> P.group (P.shown e)
       CloneException repo msg ->
         P.wrap $
-          "I couldn't clone the repository at" <> prettyReadGitRepo repo <> ";"
+          "I couldn't clone the repository at"
+            <> prettyReadGitRepo repo
+            <> ";"
             <> "the error was:"
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
       CopyException srcRepoPath destPath msg ->
         P.wrap $
-          "I couldn't copy the repository at" <> P.string srcRepoPath <> "into" <> P.string destPath <> ";"
+          "I couldn't copy the repository at"
+            <> P.string srcRepoPath
+            <> "into"
+            <> P.string destPath
+            <> ";"
             <> "the error was:"
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
       PushNoOp repo ->
@@ -1192,7 +1216,9 @@ notifyUser dir o = case o of
           "The repository at" <> prettyWriteGitRepo repo <> "is already up-to-date."
       PushException repo msg ->
         P.wrap $
-          "I couldn't push to the repository at" <> prettyWriteGitRepo repo <> ";"
+          "I couldn't push to the repository at"
+            <> prettyWriteGitRepo repo
+            <> ";"
             <> "the error was:"
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
       RemoteRefNotFound repo ref ->
@@ -1217,7 +1243,8 @@ notifyUser dir o = case o of
       PushDestinationHasNewStuff repo ->
         P.callout "⏸" . P.lines $
           [ P.wrap $
-              "The repository at" <> prettyWriteGitRepo repo
+              "The repository at"
+                <> prettyWriteGitRepo repo
                 <> "has some changes I don't know about.",
             "",
             P.wrap $ "Try" <> pull <> "to merge these changes locally, then" <> push <> "again."
@@ -1240,7 +1267,8 @@ notifyUser dir o = case o of
             <> prettyReadGitRepo repo
       CouldntLoadSyncedBranch ns h ->
         P.wrap $
-          "I just finished importing the branch" <> P.red (P.shown h)
+          "I just finished importing the branch"
+            <> P.red (P.shown h)
             <> "from"
             <> P.red (prettyReadRemoteNamespace (RemoteRepo.ReadRemoteNamespaceGit ns))
             <> "but now I can't find it."
@@ -1252,13 +1280,15 @@ notifyUser dir o = case o of
             <> prettyReadGitRepo repo
       NoRemoteNamespaceWithHash repo sch ->
         P.wrap $
-          "The repository at" <> prettyReadGitRepo repo
+          "The repository at"
+            <> prettyReadGitRepo repo
             <> "doesn't contain a namespace with the hash prefix"
             <> (P.blue . P.text . SCH.toText) sch
       RemoteNamespaceHashAmbiguous repo sch hashes ->
         P.lines
           [ P.wrap $
-              "The namespace hash" <> prettySCH sch
+              "The namespace hash"
+                <> prettySCH sch
                 <> "at"
                 <> prettyReadGitRepo repo
                 <> "is ambiguous."
@@ -1285,12 +1315,13 @@ notifyUser dir o = case o of
       case (new, old) of
         ([], []) -> error "BustedBuiltins busted, as there were no busted builtins."
         ([], old) ->
-          P.wrap ("This codebase includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your codebase:") :
-          "" :
-          fmap (P.text . Reference.toText) old
+          P.wrap ("This codebase includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your codebase:")
+            : ""
+            : fmap (P.text . Reference.toText) old
         (new, []) ->
-          P.wrap ("This version of Unison provides builtins that are not part of your codebase. Use " <> makeExample' IP.updateBuiltins <> " to add them:") :
-          "" : fmap (P.text . Reference.toText) new
+          P.wrap ("This version of Unison provides builtins that are not part of your codebase. Use " <> makeExample' IP.updateBuiltins <> " to add them:")
+            : ""
+            : fmap (P.text . Reference.toText) new
         (new@(_ : _), old@(_ : _)) ->
           [ P.wrap
               ( "Sorry and/or good news!  This version of Unison supports a different set of builtins than this codebase uses.  You can use "
@@ -1351,18 +1382,21 @@ notifyUser dir o = case o of
             <> prettyAbsolute p
             <> "in .unisonConfig",
         P.wrap $
-          "The value I found was" <> (P.backticked . P.blue . P.text) url
+          "The value I found was"
+            <> (P.backticked . P.blue . P.text) url
             <> "but I encountered the following error when trying to parse it:",
         "",
         P.string err,
         "",
         P.wrap $
-          "Type" <> P.backticked ("help " <> PushPull.fold "push" "pull" pp)
+          "Type"
+            <> P.backticked ("help " <> PushPull.fold "push" "pull" pp)
             <> "for more information."
       ]
   NoBranchWithHash _h ->
     pure . P.callout "😶" $
-      P.wrap $ "I don't know of a namespace with that hash."
+      P.wrap $
+        "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists p ->
     pure . P.wrap $
@@ -1413,7 +1447,9 @@ notifyUser dir o = case o of
   HashAmbiguous h rs ->
     pure . P.callout "\129300" . P.lines $
       [ P.wrap $
-          "The hash" <> prettyShortHash h <> "is ambiguous."
+          "The hash"
+            <> prettyShortHash h
+            <> "is ambiguous."
             <> "Did you mean one of these hashes?",
         "",
         P.indentN 2 $ P.lines (P.shown <$> Set.toList rs),
@@ -1423,7 +1459,9 @@ notifyUser dir o = case o of
   BranchHashAmbiguous h rs ->
     pure . P.callout "\129300" . P.lines $
       [ P.wrap $
-          "The namespace hash" <> prettySCH h <> "is ambiguous."
+          "The namespace hash"
+            <> prettySCH h
+            <> "is ambiguous."
             <> "Did you mean one of these hashes?",
         "",
         P.indentN 2 $ P.lines (prettySCH <$> Set.toList rs),
@@ -1503,12 +1541,15 @@ notifyUser dir o = case o of
   PullAlreadyUpToDate ns dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPath' dest <> "was already up-to-date with"
+        prettyPath' dest
+          <> "was already up-to-date with"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully updated" <> prettyPath' dest <> "from"
+        "Successfully updated"
+          <> prettyPath' dest
+          <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   MergeOverEmpty dest ->
     pure . P.okCallout $
@@ -1517,12 +1558,14 @@ notifyUser dir o = case o of
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPath' dest <> "was already up-to-date with"
+        prettyPath' dest
+          <> "was already up-to-date with"
           <> P.group (prettyPath' src <> ".")
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPath' dest <> "is already up-to-date with"
+        prettyPath' dest
+          <> "is already up-to-date with"
           <> P.group (prettyPath' src <> ".")
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   NoConflictsOrEdits ->
@@ -1538,7 +1581,9 @@ notifyUser dir o = case o of
           where
             renderHash = take 10 . Text.unpack . Hash.toBase32HexText . unCausalHash
             renderLine head tail =
-              (renderHash head) ++ "|" ++ intercalateMap " " renderHash tail
+              (renderHash head)
+                ++ "|"
+                ++ intercalateMap " " renderHash tail
                 ++ case Map.lookup (Hash.toBase32HexText . unCausalHash $ head) tags of
                   Just t -> "|tag: " ++ t
                   Nothing -> ""
@@ -1591,17 +1636,19 @@ notifyUser dir o = case o of
       if names == mempty && missing == mempty
         then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependencies."
         else
-          "Dependencies of " <> c (prettyLabeledDependency hqLength ld) <> ":\n\n"
+          "Dependencies of "
+            <> c (prettyLabeledDependency hqLength ld)
+            <> ":\n\n"
             <> (P.indentN 2 (P.numberedColumn2Header num pairs))
     where
       num n = P.hiBlack $ P.shown n <> "."
       header = (P.hiBlack "Reference", P.hiBlack "Name")
       pairs =
-        header :
-        ( fmap (first c . second c) $
-            [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
-              ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
-        )
+        header
+          : ( fmap (first c . second c) $
+                [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
+                  ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
+            )
       p = prettyShortHash . SH.take hqLength
       c = P.syntaxToColor
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
@@ -1665,7 +1712,8 @@ notifyUser dir o = case o of
     Auth.ReauthRequired host ->
       P.lines
         [ "Authentication for host " <> P.red (P.shown host) <> " is required.",
-          "Run " <> IP.makeExample IP.help [IP.patternName IP.authLogin]
+          "Run "
+            <> IP.makeExample IP.help [IP.patternName IP.authLogin]
             <> " to learn how."
         ]
     Auth.CredentialParseFailure fp txt ->
@@ -1857,6 +1905,7 @@ notifyUser dir o = case o of
   PulledEmptyBranch remote ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
+  ProjectNameAlreadyExists name -> pure (prettyProjectName name <> "already exists.")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
@@ -1959,6 +2008,10 @@ prettyHash = prettyBase32Hex# . Hash.toBase32Hex
 prettyHash32 :: IsString s => Hash32 -> P.Pretty s
 prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
 
+prettyProjectName :: ProjectName -> Pretty
+prettyProjectName =
+  P.blue . P.text . into @Text
+
 formatMissingStuff ::
   (Show tm, Show typ) =>
   [(HQ.HashQualified Name, tm)] ->
@@ -2011,7 +2064,9 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
     builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
     missing n r =
       P.wrap
-        ( "-- The name " <> prettyHashQualified n <> " is assigned to the "
+        ( "-- The name "
+            <> prettyHashQualified n
+            <> " is assigned to the "
             <> "reference "
             <> fromString (show r ++ ",")
             <> "which is missing from the codebase."
@@ -2079,7 +2134,8 @@ displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv 
                 P.indentN 2 code,
                 "",
                 P.wrap $
-                  "You can edit them there, then do" <> makeExample' IP.update
+                  "You can edit them there, then do"
+                    <> makeExample' IP.update
                     <> "to replace the definitions currently in this namespace."
               ]
 
@@ -2132,7 +2188,9 @@ displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv 
     builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
     missing n r =
       P.wrap
-        ( "-- The name " <> prettyHashQualified n <> " is assigned to the "
+        ( "-- The name "
+            <> prettyHashQualified n
+            <> " is assigned to the "
             <> "reference "
             <> fromString (show r ++ ",")
             <> "which is missing from the codebase."
@@ -2171,7 +2229,8 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted =
           then mempty
           else
             tip $
-              "Use " <> P.blue ("view " <> P.text (fst $ head (fails ++ oks)))
+              "Use "
+                <> P.blue ("view " <> P.text (fst $ head (fails ++ oks)))
                 <> "to view the source of a test."
    in if null oks && null fails
         then "😶 No tests available."
@@ -2206,7 +2265,8 @@ unsafePrettyTermResultSigFull' ppe = \case
     P.lines
       [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r),
         P.group $
-          P.commas (fmap greyHash $ hq : map HQ'.toHQ (toList aliases)) <> " : "
+          P.commas (fmap greyHash $ hq : map HQ'.toHQ (toList aliases))
+            <> " : "
             <> P.syntaxToColor (TypePrinter.prettySyntax ppe typ),
         mempty
       ]
@@ -2227,10 +2287,10 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' name dt r aliases) =
   P.lines stuff <> P.newline
   where
     stuff =
-      (P.hiBlack "-- " <> greyHash (HQ.fromReference r)) :
-      fmap
-        (\name -> prettyDeclTriple (name, r, dt))
-        (name : map HQ'.toHQ (toList aliases))
+      (P.hiBlack "-- " <> greyHash (HQ.fromReference r))
+        : fmap
+          (\name -> prettyDeclTriple (name, r, dt))
+          (name : map HQ'.toHQ (toList aliases))
       where
         greyHash = styleHashQualified' id P.hiBlack
 
@@ -2298,7 +2358,10 @@ renderNameConflicts ppe conflictedNames = do
             n <- addNumberedArg (HQ.toString hash)
             pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
           pure . P.wrap $
-            ( "The " <> thingKind <> " " <> P.green (prettyName name)
+            ( "The "
+                <> thingKind
+                <> " "
+                <> P.green (prettyName name)
                 <> " has conflicting definitions:"
             )
               `P.hang` P.lines prettyConflicts
@@ -2309,7 +2372,8 @@ renderEditConflicts ppe Patch {..} = do
   formattedConflicts <- for editConflicts formatConflict
   pure . Monoid.unlessM (null editConflicts) . P.callout "❓" . P.sep "\n\n" $
     [ P.wrap $
-        "These" <> P.bold "definitions were edited differently"
+        "These"
+          <> P.bold "definitions were edited differently"
           <> "in namespaces that have been merged into this one."
           <> "You'll have to tell me what to use as the new definition:",
       P.indentN 2 (P.lines formattedConflicts)
@@ -2332,7 +2396,9 @@ renderEditConflicts ppe Patch {..} = do
       replacedType <- numberedHQName (PPE.typeName ppe r)
       replacements <- for [PPE.typeName ppe r | TypeEdit.Replace r <- es] numberedHQName
       pure . P.wrap $
-        "The type" <> replacedType <> "was"
+        "The type"
+          <> replacedType
+          <> "was"
           <> ( if TypeEdit.Deprecate `elem` es
                  then "deprecated and also replaced with"
                  else "replaced with"
@@ -2345,7 +2411,9 @@ renderEditConflicts ppe Patch {..} = do
       replacedTerm <- numberedHQName (PPE.termName ppe (Referent.Ref r))
       replacements <- for [PPE.termName ppe (Referent.Ref r) | TermEdit.Replace r _ <- es] numberedHQName
       pure . P.wrap $
-        "The term" <> replacedTerm <> "was"
+        "The term"
+          <> replacedTerm
+          <> "was"
           <> ( if TermEdit.Deprecate `elem` es
                  then "deprecated and also replaced with"
                  else "replaced with"
@@ -2443,7 +2511,8 @@ todoOutput ppe todo = runNumbered do
       pure $
         Monoid.unlessM (TO.noEdits todo) . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
           [ P.wrap
-              ( "The namespace has" <> fromString (show (TO.todoScore todo))
+              ( "The namespace has"
+                  <> fromString (show (TO.todoScore todo))
                   <> "transitive dependent(s) left to upgrade."
                   <> "Your edit frontier is the dependents of these definitions:"
               ),
@@ -2479,7 +2548,8 @@ listOfLinks ppe results =
           ],
         "",
         tip $
-          "Try using" <> IP.makeExample IP.display ["1"]
+          "Try using"
+            <> IP.makeExample IP.display ["1"]
             <> "to display the first result or"
             <> IP.makeExample IP.view ["1"]
             <> "to view its source."
@@ -2952,24 +3022,23 @@ listOfDefinitions' fscope ppe detailed results =
     else
       P.lines
         . P.nonEmpty
-        $ prettyNumberedResults :
-        [ formatMissingStuff termsWithMissingTypes missingTypes,
-          Monoid.unlessM (null missingBuiltins)
-            . bigproblem
-            $ P.wrap
-              "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:"
-              `P.hang` P.column2
-                ( (P.bold "Name", P.bold "Built-in")
-                  -- : ("-", "-")
-                  :
-                  fmap
-                    ( bimap
-                        (P.syntaxToColor . prettyHashQualified)
-                        (P.text . Referent.toText)
+        $ prettyNumberedResults
+          : [ formatMissingStuff termsWithMissingTypes missingTypes,
+              Monoid.unlessM (null missingBuiltins)
+                . bigproblem
+                $ P.wrap
+                  "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:"
+                  `P.hang` P.column2
+                    ( (P.bold "Name", P.bold "Built-in")
+                        -- : ("-", "-")
+                        : fmap
+                          ( bimap
+                              (P.syntaxToColor . prettyHashQualified)
+                              (P.text . Referent.toText)
+                          )
+                          missingBuiltins
                     )
-                    missingBuiltins
-                )
-        ]
+            ]
   where
     prettyNumberedResults = P.numberedList prettyResults
     -- todo: group this by namespace
@@ -3136,8 +3205,8 @@ prettyDiff diff =
                   "",
                   P.indentN 2 $
                     P.column2 $
-                      (P.hiBlack "Original name", P.hiBlack "New name") :
-                        [(prettyName n, prettyName n2) | (n, n2) <- moved]
+                      (P.hiBlack "Original name", P.hiBlack "New name")
+                        : [(prettyName n, prettyName n2) | (n, n2) <- moved]
                 ]
             else mempty,
           if not $ null copied
@@ -3147,10 +3216,10 @@ prettyDiff diff =
                   "",
                   P.indentN 2 $
                     P.column2 $
-                      (P.hiBlack "Original name", P.hiBlack "New name(s)") :
-                        [ (prettyName n, P.sep " " (prettyName <$> ns))
-                          | (n, ns) <- copied
-                        ]
+                      (P.hiBlack "Original name", P.hiBlack "New name(s)")
+                        : [ (prettyName n, P.sep " " (prettyName <$> ns))
+                            | (n, ns) <- copied
+                          ]
                 ]
             else mempty
         ]

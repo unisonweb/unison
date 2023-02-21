@@ -23,7 +23,6 @@ where
 
 import Control.Concurrent (ThreadId, myThreadId)
 import Data.Typeable (cast)
-import Data.Void (Void)
 import qualified Database.SQLite.Simple as Sqlite
 import Debug.RecoverRTTI (anythingToString)
 import GHC.Stack (currentCallStack)

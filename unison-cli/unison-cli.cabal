@@ -34,6 +34,8 @@ library
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
       Unison.Cli.PrettyPrintUtils
+      Unison.Cli.ProjectUtils
+      Unison.Cli.Share.Projects
       Unison.Cli.TypeCheck
       Unison.Cli.UnisonConfigUtils
       Unison.Codebase.Editor.AuthorInfo
@@ -43,6 +45,9 @@ library
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
+      Unison.Codebase.Editor.HandleInput.ProjectCreate
+      Unison.Codebase.Editor.HandleInput.ProjectSwitch
+      Unison.Codebase.Editor.HandleInput.Push
       Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.Input
@@ -178,6 +183,7 @@ library
     , servant-client
     , stm
     , text
+    , text-builder
     , text-rope
     , these
     , time
@@ -192,6 +198,7 @@ library
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-share-projects-api
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
@@ -199,9 +206,11 @@ library
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
+    , witch
     , witherable
   default-language: Haskell2010
   if flag(optimized)
@@ -306,6 +315,7 @@ executable cli-integration-tests
     , shellmet
     , stm
     , text
+    , text-builder
     , text-rope
     , these
     , time
@@ -320,6 +330,7 @@ executable cli-integration-tests
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-share-projects-api
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
@@ -327,9 +338,11 @@ executable cli-integration-tests
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
+    , witch
     , witherable
   default-language: Haskell2010
   if flag(optimized)
@@ -427,6 +440,7 @@ executable transcripts
     , shellmet
     , stm
     , text
+    , text-builder
     , text-rope
     , these
     , time
@@ -442,6 +456,7 @@ executable transcripts
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-share-projects-api
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
@@ -449,9 +464,11 @@ executable transcripts
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
+    , witch
     , witherable
   default-language: Haskell2010
   if flag(optimized)
@@ -556,6 +573,7 @@ executable unison
     , template-haskell
     , temporary
     , text
+    , text-builder
     , text-rope
     , these
     , time
@@ -571,6 +589,7 @@ executable unison
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-share-projects-api
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
@@ -578,9 +597,11 @@ executable unison
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
+    , witch
     , witherable
   default-language: Haskell2010
   if flag(optimized)
@@ -688,6 +709,7 @@ test-suite cli-tests
     , stm
     , temporary
     , text
+    , text-builder
     , text-rope
     , these
     , time
@@ -703,6 +725,7 @@ test-suite cli-tests
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-share-projects-api
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
@@ -710,9 +733,11 @@ test-suite cli-tests
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
+    , witch
     , witherable
   default-language: Haskell2010
   if flag(optimized)

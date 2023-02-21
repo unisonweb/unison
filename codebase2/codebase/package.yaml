@@ -33,8 +33,8 @@ dependencies:
   - lens
   - mtl
   - text
+  - time
   - unison-core
   - unison-hash
-  - unison-util-base32hex
   - unison-prelude
-  - time
+  - unison-util-base32hex
