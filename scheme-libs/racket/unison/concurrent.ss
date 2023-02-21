@@ -12,7 +12,8 @@
     promise-try-read
     fork
     kill
-    sleep)
+    sleep
+    try-eval)
 
   (import (rnrs)
           (rnrs records syntactic)
@@ -32,14 +33,20 @@
                  parameterize-break
                  sleep
                  printf
+                 with-handlers
                  exn:break?
-                 with-handlers)
+                 exn:fail?
+                 exn:fail:read?
+                 exn:fail:filesystem?
+                 exn:fail:network?
+                 exn:fail:contract:divide-by-zero?
+                 exn:fail:contract:non-fixnum-result?)
            (box ref-new)
            (unbox ref-read)
            (set-box! ref-write)
            (sleep sleep-secs))
-          (only (racket unsafe ops) unsafe-struct*-cas!)
-          (unison data))
+          (only (racket exn) exn->string)
+          (only (racket unsafe ops) unsafe-struct*-cas!))
 
   (define-record-type promise (fields semaphore event (mutable value)))
 
@@ -86,4 +93,23 @@
 
   (define (kill threadId)
     (break-thread threadId)
-    (right unit)))
+    (right unit))
+
+  (define (exn:io? e)
+    (or (exn:fail:read? e)
+        (exn:fail:filesystem? e)
+        (exn:fail:network? e)))
+
+  (define (exn:arith? e)
+    (or (exn:fail:contract:divide-by-zero? e)
+        (exn:fail:contract:non-fixnum-result? e)))
+
+  ;; TODO Replace strings with proper type links once we have them
+  (define (try-eval thunk)
+    (with-handlers
+      ([exn:break? (lambda (e) (exception "ThreadKilledFailure" "thread killed" ()))]
+       [exn:io? (lambda (e) (exception "IOFailure" (exn->string e) ()))]
+       [exn:arith? (lambda (e) (exception "ArithmeticFailure" (exn->string e) ()))]
+       [exn:fail? (lambda (e) (exception "RuntimeFailure" (exn->string e) ()))]
+       [(lambda (x) #t) (lambda (e) (exception "MiscFailure" "unknown exception" e))])
+      (right (thunk)))))
