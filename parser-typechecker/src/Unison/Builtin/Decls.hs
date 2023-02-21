@@ -367,7 +367,7 @@ builtinDataDecls = rs1 ++ rs
 
     threadKilledFailure =
       DataDeclaration
-        (Unique "replace-this-with-proper-id")
+        (Unique "e7e479ebb757edcd5acff958b00aa228ac75b0c53638d44cf9d62fca045c33cf")
         ()
         []
         []
