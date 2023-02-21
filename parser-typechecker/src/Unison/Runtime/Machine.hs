@@ -521,6 +521,9 @@ encodeExn ustk bstk (Left exn) = do
           (Rf.stmFailureRef, disp be, unitValue)
       | Just (be :: BlockedIndefinitelyOnMVar) <- fromException exn =
           (Rf.ioFailureRef, disp be, unitValue)
+      -- TODO arithmeticFailureRef is a placeholder for the upcoming threadKilledRef
+      | Just (ie :: AsyncException) <- fromException exn =
+          (Rf.arithmeticFailureRef, disp ie, unitValue)
       | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
 
 eval ::
