@@ -49,6 +49,16 @@ import qualified Unison.Builtin.Decls as DD
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
+    ( DisplayDefinitionsOutput(..),
+      NumberedArgs,
+      NumberedOutput(..),
+      Output(..),
+      ShareError(ShareErrorTransport, ShareErrorCheckAndSetPush,
+                 ShareErrorFastForwardPush, ShareErrorPull,
+                 ShareErrorGetCausalHashByPath),
+      TestReportStats(NewlyComputed, CachedTests),
+      UndoFailureReason(CantUndoPastMerge, CantUndoPastStart),
+      WhichBranchEmpty(..) )
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
