@@ -1,4 +1,4 @@
-concurrency.tests = Tests.main do
+concurrency.tests = do
   !simpleRefTest
   !simpleRefTestScope
   !ticketTest
@@ -6,7 +6,8 @@ concurrency.tests = Tests.main do
   !promiseSequentialTest
   !promiseConcurrentTest
   !forkKillTest
-  --  !tryEvalForkTest
+  !tryEvalForkTest
+  !tryEvalKillTest
   !fullTest
 
 simpleRefTest = do
@@ -84,7 +85,27 @@ forkKillTest = do
   v = Ref.read ref
   checkEqual "Thread was killed" v "initial"
 
-tryEvalForkTest = bug "Depends on the Exception ability being implemented"
+tryEvalForkTest = do
+  ref = IO.ref "initial"
+  t = fork do
+    match catchAll do sleep_ (400 * millis) with
+      Left _ -> ()
+      Right _ -> unsafeRun! do Ref.write ref "finished"
+  sleep_ (500 * millis)
+  v = Ref.read ref
+  checkEqual "tryEval is a no-op on success" v "finished"
+
+tryEvalKillTest = do
+  ref = IO.ref "initial"              
+  t = fork do
+    match catchAll do sleep_ (400 * millis) with
+      Left (Failure typ msg a) -> unsafeRun! do Ref.write ref msg
+      Right _ -> unsafeRun! do Ref.write ref "finished"
+  sleep_ (200 * millis)
+  kill_ t
+  sleep_ (300 * millis)
+  v = Ref.read ref
+  checkEqual "Thread was killed, with finalisers" v "thread killed"
 
 atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 atomicUpdate ref f =
