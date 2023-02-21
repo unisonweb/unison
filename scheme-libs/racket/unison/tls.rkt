@@ -1,34 +1,21 @@
 ; TLS primitives! Supplied by openssl (libssl)
 #lang racket/base
-(require ffi/unsafe
-         ffi/unsafe/define
-         racket/exn
+(require racket/exn
          racket/tcp
          racket/port
          unison/data
          openssl)
 
-(provide
-    (prefix-out unison-FOp-IO.   (combine-out
-        clientSocket.impl.v3))
-    (prefix-out unison-FOp-Tls.  (combine-out
-        ClientConfig.default
-        handshake.impl.v3
-        newClient.impl.v3
-        receive.impl.v3
-        send.impl.v3
-        terminate.impl.v3)))
+(provide (prefix-out unison-FOp-Tls. (combine-out
+    ClientConfig.default
+    handshake.impl.v3
+    newClient.impl.v3
+    receive.impl.v3
+    send.impl.v3
+    terminate.impl.v3)))
 
 ; TODO check out the tests in here
 ; unison-src/transcripts-using-base/net.md
-
-(define (clientSocket.impl.v3 host port)
-    (with-handlers
-        [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
-         [(lambda _ #t) (lambda (e) (exception "MiscFailure" "Unknown exception" e))] ]
-
-        (let-values ([(input output) (tcp-connect host (string->number port))])
-            (right (list input output)))))
 
 (define (ClientConfig.default host certificateSuffix)
     (list host certificateSuffix))

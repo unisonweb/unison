@@ -142,6 +142,9 @@
     unison-FOp-crypto.HashAlgorithm.Blake2b_512
 
     unison-FOp-IO.clientSocket.impl.v3
+    unison-FOp-IO.closeSocket.impl.v3
+    unison-FOp-IO.socketReceive.impl.v3
+    unison-FOp-IO.socketSend.impl.v3
     unison-FOp-Tls.ClientConfig.default
     unison-FOp-Tls.handshake.impl.v3
     unison-FOp-Tls.newClient.impl.v3
@@ -156,6 +159,7 @@
           (unison crypto)
           (unison data)
           (unison tls)
+          (unison tcp)
           (unison bytevector)
           (unison vector)
           (unison concurrent))
