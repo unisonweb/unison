@@ -2975,26 +2975,32 @@ checkDeletes typesTermsTuples doutput inputs = do
   let allTermsToDelete :: Set LabeledDependency
       allTermsToDelete = Set.unions (fmap Names.labeledReferences toDelete)
   -- get the endangered dependencies for each entity to delete
-  endangered <- Cli.runTransaction $ traverse (\targetToDelete ->
-    getEndangeredDependents targetToDelete (allTermsToDelete) rootNames) toDelete
+  endangered <-
+    Cli.runTransaction $
+      traverse ( \targetToDelete ->
+        getEndangeredDependents targetToDelete (allTermsToDelete) rootNames
+      )
+      toDelete
   -- If the overall dependency map is not completely empty, abort deletion
   let endangeredDeletions = List.filter (\m -> not $ null m || Map.foldr (\s b -> null s || b ) False m ) endangered
-  if null endangeredDeletions then do
-    let deleteTypesTerms =
-          splitsNames >>= (\(split, _, types, terms) ->
-            (map (BranchUtil.makeDeleteTypeName split) . Set.toList $ types) ++
-            (map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms )
-          )
-    before <- Cli.getRootBranch0
-    description <- inputDescription inputs
-    Cli.stepManyAt description deleteTypesTerms
-    case doutput of
-      DeleteOutput'Diff -> do
-        after <- Cli.getRootBranch0
-        (ppe, diff) <- diffHelper before after
-        Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
-      DeleteOutput'NoDiff -> do
-        Cli.respond Success
+  if null endangeredDeletions
+    then do
+      let deleteTypesTerms =
+            splitsNames
+              >>= ( \(split, _, types, terms) ->
+                      (map (BranchUtil.makeDeleteTypeName split) . Set.toList $ types)
+                        ++ (map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms )
+                  )
+      before <- Cli.getRootBranch0
+      description <- inputDescription inputs
+      Cli.stepManyAt description deleteTypesTerms
+      case doutput of
+        DeleteOutput'Diff -> do
+          after <- Cli.getRootBranch0
+          (ppe, diff) <- diffHelper before after
+          Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
+        DeleteOutput'NoDiff -> do
+          Cli.respond Success
   else do
       ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
       let combineRefs = List.foldl (Map.unionWith NESet.union) Map.empty endangeredDeletions
@@ -3024,7 +3030,7 @@ getEndangeredDependents targetToDelete otherDesiredDeletions rootNames = do
       refsToDelete = Names.labeledReferences targetToDelete
   -- refs left over after deleting target
   let remainingRefs :: Set LabeledDependency
-      remainingRefs =  Names.labeledReferences remainingNames
+      remainingRefs = Names.labeledReferences remainingNames
   -- remove the other targets for deletion from the remaining terms
   let remainingRefsWithoutOtherTargets :: Set LabeledDependency
       remainingRefsWithoutOtherTargets = Set.difference remainingRefs otherDesiredDeletions

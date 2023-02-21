@@ -51,14 +51,19 @@ import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
     ( DisplayDefinitionsOutput(..),
       NumberedArgs,
-      NumberedOutput(..),
-      Output(..),
-      ShareError(ShareErrorTransport, ShareErrorCheckAndSetPush,
-                 ShareErrorFastForwardPush, ShareErrorPull,
-                 ShareErrorGetCausalHashByPath),
-      TestReportStats(NewlyComputed, CachedTests),
-      UndoFailureReason(CantUndoPastMerge, CantUndoPastStart),
-      WhichBranchEmpty(..) )
+      NumberedOutput (..),
+      Output (..),
+      ShareError
+        ( ShareErrorTransport,
+          ShareErrorCheckAndSetPush,
+          ShareErrorFastForwardPush,
+          ShareErrorPull,
+          ShareErrorGetCausalHashByPath
+        ),
+      TestReportStats (NewlyComputed, CachedTests),
+      UndoFailureReason (CantUndoPastMerge, CantUndoPastStart),
+      WhichBranchEmpty (..),
+    )
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
@@ -796,7 +801,7 @@ notifyUser dir o = case o of
     pure $
       P.warnCallout "The following names were not found in the codebase. Check your spelling."
         <> P.newline
-        <> (P.syntaxToColor $ P.indent "  " (P.lines (fmap prettyName hqs) ))
+        <> (P.syntaxToColor $ P.indent "  " (P.lines (fmap prettyName hqs)))
   TermNotFound _ ->
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->
