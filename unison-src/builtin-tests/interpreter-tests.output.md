@@ -14,6 +14,36 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm
 .> run threadKilledTypeLinkTest
 
-  ()
+  💔💥
+  
+  I've encountered a call to builtin.bug with the following
+  value:
+  
+    "test suite failed"
+  
+  
+  Stack trace:
+    bug
+    #37j95plas6
 
 ```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  💔💥
+  
+  I've encountered a call to builtin.bug with the following
+  value:
+  
+    "test suite failed"
+  
+  
+  Stack trace:
+    bug
+    #37j95plas6
+
