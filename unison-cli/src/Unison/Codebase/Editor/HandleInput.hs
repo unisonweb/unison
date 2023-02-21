@@ -2548,10 +2548,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              Just (Nothing, result)
+                Just (Nothing, result)
           _ -> Nothing
           where
             result = SR.termSearchResult names0 name ref
@@ -2567,10 +2567,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              Just (Nothing, result)
+                Just (Nothing, result)
           _ -> Nothing
           where
             result = SR.typeSearchResult names0 name ref
@@ -2704,9 +2704,9 @@ typecheckAndEval ppe tm = do
     -- Type checking succeeded
     Result.Result _ (Just ty)
       | Typechecker.fitsScheme ty mty ->
-        () <$ evalUnisonTerm False ppe False tm
+          () <$ evalUnisonTerm False ppe False tm
       | otherwise ->
-        Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
+          Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
     Result.Result notes Nothing -> do
       currentPath <- Cli.getCurrentPath
       let tes = [err | Result.TypeError err <- toList notes]
@@ -2970,7 +2970,7 @@ checkDeletes typesTermsTuples doutput inputs = do
         return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq ^. _2, hq ^. _3)
   -- get the splits and names with terms and types
   splitsNames <- traverse toSplitName typesTermsTuples
-  let toRel :: Ord ref => Set ref -> Name -> R.Relation Name ref
+  let toRel :: (Ord ref) => Set ref -> Name -> R.Relation Name ref
       toRel setRef name = R.fromList (fmap (name,) (toList setRef))
   let toDelete = fmap (\(_, names, types, terms) -> Names (toRel terms names) (toRel types names)) splitsNames
   -- make sure endangered is compeletely contained in paths
