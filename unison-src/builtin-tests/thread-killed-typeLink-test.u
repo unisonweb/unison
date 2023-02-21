@@ -9,7 +9,7 @@ threadKilledTypeLinkTest = Tests.main do
   kill_ t
   sleep_ (300 * millis)
   v = Ref.read ref
-  expected = Some (typeLink ArithmeticFailure)
-  checkEqual "Thread was killed, with finalisers" v expected
+  expected = Some (typeLink ThreadKilledFailure)
+  checkEqual "Thread killed, finalisers with typeLink" v expected
 
 
