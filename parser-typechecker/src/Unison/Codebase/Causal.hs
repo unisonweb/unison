@@ -58,7 +58,7 @@ import Unison.Prelude
 import Prelude hiding (head, read, tail)
 
 -- | Focus the current head, keeping the hash up to date.
-head_ :: Hashing.ContentAddressable e => Lens.Lens' (Causal m e) e
+head_ :: (Hashing.ContentAddressable e) => Lens.Lens' (Causal m e) e
 head_ = Lens.lens getter setter
   where
     getter = head
@@ -122,7 +122,7 @@ threeWayMerge' lca combine c1 c2 = do
 
 -- `True` if `h` is found in the history of `c` within `maxDepth` path length
 -- from the tip of `c`
-beforeHash :: forall m e. Monad m => Word -> CausalHash -> Causal m e -> m Bool
+beforeHash :: forall m e. (Monad m) => Word -> CausalHash -> Causal m e -> m Bool
 beforeHash maxDepth h c =
   Reader.runReaderT (State.evalStateT (go c) Set.empty) (0 :: Word)
   where
@@ -155,7 +155,7 @@ fromList e cs =
   fromListM e (map (\c -> (currentHash c, pure c)) cs)
 
 -- | Construct a causal from a list of predecessors. The predecessors may be given in any order.
-fromListM :: Hashing.ContentAddressable e => e -> [(CausalHash, m (Causal m e))] -> Causal m e
+fromListM :: (Hashing.ContentAddressable e) => e -> [(CausalHash, m (Causal m e))] -> Causal m e
 fromListM e ts =
   case ts of
     [] -> UnsafeOne ch eh e
@@ -165,13 +165,13 @@ fromListM e ts =
     (ch, eh) = (Hashing.hashCausal e (Set.fromList (map fst ts)))
 
 -- | An optimized variant of 'fromListM' for when it is known we have 2+ predecessors (merge node).
-mergeNode :: Hashing.ContentAddressable e => e -> Map (CausalHash) (m (Causal m e)) -> Causal m e
+mergeNode :: (Hashing.ContentAddressable e) => e -> Map (CausalHash) (m (Causal m e)) -> Causal m e
 mergeNode newHead predecessors =
   let (ch, eh) = Hashing.hashCausal newHead (Map.keysSet predecessors)
    in UnsafeMerge ch eh newHead predecessors
 
 -- duplicated logic here instead of delegating to `fromList` to avoid `Applicative m` constraint.
-one :: Hashing.ContentAddressable e => e -> Causal m e
+one :: (Hashing.ContentAddressable e) => e -> Causal m e
 one e = UnsafeOne ch eh e
   where
     (ch, eh) = Hashing.hashCausal e mempty
@@ -185,21 +185,21 @@ consDistinct e tl =
     then tl
     else cons e tl
 
-uncons :: Applicative m => Causal m e -> m (Maybe (e, Causal m e))
+uncons :: (Applicative m) => Causal m e -> m (Maybe (e, Causal m e))
 uncons c = case c of
   Cons _ _ e (_, tl) -> fmap (e,) . Just <$> tl
   _ -> pure Nothing
 
 -- it's okay to call "Unsafe"* here with the existing hashes because `nt` can't
 -- affect `e`.
-transform :: Functor m => (forall a. m a -> n a) -> Causal m e -> Causal n e
+transform :: (Functor m) => (forall a. m a -> n a) -> Causal m e -> Causal n e
 transform nt c = case c of
   One h eh e -> UnsafeOne h eh e
   Cons h eh e (ht, tl) -> UnsafeCons h eh e (ht, nt (transform nt <$> tl))
   Merge h eh e tls -> UnsafeMerge h eh e $ Map.map (\mc -> nt (transform nt <$> mc)) tls
 
 -- "unsafe" because the hashes will be wrong if `f` affects aspects of `e` that impact hashing
-unsafeMapHashPreserving :: forall m e e2. Functor m => (e -> e2) -> Causal m e -> Causal m e2
+unsafeMapHashPreserving :: forall m e e2. (Functor m) => (e -> e2) -> Causal m e -> Causal m e2
 unsafeMapHashPreserving f c = case c of
   One h eh e -> UnsafeOne h (retagValueHash eh) (f e)
   Cons h eh e (ht, tl) -> UnsafeCons h (retagValueHash eh) (f e) (ht, unsafeMapHashPreserving f <$> tl)

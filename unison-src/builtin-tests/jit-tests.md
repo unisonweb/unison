@@ -20,3 +20,12 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm
 .> run.native tests
 ```
+
+```ucm:hide
+.> load unison-src/builtin-tests/concurrency-tests.u
+.> add
+```
+
+```ucm
+.> run.native concurrency.tests
+```

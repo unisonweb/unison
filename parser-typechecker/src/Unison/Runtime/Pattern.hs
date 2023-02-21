@@ -103,7 +103,7 @@ builtinDataSpec = Map.fromList decls
 data PatternMatrix v = PM {_rows :: [PatternRow v]}
   deriving (Show)
 
-usedVars :: Ord v => PatternMatrix v -> Set v
+usedVars :: (Ord v) => PatternMatrix v -> Set v
 usedVars (PM rs) = foldMap usedR rs
   where
     usedR (PR ps g b) =
@@ -139,12 +139,12 @@ firstRow _ _ = Nothing
 heuristics :: [Heuristic v]
 heuristics = [firstRow $ fmap loc . listToMaybe]
 
-extractVar :: Var v => P.Pattern v -> Maybe v
+extractVar :: (Var v) => P.Pattern v -> Maybe v
 extractVar p
   | P.Unbound {} <- p = Nothing
   | otherwise = Just (loc p)
 
-extractVars :: Var v => [P.Pattern v] -> [v]
+extractVars :: (Var v) => [P.Pattern v] -> [v]
 extractVars = catMaybes . fmap extractVar
 
 -- Splits a data type pattern, yielding its subpatterns. The provided
@@ -158,7 +158,7 @@ extractVars = catMaybes . fmap extractVar
 -- but elsewhere these results are added to a list, so it is more
 -- convenient to yield a list here.
 decomposePattern ::
-  Var v =>
+  (Var v) =>
   Maybe Reference ->
   Int ->
   Int ->
@@ -260,7 +260,7 @@ data SeqCover v
 
 -- Determines how a pattern corresponds to a sequence matching
 -- compilation target.
-decomposeSeqP :: Var v => Set v -> SeqMatch -> P.Pattern v -> SeqCover v
+decomposeSeqP :: (Var v) => Set v -> SeqMatch -> P.Pattern v -> SeqCover v
 decomposeSeqP _ E (P.SequenceLiteral _ []) = Cover []
 decomposeSeqP _ E _ = Disjoint
 decomposeSeqP _ C (P.SequenceOp _ l Cons r) = Cover [l, r]
@@ -316,7 +316,7 @@ decomposeSeqP _ _ _ = Overlap
 -- is used as the result value to indicate success or failure to match,
 -- because these results are accumulated into a larger list elsewhere.
 splitRow ::
-  Var v =>
+  (Var v) =>
   v ->
   Maybe Reference ->
   Int ->
@@ -335,7 +335,7 @@ splitRow _ _ _ _ row = [([], row)]
 -- matched against the variable that may be collected to determine the
 -- cases the built-in value is matched against.
 splitRowBuiltin ::
-  Var v =>
+  (Var v) =>
   v ->
   PatternRow v ->
   [(P.Pattern (), [([P.Pattern v], PatternRow v)])]
@@ -350,7 +350,7 @@ splitRowBuiltin _ r = [(P.Unbound (), [([], r)])]
 -- compilation. The outer list result is used to indicate success or
 -- failure.
 splitRowSeq ::
-  Var v =>
+  (Var v) =>
   Set v ->
   v ->
   SeqMatch ->
@@ -368,7 +368,7 @@ splitRowSeq _ _ _ r = [([], r)]
 
 -- Renames the variables annotating the patterns in a row, for once a
 -- canonical choice has been made.
-renameRow :: Var v => Map v v -> PatternRow v -> PatternRow v
+renameRow :: (Var v) => Map v v -> PatternRow v -> PatternRow v
 renameRow m (PR p0 g0 b0) = PR p g b
   where
     access k
@@ -383,7 +383,7 @@ renameRow m (PR p0 g0 b0) = PR p g b
 -- the variables in the first row, because it may have been generated
 -- by decomposing a variable or unbound pattern, which will make up
 -- variables for subpatterns.
-chooseVars :: Var v => [[P.Pattern v]] -> [v]
+chooseVars :: (Var v) => [[P.Pattern v]] -> [v]
 chooseVars [] = []
 chooseVars ([] : rs) = chooseVars rs
 chooseVars ((P.Unbound {} : _) : rs) = chooseVars rs
@@ -394,7 +394,7 @@ chooseVars (r : _) = extractVars r
 -- yields an indication of the type of the variables that the
 -- subpatterns match against, if possible.
 buildMatrix ::
-  Var v =>
+  (Var v) =>
   [([P.Pattern v], PatternRow v)] ->
   ([(v, PType)], PatternMatrix v)
 buildMatrix [] = ([], PM [])
@@ -411,7 +411,7 @@ buildMatrix vrs = (zip cvs rs, PM $ fixRow <$> vrs)
 -- variables (although currently builtin patterns do not introduce
 -- variables).
 splitMatrixBuiltin ::
-  Var v =>
+  (Var v) =>
   v ->
   PatternMatrix v ->
   [(P.Pattern (), [(v, PType)], PatternMatrix v)]
@@ -424,7 +424,7 @@ splitMatrixBuiltin v (PM rs) =
     $ splitRowBuiltin v =<< rs
 
 expandIrrefutable ::
-  Var v =>
+  (Var v) =>
   [(P.Pattern (), [([P.Pattern v], PatternRow v)])] ->
   [(P.Pattern (), [([P.Pattern v], PatternRow v)])]
 expandIrrefutable rss = concatMap expand rss
@@ -452,7 +452,7 @@ matchPattern vrs = \case
 -- variables introduced for each case with their types, and new
 -- matricies for subsequent compilation.
 splitMatrixSeq ::
-  Var v =>
+  (Var v) =>
   Set v ->
   v ->
   PatternMatrix v ->
@@ -474,7 +474,7 @@ splitMatrixSeq avoid v (PM rs) =
 -- ability match. Yields a new matrix for each constructor, with
 -- variables introduced and their types for each case.
 splitMatrix ::
-  Var v =>
+  (Var v) =>
   v ->
   Maybe Reference ->
   NCons ->
@@ -490,7 +490,7 @@ splitMatrix v rf cons (PM rs) =
 -- prepared, and a variable renaming mapping.
 type PPM v a = State (Word64, [v], Map v v) a
 
-freshVar :: Var v => PPM v v
+freshVar :: (Var v) => PPM v v
 freshVar = state $ \(fw, vs, rn) ->
   let v = freshenId fw $ typed Pattern
    in (v, (fw + 1, vs, rn))
@@ -500,7 +500,7 @@ useVar = state $ \case
   (avoid, v : vs, rn) -> (v, (avoid, vs, rn))
   _ -> error "useVar: Expected multiple vars"
 
-renameTo :: Var v => v -> v -> PPM v ()
+renameTo :: (Var v) => v -> v -> PPM v ()
 renameTo to from =
   modify $ \(avoid, vs, rn) ->
     ( avoid,
@@ -538,7 +538,7 @@ normalizeSeqP p = p
 -- function, however, is used when a candidate variable for a pattern
 -- has already been chosen, as with an As pattern. This allows turning
 -- redundant names (like with the pattern u@v) into renamings.
-prepareAs :: Var v => P.Pattern a -> v -> PPM v (P.Pattern v)
+prepareAs :: (Var v) => P.Pattern a -> v -> PPM v (P.Pattern v)
 prepareAs (P.Unbound _) u = pure $ P.Var u
 prepareAs (P.As _ p) u = (useVar >>= renameTo u) *> prepareAs p u
 prepareAs (P.Var _) u = P.Var u <$ (renameTo u =<< useVar)
@@ -563,7 +563,7 @@ prepareAs p u = pure $ u <$ p
 -- pattern is matching against. As patterns are eliminated and the
 -- variables they bind are used as candidates for what that level of
 -- the pattern matches against.
-preparePattern :: Var v => P.Pattern a -> PPM v (P.Pattern v)
+preparePattern :: (Var v) => P.Pattern a -> PPM v (P.Pattern v)
 preparePattern p = prepareAs p =<< freshVar
 
 buildPattern :: Bool -> ConstructorReference -> [v] -> Int -> P.Pattern ()
@@ -595,7 +595,7 @@ lookupAbil rf (Map.lookup rf -> Just econs) =
     Left cs -> Right $ fmap (1 +) cs
 lookupAbil rf _ = Left $ "unknown ability reference: " ++ show rf
 
-compile :: Var v => DataSpec -> Ctx v -> PatternMatrix v -> Term v
+compile :: (Var v) => DataSpec -> Ctx v -> PatternMatrix v -> Term v
 compile _ _ (PM []) = apps' bu [text () "pattern match failure"]
   where
     bu = ref () (Builtin "bug")
@@ -638,7 +638,7 @@ compile spec ctx m@(PM (r : rs))
     ty = Map.findWithDefault Unknown v ctx
 
 buildCaseBuiltin ::
-  Var v =>
+  (Var v) =>
   DataSpec ->
   Ctx v ->
   (P.Pattern (), [(v, PType)], PatternMatrix v) ->
@@ -650,7 +650,7 @@ buildCaseBuiltin spec ctx0 (p, vrs, m) =
     ctx = Map.fromList vrs <> ctx0
 
 buildCasePure ::
-  Var v =>
+  (Var v) =>
   DataSpec ->
   Ctx v ->
   (Int, [(v, PType)], PatternMatrix v) ->
@@ -666,7 +666,7 @@ buildCasePure spec ctx0 (_, vts, m) =
     ctx = Map.fromList vts <> ctx0
 
 buildCase ::
-  Var v =>
+  (Var v) =>
   DataSpec ->
   Reference ->
   Bool ->
@@ -682,7 +682,7 @@ buildCase spec r eff cons ctx0 (t, vts, m) =
     ctx = Map.fromList vts <> ctx0
 
 mkRow ::
-  Var v =>
+  (Var v) =>
   v ->
   MatchCase a (Term v) ->
   State Word64 (PatternRow v)
@@ -706,7 +706,7 @@ mkRow sv (MatchCase (normalizeSeqP -> p0) g0 (AbsN' vs b)) =
       Nothing -> Nothing
 
 initialize ::
-  Var v =>
+  (Var v) =>
   PType ->
   Term v ->
   [MatchCase () (Term v)] ->
@@ -722,7 +722,7 @@ initialize r sc cs =
       | pv <- freshenId 0 $ typed Pattern =
           (Just pv, pv)
 
-splitPatterns :: Var v => DataSpec -> Term v -> Term v
+splitPatterns :: (Var v) => DataSpec -> Term v -> Term v
 splitPatterns spec0 = visitPure $ \case
   Match' sc0 cs0
     | ty <- determineType $ p <$> cs0,
@@ -749,7 +749,7 @@ builtinCase =
       Rf.charRef
     ]
 
-determineType :: Show a => [P.Pattern a] -> PType
+determineType :: (Show a) => [P.Pattern a] -> PType
 determineType = foldMap f
   where
     f (P.As _ p) = f p

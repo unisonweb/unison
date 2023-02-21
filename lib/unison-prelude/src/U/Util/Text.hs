@@ -21,7 +21,8 @@ import Safe.Foldable (minimumMay)
 stripMargin :: Text -> Text
 stripMargin str =
   let stripLen =
-        Data.Maybe.fromMaybe 0 . minimumMay
+        Data.Maybe.fromMaybe 0
+          . minimumMay
           . map (Text.length . fst . Text.span (== ' '))
           . filter (not . Text.all (Char.isSpace))
           $ Text.lines str

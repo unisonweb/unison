@@ -94,7 +94,7 @@ mapD2Monotonic f Relation3 {d1, d2, d3} =
 member :: (Ord a, Ord b, Ord c) => a -> b -> c -> Relation3 a b c -> Bool
 member a b c = R.member b c . lookupD1 a
 
-memberD2 :: Ord b => b -> Relation3 a b c -> Bool
+memberD2 :: (Ord b) => b -> Relation3 a b c -> Bool
 memberD2 b =
   Map.member b . d2
 
@@ -154,10 +154,10 @@ insert a b c Relation3 {..} =
 
 insertAll,
   deleteAll ::
-    Foldable f =>
-    Ord a =>
-    Ord b =>
-    Ord c =>
+    (Foldable f) =>
+    (Ord a) =>
+    (Ord b) =>
+    (Ord c) =>
     f (a, b, c) ->
     Relation3 a b c ->
     Relation3 a b c

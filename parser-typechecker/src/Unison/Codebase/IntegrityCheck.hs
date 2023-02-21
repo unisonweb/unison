@@ -203,7 +203,7 @@ integrityCheckAllBranches = do
                   pure (Set.singleton $ MismatchedObjectForChild ch branchObjId foundBranchId)
               | otherwise -> pure mempty
 
-prettyPrintIntegrityErrors :: Foldable f => f IntegrityError -> P.Pretty P.ColorText
+prettyPrintIntegrityErrors :: (Foldable f) => f IntegrityError -> P.Pretty P.ColorText
 prettyPrintIntegrityErrors xs
   | null xs = mempty
   | otherwise =

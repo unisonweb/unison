@@ -115,7 +115,7 @@ prettyStatus s = case s of
 
 type IsPastTense = Bool
 
-prettyVar :: Var v => v -> P.Pretty P.ColorText
+prettyVar :: (Var v) => v -> P.Pretty P.ColorText
 prettyVar = P.text . Var.name
 
 aliasesToShow :: Int
@@ -197,8 +197,8 @@ pretty isPast ppe sr =
         Just (_, _, _, ty) ->
           ( plus <> P.bold (prettyVar v),
             Just $ ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)
-          ) :
-          ((,Nothing) <$> aliases)
+          )
+            : ((,Nothing) <$> aliases)
           where
             aliases = fmap (P.indentN 2) . aliasesMessage . Map.lookup v $ termAlias sr
       ok _ _ sc | null (SC.terms sc) && null (SC.types sc) = mempty

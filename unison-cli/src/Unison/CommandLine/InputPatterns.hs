@@ -1097,7 +1097,9 @@ pullExhaustive =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
-            "The " <> makeExample' pullExhaustive <> "command can be used in place of"
+            "The "
+              <> makeExample' pullExhaustive
+              <> "command can be used in place of"
               <> makeExample' pullVerbose
               <> "to complete namespaces"
               <> "which were pulled incompletely due to a bug in UCM"
@@ -1285,7 +1287,9 @@ pushExhaustive =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
-            "The " <> makeExample' pushExhaustive <> "command can be used in place of"
+            "The "
+              <> makeExample' pushExhaustive
+              <> "command can be used in place of"
               <> makeExample' push
               <> "to repair remote namespaces"
               <> "which were pushed incompletely due to a bug in UCM"
@@ -1661,7 +1665,8 @@ helpTopicsMap =
     testCacheMsg =
       P.callout "🎈" . P.lines $
         [ P.wrap $
-            "Unison caches the results of " <> P.blue "test>"
+            "Unison caches the results of "
+              <> P.blue "test>"
               <> "watch expressions. Since these expressions are pure and"
               <> "always yield the same result when evaluated, there's no need"
               <> "to run them more than once!",
@@ -1673,7 +1678,8 @@ helpTopicsMap =
     pathnamesMsg =
       P.callout "\129488" . P.lines $
         [ P.wrap $
-            "There are two kinds of namespaces," <> P.group (P.blue "absolute" <> ",")
+            "There are two kinds of namespaces,"
+              <> P.group (P.blue "absolute" <> ",")
               <> "such as"
               <> P.group ("(" <> P.blue ".foo.bar")
               <> "or"
@@ -1696,12 +1702,15 @@ helpTopicsMap =
           P.indentN 2 $ P.green "x" <> " = 41",
           "",
           P.wrap $
-            "then doing an" <> P.blue "add"
+            "then doing an"
+              <> P.blue "add"
               <> "will create the definition with the absolute name"
               <> P.group (P.blue ".foo.bar.x" <> " = 41"),
           "",
           P.wrap $
-            "and you can refer to" <> P.green "x" <> "by its absolute name "
+            "and you can refer to"
+              <> P.green "x"
+              <> "by its absolute name "
               <> P.blue ".foo.bar.x"
               <> "elsewhere"
               <> "in your code. For instance:",
@@ -2153,7 +2162,7 @@ runScheme =
         ]
     )
     ( \case
-        (main:args) ->
+        (main : args) ->
           flip Input.ExecuteSchemeI args <$> parseHashQualifiedName main
         _ -> Left $ showPatternHelp runScheme
     )
@@ -2594,10 +2603,11 @@ explainRemote pushPull =
   where
     gitRepo = PushPull.fold @(P.Pretty P.ColorText) "git@github.com:" "https://github.com/" pushPull
 
-showErrorFancy :: P.ShowErrorComponent e => P.ErrorFancy e -> String
+showErrorFancy :: (P.ShowErrorComponent e) => P.ErrorFancy e -> String
 showErrorFancy (P.ErrorFail msg) = msg
 showErrorFancy (P.ErrorIndentation ord ref actual) =
-  "incorrect indentation (got " <> show (P.unPos actual)
+  "incorrect indentation (got "
+    <> show (P.unPos actual)
     <> ", should be "
     <> p
     <> show (P.unPos ref)

@@ -45,9 +45,9 @@ hash = accumulate'
 -- useful in algorithms, the runtime, etc.
 -- Consider carefully which class you want in each use-case.
 class Hashable t where
-  tokens :: Accumulate h => t -> [Token h]
+  tokens :: (Accumulate h) => t -> [Token h]
 
-instance Hashable a => Hashable [a] where
+instance (Hashable a) => Hashable [a] where
   tokens = map accumulateToken
 
 instance (Hashable a, Hashable b) => Hashable (a, b) where
@@ -109,7 +109,7 @@ instance Accumulate Hash where
         let tbytes = encodeUtf8 txt
          in [encodeLength (B.length tbytes), tbytes]
       toBS (Hashed h) = [Hash.toByteString h]
-      encodeLength :: Integral n => n -> B.ByteString
+      encodeLength :: (Integral n) => n -> B.ByteString
       encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral
   fromBytes = Hash.fromByteString
   toBytes = Hash.toByteString

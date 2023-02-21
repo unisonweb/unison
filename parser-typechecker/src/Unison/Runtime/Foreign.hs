@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -36,7 +37,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Type as Ty
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Text (Text)
-import Unison.Util.Text.Pattern (CPattern)
+import Unison.Util.Text.Pattern (CPattern, CharPattern)
 import Unsafe.Coerce
 
 data Foreign where
@@ -111,6 +112,14 @@ cpatCmp :: CPattern -> CPattern -> Ordering
 cpatCmp l r = compare l r
 {-# NOINLINE cpatCmp #-}
 
+charClassEq :: CharPattern -> CharPattern -> Bool
+charClassEq l r = l == r
+{-# NOINLINE charClassEq #-}
+
+charClassCmp :: CharPattern -> CharPattern -> Ordering
+charClassCmp = compare
+{-# NOINLINE charClassCmp #-}
+
 tylEq :: Reference -> Reference -> Bool
 tylEq r l = r == l
 {-# NOINLINE tylEq #-}
@@ -144,6 +153,7 @@ ref2eq r
   | r == Ty.mbytearrayRef = Just $ promote mbarrEq
   | r == Ty.ibytearrayRef = Just $ promote barrEq
   | r == Ty.patternRef = Just $ promote cpatEq
+  | r == Ty.charClassRef = Just $ promote charClassEq
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
@@ -155,6 +165,7 @@ ref2cmp r
   | r == Ty.threadIdRef = Just $ promote tidCmp
   | r == Ty.ibytearrayRef = Just $ promote barrCmp
   | r == Ty.patternRef = Just $ promote cpatCmp
+  | r == Ty.charClassRef = Just $ promote charClassCmp
   | otherwise = Nothing
 
 instance Eq Foreign where
@@ -194,7 +205,9 @@ maybeUnwrapForeign rt (Wrap r e)
 class BuiltinForeign f where
   foreignRef :: Tagged f Reference
 
-instance BuiltinForeign Text where foreignRef = Tagged Ty.textRef
+instance BuiltinForeign Text where
+  foreignRef :: Tagged Text Reference
+  foreignRef = Tagged Ty.textRef
 
 instance BuiltinForeign Bytes where foreignRef = Tagged Ty.bytesRef
 
@@ -227,7 +240,7 @@ instance BuiltinForeign TimeSpec where foreignRef = Tagged Ty.timeSpecRef
 
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm
-  HashAlgorithm :: Hash.HashAlgorithm a => Reference -> a -> HashAlgorithm
+  HashAlgorithm :: (Hash.HashAlgorithm a) => Reference -> a -> HashAlgorithm
 
 newtype Tls = Tls TLS.Context
 
@@ -238,15 +251,18 @@ instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithm
 instance BuiltinForeign CPattern where
   foreignRef = Tagged Ty.patternRef
 
-wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
+instance BuiltinForeign CharPattern where
+  foreignRef = Tagged Ty.charClassRef
+
+wrapBuiltin :: forall f. (BuiltinForeign f) => f -> Foreign
 wrapBuiltin x = Wrap r x
   where
     Tagged r = foreignRef :: Tagged f Reference
 
-unwrapBuiltin :: BuiltinForeign f => Foreign -> f
+unwrapBuiltin :: (BuiltinForeign f) => Foreign -> f
 unwrapBuiltin (Wrap _ x) = unsafeCoerce x
 
-maybeUnwrapBuiltin :: forall f. BuiltinForeign f => Foreign -> Maybe f
+maybeUnwrapBuiltin :: forall f. (BuiltinForeign f) => Foreign -> Maybe f
 maybeUnwrapBuiltin (Wrap r x)
   | r == r0 = Just (unsafeCoerce x)
   | otherwise = Nothing

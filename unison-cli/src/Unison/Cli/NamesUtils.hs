@@ -51,7 +51,7 @@ basicNames' nameScoping = do
 
 -- | Produce a `Names` needed to display all the hashes used in the given file.
 displayNames ::
-  Var v =>
+  (Var v) =>
   TypecheckedUnisonFile v a ->
   Cli NamesWithHistory
 displayNames unisonFile =

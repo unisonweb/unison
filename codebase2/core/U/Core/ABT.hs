@@ -26,7 +26,7 @@ data ABT f v r
 data Term f v a = Term {freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a)}
   deriving (Functor, Foldable, Generic, Traversable)
 
-instance (Foldable f, Functor f, forall a. Eq a => Eq (f a), Var v) => Eq (Term f v a) where
+instance (Foldable f, Functor f, forall a. (Eq a) => Eq (f a), Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
   t1 == t2 = go (out t1) (out t2)
     where
@@ -43,10 +43,10 @@ instance (Foldable f, Functor f, forall a. Eq a => Eq (f a), Var v) => Eq (Term 
       go _ _ = False
 
 instance
-  ( forall a. Eq a => Eq (f a),
+  ( forall a. (Eq a) => Eq (f a),
     Foldable f,
     Functor f,
-    forall a. Ord a => Ord (f a),
+    forall a. (Ord a) => Ord (f a),
     Var v
   ) =>
   Ord (Term f v a)
@@ -70,7 +70,7 @@ instance
       tag (Abs _ _) = 2
       tag (Cycle _) = 3
 
-instance (forall a. Show a => Show (f a), Show v) => Show (Term f v a) where
+instance (forall a. (Show a) => Show (f a), Show v) => Show (Term f v a) where
   showsPrec p (Term _ ann out) = case out of
     Var v -> showParen (p >= 9) $ \x -> showAnn ++ "Var " ++ show v ++ x
     Cycle body -> (\s -> showAnn ++ "Cycle " ++ s) . showsPrec p body
@@ -82,7 +82,7 @@ instance (forall a. Show a => Show (f a), Show v) => Show (Term f v a) where
           then "(" ++ RTTI.anythingToString ann ++ ")"
           else ""
 
-amap :: Functor f => (a -> a') -> Term f v a -> Term f v a'
+amap :: (Functor f) => (a -> a') -> Term f v a -> Term f v a'
 amap = fmap
 
 vmap :: (Functor f, Foldable f, Ord v') => (v -> v') -> Term f v a -> Term f v' a
@@ -93,7 +93,7 @@ vmap f (Term _ a out) = case out of
   Abs v body -> abs a (f v) (vmap f body)
 
 cata ::
-  Functor f =>
+  (Functor f) =>
   (a -> ABT f v x -> x) ->
   Term f v a ->
   x
@@ -102,7 +102,7 @@ cata abtAlg =
    in go
 
 para ::
-  Functor f =>
+  (Functor f) =>
   (a -> ABT f v (Term f v a, x) -> x) ->
   Term f v a ->
   x
@@ -132,7 +132,7 @@ transformM f t = case out t of
   Tm subterms -> tm (annotation t) <$> (traverse (transformM f) =<< f subterms)
   Cycle body -> cycle (annotation t) <$> (transformM f body)
 
-abs :: Ord v => a -> v -> Term f v a -> Term f v a
+abs :: (Ord v) => a -> v -> Term f v a -> Term f v a
 abs a v body = Term (Set.delete v (freeVars body)) a (Abs v body)
 
 var :: a -> v -> Term f v a
@@ -234,7 +234,7 @@ unabs (Term _ _ (Abs hd body)) =
 unabs t = ([], t)
 
 -- | Produce a variable which is free in both terms
-freshInBoth :: Var v => Term f v a -> Term f v a -> v -> v
+freshInBoth :: (Var v) => Term f v a -> Term f v a -> v -> v
 freshInBoth t1 t2 = freshIn $ Set.union (freeVars t1) (freeVars t2)
 
 substsInheritAnnotation ::
