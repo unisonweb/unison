@@ -1,0 +1,14 @@
+-- TODO Move this to concurrency-tests once the JIT supports typeLinks
+threadKilledTypeLinkTest = Tests.main do
+  ref = IO.ref "initial"
+  typ = typeLink MiscFailure
+  t = fork do
+    match catchAll do sleep_ (400 * millis) with
+      Left (Failure f _ _) | f === typ -> unsafeRun! do Ref.write ref "caught"
+      _ -> ()
+  sleep_ (200 * millis)
+  kill_ t
+  sleep_ (300 * millis)
+  v = Ref.read ref
+  checkEqual "Thread was killed, with finalisers" v "caught"
+
