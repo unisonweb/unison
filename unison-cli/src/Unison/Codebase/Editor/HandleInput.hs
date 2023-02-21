@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
 {-# HLINT ignore "Use tuple-section" #-}
 module Unison.Codebase.Editor.HandleInput
   ( loop,
@@ -119,6 +120,7 @@ import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
 import Unison.Codebase.Path (Path, Path' (..))
+import qualified Unison.Codebase.Path as HQSplit'
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
@@ -147,6 +149,7 @@ import Unison.Hash32 (Hash32)
 import qualified Unison.Hash32 as Hash32
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified' as HashQualified
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
@@ -219,8 +222,6 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
-import qualified Unison.Codebase.Path as HQSplit'
-import qualified Unison.HashQualified' as HashQualified
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -1446,13 +1447,13 @@ inputDescription input =
           pure ("delete.verbose " <> Text.intercalate " " thing)
         DeleteTarget'Term DeleteOutput'NoDiff things0 -> do
           thing <- traverse hqs' things0
-          pure ("delete.term " <> Text.intercalate " "thing)
+          pure ("delete.term " <> Text.intercalate " " thing)
         DeleteTarget'Term DeleteOutput'Diff things0 -> do
           thing <- traverse hqs' things0
           pure ("delete.term.verbose " <> Text.intercalate " " thing)
         DeleteTarget'Type DeleteOutput'NoDiff thing0 -> do
           thing <- traverse hqs' thing0
-          pure ("delete.type " <> Text.intercalate " "thing)
+          pure ("delete.type " <> Text.intercalate " " thing)
         DeleteTarget'Type DeleteOutput'Diff thing0 -> do
           thing <- traverse hqs' thing0
           pure ("delete.type.verbose " <> Text.intercalate " " thing)
@@ -2547,10 +2548,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Just (Nothing, result)
+              Just (Nothing, result)
           _ -> Nothing
           where
             result = SR.termSearchResult names0 name ref
@@ -2566,10 +2567,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Just (Nothing, result)
+              Just (Nothing, result)
           _ -> Nothing
           where
             result = SR.typeSearchResult names0 name ref
@@ -2703,9 +2704,9 @@ typecheckAndEval ppe tm = do
     -- Type checking succeeded
     Result.Result _ (Just ty)
       | Typechecker.fitsScheme ty mty ->
-          () <$ evalUnisonTerm False ppe False tm
+        () <$ evalUnisonTerm False ppe False tm
       | otherwise ->
-          Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
+        Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
     Result.Result notes Nothing -> do
       currentPath <- Cli.getCurrentPath
       let tes = [err | Result.TypeError err <- toList notes]
@@ -2939,22 +2940,25 @@ delete ::
   Cli ()
 delete input doutput getTerms getTypes hqs' = do
   -- persists the original hash qualified entity for error reporting
-  typesTermsTuple <- traverse (\hq -> do
-      absolute <- Cli.resolveSplit' hq
-      types <- getTypes absolute
-      terms <- getTerms absolute
-      return (hq, types, terms)
-    ) hqs'
+  typesTermsTuple <-
+    traverse
+      ( \hq -> do
+          absolute <- Cli.resolveSplit' hq
+          types <- getTypes absolute
+          terms <- getTerms absolute
+          return (hq, types, terms)
+      )
+      hqs'
   let notFounds = List.filter (\(_, types, terms) -> Set.null terms && Set.null types) typesTermsTuple
   -- if there are any entities which cannot be deleted because they don't exist, short circuit.
-  if not $ null notFounds then do
-    let toName :: [(Path.HQSplit', Set Reference, Set referent)] -> [Name]
-        toName notFounds =
-          mapMaybe (\(split,_,_) -> Path.toName' $ HashQualified.toName (HQSplit'.unsplitHQ' split)) notFounds
-    Cli.returnEarly $ NamesNotFound (toName notFounds)
-  else do
-    checkDeletes typesTermsTuple doutput input
-
+  if not $ null notFounds
+    then do
+      let toName :: [(Path.HQSplit', Set Reference, Set referent)] -> [Name]
+          toName notFounds =
+            mapMaybe (\(split, _, _) -> Path.toName' $ HashQualified.toName (HQSplit'.unsplitHQ' split)) notFounds
+      Cli.returnEarly $ NamesNotFound (toName notFounds)
+    else do
+      checkDeletes typesTermsTuple doutput input
 
 checkDeletes :: [(Path.HQSplit', Set Reference, Set Referent)] -> DeleteOutput -> Input -> Cli ()
 checkDeletes typesTermsTuples doutput inputs = do
@@ -2962,8 +2966,8 @@ checkDeletes typesTermsTuples doutput inputs = do
         (Path.HQSplit', Set Reference, Set Referent) ->
         Cli (Path.Split, Name, Set Reference, Set Referent)
       toSplitName hq = do
-        resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq^._1)
-        return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq^._2, hq^._3)
+        resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq ^. _1)
+        return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq ^. _2, hq ^. _3)
   -- get the splits and names with terms and types
   splitsNames <- traverse toSplitName typesTermsTuples
   let toRel :: Ord ref => Set ref -> Name -> R.Relation Name ref
@@ -2977,19 +2981,20 @@ checkDeletes typesTermsTuples doutput inputs = do
   -- get the endangered dependencies for each entity to delete
   endangered <-
     Cli.runTransaction $
-      traverse ( \targetToDelete ->
-        getEndangeredDependents targetToDelete (allTermsToDelete) rootNames
-      )
-      toDelete
+      traverse
+        ( \targetToDelete ->
+            getEndangeredDependents targetToDelete (allTermsToDelete) rootNames
+        )
+        toDelete
   -- If the overall dependency map is not completely empty, abort deletion
-  let endangeredDeletions = List.filter (\m -> not $ null m || Map.foldr (\s b -> null s || b ) False m ) endangered
+  let endangeredDeletions = List.filter (\m -> not $ null m || Map.foldr (\s b -> null s || b) False m) endangered
   if null endangeredDeletions
     then do
       let deleteTypesTerms =
             splitsNames
               >>= ( \(split, _, types, terms) ->
                       (map (BranchUtil.makeDeleteTypeName split) . Set.toList $ types)
-                        ++ (map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms )
+                        ++ (map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms)
                   )
       before <- Cli.getRootBranch0
       description <- inputDescription inputs
@@ -3001,7 +3006,7 @@ checkDeletes typesTermsTuples doutput inputs = do
           Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
         DeleteOutput'NoDiff -> do
           Cli.respond Success
-  else do
+    else do
       ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
       let combineRefs = List.foldl (Map.unionWith NESet.union) Map.empty endangeredDeletions
       Cli.respondNumbered (CantDeleteDefinitions ppeDecl combineRefs)
@@ -3538,4 +3543,3 @@ stripUnisonFileReferences unisonFile term =
             | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
           x -> ABT.tm x
    in ABT.cata alg term
-
