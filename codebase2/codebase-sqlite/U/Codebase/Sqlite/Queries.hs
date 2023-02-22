@@ -2859,7 +2859,7 @@ ensureRemoteProjectBranch rpid host rbid name =
         -- should this update the name instead?
         DO NOTHING
         |]
-    (rpid, host, rbid, name, name)
+    (rpid, host, rbid, name)
 
 setRemoteProjectBranchName :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Text -> Transaction ()
 setRemoteProjectBranchName rpid host rbid name =

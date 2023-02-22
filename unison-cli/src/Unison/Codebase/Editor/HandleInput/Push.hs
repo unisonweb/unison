@@ -484,9 +484,11 @@ oompaLoompa0 ::
   Hash32 ->
   ProjectAndBranch ProjectName ProjectBranchName ->
   Cli (Cli ())
-oompaLoompa0 maybeLocalProjectAndBranch localBranchHead (ProjectAndBranch remoteProjectName remoteBranchName) = do
+oompaLoompa0 maybeLocalProjectAndBranch localBranchHead pb@(ProjectAndBranch remoteProjectName remoteBranchName) = do
   let doCreateBranch :: Share.API.Project -> Cli ()
       doCreateBranch remoteProject = do
+        repoName <- projectBranchRepoName pb
+        oinkUpload repoName localBranchHead
         oompaLoompaCreateBranch
           maybeLocalProjectAndBranch
           localBranchHead
@@ -753,7 +755,8 @@ oinkCreateRemoteBranch maybeLocalProjectAndBranch request = do
       Share.API.CreateProjectBranchResponseNotFound (Share.API.NotFound msg) -> do
         loggeth ["Share says: not-found: " <> msg]
         Cli.returnEarlyWithoutOutput
-      Share.API.CreateProjectBranchResponseMissingCausalHash _missingCausalHash -> do
+      Share.API.CreateProjectBranchResponseMissingCausalHash missingCausalHash -> do
+        loggeth ["Share says: missing causal hash: " <> tShow missingCausalHash]
         wundefined
       Share.API.CreateProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
   loggeth ["Share says: success!"]
@@ -803,16 +806,3 @@ withEntitiesUploadedProgressCallback action = do
       Console.Regions.finishConsoleRegion region $
         "\n  Uploaded " <> tShow entitiesUploaded <> " entities."
       pure result
-
-uploadEntities :: CausalHash -> ShareCodeserver -> Share.RepoName -> Cli ()
-uploadEntities localCausalHash shareCodeserver repoName = do
-  let codeserver = Codeserver.resolveCodeserver shareCodeserver
-  let baseURL = codeserverBaseURL codeserver
-  let push =
-        Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
-          Share.uploadEntities
-            baseURL
-            repoName
-            (NESet.singleton localCausalHash)
-            uploadedCallback
-  push & onLeftM (pushError wundefined)
