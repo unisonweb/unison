@@ -9,6 +9,7 @@ import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, rea
 import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
+import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Set.NonEmpty as Set.NonEmpty
 import Data.Text as Text
 import Data.These (These (..))
@@ -37,6 +38,7 @@ import Unison.Codebase.Editor.Output.PushPull (PushPull (Push))
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadRemoteNamespace (..),
+    ShareCodeserver,
     ShareUserHandle (..),
     WriteGitRemotePath (..),
     WriteRemotePath (..),
@@ -767,13 +769,13 @@ oinkCreateRemoteBranch maybeLocalProjectAndBranch request = do
           remoteBranchId
 
 shareUrl :: Text
-shareUrl = wundefined
+shareUrl = "https://fix.me.please.unison.org"
 
 oinkGetLoggedInUser :: Cli Text
 oinkGetLoggedInUser = do
   loggeth ["Getting current logged-in user on Share"]
-  AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
-  myUserHandle <- wundefined
+  userInfo <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
+  let myUserHandle = userInfo ^. #handle
   loggeth ["Got current logged-in user on Share: ", myUserHandle]
   pure myUserHandle
 
@@ -794,3 +796,16 @@ withEntitiesUploadedProgressCallback action = do
       Console.Regions.finishConsoleRegion region $
         "\n  Uploaded " <> tShow entitiesUploaded <> " entities."
       pure result
+
+uploadEntities :: CausalHash -> ShareCodeserver -> Share.RepoName -> Cli ()
+uploadEntities localCausalHash shareCodeserver repoName = do
+  let codeserver = Codeserver.resolveCodeserver shareCodeserver
+  let baseURL = codeserverBaseURL codeserver
+  let push =
+        Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
+          Share.uploadEntities
+            baseURL
+            repoName
+            (NESet.singleton localCausalHash)
+            uploadedCallback
+  push & onLeftM (pushError wundefined)

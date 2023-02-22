@@ -1,3 +1,6 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
+
 -- | Share API calls related to projects.
 module Unison.Cli.Share.Projects
   ( getProjectById,
@@ -12,7 +15,7 @@ where
 
 import Control.Monad.Reader (ask)
 import Data.Proxy
-import Servant.API ((:<|>) (..))
+import Servant.API ((:<|>) (..), (:>))
 import Servant.Client
 import U.Codebase.Sqlite.DbId (RemoteProjectBranchId (..), RemoteProjectId (..))
 import qualified Unison.Auth.HTTPClient as Auth
@@ -81,4 +84,4 @@ setProjectBranchHead0 :: SetProjectBranchHeadRequest -> ClientM SetProjectBranch
     :<|> createProjectBranch0
     :<|> setProjectBranchHead0
   ) =
-    client (Proxy :: Proxy ProjectsAPI)
+    client (Proxy :: Proxy ("ucm" :> "v1" :> "projects" :> ProjectsAPI))

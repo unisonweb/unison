@@ -2784,7 +2784,7 @@ ensureRemoteProject rpid host name =
         ?,
         ?)
       ON CONFLICT (
-        rpid,
+        id,
         host)
         -- should this update the name instead?
         DO NOTHING
