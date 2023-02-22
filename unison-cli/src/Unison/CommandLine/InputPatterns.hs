@@ -606,7 +606,7 @@ renameType =
               "`rename.type` takes two arguments, like `rename.type oldname newname`."
     )
 
-deleteGen :: Maybe String -> String -> (Path.HQSplit' -> DeleteTarget) -> InputPattern
+deleteGen :: Maybe String -> String -> ([Path.HQSplit'] -> DeleteTarget) -> InputPattern
 deleteGen suffix target mkTarget =
   let cmd = maybe "delete" ("delete." <>) suffix
       info =
@@ -631,11 +631,10 @@ deleteGen suffix target mkTarget =
         [(OnePlus, exactDefinitionTermQueryArg)]
         info
         ( \case
-            [query] -> first fromString $ do
-              p <- Path.parseHQSplit' query
-              pure $ Input.DeleteI (mkTarget p)
-            _ ->
-              Left . P.warnCallout $ P.wrap warn
+            [] -> Left . P.warnCallout $ P.wrap warn
+            queries -> first fromString $ do
+              paths <- traverse Path.parseHQSplit' queries
+              pure $ Input.DeleteI (mkTarget paths)
         )
 
 delete :: InputPattern
