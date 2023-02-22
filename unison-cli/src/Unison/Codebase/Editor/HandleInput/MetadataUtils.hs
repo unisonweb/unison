@@ -78,7 +78,7 @@ manageLinks ::
   [Path.HQSplit'] ->
   [HQ.HashQualified Name] ->
   ( forall r.
-    Ord r =>
+    (Ord r) =>
     (r, Metadata.Type, Metadata.Value) ->
     Branch.Star r NameSegment ->
     Branch.Star r NameSegment

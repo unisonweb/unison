@@ -15,3 +15,8 @@ dist-newstyle
 *.prof
 /.direnv/
 /.envrc
+
+# Mac developers
+**/.DS_Store
+
+/libb2.dylib

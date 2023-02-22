@@ -51,7 +51,7 @@ import UnliftIO.Exception
 -- When actions are run on an untrusted codebase, e.g. one downloaded from a remote server, it is sufficient to catch
 -- just one exception type, @SomeSqliteException@.
 data SomeSqliteException
-  = forall e. Exception e => SomeSqliteException e
+  = forall e. (Exception e) => SomeSqliteException e
   deriving anyclass (Exception)
 
 instance Show SomeSqliteException where
@@ -154,7 +154,7 @@ throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, param
       }
 
 data SomeSqliteExceptionReason
-  = forall e. SqliteExceptionReason e => SomeSqliteExceptionReason e
+  = forall e. (SqliteExceptionReason e) => SomeSqliteExceptionReason e
   deriving anyclass (SqliteExceptionReason)
 
 instance Show SomeSqliteExceptionReason where

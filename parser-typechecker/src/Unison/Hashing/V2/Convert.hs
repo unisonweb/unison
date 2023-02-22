@@ -54,10 +54,10 @@ import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Star3 as Memory.Star3
 import Unison.Var (Var)
 
-typeToReference :: Var v => Memory.Type.Type v a -> Memory.Reference.Reference
+typeToReference :: (Var v) => Memory.Type.Type v a -> Memory.Reference.Reference
 typeToReference = h2mReference . Hashing.typeToReference . m2hType . Memory.Type.removeAllEffectVars
 
-typeToReferenceMentions :: Var v => Memory.Type.Type v a -> Set Memory.Reference.Reference
+typeToReferenceMentions :: (Var v) => Memory.Type.Type v a -> Set Memory.Reference.Reference
 typeToReferenceMentions =
   Set.map h2mReference . Hashing.typeToReferenceMentions . m2hType . Memory.Type.removeAllEffectVars
 
@@ -65,7 +65,7 @@ typeToReferenceMentions =
 -- include type in hash
 hashTermComponents ::
   forall v a.
-  Var v =>
+  (Var v) =>
   Map v (Memory.Term.Term v a, Memory.Type.Type v a) ->
   Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
 hashTermComponents mTerms =
@@ -73,7 +73,7 @@ hashTermComponents mTerms =
     (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.hashTermComponents hTerms
   where
     h2mTermResult ::
-      Ord v =>
+      (Ord v) =>
       ( Memory.Reference.Reference ->
         Memory.ConstructorType.ConstructorType
       ) ->
@@ -86,20 +86,20 @@ hashTermComponents mTerms =
 --   saving them.
 hashTermComponentsWithoutTypes ::
   forall v a.
-  Var v =>
+  (Var v) =>
   Map v (Memory.Term.Term v a) ->
   Map v (Memory.Reference.Id, Memory.Term.Term v a)
 hashTermComponentsWithoutTypes mTerms =
   case Writer.runWriter (traverse m2hTerm mTerms) of
     (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.hashTermComponentsWithoutTypes hTerms
   where
-    h2mTermResult :: Ord v => (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> (Hashing.ReferenceId, Hashing.Term v a) -> (Memory.Reference.Id, Memory.Term.Term v a)
+    h2mTermResult :: (Ord v) => (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> (Hashing.ReferenceId, Hashing.Term v a) -> (Memory.Reference.Id, Memory.Term.Term v a)
     h2mTermResult getCtorType (id, tm) = (h2mReferenceId id, h2mTerm getCtorType tm)
 
-hashClosedTerm :: Var v => Memory.Term.Term v a -> Memory.Reference.Id
+hashClosedTerm :: (Var v) => Memory.Term.Term v a -> Memory.Reference.Id
 hashClosedTerm = h2mReferenceId . Hashing.hashClosedTerm . fst . Writer.runWriter . m2hTerm
 
-m2hTerm :: Ord v => Memory.Term.Term v a -> Writer (Map Memory.Reference.Reference Memory.ConstructorType.ConstructorType) (Hashing.Term v a)
+m2hTerm :: (Ord v) => Memory.Term.Term v a -> Writer (Map Memory.Reference.Reference Memory.ConstructorType.ConstructorType) (Hashing.Term v a)
 m2hTerm = ABT.transformM \case
   Memory.Term.Int i -> pure (Hashing.TermInt i)
   Memory.Term.Nat n -> pure (Hashing.TermNat n)
@@ -160,7 +160,7 @@ m2hReferent = \case
     Writer.tell (Map.singleton ref ct)
     pure (Hashing.ReferentCon (m2hReference ref) n)
 
-h2mTerm :: Ord v => (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> Hashing.Term v a -> Memory.Term.Term v a
+h2mTerm :: (Ord v) => (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> Hashing.Term v a -> Memory.Term.Term v a
 h2mTerm getCT = ABT.transform \case
   Hashing.TermInt i -> Memory.Term.Int i
   Hashing.TermNat n -> Memory.Term.Nat n
@@ -222,7 +222,7 @@ h2mReferent getCT = \case
      in Memory.Referent.Con (Memory.ConstructorReference.ConstructorReference mRef n) (getCT mRef)
 
 hashDataDecls ::
-  Var v =>
+  (Var v) =>
   Map v (Memory.DD.DataDeclaration v a) ->
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
 hashDataDecls memDecls = do
@@ -230,11 +230,11 @@ hashDataDecls memDecls = do
   hashingResult <- Hashing.hashDecls Name.unsafeFromVar hashingDecls
   pure $ map h2mDeclResult hashingResult
   where
-    h2mDeclResult :: Ord v => (v, Hashing.ReferenceId, Hashing.DataDeclaration v a) -> (v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)
+    h2mDeclResult :: (Ord v) => (v, Hashing.ReferenceId, Hashing.DataDeclaration v a) -> (v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)
     h2mDeclResult (v, id, dd) = (v, h2mReferenceId id, h2mDecl dd)
 
 hashDecls ::
-  Var v =>
+  (Var v) =>
   Map v (Memory.DD.Decl v a) ->
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.Decl v a)]
 hashDecls memDecls = do
@@ -255,11 +255,11 @@ hashDecls memDecls = do
     retag CT.Effect = Left . Memory.DD.EffectDeclaration
     retag CT.Data = Right
 
-m2hDecl :: Ord v => Memory.DD.DataDeclaration v a -> Hashing.DataDeclaration v a
+m2hDecl :: (Ord v) => Memory.DD.DataDeclaration v a -> Hashing.DataDeclaration v a
 m2hDecl (Memory.DD.DataDeclaration mod ann bound ctors) =
   Hashing.DataDeclaration (m2hModifier mod) ann bound $ fmap (Lens.over _3 m2hType) ctors
 
-m2hType :: Ord v => Memory.Type.Type v a -> Hashing.Type v a
+m2hType :: (Ord v) => Memory.Type.Type v a -> Hashing.Type v a
 m2hType = ABT.transform \case
   Memory.Type.Ref ref -> Hashing.TypeRef (m2hReference ref)
   Memory.Type.Arrow a1 a1' -> Hashing.TypeArrow a1 a1'
@@ -293,11 +293,11 @@ m2hModifier = \case
   Memory.DD.Structural -> Hashing.Structural
   Memory.DD.Unique text -> Hashing.Unique text
 
-h2mDecl :: Ord v => Hashing.DataDeclaration v a -> Memory.DD.DataDeclaration v a
+h2mDecl :: (Ord v) => Hashing.DataDeclaration v a -> Memory.DD.DataDeclaration v a
 h2mDecl (Hashing.DataDeclaration mod ann bound ctors) =
   Memory.DD.DataDeclaration (h2mModifier mod) ann bound (over _3 h2mType <$> ctors)
 
-h2mType :: Ord v => Hashing.Type v a -> Memory.Type.Type v a
+h2mType :: (Ord v) => Hashing.Type v a -> Memory.Type.Type v a
 h2mType = ABT.transform \case
   Hashing.TypeRef ref -> Memory.Type.Ref (h2mReference ref)
   Hashing.TypeArrow a1 a1' -> Memory.Type.Arrow a1 a1'
@@ -348,7 +348,7 @@ hashPatch = Hashing.contentHash . m2hPatch
 hashBranch0 :: Memory.Branch.Branch0 m -> Hash
 hashBranch0 = Hashing.contentHash . m2hBranch0
 
-hashCausal :: Hashing.ContentAddressable e => e -> Set CausalHash -> (CausalHash, HashFor e)
+hashCausal :: (Hashing.ContentAddressable e) => e -> Set CausalHash -> (CausalHash, HashFor e)
 hashCausal e tails =
   let valueHash = Hashing.contentHash e
       causalHash =

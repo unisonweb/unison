@@ -41,7 +41,8 @@ import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty (Width)
 
 type DefinitionsAPI =
-  "getDefinition" :> QueryParam "rootBranch" ShortCausalHash
+  "getDefinition"
+    :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParams "names" (HQ.HashQualified Name)
     :> QueryParam "renderWidth" Width

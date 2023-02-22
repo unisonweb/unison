@@ -40,9 +40,9 @@ import UnliftIO (MonadIO, liftIO)
 import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import Prelude hiding (readFile, writeFile)
 
-type Get a = forall m. MonadGet m => m a
+type Get a = forall m. (MonadGet m) => m a
 
-type Put a = forall m. MonadPut m => a -> m ()
+type Put a = forall m. (MonadPut m) => a -> m ()
 
 -- todo: do we use this?
 data Format a = Format
@@ -57,12 +57,12 @@ getFromBytes :: Get a -> ByteString -> Maybe a
 getFromBytes getA bytes =
   case runGetS getA bytes of Left _ -> Nothing; Right a -> Just a
 
-getFromFile :: MonadIO m => Get a -> FilePath -> m (Maybe a)
+getFromFile :: (MonadIO m) => Get a -> FilePath -> m (Maybe a)
 getFromFile getA file = do
   b <- doesFileExist file
   if b then getFromBytes getA <$> liftIO (readFile file) else pure Nothing
 
-getFromFile' :: MonadIO m => Get a -> FilePath -> m (Either String a)
+getFromFile' :: (MonadIO m) => Get a -> FilePath -> m (Either String a)
 getFromFile' getA file = do
   b <- doesFileExist file
   if b
@@ -72,7 +72,7 @@ getFromFile' getA file = do
 putBytes :: Put a -> a -> ByteString
 putBytes put a = runPutS (put a)
 
-putWithParentDirs :: MonadIO m => Put a -> FilePath -> a -> m ()
+putWithParentDirs :: (MonadIO m) => Put a -> FilePath -> a -> m ()
 putWithParentDirs putA file a = do
   createDirectoryIfMissing True (takeDirectory file)
   liftIO . writeFile file $ putBytes putA a
@@ -97,28 +97,28 @@ getVarInt = getWord8 >>= getVarInt
     {-# INLINE getVarInt #-}
 {-# INLINE getVarInt #-}
 
-putText :: MonadPut m => Text -> m ()
+putText :: (MonadPut m) => Text -> m ()
 putText text = do
   let bs = encodeUtf8 text
   putVarInt $ BS.length bs
   putByteString bs
 
-getText :: MonadGet m => m Text
+getText :: (MonadGet m) => m Text
 getText = do
   len <- getVarInt
   bs <- BS.copy <$> getBytes len
   pure $ decodeUtf8 bs
 
-skipText :: MonadGet m => m ()
+skipText :: (MonadGet m) => m ()
 skipText = skip =<< getVarInt
 
-putShortText :: MonadPut m => ShortText -> m ()
+putShortText :: (MonadPut m) => ShortText -> m ()
 putShortText text = do
   let sbs = TS.toShortByteString text
   putVarInt $ BSS.length sbs
   putShortByteString sbs
 
-getShortText :: MonadGet m => m ShortText
+getShortText :: (MonadGet m) => m ShortText
 getShortText = do
   len <- getVarInt
   sbs <- getShortByteString len
@@ -126,12 +126,12 @@ getShortText = do
 
 -- | the `binary` package has a native version of this,
 --  which may be more efficient by a constant factor
-putShortByteString :: MonadPut m => ShortByteString -> m ()
+putShortByteString :: (MonadPut m) => ShortByteString -> m ()
 putShortByteString = putByteString . BSS.fromShort
 
 -- | the `binary` package has a native version of this,
 --  which may be more efficient by a constant factor
-getShortByteString :: MonadGet m => Int -> m ShortByteString
+getShortByteString :: (MonadGet m) => Int -> m ShortByteString
 getShortByteString len = BSS.toShort <$> getByteString len
 
 putFoldable ::
@@ -140,17 +140,17 @@ putFoldable putA as = do
   putVarInt (length as)
   traverse_ putA as
 
-getList :: MonadGet m => m a -> m [a]
+getList :: (MonadGet m) => m a -> m [a]
 getList getA = do
   length <- getVarInt
   replicateM length getA
 
-getVector :: MonadGet m => m a -> m (Vector a)
+getVector :: (MonadGet m) => m a -> m (Vector a)
 getVector getA = do
   length <- getVarInt
   Vector.replicateM length getA
 
-getSequence :: MonadGet m => m a -> m (Seq a)
+getSequence :: (MonadGet m) => m a -> m (Seq a)
 getSequence getA = do
   length <- getVarInt
   Seq.replicateM length getA
@@ -161,7 +161,7 @@ getSet getA = do
   -- avoid materializing intermediate list
   foldM (\s ma -> Set.insert <$> ma <*> pure s) mempty (replicate length getA)
 
-putMap :: MonadPut m => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
+putMap :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
 putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
 
 addToExistingMap :: (MonadGet m, Ord a) => m a -> m b -> Map a b -> m (Map a b)
@@ -176,22 +176,22 @@ addToExistingMap getA getB map = do
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
 getMap getA getB = addToExistingMap getA getB mempty
 
-getFramedByteString :: MonadGet m => m ByteString
+getFramedByteString :: (MonadGet m) => m ByteString
 getFramedByteString = getVarInt >>= getByteString
 
-getRemainingByteString :: MonadGet m => m ByteString
+getRemainingByteString :: (MonadGet m) => m ByteString
 getRemainingByteString = fromIntegral <$> remaining >>= getByteString
 
-getFramed :: MonadGet m => Get a -> m a
+getFramed :: (MonadGet m) => Get a -> m a
 getFramed get =
   getFramedByteString >>= either fail pure . runGetS get
 
-putFramedByteString :: MonadPut m => ByteString -> m ()
+putFramedByteString :: (MonadPut m) => ByteString -> m ()
 putFramedByteString bs = do
   putVarInt (BS.length bs)
   putByteString bs
 
-putFramed :: MonadPut m => Put a -> a -> m ()
+putFramed :: (MonadPut m) => Put a -> a -> m ()
 putFramed put a = do
   -- 1. figure out the length `len` of serialized `a`
   -- 2. Put the length `len`
@@ -201,7 +201,7 @@ putFramed put a = do
   putVarInt (BS.length bs)
   putByteString bs
 
-skipFramed :: MonadGet m => m ()
+skipFramed :: (MonadGet m) => m ()
 skipFramed = do
   len <- getVarInt
   skip len
@@ -214,7 +214,7 @@ putFramedArray put (toList -> as) = do
   putFoldable putVarInt offsets
   traverse_ putByteString bss
 
-getFramedArray :: MonadGet m => m a -> m (Vector a)
+getFramedArray :: (MonadGet m) => m a -> m (Vector a)
 getFramedArray getA = do
   offsets :: [Int] <- getList getVarInt
   let count = length offsets - 1
@@ -223,7 +223,7 @@ getFramedArray getA = do
 -- | Look up a 0-based index in a framed array, O(num array elements),
 --  because it reads the start indices for all elements first.
 --  This could be skipped if the indices had a fixed size instead of varint
-lookupFramedArray :: MonadGet m => m a -> Int -> m (Maybe a)
+lookupFramedArray :: (MonadGet m) => m a -> Int -> m (Maybe a)
 lookupFramedArray getA index = do
   offsets <- getVector getVarInt
   if index > Vector.length offsets - 1
@@ -232,20 +232,20 @@ lookupFramedArray getA index = do
       skip (Vector.unsafeIndex offsets index)
       Just <$> getA
 
-lengthFramedArray :: MonadGet m => m Word64
+lengthFramedArray :: (MonadGet m) => m Word64
 lengthFramedArray = (\offsetsLen -> offsetsLen - 1) <$> getVarInt
 
-unsafeFramedArrayLookup :: MonadGet m => m a -> Int -> m a
+unsafeFramedArrayLookup :: (MonadGet m) => m a -> Int -> m a
 unsafeFramedArrayLookup getA index = do
   offsets <- getVector getVarInt
   skip (Vector.unsafeIndex offsets index)
   getA
 
-putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a, b) -> m ()
+putPair :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> (a, b) -> m ()
 putPair putA putB (a, b) = putA a *> putB b
 
-getPair :: MonadGet m => m a -> m b -> m (a, b)
+getPair :: (MonadGet m) => m a -> m b -> m (a, b)
 getPair = liftA2 (,)
 
-getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a, b, c)
+getTuple3 :: (MonadGet m) => m a -> m b -> m c -> m (a, b, c)
 getTuple3 = liftA3 (,,)

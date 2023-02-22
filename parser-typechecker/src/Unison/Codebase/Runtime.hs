@@ -70,7 +70,7 @@ type WatchResults v a =
 -- can be skipped.
 evaluateWatches ::
   forall v a.
-  Var v =>
+  (Var v) =>
   CL.CodeLookup v IO a ->
   PPE.PrettyPrintEnv ->
   (Reference.Id -> IO (Maybe (Term v))) ->

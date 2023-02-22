@@ -15,7 +15,7 @@ newtype AuthenticatedHttpClient = AuthenticatedHttpClient HTTP.Manager
 
 -- | Returns a new http manager which applies the appropriate Authorization header to
 -- any hosts our UCM is authenticated with.
-newAuthenticatedHTTPClient :: MonadIO m => TokenProvider -> UCMVersion -> m AuthenticatedHttpClient
+newAuthenticatedHTTPClient :: (MonadIO m) => TokenProvider -> UCMVersion -> m AuthenticatedHttpClient
 newAuthenticatedHTTPClient tokenProvider ucmVersion = liftIO $ do
   let managerSettings =
         HTTP.tlsManagerSettings

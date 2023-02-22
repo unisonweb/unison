@@ -46,7 +46,7 @@ data BranchDiff = BranchDiff
   }
   deriving stock (Generic, Show)
 
-diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m BranchDiff
+diff0 :: forall m. (Monad m) => Branch0 m -> Branch0 m -> m BranchDiff
 diff0 old new = BranchDiff terms types <$> patchDiff old new
   where
     (terms, types) =
@@ -56,7 +56,7 @@ diff0 old new = BranchDiff terms types <$> patchDiff old new
         (deepr4ToSlice (Branch.deepTypes old) (Branch.deepTypeMetadata old))
         (deepr4ToSlice (Branch.deepTypes new) (Branch.deepTypeMetadata new))
 
-patchDiff :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Map Name (DiffType PatchDiff))
+patchDiff :: forall m. (Monad m) => Branch0 m -> Branch0 m -> m (Map Name (DiffType PatchDiff))
 patchDiff old new = do
   let oldDeepEdits, newDeepEdits :: Map Name (PatchHash, m Patch)
       oldDeepEdits = Branch.deepEdits' old
@@ -80,7 +80,7 @@ patchDiff old new = do
   pure $ added <> removed <> modified
 
 deepr4ToSlice ::
-  Ord r =>
+  (Ord r) =>
   R.Relation r Name ->
   Metadata.R4 r Name ->
   NamespaceSlice r
@@ -118,13 +118,13 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
               tremovedMetadata = removedMetadata oldTypes newTypes
             }
 
-    allNames :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map r (Set Name, Set Name)
+    allNames :: (Ord r) => NamespaceSlice r -> NamespaceSlice r -> Map r (Set Name, Set Name)
     allNames old new = R.outerJoinDomMultimaps (names old) (names new)
 
     allAdds,
       allRemoves ::
         forall r.
-        Ord r =>
+        (Ord r) =>
         Map r (Set Name, Set Name) ->
         Map Name (Set r, Set r) ->
         Relation r Name
@@ -147,26 +147,26 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
     -- renames and stuff, name changes without a reference change
     remainingNameChanges ::
       forall r.
-      Ord r =>
+      (Ord r) =>
       Map r (Set Name, Set Name) ->
       Map r (Set Name, Set Name)
     remainingNameChanges =
       Map.filter (\(old, new) -> not (null old) && not (null new) && old /= new)
 
-    allNamespaceUpdates :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map Name (Set r, Set r)
+    allNamespaceUpdates :: (Ord r) => NamespaceSlice r -> NamespaceSlice r -> Map Name (Set r, Set r)
     allNamespaceUpdates old new =
       Map.filter f $ R.innerJoinRanMultimaps (names old) (names new)
       where
         f (old, new) = old /= new
 
-    addedMetadata :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
+    addedMetadata :: (Ord r) => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
     addedMetadata old new = metadata new `R3.difference` metadata old
 
-    removedMetadata :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
+    removedMetadata :: (Ord r) => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
     removedMetadata old new = metadata old `R3.difference` metadata new
 
 -- the namespace updates that aren't propagated
-namespaceUpdates :: Ord r => DiffSlice r -> Map Name (Set r, Set r)
+namespaceUpdates :: (Ord r) => DiffSlice r -> Map Name (Set r, Set r)
 namespaceUpdates s = Map.mapMaybeWithKey f (tallnamespaceUpdates s)
   where
     f name (olds, news) =
@@ -174,7 +174,7 @@ namespaceUpdates s = Map.mapMaybeWithKey f (tallnamespaceUpdates s)
        in if null news' then Nothing else Just (olds, news')
     propagated = propagatedUpdates s
 
-propagatedUpdates :: Ord r => DiffSlice r -> Map Name (Set r)
+propagatedUpdates :: (Ord r) => DiffSlice r -> Map Name (Set r)
 propagatedUpdates s =
   Map.fromList
     [ (name, news)

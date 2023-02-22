@@ -49,6 +49,21 @@ import qualified Unison.Builtin.Decls as DD
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
+  ( DisplayDefinitionsOutput (..),
+    NumberedArgs,
+    NumberedOutput (..),
+    Output (..),
+    ShareError
+      ( ShareErrorCheckAndSetPush,
+        ShareErrorFastForwardPush,
+        ShareErrorGetCausalHashByPath,
+        ShareErrorPull,
+        ShareErrorTransport
+      ),
+    TestReportStats (CachedTests, NewlyComputed),
+    UndoFailureReason (CantUndoPastMerge, CantUndoPastStart),
+    WhichBranchEmpty (..),
+  )
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
@@ -783,6 +798,11 @@ notifyUser dir = \case
     pure . P.warnCallout $ "I don't know about that patch."
   NameNotFound _ ->
     pure . P.warnCallout $ "I don't know about that name."
+  NamesNotFound hqs ->
+    pure $
+      P.warnCallout "The following names were not found in the codebase. Check your spelling."
+        <> P.newline
+        <> (P.syntaxToColor $ P.indent "  " (P.lines (fmap prettyName hqs)))
   TermNotFound _ ->
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->
@@ -984,12 +1004,12 @@ notifyUser dir = \case
         then P.lit "nothing to show"
         else numberedEntries ppe entries
     where
-      numberedEntries :: Var v => PPE.PrettyPrintEnv -> [ShallowListEntry v a] -> Pretty
+      numberedEntries :: (Var v) => PPE.PrettyPrintEnv -> [ShallowListEntry v a] -> Pretty
       numberedEntries ppe entries =
         (P.column3 . fmap f) ([(1 :: Integer) ..] `zip` fmap (formatEntry ppe) entries)
         where
           f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
-      formatEntry :: Var v => PPE.PrettyPrintEnv -> ShallowListEntry v a -> (Pretty, Pretty)
+      formatEntry :: (Var v) => PPE.PrettyPrintEnv -> ShallowListEntry v a -> (Pretty, Pretty)
       formatEntry ppe = \case
         ShallowTermEntry termEntry ->
           ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment . Backend.termEntryHQName $ termEntry,
@@ -1091,7 +1111,7 @@ notifyUser dir = \case
     where
       terms = R.dom termNamespace
       types = R.dom typeNamespace
-      showConflicts :: Foldable f => Pretty -> f Name -> Pretty
+      showConflicts :: (Foldable f) => Pretty -> f Name -> Pretty
       showConflicts thingsName things =
         if (null things)
           then mempty
@@ -1743,6 +1763,12 @@ notifyUser dir = \case
         [ "Failed to parse a URI from the hostname: " <> P.shown host <> ".",
           "Host names should NOT include a schema or path."
         ]
+    Auth.FailedToFetchUserInfo userInfoEndpoint err ->
+      P.lines
+        [ "Failed to parse the response from user info endpoint: " <> P.shown userInfoEndpoint,
+          P.text err,
+          "Please `auth.login` then try again, if this error persists please file a bug report and include the above error message."
+        ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
   ShareError x -> (pure . P.fatalCallout) case x of
     ShareErrorCheckAndSetPush e -> case e of
@@ -1990,22 +2016,22 @@ prettyRelative = P.blue . P.shown
 prettyAbsolute :: Path.Absolute -> Pretty
 prettyAbsolute = P.blue . P.shown
 
-prettySCH :: IsString s => ShortCausalHash -> P.Pretty s
+prettySCH :: (IsString s) => ShortCausalHash -> P.Pretty s
 prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)
 
-prettyCausalHash :: IsString s => CausalHash -> P.Pretty s
+prettyCausalHash :: (IsString s) => CausalHash -> P.Pretty s
 prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . unCausalHash $ hash)
 
-prettyBase32Hex :: IsString s => Base32Hex -> P.Pretty s
+prettyBase32Hex :: (IsString s) => Base32Hex -> P.Pretty s
 prettyBase32Hex = P.text . Base32Hex.toText
 
-prettyBase32Hex# :: IsString s => Base32Hex -> P.Pretty s
+prettyBase32Hex# :: (IsString s) => Base32Hex -> P.Pretty s
 prettyBase32Hex# b = P.group $ "#" <> prettyBase32Hex b
 
-prettyHash :: IsString s => Hash.Hash -> P.Pretty s
+prettyHash :: (IsString s) => Hash.Hash -> P.Pretty s
 prettyHash = prettyBase32Hex# . Hash.toBase32Hex
 
-prettyHash32 :: IsString s => Hash32 -> P.Pretty s
+prettyHash32 :: (IsString s) => Hash32 -> P.Pretty s
 prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
 
 prettyProjectName :: ProjectName -> Pretty
@@ -2030,8 +2056,8 @@ formatMissingStuff terms types =
        )
 
 displayDefinitions' ::
-  Var v =>
-  Ord a1 =>
+  (Var v) =>
+  (Ord a1) =>
   PPED.PrettyPrintEnvDecl ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
@@ -2243,7 +2269,7 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted =
             ]
 
 unsafePrettyTermResultSig' ::
-  Var v =>
+  (Var v) =>
   PPE.PrettyPrintEnv ->
   SR'.TermResult' v a ->
   Pretty
@@ -2256,7 +2282,7 @@ unsafePrettyTermResultSig' ppe = \case
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms#0
 -- Optional.None, Maybe.Nothing : Maybe a
 unsafePrettyTermResultSigFull' ::
-  Var v =>
+  (Var v) =>
   PPE.PrettyPrintEnv ->
   SR'.TermResult' v a ->
   Pretty
@@ -2274,7 +2300,7 @@ unsafePrettyTermResultSigFull' ppe = \case
   where
     greyHash = styleHashQualified' id P.hiBlack
 
-prettyTypeResultHeader' :: Var v => SR'.TypeResult' v a -> Pretty
+prettyTypeResultHeader' :: (Var v) => SR'.TypeResult' v a -> Pretty
 prettyTypeResultHeader' (SR'.TypeResult' name dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
@@ -2282,7 +2308,7 @@ prettyTypeResultHeader' (SR'.TypeResult' name dt r _aliases) =
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms
 -- type Optional
 -- type Maybe
-prettyTypeResultHeaderFull' :: Var v => SR'.TypeResult' v a -> Pretty
+prettyTypeResultHeaderFull' :: (Var v) => SR'.TypeResult' v a -> Pretty
 prettyTypeResultHeaderFull' (SR'.TypeResult' name dt r aliases) =
   P.lines stuff <> P.newline
   where
@@ -2295,7 +2321,7 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' name dt r aliases) =
         greyHash = styleHashQualified' id P.hiBlack
 
 prettyDeclTriple ::
-  Var v =>
+  (Var v) =>
   (HQ.HashQualified Name, Reference.Reference, DisplayObject () (DD.Decl v a)) ->
   Pretty
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
@@ -2304,7 +2330,7 @@ prettyDeclTriple (name, _, displayDecl) = case displayDecl of
   UserObject decl -> P.syntaxToColor $ DeclPrinter.prettyDeclHeader name decl
 
 prettyDeclPair ::
-  Var v =>
+  (Var v) =>
   PPE.PrettyPrintEnv ->
   (Reference, DisplayObject () (DD.Decl v a)) ->
   Pretty
@@ -2403,7 +2429,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2418,7 +2444,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)
@@ -2442,7 +2468,7 @@ runNumbered m =
   let (a, (_, args)) = State.runState m (0, mempty)
    in (a, Foldable.toList args)
 
-todoOutput :: Var v => PPED.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
+todoOutput :: (Var v) => PPED.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
 todoOutput ppe todo = runNumbered do
   conflicts <- todoConflicts
   edits <- todoEdits
@@ -2528,12 +2554,12 @@ todoOutput ppe todo = runNumbered do
     unscore (_score, b, c) = (b, c)
 
 listOfDefinitions ::
-  Var v => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
+  (Var v) => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
 listOfDefinitions fscope ppe detailed results =
   pure $ listOfDefinitions' fscope ppe detailed results
 
 listOfLinks ::
-  Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
+  (Var v) => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
 listOfLinks _ [] =
   pure . P.callout "😶" . P.wrap $
     "No results. Try using the "
@@ -2566,7 +2592,7 @@ data ShowNumbers = ShowNumbers | HideNumbers
 --                                       numbered args
 showDiffNamespace ::
   forall v.
-  Var v =>
+  (Var v) =>
   ShowNumbers ->
   PPE.PrettyPrintEnv ->
   Input.AbsBranchId ->
@@ -3010,7 +3036,7 @@ noResults fscope =
           <> "can be used to search outside the current namespace."
 
 listOfDefinitions' ::
-  Var v =>
+  (Var v) =>
   Input.FindScope ->
   PPE.PrettyPrintEnv -> -- for printing types of terms :-\
   E.ListDetailed ->
@@ -3073,7 +3099,7 @@ listOfDefinitions' fscope ppe detailed results =
         _ -> []
 
 watchPrinter ::
-  Var v =>
+  (Var v) =>
   Text ->
   PPE.PrettyPrintEnv ->
   Ann ->

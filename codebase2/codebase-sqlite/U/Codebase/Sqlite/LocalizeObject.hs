@@ -122,7 +122,7 @@ type LocalizeBranchState =
   )
 
 -- Run a computation that localizes a branch object, returning the local ids recorded within.
-runLocalizeBranch :: Monad m => StateT LocalizeBranchState m a -> m (BranchLocalIds, a)
+runLocalizeBranch :: (Monad m) => StateT LocalizeBranchState m a -> m (BranchLocalIds, a)
 runLocalizeBranch action = do
   (result, (localTexts, localDefns, localPatches, localChildren)) <- State.runStateT action (mempty @LocalizeBranchState)
   let branchLocalIds :: BranchLocalIds
@@ -143,7 +143,7 @@ type LocalizePatchState =
   )
 
 -- Run a computation that localizes a patch object, returning the local ids recorded within.
-runLocalizePatch :: Monad m => StateT LocalizePatchState m a -> m (PatchLocalIds, a)
+runLocalizePatch :: (Monad m) => StateT LocalizePatchState m a -> m (PatchLocalIds, a)
 runLocalizePatch action = do
   (result, (localTexts, localHashes, localDefns)) <- State.runStateT action (mempty @LocalizePatchState)
   let patchLocalIds :: PatchLocalIds

@@ -20,10 +20,10 @@ newtype ShortCausalHash = ShortCausalHash {toText :: Text} -- base32hex characte
 toString :: ShortCausalHash -> String
 toString = Text.unpack . toText
 
-toHash :: Coercible Hash.Hash h => ShortCausalHash -> Maybe h
+toHash :: (Coercible Hash.Hash h) => ShortCausalHash -> Maybe h
 toHash = fmap coerce . Hash.fromBase32HexText . toText
 
-fromHash :: Coercible h Hash.Hash => Int -> h -> ShortCausalHash
+fromHash :: (Coercible h Hash.Hash) => Int -> h -> ShortCausalHash
 fromHash len =
   ShortCausalHash . Text.take len . Hash.toBase32HexText . coerce
 

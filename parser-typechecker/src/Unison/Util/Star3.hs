@@ -201,7 +201,7 @@ deleteD2 (f, x) s = garbageCollect f (Star3 (fact s) (d1 s) d2' (d3 s))
 
 -- | Given a possibly-invalid Star3, which may contain the given fact in its fact set that are not related to any d1,
 -- d2, or d3, return a valid Star3, with this fact possibly removed.
-garbageCollect :: Ord fact => fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
+garbageCollect :: (Ord fact) => fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
 garbageCollect f star =
   star
     { fact =

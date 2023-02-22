@@ -84,7 +84,7 @@ checkCodebaseIsUpToDate = do
 -- This is a No-op if it's up to date
 -- Returns an error if the schema version is newer than this ucm knows about.
 ensureCodebaseIsUpToDate ::
-  MonadIO m =>
+  (MonadIO m) =>
   LocalOrRemote ->
   CodebasePath ->
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.

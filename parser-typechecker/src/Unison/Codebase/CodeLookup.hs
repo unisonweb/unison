@@ -27,7 +27,7 @@ instance (Ord v, Functor m) => Functor (CodeLookup v m) where
       md (Left e) = Left (f <$> e)
       md (Right d) = Right (f <$> d)
 
-instance Monad m => Semigroup (CodeLookup v m a) where
+instance (Monad m) => Semigroup (CodeLookup v m a) where
   c1 <> c2 = CodeLookup tm ty
     where
       tm id = do
@@ -37,7 +37,7 @@ instance Monad m => Semigroup (CodeLookup v m a) where
         o <- getTypeDeclaration c1 id
         case o of Nothing -> getTypeDeclaration c2 id; Just _ -> pure o
 
-instance Monad m => Monoid (CodeLookup v m a) where
+instance (Monad m) => Monoid (CodeLookup v m a) where
   mempty = CodeLookup (const $ pure Nothing) (const $ pure Nothing)
 
 -- todo: can this be implemented in terms of TransitiveClosure.transitiveClosure?

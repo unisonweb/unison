@@ -22,11 +22,11 @@ intercalateMap separator renderer elements =
 intercalateMapM :: (Traversable t, Monad m, Monoid a) => a -> (b -> m a) -> t b -> m a
 intercalateMapM separator renderer = traverse renderer >=> return . intercalateMap separator id
 
-fromMaybe :: Monoid a => Maybe a -> a
+fromMaybe :: (Monoid a) => Maybe a -> a
 fromMaybe Nothing = mempty
 fromMaybe (Just a) = a
 
-whenM, unlessM :: Monoid a => Bool -> a -> a
+whenM, unlessM :: (Monoid a) => Bool -> a -> a
 whenM True a = a
 whenM False _ = mempty
 unlessM = whenM . not

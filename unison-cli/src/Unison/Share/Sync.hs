@@ -290,7 +290,7 @@ data Step a
 -- we'd return
 --
 --                Just []
-dagbfs :: forall a m. Monad m => (a -> Bool) -> (a -> m [a]) -> a -> m (Maybe [a])
+dagbfs :: forall a m. (Monad m) => (a -> Bool) -> (a -> m [a]) -> a -> m (Maybe [a])
 dagbfs goal children =
   let -- The loop state: all distinct paths from the root to the frontier (not including the root, because it's implied,
       -- as an input to this function), in reverse order, with the invariant that we haven't found a goal state yet.

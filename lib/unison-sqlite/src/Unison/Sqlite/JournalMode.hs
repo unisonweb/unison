@@ -32,7 +32,7 @@ journalModeFromText = \case
   "off" -> Just JournalMode'OFF
   _ -> Nothing
 
-unsafeJournalModeFromText :: HasCallStack => Text -> JournalMode
+unsafeJournalModeFromText :: (HasCallStack) => Text -> JournalMode
 unsafeJournalModeFromText s =
   fromMaybe (error ("Unknown journal mode: " ++ Text.unpack s)) (journalModeFromText s)
 
@@ -45,7 +45,7 @@ journalModeToText = \case
   JournalMode'WAL -> "wal"
   JournalMode'OFF -> "off"
 
-trySetJournalMode :: MonadIO m => Connection -> JournalMode -> m ()
+trySetJournalMode :: (MonadIO m) => Connection -> JournalMode -> m ()
 trySetJournalMode conn mode0 = liftIO do
   queryOneRowCheck_
     conn

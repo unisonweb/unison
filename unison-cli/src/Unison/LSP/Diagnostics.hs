@@ -25,7 +25,7 @@ uToLspRange :: Range.Range -> Range
 uToLspRange (Range.Range start end) = Range (uToLspPos start) (uToLspPos end)
 
 reportDiagnostics ::
-  Foldable f =>
+  (Foldable f) =>
   Uri ->
   Maybe FileVersion ->
   -- | Note, it's important to still send an empty list of diagnostics if there aren't any
