@@ -245,6 +245,7 @@ import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import NeatInterpolation (trimming)
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
@@ -2475,7 +2476,7 @@ data Project = Project
   { projectId :: ProjectId,
     name :: Text
   }
-  deriving stock (Generic)
+  deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
 
 data RemoteProject = RemoteProject
@@ -2483,7 +2484,7 @@ data RemoteProject = RemoteProject
     host :: Text,
     name :: Text
   }
-  deriving stock (Generic)
+  deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
 
 data Branch = Branch
@@ -2491,7 +2492,7 @@ data Branch = Branch
     branchId :: ProjectBranchId,
     name :: Text
   }
-  deriving stock (Generic)
+  deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
 
 data RemoteBranch = RemoteBranch
@@ -2500,7 +2501,7 @@ data RemoteBranch = RemoteBranch
     host :: Text,
     name :: Text
   }
-  deriving stock (Generic)
+  deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
 
 -- | Does a project exist with this id?
@@ -2706,10 +2707,9 @@ loadRemoteProjectBranchByLocalProjectBranchGen ::
   ProjectBranchId ->
   Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId, Int64))
 loadRemoteProjectBranchByLocalProjectBranchGen loadRemoteBranchFlag pid bid =
-  queryMaybeRow theSql (unisonShareUri, pid, bid, unisonShareUri, bid)
+  queryMaybeRow theSql (unisonShareUri, pid, bid, unisonShareUri)
   where
-    theSql = mainQuery <> whereClause <> orderAndLimit
-    mainQuery =
+    theSql =
       [sql|
         WITH RECURSIVE t AS (
           SELECT
@@ -2718,13 +2718,13 @@ loadRemoteProjectBranchByLocalProjectBranchGen loadRemoteBranchFlag pid bid =
             pbp.parent_branch_id,
             pbrm.remote_project_id,
             pbrm.remote_branch_id,
-            0 AS depth,
+            0 AS depth
           FROM
-            project_branch AS pb,
-            LEFT OUTER JOIN project_branch_parent AS pbp USING (project_id, branch_id)
-            LEFT OUTER JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = pb.project_id
+            project_branch AS pb
+            LEFT JOIN project_branch_parent AS pbp USING (project_id, branch_id)
+            LEFT JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = pb.project_id
               AND pbrm.local_branch_id = pb.branch_id
-              AND pbrm.remote_host = ?,
+              AND pbrm.remote_host = ?
           WHERE
             pb.project_id = ?
             AND pb.branch_id = ?
@@ -2735,14 +2735,14 @@ loadRemoteProjectBranchByLocalProjectBranchGen loadRemoteBranchFlag pid bid =
             pbp.parent_branch_id,
             pbrm.remote_project_id,
             pbrm.remote_branch_id,
-            t.depth + 1,
+            t.depth + 1
           FROM
-            t,
-            LEFT OUTER JOIN project_branch_parent AS pbp ON pbp.project_id = t.project_id
-            AND pbp.branch_id = t.parent_branch_id,
-          LEFT OUTER JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = t.project_id
+            t
+          JOIN project_branch_parent AS pbp ON pbp.project_id = t.project_id
+            AND pbp.branch_id = t.parent_branch_id
+          LEFT JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = t.project_id
           AND pbrm.local_branch_id = t.parent_branch_id
-          AND pbrm.remote_host = ?,
+          AND pbrm.remote_host = ?
         )
         SELECT
           remote_project_id,
@@ -2750,27 +2750,26 @@ loadRemoteProjectBranchByLocalProjectBranchGen loadRemoteBranchFlag pid bid =
           depth
         FROM
           t
-        |]
-
-    orderAndLimit =
-      [sql|
+        $whereClause
         ORDER BY
           depth
         LIMIT 1
-      |]
+        |]
 
+    whereClause :: Text
     whereClause =
-      [sql| WHERE |]
-        <> foldr
-          (\a b -> a <> [sql| AND |] <> b)
-          [sql| TRUE |]
-          [ [sql| remote_project_id IS NOT NULL |],
-            selfRemoteFilter
-          ]
+      let clauses =
+            foldr
+              (\a b -> [trimming| $a AND $b |])
+              [trimming| TRUE |]
+              [ [trimming| remote_project_id IS NOT NULL |],
+                selfRemoteFilter
+              ]
+       in [trimming| WHERE $clauses |]
 
     selfRemoteFilter = case loadRemoteBranchFlag of
-      IncludeSelfRemote -> [sql| TRUE |]
-      ExcludeSelfRemote -> [sql| depth > 0 |]
+      IncludeSelfRemote -> [trimming| TRUE |]
+      ExcludeSelfRemote -> [trimming| depth > 0 |]
 
 loadRemoteProject :: RemoteProjectId -> Text -> Transaction (Maybe RemoteProject)
 loadRemoteProject rpid host =

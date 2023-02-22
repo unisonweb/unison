@@ -22,6 +22,7 @@ dependencies:
   - lens
   - monad-validate
   - mtl
+  - neat-interpolation
   - nonempty-containers
   - safe
   - text
