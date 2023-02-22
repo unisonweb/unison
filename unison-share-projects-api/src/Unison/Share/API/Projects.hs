@@ -71,7 +71,7 @@ data GetProjectResponse
   = GetProjectResponseNotFound NotFound
   | GetProjectResponseUnauthorized Unauthorized
   | GetProjectResponseSuccess !Project
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON GetProjectResponse where
   parseJSON =
@@ -101,7 +101,7 @@ type CreateProjectAPI =
 data CreateProjectRequest = CreateProjectRequest
   { projectName :: Text
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON CreateProjectRequest where
   parseJSON =
@@ -120,7 +120,7 @@ data CreateProjectResponse
   = CreateProjectResponseUnauthorized Unauthorized
   | CreateProjectResponseNotFound !NotFound
   | CreateProjectResponseSuccess !Project
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON CreateProjectResponse where
   parseJSON =
@@ -155,7 +155,7 @@ data GetProjectBranchResponse
   = GetProjectBranchResponseNotFound NotFound
   | GetProjectBranchResponseUnauthorized Unauthorized
   | GetProjectBranchResponseSuccess !ProjectBranch
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON GetProjectBranchResponse where
   parseJSON =
@@ -188,7 +188,7 @@ data CreateProjectBranchRequest = CreateProjectBranchRequest
     branchCausalHash :: Hash32,
     branchMergeTarget :: Maybe ProjectBranchIds
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON CreateProjectBranchRequest where
   parseJSON =
@@ -215,7 +215,7 @@ data CreateProjectBranchResponse
   | CreateProjectBranchResponseNotFound NotFound
   | CreateProjectBranchResponseMissingCausalHash !Hash32
   | CreateProjectBranchResponseSuccess !ProjectBranch
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON CreateProjectBranchResponse where
   parseJSON =
@@ -253,7 +253,7 @@ data SetProjectBranchHeadRequest = SetProjectBranchHeadRequest
     branchOldCausalHash :: Maybe Hash32,
     branchNewCausalHash :: Hash32
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON SetProjectBranchHeadRequest where
   parseJSON =
@@ -281,7 +281,7 @@ data SetProjectBranchHeadResponse
   | SetProjectBranchHeadResponseMissingCausalHash !Hash32
   | -- | (expected, actual)
     SetProjectBranchHeadResponseExpectedCausalHashMismatch !Hash32 !Hash32
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON SetProjectBranchHeadResponse where
   parseJSON =
@@ -317,7 +317,7 @@ data Project = Project
   { projectId :: Text,
     projectName :: Text
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON Project where
   parseJSON =
@@ -341,7 +341,7 @@ data ProjectBranch = ProjectBranch
     branchName :: Text,
     branchHead :: Hash32
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON ProjectBranch where
   parseJSON =
@@ -368,7 +368,7 @@ data ProjectBranchIds = ProjectBranchIds
   { projectId :: Text,
     branchId :: Text
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON ProjectBranchIds where
   parseJSON =
@@ -385,7 +385,7 @@ instance ToJSON ProjectBranchIds where
       ]
 
 data NotFound = NotFound {message :: Text}
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance ToJSON NotFound where
   toJSON (NotFound message) = object ["message" .= message]
@@ -397,7 +397,7 @@ instance FromJSON NotFound where
       pure NotFound {..}
 
 data Unauthorized = Unauthorized {message :: Text}
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance ToJSON Unauthorized where
   toJSON (Unauthorized message) = object ["message" .= message]
