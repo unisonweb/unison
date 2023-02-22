@@ -953,8 +953,7 @@ httpUploadEntities ::
             Servant.:<|> httpDownloadEntities
             Servant.:<|> httpUploadEntities
           ) =
-            -- FIXME remove this once the other thing lands
-            let pp :: Proxy ("sync" Servant.:> Share.API)
+            let pp :: Proxy ("ucm" Servant.:> "v1" Servant.:> "sync" Servant.:> Share.API)
                 pp = Proxy
              in Servant.hoistClient pp hoist (Servant.client pp)
      in ( go httpGetCausalHashByPath,
