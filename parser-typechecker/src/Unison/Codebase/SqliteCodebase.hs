@@ -9,7 +9,9 @@
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
     MigrationStrategy (..),
+    BackupStrategy (..),
     CodebaseLockOption (..),
+    copyCodebase,
   )
 where
 
@@ -47,7 +49,7 @@ import Unison.Codebase.Editor.RemoteRepo
     writeToReadGit,
   )
 import qualified Unison.Codebase.GitError as GitError
-import Unison.Codebase.Init (CodebaseLockOption (..), MigrationStrategy (..))
+import Unison.Codebase.Init (BackupStrategy (..), CodebaseLockOption (..), MigrationStrategy (..))
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
@@ -212,12 +214,12 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
       Migrations.CodebaseRequiresMigration fromSv toSv ->
         case migrationStrategy of
           DontMigrate -> pure $ Left (OpenCodebaseRequiresMigration fromSv toSv)
-          MigrateAfterPrompt -> do
+          MigrateAfterPrompt backupStrategy -> do
             let shouldPrompt = True
-            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt conn
-          MigrateAutomatically -> do
+            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy conn
+          MigrateAutomatically backupStrategy -> do
             let shouldPrompt = False
-            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt conn
+            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy conn
 
   case result of
     Left err -> pure $ Left err
@@ -588,7 +590,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior act
           then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
           else throwIO exception
 
-      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote DoLock MigrateAfterPrompt \codebase -> do
+      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote DoLock (MigrateAfterPrompt Codebase.Backup) \codebase -> do
         -- try to load the requested branch from it
         branch <- time "Git fetch (sch)" $ case sch of
           -- no sub-branch was specified, so use the root.
@@ -638,7 +640,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
   -- set up the cache dir
   throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
     newBranchOrErr <- throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
-      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote DoLock MigrateAfterPrompt
+      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote DoLock (MigrateAfterPrompt Codebase.Backup)
       $ \(codebaseStatus, destCodebase) -> do
         currentRootBranch <-
           Codebase1.runTransaction destCodebase CodebaseOps.getRootBranchExists >>= \case
@@ -766,3 +768,12 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
             (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", url] ++ Git.gitVerbosity ++ maybe [] (pure @[]) mayGitBranch
             when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
             pure True
+
+-- | Given two codebase roots (e.g. "./mycodebase"), safely copy the codebase
+-- at the source to the destination.
+-- Note: this does not copy the .unisonConfig file.
+copyCodebase :: (MonadIO m) => CodebasePath -> CodebasePath -> m ()
+copyCodebase src dest = liftIO $ do
+  createDirectoryIfMissing True (makeCodebaseDirPath dest)
+  withConnection ("copy-from:" <> src) src $ \srcConn -> do
+    Sqlite.vacuumInto srcConn (makeCodebasePath dest)
