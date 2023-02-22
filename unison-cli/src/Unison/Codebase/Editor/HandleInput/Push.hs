@@ -725,6 +725,9 @@ oinkCreateRemoteProject projectName = do
     Share.API.CreateProjectResponseUnauthorized (Share.API.Unauthorized msg) -> do
       loggeth ["Share says: unauthorized: " <> msg]
       Cli.returnEarlyWithoutOutput
+    Share.API.CreateProjectResponseNotFound (Share.API.NotFound msg) -> do
+      loggeth ["Share says: not-found: " <> msg]
+      Cli.returnEarlyWithoutOutput
     Share.API.CreateProjectResponseSuccess remoteProject -> do
       loggeth ["Share says: success!"]
       loggeth [tShow remoteProject]
