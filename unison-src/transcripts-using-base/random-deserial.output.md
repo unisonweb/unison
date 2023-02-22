@@ -3,7 +3,8 @@ directory = "unison-src/transcripts-using-base/serialized-cases/"
 
 availableCases : '{IO,Exception} [Text]
 availableCases _ =
-  l = filter (contains ".ser") (directoryContents directory)
+  endsWith suffix t = Text.drop (Nat.drop (Text.size t) (Text.size suffix)) t == suffix 
+  l = filter (endsWith ".ser") (directoryContents directory)
   map (t -> Text.take (drop (Text.size t) 4) t) l
 
 gen : Nat -> Nat -> (Nat, Nat)
@@ -25,15 +26,17 @@ shuffle =
 runTestCase : Text ->{Exception,IO} (Text, Test.Result)
 runTestCase name =
   sfile = directory ++ name ++ ".ser"
+  sfile2 = directory ++ name ++ ".ser.small"
   ofile = directory ++ name ++ ".out"
   hfile = directory ++ name ++ ".hash"
 
   p@(f, i) = loadSelfContained sfile
+  p2@(f2, i2) = loadSelfContained sfile2
   o = fromUtf8 (readFile ofile)
   h = readFile hfile
 
   result =
-    if f i == o
+    if f i == o && f2 i2
     then if toBase32 (crypto.hash Sha3_512 p) == h
          then Ok name
          else Fail (name ++ " hash mismatch")
@@ -77,15 +80,18 @@ serialTests = do
 
 .> io.test serialTests
 
-    New test results:
-  
-  ◉ serialTests   case-00
-  ◉ serialTests   case-01
-  ◉ serialTests   case-02
-  ◉ serialTests   case-03
-  
-  ✅ 4 test(s) passing
-  
-  Tip: Use view serialTests to view the source of a test.
+  dumpData: bad closure: Foreign (Wrap ##Text "(42, 31, \"45\")")
+  expected type: ##Boolean
 
 ```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  dumpData: bad closure: Foreign (Wrap ##Text "(42, 31, \"45\")")
+  expected type: ##Boolean
+
