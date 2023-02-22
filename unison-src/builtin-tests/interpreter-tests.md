@@ -23,3 +23,14 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm
 .> run tests
 ```
+
+
+```ucm:hide
+.> builtins.merge
+.> load unison-src/builtin-tests/thread-killed-typeLink-test.u
+.> add
+```
+
+```ucm
+.> run threadKilledTypeLinkTest
+```
