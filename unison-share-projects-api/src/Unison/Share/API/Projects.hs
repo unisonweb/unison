@@ -32,6 +32,8 @@ module Unison.Share.API.Projects
     Project (..),
     ProjectBranch (..),
     ProjectBranchIds (..),
+    NotFound (..),
+    Unauthorized (..),
   )
 where
 
@@ -66,21 +68,24 @@ type GetProjectAPI =
 
 -- | @GET /project@ response.
 data GetProjectResponse
-  = GetProjectResponseNotFound
+  = GetProjectResponseNotFound NotFound
+  | GetProjectResponseUnauthorized Unauthorized
   | GetProjectResponseSuccess !Project
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON GetProjectResponse where
   parseJSON =
     withSumType "GetProjectResponse" \typ val ->
       case typ of
-        "not-found" -> pure GetProjectResponseNotFound
+        "not-found" -> GetProjectResponseNotFound <$> parseJSON val
+        "unauthorized" -> GetProjectResponseUnauthorized <$> parseJSON val
         "success" -> GetProjectResponseSuccess <$> parseJSON val
         _ -> fail (Text.unpack ("unknown GetProjectResponse type: " <> typ))
 
 instance ToJSON GetProjectResponse where
   toJSON = \case
-    GetProjectResponseNotFound -> toSumType "not-found" (object [])
+    GetProjectResponseNotFound notFound -> toSumType "not-found" (toJSON notFound)
+    GetProjectResponseUnauthorized unauthorized -> toSumType "unauthorized" (toJSON unauthorized)
     GetProjectResponseSuccess project -> toSumType "success" (toJSON project)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -96,7 +101,7 @@ type CreateProjectAPI =
 data CreateProjectRequest = CreateProjectRequest
   { projectName :: Text
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON CreateProjectRequest where
   parseJSON =
@@ -112,25 +117,24 @@ instance ToJSON CreateProjectRequest where
 
 -- | @POST /create-project@ response.
 data CreateProjectResponse
-  = -- | Request payload invalid.
-    CreateProjectResponseBadRequest
-  | CreateProjectResponseUnauthorized
+  = CreateProjectResponseUnauthorized Unauthorized
+  | CreateProjectResponseNotFound !NotFound
   | CreateProjectResponseSuccess !Project
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON CreateProjectResponse where
   parseJSON =
     withSumType "CreateProjectResponse" \typ val ->
       case typ of
-        "bad-request" -> pure CreateProjectResponseBadRequest
-        "unauthorized" -> pure CreateProjectResponseUnauthorized
+        "not-found" -> CreateProjectResponseNotFound <$> parseJSON val
+        "unauthorized" -> CreateProjectResponseUnauthorized <$> parseJSON val
         "success" -> CreateProjectResponseSuccess <$> parseJSON val
         _ -> fail (Text.unpack ("unknown CreateProjectResponse type: " <> typ))
 
 instance ToJSON CreateProjectResponse where
   toJSON = \case
-    CreateProjectResponseBadRequest -> toSumType "bad-request" (object [])
-    CreateProjectResponseUnauthorized -> toSumType "unauthorized" (object [])
+    CreateProjectResponseNotFound notFound -> toSumType "not-found" (toJSON notFound)
+    CreateProjectResponseUnauthorized unauthorized -> toSumType "unauthorized" (toJSON unauthorized)
     CreateProjectResponseSuccess project -> toSumType "success" (toJSON project)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -148,21 +152,24 @@ type GetProjectBranchAPI =
 
 -- | @GET /project-branch@ response.
 data GetProjectBranchResponse
-  = GetProjectBranchResponseNotFound
+  = GetProjectBranchResponseNotFound NotFound
+  | GetProjectBranchResponseUnauthorized Unauthorized
   | GetProjectBranchResponseSuccess !ProjectBranch
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON GetProjectBranchResponse where
   parseJSON =
     withSumType "GetProjectBranchResponse" \typ val ->
       case typ of
-        "not-found" -> pure GetProjectBranchResponseNotFound
+        "not-found" -> GetProjectBranchResponseNotFound <$> parseJSON val
+        "unauthorized" -> GetProjectBranchResponseUnauthorized <$> parseJSON val
         "success" -> GetProjectBranchResponseSuccess <$> parseJSON val
         _ -> fail (Text.unpack ("unknown GetProjectBranchResponse type: " <> typ))
 
 instance ToJSON GetProjectBranchResponse where
   toJSON = \case
-    GetProjectBranchResponseNotFound -> toSumType "not-found" (object [])
+    GetProjectBranchResponseNotFound notFound -> toSumType "not-found" (toJSON notFound)
+    GetProjectBranchResponseUnauthorized unauthorized -> toSumType "unauthorized" (toJSON unauthorized)
     GetProjectBranchResponseSuccess branch -> toSumType "success" (toJSON branch)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -181,7 +188,7 @@ data CreateProjectBranchRequest = CreateProjectBranchRequest
     branchCausalHash :: Hash32,
     branchMergeTarget :: Maybe ProjectBranchIds
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON CreateProjectBranchRequest where
   parseJSON =
@@ -204,25 +211,29 @@ instance ToJSON CreateProjectBranchRequest where
 
 -- | @POST /create-project-branch@ response.
 data CreateProjectBranchResponse
-  = -- | Request payload invalid.
-    CreateProjectBranchResponseBadRequest
-  | CreateProjectBranchResponseUnauthorized
+  = CreateProjectBranchResponseUnauthorized Unauthorized
+  | CreateProjectBranchResponseNotFound NotFound
+  | CreateProjectBranchResponseMissingCausalHash !Hash32
   | CreateProjectBranchResponseSuccess !ProjectBranch
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON CreateProjectBranchResponse where
   parseJSON =
     withSumType "CreateProjectBranchResponse" \typ val ->
       case typ of
-        "bad-request" -> pure CreateProjectBranchResponseBadRequest
-        "unauthorized" -> pure CreateProjectBranchResponseUnauthorized
+        "unauthorized" -> CreateProjectBranchResponseUnauthorized <$> parseJSON val
+        "missing-causal-hash" ->
+          val & withObject "CreateProjectBranchResponseMissingCausalHash" \obj ->
+            CreateProjectBranchResponseMissingCausalHash <$> obj .: "causalHash"
+        "not-found" -> CreateProjectBranchResponseNotFound <$> parseJSON val
         "success" -> CreateProjectBranchResponseSuccess <$> parseJSON val
         _ -> fail (Text.unpack ("unknown CreateProjectBranchResponse type: " <> typ))
 
 instance ToJSON CreateProjectBranchResponse where
   toJSON = \case
-    CreateProjectBranchResponseBadRequest -> toSumType "bad-request" (object [])
-    CreateProjectBranchResponseUnauthorized -> toSumType "unauthorized" (object [])
+    CreateProjectBranchResponseUnauthorized unauthorized -> toSumType "unauthorized" (toJSON unauthorized)
+    CreateProjectBranchResponseNotFound notFound -> toSumType "not-found" (toJSON notFound)
+    CreateProjectBranchResponseMissingCausalHash hash -> toSumType "missing-causal-hash" (object ["causalHash" .= hash])
     CreateProjectBranchResponseSuccess branch -> toSumType "success" (toJSON branch)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -242,7 +253,7 @@ data SetProjectBranchHeadRequest = SetProjectBranchHeadRequest
     branchOldCausalHash :: Maybe Hash32,
     branchNewCausalHash :: Hash32
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON SetProjectBranchHeadRequest where
   parseJSON =
@@ -264,25 +275,38 @@ instance ToJSON SetProjectBranchHeadRequest where
 
 -- | @POST /set-project-branch-hash@ response.
 data SetProjectBranchHeadResponse
-  = -- | Request payload invalid.
-    SetProjectBranchHeadResponseBadRequest
-  | SetProjectBranchHeadResponseUnauthorized
+  = SetProjectBranchHeadResponseUnauthorized Unauthorized
+  | SetProjectBranchHeadResponseNotFound NotFound
   | SetProjectBranchHeadResponseSuccess
-  deriving stock (Eq, Show)
+  | SetProjectBranchHeadResponseMissingCausalHash !Hash32
+  | -- | (expected, actual)
+    SetProjectBranchHeadResponseExpectedCausalHashMismatch !Hash32 !Hash32
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON SetProjectBranchHeadResponse where
   parseJSON =
-    withSumType "SetProjectBranchHeadResponse" \typ _val ->
+    withSumType "SetProjectBranchHeadResponse" \typ val ->
       case typ of
-        "bad-request" -> pure SetProjectBranchHeadResponseBadRequest
-        "unauthorized" -> pure SetProjectBranchHeadResponseUnauthorized
+        "unauthorized" -> SetProjectBranchHeadResponseUnauthorized <$> parseJSON val
+        "not-found" -> SetProjectBranchHeadResponseNotFound <$> parseJSON val
+        "missing-causal-hash" ->
+          val & withObject "SetProjectBranchHeadResponseMissingCausalHash" \obj -> do
+            SetProjectBranchHeadResponseMissingCausalHash <$> (obj .: "causalHash")
+        "expected-causal-hash-mismatch" ->
+          val & withObject "SetProjectBranchHeadResponseExpectedCausalHashMismatch" \obj -> do
+            expected <- obj .: "expected"
+            actual <- obj .: "actual"
+            pure (SetProjectBranchHeadResponseExpectedCausalHashMismatch expected actual)
         "success" -> pure SetProjectBranchHeadResponseSuccess
         _ -> fail (Text.unpack ("unknown SetProjectBranchHeadResponse type: " <> typ))
 
 instance ToJSON SetProjectBranchHeadResponse where
   toJSON = \case
-    SetProjectBranchHeadResponseBadRequest -> toSumType "bad-request" (object [])
-    SetProjectBranchHeadResponseUnauthorized -> toSumType "unauthorized" (object [])
+    SetProjectBranchHeadResponseUnauthorized unauthorized -> toSumType "unauthorized" (toJSON unauthorized)
+    SetProjectBranchHeadResponseMissingCausalHash ch -> toSumType "missing-causal-hash" (object ["causalHash" .= ch])
+    SetProjectBranchHeadResponseExpectedCausalHashMismatch expected actual ->
+      toSumType "expected-causal-hash-mismatch" (object ["expected" .= expected, "actual" .= actual])
+    SetProjectBranchHeadResponseNotFound notFound -> toSumType "not-found" (toJSON notFound)
     SetProjectBranchHeadResponseSuccess -> toSumType "success" (object [])
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -293,7 +317,7 @@ data Project = Project
   { projectId :: Text,
     projectName :: Text
   }
-  deriving stock (Eq, Generic, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON Project where
   parseJSON =
@@ -317,7 +341,7 @@ data ProjectBranch = ProjectBranch
     branchName :: Text,
     branchHead :: Hash32
   }
-  deriving stock (Eq, Generic, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON ProjectBranch where
   parseJSON =
@@ -344,7 +368,7 @@ data ProjectBranchIds = ProjectBranchIds
   { projectId :: Text,
     branchId :: Text
   }
-  deriving stock (Eq, Generic, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance FromJSON ProjectBranchIds where
   parseJSON =
@@ -359,6 +383,30 @@ instance ToJSON ProjectBranchIds where
       [ "project-id" .= projectId,
         "branch-id" .= branchId
       ]
+
+data NotFound = NotFound {message :: Text}
+  deriving stock (Eq, Show, Generic)
+
+instance ToJSON NotFound where
+  toJSON (NotFound message) = object ["message" .= message]
+
+instance FromJSON NotFound where
+  parseJSON =
+    withObject "NotFound" \o -> do
+      message <- parseField o "message"
+      pure NotFound {..}
+
+data Unauthorized = Unauthorized {message :: Text}
+  deriving stock (Eq, Show, Generic)
+
+instance ToJSON Unauthorized where
+  toJSON (Unauthorized message) = object ["message" .= message]
+
+instance FromJSON Unauthorized where
+  parseJSON =
+    withObject "Unauthorized" \o -> do
+      message <- parseField o "message"
+      pure Unauthorized {..}
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Aeson helpers. These could be extracted to a different module or package.

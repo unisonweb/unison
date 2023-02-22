@@ -405,8 +405,8 @@ bazinga3 ::
 bazinga3 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
   remoteBranch <-
     Share.getProjectBranchById remoteProjectAndBranch >>= \case
-      Share.API.GetProjectBranchResponseNotFound -> do
-        loggeth ["GetProjectBranchResponseNotFound"]
+      Share.API.GetProjectBranchResponseNotFound (Share.API.NotFound msg) -> do
+        loggeth ["GetProjectBranchResponseNotFound: " <> msg]
         Cli.returnEarlyWithoutOutput
       Share.API.GetProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
   repoName <- remoteProjectBranchRepoName remoteBranch
@@ -437,8 +437,8 @@ bazinga8 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
     case projectBranchNameUserSlug (remoteProjectAndBranch ^. #branch) of
       Nothing ->
         Share.getProjectById (remoteProjectAndBranch ^. #project) >>= \case
-          Share.API.GetProjectResponseNotFound -> do
-            loggeth ["project deleted on share"]
+          Share.API.GetProjectResponseNotFound (Share.API.NotFound msg) -> do
+            loggeth ["project deleted on share: " <> msg]
             Cli.returnEarlyWithoutOutput
           Share.API.GetProjectResponseSuccess remoteProject -> remoteProjectRepoName remoteProject
       Just userSlug -> pure (Share.RepoName userSlug)
@@ -492,14 +492,14 @@ oompaLoompa0 maybeLocalProjectAndBranch localBranchHead (ProjectAndBranch remote
           localBranchHead
           (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
   Share.getProjectByName remoteProjectName >>= \case
-    Share.API.GetProjectResponseNotFound ->
+    Share.API.GetProjectResponseNotFound _msg ->
       pure do
         remoteProject <- oinkCreateRemoteProject remoteProjectName
         doCreateBranch remoteProject
     Share.API.GetProjectResponseSuccess remoteProject -> do
       let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
       Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-        Share.API.GetProjectBranchResponseNotFound -> pure (doCreateBranch remoteProject)
+        Share.API.GetProjectBranchResponseNotFound _msg -> pure (doCreateBranch remoteProject)
         Share.API.GetProjectBranchResponseSuccess remoteBranch ->
           oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch
 
@@ -511,7 +511,7 @@ oompaLoompa1 ::
   Cli (Cli ())
 oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch =
   Share.getProjectBranchByName remoteProjectAndBranch >>= \case
-    Share.API.GetProjectBranchResponseNotFound ->
+    Share.API.GetProjectBranchResponseNotFound _msg ->
       -- FIXME check to see if the project exists here instead of assuming it does
       pure (oompaLoompaCreateBranch (Just localProjectAndBranch) localBranchHead remoteProjectAndBranch)
     Share.API.GetProjectBranchResponseSuccess remoteBranch ->
@@ -525,8 +525,8 @@ oompaLoompa2 ::
   Cli (Cli ())
 oompaLoompa2 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
   Share.getProjectBranchById remoteProjectAndBranch >>= \case
-    Share.API.GetProjectBranchResponseNotFound -> do
-      loggeth ["project or branch deleted on Share"]
+    Share.API.GetProjectBranchResponseNotFound (Share.API.NotFound msg) -> do
+      loggeth ["project or branch deleted on Share: " <> msg]
       Cli.returnEarlyWithoutOutput
     Share.API.GetProjectBranchResponseSuccess remoteBranch ->
       oompaLoompaFastForward (Just localProjectAndBranch) localBranchHead remoteBranch
@@ -584,12 +584,17 @@ oompaLoompaFastForward _maybeLocalProjectAndBranch localBranchHead remoteBranch 
                   branchNewCausalHash = localBranchHead
                 }
         Share.setProjectBranchHead request >>= \case
-          Share.API.SetProjectBranchHeadResponseBadRequest -> do
-            loggeth ["SetProjectBranchHeadResponseBadRequest"]
+          Share.API.SetProjectBranchHeadResponseUnauthorized (Share.API.Unauthorized msg) -> do
+            loggeth ["SetProjectBranchHeadResponseUnauthorized: " <> "msg"]
             Cli.returnEarlyWithoutOutput
-          Share.API.SetProjectBranchHeadResponseUnauthorized -> do
-            loggeth ["SetProjectBranchHeadResponseUnauthorized"]
-            Cli.returnEarlyWithoutOutput
+          Share.API.SetProjectBranchHeadResponseNotFound (Share.API.NotFound msg) -> do
+            loggeth ["SetProjectBranchHeadResponseNotFound: " <> msg]
+          Share.API.SetProjectBranchHeadResponseMissingCausalHash _missingCausalHash -> do
+            -- TODO: push the missing causal
+            wundefined
+          Share.API.SetProjectBranchHeadResponseExpectedCausalHashMismatch expected actual -> do
+            -- TODO: Report that the remote branch causal has changed.
+            wundefined
           Share.API.SetProjectBranchHeadResponseSuccess -> do
             loggeth ["SetProjectBranchHeadResponseSuccess"]
   where
@@ -719,11 +724,11 @@ oinkCreateRemoteProject projectName = do
   loggeth ["Making create-project request for project"]
   loggeth [tShow request]
   Share.createProject request >>= \case
-    Share.API.CreateProjectResponseBadRequest -> do
-      loggeth ["Share says: bad request"]
+    Share.API.CreateProjectResponseUnauthorized (Share.API.Unauthorized msg) -> do
+      loggeth ["Share says: unauthorized: " <> msg]
       Cli.returnEarlyWithoutOutput
-    Share.API.CreateProjectResponseUnauthorized -> do
-      loggeth ["Share says: unauthorized"]
+    Share.API.CreateProjectResponseNotFound (Share.API.NotFound msg) -> do
+      loggeth ["Share says: not-found: " <> msg]
       Cli.returnEarlyWithoutOutput
     Share.API.CreateProjectResponseSuccess remoteProject -> do
       loggeth ["Share says: success!"]
@@ -742,12 +747,14 @@ oinkCreateRemoteBranch maybeLocalProjectAndBranch request = do
   loggeth [tShow request]
   remoteBranch <-
     Share.createProjectBranch request >>= \case
-      Share.API.CreateProjectBranchResponseBadRequest -> do
-        loggeth ["Share says: bad request"]
+      Share.API.CreateProjectBranchResponseUnauthorized (Share.API.Unauthorized msg) -> do
+        loggeth ["Share says: unauthorized: " <> msg]
         Cli.returnEarlyWithoutOutput
-      Share.API.CreateProjectBranchResponseUnauthorized -> do
-        loggeth ["Share says: unauthorized"]
+      Share.API.CreateProjectBranchResponseNotFound (Share.API.NotFound msg) -> do
+        loggeth ["Share says: not-found: " <> msg]
         Cli.returnEarlyWithoutOutput
+      Share.API.CreateProjectBranchResponseMissingCausalHash _missingCausalHash -> do
+        wundefined
       Share.API.CreateProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
   loggeth ["Share says: success!"]
   loggeth [tShow remoteBranch]
