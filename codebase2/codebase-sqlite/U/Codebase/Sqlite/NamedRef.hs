@@ -32,11 +32,20 @@ instance (ToRow ref) => ToRow (NamedRef ref) where
   toRow (NamedRef {reversedSegments = segments, ref}) =
     [toField reversedName] <> toRow ref
     where
-      reversedName = Text.intercalate "." . toList $ segments
+      reversedName =
+        segments
+          & toList
+          & Text.intercalate "."
+          & (<> ".") -- Add trailing dot, see notes on scoped_term_name_lookup schema
 
 instance (FromRow ref) => FromRow (NamedRef ref) where
   fromRow = do
-    reversedSegments <- NonEmpty.fromList . Text.splitOn "." <$> field
+    reversedSegments <-
+      field <&> \f ->
+        f
+          & Text.init -- Drop trailing dot, see notes on scoped_term_name_lookup schema
+          & Text.splitOn "."
+          & NonEmpty.fromList
     ref <- fromRow
     pure (NamedRef {reversedSegments, ref})
 
