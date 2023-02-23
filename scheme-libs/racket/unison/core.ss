@@ -18,8 +18,10 @@
     fx1-
     list-head
 
+    syntax->list
+    raise-syntax-error
+
     exception->string
-    record-case
     let-marks
     ref-mark
 
@@ -37,7 +39,8 @@
                   string-copy!
                   bytes
                   with-continuation-mark
-                  continuation-mark-set-first)
+                  continuation-mark-set-first
+                  raise-syntax-error)
             (string-copy! racket-string-copy!)
             (bytes bytevector))
     (racket exn)
@@ -68,41 +71,10 @@
 
   (define exception->string exn->string)
 
-  (define-syntax record-case
-    (lambda (stx)
-      (syntax-case stx ()
-        [(record-case scrut c ...)
-         (begin
-           (define (syntax->list stx)
-             (syntax-case stx ()
-               [() '()]
-               [(x . xs) (cons #'x (syntax->list #'xs))]))
-
-           (define (make-case cur)
-             (syntax-case cur (else)
-               [(else e ...) #'(else e ...)]
-               [((t ...) () e ...) #'((t ...) e ...)]
-               [(t () e ...) #'((t) e ...)]
-               [((t ...) (v ...) e ...)
-                #'((t ...)
-                   (let-values ([(v ...) (apply values (cdr scrut))])
-                     e ...))]
-               [(t (v ...) e ...)
-                #'((t)
-                   (let-values ([(v ...) (apply values (cdr scrut))])
-                     e ...))]
-               [((t ...) v e ...)
-                (identifier? #'v)
-                #'((t ...)
-                   (let ([v (cdr scrut)])
-                     e ...))]
-               [(t v e ...)
-                (identifier? #'v)
-                #'((t)
-                   (let ([v (cdr scrut)])
-                     e ...))]))
-           #`(case (car scrut)
-               #,@(map make-case (syntax->list #'(c ...)))))])))
+  (define (syntax->list stx)
+    (syntax-case stx ()
+      [() '()]
+      [(x . xs) (cons #'x (syntax->list #'xs))]))
 
   (define (call-with-marks rs v f)
     (cond

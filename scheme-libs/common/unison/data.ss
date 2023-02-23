@@ -3,6 +3,30 @@
 #!r6rs
 (library (unison data)
   (export
+
+   make-data
+   data
+   data?
+   data-ref
+   data-tag
+   data-fields
+
+   make-sum
+   sum
+   sum?
+   sum-tag
+   sum-fields
+
+   make-pure
+   pure?
+   pure-val
+
+   make-request
+   request?
+   request-ability
+   request-tag
+   request-fields
+
    some
    none
    some?
@@ -20,44 +44,69 @@
 
   (import (rnrs))
 
+  (define-record-type (unison-data make-data data?)
+    (fields
+      (immutable ref data-ref)
+      (immutable tag data-tag)
+      (immutable fields data-fields)))
+
+  (define (data r t . args) (make-data r t args))
+
+  (define-record-type (unison-sum make-sum sum?)
+    (fields
+      (immutable tag sum-tag)
+      (immutable fields sum-fields)))
+
+  (define (sum t . args) (make-sum t args))
+
+  (define-record-type (unison-pure make-pure pure?)
+    (fields
+      (immutable val pure-val)))
+
+  (define-record-type (unison-request make-request request?)
+    (fields
+      (immutable ability request-ability)
+      (immutable tag request-tag)
+      (immutable fields request-fields)))
+
   ; Option a
-  (define none `(0))
+  (define none (sum 0))
 
   ; a -> Option a
-  (define (some a) `(1 ,a))
+  (define (some a) (sum 1 a))
 
   ; Option a -> Bool
-  (define (some? option) (eq? 1 (car option)))
+  (define (some? option) (eq? 1 (sum-tag option)))
 
   ; Option a -> Bool
-  (define (none? option) (eq? 0 (car option)))
+  (define (none? option) (eq? 0 (sum-tag option)))
 
   ; Option a -> a (or #f)
   (define (option-get option)
     (if
      (some? option)
-     (car (cdr option))
+     (car (sum-fields option))
      (raise "Cannot get the value of an empty option ")))
 
   ; #<void> works as well
   ; Unit
-  (define unit `(0))
+  (define unit (sum 0))
 
   ; Booleans are represented as numbers
   (define false 0)
   (define true 1)
 
   ; a -> Either b a
-  (define (right a) `(1 ,a))
+  (define (right a) (sum 1 a))
 
   ; b -> Either b a
-  (define (left b) `(0 ,b))
+  (define (left b) (sum 0 b))
 
   ; Either a b -> Boolean
-  (define (right? either) (eq? 1 (car either)))
+  (define (right? either) (eq? 1 (sum-tag either)))
 
   ; Either a b -> Boolean
-  (define (left? either) (eq? 0 (car either)))
+  (define (left? either) (eq? 0 (sum-tag either)))
 
   ; Either a b -> a | b
-  (define (either-get either) (car (cdr either))))
+  (define (either-get either) (car (sum-fields either))))
