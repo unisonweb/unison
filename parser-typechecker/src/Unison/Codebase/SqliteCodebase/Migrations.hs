@@ -9,13 +9,13 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified System.Console.Regions as Region
-import System.Directory (copyFile)
 import System.FilePath ((</>))
 import Text.Printf (printf)
 import qualified U.Codebase.Reference as C.Reference
 import U.Codebase.Sqlite.DbId (SchemaVersion (..))
 import qualified U.Codebase.Sqlite.Queries as Q
 import Unison.Codebase (CodebasePath)
+import Unison.Codebase.Init (BackupStrategy (..))
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUnknownSchemaVersion))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals, prettyPrintIntegrityErrors)
@@ -26,8 +26,9 @@ import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchem
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5 (migrateSchema4To5)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7 (migrateSchema6To7)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8 (migrateSchema7To8)
 import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
-import Unison.Codebase.SqliteCodebase.Paths (backupCodebasePath, codebasePath)
+import Unison.Codebase.SqliteCodebase.Paths (backupCodebasePath)
 import Unison.Codebase.Type (LocalOrRemote (..))
 import qualified Unison.ConstructorType as CT
 import Unison.Hash (Hash)
@@ -35,11 +36,11 @@ import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sqlite.Connection as Sqlite.Connection
 import Unison.Util.Monoid (foldMapM)
+import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as Pretty
 import qualified UnliftIO
 
 -- | Mapping from schema version to the migration required to get there.
--- Each migration may only be run on a schema of its immediate predecessor,
 -- E.g. The migration at index 2 must be run on a codebase at version 1.
 migrations ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
@@ -55,7 +56,8 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       (4, migrateSchema3To4),
       (5, migrateSchema4To5),
       (6, migrateSchema5To6 rootCodebasePath),
-      (7, migrateSchema6To7)
+      (7, migrateSchema6To7),
+      (8, migrateSchema7To8)
     ]
 
 data CodebaseVersionStatus
@@ -90,9 +92,10 @@ ensureCodebaseIsUpToDate ::
   TVar (Map Hash Ops2.TermBufferEntry) ->
   TVar (Map Hash Ops2.DeclBufferEntry) ->
   Bool ->
+  BackupStrategy ->
   Sqlite.Connection ->
   m (Either Codebase.OpenCodebaseError ())
-ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt conn =
+ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy conn =
   (liftIO . UnliftIO.try) do
     regionVar <- newEmptyMVar
     let finalizeRegion :: IO ()
@@ -111,7 +114,9 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
             let currentSchemaVersion = fst . head $ Map.toDescList migs
             when (schemaVersion > currentSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral schemaVersion)
             let migrationsToRun = Map.filterWithKey (\v _ -> v > schemaVersion) migs
-            when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase root shouldPrompt
+            when (localOrRemote == Local && (not . null) migrationsToRun) $ case backupStrategy of
+              Backup -> backupCodebase conn schemaVersion root shouldPrompt
+              NoBackup -> pure ()
             -- This is a bit of a hack, hopefully we can remove this when we have a more
             -- reliable way to freeze old migration code in time.
             -- The problem is that 'saveObject' has been changed to flush temp entity tables,
@@ -134,13 +139,16 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
                   putMVar regionVar region
                   pure region
               result <- do
+                -- Ideally we'd check everything here, but certain codebases are known to have objects
+                -- with missing Hash Objects, we'll want to clean that up in a future migration.
+                -- integrityCheckAllHashObjects,
                 let checks =
-                      [ -- Ideally we'd check everything here, but certain codebases are known to have objects
-                        -- with missing Hash Objects, we'll want to clean that up in a future migration.
-                        -- integrityCheckAllHashObjects,
-                        integrityCheckAllBranches,
-                        integrityCheckAllCausals
-                      ]
+                      Monoid.whenM
+                        (schemaVersion < 7) -- Only certain migrations actually make changes which reasonably need to be checked
+                        [ integrityCheckAllBranches,
+                          integrityCheckAllCausals
+                        ]
+
                 zip [(1 :: Int) ..] checks & foldMapM \(i, check) -> do
                   Region.setConsoleRegion
                     region
@@ -162,10 +170,10 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
           Region.setConsoleRegion region ("🏁 Migrations complete 🏁" :: Text)
 
 -- | Copy the sqlite database to a new file with a unique name based on current time.
-backupCodebase :: CodebasePath -> Bool -> IO ()
-backupCodebase root shouldPrompt = do
-  backupPath <- backupCodebasePath <$> getPOSIXTime
-  copyFile (root </> codebasePath) (root </> backupPath)
+backupCodebase :: Sqlite.Connection -> SchemaVersion -> CodebasePath -> Bool -> IO ()
+backupCodebase conn schemaVersion root shouldPrompt = do
+  backupPath <- getPOSIXTime <&> (\t -> root </> backupCodebasePath schemaVersion t)
+  Sqlite.vacuumInto conn backupPath
   putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
   putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
   when shouldPrompt do

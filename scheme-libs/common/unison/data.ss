@@ -40,7 +40,10 @@
    either-get
    unit
    false
-   true)
+   true
+   any
+   failure
+   exception)
 
   (import (rnrs))
 
@@ -109,4 +112,15 @@
   (define (left? either) (eq? 0 (sum-tag either)))
 
   ; Either a b -> a | b
-  (define (either-get either) (car (sum-fields either))))
+  (define (either-get either) (car (sum-fields either)))
+
+  ; a -> Any
+  (define (any a) (data 'Any 0 a))
+
+  ; Type -> Text -> Any -> Failure
+  (define (failure typeLink msg any)
+    (sum 0 typeLink msg any))
+
+  ; Type -> Text -> a ->{Exception} b
+  (define (exception typeLink msg a)
+    (failure typeLink msg (any a))))

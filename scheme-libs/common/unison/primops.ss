@@ -89,6 +89,7 @@
     unison-FOp-IO.delay.impl.v3
     unison-POp-FORK
     unison-FOp-IO.kill.impl.v3
+    unison-POp-TFRC
 
     unison-POp-ADDN
     unison-POp-ANDN
@@ -360,6 +361,7 @@
   (define unison-FOp-ImmutableArray.size vector-length)
 
   (define (unison-POp-FORK thunk) (fork thunk))
+  (define (unison-POp-TFRC thunk) (try-eval thunk))
   (define (unison-FOp-IO.delay.impl.v3 micros) (sleep micros))
   (define (unison-FOp-IO.kill.impl.v3 threadId) (kill threadId))
   (define (unison-FOp-Scope.ref a) (ref-new a))

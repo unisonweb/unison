@@ -657,6 +657,48 @@ updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash toBranchHash = do
         ct <- getDeclType ref
         pure (referent, Just $ Cv.constructorType1to2 ct)
 
+-- | Add an index for the provided branch hash if one doesn't already exist.
+ensureNameLookupForBranchHash ::
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  -- | An optional branch which we may already have an index for.
+  -- This should be a branch which is relatively similar to the branch we're creating a name
+  -- lookup for, e.g. a recent ancestor of the new branch. The more similar it is, the faster
+  -- the less work we'll need to do.
+  Maybe BranchHash ->
+  BranchHash ->
+  Sqlite.Transaction ()
+ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
+  Ops.checkBranchHashNameLookupExists toBranchHash >>= \case
+    True -> pure ()
+    False -> do
+      (fromBranch, mayExistingLookupBH) <- case mayFromBranchHash of
+        Nothing -> pure (V2Branch.empty, Nothing)
+        Just fromBH -> do
+          Ops.checkBranchHashNameLookupExists fromBH >>= \case
+            True -> (,Just fromBH) <$> Ops.expectBranchByBranchHash fromBH
+            False -> do
+              -- TODO: We can probably infer a good starting branch by crawling through
+              -- history looking for a Branch Hash we already have an index for.
+              pure (V2Branch.empty, Nothing)
+      toBranch <- Ops.expectBranchByBranchHash toBranchHash
+      treeDiff <- BranchDiff.diffBranches fromBranch toBranch
+      let namePrefix = Nothing
+      let BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} = BranchDiff.nameChanges namePrefix treeDiff
+      termNameAddsWithCT <- do
+        for termNameAdds \(name, ref) -> do
+          refWithCT <- addReferentCT ref
+          pure $ toNamedRef (name, refWithCT)
+      Ops.buildNameLookupForBranchHash mayExistingLookupBH toBranchHash (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
+  where
+    toNamedRef :: (Name, ref) -> S.NamedRef ref
+    toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
+    addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
+    addReferentCT referent = case referent of
+      C.Referent.Ref {} -> pure (referent, Nothing)
+      C.Referent.Con ref _conId -> do
+        ct <- getDeclType ref
+        pure (referent, Just $ Cv.constructorType1to2 ct)
+
 -- | Compute the root namespace names index which is used by the share server for serving api
 -- requests. Using 'updateNameLookupIndex' is preferred whenever possible, since it's
 -- considerably faster. This can be used to reset the index if it ever gets out of sync due to

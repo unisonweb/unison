@@ -62,6 +62,7 @@ module U.Codebase.Sqlite.Queries
     loadNamespaceRoot,
     setNamespaceRoot,
     expectNamespaceRoot,
+    expectNamespaceRootBranchHashId,
 
     -- * namespace_statistics table
     saveNamespaceStats,
@@ -134,14 +135,21 @@ module U.Codebase.Sqlite.Queries
 
     -- * Name Lookup
     ensureNameLookupTables,
+    copyScopedNameLookup,
     dropNameLookupTables,
     insertTermNames,
     insertTypeNames,
     removeTermNames,
     removeTypeNames,
+    insertScopedTermNames,
+    insertScopedTypeNames,
+    removeScopedTermNames,
+    removeScopedTypeNames,
     rootTermNamesByPath,
     rootTypeNamesByPath,
     getNamespaceDefinitionCount,
+    checkBranchHashNameLookupExists,
+    trackNewBranchHashNameLookup,
 
     -- * Reflog
     appendReflog,
@@ -285,7 +293,7 @@ import qualified Unison.Util.Lens as Lens
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 7
+currentSchemaVersion = 8
 
 createSchema :: Transaction ()
 createSchema = do
@@ -1082,6 +1090,11 @@ loadCausalParentsByHash hash =
     |]
     (Only hash)
 
+expectNamespaceRootBranchHashId :: Transaction BranchHashId
+expectNamespaceRootBranchHashId = do
+  chId <- expectNamespaceRoot
+  expectCausalValueHashId chId
+
 expectNamespaceRoot :: Transaction CausalHashId
 expectNamespaceRoot =
   queryOneCol_ loadNamespaceRootSql
@@ -1585,6 +1598,9 @@ dropNameLookupTables = do
   |]
 
 -- | Ensure the name lookup tables exist.
+--
+-- These tables will be deprecated in favour of ensureScopedNameLookupTables once we've
+-- migrated all the indexes over.
 ensureNameLookupTables :: Transaction ()
 ensureNameLookupTables = do
   execute_
@@ -1606,11 +1622,6 @@ ensureNameLookupTables = do
     [here|
       CREATE INDEX IF NOT EXISTS term_names_by_namespace ON term_name_lookup(namespace)
     |]
-  -- Don't need this index at the moment, but will likely be useful later.
-  -- execute_
-  --   [here|
-  --     CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
-  --   |]
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS type_name_lookup (
@@ -1629,11 +1640,54 @@ ensureNameLookupTables = do
       CREATE INDEX IF NOT EXISTS type_names_by_namespace ON type_name_lookup(namespace)
     |]
 
--- Don't need this index at the moment, but will likely be useful later.
--- execute_
---   [here|
---     CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index);
---   |]
+-- | Copies existing name lookup rows but replaces their branch hash id;
+-- This is a low-level operation used as part of deriving a new name lookup index
+-- from an existing one as performantly as possible.
+copyScopedNameLookup :: BranchHashId -> BranchHashId -> Transaction ()
+copyScopedNameLookup fromBHId toBHId = do
+  execute termsCopySql (toBHId, fromBHId)
+  execute typesCopySql (toBHId, fromBHId)
+  where
+    termsCopySql =
+      [here|
+        INSERT INTO scoped_term_name_lookup(root_branch_hash_id, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
+        SELECT ?, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = ?
+      |]
+    typesCopySql =
+      [here|
+        INSERT INTO scoped_type_name_lookup(root_branch_hash_id, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index)
+        SELECT ?, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index
+        FROM scoped_type_name_lookup
+        WHERE root_branch_hash_id = ?
+      |]
+
+-- | Inserts a new record into the name_lookups table
+trackNewBranchHashNameLookup :: BranchHashId -> Transaction ()
+trackNewBranchHashNameLookup bhId = do
+  execute sql (Only bhId)
+  where
+    sql =
+      [here|
+        INSERT INTO name_lookups (root_branch_hash_id)
+        VALUES (?)
+      |]
+
+-- | Check if we've already got an index for the desired root branch hash.
+checkBranchHashNameLookupExists :: BranchHashId -> Transaction Bool
+checkBranchHashNameLookupExists hashId = do
+  queryOneCol sql (Only hashId)
+  where
+    sql =
+      [here|
+        SELECT EXISTS (
+          SELECT 1
+          FROM name_lookups
+          WHERE root_branch_hash_id = ?
+          LIMIT 1
+        )
+       |]
 
 -- | Insert the given set of term names into the name lookup table
 insertTermNames :: [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
@@ -1646,6 +1700,18 @@ insertTermNames names = do
       [here|
       INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, namespace)
         VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+        |]
+
+-- | Insert the given set of type names into the name lookup table
+insertTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
+insertTypeNames names =
+  executeMany sql (NamedRef.toRowWithNamespace <$> names)
+  where
+    sql =
+      [here|
+      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index, namespace)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
 
@@ -1675,6 +1741,71 @@ removeTypeNames names = do
       DELETE FROM type_name_lookup
         WHERE
         reversed_name IS ?
+        AND reference_builtin IS ?
+        AND reference_component_hash IS ?
+        AND reference_component_index IS ?
+        |]
+
+-- | Insert the given set of term names into the name lookup table
+insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
+insertScopedTermNames bhId names = do
+  executeMany sql (namedRefToRow <$> names)
+  where
+    namedRefToRow :: NamedRef (S.Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Only BranchHashId :. [SQLData])
+    namedRefToRow namedRef =
+      namedRef
+        & fmap refToRow
+        & NamedRef.namedRefToScopedRow
+        & \nr -> (Only bhId :. nr)
+    refToRow :: (Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))
+    refToRow (ref, ct) = ref :. Only ct
+    sql =
+      [here|
+      INSERT INTO scoped_term_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+        |]
+
+-- | Insert the given set of type names into the name lookup table
+insertScopedTypeNames :: BranchHashId -> [NamedRef (Reference.TextReference)] -> Transaction ()
+insertScopedTypeNames bhId names =
+  executeMany sql ((Only bhId :.) . NamedRef.namedRefToScopedRow <$> names)
+  where
+    sql =
+      [here|
+      INSERT INTO scoped_type_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, reference_builtin, reference_component_hash, reference_component_index)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+        |]
+
+-- | Remove the given set of term names into the name lookup table
+removeScopedTermNames :: BranchHashId -> [NamedRef Referent.TextReferent] -> Transaction ()
+removeScopedTermNames bhId names = do
+  executeMany sql ((Only bhId :.) <$> names)
+  where
+    sql =
+      [here|
+      DELETE FROM scoped_term_name_lookup
+        WHERE
+        root_branch_hash_id IS ?
+        AND reversed_name IS ?
+        AND referent_builtin IS ?
+        AND referent_component_hash IS ?
+        AND referent_component_index IS ?
+        AND referent_constructor_index IS ?
+        |]
+
+-- | Remove the given set of term names into the name lookup table
+removeScopedTypeNames :: BranchHashId -> [NamedRef (Reference.TextReference)] -> Transaction ()
+removeScopedTypeNames bhId names = do
+  executeMany sql ((Only bhId :.) <$> names)
+  where
+    sql =
+      [here|
+      DELETE FROM scoped_type_name_lookup
+        WHERE
+        root_branch_hash_id IS ?
+        AND reversed_name IS ?
         AND reference_builtin IS ?
         AND reference_component_hash IS ?
         AND reference_component_index IS ?
@@ -1736,18 +1867,6 @@ getNamespaceDefinitionCount namespace = do
           SELECT 1 FROM type_name_lookup WHERE namespace GLOB ? OR namespace = ?
         )
       |]
-
--- | Insert the given set of type names into the name lookup table
-insertTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
-insertTypeNames names =
-  executeMany sql (NamedRef.toRowWithNamespace <$> names)
-  where
-    sql =
-      [here|
-      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index, namespace)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT DO NOTHING
-        |]
 
 -- | Get the list of a term names in the root namespace according to the name lookup index
 rootTermNamesByPath :: Maybe Text -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
