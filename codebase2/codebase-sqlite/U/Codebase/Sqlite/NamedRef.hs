@@ -61,7 +61,7 @@ toRowWithNamespace nr = toRow nr <> [SQLText namespace]
 --
 -- Converts a NamedRef to SQLData of the form:
 -- [reversedName, namespace, lastNameSegment] <> ref fields...
-namedRefToScopedRow :: ToRow ref => NamedRef ref -> [SQLData]
+namedRefToScopedRow :: (ToRow ref) => NamedRef ref -> [SQLData]
 namedRefToScopedRow (NamedRef {reversedSegments = revSegments, ref}) =
   toRow $ (SQLText reversedName, SQLText namespace, SQLText lastNameSegment) :. ref
   where
