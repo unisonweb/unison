@@ -112,13 +112,14 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
         currentSchemaVersion <- Sqlite.runTransaction conn Q.schemaVersion
         when (currentSchemaVersion > highestKnownSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral currentSchemaVersion)
         backupCodebaseIfNecessary backupStrategy localOrRemote conn currentSchemaVersion highestKnownSchemaVersion root
-        let migrationsToRun = Map.filterWithKey (\v _ -> v > currentSchemaVersion) migs
         when shouldPrompt do
           putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
           void $ liftIO getLine
         ranMigrations <-
           Sqlite.runWriteTransaction conn \run -> do
-            schemaVersion <- run Q.schemaVersion
+            -- Get the schema version again now that we're in a transaction.
+            currentSchemaVersion <- run Q.schemaVersion
+            let migrationsToRun = Map.filterWithKey (\v _ -> v > currentSchemaVersion) migs
             -- This is a bit of a hack, hopefully we can remove this when we have a more
             -- reliable way to freeze old migration code in time.
             -- The problem is that 'saveObject' has been changed to flush temp entity tables,
@@ -128,8 +129,8 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
             --
             -- Hopefully we can remove this once we've got better methods of freezing migration
             -- code in time.
-            when (schemaVersion < 5) $ run Q.addTempEntityTables
-            when (schemaVersion < 6) $ run Q.addNamespaceStatsTables
+            when (currentSchemaVersion < 5) $ run Q.addTempEntityTables
+            when (currentSchemaVersion < 6) $ run Q.addNamespaceStatsTables
             for_ (Map.toAscList migrationsToRun) $ \(SchemaVersion v, migration) -> do
               putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
               run migration
@@ -146,7 +147,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
                 -- integrityCheckAllHashObjects,
                 let checks =
                       Monoid.whenM
-                        (schemaVersion < 7) -- Only certain migrations actually make changes which reasonably need to be checked
+                        (currentSchemaVersion < 7) -- Only certain migrations actually make changes which reasonably need to be checked
                         [ integrityCheckAllBranches,
                           integrityCheckAllCausals
                         ]
