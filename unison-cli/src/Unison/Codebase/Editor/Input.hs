@@ -270,9 +270,9 @@ data DeleteOutput
   deriving stock (Eq, Show)
 
 data DeleteTarget
-  = DeleteTarget'TermOrType DeleteOutput Path.HQSplit'
-  | DeleteTarget'Term DeleteOutput Path.HQSplit'
-  | DeleteTarget'Type DeleteOutput Path.HQSplit'
+  = DeleteTarget'TermOrType DeleteOutput [Path.HQSplit']
+  | DeleteTarget'Term DeleteOutput [Path.HQSplit']
+  | DeleteTarget'Type DeleteOutput [Path.HQSplit']
   | DeleteTarget'Branch Insistence (Maybe Path.Split')
   | DeleteTarget'Patch Path.Split'
   deriving stock (Eq, Show)

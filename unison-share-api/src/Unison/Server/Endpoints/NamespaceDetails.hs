@@ -36,7 +36,8 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 
 type NamespaceDetailsAPI =
-  "namespaces" :> Capture "namespace" Path.Path
+  "namespaces"
+    :> Capture "namespace" Path.Path
     :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "renderWidth" Width
     :> APIGet NamespaceDetails
@@ -80,7 +81,7 @@ namespaceDetails ::
 namespaceDetails runtime codebase namespacePath maySCH mayWidth =
   let width = mayDefaultWidth mayWidth
    in do
-        (rootCausal, namespaceCausal, shallowBranch) <- 
+        (rootCausal, namespaceCausal, shallowBranch) <-
           Backend.hoistBackend (Codebase.runTransaction codebase) do
             rootCausal <- Backend.resolveRootBranchHashV2 maySCH
             namespaceCausal <- lift $ Codebase.getShallowCausalAtPath namespacePath (Just rootCausal)

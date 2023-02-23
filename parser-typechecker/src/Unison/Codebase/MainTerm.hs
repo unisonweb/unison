@@ -56,25 +56,25 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
         _ -> pure (error "multiple matching refs") -- TODO: make a real exception
 
 -- forall x. '{ io2.IO, Exception } x
-builtinMain :: Var v => a -> Type.Type v a
+builtinMain :: (Var v) => a -> Type.Type v a
 builtinMain a =
   let result = Var.named "result"
    in Type.forall a result (builtinMainWithResultType a (Type.var a result))
 
 -- '{io2.IO, Exception} res
-builtinMainWithResultType :: Var v => a -> Type.Type v a -> Type.Type v a
+builtinMainWithResultType :: (Var v) => a -> Type.Type v a -> Type.Type v a
 builtinMainWithResultType a res = Type.arrow a (Type.ref a DD.unitRef) io
   where
     io = Type.effect a [Type.builtinIO a, DD.exceptionType a] res
 
 -- [Result]
-resultArr :: Ord v => a -> Type.Type v a
+resultArr :: (Ord v) => a -> Type.Type v a
 resultArr a = Type.app a (Type.ref a Type.listRef) (Type.ref a DD.testResultRef)
 
-builtinResultArr :: Ord v => a -> Type.Type v a
+builtinResultArr :: (Ord v) => a -> Type.Type v a
 builtinResultArr a = Type.effect a [Type.builtinIO a, DD.exceptionType a] (resultArr a)
 
 -- '{io2.IO} [Result]
-builtinTest :: Ord v => a -> Type.Type v a
+builtinTest :: (Ord v) => a -> Type.Type v a
 builtinTest a =
   Type.arrow a (Type.ref a DD.unitRef) (builtinResultArr a)

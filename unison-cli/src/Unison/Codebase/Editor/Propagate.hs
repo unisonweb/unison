@@ -582,7 +582,7 @@ unhashTypeComponent' h =
       where
         reshuffle (r, (v, decl)) = (v, (r, decl))
 
-applyDeprecations :: Applicative m => Patch -> Branch0 m -> Branch0 m
+applyDeprecations :: (Applicative m) => Patch -> Branch0 m -> Branch0 m
 applyDeprecations patch =
   deleteDeprecatedTerms deprecatedTerms
     . deleteDeprecatedTypes deprecatedTypes
@@ -604,7 +604,7 @@ applyDeprecations patch =
 -- | Things in the patch are not marked as propagated changes, but every other
 -- definition that is created by the `Edits` which is passed in is marked as
 -- a propagated change.
-applyPropagate :: forall m. Applicative m => Patch -> Edits Symbol -> Branch0 m -> Branch0 m
+applyPropagate :: forall m. (Applicative m) => Patch -> Edits Symbol -> Branch0 m -> Branch0 m
 applyPropagate patch Edits {newTerms, termReplacements, typeReplacements, constructorReplacements} = do
   let termTypes = Map.map (Hashing.typeToReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
@@ -647,7 +647,7 @@ applyPropagate patch Edits {newTerms, termReplacements, typeReplacements, constr
             Star3.replaceFacts replaceType typeEdits _types
 
         updateMetadatas ::
-          Ord r =>
+          (Ord r) =>
           Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value) ->
           Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value)
         updateMetadatas s = Star3.mapD3 go s
@@ -694,7 +694,7 @@ applyPropagate patch Edits {newTerms, termReplacements, typeReplacements, constr
 -- 2. Are not themselves edited in the given patch.
 -- 3. Pass the given predicate.
 computeDirty ::
-  Monad m =>
+  (Monad m) =>
   (Reference -> m (Set Reference)) -> -- eg Codebase.dependents codebase
   Patch ->
   (Reference -> Bool) ->

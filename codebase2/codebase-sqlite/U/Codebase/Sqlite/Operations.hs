@@ -546,7 +546,8 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
       Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) ->
       Transaction (Map NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
     doChildren = Map.bitraverse (fmap NameSegment . Q.expectText) \(boId, chId) ->
-      C.Causal <$> Q.expectCausalHash chId
+      C.Causal
+        <$> Q.expectCausalHash chId
         <*> expectValueHashByCausalHashId chId
         <*> headParents chId
         <*> pure (expectBranch boId)
@@ -574,7 +575,8 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           Db.CausalHashId ->
           Transaction (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction))
         loadCausal chId = do
-          C.Causal <$> Q.expectCausalHash chId
+          C.Causal
+            <$> Q.expectCausalHash chId
             <*> expectValueHashByCausalHashId chId
             <*> headParents chId
             <*> pure (loadValue chId)
@@ -773,7 +775,7 @@ expectDbBranch id =
                   (mergePatches patches patches')
                   (mergeChildren children children')
         mergeChildren ::
-          Ord ns =>
+          (Ord ns) =>
           Map ns (Db.BranchObjectId, Db.CausalHashId) ->
           Map ns S.BranchDiff.ChildOp ->
           Map ns (Db.BranchObjectId, Db.CausalHashId)
@@ -796,7 +798,7 @@ expectDbBranch id =
           S.BranchDiff.ChildAddReplace id -> id
           S.BranchDiff.ChildRemove -> error "diff tries to remove a nonexistent child"
         mergePatches ::
-          Ord ns =>
+          (Ord ns) =>
           Map ns Db.PatchObjectId ->
           Map ns S.BranchDiff.PatchOp ->
           Map ns Db.PatchObjectId
@@ -828,7 +830,7 @@ expectDbBranch id =
           S.Branch.Diff.RemoveDef -> error "diff tries to remove a nonexistent definition"
           S.Branch.Diff.AlterDefMetadata _md -> error "diff tries to change metadata for a nonexistent definition"
         mergeDefnOp ::
-          Ord r =>
+          (Ord r) =>
           Map r S.MetadataSet.DbMetadataSet ->
           Map r S.BranchDiff.DefinitionOp ->
           Map r S.MetadataSet.DbMetadataSet
@@ -874,7 +876,10 @@ saveDbBranchUnderHashId hh bhId@(Db.unBranchHashId -> hashId) stats branch = do
   let (localBranchIds, localBranch) = LocalizeObject.localizeBranch branch
   when debug $
     traceM $
-      "saveBranchObject\n\tid = " ++ show bhId ++ "\n\tli = " ++ show localBranchIds
+      "saveBranchObject\n\tid = "
+        ++ show bhId
+        ++ "\n\tli = "
+        ++ show localBranchIds
         ++ "\n\tlBranch = "
         ++ show localBranch
   let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full localBranchIds localBranch
