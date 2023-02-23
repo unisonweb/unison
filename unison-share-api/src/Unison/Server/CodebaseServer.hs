@@ -277,7 +277,7 @@ startServer env opts rt codebase onStart = do
   token <- case token opts of
     Just t -> return $ C8.pack t
     _ -> genToken
-  let baseUrl = BaseUrl "http://127.0.0.1" token
+  let baseUrl = BaseUrl (fromMaybe "http://127.0.0.1" (host opts)) token
   let settings =
         defaultSettings
           & maybe id setPort (port opts)
