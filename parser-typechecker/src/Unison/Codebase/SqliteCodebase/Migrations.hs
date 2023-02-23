@@ -106,17 +106,19 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
 
     Region.displayConsoleRegions do
       (`UnliftIO.finally` finalizeRegion) do
+        let migs = migrations getDeclType termBuffer declBuffer root
+        -- The highest schema that this ucm knows how to migrate to.
+        let highestKnownSchemaVersion = fst . head $ Map.toDescList migs
+        currentSchemaVersion <- Sqlite.runTransaction conn Q.schemaVersion
+        when (currentSchemaVersion > highestKnownSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral currentSchemaVersion)
+        backupCodebaseIfNecessary backupStrategy localOrRemote conn currentSchemaVersion highestKnownSchemaVersion root
+        let migrationsToRun = Map.filterWithKey (\v _ -> v > currentSchemaVersion) migs
+        when shouldPrompt do
+          putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
+          void $ liftIO getLine
         ranMigrations <-
           Sqlite.runWriteTransaction conn \run -> do
             schemaVersion <- run Q.schemaVersion
-            let migs = migrations getDeclType termBuffer declBuffer root
-            -- The highest schema that this ucm knows how to migrate to.
-            let currentSchemaVersion = fst . head $ Map.toDescList migs
-            when (schemaVersion > currentSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral schemaVersion)
-            let migrationsToRun = Map.filterWithKey (\v _ -> v > schemaVersion) migs
-            when (localOrRemote == Local && (not . null) migrationsToRun) $ case backupStrategy of
-              Backup -> backupCodebase conn schemaVersion root shouldPrompt
-              NoBackup -> pure ()
             -- This is a bit of a hack, hopefully we can remove this when we have a more
             -- reliable way to freeze old migration code in time.
             -- The problem is that 'saveObject' has been changed to flush temp entity tables,
@@ -169,13 +171,16 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
           _success <- Sqlite.Connection.vacuum conn
           Region.setConsoleRegion region ("🏁 Migrations complete 🏁" :: Text)
 
--- | Copy the sqlite database to a new file with a unique name based on current time.
-backupCodebase :: Sqlite.Connection -> SchemaVersion -> CodebasePath -> Bool -> IO ()
-backupCodebase conn schemaVersion root shouldPrompt = do
-  backupPath <- getPOSIXTime <&> (\t -> root </> backupCodebasePath schemaVersion t)
-  Sqlite.vacuumInto conn backupPath
-  putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
-  putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
-  when shouldPrompt do
-    putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
-    void $ liftIO getLine
+-- | If we need to make a backup,  then copy the sqlite database to a new file with a unique name based on current time.
+backupCodebaseIfNecessary :: BackupStrategy -> LocalOrRemote -> Sqlite.Connection -> SchemaVersion -> SchemaVersion -> CodebasePath -> IO ()
+backupCodebaseIfNecessary backupStrategy localOrRemote conn currentSchemaVersion highestKnownSchemaVersion root = do
+  case (backupStrategy, localOrRemote) of
+    (NoBackup, _) -> pure ()
+    (_, Remote) -> pure ()
+    (Backup, Local)
+      | (currentSchemaVersion >= highestKnownSchemaVersion) -> pure ()
+      | otherwise -> do
+          backupPath <- getPOSIXTime <&> (\t -> root </> backupCodebasePath currentSchemaVersion t)
+          Sqlite.vacuumInto conn backupPath
+          putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
+          putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
