@@ -17,9 +17,19 @@ on:
       - release/*
 
 jobs:
+
+  ormolu:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: unison
+      - uses: mrkkrp/ormolu-action@v10 # v10 uses ormolu 0.5.3.0
+
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    needs: ormolu
     defaults: 
       run:
         working-directory: unison

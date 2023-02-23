@@ -52,7 +52,7 @@ type Result' v = Result (Seq (Note v Ann))
 debug :: Bool
 debug = False
 
-convertNotes :: Ord v => Typechecker.Notes v ann -> Seq (Note v ann)
+convertNotes :: (Ord v) => Typechecker.Notes v ann -> Seq (Note v ann)
 convertNotes (Typechecker.Notes bugs es is) =
   (CompilerBug . TypecheckerBug <$> bugs) <> (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is')
   where
@@ -137,7 +137,7 @@ resolveNames typeLookupf preexistingNames uf = do
 
 synthesizeFile' ::
   forall v.
-  Var v =>
+  (Var v) =>
   [Type v] ->
   TL.TypeLookup v Ann ->
   UnisonFile v ->
@@ -147,7 +147,7 @@ synthesizeFile' ambient tl uf =
 
 synthesizeFile ::
   forall v.
-  Var v =>
+  (Var v) =>
   [Type v] ->
   TL.TypeLookup v Ann ->
   TDNRMap v ->

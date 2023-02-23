@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use tuple-section" #-}
 module Unison.Codebase.Editor.HandleInput
   ( loop,
   )
@@ -36,8 +39,14 @@ import System.Directory
     getXdgDirectory,
   )
 import System.Environment (withArgs)
+import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
-import System.Process (callProcess, readCreateProcess, shell)
+import System.Process
+  ( callProcess,
+    readCreateProcess,
+    readCreateProcessWithExitCode,
+    shell,
+  )
 import qualified Text.Megaparsec as P
 import qualified U.Codebase.Branch.Diff as V2Branch
 import qualified U.Codebase.Causal as V2Causal
@@ -111,6 +120,7 @@ import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
 import Unison.Codebase.Path (Path, Path' (..))
+import qualified Unison.Codebase.Path as HQSplit'
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
@@ -139,6 +149,7 @@ import Unison.Hash32 (Hash32)
 import qualified Unison.Hash32 as Hash32
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified' as HashQualified
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
@@ -343,44 +354,6 @@ loop e = do
             names <- displayNames uf
             ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
             Cli.respond $ Typechecked (Text.pack sourceName) ppe sr uf
-
-          delete ::
-            DeleteOutput ->
-            ((Path.Absolute, HQ'.HQSegment) -> Cli (Set Referent)) -> -- compute matching terms
-            ((Path.Absolute, HQ'.HQSegment) -> Cli (Set Reference)) -> -- compute matching types
-            Path.HQSplit' ->
-            Cli ()
-          delete doutput getTerms getTypes hq' = do
-            hq <- Cli.resolveSplit' hq'
-            terms <- getTerms hq
-            types <- getTypes hq
-            when (Set.null terms && Set.null types) (Cli.returnEarly (NameNotFound hq'))
-            -- Mitchell: stripping hash seems wrong here...
-            resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq')
-            rootNames <- Branch.toNames <$> Cli.getRootBranch0
-            let name = Path.unsafeToName (Path.unsplit resolvedPath)
-                toRel :: Ord ref => Set ref -> R.Relation Name ref
-                toRel = R.fromList . fmap (name,) . toList
-                -- these names are relative to the root
-                toDelete = Names (toRel terms) (toRel types)
-            endangerments <- Cli.runTransaction (getEndangeredDependents toDelete rootNames)
-            if null endangerments
-              then do
-                let makeDeleteTermNames = map (BranchUtil.makeDeleteTermName resolvedPath) . Set.toList $ terms
-                let makeDeleteTypeNames = map (BranchUtil.makeDeleteTypeName resolvedPath) . Set.toList $ types
-                before <- Cli.getRootBranch0
-                description <- inputDescription input
-                Cli.stepManyAt description (makeDeleteTermNames ++ makeDeleteTypeNames)
-                case doutput of
-                  DeleteOutput'Diff -> do
-                    after <- Cli.getRootBranch0
-                    (ppe, diff) <- diffHelper before after
-                    Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
-                  DeleteOutput'NoDiff -> do
-                    Cli.respond Success
-              else do
-                ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
-                Cli.respondNumbered (CantDeleteDefinitions ppeDecl endangerments)
        in Cli.time "InputPattern" case input of
             ApiI -> do
               Cli.Env {serverBaseUrl} <- ask
@@ -494,15 +467,16 @@ loop e = do
               headb <- getBranch headRepo
               mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
               squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
-              -- Perform all child updates in a single step.
               Cli.updateAt description destAbs $ Branch.step \destBranch0 ->
-                destBranch0 & Branch.children
-                  %~ ( \childMap ->
-                         childMap & at "base" ?~ baseb
-                           & at "head" ?~ headb
-                           & at "merged" ?~ mergedb
-                           & at "squashed" ?~ squashedb
-                     )
+                destBranch0
+                  & Branch.children
+                    %~ ( \childMap ->
+                           childMap
+                             & at "base" ?~ baseb
+                             & at "head" ?~ headb
+                             & at "merged" ?~ mergedb
+                             & at "squashed" ?~ squashedb
+                       )
               let base = snoc dest0 "base"
                   head = snoc dest0 "head"
                   merged = snoc dest0 "merged"
@@ -873,9 +847,9 @@ loop e = do
                 ]
               Cli.respond Success
             DeleteI dtarget -> case dtarget of
-              DeleteTarget'TermOrType doutput hq -> delete doutput Cli.getTermsAt Cli.getTypesAt hq
-              DeleteTarget'Type doutput hq -> delete doutput (const (pure Set.empty)) Cli.getTypesAt hq
-              DeleteTarget'Term doutput hq -> delete doutput Cli.getTermsAt (const (pure Set.empty)) hq
+              DeleteTarget'TermOrType doutput hqs -> delete input doutput Cli.getTermsAt Cli.getTypesAt hqs
+              DeleteTarget'Type doutput hqs -> delete input doutput (const (pure Set.empty)) Cli.getTypesAt hqs
+              DeleteTarget'Term doutput hqs -> delete input doutput Cli.getTermsAt (const (pure Set.empty)) hqs
               DeleteTarget'Patch src' -> do
                 _ <- Cli.expectPatchAt src'
                 description <- inputDescription input
@@ -902,7 +876,7 @@ loop e = do
                         (Branch.toNames (Branch.head branch))
                 afterDelete <- do
                   rootNames <- Branch.toNames <$> Cli.getRootBranch0
-                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete rootNames)
+                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete Set.empty rootNames)
                   case (null endangerments, insistence) of
                     (True, _) -> pure (Cli.respond Success)
                     (False, Force) -> do
@@ -1317,7 +1291,7 @@ loop e = do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
                   getCausal b = (Branch.headHash b, pure $ Branch._history b)
-                  goCausal :: forall m. Monad m => [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
+                  goCausal :: forall m. (Monad m) => [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
                   goCausal [] = pure ()
                   goCausal ((h, mc) : queue) = do
                     ifM (seen h) (goCausal queue) do
@@ -1325,7 +1299,7 @@ loop e = do
                         Causal.One h _bh b -> goBranch h b mempty queue
                         Causal.Cons h _bh b tail -> goBranch h b [fst tail] (tail : queue)
                         Causal.Merge h _bh b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
-                  goBranch :: forall m. Monad m => CausalHash -> Branch0 m -> [CausalHash] -> [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
+                  goBranch :: forall m. (Monad m) => CausalHash -> Branch0 m -> [CausalHash] -> [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
                   goBranch h b (Set.fromList -> causalParents) queue = case b of
                     Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ _ ->
                       let wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
@@ -1342,7 +1316,9 @@ loop e = do
                             set h
                             goCausal (map getCausal (Foldable.toList children0) ++ queue)
                   prettyDump (h, Output.DN.DumpNamespace terms types patches children causalParents) =
-                    P.lit "Namespace " <> P.shown h <> P.newline
+                    P.lit "Namespace "
+                      <> P.shown h
+                      <> P.newline
                       <> ( P.indentN 2 $
                              P.linesNonEmpty
                                [ Monoid.unlessM (null causalParents) $ P.lit "Causal Parents:" <> P.newline <> P.indentN 2 (P.lines (map P.shown $ Set.toList causalParents)),
@@ -1399,7 +1375,7 @@ loop e = do
             UpdateBuiltinsI -> Cli.respond NotImplemented
             QuitI -> Cli.haltRepl
             GistI input -> handleGist input
-            AuthLoginI -> authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
+            AuthLoginI -> void $ authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
             VersionI -> do
               Cli.Env {ucmVersion} <- ask
               Cli.respond $ PrintVersion ucmVersion
@@ -1463,24 +1439,24 @@ inputDescription input =
       pure ("copy.patch " <> src <> " " <> dest)
     DeleteI dtarget -> do
       case dtarget of
-        DeleteTarget'TermOrType DeleteOutput'NoDiff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete " <> thing)
-        DeleteTarget'TermOrType DeleteOutput'Diff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete.verbose " <> thing)
-        DeleteTarget'Term DeleteOutput'NoDiff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete.term " <> thing)
-        DeleteTarget'Term DeleteOutput'Diff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete.term.verbose " <> thing)
+        DeleteTarget'TermOrType DeleteOutput'NoDiff things0 -> do
+          thing <- traverse hqs' things0
+          pure ("delete " <> Text.intercalate " " thing)
+        DeleteTarget'TermOrType DeleteOutput'Diff things0 -> do
+          thing <- traverse hqs' things0
+          pure ("delete.verbose " <> Text.intercalate " " thing)
+        DeleteTarget'Term DeleteOutput'NoDiff things0 -> do
+          thing <- traverse hqs' things0
+          pure ("delete.term " <> Text.intercalate " " thing)
+        DeleteTarget'Term DeleteOutput'Diff things0 -> do
+          thing <- traverse hqs' things0
+          pure ("delete.term.verbose " <> Text.intercalate " " thing)
         DeleteTarget'Type DeleteOutput'NoDiff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete.type " <> thing)
+          thing <- traverse hqs' thing0
+          pure ("delete.type " <> Text.intercalate " " thing)
         DeleteTarget'Type DeleteOutput'Diff thing0 -> do
-          thing <- hqs' thing0
-          pure ("delete.type.verbose " <> thing)
+          thing <- traverse hqs' thing0
+          pure ("delete.type.verbose " <> Text.intercalate " " thing)
         DeleteTarget'Branch Try opath0 -> do
           opath <- ops' opath0
           pure ("delete.namespace " <> opath)
@@ -1999,7 +1975,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
-  ensureAuthenticatedWithCodeserver codeserver
+  _userInfo <- ensureAuthenticatedWithCodeserver codeserver
 
   -- doesn't handle the case where a non-existent path is supplied
   localCausalHash <-
@@ -2300,7 +2276,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
-  when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
+  when (not $ RemoteRepo.isPublic rrn) . void $ ensureAuthenticatedWithCodeserver codeserver
   let shareFlavoredPath = Share.Path (shareUserHandleToText repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
   Cli.Env {codebase} <- ask
   causalHash <-
@@ -2551,7 +2527,7 @@ searchResultsFor ns terms types =
 
 searchBranchScored ::
   forall score.
-  Ord score =>
+  (Ord score) =>
   Names ->
   (Name -> Name -> Maybe score) ->
   [HQ.HashQualified Name] ->
@@ -2657,7 +2633,7 @@ doFetchCompiler =
     ns =
       ReadShareRemoteNamespace
         { server = RemoteRepo.DefaultCodeserver,
-          repo = ShareUserHandle "dolio",
+          repo = ShareUserHandle "unison",
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }
@@ -2739,37 +2715,51 @@ typecheckAndEval ppe tm = do
     a = External
     rendered = P.toPlainUnbroken $ TP.pretty ppe tm
 
-ensureSchemeExists :: Cli ()
-ensureSchemeExists =
+ensureSchemeExists :: SchemeBackend -> Cli ()
+ensureSchemeExists bk =
   liftIO callScheme >>= \case
     True -> pure ()
     False -> Cli.returnEarly (PrintMessage msg)
   where
-    msg =
-      P.lines
-        [ "I can't seem to call scheme. See",
-          "",
-          P.indentN
-            2
-            "https://github.com/cisco/ChezScheme/blob/main/BUILDING",
-          "",
-          "for how to install Chez Scheme."
-        ]
+    msg = case bk of
+      Racket ->
+        P.lines
+          [ "I can't seem to call racket. See",
+            "",
+            P.indentN
+              2
+              "https://download.racket-lang.org/",
+            "",
+            "for how to install Racket."
+          ]
+      Chez ->
+        P.lines
+          [ "I can't seem to call scheme. See",
+            "",
+            P.indentN
+              2
+              "https://github.com/cisco/ChezScheme/blob/main/BUILDING",
+            "",
+            "for how to install Chez Scheme."
+          ]
 
+    cmd = case bk of
+      Racket -> "racket -l- raco help"
+      Chez -> "scheme -q"
     callScheme =
-      catch
-        (True <$ readCreateProcess (shell "scheme -q") "")
-        (\(_ :: IOException) -> pure False)
+      readCreateProcessWithExitCode (shell cmd) "" >>= \case
+        (ExitSuccess, _, _) -> pure True
+        (ExitFailure _, _, _) -> pure False
 
-racketOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
-racketOpts gendir statdir file args = libs ++ [file] ++ args
+racketOpts :: FilePath -> FilePath -> [String] -> [String]
+racketOpts gendir statdir args = libs ++ args
   where
     includes = [gendir, statdir </> "common", statdir </> "racket"]
-    libs = concatMap (\dir -> ["-S",dir]) includes
+    libs = concatMap (\dir -> ["-S", dir]) includes
 
-chezOpts :: FilePath -> FilePath -> FilePath -> [String] -> [String]
-chezOpts gendir statdir file args =
-  "-q" : opt ++ libs ++ ["--script", file] ++ args
+chezOpts :: FilePath -> FilePath -> [String] -> [String]
+chezOpts gendir statdir args =
+  "-q" : opt ++ libs ++ ["--script"] ++ args
   where
     includes = [gendir, statdir </> "common", statdir </> "chez"]
     libs = ["--libdirs", List.intercalate ":" includes]
@@ -2778,14 +2768,14 @@ chezOpts gendir statdir file args =
 data SchemeBackend = Racket | Chez
 
 runScheme :: SchemeBackend -> String -> [String] -> Cli ()
-runScheme bk file args0 = do
-  ensureSchemeExists
+runScheme bk file args = do
+  ensureSchemeExists bk
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
-  let cmd = case bk of Racket -> "racket" ; Chez -> "scheme"
+  let cmd = case bk of Racket -> "racket"; Chez -> "scheme"
       opts = case bk of
-        Racket -> racketOpts gendir statdir file args0
-        Chez -> chezOpts gendir statdir file args0
+        Racket -> racketOpts gendir statdir (file : args)
+        Chez -> chezOpts gendir statdir (file : args)
   success <-
     liftIO $
       (True <$ callProcess cmd opts)
@@ -2793,11 +2783,28 @@ runScheme bk file args0 = do
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
-buildChez :: String -> String -> Cli ()
-buildChez main file = do
-  ensureSchemeExists
+buildScheme :: SchemeBackend -> String -> String -> Cli ()
+buildScheme bk main file = do
+  ensureSchemeExists bk
   statDir <- getSchemeStaticLibDir
   genDir <- getSchemeGenLibDir
+  build genDir statDir main file
+  where
+    build
+      | Racket <- bk = buildRacket
+      | Chez <- bk = buildChez
+
+buildRacket :: String -> String -> String -> String -> Cli ()
+buildRacket genDir statDir main file =
+  let args = ["-l", "raco", "--", "exe", "-o", main, file]
+      opts = racketOpts genDir statDir args
+   in void . liftIO $
+        catch
+          (True <$ callProcess "racket" opts)
+          (\(_ :: IOException) -> pure False)
+
+buildChez :: String -> String -> String -> String -> Cli ()
+buildChez genDir statDir main file = do
   let cmd = shell "scheme -q --optimize-level 3"
   void . liftIO $ readCreateProcess cmd (build statDir genDir)
   where
@@ -2826,7 +2833,7 @@ doRunAsScheme main args = do
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
-  generateSchemeFile False out main >>= buildChez out
+  generateSchemeFile True out main >>= buildScheme Racket out
 
 generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do
@@ -2924,24 +2931,118 @@ loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
         (ppe, diff) <- diffHelper original (Branch.head patched)
         Cli.respondNumbered (ShowDiffAfterMergePropagate dest0 dest patchPath ppe diff)
 
+delete ::
+  Input ->
+  DeleteOutput ->
+  ((Path.Absolute, HQ'.HQSegment) -> Cli (Set Referent)) -> -- compute matching terms
+  ((Path.Absolute, HQ'.HQSegment) -> Cli (Set Reference)) -> -- compute matching types
+  [Path.HQSplit'] -> -- targets for deletion
+  Cli ()
+delete input doutput getTerms getTypes hqs' = do
+  -- persists the original hash qualified entity for error reporting
+  typesTermsTuple <-
+    traverse
+      ( \hq -> do
+          absolute <- Cli.resolveSplit' hq
+          types <- getTypes absolute
+          terms <- getTerms absolute
+          return (hq, types, terms)
+      )
+      hqs'
+  let notFounds = List.filter (\(_, types, terms) -> Set.null terms && Set.null types) typesTermsTuple
+  -- if there are any entities which cannot be deleted because they don't exist, short circuit.
+  if not $ null notFounds
+    then do
+      let toName :: [(Path.HQSplit', Set Reference, Set referent)] -> [Name]
+          toName notFounds =
+            mapMaybe (\(split, _, _) -> Path.toName' $ HashQualified.toName (HQSplit'.unsplitHQ' split)) notFounds
+      Cli.returnEarly $ NamesNotFound (toName notFounds)
+    else do
+      checkDeletes typesTermsTuple doutput input
+
+checkDeletes :: [(Path.HQSplit', Set Reference, Set Referent)] -> DeleteOutput -> Input -> Cli ()
+checkDeletes typesTermsTuples doutput inputs = do
+  let toSplitName ::
+        (Path.HQSplit', Set Reference, Set Referent) ->
+        Cli (Path.Split, Name, Set Reference, Set Referent)
+      toSplitName hq = do
+        resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq ^. _1)
+        return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq ^. _2, hq ^. _3)
+  -- get the splits and names with terms and types
+  splitsNames <- traverse toSplitName typesTermsTuples
+  let toRel :: (Ord ref) => Set ref -> Name -> R.Relation Name ref
+      toRel setRef name = R.fromList (fmap (name,) (toList setRef))
+  let toDelete = fmap (\(_, names, types, terms) -> Names (toRel terms names) (toRel types names)) splitsNames
+  -- make sure endangered is compeletely contained in paths
+  rootNames <- Branch.toNames <$> Cli.getRootBranch0
+  -- get only once for the entire deletion set
+  let allTermsToDelete :: Set LabeledDependency
+      allTermsToDelete = Set.unions (fmap Names.labeledReferences toDelete)
+  -- get the endangered dependencies for each entity to delete
+  endangered <-
+    Cli.runTransaction $
+      traverse
+        ( \targetToDelete ->
+            getEndangeredDependents targetToDelete (allTermsToDelete) rootNames
+        )
+        toDelete
+  -- If the overall dependency map is not completely empty, abort deletion
+  let endangeredDeletions = List.filter (\m -> not $ null m || Map.foldr (\s b -> null s || b) False m) endangered
+  if null endangeredDeletions
+    then do
+      let deleteTypesTerms =
+            splitsNames
+              >>= ( \(split, _, types, terms) ->
+                      (map (BranchUtil.makeDeleteTypeName split) . Set.toList $ types)
+                        ++ (map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms)
+                  )
+      before <- Cli.getRootBranch0
+      description <- inputDescription inputs
+      Cli.stepManyAt description deleteTypesTerms
+      case doutput of
+        DeleteOutput'Diff -> do
+          after <- Cli.getRootBranch0
+          (ppe, diff) <- diffHelper before after
+          Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
+        DeleteOutput'NoDiff -> do
+          Cli.respond Success
+    else do
+      ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+      let combineRefs = List.foldl (Map.unionWith NESet.union) Map.empty endangeredDeletions
+      Cli.respondNumbered (CantDeleteDefinitions ppeDecl combineRefs)
+
 -- | Goal: When deleting, we might be removing the last name of a given definition (i.e. the
 -- definition is going "extinct"). In this case we may wish to take some action or warn the
 -- user about these "endangered" definitions which would now contain unnamed references.
+-- The argument `otherDesiredDeletions` is included in this function because the user might want to
+-- delete a term and all its dependencies in one command, so we give this function access to
+-- the full set of entities that the user wishes to delete.
 getEndangeredDependents ::
-  -- | Which names we want to delete
+  -- | Prospective target for deletion
   Names ->
+  -- | All entities we want to delete (including the target)
+  Set LabeledDependency ->
   -- | All names from the root branch
   Names ->
   -- | map from references going extinct to the set of endangered dependents
   Sqlite.Transaction (Map LabeledDependency (NESet LabeledDependency))
-getEndangeredDependents namesToDelete rootNames = do
+getEndangeredDependents targetToDelete otherDesiredDeletions rootNames = do
+  -- names of terms left over after target deletion
   let remainingNames :: Names
-      remainingNames = rootNames `Names.difference` namesToDelete
-      refsToDelete, remainingRefs, extinct :: Set LabeledDependency
-      refsToDelete = Names.labeledReferences namesToDelete
-      remainingRefs = Names.labeledReferences remainingNames -- left over after delete
-      extinct = refsToDelete `Set.difference` remainingRefs -- deleting and not left over
-      accumulateDependents :: LabeledDependency -> Sqlite.Transaction (Map LabeledDependency (Set LabeledDependency))
+      remainingNames = rootNames `Names.difference` targetToDelete
+  -- target refs for deletion
+  let refsToDelete :: Set LabeledDependency
+      refsToDelete = Names.labeledReferences targetToDelete
+  -- refs left over after deleting target
+  let remainingRefs :: Set LabeledDependency
+      remainingRefs = Names.labeledReferences remainingNames
+  -- remove the other targets for deletion from the remaining terms
+  let remainingRefsWithoutOtherTargets :: Set LabeledDependency
+      remainingRefsWithoutOtherTargets = Set.difference remainingRefs otherDesiredDeletions
+  -- deleting and not left over
+  let extinct :: Set LabeledDependency
+      extinct = refsToDelete `Set.difference` remainingRefs
+  let accumulateDependents :: LabeledDependency -> Sqlite.Transaction (Map LabeledDependency (Set LabeledDependency))
       accumulateDependents ld =
         let ref = LD.fold id Referent.toReference ld
          in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents Queries.ExcludeOwnComponent ref
@@ -2954,7 +3055,7 @@ getEndangeredDependents namesToDelete rootNames = do
   let extinctToEndangered :: Map LabeledDependency (NESet LabeledDependency)
       extinctToEndangered =
         allDependentsOfExtinct & Map.mapMaybe \endangeredDeps ->
-          let remainingEndangered = endangeredDeps `Set.intersection` remainingRefs
+          let remainingEndangered = endangeredDeps `Set.intersection` remainingRefsWithoutOtherTargets
            in NESet.nonEmptySet remainingEndangered
   pure extinctToEndangered
 
@@ -3107,7 +3208,7 @@ parseType input src = do
   Type.bindNames Name.unsafeFromVar mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->
     Cli.returnEarly (ParseResolutionFailures src (toList errs))
 
-getTermsIncludingHistorical :: Monad m => Path.HQSplit -> Branch0 m -> Cli (Set Referent)
+getTermsIncludingHistorical :: (Monad m) => Path.HQSplit -> Branch0 m -> Cli (Set Referent)
 getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
   [] -> case hq of
     HQ'.HashQualified n hs -> do
@@ -3129,7 +3230,7 @@ data GetTermResult
 --
 -- Otherwise, returns `Nothing`.
 addWatch ::
-  Var v =>
+  (Var v) =>
   String ->
   Maybe (TypecheckedUnisonFile v Ann) ->
   Maybe (v, TypecheckedUnisonFile v Ann)
@@ -3241,7 +3342,7 @@ createWatcherFile v tm typ =
               [(magicMainWatcherString, [(v2, tm, typ)])]
 
 executePPE ::
-  Var v =>
+  (Var v) =>
   TypecheckedUnisonFile v a ->
   Cli PPE.PrettyPrintEnv
 executePPE unisonFile =
@@ -3271,7 +3372,7 @@ hqNameQuery query = do
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-fuzzySelectDefinition :: MonadIO m => Position -> Branch0 m0 -> m (Maybe [HQ.HashQualified Name])
+fuzzySelectDefinition :: (MonadIO m) => Position -> Branch0 m0 -> m (Maybe [HQ.HashQualified Name])
 fuzzySelectDefinition pos searchBranch0 = liftIO do
   let termsAndTypes =
         Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
@@ -3285,7 +3386,7 @@ fuzzySelectDefinition pos searchBranch0 = liftIO do
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
-fuzzySelectNamespace :: MonadIO m => Position -> Branch0 m0 -> m (Maybe [Path'])
+fuzzySelectNamespace :: (MonadIO m) => Position -> Branch0 m0 -> m (Maybe [Path'])
 fuzzySelectNamespace pos searchBranch0 = liftIO do
   let intoPath' :: Path -> Path'
       intoPath' = case pos of

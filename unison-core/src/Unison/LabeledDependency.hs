@@ -62,14 +62,14 @@ dataConstructor r = ConReference r Data
 effectConstructor :: ConstructorReference -> LabeledDependency
 effectConstructor r = ConReference r Effect
 
-referents :: Foldable f => f Referent -> Set LabeledDependency
+referents :: (Foldable f) => f Referent -> Set LabeledDependency
 referents rs = Set.fromList (map referent $ toList rs)
 
 fold :: (Reference -> a) -> (Referent -> a) -> LabeledDependency -> a
 fold f _ (TypeReference r) = f r
 fold _ g (TermReferent r) = g r
 
-partition :: Foldable t => t LabeledDependency -> ([Reference], [Referent])
+partition :: (Foldable t) => t LabeledDependency -> ([Reference], [Referent])
 partition =
   foldMap \case
     TypeReference ref -> ([ref], [])

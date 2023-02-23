@@ -9,6 +9,7 @@ where
 
 import Data.Time (NominalDiffTime)
 import System.FilePath ((</>))
+import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import Unison.Codebase (CodebasePath)
 
 -- | Prefer makeCodebasePath or makeCodebaseDirPath when possible.
@@ -27,6 +28,6 @@ makeCodebaseDirPath :: CodebasePath -> FilePath
 makeCodebaseDirPath root = root </> ".unison" </> "v2"
 
 -- | Makes a path to store a backup of a sqlite database given the current time.
-backupCodebasePath :: NominalDiffTime -> FilePath
-backupCodebasePath now =
-  codebasePath ++ "." ++ show @Int (floor now)
+backupCodebasePath :: SchemaVersion -> NominalDiffTime -> FilePath
+backupCodebasePath (SchemaVersion schemaVersion) now =
+  codebasePath ++ ".v" ++ show schemaVersion ++ "." ++ show @Int (floor now)

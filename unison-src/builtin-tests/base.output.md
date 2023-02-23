@@ -11,6 +11,6 @@
   ✅
   
   Successfully updated .unison.internal from
-  dolio.public.internal.trunk.
+  unison.public.internal.trunk.
 
 ```

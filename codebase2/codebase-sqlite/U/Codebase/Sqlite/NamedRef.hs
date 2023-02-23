@@ -28,7 +28,7 @@ instance FromField (ConstructorType) where
 data NamedRef ref = NamedRef {reversedSegments :: ReversedSegments, ref :: ref}
   deriving stock (Show, Functor, Foldable, Traversable)
 
-instance ToRow ref => ToRow (NamedRef ref) where
+instance (ToRow ref) => ToRow (NamedRef ref) where
   toRow (NamedRef {reversedSegments = segments, ref}) =
     [toField reversedName] <> toRow ref
     where
@@ -38,7 +38,7 @@ instance ToRow ref => ToRow (NamedRef ref) where
           & Text.intercalate "."
           & (<> ".") -- Add trailing dot, see notes on scoped_term_name_lookup schema
 
-instance FromRow ref => FromRow (NamedRef ref) where
+instance (FromRow ref) => FromRow (NamedRef ref) where
   fromRow = do
     reversedSegments <-
       field <&> \f ->
@@ -48,6 +48,11 @@ instance FromRow ref => FromRow (NamedRef ref) where
           & NonEmpty.fromList
     ref <- fromRow
     pure (NamedRef {reversedSegments, ref})
+
+toRowWithNamespace :: (ToRow ref) => NamedRef ref -> [SQLData]
+toRowWithNamespace nr = toRow nr <> [SQLText namespace]
+  where
+    namespace = Text.intercalate "." . reverse . NEL.tail . reversedSegments $ nr
 
 -- | The new 'scoped' name lookup format is different from the old version.
 --

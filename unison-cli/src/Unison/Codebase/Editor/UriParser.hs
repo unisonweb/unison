@@ -309,7 +309,8 @@ parseGitProtocol =
     parseHostInfo :: P HostInfo
     parseHostInfo =
       P.label "parseHostInfo" $
-        HostInfo <$> parseHost
+        HostInfo
+          <$> parseHost
           <*> ( P.optional $ do
                   void $ C.char ':'
                   P.takeWhile1P (Just "digits") isDigit
@@ -365,7 +366,8 @@ absolutePath = do
 nameSegment :: P NameSegment
 nameSegment =
   NameSegment . Text.pack
-    <$> ( (:) <$> P.satisfy Unison.Syntax.Lexer.wordyIdStartChar
+    <$> ( (:)
+            <$> P.satisfy Unison.Syntax.Lexer.wordyIdStartChar
             <*> P.many (P.satisfy Unison.Syntax.Lexer.wordyIdChar)
         )
 

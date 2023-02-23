@@ -74,7 +74,8 @@ expandGlobToNameSegments targets branch globPath =
         matchingTypes = matchingNamesInStar predicate (Branch._types branch)
         matchingNamesInStar :: (NameSegment -> Bool) -> Branch.Star a NameSegment -> [[NameSegment]]
         matchingNamesInStar predicate star =
-          star & Star3.d1
+          star
+            & Star3.d1
             & Relation.ran
             & Set.toList
             & filter predicate

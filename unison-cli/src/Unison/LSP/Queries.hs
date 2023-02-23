@@ -362,7 +362,7 @@ annIsFilePosition = \case
 -- So for now we crawl the term and remove any Ann nodes from within. The downside being you
 -- can no longer hover on Type signatures within a term, but the benefit is that hover
 -- actually works.
-removeInferredTypeAnnotations :: Ord v => Term.Term v Ann -> Term.Term v Ann
+removeInferredTypeAnnotations :: (Ord v) => Term.Term v Ann -> Term.Term v Ann
 removeInferredTypeAnnotations =
   Lens.transformOf (field @"out" . traversed) \case
     ABT.Term {out = ABT.Tm (Term.Ann trm typ)}

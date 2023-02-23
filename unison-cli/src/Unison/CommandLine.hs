@@ -79,7 +79,7 @@ watchFileSystem q dir = do
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
 
-backtick :: IsString s => P.Pretty s -> P.Pretty s
+backtick :: (IsString s) => P.Pretty s -> P.Pretty s
 backtick s = P.group ("`" <> s <> "`")
 
 tip :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
@@ -173,11 +173,11 @@ prompt = "> "
 -- `plural [] "cat" "cats" = "cats"`
 -- `plural ["meow"] "cat" "cats" = "cat"`
 -- `plural ["meow", "meow"] "cat" "cats" = "cats"`
-plural :: Foldable f => f a -> b -> b -> b
+plural :: (Foldable f) => f a -> b -> b -> b
 plural items one other = case toList items of
   [_] -> one
   _ -> other
 
-plural' :: Integral a => a -> b -> b -> b
+plural' :: (Integral a) => a -> b -> b -> b
 plural' 1 one _other = one
 plural' _ _one other = other

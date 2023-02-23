@@ -3,7 +3,8 @@
 
   ⚠️
   
-  I don't know about that name.
+  The following names were not found in the codebase. Check your spelling.
+    foo
 
 ```
 ```unison

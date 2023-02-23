@@ -105,7 +105,8 @@ hash' env = \case
       hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
       die =
         error $
-          "unknown var in environment: " ++ show v
+          "unknown var in environment: "
+            ++ show v
             ++ " environment = "
             ++ show env
   Cycle' vs t -> hash1 (hashCycle vs env) undefined t

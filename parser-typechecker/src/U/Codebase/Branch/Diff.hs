@@ -113,7 +113,7 @@ instance Semigroup NameBasedDiff where
     NameBasedDiff (terms0 <> terms1) (types0 <> types1)
 
 -- | Diff two Branches, returning a tree containing all of the changes
-diffBranches :: forall m. Monad m => Branch m -> Branch m -> m TreeDiff
+diffBranches :: forall m. (Monad m) => Branch m -> Branch m -> m TreeDiff
 diffBranches from to = do
   let termDiffs = diffMap (Branch.terms from) (Branch.terms to)
   let typeDiffs = diffMap (Branch.types from) (Branch.types to)
@@ -142,7 +142,7 @@ diffBranches from to = do
                 TreeDiff cfr -> pure . Just $ cfr
   pure $ TreeDiff (defDiff :< childDiff)
   where
-    diffMap :: forall ref. Ord ref => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Diff ref)
+    diffMap :: forall ref. (Ord ref) => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Diff ref)
     diffMap l r =
       Align.align l r
         & fmap \case

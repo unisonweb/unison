@@ -91,9 +91,11 @@ data BufferEntry a = BufferEntry
   }
   deriving (Eq, Show)
 
-prettyBufferEntry :: Show a => Hash -> BufferEntry a -> String
+prettyBufferEntry :: (Show a) => Hash -> BufferEntry a -> String
 prettyBufferEntry (h :: Hash) BufferEntry {..} =
-  "BufferEntry " ++ show h ++ "\n"
+  "BufferEntry "
+    ++ show h
+    ++ "\n"
     ++ "  { beComponentTargetSize = "
     ++ show beComponentTargetSize
     ++ "\n"
