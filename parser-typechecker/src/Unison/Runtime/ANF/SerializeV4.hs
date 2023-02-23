@@ -716,7 +716,7 @@ putValue (Partial gr ws vs) =
 putValue (Data r t ws vs) =
   putTag DataT
     *> putReference r
-    *> putWord64be t
+    *> putLength t
     *> putFoldable putWord64be ws
     *> putFoldable putValue vs
 putValue (Cont us bs k) =
@@ -735,7 +735,7 @@ getValue v =
     DataT ->
       Data
         <$> getReference
-        <*> getWord64be
+        <*> getLength
         <*> getList getWord64be
         <*> getList (getValue v)
     ContT -> Cont <$> getList getWord64be <*> getList (getValue v) <*> getCont v
