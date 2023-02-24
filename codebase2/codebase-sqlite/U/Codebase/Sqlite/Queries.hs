@@ -115,6 +115,8 @@ module U.Codebase.Sqlite.Queries
     loadProjectBranch,
 
     -- ** remote projects
+    RemoteProject (..),
+    RemoteProjectBranch (..),
     loadRemoteProject,
     ensureRemoteProject,
     setRemoteProjectName,
@@ -126,6 +128,7 @@ module U.Codebase.Sqlite.Queries
     ensureRemoteProjectBranch,
     setRemoteProjectBranchName,
     insertBranchRemoteMapping,
+    ensureBranchRemoteMapping,
 
     -- * indexes
 
@@ -2495,7 +2498,7 @@ data Branch = Branch
   deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
 
-data RemoteBranch = RemoteBranch
+data RemoteProjectBranch = RemoteProjectBranch
   { projectId :: RemoteProjectId,
     branchId :: RemoteProjectBranchId,
     host :: Text,
@@ -2820,7 +2823,7 @@ setRemoteProjectName rpid name =
         |]
     (name, rpid)
 
-loadRemoteBranch :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Transaction (Maybe RemoteBranch)
+loadRemoteBranch :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Transaction (Maybe RemoteProjectBranch)
 loadRemoteBranch rpid host rbid =
   queryMaybeRow
     [sql|
@@ -2898,5 +2901,35 @@ insertBranchRemoteMapping pid bid rpid host rbid =
         ?,
         ?,
         ?)
+        |]
+    (pid, bid, rpid, rbid, host)
+
+ensureBranchRemoteMapping ::
+  ProjectId ->
+  ProjectBranchId ->
+  RemoteProjectId ->
+  Text ->
+  RemoteProjectBranchId ->
+  Transaction ()
+ensureBranchRemoteMapping pid bid rpid host rbid =
+  execute
+    [sql|
+      INSERT INTO project_branch_remote_mapping (
+        local_project_id,
+        local_branch_id,
+        remote_project_id,
+        remote_branch_id,
+        remote_host)
+      VALUES (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?)
+      ON CONFLICT (
+        local_project_id,
+        local_branch_id,
+        remote_host)
+        DO NOTHING
         |]
     (pid, bid, rpid, rbid, host)

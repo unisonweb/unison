@@ -6,7 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Push
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens ((^.))
+import Control.Lens (to, (^.))
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set.NonEmpty as NESet
@@ -61,7 +61,7 @@ import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectBranchName,
-    ProjectName,
+    ProjectName (..),
     prependUserSlugToProjectBranchName,
     prependUserSlugToProjectName,
     projectBranchNameUserSlug,
@@ -493,17 +493,46 @@ oompaLoompa0 maybeLocalProjectAndBranch localBranchHead pb@(ProjectAndBranch rem
           maybeLocalProjectAndBranch
           localBranchHead
           (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
-  Share.getProjectByName remoteProjectName >>= \case
-    Share.API.GetProjectResponseNotFound _msg ->
+  getRemoteProjectByName remoteProjectName >>= \case
+    Nothing ->
       pure do
         remoteProject <- oinkCreateRemoteProject remoteProjectName
         doCreateBranch remoteProject
+    Just remoteProject -> do
+      let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
+      getRemoteProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
+        Nothing -> pure (doCreateBranch remoteProject)
+        Just remoteBranch -> oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch
+
+getRemoteProjectByName :: ProjectName -> Cli (Maybe Share.API.Project)
+getRemoteProjectByName remoteProjectName = do
+  Share.getProjectByName remoteProjectName >>= \case
+    Share.API.GetProjectResponseNotFound _msg -> pure Nothing
     Share.API.GetProjectResponseSuccess remoteProject -> do
       let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
-      Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-        Share.API.GetProjectBranchResponseNotFound _msg -> pure (doCreateBranch remoteProject)
-        Share.API.GetProjectBranchResponseSuccess remoteBranch ->
-          oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch
+      Cli.runTransaction do
+        Queries.ensureRemoteProject remoteProjectId shareUrl (remoteProject ^. #projectName)
+      pure (Just remoteProject)
+
+getRemoteProjectBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli (Maybe Share.API.ProjectBranch)
+getRemoteProjectBranchByName pb@(ProjectAndBranch remoteProjectId _) = do
+  Share.getProjectBranchByName pb >>= \case
+    Share.API.GetProjectBranchResponseNotFound _msg -> pure Nothing
+    Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
+      let remoteProjectBranchId = RemoteProjectBranchId (remoteBranch ^. #branchId)
+          remoteProjectBranchName = remoteBranch ^. #branchName
+      Cli.runTransaction do
+        Queries.ensureRemoteProjectBranch remoteProjectId shareUrl remoteProjectBranchId remoteProjectBranchName
+      pure (Just remoteBranch)
+
+-- getRemoteBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName ->
+
+ensureRemoteProjectAndBranch :: Share.API.ProjectBranch -> Sqlite.Transaction ()
+ensureRemoteProjectAndBranch remoteBranch = do
+  let remoteProjectId = coerce @Text @RemoteProjectId (remoteBranch ^. #projectId)
+  let remoteProjectBranchId = coerce @Text @RemoteProjectBranchId (remoteBranch ^. #branchId)
+  Queries.ensureRemoteProject remoteProjectId shareUrl (remoteBranch ^. #projectName)
+  Queries.ensureRemoteProjectBranch remoteProjectId shareUrl remoteProjectBranchId (remoteBranch ^. #branchName)
 
 -- we have the remote project id and remote branch name, but we don't know whether the remote branch exists
 oompaLoompa1 ::
@@ -512,11 +541,11 @@ oompaLoompa1 ::
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
   Cli (Cli ())
 oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch =
-  Share.getProjectBranchByName remoteProjectAndBranch >>= \case
-    Share.API.GetProjectBranchResponseNotFound _msg ->
+  getRemoteProjectBranchByName remoteProjectAndBranch >>= \case
+    Nothing ->
       -- FIXME check to see if the project exists here instead of assuming it does
       pure (oompaLoompaCreateBranch (Just localProjectAndBranch) localBranchHead remoteProjectAndBranch)
-    Share.API.GetProjectBranchResponseSuccess remoteBranch ->
+    Just remoteBranch ->
       oompaLoompaFastForward (Just localProjectAndBranch) localBranchHead remoteBranch
 
 -- we have the remote project id and remote branch id
@@ -571,7 +600,7 @@ oompaLoompaFastForward ::
   Hash32 ->
   Share.API.ProjectBranch ->
   Cli (Cli ())
-oompaLoompaFastForward _maybeLocalProjectAndBranch localBranchHead remoteBranch = do
+oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch = do
   Cli.runTransaction wouldBeFastForward >>= \case
     False -> do
       loggeth ["local head behind remote"]
@@ -599,6 +628,17 @@ oompaLoompaFastForward _maybeLocalProjectAndBranch localBranchHead remoteBranch 
             wundefined
           Share.API.SetProjectBranchHeadResponseSuccess -> do
             loggeth ["SetProjectBranchHeadResponseSuccess"]
+            case maybeLocalProjectAndBranch of
+              Nothing -> pure ()
+              Just (ProjectAndBranch localProject localBranch) -> do
+                loggeth ["ensure branch remote mapping is set"]
+                Cli.runTransaction do
+                  Queries.ensureBranchRemoteMapping
+                    (localProject ^. #projectId)
+                    (localBranch ^. #branchId)
+                    (remoteBranch ^. #projectId . to RemoteProjectId)
+                    shareUrl
+                    (remoteBranch ^. #branchId . to RemoteProjectBranchId)
   where
     remoteBranchHead = remoteBranch ^. #branchHead
 
