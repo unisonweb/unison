@@ -27,6 +27,7 @@ import Servant.Docs
 import Servant.OpenApi ()
 import qualified Text.FuzzyFind as FZF
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.DisplayObject
@@ -131,7 +132,7 @@ serveFuzzyFind ::
   forall m.
   (MonadIO m) =>
   Codebase m Symbol Ann ->
-  Maybe SCH.ShortCausalHash ->
+  Maybe (Either SCH.ShortCausalHash CausalHash) ->
   Maybe Path.Path ->
   Maybe Int ->
   Maybe Width ->
@@ -141,8 +142,7 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
   let path = fromMaybe Path.empty relativeTo
   rootCausal <-
     Backend.hoistBackend (Codebase.runTransaction codebase) do
-      rootHash <- traverse Backend.expandShortCausalHash mayRoot
-      lift (Backend.resolveCausalHashV2 rootHash)
+      Backend.normaliseRootCausalHash mayRoot
   (localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) path
   relativeToBranch <- do
     (lift . Codebase.runTransaction codebase) do

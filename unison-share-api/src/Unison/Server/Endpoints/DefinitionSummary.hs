@@ -22,6 +22,7 @@ import Data.OpenApi (ToSchema)
 import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
+import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
@@ -84,7 +85,7 @@ serveTermSummary ::
   Codebase IO Symbol Ann ->
   Referent ->
   Maybe Name ->
-  Maybe ShortCausalHash ->
+  Maybe (Either ShortCausalHash CausalHash) ->
   Maybe Path.Path ->
   Maybe Width ->
   Backend IO TermSummary
@@ -96,7 +97,7 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
   let v2Referent = Cv.referent1to2 referent
   (root, sig) <-
     Backend.hoistBackend (Codebase.runTransaction codebase) do
-      root <- Backend.resolveRootBranchHashV2 mayRoot
+      root <- Backend.normaliseRootCausalHash mayRoot
       sig <- lift (Backend.loadReferentType codebase referent)
       pure (root, sig)
   case sig of
@@ -151,7 +152,7 @@ serveTypeSummary ::
   Codebase IO Symbol Ann ->
   Reference ->
   Maybe Name ->
-  Maybe ShortCausalHash ->
+  Maybe (Either ShortCausalHash CausalHash) ->
   Maybe Path.Path ->
   Maybe Width ->
   Backend IO TypeSummary

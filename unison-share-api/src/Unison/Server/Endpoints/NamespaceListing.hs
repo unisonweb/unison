@@ -154,15 +154,12 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
 
 serve ::
   Codebase IO Symbol Ann ->
-  Maybe ShortCausalHash ->
+  Maybe (Either ShortCausalHash CausalHash) ->
   Maybe Path.Path ->
   Maybe Path.Path ->
   Backend.Backend IO NamespaceListing
 serve codebase maySCH mayRelativeTo mayNamespaceName = do
-  mayRootHash <-
-    Backend.hoistBackend (Codebase.runTransaction codebase) do
-      mayRootHash <- traverse Backend.expandShortCausalHash maySCH
-      pure mayRootHash
+  rootCausal <- Backend.hoistBackend (Codebase.runTransaction codebase) $ Backend.normaliseRootCausalHash maySCH
 
   -- Relative and Listing Path resolution
   --
@@ -183,7 +180,7 @@ serve codebase maySCH mayRelativeTo mayNamespaceName = do
   let path' = Path.toPath' path
   (listingCausal, listingBranch) <-
     (lift . Codebase.runTransaction codebase) do
-      listingCausal <- Backend.getShallowCausalAtPathFromRootHash mayRootHash (Path.fromPath' path')
+      listingCausal <- Codebase.getShallowCausalAtPath (Path.fromPath' path') (Just rootCausal)
       listingBranch <- V2Causal.value listingCausal
       pure (listingCausal, listingBranch)
   -- TODO: Currently the ppe is just used to render the types returned from the namespace

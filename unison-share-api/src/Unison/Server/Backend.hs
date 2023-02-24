@@ -834,7 +834,7 @@ prettyDefinitionsForHQName ::
   -- this path.
   Path ->
   -- | The root branch to use
-  Maybe CausalHash ->
+  V2Branch.CausalBranch Sqlite.Transaction ->
   Maybe Width ->
   -- | Whether to suffixify bindings in the rendered syntax
   Suffixify ->
@@ -844,10 +844,9 @@ prettyDefinitionsForHQName ::
   -- | The name, hash, or both, of the definition to display.
   HQ.HashQualified Name ->
   Backend IO DefinitionDisplayResults
-prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebase query = do
+prettyDefinitionsForHQName path shallowRoot renderWidth suffixifyBindings rt codebase query = do
   (shallowRoot, hqLength) <-
     (lift . Codebase.runTransaction codebase) do
-      shallowRoot <- resolveCausalHashV2 mayRoot
       hqLength <- Codebase.hashLength
       pure (shallowRoot, hqLength)
   (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
@@ -1188,6 +1187,14 @@ resolveRootBranchHashV2 mayRoot = case mayRoot of
   Just sch -> do
     h <- expandShortCausalHash sch
     lift (resolveCausalHashV2 (Just h))
+
+normaliseRootCausalHash :: Maybe (Either ShortCausalHash CausalHash) -> Backend Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+normaliseRootCausalHash mayCh = case mayCh of
+  Nothing -> lift $ resolveCausalHashV2 Nothing
+  Just (Left sch) -> do
+    ch <- expandShortCausalHash sch
+    lift $ resolveCausalHashV2 (Just ch)
+  Just (Right ch) -> lift $ resolveCausalHashV2 (Just ch)
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
 --
