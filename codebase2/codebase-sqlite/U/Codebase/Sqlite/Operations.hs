@@ -67,7 +67,7 @@ module U.Codebase.Sqlite.Operations
     termsMentioningType,
 
     -- ** name lookup index
-    rootNamesByPath,
+    namesByPath,
     NamesByPath (..),
     checkBranchHashNameLookupExists,
     buildNameLookupForBranchHash,
@@ -1099,7 +1099,7 @@ buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash (newTermNames,
   Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
   Q.insertScopedTypeNames newBranchHashId (fmap c2sTextReference <$> newTypeNames)
 
--- | Check whether we've already got an index for a given causal hash.
+-- | Check whether we've already got an index for a given branch hash.
 checkBranchHashNameLookupExists :: BranchHash -> Transaction Bool
 checkBranchHashNameLookupExists bh = do
   bhId <- Q.saveBranchHash bh
@@ -1110,15 +1110,16 @@ data NamesByPath = NamesByPath
     typeNamesInPath :: [S.NamedRef C.Reference]
   }
 
--- | Get all the term and type names for the root namespace from the lookup table.
+-- | Get all the term and type names for the given namespace from the lookup table.
 -- Requires that an index for this branch hash already exists, which is currently
 -- only true on Share.
-rootNamesByPath ::
+namesByPath ::
+  BranchHash ->
   -- | A relative namespace string, e.g. Just "base.List"
   Maybe Text ->
   Transaction NamesByPath
-rootNamesByPath path = do
-  bhId <- Q.expectNamespaceRootBranchHashId
+namesByPath bh path = do
+  bhId <- Q.expectBranchHashId bh
   termNamesInPath <- Q.termNamesWithinNamespace bhId path
   typeNamesInPath <- Q.typeNamesWithinNamespace bhId path
   pure $

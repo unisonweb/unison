@@ -22,6 +22,7 @@ module U.Codebase.Sqlite.Queries
     expectHash,
     expectHash32,
     expectBranchHash,
+    expectBranchHashId,
     loadHashIdByHash,
     expectHashIdByHash,
     saveCausalHash,
@@ -697,6 +698,9 @@ expectBranchHashIdForHash32 = queryOneCol sql . Only
         WHERE object.type_id = 2
           AND hash.base32 = ? COLLATE NOCASE
       |]
+
+expectBranchHashId :: BranchHash -> Transaction BranchHashId
+expectBranchHashId = expectBranchHashIdForHash32 . Hash32.fromHash . unBranchHash
 
 expectCausalHashIdForHash32 :: Hash32 -> Transaction CausalHashId
 expectCausalHashIdForHash32 = queryOneCol sql . Only
