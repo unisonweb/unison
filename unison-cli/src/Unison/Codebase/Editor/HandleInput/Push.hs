@@ -803,15 +803,15 @@ oinkCreateRemoteBranch maybeLocalProjectAndBranch request = do
   loggeth [tShow remoteBranch]
   let remoteProjectId = RemoteProjectId (remoteBranch ^. #projectId)
   let remoteBranchId = RemoteProjectBranchId (remoteBranch ^. #branchId)
-  let remoteProjectName = remoteBranch ^. #projectName
   let remoteBranchName = remoteBranch ^. #branchName
   Cli.runTransaction do
-    Queries.ensureRemoteProject remoteProjectId shareUrl remoteProjectName
     Queries.ensureRemoteProjectBranch remoteProjectId shareUrl remoteBranchId remoteBranchName
     case maybeLocalProjectAndBranch of
       Nothing -> pure ()
       Just (ProjectAndBranch localProject localBranch) -> do
-        Queries.insertBranchRemoteMapping
+        -- If the local branch has no associated remote then we
+        -- associate this newly created branch.
+        Queries.ensureBranchRemoteMapping
           (localProject ^. #projectId)
           (localBranch ^. #branchId)
           remoteProjectId
