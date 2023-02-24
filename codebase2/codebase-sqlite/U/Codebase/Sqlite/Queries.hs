@@ -134,20 +134,14 @@ module U.Codebase.Sqlite.Queries
     causalHashIdByBase32Prefix,
 
     -- * Name Lookup
-    ensureNameLookupTables,
     copyScopedNameLookup,
     dropNameLookupTables,
-    insertTermNames,
-    insertTypeNames,
-    removeTermNames,
-    removeTypeNames,
     insertScopedTermNames,
     insertScopedTypeNames,
     removeScopedTermNames,
     removeScopedTypeNames,
-    rootTermNamesByPath,
-    rootTypeNamesByPath,
-    getNamespaceDefinitionCount,
+    termNamesWithinNamespace,
+    typeNamesWithinNamespace,
     checkBranchHashNameLookupExists,
     trackNewBranchHashNameLookup,
 
@@ -1597,49 +1591,6 @@ dropNameLookupTables = do
     DROP TABLE IF EXISTS type_name_lookup
   |]
 
--- | Ensure the name lookup tables exist.
---
--- These tables will be deprecated in favour of ensureScopedNameLookupTables once we've
--- migrated all the indexes over.
-ensureNameLookupTables :: Transaction ()
-ensureNameLookupTables = do
-  execute_
-    [here|
-      CREATE TABLE IF NOT EXISTS term_name_lookup (
-        -- The name of the term: E.g. map.List.base
-        reversed_name TEXT NOT NULL,
-        -- The namespace containing this term, not reversed: E.g. base.List
-        namespace TEXT NOT NULL,
-        referent_builtin TEXT NULL,
-        referent_component_hash TEXT NULL,
-        referent_component_index INTEGER NULL,
-        referent_constructor_index INTEGER NULL,
-        referent_constructor_type INTEGER NULL,
-        PRIMARY KEY (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
-      )
-    |]
-  execute_
-    [here|
-      CREATE INDEX IF NOT EXISTS term_names_by_namespace ON term_name_lookup(namespace)
-    |]
-  execute_
-    [here|
-      CREATE TABLE IF NOT EXISTS type_name_lookup (
-        -- The name of the term: E.g. List.base
-        reversed_name TEXT NOT NULL,
-        -- The namespace containing this term, not reversed: E.g. base.List
-        namespace TEXT NOT NULL,
-        reference_builtin TEXT NULL,
-        reference_component_hash INTEGER NULL,
-        reference_component_index INTEGER NULL,
-        PRIMARY KEY (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
-      );
-    |]
-  execute_
-    [here|
-      CREATE INDEX IF NOT EXISTS type_names_by_namespace ON type_name_lookup(namespace)
-    |]
-
 -- | Copies existing name lookup rows but replaces their branch hash id;
 -- This is a low-level operation used as part of deriving a new name lookup index
 -- from an existing one as performantly as possible.
@@ -1688,63 +1639,6 @@ checkBranchHashNameLookupExists hashId = do
           LIMIT 1
         )
        |]
-
--- | Insert the given set of term names into the name lookup table
-insertTermNames :: [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
-insertTermNames names = do
-  executeMany sql (NamedRef.toRowWithNamespace . fmap refToRow <$> names)
-  where
-    refToRow :: (Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))
-    refToRow (ref, ct) = ref :. Only ct
-    sql =
-      [here|
-      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, namespace)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT DO NOTHING
-        |]
-
--- | Insert the given set of type names into the name lookup table
-insertTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
-insertTypeNames names =
-  executeMany sql (NamedRef.toRowWithNamespace <$> names)
-  where
-    sql =
-      [here|
-      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index, namespace)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT DO NOTHING
-        |]
-
--- | Remove the given set of term names into the name lookup table
-removeTermNames :: [NamedRef Referent.TextReferent] -> Transaction ()
-removeTermNames names = do
-  executeMany sql names
-  where
-    sql =
-      [here|
-      DELETE FROM term_name_lookup
-        WHERE
-        reversed_name IS ?
-        AND referent_builtin IS ?
-        AND referent_component_hash IS ?
-        AND referent_component_index IS ?
-        AND referent_constructor_index IS ?
-        |]
-
--- | Remove the given set of term names into the name lookup table
-removeTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
-removeTypeNames names = do
-  executeMany sql names
-  where
-    sql =
-      [here|
-      DELETE FROM type_name_lookup
-        WHERE
-        reversed_name IS ?
-        AND reference_builtin IS ?
-        AND reference_component_hash IS ?
-        AND reference_component_index IS ?
-        |]
 
 -- | Insert the given set of term names into the name lookup table
 insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
@@ -1852,54 +1746,40 @@ likeEscape escapeChar pat =
       | c == escapeChar -> Text.pack [escapeChar, escapeChar]
       | otherwise -> Text.singleton c
 
--- | Gets the count of all definitions within the given namespace.
--- NOTE: This requires a working name lookup index.
-getNamespaceDefinitionCount :: Text -> Transaction Int
-getNamespaceDefinitionCount namespace = do
-  let subnamespace = globEscape namespace <> ".*"
-  queryOneCol sql (subnamespace, namespace, subnamespace, namespace)
-  where
-    sql =
-      [here|
-        SELECT COUNT(*) FROM (
-          SELECT 1 FROM term_name_lookup WHERE namespace GLOB ? OR namespace = ?
-          UNION ALL
-          SELECT 1 FROM type_name_lookup WHERE namespace GLOB ? OR namespace = ?
-        )
-      |]
-
 -- | Get the list of a term names in the root namespace according to the name lookup index
-rootTermNamesByPath :: Maybe Text -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
-rootTermNamesByPath mayNamespace = do
-  let (namespace, subnamespace) = case mayNamespace of
-        Nothing -> ("", "*")
-        Just namespace -> (namespace, globEscape namespace <> ".*")
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (subnamespace, namespace, subnamespace, namespace)
+termNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesWithinNamespace bhId mayNamespace = do
+  let namespaceGlob = case mayNamespace of
+        Nothing -> "*"
+        Just namespace -> globEscape namespace <> ".*"
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, namespaceGlob)
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
     sql =
       [here|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
-        WHERE (namespace GLOB ? OR namespace = ?)
-        ORDER BY (namespace GLOB ? OR namespace = ?) DESC
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
+        WHERE
+          root_branch_hash_id = ?
+          AND namespace GLOB ?
         |]
 
 -- | Get the list of a type names in the root namespace according to the name lookup index
-rootTypeNamesByPath :: Maybe Text -> Transaction [NamedRef Reference.TextReference]
-rootTypeNamesByPath mayNamespace = do
-  let (namespace, subnamespace) = case mayNamespace of
-        Nothing -> ("", "*")
-        Just namespace -> (namespace, globEscape namespace <> ".*")
-  results :: [NamedRef Reference.TextReference] <- queryListRow sql (subnamespace, namespace, subnamespace, namespace)
+typeNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef Reference.TextReference]
+typeNamesWithinNamespace bhId mayNamespace = do
+  let namespaceGlob = case mayNamespace of
+        Nothing -> "*"
+        Just namespace -> globEscape namespace <> ".*"
+  results :: [NamedRef Reference.TextReference] <- queryListRow sql (bhId, namespaceGlob)
   pure results
   where
     sql =
       [here|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
-        WHERE namespace GLOB ? OR namespace = ?
-        ORDER BY (namespace GLOB ? OR namespace = ?) DESC
-        |]
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
+        WHERE
+          root_branch_hash_id = ?
+          AND namespace GLOB ?
+      |]
 
 -- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool
