@@ -4,7 +4,6 @@
 module Unison.Server.Endpoints.NamespaceListing (serve, NamespaceListingAPI, NamespaceListing (..), NamespaceObject (..), NamedNamespace (..), NamedPatch (..), KindExpression (..)) where
 
 import Control.Monad.Except
-import Control.Monad.Reader
 import Data.Aeson
 import Data.OpenApi (ToSchema)
 import Servant
@@ -21,7 +20,6 @@ import Servant.OpenApi ()
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
-import qualified U.Codebase.Sqlite.Operations as Operations
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
@@ -161,11 +159,10 @@ serve ::
   Maybe Path.Path ->
   Backend.Backend IO NamespaceListing
 serve codebase maySCH mayRelativeTo mayNamespaceName = do
-  (mayRootHash, codebaseRootHash) <-
+  mayRootHash <-
     Backend.hoistBackend (Codebase.runTransaction codebase) do
       mayRootHash <- traverse Backend.expandShortCausalHash maySCH
-      codebaseRootHash <- lift Operations.expectRootCausalHash
-      pure (mayRootHash, codebaseRootHash)
+      pure mayRootHash
 
   -- Relative and Listing Path resolution
   --
