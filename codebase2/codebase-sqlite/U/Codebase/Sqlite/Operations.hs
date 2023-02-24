@@ -67,9 +67,10 @@ module U.Codebase.Sqlite.Operations
     termsMentioningType,
 
     -- ** name lookup index
-    updateNameIndex,
     rootNamesByPath,
     NamesByPath (..),
+    checkBranchHashNameLookupExists,
+    buildNameLookupForBranchHash,
 
     -- * reflog
     getReflog,
@@ -1072,19 +1073,37 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
--- | Given lists of names to add and remove, update the index accordingly.
-updateNameIndex ::
+-- | Apply a set of name updates to an existing index.
+buildNameLookupForBranchHash ::
+  -- The existing name lookup index to copy before applying the diff.
+  -- If Nothing, run the diff against an empty index.
+  -- If Just, the name lookup must exist or an error will be thrown.
+  Maybe BranchHash ->
+  BranchHash ->
   -- |  (add terms, remove terms)
   ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
   -- |  (add types, remove types)
   ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
   Transaction ()
-updateNameIndex (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
-  Q.ensureNameLookupTables
-  Q.removeTermNames ((fmap c2sTextReferent <$> removedTermNames))
-  Q.removeTypeNames ((fmap c2sTextReference <$> removedTypeNames))
-  Q.insertTermNames (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
-  Q.insertTypeNames (fmap c2sTextReference <$> newTypeNames)
+buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
+  newBranchHashId <- Q.saveBranchHash newBranchHash
+  Q.trackNewBranchHashNameLookup newBranchHashId
+  case mayExistingBranchIndex of
+    Nothing -> pure ()
+    Just existingBranchIndex -> do
+      unlessM (checkBranchHashNameLookupExists existingBranchIndex) $ error "buildNameLookupForBranchHash: existingBranchIndex was provided, but no index was found for that branch hash."
+      existingBranchHashId <- Q.saveBranchHash existingBranchIndex
+      Q.copyScopedNameLookup existingBranchHashId newBranchHashId
+  Q.removeScopedTermNames newBranchHashId ((fmap c2sTextReferent <$> removedTermNames))
+  Q.removeScopedTypeNames newBranchHashId ((fmap c2sTextReference <$> removedTypeNames))
+  Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
+  Q.insertScopedTypeNames newBranchHashId (fmap c2sTextReference <$> newTypeNames)
+
+-- | Check whether we've already got an index for a given causal hash.
+checkBranchHashNameLookupExists :: BranchHash -> Transaction Bool
+checkBranchHashNameLookupExists bh = do
+  bhId <- Q.saveBranchHash bh
+  Q.checkBranchHashNameLookupExists bhId
 
 data NamesByPath = NamesByPath
   { termNamesInPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
@@ -1092,13 +1111,16 @@ data NamesByPath = NamesByPath
   }
 
 -- | Get all the term and type names for the root namespace from the lookup table.
+-- Requires that an index for this branch hash already exists, which is currently
+-- only true on Share.
 rootNamesByPath ::
   -- | A relative namespace string, e.g. Just "base.List"
   Maybe Text ->
   Transaction NamesByPath
 rootNamesByPath path = do
-  termNamesInPath <- Q.rootTermNamesByPath path
-  typeNamesInPath <- Q.rootTypeNamesByPath path
+  bhId <- Q.expectNamespaceRootBranchHashId
+  termNamesInPath <- Q.termNamesWithinNamespace bhId path
+  typeNamesInPath <- Q.typeNamesWithinNamespace bhId path
   pure $
     NamesByPath
       { termNamesInPath = convertTerms <$> termNamesInPath,
