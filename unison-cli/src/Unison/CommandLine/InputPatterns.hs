@@ -2234,7 +2234,8 @@ fetchScheme =
         ]
     )
     ( \case
-        [] -> pure Input.FetchSchemeCompilerI
+        [] -> pure (Input.FetchSchemeCompilerI "unison")
+        [name] -> pure (Input.FetchSchemeCompilerI name)
         _ -> Left $ showPatternHelp fetchScheme
     )
 
