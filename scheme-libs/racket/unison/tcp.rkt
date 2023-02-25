@@ -2,17 +2,13 @@
 #lang racket/base
 (require racket/exn
          racket/tcp
-         racket/port
-         unison/data
-         openssl)
-
+         unison/data)
 
 (provide (prefix-out unison-FOp-IO.   (combine-out
         clientSocket.impl.v3
         closeSocket.impl.v3
         socketReceive.impl.v3
-        socketSend.impl.v3))
-)
+        socketSend.impl.v3)))
 
 (define (input socket) (car socket))
 (define (output socket) (car (cdr socket)))
