@@ -2229,7 +2229,10 @@ fetchScheme =
               <> "is run\
                  \ if the library is not already in the standard location\
                  \ (unison.internal). However, this command will force\
-                 \ a pull even if the library already exists."
+                 \ a pull even if the library already exists. You can also specify\
+                 \ a username to pull from (the default is `unison`) to use an alternate\
+                 \ implementation of the scheme compiler. It will attempt to fetch\
+                 \ [username].public.internal.trunk for use."
           )
         ]
     )
