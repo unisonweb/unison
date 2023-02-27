@@ -164,16 +164,16 @@ bindNames unsafeVarToName keepFreeTerms ns0 e = do
       okTm (v, a) = case Names.lookupHQTerm (Name.convert $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 ->
-            pure (v, fromReferent a $ Set.findMin rs)
+              pure (v, fromReferent a $ Set.findMin rs)
           | otherwise -> case NES.nonEmptySet rs of
-            Nothing -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
-            Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns0 refs)))
+              Nothing -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
+              Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns0 refs)))
       okTy (v, a) = case Names.lookupHQType (Name.convert $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
           | otherwise -> case NES.nonEmptySet rs of
-            Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
-            Just refs -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns0 refs)))
+              Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
+              Just refs -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns0 refs)))
   termSubsts <- validate okTm freeTmVars
   typeSubsts <- validate okTy freeTyVars
   pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
@@ -218,7 +218,7 @@ prepareTDNR t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
   where
     f (ABT.Term _ (a, bound) (ABT.Var v))
       | Set.notMember v bound =
-        Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
+          Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
     f _ = Nothing
 
 amap :: (Ord v) => (a -> a2) -> Term v a -> Term v a2
@@ -390,10 +390,10 @@ substTypeVar vt ty = go Set.empty
                 -- variable name for v which is unique, v', and rename v to v' in e.
                 uncapture vs e t@(Type.Forall' body)
                   | Set.member (ABT.variable body) fvs =
-                    let v = ABT.variable body
-                        v2 = Var.freshIn (ABT.freeVars t) . Var.freshIn (Set.insert vt fvs) $ v
-                        t2 = ABT.bindInheritAnnotation body (Type.var () v2)
-                     in uncapture ((ABT.annotation t, v2) : vs) (renameTypeVar v v2 e) t2
+                      let v = ABT.variable body
+                          v2 = Var.freshIn (ABT.freeVars t) . Var.freshIn (Set.insert vt fvs) $ v
+                          t2 = ABT.bindInheritAnnotation body (Type.var () v2)
+                       in uncapture ((ABT.annotation t, v2) : vs) (renameTypeVar v v2 e) t2
                 uncapture vs e t0 =
                   let t = foldl (\body (loc, v) -> Type.forall loc v body) t0 vs
                       bound' = case Type.unForalls (Type.stripIntroOuters t) of
@@ -631,7 +631,7 @@ unDelay :: (Ord v) => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
 unDelay tm = case ABT.out tm of
   ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body)))
     | Set.notMember v (ABT.freeVars body) ->
-      Just body
+        Just body
   _ -> Nothing
 
 pattern LamNamed' ::
