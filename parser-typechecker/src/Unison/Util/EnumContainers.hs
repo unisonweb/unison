@@ -73,26 +73,26 @@ newtype EnumSet k = ES IS.IntSet
       Semigroup
     )
 
-mapFromList :: EnumKey k => [(k, a)] -> EnumMap k a
+mapFromList :: (EnumKey k) => [(k, a)] -> EnumMap k a
 mapFromList = EM . IM.fromList . fmap (first keyToInt)
 
-setFromList :: EnumKey k => [k] -> EnumSet k
+setFromList :: (EnumKey k) => [k] -> EnumSet k
 setFromList = ES . IS.fromList . fmap keyToInt
 
-setToList :: EnumKey k => EnumSet k -> [k]
+setToList :: (EnumKey k) => EnumSet k -> [k]
 setToList (ES s) = intToKey <$> IS.toList s
 
-mapSingleton :: EnumKey k => k -> a -> EnumMap k a
+mapSingleton :: (EnumKey k) => k -> a -> EnumMap k a
 mapSingleton e a = EM $ IM.singleton (keyToInt e) a
 
-setSingleton :: EnumKey k => k -> EnumSet k
+setSingleton :: (EnumKey k) => k -> EnumSet k
 setSingleton e = ES . IS.singleton $ keyToInt e
 
-mapInsert :: EnumKey k => k -> a -> EnumMap k a -> EnumMap k a
+mapInsert :: (EnumKey k) => k -> a -> EnumMap k a -> EnumMap k a
 mapInsert e x (EM m) = EM $ IM.insert (keyToInt e) x m
 
 unionWith ::
-  EnumKey k =>
+  (EnumKey k) =>
   (a -> a -> a) ->
   EnumMap k a ->
   EnumMap k a ->
@@ -106,52 +106,52 @@ intersectionWith ::
   EnumMap k c
 intersectionWith f (EM l) (EM r) = EM $ IM.intersectionWith f l r
 
-keys :: EnumKey k => EnumMap k a -> [k]
+keys :: (EnumKey k) => EnumMap k a -> [k]
 keys (EM m) = fmap intToKey . IM.keys $ m
 
-keysSet :: EnumKey k => EnumMap k a -> EnumSet k
+keysSet :: (EnumKey k) => EnumMap k a -> EnumSet k
 keysSet (EM m) = ES (IM.keysSet m)
 
-restrictKeys :: EnumKey k => EnumMap k a -> EnumSet k -> EnumMap k a
+restrictKeys :: (EnumKey k) => EnumMap k a -> EnumSet k -> EnumMap k a
 restrictKeys (EM m) (ES s) = EM $ IM.restrictKeys m s
 
-withoutKeys :: EnumKey k => EnumMap k a -> EnumSet k -> EnumMap k a
+withoutKeys :: (EnumKey k) => EnumMap k a -> EnumSet k -> EnumMap k a
 withoutKeys (EM m) (ES s) = EM $ IM.withoutKeys m s
 
-member :: EnumKey k => k -> EnumSet k -> Bool
+member :: (EnumKey k) => k -> EnumSet k -> Bool
 member e (ES s) = IS.member (keyToInt e) s
 
-hasKey :: EnumKey k => k -> EnumMap k a -> Bool
+hasKey :: (EnumKey k) => k -> EnumMap k a -> Bool
 hasKey k (EM m) = IM.member (keyToInt k) m
 
-lookup :: EnumKey k => k -> EnumMap k a -> Maybe a
+lookup :: (EnumKey k) => k -> EnumMap k a -> Maybe a
 lookup e (EM m) = IM.lookup (keyToInt e) m
 
-lookupWithDefault :: EnumKey k => a -> k -> EnumMap k a -> a
+lookupWithDefault :: (EnumKey k) => a -> k -> EnumMap k a -> a
 lookupWithDefault d e (EM m) = IM.findWithDefault d (keyToInt e) m
 
-mapWithKey :: EnumKey k => (k -> a -> b) -> EnumMap k a -> EnumMap k b
+mapWithKey :: (EnumKey k) => (k -> a -> b) -> EnumMap k a -> EnumMap k b
 mapWithKey f (EM m) = EM $ IM.mapWithKey (f . intToKey) m
 
-foldMapWithKey :: EnumKey k => Monoid m => (k -> a -> m) -> EnumMap k a -> m
+foldMapWithKey :: (EnumKey k) => (Monoid m) => (k -> a -> m) -> EnumMap k a -> m
 foldMapWithKey f (EM m) = IM.foldMapWithKey (f . intToKey) m
 
-mapToList :: EnumKey k => EnumMap k a -> [(k, a)]
+mapToList :: (EnumKey k) => EnumMap k a -> [(k, a)]
 mapToList (EM m) = first intToKey <$> IM.toList m
 
-(!) :: EnumKey k => EnumMap k a -> k -> a
+(!) :: (EnumKey k) => EnumMap k a -> k -> a
 (!) (EM m) e = m IM.! keyToInt e
 
-findMin :: EnumKey k => EnumSet k -> k
+findMin :: (EnumKey k) => EnumSet k -> k
 findMin (ES s) = intToKey $ IS.findMin s
 
 traverseSet_ ::
-  Applicative f => EnumKey k => (k -> f ()) -> EnumSet k -> f ()
+  (Applicative f) => (EnumKey k) => (k -> f ()) -> EnumSet k -> f ()
 traverseSet_ f (ES s) =
   IS.foldr (\i r -> f (intToKey i) *> r) (pure ()) s
 
 interverse ::
-  Applicative f =>
+  (Applicative f) =>
   (a -> b -> f c) ->
   EnumMap k a ->
   EnumMap k b ->
@@ -160,8 +160,8 @@ interverse f (EM l) (EM r) =
   fmap EM . traverse id $ IM.intersectionWith f l r
 
 traverseWithKey ::
-  Applicative f =>
-  EnumKey k =>
+  (Applicative f) =>
+  (EnumKey k) =>
   (k -> a -> f b) ->
   EnumMap k a ->
   f (EnumMap k b)

@@ -74,6 +74,8 @@ test> Int.tests.conversions =
         fromText "+0" == Some +0,
         fromText "a8f9djasdlfkj" == None,
         fromText "3940" == Some +3940,
+        fromText "1000000000000000000000000000" == None,
+        fromText "-1000000000000000000000000000" == None,
         toFloat +9394 == 9394.0,
         toFloat -20349 == -20349.0
         ]
@@ -139,6 +141,8 @@ test> Nat.tests.conversions =
         toText 10 == "10",
         fromText "ooga" == None,
         fromText "90" == Some 90,
+        fromText "-1" == None,
+        fromText "100000000000000000000000000" == None,
         unsnoc "abc" == Some ("ab", ?c),
         uncons "abc" == Some (?a, "bc"),
         unsnoc "" == None,
@@ -375,6 +379,37 @@ openFile]
     ✅ Passed Passed
 
 ```
+## Universal hash functions
+
+Just exercises the function
+
+```unison
+> Universal.murmurHash 1
+test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      Universal.murmurHash.tests : [Result]
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    1 | > Universal.murmurHash 1
+          ⧩
+          5006114823290027883
+  
+    2 | test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
+    
+    ✅ Passed Passed
+
+```
 ## Run the tests
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
@@ -407,8 +442,9 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Text.tests.patterns                 Passed
   ◉ Text.tests.repeat                   Passed
   ◉ Text.tests.takeDropAppend           Passed
+  ◉ Universal.murmurHash.tests          Passed
   
-  ✅ 23 test(s) passing
+  ✅ 24 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 

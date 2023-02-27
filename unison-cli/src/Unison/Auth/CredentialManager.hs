@@ -22,23 +22,23 @@ import qualified UnliftIO
 newtype CredentialManager = CredentialManager (UnliftIO.MVar Credentials)
 
 -- | Saves credentials to the active profile.
-saveCredentials :: UnliftIO.MonadUnliftIO m => CredentialManager -> CodeserverId -> CodeserverCredentials -> m ()
+saveCredentials :: (UnliftIO.MonadUnliftIO m) => CredentialManager -> CodeserverId -> CodeserverCredentials -> m ()
 saveCredentials credManager aud creds = do
   void . modifyCredentials credManager $ setCodeserverCredentials aud creds
 
 -- | Atomically update the credential storage file, and update the in-memory cache.
-modifyCredentials :: UnliftIO.MonadUnliftIO m => CredentialManager -> (Credentials -> Credentials) -> m Credentials
+modifyCredentials :: (UnliftIO.MonadUnliftIO m) => CredentialManager -> (Credentials -> Credentials) -> m Credentials
 modifyCredentials (CredentialManager credsVar) f = do
   UnliftIO.modifyMVar credsVar $ \_ -> do
     newCreds <- atomicallyModifyCredentialsFile f
     pure (newCreds, newCreds)
 
-getCredentials :: MonadIO m => CredentialManager -> CodeserverId -> m (Either CredentialFailure CodeserverCredentials)
+getCredentials :: (MonadIO m) => CredentialManager -> CodeserverId -> m (Either CredentialFailure CodeserverCredentials)
 getCredentials (CredentialManager credsVar) aud = do
   creds <- UnliftIO.readMVar credsVar
   pure $ getCodeserverCredentials aud creds
 
-newCredentialManager :: MonadIO m => m CredentialManager
+newCredentialManager :: (MonadIO m) => m CredentialManager
 newCredentialManager = do
   credentials <- atomicallyModifyCredentialsFile id
   credentialsVar <- UnliftIO.newMVar credentials

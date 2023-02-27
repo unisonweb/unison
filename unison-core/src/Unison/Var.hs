@@ -53,10 +53,10 @@ class (Show v, ABT.Var v) => Var v where
   freshId :: v -> Word64
   freshenId :: Word64 -> v -> v
 
-freshIn :: ABT.Var v => Set v -> v -> v
+freshIn :: (ABT.Var v) => Set v -> v -> v
 freshIn = ABT.freshIn
 
-named :: Var v => Text -> v
+named :: (Var v) => Text -> v
 named n = typed (User n)
 
 rawName :: Type -> Text
@@ -82,26 +82,26 @@ rawName typ = case typ of
   UnnamedReference ref -> Reference.idToText ref
   UnnamedWatch k guid -> fromString k <> "." <> guid
 
-name :: Var v => v -> Text
+name :: (Var v) => v -> Text
 name v = rawName (typeOf v) <> showid v
   where
     showid (freshId -> 0) = ""
     showid (freshId -> n) = pack (show n)
 
 -- | Currently, actions in blocks are encoded as bindings
--- with names of the form _123 (an underscore, followed by 
+-- with names of the form _123 (an underscore, followed by
 -- 1 or more digits). This function returns `True` if the
 -- input variable has this form.
--- 
+--
 -- Various places check for this (the pretty-printer, to
 -- determine how to print the binding), and the typechecker
 -- (to decide if it should ensure the binding has type `()`).
-isAction :: Var v => v -> Bool
+isAction :: (Var v) => v -> Bool
 isAction v = case Text.unpack (name v) of
   ('_' : rest) | Just _ <- (readMaybe rest :: Maybe Int) -> True
   _ -> False
 
-uncapitalize :: Var v => v -> v
+uncapitalize :: (Var v) => v -> v
 uncapitalize v = nameds $ go (nameStr v)
   where
     go (c : rest) = toLower c : rest
@@ -119,7 +119,7 @@ missingResult,
   inferTypeConstructor,
   inferTypeConstructorArg,
   inferOther ::
-    Var v => v
+    (Var v) => v
 missingResult = typed MissingResult
 blank = typed Blank
 inferInput = typed (Inference Input)
@@ -133,10 +133,10 @@ inferTypeConstructor = typed (Inference TypeConstructor)
 inferTypeConstructorArg = typed (Inference TypeConstructorArg)
 inferOther = typed (Inference Other)
 
-unnamedRef :: Var v => Reference.Id -> v
+unnamedRef :: (Var v) => Reference.Id -> v
 unnamedRef ref = typed (UnnamedReference ref)
 
-unnamedTest :: Var v => Text -> v
+unnamedTest :: (Var v) => Text -> v
 unnamedTest guid = typed (UnnamedWatch TestWatch guid)
 
 data Type
@@ -183,33 +183,33 @@ data InferenceType
   | Other
   deriving (Eq, Ord, Show)
 
-reset :: Var v => v -> v
+reset :: (Var v) => v -> v
 reset v = typed (typeOf v)
 
-unqualifiedName :: Var v => v -> Text
+unqualifiedName :: (Var v) => v -> Text
 unqualifiedName = fromMaybe "" . lastMay . Name.segments' . name
 
-unqualified :: Var v => v -> v
+unqualified :: (Var v) => v -> v
 unqualified v = case typeOf v of
   User _ -> named . unqualifiedName $ v
   _ -> v
 
-namespaced :: Var v => [v] -> v
+namespaced :: (Var v) => [v] -> v
 namespaced vs = named $ intercalateMap "." name vs
 
-nameStr :: Var v => v -> String
+nameStr :: (Var v) => v -> String
 nameStr = Text.unpack . name
 
-nameds :: Var v => String -> v
+nameds :: (Var v) => String -> v
 nameds s = named (Text.pack s)
 
-joinDot :: Var v => v -> v -> v
+joinDot :: (Var v) => v -> v -> v
 joinDot prefix v2 =
   if name prefix == "."
     then named (name prefix `mappend` name v2)
     else named (name prefix `mappend` "." `mappend` name v2)
 
-universallyQuantifyIfFree :: forall v. Var v => v -> Bool
+universallyQuantifyIfFree :: forall v. (Var v) => v -> Bool
 universallyQuantifyIfFree v =
   ok (name $ reset v) && unqualified v == v
   where

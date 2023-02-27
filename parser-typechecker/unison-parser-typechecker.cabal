@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -82,6 +82,7 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
@@ -154,6 +155,7 @@ library
       Unison.Util.Logger
       Unison.Util.PinBoard
       Unison.Util.Pretty.MegaParsec
+      Unison.Util.RefPromise
       Unison.Util.Star3
       Unison.Util.Text
       Unison.Util.Text.Pattern
@@ -195,6 +197,7 @@ library
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring
@@ -239,6 +242,7 @@ library
     , mmorph
     , monad-validate
     , mtl
+    , murmur-hash
     , mutable-containers
     , mwc-random
     , natural-transformation
@@ -307,11 +311,11 @@ library
     , x509-system
     , yaml
     , zlib
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   if flag(arraychecks)
     cpp-options: -DARRAY_CHECK
-  default-language: Haskell2010
 
 test-suite parser-typechecker-tests
   type: exitcode-stdio-1.0
@@ -380,6 +384,7 @@ test-suite parser-typechecker-tests
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring
@@ -427,6 +432,7 @@ test-suite parser-typechecker-tests
     , mmorph
     , monad-validate
     , mtl
+    , murmur-hash
     , mutable-containers
     , mwc-random
     , natural-transformation
@@ -497,8 +503,8 @@ test-suite parser-typechecker-tests
     , x509-system
     , yaml
     , zlib
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   if flag(arraychecks)
     cpp-options: -DARRAY_CHECK
-  default-language: Haskell2010

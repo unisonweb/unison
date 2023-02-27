@@ -37,48 +37,51 @@ import Unison.Runtime.MCode
 import qualified Unison.Util.Bytes as Bytes
 import Unison.Util.EnumContainers as EC
 
-unknownTag :: MonadGet m => String -> Word8 -> m a
+unknownTag :: (MonadGet m) => String -> Word8 -> m a
 unknownTag t w =
   remaining >>= \r ->
     exn $
-      "unknown " ++ t ++ " word: " ++ show w
+      "unknown "
+        ++ t
+        ++ " word: "
+        ++ show w
         ++ " ("
         ++ show (fromIntegral @_ @Int r)
         ++ " bytes remaining)"
 
 class Tag t where
   tag2word :: t -> Word8
-  word2tag :: MonadGet m => Word8 -> m t
+  word2tag :: (MonadGet m) => Word8 -> m t
 
-putTag :: MonadPut m => Tag t => t -> m ()
+putTag :: (MonadPut m) => (Tag t) => t -> m ()
 putTag = putWord8 . tag2word
 
-getTag :: MonadGet m => Tag t => m t
+getTag :: (MonadGet m) => (Tag t) => m t
 getTag = word2tag =<< getWord8
 
 -- Some basics, moved over from V1 serialization
-putChar :: MonadPut m => Char -> m ()
+putChar :: (MonadPut m) => Char -> m ()
 putChar = serialize . VarInt . fromEnum
 
-getChar :: MonadGet m => m Char
+getChar :: (MonadGet m) => m Char
 getChar = toEnum . unVarInt <$> deserialize
 
-putFloat :: MonadPut m => Double -> m ()
+putFloat :: (MonadPut m) => Double -> m ()
 putFloat = serializeBE
 
-getFloat :: MonadGet m => m Double
+getFloat :: (MonadGet m) => m Double
 getFloat = deserializeBE
 
-putNat :: MonadPut m => Word64 -> m ()
+putNat :: (MonadPut m) => Word64 -> m ()
 putNat = putWord64be
 
-getNat :: MonadGet m => m Word64
+getNat :: (MonadGet m) => m Word64
 getNat = getWord64be
 
-putInt :: MonadPut m => Int64 -> m ()
+putInt :: (MonadPut m) => Int64 -> m ()
 putInt = serializeBE
 
-getInt :: MonadGet m => m Int64
+getInt :: (MonadGet m) => m Int64
 getInt = deserializeBE
 
 putLength ::
@@ -108,81 +111,81 @@ putFoldable putA as = do
   putLength (length as)
   traverse_ putA as
 
-putMap :: MonadPut m => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
+putMap :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
 putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
 
-getList :: MonadGet m => m a -> m [a]
+getList :: (MonadGet m) => m a -> m [a]
 getList a = getLength >>= (`replicateM` a)
 
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
 getMap getA getB = Map.fromList <$> getList (getPair getA getB)
 
 putEnumMap ::
-  MonadPut m =>
-  EnumKey k =>
+  (MonadPut m) =>
+  (EnumKey k) =>
   (k -> m ()) ->
   (v -> m ()) ->
   EnumMap k v ->
   m ()
 putEnumMap pk pv m = putFoldable (putPair pk pv) (mapToList m)
 
-getEnumMap :: MonadGet m => EnumKey k => m k -> m v -> m (EnumMap k v)
+getEnumMap :: (MonadGet m) => (EnumKey k) => m k -> m v -> m (EnumMap k v)
 getEnumMap gk gv = mapFromList <$> getList (getPair gk gv)
 
-putEnumSet :: MonadPut m => EnumKey k => (k -> m ()) -> EnumSet k -> m ()
+putEnumSet :: (MonadPut m) => (EnumKey k) => (k -> m ()) -> EnumSet k -> m ()
 putEnumSet pk s = putLength (setSize s) *> traverseSet_ pk s
 
-getEnumSet :: MonadGet m => EnumKey k => m k -> m (EnumSet k)
+getEnumSet :: (MonadGet m) => (EnumKey k) => m k -> m (EnumSet k)
 getEnumSet gk = setFromList <$> getList gk
 
-putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
+putMaybe :: (MonadPut m) => Maybe a -> (a -> m ()) -> m ()
 putMaybe Nothing _ = putWord8 0
 putMaybe (Just a) putA = putWord8 1 *> putA a
 
-getMaybe :: MonadGet m => m a -> m (Maybe a)
+getMaybe :: (MonadGet m) => m a -> m (Maybe a)
 getMaybe getA =
   getWord8 >>= \tag -> case tag of
     0 -> pure Nothing
     1 -> Just <$> getA
     _ -> unknownTag "Maybe" tag
 
-putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a, b) -> m ()
+putPair :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> (a, b) -> m ()
 putPair putA putB (a, b) = putA a *> putB b
 
-getPair :: MonadGet m => m a -> m b -> m (a, b)
+getPair :: (MonadGet m) => m a -> m b -> m (a, b)
 getPair = liftA2 (,)
 
-getBytes :: MonadGet m => m Bytes.Bytes
+getBytes :: (MonadGet m) => m Bytes.Bytes
 getBytes = Bytes.fromChunks <$> getList getBlock
 
-putBytes :: MonadPut m => Bytes.Bytes -> m ()
+putBytes :: (MonadPut m) => Bytes.Bytes -> m ()
 putBytes = putFoldable putBlock . Bytes.chunks
 
-getByteArray :: MonadGet m => m PA.ByteArray
+getByteArray :: (MonadGet m) => m PA.ByteArray
 getByteArray = PA.byteArrayFromList <$> getList getWord8
 
-putByteArray :: MonadPut m => PA.ByteArray -> m ()
+putByteArray :: (MonadPut m) => PA.ByteArray -> m ()
 putByteArray a = putFoldable putWord8 (IL.toList a)
 
-getBlock :: MonadGet m => m Bytes.Chunk
+getBlock :: (MonadGet m) => m Bytes.Chunk
 getBlock = getLength >>= fmap Bytes.byteStringToChunk . getByteString
 
-putBlock :: MonadPut m => Bytes.Chunk -> m ()
+putBlock :: (MonadPut m) => Bytes.Chunk -> m ()
 putBlock b = putLength (BA.length b) *> putByteString (Bytes.chunkToByteString b)
 
-putHash :: MonadPut m => Hash -> m ()
+putHash :: (MonadPut m) => Hash -> m ()
 putHash h = do
   let bs = Hash.toByteString h
   putLength (B.length bs)
   putByteString bs
 
-getHash :: MonadGet m => m Hash
+getHash :: (MonadGet m) => m Hash
 getHash = do
   len <- getLength
   bs <- B.copy <$> Ser.getBytes len
   pure $ Hash.fromByteString bs
 
-putReferent :: MonadPut m => Referent -> m ()
+putReferent :: (MonadPut m) => Referent -> m ()
 putReferent = \case
   Ref r -> do
     putWord8 0
@@ -192,7 +195,7 @@ putReferent = \case
     putConstructorReference r
     putConstructorType ct
 
-getReferent :: MonadGet m => m Referent
+getReferent :: (MonadGet m) => m Referent
 getReferent = do
   tag <- getWord8
   case tag of
@@ -200,31 +203,31 @@ getReferent = do
     1 -> Con <$> getConstructorReference <*> getConstructorType
     _ -> unknownTag "getReferent" tag
 
-getConstructorType :: MonadGet m => m CT.ConstructorType
+getConstructorType :: (MonadGet m) => m CT.ConstructorType
 getConstructorType =
   getWord8 >>= \case
     0 -> pure CT.Data
     1 -> pure CT.Effect
     t -> unknownTag "getConstructorType" t
 
-putConstructorType :: MonadPut m => CT.ConstructorType -> m ()
+putConstructorType :: (MonadPut m) => CT.ConstructorType -> m ()
 putConstructorType = \case
   CT.Data -> putWord8 0
   CT.Effect -> putWord8 1
 
-putText :: MonadPut m => Text -> m ()
+putText :: (MonadPut m) => Text -> m ()
 putText text = do
   let bs = encodeUtf8 text
   putLength $ B.length bs
   putByteString bs
 
-getText :: MonadGet m => m Text
+getText :: (MonadGet m) => m Text
 getText = do
   len <- getLength
   bs <- B.copy <$> Ser.getBytes len
   pure $ decodeUtf8 bs
 
-putReference :: MonadPut m => Reference -> m ()
+putReference :: (MonadPut m) => Reference -> m ()
 putReference r = case r of
   Builtin name -> do
     putWord8 0
@@ -234,7 +237,7 @@ putReference r = case r of
     putHash hash
     putLength i
 
-getReference :: MonadGet m => m Reference
+getReference :: (MonadGet m) => m Reference
 getReference = do
   tag <- getWord8
   case tag of
@@ -242,12 +245,12 @@ getReference = do
     1 -> DerivedId <$> (Id <$> getHash <*> getLength)
     _ -> unknownTag "Reference" tag
 
-putConstructorReference :: MonadPut m => ConstructorReference -> m ()
+putConstructorReference :: (MonadPut m) => ConstructorReference -> m ()
 putConstructorReference (ConstructorReference r i) = do
   putReference r
   putLength i
 
-getConstructorReference :: MonadGet m => m ConstructorReference
+getConstructorReference :: (MonadGet m) => m ConstructorReference
 getConstructorReference =
   ConstructorReference <$> getReference <*> getLength
 
@@ -401,6 +404,7 @@ instance Tag BPrim1 where
   tag2word CVLD = 22
   tag2word VALU = 23
   tag2word TLTT = 24
+  tag2word DBTX = 25
 
   word2tag 0 = pure SIZT
   word2tag 1 = pure USNC
@@ -427,6 +431,7 @@ instance Tag BPrim1 where
   word2tag 22 = pure CVLD
   word2tag 23 = pure VALU
   word2tag 24 = pure TLTT
+  word2tag 25 = pure DBTX
   word2tag n = unknownTag "BPrim1" n
 
 instance Tag BPrim2 where

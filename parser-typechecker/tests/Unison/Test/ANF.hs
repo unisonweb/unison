@@ -13,7 +13,7 @@ import qualified Unison.ABT as ABT
 import Unison.ABT.Normalized (Term (TAbs))
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.Pattern as P
-import Unison.Reference (Reference(Builtin))
+import Unison.Reference (Reference (Builtin))
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.MCode (RefNums (..), emitCombs)
 import qualified Unison.Term as Term
@@ -38,7 +38,7 @@ simpleRefs r
   | r == Ty.charRef = 5
   | otherwise = 100
 
-runANF :: Var v => ANFM v a -> a
+runANF :: (Var v) => ANFM v a -> a
 runANF m = evalState (runReaderT m Set.empty) (0, 1, [])
 
 testANF :: String -> Test ()
@@ -59,7 +59,7 @@ testLift s = case cs of !_ -> ok
         . lamLift
         $ tm s
 
-denormalize :: Var v => ANormal v -> Term.Term0 v
+denormalize :: (Var v) => ANormal v -> Term.Term0 v
 denormalize (TVar v) = Term.var () v
 denormalize (TLit l) = case l of
   I i -> Term.int () i
@@ -116,7 +116,7 @@ backReference :: Word64 -> Reference
 backReference _ = error "backReference"
 
 denormalizeMatch ::
-  Var v => Branched (ANormal v) -> [Term.MatchCase () (Term.Term0 v)]
+  (Var v) => Branched (ANormal v) -> [Term.MatchCase () (Term.Term0 v)]
 denormalizeMatch b
   | MatchEmpty <- b = []
   | MatchIntegral m df <- b =
@@ -141,7 +141,7 @@ denormalizeMatch b
       where
         (n, dbr) = denormalizeBranch br
 
-    ipat :: Integral a => Reference -> p -> a -> P.Pattern ()
+    ipat :: (Integral a) => Reference -> p -> a -> P.Pattern ()
     ipat r _ i
       | r == Ty.natRef = P.Nat () $ fromIntegral i
       | otherwise = P.Int () $ fromIntegral i
@@ -157,7 +157,7 @@ denormalizeBranch (TAbs v br) = (n + 1, ABT.abs v dbr)
 denormalizeBranch tm = (0, denormalize tm)
 
 denormalizeHandler ::
-  Var v =>
+  (Var v) =>
   Map.Map Reference (EnumMap CTag ([Mem], ANormal v)) ->
   ANormal v ->
   [Term.MatchCase () (Term.Term0 v)]

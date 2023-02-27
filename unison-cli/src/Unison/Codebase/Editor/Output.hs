@@ -1,6 +1,7 @@
 module Unison.Codebase.Editor.Output
   ( Output (..),
     DisplayDefinitionsOutput (..),
+    WhichBranchEmpty (..),
     NumberedOutput (..),
     NumberedArgs,
     ListDetailed,
@@ -132,7 +133,7 @@ data Output
       PPE.PrettyPrintEnv
       [Type Symbol Ann]
       -- ^ acceptable type(s) of function
-  | BranchEmpty (Either ShortCausalHash Path')
+  | BranchEmpty WhichBranchEmpty
   | BranchNotEmpty Path'
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -155,6 +156,7 @@ data Output
   | BranchNotFound Path'
   | EmptyPush Path'
   | NameNotFound Path.HQSplit'
+  | NamesNotFound [Name]
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
   | TermNotFound Path.HQSplit'
@@ -283,6 +285,7 @@ data Output
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
   | ClearScreen
+  | PulledEmptyBranch ReadRemoteNamespace
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
   { isTest :: TermReference -> Bool,
@@ -291,6 +294,11 @@ data DisplayDefinitionsOutput = DisplayDefinitionsOutput
     terms :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
     types :: Map Reference (DisplayObject () (Decl Symbol Ann))
   }
+
+-- | A branch was empty. But how do we refer to that branch?
+data WhichBranchEmpty
+  = WhichBranchEmptyHash ShortCausalHash
+  | WhichBranchEmptyPath Path'
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -358,6 +366,7 @@ isFailure o = case o of
   BadNamespace {} -> True
   BranchNotFound {} -> True
   NameNotFound {} -> True
+  NamesNotFound _ -> True
   PatchNotFound {} -> True
   TypeNotFound {} -> True
   TypeNotFound' {} -> True
@@ -439,6 +448,7 @@ isFailure o = case o of
   DisplayDebugCompletions {} -> False
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False
+  PulledEmptyBranch {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

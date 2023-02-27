@@ -25,7 +25,7 @@ unsafeGetRightFrom src =
   either (error . Pr.toANSI defaultWidth . prettyParseError src) id
 
 parse ::
-  Var v =>
+  (Var v) =>
   Parser.P v a ->
   String ->
   Parser.ParsingEnv ->
@@ -33,21 +33,21 @@ parse ::
 parse p = Parser.run (Parser.root p)
 
 parseTerm ::
-  Var v =>
+  (Var v) =>
   String ->
   Parser.ParsingEnv ->
   Either (Parser.Err v) (Term v Ann)
 parseTerm = parse TermParser.term
 
 parseType ::
-  Var v =>
+  (Var v) =>
   String ->
   Parser.ParsingEnv ->
   Either (Parser.Err v) (Type v Ann)
 parseType = Parser.run (Parser.root TypeParser.valueType)
 
 parseFile ::
-  Var v =>
+  (Var v) =>
   FilePath ->
   String ->
   Parser.ParsingEnv ->
@@ -55,7 +55,7 @@ parseFile ::
 parseFile filename s = Parser.run' (Parser.rootFile FileParser.file) s filename
 
 readAndParseFile ::
-  Var v =>
+  (Var v) =>
   Parser.ParsingEnv ->
   FilePath ->
   IO (Either (Parser.Err v) (UnisonFile v Ann))
@@ -64,7 +64,7 @@ readAndParseFile penv fileName = do
   let src = Text.unpack txt
   pure $ parseFile fileName src penv
 
-unsafeParseTerm :: Var v => String -> Parser.ParsingEnv -> Term v Ann
+unsafeParseTerm :: (Var v) => String -> Parser.ParsingEnv -> Term v Ann
 unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s
 
 unsafeReadAndParseFile ::

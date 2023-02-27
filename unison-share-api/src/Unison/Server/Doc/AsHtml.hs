@@ -474,6 +474,10 @@ toHtml docNamesByRef document =
                 Doc.FrontMatter fm -> do
                   Writer.tell (pure $ FrontMatterContent fm)
                   pure mempty
+                LaTeXInline latex ->
+                  pure $ div_ [class_ "source rich embed latex-inline"] $ codeBlock [] (L.toHtml latex)
+                Svg svg ->
+                  pure $ iframe_ [class_ "embed svg", sandbox_ "true", srcdoc_ svg] $ sequence_ []
                 Embed syntax ->
                   pure $ div_ [class_ "source rich embed"] $ codeBlock [] (Syntax.toHtml syntax)
                 EmbedInline syntax ->

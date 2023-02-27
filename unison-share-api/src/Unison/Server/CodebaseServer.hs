@@ -347,7 +347,7 @@ serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
 serveOpenAPI :: Handler OpenApi
 serveOpenAPI = pure openAPI
 
-hoistWithAuth :: forall api. HasServer api '[] => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
+hoistWithAuth :: forall api. (HasServer api '[]) => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
 hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handler api (\h -> handleAuth expectedToken token *> h) server
 
 serveUnison ::

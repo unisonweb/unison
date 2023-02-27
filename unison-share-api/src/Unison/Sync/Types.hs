@@ -251,7 +251,7 @@ instance (ToJSON text, ToJSON noSyncHash, ToJSON hash) => ToJSON (Entity text no
     ND ns -> go NamespaceDiffType ns
     C causal -> go CausalType causal
     where
-      go :: ToJSON a => EntityType -> a -> Aeson.Value
+      go :: (ToJSON a) => EntityType -> a -> Aeson.Value
       go typ obj = object ["type" .= typ, "object" .= obj]
 
 instance (FromJSON text, FromJSON noSyncHash, FromJSON hash, Ord hash) => FromJSON (Entity text noSyncHash hash) where
@@ -278,7 +278,7 @@ entityHashes_ f = \case
 -- | Get the direct dependencies of an entity (which are actually sync'd).
 --
 -- FIXME use generic-lens here? (typed @hash)
-entityDependencies :: Ord hash => Entity text noSyncHash hash -> Set hash
+entityDependencies :: (Ord hash) => Entity text noSyncHash hash -> Set hash
 entityDependencies = \case
   TC (TermComponent terms) -> flip foldMap terms \(LocalIds {hashes}, _term) -> Set.fromList hashes
   DC (DeclComponent decls) -> flip foldMap decls \(LocalIds {hashes}, _decl) -> Set.fromList hashes
@@ -325,7 +325,7 @@ instance (FromJSON text, FromJSON hash) => FromJSON (TermComponent text hash) wh
     pure (TermComponent terms)
 
 bitraverseComponents ::
-  Applicative f =>
+  (Applicative f) =>
   (a -> f a') ->
   (b -> f b') ->
   [(LocalIds a b, ByteString)] ->
@@ -427,7 +427,7 @@ instance (FromJSON text, FromJSON oldHash, FromJSON newHash) => FromJSON (Patch 
     Base64Bytes bytes <- obj .: "bytes"
     pure Patch {..}
 
-patchHashes_ :: Applicative m => (hash -> m hash') -> Patch text noSyncHash hash -> m (Patch text noSyncHash hash')
+patchHashes_ :: (Applicative m) => (hash -> m hash') -> Patch text noSyncHash hash -> m (Patch text noSyncHash hash')
 patchHashes_ f (Patch {..}) = do
   newHashLookup <- traverse f newHashLookup
   pure (Patch {..})
@@ -460,7 +460,7 @@ instance (FromJSON text, FromJSON oldHash, FromJSON hash) => FromJSON (PatchDiff
     Base64Bytes bytes <- obj .: "bytes"
     pure PatchDiff {..}
 
-patchDiffHashes_ :: Applicative m => (hash -> m hash') -> PatchDiff text noSyncHash hash -> m (PatchDiff text noSyncHash hash')
+patchDiffHashes_ :: (Applicative m) => (hash -> m hash') -> PatchDiff text noSyncHash hash -> m (PatchDiff text noSyncHash hash')
 patchDiffHashes_ f (PatchDiff {..}) = do
   parent <- f parent
   newHashLookup <- traverse f newHashLookup
@@ -540,7 +540,7 @@ instance (FromJSON text, FromJSON hash) => FromJSON (NamespaceDiff text hash) wh
     Base64Bytes bytes <- obj .: "bytes"
     pure NamespaceDiff {..}
 
-namespaceDiffHashes_ :: Applicative m => (hash -> m hash') -> NamespaceDiff text hash -> m (NamespaceDiff text hash')
+namespaceDiffHashes_ :: (Applicative m) => (hash -> m hash') -> NamespaceDiff text hash -> m (NamespaceDiff text hash')
 namespaceDiffHashes_ f (NamespaceDiff {..}) = do
   parent <- f parent
   defnLookup <- traverse f defnLookup
@@ -929,7 +929,7 @@ data NeedDependencies hash = NeedDependencies
   }
   deriving stock (Show, Eq, Ord)
 
-instance ToJSON hash => ToJSON (NeedDependencies hash) where
+instance (ToJSON hash) => ToJSON (NeedDependencies hash) where
   toJSON (NeedDependencies missingDependencies) =
     object ["missing_dependencies" .= missingDependencies]
 
@@ -941,10 +941,10 @@ instance (FromJSON hash, Ord hash) => FromJSON (NeedDependencies hash) where
 ------------------------------------------------------------------------------------------------------------------------
 -- Misc. helpers
 
-failText :: MonadFail m => Text -> m a
+failText :: (MonadFail m) => Text -> m a
 failText = fail . Text.unpack
 
-jsonUnion :: ToJSON a => Text -> a -> Value
+jsonUnion :: (ToJSON a) => Text -> a -> Value
 jsonUnion typeName val =
   Aeson.object
     [ "type" .= String typeName,

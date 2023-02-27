@@ -143,13 +143,13 @@ term1to2 h =
       V1.Pattern.Snoc -> V2.Term.PSnoc
       V1.Pattern.Concat -> V2.Term.PConcat
 
-term2to1 :: forall m. Monad m => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.Term V2.Symbol -> m (V1.Term.Term V1.Symbol Ann)
+term2to1 :: forall m. (Monad m) => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.Term V2.Symbol -> m (V1.Term.Term V1.Symbol Ann)
 term2to1 h lookupCT =
   ABT.transformM (termF2to1 h lookupCT)
     . ABT.vmap symbol2to1
     . ABT.amap (const Ann.External)
   where
-    termF2to1 :: forall m a. Monad m => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
+    termF2to1 :: forall m a. (Monad m) => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
     termF2to1 h lookupCT = go
       where
         go :: V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
@@ -295,7 +295,7 @@ referenceid1to2 (V1.Reference.Id h i) = V2.Reference.Id h i
 referenceid2to1 :: V2.Reference.Id -> V1.Reference.Id
 referenceid2to1 (V2.Reference.Id h i) = V1.Reference.Id h i
 
-rreferent2to1 :: Applicative m => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.ReferentH -> m V1.Referent
+rreferent2to1 :: (Applicative m) => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.ReferentH -> m V1.Referent
 rreferent2to1 h lookupCT = \case
   V2.Ref r -> pure . V1.Ref $ rreference2to1 h r
   V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) <$> lookupCT r
@@ -305,7 +305,7 @@ rreferent1to2 h = \case
   V1.Ref r -> V2.Ref (rreference1to2 h r)
   V1.Con (V1.ConstructorReference r i) _ct -> V2.Con (reference1to2 r) (fromIntegral i)
 
-referent2to1 :: Applicative m => (V2.Reference -> m CT.ConstructorType) -> V2.Referent -> m V1.Referent
+referent2to1 :: (Applicative m) => (V2.Reference -> m CT.ConstructorType) -> V2.Referent -> m V1.Referent
 referent2to1 lookupCT = \case
   V2.Ref r -> pure $ V1.Ref (reference2to1 r)
   V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) <$> lookupCT r
@@ -321,7 +321,7 @@ referent1to2 = \case
   V1.Ref r -> V2.Ref $ reference1to2 r
   V1.Con (V1.ConstructorReference r i) _ct -> V2.Con (reference1to2 r) (fromIntegral i)
 
-referentid2to1 :: Applicative m => (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
+referentid2to1 :: (Applicative m) => (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
 referentid2to1 lookupCT = \case
   V2.RefId r -> pure $ V1.RefId (referenceid2to1 r)
   V2.ConId r i ->
@@ -392,7 +392,7 @@ type1to2' convertRef =
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
 
 -- | forces loading v1 branches even if they may not exist
-causalbranch2to1 :: Monad m => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.Branch m)
+causalbranch2to1 :: (Monad m) => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.Branch m)
 causalbranch2to1 branchCache lookupCT cb = do
   let ch = V2.causalHash cb
   lookupCachedBranch branchCache ch >>= \case
@@ -402,7 +402,7 @@ causalbranch2to1 branchCache lookupCT cb = do
       insertCachedBranch branchCache ch b
       pure b
 
-causalbranch2to1' :: Monad m => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.UnwrappedBranch m)
+causalbranch2to1' :: (Monad m) => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.UnwrappedBranch m)
 causalbranch2to1' branchCache lookupCT (V2.Causal currentHash eh (Map.toList -> parents) me) = do
   let branchHash = branchHash2to1 eh
   case parents of
@@ -416,18 +416,18 @@ causalbranch2to1' branchCache lookupCT (V2.Causal currentHash eh (Map.toList -> 
       e <- me
       V1.Causal.UnsafeMerge currentHash branchHash <$> branch2to1 branchCache lookupCT e <*> pure (Map.fromList tailsList)
 
-causalbranch1to2 :: forall m. Monad m => V1.Branch.Branch m -> V2.Branch.CausalBranch m
+causalbranch1to2 :: forall m. (Monad m) => V1.Branch.Branch m -> V2.Branch.CausalBranch m
 causalbranch1to2 (V1.Branch.Branch c) =
   causal1to2 branchHash1to2 branch1to2 c
   where
-    causal1to2 :: forall m h2e e e2. Monad m => (V1.HashFor e -> h2e) -> (e -> m e2) -> V1.Causal.Causal m e -> V2.Causal m CausalHash h2e e2
+    causal1to2 :: forall m h2e e e2. (Monad m) => (V1.HashFor e -> h2e) -> (e -> m e2) -> V1.Causal.Causal m e -> V2.Causal m CausalHash h2e e2
     causal1to2 eh1to2 e1to2 = \case
       V1.Causal.One hc eh e -> V2.Causal hc (eh1to2 eh) Map.empty (e1to2 e)
       V1.Causal.Cons hc eh e (ht, mt) -> V2.Causal hc (eh1to2 eh) (Map.singleton ht (causal1to2 eh1to2 e1to2 <$> mt)) (e1to2 e)
       V1.Causal.Merge hc eh e parents -> V2.Causal hc (eh1to2 eh) (Map.map (causal1to2 eh1to2 e1to2 <$>) parents) (e1to2 e)
 
     -- todo: this could be a pure function
-    branch1to2 :: forall m. Monad m => V1.Branch.Branch0 m -> m (V2.Branch.Branch m)
+    branch1to2 :: forall m. (Monad m) => V1.Branch.Branch0 m -> m (V2.Branch.Branch m)
     branch1to2 b =
       pure $
         V2.Branch.Branch
@@ -515,7 +515,7 @@ patch1to2 (V1.Patch v1termedits v1typeedits) = V2.Branch.Patch v2termedits v2typ
       V1.TermEdit.Different -> V2.TermEdit.Different
 
 branch2to1 ::
-  Monad m =>
+  (Monad m) =>
   BranchCache m ->
   (V2.Reference -> m CT.ConstructorType) ->
   V2.Branch.Branch m ->

@@ -35,7 +35,8 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 
 type NamespaceDetailsAPI =
-  "namespaces" :> Capture "namespace" Path.Path
+  "namespaces"
+    :> Capture "namespace" Path.Path
     :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "renderWidth" Width
     :> APIGet NamespaceDetails

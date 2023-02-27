@@ -500,7 +500,7 @@ hashQualifyTermsRelation = hashQualifyRelation HQ.fromNamedReferent
 hashQualifyTypesRelation :: R.Relation Name TypeReference -> R.Relation (HQ.HashQualified Name) TypeReference
 hashQualifyTypesRelation = hashQualifyRelation HQ.fromNamedReference
 
-hashQualifyRelation :: Ord r => (Name -> r -> HQ.HashQualified Name) -> R.Relation Name r -> R.Relation (HQ.HashQualified Name) r
+hashQualifyRelation :: (Ord r) => (Name -> r -> HQ.HashQualified Name) -> R.Relation Name r -> R.Relation (HQ.HashQualified Name) r
 hashQualifyRelation fromNamedRef rel = R.map go rel
   where
     go (n, r) =

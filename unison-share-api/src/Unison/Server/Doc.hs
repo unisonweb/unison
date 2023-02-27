@@ -95,7 +95,7 @@ data DocG specialForm
   deriving stock (Eq, Show, Generic, Functor, Foldable, Traversable)
   deriving anyclass (ToJSON)
 
-deriving instance ToSchema specialForm => ToSchema (DocG specialForm)
+deriving instance (ToSchema specialForm) => ToSchema (DocG specialForm)
 
 type UnisonHash = Text
 
@@ -103,7 +103,7 @@ data Ref a = Term a | Type a
   deriving stock (Eq, Show, Generic, Functor, Foldable, Traversable)
   deriving anyclass (ToJSON)
 
-instance ToSchema a => ToSchema (Ref a)
+instance (ToSchema a) => ToSchema (Ref a)
 
 data MediaSource = MediaSource {mediaSourceUrl :: Text, mediaSourceMimeType :: Maybe Text}
   deriving stock (Eq, Show, Generic)
@@ -123,6 +123,8 @@ data RenderedSpecialForm
   | EmbedInline SyntaxText
   | Video [MediaSource] (Map Text Text)
   | FrontMatter (Map Text [Text])
+  | LaTeXInline Text
+  | Svg Text
   | RenderError (RenderError SyntaxText)
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, ToSchema)
@@ -143,6 +145,8 @@ data EvaluatedSpecialForm v
   | EEmbedInline (Term v ())
   | EVideo [MediaSource] (Map Text Text)
   | EFrontMatter (Map Text [Text])
+  | ELaTeXInline Text
+  | ESvg Text
   | ERenderError (RenderError (Term v ()))
   deriving stock (Eq, Show, Generic)
 
@@ -168,7 +172,7 @@ evalAndRenderDoc pped terms typeOf eval types tm =
 -- | Renders the given doc, which must have been evaluated using 'evalDoc'
 renderDoc ::
   forall v.
-  Var v =>
+  (Var v) =>
   PPE.PrettyPrintEnvDecl ->
   EvaluatedDoc v ->
   Doc
@@ -223,6 +227,8 @@ renderDoc pped doc = renderSpecial <$> doc
       EEmbedInline any -> EmbedInline ("{{ embed {{" <> source any <> "}} }}")
       EVideo sources config -> Video sources config
       EFrontMatter frontMatter -> FrontMatter frontMatter
+      ELaTeXInline latex -> LaTeXInline latex
+      ESvg svg -> Svg svg
       ERenderError (InvalidTerm tm) -> Embed ("🆘  unable to render " <> source tm)
 
     evalErrMsg :: SyntaxText
@@ -235,7 +241,8 @@ renderDoc pped doc = renderSpecial <$> doc
           MissingDecl r -> [(Type (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r)))]
           BuiltinDecl r ->
             let name =
-                  formatPretty . NP.styleHashQualified (NP.fmt (S.TypeReference r))
+                  formatPretty
+                    . NP.styleHashQualified (NP.fmt (S.TypeReference r))
                     . PPE.typeName suffixifiedPPE
                     $ r
              in [Type (Reference.toText r, DO.BuiltinObject name)]
@@ -376,6 +383,12 @@ evalDoc terms typeOf eval types tm =
         where
           frontMatter' = List.multimap [(k, v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- frontMatter]
 
+      -- Embed LaTeXInline
+      DD.Doc2SpecialFormEmbedLaTeXInline latex ->
+        pure $ ELaTeXInline latex
+      -- Embed Svg
+      DD.Doc2SpecialFormEmbedSvg svg ->
+        pure $ ESvg svg
       -- Embed Any
       DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
         pure $ EEmbed any
@@ -435,7 +448,7 @@ data RenderError trm
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON)
 
-deriving anyclass instance ToSchema trm => ToSchema (RenderError trm)
+deriving anyclass instance (ToSchema trm) => ToSchema (RenderError trm)
 
 data EvaluatedSrc v
   = EvaluatedSrcDecl (EvaluatedDecl v)
@@ -456,11 +469,11 @@ data EvaluatedTerm v
   deriving stock (Show, Eq, Generic)
 
 -- Determines all dependencies which will be required to render a doc.
-dependencies :: Ord v => EvaluatedDoc v -> Set LD.LabeledDependency
+dependencies :: (Ord v) => EvaluatedDoc v -> Set LD.LabeledDependency
 dependencies = foldMap dependenciesSpecial
 
 -- | Determines all dependencies of a special form
-dependenciesSpecial :: forall v. Ord v => EvaluatedSpecialForm v -> Set LD.LabeledDependency
+dependenciesSpecial :: forall v. (Ord v) => EvaluatedSpecialForm v -> Set LD.LabeledDependency
 dependenciesSpecial = \case
   ESource srcs -> srcDeps srcs
   EFoldedSource srcs -> srcDeps srcs
@@ -475,6 +488,8 @@ dependenciesSpecial = \case
   EEmbedInline trm -> Term.labeledDependencies trm
   EVideo {} -> mempty
   EFrontMatter {} -> mempty
+  ELaTeXInline {} -> mempty
+  ESvg {} -> mempty
   ERenderError (InvalidTerm trm) -> Term.labeledDependencies trm
   where
     sigtypDeps :: [(Referent, Type v a)] -> Set LD.LabeledDependency

@@ -103,7 +103,7 @@ compareSuffix (Name _ ss0) =
 -- /Precondition/: the name is relative
 --
 -- /O(n)/, where /n/ is the number of segments.
-cons :: HasCallStack => NameSegment -> Name -> Name
+cons :: (HasCallStack) => NameSegment -> Name -> Name
 cons x name =
   case name of
     Name Absolute _ ->
@@ -188,7 +188,7 @@ isPrefixOf :: Name -> Name -> Bool
 isPrefixOf (Name p0 ss0) (Name p1 ss1) =
   p0 == p1 && List.isPrefixOf (reverse (toList ss0)) (reverse (toList ss1))
 
-joinDot :: HasCallStack => Name -> Name -> Name
+joinDot :: (HasCallStack) => Name -> Name -> Name
 joinDot n1@(Name p0 ss0) n2@(Name p1 ss1) =
   case p1 of
     Relative -> Name p0 (ss1 <> ss0)
@@ -352,7 +352,7 @@ sortNames toText =
 -- @
 --
 -- /Precondition/: the name is relative.
-splits :: HasCallStack => Name -> [([NameSegment], Name)]
+splits :: (HasCallStack) => Name -> [([NameSegment], Name)]
 splits (Name p ss0) =
   ss0
     & List.NonEmpty.toList
@@ -364,7 +364,7 @@ splits (Name p ss0) =
     -- ([], a.b.c) : over (mapped . _1) (a.) (splits b.c)
     -- ([], a.b.c) : over (mapped . _1) (a.) (([], b.c) : over (mapped . _1) (b.) (splits c))
     -- [([], a.b.c), ([a], b.c), ([a.b], c)]
-    splits0 :: HasCallStack => [a] -> [([a], NonEmpty a)]
+    splits0 :: (HasCallStack) => [a] -> [([a], NonEmpty a)]
     splits0 = \case
       [] -> []
       [x] -> [([], x :| [])]
@@ -425,7 +425,7 @@ suffixFrom (Name p0 ss0) (Name _ ss1) = do
     -- that match.
     --
     -- align [a,b] [x,a,b,y] = Just [x,a,b]
-    align :: forall a. Eq a => [a] -> [a] -> Maybe [a]
+    align :: forall a. (Eq a) => [a] -> [a] -> Maybe [a]
     align xs =
       go id
       where
@@ -455,7 +455,7 @@ unqualified (Name _ (s :| _)) =
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on
 -- `Name.reverseSegments`.
-shortestUniqueSuffix :: forall r. Ord r => Name -> r -> R.Relation Name r -> Name
+shortestUniqueSuffix :: forall r. (Ord r) => Name -> r -> R.Relation Name r -> Name
 shortestUniqueSuffix fqn r rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))
   where

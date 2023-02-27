@@ -3,11 +3,13 @@ module Unison.Server.NameSearch.Sqlite where
 import Control.Lens
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import U.Codebase.HashTags (BranchHash)
 import qualified U.Codebase.Sqlite.NamedRef as NamedRef
 import qualified U.Codebase.Sqlite.Operations as Ops
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
@@ -20,10 +22,9 @@ import qualified Unison.Referent as Referent
 import Unison.Server.NameSearch (NameSearch (..), Search (..))
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Debug as Debug
 
-scopedNameSearch :: Path -> NameSearch Sqlite.Transaction
-scopedNameSearch path =
+scopedNameSearch :: BranchHash -> Path -> NameSearch Sqlite.Transaction
+scopedNameSearch rootHash path =
   NameSearch {typeSearch, termSearch}
   where
     typeSearch =
@@ -42,29 +43,29 @@ scopedNameSearch path =
         }
 
     pathText :: Text
-    pathText = (Path.toText path)
+    pathText = Path.toText path
     lookupNamesForTypes :: Reference -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
     lookupNamesForTypes ref = track "lookupNamesForTypes" do
-      names <- Ops.typeNamesWithinNamespace pathText (Cv.reference1to2 ref)
+      names <- Ops.typeNamesWithinNamespace rootHash pathText (Cv.reference1to2 ref)
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Reference.toShortHash ref))
         & Set.fromList
         & pure
     lookupNamesForTerms :: Referent -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
     lookupNamesForTerms ref = track "lookupNamesForTerms" do
-      names <- Ops.termNamesWithinNamespace pathText (Cv.referent1to2 ref)
+      names <- Ops.termNamesWithinNamespace rootHash pathText (Cv.referent1to2 ref)
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Referent.toShortHash ref))
         & Set.fromList
         & pure
     lookupRelativeHQRefsForTypes :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
-    lookupRelativeHQRefsForTypes hqName =  track "lookupRelativeHQRefsForTypes" do
+    lookupRelativeHQRefsForTypes hqName = track "lookupRelativeHQRefsForTypes" do
       namedRefs <- case hqName of
         HQ'.NameOnly name -> do
-          Ops.typeNamesBySuffix pathText (coerce $ Name.reverseSegments name)
+          Ops.typeNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
         HQ'.HashQualified name sh -> do
-          let sh2 = (either (error . Text.unpack) id $ Cv.shorthash1to2 sh)
-          Ops.typeNamesByShortHash pathText sh2 (Just . coerce $ Name.reverseSegments name)
+          let sh2 = either (error . Text.unpack) id $ Cv.shorthash1to2 sh
+          Ops.typeNamesByShortHash rootHash pathText sh2 (Just . coerce $ Name.reverseSegments name)
       namedRefs
         & fmap (Cv.reference2to1 . NamedRef.ref)
         & Set.fromList
@@ -73,10 +74,10 @@ scopedNameSearch path =
     lookupRelativeHQRefsForTerms hqName = track "lookupRelativeHQRefsForTerms" do
       namedRefs <- case hqName of
         HQ'.NameOnly name -> do
-          Ops.termNamesBySuffix pathText (coerce $ Name.reverseSegments name)
+          Ops.termNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
         HQ'.HashQualified name sh -> do
-          let sh2 = (either (error . Text.unpack) id $ Cv.shorthash1to2 sh)
-          Ops.termNamesByShortHash pathText sh2 (Just . coerce $ Name.reverseSegments name)
+          let sh2 = either (error . Text.unpack) id $ Cv.shorthash1to2 sh
+          Ops.termNamesByShortHash rootHash pathText sh2 (Just . coerce $ Name.reverseSegments name)
       namedRefs
         & fmap
           ( \(NamedRef.ref -> (ref, mayCT)) ->

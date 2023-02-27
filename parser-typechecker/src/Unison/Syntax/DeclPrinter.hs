@@ -38,7 +38,7 @@ import qualified Unison.Var as Var
 type SyntaxText = S.SyntaxText' Reference
 
 prettyDecl ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnvDecl ->
   Reference ->
   HQ.HashQualified Name ->
@@ -49,7 +49,7 @@ prettyDecl ppe r hq d = case d of
   Right dd -> prettyDataDecl ppe r hq dd
 
 prettyEffectDecl ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   Reference ->
   HQ.HashQualified Name ->
@@ -58,7 +58,7 @@ prettyEffectDecl ::
 prettyEffectDecl ppe r name = prettyGADT ppe CT.Effect r name . toDataDecl
 
 prettyGADT ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   CT.ConstructorType ->
   Reference ->
@@ -75,7 +75,7 @@ prettyGADT env ctorType r name dd =
     constructor (n, (_, _, t)) =
       prettyPattern env ctorType name (ConstructorReference r n)
         <> fmt S.TypeAscriptionColon " :"
-        `P.hang` TypePrinter.prettySyntax env t
+          `P.hang` TypePrinter.prettySyntax env t
     header = prettyEffectHeader name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
 
 prettyPattern ::
@@ -97,7 +97,7 @@ prettyPattern env ctorType namespace ref =
     conRef = Referent.Con ref ctorType
 
 prettyDataDecl ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnvDecl ->
   Reference ->
   HQ.HashQualified Name ->
@@ -146,7 +146,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
 -- the expected record naming convention.
 fieldNames ::
   forall v a.
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   Reference ->
   HQ.HashQualified Name ->
@@ -205,7 +205,7 @@ prettyModifier (DD.Unique _uid) =
   fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
 
 prettyDataHeader ::
-  Var v => HQ.HashQualified Name -> DD.DataDeclaration v a -> Pretty SyntaxText
+  (Var v) => HQ.HashQualified Name -> DD.DataDeclaration v a -> Pretty SyntaxText
 prettyDataHeader name dd =
   P.sepNonEmpty
     " "
@@ -216,7 +216,7 @@ prettyDataHeader name dd =
     ]
 
 prettyEffectHeader ::
-  Var v =>
+  (Var v) =>
   HQ.HashQualified Name ->
   DD.EffectDeclaration v a ->
   Pretty SyntaxText
@@ -232,7 +232,7 @@ prettyEffectHeader name ed =
     ]
 
 prettyDeclHeader ::
-  Var v =>
+  (Var v) =>
   HQ.HashQualified Name ->
   Either (DD.EffectDeclaration v a) (DD.DataDeclaration v a) ->
   Pretty SyntaxText
@@ -240,7 +240,7 @@ prettyDeclHeader name (Left e) = prettyEffectHeader name e
 prettyDeclHeader name (Right d) = prettyDataHeader name d
 
 prettyDeclOrBuiltinHeader ::
-  Var v =>
+  (Var v) =>
   HQ.HashQualified Name ->
   DD.DeclOrBuiltin v a ->
   Pretty SyntaxText

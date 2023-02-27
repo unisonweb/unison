@@ -25,7 +25,7 @@ data BranchDiff = BranchDiff
   }
   deriving (Eq, Ord, Show)
 
-diff0 :: Monad m => Branch0 m -> Branch0 m -> m BranchDiff
+diff0 :: (Monad m) => Branch0 m -> Branch0 m -> m BranchDiff
 diff0 old new = do
   newEdits <- sequenceA $ snd <$> _edits new
   oldEdits <- sequenceA $ snd <$> _edits old

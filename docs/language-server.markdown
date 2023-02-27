@@ -20,6 +20,19 @@ Currently the only supported configuration is to connect to the LSP via a specif
 
 By default the LSP is hosted at `127.0.0.1:5757`, but you can change the port using `UNISON_LSP_PORT=1234`.
 
+Note for Windows users: Due to an outstanding issue with GHC's IO manager on Windows, the LSP is **disabled by default** on Windows machines.
+Enabling the LSP on windows can cause UCM to hang on exit and may require the process to be killed by the operating system or via Ctrl-C.
+Note that this doesn't pose any risk of codebase corruption or cause any known issues, it's simply an annoyance.
+
+If you accept this annoyance, you can enable the LSP server on Windows by exporting the `UNISON_LSP_ENABLED=true` environment variable. 
+
+You can set this persistently in powershell using:
+
+```powershell
+[System.Environment]::SetEnvironmentVariable('UNISON_LSP_ENABLED','true')
+```
+
+See [this issue](https://github.com/unisonweb/unison/issues/3487) for more details.
 
 ### NeoVim
 
@@ -65,6 +78,26 @@ Note that you'll need to start UCM _before_ you try connecting to it in your edi
 ### VSCode
 
 Simply install the [Unison Language VSCode extension](https://marketplace.visualstudio.com/items?itemName=unison-lang.unison).
+
+### Helix Editor
+
+To `~/.config/helix/languages.toml` append this code:
+
+```toml
+[[language]]
+name = "unison"
+scope = "source.unison"
+injection-regex = "unison"
+file-types = ["u"]
+shebangs = []
+roots = []
+auto-format = false
+comment-token = "--"
+indent = { tab-width = 4, unit = "    " }
+language-server = { command = "ncat", args = ["localhost", "5757"] }
+```
+
+or follow the instructions for Unison in "[How to install the default language servers](https://github.com/helix-editor/helix/wiki/How-to-install-the-default-language-servers#unison)" wiki page.
 
 
 ### Other Editors

@@ -34,7 +34,7 @@ fromText t = case Text.breakOn "#" t of
   (name, "") -> Just $ HQ'.NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
   (name, hash) -> HQ'.HashQualified (Name.unsafeFromText name) <$> SH.fromText hash
 
-unsafeFromText :: HasCallStack => Text -> HQ'.HashQualified Name
+unsafeFromText :: (HasCallStack) => Text -> HQ'.HashQualified Name
 unsafeFromText txt = fromMaybe msg (fromText txt)
   where
     msg = error ("HashQualified.unsafeFromText " <> show txt)

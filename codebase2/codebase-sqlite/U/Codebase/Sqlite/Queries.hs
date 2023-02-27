@@ -22,6 +22,7 @@ module U.Codebase.Sqlite.Queries
     expectHash,
     expectHash32,
     expectBranchHash,
+    expectBranchHashId,
     loadHashIdByHash,
     expectHashIdByHash,
     saveCausalHash,
@@ -62,6 +63,7 @@ module U.Codebase.Sqlite.Queries
     loadNamespaceRoot,
     setNamespaceRoot,
     expectNamespaceRoot,
+    expectNamespaceRootBranchHashId,
 
     -- * namespace_statistics table
     saveNamespaceStats,
@@ -133,21 +135,23 @@ module U.Codebase.Sqlite.Queries
     causalHashIdByBase32Prefix,
 
     -- * Name Lookup
-    ensureNameLookupTables,
+    copyScopedNameLookup,
     dropNameLookupTables,
-    insertTermNames,
-    insertTypeNames,
-    removeTermNames,
-    removeTypeNames,
-    rootTermNamesByPath,
-    rootTypeNamesByPath,
-    getNamespaceDefinitionCount,
+    insertScopedTermNames,
+    insertScopedTypeNames,
+    removeScopedTermNames,
+    removeScopedTypeNames,
     termNamesWithinNamespace,
     typeNamesWithinNamespace,
+    termNamesForRefWithinNamespace,
+    typeNamesForRefWithinNamespace,
+    checkBranchHashNameLookupExists,
+    trackNewBranchHashNameLookup,
     termNamesBySuffix,
     termNamesByShortHash,
     typeNamesBySuffix,
     typeNamesByShortHash,
+    nameWithLongestMatchingSuffixForTerm,
 
     -- * Reflog
     appendReflog,
@@ -292,10 +296,14 @@ import Unison.Sqlite
 import qualified Unison.Util.Alternative as Alternative
 import qualified Unison.Util.Lens as Lens
 
+-- | A namespace rendered as a path, no leading '.'
+-- E.g. "base.data"
+type NamespaceText = Text
+
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 7
+currentSchemaVersion = 8
 
 createSchema :: Transaction ()
 createSchema = do
@@ -401,6 +409,9 @@ saveCausalHash = fmap CausalHashId . saveHashHash . unCausalHash
 
 saveBranchHash :: BranchHash -> Transaction BranchHashId
 saveBranchHash = fmap BranchHashId . saveHashHash . unBranchHash
+
+expectBranchHashId :: BranchHash -> Transaction BranchHashId
+expectBranchHashId (BranchHash h) = BranchHashId <$> expectHashId (Hash32.fromHash h)
 
 loadCausalHashIdByCausalHash :: CausalHash -> Transaction (Maybe CausalHashId)
 loadCausalHashIdByCausalHash ch = runMaybeT do
@@ -1092,6 +1103,11 @@ loadCausalParentsByHash hash =
     |]
     (Only hash)
 
+expectNamespaceRootBranchHashId :: Transaction BranchHashId
+expectNamespaceRootBranchHashId = do
+  chId <- expectNamespaceRoot
+  expectCausalValueHashId chId
+
 expectNamespaceRoot :: Transaction CausalHashId
 expectNamespaceRoot =
   queryOneCol_ loadNamespaceRootSql
@@ -1594,103 +1610,98 @@ dropNameLookupTables = do
     DROP TABLE IF EXISTS type_name_lookup
   |]
 
--- | Ensure the name lookup tables exist.
-ensureNameLookupTables :: Transaction ()
-ensureNameLookupTables = do
-  execute_
-    [here|
-      CREATE TABLE IF NOT EXISTS term_name_lookup (
-        -- The name of the term: E.g. map.List.base
-        reversed_name TEXT NOT NULL,
-        -- The last name segment of the name. This is used when looking up names for
-        -- suffixification when building PPEs.
-        last_name_segment TEXT NOT NULL,
-        -- The namespace containing this definition, not reversed, with a trailing '.'
-        -- The trailing '.' simplifies GLOB queries, so that 'base.*' matches both things in
-        -- 'base' and 'base.List', but not 'base1', which allows us to avoid an OR in our where
-        -- clauses which in turn helps the sqlite query planner use indexes more effectively.
-        --
-        -- example value: 'base.List.'
-        namespace TEXT NOT NULL,
-        referent_builtin TEXT NULL,
-        referent_component_hash TEXT NULL,
-        referent_component_index INTEGER NULL,
-        referent_constructor_index INTEGER NULL,
-        referent_constructor_type INTEGER NULL,
-        PRIMARY KEY (referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, reversed_name)
-      )
-    |]
-  -- This index allows finding all names we need to consider within a given namespace for
-  -- suffixification of a name.
-  execute_
-    [here|
-      CREATE INDEX IF NOT EXISTS term_names_by_namespace_and_last_name_segment ON term_name_lookup(last_name_segment, namespace)
-    |]
-  -- This index allows us to find all names with a given ref within a specific namespace, with
-  -- an optional name suffix
-  execute_
-    [here|
-      CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, namespace, reversed_name)
-    |]
-  execute_
-    [here|
-      CREATE TABLE IF NOT EXISTS type_name_lookup (
-        -- The name of the term: E.g. List.base
-        reversed_name TEXT NOT NULL,
-        -- The last name segment of the name. This is used when looking up names for
-        -- suffixification when building PPEs.
-        last_name_segment TEXT NOT NULL,
-        -- The namespace containing this definition, not reversed, with a trailing '.'
-        -- The trailing '.' simplifies GLOB queries, so that 'base.*' matches both things in
-        -- 'base' and 'base.List', but not 'base1', which allows us to avoid an OR in our where
-        -- clauses which in turn helps the sqlite query planner use indexes more effectively.
-        --
-        -- example value: 'base.List.'
-        namespace TEXT NOT NULL,
-        reference_builtin TEXT NULL,
-        reference_component_hash INTEGER NULL,
-        reference_component_index INTEGER NULL,
-        PRIMARY KEY (reference_builtin, reference_component_hash, reference_component_index, reversed_name)
-      );
-    |]
+-- | Copies existing name lookup rows but replaces their branch hash id;
+-- This is a low-level operation used as part of deriving a new name lookup index
+-- from an existing one as performantly as possible.
+copyScopedNameLookup :: BranchHashId -> BranchHashId -> Transaction ()
+copyScopedNameLookup fromBHId toBHId = do
+  execute termsCopySql (toBHId, fromBHId)
+  execute typesCopySql (toBHId, fromBHId)
+  where
+    termsCopySql =
+      [here|
+        INSERT INTO scoped_term_name_lookup(root_branch_hash_id, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
+        SELECT ?, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = ?
+      |]
+    typesCopySql =
+      [here|
+        INSERT INTO scoped_type_name_lookup(root_branch_hash_id, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index)
+        SELECT ?, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index
+        FROM scoped_type_name_lookup
+        WHERE root_branch_hash_id = ?
+      |]
 
-  -- This index allows finding all names we need to consider within a given namespace for
-  -- suffixification of a name.
-  execute_
-    [here|
-      CREATE INDEX IF NOT EXISTS type_names_by_namespace_and_last_name_segment ON type_name_lookup(last_name_segment, namespace)
-    |]
+-- | Inserts a new record into the name_lookups table
+trackNewBranchHashNameLookup :: BranchHashId -> Transaction ()
+trackNewBranchHashNameLookup bhId = do
+  execute sql (Only bhId)
+  where
+    sql =
+      [here|
+        INSERT INTO name_lookups (root_branch_hash_id)
+        VALUES (?)
+      |]
 
-  -- This index allows us to find all names with a given ref within a specific namespace.
-  execute_
-    [here|
-      CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_component_hash, reference_component_index, namespace, reversed_name)
-    |]
+-- | Check if we've already got an index for the desired root branch hash.
+checkBranchHashNameLookupExists :: BranchHashId -> Transaction Bool
+checkBranchHashNameLookupExists hashId = do
+  queryOneCol sql (Only hashId)
+  where
+    sql =
+      [here|
+        SELECT EXISTS (
+          SELECT 1
+          FROM name_lookups
+          WHERE root_branch_hash_id = ?
+          LIMIT 1
+        )
+       |]
 
 -- | Insert the given set of term names into the name lookup table
-insertTermNames :: [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
-insertTermNames names = do
-  executeMany sql (NamedRef.toRowWithNamespaceAndLastSegment . fmap refToRow <$> names)
+insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
+insertScopedTermNames bhId names = do
+  executeMany sql (namedRefToRow <$> names)
   where
+    namedRefToRow :: NamedRef (S.Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Only BranchHashId :. [SQLData])
+    namedRefToRow namedRef =
+      namedRef
+        & fmap refToRow
+        & NamedRef.namedRefToScopedRow
+        & \nr -> (Only bhId :. nr)
     refToRow :: (Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))
     refToRow (ref, ct) = ref :. Only ct
     sql =
       [here|
-      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, namespace, last_name_segment)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO scoped_term_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+        |]
+
+-- | Insert the given set of type names into the name lookup table
+insertScopedTypeNames :: BranchHashId -> [NamedRef (Reference.TextReference)] -> Transaction ()
+insertScopedTypeNames bhId names =
+  executeMany sql ((Only bhId :.) . NamedRef.namedRefToScopedRow <$> names)
+  where
+    sql =
+      [here|
+      INSERT INTO scoped_type_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, reference_builtin, reference_component_hash, reference_component_index)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
 
 -- | Remove the given set of term names into the name lookup table
-removeTermNames :: [NamedRef Referent.TextReferent] -> Transaction ()
-removeTermNames names = do
-  executeMany sql names
+removeScopedTermNames :: BranchHashId -> [NamedRef Referent.TextReferent] -> Transaction ()
+removeScopedTermNames bhId names = do
+  executeMany sql ((Only bhId :.) <$> names)
   where
     sql =
       [here|
-      DELETE FROM term_name_lookup
+      DELETE FROM scoped_term_name_lookup
         WHERE
-        reversed_name IS ?
+        root_branch_hash_id IS ?
+        AND reversed_name IS ?
         AND referent_builtin IS ?
         AND referent_component_hash IS ?
         AND referent_component_index IS ?
@@ -1698,15 +1709,16 @@ removeTermNames names = do
         |]
 
 -- | Remove the given set of term names into the name lookup table
-removeTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
-removeTypeNames names = do
-  executeMany sql names
+removeScopedTypeNames :: BranchHashId -> [NamedRef (Reference.TextReference)] -> Transaction ()
+removeScopedTypeNames bhId names = do
+  executeMany sql ((Only bhId :.) <$> names)
   where
     sql =
       [here|
-      DELETE FROM type_name_lookup
+      DELETE FROM scoped_type_name_lookup
         WHERE
-        reversed_name IS ?
+        root_branch_hash_id IS ?
+        AND reversed_name IS ?
         AND reference_builtin IS ?
         AND reference_component_hash IS ?
         AND reference_component_index IS ?
@@ -1753,49 +1765,68 @@ likeEscape escapeChar pat =
       | c == escapeChar -> Text.pack [escapeChar, escapeChar]
       | otherwise -> Text.singleton c
 
--- | Gets the count of all definitions within the given namespace.
--- NOTE: This requires a working name lookup index.
-getNamespaceDefinitionCount :: Text -> Transaction Int
-getNamespaceDefinitionCount namespace = do
-  let namespaceGlob = globEscape namespace <> ".*"
-  queryOneCol sql (namespaceGlob, namespaceGlob)
-  where
-    sql =
-      [here|
-        SELECT COUNT(*) FROM (
-          SELECT 1 FROM term_name_lookup WHERE namespace GLOB ?
-          UNION ALL
-          SELECT 1 FROM type_name_lookup WHERE namespace GLOB ?
-        )
-      |]
-
--- | Insert the given set of type names into the name lookup table
-insertTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
-insertTypeNames names =
-  executeMany sql (NamedRef.toRowWithNamespaceAndLastSegment <$> names)
-  where
-    sql =
-      [here|
-      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index, namespace, last_name_segment)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT DO NOTHING
-        |]
-
 -- | Get the list of a term names in the root namespace according to the name lookup index
-rootTermNamesByPath :: Maybe Text -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
-rootTermNamesByPath mayNamespace = do
+termNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesWithinNamespace bhId mayNamespace = do
   let namespaceGlob = case mayNamespace of
-        -- TODO: we may wish to avoid matching on the wildcard glob entirely
         Nothing -> "*"
         Just namespace -> globEscape namespace <> ".*"
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (Only namespaceGlob)
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, namespaceGlob)
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
     sql =
       [here|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
-        WHERE namespace GLOB ?
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
+        WHERE
+          root_branch_hash_id = ?
+          AND namespace GLOB ?
+        |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- | Get the list of a type names in the root namespace according to the name lookup index
+typeNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef Reference.TextReference]
+typeNamesWithinNamespace bhId mayNamespace = do
+  let namespaceGlob = case mayNamespace of
+        Nothing -> "*"
+        Just namespace -> globEscape namespace <> ".*"
+  results :: [NamedRef Reference.TextReference] <- queryListRow sql (bhId, namespaceGlob)
+  pure results
+  where
+    sql =
+      [here|
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
+        WHERE
+          root_branch_hash_id = ?
+          AND namespace GLOB ?
+      |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of term names within a given namespace which have the given suffix.
+termNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesBySuffix bhId namespaceRoot suffix = do
+  Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
+  let namespaceGlob = case namespaceRoot of
+        "" -> "*"
+        exactNamespace -> globEscape exactNamespace <> ".*"
+  let lastSegment = NonEmpty.head suffix
+  -- TODO: Should probably add a trailing '.' to the reversed_name column
+  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> "*"
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, lastSegment, namespaceGlob, suffixGlob)
+  pure (fmap unRow <$> results)
+  where
+    unRow (a :. Only b) = (a, b)
+    sql =
+      [here|
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND last_name_segment IS ?
+              AND namespace GLOB ?
+              AND reversed_name GLOB ?
         |]
 
 -- | Thrown if we try to get the segments of an empty name, shouldn't ever happen since empty names
@@ -1804,20 +1835,16 @@ data EmptyName = EmptyName String
   deriving stock (Eq, Show)
   deriving anyclass (SqliteExceptionReason)
 
--- | A namespace rendered as a path, no leading '.'
--- E.g. "base.data"
-type NamespaceText = Text
-
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
 -- Get the list of a names for a given Referent.
-termNamesWithinNamespace :: NamespaceText -> Referent.TextReferent -> Transaction [ReversedSegments]
-termNamesWithinNamespace namespaceRoot ref = do
+termNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Referent.TextReferent -> Transaction [ReversedSegments]
+termNamesForRefWithinNamespace bhId namespaceRoot ref = do
   let namespaceGlob = case namespaceRoot of
         "" -> "*"
         exactNamespace -> globEscape exactNamespace <> ".*"
-  queryListColCheck sql (ref :. Only namespaceGlob) \reversedNames ->
+  queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob) \reversedNames ->
     for reversedNames \reversedName -> do
       case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
         Nothing -> Left (EmptyName $ "In termNamesWithinNamespace:" <> show (namespaceRoot, ref))
@@ -1825,8 +1852,9 @@ termNamesWithinNamespace namespaceRoot ref = do
   where
     sql =
       [here|
-        SELECT reversed_name FROM term_name_lookup
-        WHERE referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?
+        SELECT reversed_name FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?
               AND namespace GLOB ?
         |]
 
@@ -1834,12 +1862,12 @@ termNamesWithinNamespace namespaceRoot ref = do
 -- is only true on Share.
 --
 -- Get the list of a names for a given Referent.
-typeNamesWithinNamespace :: NamespaceText -> Reference.TextReference -> Transaction [ReversedSegments]
-typeNamesWithinNamespace namespaceRoot ref = do
-  let (namespaceGlob) = case namespaceRoot of
+typeNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Reference.TextReference -> Transaction [ReversedSegments]
+typeNamesForRefWithinNamespace bhId namespaceRoot ref = do
+  let namespaceGlob = case namespaceRoot of
         "" -> "*"
         exactNamespace -> globEscape exactNamespace <> ".*"
-  queryListColCheck sql (ref :. Only namespaceGlob) \reversedNames ->
+  queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob) \reversedNames ->
     for reversedNames \reversedName -> do
       case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
         Nothing -> Left (EmptyName $ "In typeNamesWithinNamespace:" <> show (namespaceRoot, ref))
@@ -1847,55 +1875,32 @@ typeNamesWithinNamespace namespaceRoot ref = do
   where
     sql =
       [here|
-        SELECT reversed_name FROM type_name_lookup
-        WHERE reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?
+        SELECT reversed_name FROM scoped_type_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?
               AND namespace GLOB ?
         |]
 
--- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
--- is only true on Share.
---
--- Get the list of term names within a given namespace which have the given suffix.
-termNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
-termNamesBySuffix namespaceRoot suffix = do
-  Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
-  let namespaceGlob = case namespaceRoot of
-        "" -> "*"
-        exactNamespace -> globEscape exactNamespace <> ".*"
-  let lastSegment = NonEmpty.head suffix
-  -- TODO: Should probably add a trailing '.' to the reversed_name column
-  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> "*"
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (lastSegment, namespaceGlob, suffixGlob)
-  pure (fmap unRow <$> results)
-  where
-    unRow (a :. Only b) = (a, b)
-    sql =
-      [here|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
-        WHERE last_name_segment IS ?
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
-        |]
-
-nameWithLongestMatchingSuffixForTerm :: NamespaceText -> ReversedSegments -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
-nameWithLongestMatchingSuffixForTerm namespaceRoot suffix = do
+nameWithLongestMatchingSuffixForTerm :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
+nameWithLongestMatchingSuffixForTerm bhId namespaceRoot suffix = do
   let lastNameSegment = NonEmpty.head suffix
   let suffixes =
         NonEmpty.tail (NonEmpty.inits suffix)
           & fmap ((<> "*") . globEscape . Text.intercalate ".")
-          & concatMap \partialSuffix -> [partialSuffix, lastNameSegment, globEscape namespaceRoot <> ".*"]
+          & concatMap \partialSuffix -> [SQLInteger $ fromIntegral bhId, SQLText partialSuffix, SQLText lastNameSegment, SQLText $ globEscape namespaceRoot <> ".*"]
   let selects =
         replicate (length suffixes) selectMatchingSuffixSql
           & Text.intercalate
             "\nUNION\n"
-  result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))) <- queryMaybeRow (Sql $ sql selects) (suffixes)
+  result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))) <- queryMaybeRow (Sql $ sql selects) suffixes
   pure (fmap unRow <$> result)
   where
     unRow (a :. Only b) = (a, b)
     selectMatchingSuffixSql =
       [here|
-      SELECT ? as reversed_suffix, reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
-      WHERE last_name_segment IS ? AND namespace GLOB ? AND reversed_name GLOB (reversed_suffix || '*')
+      SELECT ? as reversed_suffix, reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
+      WHERE root_branch_hash_id = ?
+            last_name_segment IS ? AND namespace GLOB ? AND reversed_name GLOB (reversed_suffix || '*')
       |]
     sql selects =
       Text.unlines
@@ -1916,8 +1921,8 @@ nameWithLongestMatchingSuffixForTerm namespaceRoot suffix = do
 --
 -- Get the list of term names within a given namespace which match the given ShortHash.
 -- Also filter for names with the given suffix if provided.
-termNamesByShortHash :: NamespaceText -> ShortHash -> Maybe ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
-termNamesByShortHash namespaceRoot shortHash maySuffix = do
+termNamesByShortHash :: BranchHashId -> NamespaceText -> ShortHash -> Maybe ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesByShortHash bhId namespaceRoot shortHash maySuffix = do
   let namespaceGlob = case namespaceRoot of
         "" -> "*"
         exactNamespace -> globEscape exactNamespace <> ".*"
@@ -1926,14 +1931,16 @@ termNamesByShortHash namespaceRoot shortHash maySuffix = do
         SH.ShortHash ref compIdx conIdx -> (Nothing, Just ref, Just compIdx, conIdx)
   let refGlob = maybe "*" (\r -> globEscape r <> "*") ref
   let suffixGlob = maybe "*" (\suff -> globEscape (Text.intercalate "." (toList suff)) <> "*") maySuffix
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (builtin, refGlob, compIdx, conIdx, namespaceGlob, suffixGlob)
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, builtin, refGlob, compIdx, conIdx, namespaceGlob, suffixGlob)
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
     sql =
       [here|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
-        WHERE (referent_builtin IS ?
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND (
+                    referent_builtin IS ?
                 AND referent_component_hash GLOB ?
                 AND referent_component_index IS ?
                 AND referent_constructor_index IS ?
@@ -1946,20 +1953,21 @@ termNamesByShortHash namespaceRoot shortHash maySuffix = do
 -- is only true on Share.
 --
 -- Get the list of type names within a given namespace which have the given suffix.
-typeNamesBySuffix :: NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
-typeNamesBySuffix namespaceRoot suffix = do
+typeNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+typeNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "typeNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = case namespaceRoot of
         "" -> "*"
         exactNamespace -> globEscape exactNamespace <> ".*"
   let lastNameSegment = NonEmpty.head suffix
   let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> "*"
-  queryListRow sql (lastNameSegment, namespaceGlob, suffixGlob)
+  queryListRow sql (bhId, lastNameSegment, namespaceGlob, suffixGlob)
   where
     sql =
       [here|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
-        WHERE last_name_segment IS ?
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
+        WHERE     root_branch_hash_id = ?
+              AND last_name_segment IS ?
               AND namespace GLOB ?
               AND reversed_name GLOB ?
         |]
@@ -1969,8 +1977,8 @@ typeNamesBySuffix namespaceRoot suffix = do
 --
 -- Get the list of type names within a given namespace which match the given ShortHash.
 -- Also filter for names with the given suffix if provided.
-typeNamesByShortHash :: NamespaceText -> ShortHash -> Maybe ReversedSegments -> Transaction [NamedRef Reference.TextReference]
-typeNamesByShortHash namespaceRoot shortHash maySuffix = do
+typeNamesByShortHash :: BranchHashId -> NamespaceText -> ShortHash -> Maybe ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+typeNamesByShortHash bhId namespaceRoot shortHash maySuffix = do
   let namespaceGlob = case namespaceRoot of
         "" -> "*"
         exactNamespace -> globEscape exactNamespace <> ".*"
@@ -1979,33 +1987,20 @@ typeNamesByShortHash namespaceRoot shortHash maySuffix = do
         SH.ShortHash ref compIdx _conIdx -> (Nothing, Just ref, Just compIdx)
   let refGlob = maybe "*" (\r -> globEscape r <> "*") ref
   let suffixGlob = maybe "*" (\suff -> globEscape (Text.intercalate "." (toList suff)) <> "*") maySuffix
-  queryListRow sql (builtin, refGlob, compIdx, namespaceGlob, suffixGlob)
+  queryListRow sql (bhId, builtin, refGlob, compIdx, namespaceGlob, suffixGlob)
   where
     sql =
       [here|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
-        WHERE (reference_builtin IS ?
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND (
+                    reference_builtin IS ?
                 AND reference_component_hash GLOB ?
                 AND reference_component_index IS ?
               )
               AND namespace GLOB ?
               AND reversed_name GLOB ?
-        |]
-
--- | Get the list of a type names in the root namespace according to the name lookup index
-rootTypeNamesByPath :: Maybe Text -> Transaction [NamedRef Reference.TextReference]
-rootTypeNamesByPath mayNamespace = do
-  let namespaceGlob = case mayNamespace of
-        Nothing -> "*"
-        Just namespace -> globEscape namespace <> ".*"
-  results :: [NamedRef Reference.TextReference] <- queryListRow sql (Only namespaceGlob)
-  pure results
-  where
-    sql =
-      [here|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
-        WHERE namespace GLOB ?
-        |]
+      |]
 
 -- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool
@@ -2355,7 +2350,7 @@ saveDeclComponent hh@HashHandle {toReferenceDecl, toReferenceDeclMentions} maybe
   pure oId
 
 -- | implementation detail of {s,w}2c*Term* & s2cDecl
-localIdsToLookups :: Monad m => (t -> m Text) -> (d -> m Hash) -> LocalIds' t d -> m (LocalTextId -> Text, LocalDefnId -> Hash)
+localIdsToLookups :: (Monad m) => (t -> m Text) -> (d -> m Hash) -> LocalIds' t d -> m (LocalTextId -> Text, LocalDefnId -> Hash)
 localIdsToLookups loadText loadHash localIds = do
   texts <- traverse loadText $ LocalIds.textLookup localIds
   hashes <- traverse loadHash $ LocalIds.defnLookup localIds
@@ -2399,7 +2394,7 @@ localIdsToTypeRefLookup localIds = do
 
 c2sDecl ::
   forall m t d.
-  Monad m =>
+  (Monad m) =>
   (Text -> m t) ->
   (Hash -> m d) ->
   C.Decl Symbol ->
@@ -2435,7 +2430,7 @@ c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
 
 -- | implementation detail of c2{s,w}Term
 --  The Type is optional, because we don't store them for watch expression results.
-c2xTerm :: forall m t d. Monad m => (Text -> m t) -> (Hash -> m d) -> C.Term Symbol -> Maybe (C.Term.Type Symbol) -> m (LocalIds' t d, S.Term.Term, Maybe (S.Term.Type))
+c2xTerm :: forall m t d. (Monad m) => (Text -> m t) -> (Hash -> m d) -> C.Term Symbol -> Maybe (C.Term.Type Symbol) -> m (LocalIds' t d, S.Term.Term, Maybe (S.Term.Type))
 c2xTerm saveText saveDefn tm tp =
   done =<< (runWriterT . flip evalStateT mempty) do
     sterm <- ABT.transformM go tm

@@ -67,7 +67,6 @@ module U.Codebase.Sqlite.Operations
     termsMentioningType,
 
     -- ** name lookup index
-    updateNameIndex,
     rootNamesByPath,
     NamesByPath (..),
     termNamesWithinNamespace,
@@ -76,6 +75,8 @@ module U.Codebase.Sqlite.Operations
     typeNamesBySuffix,
     termNamesByShortHash,
     typeNamesByShortHash,
+    checkBranchHashNameLookupExists,
+    buildNameLookupForBranchHash,
 
     -- * reflog
     getReflog,
@@ -552,7 +553,8 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
       Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) ->
       Transaction (Map NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
     doChildren = Map.bitraverse (fmap NameSegment . Q.expectText) \(boId, chId) ->
-      C.Causal <$> Q.expectCausalHash chId
+      C.Causal
+        <$> Q.expectCausalHash chId
         <*> expectValueHashByCausalHashId chId
         <*> headParents chId
         <*> pure (expectBranch boId)
@@ -580,7 +582,8 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           Db.CausalHashId ->
           Transaction (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction))
         loadCausal chId = do
-          C.Causal <$> Q.expectCausalHash chId
+          C.Causal
+            <$> Q.expectCausalHash chId
             <*> expectValueHashByCausalHashId chId
             <*> headParents chId
             <*> pure (loadValue chId)
@@ -740,7 +743,7 @@ expectBranchByBranchHashId bhId = do
 
 expectBranchByBranchHash :: BranchHash -> Transaction (C.Branch.Branch Transaction)
 expectBranchByBranchHash bh = do
-  bhId <- Q.saveBranchHash bh
+  bhId <- Q.expectBranchHashId bh
   expectBranchByBranchHashId bhId
 
 -- | Expect a branch value given its causal hash id.
@@ -779,7 +782,7 @@ expectDbBranch id =
                   (mergePatches patches patches')
                   (mergeChildren children children')
         mergeChildren ::
-          Ord ns =>
+          (Ord ns) =>
           Map ns (Db.BranchObjectId, Db.CausalHashId) ->
           Map ns S.BranchDiff.ChildOp ->
           Map ns (Db.BranchObjectId, Db.CausalHashId)
@@ -802,7 +805,7 @@ expectDbBranch id =
           S.BranchDiff.ChildAddReplace id -> id
           S.BranchDiff.ChildRemove -> error "diff tries to remove a nonexistent child"
         mergePatches ::
-          Ord ns =>
+          (Ord ns) =>
           Map ns Db.PatchObjectId ->
           Map ns S.BranchDiff.PatchOp ->
           Map ns Db.PatchObjectId
@@ -834,7 +837,7 @@ expectDbBranch id =
           S.Branch.Diff.RemoveDef -> error "diff tries to remove a nonexistent definition"
           S.Branch.Diff.AlterDefMetadata _md -> error "diff tries to change metadata for a nonexistent definition"
         mergeDefnOp ::
-          Ord r =>
+          (Ord r) =>
           Map r S.MetadataSet.DbMetadataSet ->
           Map r S.BranchDiff.DefinitionOp ->
           Map r S.MetadataSet.DbMetadataSet
@@ -880,7 +883,10 @@ saveDbBranchUnderHashId hh bhId@(Db.unBranchHashId -> hashId) stats branch = do
   let (localBranchIds, localBranch) = LocalizeObject.localizeBranch branch
   when debug $
     traceM $
-      "saveBranchObject\n\tid = " ++ show bhId ++ "\n\tli = " ++ show localBranchIds
+      "saveBranchObject\n\tid = "
+        ++ show bhId
+        ++ "\n\tli = "
+        ++ show localBranchIds
         ++ "\n\tlBranch = "
         ++ show localBranch
   let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full localBranchIds localBranch
@@ -1075,19 +1081,37 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
--- | Given lists of names to add and remove, update the index accordingly.
-updateNameIndex ::
+-- | Apply a set of name updates to an existing index.
+buildNameLookupForBranchHash ::
+  -- The existing name lookup index to copy before applying the diff.
+  -- If Nothing, run the diff against an empty index.
+  -- If Just, the name lookup must exist or an error will be thrown.
+  Maybe BranchHash ->
+  BranchHash ->
   -- |  (add terms, remove terms)
   ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
   -- |  (add types, remove types)
   ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
   Transaction ()
-updateNameIndex (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
-  Q.ensureNameLookupTables
-  Q.removeTermNames ((fmap c2sTextReferent <$> removedTermNames))
-  Q.removeTypeNames ((fmap c2sTextReference <$> removedTypeNames))
-  Q.insertTermNames (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
-  Q.insertTypeNames (fmap c2sTextReference <$> newTypeNames)
+buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
+  newBranchHashId <- Q.expectBranchHashId newBranchHash
+  Q.trackNewBranchHashNameLookup newBranchHashId
+  case mayExistingBranchIndex of
+    Nothing -> pure ()
+    Just existingBranchIndex -> do
+      unlessM (checkBranchHashNameLookupExists existingBranchIndex) $ error "buildNameLookupForBranchHash: existingBranchIndex was provided, but no index was found for that branch hash."
+      existingBranchHashId <- Q.expectBranchHashId existingBranchIndex
+      Q.copyScopedNameLookup existingBranchHashId newBranchHashId
+  Q.removeScopedTermNames newBranchHashId ((fmap c2sTextReferent <$> removedTermNames))
+  Q.removeScopedTypeNames newBranchHashId ((fmap c2sTextReference <$> removedTypeNames))
+  Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
+  Q.insertScopedTypeNames newBranchHashId (fmap c2sTextReference <$> newTypeNames)
+
+-- | Check whether we've already got an index for a given causal hash.
+checkBranchHashNameLookupExists :: BranchHash -> Transaction Bool
+checkBranchHashNameLookupExists bh = do
+  bhId <- Q.expectBranchHashId bh
+  Q.checkBranchHashNameLookupExists bhId
 
 data NamesByPath = NamesByPath
   { termNamesInPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
@@ -1095,13 +1119,16 @@ data NamesByPath = NamesByPath
   }
 
 -- | Get all the term and type names for the root namespace from the lookup table.
+-- Requires that an index for this branch hash already exists, which is currently
+-- only true on Share.
 rootNamesByPath ::
   -- | A relative namespace string, e.g. Just "base.List"
   Maybe Text ->
   Transaction NamesByPath
 rootNamesByPath path = do
-  termNamesInPath <- Q.rootTermNamesByPath path
-  typeNamesInPath <- Q.rootTypeNamesByPath path
+  bhId <- Q.expectNamespaceRootBranchHashId
+  termNamesInPath <- Q.termNamesWithinNamespace bhId path
+  typeNamesInPath <- Q.typeNamesWithinNamespace bhId path
   pure $
     NamesByPath
       { termNamesInPath = convertTerms <$> termNamesInPath,
@@ -1115,39 +1142,45 @@ rootNamesByPath path = do
 -- is only true on Share.
 --
 -- Get the list of a names for a given Referent.
-termNamesWithinNamespace :: PathText -> C.Referent -> Transaction [S.ReversedSegments]
-termNamesWithinNamespace namespace ref = do
-  Q.termNamesWithinNamespace namespace (c2sTextReferent ref)
+termNamesWithinNamespace :: BranchHash -> PathText -> C.Referent -> Transaction [S.ReversedSegments]
+termNamesWithinNamespace bh namespace ref = do
+  bhId <- Q.expectBranchHashId bh
+  Q.termNamesForRefWithinNamespace bhId namespace (c2sTextReferent ref)
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
 -- Get the list of a names for a given Reference.
-typeNamesWithinNamespace :: PathText -> C.Reference -> Transaction [S.ReversedSegments]
-typeNamesWithinNamespace namespace ref = do
-  Q.typeNamesWithinNamespace (namespace) (c2sTextReference ref)
+typeNamesWithinNamespace :: BranchHash -> PathText -> C.Reference -> Transaction [S.ReversedSegments]
+typeNamesWithinNamespace bh namespace ref = do
+  bhId <- Q.expectBranchHashId bh
+  Q.typeNamesForRefWithinNamespace bhId namespace (c2sTextReference ref)
 
-termNamesBySuffix :: PathText -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
-termNamesBySuffix namespace suffix = do
-  Q.termNamesBySuffix namespace suffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+termNamesBySuffix :: BranchHash -> PathText -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesBySuffix bh namespace suffix = do
+  bhId <- Q.expectBranchHashId bh
+  Q.termNamesBySuffix bhId namespace suffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
-typeNamesBySuffix :: PathText -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
-typeNamesBySuffix namespace suffix =
-  Q.typeNamesBySuffix namespace suffix <&> fmap (fmap s2cTextReference)
+typeNamesBySuffix :: BranchHash -> PathText -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeNamesBySuffix bh namespace suffix = do
+  bhId <- Q.expectBranchHashId bh
+  Q.typeNamesBySuffix bhId namespace suffix <&> fmap (fmap s2cTextReference)
 
-termNamesByShortHash :: PathText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
-termNamesByShortHash namespace shortHash maySuffix = do
-  Q.termNamesByShortHash namespace shortHash maySuffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+termNamesByShortHash :: BranchHash -> PathText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesByShortHash bh namespace shortHash maySuffix = do
+  bhId <- Q.expectBranchHashId bh
+  Q.termNamesByShortHash bhId namespace shortHash maySuffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
-typeNamesByShortHash :: PathText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
-typeNamesByShortHash namespace shortHash maySuffix =
-  Q.typeNamesByShortHash namespace shortHash maySuffix <&> fmap (fmap s2cTextReference)
+typeNamesByShortHash :: BranchHash -> PathText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeNamesByShortHash bh namespace shortHash maySuffix = do
+  bhId <- Q.expectBranchHashId bh
+  Q.typeNamesByShortHash bhId namespace shortHash maySuffix <&> fmap (fmap s2cTextReference)
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them
 -- then return them.
 expectNamespaceStatsByHash :: BranchHash -> Transaction C.Branch.NamespaceStats
 expectNamespaceStatsByHash bh = do
-  bhId <- Q.saveBranchHash bh
+  bhId <- Q.expectBranchHashId bh
   expectNamespaceStatsByHashId bhId
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them

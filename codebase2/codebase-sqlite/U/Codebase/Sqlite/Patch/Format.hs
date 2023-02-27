@@ -59,7 +59,7 @@ applyPatchDiffs =
     addRemove add del src =
       Map.unionWith (<>) add (Map.differenceWith remove src del)
 
-    remove :: Ord b => Set b -> Set b -> Maybe (Set b)
+    remove :: (Ord b) => Set b -> Set b -> Maybe (Set b)
     remove src del =
       let diff = Set.difference src del
        in if Set.null diff then Nothing else Just diff
