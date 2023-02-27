@@ -746,7 +746,7 @@ definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
       typeDeps =
         typeResults
           & ifoldMap \typeRef ddObj ->
-              foldMap (DD.labeledDeclDependenciesIncludingSelf typeRef) ddObj
+            foldMap (DD.labeledDeclDependenciesIncludingSelf typeRef) ddObj
    in termDeps <> typeDeps <> topLevelTerms <> topLevelTypes
 
 expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction CausalHash
@@ -1133,11 +1133,11 @@ scopedNamesForBranchHash codebase mbh path = do
   (parseNames, localNames) <- case mbh of
     Nothing
       | shouldUseNamesIndex -> do
-        lift $ Codebase.runTransaction codebase indexNames
+          lift $ Codebase.runTransaction codebase indexNames
       | otherwise -> do
-        rootBranch <- lift $ Codebase.getRootBranch codebase
-        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-        pure (parseNames, localNames)
+          rootBranch <- lift $ Codebase.getRootBranch codebase
+          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+          pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash
@@ -1390,7 +1390,7 @@ data BackendPPE
 --       PPESqlite.prettyPrintUsingNamesIndex cb hashLen perspective action
 --     UsePPED _names pped -> PPG.runWithPPE pped action
 
-getPPED :: MonadIO m => Set LabeledDependency -> BackendPPE -> m PPED.PrettyPrintEnvDecl
+getPPED :: (MonadIO m) => Set LabeledDependency -> BackendPPE -> m PPED.PrettyPrintEnvDecl
 getPPED deps = \case
   UseSQLiteIndex codebase rootHash perspective _nameSearch -> do
     liftIO $ Codebase.runTransaction codebase $ PPESqlite.ppedForReferences rootHash perspective deps

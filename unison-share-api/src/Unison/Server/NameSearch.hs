@@ -29,7 +29,7 @@ data NameSearch m = NameSearch
   }
 
 -- | Make a type search, given a short hash length and names to search in.
-makeTypeSearch :: Applicative m => Int -> NamesWithHistory -> Search m Reference
+makeTypeSearch :: (Applicative m) => Int -> NamesWithHistory -> Search m Reference
 makeTypeSearch len names =
   Search
     { lookupNames = \ref -> pure $ NamesWithHistory.typeName len ref names,
@@ -39,7 +39,7 @@ makeTypeSearch len names =
     }
 
 -- | Make a term search, given a short hash length and names to search in.
-makeTermSearch :: Applicative m => Int -> NamesWithHistory -> Search m Referent
+makeTermSearch :: (Applicative m) => Int -> NamesWithHistory -> Search m Referent
 makeTermSearch len names =
   Search
     { lookupNames = \ref -> pure $ NamesWithHistory.termName len ref names,
@@ -48,7 +48,7 @@ makeTermSearch len names =
       makeResult = \hqname r names -> pure $ SR.termResult hqname r names
     }
 
-makeNameSearch :: Applicative m => Int -> NamesWithHistory -> NameSearch m
+makeNameSearch :: (Applicative m) => Int -> NamesWithHistory -> NameSearch m
 makeNameSearch hashLength names =
   NameSearch
     { typeSearch = makeTypeSearch hashLength names,

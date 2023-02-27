@@ -424,22 +424,22 @@ evalDoc terms typeOf eval types tm =
                 acc' = case tm of
                   Term.Ref' r
                     | Set.notMember r seen ->
-                      (: acc) <$> case r of
-                        Reference.Builtin _ ->
-                          typeOf (Referent.Ref r) <&> \case
-                            Nothing -> EvaluatedSrcTerm (MissingBuiltinTypeSig r)
-                            Just ty -> EvaluatedSrcTerm (BuiltinTypeSig r ty)
-                        ref ->
-                          terms ref >>= \case
-                            Nothing -> pure . EvaluatedSrcTerm . MissingTerm $ ref
-                            Just tm -> do
-                              typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
-                              pure $ EvaluatedSrcTerm (FoundTerm ref typ tm)
+                        (: acc) <$> case r of
+                          Reference.Builtin _ ->
+                            typeOf (Referent.Ref r) <&> \case
+                              Nothing -> EvaluatedSrcTerm (MissingBuiltinTypeSig r)
+                              Just ty -> EvaluatedSrcTerm (BuiltinTypeSig r ty)
+                          ref ->
+                            terms ref >>= \case
+                              Nothing -> pure . EvaluatedSrcTerm . MissingTerm $ ref
+                              Just tm -> do
+                                typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
+                                pure $ EvaluatedSrcTerm (FoundTerm ref typ tm)
                   Term.RequestOrCtor' (view ConstructorReference.reference_ -> r) | Set.notMember r seen -> (: acc) <$> goType r
                   _ -> pure acc
             DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns]
               | Set.notMember ref seen ->
-                (Set.insert ref seen,) . (: acc) <$> goType ref
+                  (Set.insert ref seen,) . (: acc) <$> goType ref
             _ -> pure s1
       reverse . snd <$> foldM go mempty es
 

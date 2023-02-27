@@ -35,7 +35,7 @@ collectDeps group = getConst $ runAp go group
       LiftM _ -> Const mempty
       WithBiases _names group -> Const $ collectDeps group
 
-runWithPPE :: forall m a. Applicative m => PrettyPrintEnvDecl -> PrettyPrintGrouper m a -> m a
+runWithPPE :: forall m a. (Applicative m) => PrettyPrintEnvDecl -> PrettyPrintGrouper m a -> m a
 runWithPPE pped group = runAp go $ group
   where
     go :: forall x. PrettyPrintRequest m x -> m x
@@ -47,7 +47,7 @@ runWithPPE pped group = runAp go $ group
 withBiases :: [Name] -> PrettyPrintGrouper m a -> PrettyPrintGrouper m a
 withBiases names action = liftAp $ WithBiases names action
 
-liftM :: Monad m => m a -> PrettyPrintGrouper m a
+liftM :: (Monad m) => m a -> PrettyPrintGrouper m a
 liftM = liftAp . LiftM
 
 withPPED :: Set LabeledDependency -> (PrettyPrintEnvDecl -> m a) -> PrettyPrintGrouper m a
