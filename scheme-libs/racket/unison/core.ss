@@ -14,6 +14,7 @@
     decode-value
 
     universal-compare
+    universal-equal?
 
     fx1-
     list-head
@@ -44,7 +45,8 @@
             (string-copy! racket-string-copy!)
             (bytes bytevector))
     (racket exn)
-    (racket unsafe ops))
+    (racket unsafe ops)
+    (unison data))
 
   (define (fx1- n) (fx- n 1))
 
@@ -68,6 +70,22 @@
       [(equal? l r) 1]
       [(and (number? l) (number? r)) (if (< l r) 0 2)]
       [else (raise "universal-compare: unimplemented")]))
+
+  (define (universal-equal? l r)
+    (define (pointwise ll lr)
+      (let ([nl (null? ll)] [nr (null? lr)])
+        (cond
+          [(and nl nr) #t]
+          [(or nl nr) #f]
+          [else
+            (and (universal-equal? (car ll) (car lr))
+                 (pointwise (cdr ll) (cdr lr)))])))
+    (cond
+      [(eq? l r) 1]
+      [(and (data? l) (data? r))
+       (and
+         (eqv? (data-tag l) (data-tag r))
+         (pointwise (data-fields l) (data-fields r)))]))
 
   (define exception->string exn->string)
 

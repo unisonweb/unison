@@ -312,6 +312,8 @@
                ([pc (mk-pure #'scrut ps)]
                 [(ac ...) (map (mk-abil #'scrut) as)])
 
-               #'(cond [(pure? scrut) pc] ac ...))))])))
+               #'(cond
+                   [(pure? scrut) pc]
+                   [else (case (request-ability scrut) ac ...)]))))])))
 
   )
