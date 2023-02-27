@@ -976,7 +976,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
         C.Data -> "  data type"
         C.Effect -> "  ability",
       "\n",
-      "  reerence = ",
+      "  reference = ",
       showTypeRef env rf
     ]
   C.UnknownConstructor sort (ConstructorReference rf i) _decl ->

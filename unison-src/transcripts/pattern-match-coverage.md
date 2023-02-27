@@ -9,7 +9,7 @@ unique type T = A | B | C
 
 test : T -> ()
 test = cases
-  A -> 0
+  A -> ()
 ```
 
 redundant matches are reported
@@ -18,10 +18,10 @@ unique type T = A | B | C
 
 test : T -> ()
 test = cases
-  A -> 0
-  B -> 0
-  C -> 0
-  _ -> 0
+  A -> ()
+  B -> ()
+  C -> ()
+  _ -> ()
 ```
 
 patterns that would imply supplying an uninhabited type are not expected
