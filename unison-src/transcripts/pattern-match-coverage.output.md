@@ -5,7 +5,7 @@ unique type T = A | B | C
 
 test : T -> ()
 test = cases
-  A -> 0
+  A -> ()
 ```
 
 ```ucm
@@ -13,7 +13,7 @@ test = cases
   Pattern match is non-exhaustive
   In the match:
         4 | test = cases
-        5 |   A -> 0
+        5 |   A -> ()
     
   
   Patterns not matched:
@@ -28,17 +28,17 @@ unique type T = A | B | C
 
 test : T -> ()
 test = cases
-  A -> 0
-  B -> 0
-  C -> 0
-  _ -> 0
+  A -> ()
+  B -> ()
+  C -> ()
+  _ -> ()
 ```
 
 ```ucm
 
   Pattern match is redundant
   In the match case:
-        8 |   _ -> 0
+        8 |   _ -> ()
     
 
 ```
