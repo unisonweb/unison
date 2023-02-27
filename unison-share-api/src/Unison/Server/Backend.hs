@@ -740,8 +740,8 @@ definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
           & foldOf
             ( folded
                 . beside
-                  (to Type.dependencies . to (Set.map LD.TypeReference))
-                  (to Term.dependencies . to (Set.map LD.TermReference))
+                  (to Type.labeledDependencies)
+                  (to Term.labeledDependencies)
             )
       typeDeps =
         typeResults
