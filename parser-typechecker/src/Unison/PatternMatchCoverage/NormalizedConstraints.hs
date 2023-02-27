@@ -51,7 +51,7 @@ data NormalizedConstraints vt v loc = NormalizedConstraints
 
 -- | Mark a variable as requiring a new test for inhabitation.
 markDirty ::
-  Ord v =>
+  (Ord v) =>
   v ->
   NormalizedConstraints vt v loc ->
   NormalizedConstraints vt v loc
@@ -61,7 +61,7 @@ markDirty k nc@NormalizedConstraints {dirtySet} =
 dom :: NormalizedConstraints vt v loc -> [v]
 dom NormalizedConstraints {constraintMap} = UFMap.keys constraintMap
 
-emptyNormalizedConstraints :: Ord v => NormalizedConstraints vt v loc
+emptyNormalizedConstraints :: (Ord v) => NormalizedConstraints vt v loc
 emptyNormalizedConstraints =
   NormalizedConstraints
     { constraintMap = UFMap.empty,
@@ -240,8 +240,11 @@ prettyNormalizedConstraints (NormalizedConstraints {constraintMap}) = sep " " ["
             IsNotEffectful -> []
             IsEffectful -> [Effectful kcanon]
        in sep " " $
-            pv kcanon :
-            fmap pv (Set.toList $ Set.delete kcanon ks) ++ [":", TypePrinter.pretty PPE.empty (vi_typ vi)] ++ ["|"] ++ [sep ", " $ fmap prettyConstraint (posCon ++ negCon ++ botCon)]
+            pv kcanon
+              : fmap pv (Set.toList $ Set.delete kcanon ks)
+              ++ [":", TypePrinter.pretty PPE.empty (vi_typ vi)]
+              ++ ["|"]
+              ++ [sep ", " $ fmap prettyConstraint (posCon ++ negCon ++ botCon)]
     pv = string . show
 
 prettyDnf :: (Var v, Var vt) => Set (NormalizedConstraints vt v loc) -> Pretty ColorText

@@ -12,7 +12,7 @@ data PmLit
   | Char Char
   deriving stock (Show, Eq, Ord)
 
-prettyPmLit :: IsString s => PmLit -> Pretty s
+prettyPmLit :: (IsString s) => PmLit -> Pretty s
 prettyPmLit =
   string . \case
     Int x -> show x

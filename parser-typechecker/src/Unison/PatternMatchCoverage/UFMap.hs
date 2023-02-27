@@ -43,7 +43,7 @@ data UFValue k v
 empty :: UFMap k v
 empty = UFMap Map.empty
 
-insert :: Ord k => k -> v -> UFMap k v -> UFMap k v
+insert :: (Ord k) => k -> v -> UFMap k v -> UFMap k v
 insert k !v m =
   alter k (Just v) (\_ s _ -> Canonical s v) m
 
@@ -129,7 +129,7 @@ alter k handleNothing handleJust map0 =
   runIdentity (alterF k (Identity handleNothing) (\k s v -> Identity (handleJust k s v)) map0)
 
 lookupCanon ::
-  Ord k =>
+  (Ord k) =>
   k ->
   UFMap k v ->
   Maybe (k, Int, v, UFMap k v)
@@ -206,7 +206,7 @@ union k0 k1 mapinit mergeValues = toMaybe do
           KeyNotFound _k -> Nothing
           MergeFailed _v0 _v1 -> Nothing
 
-toClasses :: forall k v. Ord k => UFMap k v -> [(k, Set k, v)]
+toClasses :: forall k v. (Ord k) => UFMap k v -> [(k, Set k, v)]
 toClasses m0 =
   let cmFinal :: Map k (k, Set k, v)
       (_mfinal, cmFinal) = foldl' phi (m0, Map.empty) keys

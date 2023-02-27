@@ -48,5 +48,5 @@ prettyConstraint = \case
   Eq v0 v1 -> sep " " [pv v0, "=", pv v1]
   where
     pv = string . show
-    pc :: forall a. Show a => a -> Pretty ColorText
+    pc :: forall a. (Show a) => a -> Pretty ColorText
     pc = string . show

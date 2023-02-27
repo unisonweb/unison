@@ -16,7 +16,7 @@ import qualified Unison.Type as Type
 
 desugarMatch ::
   forall loc vt v m.
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   -- | loc of match
   loc ->
   Type vt loc ->
@@ -44,7 +44,7 @@ desugarMatch loc0 scrutineeType v0 cs0 =
 
 desugarPattern ::
   forall v vt loc m.
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   Type vt loc ->
   v ->
   Pattern loc ->
@@ -77,7 +77,7 @@ desugarPattern typ v0 pat k vs = case pat of
 
 handleSequence ::
   forall v vt loc m.
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   Type vt loc ->
   v ->
   Pattern loc ->
@@ -92,7 +92,7 @@ handleSequence typ v pat k vs = do
 
 listToGrdTree ::
   forall v vt loc m.
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   Type vt loc ->
   Type vt loc ->
   v ->
@@ -200,5 +200,5 @@ normalizeList pat0 = case goCons pat0 of
       As _loc pat -> goSnoc pat nlp
       _ -> error "goSnoc: unexpected pattern"
 
-assignFreshPatternVars :: Pmc vt v loc m => [Pattern loc] -> m [(v, Pattern loc)]
+assignFreshPatternVars :: (Pmc vt v loc m) => [Pattern loc] -> m [(v, Pattern loc)]
 assignFreshPatternVars pats = traverse (\p -> (,p) <$> fresh) pats

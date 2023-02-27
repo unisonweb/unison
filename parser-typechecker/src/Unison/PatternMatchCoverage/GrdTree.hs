@@ -29,11 +29,11 @@ prettyGrdTree prettyNode prettyLeaf = cata phi
       [] -> []
       x : [] -> [sep " " ["──", x]]
       x0 : x1 : xs ->
-        sep " " ["┬─", x0] :
-        let go y0 = \case
-              [] -> [sep " " ["└─", y0]]
-              y1 : ys -> "├─ " <> y0 : go y1 ys
-         in [indent "  " (sep "\n" (go x1 xs))]
+        sep " " ["┬─", x0]
+          : let go y0 = \case
+                  [] -> [sep " " ["└─", y0]]
+                  y1 : ys -> "├─ " <> y0 : go y1 ys
+             in [indent "  " (sep "\n" (go x1 xs))]
 
 pattern Leaf :: l -> GrdTree n l
 pattern Leaf x = Fix (LeafF x)

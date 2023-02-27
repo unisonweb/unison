@@ -46,7 +46,7 @@ import Unison.Var (Var)
 -- redundant.
 uncoverAnnotate ::
   forall vt v loc m l.
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   Set (NormalizedConstraints vt v loc) ->
   GrdTree (PmGrd vt v loc) l ->
   ( m
@@ -163,7 +163,7 @@ classifyAlg = \case
 -- one solution) into a pattern.
 expand ::
   forall vt v loc.
-  Var v =>
+  (Var v) =>
   v ->
   NormalizedConstraints vt v loc ->
   Pattern ()
@@ -235,7 +235,7 @@ instantiate fuel nc x c argTyps posConstraint = do
 -- expression with enough positive info to print pattern suggestions.
 expandSolution ::
   forall vt v loc m.
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   v ->
   NormalizedConstraints vt v loc ->
   m (Set (NormalizedConstraints vt v loc))
@@ -297,7 +297,7 @@ expandSolution x nc =
 
 withConstructors ::
   forall vt v loc r m.
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   m r ->
   VarInfo vt v loc ->
   ( forall x.
@@ -356,7 +356,7 @@ mkMatchingInterval = \case
 -- described in section 3.7.
 inhabited ::
   forall vt v loc m.
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   Fuel ->
   v ->
   NormalizedConstraints vt v loc ->
@@ -386,7 +386,7 @@ initFuel = 8
 -- | Check that all variables marked dirty are inhabited.
 ensureInhabited ::
   forall vt v loc m.
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   Fuel ->
   NormalizedConstraints vt v loc ->
   m (Maybe (NormalizedConstraints vt v loc))
@@ -436,7 +436,7 @@ addLiteral lit0 nabla0 = runMaybeT do
 
 insertVarInfo ::
   forall vt v loc.
-  Ord v =>
+  (Ord v) =>
   v ->
   VarInfo vt v loc ->
   NormalizedConstraints vt v loc ->
@@ -688,7 +688,7 @@ modifyConstructor v f nc = runIdentity $ modifyConstructorF v (\a b -> Identity 
 
 modifyConstructorC ::
   forall vt v loc m.
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   v ->
   ( (Maybe (ConstructorReference, [(v, Type vt loc)])) ->
     Set ConstructorReference ->
@@ -794,7 +794,7 @@ modifyVarConstraints v updateVarConstraint nc0 = do
 -- | Modify the positive and negative constraints of a constructor.
 posAndNegConstructor ::
   forall f vt v loc.
-  Functor f =>
+  (Functor f) =>
   ( (Maybe (ConstructorReference, [(v, Type vt loc)])) ->
     Set ConstructorReference ->
     f (Maybe (ConstructorReference, [(v, Type vt loc)]), Set ConstructorReference)
@@ -811,7 +811,7 @@ posAndNegConstructor f = \case
 -- an instance of Ord.
 posAndNegLiteral ::
   forall f vt v loc.
-  Functor f =>
+  (Functor f) =>
   ( forall a.
     (Ord a) =>
     Maybe a ->
@@ -841,7 +841,7 @@ posAndNegLiteral f lit = \case
 
 posAndNegList ::
   forall f vt v loc.
-  Functor f =>
+  (Functor f) =>
   ( Type vt loc ->
     Seq v ->
     Seq v ->
@@ -865,27 +865,27 @@ newtype C vt v loc m a = C
     via StateT (NormalizedConstraints vt v loc) (MaybeT m)
   deriving (MonadTrans) via ComposeT (StateT (NormalizedConstraints vt v loc)) MaybeT
 
-contradiction :: Applicative m => C vt v loc m a
+contradiction :: (Applicative m) => C vt v loc m a
 contradiction = C \_ -> pure Nothing
 
-update :: Pmc vt v loc m => v -> VarConstraints vt v loc -> C vt v loc m ()
+update :: (Pmc vt v loc m) => v -> VarConstraints vt v loc -> C vt v loc m ()
 update v vc = do
   nc0 <- get
   let (var, vi, nc1) = expectCanon v nc0
       nc2 = markDirty var ((insertVarInfo var vi {vi_con = vc}) nc1)
   put nc2
 
-equate :: Pmc vt v loc m => [(v, v)] -> C vt v loc m ()
+equate :: (Pmc vt v loc m) => [(v, v)] -> C vt v loc m ()
 equate vs = addConstraintsC (map (uncurry C.Eq) vs)
 
-lookupListElemTypeC :: Pmc vt v loc m => v -> C vt v loc m (Type vt loc)
+lookupListElemTypeC :: (Pmc vt v loc m) => v -> C vt v loc m (Type vt loc)
 lookupListElemTypeC listVar = do
   nc0 <- get
   let (_var, vi, nc1) = expectCanon listVar nc0
   put nc1
   pure $ getConst (posAndNegList (\elemTyp _ _ _ -> Const elemTyp) (vi_con vi))
 
-addConstraintsC :: Pmc vt v loc m => [Constraint vt v loc] -> C vt v loc m ()
+addConstraintsC :: (Pmc vt v loc m) => [Constraint vt v loc] -> C vt v loc m ()
 addConstraintsC cs = do
   nc <- get
   lift (addConstraints cs nc) >>= \case
@@ -893,7 +893,7 @@ addConstraintsC cs = do
     Just nc -> put nc
 
 declVarC ::
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   v ->
   Type vt loc ->
   (VarInfo vt v loc -> VarInfo vt v loc) ->
@@ -904,11 +904,11 @@ declVarC v vt vimod = do
   put nc1
 
 freshC ::
-  Pmc vt v loc m =>
+  (Pmc vt v loc m) =>
   C vt v loc m v
 freshC = lift fresh
 
-populateCons :: Pmc vt v loc m => v -> Seq v -> IntervalSet -> C vt v loc m ()
+populateCons :: (Pmc vt v loc m) => v -> Seq v -> IntervalSet -> C vt v loc m ()
 populateCons listVar pCons iset = do
   case IntervalSet.lookupMin iset of
     Just minLen
@@ -923,7 +923,7 @@ populateCons listVar pCons iset = do
     _ -> pure ()
 
 runC ::
-  Applicative m =>
+  (Applicative m) =>
   NormalizedConstraints vt v loc ->
   C vt v loc m a ->
   m (Maybe (a, NormalizedConstraints vt v loc))

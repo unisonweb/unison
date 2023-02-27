@@ -40,7 +40,7 @@ data Literal vt v loc
   | Let v (Term' vt v loc) (Type vt loc)
   deriving stock (Show)
 
-prettyLiteral :: Var v => Literal (TypeVar b v) v loc -> Pretty ColorText
+prettyLiteral :: (Var v) => Literal (TypeVar b v) v loc -> Pretty ColorText
 prettyLiteral = \case
   T -> "✓"
   F -> "⨉"
@@ -57,5 +57,5 @@ prettyLiteral = \case
   Let var expr typ -> sep " " ["let", pv var, "=", TermPrinter.pretty PPE.empty (lowerTerm expr), ":", TypePrinter.pretty PPE.empty typ]
   where
     pv = string . show
-    pc :: forall a. Show a => a -> Pretty ColorText
+    pc :: forall a. (Show a) => a -> Pretty ColorText
     pc = string . show

@@ -21,7 +21,7 @@ data EnumeratedConstructors vt v loc
   deriving stock (Show)
 
 traverseConstructors ::
-  Applicative f =>
+  (Applicative f) =>
   (v -> ConstructorReference -> Type vt loc -> f (v, ConstructorReference, Type vt loc)) ->
   EnumeratedConstructors vt v loc ->
   f (EnumeratedConstructors vt v loc)
