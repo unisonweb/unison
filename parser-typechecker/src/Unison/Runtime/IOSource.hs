@@ -978,7 +978,7 @@ type SynthResult =
 
 type EitherResult = Either String TFile
 
-showNotes :: Foldable f => String -> PrintError.Env -> f Note -> String
+showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
 showNotes source env =
   intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
 

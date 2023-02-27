@@ -3147,7 +3147,7 @@ instance (Monad f) => MonadState (Env v loc) (MT v loc f) where
   get = MT \_ _ env -> pure (env, env)
   put env = MT \_ _ _ -> pure ((), env)
 
-instance MonadFix f => MonadFix (MT v loc f) where
+instance (MonadFix f) => MonadFix (MT v loc f) where
   mfix f = MT \a b c ->
     let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) a b c)
      in res
