@@ -8,13 +8,18 @@ use builtin.io2.Tls newClient send handshake terminate
 
 frank: '{IO} ()
 frank = do 
-  (Right socket) = clientSocket.impl "example.com" "443"
+  socket = assertRight (clientSocket.impl "example.com" "443")
   config = ClientConfig.default "example.com" 0xs
-  (Right tls) = newClient.impl config socket
-  (Right ()) = handshake.impl tls
-  (Right ()) = send.impl tls 0xs
-  (Right ()) = terminate.impl tls
+  tls = assertRight (newClient.impl config socket)
+  () = assertRight (handshake.impl tls)
+  () = assertRight (send.impl tls 0xs)
+  () = assertRight (terminate.impl tls)
   ()
+
+assertRight : Either a b -> b
+assertRight = cases
+  Right x -> x
+  Left _ -> bug "expected a right but got a left"
 ```
 
 ```ucm
@@ -25,7 +30,8 @@ frank = do
   
     ⍟ These new definitions are ok to `add`:
     
-      frank : '{IO} ()
+      assertRight : Either a b -> b
+      frank       : '{IO} ()
 
 ```
 ```ucm
@@ -33,7 +39,8 @@ frank = do
 
   ⍟ I've added these definitions:
   
-    frank : '{IO} ()
+    assertRight : Either a b -> b
+    frank       : '{IO} ()
 
 .> run frank
 
