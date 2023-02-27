@@ -19,13 +19,21 @@
     handle
     identity
     name
-    record-case
+    data
+    data-case
+
     request
     request-case
+    sum
+    sum-case
     unison-force)
 
   (import (rnrs)
+          (for
+            (only (unison core) syntax->list)
+            expand)
           (unison core)
+          (unison data)
           (unison cont)
           (unison crypto))
 
@@ -147,13 +155,14 @@
          (prompt0-at p
            (let ([v (let-marks (list (quote r) ...) (cons p h)
                       (prompt0-at p e ...))])
-             (h (list 0 v)))))]))
+             (h (make-pure v)))))]))
 
   ; wrapper that more closely matches ability requests
   (define-syntax request
     (syntax-rules ()
       [(request r t . args)
-       ((cdr (ref-mark (quote r))) (list (quote r) t . args))]))
+       (let ([rq (make-request (quote r) t (list . args))])
+         ((cdr (ref-mark (quote r))) rq))]))
 
   ; See the explanation of `handle` for a more thorough understanding
   ; of why this is doing two control operations.
@@ -169,38 +178,6 @@
        (let ([p (car (ref-mark r))])
          (control0-at p k (control0-at p _k e ...)))]))
 
-  ; Wrapper around record-case that more closely matches request
-  ; matching. This gets around having to manage an intermediate
-  ; variable name during code emission that doesn't correspond to an
-  ; actual ANF name, which was causing variable numbering problems in
-  ; the code emitter. Hygienic macros are a much more convenient
-  ; mechanism for this.
-  (define-syntax request-case
-    (syntax-rules (pure)
-      [(request-case scrut
-         [pure (pv ...) pe ...]
-         [ability
-           [effect (ev ...) ee ...]
-           ...]
-         ...)
-
-       (record-case scrut
-         [0 (pv ...) pe ...]
-         [ability subscrut
-           (record-case subscrut
-             [effect (ev ...) ee ...]
-             ...)]
-         ...)]))
-
-  (define-record-type
-    data
-    (fields type-ref payload))
-
-  (define-syntax data-case
-    (syntax-rules ()
-      [(data-case scrut c ...)
-       (record-case (data-payload scrut) c ...)]))
-
   (define (identity x) x)
   
   ; forces something that is expected to be a thunk, defined with
@@ -208,5 +185,135 @@
   ; so just do nothing in that case.
   (define (unison-force x)
     (if (procedure? x) (x) x))
+
+  (define-syntax sum-case
+    (lambda (stx)
+      (define (make-case scrut-stx)
+        (lambda (cur)
+          (with-syntax ([scrut scrut-stx])
+            (syntax-case cur (else)
+              [(else e ...) #'(else e ...)]
+              [((t ...) () e ...) #'((t ...) e ...)]
+              [(t () e ...) #'((t) e ...)]
+              [((t ...) (v ...) e ...)
+               #'((t ...)
+                  (let-values
+                    ([(v ...) (apply values (sum-fields scrut))])
+                    e ...))]
+              [(t (v ...) e ...)
+               #'((t)
+                  (let-values
+                    ([(v ...) (apply values (sum-fields scrut))])
+                    e ...))]
+              [((t ...) v e ...)
+               (identifier? #'v)
+               #'((t ...)
+                  (let ([v (sum-fields scrut)])
+                    e ...))]
+              [(t v e ...)
+               (identifier? #'v)
+               #'((t)
+                  (let ([v (sum-fields scrut)])
+                    e ...))]))))
+
+      (syntax-case stx ()
+        [(sum-case scrut c ...)
+         (with-syntax
+           ([(tc ...)
+             (map (make-case #'scrut) (syntax->list #'(c ...)))])
+           #'(case (sum-tag scrut) tc ...))])))
+
+  (define-syntax data-case
+    (lambda (stx)
+      (define (make-case scrut-stx)
+        (lambda (cur)
+          (with-syntax ([scrut scrut-stx])
+            (syntax-case cur (else)
+              [(else e ...) #'(else e ...)]
+              [((t ...) () e ...) #'((t ...) e ...)]
+              [(t () e ...) #'((t) e ...)]
+              [((t ...) (v ...) e ...)
+               #'((t ...)
+                  (let-values
+                    ([(v ...) (apply values (data-fields scrut))])
+                    e ...))]
+              [(t (v ...) e ...)
+               #'((t)
+                  (let-values
+                    ([(v ...) (apply values (data-fields scrut))])
+                    e ...))]
+              [((t ...) v e ...)
+               (identifier? #'v)
+               #'((t ...)
+                  (let ([v (data-fields scrut)])
+                    e ...))]
+              [(t v e ...)
+               (identifier? #'v)
+               #'((t)
+                  (let ([v (data-fields scrut)])
+                    e ...))]))))
+      (syntax-case stx ()
+        [(data-case scrut c ...)
+         (with-syntax
+           ([(tc ...)
+             (map (make-case #'scrut) (syntax->list #'(c ...)))])
+           #'(case (data-tag scrut) tc ...))])))
+
+  (define-syntax request-case
+    (lambda (stx)
+      (define (pure-case? c)
+        (syntax-case c (pure)
+          [(pure . xs) #t]
+          [_ #f]))
+
+      (define (mk-pure scrut ps)
+        (if (null? ps)
+          #`(pure-val #,scrut)
+          (syntax-case (car ps) (pure)
+            [(pure (v) e ...)
+             #`(let ([v (pure-val #,scrut)])
+                 e ...)]
+            [(pure vs e ...)
+             (raise-syntax-error
+               #f
+               "pure cases receive exactly one variable"
+               (car ps)
+               #'vs)])))
+
+      (define (mk-req scrut-stx)
+        (lambda (stx)
+          (syntax-case stx ()
+            [(t vs e ...)
+             (with-syntax ([scrut scrut-stx])
+               #'((t) (let-values
+                        ([vs (apply values (request-fields scrut))])
+                        e ...)))])))
+
+      (define (mk-abil scrut-stx)
+        (lambda (stx)
+          (syntax-case stx ()
+            [(t sc ...)
+             (let ([sub (mk-req scrut-stx)])
+               (with-syntax
+                 ([(sc ...) (map sub (syntax->list #'(sc ...)))]
+                  [scrut scrut-stx])
+                 #'((t) (case (request-tag scrut) sc ...))))])))
+
+      (syntax-case stx ()
+        [(request-case scrut c ...)
+         (let-values
+           ([(ps as) (partition pure-case? (syntax->list #'(c ...)))])
+           (if (> 1 (length ps))
+             (raise-syntax-error
+               #f
+               "multiple pure cases in request-case"
+               stx)
+             (with-syntax
+               ([pc (mk-pure #'scrut ps)]
+                [(ac ...) (map (mk-abil #'scrut) as)])
+
+               #'(cond
+                   [(pure? scrut) pc]
+                   [else (case (request-ability scrut) ac ...)]))))])))
 
   )
