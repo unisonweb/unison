@@ -18,6 +18,7 @@ module Unison.DataDeclaration
     declConstructorReferents,
     declDependencies,
     labeledDeclDependencies,
+    labeledDeclDependenciesIncludingSelf,
     declFields,
     dependencies,
     labeledDependencies,
@@ -75,6 +76,21 @@ declDependencies = either (dependencies . toDataDecl) dependencies
 
 labeledDeclDependencies :: (Ord v) => Decl v a -> Set LD.LabeledDependency
 labeledDeclDependencies = Set.map LD.TypeReference . declDependencies
+
+-- | Compute the dependencies of a data declaration,
+-- including the type itself and references for each of its constructors.
+labeledDeclDependenciesIncludingSelf :: (Ord v) => Reference.TypeReference -> Decl v a -> Set LD.LabeledDependency
+labeledDeclDependenciesIncludingSelf selfRef decl =
+  labeledDeclDependencies decl <> (Set.singleton $ LD.TypeReference selfRef) <> labeledConstructorRefs
+  where
+    labeledConstructorRefs :: Set LD.LabeledDependency
+    labeledConstructorRefs =
+      case selfRef of
+        Reference.Builtin _ -> mempty
+        Reference.DerivedId selfRefId ->
+          declConstructorReferents selfRefId decl
+            & fmap (LD.TermReferent . fmap Reference.DerivedId)
+            & Set.fromList
 
 constructorType :: Decl v a -> CT.ConstructorType
 constructorType = \case

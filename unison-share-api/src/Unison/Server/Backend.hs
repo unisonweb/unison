@@ -745,8 +745,8 @@ definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
             )
       typeDeps =
         typeResults
-          & foldOf
-            (folded . folded . to DD.declDependencies . to (Set.map LD.TypeReference))
+          & ifoldMap \typeRef ddObj ->
+              foldMap (DD.labeledDeclDependenciesIncludingSelf typeRef) ddObj
    in termDeps <> typeDeps <> topLevelTerms <> topLevelTypes
 
 expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction CausalHash
