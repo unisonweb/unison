@@ -1168,7 +1168,7 @@ loop e = do
             CompileSchemeI output main -> doCompileScheme output main
             ExecuteSchemeI main args -> doRunAsScheme main args
             GenSchemeLibsI -> doGenerateSchemeBoot True Nothing
-            FetchSchemeCompilerI -> doFetchCompiler
+            FetchSchemeCompilerI name -> doFetchCompiler name
             IOTestI main -> handleIOTest main
             -- UpdateBuiltinsI -> do
             --   stepAt updateBuiltins
@@ -1514,7 +1514,7 @@ inputDescription input =
           <> Text.unwords (fmap Text.pack args)
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
     GenSchemeLibsI -> pure "compile.native.genlibs"
-    FetchSchemeCompilerI -> pure "compile.native.fetch"
+    FetchSchemeCompilerI name -> pure ("compile.native.fetch" <> Text.pack name)
     PullRemoteBranchI orepo dest0 _syncMode pullMode _ -> do
       dest <- p' dest0
       let command =
@@ -2619,8 +2619,8 @@ compilerPath = Path.Path' {Path.unPath' = Left abs}
     rootPath = Path.Path {Path.toSeq = Seq.fromList segs}
     abs = Path.Absolute {Path.unabsolute = rootPath}
 
-doFetchCompiler :: Cli ()
-doFetchCompiler =
+doFetchCompiler :: String -> Cli ()
+doFetchCompiler username =
   inputDescription pullInput
     >>= doPullRemoteBranch
       repo
@@ -2633,7 +2633,7 @@ doFetchCompiler =
     ns =
       ReadShareRemoteNamespace
         { server = RemoteRepo.DefaultCodeserver,
-          repo = ShareUserHandle "unison",
+          repo = ShareUserHandle (Text.pack username),
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }
@@ -2650,7 +2650,7 @@ doFetchCompiler =
 ensureCompilerExists :: Cli ()
 ensureCompilerExists =
   Cli.branchExistsAtPath' compilerPath
-    >>= flip unless doFetchCompiler
+    >>= flip unless (doFetchCompiler "unison")
 
 getCacheDir :: Cli String
 getCacheDir = liftIO $ getXdgDirectory XdgCache "unisonlanguage"
