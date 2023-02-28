@@ -618,6 +618,14 @@ termReferentsByShortHash codebase sh = do
             B.intrinsicTermReferences
   pure (fromBuiltins <> Set.mapMonotonic (over Referent.reference_ Reference.DerivedId) fromCodebase)
 
+-- | Resolves a shorthash into any possible matches.
+resolveShortHash :: Codebase m v a -> SH.ShortHash -> Sqlite.Transaction (Set LD.LabeledDependency)
+resolveShortHash codebase sh = do
+  terms <- Set.map LD.TermReferent <$> termReferentsByShortHash codebase sh
+  types <- Set.map LD.TypeReference <$> typeReferencesByShortHash sh
+  pure $ terms <> types
+
+
 -- currentPathNames :: Path -> Names
 -- currentPathNames = Branch.toNames . Branch.head . Branch.getAt
 
