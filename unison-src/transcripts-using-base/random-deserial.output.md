@@ -80,7 +80,7 @@ serialTests = do
 
 .> io.test serialTests
 
-  dumpData: bad closure: Foreign (Wrap ##Text "(42, 31, \"45\")")
+  dumpData: bad closure: Foreign (Wrap ##Text "(0, 0, \"0\")")
   expected type: ##Boolean
 
 ```
@@ -92,6 +92,6 @@ serialTests = do
 The transcript failed due to an error in the stanza above. The error is:
 
 
-  dumpData: bad closure: Foreign (Wrap ##Text "(42, 31, \"45\")")
+  dumpData: bad closure: Foreign (Wrap ##Text "(0, 0, \"0\")")
   expected type: ##Boolean
 
