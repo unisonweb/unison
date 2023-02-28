@@ -4,7 +4,19 @@ tests = Tests.main do
   !crypto.hash.tests
   !hmac.tests
   !concurrency.tests
+  !tcp.tests
   check "bug is caught" do isLeft (catchAll do bug ())
+
+tcp.tests = do
+  check "connects to example.com" do
+    socket = Socket.client (HostName "example.com") (Port "80")
+    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
+    response = Socket.receive socket
+    Socket.close socket
+    contains "HTTP/1.0 200 OK" (base.Text.fromUtf8 response)
+  check "times out" do
+    _ = Socket.client (HostName "example.com") (Port "1000")
+    false
 
 crypto.hash.tests = do
   hash alg = hashBytes alg (toUtf8 "")
