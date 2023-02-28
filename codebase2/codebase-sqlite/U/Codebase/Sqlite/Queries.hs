@@ -195,6 +195,10 @@ module U.Codebase.Sqlite.Queries
     setSchemaVersion,
     x2cTType,
     x2cTerm,
+
+    -- * Types
+    NamespaceText,
+    TextPathSegments,
   )
 where
 
@@ -299,6 +303,8 @@ import qualified Unison.Util.Lens as Lens
 -- | A namespace rendered as a path, no leading '.'
 -- E.g. "base.data"
 type NamespaceText = Text
+
+type TextPathSegments = [Text]
 
 -- * main squeeze
 
@@ -1733,7 +1739,7 @@ globEscape =
   -- We can't use Text.replace, since we'd end up replacing either "[" or "]" multiple
   -- times.
   Text.concatMap \case
-    '*' -> "*"
+    '*' -> "[*]"
     '?' -> "[?]"
     '[' -> "[[]"
     ']' -> "[]]"
@@ -1810,16 +1816,20 @@ typeNamesWithinNamespace bhId mayNamespace = do
 termNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
-  let namespaceGlob = case namespaceRoot of
-        "" -> "*"
-        exactNamespace -> globEscape exactNamespace <> ".*"
+  let namespaceGlob = globEscape namespaceRoot <> ".*"
   let lastSegment = NonEmpty.head suffix
-  -- TODO: Should probably add a trailing '.' to the reversed_name column
-  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> "*"
+  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
   results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, lastSegment, namespaceGlob, suffixGlob)
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
+    -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+    -- GLOB, but this helps improve query performance.
+    -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+    -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+    -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+    -- names which couldn't possibly match before we then manually filter the remaining names
+    -- using the `reversed_name` glob which can't be optimized with an index.
     sql =
       [here|
         SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
@@ -1838,12 +1848,10 @@ data EmptyName = EmptyName String
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
--- Get the list of a names for a given Referent.
+-- Get the list of term names for a given Referent within a given namespace.
 termNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Referent.TextReferent -> Transaction [ReversedSegments]
 termNamesForRefWithinNamespace bhId namespaceRoot ref = do
-  let namespaceGlob = case namespaceRoot of
-        "" -> "*"
-        exactNamespace -> globEscape exactNamespace <> ".*"
+  let namespaceGlob = globEscape namespaceRoot <> ".*"
   queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob) \reversedNames ->
     for reversedNames \reversedName -> do
       case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
@@ -1861,12 +1869,10 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref = do
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
--- Get the list of a names for a given Referent.
+-- Get the list of type names for a given Reference within a given namespace.
 typeNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Reference.TextReference -> Transaction [ReversedSegments]
 typeNamesForRefWithinNamespace bhId namespaceRoot ref = do
-  let namespaceGlob = case namespaceRoot of
-        "" -> "*"
-        exactNamespace -> globEscape exactNamespace <> ".*"
+  let namespaceGlob = globEscape namespaceRoot <> ".*"
   queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob) \reversedNames ->
     for reversedNames \reversedName -> do
       case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
@@ -1896,6 +1902,13 @@ nameWithLongestMatchingSuffixForTerm bhId namespaceRoot suffix = do
   pure (fmap unRow <$> result)
   where
     unRow (a :. Only b) = (a, b)
+    -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+    -- GLOB, but this helps improve query performance.
+    -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+    -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+    -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+    -- names which couldn't possibly match before we then manually filter the remaining names
+    -- using the `reversed_name` glob which can't be optimized with an index.
     selectMatchingSuffixSql =
       [here|
       SELECT ? as reversed_suffix, reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
@@ -1923,9 +1936,8 @@ nameWithLongestMatchingSuffixForTerm bhId namespaceRoot suffix = do
 -- Also filter for names with the given suffix if provided.
 termNamesByShortHash :: BranchHashId -> NamespaceText -> ShortHash -> Maybe ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termNamesByShortHash bhId namespaceRoot shortHash maySuffix = do
-  let namespaceGlob = case namespaceRoot of
-        "" -> "*"
-        exactNamespace -> globEscape exactNamespace <> ".*"
+  let namespaceGlob = globEscape namespaceRoot <> ".*"
+  -- Get shorthash's filters
   let (builtin, ref, compIdx, conIdx) = case shortHash of
         SH.Builtin builtin -> (Just builtin, Nothing, Nothing, Nothing)
         SH.ShortHash ref compIdx conIdx -> (Nothing, Just ref, Just compIdx, conIdx)
@@ -1956,14 +1968,19 @@ termNamesByShortHash bhId namespaceRoot shortHash maySuffix = do
 typeNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
 typeNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "typeNamesBySuffix" (namespaceRoot, suffix)
-  let namespaceGlob = case namespaceRoot of
-        "" -> "*"
-        exactNamespace -> globEscape exactNamespace <> ".*"
+  let namespaceGlob = globEscape namespaceRoot <> ".*"
   let lastNameSegment = NonEmpty.head suffix
-  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> "*"
+  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
   queryListRow sql (bhId, lastNameSegment, namespaceGlob, suffixGlob)
   where
     sql =
+      -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+      -- GLOB, but this helps improve query performance.
+      -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+      -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+      -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+      -- names which couldn't possibly match before we then manually filter the remaining names
+      -- using the `reversed_name` glob which can't be optimized with an index.
       [here|
         SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
         WHERE     root_branch_hash_id = ?
@@ -1979,9 +1996,7 @@ typeNamesBySuffix bhId namespaceRoot suffix = do
 -- Also filter for names with the given suffix if provided.
 typeNamesByShortHash :: BranchHashId -> NamespaceText -> ShortHash -> Maybe ReversedSegments -> Transaction [NamedRef Reference.TextReference]
 typeNamesByShortHash bhId namespaceRoot shortHash maySuffix = do
-  let namespaceGlob = case namespaceRoot of
-        "" -> "*"
-        exactNamespace -> globEscape exactNamespace <> ".*"
+  let namespaceGlob = globEscape namespaceRoot <> ".*"
   let (builtin, ref, compIdx) = case shortHash of
         SH.Builtin builtin -> (Just builtin, Nothing, Nothing)
         SH.ShortHash ref compIdx _conIdx -> (Nothing, Just ref, Just compIdx)

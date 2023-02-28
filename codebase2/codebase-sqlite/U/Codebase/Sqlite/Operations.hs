@@ -180,12 +180,6 @@ import Unison.Sqlite
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
 
--- FIXME should we move some Path type here?
-type PathSegments = [Text]
-
--- | A rendered relative path of the form: foo.bar.baz
-type PathText = Text
-
 -- * Error handling
 
 debug :: Bool
@@ -224,7 +218,7 @@ loadRootCausalHash =
     lift . Q.expectCausalHash =<< MaybeT Q.loadNamespaceRoot
 
 -- | Load the causal hash at the given path from the root.
-loadCausalHashAtPath :: PathSegments -> Transaction (Maybe CausalHash)
+loadCausalHashAtPath :: Q.TextPathSegments -> Transaction (Maybe CausalHash)
 loadCausalHashAtPath =
   let go :: Db.CausalHashId -> [Text] -> MaybeT Transaction CausalHash
       go hashId = \case
@@ -239,7 +233,7 @@ loadCausalHashAtPath =
         runMaybeT (go hashId path)
 
 -- | Expect the causal hash at the given path from the root.
-expectCausalHashAtPath :: PathSegments -> Transaction CausalHash
+expectCausalHashAtPath :: Q.TextPathSegments -> Transaction CausalHash
 expectCausalHashAtPath =
   let go :: Db.CausalHashId -> [Text] -> Transaction CausalHash
       go hashId = \case
@@ -1142,7 +1136,7 @@ rootNamesByPath path = do
 -- is only true on Share.
 --
 -- Get the list of a names for a given Referent.
-termNamesWithinNamespace :: BranchHash -> PathText -> C.Referent -> Transaction [S.ReversedSegments]
+termNamesWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Referent -> Transaction [S.ReversedSegments]
 termNamesWithinNamespace bh namespace ref = do
   bhId <- Q.expectBranchHashId bh
   Q.termNamesForRefWithinNamespace bhId namespace (c2sTextReferent ref)
@@ -1151,27 +1145,27 @@ termNamesWithinNamespace bh namespace ref = do
 -- is only true on Share.
 --
 -- Get the list of a names for a given Reference.
-typeNamesWithinNamespace :: BranchHash -> PathText -> C.Reference -> Transaction [S.ReversedSegments]
+typeNamesWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Reference -> Transaction [S.ReversedSegments]
 typeNamesWithinNamespace bh namespace ref = do
   bhId <- Q.expectBranchHashId bh
   Q.typeNamesForRefWithinNamespace bhId namespace (c2sTextReference ref)
 
-termNamesBySuffix :: BranchHash -> PathText -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
 termNamesBySuffix bh namespace suffix = do
   bhId <- Q.expectBranchHashId bh
   Q.termNamesBySuffix bhId namespace suffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
-typeNamesBySuffix :: BranchHash -> PathText -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
 typeNamesBySuffix bh namespace suffix = do
   bhId <- Q.expectBranchHashId bh
   Q.typeNamesBySuffix bhId namespace suffix <&> fmap (fmap s2cTextReference)
 
-termNamesByShortHash :: BranchHash -> PathText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesByShortHash :: BranchHash -> Q.NamespaceText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
 termNamesByShortHash bh namespace shortHash maySuffix = do
   bhId <- Q.expectBranchHashId bh
   Q.termNamesByShortHash bhId namespace shortHash maySuffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
-typeNamesByShortHash :: BranchHash -> PathText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeNamesByShortHash :: BranchHash -> Q.NamespaceText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
 typeNamesByShortHash bh namespace shortHash maySuffix = do
   bhId <- Q.expectBranchHashId bh
   Q.typeNamesByShortHash bhId namespace shortHash maySuffix <&> fmap (fmap s2cTextReference)
