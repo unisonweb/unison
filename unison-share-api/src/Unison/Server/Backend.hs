@@ -8,7 +8,65 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Server.Backend where
+module Unison.Server.Backend
+  ( -- * Types
+    BackendError (..),
+    Backend (..),
+    ShallowListEntry (..),
+    BackendEnv (..),
+    TypeEntry (..),
+    FoundRef (..),
+    NameScoping (..),
+    IncludeCycles (..),
+    DefinitionResults (..),
+
+    -- * Endpoints
+    prettyDefinitionsForHQName,
+    fuzzyFind,
+
+    -- * Utilities
+    basicSuffixifiedNames,
+    bestNameForTerm,
+    bestNameForType,
+    definitionsBySuffixes,
+    displayType,
+    docsInBranchToHtmlFiles,
+    expandShortCausalHash,
+    findShallowReadmeInBranchAndRender,
+    formatSuffixedType,
+    getCurrentParseNames,
+    getCurrentPrettyNames,
+    getShallowCausalAtPathFromRootHash,
+    getTermTag,
+    getTypeTag,
+    hoistBackend,
+    hqNameQuery,
+    loadReferentType,
+    loadSearchResults,
+    lsAtPath,
+    lsBranch,
+    mungeSyntaxText,
+    namesForBranch,
+    parseNamesForBranch,
+    prettyNamesForBranch,
+    resolveCausalHashV2,
+    resolveRootBranchHashV2,
+    scopedNamesForBranchHash,
+    termEntryDisplayName,
+    termEntryHQName,
+    termEntryToNamedTerm,
+    termEntryType,
+    termListEntry,
+    termReferentsByShortHash,
+    typeDeclHeader,
+    typeEntryDisplayName,
+    typeEntryHQName,
+    typeEntryToNamedType,
+    typeListEntry,
+    typeReferencesByShortHash,
+    typeToSyntaxHeader,
+  )
+where
 
 import Control.Error.Util (hush)
 import Control.Lens hiding ((??))
@@ -88,6 +146,7 @@ import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Server.Doc as Doc
 import qualified Unison.Server.Doc.AsHtml as DocHtml
 import Unison.Server.NameSearch (NameSearch (..), Search (..), applySearch, makeNameSearch)
+import Unison.Server.NameSearch.Sqlite (termReferentsByShortHash, typeReferencesByShortHash)
 import qualified Unison.Server.NameSearch.Sqlite as SqliteNameSearch
 import Unison.Server.QueryResult
 import qualified Unison.Server.SearchResult as SR
@@ -587,44 +646,6 @@ lsBranch codebase b0 = do
       ++ typeEntries
       ++ branchEntries
       ++ patchEntries
-
--- | Look up types in the codebase by short hash, and include builtins.
-typeReferencesByShortHash :: ShortHash -> Sqlite.Transaction (Set Reference)
-typeReferencesByShortHash sh = do
-  fromCodebase <- Codebase.typeReferencesByPrefix sh
-  let fromBuiltins =
-        Set.filter
-          (\r -> sh == Reference.toShortHash r)
-          B.intrinsicTypeReferences
-  pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
-
-termReferencesByShortHash :: ShortHash -> Sqlite.Transaction (Set Reference)
-termReferencesByShortHash sh = do
-  fromCodebase <- Codebase.termReferencesByPrefix sh
-  let fromBuiltins =
-        Set.filter
-          (\r -> sh == Reference.toShortHash r)
-          B.intrinsicTermReferences
-  pure (fromBuiltins <> Set.mapMonotonic Reference.DerivedId fromCodebase)
-
--- | Look up terms in the codebase by short hash, and include builtins.
-termReferentsByShortHash :: Codebase m v a -> ShortHash -> Sqlite.Transaction (Set Referent)
-termReferentsByShortHash codebase sh = do
-  fromCodebase <- Codebase.termReferentsByPrefix codebase sh
-  let fromBuiltins =
-        Set.map Referent.Ref $
-          Set.filter
-            (\r -> sh == Reference.toShortHash r)
-            B.intrinsicTermReferences
-  pure (fromBuiltins <> Set.mapMonotonic (over Referent.reference_ Reference.DerivedId) fromCodebase)
-
--- | Resolves a shorthash into any possible matches.
-resolveShortHash :: Codebase m v a -> SH.ShortHash -> Sqlite.Transaction (Set LD.LabeledDependency)
-resolveShortHash codebase sh = do
-  terms <- Set.map LD.TermReferent <$> termReferentsByShortHash codebase sh
-  types <- Set.map LD.TypeReference <$> typeReferencesByShortHash sh
-  pure $ terms <> types
-
 
 -- currentPathNames :: Path -> Names
 -- currentPathNames = Branch.toNames . Branch.head . Branch.getAt
@@ -1141,11 +1162,11 @@ scopedNamesForBranchHash codebase mbh path = do
   (parseNames, localNames) <- case mbh of
     Nothing
       | shouldUseNamesIndex -> do
-          lift $ Codebase.runTransaction codebase indexNames
+        lift $ Codebase.runTransaction codebase indexNames
       | otherwise -> do
-          rootBranch <- lift $ Codebase.getRootBranch codebase
-          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-          pure (parseNames, localNames)
+        rootBranch <- lift $ Codebase.getRootBranch codebase
+        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+        pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash
