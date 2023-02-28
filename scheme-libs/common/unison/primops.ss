@@ -214,7 +214,7 @@
   (define (unison-POp-ADDN m n) (fx+ m n))
   (define (unison-POp-ANDN m n) (fxand m n))
   (define unison-POp-BLDS
-    (lambda args-list (if (null? args-list) empty-vector-trie 'todo)))
+    (lambda args-list (fold-right (lambda (e l) (vector-trie-add-first l e)) empty-vector-trie args-list)))
   (define (unison-POp-CATS l r) (append l r))
   (define (unison-POp-CATT l r) (istring-append l r))
   (define (unison-POp-CMPU l r) (universal-compare l r))
