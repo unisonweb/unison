@@ -167,7 +167,6 @@
                 (raise (list r t . args))
                 ((cdr current-mark) rq))))]))
 
-
   ; See the explanation of `handle` for a more thorough understanding
   ; of why this is doing two control operations.
   ;
