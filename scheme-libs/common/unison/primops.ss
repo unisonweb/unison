@@ -103,6 +103,7 @@
     unison-POp-DIVN
     unison-POp-DRPB
     unison-POp-DRPS
+    unison-POp-DRPT
     unison-POp-EQLN
     unison-POp-EQLT
     unison-POp-EQLU
