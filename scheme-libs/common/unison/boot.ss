@@ -32,6 +32,7 @@
           (for
             (only (unison core) syntax->list)
             expand)
+          (srfi :28) ; gives us "format"
           (unison core)
           (unison data)
           (unison cont)
@@ -166,8 +167,7 @@
             (if (equal? #f current-mark)
                 (raise (condition
                             (make-error)
-                            (make-message-condition "Unhandled top-level effect!")
-                            (make-message-condition (list r t . args))))
+                            (make-message-condition (format "Unhandled top-level effect! ~a" (list r t . args)))))
                 ((cdr current-mark) rq))))]))
 
   ; See the explanation of `handle` for a more thorough understanding
