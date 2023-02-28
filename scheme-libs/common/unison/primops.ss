@@ -162,6 +162,10 @@
     unison-FOp-IO.closeSocket.impl.v3
     unison-FOp-IO.socketReceive.impl.v3
     unison-FOp-IO.socketSend.impl.v3
+    unison-FOp-IO.socketPort.impl.v3
+    unison-FOp-IO.serverSocket.impl.v3
+    unison-FOp-IO.socketAccept.impl.v3
+    unison-FOp-IO.listen.impl.v3
     )
 
   (import (rnrs)
@@ -241,6 +245,8 @@
   (define (unison-POp-TAKT n t) (istring-take n t))
   (define (unison-POp-TRCE s x)
     (display s)
+    (display "\n")
+    (display x)
     (display "\n")
     (display (describe-value x))
     (display "\n"))

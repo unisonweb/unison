@@ -14,13 +14,10 @@ tcp.tests = do
     response = Socket.receive socket
     Socket.close socket
     contains "HTTP/1.0 200 OK" (base.Text.fromUtf8 response)
--- TODO: Enable this when ability handlers are a thing?
--- right now, this is somehow dropping the failure on the floor 🤔
---   check "rejects invalid port" do
---     handle '(Socket.client (HostName "example.com") (Port "what")) with cases
---         { a } -> false
---         {raise failure -> _} -> true
-
+  check "rejects invalid port" do
+    handle (Socket.client (HostName "example.com") (Port "what")) with cases
+        { a } -> false
+        {raise failure -> _} -> true
 
 crypto.hash.tests = do
   hash alg = hashBytes alg (toUtf8 "")
