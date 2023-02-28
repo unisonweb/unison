@@ -65,6 +65,13 @@ module Unison.Server.Backend
     typeListEntry,
     typeReferencesByShortHash,
     typeToSyntaxHeader,
+
+    -- * Unused, could remove?
+    resolveRootBranchHash,
+    shallowPPE,
+    isTestResultList,
+    toAllNames,
+    fixupNamesRelative,
   )
 where
 
