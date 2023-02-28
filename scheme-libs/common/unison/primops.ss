@@ -214,12 +214,13 @@
   (define (unison-POp-ADDN m n) (fx+ m n))
   (define (unison-POp-ANDN m n) (fxand m n))
   (define unison-POp-BLDS
-    (lambda args-list (fold-right (lambda (e l) (vector-trie-add-first l e)) empty-vector-trie args-list)))
+    (lambda args-list
+      (fold-right (lambda (e l) (vector-trie-add-first l e)) empty-vector-trie args-list)))
   (define (unison-POp-CATS l r) (append l r))
   (define (unison-POp-CATT l r) (istring-append l r))
   (define (unison-POp-CMPU l r) (universal-compare l r))
   (define (unison-POp-COMN n) (fxnot n))
-  (define (unison-POp-CONS x xs) (cons x xs))
+  (define (unison-POp-CONS x xs) (vector-trie-add-first xs x))
   (define (unison-POp-DECI n) (fx1- n))
   (define (unison-POp-DIVN m n) (fxdiv m n))
   (define (unison-POp-DRPB n bs) (ibytevector-drop n bs))
