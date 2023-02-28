@@ -2549,10 +2549,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Just (Nothing, result)
+              Just (Nothing, result)
           _ -> Nothing
           where
             result = SR.termSearchResult names0 name ref
@@ -2568,10 +2568,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Just (Nothing, result)
+              Just (Nothing, result)
           _ -> Nothing
           where
             result = SR.typeSearchResult names0 name ref
@@ -2705,9 +2705,9 @@ typecheckAndEval ppe tm = do
     -- Type checking succeeded
     Result.Result _ (Just ty)
       | Typechecker.fitsScheme ty mty ->
-          () <$ evalUnisonTerm False ppe False tm
+        () <$ evalUnisonTerm False ppe False tm
       | otherwise ->
-          Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
+        Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
     Result.Result notes Nothing -> do
       currentPath <- Cli.getCurrentPath
       let tes = [err | Result.TypeError err <- toList notes]
