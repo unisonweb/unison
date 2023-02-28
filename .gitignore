@@ -13,4 +13,8 @@ dist-newstyle
 # GHC
 *.hie
 *.prof
+
+# Mac developers
+**/.DS_Store
+
 /libb2.dylib

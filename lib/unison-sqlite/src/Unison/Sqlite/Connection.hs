@@ -523,7 +523,7 @@ vacuum conn =
     Right () -> pure True
 
 -- | @VACUUM INTO@
-vacuumInto :: Connection -> Text -> IO ()
+vacuumInto :: Connection -> FilePath -> IO ()
 vacuumInto conn file =
   execute conn "VACUUM INTO ?" (Sqlite.Only file)
 
