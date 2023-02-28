@@ -164,9 +164,11 @@
        (let ([rq (make-request (quote r) t (list . args))])
          (let ([current-mark (ref-mark (quote r))])
             (if (equal? #f current-mark)
-                (raise (list r t . args))
+                (raise (condition
+                            (make-error)
+                            (make-message-condition "Unhandled top-level effect!")
+                            (make-message-condition (list r t . args))))
                 ((cdr current-mark) rq))))]))
-
 
   ; See the explanation of `handle` for a more thorough understanding
   ; of why this is doing two control operations.
