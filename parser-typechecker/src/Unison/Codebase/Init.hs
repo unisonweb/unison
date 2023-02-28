@@ -10,6 +10,7 @@ module Unison.Codebase.Init
     InitResult (..),
     SpecifiedCodebase (..),
     MigrationStrategy (..),
+    BackupStrategy (..),
     Pretty,
     createCodebase,
     initCodebaseAndExit,
@@ -47,11 +48,20 @@ data CodebaseLockOption
   = DoLock
   | DontLock
 
+data BackupStrategy
+  = -- Create a backup of the codebase in the same directory as the codebase,
+    -- see 'backupCodebasePath'.
+    Backup
+  | -- Don't create a backup when migrating, this might be used if the caller has
+    -- already created a copy of the codebase for instance.
+    NoBackup
+  deriving stock (Show, Eq, Ord)
+
 data MigrationStrategy
   = -- | Perform a migration immediately if one is required.
-    MigrateAutomatically
+    MigrateAutomatically BackupStrategy
   | -- | Prompt the user that a migration is about to occur, continue after acknownledgment
-    MigrateAfterPrompt
+    MigrateAfterPrompt BackupStrategy
   | -- | Triggers an 'OpenCodebaseRequiresMigration' error instead of migrating
     DontMigrate
   deriving stock (Show, Eq, Ord)

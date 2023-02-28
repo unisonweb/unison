@@ -49,6 +49,21 @@ import qualified Unison.Builtin.Decls as DD
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
+  ( DisplayDefinitionsOutput (..),
+    NumberedArgs,
+    NumberedOutput (..),
+    Output (..),
+    ShareError
+      ( ShareErrorCheckAndSetPush,
+        ShareErrorFastForwardPush,
+        ShareErrorGetCausalHashByPath,
+        ShareErrorPull,
+        ShareErrorTransport
+      ),
+    TestReportStats (CachedTests, NewlyComputed),
+    UndoFailureReason (CantUndoPastMerge, CantUndoPastStart),
+    WhichBranchEmpty (..),
+  )
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
@@ -782,6 +797,11 @@ notifyUser dir o = case o of
     pure . P.warnCallout $ "I don't know about that patch."
   NameNotFound _ ->
     pure . P.warnCallout $ "I don't know about that name."
+  NamesNotFound hqs ->
+    pure $
+      P.warnCallout "The following names were not found in the codebase. Check your spelling."
+        <> P.newline
+        <> (P.syntaxToColor $ P.indent "  " (P.lines (fmap prettyName hqs)))
   TermNotFound _ ->
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->

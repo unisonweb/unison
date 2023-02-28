@@ -161,8 +161,8 @@ data Input
     CompileSchemeI String (HQ.HashQualified Name)
   | -- generate scheme libraries
     GenSchemeLibsI
-  | -- fetch scheme compiler
-    FetchSchemeCompilerI
+  | -- fetch scheme compiler from a given username
+    FetchSchemeCompilerI String
   | TestI TestInput
   | -- metadata
     -- `link metadata definitions` (adds metadata to all of `definitions`)
@@ -270,9 +270,9 @@ data DeleteOutput
   deriving stock (Eq, Show)
 
 data DeleteTarget
-  = DeleteTarget'TermOrType DeleteOutput Path.HQSplit'
-  | DeleteTarget'Term DeleteOutput Path.HQSplit'
-  | DeleteTarget'Type DeleteOutput Path.HQSplit'
+  = DeleteTarget'TermOrType DeleteOutput [Path.HQSplit']
+  | DeleteTarget'Term DeleteOutput [Path.HQSplit']
+  | DeleteTarget'Type DeleteOutput [Path.HQSplit']
   | DeleteTarget'Branch Insistence (Maybe Path.Split')
   | DeleteTarget'Patch Path.Split'
   deriving stock (Eq, Show)
