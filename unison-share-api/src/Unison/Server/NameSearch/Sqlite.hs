@@ -9,6 +9,7 @@ where
 
 import Control.Lens
 import qualified Data.Set as Set
+import qualified Unison.Util.Set as Set
 import qualified Data.Text as Text
 import U.Codebase.HashTags (BranchHash)
 import qualified U.Codebase.Sqlite.NamedRef as NamedRef
@@ -35,8 +36,8 @@ import qualified Unison.Server.SearchResult as SR
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 
-scopedNameSearch :: BranchHash -> Path -> NameSearch Sqlite.Transaction
-scopedNameSearch rootHash path =
+scopedNameSearch :: Codebase m v a -> BranchHash -> Path -> NameSearch Sqlite.Transaction
+scopedNameSearch codebase rootHash path =
   NameSearch {typeSearch, termSearch}
   where
     typeSearch =
@@ -58,45 +59,55 @@ scopedNameSearch rootHash path =
     pathText = Path.toText path
     lookupNamesForTypes :: Reference -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
     lookupNamesForTypes ref = track "lookupNamesForTypes" do
-      names <- Ops.typeNamesWithinNamespace rootHash pathText (Cv.reference1to2 ref)
+      names <- Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 ref) Nothing
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Reference.toShortHash ref))
         & Set.fromList
         & pure
     lookupNamesForTerms :: Referent -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
     lookupNamesForTerms ref = track "lookupNamesForTerms" do
-      names <- Ops.termNamesWithinNamespace rootHash pathText (Cv.referent1to2 ref)
+      names <- Ops.termNamesForRefWithinNamespace rootHash pathText (Cv.referent1to2 ref) Nothing
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Referent.toShortHash ref))
         & Set.fromList
         & pure
     lookupRelativeHQRefsForTypes :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
     lookupRelativeHQRefsForTypes hqName = track "lookupRelativeHQRefsForTypes" do
-      namedRefs <- case hqName of
+      case hqName of
         HQ'.NameOnly name -> do
-          Ops.typeNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
+          namedRefs <- Ops.typeNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
+          namedRefs
+            & fmap (Cv.reference2to1 . NamedRef.ref)
+            & Set.fromList
+            & pure
         HQ'.HashQualified name sh -> do
           let sh2 = either (error . Text.unpack) id $ Cv.shorthash1to2 sh
-          Ops.typeNamesByShortHash rootHash pathText sh2 (Just . coerce $ Name.reverseSegments name)
-      namedRefs
-        & fmap (Cv.reference2to1 . NamedRef.ref)
-        & Set.fromList
-        & pure
+          typeRefs <- typeReferencesByShortHash sh
+          Set.forMaybe typeRefs \typeRef -> do
+            matches <- Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 typeRef) (Just . coerce $ Name.reverseSegments name)
+            if null matches
+              then pure Nothing
+              else pure (Just typeRef)
     lookupRelativeHQRefsForTerms :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
     lookupRelativeHQRefsForTerms hqName = track "lookupRelativeHQRefsForTerms" do
-      namedRefs <- case hqName of
+      case hqName of
         HQ'.NameOnly name -> do
-          Ops.termNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
+          namedRefs <- Ops.termNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
+          namedRefs
+            & fmap
+              ( \(NamedRef.ref -> (ref, mayCT)) ->
+                  Cv.referent2to1UsingCT (fromMaybe (error "Required constructor type for constructor but it was null") mayCT) ref
+              )
+            & Set.fromList
+            & pure
         HQ'.HashQualified name sh -> do
           let sh2 = either (error . Text.unpack) id $ Cv.shorthash1to2 sh
-          Ops.termNamesByShortHash rootHash pathText sh2 (Just . coerce $ Name.reverseSegments name)
-      namedRefs
-        & fmap
-          ( \(NamedRef.ref -> (ref, mayCT)) ->
-              Cv.referent2to1UsingCT (fromMaybe (error "Required constructor type for constructor but it was null") mayCT) ref
-          )
-        & Set.fromList
-        & pure
+          termRefs <- termReferentsByShortHash codebase sh
+          Set.forMaybe termRefs \termRef -> do
+            matches <- Ops.termNamesForRefWithinNamespace rootHash pathText (Cv.referent1to2 termRef) (Just . coerce $ Name.reverseSegments name)
+            if null matches
+              then pure Nothing
+              else pure (Just termRef)
     reversedSegmentsToName :: NamedRef.ReversedSegments -> Name
     reversedSegmentsToName = Name.fromReverseSegments . coerce
 

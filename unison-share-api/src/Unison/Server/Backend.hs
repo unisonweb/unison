@@ -965,7 +965,7 @@ mkNamesStuff biases shallowRoot path codebase = do
     rootBranchHash :: BranchHash
     rootBranchHash = V2Causal.valueHash shallowRoot
     sqliteNameSearch :: NameSearch Sqlite.Transaction
-    sqliteNameSearch = SqliteNameSearch.scopedNameSearch rootBranchHash path
+    sqliteNameSearch = SqliteNameSearch.scopedNameSearch codebase rootBranchHash path
 
 evalDocRef ::
   Rt.Runtime Symbol ->

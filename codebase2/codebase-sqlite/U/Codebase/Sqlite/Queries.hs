@@ -148,9 +148,7 @@ module U.Codebase.Sqlite.Queries
     checkBranchHashNameLookupExists,
     trackNewBranchHashNameLookup,
     termNamesBySuffix,
-    termNamesByShortHash,
     typeNamesBySuffix,
-    typeNamesByShortHash,
     nameWithLongestMatchingSuffixForTerm,
 
     -- * Reflog
@@ -234,8 +232,6 @@ import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import qualified U.Codebase.Reflog as Reflog
-import U.Codebase.ShortHash (ShortHash)
-import qualified U.Codebase.ShortHash as SH
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
 import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal
@@ -1849,10 +1845,13 @@ data EmptyName = EmptyName String
 -- is only true on Share.
 --
 -- Get the list of term names for a given Referent within a given namespace.
-termNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Referent.TextReferent -> Transaction [ReversedSegments]
-termNamesForRefWithinNamespace bhId namespaceRoot ref = do
+termNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Referent.TextReferent -> Maybe ReversedSegments -> Transaction [ReversedSegments]
+termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let namespaceGlob = globEscape namespaceRoot <> ".*"
-  queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob) \reversedNames ->
+  let suffixGlob = case maySuffix of
+        Just suffix -> globEscape (Text.intercalate "." (toList suffix)) <> ".*"
+        Nothing -> "*"
+  queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob :. Only suffixGlob) \reversedNames ->
     for reversedNames \reversedName -> do
       case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
         Nothing -> Left (EmptyName $ "In termNamesWithinNamespace:" <> show (namespaceRoot, ref))
@@ -1864,16 +1863,20 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref = do
         WHERE root_branch_hash_id = ?
               AND referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?
               AND namespace GLOB ?
+              AND reversed_name GLOB ?
         |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
 -- Get the list of type names for a given Reference within a given namespace.
-typeNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Reference.TextReference -> Transaction [ReversedSegments]
-typeNamesForRefWithinNamespace bhId namespaceRoot ref = do
+typeNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Reference.TextReference -> Maybe ReversedSegments -> Transaction [ReversedSegments]
+typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let namespaceGlob = globEscape namespaceRoot <> ".*"
-  queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob) \reversedNames ->
+  let suffixGlob = case maySuffix of
+        Just suffix -> globEscape (Text.intercalate "." (toList suffix)) <> ".*"
+        Nothing -> "*"
+  queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob :. Only suffixGlob) \reversedNames ->
     for reversedNames \reversedName -> do
       case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
         Nothing -> Left (EmptyName $ "In typeNamesWithinNamespace:" <> show (namespaceRoot, ref))
@@ -1885,6 +1888,7 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref = do
         WHERE root_branch_hash_id = ?
               AND reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?
               AND namespace GLOB ?
+              AND reversed_name GLOB ?
         |]
 
 nameWithLongestMatchingSuffixForTerm :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
@@ -1932,38 +1936,6 @@ nameWithLongestMatchingSuffixForTerm bhId namespaceRoot suffix = do
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
--- Get the list of term names within a given namespace which match the given ShortHash.
--- Also filter for names with the given suffix if provided.
-termNamesByShortHash :: BranchHashId -> NamespaceText -> ShortHash -> Maybe ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
-termNamesByShortHash bhId namespaceRoot shortHash maySuffix = do
-  let namespaceGlob = globEscape namespaceRoot <> ".*"
-  -- Get shorthash's filters
-  let (builtin, ref, compIdx, conIdx) = case shortHash of
-        SH.Builtin builtin -> (Just builtin, Nothing, Nothing, Nothing)
-        SH.ShortHash ref compIdx conIdx -> (Nothing, Just ref, Just compIdx, conIdx)
-  let refGlob = maybe "*" (\r -> globEscape r <> "*") ref
-  let suffixGlob = maybe "*" (\suff -> globEscape (Text.intercalate "." (toList suff)) <> "*") maySuffix
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, builtin, refGlob, compIdx, conIdx, namespaceGlob, suffixGlob)
-  pure (fmap unRow <$> results)
-  where
-    unRow (a :. Only b) = (a, b)
-    sql =
-      [here|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
-        WHERE root_branch_hash_id = ?
-              AND (
-                    referent_builtin IS ?
-                AND referent_component_hash GLOB ?
-                AND referent_component_index IS ?
-                AND referent_constructor_index IS ?
-              )
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
-        |]
-
--- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
--- is only true on Share.
---
 -- Get the list of type names within a given namespace which have the given suffix.
 typeNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
 typeNamesBySuffix bhId namespaceRoot suffix = do
@@ -1988,34 +1960,6 @@ typeNamesBySuffix bhId namespaceRoot suffix = do
               AND namespace GLOB ?
               AND reversed_name GLOB ?
         |]
-
--- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
--- is only true on Share.
---
--- Get the list of type names within a given namespace which match the given ShortHash.
--- Also filter for names with the given suffix if provided.
-typeNamesByShortHash :: BranchHashId -> NamespaceText -> ShortHash -> Maybe ReversedSegments -> Transaction [NamedRef Reference.TextReference]
-typeNamesByShortHash bhId namespaceRoot shortHash maySuffix = do
-  let namespaceGlob = globEscape namespaceRoot <> ".*"
-  let (builtin, ref, compIdx) = case shortHash of
-        SH.Builtin builtin -> (Just builtin, Nothing, Nothing)
-        SH.ShortHash ref compIdx _conIdx -> (Nothing, Just ref, Just compIdx)
-  let refGlob = maybe "*" (\r -> globEscape r <> "*") ref
-  let suffixGlob = maybe "*" (\suff -> globEscape (Text.intercalate "." (toList suff)) <> "*") maySuffix
-  queryListRow sql (bhId, builtin, refGlob, compIdx, namespaceGlob, suffixGlob)
-  where
-    sql =
-      [here|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
-        WHERE root_branch_hash_id = ?
-              AND (
-                    reference_builtin IS ?
-                AND reference_component_hash GLOB ?
-                AND reference_component_index IS ?
-              )
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
-      |]
 
 -- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool

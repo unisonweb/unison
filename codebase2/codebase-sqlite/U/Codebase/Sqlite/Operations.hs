@@ -69,12 +69,10 @@ module U.Codebase.Sqlite.Operations
     -- ** name lookup index
     rootNamesByPath,
     NamesByPath (..),
-    termNamesWithinNamespace,
-    typeNamesWithinNamespace,
+    termNamesForRefWithinNamespace,
+    typeNamesForRefWithinNamespace,
     termNamesBySuffix,
     typeNamesBySuffix,
-    termNamesByShortHash,
-    typeNamesByShortHash,
     checkBranchHashNameLookupExists,
     buildNameLookupForBranchHash,
 
@@ -126,7 +124,7 @@ import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C
 import qualified U.Codebase.Referent as C.Referent
 import qualified U.Codebase.Reflog as Reflog
-import U.Codebase.ShortHash (ShortCausalHash (..), ShortHash, ShortNamespaceHash (..))
+import U.Codebase.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
 import qualified U.Codebase.Sqlite.Branch.Diff as S.BranchDiff
@@ -1136,19 +1134,19 @@ rootNamesByPath path = do
 -- is only true on Share.
 --
 -- Get the list of a names for a given Referent.
-termNamesWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Referent -> Transaction [S.ReversedSegments]
-termNamesWithinNamespace bh namespace ref = do
+termNamesForRefWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Referent -> Maybe S.ReversedSegments -> Transaction [S.ReversedSegments]
+termNamesForRefWithinNamespace bh namespace ref maySuffix = do
   bhId <- Q.expectBranchHashId bh
-  Q.termNamesForRefWithinNamespace bhId namespace (c2sTextReferent ref)
+  Q.termNamesForRefWithinNamespace bhId namespace (c2sTextReferent ref) maySuffix
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
--- Get the list of a names for a given Reference.
-typeNamesWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Reference -> Transaction [S.ReversedSegments]
-typeNamesWithinNamespace bh namespace ref = do
+-- Get the list of a names for a given Reference, with an optional required suffix.
+typeNamesForRefWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Reference -> Maybe S.ReversedSegments -> Transaction [S.ReversedSegments]
+typeNamesForRefWithinNamespace bh namespace ref maySuffix = do
   bhId <- Q.expectBranchHashId bh
-  Q.typeNamesForRefWithinNamespace bhId namespace (c2sTextReference ref)
+  Q.typeNamesForRefWithinNamespace bhId namespace (c2sTextReference ref) maySuffix
 
 termNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
 termNamesBySuffix bh namespace suffix = do
@@ -1159,16 +1157,6 @@ typeNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedSegments -> Tran
 typeNamesBySuffix bh namespace suffix = do
   bhId <- Q.expectBranchHashId bh
   Q.typeNamesBySuffix bhId namespace suffix <&> fmap (fmap s2cTextReference)
-
-termNamesByShortHash :: BranchHash -> Q.NamespaceText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
-termNamesByShortHash bh namespace shortHash maySuffix = do
-  bhId <- Q.expectBranchHashId bh
-  Q.termNamesByShortHash bhId namespace shortHash maySuffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
-
-typeNamesByShortHash :: BranchHash -> Q.NamespaceText -> ShortHash -> Maybe S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
-typeNamesByShortHash bh namespace shortHash maySuffix = do
-  bhId <- Q.expectBranchHashId bh
-  Q.typeNamesByShortHash bhId namespace shortHash maySuffix <&> fmap (fmap s2cTextReference)
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them
 -- then return them.

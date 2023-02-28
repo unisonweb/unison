@@ -76,8 +76,8 @@ ppedForReferences rootHash perspective refs = do
     namesForReference :: LabeledDependency -> Sqlite.Transaction ([(Name, Referent)], [(Name, Reference)])
     namesForReference = \case
       LD.TermReferent ref -> do
-        termNames <- fmap (Name.fromReverseSegments . coerce) <$> Ops.termNamesWithinNamespace rootHash pathText (Cv.referent1to2 ref)
+        termNames <- fmap (Name.fromReverseSegments . coerce) <$> Ops.termNamesForRefWithinNamespace rootHash pathText (Cv.referent1to2 ref) Nothing
         pure ((,ref) <$> termNames, [])
       LD.TypeReference ref -> do
-        typeNames <- fmap (Name.fromReverseSegments . coerce) <$> Ops.typeNamesWithinNamespace rootHash pathText (Cv.reference1to2 ref)
+        typeNames <- fmap (Name.fromReverseSegments . coerce) <$> Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 ref) Nothing
         pure ([], (,ref) <$> typeNames)
