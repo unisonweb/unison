@@ -32,11 +32,11 @@ import Unison.Var (Var)
 -- * Mutual compatibility: No two constraints should conflict with
 -- each other.
 --
--- * Inhabitation: There must be at least one value that inhabits
--- each refinement type. (N.B. We only do a best effort enforcement of
--- this invariant, see 'inhabited' in
--- Unison.PatternMatchCoverage.NormalizedConstraints.Solve for
--- additional info)
+-- * Inhabitation: There must be at least one value that inhabits each
+-- refinement type. (N.B. We don't truly know if a type is inhabited,
+-- see 'inhabited' in "Unison.PatternMatchCoverage.Solve" for
+-- details. However, the refinement type is inhabited as far as our
+-- inhabitation checker is concerned.)
 --
 -- These invariants ensure that each term in our DNF has at least one
 -- solution, and it is easy to expand and print these solutions.
