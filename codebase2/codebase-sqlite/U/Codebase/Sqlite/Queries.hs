@@ -224,6 +224,7 @@ import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import GHC.Stack (callStack)
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
@@ -1852,10 +1853,7 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
         Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
   queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob :. Only suffixGlob) \reversedNames ->
-    for reversedNames \reversedName -> do
-      case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
-        Nothing -> Left (EmptyName $ "In termNamesWithinNamespace:" <> show (namespaceRoot, ref))
-        Just segments -> Right $ segments
+    for reversedNames reversedNameToReversedSegments
   where
     sql =
       [here|
@@ -1877,10 +1875,7 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
         Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
   queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob :. Only suffixGlob) \reversedNames ->
-    for reversedNames \reversedName -> do
-      case NonEmpty.nonEmpty $ Text.splitOn "." reversedName of
-        Nothing -> Left (EmptyName $ "In typeNamesWithinNamespace:" <> show (namespaceRoot, ref))
-        Just segments -> Right $ segments
+    for reversedNames reversedNameToReversedSegments
   where
     sql =
       [here|
@@ -2639,3 +2634,12 @@ toSuffixGlob suffix = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
 
 toNamespaceGlob :: Text -> Text
 toNamespaceGlob namespace = globEscape namespace <> ".*"
+
+reversedNameToReversedSegments :: HasCallStack => Text -> Either EmptyName ReversedSegments
+reversedNameToReversedSegments txt =
+  txt
+    & Text.splitOn "."
+    -- Names have a trailing dot, so we need to drop the last empty segment
+    & List.dropEnd1
+    & NonEmpty.nonEmpty
+    & maybe (Left (EmptyName $ show callStack)) Right
