@@ -1978,6 +1978,7 @@ longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
               -- We don't need to consider names for the same definition when suffixifying, so
               -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
               AND NOT (reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?)
+        LIMIT 1
       |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
