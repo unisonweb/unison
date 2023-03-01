@@ -45,9 +45,8 @@ list.tests = do
   check "List builder" do
     _ = [1, 2, 3]
     true
-  checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [1,2,3]
-  --  checkEqual "List.snoc (1)" ([] :+ 1) [1]
-  --  checkEqual "List.snoc (2)" ([1,2] :+ 3) [1,2,3]
+  checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [1, 2, 3]
+  checkEqual "List.snoc" ([] :+ 1 :+ 2 :+ 3) [1, 2, 3]
   --  checkEqual "List.++ (1)" ([] ++ [1]) [1]
   --  checkEqual "List.++ (2)" ([1] ++ []) [1]
   --  checkEqual "List.++ (3)" ([1,2,3] ++ [4,5]) [1,2,3,4,5]

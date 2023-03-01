@@ -256,7 +256,7 @@
   (define (unison-POp-SHRN n k) (fxarithmetic-shift-right n k))
   (define (unison-POp-SIZS l) (length l))
   (define (unison-POp-SIZT t) (string-length t))
-  (define (unison-POp-SNOC xs x) (append xs (list x)))
+  (define (unison-POp-SNOC xs x) (vector-trie-add-last xs x))
   (define (unison-POp-SUBN m n) (fx- m n))
   (define (unison-POp-TAKS n s) (list-head s n))
   (define (unison-POp-TAKT n t) (istring-take n t))
