@@ -35,7 +35,7 @@ module Unison.DataDeclaration
   )
 where
 
-import Control.Lens (Iso', Lens', iso, lens, over, _3)
+import Control.Lens (Iso', Lens', imap, iso, lens, over, _3)
 import Control.Monad.State (evalState)
 import Data.Bifunctor (bimap, first, second)
 import qualified Data.Map as Map
@@ -86,7 +86,7 @@ labeledDeclDependenciesIncludingSelf selfRef decl =
     labeledConstructorRefs :: Set LD.LabeledDependency
     labeledConstructorRefs =
       case selfRef of
-        Reference.Builtin _ -> mempty
+        Reference.Builtin {} -> mempty
         Reference.DerivedId selfRefId ->
           declConstructorReferents selfRefId decl
             & fmap (LD.TermReferent . fmap Reference.DerivedId)
@@ -245,8 +245,10 @@ declConstructorReferents rid decl =
   where
     ct = constructorType decl
 
+-- | The constructor ids for the given data declaration.
 constructorIds :: DataDeclaration v a -> [ConstructorId]
-constructorIds dd = [0 .. fromIntegral $ length (constructors dd) - 1]
+constructorIds dd =
+  imap (\i _ -> fromIntegral i) (constructorTypes dd)
 
 -- | All variables mentioned in the given data declaration.
 -- Includes both term and type variables, both free and bound.
