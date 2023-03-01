@@ -220,6 +220,10 @@ data BackendError
   | CouldntLoadBranch CausalHash
   | MissingSignatureForTerm Reference
   | NoSuchDefinition (HQ.HashQualified Name)
+  | -- The inferred project root for a given perspective is neither a parent nor child
+    -- of the perspective. This shouldn't happen and indicates a bug.
+    -- (perspective, project root)
+    DisjointProjectAndPerspective Path Path
   deriving stock (Show)
 
 newtype BackendEnv = BackendEnv
@@ -843,8 +847,34 @@ prettyDefinitionsForHQName ::
   -- | The name, hash, or both, of the definition to display.
   HQ.HashQualified Name ->
   Backend IO DefinitionDisplayResults
-prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebase query = do
-  (shallowRoot) <- (lift . Codebase.runTransaction codebase) do resolveCausalHashV2 mayRoot
+prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt codebase query = do
+  -- Re-compute and shadow the perspective and query to the appropriate project if applicable
+  (shallowRoot, perspective, query) <-
+    either throwError pure =<< (lift . Codebase.runTransaction codebase . runExceptT) do
+      shallowRoot <- lift $ resolveCausalHashV2 mayRoot
+      shallowBranch <- lift $ V2Causal.value shallowRoot
+      let queryLocation = HQ.toName query & maybe perspective \name -> perspective <> Path.fromName name
+      -- Names should be found from the project root of the queried name
+      (namesRootPath, scopedQuery) <-
+        lift (Projects.inferNamesRoot queryLocation shallowBranch) >>= \case
+          Nothing -> pure (perspective, query)
+          Just projectRoot ->
+            case Path.longestPathPrefix perspective projectRoot of
+              -- The perspective is equal to the project root
+              (_sharedPrefix, Path.Empty, Path.Empty) -> pure (perspective, query)
+              -- The perspective is _outside_ of the project containing the query
+              (sharedPrefix, Path.Empty, remainder) ->
+                -- Since the project root is lower down we need to strip the part of the prefix
+                -- which is now redundant.
+                pure (sharedPrefix, query <&> \n -> fromMaybe n $ Path.unprefixName (Path.Absolute remainder) n)
+              -- The perspective is _inside_ of the project containing the query
+              (sharedPrefix, remainder, Path.Empty) ->
+                -- Since the project is higher up, we need to prefix the query
+                -- with the remainder of the path
+                pure (sharedPrefix, query <&> Path.prefixName (Path.Absolute remainder))
+              -- The perspective and project root are disjoint, this shouldn't ever happen.
+              (_, _, _) -> throwError (DisjointProjectAndPerspective perspective projectRoot)
+      pure (shallowRoot, namesRootPath, scopedQuery)
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our perspective but within the
   -- same tree;
@@ -855,12 +885,12 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   let biases = maybeToList $ HQ.toName query
 
   Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building names search"
-  (nameSearch, backendPPE) <- mkNamesStuff biases shallowRoot path codebase
+  (nameSearch, backendPPE) <- mkNamesStuff shallowRoot perspective codebase
   (dr@(DefinitionResults terms types misses), branchAtPath) <- liftIO $ Codebase.runTransaction codebase do
     Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: starting search"
     dr <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
     Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: finished search"
-    causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
+    causalAtPath <- Codebase.getShallowCausalAtPath perspective (Just shallowRoot)
     branchAtPath <- V2Causal.value causalAtPath
     pure (dr, branchAtPath)
   Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: Done building definition results"
@@ -952,22 +982,26 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
       renderedDisplayTypes
       renderedMisses
 
-mkNamesStuff :: [Name] -> V2Branch.CausalBranch n -> Path -> Codebase IO Symbol Ann -> Backend IO (NameSearch Sqlite.Transaction, BackendPPE)
-mkNamesStuff biases shallowRoot path codebase = do
+mkNamesStuff :: V2Branch.CausalBranch Sqlite.Transaction -> Path -> Codebase IO Symbol Ann -> Backend IO (NameSearch Sqlite.Transaction, BackendPPE)
+mkNamesStuff shallowRoot path codebase = do
   asks useNamesIndex >>= \case
     True -> do
       Debug.debugLogM Debug.Server "using sqlite index"
-      pure (sqliteNameSearch, UseSQLiteIndex codebase rootBranchHash path sqliteNameSearch)
+      mayProjectRoot <- liftIO $
+        Codebase.runTransaction codebase $ do
+          branch <- V2Causal.value shallowRoot
+          Projects.inferNamesRoot path branch
+      let namesRoot = fromMaybe path mayProjectRoot
+      let nameSearch = SqliteNameSearch.scopedNameSearch codebase rootBranchHash namesRoot
+      pure (nameSearch, UseSQLiteIndex codebase rootBranchHash namesRoot nameSearch)
     False -> do
       Debug.debugLogM Debug.Server "using names object"
       hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
-      (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
-      pure $ (makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly), UsePPED localNamesOnly (PPED.biasTo biases unbiasedPPED))
+      (localNamesOnly, pped) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
+      pure $ (makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly), UsePPED localNamesOnly pped)
   where
     rootBranchHash :: BranchHash
     rootBranchHash = V2Causal.valueHash shallowRoot
-    sqliteNameSearch :: NameSearch Sqlite.Transaction
-    sqliteNameSearch = SqliteNameSearch.scopedNameSearch codebase rootBranchHash path
 
 evalDocRef ::
   Rt.Runtime Symbol ->
@@ -1035,7 +1069,7 @@ renderDocRefs ::
   Rt.Runtime Symbol ->
   [TermReference] ->
   IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
-renderDocRefs backendPPE width codebase rt [] = pure []
+renderDocRefs _backendPPE _width _codebase _rt [] = pure []
 renderDocRefs backendPPE width codebase rt docRefs = do
   Debug.debugLogM Debug.Server $ "Evaluating docs"
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
@@ -1410,24 +1444,6 @@ loadTypeDisplayObject c = \case
 data BackendPPE
   = UseSQLiteIndex (Codebase IO Symbol Ann) BranchHash Path (NameSearch Sqlite.Transaction)
   | UsePPED Names PPED.PrettyPrintEnvDecl
-
--- selectBackendPPE :: Codebase IO Symbol Ann -> Path -> Backend IO BackendPPE
--- selectBackendPPE codebase path = do
---   useNamesIndex <- asks useNamesIndex
---   if useNamesIndex
---     then pure $ UseSQLiteIndex codebase path (error "name search")
---     else do
---       liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
---       (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase Nothing path
---       pure $ UsePPED localNamesOnly unbiasedPPED
-
--- runPPE :: BackendPPE -> PrettyPrintGrouper (Backend IO) a -> Backend IO a
--- runPPE backendPPE action = do
---   case backendPPE of
---     UseSQLiteIndex cb perspective _nameSearch -> do
---       hashLen <- liftIO $ Codebase.runTransaction cb $ Codebase.hashLength
---       PPESqlite.prettyPrintUsingNamesIndex cb hashLen perspective action
---     UsePPED _names pped -> PPG.runWithPPE pped action
 
 getPPED :: (MonadIO m) => Set LabeledDependency -> BackendPPE -> m PPED.PrettyPrintEnvDecl
 getPPED deps = \case

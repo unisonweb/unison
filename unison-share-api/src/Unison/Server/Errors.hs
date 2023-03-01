@@ -52,6 +52,7 @@ backendError = \case
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
   Backend.NoSuchDefinition hqName -> noSuchDefinition hqName
   Backend.AmbiguousHashForDefinition shorthash -> ambiguousHashForDefinition shorthash
+  Backend.DisjointProjectAndPerspective perspective projectRoot -> disjointProjectAndPerspective perspective projectRoot
 
 badNamespace :: String -> String -> ServerError
 badNamespace err namespace =
@@ -110,4 +111,14 @@ ambiguousHashForDefinition shorthash =
   err400
     { errBody =
         "The hash prefix " <> BSC.pack (SH.toString shorthash) <> " is ambiguous"
+    }
+
+disjointProjectAndPerspective :: Path.Path -> Path.Path -> ServerError
+disjointProjectAndPerspective perspective projectRoot =
+  err500
+    { errBody =
+        "The project root " <> munge (Path.toText projectRoot)
+          <> " is disjoint with the perspective "
+          <> munge (Path.toText perspective)
+          <> ". This is a bug, please report it."
     }

@@ -206,8 +206,8 @@ longestPathPrefix a b =
     (_, Nothing) -> (empty, a, b)
     (Just (x, xs), Just (y, ys))
       | x == y ->
-          let (prefix, ra, rb) = longestPathPrefix xs ys
-           in (x :< prefix, ra, rb)
+        let (prefix, ra, rb) = longestPathPrefix xs ys
+         in (x :< prefix, ra, rb)
       | otherwise -> (empty, a, b)
 
 toSplit' :: Path' -> Maybe (Path', NameSegment)
@@ -263,7 +263,11 @@ splitFromName name =
   case Name.reverseSegments name of
     (seg :| pathSegments) -> (fromList $ reverse pathSegments, seg)
 
--- | what is this? —AI
+-- | Remove a path prefix from a name.
+-- Returns 'Nothing' if there are no remaining segments to construct the name from.
+--
+-- >>> unprefixName (Absolute $ fromList ["base", "List"]) (Name.unsafeFromText "base.List.map")
+-- Just (Name Relative (NameSegment {toText = "map"} :| []))
 unprefixName :: Absolute -> Name -> Maybe Name
 unprefixName prefix = toName . unprefix prefix . fromName'
 
