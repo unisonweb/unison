@@ -765,7 +765,7 @@ data DefinitionResults = DefinitionResults
   { termResults :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
     typeResults :: Map Reference (DisplayObject () (DD.Decl Symbol Ann)),
     noResults :: [HQ.HashQualified Name]
-  }
+  } deriving stock (Show)
 
 definitionResultsDependencies :: DefinitionResults -> Set LD.LabeledDependency
 definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
