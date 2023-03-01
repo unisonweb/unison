@@ -39,14 +39,13 @@ hmac.tests = do
   ] |> List.foreach_ cases (name, alg, res) -> checkEqual (tag name) (hmac alg) res
 
 list.tests = do
-  checkEqual "lists" [1, 2, 3] []
-  --  check "List.empty builder" do
-  --    _ = []
-  --    true
-  --  check "List builder" do
-  --    _ = [1, 2, 3]
-  --    true
-  --- checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [] -- [1,2,3]
+  check "List.empty builder" do
+    _ = []
+    true
+  check "List builder" do
+    _ = [1, 2, 3]
+    true
+  checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [1,2,3]
   --  checkEqual "List.snoc (1)" ([] :+ 1) [1]
   --  checkEqual "List.snoc (2)" ([1,2] :+ 3) [1,2,3]
   --  checkEqual "List.++ (1)" ([] ++ [1]) [1]
