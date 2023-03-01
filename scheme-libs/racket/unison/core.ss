@@ -80,6 +80,12 @@
           [else
             (and (universal-equal? (car ll) (car lr))
                  (pointwise (cdr ll) (cdr lr)))])))
+    (display "Arguments to ==")
+    (newline)
+    (display l)
+    (newline)
+    (display r)
+    (newline)
     (cond
       [(eq? l r) 1]
       [(equal? l r) 1]
