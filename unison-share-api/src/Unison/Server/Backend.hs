@@ -857,21 +857,26 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
       -- Names should be found from the project root of the queried name
       (namesRootPath, scopedQuery) <-
         lift (Projects.inferNamesRoot queryLocation shallowBranch) >>= \case
-          Nothing -> pure (perspective, query)
+          Nothing -> do
+            Debug.debugLogM Debug.Temp "prettyDefinitionsForHQName: No project root inferred"
+            pure (perspective, query)
           Just projectRoot ->
-            case Path.longestPathPrefix perspective projectRoot of
+            case Debug.debug Debug.Temp "prettyDefinitionsForHQName: longestPathPrefix" $ Path.longestPathPrefix perspective projectRoot of
               -- The perspective is equal to the project root
-              (_sharedPrefix, Path.Empty, Path.Empty) -> pure (perspective, query)
+              (_sharedPrefix, Path.Empty, Path.Empty) -> do
+                Debug.debugM Debug.Temp "prettyDefinitionsForHQName: Perspective == ProjectRoot" (perspective, query)
+                pure (perspective, query)
               -- The perspective is _outside_ of the project containing the query
-              (sharedPrefix, Path.Empty, remainder) ->
+              (_sharedPrefix, Path.Empty, remainder) -> do
                 -- Since the project root is lower down we need to strip the part of the prefix
                 -- which is now redundant.
-                pure (sharedPrefix, query <&> \n -> fromMaybe n $ Path.unprefixName (Path.Absolute remainder) n)
+
+                pure $ Debug.debug Debug.Temp "prettyDefinitionsForHQName: perspective outside of project" $ (projectRoot, query <&> \n -> fromMaybe n $ Path.unprefixName (Path.Absolute remainder) n)
               -- The perspective is _inside_ of the project containing the query
-              (sharedPrefix, remainder, Path.Empty) ->
+              (_sharedPrefix, remainder, Path.Empty) -> do
                 -- Since the project is higher up, we need to prefix the query
                 -- with the remainder of the path
-                pure (sharedPrefix, query <&> Path.prefixName (Path.Absolute remainder))
+                pure $ Debug.debug Debug.Temp "prettyDefinitionsForHQName: project outside of perspective" $ (projectRoot, query <&> Path.prefixName (Path.Absolute remainder))
               -- The perspective and project root are disjoint, this shouldn't ever happen.
               (_, _, _) -> throwError (DisjointProjectAndPerspective perspective projectRoot)
       pure (shallowRoot, namesRootPath, scopedQuery)
