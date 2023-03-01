@@ -10,8 +10,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is non-exhaustive
-  In the match:
+  Pattern match doesn't cover all possible cases:
         4 | test = cases
         5 |   A -> ()
     
@@ -36,13 +35,12 @@ test = cases
 
 ```ucm
 
-  Pattern match is redundant
-  In the match case:
+  This case would be ignored because it's already covered by the preceding case(s):
         8 |   _ -> ()
     
 
 ```
-patterns that would imply supplying an uninhabited type are not expected
+uninhabited patterns are not expected
 ```unison
 unique type V =
 
@@ -77,8 +75,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is redundant
-  In the match case:
+  This case would be ignored because it's already covered by the preceding case(s):
         7 |   Some _ -> ()
     
 
@@ -92,8 +89,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is non-exhaustive
-  In the match:
+  Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   () | false -> ()
     
@@ -115,8 +111,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is non-exhaustive
-  In the match:
+  Pattern match doesn't cover all possible cases:
         4 | test = cases
         5 |   None -> ()
         6 |   Some None -> ()
@@ -138,8 +133,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is non-exhaustive
-  In the match:
+  Pattern match doesn't cover all possible cases:
         4 | test = cases
         5 |   None -> ()
         6 |   Some None -> ()
@@ -162,8 +156,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is non-exhaustive
-  In the match:
+  Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   0 -> ()
     
@@ -199,8 +192,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is non-exhaustive
-  In the match:
+  Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   true -> ()
     
@@ -238,8 +230,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is redundant
-  In the match case:
+  This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ -> ()
     
 
@@ -271,8 +262,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is non-exhaustive
-  In the match:
+  Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   [] -> ()
     
@@ -289,8 +279,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is non-exhaustive
-  In the match:
+  Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   x +: xs -> ()
     
@@ -307,8 +296,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is non-exhaustive
-  In the match:
+  Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   xs :+ x -> ()
     
@@ -346,8 +334,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is non-exhaustive
-  In the match:
+  Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   x0 +: (x1 +: xs) -> ()
         4 |   [] -> ()
@@ -366,8 +353,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is non-exhaustive
-  In the match:
+  Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   [] -> ()
         4 |   x0 +: [] -> ()
@@ -411,8 +397,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is redundant
-  In the match case:
+  This case would be ignored because it's already covered by the preceding case(s):
         6 |   true +: xs -> ()
     
 
@@ -428,8 +413,7 @@ test = cases
 
 ```ucm
 
-  Pattern match is redundant
-  In the match case:
+  This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ ++ [true, false, true, false] -> ()
     
 

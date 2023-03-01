@@ -596,9 +596,8 @@ renderTypeError e env src curPath = case e of
       ]
   UncoveredPatterns loc tms ->
     mconcat
-      [ "Pattern match is non-exhaustive\n",
-        Pr.hang
-          "In the match:"
+      [ Pr.hang
+          "Pattern match doesn't cover all possible cases:"
           (annotatedAsErrorSite src loc),
         "\n\n"
       ]
@@ -608,10 +607,9 @@ renderTypeError e env src curPath = case e of
             (map (\x -> Pr.lit (renderPattern env x)) (Nel.toList tms))
         )
   RedundantPattern loc ->
-    mconcat
-      [ "Pattern match is redundant\n",
-        Pr.hang "In the match case:" (annotatedAsErrorSite src loc)
-      ]
+    Pr.hang
+      "This case would be ignored because it's already covered by the preceding case(s):"
+      (annotatedAsErrorSite src loc)
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
           foldr sep id suggestions ([], [], [])

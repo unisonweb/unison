@@ -24,7 +24,7 @@ test = cases
   _ -> ()
 ```
 
-patterns that would imply supplying an uninhabited type are not expected
+uninhabited patterns are not expected
 ```unison
 unique type V =
 
