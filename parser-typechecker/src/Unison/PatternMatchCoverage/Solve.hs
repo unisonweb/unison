@@ -1,6 +1,12 @@
 {-# LANGUAGE DataKinds #-}
 
-module Unison.PatternMatchCoverage.Solve where
+module Unison.PatternMatchCoverage.Solve
+  ( uncoverAnnotate,
+    classify,
+    expandSolution,
+    generateInhabitants,
+  )
+where
 
 import Control.Monad.State
 import Control.Monad.Trans.Compose
@@ -22,7 +28,6 @@ import Unison.PatternMatchCoverage.Fix
 import Unison.PatternMatchCoverage.GrdTree
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
 import qualified Unison.PatternMatchCoverage.IntervalSet as IntervalSet
-import Unison.PatternMatchCoverage.ListPat
 import Unison.PatternMatchCoverage.Literal
 import Unison.PatternMatchCoverage.NormalizedConstraints
 import Unison.PatternMatchCoverage.PmGrd
@@ -36,8 +41,9 @@ import Unison.Var (Var)
 
 -- | top-down traversal of the 'GrdTree' that produces:
 --
--- * a refinement type for values that do not match the 'GrdTree'
--- * a new 'GrdTree' annotated with refinement types at the nodes for
+-- * a refinement type describing values that do not match the 'GrdTree'
+--   (the "uncovered" set)
+-- * a new 'GrdTree' annotated with refinement types at the nodes describing
 --   values that cause an effect to be performed and values that match
 --   the case at the leaves.
 --
@@ -80,13 +86,6 @@ uncoverAnnotate z grdtree0 = cata phi grdtree0 z
         PmListInterval listVar lb ub -> do
           let iset = IntervalSet.singleton (lb, ub)
           handleGrd (NegListInterval listVar (IntervalSet.complement iset)) (NegListInterval listVar iset) k nc0
-        -- (ncmatch, t) <- k nc0
-        -- ncNoMatch <- addLiteral' nc0 (NegListInterval listVar miset)
-        -- -- todo: limit size
-        -- pure (Set.union ncMatch ncNoMatch, t)
-        -- PmList var listPat mi convars ->
-        --   let miset = IntervalSet.singleton mi
-        --    in handleGrd (PosList var listPat miset convars) (NegList var miset) k nc0
         PmBang var -> do
           (ncCont, t) <- k nc0
           ncEff <- addLiteral' nc0 (Effectful var)
@@ -146,6 +145,8 @@ classifyAlg = \case
       True -> ([l], [], [])
       False -> ([], [], [l])
   GrdF rt rest ->
+    -- The presence of a 'GrdF' node indicates that an effect was
+    -- performed (see 'uncoverAnnotate').
     case inh rt of
       True ->
         -- The rest of the subtree is redundant, but an effect is
@@ -159,21 +160,21 @@ classifyAlg = \case
     -- inhabitation check
     inh = not . Set.null
 
--- | Expand a full DNF term (i.e. each term identifies one and only
--- one solution) into a pattern.
-expand ::
+-- | Expand a full DNF term (i.e. each term identifies exactly one
+-- solution) into an inhabiting pattern.
+generateInhabitants ::
   forall vt v loc.
   (Var v) =>
   v ->
   NormalizedConstraints vt v loc ->
   Pattern ()
-expand x nc =
+generateInhabitants x nc =
   let (_xcanon, xvi, nc') = expectCanon x nc
    in case vi_con xvi of
         Vc'Constructor pos _neg -> case pos of
           Nothing -> Pattern.Unbound ()
           Just (dc, convars) ->
-            Pattern.Constructor () dc (map (\(v, _) -> expand v nc') convars)
+            Pattern.Constructor () dc (map (\(v, _) -> generateInhabitants v nc') convars)
         Vc'Boolean pos _neg -> case pos of
           Nothing -> Pattern.Unbound ()
           Just b -> Pattern.Boolean () b
@@ -186,18 +187,10 @@ expand x nc =
               rootPat = case matchIsIncomplete of
                 True -> Pattern.Unbound ()
                 False -> Pattern.SequenceLiteral () []
-              snoced = foldr (\a b -> Pattern.SequenceOp () b Pattern.Snoc (expand a nc')) rootPat snocPos
-              consed = foldr (\a b -> Pattern.SequenceOp () (expand a nc') Pattern.Cons b) snoced consPos
+              snoced = foldr (\a b -> Pattern.SequenceOp () b Pattern.Snoc (generateInhabitants a nc')) rootPat snocPos
+              consed = foldr (\a b -> Pattern.SequenceOp () (generateInhabitants a nc') Pattern.Cons b) snoced consPos
            in consed
         _ -> Pattern.Unbound ()
-
--- | Expand the given variable into inhabited patterns. This is done
--- as a final step on the refinement type unmatched terms (see
--- 'uncoverAnnotate').
-generateInhabitants :: (Pmc vt v loc m) => v -> Set (NormalizedConstraints vt v loc) -> m [Pattern ()]
-generateInhabitants v ncs = do
-  sols <- concat . fmap toList <$> traverse (expandSolution v) (toList ncs)
-  pure $ map (expand v) sols
 
 -- | Instantiate a variable to a given constructor.
 instantiate ::
@@ -344,12 +337,6 @@ withConstructors nil vinfo k = do
   where
     typ = vi_typ vinfo
     v = vi_id vinfo
-
-mkMatchingInterval :: ListPat -> IntervalSet
-mkMatchingInterval = \case
-  Cons -> IntervalSet.singleton (1, maxBound)
-  Snoc -> IntervalSet.singleton (1, maxBound)
-  Nil -> IntervalSet.singleton (0, 0)
 
 -- | Test that the given variable is inhabited. This test is
 -- undecidable in general so we adopt a fuel based approach as
@@ -628,20 +615,6 @@ union v0 v1 nc@NormalizedConstraints {constraintMap} =
           IsEffectful -> [C.Effectful chosenCanon]
      in addConstraints constraints nc {constraintMap = m}
 
-modifyList ::
-  forall vt v loc.
-  (Var v) =>
-  v ->
-  ( Type vt loc ->
-    Seq v ->
-    Seq v ->
-    IntervalSet ->
-    ConstraintUpdate (Seq v, Seq v, IntervalSet)
-  ) ->
-  NormalizedConstraints vt v loc ->
-  NormalizedConstraints vt v loc
-modifyList v f nc = runIdentity $ modifyListF v (\a b c d -> Identity (f a b c d)) nc
-
 modifyListC ::
   forall vt v loc m.
   (Pmc vt v loc m) =>
@@ -674,18 +647,6 @@ modifyListF v f nc =
   let g vc = getCompose (posAndNegList (\typ pcons psnoc iset -> Compose (f typ pcons psnoc iset)) vc)
    in modifyVarConstraints v g nc
 
-modifyConstructor ::
-  forall vt v loc.
-  (Var v) =>
-  v ->
-  ( (Maybe (ConstructorReference, [(v, Type vt loc)])) ->
-    Set ConstructorReference ->
-    (ConstraintUpdate (Maybe (ConstructorReference, [(v, Type vt loc)]), Set ConstructorReference))
-  ) ->
-  NormalizedConstraints vt v loc ->
-  NormalizedConstraints vt v loc
-modifyConstructor v f nc = runIdentity $ modifyConstructorF v (\a b -> Identity (f a b)) nc
-
 modifyConstructorC ::
   forall vt v loc m.
   (Pmc vt v loc m) =>
@@ -713,25 +674,6 @@ modifyConstructorF ::
 modifyConstructorF v f nc =
   let g vc = getCompose (posAndNegConstructor (\pos neg -> Compose (f pos neg)) vc)
    in modifyVarConstraints v g nc
-
-modifyLiteral ::
-  forall vt v loc.
-  (Var v) =>
-  v ->
-  PmLit ->
-  ( forall a.
-    (Ord a) =>
-    -- positive info
-    Maybe a ->
-    -- negative info
-    Set a ->
-    -- the passed in PmLit, unpacked
-    a ->
-    ConstraintUpdate (Maybe a, Set a)
-  ) ->
-  NormalizedConstraints vt v loc ->
-  NormalizedConstraints vt v loc
-modifyLiteral v lit f nc = runIdentity $ modifyLiteralF v lit (\a b c -> Identity (f a b c)) nc
 
 modifyLiteralC ::
   forall vt v loc m.
@@ -867,13 +809,6 @@ newtype C vt v loc m a = C
 
 contradiction :: (Applicative m) => C vt v loc m a
 contradiction = C \_ -> pure Nothing
-
-update :: (Pmc vt v loc m) => v -> VarConstraints vt v loc -> C vt v loc m ()
-update v vc = do
-  nc0 <- get
-  let (var, vi, nc1) = expectCanon v nc0
-      nc2 = markDirty var ((insertVarInfo var vi {vi_con = vc}) nc1)
-  put nc2
 
 equate :: (Pmc vt v loc m) => [(v, v)] -> C vt v loc m ()
 equate vs = addConstraintsC (map (uncurry C.Eq) vs)

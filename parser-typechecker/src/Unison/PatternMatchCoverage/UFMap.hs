@@ -28,8 +28,9 @@ import Data.Maybe (fromJust)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
--- import Lyg.Pretty
-
+-- | A union-find structure. Used by
+-- 'Unison.PatternMatchCoverage.NormalizedConstraints.NormalizedConstraints'
+-- to provide efficient unification.
 newtype UFMap k v = UFMap (Map k (UFValue k v))
   deriving stock (Eq, Ord, Show)
 
@@ -54,16 +55,15 @@ alterF' ::
   k ->
   -- | The canonical key (use laziness to supply if unknown)
   k ->
+  -- | Return Just to short-circuit the indirection lookup loop
   (k -> UFMap k v -> Maybe (f (UFMap k v))) ->
-  -- How to alter the canonical value
-  --
-  -- N.B. deleting keys from a UFMap is not supported
-  --
-
   -- | Nothing case
   f (Maybe v) ->
   -- | Just case
-  -- canonicalKey -> size -> value
+  --
+  -- @canonicalKey -> size -> value -> new value@
+  --
+  -- /N.B./ deleting a value is not supported
   (k -> Int -> v -> f (UFValue k v)) ->
   UFMap k v ->
   -- | Returns the canonical k, the size, the value, and the path
@@ -128,10 +128,17 @@ alter ::
 alter k handleNothing handleJust map0 =
   runIdentity (alterF k (Identity handleNothing) (\k s v -> Identity (handleJust k s v)) map0)
 
+-- | Lookup the canonical value
 lookupCanon ::
   (Ord k) =>
   k ->
   UFMap k v ->
+  -- | returns:
+  --
+  -- * the canonical member of the equivalence set
+  -- * the size of the equivalence set
+  -- * the associated value
+  -- * the @UFMap@ after path compression
   Maybe (k, Int, v, UFMap k v)
 lookupCanon k m =
   getCompose (alterF k nothing just m)

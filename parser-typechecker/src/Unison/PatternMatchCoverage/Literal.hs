@@ -1,4 +1,8 @@
-module Unison.PatternMatchCoverage.Literal where
+module Unison.PatternMatchCoverage.Literal
+  ( Literal (..),
+    prettyLiteral,
+  )
+where
 
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
@@ -12,14 +16,25 @@ import Unison.Typechecker.TypeVar (TypeVar, lowerTerm)
 import Unison.Util.Pretty
 import Unison.Var (Var)
 
+-- | Refinement type literals (fig 3)
 data Literal vt v loc
-  = T
-  | F
-  | PosCon v ConstructorReference [(v, Type vt loc)]
-  | NegCon v ConstructorReference
-  | PosLit v PmLit
-  | NegLit v PmLit
-  | PosListHead
+  = -- | True
+    T
+  | -- | False
+    F
+  | -- | Positive constraint regarding data type. States that the
+    -- given variable must be the given constructor, and it also binds
+    -- variables corresponding to constructor arguments.
+    PosCon v ConstructorReference [(v, Type vt loc)]
+  | -- | Negative constraint concerning data type. States that the
+    -- given variable must not be the given constructor.
+    NegCon v ConstructorReference
+  | -- | Positive constraint regarding literal
+    PosLit v PmLit
+  | -- | Negative constraint regarding literal
+    NegLit v PmLit
+  | -- | Positive constraint on list element with position relative to head of list
+    PosListHead
       v
       -- ^ list root
       Int
@@ -27,7 +42,8 @@ data Literal vt v loc
       v
       -- ^ element variable
       (Type vt loc)
-  | PosListTail
+  | -- | Positive constraint on list element with position relative to end of list
+    PosListTail
       v
       -- ^ list root
       Int
@@ -35,9 +51,13 @@ data Literal vt v loc
       v
       -- ^ element variable
       (Type vt loc)
-  | NegListInterval v IntervalSet
-  | Effectful v
-  | Let v (Term' vt v loc) (Type vt loc)
+  | -- | Negative constraint on length of the list (/i.e./ the list
+    -- may not be an element of the interval set)
+    NegListInterval v IntervalSet
+  | -- | An effect is performed
+    Effectful v
+  | -- | Introduce a binding for a term
+    Let v (Term' vt v loc) (Type vt loc)
   deriving stock (Show)
 
 prettyLiteral :: (Var v) => Literal (TypeVar b v) v loc -> Pretty ColorText

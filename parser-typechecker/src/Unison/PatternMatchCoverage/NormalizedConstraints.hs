@@ -1,4 +1,18 @@
-module Unison.PatternMatchCoverage.NormalizedConstraints where
+module Unison.PatternMatchCoverage.NormalizedConstraints
+  ( NormalizedConstraints (..),
+    VarInfo (..),
+    VarConstraints (..),
+    EffectInfo (..),
+    markDirty,
+    emptyNormalizedConstraints,
+    updateF,
+    ConstraintUpdate (..),
+    expectCanon,
+    declVar,
+    prettyNormalizedConstraints,
+    prettyDnf,
+  )
+where
 
 import Data.Functor.Compose
 import Data.List (intersperse)
@@ -58,9 +72,6 @@ markDirty ::
 markDirty k nc@NormalizedConstraints {dirtySet} =
   nc {dirtySet = Set.insert k dirtySet}
 
-dom :: NormalizedConstraints vt v loc -> [v]
-dom NormalizedConstraints {constraintMap} = UFMap.keys constraintMap
-
 emptyNormalizedConstraints :: (Ord v) => NormalizedConstraints vt v loc
 emptyNormalizedConstraints =
   NormalizedConstraints
@@ -68,6 +79,8 @@ emptyNormalizedConstraints =
       dirtySet = mempty
     }
 
+-- | Lookup the canonical value of @v@ from the constraint map. Throws
+-- an error if the variable is not in the map.
 expectCanon ::
   forall vt v loc.
   (Var v) =>
@@ -110,11 +123,16 @@ alterF v nothing just nc =
           Update x -> (markDirty v, Just x)
 {-# INLINE alterF #-}
 
+-- | Generic function to lookup or alter constraints in the constraint
+-- map. Throws an error if the variable is not in the map.
 updateF ::
   forall vt v loc f.
   (Var v, Functor f) =>
+  -- | variable to lookup
   v ->
+  -- | update function
   (v -> VarInfo vt v loc -> f (ConstraintUpdate (VarInfo vt v loc))) ->
+  -- | constraint map
   NormalizedConstraints vt v loc ->
   f (NormalizedConstraints vt v loc)
 updateF v just nc =
@@ -127,12 +145,18 @@ data ConstraintUpdate a
   | Ignore
   deriving stock (Functor)
 
+-- | Install a new variable into the constraint map. Throws an error
+-- if the variable already exists in the map.
 declVar ::
   forall vt v loc.
   (Var v) =>
+  -- | new variable to install
   v ->
+  -- | type of variable
   Type vt loc ->
+  -- | modifier for the default var info of the given type
   (VarInfo vt v loc -> VarInfo vt v loc) ->
+  -- | Normalized constraints to install the variable into
   NormalizedConstraints vt v loc ->
   NormalizedConstraints vt v loc
 declVar v t f nc@NormalizedConstraints {constraintMap} =
@@ -164,6 +188,7 @@ mkVarInfo v t =
       vi_eff = IsNotEffectful
     }
 
+-- | Normalized constraints on a specific variable
 data VarInfo vt v loc = VarInfo
   { vi_id :: v,
     vi_typ :: Type vt loc,
@@ -172,6 +197,9 @@ data VarInfo vt v loc = VarInfo
   }
   deriving stock (Show, Eq, Ord, Generic)
 
+-- | The constraints are different for different types, although most
+-- of them take the form of an optional positive constraint and a set
+-- of negative constraints.
 data VarConstraints vt v loc
   = Vc'Constructor
       (Maybe (ConstructorReference, [(v, Type vt loc)]))
@@ -182,8 +210,7 @@ data VarConstraints vt v loc
   | Vc'Float (Maybe Double) (Set Double)
   | Vc'Text (Maybe Text) (Set Text)
   | Vc'Char (Maybe Char) (Set Char)
-  | -- | Vc'ListElem v (Either Int Int)
-    Vc'ListRoot
+  | Vc'ListRoot
       (Type vt loc)
       -- ^ type of list elems
       (Seq v)

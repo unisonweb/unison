@@ -19,17 +19,17 @@
 -- == High-level algorithm overview
 --
 -- 1. [Desugar]("Unison.PatternMatchCoverage.Desugar") a match expression into a 'Unison.PatternMatchCoverage.GrdTree.GrdTree'.
--- 2. Annotate the @GrdTree@ nodes with [refinement types]("Unison.PatternMatchCoverage.NormalizedConstraints")
--- representing values that match this node. Redundant and inaccessible patterns are then identified by @GrdTree@ leaves
+-- 2. Annotate the @GrdTree@ leaves with [refinement types]("Unison.PatternMatchCoverage.NormalizedConstraints")
+-- describing values that match this branch. Redundant and inaccessible patterns are then identified by @GrdTree@ leaves
 -- with uninhabited refinement types. Inaccessible patterns are distinguished by an effect being performed between the
 -- @GrdTree@ root and the leaf.
--- 3. Traverse the @GrdTree@ building up a refinement type representing uncovered values. If the resulting refinement type
+-- 3. Traverse the @GrdTree@ building up a refinement type describing uncovered values. If the resulting refinement type
 -- is inhabited then the match is missing clauses.
 -- 4. Find inhabitants of the uncovered refinement type to present to the user.
 --
 -- Step (1) is implemented by 'desugarMatch'. Steps (2) and (3) are
--- implemented as a single traversal: 'uncoverAnnotate'. Step (4) is
--- implemented by 'expandSolution'.
+-- implemented as a single traversal: 'uncoverAnnotate'/'classify'. Step (4) is
+-- implemented by 'expandSolution'/'generateInhabitants'.
 module Unison.PatternMatchCoverage
   ( checkMatch,
   )
@@ -43,7 +43,7 @@ import Unison.PatternMatchCoverage.Desugar (desugarMatch)
 import Unison.PatternMatchCoverage.GrdTree (prettyGrdTree)
 import qualified Unison.PatternMatchCoverage.NormalizedConstraints as NC
 import Unison.PatternMatchCoverage.PmGrd (prettyPmGrd)
-import Unison.PatternMatchCoverage.Solve (classify, expand, expandSolution, uncoverAnnotate)
+import Unison.PatternMatchCoverage.Solve (classify, expandSolution, generateInhabitants, uncoverAnnotate)
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Util.Pretty as P
@@ -65,7 +65,7 @@ checkMatch matchLocation scrutineeType cases = do
   grdtree0 <- desugarMatch matchLocation scrutineeType v0 cases
   (uncovered, grdtree1) <- uncoverAnnotate (Set.singleton (NC.declVar v0 scrutineeType id NC.emptyNormalizedConstraints)) grdtree0
   uncoveredExpanded <- concat . fmap Set.toList <$> traverse (expandSolution v0) (Set.toList uncovered)
-  let sols = map (expand v0) uncoveredExpanded
+  let sols = map (generateInhabitants v0) uncoveredExpanded
   let (_accessible, inaccessible, redundant) = classify grdtree1
   let debugOutput =
         P.sep

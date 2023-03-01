@@ -1,6 +1,8 @@
-module Unison.PatternMatchCoverage.Desugar where
+module Unison.PatternMatchCoverage.Desugar
+  ( desugarMatch,
+  )
+where
 
-import Data.Functor.Compose
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified U.Core.ABT as ABT
 import Unison.Pattern
@@ -14,13 +16,17 @@ import Unison.Term (MatchCase (..), Term', app, var)
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 
+-- | Desugar a match into a 'GrdTree'
 desugarMatch ::
   forall loc vt v m.
   (Pmc vt v loc m) =>
   -- | loc of match
   loc ->
+  -- | scrutinee type
   Type vt loc ->
+  -- | scrutinee variable
   v ->
+  -- | match cases
   [MatchCase loc (Term' vt v loc)] ->
   m (GrdTree (PmGrd vt v loc) loc)
 desugarMatch loc0 scrutineeType v0 cs0 =
@@ -124,9 +130,9 @@ listToGrdTree _listTyp elemTyp listVar nl0 k0 vs0 =
       ($ 0) . cata \case
         N'ConsF _ b -> \acc -> b $! acc + 1
         N'SnocF b _ -> \acc -> b $! acc + 1
-        N'NilF -> \n -> (n, n)
-        N'VarF _ -> \n -> (n, maxBound)
-        N'UnboundF _ -> \n -> (n, maxBound)
+        N'NilF -> \ !n -> (n, n)
+        N'VarF _ -> \ !n -> (n, maxBound)
+        N'UnboundF _ -> \ !n -> (n, maxBound)
 
 data NormalizedListF loc a
   = N'ConsF (Pattern loc) a
@@ -138,19 +144,19 @@ data NormalizedListF loc a
 
 type NormalizedList loc = Fix (NormalizedListF loc)
 
-type AnnotatedList loc = Fix (Compose ((,) (Int, Int)) (NormalizedListF loc))
-
-pattern Ann :: Int -> Int -> NormalizedListF loc (AnnotatedList loc) -> AnnotatedList loc
-pattern Ann lb ub rest = Fix (Compose ((lb, ub), rest))
-
+pattern N'Cons :: Pattern loc -> Fix (NormalizedListF loc) -> Fix (NormalizedListF loc)
 pattern N'Cons x xs = Fix (N'ConsF x xs)
 
+pattern N'Snoc :: Fix (NormalizedListF loc) -> Pattern loc -> Fix (NormalizedListF loc)
 pattern N'Snoc xs x = Fix (N'SnocF xs x)
 
+pattern N'Nil :: Fix (NormalizedListF loc)
 pattern N'Nil = Fix N'NilF
 
+pattern N'Var :: loc -> Fix (NormalizedListF loc)
 pattern N'Var x = Fix (N'VarF x)
 
+pattern N'Unbound :: loc -> Fix (NormalizedListF loc)
 pattern N'Unbound x = Fix (N'UnboundF x)
 
 -- | strip out sequence literals and concats

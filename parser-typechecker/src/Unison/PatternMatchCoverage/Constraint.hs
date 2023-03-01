@@ -1,4 +1,8 @@
-module Unison.PatternMatchCoverage.Constraint where
+module Unison.PatternMatchCoverage.Constraint
+  ( Constraint (..),
+    prettyConstraint,
+  )
+where
 
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
@@ -9,28 +13,44 @@ import Unison.Type (Type)
 import Unison.Util.Pretty
 import Unison.Var (Var)
 
+-- | A constraint to add to a [normalized constraint
+-- set]("Unison.PatternMatchCoverage.NormalizedConstraints") (fig 6)
+-- See 'Unison.PatternMatchCoverage.Solve.addConstraint'
 data Constraint vt v loc
-  = PosCon v ConstructorReference [(v, Type vt loc)]
-  | NegCon v ConstructorReference
-  | PosLit v PmLit
-  | NegLit v PmLit
-  | PosListHead
+  = -- | Positive constraint regarding data type. States that the
+    -- given variable must be the given constructor, and it also binds
+    -- variables corresponding to constructor arguments.
+    PosCon v ConstructorReference [(v, Type vt loc)]
+  | -- | Negative constraint concerning data type. States that the
+    -- given variable must not be the given constructor.
+    NegCon v ConstructorReference
+  | -- | Positive constraint regarding literal
+    PosLit v PmLit
+  | -- | Negative constraint regarding literal
+    NegLit v PmLit
+  | -- | Positive constraint on list element with position relative to head of list
+    PosListHead
       v
       -- ^ list root
       Int
       -- ^ cons position (0 is head)
       v
       -- ^ element variable
-  | PosListTail
+  | -- | Positive constraint on list element with position relative to end of list
+    PosListTail
       v
       -- ^ list root
       Int
       -- ^ snoc position (0 is last)
       v
       -- ^ element variable
-  | NegListInterval v IntervalSet
-  | Effectful v
-  | Eq v v
+  | -- | Negative constraint on length of the list (/i.e./ the list
+    -- may not be an element of the interval set)
+    NegListInterval v IntervalSet
+  | -- | An effect is performed
+    Effectful v
+  | -- | Equality constraint
+    Eq v v
   deriving stock (Eq, Ord)
 
 prettyConstraint :: (Var vt, Var v) => Constraint vt v loc -> Pretty ColorText
