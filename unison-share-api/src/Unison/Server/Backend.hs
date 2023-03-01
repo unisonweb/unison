@@ -862,6 +862,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
     causalAtPath <- Codebase.getShallowCausalAtPath path (Just shallowRoot)
     branchAtPath <- V2Causal.value causalAtPath
     pure (dr, branchAtPath)
+  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: Done building definition results"
 
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
@@ -929,7 +930,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         where
           fqnPPE = PPED.unsuffixifiedPPE pped
 
-  let deps = definitionResultsDependencies dr
+  let deps = definitionResultsDependencies $ Debug.debugLog Debug.Server "prettyDefinitionsForHQName: Computing definition result deps" dr
   Debug.debugLogM Debug.Server $ "prettyDefinitionsForHQName: building term and type pped. Num deps: " <> show (Set.size deps)
   termAndTypePPED <- PPED.biasTo biases <$> getPPED deps backendPPE
   Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building type definitions"

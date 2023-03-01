@@ -1934,6 +1934,7 @@ longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
               -- We don't need to consider names for the same definition when suffixifying, so
               -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
               AND NOT (referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?)
+         LIMIT 1
       |]
 
 longestMatchingTypeNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Reference.TextReference -> Transaction (Maybe (NamedRef Reference.TextReference))
