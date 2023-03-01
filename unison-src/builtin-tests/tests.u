@@ -49,9 +49,6 @@ list.tests = do
   checkEqual "List.snoc" ([] :+ 1 :+ 2 :+ 3) [1, 2, 3]
   checkEqual "List.++" ([] ++ [1, 2] ++ [3, 4]) [1, 2, 3, 4]
   -- checkEqual "List.++" ([] ++ [1, 2] ++ [3, 4] ++ []) [1, 2, 3, 4] -- TODO include when vector-trie-append is fixed
-  --  checkEqual "List.++ (1)" ([] ++ [1]) [1]
-  --  checkEqual "List.++ (2)" ([1] ++ []) [1]
-  --  checkEqual "List.++ (3)" ([1,2,3] ++ [4,5]) [1,2,3,4,5]
   --  checkEqual "List.take (1)" (List.take 0 [1,2,3]) []
   --  checkEqual "List.take (2)" (List.take 2 [1,2,3]) [1,2]
   --  checkEqual "List.take (3)" (List.take 100 [1,2,3]) [1,2,3]
