@@ -75,6 +75,8 @@ module U.Codebase.Sqlite.Operations
     typeNamesBySuffix,
     checkBranchHashNameLookupExists,
     buildNameLookupForBranchHash,
+    longestMatchingTermNameForSuffixification,
+    longestMatchingTypeNameForSuffixification,
 
     -- * reflog
     getReflog,
@@ -1157,6 +1159,28 @@ typeNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedSegments -> Tran
 typeNamesBySuffix bh namespace suffix = do
   bhId <- Q.expectBranchHashId bh
   Q.typeNamesBySuffix bhId namespace suffix <&> fmap (fmap s2cTextReference)
+
+-- | Get the name within the provided namespace that has the longest matching suffix
+-- with the provided name, but a different ref.
+-- This is a bit of a hack but allows us to shortcut suffixification.
+-- We can clean this up if we make a custom PPE type just for sqlite pretty printing, but
+-- for now this works fine.
+longestMatchingTermNameForSuffixification :: BranchHash -> Q.NamespaceText -> S.NamedRef C.Referent -> Transaction (Maybe (S.NamedRef (C.Referent, Maybe C.ConstructorType)))
+longestMatchingTermNameForSuffixification bh namespace namedRef = do
+  bhId <- Q.expectBranchHashId bh
+  Q.longestMatchingTermNameForSuffixification bhId namespace (c2sTextReferent <$> namedRef)
+    <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+
+-- | Get the name within the provided namespace that has the longest matching suffix
+-- with the provided name, but a different ref.
+-- This is a bit of a hack but allows us to shortcut suffixification.
+-- We can clean this up if we make a custom PPE type just for sqlite pretty printing, but
+-- for now this works fine.
+longestMatchingTypeNameForSuffixification :: BranchHash -> Q.NamespaceText -> S.NamedRef C.Reference -> Transaction (Maybe (S.NamedRef C.Reference))
+longestMatchingTypeNameForSuffixification bh namespace namedRef = do
+  bhId <- Q.expectBranchHashId bh
+  Q.longestMatchingTypeNameForSuffixification bhId namespace (c2sTextReference <$> namedRef)
+    <&> fmap (fmap s2cTextReference)
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them
 -- then return them.

@@ -149,7 +149,8 @@ module U.Codebase.Sqlite.Queries
     trackNewBranchHashNameLookup,
     termNamesBySuffix,
     typeNamesBySuffix,
-    nameWithLongestMatchingSuffixForTerm,
+    longestMatchingTermNameForSuffixification,
+    longestMatchingTypeNameForSuffixification,
 
     -- * Reflog
     appendReflog,
@@ -1772,7 +1773,7 @@ termNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef 
 termNamesWithinNamespace bhId mayNamespace = do
   let namespaceGlob = case mayNamespace of
         Nothing -> "*"
-        Just namespace -> globEscape namespace <> ".*"
+        Just namespace -> toNamespaceGlob namespace
   results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, namespaceGlob)
   pure (fmap unRow <$> results)
   where
@@ -1793,7 +1794,7 @@ typeNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef 
 typeNamesWithinNamespace bhId mayNamespace = do
   let namespaceGlob = case mayNamespace of
         Nothing -> "*"
-        Just namespace -> globEscape namespace <> ".*"
+        Just namespace -> toNamespaceGlob namespace
   results :: [NamedRef Reference.TextReference] <- queryListRow sql (bhId, namespaceGlob)
   pure results
   where
@@ -1812,10 +1813,9 @@ typeNamesWithinNamespace bhId mayNamespace = do
 termNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
-  let namespaceGlob = globEscape namespaceRoot <> ".*"
+  let namespaceGlob = toNamespaceGlob namespaceRoot
   let lastSegment = NonEmpty.head suffix
-  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, lastSegment, namespaceGlob, suffixGlob)
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, lastSegment, namespaceGlob, toSuffixGlob suffix)
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
@@ -1847,9 +1847,9 @@ data EmptyName = EmptyName String
 -- Get the list of term names for a given Referent within a given namespace.
 termNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Referent.TextReferent -> Maybe ReversedSegments -> Transaction [ReversedSegments]
 termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
-  let namespaceGlob = globEscape namespaceRoot <> ".*"
+  let namespaceGlob = toNamespaceGlob namespaceRoot
   let suffixGlob = case maySuffix of
-        Just suffix -> globEscape (Text.intercalate "." (toList suffix)) <> ".*"
+        Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
   queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob :. Only suffixGlob) \reversedNames ->
     for reversedNames \reversedName -> do
@@ -1872,9 +1872,9 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
 -- Get the list of type names for a given Reference within a given namespace.
 typeNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Reference.TextReference -> Maybe ReversedSegments -> Transaction [ReversedSegments]
 typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
-  let namespaceGlob = globEscape namespaceRoot <> ".*"
+  let namespaceGlob = toNamespaceGlob namespaceRoot
   let suffixGlob = case maySuffix of
-        Just suffix -> globEscape (Text.intercalate "." (toList suffix)) <> ".*"
+        Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
   queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob :. Only suffixGlob) \reversedNames ->
     for reversedNames \reversedName -> do
@@ -1891,47 +1891,94 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
               AND reversed_name GLOB ?
         |]
 
-nameWithLongestMatchingSuffixForTerm :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
-nameWithLongestMatchingSuffixForTerm bhId namespaceRoot suffix = do
-  let lastNameSegment = NonEmpty.head suffix
+longestMatchingTermNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
+longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(lastSegment NonEmpty.:| _), ref}) = do
+  let namespaceGlob = globEscape namespaceRoot <> ".*"
+  let loop :: [Text] -> MaybeT Transaction (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))
+      loop [] = empty
+      loop (suffGlob : rest) = do
+        result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))) <-
+          lift $ queryMaybeRow sql ((bhId, lastSegment, namespaceGlob, suffGlob) :. ref)
+        case result of
+          Just namedRef ->
+            -- We want to find matches for the _longest_ possible suffix, so we keep going until we
+            -- don't find any more matches.
+            pure (unRow <$> namedRef) <|> loop rest
+          Nothing ->
+            -- If we don't find a match for a suffix, there's no way we could match on an even
+            -- longer suffix, so we bail.
+            empty
   let suffixes =
-        NonEmpty.tail (NonEmpty.inits suffix)
-          & fmap ((<> "*") . globEscape . Text.intercalate ".")
-          & concatMap \partialSuffix -> [SQLInteger $ fromIntegral bhId, SQLText partialSuffix, SQLText lastNameSegment, SQLText $ globEscape namespaceRoot <> ".*"]
-  let selects =
-        replicate (length suffixes) selectMatchingSuffixSql
-          & Text.intercalate
-            "\nUNION\n"
-  result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))) <- queryMaybeRow (Sql $ sql selects) suffixes
-  pure (fmap unRow <$> result)
+        revSuffix
+          & toList
+          & List.inits
+          & mapMaybe NonEmpty.nonEmpty
+          & map toSuffixGlob
+  runMaybeT $ loop suffixes
   where
     unRow (a :. Only b) = (a, b)
-    -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
-    -- GLOB, but this helps improve query performance.
-    -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
-    -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
-    -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
-    -- names which couldn't possibly match before we then manually filter the remaining names
-    -- using the `reversed_name` glob which can't be optimized with an index.
-    selectMatchingSuffixSql =
+    sql =
+      -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+      -- GLOB, but this helps improve query performance.
+      -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+      -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+      -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+      -- names which couldn't possibly match before we then manually filter the remaining names
+      -- using the `reversed_name` glob which can't be optimized with an index.
       [here|
-      SELECT ? as reversed_suffix, reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
-      WHERE root_branch_hash_id = ?
-            last_name_segment IS ? AND namespace GLOB ? AND reversed_name GLOB (reversed_suffix || '*')
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND last_name_segment IS ?
+              AND namespace GLOB ?
+              AND reversed_name GLOB ?
+              -- We don't need to consider names for the same definition when suffixifying, so
+              -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
+              AND NOT (referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?)
       |]
-    sql selects =
-      Text.unlines
-        [ [here|
-      SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM
-      (
-      |],
-          selects,
-          [here|
-      ORDER BY LENGTH(reversed_suffix) DESC
-      )
-      LIMIT 1
+
+longestMatchingTypeNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Reference.TextReference -> Transaction (Maybe (NamedRef Reference.TextReference))
+longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(lastSegment NonEmpty.:| _), ref}) = do
+  let namespaceGlob = globEscape namespaceRoot <> ".*"
+  let loop :: [Text] -> MaybeT Transaction (NamedRef Reference.TextReference)
+      loop [] = empty
+      loop (suffGlob : rest) = do
+        result :: Maybe (NamedRef (Reference.TextReference)) <-
+          lift $ queryMaybeRow sql ((bhId, lastSegment, namespaceGlob, suffGlob) :. ref)
+        case result of
+          Just namedRef ->
+            -- We want to find matches for the _longest_ possible suffix, so we keep going until we
+            -- don't find any more matches.
+            pure namedRef <|> loop rest
+          Nothing ->
+            -- If we don't find a match for a suffix, there's no way we could match on an even
+            -- longer suffix, so we bail.
+            empty
+  let suffixes =
+        revSuffix
+          & toList
+          & List.inits
+          & mapMaybe NonEmpty.nonEmpty
+          & map toSuffixGlob
+  runMaybeT $ loop suffixes
+  where
+    sql =
+      -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+      -- GLOB, but this helps improve query performance.
+      -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+      -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+      -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+      -- names which couldn't possibly match before we then manually filter the remaining names
+      -- using the `reversed_name` glob which can't be optimized with an index.
+      [here|
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND last_name_segment IS ?
+              AND namespace GLOB ?
+              AND reversed_name GLOB ?
+              -- We don't need to consider names for the same definition when suffixifying, so
+              -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
+              AND NOT (reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?)
       |]
-        ]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -1940,10 +1987,9 @@ nameWithLongestMatchingSuffixForTerm bhId namespaceRoot suffix = do
 typeNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
 typeNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "typeNamesBySuffix" (namespaceRoot, suffix)
-  let namespaceGlob = globEscape namespaceRoot <> ".*"
+  let namespaceGlob = toNamespaceGlob namespaceRoot
   let lastNameSegment = NonEmpty.head suffix
-  let suffixGlob = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
-  queryListRow sql (bhId, lastNameSegment, namespaceGlob, suffixGlob)
+  queryListRow sql (bhId, lastNameSegment, namespaceGlob, toSuffixGlob suffix)
   where
     sql =
       -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
@@ -2585,3 +2631,9 @@ getReflog numEntries = queryListRow sql (Only numEntries)
       ORDER BY time DESC
       LIMIT ?
     |]
+
+toSuffixGlob :: ReversedSegments -> Text
+toSuffixGlob suffix = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
+
+toNamespaceGlob :: Text -> Text
+toNamespaceGlob namespace = globEscape namespace <> ".*"

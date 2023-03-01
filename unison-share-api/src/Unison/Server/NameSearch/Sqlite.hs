@@ -10,7 +10,6 @@ where
 import Control.Lens
 import qualified Data.Set as Set
 import qualified Unison.Util.Set as Set
-import qualified Data.Text as Text
 import U.Codebase.HashTags (BranchHash)
 import qualified U.Codebase.Sqlite.NamedRef as NamedRef
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -81,7 +80,6 @@ scopedNameSearch codebase rootHash path =
             & Set.fromList
             & pure
         HQ'.HashQualified name sh -> do
-          let sh2 = either (error . Text.unpack) id $ Cv.shorthash1to2 sh
           typeRefs <- typeReferencesByShortHash sh
           Set.forMaybe typeRefs \typeRef -> do
             matches <- Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 typeRef) (Just . coerce $ Name.reverseSegments name)
@@ -101,7 +99,6 @@ scopedNameSearch codebase rootHash path =
             & Set.fromList
             & pure
         HQ'.HashQualified name sh -> do
-          let sh2 = either (error . Text.unpack) id $ Cv.shorthash1to2 sh
           termRefs <- termReferentsByShortHash codebase sh
           Set.forMaybe termRefs \termRef -> do
             matches <- Ops.termNamesForRefWithinNamespace rootHash pathText (Cv.referent1to2 termRef) (Just . coerce $ Name.reverseSegments name)

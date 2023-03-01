@@ -45,27 +45,24 @@ ppedForReferences rootHash perspective refs = do
   Debug.debugLogM Debug.Server "ppedForReferences: computing term names for suffixification"
   let termSuffixes =
         Set.fromList (termNames <&> \(name, _ref) -> (NameSegment.toText (Name.lastSegment name)))
+          -- TODO: remove this
           & Set.delete "doc"
   let typeSuffixes =
         Set.fromList (typeNames <&> \(name, _ref) -> (NameSegment.toText (Name.lastSegment name)))
+          -- TODO: remove this
           & Set.delete "doc"
-  allTermNamesToConsider <-
-    termSuffixes
-      & ( foldMapM \lastNameSegment -> do
-            Ops.termNamesBySuffix rootHash pathText (lastNameSegment NEL.:| []) <&> fmap \(NamedRef {reversedSegments, ref = (ref, mayCt)}) ->
-              let ct = fromMaybe (error "ppedForReferences: Required constructor type for constructor but it was null") mayCt
-               in (Name.fromReverseSegments (coerce reversedSegments), Cv.referent2to1UsingCT ct ref)
-        )
-      <&> (termNames <>)
   Debug.debugLogM Debug.Server "ppedForReferences: computing type names for suffixification"
-  allTypeNamesToConsider <-
-    typeSuffixes
-      & foldMapM
-        ( \lastNameSegment -> do
-            Ops.typeNamesBySuffix rootHash pathText (lastNameSegment NEL.:| []) <&> fmap \(NamedRef {reversedSegments, ref}) ->
-              (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
-        )
-      <&> (typeNames <>)
+  longestTermSuffixMatches <- forMaybe termNames \(name, ref) -> do
+    Ops.longestMatchingTermNameForSuffixification rootHash pathText (NamedRef {reversedSegments = Name.reversedSegments name, ref = Cv.referent1to2 ref})
+      <&> fmap \(NamedRef {reversedSegments, ref = (ref, mayCt)}) ->
+        let ct = fromMaybe (error "ppedForReferences: Required constructor type for constructor but it was null") mayCt
+         in (Name.fromReverseSegments (coerce reversedSegments), Cv.referent2to1UsingCT ct ref)
+  longestTypeSuffixMatches <- forMaybe typeNames \(name, ref) -> do
+    Ops.longestMatchingTypeNameForSuffixification rootHash pathText (NamedRef {reversedSegments = Name.reversedSegments name, ref = Cv.reference1to2 ref})
+      <&> fmap \(NamedRef {reversedSegments, ref}) ->
+        (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
+  let allTermNamesToConsider = termNames <> longestTermSuffixMatches
+  let allTypeNamesToConsider = typeNames <> longestTypeSuffixMatches
   Debug.debugLogM Debug.Server $ "ppedForReferences built pped within " <> show perspective <> " for " <> show (Set.size refs) <> " deps, " <> show (length allTermNamesToConsider) <> " terms and " <> show (length allTypeNamesToConsider) <> " types"
   Debug.debugM Debug.Server "ppedForReferences: PPED BASE size: " $ show (length termNames + length typeNames)
   Debug.debugM Debug.Server "ppedForReferences: PPED With suffixifications size: " $ show (length allTermNamesToConsider + length allTypeNamesToConsider)
