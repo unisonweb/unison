@@ -1,6 +1,5 @@
 module Unison.PrettyPrintEnvDecl.Sqlite where
 
-import qualified Data.List.NonEmpty as NEL
 import qualified Data.Set as Set
 import U.Codebase.HashTags (BranchHash)
 import U.Codebase.Sqlite.NamedRef (NamedRef (..))
@@ -16,7 +15,6 @@ import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Prelude
@@ -43,22 +41,14 @@ ppedForReferences rootHash perspective refs = do
     refs & foldMapM \ref ->
       namesForReference ref
   Debug.debugLogM Debug.Server "ppedForReferences: computing term names for suffixification"
-  let termSuffixes =
-        Set.fromList (termNames <&> \(name, _ref) -> (NameSegment.toText (Name.lastSegment name)))
-          -- TODO: remove this
-          & Set.delete "doc"
-  let typeSuffixes =
-        Set.fromList (typeNames <&> \(name, _ref) -> (NameSegment.toText (Name.lastSegment name)))
-          -- TODO: remove this
-          & Set.delete "doc"
   Debug.debugLogM Debug.Server "ppedForReferences: computing type names for suffixification"
   longestTermSuffixMatches <- forMaybe termNames \(name, ref) -> do
-    Ops.longestMatchingTermNameForSuffixification rootHash pathText (NamedRef {reversedSegments = Name.reversedSegments name, ref = Cv.referent1to2 ref})
+    Ops.longestMatchingTermNameForSuffixification rootHash pathText (NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = Cv.referent1to2 ref})
       <&> fmap \(NamedRef {reversedSegments, ref = (ref, mayCt)}) ->
         let ct = fromMaybe (error "ppedForReferences: Required constructor type for constructor but it was null") mayCt
          in (Name.fromReverseSegments (coerce reversedSegments), Cv.referent2to1UsingCT ct ref)
   longestTypeSuffixMatches <- forMaybe typeNames \(name, ref) -> do
-    Ops.longestMatchingTypeNameForSuffixification rootHash pathText (NamedRef {reversedSegments = Name.reversedSegments name, ref = Cv.reference1to2 ref})
+    Ops.longestMatchingTypeNameForSuffixification rootHash pathText (NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = Cv.reference1to2 ref})
       <&> fmap \(NamedRef {reversedSegments, ref}) ->
         (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
   let allTermNamesToConsider = termNames <> longestTermSuffixMatches
