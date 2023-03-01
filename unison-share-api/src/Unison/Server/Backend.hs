@@ -765,7 +765,8 @@ data DefinitionResults = DefinitionResults
   { termResults :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
     typeResults :: Map Reference (DisplayObject () (DD.Decl Symbol Ann)),
     noResults :: [HQ.HashQualified Name]
-  } deriving stock (Show)
+  }
+  deriving stock (Show)
 
 definitionResultsDependencies :: DefinitionResults -> Set LD.LabeledDependency
 definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
@@ -1034,6 +1035,7 @@ renderDocRefs ::
   Rt.Runtime Symbol ->
   [TermReference] ->
   IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+renderDocRefs backendPPE width codebase rt [] = pure []
 renderDocRefs backendPPE width codebase rt docRefs = do
   Debug.debugLogM Debug.Server $ "Evaluating docs"
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
