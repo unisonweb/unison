@@ -216,7 +216,7 @@
   (define unison-POp-BLDS
     (lambda args-list
       (fold-right (lambda (e l) (vector-trie-add-first l e)) empty-vector-trie args-list)))
-  (define (unison-POp-CATS l r) (append l r))
+  (define (unison-POp-CATS l r) (vector-trie-append l r))
   (define (unison-POp-CATT l r) (istring-append l r))
   (define (unison-POp-CMPU l r) (universal-compare l r))
   (define (unison-POp-COMN n) (fxnot n))
