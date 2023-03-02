@@ -19,6 +19,34 @@ tcp.tests = do
         { a } -> false
         {raise failure -> _} -> true
 
+  setup = catchAll do
+      socket = Socket.listen (server None (Port "0"))
+      port = match socket with
+          ListeningServerSocket sock -> Socket.port sock
+      (socket, port)
+
+  match setup with
+      (Left exn) -> Tests.fail "Unable to bind and listen on a socket" ""
+      (Right (socket, port)) ->
+          serve = do
+              sock = Socket.accept socket
+              data = Socket.receive sock
+              Socket.send sock (toUtf8 "from server")
+              base.Text.fromUtf8 data
+
+          serveResult = Promise.new ()
+          _ = fork do Promise.write serveResult (catchAll serve)
+
+          data = catchAll do
+              clientSocket = Socket.client (HostName "localhost") (Port (Nat.toText port))
+              Socket.send clientSocket (toUtf8 "from client")
+              base.Text.fromUtf8 (Socket.receive clientSocket)
+
+          checkEqual "Server received data" (Promise.read serveResult) (Right "from client")
+          checkEqual "Client received data" data (Right "from server")
+
+
+
 crypto.hash.tests = do
   hash alg = hashBytes alg (toUtf8 "")
   tag name = name ++ " hashBytes"
