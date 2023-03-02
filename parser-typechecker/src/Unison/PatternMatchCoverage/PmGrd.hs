@@ -54,7 +54,7 @@ prettyPmGrd :: (Var vt, Var v) => PmGrd vt v loc -> Pretty ColorText
 prettyPmGrd = \case
   PmCon var con convars ->
     let xs = string (show con) : (formatConVar <$> convars) ++ ["<-", string (show var)]
-        formatConVar (v, t) = sep " " ["(", string (show v), "::", TypePrinter.pretty PPE.empty t, ")"]
+        formatConVar (v, t) = sep " " ["(", string (show v), ":", TypePrinter.pretty PPE.empty t, ")"]
      in sep " " xs
   PmListHead var n el _ -> sep " " ["Cons", string (show n), string (show el), "<-", string (show var)]
   PmListTail var n el _ -> sep " " ["Snoc", string (show n), string (show el), "<-", string (show var)]
