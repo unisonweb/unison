@@ -119,6 +119,7 @@ Here's another example:
 ```unison
 structural type B = T | F
 
+blah : B -> B -> Text
 blah = cases
   T, x -> "hi"
   x, y -> "bye"
@@ -141,21 +142,21 @@ blorf = cases
     ⍟ These new definitions are ok to `add`:
     
       structural type B
-      blah  : B -> hod1jusqau2 -> Text
+      blah  : B -> B -> Text
       blorf : B -> B -> B
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    11 | > blah T F
+    12 | > blah T F
            ⧩
            "hi"
   
-    12 | > blah F F
+    13 | > blah F F
            ⧩
            "bye"
   
-    13 | > blorf T F
+    14 | > blorf T F
            ⧩
            F
 

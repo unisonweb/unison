@@ -75,6 +75,7 @@ Here's another example:
 ```unison
 structural type B = T | F
 
+blah : B -> B -> Text
 blah = cases
   T, x -> "hi"
   x, y -> "bye"
