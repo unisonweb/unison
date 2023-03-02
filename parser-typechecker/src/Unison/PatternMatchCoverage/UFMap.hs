@@ -213,13 +213,22 @@ union k0 k1 mapinit mergeValues = toMaybe do
           KeyNotFound _k -> Nothing
           MergeFailed _v0 _v1 -> Nothing
 
-toClasses :: forall k v. (Ord k) => UFMap k v -> [(k, Set k, v)]
+-- | Dump the @UFmap@ to a list grouped by equivalence class
+toClasses ::
+  forall k v.
+  (Ord k) =>
+  UFMap k v ->
+  -- | [(canonical key, equivalence class, value)]
+  [(k, Set k, v)]
 toClasses m0 =
   let cmFinal :: Map k (k, Set k, v)
-      (_mfinal, cmFinal) = foldl' phi (m0, Map.empty) keys
+      (_mfinal, cmFinal) =
+        -- we fold over the UFMap's keys and build up a Map that
+        -- groups the keys by equivalence class.
+        foldl' buildCmFinal (m0, Map.empty) keys
       keys = case m0 of
         UFMap m -> Map.keys m
-      phi (m, cm) k =
+      buildCmFinal (m, cm) k =
         let (kcanon, _, v, m') = fromJust (lookupCanon k m)
             cm' =
               Map.insertWith
