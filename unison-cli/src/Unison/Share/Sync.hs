@@ -17,6 +17,7 @@ module Unison.Share.Sync
     -- ** Pull
     pull,
     PullError (..),
+    downloadEntities,
   )
 where
 
@@ -384,9 +385,6 @@ dagbfs goal children =
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
 
-data DownloadEntitiesError
-  = DownloadEntitiesNoReadPermission
-
 pull ::
   -- | The Unison Share URL.
   BaseUrl ->
@@ -395,19 +393,43 @@ pull ::
   -- | Callback that's given a number of entities we just downloaded.
   (Int -> IO ()) ->
   Cli (Either (SyncError PullError) CausalHash)
-pull unisonShareUrl repoPath downloadedCallback = do
+pull unisonShareUrl repoPath downloadedCallback =
+  getCausalHashByPath unisonShareUrl repoPath >>= \case
+    Left err -> pure (Left (getCausalHashByPathErrorToPullError <$> err))
+    -- There's nothing at the remote path, so there's no causal to pull.
+    Right Nothing -> pure (Left (SyncError (PullErrorNoHistoryAtPath repoPath)))
+    Right (Just hashJwt) ->
+      downloadEntities unisonShareUrl (Share.pathRepoName repoPath) hashJwt downloadedCallback >>= \case
+        Left err ->
+          pure do
+            Left do
+              err <&> \case
+                Share.DownloadEntitiesNoReadPermission _ -> PullErrorNoReadPermission repoPath
+        Right () -> pure (Right (hash32ToCausalHash (Share.hashJWTHash hashJwt)))
+
+getCausalHashByPathErrorToPullError :: GetCausalHashByPathError -> PullError
+getCausalHashByPathErrorToPullError = \case
+  GetCausalHashByPathErrorNoReadPermission path -> PullErrorNoReadPermission path
+
+------------------------------------------------------------------------------------------------------------------------
+-- Download entities
+
+downloadEntities ::
+  -- | The Unison Share URL.
+  BaseUrl ->
+  -- | The repo to download from.
+  Share.RepoName ->
+  -- | The hash to download.
+  Share.HashJWT ->
+  -- | Callback that's given a number of entities we just downloaded.
+  (Int -> IO ()) ->
+  Cli (Either (SyncError Share.DownloadEntitiesError) ())
+downloadEntities unisonShareUrl repoName hashJwt downloadedCallback = do
   Cli.Env {authHTTPClient, codebase} <- ask
 
   Cli.label \done -> do
-    let failed :: SyncError PullError -> Cli void
+    let failed :: SyncError Share.DownloadEntitiesError -> Cli void
         failed = done . Left
-
-    hashJwt <-
-      getCausalHashByPath unisonShareUrl repoPath >>= \case
-        Left err -> failed (getCausalHashByPathErrorToPullError <$> err)
-        -- There's nothing at the remote path, so there's no causal to pull.
-        Right Nothing -> failed (SyncError (PullErrorNoHistoryAtPath repoPath))
-        Right (Just hashJwt) -> pure hashJwt
 
     let hash = Share.hashJWTHash hashJwt
 
@@ -424,8 +446,7 @@ pull unisonShareUrl repoPath downloadedCallback = do
           entities <-
             liftIO request >>= \case
               Left err -> failed (TransportError err)
-              Right (Share.DownloadEntitiesNoReadPermission _) ->
-                failed (SyncError (PullErrorNoReadPermission repoPath))
+              Right (Share.DownloadEntitiesFailure err) -> failed (SyncError err)
               Right (Share.DownloadEntitiesSuccess entities) -> pure entities
           tempEntities <- Cli.runTransaction (insertEntities entities)
           liftIO (downloadedCallback 1)
@@ -444,21 +465,13 @@ pull unisonShareUrl repoPath downloadedCallback = do
               downloadedCallback
               tempEntities
       liftIO doCompleteTempEntities & onLeftM \err ->
-        failed $
-          err <&> \case
-            DownloadEntitiesNoReadPermission -> PullErrorNoReadPermission repoPath
+        failed err
 
     -- Since we may have just inserted and then deleted many temp entities, we attempt to recover some disk space by
     -- vacuuming after each pull. If the vacuum fails due to another open transaction on this connection, that's ok,
     -- we'll try vacuuming again next pull.
     _success <- liftIO (Codebase.withConnection codebase Sqlite.vacuum)
-    pure (Right (hash32ToCausalHash hash))
-  where
-    repoName = Share.pathRepoName repoPath
-
-getCausalHashByPathErrorToPullError :: GetCausalHashByPathError -> PullError
-getCausalHashByPathErrorToPullError = \case
-  GetCausalHashByPathErrorNoReadPermission path -> PullErrorNoReadPermission path
+    pure (Right ())
 
 type WorkerCount =
   TVar Int
@@ -478,7 +491,7 @@ recordNotWorking sem =
 -- What the dispatcher is to do
 data DispatcherJob
   = DispatcherForkWorker (NESet Share.HashJWT)
-  | DispatcherReturnEarlyBecauseDownloaderFailed (SyncError DownloadEntitiesError)
+  | DispatcherReturnEarlyBecauseDownloaderFailed (SyncError Share.DownloadEntitiesError)
   | DispatcherDone
 
 -- | Finish downloading entities from Unison Share (or return the first failure to download something).
@@ -492,7 +505,7 @@ completeTempEntities ::
   Share.RepoName ->
   (Int -> IO ()) ->
   NESet Hash32 ->
-  IO (Either (SyncError DownloadEntitiesError) ())
+  IO (Either (SyncError Share.DownloadEntitiesError) ())
 completeTempEntities httpClient unisonShareUrl connect repoName downloadedCallback initialNewTempEntities = do
   -- The set of hashes we still need to download
   hashesVar <- newTVarIO Set.empty
@@ -537,11 +550,11 @@ completeTempEntities httpClient unisonShareUrl connect repoName downloadedCallba
       TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
       TQueue (Set Share.HashJWT, Maybe (NESet Hash32)) ->
       WorkerCount ->
-      TMVar (SyncError DownloadEntitiesError) ->
-      IO (Either (SyncError DownloadEntitiesError) ())
+      TMVar (SyncError Share.DownloadEntitiesError) ->
+      IO (Either (SyncError Share.DownloadEntitiesError) ())
     dispatcher hashesVar uninsertedHashesVar entitiesQueue newTempEntitiesQueue workerCount downloaderFailedVar =
       Ki.scoped \scope ->
-        let loop :: IO (Either (SyncError DownloadEntitiesError) ())
+        let loop :: IO (Either (SyncError Share.DownloadEntitiesError) ())
             loop =
               atomically (checkIfDownloaderFailedMode <|> dispatchWorkMode <|> checkIfDoneMode) >>= \case
                 DispatcherDone -> pure (Right ())
@@ -590,15 +603,15 @@ completeTempEntities httpClient unisonShareUrl connect repoName downloadedCallba
       TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
       WorkerCount ->
       NESet Share.HashJWT ->
-      IO (Either (SyncError DownloadEntitiesError) ())
+      IO (Either (SyncError Share.DownloadEntitiesError) ())
     downloader entitiesQueue workerCount hashes = do
       httpDownloadEntities httpClient unisonShareUrl Share.DownloadEntitiesRequest {repoName, hashes} >>= \case
         Left err -> do
           atomically (recordNotWorking workerCount)
           pure (Left (TransportError err))
-        Right (Share.DownloadEntitiesNoReadPermission _) -> do
+        Right (Share.DownloadEntitiesFailure err) -> do
           atomically (recordNotWorking workerCount)
-          pure (Left (SyncError DownloadEntitiesNoReadPermission))
+          pure (Left (SyncError err))
         Right (Share.DownloadEntitiesSuccess entities) -> do
           downloadedCallback (NESet.size hashes)
           atomically do

@@ -49,6 +49,7 @@ module Unison.Sync.Types
     -- ** Download entities
     DownloadEntitiesRequest (..),
     DownloadEntitiesResponse (..),
+    DownloadEntitiesError (..),
 
     -- ** Upload entities
     UploadEntitiesRequest (..),
@@ -670,7 +671,10 @@ instance FromJSON DownloadEntitiesRequest where
 
 data DownloadEntitiesResponse
   = DownloadEntitiesSuccess (NEMap Hash32 (Entity Text Hash32 HashJWT))
-  | DownloadEntitiesNoReadPermission RepoName
+  | DownloadEntitiesFailure DownloadEntitiesError
+
+data DownloadEntitiesError
+  = DownloadEntitiesNoReadPermission RepoName
 
 -- data DownloadEntities = DownloadEntities
 --   { entities :: NEMap Hash (Entity Text Hash HashJWT)
@@ -680,13 +684,13 @@ data DownloadEntitiesResponse
 instance ToJSON DownloadEntitiesResponse where
   toJSON = \case
     DownloadEntitiesSuccess entities -> jsonUnion "success" entities
-    DownloadEntitiesNoReadPermission repoName -> jsonUnion "no_read_permission" repoName
+    DownloadEntitiesFailure (DownloadEntitiesNoReadPermission repoName) -> jsonUnion "no_read_permission" repoName
 
 instance FromJSON DownloadEntitiesResponse where
   parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj ->
     obj .: "type" >>= Aeson.withText "type" \case
       "success" -> DownloadEntitiesSuccess <$> obj .: "payload"
-      "no_read_permission" -> DownloadEntitiesNoReadPermission <$> obj .: "payload"
+      "no_read_permission" -> DownloadEntitiesFailure . DownloadEntitiesNoReadPermission <$> obj .: "payload"
       t -> failText $ "Unexpected DownloadEntitiesResponse type: " <> t
 
 -- instance ToJSON DownloadEntities where
