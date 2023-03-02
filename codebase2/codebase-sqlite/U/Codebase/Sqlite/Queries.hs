@@ -145,6 +145,8 @@ module U.Codebase.Sqlite.Queries
     typeNamesWithinNamespace,
     termNamesForRefWithinNamespace,
     typeNamesForRefWithinNamespace,
+    termRefsForNameWithinNamespace,
+    typeRefsForNameWithinNamespace,
     checkBranchHashNameLookupExists,
     trackNewBranchHashNameLookup,
     termNamesBySuffix,
@@ -1836,6 +1838,44 @@ termNamesBySuffix bhId namespaceRoot suffix = do
               AND reversed_name GLOB ?
         |]
 
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the set of refs for an exact name within a given namespace.
+termRefsForNameWithinNamespace :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termRefsForNameWithinNamespace bhId namespaceRoot reversedSegments = do
+  let namespaceGlob = toNamespaceGlob namespaceRoot
+  let reversedName = toReversedName reversedSegments
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, namespaceGlob, reversedName)
+  pure (fmap unRow <$> results)
+  where
+    unRow (a :. Only b) = (a, b)
+    sql =
+      [here|
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND namespace GLOB ?
+              AND reversed_name = ?
+        |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the set of refs for an exact name within a given namespace.
+typeRefsForNameWithinNamespace :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+typeRefsForNameWithinNamespace bhId namespaceRoot reversedSegments = do
+  let namespaceGlob = toNamespaceGlob namespaceRoot
+  let reversedName = toReversedName reversedSegments
+  queryListRow sql (bhId, namespaceGlob, reversedName)
+  where
+    sql =
+      [here|
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND namespace GLOB ?
+              AND reversed_name = ?
+        |]
+
 -- | Thrown if we try to get the segments of an empty name, shouldn't ever happen since empty names
 -- are invalid.
 data EmptyName = EmptyName String
@@ -2631,6 +2671,13 @@ getReflog numEntries = queryListRow sql (Only numEntries)
 
 toSuffixGlob :: ReversedSegments -> Text
 toSuffixGlob suffix = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
+
+-- | Convert reversed segments into the DB representation of a reversed_name.
+--
+-- >>> toReversedName (NonEmpty.fromList ["foo", "bar"])
+-- "foo.bar."
+toReversedName :: ReversedSegments -> Text
+toReversedName revSegs = Text.intercalate "." (toList revSegs) <> "."
 
 toNamespaceGlob :: Text -> Text
 toNamespaceGlob namespace = globEscape namespace <> ".*"

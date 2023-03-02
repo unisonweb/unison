@@ -9,7 +9,6 @@ where
 
 import Control.Lens
 import qualified Data.Set as Set
-import qualified Unison.Util.Set as Set
 import U.Codebase.HashTags (BranchHash)
 import qualified U.Codebase.Sqlite.NamedRef as NamedRef
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -34,6 +33,7 @@ import Unison.Server.NameSearch (NameSearch (..), Search (..))
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
+import qualified Unison.Util.Set as Set
 
 scopedNameSearch :: Codebase m v a -> BranchHash -> Path -> NameSearch Sqlite.Transaction
 scopedNameSearch codebase rootHash path =
@@ -70,8 +70,25 @@ scopedNameSearch codebase rootHash path =
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Referent.toShortHash ref))
         & Set.fromList
         & pure
+    -- This is a bit messy, but the existing 'lookupRelativeHQRefs' semantics
+    -- will return ONLY exact matches if any exist, otherwise it falls back on
+    -- suffix search, so we maintain that behaviour here. It would probably be better
+    -- to have separate functions in the Search type for each of these, and be more explicit
+    -- about desired behaviour at the call-site.
+    lookupRelativeHQRefsForTerms :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
+    lookupRelativeHQRefsForTerms hqName = do
+      exact <- exactHQTermLookup hqName
+      if Set.null exact
+        then hqSuffixTermSearch hqName
+        else pure exact
     lookupRelativeHQRefsForTypes :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
-    lookupRelativeHQRefsForTypes hqName = track "lookupRelativeHQRefsForTypes" do
+    lookupRelativeHQRefsForTypes hqName = do
+      exact <- exactHQTypeLookup hqName
+      if Set.null exact
+        then hqSuffixTypeSearch hqName
+        else pure exact
+    hqSuffixTypeSearch :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
+    hqSuffixTypeSearch hqName = track "lookupRelativeHQRefsForTypes" do
       case hqName of
         HQ'.NameOnly name -> do
           namedRefs <- Ops.typeNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
@@ -86,8 +103,8 @@ scopedNameSearch codebase rootHash path =
             if null matches
               then pure Nothing
               else pure (Just typeRef)
-    lookupRelativeHQRefsForTerms :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
-    lookupRelativeHQRefsForTerms hqName = track "lookupRelativeHQRefsForTerms" do
+    hqSuffixTermSearch :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
+    hqSuffixTermSearch hqName = track "lookupRelativeHQRefsForTerms" do
       case hqName of
         HQ'.NameOnly name -> do
           namedRefs <- Ops.termNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
@@ -105,6 +122,11 @@ scopedNameSearch codebase rootHash path =
             if null matches
               then pure Nothing
               else pure (Just termRef)
+    exactHQTermLookup :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
+    exactHQTermLookup = Ops.termRefsForNameWithinNamespace
+    exactHQTypeLookup :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
+    exactHQTypeLookup = Ops.typeRefsForNameWithinNamespace
+
     reversedSegmentsToName :: NamedRef.ReversedSegments -> Name
     reversedSegmentsToName = Name.fromReverseSegments . coerce
 

@@ -65,6 +65,8 @@ module Unison.Server.Backend
     typeListEntry,
     typeReferencesByShortHash,
     typeToSyntaxHeader,
+    renderDocRefs,
+    docsForTermName,
 
     -- * Unused, could remove?
     resolveRootBranchHash,
@@ -72,6 +74,13 @@ module Unison.Server.Backend
     isTestResultList,
     toAllNames,
     fixupNamesRelative,
+
+    -- * Re-exported for Share Server
+    termsToSyntax,
+    typesToSyntax,
+    definitionResultsDependencies,
+    termEntryTag,
+    evalDocRef,
   )
 where
 
@@ -97,7 +106,7 @@ import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
-import U.Codebase.HashTags (BranchHash, CausalHash (..))
+import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Projects as Projects
 import qualified U.Codebase.Referent as V2Referent
 import qualified U.Codebase.Sqlite.Operations as Operations
@@ -127,7 +136,6 @@ import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
-import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import qualified Unison.Name as Name
@@ -144,7 +152,6 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPED
-import qualified Unison.PrettyPrintEnvDecl.Sqlite as PPESqlite
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -154,7 +161,6 @@ import qualified Unison.Server.Doc as Doc
 import qualified Unison.Server.Doc.AsHtml as DocHtml
 import Unison.Server.NameSearch (NameSearch (..), Search (..), applySearch, makeNameSearch)
 import Unison.Server.NameSearch.Sqlite (termReferentsByShortHash, typeReferencesByShortHash)
-import qualified Unison.Server.NameSearch.Sqlite as SqliteNameSearch
 import Unison.Server.QueryResult
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
@@ -890,7 +896,13 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
   let biases = maybeToList $ HQ.toName query
 
   Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building names search"
-  (nameSearch, backendPPE) <- mkNamesStuff shallowRoot perspective codebase
+
+  Debug.debugLogM Debug.Server "using names object"
+  hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
+  (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase (Just shallowRoot) perspective
+  let pped = PPED.biasTo biases unbiasedPPED
+  let nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
+  -- let backendPPE = UsePPED localNamesOnly pped
   (dr@(DefinitionResults terms types misses), branchAtPath) <- liftIO $ Codebase.runTransaction codebase do
     Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: starting search"
     dr <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
@@ -904,7 +916,7 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do
         docRefs <- docsForTermName codebase nameSearch name
-        renderDocRefs backendPPE width codebase rt docRefs
+        renderDocRefs pped width codebase rt docRefs
   let mkTermDefinition ::
         PPED.PrettyPrintEnvDecl ->
         Reference ->
@@ -968,15 +980,14 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
 
   let deps = definitionResultsDependencies $ Debug.debugLog Debug.Server "prettyDefinitionsForHQName: Computing definition result deps" dr
   Debug.debugLogM Debug.Server $ "prettyDefinitionsForHQName: building term and type pped. Num deps: " <> show (Set.size deps)
-  termAndTypePPED <- PPED.biasTo biases <$> getPPED deps backendPPE
   Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building type definitions"
   typeDefinitions <-
-    Map.traverseWithKey (mkTypeDefinition termAndTypePPED) $
-      typesToSyntax suffixifyBindings width termAndTypePPED types
+    Map.traverseWithKey (mkTypeDefinition pped) $
+      typesToSyntax suffixifyBindings width pped types
   Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building term definitions"
   termDefinitions <-
-    Map.traverseWithKey (mkTermDefinition termAndTypePPED) $
-      termsToSyntax suffixifyBindings width termAndTypePPED terms
+    Map.traverseWithKey (mkTermDefinition pped) $
+      termsToSyntax suffixifyBindings width pped terms
   Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: Rendering definitions"
   let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
       renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
@@ -986,27 +997,6 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
-
-mkNamesStuff :: V2Branch.CausalBranch Sqlite.Transaction -> Path -> Codebase IO Symbol Ann -> Backend IO (NameSearch Sqlite.Transaction, BackendPPE)
-mkNamesStuff shallowRoot path codebase = do
-  asks useNamesIndex >>= \case
-    True -> do
-      Debug.debugLogM Debug.Server "using sqlite index"
-      mayProjectRoot <- liftIO $
-        Codebase.runTransaction codebase $ do
-          branch <- V2Causal.value shallowRoot
-          Projects.inferNamesRoot path branch
-      let namesRoot = fromMaybe path mayProjectRoot
-      let nameSearch = SqliteNameSearch.scopedNameSearch codebase rootBranchHash namesRoot
-      pure (nameSearch, UseSQLiteIndex codebase rootBranchHash namesRoot nameSearch)
-    False -> do
-      Debug.debugLogM Debug.Server "using names object"
-      hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
-      (localNamesOnly, pped) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
-      pure $ (makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly), UsePPED localNamesOnly pped)
-  where
-    rootBranchHash :: BranchHash
-    rootBranchHash = V2Causal.valueHash shallowRoot
 
 evalDocRef ::
   Rt.Runtime Symbol ->
@@ -1068,24 +1058,23 @@ docsForTermName codebase (NameSearch {termSearch}) name = do
       pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
 
 renderDocRefs ::
-  BackendPPE ->
+  PPED.PrettyPrintEnvDecl ->
   Width ->
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
   [TermReference] ->
   IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
-renderDocRefs _backendPPE _width _codebase _rt [] = pure []
-renderDocRefs backendPPE width codebase rt docRefs = do
+renderDocRefs _pped _width _codebase _rt [] = pure []
+renderDocRefs pped width codebase rt docRefs = do
   Debug.debugLogM Debug.Server $ "Evaluating docs"
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
   let docDeps = foldMap (Doc.dependencies . snd) eDocs <> Set.fromList (LD.TermReference <$> docRefs)
   Debug.debugLogM Debug.Server $ "Building pped for doc refs: " <> show (Set.size docDeps)
-  docsPPED <- getPPED docDeps backendPPE
   Debug.debugLogM Debug.Server $ "Done building pped"
   for eDocs \(ref, eDoc) -> do
-    let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE docsPPED) width (Referent.Ref ref)
+    let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref ref)
     let hash = Reference.toText ref
-    let renderedDoc = Doc.renderDoc docsPPED eDoc
+    let renderedDoc = Doc.renderDoc pped eDoc
     pure (name, hash, renderedDoc)
 
 docsInBranchToHtmlFiles ::
@@ -1445,13 +1434,3 @@ loadTypeDisplayObject c = \case
   Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration c id
-
-data BackendPPE
-  = UseSQLiteIndex (Codebase IO Symbol Ann) BranchHash Path (NameSearch Sqlite.Transaction)
-  | UsePPED Names PPED.PrettyPrintEnvDecl
-
-getPPED :: (MonadIO m) => Set LabeledDependency -> BackendPPE -> m PPED.PrettyPrintEnvDecl
-getPPED deps = \case
-  UseSQLiteIndex codebase rootHash perspective _nameSearch -> do
-    liftIO $ Codebase.runTransaction codebase $ PPESqlite.ppedForReferences rootHash perspective deps
-  UsePPED _na pped -> pure pped
