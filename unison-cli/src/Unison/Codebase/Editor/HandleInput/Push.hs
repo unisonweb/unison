@@ -506,13 +506,9 @@ oompaLoompa0 maybeLocalProjectAndBranch localBranchHead pb@(ProjectAndBranch rem
 
 getRemoteProjectByName :: ProjectName -> Cli (Maybe Share.API.Project)
 getRemoteProjectByName remoteProjectName = do
-  Share.getProjectByName remoteProjectName >>= \case
-    Share.API.GetProjectResponseNotFound _msg -> pure Nothing
-    Share.API.GetProjectResponseSuccess remoteProject -> do
-      let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
-      Cli.runTransaction do
-        Queries.ensureRemoteProject remoteProjectId shareUrl (remoteProject ^. #projectName)
-      pure (Just remoteProject)
+  Share.getProjectByName remoteProjectName <&> \case
+    Share.API.GetProjectResponseNotFound _msg -> Nothing
+    Share.API.GetProjectResponseSuccess remoteProject -> Just remoteProject
 
 getRemoteProjectBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli (Maybe Share.API.ProjectBranch)
 getRemoteProjectBranchByName pb@(ProjectAndBranch remoteProjectId _) = do
@@ -775,9 +771,6 @@ oinkCreateRemoteProject projectName = do
     Share.API.CreateProjectResponseSuccess remoteProject -> do
       loggeth ["Share says: success!"]
       loggeth [tShow remoteProject]
-      let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
-      Cli.runTransaction do
-        Queries.ensureRemoteProject remoteProjectId shareUrl (remoteProject ^. #projectName)
       pure remoteProject
 
 oinkCreateRemoteBranch ::
