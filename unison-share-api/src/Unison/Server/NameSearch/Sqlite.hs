@@ -35,6 +35,11 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Util.Set as Set
 
+data SearchStrategy
+  = ExactMatch
+  | SuffixMatch
+  deriving (Show, Eq)
+
 scopedNameSearch :: Codebase m v a -> BranchHash -> Path -> NameSearch Sqlite.Transaction
 scopedNameSearch codebase rootHash path =
   NameSearch {typeSearch, termSearch}
@@ -77,37 +82,26 @@ scopedNameSearch codebase rootHash path =
     -- about desired behaviour at the call-site.
     lookupRelativeHQRefsForTerms :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
     lookupRelativeHQRefsForTerms hqName = do
-      exact <- exactHQTermLookup hqName
+      exact <- hqTermSearch ExactMatch hqName
       if Set.null exact
-        then hqSuffixTermSearch hqName
+        then hqTermSearch SuffixMatch hqName
         else pure exact
     lookupRelativeHQRefsForTypes :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
     lookupRelativeHQRefsForTypes hqName = do
-      exact <- exactHQTypeLookup hqName
+      exact <- hqTypeSearch ExactMatch hqName
       if Set.null exact
-        then hqSuffixTypeSearch hqName
+        then hqTypeSearch SuffixMatch hqName
         else pure exact
-    hqSuffixTypeSearch :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
-    hqSuffixTypeSearch hqName = track "lookupRelativeHQRefsForTypes" do
+    -- Search the codebase for matches to the given hq name.
+    -- Supports either an exact match or a suffix match.
+    hqTermSearch :: SearchStrategy -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
+    hqTermSearch searchStrat hqName =
       case hqName of
         HQ'.NameOnly name -> do
-          namedRefs <- Ops.typeNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
-          namedRefs
-            & fmap (Cv.reference2to1 . NamedRef.ref)
-            & Set.fromList
-            & pure
-        HQ'.HashQualified name sh -> do
-          typeRefs <- typeReferencesByShortHash sh
-          Set.forMaybe typeRefs \typeRef -> do
-            matches <- Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 typeRef) (Just . coerce $ Name.reverseSegments name)
-            if null matches
-              then pure Nothing
-              else pure (Just typeRef)
-    hqSuffixTermSearch :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
-    hqSuffixTermSearch hqName = track "lookupRelativeHQRefsForTerms" do
-      case hqName of
-        HQ'.NameOnly name -> do
-          namedRefs <- Ops.termNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
+          namedRefs <-
+            case searchStrat of
+              ExactMatch -> Ops.termRefsForNameWithinNamespace rootHash pathText (coerce $ Name.reverseSegments name)
+              SuffixMatch -> Ops.termNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
           namedRefs
             & fmap
               ( \(NamedRef.ref -> (ref, mayCT)) ->
@@ -119,13 +113,35 @@ scopedNameSearch codebase rootHash path =
           termRefs <- termReferentsByShortHash codebase sh
           Set.forMaybe termRefs \termRef -> do
             matches <- Ops.termNamesForRefWithinNamespace rootHash pathText (Cv.referent1to2 termRef) (Just . coerce $ Name.reverseSegments name)
-            if null matches
-              then pure Nothing
-              else pure (Just termRef)
-    exactHQTermLookup :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
-    exactHQTermLookup = Ops.termRefsForNameWithinNamespace
-    exactHQTypeLookup :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
-    exactHQTypeLookup = Ops.typeRefsForNameWithinNamespace
+            -- Return a valid ref if at least one match was found. Require that it be an exact
+            -- match if specified.
+            if any (\n -> coerce (Name.reverseSegments name) == n || searchStrat /= ExactMatch) matches
+              then pure (Just termRef)
+              else pure Nothing
+
+    -- Search the codebase for matches to the given hq name.
+    -- Supports either an exact match or a suffix match.
+    hqTypeSearch :: SearchStrategy -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
+    hqTypeSearch searchStrat hqName =
+      case hqName of
+        HQ'.NameOnly name -> do
+          namedRefs <-
+            case searchStrat of
+              ExactMatch -> Ops.typeRefsForNameWithinNamespace rootHash pathText (coerce $ Name.reverseSegments name)
+              SuffixMatch -> Ops.typeNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
+          namedRefs
+            & fmap (Cv.reference2to1 . NamedRef.ref)
+            & Set.fromList
+            & pure
+        HQ'.HashQualified name sh -> do
+          typeRefs <- typeReferencesByShortHash sh
+          Set.forMaybe typeRefs \typeRef -> do
+            matches <- Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 typeRef) (Just . coerce $ Name.reverseSegments name)
+            -- Return a valid ref if at least one match was found. Require that it be an exact
+            -- match if specified.
+            if any (\n -> coerce (Name.reverseSegments name) == n || searchStrat /= ExactMatch) matches
+              then pure (Just typeRef)
+              else pure Nothing
 
     reversedSegmentsToName :: NamedRef.ReversedSegments -> Name
     reversedSegmentsToName = Name.fromReverseSegments . coerce
