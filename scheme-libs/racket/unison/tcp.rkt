@@ -47,7 +47,7 @@
   )
 
 (define (socketPort.impl.v3 socket)
-  (let-values ([(_ local-port __ ___) (tcp-addresses (input socket) #t)])
+  (let-values ([(_ local-port __ ___) (tcp-addresses (if (pair? socket) (input socket) socket) #t)])
     (right local-port)))
 
 (define serverSocket.impl.v3
