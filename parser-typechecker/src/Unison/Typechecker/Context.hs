@@ -790,7 +790,6 @@ getDataConstructors typ
     r == Type.listRef =
       let xs =
             [ (ListPat.Cons, [arg]),
-              -- (ListPat.Snoc, [typ, arg]),
               (ListPat.Nil, [])
             ]
        in pure (SequenceType xs)

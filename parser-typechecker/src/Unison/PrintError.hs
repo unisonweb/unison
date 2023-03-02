@@ -1058,8 +1058,6 @@ renderContext env ctx@(C.Context es) =
       shortName v <> " : " <> renderType' env (C.apply ctx t)
     showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 
--- Term.Term' (TypeVar v loc) v loc
-
 renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) v loc1 -> s
 renderTerm env e =
   let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e)
