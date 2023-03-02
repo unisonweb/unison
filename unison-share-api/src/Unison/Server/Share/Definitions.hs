@@ -1,3 +1,8 @@
+-- | This module contains implementations of Backend methods which are specialized for Share.
+-- We should likely move them to the Share repository eventually, but for now it's much easier
+-- to ensure they're resilient to refactors and changes in the Backend API if they live here.
+--
+-- Perhaps we'll move them when the backing implementation switches to postgres.
 module Unison.Server.Share.Definitions (definitionForHQName) where
 
 import Control.Lens hiding ((??))
