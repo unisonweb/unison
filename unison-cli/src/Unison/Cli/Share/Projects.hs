@@ -61,19 +61,35 @@ createProject request = do
   pure response
 
 -- | Get a project branch by id.
+--
+-- On success, update the `remote_project_branch` table.
 getProjectBranchById :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli GetProjectBranchResponse
-getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjectBranchId branchId)) =
-  servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing)
+getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjectBranchId branchId)) = do
+  response <- servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing)
+  onGetProjectBranchResponse response
+  pure response
 
 -- | Get a project branch by name.
+--
+-- On success, update the `remote_project_branch` table.
 getProjectBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli GetProjectBranchResponse
-getProjectBranchByName (ProjectAndBranch (RemoteProjectId projectId) branchName) =
-  servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)))
+getProjectBranchByName (ProjectAndBranch (RemoteProjectId projectId) branchName) = do
+  response <- servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)))
+  onGetProjectBranchResponse response
+  pure response
 
 -- | Create a new project branch.
+--
+-- On success, update the `remote_project_branch` table.
 createProjectBranch :: CreateProjectBranchRequest -> Cli CreateProjectBranchResponse
-createProjectBranch request =
-  servantClientToCli (createProjectBranch0 request)
+createProjectBranch request = do
+  response <- servantClientToCli (createProjectBranch0 request)
+  case response of
+    CreateProjectBranchResponseMissingCausalHash {} -> pure ()
+    CreateProjectBranchResponseNotFound {} -> pure ()
+    CreateProjectBranchResponseUnauthorized {} -> pure ()
+    CreateProjectBranchResponseSuccess branch -> onProjectBranch branch
+  pure response
 
 -- | Set a project branch head (can be a fast-forward or force-push).
 setProjectBranchHead :: SetProjectBranchHeadRequest -> Cli SetProjectBranchHeadResponse
@@ -89,6 +105,12 @@ onGetProjectResponse = \case
   GetProjectResponseUnauthorized {} -> pure ()
   GetProjectResponseSuccess project -> onProject project
 
+onGetProjectBranchResponse :: GetProjectBranchResponse -> Cli ()
+onGetProjectBranchResponse = \case
+  GetProjectBranchResponseNotFound {} -> pure ()
+  GetProjectBranchResponseUnauthorized {} -> pure ()
+  GetProjectBranchResponseSuccess branch -> onProjectBranch branch
+
 onProject :: Project -> Cli ()
 onProject project =
   Cli.runTransaction do
@@ -96,6 +118,15 @@ onProject project =
       (RemoteProjectId (project ^. #projectId))
       (Text.pack (showBaseUrl hardCodedBaseUrl))
       (project ^. #projectName)
+
+onProjectBranch :: ProjectBranch -> Cli ()
+onProjectBranch branch =
+  Cli.runTransaction do
+    Queries.ensureRemoteProjectBranch
+      (RemoteProjectId (branch ^. #projectId))
+      (Text.pack (showBaseUrl hardCodedBaseUrl))
+      (RemoteProjectBranchId (branch ^. #branchId))
+      (branch ^. #branchName)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Low-level servant client generation and wrapping

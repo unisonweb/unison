@@ -512,23 +512,11 @@ getRemoteProjectByName remoteProjectName = do
 
 getRemoteProjectBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli (Maybe Share.API.ProjectBranch)
 getRemoteProjectBranchByName pb@(ProjectAndBranch remoteProjectId _) = do
-  Share.getProjectBranchByName pb >>= \case
-    Share.API.GetProjectBranchResponseNotFound _msg -> pure Nothing
-    Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
-      let remoteProjectBranchId = RemoteProjectBranchId (remoteBranch ^. #branchId)
-          remoteProjectBranchName = remoteBranch ^. #branchName
-      Cli.runTransaction do
-        Queries.ensureRemoteProjectBranch remoteProjectId shareUrl remoteProjectBranchId remoteProjectBranchName
-      pure (Just remoteBranch)
+  Share.getProjectBranchByName pb <&> \case
+    Share.API.GetProjectBranchResponseNotFound _msg -> Nothing
+    Share.API.GetProjectBranchResponseSuccess remoteBranch -> Just remoteBranch
 
 -- getRemoteBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName ->
-
-ensureRemoteProjectAndBranch :: Share.API.ProjectBranch -> Sqlite.Transaction ()
-ensureRemoteProjectAndBranch remoteBranch = do
-  let remoteProjectId = coerce @Text @RemoteProjectId (remoteBranch ^. #projectId)
-  let remoteProjectBranchId = coerce @Text @RemoteProjectBranchId (remoteBranch ^. #branchId)
-  Queries.ensureRemoteProject remoteProjectId shareUrl (remoteBranch ^. #projectName)
-  Queries.ensureRemoteProjectBranch remoteProjectId shareUrl remoteProjectBranchId (remoteBranch ^. #branchName)
 
 -- we have the remote project id and remote branch name, but we don't know whether the remote branch exists
 oompaLoompa1 ::
@@ -796,9 +784,7 @@ oinkCreateRemoteBranch maybeLocalProjectAndBranch request = do
   loggeth [tShow remoteBranch]
   let remoteProjectId = RemoteProjectId (remoteBranch ^. #projectId)
   let remoteBranchId = RemoteProjectBranchId (remoteBranch ^. #branchId)
-  let remoteBranchName = remoteBranch ^. #branchName
   Cli.runTransaction do
-    Queries.ensureRemoteProjectBranch remoteProjectId shareUrl remoteBranchId remoteBranchName
     case maybeLocalProjectAndBranch of
       Nothing -> pure ()
       Just (ProjectAndBranch localProject localBranch) -> do
