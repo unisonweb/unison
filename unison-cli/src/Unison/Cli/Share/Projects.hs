@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 
--- | Share API calls related to projects.
+-- | This module contains Share API calls related to projects, wrapped in the Cli monad.
 module Unison.Cli.Share.Projects
   ( getProjectById,
     getProjectByName,
@@ -27,30 +27,37 @@ import Unison.Share.API.Projects
 import Unison.Share.Codeserver (defaultCodeserver)
 import Unison.Share.Types (codeserverBaseURL)
 
+-- | Get a project by id.
 getProjectById :: RemoteProjectId -> Cli GetProjectResponse
 getProjectById (RemoteProjectId projectId) =
   servantClientToCli (getProject0 (Just projectId) Nothing)
 
+-- | Get a project by name.
 getProjectByName :: ProjectName -> Cli GetProjectResponse
 getProjectByName projectName =
   servantClientToCli (getProject0 Nothing (Just (into @Text projectName)))
 
+-- | Create a new project.
 createProject :: CreateProjectRequest -> Cli CreateProjectResponse
 createProject request =
   servantClientToCli (createProject0 request)
 
+-- | Get a project branch by id.
 getProjectBranchById :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli GetProjectBranchResponse
 getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjectBranchId branchId)) =
   servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing)
 
+-- | Get a project branch by name.
 getProjectBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli GetProjectBranchResponse
 getProjectBranchByName (ProjectAndBranch (RemoteProjectId projectId) branchName) =
   servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)))
 
+-- | Create a new project branch.
 createProjectBranch :: CreateProjectBranchRequest -> Cli CreateProjectBranchResponse
 createProjectBranch request =
   servantClientToCli (createProjectBranch0 request)
 
+-- | Set a project branch head (can be a fast-forward or force-push).
 setProjectBranchHead :: SetProjectBranchHeadRequest -> Cli SetProjectBranchHeadResponse
 setProjectBranchHead request =
   servantClientToCli (setProjectBranchHead0 request)
