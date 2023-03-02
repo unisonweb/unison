@@ -78,6 +78,7 @@ import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, man
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
+import Unison.Codebase.Editor.HandleInput.ProjectClone (projectClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, importRemoteShareBranch, loadPropagateDiffDefaultPatch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
@@ -335,7 +336,6 @@ loop e = do
             ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
             Cli.respond $ Typechecked (Text.pack sourceName) ppe sr uf
        in Cli.time "InputPattern" case input of
-            ProjectPushI _ -> wundefined
             ApiI -> do
               Cli.Env {serverBaseUrl} <- ask
               whenJust serverBaseUrl \baseUrl ->
@@ -1363,8 +1363,9 @@ loop e = do
             DiffNamespaceToPatchI diffNamespaceToPatchInput -> do
               description <- inputDescription input
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
+            ProjectSwitchI name -> projectSwitch name
+            ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
-            ProjectSwitchI input -> projectSwitch input
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1372,7 +1373,6 @@ magicMainWatcherString = "main"
 inputDescription :: Input -> Cli Text
 inputDescription input =
   case input of
-    ProjectPushI {} -> wundefined
     SaveExecuteResultI _str -> pure "save-execute-result"
     ForkLocalBranchI src0 dest0 -> do
       src <- hp' src0
@@ -1537,6 +1537,7 @@ inputDescription input =
       branchId2 <- hp' (input ^. #branchId2)
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
+    ProjectCloneI {} -> wundefined
     ProjectCreateI {} -> wundefined
     ProjectSwitchI {} -> wundefined
     --

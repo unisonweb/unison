@@ -46,6 +46,7 @@ library
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
+      Unison.Codebase.Editor.HandleInput.ProjectClone
       Unison.Codebase.Editor.HandleInput.ProjectCreate
       Unison.Codebase.Editor.HandleInput.ProjectSwitch
       Unison.Codebase.Editor.HandleInput.Pull
