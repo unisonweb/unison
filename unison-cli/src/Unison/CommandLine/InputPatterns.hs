@@ -2307,10 +2307,8 @@ projectClone =
       parse = \case
         [name] ->
           case tryInto @ProjectName (Text.pack name) of
-            -- A bit of syntax leakage here - we happen to know that, when cloning a project, not any old project
-            -- name will do - it has to be of the "@user/name" variety. So we peek at the first character.
-            Right name1 | head name == '@' -> Right (Input.ProjectCreateI name1)
-            _ -> Left "Invalid project name."
+            Left _ -> Left "Invalid project name."
+            Right name1 -> Right (Input.ProjectCreateI name1)
         _ -> Left (showPatternHelp projectClone)
     }
 

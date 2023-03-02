@@ -675,6 +675,7 @@ data DownloadEntitiesResponse
 
 data DownloadEntitiesError
   = DownloadEntitiesNoReadPermission RepoName
+  deriving stock (Eq, Show)
 
 -- data DownloadEntities = DownloadEntities
 --   { entities :: NEMap Hash (Entity Text Hash HashJWT)

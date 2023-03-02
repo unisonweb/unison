@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Pull
     loadPropagateDiffDefaultPatch,
     mergeBranchAndPropagateDefaultPatch,
     propagatePatch,
+    withEntitiesDownloadedProgressCallback,
   )
 where
 
@@ -114,26 +115,25 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
         (Cli.returnEarly . Output.ShareError) case err0 of
           Share.SyncError err -> Output.ShareErrorPull err
           Share.TransportError err -> Output.ShareErrorTransport err
-  liftIO (Codebase.getBranchForHash codebase causalHash) & onNothingM do
-    error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
-  where
-    -- Provide the given action a callback that display to the terminal.
-    withEntitiesDownloadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
-    withEntitiesDownloadedProgressCallback action = do
-      entitiesDownloadedVar <- newTVarIO 0
-      Console.Regions.displayConsoleRegions do
-        Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
-          Console.Regions.setConsoleRegion region do
-            entitiesDownloaded <- readTVar entitiesDownloadedVar
-            pure $
-              "\n  Downloaded "
-                <> tShow entitiesDownloaded
-                <> " entities...\n\n"
-          result <- action (\n -> atomically (modifyTVar' entitiesDownloadedVar (+ n)))
-          entitiesDownloaded <- readTVarIO entitiesDownloadedVar
-          Console.Regions.finishConsoleRegion region $
-            "\n  Downloaded " <> tShow entitiesDownloaded <> " entities."
-          pure result
+  liftIO (Codebase.expectBranchForHash codebase causalHash)
+  
+-- Provide the given action a callback that display to the terminal.
+withEntitiesDownloadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
+withEntitiesDownloadedProgressCallback action = do
+  entitiesDownloadedVar <- newTVarIO 0
+  Console.Regions.displayConsoleRegions do
+    Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
+      Console.Regions.setConsoleRegion region do
+        entitiesDownloaded <- readTVar entitiesDownloadedVar
+        pure $
+          "\n  Downloaded "
+            <> tShow entitiesDownloaded
+            <> " entities...\n\n"
+      result <- action (\n -> atomically (modifyTVar' entitiesDownloadedVar (+ n)))
+      entitiesDownloaded <- readTVarIO entitiesDownloadedVar
+      Console.Regions.finishConsoleRegion region $
+        "\n  Downloaded " <> tShow entitiesDownloaded <> " entities."
+      pure result
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
