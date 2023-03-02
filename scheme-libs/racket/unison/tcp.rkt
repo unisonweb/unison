@@ -61,9 +61,6 @@
           [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
            [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exn->string e) '()))]
            [(lambda _ #t) (lambda (e) (exception "MiscFailure" "Unknown exception" e))] ]
-        (display "hostname ")
-        (display hostname)
-        (display "\n")
         (let ([listener (tcp-listen (string->number port) 4 #f (if (equal? 0 hostname) #f hostname))])
           (right listener))))))
 

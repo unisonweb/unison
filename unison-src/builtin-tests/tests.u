@@ -14,10 +14,15 @@ tcp.tests = do
     response = Socket.receive socket
     Socket.close socket
     contains "HTTP/1.0 200 OK" (base.Text.fromUtf8 response)
-  check "rejects invalid port" do
-    handle (Socket.client (HostName "example.com") (Port "what")) with cases
-        { a } -> false
-        {raise failure -> _} -> true
+  check "rejects invalid port" do isLeft <| catchAll do Socket.client (HostName "example.com") (Port "what")
+  check "no send after close" do isLeft <| catchAll do
+    socket = Socket.client (HostName "example.com") (Port "80")
+    Socket.close socket
+    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
+  check "no send on listener" do isLeft <| catchAll do
+    match Socket.server None (Port "0") with
+        BoundServerSocket socket -> Socket.send socket (toUtf8 "what")
+
 
   setup = catchAll do
       socket = Socket.listen (server None (Port "0"))
@@ -26,17 +31,17 @@ tcp.tests = do
       (socket, port)
 
   match setup with
-      (Left exn) ->
+      Left exn ->
         Debug.trace "Setup failed" exn
         Tests.fail "Unable to bind and listen on a socket" ""
-      (Right (socket, port)) ->
+      Right (socket, port) ->
           serve = do
               sock = Socket.accept socket
               data = Socket.receive sock
               Socket.send sock (toUtf8 "from server")
               base.Text.fromUtf8 data
 
-          serveResult = Promise.new ()
+          serveResult = !Promise.new
           _ = fork do Promise.write serveResult (catchAll serve)
 
           data = catchAll do
@@ -46,8 +51,6 @@ tcp.tests = do
 
           checkEqual "Server received data" (Promise.read serveResult) (Right "from client")
           checkEqual "Client received data" data (Right "from server")
-
-
 
 crypto.hash.tests = do
   hash alg = hashBytes alg (toUtf8 "")
