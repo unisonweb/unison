@@ -1,11 +1,13 @@
 
+shouldFail fn = isLeft <| catchAll fn
+
 tests : '{IO,Exception} ()
 tests = Tests.main do
   !crypto.hash.tests
   !hmac.tests
   !concurrency.tests
   !tcp.tests
-  check "bug is caught" do isLeft (catchAll do bug ())
+  check "bug is caught" do shouldFail do bug ()
 
 tcp.tests = do
   check "connects to example.com" do
@@ -14,12 +16,12 @@ tcp.tests = do
     response = Socket.receive socket
     Socket.close socket
     contains "HTTP/1.0 200 OK" (base.Text.fromUtf8 response)
-  check "rejects invalid port" do isLeft <| catchAll do Socket.client (HostName "example.com") (Port "what")
-  check "no send after close" do isLeft <| catchAll do
+  check "rejects invalid port" do shouldFail do Socket.client (HostName "example.com") (Port "what")
+  check "no send after close" do shouldFail do
     socket = Socket.client (HostName "example.com") (Port "80")
     Socket.close socket
     Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
-  check "no send on listener" do isLeft <| catchAll do
+  check "no send on listener" do shouldFail do
     match Socket.server None (Port "0") with
         BoundServerSocket socket -> Socket.send socket (toUtf8 "what")
 
