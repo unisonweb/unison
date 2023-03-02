@@ -9,10 +9,10 @@ import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, rea
 import Control.Lens (to, (^.))
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
-import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Set.NonEmpty as Set.NonEmpty
 import Data.Text as Text
 import Data.These (These (..))
+import qualified Servant.Client
 import qualified System.Console.Regions as Console.Regions
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId
@@ -38,7 +38,6 @@ import Unison.Codebase.Editor.Output.PushPull (PushPull (Push))
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadRemoteNamespace (..),
-    ShareCodeserver,
     ShareUserHandle (..),
     WriteGitRemotePath (..),
     WriteRemotePath (..),
@@ -61,7 +60,7 @@ import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectBranchName,
-    ProjectName (..),
+    ProjectName,
     prependUserSlugToProjectBranchName,
     prependUserSlugToProjectName,
     projectBranchNameUserSlug,
@@ -600,7 +599,7 @@ oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch =
                 }
         Share.setProjectBranchHead request >>= \case
           Share.API.SetProjectBranchHeadResponseUnauthorized (Share.API.Unauthorized msg) -> do
-            loggeth ["SetProjectBranchHeadResponseUnauthorized: " <> "msg"]
+            loggeth ["SetProjectBranchHeadResponseUnauthorized: " <> msg]
             Cli.returnEarlyWithoutOutput
           Share.API.SetProjectBranchHeadResponseNotFound (Share.API.NotFound msg) -> do
             loggeth ["SetProjectBranchHeadResponseNotFound: " <> msg]
@@ -621,7 +620,7 @@ oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch =
                     (localProject ^. #projectId)
                     (localBranch ^. #branchId)
                     (remoteBranch ^. #projectId . to RemoteProjectId)
-                    shareUrl
+                    (Text.pack (Servant.Client.showBaseUrl Share.hardCodedBaseUrl))
                     (remoteBranch ^. #branchId . to RemoteProjectBranchId)
   where
     remoteBranchHead = remoteBranch ^. #branchHead
@@ -794,11 +793,8 @@ oinkCreateRemoteBranch maybeLocalProjectAndBranch request = do
           (localProject ^. #projectId)
           (localBranch ^. #branchId)
           remoteProjectId
-          shareUrl
+          (Text.pack (Servant.Client.showBaseUrl Share.hardCodedBaseUrl))
           remoteBranchId
-
-shareUrl :: Text
-shareUrl = "https://fix.me.please.unison.org"
 
 oinkGetLoggedInUser :: Cli Text
 oinkGetLoggedInUser = do

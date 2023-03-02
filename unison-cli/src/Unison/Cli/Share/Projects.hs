@@ -3,13 +3,17 @@
 
 -- | This module contains Share API calls related to projects, wrapped in the Cli monad.
 module Unison.Cli.Share.Projects
-  ( getProjectById,
+  ( -- * API functions
+    getProjectById,
     getProjectByName,
     createProject,
     getProjectBranchById,
     getProjectBranchByName,
     createProjectBranch,
     setProjectBranchHead,
+
+    -- * Temporary special hard-coded base url
+    hardCodedBaseUrl,
   )
 where
 
