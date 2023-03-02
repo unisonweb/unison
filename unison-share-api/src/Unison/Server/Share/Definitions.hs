@@ -15,6 +15,7 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Runtime as Rt
+import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified as HQ
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
@@ -60,6 +61,7 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
       Left err -> pure $ Left err
       Right (namesRoot, locatedQuery) -> pure $ Right (shallowRoot, namesRoot, locatedQuery)
   (shallowRoot, namesRoot, query) <- either throwError pure result
+  Debug.debugM Debug.Server "definitionForHQName: (namesRoot, query)" (namesRoot, query)
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our namesRoot but within the
   -- same tree;
@@ -70,10 +72,10 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
   let biases = maybeToList $ HQ.toName query
   let rootBranchHash = V2Causal.valueHash shallowRoot
   let ppedBuilder deps = fmap (PPED.biasTo biases) . liftIO . Codebase.runTransaction codebase $ PPESqlite.ppedForReferences rootBranchHash namesRoot deps
-
   let nameSearch = SqliteNameSearch.scopedNameSearch codebase rootBranchHash namesRoot
   dr@(DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do
     definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
+  Debug.debugM Debug.Server "definitionForHQName: found definitions" dr
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do
