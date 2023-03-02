@@ -18,6 +18,7 @@ import Data.Functor.Compose
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
+import Unison.Builtin.Decls (unitRef)
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
@@ -36,6 +37,7 @@ import qualified Unison.PatternMatchCoverage.PmLit as PmLit
 import qualified Unison.PatternMatchCoverage.UFMap as UFMap
 import Unison.Prelude
 import Unison.Type (Type)
+import qualified Unison.Type as Type
 import qualified Unison.Util.Pretty as P
 import Unison.Var (Var)
 
@@ -274,6 +276,8 @@ expandSolution x nc =
                                                   case expectCanon v nc of
                                                     (_vc, vi, nc') -> case vi_con vi of
                                                       Vc'Constructor pos neg
+                                                        -- always instantiate unit, this ensures we print tuple patterns correctly
+                                                        | Type.Ref' x <- vi_typ vi, x == unitRef -> go newFuel v nc'
                                                         | Just _ <- pos -> go newFuel v nc'
                                                         | not (Set.null neg) -> go (newFuel - 1) v nc'
                                                       Vc'Boolean _pos neg
