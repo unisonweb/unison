@@ -161,7 +161,6 @@ import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
@@ -362,13 +361,11 @@ typeLookupForDependencies codebase s = do
               -- the inhabitation check). We ensure these are found
               -- by collecting all type dependencies for all data
               -- decls.
-              let constructorTypes :: [Type Symbol a]
-                  constructorTypes = snd <$> DD.constructors dd
 
-                  -- All references from constructorTypes that we
-                  -- have not already gathered.
-                  constructorRefs :: Set Reference
-                  constructorRefs = foldl' (\b a -> Set.filter (unseen tl) (Type.dependencies a) <> b) mempty constructorTypes
+              -- All references from constructorTypes that we
+              -- have not already gathered.
+              let constructorRefs :: Set Reference
+                  constructorRefs = Set.filter (unseen tl) (DD.dependencies dd)
 
               -- recursively call go for each constructor ref
               let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty
