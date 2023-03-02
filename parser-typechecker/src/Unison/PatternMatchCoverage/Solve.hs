@@ -259,7 +259,7 @@ expandSolution x nc =
                               --
                               -- Then we would like to suggest @Just (Just _)@ rather than @Just _@.
                               -- To accomplish this, we recurse and expand variables for which we have
-                              -- negative information.
+                              -- positive or negative information.
 
                               -- branching factor
                               let newFuel = case length newVars > 1 of
@@ -273,7 +273,8 @@ expandSolution x nc =
                                               ( \nc ->
                                                   case expectCanon v nc of
                                                     (_vc, vi, nc') -> case vi_con vi of
-                                                      Vc'Constructor _pos neg
+                                                      Vc'Constructor pos neg
+                                                        | Just _ <- pos -> go newFuel v nc'
                                                         | not (Set.null neg) -> go (newFuel - 1) v nc'
                                                       Vc'Boolean _pos neg
                                                         | not (Set.null neg) -> go (newFuel - 1) v nc'
