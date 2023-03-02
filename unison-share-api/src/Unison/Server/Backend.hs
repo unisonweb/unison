@@ -81,6 +81,9 @@ module Unison.Server.Backend
     definitionResultsDependencies,
     termEntryTag,
     evalDocRef,
+    relocateToProjectRoot,
+    mkTermDefinition,
+    mkTypeDefinition,
   )
 where
 
@@ -172,7 +175,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.HashQualified as HQ (toText)
 import qualified Unison.Syntax.HashQualified' as HQ' (toText)
-import Unison.Syntax.Name as Name (toString, toText, unsafeFromText)
+import Unison.Syntax.Name as Name (toText, unsafeFromText)
 import qualified Unison.Syntax.NamePrinter as NP
 import qualified Unison.Syntax.TermPrinter as TermPrinter
 import qualified Unison.Syntax.TypePrinter as TypePrinter
@@ -850,12 +853,12 @@ prettyDefinitionsForHQName ::
   -- | The name, hash, or both, of the definition to display.
   HQ.HashQualified Name ->
   Backend IO DefinitionDisplayResults
-prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt codebase query = do
+prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt codebase perspectiveQuery = do
   -- Re-compute and shadow the perspective and query to the appropriate project if applicable
   result <- liftIO . Codebase.runTransaction codebase $ do
-    shallowRoot <- resolveCausalHashV2 (Just rootHash)
+    shallowRoot <- resolveCausalHashV2 mayRoot
     shallowBranch <- V2Causal.value shallowRoot
-    Backend.relocateToProjectRoot perspective perspectiveQuery shallowBranch >>= \case
+    relocateToProjectRoot perspective perspectiveQuery shallowBranch >>= \case
       Left err -> pure $ Left err
       Right (namesRoot, locatedQuery) -> pure $ Right (shallowRoot, namesRoot, locatedQuery)
   (shallowRoot, namesRoot, query) <- either throwError pure result
@@ -871,81 +874,26 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
   (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase (Just shallowRoot) perspective
   let pped = PPED.biasTo biases unbiasedPPED
   let nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
-  (dr@(DefinitionResults terms types misses), branchAtPath) <- liftIO $ Codebase.runTransaction codebase do
-    dr <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
-    causalAtPath <- Codebase.getShallowCausalAtPath perspective (Just shallowRoot)
-    branchAtPath <- V2Causal.value causalAtPath
-    pure (dr, branchAtPath)
+  (DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do
+    definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do
         docRefs <- docsForTermName codebase nameSearch name
         renderDocRefs pped width codebase rt docRefs
-  let mkTermDefinition ::
-        PPED.PrettyPrintEnvDecl ->
-        Reference ->
-        DisplayObject
-          (AnnotatedText (UST.Element Reference))
-          (AnnotatedText (UST.Element Reference)) ->
-        Backend IO TermDefinition
-      mkTermDefinition termPPED r tm = do
-        let referent = Referent.Ref r
-        ts <- liftIO (Codebase.runTransaction codebase (Codebase.getTypeOfTerm codebase r))
-        let hqTermName = PPE.termNameOrHashOnly fqnTermPPE referent
-        let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE termPPED) width (Referent.Ref r)
-        tag <-
-          lift
-            ( termEntryTag
-                <$> termListEntry codebase branchAtPath (ExactName (NameSegment bn) (Cv.referent1to2 referent))
-            )
-        renderedDocs <- lift (maybe (pure []) docResults (HQ.toName hqTermName))
-        mk renderedDocs ts bn tag
-        where
-          fqnTermPPE = PPED.unsuffixifiedPPE termPPED
-          mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
-          mk docs (Just typeSig) bn tag = do
-            -- We don't ever display individual constructors (they're shown as part of their
-            -- type), so term references are never constructors.
-            let referent = Referent.Ref r
-            pure $
-              TermDefinition
-                (HQ'.toText <$> PPE.allTermNames fqnTermPPE referent)
-                bn
-                tag
-                (bimap mungeSyntaxText mungeSyntaxText tm)
-                (formatSuffixedType termPPED width typeSig)
-                docs
-  let mkTypeDefinition ::
-        ( PPED.PrettyPrintEnvDecl ->
-          Reference ->
-          DisplayObject
-            (AnnotatedText (UST.Element Reference))
-            (AnnotatedText (UST.Element Reference)) ->
-          Backend IO TypeDefinition
-        )
-      mkTypeDefinition pped r tp = lift do
-        let hqTypeName = PPE.typeNameOrHashOnly fqnPPE r
-        let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
-        tag <-
-          Codebase.runTransaction codebase do
-            typeEntryTag <$> typeListEntry codebase branchAtPath (ExactName (NameSegment bn) r)
-        docs <- liftIO (maybe (pure []) docResults (HQ.toName hqTypeName))
-        pure $
-          TypeDefinition
-            (HQ'.toText <$> PPE.allTypeNames fqnPPE r)
-            bn
-            tag
-            (bimap mungeSyntaxText mungeSyntaxText tp)
-            docs
-        where
-          fqnPPE = PPED.unsuffixifiedPPE pped
 
+  let fqnPPE = PPED.unsuffixifiedPPE pped
   typeDefinitions <-
-    Map.traverseWithKey (mkTypeDefinition pped) $
-      typesToSyntax suffixifyBindings width pped types
+    ifor (typesToSyntax suffixifyBindings width pped types) \ref tp -> do
+      let hqTypeName = PPE.typeNameOrHashOnly fqnPPE ref
+      docs <- liftIO $ (maybe (pure []) docResults (HQ.toName hqTypeName))
+      mkTypeDefinition codebase pped namesRoot shallowRoot width ref docs tp
   termDefinitions <-
-    Map.traverseWithKey (mkTermDefinition pped) $
-      termsToSyntax suffixifyBindings width pped terms
+    ifor (termsToSyntax suffixifyBindings width pped terms) \reference trm -> do
+      let referent = Referent.Ref reference
+      let hqTermName = PPE.termNameOrHashOnly fqnPPE referent
+      docs <- liftIO $ (maybe (pure []) docResults (HQ.toName hqTermName))
+      mkTermDefinition codebase pped namesRoot shallowRoot width reference docs trm
   let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
       renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
       renderedMisses = fmap HQ.toText misses
@@ -954,6 +902,77 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
+
+mkTypeDefinition ::
+  Codebase IO Symbol Ann ->
+  PPED.PrettyPrintEnvDecl ->
+  Path.Path ->
+  V2Branch.CausalBranch Sqlite.Transaction ->
+  Width ->
+  Reference ->
+  [(HashQualifiedName, UnisonHash, Doc.Doc)] ->
+  DisplayObject
+    (AnnotatedText (UST.Element Reference))
+    (AnnotatedText (UST.Element Reference)) ->
+  Backend IO TypeDefinition
+mkTypeDefinition codebase pped namesRoot rootCausal width r docs tp = do
+  let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
+  tag <-
+    liftIO $ Codebase.runTransaction codebase do
+      causalAtPath <- Codebase.getShallowCausalAtPath namesRoot (Just rootCausal)
+      branchAtPath <- V2Causal.value causalAtPath
+      typeEntryTag <$> typeListEntry codebase branchAtPath (ExactName (NameSegment bn) r)
+  pure $
+    TypeDefinition
+      (HQ'.toText <$> PPE.allTypeNames fqnPPE r)
+      bn
+      tag
+      (bimap mungeSyntaxText mungeSyntaxText tp)
+      docs
+  where
+    fqnPPE = PPED.unsuffixifiedPPE pped
+
+mkTermDefinition ::
+  Codebase IO Symbol Ann ->
+  PPED.PrettyPrintEnvDecl ->
+  Path.Path ->
+  V2Branch.CausalBranch Sqlite.Transaction ->
+  Width ->
+  Reference ->
+  [(HashQualifiedName, UnisonHash, Doc.Doc)] ->
+  DisplayObject
+    (AnnotatedText (UST.Element Reference))
+    (AnnotatedText (UST.Element Reference)) ->
+  Backend IO TermDefinition
+mkTermDefinition codebase termPPED namesRoot rootCausal width r docs tm = do
+  let referent = Referent.Ref r
+  (ts, branchAtPath) <- liftIO $ Codebase.runTransaction codebase do
+    ts <- Codebase.getTypeOfTerm codebase r
+    causalAtPath <- Codebase.getShallowCausalAtPath namesRoot (Just rootCausal)
+    branchAtPath <- V2Causal.value causalAtPath
+    pure (ts, branchAtPath)
+  let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE termPPED) width (Referent.Ref r)
+  tag <-
+    lift
+      ( termEntryTag
+          <$> termListEntry codebase branchAtPath (ExactName (NameSegment bn) (Cv.referent1to2 referent))
+      )
+  mk ts bn tag
+  where
+    fqnTermPPE = PPED.unsuffixifiedPPE termPPED
+    mk Nothing _ _ = throwError $ MissingSignatureForTerm r
+    mk (Just typeSig) bn tag = do
+      -- We don't ever display individual constructors (they're shown as part of their
+      -- type), so term references are never constructors.
+      let referent = Referent.Ref r
+      pure $
+        TermDefinition
+          (HQ'.toText <$> PPE.allTermNames fqnTermPPE referent)
+          bn
+          tag
+          (bimap mungeSyntaxText mungeSyntaxText tm)
+          (formatSuffixedType termPPED width typeSig)
+          docs
 
 -- | Given an arbitrary query and perspective, find the project root the query belongs in,
 -- then return that root and the query relocated to that project root.

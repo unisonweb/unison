@@ -1,10 +1,8 @@
 module Unison.PrettyPrintEnvDecl.Sqlite where
 
-import qualified Data.Set as Set
 import U.Codebase.HashTags (BranchHash)
 import U.Codebase.Sqlite.NamedRef (NamedRef (..))
 import qualified U.Codebase.Sqlite.Operations as Ops
-import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
