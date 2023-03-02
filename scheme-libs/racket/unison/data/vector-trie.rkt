@@ -389,7 +389,7 @@
         (vector-trie-add-last vt val))
       (for/fold ([vt vt-b])
                 ([i (in-inclusive-range (sub1 (vector-trie-length vt-a)) 0 -1)])
-        (vector-trie-add-first (vector-trie-ref vt-a i) vt))))
+        (vector-trie-add-first vt (vector-trie-ref vt-a i)))))
 
 (define (check-vector-trie-length-in-range who vt n)
   (unless (<= n (vector-trie-length vt))
