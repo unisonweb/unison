@@ -4,7 +4,6 @@ import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (pack)
-import qualified Data.Text as Text
 import qualified U.Codebase.Branch as V2.Branch
 import qualified U.Codebase.Causal as V2
 import qualified U.Codebase.Decl as V2.Decl

@@ -132,7 +132,6 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
@@ -740,10 +739,8 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
       typeResults =
         (\(sh, tps) -> mkTypeResult sh <$> toList tps) <$> typeRefs
 
-  Debug.debugLogM Debug.Server "hqNameQuery: Applying Search"
   -- Now do the actual name query
   resultss <- for hqnames (\name -> liftA2 (<>) (applySearch typeSearch name) (applySearch termSearch name))
-  Debug.debugLogM Debug.Server "hqNameQuery: Done Search"
   let (misses, hits) =
         zipWith
           ( \hqname results ->
@@ -855,37 +852,13 @@ prettyDefinitionsForHQName ::
   Backend IO DefinitionDisplayResults
 prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt codebase query = do
   -- Re-compute and shadow the perspective and query to the appropriate project if applicable
-  (shallowRoot, perspective, query) <-
-    either throwError pure =<< (lift . Codebase.runTransaction codebase . runExceptT) do
-      shallowRoot <- lift $ resolveCausalHashV2 mayRoot
-      shallowBranch <- lift $ V2Causal.value shallowRoot
-      let queryLocation = HQ.toName query & maybe perspective \name -> perspective <> Path.fromName name
-      -- Names should be found from the project root of the queried name
-      (namesRootPath, scopedQuery) <-
-        lift (Projects.inferNamesRoot queryLocation shallowBranch) >>= \case
-          Nothing -> do
-            Debug.debugLogM Debug.Temp "prettyDefinitionsForHQName: No project root inferred"
-            pure (perspective, query)
-          Just projectRoot ->
-            case Debug.debug Debug.Temp "prettyDefinitionsForHQName: longestPathPrefix" $ Path.longestPathPrefix perspective projectRoot of
-              -- The perspective is equal to the project root
-              (_sharedPrefix, Path.Empty, Path.Empty) -> do
-                Debug.debugM Debug.Temp "prettyDefinitionsForHQName: Perspective == ProjectRoot" (perspective, query)
-                pure (perspective, query)
-              -- The perspective is _outside_ of the project containing the query
-              (_sharedPrefix, Path.Empty, remainder) -> do
-                -- Since the project root is lower down we need to strip the part of the prefix
-                -- which is now redundant.
-
-                pure $ Debug.debug Debug.Temp "prettyDefinitionsForHQName: perspective outside of project" $ (projectRoot, query <&> \n -> fromMaybe n $ Path.unprefixName (Path.Absolute remainder) n)
-              -- The perspective is _inside_ of the project containing the query
-              (_sharedPrefix, remainder, Path.Empty) -> do
-                -- Since the project is higher up, we need to prefix the query
-                -- with the remainder of the path
-                pure $ Debug.debug Debug.Temp "prettyDefinitionsForHQName: project outside of perspective" $ (projectRoot, query <&> Path.prefixName (Path.Absolute remainder))
-              -- The perspective and project root are disjoint, this shouldn't ever happen.
-              (_, _, _) -> throwError (DisjointProjectAndPerspective perspective projectRoot)
-      pure (shallowRoot, namesRootPath, scopedQuery)
+  result <- liftIO . Codebase.runTransaction codebase $ do
+    shallowRoot <- resolveCausalHashV2 (Just rootHash)
+    shallowBranch <- V2Causal.value shallowRoot
+    Backend.relocateToProjectRoot perspective perspectiveQuery shallowBranch >>= \case
+      Left err -> pure $ Left err
+      Right (namesRoot, locatedQuery) -> pure $ Right (shallowRoot, namesRoot, locatedQuery)
+  (shallowRoot, namesRoot, query) <- either throwError pure result
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our perspective but within the
   -- same tree;
@@ -894,24 +867,15 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
   -- `trunk` over those in other releases.
   -- ppe which returns names fully qualified to the current perspective,  not to the codebase root.
   let biases = maybeToList $ HQ.toName query
-
-  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building names search"
-
-  Debug.debugLogM Debug.Server "using names object"
   hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
   (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase (Just shallowRoot) perspective
   let pped = PPED.biasTo biases unbiasedPPED
   let nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
-  -- let backendPPE = UsePPED localNamesOnly pped
   (dr@(DefinitionResults terms types misses), branchAtPath) <- liftIO $ Codebase.runTransaction codebase do
-    Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: starting search"
     dr <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
-    Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: finished search"
     causalAtPath <- Codebase.getShallowCausalAtPath perspective (Just shallowRoot)
     branchAtPath <- V2Causal.value causalAtPath
     pure (dr, branchAtPath)
-  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: Done building definition results"
-
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do
@@ -962,11 +926,9 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
       mkTypeDefinition pped r tp = lift do
         let hqTypeName = PPE.typeNameOrHashOnly fqnPPE r
         let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
-        Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: getting type tag"
         tag <-
           Codebase.runTransaction codebase do
             typeEntryTag <$> typeListEntry codebase branchAtPath (ExactName (NameSegment bn) r)
-        Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: getting type tag"
         docs <- liftIO (maybe (pure []) docResults (HQ.toName hqTypeName))
         pure $
           TypeDefinition
@@ -978,17 +940,12 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
         where
           fqnPPE = PPED.unsuffixifiedPPE pped
 
-  let deps = definitionResultsDependencies $ Debug.debugLog Debug.Server "prettyDefinitionsForHQName: Computing definition result deps" dr
-  Debug.debugLogM Debug.Server $ "prettyDefinitionsForHQName: building term and type pped. Num deps: " <> show (Set.size deps)
-  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building type definitions"
   typeDefinitions <-
     Map.traverseWithKey (mkTypeDefinition pped) $
       typesToSyntax suffixifyBindings width pped types
-  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: building term definitions"
   termDefinitions <-
     Map.traverseWithKey (mkTermDefinition pped) $
       termsToSyntax suffixifyBindings width pped terms
-  Debug.debugLogM Debug.Server "prettyDefinitionsForHQName: Rendering definitions"
   let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
       renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
       renderedMisses = fmap HQ.toText misses
@@ -997,6 +954,33 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
+
+-- | Given an arbitrary query and perspective, find the project root the query belongs in,
+-- then return that root and the query relocated to that project root.
+relocateToProjectRoot :: Path -> HQ.HashQualified Name -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction (Either BackendError (Path, HQ.HashQualified Name))
+relocateToProjectRoot perspective query rootBranch = do
+  let queryLocation = HQ.toName query & maybe perspective \name -> perspective <> Path.fromName name
+  -- Names should be found from the project root of the queried name
+  (Projects.inferNamesRoot queryLocation rootBranch) >>= \case
+    Nothing -> do
+      pure $ Right (perspective, query)
+    Just projectRoot ->
+      case Path.longestPathPrefix perspective projectRoot of
+        -- The perspective is equal to the project root
+        (_sharedPrefix, Path.Empty, Path.Empty) -> do
+          pure $ Right (perspective, query)
+        -- The perspective is _outside_ of the project containing the query
+        (_sharedPrefix, Path.Empty, remainder) -> do
+          -- Since the project root is lower down we need to strip the part of the prefix
+          -- which is now redundant.
+          pure . Right $ (projectRoot, query <&> \n -> fromMaybe n $ Path.unprefixName (Path.Absolute remainder) n)
+        -- The namesRoot is _inside_ of the project containing the query
+        (_sharedPrefix, remainder, Path.Empty) -> do
+          -- Since the project is higher up, we need to prefix the query
+          -- with the remainder of the path
+          pure . Right $ (projectRoot, query <&> Path.prefixName (Path.Absolute remainder))
+        -- The namesRoot and project root are disjoint, this shouldn't ever happen.
+        (_, _, _) -> pure $ Left (DisjointProjectAndPerspective perspective projectRoot)
 
 evalDocRef ::
   Rt.Runtime Symbol ->
@@ -1040,7 +1024,6 @@ docsForTermName ::
   Name ->
   IO [TermReference]
 docsForTermName codebase (NameSearch {termSearch}) name = do
-  Debug.debugLogM Debug.Server $ "docsForTermName: Docs for: " <> Name.toString name
   let potentialDocNames = [name, name Cons.:> "doc"]
   Codebase.runTransaction codebase do
     refs <-
@@ -1066,11 +1049,7 @@ renderDocRefs ::
   IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
 renderDocRefs _pped _width _codebase _rt [] = pure []
 renderDocRefs pped width codebase rt docRefs = do
-  Debug.debugLogM Debug.Server $ "Evaluating docs"
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
-  let docDeps = foldMap (Doc.dependencies . snd) eDocs <> Set.fromList (LD.TermReference <$> docRefs)
-  Debug.debugLogM Debug.Server $ "Building pped for doc refs: " <> show (Set.size docDeps)
-  Debug.debugLogM Debug.Server $ "Done building pped"
   for eDocs \(ref, eDoc) -> do
     let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref ref)
     let hash = Reference.toText ref
@@ -1279,9 +1258,7 @@ definitionsBySuffixes ::
   [HQ.HashQualified Name] ->
   Sqlite.Transaction DefinitionResults
 definitionsBySuffixes codebase nameSearch includeCycles query = do
-  Debug.debugLogM Debug.Server "definitionsBySuffixes: before query"
   QueryResult misses results <- hqNameQuery codebase nameSearch query
-  Debug.debugLogM Debug.Server "definitionsBySuffixes: after query"
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) (searchResultsToTermRefs results)
