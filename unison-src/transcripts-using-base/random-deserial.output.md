@@ -36,7 +36,7 @@ runTestCase name =
   h = readFile hfile
 
   result =
-    if f i == o && f2 i2
+    if f i == o && (f2 i2 == o)
     then if toBase32 (crypto.hash Sha3_512 p) == h
          then Ok name
          else Fail (name ++ " hash mismatch")
@@ -51,22 +51,6 @@ serialTests = do
 ```
 
 ```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      availableCases : '{IO, Exception} [Text]
-      directory      : Text
-      gen            : Nat -> Nat -> (Nat, Nat)
-      runTestCase    : Text ->{IO, Exception} (Text, Result)
-      serialTests    : '{IO, Exception} [Result]
-      shuffle        : Nat -> [a] -> [a]
-
-```
-```ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -80,18 +64,15 @@ serialTests = do
 
 .> io.test serialTests
 
-  dumpData: bad closure: Foreign (Wrap ##Text "(0, 0, \"0\")")
-  expected type: ##Boolean
+    New test results:
+  
+  ◉ serialTests   case-00
+  ◉ serialTests   case-01
+  ◉ serialTests   case-02
+  ◉ serialTests   case-03
+  
+  ✅ 4 test(s) passing
+  
+  Tip: Use view serialTests to view the source of a test.
 
 ```
-
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  dumpData: bad closure: Foreign (Wrap ##Text "(0, 0, \"0\")")
-  expected type: ##Boolean
-

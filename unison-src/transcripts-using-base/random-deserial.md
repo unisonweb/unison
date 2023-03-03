@@ -2,7 +2,7 @@
 .> builtins.mergeio
 ```
 
-```unison
+```unison:hide
 directory = "unison-src/transcripts-using-base/serialized-cases/"
 
 availableCases : '{IO,Exception} [Text]
@@ -40,7 +40,7 @@ runTestCase name =
   h = readFile hfile
 
   result =
-    if f i == o && f2 i2
+    if f i == o && (f2 i2 == o)
     then if toBase32 (crypto.hash Sha3_512 p) == h
          then Ok name
          else Fail (name ++ " hash mismatch")
