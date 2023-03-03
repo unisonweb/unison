@@ -240,7 +240,7 @@
   (define (unison-POp-IDXB n bs) (bytevector-u8-ref bs n))
   (define (unison-POp-IDXS n l)
     (guard (x [else (sum 0)])
-      (sum 1 (list-ref l n))))
+      (sum 1 (chunked-list-ref l n))))
   (define (unison-POp-IORN m n) (fxior m n))
   (define (unison-POp-ITOT i) (signed-number->istring i))
   (define (unison-POp-LEQN m n) (if (fx<=? m n) 1 0))
