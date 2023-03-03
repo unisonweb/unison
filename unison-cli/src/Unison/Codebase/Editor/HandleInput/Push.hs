@@ -147,9 +147,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
 --
 --   - The project at the current path
 --   - The branch named "main"
-branchNameSpecToIds ::
-  These ProjectName ProjectBranchName ->
-  Cli (ProjectAndBranch ProjectId ProjectBranchId)
+branchNameSpecToIds :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch ProjectId ProjectBranchId)
 branchNameSpecToIds = \case
   This projectName -> branchNameSpecToIds (These projectName (unsafeFrom @Text "main"))
   That branchName -> do
@@ -179,9 +177,7 @@ branchNameSpecToIds = \case
 --
 --   - The project at the current path
 --   - The branch named "main"
-branchNameSpecToNames ::
-  These ProjectName ProjectBranchName ->
-  Cli (ProjectAndBranch ProjectName ProjectBranchName)
+branchNameSpecToNames :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch ProjectName ProjectBranchName)
 branchNameSpecToNames = \case
   This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
@@ -195,24 +191,14 @@ branchNameSpecToNames = \case
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
 -- Push a local namespace ("loose code") to a remote namespace ("loose code").
-pushLooseCodeToLooseCode ::
-  Path.Absolute ->
-  WriteRemotePath ->
-  PushBehavior ->
-  SyncMode ->
-  Cli ()
+pushLooseCodeToLooseCode :: Path.Absolute -> WriteRemotePath -> PushBehavior -> SyncMode -> Cli ()
 pushLooseCodeToLooseCode localPath remotePath pushBehavior syncMode = do
   case remotePath of
     WriteRemotePathGit gitRemotePath -> pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode
     WriteRemotePathShare shareRemotePath -> pushLooseCodeToShareLooseCode localPath shareRemotePath pushBehavior
 
 -- Push a local namespace ("loose code") to a Git-hosted remote namespace ("loose code").
-pushLooseCodeToGitLooseCode ::
-  Path.Absolute ->
-  WriteGitRemotePath ->
-  PushBehavior ->
-  SyncMode ->
-  Cli ()
+pushLooseCodeToGitLooseCode :: Path.Absolute -> WriteGitRemotePath -> PushBehavior -> SyncMode -> Cli ()
 pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode = do
   sourceBranch <- Cli.getBranchAt localPath
   let withRemoteRoot :: Branch IO -> Either Output (Branch IO)
@@ -317,39 +303,12 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemotePath {server, rep
         Share.SyncError err -> Output.ShareError (f err)
         Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
 
--- Info related to an upload
-data UploadInfo = UploadInfo
-  { -- The "repo name" to upload to. For a contributor branch like @arya/topic, for example, this will be the username
-    -- "arya".
-    repoName :: Share.RepoName,
-    -- The causal hash to upload.
-    causalHash :: Hash32,
-    -- The action to call after a successful upload.
-    afterUploadAction :: Cli ()
-  }
-
-uploadeo :: UploadInfo -> Cli ()
-uploadeo UploadInfo {repoName, causalHash, afterUploadAction} = do
-  loggeth ["uploading entities"]
-  Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
-    let upload =
-          Share.uploadEntities
-            (codeserverBaseURL Codeserver.defaultCodeserver)
-            repoName
-            (Set.NonEmpty.singleton causalHash)
-            uploadedCallback
-    upload & onLeftM \err -> do
-      loggeth ["upload entities error"]
-      loggeth [tShow err]
-      Cli.returnEarlyWithoutOutput
-  afterUploadAction
-
 -- Push a local namespace ("loose code") to a remote project branch.
 pushLooseCodeToProjectBranch :: Path.Absolute -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
 pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
   localBranchHead <- Cli.runEitherTransaction (loadCausalHashToPush localPath)
-  uploadInfo <- oompaLoompa0 Nothing localBranchHead remoteProjectAndBranch
-  uploadeo uploadInfo
+  uploadPlan <- oompaLoompa0 Nothing localBranchHead remoteProjectAndBranch
+  executeUploadPlan uploadPlan
 
 -- | Push a local project branch to a remote project branch. If the remote project branch is left unspecified, we either
 -- use a pre-existing mapping for the local branch, or else infer what remote branch to push to (possibly creating it).
@@ -367,7 +326,7 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
           localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
           pure (Right (localProjectAndBranch, hash))
 
-  uploadInfo <-
+  uploadPlan <-
     case maybeRemoteProjectAndBranchNames of
       Nothing -> bazinga0 localProjectAndBranch localBranchHead
       Just (This remoteProjectName) ->
@@ -379,7 +338,7 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
           localBranchHead
           (ProjectAndBranch remoteProjectName remoteBranchName)
 
-  uploadeo uploadInfo
+  executeUploadPlan uploadPlan
 
 -- Get the causal hash to push at the given path, or error if there's no history there.
 loadCausalHashToPush :: Path.Absolute -> Sqlite.Transaction (Either Output Hash32)
@@ -392,7 +351,7 @@ loadCausalHashToPush path =
     segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
 
 -- "push", remote mapping unknown
-bazinga0 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli UploadInfo
+bazinga0 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli UploadPlan
 bazinga0 localProjectAndBranch localBranchHead =
   Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId localBranchId) >>= \case
     Nothing -> bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch Nothing Nothing)
@@ -420,13 +379,13 @@ bazinga0 localProjectAndBranch localBranchHead =
           repoName <- remoteProjectBranchRepoName remoteBranch
           afterUploadAction <-
             makeFastForwardAfterUploadAction (Just localProjectAndBranch) localBranchHead remoteBranch
-          pure UploadInfo {repoName, causalHash = localBranchHead, afterUploadAction}
+          pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
   where
     localProjectId = localProjectAndBranch ^. #project . #projectId
     localBranchId = localProjectAndBranch ^. #branch . #branchId
 
 -- "push /foo", remote mapping unknown
-bazinga5 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> ProjectBranchName -> Cli UploadInfo
+bazinga5 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> ProjectBranchName -> Cli UploadPlan
 bazinga5 localProjectAndBranch localBranchHead remoteBranchName = do
   Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId localBranchId) >>= \case
     Nothing -> bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch Nothing (Just remoteBranchName))
@@ -443,7 +402,7 @@ bazinga10 ::
   ProjectAndBranch Queries.Project Queries.Branch ->
   Hash32 ->
   ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
-  Cli UploadInfo
+  Cli UploadPlan
 bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = do
   myUserHandle <- oinkGetLoggedInUser
   let localProjectName = unsafeFrom @Text (localProjectAndBranch ^. #project . #name)
@@ -464,34 +423,42 @@ oompaLoompa0 ::
   Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
   Hash32 ->
   ProjectAndBranch ProjectName ProjectBranchName ->
-  Cli UploadInfo
+  Cli UploadPlan
 oompaLoompa0 maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch = do
   repoName <- projectBranchRepoName remoteProjectAndBranch
   let remoteProjectName = remoteProjectAndBranch ^. #project
   let remoteBranchName = remoteProjectAndBranch ^. #branch
-  let doCreateBranch :: Share.API.Project -> Cli ()
-      doCreateBranch remoteProject = do
-        createBranchAfterUploadAction
-          maybeLocalProjectAndBranch
-          localBranchHead
-          (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
   Share.getProjectByName remoteProjectName >>= \case
     Share.API.GetProjectResponseNotFound {} -> do
-      let afterUploadAction = do
-            remoteProject <- oinkCreateRemoteProject remoteProjectName
-            doCreateBranch remoteProject
-      pure UploadInfo {repoName, causalHash = localBranchHead, afterUploadAction}
+      pure
+        UploadPlan
+          { repoName,
+            causalHash = localBranchHead,
+            afterUploadAction =
+              createProjectAndBranchAfterUploadAction
+                maybeLocalProjectAndBranch
+                localBranchHead
+                remoteProjectAndBranch
+          }
     Share.API.GetProjectResponseUnauthorized {} -> wundefined
     Share.API.GetProjectResponseSuccess remoteProject -> do
       let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
       Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
         Share.API.GetProjectBranchResponseNotFound {} -> do
-          let afterUploadAction = doCreateBranch remoteProject
-          pure UploadInfo {repoName, causalHash = localBranchHead, afterUploadAction}
+          pure
+            UploadPlan
+              { repoName,
+                causalHash = localBranchHead,
+                afterUploadAction =
+                  createBranchAfterUploadAction
+                    maybeLocalProjectAndBranch
+                    localBranchHead
+                    (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
+              }
         Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
         Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
           afterUploadAction <- makeFastForwardAfterUploadAction maybeLocalProjectAndBranch localBranchHead remoteBranch
-          pure UploadInfo {repoName, causalHash = localBranchHead, afterUploadAction}
+          pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
 
 -- "push /foo" with a remote mapping for the project (either from this branch or one of our ancestors)
 -- but we don't know whether the remote branch exists
@@ -499,7 +466,7 @@ oompaLoompa1 ::
   ProjectAndBranch Queries.Project Queries.Branch ->
   Hash32 ->
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
-  Cli UploadInfo
+  Cli UploadPlan
 oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
   repoName <-
     case projectBranchNameUserSlug (remoteProjectAndBranch ^. #branch) of
@@ -517,7 +484,7 @@ oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
     Share.API.GetProjectBranchResponseNotFound {} -> do
       -- FIXME check to see if the project exists here instead of assuming it does
       pure
-        UploadInfo
+        UploadPlan
           { repoName,
             causalHash = localBranchHead,
             afterUploadAction =
@@ -529,7 +496,69 @@ oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
     Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
     Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
       afterUploadAction <- makeFastForwardAfterUploadAction (Just localProjectAndBranch) localBranchHead remoteBranch
-      pure UploadInfo {repoName, causalHash = localBranchHead, afterUploadAction}
+      pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
+
+-- A plan for uploading a branch and doing something afterwards.
+data UploadPlan = UploadPlan
+  { -- The "repo name" to upload to. For a contributor branch like @arya/topic, for example, this will be the username
+    -- "arya".
+    repoName :: Share.RepoName,
+    -- The causal hash to upload.
+    causalHash :: Hash32,
+    -- The action to call after a successful upload.
+    afterUploadAction :: AfterUploadAction
+  }
+
+-- An action to call after a successful upload.
+type AfterUploadAction = Cli ()
+
+-- Execute an upload plan.
+executeUploadPlan :: UploadPlan -> Cli ()
+executeUploadPlan UploadPlan {repoName, causalHash, afterUploadAction} = do
+  loggeth ["uploading entities"]
+  Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
+    let upload =
+          Share.uploadEntities
+            (codeserverBaseURL Codeserver.defaultCodeserver)
+            repoName
+            (Set.NonEmpty.singleton causalHash)
+            uploadedCallback
+    upload & onLeftM \err -> do
+      loggeth ["upload entities error"]
+      loggeth [tShow err]
+      Cli.returnEarlyWithoutOutput
+  afterUploadAction
+
+-- An after-upload action that creates a remote project, then a remote branch.
+--
+-- Precondition: the remote project doesn't exist.
+createProjectAndBranchAfterUploadAction ::
+  Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
+  Hash32 ->
+  ProjectAndBranch ProjectName ProjectBranchName ->
+  AfterUploadAction
+createProjectAndBranchAfterUploadAction maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch = do
+  let remoteProjectName = remoteProjectAndBranch ^. #project
+  let remoteBranchName = remoteProjectAndBranch ^. #branch
+  remoteProject <- do
+    let request = Share.API.CreateProjectRequest {projectName = into @Text remoteProjectName}
+    loggeth ["Making create-project request for project"]
+    loggeth [tShow request]
+    Share.createProject request >>= \case
+      Share.API.CreateProjectResponseUnauthorized (Share.API.Unauthorized msg) -> do
+        loggeth ["Share says: unauthorized: " <> msg]
+        Cli.returnEarlyWithoutOutput
+      Share.API.CreateProjectResponseNotFound (Share.API.NotFound msg) -> do
+        loggeth ["Share says: not-found: " <> msg]
+        Cli.returnEarlyWithoutOutput
+      Share.API.CreateProjectResponseSuccess remoteProject -> do
+        loggeth ["Share says: success!"]
+        loggeth [tShow remoteProject]
+        pure remoteProject
+  createBranchAfterUploadAction
+    maybeLocalProjectAndBranch
+    localBranchHead
+    (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
 
 -- An after-upload action that creates a remote branch.
 --
@@ -538,7 +567,7 @@ createBranchAfterUploadAction ::
   Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
   Hash32 ->
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
-  Cli ()
+  AfterUploadAction
 createBranchAfterUploadAction maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch = do
   let remoteProjectId = remoteProjectAndBranch ^. #project
   let remoteBranchName = remoteProjectAndBranch ^. #branch
@@ -596,7 +625,7 @@ makeFastForwardAfterUploadAction ::
   Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
   Hash32 ->
   Share.API.ProjectBranch ->
-  Cli (Cli ())
+  Cli AfterUploadAction
 makeFastForwardAfterUploadAction maybeLocalProjectAndBranch localBranchHead remoteBranch = do
   whenM (Cli.runTransaction wouldNotBeFastForward) do
     loggeth ["local head behind remote"]
@@ -722,23 +751,6 @@ expectProjectAndBranch (ProjectAndBranch projectId branchId) = do
   project <- Queries.expectProject projectId
   branch <- Queries.expectProjectBranch projectId branchId
   pure (ProjectAndBranch project branch)
-
-oinkCreateRemoteProject :: ProjectName -> Cli Share.API.Project
-oinkCreateRemoteProject projectName = do
-  let request = Share.API.CreateProjectRequest {projectName = into @Text projectName}
-  loggeth ["Making create-project request for project"]
-  loggeth [tShow request]
-  Share.createProject request >>= \case
-    Share.API.CreateProjectResponseUnauthorized (Share.API.Unauthorized msg) -> do
-      loggeth ["Share says: unauthorized: " <> msg]
-      Cli.returnEarlyWithoutOutput
-    Share.API.CreateProjectResponseNotFound (Share.API.NotFound msg) -> do
-      loggeth ["Share says: not-found: " <> msg]
-      Cli.returnEarlyWithoutOutput
-    Share.API.CreateProjectResponseSuccess remoteProject -> do
-      loggeth ["Share says: success!"]
-      loggeth [tShow remoteProject]
-      pure remoteProject
 
 oinkGetLoggedInUser :: Cli Text
 oinkGetLoggedInUser = do
