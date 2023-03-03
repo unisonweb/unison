@@ -343,7 +343,7 @@ pushLooseCodeToProjectBranch ::
   Cli ()
 pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
   localBranchHead <- Cli.runEitherTransaction (loadCausalHashToPush localPath)
-  uploadeo localBranchHead (bazinga7 Nothing localBranchHead remoteProjectAndBranch)
+  uploadeo localBranchHead (oompaLoompa0 Nothing localBranchHead remoteProjectAndBranch)
 
 -- | Push a local project branch to a remote project branch. If the remote project branch is left unspecified, we either
 -- use a pre-existing mapping for the local branch, or else infer what remote branch to push to (possibly creating it).
@@ -369,7 +369,7 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
         bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch (Just remoteProjectName) Nothing)
       Just (That remoteBranchName) -> bazinga5 localProjectAndBranch localBranchHead remoteBranchName
       Just (These remoteProjectName remoteBranchName) ->
-        bazinga7
+        oompaLoompa0
           (Just localProjectAndBranch)
           localBranchHead
           (ProjectAndBranch remoteProjectName remoteBranchName)
@@ -483,48 +483,42 @@ bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = d
           Nothing -> prependUserSlugToProjectBranchName myUserHandle localBranchName
           Just remoteBranchName1 -> remoteBranchName1
   let remoteProjectAndBranch = ProjectAndBranch remoteProjectName remoteBranchName
-  repoName <- projectBranchRepoName remoteProjectAndBranch
-  afterUploadAction <- oompaLoompa0 (Just localProjectAndBranch) localBranchHead remoteProjectAndBranch
-  pure UploadInfo {repoName, afterUploadAction}
-
-bazinga7 ::
-  Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
-  Hash32 ->
-  ProjectAndBranch ProjectName ProjectBranchName ->
-  Cli UploadInfo
-bazinga7 maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch = do
-  repoName <- projectBranchRepoName remoteProjectAndBranch
-  afterUploadAction <- oompaLoompa0 maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch
-  pure UploadInfo {repoName, afterUploadAction}
+  oompaLoompa0 (Just localProjectAndBranch) localBranchHead remoteProjectAndBranch
 
 -- we have the remote project and branch names, but we don't know whether either already exist
 oompaLoompa0 ::
   Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
   Hash32 ->
   ProjectAndBranch ProjectName ProjectBranchName ->
-  Cli (Cli ())
-oompaLoompa0 maybeLocalProjectAndBranch localBranchHead pb@(ProjectAndBranch remoteProjectName remoteBranchName) = do
+  Cli UploadInfo
+oompaLoompa0 maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch = do
+  repoName <- projectBranchRepoName remoteProjectAndBranch
+  let remoteProjectName = remoteProjectAndBranch ^. #project
+  let remoteBranchName = remoteProjectAndBranch ^. #branch
   let doCreateBranch :: Share.API.Project -> Cli ()
       doCreateBranch remoteProject = do
-        repoName <- projectBranchRepoName pb
         oinkUpload repoName localBranchHead
         oompaLoompaCreateBranch
           maybeLocalProjectAndBranch
           localBranchHead
           (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
   Share.getProjectByName remoteProjectName >>= \case
-    Share.API.GetProjectResponseNotFound {} ->
-      pure do
-        remoteProject <- oinkCreateRemoteProject remoteProjectName
-        doCreateBranch remoteProject
+    Share.API.GetProjectResponseNotFound {} -> do
+      let afterUploadAction = do
+            remoteProject <- oinkCreateRemoteProject remoteProjectName
+            doCreateBranch remoteProject
+      pure UploadInfo {repoName, afterUploadAction}
     Share.API.GetProjectResponseUnauthorized {} -> wundefined
     Share.API.GetProjectResponseSuccess remoteProject -> do
       let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
       Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-        Share.API.GetProjectBranchResponseNotFound {} -> pure (doCreateBranch remoteProject)
+        Share.API.GetProjectBranchResponseNotFound {} -> do
+          let afterUploadAction = doCreateBranch remoteProject
+          pure UploadInfo {repoName, afterUploadAction}
         Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
-        Share.API.GetProjectBranchResponseSuccess remoteBranch ->
-          oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch
+        Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
+          afterUploadAction <- oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch
+          pure UploadInfo {repoName, afterUploadAction}
 
 -- we have the remote project id and remote branch name, but we don't know whether the remote branch exists
 oompaLoompa1 ::
