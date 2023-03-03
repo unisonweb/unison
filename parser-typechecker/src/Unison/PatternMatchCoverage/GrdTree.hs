@@ -84,3 +84,5 @@ pattern Grd x rest = Fix (GrdF x rest)
 
 pattern Fork :: NonEmpty (GrdTree n l) -> GrdTree n l
 pattern Fork alts = Fix (ForkF alts)
+
+{-# COMPLETE Leaf, Grd, Fork #-}
