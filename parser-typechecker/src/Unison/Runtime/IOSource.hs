@@ -983,7 +983,7 @@ showNotes source env =
   intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
 
 decodeResult ::
-  String -> SynthResult -> EitherResult --  String (UF.TypecheckedUnisonFile Symbol Ann)
+  String -> SynthResult -> EitherResult
 decodeResult source (Result.Result notes Nothing) =
   Left $ showNotes source ppEnv notes
 decodeResult source (Result.Result notes (Just (Left uf))) =
