@@ -260,7 +260,17 @@
   (define (unison-POp-SIZT t) (string-length t))
   (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
   (define (unison-POp-SUBN m n) (fx- m n))
-  (define (unison-POp-TAKS n s) (list-head s n))
+  (define (unison-POp-TAKS n s) ; TODO replace with faster impl when available
+    (let loop ([n n]
+               [s s]
+               [acc empty-chunked-list])
+      (cond
+        [(or (= n 0) (chunked-list-empty? s)) acc]
+        [else
+         (loop
+          (- n 1)
+          (chunked-list-drop-first s)
+          (chunked-list-add-last acc (chunked-list-ref s 0)))])))
   (define (unison-POp-TAKT n t) (istring-take n t))
   (define (unison-POp-DBTX x)
     (format "~a" x))
@@ -413,4 +423,3 @@
   (define (unison-FOp-Promise.read promise) (promise-read promise))
   (define (unison-FOp-Promise.tryRead promise) (promise-try-read promise))
   (define (unison-FOp-Promise.write promise a) (promise-write promise a)))
-
