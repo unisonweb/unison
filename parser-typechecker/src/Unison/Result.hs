@@ -43,41 +43,41 @@ pattern Result notes may = MaybeT (WriterT (Identity (may, notes)))
 
 {-# COMPLETE Result #-}
 
-isSuccess :: Functor f => ResultT note f a -> f Bool
+isSuccess :: (Functor f) => ResultT note f a -> f Bool
 isSuccess = (isJust . fst <$>) . runResultT
 
-isFailure :: Functor f => ResultT note f a -> f Bool
+isFailure :: (Functor f) => ResultT note f a -> f Bool
 isFailure = (isNothing . fst <$>) . runResultT
 
-toMaybe :: Functor f => ResultT note f a -> f (Maybe a)
+toMaybe :: (Functor f) => ResultT note f a -> f (Maybe a)
 toMaybe = (fst <$>) . runResultT
 
 runResultT :: ResultT notes f a -> f (Maybe a, notes)
 runResultT = runWriterT . runMaybeT
 
 -- Returns the `Result` in the `f` functor.
-getResult :: Functor f => ResultT notes f a -> f (Result notes a)
+getResult :: (Functor f) => ResultT notes f a -> f (Result notes a)
 getResult r = uncurry (flip Result) <$> runResultT r
 
-toEither :: Functor f => ResultT notes f a -> ExceptT notes f a
+toEither :: (Functor f) => ResultT notes f a -> ExceptT notes f a
 toEither r = ExceptT (go <$> runResultT r)
   where
     go (may, notes) = note notes may
 
-tell1 :: Monad f => note -> ResultT (Seq note) f ()
+tell1 :: (Monad f) => note -> ResultT (Seq note) f ()
 tell1 = tell . pure
 
 fromParsing ::
-  Monad f => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
+  (Monad f) => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
 fromParsing (Left e) = do
   tell1 $ Parsing e
   Fail.fail ""
 fromParsing (Right a) = pure a
 
-tellAndFail :: Monad f => note -> ResultT (Seq note) f a
+tellAndFail :: (Monad f) => note -> ResultT (Seq note) f a
 tellAndFail note = tell1 note *> Fail.fail "Elegantly and responsibly"
 
-compilerBug :: Monad f => CompilerBug v loc -> ResultT (Seq (Note v loc)) f a
+compilerBug :: (Monad f) => CompilerBug v loc -> ResultT (Seq (Note v loc)) f a
 compilerBug = tellAndFail . CompilerBug
 
 hoist ::

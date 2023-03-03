@@ -7,11 +7,9 @@
 -- are unified with non-sqlite operations in the Codebase interface, like 'appendReflog'.
 module Unison.Codebase.SqliteCodebase.Operations where
 
-import Control.Lens (ifor)
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
 import qualified Data.List as List
-import qualified Data.List.NonEmpty as NEList
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
@@ -19,7 +17,6 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Branch.Diff as BranchDiff
-import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash), PatchHash)
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
@@ -32,8 +29,6 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase.Branch (Branch (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as V1Branch
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
@@ -96,9 +91,11 @@ data BufferEntry a = BufferEntry
   }
   deriving (Eq, Show)
 
-prettyBufferEntry :: Show a => Hash -> BufferEntry a -> String
+prettyBufferEntry :: (Show a) => Hash -> BufferEntry a -> String
 prettyBufferEntry (h :: Hash) BufferEntry {..} =
-  "BufferEntry " ++ show h ++ "\n"
+  "BufferEntry "
+    ++ show h
+    ++ "\n"
     ++ "  { beComponentTargetSize = "
     ++ show beComponentTargetSize
     ++ "\n"
@@ -620,31 +617,38 @@ namesAtPath namesRootPath relativeToPath = do
         Nothing -> Nothing
         Just stripped -> Just (Name.makeRelative stripped, ref)
 
--- | Update the root namespace names index which is used by the share server for serving api
--- requests.
-updateNameLookupIndex ::
+-- | Add an index for the provided branch hash if one doesn't already exist.
+ensureNameLookupForBranchHash ::
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
-  Path ->
-  -- | "from" branch, if 'Nothing' use the empty branch
+  -- | An optional branch which we may already have an index for.
+  -- This should be a branch which is relatively similar to the branch we're creating a name
+  -- lookup for, e.g. a recent ancestor of the new branch. The more similar it is, the faster
+  -- the less work we'll need to do.
   Maybe BranchHash ->
-  -- | "to" branch
   BranchHash ->
   Sqlite.Transaction ()
-updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash toBranchHash = do
-  fromBranch <- case mayFromBranchHash of
-    Nothing -> pure V2Branch.empty
-    Just fromBH -> Ops.expectBranchByBranchHash fromBH
-  toBranch <- Ops.expectBranchByBranchHash toBranchHash
-  treeDiff <- BranchDiff.diffBranches fromBranch toBranch
-  let namePrefix = case pathPrefix of
-        Path.Empty -> Nothing
-        (p Path.:< ps) -> Just $ Name.fromSegments (p :| Path.toList ps)
-  let BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} = BranchDiff.nameChanges namePrefix treeDiff
-  termNameAddsWithCT <- do
-    for termNameAdds \(name, ref) -> do
-      refWithCT <- addReferentCT ref
-      pure $ toNamedRef (name, refWithCT)
-  Ops.updateNameIndex (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
+ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
+  Ops.checkBranchHashNameLookupExists toBranchHash >>= \case
+    True -> pure ()
+    False -> do
+      (fromBranch, mayExistingLookupBH) <- case mayFromBranchHash of
+        Nothing -> pure (V2Branch.empty, Nothing)
+        Just fromBH -> do
+          Ops.checkBranchHashNameLookupExists fromBH >>= \case
+            True -> (,Just fromBH) <$> Ops.expectBranchByBranchHash fromBH
+            False -> do
+              -- TODO: We can probably infer a good starting branch by crawling through
+              -- history looking for a Branch Hash we already have an index for.
+              pure (V2Branch.empty, Nothing)
+      toBranch <- Ops.expectBranchByBranchHash toBranchHash
+      treeDiff <- BranchDiff.diffBranches fromBranch toBranch
+      let namePrefix = Nothing
+      let BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} = BranchDiff.nameChanges namePrefix treeDiff
+      termNameAddsWithCT <- do
+        for termNameAdds \(name, ref) -> do
+          refWithCT <- addReferentCT ref
+          pure $ toNamedRef (name, refWithCT)
+      Ops.buildNameLookupForBranchHash mayExistingLookupBH toBranchHash (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
   where
     toNamedRef :: (Name, ref) -> S.NamedRef ref
     toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
@@ -654,80 +658,6 @@ updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash toBranchHash = do
       C.Referent.Con ref _conId -> do
         ct <- getDeclType ref
         pure (referent, Just $ Cv.constructorType1to2 ct)
-
--- | Compute the root namespace names index which is used by the share server for serving api
--- requests. Using 'updateNameLookupIndex' is preferred whenever possible, since it's
--- considerably faster. This can be used to reset the index if it ever gets out of sync due to
--- a bug.
---
--- This version can be used if you've already got the root Branch pre-loaded, otherwise
--- it's faster to use 'initializeNameLookupIndexFromV2Root'
-initializeNameLookupIndexFromV1Branch :: Branch Transaction -> Sqlite.Transaction ()
-initializeNameLookupIndexFromV1Branch root = do
-  Q.dropNameLookupTables
-  saveRootNamesIndexV1 (V1Branch.toNames . Branch.head $ root)
-  where
-    saveRootNamesIndexV1 :: Names -> Transaction ()
-    saveRootNamesIndexV1 Names {Names.terms, Names.types} = do
-      let termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))]
-          termNames = Rel.toList terms <&> \(name, ref) -> S.NamedRef {reversedSegments = nameSegments name, ref = splitReferent ref}
-      let typeNames :: [(S.NamedRef C.Reference.Reference)]
-          typeNames =
-            Rel.toList types
-              <&> ( \(name, ref) ->
-                      S.NamedRef {reversedSegments = nameSegments name, ref = Cv.reference1to2 ref}
-                  )
-      Ops.updateNameIndex (termNames, []) (typeNames, [])
-      where
-        nameSegments :: Name -> NonEmpty Text
-        nameSegments = coerce @(NonEmpty NameSegment) @(NonEmpty Text) . Name.reverseSegments
-        splitReferent :: Referent.Referent -> (C.Referent.Referent, Maybe C.Referent.ConstructorType)
-        splitReferent referent = case referent of
-          Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
-          Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))
-
--- | Compute the root namespace names index which is used by the share server for serving api
--- requests. Using 'updateNameLookupIndex' is preferred whenever possible, since it's
--- considerably faster. This can be used to reset the index if it ever gets out of sync due to
--- a bug.
---
--- This version should be used if you don't already have the root Branch pre-loaded,
--- If you do, use 'initializeNameLookupIndexFromV1Branch' instead.
-initializeNameLookupIndexFromV2Root :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
-initializeNameLookupIndexFromV2Root getDeclType = do
-  Q.dropNameLookupTables
-  rootHash <- Ops.expectRootCausalHash
-  causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
-  (termNameMap, typeNameMap) <- nameMapsFromV2Branch [] causalBranch
-  let expandedTermNames = Map.toList termNameMap >>= (\(name, refs) -> (name,) <$> Set.toList refs)
-  termNameList <- do
-    for expandedTermNames \(name, ref) -> do
-      refWithCT <- addReferentCT ref
-      pure S.NamedRef {S.reversedSegments = coerce name, S.ref = refWithCT}
-  let typeNameList = do
-        (name, refs) <- Map.toList typeNameMap
-        ref <- Set.toList refs
-        pure $ S.NamedRef {S.reversedSegments = coerce name, S.ref = ref}
-  Ops.updateNameIndex (termNameList, []) (typeNameList, [])
-  where
-    addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
-    addReferentCT referent = case referent of
-      C.Referent.Ref {} -> pure (referent, Nothing)
-      C.Referent.Con ref _conId -> do
-        ct <- getDeclType ref
-        pure (referent, Just $ Cv.constructorType1to2 ct)
-
-    -- Traverse a v2 branch
-    -- Collects two maps, one with all term names and one with all type names.
-    -- Note that unlike the `Name` type in `unison-core1`, this list of name segments is
-    -- in reverse order, e.g. `["map", "List", "base"]`
-    nameMapsFromV2Branch :: Monad m => [NameSegment] -> V2Branch.CausalBranch m -> m (Map (NonEmpty NameSegment) (Set C.Referent.Referent), Map (NonEmpty NameSegment) (Set C.Reference.Reference))
-    nameMapsFromV2Branch reversedNamePrefix cb = do
-      b <- V2Causal.value cb
-      let (shallowTermNames, shallowTypeNames) = (Map.keysSet <$> V2Branch.terms b, Map.keysSet <$> V2Branch.types b)
-      (prefixedChildTerms, prefixedChildTypes) <-
-        fold <$> (ifor (V2Branch.children b) $ \nameSegment cb -> (nameMapsFromV2Branch (nameSegment : reversedNamePrefix) cb))
-      pure (Map.mapKeys (NEList.:| reversedNamePrefix) shallowTermNames <> prefixedChildTerms, Map.mapKeys (NEList.:| reversedNamePrefix) shallowTypeNames <> prefixedChildTypes)
 
 -- | Given a transaction, return a transaction that first checks a semispace cache of the given size.
 --

@@ -28,7 +28,9 @@
     string-copy!
 
     freeze-bytevector!
-    freeze-vector!)
+    freeze-vector!
+
+    bytevector)
 
   (import (chezscheme))
 

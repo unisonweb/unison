@@ -102,13 +102,13 @@ synthesize env t =
             (TypeVar.liftTerm t)
    in Result.hoist (pure . runIdentity) $ fmap TypeVar.lowerType result
 
-isSubtype :: Var v => Type v loc -> Type v loc -> Bool
+isSubtype :: (Var v) => Type v loc -> Type v loc -> Bool
 isSubtype t1 t2 =
   handleCompilerBug (Context.isSubtype (tvar $ void t1) (tvar $ void t2))
   where
     tvar = TypeVar.liftType
 
-handleCompilerBug :: Var v => Either (Context.CompilerBug v ()) a -> a
+handleCompilerBug :: (Var v) => Either (Context.CompilerBug v ()) a -> a
 handleCompilerBug = \case
   Left bug -> error $ "compiler bug encountered: " ++ show bug
   Right b -> b
@@ -129,12 +129,12 @@ handleCompilerBug = \case
 -- @
 -- exists x. '{IO, Exception} x
 -- @
-fitsScheme :: Var v => Type v loc -> Type v loc -> Bool
+fitsScheme :: (Var v) => Type v loc -> Type v loc -> Bool
 fitsScheme t1 t2 = handleCompilerBug (Context.fitsScheme (tvar $ void t1) (tvar $ void t2))
   where
     tvar = TypeVar.liftType
 
-isEqual :: Var v => Type v loc -> Type v loc -> Bool
+isEqual :: (Var v) => Type v loc -> Type v loc -> Bool
 isEqual t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
 
 type TDNR f v loc a =
@@ -166,10 +166,10 @@ typeError note = do
   tell $ Notes mempty [note] mempty
   Control.Monad.Fail.fail ""
 
-btw :: Monad f => Context.InfoNote v loc -> ResultT (Notes v loc) f ()
+btw :: (Monad f) => Context.InfoNote v loc -> ResultT (Notes v loc) f ()
 btw note = tell $ Notes mempty mempty [note]
 
-liftResult :: Monad f => Result (Notes v loc) a -> TDNR f v loc a
+liftResult :: (Monad f) => Result (Notes v loc) a -> TDNR f v loc a
 liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
 
 -- Resolve "solved blanks". If a solved blank's type and name matches the type

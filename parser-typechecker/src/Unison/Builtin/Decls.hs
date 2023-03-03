@@ -78,11 +78,12 @@ tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
 
 tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 
-runtimeFailureRef, arithmeticFailureRef, miscFailureRef, stmFailureRef :: Reference
+runtimeFailureRef, arithmeticFailureRef, miscFailureRef, stmFailureRef, threadKilledFailureRef :: Reference
 runtimeFailureRef = lookupDeclRef "io2.RuntimeFailure"
 arithmeticFailureRef = lookupDeclRef "io2.ArithmeticFailure"
 miscFailureRef = lookupDeclRef "io2.MiscFailure"
 stmFailureRef = lookupDeclRef "io2.STMFailure"
+threadKilledFailureRef = lookupDeclRef "io2.ThreadKilledFailure"
 
 fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
 fileModeRef = lookupDeclRef "io2.FileMode"
@@ -184,7 +185,8 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.RuntimeFailure", runtimeFailure),
           (v "io2.ArithmeticFailure", arithmeticFailure),
           (v "io2.MiscFailure", miscFailure),
-          (v "io2.STMFailure", stmFailure)
+          (v "io2.STMFailure", stmFailure),
+          (v "io2.ThreadKilledFailure", threadKilledFailure)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
@@ -363,6 +365,13 @@ builtinDataDecls = rs1 ++ rs
         []
         []
 
+    threadKilledFailure =
+      DataDeclaration
+        (Unique "e7e479ebb757edcd5acff958b00aa228ac75b0c53638d44cf9d62fca045c33cf")
+        ()
+        []
+        []
+
     stdhnd =
       DataDeclaration
         (Unique "67bf7a8e517cbb1e9f42bc078e35498212d3be3c")
@@ -460,7 +469,7 @@ pattern OptionalSome' ::
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern OptionalSome' d <- Term.App' (Term.Constructor' (ConstructorReference OptionalRef ((==) someId -> True))) d
 
-pattern TupleType' :: Var v => [Type v a] -> Type v a
+pattern TupleType' :: (Var v) => [Type v a] -> Type v a
 pattern TupleType' ts <- (unTupleType -> Just ts)
 
 pattern TupleTerm' :: [Term2 vt at ap v a] -> Term2 vt at ap v a
@@ -577,7 +586,7 @@ unitType,
   stdHandleType,
   failureType,
   exceptionType ::
-    Ord v => a -> Type v a
+    (Ord v) => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
 testResultType a = Type.app a (Type.list a) (Type.ref a testResultRef)
@@ -592,10 +601,10 @@ stdHandleType a = Type.ref a stdHandleRef
 failureType a = Type.ref a failureRef
 exceptionType a = Type.ref a exceptionRef
 
-tlsSignedCertType :: Var v => a -> Type v a
+tlsSignedCertType :: (Var v) => a -> Type v a
 tlsSignedCertType a = Type.ref a tlsSignedCertRef
 
-unitTerm :: Var v => a -> Term v a
+unitTerm :: (Var v) => a -> Term v a
 unitTerm ann = Term.constructor ann (ConstructorReference unitRef 0)
 
 tupleConsTerm ::
@@ -611,10 +620,10 @@ tupleTerm = foldr tupleConsTerm (unitTerm mempty)
 
 -- delayed terms are just lambdas that take a single `()` arg
 -- `force` calls the function
-forceTerm :: Var v => a -> a -> Term v a -> Term v a
+forceTerm :: (Var v) => a -> a -> Term v a -> Term v a
 forceTerm a au e = Term.app a e (unitTerm au)
 
-delayTerm :: Var v => a -> Term v a -> Term v a
+delayTerm :: (Var v) => a -> Term v a -> Term v a
 delayTerm a = Term.lam a $ Var.named "()"
 
 unTupleTerm ::
@@ -626,7 +635,7 @@ unTupleTerm t = case t of
   Term.Constructor' (ConstructorReference UnitRef 0) -> Just []
   _ -> Nothing
 
-unTupleType :: Var v => Type v a -> Maybe [Type v a]
+unTupleType :: (Var v) => Type v a -> Maybe [Type v a]
 unTupleType t = case t of
   Type.Apps' (Type.Ref' PairRef) [fst, snd] -> (fst :) <$> unTupleType snd
   Type.Ref' UnitRef -> Just []

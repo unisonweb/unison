@@ -79,7 +79,7 @@ pattern TypecheckedUnisonFile ds es tlcs wcs hts <-
     wcs
     (fmap (over _1 Reference.DerivedId) -> hts)
 
-instance Ord v => Functor (TypecheckedUnisonFile v) where
+instance (Ord v) => Functor (TypecheckedUnisonFile v) where
   fmap f (TypecheckedUnisonFileId ds es tlcs wcs hashTerms) =
     TypecheckedUnisonFileId ds' es' tlcs' wcs' hashTerms'
     where

@@ -13,7 +13,7 @@ import qualified Unison.Util.List as List
 import Unison.Var (Var)
 
 bindNames ::
-  Var v =>
+  (Var v) =>
   (v -> Name.Name) ->
   Set v ->
   Names.Names ->

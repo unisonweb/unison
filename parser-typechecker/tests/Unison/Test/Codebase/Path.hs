@@ -32,7 +32,8 @@ test =
               let s = "foo.bar.baz#abc" in scope s . expect $ isLeft $ parseSplit' wordyNameSegment s,
               let s = "foo.bar.+"
                in scope s . expect $
-                    isLeft $ parseSplit' wordyNameSegment s
+                    isLeft $
+                      parseSplit' wordyNameSegment s
             ],
           scope "definitionNameSegment" . tests $
             [ let s = "foo.bar.+"

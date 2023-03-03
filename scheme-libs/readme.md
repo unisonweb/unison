@@ -1,77 +1,69 @@
 This directory contains libraries necessary for building and running
-unison programs via Chez Scheme. At the moment, they need to be
-manually installed in the expected location. The default location is
-the `unisonlanguage` directory in the XDG data directory.
-Specifically, the `unison` subdirectory should be (recursively) copied
-to:
+unison programs via Racket Scheme.
 
-    $XDG_DATA_DIRECTORY/unisonlanguage/scheme-libs
+**Prerequisites**
 
-On unix systems, the XDG directory is ~/.local/share by default, ~
-being the home directory. On Windows, this is instead the %APPDATA%
-directory. See:
+You'll need to have a couple things installed on your system: 
 
-    https://hackage.haskell.org/package/directory/docs/System-Directory.html#t:XdgDirectory
+* [libcrypto](https://github.com/openssl/openssl) (you probably already have this installed)
+* [Racket](https://racket-lang.org/), with the executable `racket` on your path somewhere
+* [BLAKE2](https://github.com/BLAKE2/libb2) (you may need to install this manually) 
 
-for more information. The full directory structure should be copied,
-since the jit compilation commands supply both the common/
-subdirectory and an implementation specific subdirectory as library
-search paths.
+To run the test suite, first `stack build` (or `stack build --fast`), then:
 
-UCM can also be told to look in another directory by setting the
-`SchemeLibs.Static` item in the unison config file. If this path is
-denoted by `$CUSTOM`, then the compiler commands will look in:
+```
+./unison-src/builtin-tests/jit-tests.sh
+```
 
-    $CUSTOM/scheme-libs/
+OR if you want to run the same tests in interpreted mode:
 
-for the subdirectories containing the library files.
+```
+./unison-src/builtin-tests/interpreter-tests.sh
+```
 
-The compiler commands also expect Chez Scheme to be installed
-separately, and for `scheme` to be callable on the user's path. The
-continuation library now makes use of features in the Racket fork of
-Chez. For information on how to install, see:
+The above scripts fetch and cache a copy of base and the scheme-generating libraries, and copy this directory to `$XDG_DATA_DIRECTORY/unisonlanguage/scheme-libs`.
 
-    https://github.com/racket/ChezScheme/blob/master/BUILDING
+## Iterating more quickly
 
-For more information on Chez Scheme in general, see:
+If running the above transcripts is too slow for you, here's a few things you can do instead:
 
-    https://cisco.github.io/ChezScheme/csug9.5/csug.html
+### Run without needing to bounce ucm
 
-There are two ways to run code via scheme. The first is to use
-`run.native`, which compiles and immediately runs a given unison
-definition. The second is `compile.native`, which produces a Chez
-scheme `.boot` file with a specified name. The boot file can then be
-used with the scheme binary to run the precompiled program, like so:
+First, tell UCM to load scheme files from this directory, by adding 
+a `SchemeLibs.Static` item to your `~/.unisonConfig`. 
 
-    scheme -b ./my-program.boot
+```
+SchemeLibs.Static = "/path/to/unisoncode"
+```
 
-It is also possible to install the boot file in a particular
-directory, and make a renamed copy of the scheme binary, which will
-automatically execute the boot file with the corresponding name on
-start up. For more information on how to accomplish that, see:
+With this set, the compiler commands will look in `/path/to/somewhere/scheme-libs/` for the subdirectories containing the library files. 
 
-    https://cisco.github.io/ChezScheme/csug9.5/use.html#./use:h8
+Once that's done, you can load the testing library and tests:
 
----
+```
+.jit> load unison-src/builtin-tests/testlib.u
+.jit> add
+.jit> load unison-src/builtin-tests/tests.u
+.jit> add
+```
 
-A tip for working on files in this directory:
+And then, without needing to bounce `ucm` every time you edit your scheme files, you can do:
 
-Assuming your are doing so by creating a unison test case, it can be
-faster to have scheme code for that test case generated once, and then
-just work on filling out the library functionality here. To do this,
-you can run the ucm command:
+```
+.jit> run.native tests 
+```
 
-    run.native <example>
+### Run without needing to regenerate the scheme
 
-This will cause a corresponding scheme file to be created in:
+`run.native` produces a scheme file in `$XDG_CACHE_DIRECTORY/unisonlanguage/scheme-tmp`, so going one step further, you can grab these files and run them directly using Racket, bypassing `ucm` entirely. 
 
-    $XDG_CACHE_DIRECTORY/unisonlanguage
+```
+~/unison » ls ~/.cache/unisonlanguage/scheme-tmp 
+testSuite.scm tests.scm
+```
 
-This can be copied back to the unison directory, and then run directly
-with something like:
+When running `tests.scm` directly with Racket, you'll need to add this `scheme-libs` directory and the generated builtins library to the path. 
 
-    scheme --libdirs chez-libs:~/.cache/unisonlanguage/scheme-libs --script foo.scm
-
-Then you can test directly against any changes to chez-libs, instead
-of having to copy them to a different location, restart ucm, etc.
-
+```
+racket -S ~/.cache/unisonlanguage/scheme-libs/ -S ~/.local/share/unisonlanguage/scheme-libs/racket/ -S ~/.local/share/unisonlanguage/scheme-libs/common/  ~/.cache/unisonlanguage/scheme-tmp/tests.scm
+```

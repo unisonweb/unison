@@ -70,10 +70,10 @@ data DeclOrBuiltin v a
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
 
-declDependencies :: Ord v => Decl v a -> Set Reference
+declDependencies :: (Ord v) => Decl v a -> Set Reference
 declDependencies = either (dependencies . toDataDecl) dependencies
 
-labeledDeclDependencies :: Ord v => Decl v a -> Set LD.LabeledDependency
+labeledDeclDependencies :: (Ord v) => Decl v a -> Set LD.LabeledDependency
 labeledDeclDependencies = Set.map LD.TypeReference . declDependencies
 
 constructorType :: Decl v a -> CT.ConstructorType
@@ -90,7 +90,7 @@ data DataDeclaration v a = DataDeclaration
     bound :: [v],
     constructors' :: [(a, v, Type v a)]
   }
-  deriving (Eq, Show, Functor, Foldable)
+  deriving (Eq, Ord, Show, Functor, Foldable)
 
 constructors_ :: Lens' (DataDeclaration v a) [(a, v, Type v a)]
 constructors_ = lens getter setter
@@ -101,13 +101,13 @@ constructors_ = lens getter setter
 newtype EffectDeclaration v a = EffectDeclaration
   { toDataDecl :: DataDeclaration v a
   }
-  deriving (Eq, Show, Functor, Foldable)
+  deriving (Eq, Ord, Show, Functor, Foldable)
 
 asDataDecl_ :: Iso' (EffectDeclaration v a) (DataDeclaration v a)
 asDataDecl_ = iso toDataDecl EffectDeclaration
 
 withEffectDeclM ::
-  Functor f =>
+  (Functor f) =>
   (DataDeclaration v a -> f (DataDeclaration v' a')) ->
   EffectDeclaration v a ->
   f (EffectDeclaration v' a')
@@ -200,7 +200,7 @@ constructorTypes :: DataDeclaration v a -> [Type v a]
 constructorTypes = (snd <$>) . constructors
 
 -- what is declFields? —AI
-declFields :: Var v => Decl v a -> Either [Int] [Int]
+declFields :: (Var v) => Decl v a -> Either [Int] [Int]
 declFields = bimap cf cf . first toDataDecl
   where
     cf = fmap fields . constructorTypes
@@ -217,7 +217,7 @@ constructors (DataDeclaration _ _ _ ctors) = [(v, t) | (_, v, t) <- ctors]
 constructorVars :: DataDeclaration v a -> [v]
 constructorVars dd = fst <$> constructors dd
 
-constructorNames :: Var v => DataDeclaration v a -> [Text]
+constructorNames :: (Var v) => DataDeclaration v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
 -- This function is unsound, since the `rid` and the `decl` have to match.
@@ -234,18 +234,18 @@ constructorIds dd = [0 .. fromIntegral $ length (constructors dd) - 1]
 
 -- | All variables mentioned in the given data declaration.
 -- Includes both term and type variables, both free and bound.
-allVars :: Ord v => DataDeclaration v a -> Set v
+allVars :: (Ord v) => DataDeclaration v a -> Set v
 allVars (DataDeclaration _ _ bound ctors) =
   Set.unions $
     Set.fromList bound : [Set.insert v (Set.fromList $ ABT.allVars tp) | (_, v, tp) <- ctors]
 
 -- | All variables mentioned in the given declaration.
 -- Includes both term and type variables, both free and bound.
-allVars' :: Ord v => Decl v a -> Set v
+allVars' :: (Ord v) => Decl v a -> Set v
 allVars' = allVars . either toDataDecl id
 
 bindReferences ::
-  Var v =>
+  (Var v) =>
   (v -> Name.Name) ->
   Set v ->
   Map Name.Name Reference ->
@@ -256,11 +256,11 @@ bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constru
     (a,v,) <$> Type.bindReferences unsafeVarToName keepFree names ty
   pure $ DataDeclaration m a bound constructors
 
-dependencies :: Ord v => DataDeclaration v a -> Set Reference
+dependencies :: (Ord v) => DataDeclaration v a -> Set Reference
 dependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 
-labeledDependencies :: Ord v => DataDeclaration v a -> Set LD.LabeledDependency
+labeledDependencies :: (Ord v) => DataDeclaration v a -> Set LD.LabeledDependency
 labeledDependencies = Set.map LD.TypeReference . dependencies
 
 mkEffectDecl' ::
@@ -278,7 +278,7 @@ data F a
   | Modified Modifier a
   deriving (Functor, Foldable, Show)
 
-updateDependencies :: Ord v => Map Reference Reference -> Decl v a -> Decl v a
+updateDependencies :: (Ord v) => Map Reference Reference -> Decl v a -> Decl v a
 updateDependencies typeUpdates decl =
   back $
     dataDecl
@@ -297,7 +297,7 @@ updateDependencies typeUpdates decl =
 -- have been replaced with the corresponding output `v`s in the output `Decl`s,
 -- which are fresh with respect to all input Decls.
 unhashComponent ::
-  forall v a. Var v => Map Reference.Id (Decl v a) -> Map Reference.Id (v, Decl v a)
+  forall v a. (Var v) => Map Reference.Id (Decl v a) -> Map Reference.Id (v, Decl v a)
 unhashComponent m =
   let usedVars :: Set v
       usedVars = foldMap allVars' m

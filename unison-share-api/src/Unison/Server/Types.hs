@@ -290,7 +290,7 @@ deriving instance ToSchema TypeTag
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.Lazy.fromStrict
 
-mungeShow :: Show s => s -> LZ.ByteString
+mungeShow :: (Show s) => s -> LZ.ByteString
 mungeShow = mungeString . show
 
 mungeString :: String -> LZ.ByteString
@@ -299,7 +299,7 @@ mungeString = Text.encodeUtf8 . Text.Lazy.pack
 defaultWidth :: Width
 defaultWidth = 80
 
-discard :: Applicative m => a -> m ()
+discard :: (Applicative m) => a -> m ()
 discard = const $ pure ()
 
 mayDefaultWidth :: Maybe Width -> Width

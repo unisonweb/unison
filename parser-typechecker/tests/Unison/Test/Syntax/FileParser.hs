@@ -81,7 +81,7 @@ emptyWatchTest =
   scope "emptyWatchTest" $
     expectFileParseFailure ">" expectation
   where
-    expectation :: Var e => P.Error e -> Test ()
+    expectation :: (Var e) => P.Error e -> Test ()
     expectation e = case e of
       P.EmptyWatch _ann -> ok
       _ -> crash "Error wasn't EmptyWatch"
@@ -91,7 +91,7 @@ signatureNeedsAccompanyingBodyTest =
   scope "signatureNeedsAccompanyingBodyTest" $
     expectFileParseFailure (unlines ["f : Nat -> Nat", "", "g a = a + 1"]) expectation
   where
-    expectation :: Var e => P.Error e -> Test ()
+    expectation :: (Var e) => P.Error e -> Test ()
     expectation e = case e of
       P.SignatureNeedsAccompanyingBody _ -> ok
       _ -> crash "Error wasn't SignatureNeedsAccompanyingBody"
@@ -101,7 +101,7 @@ emptyBlockTest =
   scope "emptyBlockTest" $
     expectFileParseFailure (unlines ["f a =", "", "> 1 + 1"]) expectation
   where
-    expectation :: Var e => P.Error e -> Test ()
+    expectation :: (Var e) => P.Error e -> Test ()
     expectation e = case e of
       P.EmptyBlock _ -> ok
       _ -> crash "Error wasn't EmptyBlock"
@@ -111,7 +111,7 @@ expectedBlockOpenTest =
   scope "expectedBlockOpenTest" $
     expectFileParseFailure "f a b = match a b" expectation
   where
-    expectation :: Var e => P.Error e -> Test ()
+    expectation :: (Var e) => P.Error e -> Test ()
     expectation e = case e of
       P.ExpectedBlockOpen _ _ -> ok
       _ -> crash "Error wasn't ExpectedBlockOpen"
@@ -121,7 +121,7 @@ unknownDataConstructorTest =
   scope "unknownDataConstructorTest" $
     expectFileParseFailure "m a = match a with A -> 1" expectation
   where
-    expectation :: Var e => P.Error e -> Test ()
+    expectation :: (Var e) => P.Error e -> Test ()
     expectation e = case e of
       P.UnknownDataConstructor _ _ -> ok
       _ -> crash "Error wasn't UnknownDataConstructor"
@@ -131,7 +131,7 @@ unknownAbilityConstructorTest =
   scope "unknownAbilityConstructorTest" $
     expectFileParseFailure "f e = match e with {E t -> u} -> 1" expectation
   where
-    expectation :: Var e => P.Error e -> Test ()
+    expectation :: (Var e) => P.Error e -> Test ()
     expectation e = case e of
       P.UnknownAbilityConstructor _ _ -> ok
       _ -> crash "Error wasn't UnknownAbilityConstructor"

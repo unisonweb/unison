@@ -183,7 +183,7 @@ lookupHQTerm' =
 -- See 'lookupHQTerm', 'lookupHQType' for monomorphic versions.
 lookupHQRef ::
   forall r.
-  Ord r =>
+  (Ord r) =>
   -- | A projection of types or terms from a Names.
   (Names -> Relation Name r) ->
   -- | isPrefixOf, for references or referents
