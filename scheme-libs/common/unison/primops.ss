@@ -214,21 +214,8 @@
   (define (unison-POp-ADDN m n) (fx+ m n))
   (define (unison-POp-ANDN m n) (fxand m n))
   (define unison-POp-BLDS
-    (let* ([empty empty-chunked-list]
-           [one (chunked-list-add-last empty 1)]
-           [one-two (chunked-list-add-last one 2)]
-           [three (chunked-list-add-last empty 3)]
-           [one-three (chunked-list-append one three)]
-           [one-two-three (chunked-list-append one-two three)])
-      (newline)
-      (display "[1]    ++ [3]: ")
-      (display one-three)
-      (newline)
-      (display "[1, 2] ++ [3]: ")
-      (display one-two-three)
-      (newline)
-      (lambda args-list
-        (fold-right (lambda (e l) (chunked-list-add-first l e)) empty-chunked-list args-list))))
+    (lambda args-list
+      (fold-right (lambda (e l) (chunked-list-add-first l e)) empty-chunked-list args-list)))
   (define (unison-POp-CATS l r) (chunked-list-append l r))
   (define (unison-POp-CATT l r) (istring-append l r))
   (define (unison-POp-CMPU l r) (universal-compare l r))
