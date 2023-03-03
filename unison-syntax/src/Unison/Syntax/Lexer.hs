@@ -787,9 +787,10 @@ lexemes' eof =
     quotedRaw = do
       _ <- lit "\"\"\""
       n <- many (char '"')
-      col <- column <$> P.lookAhead (P.takeWhileP (Just "spaces") isSpace *> pos)
       _ <- optional (char '\n') -- initial newline is skipped
       s <- P.manyTill P.anySingle (lit (replicate (length n + 3) '"'))
+      col0 <- column <$> pos
+      let col = col0 - (length n) - 3
       let leading = replicate (max 0 (col - 1)) ' '
       -- lines "foo\n" will produce ["foo"]     (ignoring last newline),
       -- lines' "foo\n" will produce ["foo",""] (preserving trailing newline)
