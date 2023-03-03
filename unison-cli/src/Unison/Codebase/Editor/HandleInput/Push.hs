@@ -142,6 +142,11 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
       localProjectAndBranch <- branchNameSpecToIds localProjectAndBranch0
       pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch)
 
+-- Convert a "branch name spec" (project name, or branch name, or both) into local ids for the project and branch, using
+-- the following defaults, if a name is missing:
+--
+--   - The project at the current path
+--   - The branch named "main"
 branchNameSpecToIds ::
   These ProjectName ProjectBranchName ->
   Cli (ProjectAndBranch ProjectId ProjectBranchId)
@@ -169,6 +174,11 @@ branchNameSpecToIds = \case
       loggeth [into @Text (These projectName branchName), " not found!"]
       Cli.returnEarlyWithoutOutput
 
+-- Convert a "branch name spec" (project name, or branch name, or both) into names for the project and branch, using the
+-- following defaults, if a name is missing:
+--
+--   - The project at the current path
+--   - The branch named "main"
 branchNameSpecToNames ::
   These ProjectName ProjectBranchName ->
   Cli (ProjectAndBranch ProjectName ProjectBranchName)
@@ -307,20 +317,24 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemotePath {server, rep
         Share.SyncError err -> Output.ShareError (f err)
         Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
 
+-- Info related to an upload
+data UploadInfo = UploadInfo
+  { -- The "repo name" to upload to. For a contributor branch like @arya/topic, for example, this will be the username
+    -- "arya".
+    repoName :: Share.RepoName,
+    -- The action to call after a successful upload.
+    afterUploadAction :: Cli ()
+  }
+
 -- UPLOADEO:
 --   1. Call action that returns repo name and after-upload callback
 --   2. Upload entities
 --   3. Call after-upload callback
-uploadeo ::
-  Hash32 ->
-  -- An action that returns the "repo name" to upload to via the upload-entities API (for a contributor branch for
-  -- example, this will be the username of the contributor), and an action to run after branch contents are uploaded.
-  Cli (Share.RepoName, Cli ()) ->
-  Cli ()
+uploadeo :: Hash32 -> Cli UploadInfo -> Cli ()
 uploadeo localBranchHead action = do
-  (repoName, afterUpload) <- action
+  UploadInfo {repoName, afterUploadAction} <- action
   oinkUpload repoName localBranchHead
-  afterUpload
+  afterUploadAction
 
 -- Push a local namespace ("loose code") to a remote project branch.
 pushLooseCodeToProjectBranch ::
@@ -371,7 +385,7 @@ loadCausalHashToPush path =
     segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
 
 -- "push", remote mapping unknown
-bazinga0 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli (Share.RepoName, Cli ())
+bazinga0 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Cli UploadInfo
 bazinga0 localProjectAndBranch localBranchHead =
   Cli.runTransaction (Queries.loadRemoteProjectBranchByLocalProjectBranch localProjectId localBranchId) >>= \case
     Nothing -> bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch Nothing Nothing)
@@ -386,21 +400,21 @@ bazinga0 localProjectAndBranch localBranchHead =
     localBranchId = localProjectAndBranch ^. #branch . #branchId
 
 -- "push" with remote mapping for project (from ancestor branch)
-bazinga2 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> RemoteProjectId -> Cli (Share.RepoName, Cli ())
+bazinga2 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> RemoteProjectId -> Cli UploadInfo
 bazinga2 localProjectAndBranch localBranchHead remoteProjectId = do
   myUserHandle <- oinkGetLoggedInUser
   let localBranchName = unsafeFrom @Text (localProjectAndBranch ^. #branch . #name)
   let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
   let remoteProjectAndBranch = ProjectAndBranch remoteProjectId remoteBranchName
-  afterUpload <- oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch
-  pure (Share.RepoName remoteBranchUserSlug, afterUpload)
+  afterUploadAction <- oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch
+  pure UploadInfo {repoName = Share.RepoName remoteBranchUserSlug, afterUploadAction}
 
 -- "push" with remote mapping for branch
 bazinga3 ::
   ProjectAndBranch Queries.Project Queries.Branch ->
   Hash32 ->
   ProjectAndBranch RemoteProjectId RemoteProjectBranchId ->
-  Cli (Share.RepoName, Cli ())
+  Cli UploadInfo
 bazinga3 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
   remoteBranch <-
     Share.getProjectBranchById remoteProjectAndBranch >>= \case
@@ -409,11 +423,11 @@ bazinga3 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
         Cli.returnEarlyWithoutOutput
       Share.API.GetProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
   repoName <- remoteProjectBranchRepoName remoteBranch
-  afterUpload <- oompaLoompa2 localProjectAndBranch localBranchHead remoteProjectAndBranch
-  pure (repoName, afterUpload)
+  afterUploadAction <- oompaLoompa2 localProjectAndBranch localBranchHead remoteProjectAndBranch
+  pure UploadInfo {repoName, afterUploadAction}
 
 -- "push /foo", remote mapping unknown
-bazinga5 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> ProjectBranchName -> Cli (Share.RepoName, Cli ())
+bazinga5 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> ProjectBranchName -> Cli UploadInfo
 bazinga5 localProjectAndBranch localBranchHead remoteBranchName = do
   Cli.runTransaction (Queries.loadRemoteProjectBranchByLocalProjectBranch localProjectId localBranchId) >>= \case
     Nothing -> bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch Nothing (Just remoteBranchName))
@@ -430,7 +444,7 @@ bazinga8 ::
   ProjectAndBranch Queries.Project Queries.Branch ->
   Hash32 ->
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
-  Cli (Share.RepoName, Cli ())
+  Cli UploadInfo
 bazinga8 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
   repoName <-
     case projectBranchNameUserSlug (remoteProjectAndBranch ^. #branch) of
@@ -441,15 +455,15 @@ bazinga8 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
             Cli.returnEarlyWithoutOutput
           Share.API.GetProjectResponseSuccess remoteProject -> remoteProjectRepoName remoteProject
       Just userSlug -> pure (Share.RepoName userSlug)
-  afterUpload <- oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch
-  pure (repoName, afterUpload)
+  afterUploadAction <- oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch
+  pure UploadInfo {repoName, afterUploadAction}
 
 -- "push", "push foo", or "push /foo" with no remote mapping
 bazinga10 ::
   ProjectAndBranch Queries.Project Queries.Branch ->
   Hash32 ->
   ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
-  Cli (Share.RepoName, Cli ())
+  Cli UploadInfo
 bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = do
   myUserHandle <- oinkGetLoggedInUser
   let localProjectName = unsafeFrom @Text (localProjectAndBranch ^. #project . #name)
@@ -464,18 +478,18 @@ bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = d
           Just remoteBranchName1 -> remoteBranchName1
   let remoteProjectAndBranch = ProjectAndBranch remoteProjectName remoteBranchName
   repoName <- projectBranchRepoName remoteProjectAndBranch
-  afterUpload <- oompaLoompa0 (Just localProjectAndBranch) localBranchHead remoteProjectAndBranch
-  pure (repoName, afterUpload)
+  afterUploadAction <- oompaLoompa0 (Just localProjectAndBranch) localBranchHead remoteProjectAndBranch
+  pure UploadInfo {repoName, afterUploadAction}
 
 bazinga7 ::
   Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
   Hash32 ->
   ProjectAndBranch ProjectName ProjectBranchName ->
-  Cli (Share.RepoName, Cli ())
+  Cli UploadInfo
 bazinga7 maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch = do
   repoName <- projectBranchRepoName remoteProjectAndBranch
-  afterUpload <- oompaLoompa0 maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch
-  pure (repoName, afterUpload)
+  afterUploadAction <- oompaLoompa0 maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch
+  pure UploadInfo {repoName, afterUploadAction}
 
 -- we have the remote project and branch names, but we don't know whether either already exist
 oompaLoompa0 ::
