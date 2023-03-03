@@ -29,6 +29,7 @@ library
       Unison.Server.Endpoints.Projects
       Unison.Server.Errors
       Unison.Server.NameSearch
+      Unison.Server.NameSearch.FromNames
       Unison.Server.NameSearch.Sqlite
       Unison.Server.Orphans
       Unison.Server.QueryResult

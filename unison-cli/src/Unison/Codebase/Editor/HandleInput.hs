@@ -180,7 +180,7 @@ import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Server.Backend (ShallowListEntry (..))
 import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
-import qualified Unison.Server.NameSearch as NameSearch
+import qualified Unison.Server.NameSearch.FromNames as NameSearch
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR

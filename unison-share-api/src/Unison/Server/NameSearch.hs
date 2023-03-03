@@ -6,8 +6,6 @@ import qualified Data.Set as Set
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
-import Unison.NamesWithHistory (NamesWithHistory)
-import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -27,33 +25,6 @@ data NameSearch m = NameSearch
   { typeSearch :: Search m Reference,
     termSearch :: Search m Referent
   }
-
--- | Make a type search, given a short hash length and names to search in.
-makeTypeSearch :: (Applicative m) => Int -> NamesWithHistory -> Search m Reference
-makeTypeSearch len names =
-  Search
-    { lookupNames = \ref -> pure $ NamesWithHistory.typeName len ref names,
-      lookupRelativeHQRefs' = pure . (`NamesWithHistory.lookupRelativeHQType'` names),
-      matchesNamedRef = HQ'.matchesNamedReference,
-      makeResult = \hqname r names -> pure $ SR.typeResult hqname r names
-    }
-
--- | Make a term search, given a short hash length and names to search in.
-makeTermSearch :: (Applicative m) => Int -> NamesWithHistory -> Search m Referent
-makeTermSearch len names =
-  Search
-    { lookupNames = \ref -> pure $ NamesWithHistory.termName len ref names,
-      lookupRelativeHQRefs' = pure . (`NamesWithHistory.lookupRelativeHQTerm'` names),
-      matchesNamedRef = HQ'.matchesNamedReferent,
-      makeResult = \hqname r names -> pure $ SR.termResult hqname r names
-    }
-
-makeNameSearch :: (Applicative m) => Int -> NamesWithHistory -> NameSearch m
-makeNameSearch hashLength names =
-  NameSearch
-    { typeSearch = makeTypeSearch hashLength names,
-      termSearch = makeTermSearch hashLength names
-    }
 
 -- | Interpret a 'Search' as a function from name to search results.
 applySearch :: (Show r, Monad m) => Search m r -> HQ'.HashQualified Name -> m [SR.SearchResult]
