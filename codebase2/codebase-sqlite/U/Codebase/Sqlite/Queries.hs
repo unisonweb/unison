@@ -121,7 +121,7 @@ module U.Codebase.Sqlite.Queries
     loadRemoteProject,
     ensureRemoteProject,
     setRemoteProjectName,
-    loadRemoteProjectBranchByLocalProjectBranch,
+    loadRemoteProjectBranch,
     loadDefaultMergeTargetForLocalProjectBranch,
 
     -- ** remote project branches
@@ -2674,12 +2674,12 @@ data LoadRemoteBranchFlag
 -- | Determine the remote mapping for a local project/branch by
 -- looking at the mapping for the given pair, then falling back to the
 -- project of the nearest ancestor.
-loadRemoteProjectBranchByLocalProjectBranch ::
+loadRemoteProjectBranch ::
   ProjectId ->
   ProjectBranchId ->
   Transaction (Maybe (RemoteProjectId, Maybe RemoteProjectBranchId))
-loadRemoteProjectBranchByLocalProjectBranch p b = do
-  loadRemoteProjectBranchByLocalProjectBranchGen IncludeSelfRemote p b <&> fmap fixup
+loadRemoteProjectBranch p b = do
+  loadRemoteProjectBranchGen IncludeSelfRemote p b <&> fmap fixup
   where
     -- If the depth is 0 then the local project/branch we provided has
     -- a remote mapping. Otherwise we found some ancestor's remote
@@ -2696,19 +2696,19 @@ loadDefaultMergeTargetForLocalProjectBranch ::
   ProjectBranchId ->
   Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId))
 loadDefaultMergeTargetForLocalProjectBranch p b = do
-  loadRemoteProjectBranchByLocalProjectBranchGen ExcludeSelfRemote p b <&> fmap fixup
+  loadRemoteProjectBranchGen ExcludeSelfRemote p b <&> fmap fixup
   where
     fixup = \case
       (project, branch, _) -> (project, branch)
 
 -- Parameterized query for finding the remote mapping for a branch and
 -- the default merge target for a branch.
-loadRemoteProjectBranchByLocalProjectBranchGen ::
+loadRemoteProjectBranchGen ::
   LoadRemoteBranchFlag ->
   ProjectId ->
   ProjectBranchId ->
   Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId, Int64))
-loadRemoteProjectBranchByLocalProjectBranchGen loadRemoteBranchFlag pid bid =
+loadRemoteProjectBranchGen loadRemoteBranchFlag pid bid =
   queryMaybeRow theSql (unisonShareUri, pid, bid, unisonShareUri)
   where
     theSql =
