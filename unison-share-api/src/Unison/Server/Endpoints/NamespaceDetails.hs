@@ -29,6 +29,7 @@ import Unison.Server.Doc (Doc)
 import Unison.Server.Types
   ( APIGet,
     UnisonHash,
+    mayDefaultWidth,
     v2CausalBranchToUnisonHash,
   )
 import Unison.Symbol (Symbol)
@@ -75,23 +76,27 @@ namespaceDetails ::
   Codebase IO Symbol Ann ->
   Path.Path ->
   Maybe ShortCausalHash ->
+  Maybe Width ->
   Backend IO NamespaceDetails
-namespaceDetails runtime codebase namespacePath maySCH = do
-  (rootCausal, namespaceCausal, shallowBranch) <-
-    Backend.hoistBackend (Codebase.runTransaction codebase) do
-      rootCausal <- Backend.resolveRootBranchHashV2 maySCH
-      namespaceCausal <- lift $ Codebase.getShallowCausalAtPath namespacePath (Just rootCausal)
-      shallowBranch <- lift $ V2Causal.value namespaceCausal
-      pure (rootCausal, namespaceCausal, shallowBranch)
-  namespaceDetails <- do
-    (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) namespacePath
-    readme <-
-      Backend.findShallowReadmeInBranchAndRender
-        runtime
-        codebase
-        ppe
-        shallowBranch
-    let causalHash = v2CausalBranchToUnisonHash namespaceCausal
-    pure $ NamespaceDetails namespacePath causalHash readme
+namespaceDetails runtime codebase namespacePath maySCH mayWidth =
+  let width = mayDefaultWidth mayWidth
+   in do
+        (rootCausal, namespaceCausal, shallowBranch) <-
+          Backend.hoistBackend (Codebase.runTransaction codebase) do
+            rootCausal <- Backend.resolveRootBranchHashV2 maySCH
+            namespaceCausal <- lift $ Codebase.getShallowCausalAtPath namespacePath (Just rootCausal)
+            shallowBranch <- lift $ V2Causal.value namespaceCausal
+            pure (rootCausal, namespaceCausal, shallowBranch)
+        namespaceDetails <- do
+          (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) namespacePath
+          readme <-
+            Backend.findShallowReadmeInBranchAndRender
+              width
+              runtime
+              codebase
+              ppe
+              shallowBranch
+          let causalHash = v2CausalBranchToUnisonHash namespaceCausal
+          pure $ NamespaceDetails namespacePath causalHash readme
 
-  pure $ namespaceDetails
+        pure $ namespaceDetails

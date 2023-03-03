@@ -358,7 +358,7 @@ serveUnison ::
 serveUnison env codebase rt =
   hoistServer (Proxy @UnisonAPI) (backendHandler env) $
     (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase root rel name)
-      :<|> (\namespaceName mayRoot _renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName mayRoot)
+      :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName mayRoot renderWidth)
       :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase mayRoot mayOwner)
       :<|> (\mayRoot relativePath rawHqns renderWidth suff -> setCacheControl <$> serveDefinitions rt codebase mayRoot relativePath rawHqns renderWidth suff)
       :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase mayRoot relativePath limit renderWidth query)

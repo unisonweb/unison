@@ -434,12 +434,13 @@ lsAtPath codebase mayRootBranch absPath = do
   lsBranch codebase b
 
 findShallowReadmeInBranchAndRender ::
+  Width ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
   V2Branch.Branch m ->
   Backend IO (Maybe Doc.Doc)
-findShallowReadmeInBranchAndRender runtime codebase ppe namespaceBranch =
+findShallowReadmeInBranchAndRender _width runtime codebase ppe namespaceBranch =
   let renderReadme :: PPED.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
       renderReadme ppe docReference = do
         doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc ppe
@@ -778,6 +779,8 @@ data DefinitionResults = DefinitionResults
   }
   deriving stock (Show)
 
+-- | Finds ALL direct references contained within a 'DefinitionResults' so we can
+-- build a pretty printer for them.
 definitionResultsDependencies :: DefinitionResults -> Set LD.LabeledDependency
 definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
   let topLevelTerms = Set.fromList . fmap LD.TermReference $ Map.keys termResults
@@ -854,7 +857,6 @@ prettyDefinitionsForHQName ::
   HQ.HashQualified Name ->
   Backend IO DefinitionDisplayResults
 prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt codebase perspectiveQuery = do
-  -- Re-compute and shadow the perspective and query to the appropriate project if applicable
   result <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- resolveCausalHashV2 mayRoot
     shallowBranch <- V2Causal.value shallowRoot
@@ -1001,6 +1003,7 @@ relocateToProjectRoot perspective query rootBranch = do
         -- The namesRoot and project root are disjoint, this shouldn't ever happen.
         (_, _, _) -> pure $ Left (DisjointProjectAndPerspective perspective projectRoot)
 
+-- | Evaluate the doc at the given reference and return its evaluated-but-not-rendered form.
 evalDocRef ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
@@ -1059,6 +1062,7 @@ docsForTermName codebase (NameSearch {termSearch}) name = do
         _ -> pure []
       pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
 
+-- | Evaluate and render the given docs
 renderDocRefs ::
   PPED.PrettyPrintEnvDecl ->
   Width ->
@@ -1198,11 +1202,11 @@ scopedNamesForBranchHash codebase mbh path = do
   (parseNames, localNames) <- case mbh of
     Nothing
       | shouldUseNamesIndex -> do
-          lift $ Codebase.runTransaction codebase indexNames
+        lift $ Codebase.runTransaction codebase indexNames
       | otherwise -> do
-          rootBranch <- lift $ Codebase.getRootBranch codebase
-          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-          pure (parseNames, localNames)
+        rootBranch <- lift $ Codebase.getRootBranch codebase
+        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+        pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash
