@@ -117,7 +117,8 @@ disjointProjectAndPerspective :: Path.Path -> Path.Path -> ServerError
 disjointProjectAndPerspective perspective projectRoot =
   err500
     { errBody =
-        "The project root " <> munge (Path.toText projectRoot)
+        "The project root "
+          <> munge (Path.toText projectRoot)
           <> " is disjoint with the perspective "
           <> munge (Path.toText perspective)
           <> ". This is a bug, please report it."

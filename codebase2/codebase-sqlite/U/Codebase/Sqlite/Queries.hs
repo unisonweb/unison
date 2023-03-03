@@ -2682,7 +2682,7 @@ toReversedName revSegs = Text.intercalate "." (toList revSegs) <> "."
 toNamespaceGlob :: Text -> Text
 toNamespaceGlob namespace = globEscape namespace <> ".*"
 
-reversedNameToReversedSegments :: HasCallStack => Text -> Either EmptyName ReversedSegments
+reversedNameToReversedSegments :: (HasCallStack) => Text -> Either EmptyName ReversedSegments
 reversedNameToReversedSegments txt =
   txt
     & Text.splitOn "."

@@ -1198,11 +1198,11 @@ scopedNamesForBranchHash codebase mbh path = do
   (parseNames, localNames) <- case mbh of
     Nothing
       | shouldUseNamesIndex -> do
-        lift $ Codebase.runTransaction codebase indexNames
+          lift $ Codebase.runTransaction codebase indexNames
       | otherwise -> do
-        rootBranch <- lift $ Codebase.getRootBranch codebase
-        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-        pure (parseNames, localNames)
+          rootBranch <- lift $ Codebase.getRootBranch codebase
+          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+          pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash
