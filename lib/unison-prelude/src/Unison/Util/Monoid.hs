@@ -1,5 +1,6 @@
 module Unison.Util.Monoid
   ( foldMapM,
+    ifoldMapM,
     Unison.Util.Monoid.fromMaybe,
     intercalateMap,
     intercalateMapM,
@@ -10,6 +11,7 @@ module Unison.Util.Monoid
   )
 where
 
+import Control.Lens (TraversableWithIndex, ifor)
 import Data.List (intersperse)
 import Unison.Prelude hiding (whenM)
 
@@ -37,3 +39,6 @@ nonEmpty = not . isEmpty
 
 foldMapM :: (Monad m, Foldable f, Monoid b) => (a -> m b) -> f a -> m b
 foldMapM f as = foldM (\b a -> fmap (b <>) (f a)) mempty as
+
+ifoldMapM :: (Monoid r, Applicative f, Foldable t, TraversableWithIndex i t) => (i -> a -> f r) -> t a -> f r
+ifoldMapM f xs = fold <$> ifor xs f
