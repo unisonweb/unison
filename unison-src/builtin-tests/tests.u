@@ -56,8 +56,8 @@ list.tests = do
   --  checkEqual "List.drop (2)" (List.drop 2 [1,2,3]) [3]
   --  checkEqual "List.drop (3)" (List.drop 100 [1,2,3]) []
   --  checkEqual "List.drop (4)" (List.drop 3 []) []
-  --  checkEqual "List.size (1)" (List.size []) 0
-  --  checkEqual "List.size (2)" (List.size [1,2,3]) 3
+  checkEqual "List.size (1)" (List.size []) 0
+  checkEqual "List.size (2)" (List.size [1,2,3]) 3
   --  checkEqual "List.at (1)" (List.at 0 [1,2,3]) (Some 1)
   --  checkEqual "List.at (2)" (List.at 2 [1,2,3]) (Some 3)
   --  checkEqual "List.at (3)" (List.at 1 []) None

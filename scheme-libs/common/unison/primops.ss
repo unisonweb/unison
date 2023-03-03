@@ -254,7 +254,7 @@
   (define (unison-POp-SHLN n k) (fxarithmetic-shift-left n k))
   (define (unison-POp-SHRI i k) (fxarithmetic-shift-right i k))
   (define (unison-POp-SHRN n k) (fxarithmetic-shift-right n k))
-  (define (unison-POp-SIZS l) (length l))
+  (define (unison-POp-SIZS l) (chunked-list-length l))
   (define (unison-POp-SIZT t) (string-length t))
   (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
   (define (unison-POp-SUBN m n) (fx- m n))
