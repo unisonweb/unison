@@ -37,6 +37,7 @@ where
 
 import qualified Data.Set as Set
 import Debug.Trace
+import Unison.Debug
 import Unison.Pattern (Pattern)
 import Unison.PatternMatchCoverage.Class (Pmc (..))
 import Unison.PatternMatchCoverage.Desugar (desugarMatch)
@@ -75,8 +76,7 @@ checkMatch matchLocation scrutineeType cases = do
             P.hang "uncovered:" (NC.prettyDnf uncovered),
             P.hang "uncovered expanded:" (NC.prettyDnf (Set.fromList uncoveredExpanded))
           ]
-      shouldDebug = False
-      doDebug = case shouldDebug of
+      doDebug = case shouldDebug PatternCoverage of
         True -> trace (P.toPlainUnbroken debugOutput)
         False -> id
   doDebug (pure (redundant, inaccessible, sols))

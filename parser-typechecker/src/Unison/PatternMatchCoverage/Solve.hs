@@ -20,6 +20,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Unison.Builtin.Decls (unitRef)
 import Unison.ConstructorReference (ConstructorReference)
+import Unison.Debug (DebugFlag (PatternCoverageConstraintSolver), shouldDebug)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import Unison.PatternMatchCoverage.Class
@@ -564,7 +565,7 @@ addConstraint con0 nc =
                 P.hang (P.green "resulting constraint: ") (maybe "contradiction" prettyNormalizedConstraints x),
                 ""
               ]
-       in if False then trace (P.toAnsiUnbroken debugOutput) x else x
+       in if shouldDebug PatternCoverageConstraintSolver then trace (P.toAnsiUnbroken debugOutput) x else x
 
 -- | Like 'addConstraint', but for a list of constraints
 addConstraints ::
