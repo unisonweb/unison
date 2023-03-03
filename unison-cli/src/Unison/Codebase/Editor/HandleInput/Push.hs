@@ -337,10 +337,7 @@ uploadeo localBranchHead action = do
   afterUploadAction
 
 -- Push a local namespace ("loose code") to a remote project branch.
-pushLooseCodeToProjectBranch ::
-  Path.Absolute ->
-  ProjectAndBranch ProjectName ProjectBranchName ->
-  Cli ()
+pushLooseCodeToProjectBranch :: Path.Absolute -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
 pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
   localBranchHead <- Cli.runEitherTransaction (loadCausalHashToPush localPath)
   uploadeo localBranchHead (oompaLoompa0 Nothing localBranchHead remoteProjectAndBranch)
@@ -391,10 +388,7 @@ bazinga0 localProjectAndBranch localBranchHead =
     Nothing -> bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch Nothing Nothing)
     Just (remoteProjectId, Nothing) -> bazinga2 localProjectAndBranch localBranchHead remoteProjectId
     Just (remoteProjectId, Just remoteBranchId) ->
-      bazinga3
-        localProjectAndBranch
-        localBranchHead
-        (ProjectAndBranch remoteProjectId remoteBranchId)
+      oompaLoompa2 localProjectAndBranch localBranchHead (ProjectAndBranch remoteProjectId remoteBranchId)
   where
     localProjectId = localProjectAndBranch ^. #project . #projectId
     localBranchId = localProjectAndBranch ^. #branch . #branchId
@@ -404,30 +398,15 @@ bazinga2 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> RemoteP
 bazinga2 localProjectAndBranch localBranchHead remoteProjectId = do
   myUserHandle <- oinkGetLoggedInUser
   let localBranchName = unsafeFrom @Text (localProjectAndBranch ^. #branch . #name)
-  let (remoteBranchUserSlug, remoteBranchName) = deriveRemoteBranchName myUserHandle localBranchName
-  let remoteProjectAndBranch = ProjectAndBranch remoteProjectId remoteBranchName
-  afterUploadAction <- oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch
-  pure UploadInfo {repoName = Share.RepoName remoteBranchUserSlug, afterUploadAction}
-
--- "push" with remote mapping for branch
-bazinga3 ::
-  ProjectAndBranch Queries.Project Queries.Branch ->
-  Hash32 ->
-  ProjectAndBranch RemoteProjectId RemoteProjectBranchId ->
-  Cli UploadInfo
-bazinga3 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
-  remoteBranch <-
-    Share.getProjectBranchById remoteProjectAndBranch >>= \case
-      Share.API.GetProjectBranchResponseNotFound (Share.API.NotFound msg) -> do
-        loggeth ["GetProjectBranchResponseNotFound: " <> msg]
-        Cli.returnEarlyWithoutOutput
-      Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized msg) -> do
-        loggeth ["GetProjectBranchResponseUnauthorized: " <> msg]
-        Cli.returnEarlyWithoutOutput
-      Share.API.GetProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
-  repoName <- remoteProjectBranchRepoName remoteBranch
-  afterUploadAction <- oompaLoompa2 localProjectAndBranch localBranchHead remoteProjectAndBranch
-  pure UploadInfo {repoName, afterUploadAction}
+  -- Derive the remote branch name from the user's handle and the local branch name.
+  --
+  -- user "bob" has local branch "topic":        remoteBranchName = "@bob/topic"
+  -- user "bob" has local branch "@runar/topic": remoteBranchName = "@runar/topic"
+  let remoteBranchName =
+        case projectBranchNameUserSlug localBranchName of
+          Nothing -> prependUserSlugToProjectBranchName myUserHandle localBranchName
+          Just _userSlug -> localBranchName
+  oompaLoompa1 localProjectAndBranch localBranchHead (ProjectAndBranch remoteProjectId remoteBranchName)
 
 -- "push /foo", remote mapping unknown
 bazinga5 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> ProjectBranchName -> Cli UploadInfo
@@ -437,32 +416,10 @@ bazinga5 localProjectAndBranch localBranchHead remoteBranchName = do
     Just (remoteProjectId, _maybeRemoteBranchId) ->
       -- FIXME if maybeRemoteBranchId is Nothing, we do want to establish a remote mapping for this branch. otherwise,
       -- we don't. (so maybe we just create a new mapping if one doesn't already exist in our create-branch helper?)
-      bazinga8 localProjectAndBranch localBranchHead (ProjectAndBranch remoteProjectId remoteBranchName)
+      oompaLoompa1 localProjectAndBranch localBranchHead (ProjectAndBranch remoteProjectId remoteBranchName)
   where
     localProjectId = localProjectAndBranch ^. #project . #projectId
     localBranchId = localProjectAndBranch ^. #branch . #branchId
-
--- "push /foo" with a remote mapping for the project (either from this branch or one of our ancestors)
-bazinga8 ::
-  ProjectAndBranch Queries.Project Queries.Branch ->
-  Hash32 ->
-  ProjectAndBranch RemoteProjectId ProjectBranchName ->
-  Cli UploadInfo
-bazinga8 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
-  repoName <-
-    case projectBranchNameUserSlug (remoteProjectAndBranch ^. #branch) of
-      Nothing ->
-        Share.getProjectById (remoteProjectAndBranch ^. #project) >>= \case
-          Share.API.GetProjectResponseNotFound (Share.API.NotFound msg) -> do
-            loggeth ["project deleted on share: " <> msg]
-            Cli.returnEarlyWithoutOutput
-          Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized msg) -> do
-            loggeth ["unauthorized: " <> msg]
-            Cli.returnEarlyWithoutOutput
-          Share.API.GetProjectResponseSuccess remoteProject -> remoteProjectRepoName remoteProject
-      Just userSlug -> pure (Share.RepoName userSlug)
-  afterUploadAction <- oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch
-  pure UploadInfo {repoName, afterUploadAction}
 
 -- "push", "push foo", or "push /foo" with no remote mapping
 bazinga10 ::
@@ -520,35 +477,53 @@ oompaLoompa0 maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch =
           afterUploadAction <- oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch
           pure UploadInfo {repoName, afterUploadAction}
 
--- we have the remote project id and remote branch name, but we don't know whether the remote branch exists
+-- "push /foo" with a remote mapping for the project (either from this branch or one of our ancestors)
+-- but we don't know whether the remote branch exists
 oompaLoompa1 ::
   ProjectAndBranch Queries.Project Queries.Branch ->
   Hash32 ->
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
-  Cli (Cli ())
-oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch =
+  Cli UploadInfo
+oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
+  repoName <-
+    case projectBranchNameUserSlug (remoteProjectAndBranch ^. #branch) of
+      Nothing ->
+        Share.getProjectById (remoteProjectAndBranch ^. #project) >>= \case
+          Share.API.GetProjectResponseNotFound (Share.API.NotFound msg) -> do
+            loggeth ["project deleted on share: " <> msg]
+            Cli.returnEarlyWithoutOutput
+          Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized msg) -> do
+            loggeth ["unauthorized: " <> msg]
+            Cli.returnEarlyWithoutOutput
+          Share.API.GetProjectResponseSuccess remoteProject -> remoteProjectRepoName remoteProject
+      Just userSlug -> pure (Share.RepoName userSlug)
   Share.getProjectBranchByName remoteProjectAndBranch >>= \case
-    Share.API.GetProjectBranchResponseNotFound {} ->
+    Share.API.GetProjectBranchResponseNotFound {} -> do
       -- FIXME check to see if the project exists here instead of assuming it does
-      pure (oompaLoompaCreateBranch (Just localProjectAndBranch) localBranchHead remoteProjectAndBranch)
+      let afterUploadAction =
+            oompaLoompaCreateBranch (Just localProjectAndBranch) localBranchHead remoteProjectAndBranch
+      pure UploadInfo {repoName, afterUploadAction}
     Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
-    Share.API.GetProjectBranchResponseSuccess remoteBranch ->
-      oompaLoompaFastForward (Just localProjectAndBranch) localBranchHead remoteBranch
+    Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
+      afterUploadAction <- oompaLoompaFastForward (Just localProjectAndBranch) localBranchHead remoteBranch
+      pure UploadInfo {repoName, afterUploadAction}
 
--- we have the remote project id and remote branch id
+-- "push" with remote mapping for branch
 oompaLoompa2 ::
   ProjectAndBranch Queries.Project Queries.Branch ->
   Hash32 ->
   ProjectAndBranch RemoteProjectId RemoteProjectBranchId ->
-  Cli (Cli ())
+  Cli UploadInfo
 oompaLoompa2 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
   Share.getProjectBranchById remoteProjectAndBranch >>= \case
     Share.API.GetProjectBranchResponseNotFound (Share.API.NotFound msg) -> do
       loggeth ["project or branch deleted on Share: " <> msg]
       Cli.returnEarlyWithoutOutput
     Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
-    Share.API.GetProjectBranchResponseSuccess remoteBranch ->
-      oompaLoompaFastForward (Just localProjectAndBranch) localBranchHead remoteBranch
+    Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
+      repoName <- remoteProjectBranchRepoName remoteBranch
+      afterUploadAction <- oompaLoompaFastForward (Just localProjectAndBranch) localBranchHead remoteBranch
+      pure UploadInfo {repoName, afterUploadAction}
 
 -- we know remote project exists but remote branch doesn't
 oompaLoompaCreateBranch ::
@@ -641,21 +616,6 @@ oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch =
         Nothing -> pure False
         Just (localBranchHead1, remoteBranchHead1) -> Queries.before remoteBranchHead1 localBranchHead1
 
--- Derive the remote branch user slug and remote branch name from the user's handle and the local branch name.
---
--- Example 1 - user "bob" has local branch "topic"
---   remoteBranchUserSlug = "bob"
---   remoteBranchName     = "@bob/topic"
---
--- Example 2 - user "bob" has local branch "@runar/topic"
---   remoteBranchUserSlug = "runar"
---   remoteBranchName     = "@runar/topic"
-deriveRemoteBranchName :: Text -> ProjectBranchName -> (Text, ProjectBranchName)
-deriveRemoteBranchName myUserHandle branchName =
-  case projectBranchNameUserSlug branchName of
-    Nothing -> (myUserHandle, prependUserSlugToProjectBranchName myUserHandle branchName)
-    Just userSlug -> (userSlug, branchName)
-
 expectProjectName :: Text -> Cli ProjectName
 expectProjectName projectName =
   case tryInto projectName of
@@ -698,9 +658,9 @@ remoteProjectRepoName project =
 
 remoteProjectBranchRepoName :: Share.API.ProjectBranch -> Cli Share.RepoName
 remoteProjectBranchRepoName branch = do
-  pn <- expectProjectName (branch ^. #projectName)
-  bn <- expectBranchName (branch ^. #branchName)
-  projectBranchRepoName (ProjectAndBranch pn bn)
+  projectName <- expectProjectName (branch ^. #projectName)
+  branchName <- expectBranchName (branch ^. #branchName)
+  projectBranchRepoName (ProjectAndBranch projectName branchName)
 
 -- A couple example repo names derived from the project/branch names:
 --
