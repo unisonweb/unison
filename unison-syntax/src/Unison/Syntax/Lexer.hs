@@ -783,7 +783,13 @@ lexemes' eof =
 
     semi = char ';' $> Semi False
     textual = Textual <$> quoted
-    quoted = char '"' *> P.manyTill (LP.charLiteral <|> sp) (char '"')
+    quoted = quotedRaw <|> quotedSingleLine
+    quotedRaw = do
+      _ <- lit "\"\"\""
+      n <- many (char '"')
+      _ <- optional (char '\n') -- initial newline is skipped
+      P.manyTill P.anySingle (lit (replicate (length n + 3) '"'))
+    quotedSingleLine = char '"' *> P.manyTill (LP.charLiteral <|> sp) (char '"')
       where
         sp = lit "\\s" $> ' '
     character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
