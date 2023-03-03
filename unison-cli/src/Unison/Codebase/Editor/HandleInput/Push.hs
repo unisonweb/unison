@@ -421,6 +421,9 @@ bazinga3 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
       Share.API.GetProjectBranchResponseNotFound (Share.API.NotFound msg) -> do
         loggeth ["GetProjectBranchResponseNotFound: " <> msg]
         Cli.returnEarlyWithoutOutput
+      Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized msg) -> do
+        loggeth ["GetProjectBranchResponseUnauthorized: " <> msg]
+        Cli.returnEarlyWithoutOutput
       Share.API.GetProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
   repoName <- remoteProjectBranchRepoName remoteBranch
   afterUploadAction <- oompaLoompa2 localProjectAndBranch localBranchHead remoteProjectAndBranch
@@ -452,6 +455,9 @@ bazinga8 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
         Share.getProjectById (remoteProjectAndBranch ^. #project) >>= \case
           Share.API.GetProjectResponseNotFound (Share.API.NotFound msg) -> do
             loggeth ["project deleted on share: " <> msg]
+            Cli.returnEarlyWithoutOutput
+          Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized msg) -> do
+            loggeth ["unauthorized: " <> msg]
             Cli.returnEarlyWithoutOutput
           Share.API.GetProjectResponseSuccess remoteProject -> remoteProjectRepoName remoteProject
       Just userSlug -> pure (Share.RepoName userSlug)
@@ -506,30 +512,19 @@ oompaLoompa0 maybeLocalProjectAndBranch localBranchHead pb@(ProjectAndBranch rem
           maybeLocalProjectAndBranch
           localBranchHead
           (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
-  getRemoteProjectByName remoteProjectName >>= \case
-    Nothing ->
+  Share.getProjectByName remoteProjectName >>= \case
+    Share.API.GetProjectResponseNotFound {} ->
       pure do
         remoteProject <- oinkCreateRemoteProject remoteProjectName
         doCreateBranch remoteProject
-    Just remoteProject -> do
+    Share.API.GetProjectResponseUnauthorized {} -> wundefined
+    Share.API.GetProjectResponseSuccess remoteProject -> do
       let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
-      getRemoteProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-        Nothing -> pure (doCreateBranch remoteProject)
-        Just remoteBranch -> oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch
-
-getRemoteProjectByName :: ProjectName -> Cli (Maybe Share.API.Project)
-getRemoteProjectByName remoteProjectName = do
-  Share.getProjectByName remoteProjectName <&> \case
-    Share.API.GetProjectResponseNotFound _msg -> Nothing
-    Share.API.GetProjectResponseSuccess remoteProject -> Just remoteProject
-
-getRemoteProjectBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli (Maybe Share.API.ProjectBranch)
-getRemoteProjectBranchByName pb@(ProjectAndBranch remoteProjectId _) = do
-  Share.getProjectBranchByName pb <&> \case
-    Share.API.GetProjectBranchResponseNotFound _msg -> Nothing
-    Share.API.GetProjectBranchResponseSuccess remoteBranch -> Just remoteBranch
-
--- getRemoteBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName ->
+      Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
+        Share.API.GetProjectBranchResponseNotFound {} -> pure (doCreateBranch remoteProject)
+        Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
+        Share.API.GetProjectBranchResponseSuccess remoteBranch ->
+          oompaLoompaFastForward maybeLocalProjectAndBranch localBranchHead remoteBranch
 
 -- we have the remote project id and remote branch name, but we don't know whether the remote branch exists
 oompaLoompa1 ::
@@ -538,11 +533,12 @@ oompaLoompa1 ::
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
   Cli (Cli ())
 oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch =
-  getRemoteProjectBranchByName remoteProjectAndBranch >>= \case
-    Nothing ->
+  Share.getProjectBranchByName remoteProjectAndBranch >>= \case
+    Share.API.GetProjectBranchResponseNotFound {} ->
       -- FIXME check to see if the project exists here instead of assuming it does
       pure (oompaLoompaCreateBranch (Just localProjectAndBranch) localBranchHead remoteProjectAndBranch)
-    Just remoteBranch ->
+    Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
+    Share.API.GetProjectBranchResponseSuccess remoteBranch ->
       oompaLoompaFastForward (Just localProjectAndBranch) localBranchHead remoteBranch
 
 -- we have the remote project id and remote branch id
@@ -556,6 +552,7 @@ oompaLoompa2 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
     Share.API.GetProjectBranchResponseNotFound (Share.API.NotFound msg) -> do
       loggeth ["project or branch deleted on Share: " <> msg]
       Cli.returnEarlyWithoutOutput
+    Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
     Share.API.GetProjectBranchResponseSuccess remoteBranch ->
       oompaLoompaFastForward (Just localProjectAndBranch) localBranchHead remoteBranch
 
