@@ -23,6 +23,7 @@ import qualified Unison.Sqlite as Sqlite
 import Unison.Util.Monoid (foldMapM)
 
 -- | Given a set of references, return a PPE which contains names for only those references.
+-- Names are limited to those within the provided perspective
 ppedForReferences :: BranchHash -> Path -> Set LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl
 ppedForReferences rootHash perspective refs = do
   hashLen <- Codebase.hashLength

@@ -1872,12 +1872,6 @@ typeRefsForExactName bhId reversedSegments = do
               AND reversed_name = ?
         |]
 
--- | Thrown if we try to get the segments of an empty name, shouldn't ever happen since empty names
--- are invalid.
-data EmptyName = EmptyName String
-  deriving stock (Eq, Show)
-  deriving anyclass (SqliteExceptionReason)
-
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
@@ -2665,6 +2659,10 @@ getReflog numEntries = queryListRow sql (Only numEntries)
       LIMIT ?
     |]
 
+-- | Convert reversed name segments into glob for searching based on suffix
+--
+-- >>> toSuffixGlob ("foo" NonEmpty.:| ["bar"])
+-- "foo.bar.*"
 toSuffixGlob :: ReversedSegments -> Text
 toSuffixGlob suffix = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
 
@@ -2675,9 +2673,23 @@ toSuffixGlob suffix = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
 toReversedName :: ReversedSegments -> Text
 toReversedName revSegs = Text.intercalate "." (toList revSegs) <> "."
 
+-- | Convert a namespace into the appropriate glob for searching within that namespace
+--
+-- >>> toNamespaceGlob "foo.bar"
+-- "foo.bar.*"
 toNamespaceGlob :: Text -> Text
 toNamespaceGlob namespace = globEscape namespace <> ".*"
 
+-- | Thrown if we try to get the segments of an empty name, shouldn't ever happen since empty names
+-- are invalid.
+data EmptyName = EmptyName String
+  deriving stock (Eq, Show)
+  deriving anyclass (SqliteExceptionReason)
+
+-- | Convert a reversed name into reversed segments.
+--
+-- >>> reversedNameToReversedSegments "foo.bar."
+-- Right ("foo" :| ["bar"])
 reversedNameToReversedSegments :: (HasCallStack) => Text -> Either EmptyName ReversedSegments
 reversedNameToReversedSegments txt =
   txt
