@@ -206,8 +206,8 @@ longestPathPrefix a b =
     (_, Nothing) -> (empty, a, b)
     (Just (x, xs), Just (y, ys))
       | x == y ->
-        let (prefix, ra, rb) = longestPathPrefix xs ys
-         in (x :< prefix, ra, rb)
+          let (prefix, ra, rb) = longestPathPrefix xs ys
+           in (x :< prefix, ra, rb)
       | otherwise -> (empty, a, b)
 
 toSplit' :: Path' -> Maybe (Path', NameSegment)

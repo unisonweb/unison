@@ -70,13 +70,13 @@ newtype TreeDiff m = TreeDiff
   }
   deriving stock (Show, Eq, Ord)
 
-instance Applicative m => Semigroup (TreeDiff m) where
+instance (Applicative m) => Semigroup (TreeDiff m) where
   TreeDiff (a :< Compose mas) <> TreeDiff (b :< Compose mbs) =
     TreeDiff $ (a <> b) :< Compose (liftA2 (Map.unionWith mergeCofrees) mas mbs)
     where
       mergeCofrees x y = unTreeDiff (TreeDiff x <> TreeDiff y)
 
-instance Applicative m => Monoid (TreeDiff m) where
+instance (Applicative m) => Monoid (TreeDiff m) where
   mempty = TreeDiff (mempty :< Compose (pure mempty))
 
 -- | A summary of a 'TreeDiff', containing all names added and removed.
@@ -135,17 +135,17 @@ diffBranches from to = do
               Just . unTreeDiff <$> diffBranches Branch.empty newChildBranch
             These fromC toC
               | Causal.valueHash fromC == Causal.valueHash toC -> do
-                -- This child didn't change.
-                pure Nothing
+                  -- This child didn't change.
+                  pure Nothing
               | otherwise -> do
-                fromChildBranch <- Causal.value fromC
-                toChildBranch <- Causal.value toC
-                diffBranches fromChildBranch toChildBranch >>= \case
-                  TreeDiff (defDiffs :< Compose mchildren) -> do
-                    children <- mchildren
-                    if (isEmptyDefDiffs defDiffs && null children)
-                      then pure Nothing
-                      else pure . Just $ (defDiffs :< Compose (pure children))
+                  fromChildBranch <- Causal.value fromC
+                  toChildBranch <- Causal.value toC
+                  diffBranches fromChildBranch toChildBranch >>= \case
+                    TreeDiff (defDiffs :< Compose mchildren) -> do
+                      children <- mchildren
+                      if (isEmptyDefDiffs defDiffs && null children)
+                        then pure Nothing
+                        else pure . Just $ (defDiffs :< Compose (pure children))
   -- pure . Just $ cfr
   -- Lens.Empty -> pure Nothing
   pure $ TreeDiff (defDiff :< Compose childDiff)
@@ -174,7 +174,7 @@ allNameChanges mayPrefix treediff = do
   streamNameChanges mayPrefix treediff \_prefix changes -> pure changes
 
 -- | Get a 'NameBasedDiff' from a 'TreeDiff'.
-nameBasedDiff :: Monad m => TreeDiff m -> m NameBasedDiff
+nameBasedDiff :: (Monad m) => TreeDiff m -> m NameBasedDiff
 nameBasedDiff (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose mchildren)) = do
   children <- mchildren >>= foldMapM (nameBasedDiff . TreeDiff)
   let terms = foldMap nameBasedTermDiff termDiffs
