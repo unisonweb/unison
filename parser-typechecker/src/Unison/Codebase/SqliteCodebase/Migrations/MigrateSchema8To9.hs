@@ -28,11 +28,19 @@ fixScopedNameLookupTables = do
       RENAME TO scoped_type_name_lookup_old
     |]
 
+  -- Drop all existing indexes because we'll re-create them on the new table.
+  Sqlite.execute_ "DROP INDEX scoped_term_names_by_namespace_and_last_name_segment"
+  Sqlite.execute_ "DROP INDEX scoped_term_name_by_referent_lookup"
+  Sqlite.execute_ "DROP INDEX scoped_term_names_by_namespace"
+  Sqlite.execute_ "DROP INDEX scoped_type_names_by_namespace_and_last_name_segment"
+  Sqlite.execute_ "DROP INDEX scoped_type_name_by_reference_lookup"
+  Sqlite.execute_ "DROP INDEX scoped_type_names_by_namespace"
+
   Sqlite.execute_
     [here|
       CREATE TABLE scoped_term_name_lookup (
         root_branch_hash_id INTEGER NOT NULL REFERENCES name_lookups(root_branch_hash_id) ON DELETE CASCADE,
-      
+
         -- The name of the term in reversed form, with a trailing '.':
         -- E.g. map.List.base.
         --
@@ -43,12 +51,12 @@ fixScopedNameLookupTables = do
         --  map.List.*
         --  map.*
         reversed_name TEXT NOT NULL,
-      
+
         -- The last name segment of the name. This is used when looking up names for
         -- suffixification when building PPEs.
         -- E.g. for the name 'base.List.map' this would be 'map'
         last_name_segment TEXT NOT NULL,
-      
+
         -- The namespace containing this definition, not reversed, with a trailing '.'
         -- The trailing '.' simplifies GLOB queries, so that 'base.*' matches both things in
         -- 'base' and 'base.List', but not 'base1', which allows us to avoid an OR in our where
