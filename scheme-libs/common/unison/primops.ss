@@ -224,8 +224,18 @@
   (define (unison-POp-DECI n) (fx1- n))
   (define (unison-POp-DIVN m n) (fxdiv m n))
   (define (unison-POp-DRPB n bs) (ibytevector-drop n bs))
-  (define (unison-POp-DRPS n l)
-    (let ([m (max 0 (min n (length l)))]) (list-tail l m)))
+  (define (unison-POp-DRPS n l) ; TODO replace with faster impl when available
+    (cond
+      [(= n 0) l]
+      [(>= n (chunked-list-length l)) empty-chunked-list]
+      [else
+       (let loop ([l l]
+                  [n n])
+         (cond
+           [(= n 0) l]
+           [else (loop (chunked-list-drop-first l) (- n 1))]))]))
+  ;; (define (unison-POp-DRPS n l)
+  ;;   (let ([m (max 0 (min n (length l)))]) (list-tail l m)))
   (define (unison-POp-DRPT n t) (istring-drop n t))
   (define (unison-POp-EQLN m n) (if (fx=? m n) 1 0))
   (define (unison-POp-EQLT s t) (if (string=? s t) 1 0))
