@@ -16,15 +16,16 @@ The initial newline, if it exists, is ignored.
 """
 
 > lit1
+> Some lit1
 
 lit2 = """"
-This is a raw text literal.
-It can start with 3 or more ",
-and is terminated by the same number of quotes.
-Nothing is escaped. \n
+    This is a raw text literal, indented.
+    It can start with 3 or more ",
+    and is terminated by the same number of quotes.
+    Nothing is escaped. \n
 
-This doesn't terminate the literal - """
-""""
+    This doesn't terminate the literal - """
+    """"
 
 > lit2
 > Some lit2

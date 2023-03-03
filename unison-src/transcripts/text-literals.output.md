@@ -12,15 +12,16 @@ The initial newline, if it exists, is ignored.
 """
 
 > lit1
+> Some lit1
 
 lit2 = """"
-This is a raw text literal.
-It can start with 3 or more ",
-and is terminated by the same number of quotes.
-Nothing is escaped. \n
+    This is a raw text literal, indented.
+    It can start with 3 or more ",
+    and is terminated by the same number of quotes.
+    Nothing is escaped. \n
 
-This doesn't terminate the literal - """
-""""
+    This doesn't terminate the literal - """
+    """"
 
 > lit2
 > Some lit2
@@ -42,16 +43,35 @@ This doesn't terminate the literal - """
 
     10 | > lit1
            ⧩
-           "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThe initial newline, if it exists, is ignored.\n"
+           """
+           This is a raw text literal.
+           It can start with 3 or more ",
+           and is terminated by the same number of quotes.
+           Nothing is escaped. \n
+           
+           The initial newline, if it exists, is ignored.
+           """
   
-    21 | > lit2
-           ⧩
-           "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThis doesn't terminate the literal - \"\"\"\n"
-  
-    22 | > Some lit2
+    11 | > Some lit1
            ⧩
            Some
-             "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThis doesn't terminate the literal - \"\"\"\n"
+             "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThe initial newline, if it exists, is ignored.\n"
+  
+    22 | > lit2
+           ⧩
+           """"
+           This is a raw text literal, indented.
+           It can start with 3 or more ",
+           and is terminated by the same number of quotes.
+           Nothing is escaped. \n
+           
+           This doesn't terminate the literal - """
+           """"
+  
+    23 | > Some lit2
+           ⧩
+           Some
+             "This is a raw text literal, indented.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThis doesn't terminate the literal - \"\"\"\n"
 
 ```
 ```ucm
@@ -66,10 +86,24 @@ This doesn't terminate the literal - """
 
   lit1 : Text
   lit1 =
-    "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThe initial newline, if it exists, is ignored.\n"
+    """
+    This is a raw text literal.
+    It can start with 3 or more ",
+    and is terminated by the same number of quotes.
+    Nothing is escaped. \n
+    
+    The initial newline, if it exists, is ignored.
+    """
   
   lit2 : Text
   lit2 =
-    "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThis doesn't terminate the literal - \"\"\"\n"
+    """"
+    This is a raw text literal, indented.
+    It can start with 3 or more ",
+    and is terminated by the same number of quotes.
+    Nothing is escaped. \n
+    
+    This doesn't terminate the literal - """
+    """"
 
 ```

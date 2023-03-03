@@ -230,9 +230,12 @@ pretty0
       Text' s | Just quotes <- useRaw s -> 
         pure . fmt S.TextLiteral $ PP.text quotes <> "\n" <> PP.text s <> PP.text quotes
         where
-          useRaw _ | p > 0 = Nothing -- only do this 
-          useRaw s | Text.find (== '\n') s == Just '\n' && Text.all isPrint s = n 3
+          -- we only use this syntax if we're not wrapped in something else,
+          -- to avoid possible round trip issues if the text ends at an odd column
+          useRaw _ | p > 0 = Nothing
+          useRaw s | Text.find (== '\n') s == Just '\n' && Text.all ok s = n 3
           useRaw _ = Nothing
+          ok ch = isPrint ch || ch == '\n' || ch == '\r'
           -- Picks smallest number of surrounding """ to be unique
           n 10 = Nothing -- bail at 10, avoiding quadratic behavior in weird cases
           n cur = 
