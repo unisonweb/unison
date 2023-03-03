@@ -1364,7 +1364,7 @@ loop e = do
                   fromBranch <- Codebase.expectCausalBranchByCausalHash fromCH >>= V2Causal.value
                   toBranch <- Codebase.expectCausalBranchByCausalHash toCH >>= V2Causal.value
                   treeDiff <- V2Branch.diffBranches fromBranch toBranch
-                  let nameChanges = V2Branch.allNameChanges Nothing treeDiff
+                  nameChanges <- V2Branch.allNameChanges Nothing treeDiff
                   pure (DisplayDebugNameDiff nameChanges)
               Cli.respond output
             DeprecateTermI {} -> Cli.respond NotImplemented
@@ -1770,7 +1770,7 @@ handleDiffNamespaceToPatch description input = do
         branch1 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId1)
         branch2 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId2)
         lift do
-          branchDiff <- V2Branch.nameBasedDiff <$> V2Branch.diffBranches branch1 branch2
+          branchDiff <- V2Branch.diffBranches branch1 branch2 >>= V2Branch.nameBasedDiff
           termEdits <-
             (branchDiff ^. #terms)
               & Relation.domain
