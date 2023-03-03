@@ -109,7 +109,7 @@ scopedNameSearch codebase rootHash path =
           let fqn = Path.prefixName (Path.Absolute path) name
           namedRefs <-
             case searchStrat of
-              ExactMatch -> Ops.termRefsForNameWithinNamespace rootHash pathText (coerce $ Name.reverseSegments fqn)
+              ExactMatch -> Ops.termRefsForExactName rootHash (coerce $ Name.reverseSegments fqn)
               SuffixMatch -> Ops.termNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
           namedRefs
             & fmap
@@ -138,7 +138,7 @@ scopedNameSearch codebase rootHash path =
           let fqn = Path.prefixName (Path.Absolute path) name
           namedRefs <-
             case searchStrat of
-              ExactMatch -> Ops.typeRefsForNameWithinNamespace rootHash pathText (coerce $ Name.reverseSegments fqn)
+              ExactMatch -> Ops.typeRefsForExactName rootHash (coerce $ Name.reverseSegments fqn)
               SuffixMatch -> Ops.typeNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
           namedRefs
             & fmap (Cv.reference2to1 . NamedRef.ref)

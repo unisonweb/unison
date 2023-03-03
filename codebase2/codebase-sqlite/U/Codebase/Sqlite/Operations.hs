@@ -73,8 +73,8 @@ module U.Codebase.Sqlite.Operations
     typeNamesForRefWithinNamespace,
     termNamesBySuffix,
     typeNamesBySuffix,
-    termRefsForNameWithinNamespace,
-    typeRefsForNameWithinNamespace,
+    termRefsForExactName,
+    typeRefsForExactName,
     checkBranchHashNameLookupExists,
     buildNameLookupForBranchHash,
     longestMatchingTermNameForSuffixification,
@@ -1162,15 +1162,15 @@ typeNamesBySuffix bh namespace suffix = do
   bhId <- Q.expectBranchHashId bh
   Q.typeNamesBySuffix bhId namespace suffix <&> fmap (fmap s2cTextReference)
 
-termRefsForNameWithinNamespace :: BranchHash -> Q.NamespaceText -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
-termRefsForNameWithinNamespace bh namespace reversedName = do
+termRefsForExactName :: BranchHash -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termRefsForExactName bh reversedName = do
   bhId <- Q.expectBranchHashId bh
-  Q.termRefsForNameWithinNamespace bhId namespace reversedName <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+  Q.termRefsForExactName bhId reversedName <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
-typeRefsForNameWithinNamespace :: BranchHash -> Q.NamespaceText -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
-typeRefsForNameWithinNamespace bh namespace reversedName = do
+typeRefsForExactName :: BranchHash -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeRefsForExactName bh reversedName = do
   bhId <- Q.expectBranchHashId bh
-  Q.typeRefsForNameWithinNamespace bhId namespace reversedName <&> fmap (fmap s2cTextReference)
+  Q.typeRefsForExactName bhId reversedName <&> fmap (fmap s2cTextReference)
 
 -- | Get the name within the provided namespace that has the longest matching suffix
 -- with the provided name, but a different ref.

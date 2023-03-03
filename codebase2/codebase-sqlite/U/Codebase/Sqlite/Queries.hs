@@ -145,8 +145,8 @@ module U.Codebase.Sqlite.Queries
     typeNamesWithinNamespace,
     termNamesForRefWithinNamespace,
     typeNamesForRefWithinNamespace,
-    termRefsForNameWithinNamespace,
-    typeRefsForNameWithinNamespace,
+    termRefsForExactName,
+    typeRefsForExactName,
     checkBranchHashNameLookupExists,
     trackNewBranchHashNameLookup,
     termNamesBySuffix,
@@ -1841,12 +1841,11 @@ termNamesBySuffix bhId namespaceRoot suffix = do
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
--- Get the set of refs for an exact name within a given namespace.
-termRefsForNameWithinNamespace :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
-termRefsForNameWithinNamespace bhId namespaceRoot reversedSegments = do
-  let namespaceGlob = toNamespaceGlob namespaceRoot
+-- Get the set of refs for an exact name.
+termRefsForExactName :: BranchHashId -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termRefsForExactName bhId reversedSegments = do
   let reversedName = toReversedName reversedSegments
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, namespaceGlob, reversedName)
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, reversedName)
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
@@ -1854,25 +1853,22 @@ termRefsForNameWithinNamespace bhId namespaceRoot reversedSegments = do
       [here|
         SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
         WHERE root_branch_hash_id = ?
-              AND namespace GLOB ?
               AND reversed_name = ?
         |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
--- Get the set of refs for an exact name within a given namespace.
-typeRefsForNameWithinNamespace :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
-typeRefsForNameWithinNamespace bhId namespaceRoot reversedSegments = do
-  let namespaceGlob = toNamespaceGlob namespaceRoot
+-- Get the set of refs for an exact name.
+typeRefsForExactName :: BranchHashId -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+typeRefsForExactName bhId reversedSegments = do
   let reversedName = toReversedName reversedSegments
-  queryListRow sql (bhId, namespaceGlob, reversedName)
+  queryListRow sql (bhId, reversedName)
   where
     sql =
       [here|
         SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
         WHERE root_branch_hash_id = ?
-              AND namespace GLOB ?
               AND reversed_name = ?
         |]
 
