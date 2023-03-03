@@ -3,7 +3,7 @@
 .> builtins.merge
 ```
 
-This transcript shows some syntax for text literals.
+This transcript shows some syntax for raw text literals.
 
 ```unison
 lit1 = """
@@ -27,4 +27,10 @@ This doesn't terminate the literal - """
 """"
 
 > lit2
+> Some lit2
+```
+
+```ucm
+.> add
+.> view lit1 lit2
 ```

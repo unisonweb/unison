@@ -1,5 +1,5 @@
 
-This transcript shows some syntax for text literals.
+This transcript shows some syntax for raw text literals.
 
 ```unison
 lit1 = """
@@ -23,6 +23,7 @@ This doesn't terminate the literal - """
 """"
 
 > lit2
+> Some lit2
 ```
 
 ```ucm
@@ -46,5 +47,29 @@ This doesn't terminate the literal - """
     21 | > lit2
            ⧩
            "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThis doesn't terminate the literal - \"\"\"\n"
+  
+    22 | > Some lit2
+           ⧩
+           Some
+             "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThis doesn't terminate the literal - \"\"\"\n"
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    lit1 : Text
+    lit2 : Text
+
+.> view lit1 lit2
+
+  lit1 : Text
+  lit1 =
+    "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThe initial newline, if it exists, is ignored.\n"
+  
+  lit2 : Text
+  lit2 =
+    "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThis doesn't terminate the literal - \"\"\"\n"
 
 ```
