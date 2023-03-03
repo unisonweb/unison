@@ -15,6 +15,13 @@
           [vector-trie-length (-> vector-trie? exact-nonnegative-integer?)]
           [vector-trie-empty? (-> vector-trie? boolean?)]
 
+          [make-vector-trie (-> exact-nonnegative-integer? any/c vector-trie?)]
+          [build-vector-trie (-> exact-nonnegative-integer?
+                                 procedure? ; should be (-> exact-nonnegative-integer? any/c), but that’s expensive
+                                 vector-trie?)]
+          [vector->vector-trie (-> vector? vector-trie?)]
+          [vector-trie->vector (-> vector-trie? vector?)]
+
           [vector-trie-ref (-> vector-trie? exact-nonnegative-integer? any/c)]
           [vector-trie-set (-> vector-trie? exact-nonnegative-integer? any/c vector-trie?)]
           [vector-trie-add-first (-> vector-trie? any/c vector-trie?)]
@@ -90,6 +97,11 @@
 
 ;; -----------------------------------------------------------------------------
 ;; node operations
+
+;; Computes the height of the trie needed to contain `len` elements.
+;; `len` must be a positive integer.
+(define (trie-length->height len)
+  (quotient (sub1 (integer-length (sub1 len))) NODE-BITS))
 
 (define (make-node initialize-proc)
   (define node (make-vector NODE-CAPACITY #f))
@@ -176,6 +188,28 @@
 
 (define (vector-trie-empty? vt)
   (zero? (vector-trie-length vt)))
+
+(define (build-vector-trie len elem-proc)
+  (cond
+    [(zero? len)
+     empty-vector-trie]
+    [else
+     (define root-shift (* (trie-length->height len) NODE-BITS))
+     (vector-trie
+      len 0 root-shift
+      (let build-trie ([shift root-shift]
+                       [i 0])
+        (make-node
+         (λ (new-node)
+           (define step (arithmetic-shift 1 shift))
+           (for ([node-i (in-range NODE-CAPACITY)]
+                 [i (in-range i len step)])
+             (vector-set!
+              new-node
+              node-i
+              (if (zero? shift)
+                  (elem-proc i)
+                  (build-trie (- shift NODE-BITS) i))))))))]))
 
 (define (check-index-in-range who vt i)
   (unless (< i (vector-trie-length vt))
@@ -289,7 +323,7 @@
           [length new-length]
           [offset 0]
           [shift (- shift NODE-BITS)]
-          [root-node (vector-ref (vector-trie-root-node vt) (extract-node-index (sub1 first-i) shift))])
+          [root-node (vector-ref (vector-trie-root-node vt) (extract-node-index (add1 first-i) shift))])
 
          ;; Can’t pop the root, just delete an element.
          (struct-copy
@@ -319,7 +353,7 @@
           vector-trie vt
           [length new-length]
           [shift (- shift NODE-BITS)]
-          [root-node (vector-ref (vector-trie-root-node vt) (extract-node-index (add1 last-i) shift))])
+          [root-node (vector-ref (vector-trie-root-node vt) (extract-node-index (sub1 last-i) shift))])
 
          ;; Can’t pop the root, just delete an element.
          (struct-copy
@@ -436,3 +470,19 @@
   (for/fold ([vt vt])
             ([i (in-range n)])
     (vector-trie-drop-last vt)))
+
+(define (make-vector-trie len elem)
+  (build-vector-trie len (λ (i) elem)))
+
+;; TODO: Could be made more efficient by creating nodes via block copies.
+(define (vector->vector-trie vec)
+  (build-vector-trie
+   (vector-length vec)
+   (λ (i) (vector-ref vec i))))
+
+;; TODO: Could be made more efficient by doing block copies.
+(define (vector-trie->vector vt)
+  (define vec (make-vector (vector-trie-length vt) #f))
+  (for ([(val i) (in-indexed (-in-vector-trie vt))])
+    (vector-set! vec i val))
+  (unsafe-vector*->immutable-vector! vec))
