@@ -39,15 +39,17 @@ hmac.tests = do
   ] |> List.foreach_ cases (name, alg, res) -> checkEqual (tag name) (hmac alg) res
 
 list.tests = do
-  check "List.empty builder" do
-    _ = []
-    true
-  check "List builder" do
-    _ = [1, 2, 3]
-    true
-  checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [1, 2, 3]
-  checkEqual "List.snoc" ([] :+ 1 :+ 2 :+ 3) [1, 2, 3]
-  checkEqual "List.++" ([] ++ [1, 2] ++ [3, 4] ++ []) [1, 2, 3, 4]
+  --  check "List.empty builder" do
+  --    _ = []
+  --    true
+  --  check "List builder" do
+  --    _ = [1, 2, 3]
+  --    true
+  --  checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [1, 2, 3]
+  --  checkEqual "List.snoc" ([] :+ 1 :+ 2 :+ 3) [1, 2, 3]
+  --  checkEqual "List.++" ([] ++ [1, 2] ++ [3, 4] ++ []) [1, 2, 3, 4]
+  checkEqual "++.bug (1)" ([1] ++ [3]) []
+  checkEqual "++.bug (2)" ([1, 2] ++ [3]) []
   --  checkEqual "List.take (1)" (List.take 0 [1,2,3]) []
   --  checkEqual "List.take (2)" (List.take 2 [1,2,3]) [1,2]
   --  checkEqual "List.take (3)" (List.take 100 [1,2,3]) [1,2,3]
@@ -66,4 +68,3 @@ list.tests = do
 -- TODO pattern matching and equality
 --  VWLS  List.viewl : List a -> SeqView a (List a)
 --  VWRS  List.viewr : List a -> SeqView (List a) a
-
