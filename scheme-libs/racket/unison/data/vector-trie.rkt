@@ -7,9 +7,7 @@
          racket/sequence
          racket/unsafe/ops)
 
-(provide NODE-BITS
-         NODE-CAPACITY
-         NODE-INDEX-MASK
+(provide ->fx/wraparound ; used by chunked-seq.rkt
 
          vector-trie?
          empty-vector-trie
@@ -33,13 +31,19 @@
           [vector-trie-drop-left (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
           [vector-trie-drop-right (-> vector-trie? exact-nonnegative-integer? vector-trie?)])
 
-         (rename-out [-in-vector-trie in-vector-trie]))
+         (rename-out [-in-vector-trie in-vector-trie]
+                     [-in-reversed-vector-trie in-reversed-vector-trie]))
 
 ;; -----------------------------------------------------------------------------
 
 (define NODE-BITS 5) ; 32-way branching
 (define NODE-CAPACITY (expt 2 NODE-BITS))
 (define NODE-INDEX-MASK (sub1 NODE-CAPACITY))
+
+(define (->fx/wraparound v)
+  (if (fixnum? v)
+      v
+      (bitwise-and v (most-positive-fixnum))))
 
 ;; A vector trie is an integer-indexed, 32-way branching trie that
 ;; serves as the core for an efficient persistent vector data
@@ -75,19 +79,12 @@
                      [val-b (-in-vector-trie vt-b)])
              (recur val-a val-b))))
 
-    (define (->fx/wraparound v)
-      (if (fixnum? v)
-          v
-          (bitwise-and v (most-positive-fixnum))))
-
     (define ((hash-proc init) vt recur)
       (for/fold ([hc init])
                 ([val (-in-vector-trie vt)])
         (fxxor (fx*/wraparound hc 31) (->fx/wraparound (recur val)))))
 
-    (list equal-proc
-          (hash-proc 255615927)
-          (hash-proc 422602749))))
+    (list equal-proc (hash-proc 3) (hash-proc 5))))
 
 (define empty-vector-trie (vector-trie 0 0 #f #f))
 
@@ -379,6 +376,29 @@
              [(add1 i)])]]
     [_ #f]))
 
+;; TODO: Could be made more efficient by directly walking the internal
+;; structure, avoiding repeated traversals.
+(define (in-reversed-vector-trie vt)
+  (unless (vector-trie? vt)
+    (raise-argument-error 'in-reversed-vector-trie "vector-trie?" vt))
+  (sequence-map (λ (i) (vector-trie-ref vt i))
+                (in-inclusive-range (sub1 (vector-trie-length vt)) 0 -1)))
+(define-sequence-syntax -in-reversed-vector-trie
+  (λ () #'in-reversed-vector-trie)
+  (syntax-parser
+    [[(x:id) (_ {~var vt-e (expr/c #'vector-trie?)})]
+     #'[(x) (:do-in
+             ([(vt vt-len) (let ([vt vt-e.c])
+                             (values vt (vector-trie-length vt)))])
+             (void)
+             ([i (sub1 (vector-trie-length vt))])
+             (>= i 0)
+             ([(x) (vector-trie-ref vt i)])
+             #t
+             #t
+             [(sub1 i)])]]
+    [_ #f]))
+
 ;; FIXME: Currently very inefficient. Should be made a primitive
 ;; operation that does bulk copying into the nodes of the result trie
 ;; and avoids repeated traversal of the input trie.
@@ -388,8 +408,8 @@
                 ([val (-in-vector-trie vt-b)])
         (vector-trie-add-last vt val))
       (for/fold ([vt vt-b])
-                ([i (in-inclusive-range (sub1 (vector-trie-length vt-a)) 0 -1)])
-        (vector-trie-add-first vt (vector-trie-ref vt-a i)))))
+                ([val (-in-reversed-vector-trie vt-a)])
+        (vector-trie-add-first vt val))))
 
 (define (check-vector-trie-length-in-range who vt n)
   (unless (<= n (vector-trie-length vt))
@@ -405,7 +425,7 @@
 (define (vector-trie-drop-left vt n)
   (check-vector-trie-length-in-range 'vector-trie-drop-left vt n)
   (for/fold ([vt vt])
-            ([i (-in-vector-trie n)])
+            ([i (in-range n)])
     (vector-trie-drop-first vt)))
 
 ;; TODO: Could be made significantly more efficient by making this a
@@ -414,5 +434,5 @@
 (define (vector-trie-drop-right vt n)
   (check-vector-trie-length-in-range 'vector-trie-drop-right vt n)
   (for/fold ([vt vt])
-            ([i (-in-vector-trie n)])
+            ([i (in-range n)])
     (vector-trie-drop-last vt)))

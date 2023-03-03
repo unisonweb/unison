@@ -3,12 +3,55 @@
 (require (for-syntax racket/base
                      racket/syntax)
          racket/contract
+         racket/fixnum
          racket/match
          racket/sequence
          racket/unsafe/ops
          syntax/parse/define
          "vector-trie.rkt")
 
+;; Generates specialized code for a chunked sequence type. Only intended to be
+;; used to generate the `chunked-list`, `chunked-string`, and `chunked-bytes`
+;; types.
+;;
+;; The internal structure of each chunked sequence is built upon a vector trie
+;; (from "vector-trie.rkt"). That structure is extended in the following ways:
+;;
+;;   * Most obviously, each variant of chunked sequence uses its own type of
+;;     chunk: chunked lists use vectors, chunked strings use strings, and
+;;     chunked bytes use bytestrings.
+;;
+;;   * Chunked sequences that fit in a single chunk always use a specialized
+;;     `single-chunk` internal representation (see Note [chunks-length invariant]).
+;;
+;;   * Larger chunked sequences store the first and last chunk directly in the
+;;     root node, so only the middle chunks are stored in the actual vector
+;;     trie. This accelerates operations that only need to look at the first or
+;;     last chunk.
+;;
+;; Each use of `define-chunked-sequence` generates and exports the following
+;; API, replacing each occurrence of `chunked-seq` with the name of the
+;; specialized sequence and each occurrence of `elem/c` with the contract that
+;; elements of the specialized sequence must conform to:
+;;
+;;   chunked-seq? : (-> any/c boolean?)
+;;   empty-chunked-seq : chunked-seq?
+;;   chunked-seq-length : (-> chunked-seq? exact-nonnegative-integer?)
+;;   chunked-seq-empty? : (-> chunked-seq? boolean?)
+;;
+;;   chunked-seq-ref : (-> chunked-seq? exact-nonnegative-integer? elem/c)
+;;   chunked-seq-set : (-> chunked-seq? exact-nonnegative-integer? elem/c chunked-seq?)
+;;   chunked-seq-add-first, chunked-seq-add-last : (-> chunked-seq? elem/c chunked-seq?)
+;;   chunked-seq-drop-first, chunked-seq-drop-last :
+;;     (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) chunked-seq?)
+;;
+;;   chunked-seq-append : (-> chunked-seq? ... chunked-seq?)
+;;
+;;   in-chunked-seq : (-> chunked-seq? (sequence/c elem/c))
+;;   in-chunked-seq-chunks : (-> chunked-seq? (sequence/c chunk?))
+;;     Note: Like `in-list`, `in-chunked-seq` and `in-chunked-seq-chunks` can
+;;     provide better performance when they appear directly in a `for` clause.
+;;
 (define-syntax-parser define-chunked-sequence
   [(_ chunked-seq:id
       #:element-contract elem/c:id
@@ -30,6 +73,7 @@
    (define/with-syntax chunk-ref (derived-chunk-id "~a-ref"))
    (define/with-syntax chunk-set! (derived-chunk-id "~a-set!"))
    (define/with-syntax chunk-copy! (derived-chunk-id "~a-copy!"))
+   (define/with-syntax in-chunk (derived-chunk-id "in-~a"))
 
    (define/with-syntax chunked-seq? (derived-seq-id "~a?"))
    (define/with-syntax empty-chunked-seq (derived-seq-id "empty-~a"))
@@ -43,7 +87,10 @@
    (define/with-syntax chunked-seq-drop-first (derived-seq-id "~a-drop-first"))
    (define/with-syntax chunked-seq-drop-last (derived-seq-id "~a-drop-last"))
 
+   (define/with-syntax chunked-seq-append (derived-seq-id "~a-append"))
+
    (define/with-syntax in-chunked-seq (derived-seq-id "in-~a"))
+   (define/with-syntax in-chunked-seq-chunks (derived-seq-id "in-~a-chunks"))
 
    #`(begin
        (provide chunked-seq?
@@ -57,10 +104,13 @@
                  [chunked-seq-add-first (-> chunked-seq? elem/c chunked-seq?)]
                  [chunked-seq-add-last (-> chunked-seq? elem/c chunked-seq?)]
                  [chunked-seq-drop-first (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) chunked-seq?)]
-                 [chunked-seq-drop-last (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) chunked-seq?)])
+                 [chunked-seq-drop-last (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) chunked-seq?)]
+
+                 [chunked-seq-append {... (-> chunked-seq? ... chunked-seq?)}])
 
                 (rename-out
-                 [-in-chunked-seq in-chunked-seq]))
+                 [-in-chunked-seq in-chunked-seq]
+                 [-in-chunked-seq-chunks in-chunked-seq-chunks]))
 
        ;; ----------------------------------------------------------------------
        ;; chunk operations
@@ -179,15 +229,35 @@
        ;; ----------------------------------------------------------------------
        ;; core operations
 
+       ;; Supertype structure, never instantiated directly.
+       (struct chunked-seq ()
+         #:transparent
+         #:reflection-name 'chunked-seq
+         #:property prop:equal+hash
+         (let ()
+           (define (equal-proc cs-a cs-b recur)
+             (and (= (chunked-seq-length cs-a)
+                     (chunked-seq-length cs-b))
+                  (for/and ([val-a (-in-chunked-seq cs-a)]
+                            [val-b (-in-chunked-seq cs-b)])
+                    (recur val-a val-b))))
+
+           (define ((hash-proc init) cs recur)
+             (for/fold ([hc init])
+                       ([val (-in-chunked-seq cs)])
+               (fxxor (fx*/wraparound hc 31) (->fx/wraparound (recur val)))))
+
+           (list equal-proc (hash-proc 3) (hash-proc 5))))
+
        (define empty-chunked-seq
          (let ()
-           (struct empty-chunked-seq () #:authentic)
+           (struct empty-chunked-seq chunked-seq ())
            (empty-chunked-seq)))
 
        (define (chunked-seq-empty? v)
          (eq? v empty-chunked-seq))
 
-       (struct single-chunk (chunk)
+       (struct single-chunk chunked-seq (chunk)
          #:transparent
          #:reflection-name 'chunked-seq)
 
@@ -198,18 +268,13 @@
        ;; collapse `first-chunk` and `last-chunk` into a `single-chunk`
        ;; if we don’t have enough elements.
 
-       (struct chunks
+       (struct chunks chunked-seq
          (length ; see Note [chunks-length invariant]
           first-chunk
           chunk-trie
           last-chunk)
          #:transparent
          #:reflection-name 'chunked-seq)
-
-       (define (chunked-seq? v)
-         (or (chunked-seq-empty? v)
-             (single-chunk? v)
-             (chunks? v)))
 
        (define (chunked-seq-length cs)
          (match cs
@@ -314,7 +379,7 @@
                  [chunk-trie (vector-trie-add-last vt last-c)]
                  [last-chunk (singleton-chunk val)]))]))
 
-       (define (chunked-seq-drop-first cs val)
+       (define (chunked-seq-drop-first cs)
          (match cs
            [(single-chunk chunk)
             (if (= (chunk-length chunk) 1)
@@ -349,7 +414,7 @@
                 [length (sub1 len)]
                 [first-chunk (chunk-drop-first last-c)])])]))
 
-       (define (chunked-seq-drop-last cs val)
+       (define (chunked-seq-drop-last cs)
          (match cs
            [(single-chunk chunk)
             (if (= (chunk-length chunk) 1)
@@ -396,6 +461,7 @@
 
               [{(single-chunk chunk-a) (single-chunk chunk-b)}
                (define len (+ (chunk-length chunk-a) (chunk-length chunk-b)))
+               ;; see Note [chunks-length invariant]
                (if (< len CHUNK-CAPACITY)
                    (single-chunk (chunk-append chunk-a chunk-b))
                    (chunks len chunk-a empty-vector-trie chunk-b))]
@@ -428,43 +494,294 @@
                    chunks cs-b
                    [length (+ len (chunk-length chunk))]
                    [chunk-trie (vector-trie-add-last vt full-chunk)]
-                   [last-chunk first-c*])])]
+                   [last-chunk last-c*])])]
 
               [{(chunks len-a first-a vt-a last-a) (chunks len-b first-b vt-b last-b)}
                (define new-len (+ len-a len-b))
+               (define last-a-len (chunk-length last-a))
+               (define first-b-len (chunk-length first-b))
+               (define middle-len (+ last-a-len first-b-len))
                (cond
-                 [(= (+ (chunk-length last-a) (chunk-length first-b)) CHUNK-CAPACITY)
+                 ;; If the last chunk of the first sequence and the first chunk of the
+                 ;; second sequence can be combined to make a single full chunk, we can
+                 ;; use `vector-trie-append`.
+                 [(= middle-len CHUNK-CAPACITY)
+                  (define middle-chunk (chunk-append last-a first-b))
                   (chunks new-len
                           first-a
-                          (vector-trie-append vt-a vt-b))])
-               ])]))
+                          (vector-trie-append (vector-trie-add-last vt-a middle-chunk) vt-b)
+                          last-b)]
+
+                 ;; Otherwise, we have to do a series of splits and copies for each
+                 ;; chunk. To minimize overhead, we want to use the longer sequence
+                 ;; as the base sequence to prepend or append to.
+                 [(< len-a len-b)
+                  ;; Prepend case: transfer chunks from `vt-a` into `vt-b`.
+                  (define new-vt vt-b)
+                  (define new-chunk (make-mutable-chunk CHUNK-CAPACITY))
+                  (define (transfer-chunk! #:done? [done? #f])
+                    (set! new-vt (vector-trie-add-first new-vt (unsafe-chunk->immutable-chunk! new-chunk)))
+                    (set! new-chunk (if done? #f (make-mutable-chunk CHUNK-CAPACITY))))
+
+                  ;; Start by copying `first-b` into the end of the new chunk.
+                  (chunk-copy! new-chunk (- CHUNK-CAPACITY first-b-len) first-b 0)
+
+                  ;; Transfer `last-a` into the new chunk and compute where to
+                  ;; split each full chunk in `vt-a`.
+                  (define split-i
+                    (cond
+                      ;; If all of `last-a` fits in the new chunk, just copy it.
+                      [(< middle-len CHUNK-CAPACITY)
+                       (define split-i (- CHUNK-CAPACITY middle-len))
+                       (chunk-copy! new-chunk split-i last-a 0)
+                       split-i]
+
+                      ;; Otherwise, we have to transfer enough elements to fill the
+                      ;; new chunk and spill the leftovers into the next chunk.
+                      [else
+                       (define transfer-count (- CHUNK-CAPACITY first-b-len))
+                       (define leftover-count (- last-a-len transfer-count))
+                       (define split-i (- CHUNK-CAPACITY leftover-count))
+                       (chunk-copy! new-chunk 0 last-a leftover-count)
+                       (transfer-chunk!)
+                       (chunk-copy! new-chunk split-i last-a 0 leftover-count)
+                       split-i]))
+
+                  ;; Split and transfer each full chunk in `vt-a`.
+                  (for ([full-chunk (in-reversed-vector-trie vt-a)])
+                    (chunk-copy! new-chunk 0 full-chunk split-i)
+                    (transfer-chunk!)
+                    (chunk-copy! new-chunk split-i full-chunk 0 split-i))
+
+                  ;; Transfer `first-a`.
+                  (define first-a-len (chunk-length first-a))
+                  (define new-first-c
+                    (cond
+                      ;; If `first-a` contains too many elements to fit in the next
+                      ;; partially-constructed chunk, we need to split it as well.
+                      [(> first-a-len split-i)
+                       (chunk-copy! new-chunk 0 first-a split-i)
+                       (transfer-chunk! #:done? #t)
+                       (chunk-slice first-a 0 split-i)]
+
+                      ;; Otherwise, we can move the elements from the partially-
+                      ;; constructed chunk into the new first chunk.
+                      [else
+                       (make-chunk
+                        (+ first-a-len (- CHUNK-CAPACITY split-i))
+                        (λ (new-first-c)
+                          (chunk-copy! new-first-c 0 first-a 0)
+                          (chunk-copy! new-first-c first-a-len new-chunk split-i)))]))
+
+                  ;; All done: package the results and return.
+                  (chunks new-len new-first-c new-vt last-b)]
+
+                 [else
+                  ;; Append case: transfer chunks from `vt-b` into `vt-a`.
+                  (define new-vt vt-a)
+                  (define new-chunk (make-mutable-chunk CHUNK-CAPACITY))
+                  (define (transfer-chunk! #:done? [done? #f])
+                    (set! new-vt (vector-trie-add-last new-vt (unsafe-chunk->immutable-chunk! new-chunk)))
+                    (set! new-chunk (if done? #f (make-mutable-chunk CHUNK-CAPACITY))))
+
+                  ;; Start by copying `last-a` into the start of the new chunk.
+                  (chunk-copy! new-chunk 0 last-a 0)
+
+                  ;; Transfer `first-b` into the new chunk and compute where to
+                  ;; split each full chunk in `vt-b`.
+                  (define split-i
+                    (cond
+                      ;; If all of `first-b` fits in the new chunk, just copy it.
+                      [(< middle-len CHUNK-CAPACITY)
+                       (chunk-copy! new-chunk last-a-len first-b 0)
+                       (- CHUNK-CAPACITY middle-len)]
+
+                      ;; Otherwise, we have to transfer enough elements to fill the
+                      ;; new chunk and spill the leftovers into the next chunk.
+                      [else
+                       (define transfer-count (- CHUNK-CAPACITY last-a-len))
+                       (define leftover-count (- first-b-len transfer-count))
+                       (define split-i (- CHUNK-CAPACITY leftover-count))
+                       (chunk-copy! new-chunk last-a-len first-b split-i)
+                       (transfer-chunk!)
+                       (chunk-copy! new-chunk 0 first-b split-i)
+                       split-i]))
+
+                  ;; Split and transfer each full chunk in `vt-b`.
+                  (for ([full-chunk (in-vector-trie vt-b)])
+                    (chunk-copy! new-chunk split-i full-chunk 0 split-i)
+                    (transfer-chunk!)
+                    (chunk-copy! new-chunk 0 full-chunk split-i))
+
+                  ;; Transfer `last-b`.
+                  (define last-b-len (chunk-length last-b))
+                  (define new-last-c
+                    (cond
+                      ;; If `last-b` contains too many elements to fit in the next
+                      ;; partially-constructed chunk, we need to split it as well.
+                      [(> last-b-len split-i)
+                       (chunk-copy! new-chunk split-i last-b 0 split-i)
+                       (transfer-chunk! #:done? #t)
+                       (chunk-slice last-b split-i)]
+
+                      ;; Otherwise, we can move the elements from the partially-
+                      ;; constructed chunk into the new last chunk.
+                      [else
+                       (make-chunk
+                        (+ (- CHUNK-CAPACITY split-i) last-b-len)
+                        (λ (new-last-c)
+                          (chunk-copy! new-last-c 0 new-chunk split-i)
+                          (chunk-copy! new-last-c split-i first-a 0)))]))
+
+                  ;; All done: package the results and return.
+                  (chunks new-len first-a new-vt new-last-c)])])]
+
+           [(cs-a . cs-bs)
+            (for/fold ([cs-a cs-a])
+                      ([cs-b (in-list cs-bs)])
+              (chunked-seq-append cs-a cs-b))]))
 
        ;; ----------------------------------------------------------------------
-       ;; derived operations
+       ;; iteration
 
-       ;; Could be made more efficient by directly walking the internal
-       ;; structure, avoiding repeated traversals.
+       (define (in-chunked-seq-chunks cs)
+         (unless (chunked-seq? cs)
+           (raise-argument-error 'in-chunked-seq-chunks (symbol->string 'chunked-seq?) cs))
+         (match cs
+           [(? chunked-seq-empty?)
+            empty-sequence]
+           [(single-chunk chunk)
+            (in-value chunk)]
+           [(chunks _ first-c vt last-c)
+            (in-sequences (in-value first-c)
+                          (in-vector-trie vt)
+                          (in-value last-c))]))
+
+       ;; Extracted out of `-in-chunked-seq-chunks` to avoid code size bloat.
+       (define (initialize-chunked-seq-chunks-iteration cs)
+         (match cs
+           [(? chunked-seq-empty?)
+            (values #f #f 0 #f)]
+           [(single-chunk chunk)
+            (values chunk #f 0 #f)]
+           [(chunks _ first-c vt last-c)
+            (values first-c vt (vector-trie-length vt) last-c)]))
+
+       (define-sequence-syntax -in-chunked-seq-chunks
+         (λ () #'in-chunked-seq-chunks)
+         (syntax-parser
+           [[(x:id) (_ {~var cs-e (expr/c #'chunked-seq?)})]
+            #'[(x) (:do-in
+                    ([(first-c vt vt-len last-c)
+                      (initialize-chunked-seq-chunks-iteration cs-e.c)])
+                    (void)
+                    ([next-vt-i 0] ; #f once `vt` is exhausted
+                     [chunk first-c])
+                    chunk
+                    ([(x) chunk]
+                     [(next-vt-i* chunk*)
+                      (cond
+                        [(not next-vt-i)
+                         (values #f #f)]
+                        [(= next-vt-i vt-len)
+                         (values #f last-c)]
+                        [else
+                         (values (add1 next-vt-i)
+                                 (vector-trie-ref vt next-vt-i))])])
+                    #t
+                    chunk
+                    [next-vt-i* chunk*])]]))
+
        (define (in-chunked-seq cs)
          (unless (chunked-seq? cs)
            (raise-argument-error 'in-chunked-seq (symbol->string 'chunked-seq?) cs))
-         (sequence-map (λ (i) (chunked-seq-ref cs i)) (in-range (chunked-seq-length cs))))
+         (match cs
+           [(? chunked-seq-empty?)
+            empty-sequence]
+           [(single-chunk chunk)
+            (in-chunk chunk)]
+           [(chunks _ first-c vt last-c)
+            (define vt-len (vector-trie-length vt))
+            (make-do-sequence
+             (λ ()
+               (define next-vt-i 0) ; #f once `vt` is exhausted
+               (define chunk first-c)
+               (define chunk-len (chunk-length first-c))
+               (values
+                (λ (chunk-i) (chunk-ref chunk chunk-i))
+                #f
+                (λ (chunk-i)
+                  (cond
+                    [(< chunk-i (sub1 chunk-len))
+                     (add1 chunk-i)]
+                    [(not next-vt-i)
+                     #f]
+                    [(= next-vt-i vt-len)
+                     (set! next-vt-i #f)
+                     (set! chunk last-c)
+                     (set! chunk-len (chunk-length last-c))
+                     0]
+                    [else
+                     (set! chunk (vector-trie-ref vt next-vt-i))
+                     (set! next-vt-i (add1 next-vt-i))
+                     (set! chunk-len (chunk-length chunk))
+                     0]))
+                0
+                (λ (chunk-i) chunk-i)
+                #f
+                #f)))]))
+
+       ;; Extracted out of `-in-chunked-seq` to avoid code size bloat.
+       (define (initialize-chunked-seq-iteration cs)
+         (define-values [first-c vt last-c]
+           (match cs
+             [(? chunked-seq-empty?)
+              (values #f #f #f)]
+             [(single-chunk chunk)
+              (values chunk #f #f)]
+             [(chunks _ first-c vt last-c)
+              (values first-c vt last-c)]))
+
+         (values first-c
+                 (if first-c (chunk-length first-c) 0)
+                 vt
+                 (if vt (vector-trie-length vt) 0)
+                 last-c
+                 (if last-c (chunk-length last-c) 0)))
+
        (define-sequence-syntax -in-chunked-seq
          (λ () #'in-chunked-seq)
          (syntax-parser
            [[(x:id) (_ {~var cs-e (expr/c #'chunked-seq?)})]
             #'[(x) (:do-in
-                    ([(cs cs-len) (let ([cs cs-e.c])
-                                    (values cs (chunked-seq-length cs)))])
+                    ([(first-c first-c-len vt vt-len last-c last-c-len)
+                      (initialize-chunked-seq-iteration cs-e.c)])
                     (void)
-                    ([i 0])
-                    (< i cs-len)
-                    ([(x) (chunked-seq-ref cs i)])
+                    ([next-vt-i 0] ; #f once `vt` is exhausted
+                     [chunk first-c]
+                     [chunk-len first-c-len]
+                     [chunk-i 0])
+                    chunk
+                    ([(x) (chunk-ref chunk chunk-i)]
+                     [(next-vt-i* chunk* chunk-len* chunk-i*)
+                      (cond
+                        [(< chunk-i (sub1 chunk-len))
+                         (values next-vt-i chunk chunk-len (add1 chunk-i))]
+                        [(not next-vt-i)
+                         (values #f #f 0 0)]
+                        [(= next-vt-i vt-len)
+                         (values #f last-c last-c-len 0)]
+                        [else
+                         (define chunk* (vector-trie-ref vt next-vt-i))
+                         (values (add1 next-vt-i)
+                                 chunk*
+                                 (chunk-length chunk*)
+                                 0)])])
                     #t
-                    #t
-                    [(add1 i)])]]
-           [_ #f])))])
+                    chunk
+                    [next-vt-i* chunk* chunk-len* chunk-i*])]])))])
 
-(define-chunked-sequence chunked-vector
+(define-chunked-sequence chunked-list
   #:element-contract any/c
   #:chunk-type vector
   #:chunk-bits 5 ; 32-element chunks
@@ -473,11 +790,11 @@
 (define-chunked-sequence chunked-string
   #:element-contract char?
   #:chunk-type string
-  #:chunk-bits 9 ; 512-character chunks
+  #:chunk-bits 8 ; 256-character chunks
   #:chunk-immutable! unsafe-string->immutable-string!)
 
 (define-chunked-sequence chunked-bytes
   #:element-contract byte?
   #:chunk-type bytes
-  #:chunk-bits 9 ; 512-byte chunks
+  #:chunk-bits 8 ; 256-byte chunks
   #:chunk-immutable! unsafe-bytes->immutable-bytes!)
