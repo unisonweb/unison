@@ -2,6 +2,17 @@
 .> builtins.mergeio
 ```
 
+```unison
+nums acc = cases
+  0 -> acc
+  n -> nums (acc :+ n) (drop n 1) 
+
+xs = List.map Some (nums [] 500)
+
+> smallCompressed = Bytes.size (zlib.compress (Value.serialize.small (Value.value xs)))
+> bigCompressed   = Bytes.size (zlib.compress (Value.serialize (Value.value xs)))
+```
+
 ```unison:hide
 directory = "unison-src/transcripts-using-base/serialized-cases/"
 
