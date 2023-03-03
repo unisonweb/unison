@@ -7,11 +7,12 @@ module U.Codebase.Branch.Diff
     diffBranches,
     allNameChanges,
     nameBasedDiff,
+    streamNameChanges,
   )
 where
 
 import Control.Comonad.Cofree
-import Control.Lens (ifoldMap, ifor)
+import Control.Lens (ifoldMap)
 import qualified Control.Lens as Lens
 import Data.Functor.Compose (Compose (..))
 import qualified Data.Map as Map
@@ -28,7 +29,7 @@ import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Util.Monoid (foldMapM)
+import Unison.Util.Monoid (foldMapM, ifoldMapM)
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as Relation
 
@@ -169,36 +170,8 @@ allNameChanges ::
   Maybe Name ->
   TreeDiff m ->
   m NameChanges
-allNameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose getChildren)) = do
-  let (termNameAdds, termNameRemovals) =
-        termDiffs
-          & ifoldMap \ns diff ->
-            let name = appendName ns
-             in (listifyNames name $ adds diff, listifyNames name $ removals diff)
-  let (typeNameAdds, typeNameRemovals) =
-        typeDiffs
-          & ifoldMap \ns diff ->
-            let name = appendName ns
-             in (listifyNames name $ adds diff, listifyNames name $ removals diff)
-  children <- getChildren
-  childNameChanges <-
-    ifor
-      children
-      ( \ns childTree ->
-          allNameChanges (Just $ appendName ns) (TreeDiff childTree)
-      )
-  pure $ NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} <> fold childNameChanges
-  where
-    appendName :: NameSegment -> Name
-    appendName =
-      case namePrefix of
-        Nothing -> Name.fromSegment
-        Just prefix -> (prefix Lens.|>)
-    listifyNames :: (Name -> Set ref -> [(Name, ref)])
-    listifyNames name xs =
-      xs
-        & Set.toList
-        & fmap (name,)
+allNameChanges mayPrefix treediff = do
+  streamNameChanges mayPrefix treediff \_prefix changes -> pure changes
 
 -- | Get a 'NameBasedDiff' from a 'TreeDiff'.
 nameBasedDiff :: Monad m => TreeDiff m -> m NameBasedDiff
@@ -221,3 +194,45 @@ nameBasedDiff (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose mchil
       ((,) <$> Set.toList removals <*> Set.toList adds)
         & filter (\(r0, r1) -> r0 /= r1)
         & Relation.fromList
+
+-- | Stream a summary of all of the name adds and removals from a tree diff.
+-- Callback is passed the diff from one namespace level at a time, with the name representing
+-- that location.
+-- Optional accumulator is folded strictly.
+streamNameChanges ::
+  (Monad m, Monoid r) =>
+  Maybe Name ->
+  TreeDiff m ->
+  (Maybe Name -> NameChanges -> m r) ->
+  m r
+streamNameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose getChildren)) f = do
+  let (termNameAdds, termNameRemovals) =
+        termDiffs
+          & ifoldMap \ns diff ->
+            let name = appendName ns
+             in (listifyNames name $ adds diff, listifyNames name $ removals diff)
+  let (typeNameAdds, typeNameRemovals) =
+        typeDiffs
+          & ifoldMap \ns diff ->
+            let name = appendName ns
+             in (listifyNames name $ adds diff, listifyNames name $ removals diff)
+  acc <- f namePrefix $ NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}
+  children <- getChildren
+  childAcc <-
+    children
+      & ifoldMapM
+        ( \ns childTree ->
+            streamNameChanges (Just $ appendName ns) (TreeDiff childTree) f
+        )
+  pure $! acc <> childAcc
+  where
+    appendName :: NameSegment -> Name
+    appendName =
+      case namePrefix of
+        Nothing -> Name.fromSegment
+        Just prefix -> (prefix Lens.|>)
+    listifyNames :: (Name -> Set ref -> [(Name, ref)])
+    listifyNames name xs =
+      xs
+        & Set.toList
+        & fmap (name,)

@@ -1364,7 +1364,7 @@ loop e = do
                   fromBranch <- Codebase.expectCausalBranchByCausalHash fromCH >>= V2Causal.value
                   toBranch <- Codebase.expectCausalBranchByCausalHash toCH >>= V2Causal.value
                   treeDiff <- V2Branch.diffBranches fromBranch toBranch
-                  let nameChanges = V2Branch.nameChanges Nothing treeDiff
+                  let nameChanges = V2Branch.allNameChanges Nothing treeDiff
                   pure (DisplayDebugNameDiff nameChanges)
               Cli.respond output
             DeprecateTermI {} -> Cli.respond NotImplemented
