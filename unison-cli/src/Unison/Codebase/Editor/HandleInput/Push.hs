@@ -307,7 +307,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemotePath {server, rep
 pushLooseCodeToProjectBranch :: Path.Absolute -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
 pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
   localBranchHead <- Cli.runEitherTransaction (loadCausalHashToPush localPath)
-  uploadPlan <- oompaLoompa0 Nothing localBranchHead remoteProjectAndBranch
+  uploadPlan <- oompaLoompa0 PushingLooseCode localBranchHead remoteProjectAndBranch
   executeUploadPlan uploadPlan
 
 -- | Push a local project branch to a remote project branch. If the remote project branch is left unspecified, we either
@@ -334,7 +334,7 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
       Just (That remoteBranchName) -> bazinga5 localProjectAndBranch localBranchHead remoteBranchName
       Just (These remoteProjectName remoteBranchName) ->
         oompaLoompa0
-          (Just localProjectAndBranch)
+          (PushingProjectBranch localProjectAndBranch)
           localBranchHead
           (ProjectAndBranch remoteProjectName remoteBranchName)
 
@@ -378,7 +378,7 @@ bazinga0 localProjectAndBranch localBranchHead =
         Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
           repoName <- remoteProjectBranchRepoName remoteBranch
           afterUploadAction <-
-            makeFastForwardAfterUploadAction (Just localProjectAndBranch) localBranchHead remoteBranch
+            makeFastForwardAfterUploadAction (PushingProjectBranch localProjectAndBranch) localBranchHead remoteBranch
           pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
   where
     localProjectId = localProjectAndBranch ^. #project . #projectId
@@ -416,15 +416,20 @@ bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = d
           Nothing -> prependUserSlugToProjectBranchName myUserHandle localBranchName
           Just remoteBranchName1 -> remoteBranchName1
   let remoteProjectAndBranch = ProjectAndBranch remoteProjectName remoteBranchName
-  oompaLoompa0 (Just localProjectAndBranch) localBranchHead remoteProjectAndBranch
+  oompaLoompa0 (PushingProjectBranch localProjectAndBranch) localBranchHead remoteProjectAndBranch
+
+-- What are we pushing, a project branch or loose code?
+data WhatAreWePushing
+  = PushingProjectBranch (ProjectAndBranch Queries.Project Queries.Branch)
+  | PushingLooseCode
 
 -- we have the remote project and branch names, but we don't know whether either already exist
 oompaLoompa0 ::
-  Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
+  WhatAreWePushing ->
   Hash32 ->
   ProjectAndBranch ProjectName ProjectBranchName ->
   Cli UploadPlan
-oompaLoompa0 maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch = do
+oompaLoompa0 pushing localBranchHead remoteProjectAndBranch = do
   repoName <- projectBranchRepoName remoteProjectAndBranch
   let remoteProjectName = remoteProjectAndBranch ^. #project
   let remoteBranchName = remoteProjectAndBranch ^. #branch
@@ -436,7 +441,7 @@ oompaLoompa0 maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch =
             causalHash = localBranchHead,
             afterUploadAction =
               createProjectAndBranchAfterUploadAction
-                maybeLocalProjectAndBranch
+                pushing
                 localBranchHead
                 remoteProjectAndBranch
           }
@@ -451,13 +456,13 @@ oompaLoompa0 maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch =
                 causalHash = localBranchHead,
                 afterUploadAction =
                   createBranchAfterUploadAction
-                    maybeLocalProjectAndBranch
+                    pushing
                     localBranchHead
                     (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
               }
         Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
         Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
-          afterUploadAction <- makeFastForwardAfterUploadAction maybeLocalProjectAndBranch localBranchHead remoteBranch
+          afterUploadAction <- makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch
           pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
 
 -- "push /foo" with a remote mapping for the project (either from this branch or one of our ancestors)
@@ -489,13 +494,14 @@ oompaLoompa1 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
             causalHash = localBranchHead,
             afterUploadAction =
               createBranchAfterUploadAction
-                (Just localProjectAndBranch)
+                (PushingProjectBranch localProjectAndBranch)
                 localBranchHead
                 remoteProjectAndBranch
           }
     Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
     Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
-      afterUploadAction <- makeFastForwardAfterUploadAction (Just localProjectAndBranch) localBranchHead remoteBranch
+      afterUploadAction <-
+        makeFastForwardAfterUploadAction (PushingProjectBranch localProjectAndBranch) localBranchHead remoteBranch
       pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
 
 -- A plan for uploading a branch and doing something afterwards.
@@ -533,11 +539,11 @@ executeUploadPlan UploadPlan {repoName, causalHash, afterUploadAction} = do
 --
 -- Precondition: the remote project doesn't exist.
 createProjectAndBranchAfterUploadAction ::
-  Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
+  WhatAreWePushing ->
   Hash32 ->
   ProjectAndBranch ProjectName ProjectBranchName ->
   AfterUploadAction
-createProjectAndBranchAfterUploadAction maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch = do
+createProjectAndBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = do
   let remoteProjectName = remoteProjectAndBranch ^. #project
   let remoteBranchName = remoteProjectAndBranch ^. #branch
   remoteProject <- do
@@ -556,7 +562,7 @@ createProjectAndBranchAfterUploadAction maybeLocalProjectAndBranch localBranchHe
         loggeth [tShow remoteProject]
         pure remoteProject
   createBranchAfterUploadAction
-    maybeLocalProjectAndBranch
+    pushing
     localBranchHead
     (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
 
@@ -564,16 +570,19 @@ createProjectAndBranchAfterUploadAction maybeLocalProjectAndBranch localBranchHe
 --
 -- Precondition: the remote project exists, but the remote branch doesn't.
 createBranchAfterUploadAction ::
-  Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
+  WhatAreWePushing ->
   Hash32 ->
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
   AfterUploadAction
-createBranchAfterUploadAction maybeLocalProjectAndBranch localBranchHead remoteProjectAndBranch = do
+createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = do
   let remoteProjectId = remoteProjectAndBranch ^. #project
   let remoteBranchName = remoteProjectAndBranch ^. #branch
   branchMergeTarget <-
     runMaybeT do
-      ProjectAndBranch localProject localBranch <- MaybeT (pure maybeLocalProjectAndBranch)
+      ProjectAndBranch localProject localBranch <-
+        case pushing of
+          PushingProjectBranch localProjectAndBranch -> pure localProjectAndBranch
+          PushingLooseCode -> mzero
       (mergeTargetProjectId, mergeTargetBranchId) <-
         MaybeT $
           Cli.runTransaction do
@@ -607,26 +616,28 @@ createBranchAfterUploadAction maybeLocalProjectAndBranch localBranchHead remoteP
       Share.API.CreateProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
   loggeth ["Share says: success!"]
   loggeth [tShow remoteBranch]
-  Cli.runTransaction do
-    whenJust maybeLocalProjectAndBranch \(ProjectAndBranch localProject localBranch) ->
-      -- If the local branch has no associated remote then we
-      -- associate this newly created branch.
-      Queries.ensureBranchRemoteMapping
-        (localProject ^. #projectId)
-        (localBranch ^. #branchId)
-        (RemoteProjectId (remoteBranch ^. #projectId))
-        (Text.pack (Servant.Client.showBaseUrl Share.hardCodedBaseUrl))
-        (RemoteProjectBranchId (remoteBranch ^. #branchId))
+  case pushing of
+    PushingLooseCode -> pure ()
+    PushingProjectBranch (ProjectAndBranch localProject localBranch) ->
+      Cli.runTransaction do
+        -- If the local branch has no associated remote then we
+        -- associate this newly created branch.
+        Queries.ensureBranchRemoteMapping
+          (localProject ^. #projectId)
+          (localBranch ^. #branchId)
+          (RemoteProjectId (remoteBranch ^. #projectId))
+          (Text.pack (Servant.Client.showBaseUrl Share.hardCodedBaseUrl))
+          (RemoteProjectBranchId (remoteBranch ^. #branchId))
 
 -- We intend to fast-forward a remote branch. There's one last check to do, which may cause this action to
 -- short-circuit: check to see if the remote branch is indeed behind the given causal hash. If it is, then return an
 -- action to perform after uploading (which will set the remote branch head).
 makeFastForwardAfterUploadAction ::
-  Maybe (ProjectAndBranch Queries.Project Queries.Branch) ->
+  WhatAreWePushing ->
   Hash32 ->
   Share.API.ProjectBranch ->
   Cli AfterUploadAction
-makeFastForwardAfterUploadAction maybeLocalProjectAndBranch localBranchHead remoteBranch = do
+makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
   whenM (Cli.runTransaction wouldNotBeFastForward) do
     loggeth ["local head behind remote"]
     Cli.returnEarlyWithoutOutput
@@ -652,15 +663,17 @@ makeFastForwardAfterUploadAction maybeLocalProjectAndBranch localBranchHead remo
         wundefined
       Share.API.SetProjectBranchHeadResponseSuccess -> do
         loggeth ["SetProjectBranchHeadResponseSuccess"]
-        whenJust maybeLocalProjectAndBranch \(ProjectAndBranch localProject localBranch) -> do
-          loggeth ["ensure branch remote mapping is set"]
-          Cli.runTransaction do
-            Queries.ensureBranchRemoteMapping
-              (localProject ^. #projectId)
-              (localBranch ^. #branchId)
-              (remoteBranch ^. #projectId . to RemoteProjectId)
-              (Text.pack (Servant.Client.showBaseUrl Share.hardCodedBaseUrl))
-              (remoteBranch ^. #branchId . to RemoteProjectBranchId)
+        case pushing of
+          PushingLooseCode -> pure ()
+          PushingProjectBranch (ProjectAndBranch localProject localBranch) -> do
+            loggeth ["ensure branch remote mapping is set"]
+            Cli.runTransaction do
+              Queries.ensureBranchRemoteMapping
+                (localProject ^. #projectId)
+                (localBranch ^. #branchId)
+                (remoteBranch ^. #projectId . to RemoteProjectId)
+                (Text.pack (Servant.Client.showBaseUrl Share.hardCodedBaseUrl))
+                (remoteBranch ^. #branchId . to RemoteProjectBranchId)
   where
     remoteBranchHead = remoteBranch ^. #branchHead
 
