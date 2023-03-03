@@ -31,13 +31,19 @@
 ;;
 ;; Each use of `define-chunked-sequence` generates and exports the following
 ;; API, replacing each occurrence of `chunked-seq` with the name of the
-;; specialized sequence and each occurrence of `elem/c` with the contract that
+;; specialized sequence, each occurrence of `chunk` with the name of the
+;; underlying chunk type, and each occurrence of `elem/c` with the contract that
 ;; elements of the specialized sequence must conform to:
 ;;
 ;;   chunked-seq? : (-> any/c boolean?)
 ;;   empty-chunked-seq : chunked-seq?
 ;;   chunked-seq-length : (-> chunked-seq? exact-nonnegative-integer?)
 ;;   chunked-seq-empty? : (-> chunked-seq? boolean?)
+;;
+;;   make-chunked-seq : (-> exact-nonnegative-integer? elem/c chunked-seq?)
+;;   build-chunked-seq : (-> exact-nonnegative-integer? (-> exact-nonnegative-integer? elem/c) chunked-seq?)
+;;   chunk->chunked-seq : (-> chunk? chunked-seq?)
+;;   chunked-seq->chunk : (-> chunked-seq? chunk?)
 ;;
 ;;   chunked-seq-ref : (-> chunked-seq? exact-nonnegative-integer? elem/c)
 ;;   chunked-seq-set : (-> chunked-seq? exact-nonnegative-integer? elem/c chunked-seq?)
@@ -80,6 +86,11 @@
    (define/with-syntax chunked-seq-empty? (derived-seq-id "~a-empty?"))
    (define/with-syntax chunked-seq-length (derived-seq-id "~a-length"))
 
+   (define/with-syntax make-chunked-seq (derived-seq-id "make-~a"))
+   (define/with-syntax build-chunked-seq (derived-seq-id "build-~a"))
+   (define/with-syntax chunk->chunked-seq (format-id #'chunked-seq "~a->~a" #'chunk-type #'chunked-seq))
+   (define/with-syntax chunked-seq->chunk (format-id #'chunked-seq "~a->~a" #'chunked-seq #'chunk-type))
+
    (define/with-syntax chunked-seq-ref (derived-seq-id "~a-ref"))
    (define/with-syntax chunked-seq-set (derived-seq-id "~a-set"))
    (define/with-syntax chunked-seq-add-first (derived-seq-id "~a-add-first"))
@@ -98,6 +109,13 @@
                 (contract-out
                  [chunked-seq-length (-> chunked-seq? exact-nonnegative-integer?)]
                  [chunked-seq-empty? (-> chunked-seq? boolean?)]
+
+                 [make-chunked-seq (-> exact-nonnegative-integer? elem/c chunked-seq?)]
+                 [build-chunked-seq (-> exact-nonnegative-integer?
+                                        procedure? ; should be (-> exact-nonnegative-integer? elem/c), but that’s expensive
+                                        chunked-seq?)]
+                 [chunk->chunked-seq (-> chunk? chunked-seq?)]
+                 [chunked-seq->chunk (-> chunked-seq? chunk?)]
 
                  [chunked-seq-ref (-> chunked-seq? exact-nonnegative-integer? elem/c)]
                  [chunked-seq-set (-> chunked-seq? exact-nonnegative-integer? elem/c chunked-seq?)]
@@ -119,6 +137,13 @@
          (define chunk (make-mutable-chunk len))
          (init-proc chunk)
          (unsafe-chunk->immutable-chunk! chunk))
+
+       (define (build-chunk len elem-proc)
+         (make-chunk
+          len
+          (λ (chunk)
+            (for ([i (in-range len)])
+              (chunk-set! chunk i (elem-proc i))))))
 
        (define (chunk-set chunk i val)
          (make-chunk
@@ -143,13 +168,13 @@
             (chunk-copy! new-chunk 0 chunk 0)
             (chunk-set! new-chunk old-len val))))
 
-       (define (chunk-drop-first chunk val)
+       (define (chunk-drop-first chunk)
          (make-chunk
           (sub1 (chunk-length chunk))
           (λ (new-chunk)
             (chunk-copy! new-chunk 0 chunk 1))))
 
-       (define (chunk-drop-last chunk val)
+       (define (chunk-drop-last chunk)
          (define new-len (sub1 (chunk-length chunk)))
          (make-chunk
           new-len
@@ -281,6 +306,29 @@
            [(? chunked-seq-empty?) 0]
            [(single-chunk chunk) (chunk-length chunk)]
            [_ (chunks-length cs)]))
+
+       (define (make-chunked-seq len elem)
+         (build-chunked-seq len (λ (i) elem)))
+
+       (define (build-chunked-seq len elem-proc)
+         (cond
+           [(zero? len)
+            empty-chunked-seq]
+           [(<= len CHUNK-CAPACITY)
+            (single-chunk (build-chunk len elem-proc))]
+           [else
+            (define-values [full-chunk-count leftover-count] (quotient/remainder len CHUNK-CAPACITY))
+            (define last-offset (* (if (zero? leftover-count) (sub1 full-chunk-count) full-chunk-count) CHUNK-CAPACITY))
+            (chunks len
+                    (build-chunk CHUNK-CAPACITY elem-proc)
+                    (build-vector-trie
+                     (- full-chunk-count (if (zero? leftover-count) 2 1))
+                     (λ (chunk-i)
+                       (define offset (* (add1 chunk-i) CHUNK-CAPACITY))
+                       (build-chunk CHUNK-CAPACITY (λ (i) (elem-proc (+ offset i))))))
+                    (build-chunk
+                     (if (zero? leftover-count) CHUNK-CAPACITY leftover-count)
+                     (λ (i) (elem-proc (+ last-offset i)))))]))
 
        (define (check-index-in-range who cs i)
          (define len (chunked-seq-length cs))
@@ -448,6 +496,9 @@
                 chunks cs
                 [length (sub1 len)]
                 [last-chunk (chunk-drop-last last-c)])])]))
+
+       ;; ----------------------------------------------------------------------
+       ;; appending
 
        (define chunked-seq-append
          (case-lambda
@@ -690,7 +741,8 @@
                                  (vector-trie-ref vt next-vt-i))])])
                     #t
                     chunk
-                    [next-vt-i* chunk*])]]))
+                    [next-vt-i* chunk*])]]
+           [_ #f]))
 
        (define (in-chunked-seq cs)
          (unless (chunked-seq? cs)
@@ -779,7 +831,40 @@
                                  0)])])
                     #t
                     chunk
-                    [next-vt-i* chunk* chunk-len* chunk-i*])]])))])
+                    [next-vt-i* chunk* chunk-len* chunk-i*])]]
+           [_ #f]))
+
+       ;; ----------------------------------------------------------------------
+       ;; conversion
+
+       (define (chunk->chunked-seq big-chunk)
+         (define len (chunk-length big-chunk))
+         (cond
+           [(zero? len)
+            empty-chunked-seq]
+           [(<= len CHUNK-CAPACITY)
+            (single-chunk big-chunk)]
+           [else
+            (define-values [full-chunk-count leftover-count] (quotient/remainder len CHUNK-CAPACITY))
+            (define vt-len (- full-chunk-count (if (zero? leftover-count) 2 1)))
+            (chunks len
+                    (chunk-slice big-chunk 0 CHUNK-CAPACITY)
+                    (build-vector-trie
+                     vt-len
+                     (λ (chunk-i)
+                       (define elem-i (* (add1 chunk-i) CHUNK-CAPACITY))
+                       (chunk-slice big-chunk elem-i (+ elem-i CHUNK-CAPACITY))))
+                    (chunk-slice big-chunk (* (add1 vt-len) CHUNK-CAPACITY)))]))
+
+       (define (chunked-seq->chunk cs)
+         (define len (chunked-seq-length cs))
+         (make-chunk
+          len
+          (λ (big-chunk)
+            (define i 0)
+            (for ([chunk (-in-chunked-seq-chunks cs)])
+              (chunk-copy! big-chunk i chunk 0)
+              (set! i (+ i (chunk-length chunk))))))))])
 
 (define-chunked-sequence chunked-list
   #:element-contract any/c
