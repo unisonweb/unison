@@ -21,10 +21,11 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectName, projectNameUserSlug)
+import qualified Unison.Share.API.Hash as Share.API
 import qualified Unison.Share.API.Projects as Share.API
 import qualified Unison.Share.Sync as Share (downloadEntities)
 import Unison.Sync.Common (hash32ToCausalHash)
-import qualified Unison.Sync.Types as Share (RepoName (..), hashJWTHash)
+import qualified Unison.Sync.Types as Share (RepoName (..))
 import Witch (unsafeFrom)
 
 -- | Clone a remote project.
@@ -70,8 +71,8 @@ projectClone projectName = do
       Share.API.GetProjectBranchResponseSuccess projectBranch -> pure projectBranch
 
   -- FIXME remote project branch should have HashJWT
-  let remoteBranchHeadJwt = wundefined (remoteProjectBranch ^. #branchHead)
-  let remoteBranchHead = Share.hashJWTHash remoteBranchHeadJwt
+  let remoteBranchHeadJwt = remoteProjectBranch ^. #branchHead
+  let remoteBranchHead = Share.API.hashJWTHash remoteBranchHeadJwt
 
   -- Pull the remote branch's contents
   Cli.with HandleInput.Pull.withEntitiesDownloadedProgressCallback \downloadedCallback -> do

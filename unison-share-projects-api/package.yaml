@@ -11,7 +11,12 @@ library:
 dependencies:
   - aeson
   - base
+  - containers
+  - jose
+  - jwt
+  - lens
   - servant
+  - servant-auth
   - text
   - unison-hash
   - unison-hash-orphans-aeson

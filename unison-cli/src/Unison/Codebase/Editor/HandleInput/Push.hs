@@ -66,6 +66,7 @@ import Unison.Project
     projectBranchNameUserSlug,
     projectNameUserSlug,
   )
+import qualified Unison.Share.API.Hash as Share.API
 import qualified Unison.Share.API.Projects as Share.API
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Sync as Share
@@ -276,7 +277,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemotePath {server, rep
           (Cli.returnEarly . Output.ShareError) case err0 of
             Share.SyncError err -> ShareErrorGetCausalHashByPath err
             Share.TransportError err -> ShareErrorTransport err
-      checkAndSetPush (Share.hashJWTHash <$> maybeHashJwt)
+      checkAndSetPush (Share.API.hashJWTHash <$> maybeHashJwt)
       Cli.respond (ViewOnShare remote)
     PushBehavior.RequireEmpty -> do
       checkAndSetPush Nothing
@@ -679,7 +680,8 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
                 (Text.pack (Servant.Client.showBaseUrl Share.hardCodedBaseUrl))
                 (remoteBranch ^. #branchId . to RemoteProjectBranchId)
   where
-    remoteBranchHead = remoteBranch ^. #branchHead
+    remoteBranchHead = 
+      Share.API.hashJWTHash (remoteBranch ^. #branchHead)
 
 -- A couple example repo names derived from the project/branch names:
 --

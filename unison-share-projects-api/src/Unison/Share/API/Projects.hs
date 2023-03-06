@@ -46,6 +46,7 @@ import Servant.API
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
 import Unison.Prelude
+import Unison.Share.API.Hash (HashJWT)
 
 type ProjectsAPI =
   GetProjectAPI
@@ -342,7 +343,7 @@ data ProjectBranch = ProjectBranch
     projectName :: Text,
     branchId :: Text,
     branchName :: Text,
-    branchHead :: Hash32
+    branchHead :: HashJWT
   }
   deriving stock (Eq, Show, Generic)
 

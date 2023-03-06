@@ -58,6 +58,7 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Debug as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
+import qualified Unison.Share.API.Hash as Share
 import Unison.Share.Sync.Types
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.API as Share (API)
