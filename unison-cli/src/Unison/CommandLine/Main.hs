@@ -13,6 +13,7 @@ import Data.Configurator.Types (Config)
 import Data.IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.IO as Text.Lazy
+import Data.These (These (..))
 import qualified Ki
 import qualified System.Console.Haskeline as Line
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
@@ -45,7 +46,7 @@ import qualified Unison.CommandLine.Welcome as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
-import Unison.Project (ProjectAndBranch (..))
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
@@ -53,6 +54,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
 import UnliftIO.STM
+import Witch.Utility (unsafeInto)
 
 getUserInput ::
   forall m v a.
@@ -85,7 +87,13 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
             lift (Codebase.runTransaction codebase (Queries.loadProjectAndBranchNames projectId branchId)) <&> \case
               -- If the project branch has been deleted from sqlite, just show a borked prompt
               Nothing -> P.red "???"
-              Just (projectName, branchName) -> P.purple (P.text projectName) <> ":" <> P.purple (P.text branchName)
+              Just (projectName, branchName) ->
+                P.purple $
+                  P.text $
+                    into @Text $
+                      These
+                        (unsafeInto @ProjectName projectName)
+                        (unsafeInto @ProjectBranchName branchName)
       line <- Line.getInputLine (P.toANSI 80 (promptString <> fromString prompt))
       case line of
         Nothing -> pure QuitI
