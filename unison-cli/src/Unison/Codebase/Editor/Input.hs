@@ -213,7 +213,7 @@ data Input
   | AuthLoginI
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
-  | ProjectCloneI ProjectName
+  | ProjectCloneI (These ProjectName ProjectBranchName)
   | ProjectCreateI ProjectName
   | ProjectSwitchI (These ProjectName ProjectBranchName)
   deriving (Eq, Show)

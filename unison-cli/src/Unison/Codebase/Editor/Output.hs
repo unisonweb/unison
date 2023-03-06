@@ -54,7 +54,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
-import Unison.Project (ProjectName)
+import Unison.Project (ProjectName, ProjectBranchName)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -288,6 +288,7 @@ data Output
   | ClearScreen
   | PulledEmptyBranch ReadRemoteNamespace
   | ProjectNameAlreadyExists ProjectName
+  | ProjectAndBranchNameAlreadyExists ProjectName ProjectBranchName
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
   { isTest :: TermReference -> Bool,

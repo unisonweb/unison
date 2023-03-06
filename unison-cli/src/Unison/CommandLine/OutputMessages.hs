@@ -22,6 +22,7 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.These (These (..))
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Data.Tuple (swap)
@@ -129,7 +130,7 @@ import Unison.PrintError
     printNoteWithSource,
     renderCompilerBug,
   )
-import Unison.Project (ProjectName)
+import Unison.Project (ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -1932,6 +1933,8 @@ notifyUser dir = \case
     pure . P.warnCallout . P.wrap $
       P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
   ProjectNameAlreadyExists name -> pure (prettyProjectName name <> "already exists.")
+  ProjectAndBranchNameAlreadyExists projectName branchName ->
+    pure (prettyProjectAndBranchName projectName branchName <> "already exists.")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
@@ -2037,6 +2040,10 @@ prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
 prettyProjectName :: ProjectName -> Pretty
 prettyProjectName =
   P.blue . P.text . into @Text
+
+prettyProjectAndBranchName :: ProjectName -> ProjectBranchName -> Pretty
+prettyProjectAndBranchName projectName branchName =
+  P.blue (P.text (into @Text (These projectName branchName)))
 
 formatMissingStuff ::
   (Show tm, Show typ) =>
@@ -2429,7 +2436,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2444,7 +2451,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

@@ -6,6 +6,7 @@ where
 
 import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
+import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
 import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..), RemoteProjectBranchId (..), RemoteProjectId (..))
 import qualified U.Codebase.Sqlite.Queries as Queries
@@ -20,35 +21,66 @@ import qualified Unison.Codebase.Editor.HandleInput.Pull as HandleInput.Pull
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectName, projectNameUserSlug)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName, projectNameUserSlug)
 import qualified Unison.Share.API.Hash as Share.API
 import qualified Unison.Share.API.Projects as Share.API
 import qualified Unison.Share.Sync as Share (downloadEntities)
+import qualified Unison.Sqlite as Sqlite
 import Unison.Sync.Common (hash32ToCausalHash)
 import qualified Unison.Sync.Types as Share (RepoName (..))
 import Witch (unsafeFrom)
 
--- | Clone a remote project.
-projectClone :: ProjectName -> Cli ()
-projectClone projectName = do
+-- | Clone a remote project or remote project branch.
+projectClone :: These ProjectName ProjectBranchName -> Cli ()
+projectClone = \case
+  These projectName branchName ->
+    cloneProjectAndBranch (ProjectAndBranch projectName branchName)
+  This projectName -> cloneProject projectName
+  That branchName -> cloneBranch branchName
+
+-- Clone a project, defaulting to branch "main"
+cloneProject :: ProjectName -> Cli ()
+cloneProject projectName = do
+  cloneProjectAndBranch
+    ProjectAndBranch
+      { project = projectName,
+        branch = unsafeFrom @Text "main"
+      }
+
+-- Clone a branch from the remote project associated with the current project.
+cloneBranch :: ProjectBranchName -> Cli ()
+cloneBranch _remoteBranchName = do
+  loggeth ["not implemented: project.clone /branch"]
+  Cli.returnEarlyWithoutOutput
+
+cloneProjectAndBranch :: ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
+cloneProjectAndBranch (ProjectAndBranch remoteProjectName remoteBranchName) = do
+  -- TODO: allow user to override these with second argument
+  let localProjectName = remoteProjectName
+  let localBranchName = remoteBranchName
+
   -- Assert that this project name has a user slug
-  projectUserSlug <-
-    case projectNameUserSlug projectName of
+  remoteProjectUserSlug <-
+    case projectNameUserSlug remoteProjectName of
       Just slug -> pure slug
       Nothing -> do
         loggeth ["can't clone project without user slug"]
         Cli.returnEarlyWithoutOutput
 
-  -- Quick local check before hitting share to determine whether this project already exists.
-  Cli.runEitherTransaction do
-    Queries.projectExistsByName (into @Text projectName) <&> \case
-      False -> Right ()
-      True -> Left (Output.ProjectNameAlreadyExists projectName)
+  -- Quick local check before hitting share to determine whether this project+branch already exists.
+  let assertLocalProjectBranchDoesntExist :: Sqlite.Transaction (Either Output.Output ())
+      assertLocalProjectBranchDoesntExist =
+        Queries.loadProjectByName (into @Text localProjectName) >>= \case
+          Nothing -> pure (Right ())
+          Just project ->
+            Queries.projectBranchExistsByName (project ^. #projectId) (into @Text localBranchName) <&> \case
+              False -> Right ()
+              True -> Left (Output.ProjectAndBranchNameAlreadyExists localProjectName localBranchName)
 
-  -- Get the "main" branch of the given project.
+  -- Get the branch of the given project.
   remoteProjectBranch <- do
     project <-
-      Share.getProjectByName projectName >>= \case
+      Share.getProjectByName remoteProjectName >>= \case
         Share.API.GetProjectResponseNotFound notFound -> do
           loggeth ["remote project doesn't exist: ", tShow notFound]
           Cli.returnEarlyWithoutOutput
@@ -57,7 +89,6 @@ projectClone projectName = do
           Cli.returnEarlyWithoutOutput
         Share.API.GetProjectResponseSuccess project -> pure project
     let remoteProjectId = RemoteProjectId (project ^. #projectId)
-    let remoteBranchName = unsafeFrom @Text "main"
     Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
       Share.API.GetProjectBranchResponseBranchNotFound notFound -> do
         loggeth ["remote branch 'main' doesn't exist: ", tShow notFound]
@@ -76,7 +107,7 @@ projectClone projectName = do
     let download =
           Share.downloadEntities
             Share.hardCodedBaseUrl
-            (Share.RepoName projectUserSlug)
+            (Share.RepoName remoteProjectUserSlug)
             remoteBranchHeadJwt
             downloadedCallback
     download >>= \case
@@ -88,11 +119,15 @@ projectClone projectName = do
   -- Create the local project and branch
   localProjectId <- liftIO (ProjectId <$> UUID.nextRandom)
   localBranchId <- liftIO (ProjectBranchId <$> UUID.nextRandom)
+
   Cli.runEitherTransaction do
-    Queries.projectExistsByName (into @Text projectName) >>= \case
-      False -> do
-        Queries.insertProject localProjectId (into @Text projectName)
-        Queries.insertProjectBranch localProjectId localBranchId "main"
+    -- Repeat the check from before, because (although it's highly unlikely) we could have a name conflict after
+    -- downloading the remote branch
+    assertLocalProjectBranchDoesntExist >>= \case
+      Left err -> pure (Left err)
+      Right () -> do
+        Queries.insertProject localProjectId (into @Text localProjectName)
+        Queries.insertProjectBranch localProjectId localBranchId (into @Text localBranchName)
         Queries.insertBranchRemoteMapping
           localProjectId
           localBranchId
@@ -100,7 +135,6 @@ projectClone projectName = do
           Share.hardCodedBaseUrlText
           (RemoteProjectBranchId (remoteProjectBranch ^. #branchId))
         pure (Right ())
-      True -> pure (Left (Output.ProjectNameAlreadyExists projectName))
 
   -- Manipulate the root namespace and cd
   Cli.Env {codebase} <- ask

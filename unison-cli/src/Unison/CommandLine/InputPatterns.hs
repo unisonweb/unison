@@ -2302,13 +2302,13 @@ projectClone =
     { patternName = "project.clone",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [(Required, projectNameArg)],
-      help = P.wrap "Clone a project from a remote server.",
+      argTypes = [(Required, projectAndBranchNamesArg)],
+      help = P.wrap "Clone a project branch from a remote server.",
       parse = \case
         [name] ->
-          case tryInto @ProjectName (Text.pack name) of
-            Left _ -> Left "Invalid project name."
-            Right name1 -> Right (Input.ProjectCloneI name1)
+          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+            Left _ -> Left (showPatternHelp projectClone)
+            Right projectAndBranch -> Right (Input.ProjectCloneI projectAndBranch)
         _ -> Left (showPatternHelp projectClone)
     }
 
@@ -2335,7 +2335,7 @@ projectSwitch =
       aliases = [],
       visibility = I.Visible,
       argTypes = [(Required, projectAndBranchNamesArg)],
-      help = P.wrap "Switch to a project.",
+      help = P.wrap "Switch to a project or project branch.",
       parse = \case
         [name] ->
           case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
