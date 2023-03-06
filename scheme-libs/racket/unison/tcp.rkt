@@ -1,4 +1,4 @@
-; TLS primitives! Supplied by openssl (libssl)
+; TCP primitives!
 #lang racket/base
 (require racket/exn
          racket/match

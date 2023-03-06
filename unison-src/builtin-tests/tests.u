@@ -54,14 +54,6 @@ tcp.tests = do
           checkEqual "Server received data" (Promise.read serveResult) (Right "from client")
           checkEqual "Client received data" data (Right "from server")
 
-tcp.tests = do
-  check "connects to example.com" do
-    socket = Socket.client (HostName "example.com") (Port "80")
-    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
-    response = Socket.receive socket
-    Socket.close socket
-    contains "HTTP/1.0 200 OK" (base.Text.fromUtf8 response)
-
 crypto.hash.tests = do
   hash alg = hashBytes alg (toUtf8 "")
   tag name = name ++ " hashBytes"
