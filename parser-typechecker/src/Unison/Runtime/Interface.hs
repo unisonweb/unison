@@ -151,6 +151,7 @@ recursiveDeclDeps ::
   Set RF.LabeledDependency ->
   CodeLookup Symbol IO () ->
   Decl Symbol () ->
+  -- (type deps, term deps)
   IO (Set Reference, Set Reference)
 recursiveDeclDeps seen0 cl d = do
   rec <- for (toList newDeps) $ \case
@@ -176,6 +177,7 @@ recursiveTermDeps ::
   Set RF.LabeledDependency ->
   CodeLookup Symbol IO () ->
   Term Symbol ->
+  -- (type deps, term deps)
   IO (Set Reference, Set Reference)
 recursiveTermDeps seen0 cl tm = do
   rec <- for (toList (deps \\ seen0)) $ \case

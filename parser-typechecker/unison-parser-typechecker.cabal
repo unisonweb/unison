@@ -97,6 +97,20 @@ library
       Unison.FileParsers
       Unison.Hashing.V2.Convert
       Unison.Parsers
+      Unison.PatternMatchCoverage
+      Unison.PatternMatchCoverage.Class
+      Unison.PatternMatchCoverage.Constraint
+      Unison.PatternMatchCoverage.Desugar
+      Unison.PatternMatchCoverage.Fix
+      Unison.PatternMatchCoverage.GrdTree
+      Unison.PatternMatchCoverage.IntervalSet
+      Unison.PatternMatchCoverage.ListPat
+      Unison.PatternMatchCoverage.Literal
+      Unison.PatternMatchCoverage.NormalizedConstraints
+      Unison.PatternMatchCoverage.PmGrd
+      Unison.PatternMatchCoverage.PmLit
+      Unison.PatternMatchCoverage.Solve
+      Unison.PatternMatchCoverage.UFMap
       Unison.PrettyPrintEnv
       Unison.PrettyPrintEnv.FQN
       Unison.PrettyPrintEnv.MonadPretty

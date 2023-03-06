@@ -13,19 +13,19 @@ This transcript is intended to make visible accidental changes to the hashing al
        autoCleaned.handler : '{IO} (Request {TempDirs} r
        ->{IO, Exception} r)
        
-  4.   -- #fajcv3ki8h80htov5pu2beu6f9d5dqsr0he47jssjvivgcpo2n1mqmbh7e0plv5cuqte3kjg18ken8gv1kmtpppkjjein4rr7a50ep8
+  4.   -- #p1lh7ba73bdka6e18v9hmkrj811f2qsrogjumssr36drdjfgrfd6e6qotaqksb3o4lk44274fbcaqnj8e41rh0pjn56cbvsb3gv0880
        bContains : [(a, b)] -> a -> Boolean
        
-  5.   -- #js3u40odrqs74lpcqjoemr1b08cbu7co41sf0ubp7gq3eaohl72db3khi0p1neqtmk2ede9f00n07no0kju13i7tliopsgsm69nh38o
+  5.   -- #ck9knej1qu6jt87i9qun1btc67kvthamubpl658se75po13oe2vto97jck965ibs6uspmopt3097lqd1pmqnegmba8e2bbfgtre9ovo
        bInsert : [(a, b)] -> a -> b -> [(a, b)]
        
-  6.   -- #avou19csadtmkejvdovufstrhtsbvnauqan05o9na0kqo7jon7ql05f7ooccbv777k68jj56ufufthp1cjd0jvium7j2ghrlpghnh58
+  6.   -- #k1ge36n1ouvbaqjamm69pu7uuul0qc842tgqufm0ncaeb5h7im3r3vh9b7vikdu896p3f9ep2tf0dec3ifnrbr197k9lucl733rjpc0
        bSearch : [(a, b)] -> a -> Optional b
        
-  7.   -- #ps5jpme6lr6fgv1a3cjmd4tpqr62pg3flmunkhcu9creojv2hsmei86nb6nndiam5p4q79nlerddrgto5um4ugm0p9evb8isoqu9ur0
+  7.   -- #0nmd69uoat0mr9tl1917mdb16cpvd2q8oev5uj9s5d6virfcolc4t7js3l9do0c6c26tj7mvd82fpcumjr513bfudelnunvbok317fo
        bSort : [(a, b)] -> [(a, b)]
        
-  8.   -- #vb7eo70iavak378net6hohjkosud6ooabo1j0dev8l7254ls2j48f4e8gmk46d4016l41tpe7k8gqjqtb84g0gdc93vrh8bh4d62nf8
+  8.   -- #re1saul4fhhdmg0b91ssrp3ok604nitpsler5dijra4eutcugsinmqvh9om3ah7qmcj1da57h3git1fn032lj8qs9kpqj3ujfs2ueig
        bSplit : [(a, b)] -> a -> ([(a, b)], [(a, b)])
        
   9.   -- #1j3e8vsn97qrprjr69ls6llab601sdh577uuvtu8pafmngf59suakbjr7asheadidcj3red140fnmdagsv9ihhdar1mc05ig28jtfr0
@@ -2069,7 +2069,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   584. -- #jtn2i6bg3gargdp2rbk08jfd327htap62brih8phdfm2m4d6ib9cu0o2k5vrh7f4jik99eufu4hi0114akgd1oiivi8p1pa9m2fvjv0
        builtin.Pretty.lit : txt -> Pretty txt
        
-  585. -- #pn811nf59d63s8711bpktjqub65sb748pmajg7r8n7h7cnap5ecb4n1072ccult24q6gcfac66scrm77cjsa779mcckqrs8si4716sg
+  585. -- #kfgfekabh7tiprb6ljjkf4qa5puqp6bbpe1oiqv9r39taljs8ahtb518mpcmec3plesvpssn3bpgvq3e7d71giot6lb2j7mbk23dtqo
        builtin.Pretty.map : (txt ->{g} txt2)
        -> Pretty txt
        ->{g} Pretty txt2
@@ -2202,7 +2202,7 @@ This transcript is intended to make visible accidental changes to the hashing al
          [Doc2.Term])]
        -> Doc2
        
-  624. -- #4rv8dvuvf5br3vhhuturaejt1l2u8j5eidjid01f5mo7o0fgjatttmph34ma0b9s1i2badcqj3ale005jb1hnisabnh93i4is1d8kng
+  624. -- #inrar1e9lnt58n0ru88v05a9d9d0la94m7ok5l6i7pr3pg4lapc9vegr542ffog1kl7pfqhmltr53of3qkci8nnrt8gig93qsnggisg
        builtin.syntax.docFormatConsole : Doc2
        -> Pretty (Either SpecialForm ConsoleText)
        
@@ -2474,7 +2474,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   710. -- #4e6qn65v05l32n380lpf536u4llnp6f6tvvt13hvo0bhqeh3f3i8bquekc120c8h59gld1mf02ok0sje7037ipg1fsu97fqrm01oi00
        closeSocket : Socket ->{IO, Exception} ()
        
-  711. -- #7o1e77u808vpg8i6k1mvutg8h6tdr14hegfad23e9sjou1ft10kvfr95goo0kv2ldqlsaa4pmvdl8d7jd6h252i3jija05b4vpqbg5g
+  711. -- #2cl9ivrimnadurkum2blduls21kcihu89oasj2efmi03s1vfm433pi6c4k1d2a3obpmf2orm3c9lfgffnlhuc6ktaa98a1ccdhfueqo
        Code.transitiveDeps : Link.Term
        ->{IO} [(Link.Term, Code)]
        
@@ -2502,7 +2502,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   715. -- #ilkeid6l866bmq90d2v1ilqp9dsjo6ucmf8udgrokq3nr3mo9skl2vao2mo7ish136as52rsf19u9v3jkmd85bl08gnmamo4e5v2fqo
        contains : Text -> Text -> Boolean
        
-  716. -- #tgvna0i8ea98jvnd2oka85cdtas1prcbq3snvc4qfns6082mlckps2cspk8jln11mklg19bna025tog5m9sb671o27ujsa90lfrbnkg
+  716. -- #pen6v1vcqdsg5ar8ajio0baiujthquamelbqd00p66amfjftk2o3stod4n81snc3hb9sc4fmnitf6ada0n5sfqfroi8sv1nbn7rnq48
        crawl : [(Link.Term, Code)]
        -> [Link.Term]
        ->{IO} [(Link.Term, Code)]
@@ -2708,10 +2708,10 @@ This transcript is intended to make visible accidental changes to the hashing al
        runTest : '{IO, TempDirs, Exception, Stream Result} a
        ->{IO} [Result]
        
-  779. -- #va4fcp72qog4dvo8dn4gipr2i1big1lqgpcqfuv9kc98ut8le1bj23s68df7svam7b5sg01s4uf95o458f4rs90mtp71nj84t90ra1o
+  779. -- #b59q94bf9mrvv4gl8gqjd04dc3ahq373ka5esh4grtjupkm8ov7o7h0n56q2dg3ocdsreqvm973rlhs4etua1tbrsuabc398e5pvs0o
        saveSelfContained : a -> Text ->{IO, Exception} ()
        
-  780. -- #5hbn4gflbo8l4jq0s9l1r0fpee6ie44fbbl6j6km67l25inaaq5avg18g7j6mig2m6eaod04smif7el34tcclvvf8oll39rfonupt2o
+  780. -- #f55p4o2hlhka9olk8a9dnan57o51605g4q26jtpsbkt0g652s322779sej71182ntb6lkh01gom3g26cmngqq7vtl7m7oovdi0koc70
        saveTestCase : Text
        -> (a -> Text)
        -> a
@@ -2801,7 +2801,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        uncurry : ∀ o g1 i g i1.
          (i1 ->{g} i ->{g1} o) -> (i1, i) ->{g1, g} o
        
-  807. -- #u2j1bektndcqdo1m13fvu6apt9td96s4tqonelg23tauklak2pqnbisf41v632fmlrcc6f9orqo3iu9757q36ue5ol1khe0hh8pktro
+  807. -- #rhak55ntto40n4utgv5o93jvlmv82lceb625slrt8tsmg74vin5bclf10vkl1sgpau3thqsa6guiihog74qoknlsqbuce5th60bu2eg
        Value.transitiveDeps : Value ->{IO} [(Link.Term, Code)]
        
   808. -- #o5bg5el7ckak28ib98j5b6rt26bqbprpddd1brrg3s18qahhbbe3uohufjjnt5eenvtjg0hrvnvpra95jmdppqrovvmcfm1ih2k7guo
