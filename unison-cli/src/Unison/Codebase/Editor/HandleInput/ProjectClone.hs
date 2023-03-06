@@ -7,7 +7,7 @@ where
 import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import qualified Data.UUID.V4 as UUID
-import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..), RemoteProjectId (..))
+import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..), RemoteProjectBranchId (..), RemoteProjectId (..))
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -70,11 +70,8 @@ projectClone projectName = do
         Cli.returnEarlyWithoutOutput
       Share.API.GetProjectBranchResponseSuccess projectBranch -> pure projectBranch
 
-  -- FIXME remote project branch should have HashJWT
-  let remoteBranchHeadJwt = remoteProjectBranch ^. #branchHead
-  let remoteBranchHead = Share.API.hashJWTHash remoteBranchHeadJwt
-
   -- Pull the remote branch's contents
+  let remoteBranchHeadJwt = remoteProjectBranch ^. #branchHead
   Cli.with HandleInput.Pull.withEntitiesDownloadedProgressCallback \downloadedCallback -> do
     let download =
           Share.downloadEntities
@@ -96,12 +93,19 @@ projectClone projectName = do
       False -> do
         Queries.insertProject localProjectId (into @Text projectName)
         Queries.insertProjectBranch localProjectId localBranchId "main"
+        Queries.insertBranchRemoteMapping
+          localProjectId
+          localBranchId
+          (RemoteProjectId (remoteProjectBranch ^. #projectId))
+          Share.hardCodedBaseUrlText
+          (RemoteProjectBranchId (remoteProjectBranch ^. #branchId))
         pure (Right ())
       True -> pure (Left (Output.ProjectNameAlreadyExists projectName))
 
   -- Manipulate the root namespace and cd
   Cli.Env {codebase} <- ask
-  theBranch <- liftIO (Codebase.expectBranchForHash codebase (hash32ToCausalHash remoteBranchHead))
+  let branchHead = hash32ToCausalHash (Share.API.hashJWTHash remoteBranchHeadJwt)
+  theBranch <- liftIO (Codebase.expectBranchForHash codebase branchHead)
   let path = projectBranchPath (ProjectAndBranch localProjectId localBranchId)
   Cli.stepAt "project.clone" (Path.unabsolute path, const (Branch.head theBranch))
   Cli.cd path

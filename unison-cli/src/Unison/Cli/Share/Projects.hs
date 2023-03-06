@@ -14,6 +14,7 @@ module Unison.Cli.Share.Projects
 
     -- * Temporary special hard-coded base url
     hardCodedBaseUrl,
+    hardCodedBaseUrlText,
   )
 where
 
@@ -121,7 +122,7 @@ onProject project =
   Cli.runTransaction do
     Queries.ensureRemoteProject
       (RemoteProjectId (project ^. #projectId))
-      (Text.pack (showBaseUrl hardCodedBaseUrl))
+      hardCodedBaseUrlText
       (project ^. #projectName)
 
 onProjectBranch :: ProjectBranch -> Cli ()
@@ -129,7 +130,7 @@ onProjectBranch branch =
   Cli.runTransaction do
     Queries.ensureRemoteProjectBranch
       (RemoteProjectId (branch ^. #projectId))
-      (Text.pack (showBaseUrl hardCodedBaseUrl))
+      hardCodedBaseUrlText
       (RemoteProjectBranchId (branch ^. #branchId))
       (branch ^. #branchName)
 
@@ -141,6 +142,10 @@ onProjectBranch branch =
 hardCodedBaseUrl :: BaseUrl
 hardCodedBaseUrl =
   codeserverBaseURL defaultCodeserver
+
+hardCodedBaseUrlText :: Text
+hardCodedBaseUrlText =
+  Text.pack (showBaseUrl hardCodedBaseUrl)
 
 servantClientToCli :: ClientM a -> Cli a
 servantClientToCli action = do

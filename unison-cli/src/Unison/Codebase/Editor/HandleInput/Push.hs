@@ -631,7 +631,7 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
           (localProject ^. #projectId)
           (localBranch ^. #branchId)
           (RemoteProjectId (remoteBranch ^. #projectId))
-          (Text.pack (Servant.Client.showBaseUrl Share.hardCodedBaseUrl))
+          Share.hardCodedBaseUrlText
           (RemoteProjectBranchId (remoteBranch ^. #branchId))
 
 -- We intend to fast-forward a remote branch. There's one last check to do, which may cause this action to
@@ -677,7 +677,7 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
                 (localProject ^. #projectId)
                 (localBranch ^. #branchId)
                 (remoteBranch ^. #projectId . to RemoteProjectId)
-                (Text.pack (Servant.Client.showBaseUrl Share.hardCodedBaseUrl))
+                Share.hardCodedBaseUrlText
                 (remoteBranch ^. #branchId . to RemoteProjectBranchId)
   where
     remoteBranchHead = 
