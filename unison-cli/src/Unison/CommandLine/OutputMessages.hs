@@ -130,7 +130,7 @@ import Unison.PrintError
     printNoteWithSource,
     renderCompilerBug,
   )
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -1933,12 +1933,14 @@ notifyUser dir = \case
     pure . P.warnCallout . P.wrap $
       P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
   ProjectNameAlreadyExists name -> pure (prettyProjectName name <> "already exists.")
-  ProjectAndBranchNameAlreadyExists projectName branchName ->
-    pure (prettyProjectAndBranchName projectName branchName <> "already exists.")
-  LocalProjectBranchDoesntExist projectName branchName ->
-    pure (prettyProjectAndBranchName projectName branchName <> "does not exist.")
-  RemoteProjectBranchDoesntExist host projectName branchName ->
-    pure (prettyProjectAndBranchName projectName branchName <> "does not exist on" <> prettyURI host)
+  ProjectAndBranchNameAlreadyExists projectAndBranch ->
+    pure (prettyProjectAndBranchName projectAndBranch <> "already exists.")
+  LocalProjectBranchDoesntExist projectAndBranch ->
+    pure (prettyProjectAndBranchName projectAndBranch <> "does not exist.")
+  RemoteProjectBranchDoesntExist host projectAndBranch ->
+    pure (prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host)
+  RemoteProjectBranchHeadMismatch host projectAndBranch ->
+    pure (prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host <> "is not behind local TODO better wording")
   Unauthorized message -> pure (P.text ("Unauthorized: " <> message))
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
@@ -2046,8 +2048,8 @@ prettyProjectName :: ProjectName -> Pretty
 prettyProjectName =
   P.blue . P.text . into @Text
 
-prettyProjectAndBranchName :: ProjectName -> ProjectBranchName -> Pretty
-prettyProjectAndBranchName projectName branchName =
+prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
+prettyProjectAndBranchName (ProjectAndBranch projectName branchName) =
   P.blue (P.text (into @Text (These projectName branchName)))
 
 formatMissingStuff ::

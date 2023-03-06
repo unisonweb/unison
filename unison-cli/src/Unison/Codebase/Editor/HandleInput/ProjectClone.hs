@@ -54,7 +54,9 @@ cloneBranch _remoteBranchName = do
   Cli.returnEarlyWithoutOutput
 
 cloneProjectAndBranch :: ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
-cloneProjectAndBranch (ProjectAndBranch remoteProjectName remoteBranchName) = do
+cloneProjectAndBranch remoteProjectAndBranch = do
+  let remoteProjectName = remoteProjectAndBranch ^. #project
+  let remoteBranchName = remoteProjectAndBranch ^. #branch
   -- TODO: allow user to override these with second argument
   let localProjectName = remoteProjectName
   let localBranchName = remoteBranchName
@@ -75,24 +77,21 @@ cloneProjectAndBranch (ProjectAndBranch remoteProjectName remoteBranchName) = do
           Just project ->
             Queries.projectBranchExistsByName (project ^. #projectId) (into @Text localBranchName) <&> \case
               False -> Right (Just project)
-              True -> Left (Output.ProjectAndBranchNameAlreadyExists localProjectName localBranchName)
+              True -> Left (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch localProjectName localBranchName))
   void (Cli.runEitherTransaction assertLocalProjectBranchDoesntExist)
 
   -- Get the branch of the given project.
   remoteProjectBranch <- do
     project <-
       Share.getProjectByName remoteProjectName >>= \case
-        Share.API.GetProjectResponseNotFound _ ->
-          Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectName remoteBranchName)
+        Share.API.GetProjectResponseNotFound _ -> remoteProjectBranchDoesntExist
         Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized message) ->
           Cli.returnEarly (Output.Unauthorized message)
         Share.API.GetProjectResponseSuccess project -> pure project
     let remoteProjectId = RemoteProjectId (project ^. #projectId)
     Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-      Share.API.GetProjectBranchResponseBranchNotFound _ ->
-        Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectName remoteBranchName)
-      Share.API.GetProjectBranchResponseProjectNotFound _ ->
-        Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectName remoteBranchName)
+      Share.API.GetProjectBranchResponseBranchNotFound _ -> remoteProjectBranchDoesntExist
+      Share.API.GetProjectBranchResponseProjectNotFound _ -> remoteProjectBranchDoesntExist
       Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
         Cli.returnEarly (Output.Unauthorized message)
       Share.API.GetProjectBranchResponseSuccess projectBranch -> pure projectBranch
@@ -144,3 +143,7 @@ cloneProjectAndBranch (ProjectAndBranch remoteProjectName remoteBranchName) = do
   let path = projectBranchPath localProjectAndBranch
   Cli.stepAt "project.clone" (Path.unabsolute path, const (Branch.head theBranch))
   Cli.cd path
+  where
+    remoteProjectBranchDoesntExist :: Cli a
+    remoteProjectBranchDoesntExist =
+      Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranch)

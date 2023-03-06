@@ -54,7 +54,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
-import Unison.Project (ProjectName, ProjectBranchName)
+import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -288,9 +288,11 @@ data Output
   | ClearScreen
   | PulledEmptyBranch ReadRemoteNamespace
   | ProjectNameAlreadyExists ProjectName
-  | ProjectAndBranchNameAlreadyExists ProjectName ProjectBranchName
-  | LocalProjectBranchDoesntExist ProjectName ProjectBranchName
-  | RemoteProjectBranchDoesntExist URI ProjectName ProjectBranchName
+  | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
+  | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
+  | RemoteProjectBranchDoesntExist URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- A remote project branch head wasn't in the expected state
+    RemoteProjectBranchHeadMismatch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | Unauthorized Text
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
@@ -459,6 +461,7 @@ isFailure o = case o of
   ProjectAndBranchNameAlreadyExists {} -> True
   LocalProjectBranchDoesntExist {} -> True
   RemoteProjectBranchDoesntExist {} -> True
+  RemoteProjectBranchHeadMismatch {} -> True
   Unauthorized {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
