@@ -111,7 +111,8 @@ onGetProjectResponse = \case
 
 onGetProjectBranchResponse :: GetProjectBranchResponse -> Cli ()
 onGetProjectBranchResponse = \case
-  GetProjectBranchResponseNotFound {} -> pure ()
+  GetProjectBranchResponseBranchNotFound {} -> pure ()
+  GetProjectBranchResponseProjectNotFound {} -> pure ()
   GetProjectBranchResponseUnauthorized {} -> pure ()
   GetProjectBranchResponseSuccess branch -> onProjectBranch branch
 

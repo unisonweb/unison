@@ -58,8 +58,11 @@ projectClone projectName = do
     let remoteProjectId = RemoteProjectId (project ^. #projectId)
     let remoteBranchName = unsafeFrom @Text "main"
     Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-      Share.API.GetProjectBranchResponseNotFound notFound -> do
+      Share.API.GetProjectBranchResponseBranchNotFound notFound -> do
         loggeth ["remote branch 'main' doesn't exist: ", tShow notFound]
+        Cli.returnEarlyWithoutOutput
+      Share.API.GetProjectBranchResponseProjectNotFound notFound -> do
+        loggeth ["project doesn't exist: ", tShow notFound]
         Cli.returnEarlyWithoutOutput
       Share.API.GetProjectBranchResponseUnauthorized unauthorized -> do
         loggeth ["unauthorized: ", tShow unauthorized]

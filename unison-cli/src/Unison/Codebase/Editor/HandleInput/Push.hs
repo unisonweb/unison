@@ -368,8 +368,11 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName =
             -- "push" with remote mapping for branch
             Just remoteBranchId ->
               Share.getProjectBranchById (ProjectAndBranch remoteProjectId remoteBranchId) >>= \case
-                Share.API.GetProjectBranchResponseNotFound (Share.API.NotFound msg) -> do
-                  loggeth ["project or branch deleted on Share: " <> msg]
+                Share.API.GetProjectBranchResponseBranchNotFound (Share.API.NotFound msg) -> do
+                  loggeth ["branch deleted on Share: " <> msg]
+                  Cli.returnEarlyWithoutOutput
+                Share.API.GetProjectBranchResponseProjectNotFound (Share.API.NotFound msg) -> do
+                  loggeth ["branch deleted on Share: " <> msg]
                   Cli.returnEarlyWithoutOutput
                 Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
                 Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
@@ -435,7 +438,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
     Share.API.GetProjectResponseSuccess remoteProject -> do
       let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
       Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-        Share.API.GetProjectBranchResponseNotFound {} -> do
+        Share.API.GetProjectBranchResponseBranchNotFound {} -> do
           pure
             UploadPlan
               { repoName,
@@ -446,6 +449,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
                     localBranchHead
                     (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
               }
+        Share.API.GetProjectBranchResponseProjectNotFound {} -> wundefined
         Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
         Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
           afterUploadAction <- makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch
@@ -472,8 +476,7 @@ pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranc
           Share.API.GetProjectResponseSuccess remoteProject -> expectRemoteProjectRepoName remoteProject
       Just userSlug -> pure (Share.RepoName userSlug)
   Share.getProjectBranchByName remoteProjectAndBranch >>= \case
-    Share.API.GetProjectBranchResponseNotFound {} -> do
-      -- FIXME check to see if the project exists here instead of assuming it does
+    Share.API.GetProjectBranchResponseBranchNotFound {} -> do
       pure
         UploadPlan
           { repoName,
@@ -484,6 +487,7 @@ pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranc
                 localBranchHead
                 remoteProjectAndBranch
           }
+    Share.API.GetProjectBranchResponseProjectNotFound {} -> wundefined
     Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
     Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
       afterUploadAction <-

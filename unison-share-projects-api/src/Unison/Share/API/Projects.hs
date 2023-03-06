@@ -152,7 +152,8 @@ type GetProjectBranchAPI =
 
 -- | @GET /project-branch@ response.
 data GetProjectBranchResponse
-  = GetProjectBranchResponseNotFound NotFound
+  = GetProjectBranchResponseProjectNotFound NotFound
+  | GetProjectBranchResponseBranchNotFound NotFound
   | GetProjectBranchResponseUnauthorized Unauthorized
   | GetProjectBranchResponseSuccess !ProjectBranch
   deriving stock (Eq, Show, Generic)
@@ -161,14 +162,16 @@ instance FromJSON GetProjectBranchResponse where
   parseJSON =
     withSumType "GetProjectBranchResponse" \typ val ->
       case typ of
-        "not-found" -> GetProjectBranchResponseNotFound <$> parseJSON val
+        "project-not-found" -> GetProjectBranchResponseProjectNotFound <$> parseJSON val
+        "branch-not-found" -> GetProjectBranchResponseBranchNotFound <$> parseJSON val
         "unauthorized" -> GetProjectBranchResponseUnauthorized <$> parseJSON val
         "success" -> GetProjectBranchResponseSuccess <$> parseJSON val
         _ -> fail (Text.unpack ("unknown GetProjectBranchResponse type: " <> typ))
 
 instance ToJSON GetProjectBranchResponse where
   toJSON = \case
-    GetProjectBranchResponseNotFound notFound -> toSumType "not-found" (toJSON notFound)
+    GetProjectBranchResponseProjectNotFound notFound -> toSumType "project-not-found" (toJSON notFound)
+    GetProjectBranchResponseBranchNotFound notFound -> toSumType "branch-not-found" (toJSON notFound)
     GetProjectBranchResponseUnauthorized unauthorized -> toSumType "unauthorized" (toJSON unauthorized)
     GetProjectBranchResponseSuccess branch -> toSumType "success" (toJSON branch)
 
