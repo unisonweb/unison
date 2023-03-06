@@ -1935,6 +1935,11 @@ notifyUser dir = \case
   ProjectNameAlreadyExists name -> pure (prettyProjectName name <> "already exists.")
   ProjectAndBranchNameAlreadyExists projectName branchName ->
     pure (prettyProjectAndBranchName projectName branchName <> "already exists.")
+  LocalProjectBranchDoesntExist projectName branchName ->
+    pure (prettyProjectAndBranchName projectName branchName <> "does not exist.")
+  RemoteProjectBranchDoesntExist host projectName branchName ->
+    pure (prettyProjectAndBranchName projectName branchName <> "does not exist on" <> prettyURI host)
+  Unauthorized message -> pure (P.text ("Unauthorized: " <> message))
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =

@@ -120,6 +120,7 @@ module U.Codebase.Sqlite.Queries
     RemoteProjectBranch (..),
     loadRemoteProject,
     ensureRemoteProject,
+    expectRemoteProjectName,
     setRemoteProjectName,
     loadRemoteProjectBranch,
     loadDefaultMergeTargetForLocalProjectBranch,
@@ -127,6 +128,7 @@ module U.Codebase.Sqlite.Queries
     -- ** remote project branches
     loadRemoteBranch,
     ensureRemoteProjectBranch,
+    expectRemoteProjectBranchName,
     setRemoteProjectBranchName,
     insertBranchRemoteMapping,
     ensureBranchRemoteMapping,
@@ -251,7 +253,9 @@ import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import NeatInterpolation (trimming)
+import Network.URI (URI)
 import U.Codebase.Branch.Type (NamespaceStats (..))
+import Network.URI.Orphans.Sqlite ()
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
@@ -2483,7 +2487,7 @@ data Project = Project
 
 data RemoteProject = RemoteProject
   { projectId :: RemoteProjectId,
-    host :: Text,
+    host :: URI,
     name :: Text
   }
   deriving stock (Generic, Show)
@@ -2500,7 +2504,7 @@ data Branch = Branch
 data RemoteProjectBranch = RemoteProjectBranch
   { projectId :: RemoteProjectId,
     branchId :: RemoteProjectBranchId,
-    host :: Text,
+    host :: URI,
     name :: Text
   }
   deriving stock (Generic, Show)
@@ -2773,7 +2777,7 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid bid =
       IncludeSelfRemote -> [trimming| TRUE |]
       ExcludeSelfRemote -> [trimming| depth > 0 |]
 
-loadRemoteProject :: RemoteProjectId -> Text -> Transaction (Maybe RemoteProject)
+loadRemoteProject :: RemoteProjectId -> URI -> Transaction (Maybe RemoteProject)
 loadRemoteProject rpid host =
   queryMaybeRow
     [sql|
@@ -2789,7 +2793,7 @@ loadRemoteProject rpid host =
     |]
     (rpid, host)
 
-ensureRemoteProject :: RemoteProjectId -> Text -> Text -> Transaction ()
+ensureRemoteProject :: RemoteProjectId -> URI -> Text -> Transaction ()
 ensureRemoteProject rpid host name =
   execute
     [sql|
@@ -2809,6 +2813,20 @@ ensureRemoteProject rpid host name =
         |]
     (rpid, host, name)
 
+expectRemoteProjectName :: RemoteProjectId -> URI -> Transaction Text
+expectRemoteProjectName projectId host =
+  queryOneCol
+    [sql|
+      SELECT
+        name
+      FROM
+        remote_project
+      WHERE
+        id = ?
+        AND host = ?
+    |]
+    (Only projectId)
+
 setRemoteProjectName :: RemoteProjectId -> Text -> Transaction ()
 setRemoteProjectName rpid name =
   execute
@@ -2822,7 +2840,7 @@ setRemoteProjectName rpid name =
         |]
     (name, rpid)
 
-loadRemoteBranch :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Transaction (Maybe RemoteProjectBranch)
+loadRemoteBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> Transaction (Maybe RemoteProjectBranch)
 loadRemoteBranch rpid host rbid =
   queryMaybeRow
     [sql|
@@ -2840,7 +2858,7 @@ loadRemoteBranch rpid host rbid =
     |]
     (rpid, host, rbid)
 
-ensureRemoteProjectBranch :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Text -> Transaction ()
+ensureRemoteProjectBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> Text -> Transaction ()
 ensureRemoteProjectBranch rpid host rbid name =
   execute
     [sql|
@@ -2863,7 +2881,22 @@ ensureRemoteProjectBranch rpid host rbid name =
         |]
     (rpid, host, rbid, name)
 
-setRemoteProjectBranchName :: RemoteProjectId -> Text -> RemoteProjectBranchId -> Text -> Transaction ()
+expectRemoteProjectBranchName :: URI -> RemoteProjectId -> RemoteProjectBranchId -> Transaction Text
+expectRemoteProjectBranchName host projectId branchId =
+  queryOneCol
+    [sql|
+      SELECT
+        name
+      FROM
+        remote_project_branch
+      WHERE
+        host = ?
+        AND project_id = ?
+        AND branch_id = ?
+    |]
+    (host, projectId, branchId)
+
+setRemoteProjectBranchName :: RemoteProjectId -> URI -> RemoteProjectBranchId -> Text -> Transaction ()
 setRemoteProjectBranchName rpid host rbid name =
   execute
     [sql|
@@ -2882,7 +2915,7 @@ insertBranchRemoteMapping ::
   ProjectId ->
   ProjectBranchId ->
   RemoteProjectId ->
-  Text ->
+  URI ->
   RemoteProjectBranchId ->
   Transaction ()
 insertBranchRemoteMapping pid bid rpid host rbid =
@@ -2907,7 +2940,7 @@ ensureBranchRemoteMapping ::
   ProjectId ->
   ProjectBranchId ->
   RemoteProjectId ->
-  Text ->
+  URI ->
   RemoteProjectBranchId ->
   Transaction ()
 ensureBranchRemoteMapping pid bid rpid host rbid =

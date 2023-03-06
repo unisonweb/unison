@@ -14,14 +14,15 @@ module Unison.Cli.Share.Projects
 
     -- * Temporary special hard-coded base url
     hardCodedBaseUrl,
-    hardCodedBaseUrlText,
+    hardCodedUri,
   )
 where
 
 import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.Proxy
-import qualified Data.Text as Text
+import Network.URI (URI)
+import qualified Network.URI as URI
 import Servant.API ((:<|>) (..), (:>))
 import Servant.Client
 import U.Codebase.Sqlite.DbId (RemoteProjectBranchId (..), RemoteProjectId (..))
@@ -122,7 +123,7 @@ onProject project =
   Cli.runTransaction do
     Queries.ensureRemoteProject
       (RemoteProjectId (project ^. #projectId))
-      hardCodedBaseUrlText
+      hardCodedUri
       (project ^. #projectName)
 
 onProjectBranch :: ProjectBranch -> Cli ()
@@ -130,7 +131,7 @@ onProjectBranch branch =
   Cli.runTransaction do
     Queries.ensureRemoteProjectBranch
       (RemoteProjectId (branch ^. #projectId))
-      hardCodedBaseUrlText
+      hardCodedUri
       (RemoteProjectBranchId (branch ^. #branchId))
       (branch ^. #branchName)
 
@@ -143,9 +144,12 @@ hardCodedBaseUrl :: BaseUrl
 hardCodedBaseUrl =
   codeserverBaseURL defaultCodeserver
 
-hardCodedBaseUrlText :: Text
-hardCodedBaseUrlText =
-  Text.pack (showBaseUrl hardCodedBaseUrl)
+-- Like hardCodedBaseUri using an isomorphic-ish type
+hardCodedUri :: URI
+hardCodedUri =
+  case URI.parseURI (showBaseUrl hardCodedBaseUrl) of
+    Nothing -> error ("BaseUrl is an invalid URI: " ++ showBaseUrl hardCodedBaseUrl)
+    Just uri -> uri
 
 servantClientToCli :: ClientM a -> Cli a
 servantClientToCli action = do

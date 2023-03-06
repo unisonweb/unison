@@ -101,6 +101,8 @@ library
     , monad-validate
     , mtl
     , neat-interpolation
+    , network-uri
+    , network-uri-orphans-sqlite
     , nonempty-containers
     , safe
     , text

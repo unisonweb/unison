@@ -6,13 +6,12 @@ module Unison.Codebase.Editor.HandleInput.Push
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (to, (^.))
+import Control.Lens (over, to, (^.), _1, _2)
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set.NonEmpty as Set.NonEmpty
 import Data.Text as Text
 import Data.These (These (..))
-import qualified Servant.Client
 import qualified System.Console.Regions as Console.Regions
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId
@@ -158,8 +157,8 @@ branchNameSpecToIds = \case
         Cli.returnEarlyWithoutOutput
     branch <-
       Cli.runTransaction (Queries.loadProjectBranchByName projectId (into @Text branchName)) & onNothingM do
-        loggeth ["no branch in project ", tShow projectId, " with name ", into @Text branchName]
-        Cli.returnEarlyWithoutOutput
+        project <- Cli.runTransaction (Queries.expectProject projectId)
+        Cli.returnEarly (LocalProjectBranchDoesntExist (unsafeFrom @Text (project ^. #name)) branchName)
     pure (ProjectAndBranch projectId (branch ^. #branchId))
   These projectName branchName -> do
     maybeProjectAndBranch <-
@@ -170,8 +169,7 @@ branchNameSpecToIds = \case
           branch <- MaybeT (Queries.loadProjectBranchByName projectId (into @Text branchName))
           pure (ProjectAndBranch projectId (branch ^. #branchId))
     maybeProjectAndBranch & onNothing do
-      loggeth [into @Text (These projectName branchName), " not found!"]
-      Cli.returnEarlyWithoutOutput
+      Cli.returnEarly (LocalProjectBranchDoesntExist projectName branchName)
 
 -- Convert a "branch name spec" (project name, or branch name, or both) into names for the project and branch, using the
 -- following defaults, if a name is missing:
@@ -343,13 +341,33 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
 
 -- "push" or "push /foo", remote mapping unknown
 bazinga50 :: ProjectAndBranch Queries.Project Queries.Branch -> Hash32 -> Maybe ProjectBranchName -> Cli UploadPlan
-bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName =
-  Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId localBranchId) >>= \case
+bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
+  let loadRemoteProjectInfo ::
+        Sqlite.Transaction
+          ( Maybe
+              ( RemoteProjectId,
+                ProjectName,
+                Maybe (RemoteProjectBranchId, ProjectBranchName)
+              )
+          )
+      loadRemoteProjectInfo =
+        Queries.loadRemoteProjectBranch localProjectId localBranchId >>= \case
+          Nothing -> pure Nothing
+          Just (remoteProjectId, maybeRemoteBranchId) -> do
+            remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
+            maybeRemoteBranchInfo <-
+              for maybeRemoteBranchId \remoteBranchId -> do
+                remoteBranchName <-
+                  Queries.expectRemoteProjectBranchName Share.hardCodedUri remoteProjectId remoteBranchId
+                pure (remoteBranchId, unsafeFrom @Text remoteBranchName)
+            pure (Just (remoteProjectId, unsafeFrom @Text remoteProjectName, maybeRemoteBranchInfo))
+
+  Cli.runTransaction loadRemoteProjectInfo >>= \case
     Nothing -> bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch Nothing maybeRemoteBranchName)
-    Just (remoteProjectId, maybeRemoteBranchId) ->
+    Just (remoteProjectId, remoteProjectName, maybeRemoteBranchInfo) ->
       case maybeRemoteBranchName of
         Nothing -> do
-          case maybeRemoteBranchId of
+          case maybeRemoteBranchInfo of
             -- "push" with remote mapping for project from ancestor branch
             Nothing -> do
               myUserHandle <- oinkGetLoggedInUser
@@ -365,17 +383,24 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName =
               pushToProjectBranch1
                 localProjectAndBranch
                 localBranchHead
-                (ProjectAndBranch remoteProjectId remoteBranchName)
+                (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
             -- "push" with remote mapping for branch
-            Just remoteBranchId ->
+            Just (remoteBranchId, remoteBranchName) ->
               Share.getProjectBranchById (ProjectAndBranch remoteProjectId remoteBranchId) >>= \case
-                Share.API.GetProjectBranchResponseBranchNotFound (Share.API.NotFound msg) -> do
-                  loggeth ["branch deleted on Share: " <> msg]
-                  Cli.returnEarlyWithoutOutput
-                Share.API.GetProjectBranchResponseProjectNotFound (Share.API.NotFound msg) -> do
-                  loggeth ["branch deleted on Share: " <> msg]
-                  Cli.returnEarlyWithoutOutput
-                Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
+                Share.API.GetProjectBranchResponseBranchNotFound _ -> do
+                  Cli.returnEarly $
+                    Output.RemoteProjectBranchDoesntExist
+                      Share.hardCodedUri
+                      remoteProjectName
+                      remoteBranchName
+                Share.API.GetProjectBranchResponseProjectNotFound _ -> do
+                  Cli.returnEarly $
+                    Output.RemoteProjectBranchDoesntExist
+                      Share.hardCodedUri
+                      remoteProjectName
+                      remoteBranchName
+                Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
+                  Cli.returnEarly (Output.Unauthorized message)
                 Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
                   repoName <- expectRemoteProjectBranchRepoName remoteBranch
                   afterUploadAction <-
@@ -386,7 +411,10 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName =
                   pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
         -- "push /foo" with remote mapping for project from ancestor branch
         Just remoteBranchName ->
-          pushToProjectBranch1 localProjectAndBranch localBranchHead (ProjectAndBranch remoteProjectId remoteBranchName)
+          pushToProjectBranch1
+            localProjectAndBranch
+            localBranchHead
+            (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
   where
     localProjectId = localProjectAndBranch ^. #project . #projectId
     localBranchId = localProjectAndBranch ^. #branch . #branchId
@@ -435,7 +463,8 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
                 localBranchHead
                 remoteProjectAndBranch
           }
-    Share.API.GetProjectResponseUnauthorized {} -> wundefined
+    Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized message) ->
+      Cli.returnEarly (Output.Unauthorized message)
     Share.API.GetProjectResponseSuccess remoteProject -> do
       let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
       Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
@@ -448,10 +477,12 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
                   createBranchAfterUploadAction
                     pushing
                     localBranchHead
-                    (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
+                    (over #project (remoteProjectId,) remoteProjectAndBranch)
               }
-        Share.API.GetProjectBranchResponseProjectNotFound {} -> wundefined
-        Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
+        Share.API.GetProjectBranchResponseProjectNotFound {} ->
+          Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectName remoteBranchName)
+        Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
+          Cli.returnEarly (Output.Unauthorized message)
         Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
           afterUploadAction <- makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch
           pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
@@ -461,22 +492,19 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
 pushToProjectBranch1 ::
   ProjectAndBranch Queries.Project Queries.Branch ->
   Hash32 ->
-  ProjectAndBranch RemoteProjectId ProjectBranchName ->
+  ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   Cli UploadPlan
 pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
   repoName <-
     case projectBranchNameUserSlug (remoteProjectAndBranch ^. #branch) of
       Nothing ->
-        Share.getProjectById (remoteProjectAndBranch ^. #project) >>= \case
-          Share.API.GetProjectResponseNotFound (Share.API.NotFound msg) -> do
-            loggeth ["project deleted on share: " <> msg]
-            Cli.returnEarlyWithoutOutput
-          Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized msg) -> do
-            loggeth ["unauthorized: " <> msg]
-            Cli.returnEarlyWithoutOutput
+        Share.getProjectById (remoteProjectAndBranch ^. #project . _1) >>= \case
+          Share.API.GetProjectResponseNotFound _ -> remoteProjectBranchDoesntExist
+          Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized message) -> do
+            Cli.returnEarly (Output.Unauthorized message)
           Share.API.GetProjectResponseSuccess remoteProject -> expectRemoteProjectRepoName remoteProject
       Just userSlug -> pure (Share.RepoName userSlug)
-  Share.getProjectBranchByName remoteProjectAndBranch >>= \case
+  Share.getProjectBranchByName (over #project fst remoteProjectAndBranch) >>= \case
     Share.API.GetProjectBranchResponseBranchNotFound {} -> do
       pure
         UploadPlan
@@ -488,12 +516,21 @@ pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranc
                 localBranchHead
                 remoteProjectAndBranch
           }
-    Share.API.GetProjectBranchResponseProjectNotFound {} -> wundefined
-    Share.API.GetProjectBranchResponseUnauthorized {} -> wundefined
+    Share.API.GetProjectBranchResponseProjectNotFound {} -> remoteProjectBranchDoesntExist
+    Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
+      Cli.returnEarly (Output.Unauthorized message)
     Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
       afterUploadAction <-
         makeFastForwardAfterUploadAction (PushingProjectBranch localProjectAndBranch) localBranchHead remoteBranch
       pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
+  where
+    remoteProjectBranchDoesntExist :: Cli void
+    remoteProjectBranchDoesntExist =
+      Cli.returnEarly $
+        Output.RemoteProjectBranchDoesntExist
+          Share.hardCodedUri
+          (remoteProjectAndBranch ^. #project . _2)
+          (remoteProjectAndBranch ^. #branch)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload plan
@@ -549,10 +586,8 @@ createProjectAndBranchAfterUploadAction ::
   ProjectAndBranch ProjectName ProjectBranchName ->
   AfterUploadAction
 createProjectAndBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = do
-  let remoteProjectName = remoteProjectAndBranch ^. #project
-  let remoteBranchName = remoteProjectAndBranch ^. #branch
   remoteProject <- do
-    let request = Share.API.CreateProjectRequest {projectName = into @Text remoteProjectName}
+    let request = Share.API.CreateProjectRequest {projectName = into @Text (remoteProjectAndBranch ^. #project)}
     loggeth ["Making create-project request for project"]
     loggeth [tShow request]
     Share.createProject request >>= \case
@@ -566,10 +601,11 @@ createProjectAndBranchAfterUploadAction pushing localBranchHead remoteProjectAnd
         loggeth ["Share says: success!"]
         loggeth [tShow remoteProject]
         pure remoteProject
+  let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
   createBranchAfterUploadAction
     pushing
     localBranchHead
-    (ProjectAndBranch (RemoteProjectId (remoteProject ^. #projectId)) remoteBranchName)
+    (over #project (remoteProjectId,) remoteProjectAndBranch)
 
 -- An after-upload action that creates a remote branch.
 --
@@ -577,10 +613,10 @@ createProjectAndBranchAfterUploadAction pushing localBranchHead remoteProjectAnd
 createBranchAfterUploadAction ::
   WhatAreWePushing ->
   Hash32 ->
-  ProjectAndBranch RemoteProjectId ProjectBranchName ->
+  ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   AfterUploadAction
 createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = do
-  let remoteProjectId = remoteProjectAndBranch ^. #project
+  let remoteProjectId = remoteProjectAndBranch ^. #project . _1
   let remoteBranchName = remoteProjectAndBranch ^. #branch
   branchMergeTarget <-
     runMaybeT do
@@ -609,12 +645,14 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
   loggeth [tShow createProjectBranchRequest]
   remoteBranch <-
     Share.createProjectBranch createProjectBranchRequest >>= \case
-      Share.API.CreateProjectBranchResponseUnauthorized (Share.API.Unauthorized msg) -> do
-        loggeth ["Share says: unauthorized: " <> msg]
-        Cli.returnEarlyWithoutOutput
-      Share.API.CreateProjectBranchResponseNotFound (Share.API.NotFound msg) -> do
-        loggeth ["Share says: not-found: " <> msg]
-        Cli.returnEarlyWithoutOutput
+      Share.API.CreateProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
+        Cli.returnEarly (Output.Unauthorized message)
+      Share.API.CreateProjectBranchResponseNotFound _ ->
+        Cli.returnEarly $
+          Output.RemoteProjectBranchDoesntExist
+            Share.hardCodedUri
+            (remoteProjectAndBranch ^. #project . _2)
+            remoteBranchName
       Share.API.CreateProjectBranchResponseMissingCausalHash missingCausalHash -> do
         loggeth ["Share says: missing causal hash: " <> tShow missingCausalHash]
         wundefined
@@ -631,7 +669,7 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
           (localProject ^. #projectId)
           (localBranch ^. #branchId)
           (RemoteProjectId (remoteBranch ^. #projectId))
-          Share.hardCodedBaseUrlText
+          Share.hardCodedUri
           (RemoteProjectBranchId (remoteBranch ^. #branchId))
 
 -- We intend to fast-forward a remote branch. There's one last check to do, which may cause this action to
@@ -644,7 +682,7 @@ makeFastForwardAfterUploadAction ::
   Cli AfterUploadAction
 makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
   whenM (Cli.runTransaction (wouldNotBeFastForward localBranchHead remoteBranchHead)) do
-    loggeth ["local head behind remote"]
+    loggeth ["local head not ahead of remote"]
     Cli.returnEarlyWithoutOutput
   pure do
     let request =
@@ -655,11 +693,14 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
               branchNewCausalHash = localBranchHead
             }
     Share.setProjectBranchHead request >>= \case
-      Share.API.SetProjectBranchHeadResponseUnauthorized (Share.API.Unauthorized msg) -> do
-        loggeth ["SetProjectBranchHeadResponseUnauthorized: " <> msg]
-        Cli.returnEarlyWithoutOutput
-      Share.API.SetProjectBranchHeadResponseNotFound (Share.API.NotFound msg) -> do
-        loggeth ["SetProjectBranchHeadResponseNotFound: " <> msg]
+      Share.API.SetProjectBranchHeadResponseUnauthorized (Share.API.Unauthorized message) ->
+        Cli.returnEarly (Output.Unauthorized message)
+      Share.API.SetProjectBranchHeadResponseNotFound _ -> do
+        Cli.returnEarly $
+          Output.RemoteProjectBranchDoesntExist
+            Share.hardCodedUri
+            (unsafeFrom @Text (remoteBranch ^. #projectName))
+            (unsafeFrom @Text (remoteBranch ^. #branchName))
       Share.API.SetProjectBranchHeadResponseMissingCausalHash _missingCausalHash -> do
         -- TODO: push the missing causal
         wundefined
@@ -677,10 +718,10 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
                 (localProject ^. #projectId)
                 (localBranch ^. #branchId)
                 (remoteBranch ^. #projectId . to RemoteProjectId)
-                Share.hardCodedBaseUrlText
+                Share.hardCodedUri
                 (remoteBranch ^. #branchId . to RemoteProjectBranchId)
   where
-    remoteBranchHead = 
+    remoteBranchHead =
       Share.API.hashJWTHash (remoteBranch ^. #branchHead)
 
 -- A couple example repo names derived from the project/branch names:

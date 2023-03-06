@@ -82,24 +82,19 @@ cloneProjectAndBranch (ProjectAndBranch remoteProjectName remoteBranchName) = do
   remoteProjectBranch <- do
     project <-
       Share.getProjectByName remoteProjectName >>= \case
-        Share.API.GetProjectResponseNotFound notFound -> do
-          loggeth ["remote project doesn't exist: ", tShow notFound]
-          Cli.returnEarlyWithoutOutput
-        Share.API.GetProjectResponseUnauthorized unauthorized -> do
-          loggeth ["unauthorized: ", tShow unauthorized]
-          Cli.returnEarlyWithoutOutput
+        Share.API.GetProjectResponseNotFound _ ->
+          Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectName remoteBranchName)
+        Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized message) ->
+          Cli.returnEarly (Output.Unauthorized message)
         Share.API.GetProjectResponseSuccess project -> pure project
     let remoteProjectId = RemoteProjectId (project ^. #projectId)
     Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-      Share.API.GetProjectBranchResponseBranchNotFound notFound -> do
-        loggeth ["remote branch 'main' doesn't exist: ", tShow notFound]
-        Cli.returnEarlyWithoutOutput
-      Share.API.GetProjectBranchResponseProjectNotFound notFound -> do
-        loggeth ["project doesn't exist: ", tShow notFound]
-        Cli.returnEarlyWithoutOutput
-      Share.API.GetProjectBranchResponseUnauthorized unauthorized -> do
-        loggeth ["unauthorized: ", tShow unauthorized]
-        Cli.returnEarlyWithoutOutput
+      Share.API.GetProjectBranchResponseBranchNotFound _ ->
+        Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectName remoteBranchName)
+      Share.API.GetProjectBranchResponseProjectNotFound _ ->
+        Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectName remoteBranchName)
+      Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
+        Cli.returnEarly (Output.Unauthorized message)
       Share.API.GetProjectBranchResponseSuccess projectBranch -> pure projectBranch
 
   -- Pull the remote branch's contents
@@ -138,7 +133,7 @@ cloneProjectAndBranch (ProjectAndBranch remoteProjectName remoteBranchName) = do
             localProjectId
             localBranchId
             (RemoteProjectId (remoteProjectBranch ^. #projectId))
-            Share.hardCodedBaseUrlText
+            Share.hardCodedUri
             (RemoteProjectBranchId (remoteProjectBranch ^. #branchId))
           pure (Right (ProjectAndBranch localProjectId localBranchId))
 

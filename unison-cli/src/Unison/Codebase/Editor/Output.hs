@@ -289,6 +289,9 @@ data Output
   | PulledEmptyBranch ReadRemoteNamespace
   | ProjectNameAlreadyExists ProjectName
   | ProjectAndBranchNameAlreadyExists ProjectName ProjectBranchName
+  | LocalProjectBranchDoesntExist ProjectName ProjectBranchName
+  | RemoteProjectBranchDoesntExist URI ProjectName ProjectBranchName
+  | Unauthorized Text
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
   { isTest :: TermReference -> Bool,
@@ -453,6 +456,10 @@ isFailure o = case o of
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False
   PulledEmptyBranch {} -> False
+  ProjectAndBranchNameAlreadyExists {} -> True
+  LocalProjectBranchDoesntExist {} -> True
+  RemoteProjectBranchDoesntExist {} -> True
+  Unauthorized {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
