@@ -38,7 +38,10 @@ list.matching.tests = do
     [_, _] -> 2
     [_, _, _] -> 3
 
-  checkEqual "length matching: literal" (lenLit [1, 2, 3]) 3
+  checkEqual "length matching: literal (1)" (lenLit []) 0
+  checkEqual "length matching: literal (2)" (lenLit [5]) 1
+  checkEqual "length matching: literal (3)" (lenLit [5, 6]) 2
+  checkEqual "length matching: literal (4)" (lenLit [5, 6, 7]) 3
 
   lenCons = cases
     [] -> 0
@@ -116,7 +119,7 @@ list.matching.tests = do
    --       "PrimType mismatch: expected sum"
    --       (Any (2, [(2, Boxed)], Boxed))
    --
-   --- ^ this is broken on trunk too
+   -- ^ this is broken on trunk too
 
-   --  checkEqual "Complex matching" (splitAtFour [1, 2, 3, 4, 5, 6, 7])  ([1, 2, 3, 4], [5, 6, 7])
+  -- checkEqual "Complex matching" (splitAtFour [1, 2, 3, 4, 5, 6, 7])  ([1, 2, 3, 4], [5, 6, 7])
   ()
