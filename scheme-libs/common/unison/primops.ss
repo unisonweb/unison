@@ -289,11 +289,12 @@
     (if (chunked-list-empty? l)
       (sum 0)
       (sum 1 (chunked-list-ref l 0) (chunked-list-drop-first l))))
-  (define (unison-POp-VWRS l)
-    (if (null? l)
-      (sum 0)
-      (let ([r (reverse l)])
-      (sum 1 (reverse (cdr l)) (car l)))))
+  (define (unison-POp-VWRS l) ; TODO does this admit a faster impl in chunked-seq?
+    (if (chunked-list-empty? l)
+        (sum 0)
+        (sum 1
+             (chunked-list-drop-last l)
+             (chunked-list-ref l (- (chunked-list-length l) 1)))))
 
   (define (unison-POp-XORN m n) (fxxor m n))
   (define (unison-POp-VALU c) (decode-value c))
