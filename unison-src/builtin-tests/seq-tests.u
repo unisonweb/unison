@@ -1,5 +1,6 @@
 seq.tests = do
   !list.tests
+  !list.matching.tests
 
 list.tests = do
   check "List.empty builder" do
@@ -27,6 +28,16 @@ list.tests = do
   checkEqual "List.at (2)" (List.at 2 [1,2,3]) (Some 3)
   checkEqual "List.at (3)" (List.at 1 []) None
   checkEqual "List.at (4)" (List.at 5 [1,2,3]) None
+
+list.matching.tests = do
+  checkEqual "literal length matching"
+    (
+     match [1, 2, 3] with
+      [] -> 0
+      [_] -> 1
+      [_, _] -> 2
+      [_, _, _] -> 3
+    ) 3
 
 -- TODO pattern matching and equality
 --  VWLS  List.viewl : List a -> SeqView a (List a)
