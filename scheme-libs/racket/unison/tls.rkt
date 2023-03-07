@@ -45,7 +45,6 @@
                                )])
          (right (cons (cons in out) config)))))))
 
-; TODO error handle
 (define (handshake.impl.v3 tls)
   (handle-errors
    (lambda ()
