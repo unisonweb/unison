@@ -80,6 +80,7 @@
           [else
             (and (universal-equal? (car ll) (car lr))
                  (pointwise (cdr ll) (cdr lr)))])))
+    ; TODO remove
     (display "Arguments to ==")
     (newline)
     (display l)

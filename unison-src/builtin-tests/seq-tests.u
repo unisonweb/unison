@@ -92,17 +92,17 @@ list.matching.tests = do
     [_] ++ m ++ [_] -> Some m
     _ -> None
 
-  --  checkEqual "middle matching (1)" (middle []) None
-  --  checkEqual "middle matching (2)" (middle [1, 2]) None
-  --  checkEqual "middle matching (3)" (middle [1, 2, 3, 4, 5, 6]) None
+  checkEqual "middle matching (1)" (middle []) None
+  checkEqual "middle matching (2)" (middle [1, 2]) (Some [])
+  checkEqual "middle matching (3)" (middle [1, 2, 3, 4, 5, 6]) (Some [2, 3, 4, 5])
 
   middleNel = cases
     [_] ++ (h +: t) ++ [_] -> Some (h, t)
     _ -> None
 
-  --  checkEqual "middle matching with non-empty list (1)" (middleNel []) None
-  --  checkEqual "middle matching with non-empty list (2)" (middleNel [1, 2]) None
-  --  checkEqual "middle matching with non-empty list (3)" (middleNel [1, 2, 3, 4, 5, 6]) None
+  checkEqual "middle matching with non-empty list (1)" (middleNel []) None
+  checkEqual "middle matching with non-empty list (2)" (middleNel [1, 2]) None
+  checkEqual "middle matching with non-empty list (3)" (middleNel [1, 2, 3, 4, 5, 6]) (Some (2, [3, 4, 5]))
 
   splitAtFour l = match l with
     [a] ++ x@(b +: (c +: y@([] :+ d))) ++ tail -> ([a, b, c, d], tail)
