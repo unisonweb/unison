@@ -4,7 +4,7 @@ module Unison.Codebase.Editor.HandleInput.ProjectSwitch
   )
 where
 
-import Control.Lens (over, view, (^.))
+import Control.Lens (over, (^.))
 import qualified Data.Text as Text
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
@@ -33,9 +33,7 @@ projectSwitch = \case
     let projectId = projectAndBranch ^. #project
     project <- Cli.runTransaction (Queries.expectProject projectId)
     let projectName = unsafeFrom @Text (project ^. #name)
-    switchToProjectAndBranch2
-      (ProjectAndBranch (projectId, projectName) branchName)
-      (Just (projectAndBranch ^. #branch))
+    switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName) (Just projectAndBranch)
 
 -- Switch to a project+branch.
 switchToProjectAndBranch :: ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
@@ -46,8 +44,8 @@ switchToProjectAndBranch projectAndBranch = do
       loggeth ["no such project"]
       Cli.returnEarlyWithoutOutput
   let projectId = project ^. #projectId
-  maybeCurrentBranchId <- fmap (view #branch) <$> getCurrentProjectBranch
-  switchToProjectAndBranch2 (over #project (projectId,) projectAndBranch) maybeCurrentBranchId
+  maybeCurrentProject <- getCurrentProjectBranch
+  switchToProjectAndBranch2 (over #project (projectId,) projectAndBranch) maybeCurrentProject
 
 data SwitchToBranchOutcome
   = SwitchedToExistingBranch
@@ -56,9 +54,9 @@ data SwitchToBranchOutcome
 -- Switch to a project+branch.
 switchToProjectAndBranch2 ::
   ProjectAndBranch (ProjectId, ProjectName) ProjectBranchName ->
-  Maybe ProjectBranchId ->
+  Maybe (ProjectAndBranch ProjectId ProjectBranchId) ->
   Cli ()
-switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName) maybeCurrentBranchId = do
+switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName) maybeCurrentProject = do
   (outcome, branchId) <-
     Cli.runTransaction do
       Queries.loadProjectBranchByName projectId (into @Text branchName) >>= \case
@@ -67,9 +65,11 @@ switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName)
           newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
           Queries.insertProjectBranch projectId newBranchId (into @Text branchName)
           fromBranchId <-
-            case maybeCurrentBranchId of
-              Just currentBranchId -> pure currentBranchId
-              Nothing -> do
+            case maybeCurrentProject of
+              Just (ProjectAndBranch currentProjectId currentBranchId)
+                | projectId == currentProjectId ->
+                    pure currentBranchId
+              _ -> do
                 -- For now, we treat switching to a new branch from outside of a project as equivalent to switching to a
                 -- new branch from the branch called "main" in that project. Eventually, we should probably instead
                 -- use the default project branch

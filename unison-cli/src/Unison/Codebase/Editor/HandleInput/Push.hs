@@ -442,6 +442,7 @@ data WhatAreWePushing
   | PushingLooseCode
 
 -- we have the remote project and branch names, but we don't know whether either already exist
+-- FIXME call this function with a slug-prefixed branch, so that it can create "main" without slug
 pushToProjectBranch0 :: WhatAreWePushing -> Hash32 -> ProjectAndBranch ProjectName ProjectBranchName -> Cli UploadPlan
 pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
   repoName <- projectBranchRepoName remoteProjectAndBranch
