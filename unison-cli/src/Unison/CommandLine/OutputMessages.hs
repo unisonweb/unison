@@ -1932,16 +1932,24 @@ notifyUser dir = \case
   PulledEmptyBranch remote ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
-  ProjectNameAlreadyExists name -> pure (prettyProjectName name <> "already exists.")
+  ProjectNameAlreadyExists name ->
+    pure . P.wrap $
+      prettyProjectName name <> "already exists."
   ProjectAndBranchNameAlreadyExists projectAndBranch ->
-    pure (prettyProjectAndBranchName projectAndBranch <> "already exists.")
+    pure . P.wrap $
+      prettyProjectAndBranchName projectAndBranch <> "already exists."
   LocalProjectBranchDoesntExist projectAndBranch ->
-    pure (prettyProjectAndBranchName projectAndBranch <> "does not exist.")
+    pure . P.wrap $
+      prettyProjectAndBranchName projectAndBranch <> "does not exist."
   RemoteProjectBranchDoesntExist host projectAndBranch ->
-    pure (prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host)
+    pure . P.wrap $
+      prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
   RemoteProjectBranchHeadMismatch host projectAndBranch ->
-    pure (prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host <> "is not behind local TODO better wording")
-  Unauthorized message -> pure (P.text ("Unauthorized: " <> message))
+    pure . P.wrap $
+      prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host <> "is not behind local TODO better wording"
+  Unauthorized message ->
+    pure . P.wrap $
+      P.text ("Unauthorized: " <> message)
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =

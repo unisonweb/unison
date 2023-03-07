@@ -59,9 +59,10 @@ switchToProjectAndBranch2 ::
   Maybe ProjectBranchId ->
   Cli ()
 switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName) maybeCurrentBranchId = do
-  (outcome, newBranchId) <-
+  (outcome, branchId) <-
     Cli.runTransaction do
       Queries.loadProjectBranchByName projectId (into @Text branchName) >>= \case
+        Just branch -> pure (SwitchedToExistingBranch, branch ^. #branchId)
         Nothing -> do
           newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
           Queries.insertProjectBranch projectId newBranchId (into @Text branchName)
@@ -69,8 +70,8 @@ switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName)
             case maybeCurrentBranchId of
               Just currentBranchId -> pure currentBranchId
               Nothing -> do
-                -- For now, we treat switching to a new branch from outside of that project as equivalent to switching
-                -- to a new branch from the branch called "main" in that project. Eventually, we should probably instead
+                -- For now, we treat switching to a new branch from outside of a project as equivalent to switching to a
+                -- new branch from the branch called "main" in that project. Eventually, we should probably instead
                 -- use the default project branch
                 Queries.loadProjectBranchByName projectId "main" >>= \case
                   Nothing ->
@@ -80,12 +81,11 @@ switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName)
                           ++ Text.unpack (into @Text projectName)
                           ++ " (id = "
                           ++ show projectId
-                          ++ "). We (currently) assume the existence of such a branch."
+                          ++ "). We (currently) require 'main' to exist."
                   Just branch -> pure (branch ^. #branchId)
           Queries.markProjectBranchChild projectId fromBranchId newBranchId
           pure (SwitchedToNewBranchFrom fromBranchId, newBranchId)
-        Just branch -> pure (SwitchedToExistingBranch, branch ^. #branchId)
-  let path = projectBranchPath (ProjectAndBranch projectId newBranchId)
+  let path = projectBranchPath (ProjectAndBranch projectId branchId)
   case outcome of
     SwitchedToExistingBranch -> loggeth ["I just switched to an existing branch"]
     SwitchedToNewBranchFrom fromBranchId -> do

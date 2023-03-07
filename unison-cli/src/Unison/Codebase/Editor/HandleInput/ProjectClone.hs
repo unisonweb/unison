@@ -105,11 +105,9 @@ cloneProjectAndBranch remoteProjectAndBranch = do
             (Share.RepoName remoteProjectUserSlug)
             remoteBranchHeadJwt
             downloadedCallback
-    download >>= \case
-      Left err -> do
-        loggeth ["download entities error: ", tShow err]
-        Cli.returnEarlyWithoutOutput
-      Right () -> pure ()
+    download & onLeftM \err -> do
+      loggeth ["download entities error: ", tShow err]
+      Cli.returnEarlyWithoutOutput
 
   localProjectAndBranch <-
     Cli.runEitherTransaction do
