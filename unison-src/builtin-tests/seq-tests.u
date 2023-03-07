@@ -38,24 +38,32 @@ list.matching.tests = do
     [_, _] -> 2
     [_, _, _] -> 3
 
-  checkEqual "literal length matching" (lenLit [1, 2, 3]) 3
+  checkEqual "length matching: literal" (lenLit [1, 2, 3]) 3
 
   lenCons = cases
     [] -> 0
     _ +: t -> 1 + lenCons t
     _ +: (_ +: t) -> 2 + lenCons t
 
+  checkEqual "length: cons matching" (lenCons [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]) 15
+
   lenSnoc = cases
     [] -> 0
     t :+ _ -> 1 + lenSnoc t
+
+  checkEqual "length: snoc matching" (lenSnoc [1, 2, 3, 4, 5, 6, 7, 8]) 8
 
   lenConcat1 = cases
     [] -> 0
     [_] ++ tail -> 1 + lenConcat1 tail
 
+  checkEqual "length: ++ prefix matching" (lenConcat1 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) 11
+
   lenConcat2 = cases
     [] -> 0
     prefix ++ [_] -> 1 + lenConcat2 prefix
+
+  checkEqual "length: ++ suffix matching" (lenConcat2 [1, 2, 3, 4, 5]) 5
 
   optionToList = cases
     Some a -> [a]
@@ -91,11 +99,11 @@ list.matching.tests = do
 
 
 --  > (
---    lenLit [1, 2, 3],
---    lenCons [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
---    lenSnoc [1, 2, 3, 4, 5, 6, 7, 8],
---    lenConcat1 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
---    lenConcat2 [1, 2, 3, 4, 5],
+--
+
+
+
+
 --    optionToList (head []),
 --    optionToList (head [1, 2, 3]),
 --    optionToList (firstTwo []),
