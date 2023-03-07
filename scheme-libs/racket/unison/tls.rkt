@@ -2,6 +2,7 @@
 #lang racket/base
 (require racket/port
          racket/exn
+         racket/file
          unison/data
          openssl)
 
@@ -10,7 +11,12 @@
   unison-FOp-Tls.
   (combine-out
    ClientConfig.default
+   ClientConfig.certificates.set
+   ServerConfig.default
+   decodeCert.impl.v3
+   decodePrivateKey
    handshake.impl.v3
+   newServer.impl.v3
    newClient.impl.v3
    receive.impl.v3
    send.impl.v3
@@ -19,9 +25,21 @@
 ; TODO check out the tests in here
 ; unison-src/transcripts-using-base/net.md
 
-; NOTE: In racket, there's no place to use this service-identification-suffix
+(define (decodePrivateKey text)
+  text)
+(define (decodeCert.impl.v3 text)
+  text)
+(define (ServerConfig.default certs key)
+  (list certs key))
+(define (ClientConfig.certificates.set config certs)
+  (list config certs))
+(define (newServer.impl.v3 config sock)
+  (list config sock))
+
 (define (ClientConfig.default host service-identification-suffix)
-  (list host service-identification-suffix))
+  (if (= 0 (bytes-length service-identification-suffix))
+      (list host service-identification-suffix)
+      (error 'NotImplemented "service-identification-suffix not supported")))
 
 (define (handle-errors fn)
   (with-handlers
@@ -35,9 +53,7 @@
    (lambda ()
      (let ([input (car socket)]
            [output (car (cdr socket))]
-           [hostname (car config)]
-           ; Unused
-           [_service-identification-suffix (car (cdr config))])
+           [hostname (car config)])
        (let-values ([(in out) (ports->ssl-ports
                                input output
                                #:hostname hostname
