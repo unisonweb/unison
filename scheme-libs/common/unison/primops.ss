@@ -224,7 +224,7 @@
   (define (unison-POp-DECI n) (fx1- n))
   (define (unison-POp-DIVN m n) (fxdiv m n))
   (define (unison-POp-DRPB n bs) (ibytevector-drop n bs))
-  (define (unison-POp-DRPS n l) ; TODO replace with faster impl when available
+  (define (unison-POp-DRPS n l) ; TODO replace with faster impl in chunked-seq when available
     (cond
       [(or (= n 0) (chunked-list-empty? l)) l]
       [else (unison-POp-DRPS (- n 1) (chunked-list-drop-first l))]))
@@ -260,7 +260,7 @@
   (define (unison-POp-SIZT t) (string-length t))
   (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
   (define (unison-POp-SUBN m n) (fx- m n))
-  (define (unison-POp-TAKS n s) ; TODO replace with faster impl when available
+  (define (unison-POp-TAKS n s) ; TODO replace with faster impl in chunked-seq when available
     (let loop ([n n]
                [s s]
                [acc empty-chunked-list])
@@ -285,7 +285,7 @@
     (let ([mn (string->number s)])
       (if mn (sum 1 mn) (sum 0))))
   (define (unison-POp-UPKT t) (string->list t))
-  (define (unison-POp-VWLS l)
+  (define (unison-POp-VWLS l) ; TODO does this admit a faster impl in chunked-seq
     (if (null? l)
       (sum 0)
       (sum 1 (car l) (cdr l))))
