@@ -285,10 +285,10 @@
     (let ([mn (string->number s)])
       (if mn (sum 1 mn) (sum 0))))
   (define (unison-POp-UPKT t) (string->list t))
-  (define (unison-POp-VWLS l) ; TODO does this admit a faster impl in chunked-seq
-    (if (null? l)
+  (define (unison-POp-VWLS l) ; TODO does this admit a faster impl in chunked-seq?
+    (if (chunked-list-empty? l)
       (sum 0)
-      (sum 1 (car l) (cdr l))))
+      (sum 1 (chunked-list-ref l 0) (chunked-list-drop-first l))))
   (define (unison-POp-VWRS l)
     (if (null? l)
       (sum 0)
