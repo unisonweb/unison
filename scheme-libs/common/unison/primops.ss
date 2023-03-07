@@ -33,7 +33,7 @@
     unison-FOp-IO.closeFile.impl.v3
     unison-FOp-IO.openFile.impl.v3
     unison-FOp-IO.putBytes.impl.v3
-    ; unison-FOp-Text.fromUtf8.impl.v3
+    unison-FOp-Text.fromUtf8.impl.v3
     unison-FOp-Text.repeat
     unison-FOp-Text.toUtf8
     ; unison-FOp-Value.serialize
@@ -103,6 +103,7 @@
     unison-POp-DIVN
     unison-POp-DRPB
     unison-POp-DRPS
+    unison-POp-DRPT
     unison-POp-EQLN
     unison-POp-EQLT
     unison-POp-EQLU
@@ -156,6 +157,15 @@
     unison-FOp-crypto.HashAlgorithm.Blake2s_256
     unison-FOp-crypto.HashAlgorithm.Blake2b_256
     unison-FOp-crypto.HashAlgorithm.Blake2b_512
+
+    unison-FOp-IO.clientSocket.impl.v3
+    unison-FOp-IO.closeSocket.impl.v3
+    unison-FOp-IO.socketReceive.impl.v3
+    unison-FOp-IO.socketSend.impl.v3
+    unison-FOp-IO.socketPort.impl.v3
+    unison-FOp-IO.serverSocket.impl.v3
+    unison-FOp-IO.socketAccept.impl.v3
+    unison-FOp-IO.listen.impl.v3
     )
 
   (import (rnrs)
@@ -163,6 +173,8 @@
           (unison data)
           (unison string)
           (unison crypto)
+          (unison data)
+          (unison tcp)
           (unison bytevector)
           (unison vector)
           (unison concurrent))
@@ -234,6 +246,8 @@
   (define (unison-POp-TRCE s x)
     (display s)
     (display "\n")
+    (display x)
+    (display "\n")
     (display (describe-value x))
     (display "\n"))
   (define (unison-POp-TTON s)
@@ -273,6 +287,9 @@
 
   (define (unison-FOp-IO.getArgs.impl.v1)
     (sum 1 (cdr (command-line))))
+
+  (define (unison-FOp-Text.fromUtf8.impl.v3 s)
+    (right (bytevector->string s utf-8-transcoder)))
 
   (define (unison-FOp-Text.toUtf8 s)
     (string->bytevector s utf-8-transcoder))
