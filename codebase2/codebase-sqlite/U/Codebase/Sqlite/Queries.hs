@@ -254,8 +254,8 @@ import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import NeatInterpolation (trimming)
 import Network.URI (URI)
-import U.Codebase.Branch.Type (NamespaceStats (..))
 import Network.URI.Orphans.Sqlite ()
+import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
@@ -2825,7 +2825,7 @@ expectRemoteProjectName projectId host =
         id = ?
         AND host = ?
     |]
-    (Only projectId)
+    (projectId, host)
 
 setRemoteProjectName :: RemoteProjectId -> Text -> Transaction ()
 setRemoteProjectName rpid name =
@@ -2856,7 +2856,7 @@ loadRemoteBranch rpid host rbid =
         AND branch_id = ?
         AND host = ?
     |]
-    (rpid, host, rbid)
+    (rpid, rbid, host)
 
 ensureRemoteProjectBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> Text -> Transaction ()
 ensureRemoteProjectBranch rpid host rbid name =
