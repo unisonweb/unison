@@ -70,23 +70,23 @@ list.matching.tests = do
     _ -> None
 
   checkEqual "cons matching: empty" (head []) None
-  --  checkEqual "cons matching: non empty" (head [1, 2, 3]) (Some 1)
+  checkEqual "cons matching: non empty" (head [1, 2, 3]) (Some 1)
 
   firstTwo = cases
     x +: (y +: _) -> Some (x, y)
     _ -> None
 
-  --  checkEqual "two cons matching (1)" (firstTwo []) None
-  --  checkEqual "two cons matching (2)" (firstTwo [1]) None
-  --  checkEqual "two cons matching (3)" (firstTwo [1, 2, 3]) (Some (1, 2))
+  checkEqual "two cons matching (1)" (firstTwo []) None
+  checkEqual "two cons matching (2)" (firstTwo [1]) None
+  checkEqual "two cons matching (3)" (firstTwo [1, 2, 3]) (Some (1, 2))
 
   lastTwo = cases
     _ :+ x :+ y -> Some (x, y)
     _ -> None
 
-  --  checkEqual "two snoc matching (1)" (lastTwo []) None
-  --  checkEqual "two snoc matching (2)" (lastTwo [1]) None
-  --  checkEqual "two snoc matching (3)" (lastTwo [1, 2, 3]) (Some (2, 3))
+  checkEqual "two snoc matching (1)" (lastTwo []) None
+  checkEqual "two snoc matching (2)" (lastTwo [1]) None
+  checkEqual "two snoc matching (3)" (lastTwo [1, 2, 3]) (Some (2, 3))
 
   middle = cases
     [_] ++ m ++ [_] -> Some m
