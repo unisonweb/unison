@@ -65,57 +65,48 @@ list.matching.tests = do
 
   checkEqual "length: ++ suffix matching" (lenConcat2 [1, 2, 3, 4, 5]) 5
 
-  optionToList = cases
-    Some a -> [a]
-    None   -> []
-
   head = cases
     h +: _ -> Some h
     _ -> None
+
+  checkEqual "cons matching: empty" (head []) None
+  --  checkEqual "cons matching: non empty" (head [1, 2, 3]) (Some 1)
 
   firstTwo = cases
     x +: (y +: _) -> Some (x, y)
     _ -> None
 
+  --  checkEqual "two cons matching (1)" (firstTwo []) None
+  --  checkEqual "two cons matching (2)" (firstTwo [1]) None
+  --  checkEqual "two cons matching (3)" (firstTwo [1, 2, 3]) (Some (1, 2))
+
   lastTwo = cases
     _ :+ x :+ y -> Some (x, y)
     _ -> None
+
+  --  checkEqual "two snoc matching (1)" (lastTwo []) None
+  --  checkEqual "two snoc matching (2)" (lastTwo [1]) None
+  --  checkEqual "two snoc matching (3)" (lastTwo [1, 2, 3]) (Some (2, 3))
 
   middle = cases
     [_] ++ m ++ [_] -> Some m
     _ -> None
 
+  --  checkEqual "middle matching (1)" (middle []) None
+  --  checkEqual "middle matching (2)" (middle [1, 2]) None
+  --  checkEqual "middle matching (3)" (middle [1, 2, 3, 4, 5, 6]) None
+
   middleNel = cases
     [_] ++ (h +: t) ++ [_] -> Some (h, t)
     _ -> None
+
+  --  checkEqual "middle matching with non-empty list (1)" (middleNel []) None
+  --  checkEqual "middle matching with non-empty list (2)" (middleNel [1, 2]) None
+  --  checkEqual "middle matching with non-empty list (3)" (middleNel [1, 2, 3, 4, 5, 6]) None
 
   splitAtFour l = match l with
     [a] ++ x@(b +: (c +: y@([] :+ d))) ++ tail -> ([a, b, c, d], tail)
     _ -> (l, [])
 
+  --  checkEqual "Complex matching" (splitAtFour [1, 2, 3, 4, 5, 6, 7]) ([1, 2, 3, 4], [5, 6, 7])
   ()
-
---  VWRS  List.viewr : List a -> SeqView (List a) a
-
-
---  > (
---
-
-
-
-
---    optionToList (head []),
---    optionToList (head [1, 2, 3]),
---    optionToList (firstTwo []),
---    optionToList (firstTwo [1]),
---    optionToList (firstTwo [1, 2, 3]),
---    optionToList (lastTwo []),
---    optionToList (lastTwo [1]),
---    optionToList (lastTwo [1, 2, 3]),
---    optionToList (middle []),
---    optionToList (middle [1, 2]),
---    optionToList (middle [1, 2, 3, 4, 5, 6]),
---    optionToList (middleNel []),
---    optionToList (middleNel [1, 2]),
---    optionToList (middleNel [1, 2, 3, 4, 5, 6]),
---    splitAtFour [1, 2, 3, 4, 5, 6, 7])
