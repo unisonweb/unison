@@ -112,6 +112,26 @@ uninhabited patterns are reported as redundant
 ```unison
 unique type V =
 
+test0 : V -> ()
+test0 = cases
+  _ -> ()
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type V
+      test0 : V -> ()
+
+```
+```unison
+unique type V =
+
 test : Optional (Optional V) -> ()
 test = cases
   None -> ()

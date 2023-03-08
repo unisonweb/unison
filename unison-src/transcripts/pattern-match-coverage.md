@@ -63,6 +63,14 @@ uninhabited patterns are reported as redundant
 ```unison:error
 unique type V =
 
+test0 : V -> ()
+test0 = cases
+  _ -> ()
+```
+
+```unison:error
+unique type V =
+
 test : Optional (Optional V) -> ()
 test = cases
   None -> ()
