@@ -62,12 +62,9 @@ cloneProjectAndBranch remoteProjectAndBranch = do
   let localBranchName = remoteBranchName
 
   -- Assert that this project name has a user slug
-  remoteProjectUserSlug <-
-    case projectNameUserSlug remoteProjectName of
-      Just slug -> pure slug
-      Nothing -> do
-        loggeth ["can't clone project without user slug"]
-        Cli.returnEarlyWithoutOutput
+  projectNameUserSlug remoteProjectName & onNothing do
+    loggeth ["can't clone project without user slug"]
+    Cli.returnEarlyWithoutOutput
 
   -- Quick local check before hitting share to determine whether this project+branch already exists.
   let assertLocalProjectBranchDoesntExist :: Sqlite.Transaction (Either Output.Output (Maybe Queries.Project))
@@ -102,7 +99,7 @@ cloneProjectAndBranch remoteProjectAndBranch = do
     let download =
           Share.downloadEntities
             Share.hardCodedBaseUrl
-            (Share.RepoInfo remoteProjectUserSlug)
+            (Share.RepoInfo (into @Text (These remoteProjectName remoteBranchName)))
             remoteBranchHeadJwt
             downloadedCallback
     download & onLeftM \err -> do
