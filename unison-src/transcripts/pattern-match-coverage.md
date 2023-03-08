@@ -280,3 +280,47 @@ test = cases
   _ ++ [true, false, true, false] -> ()
   _ -> ()
 ```
+
+# bugfix: Sufficient data decl map
+
+```unison
+unique type T = A
+
+unit2t : Unit -> T
+unit2t = cases
+  () -> A
+```
+
+```ucm
+.> add
+```
+
+Pattern coverage checking needs the data decl map to contain all 
+transitive type dependencies of the scrutinee type. We do this 
+before typechecking begins in a roundabout way: fetching all
+transitive type dependencies of references that appear in the expression.
+
+This test ensures that we have fetched the `T` type although there is
+no data decl reference to `T` in `witht`.
+```unison
+witht : Unit
+witht = match unit2t () with
+  x -> ()
+```
+
+```unison
+unique type V =
+
+evil : Unit -> V
+evil = bug ""
+```
+
+```ucm
+.> add
+```
+
+```unison:error
+withV : Unit
+withV = match evil () with
+  x -> ()
+```

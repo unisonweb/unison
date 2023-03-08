@@ -569,3 +569,66 @@ test = cases
     
 
 ```
+# bugfix: Sufficient data decl map
+
+```unison
+unique type T = A
+
+unit2t : Unit -> T
+unit2t = cases
+  () -> A
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type T
+      unit2t : 'T
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    unique type T
+    unit2t : 'T
+
+```
+Pattern coverage checking needs the data decl map to contain all 
+transitive type dependencies of the scrutinee type. We do this 
+before typechecking begins in a roundabout way: fetching all
+transitive type dependencies of references that appear in the expression.
+
+This test ensures that we have fetched the `T` type although there is
+no data decl reference to `T` in `witht`.
+```unison
+witht : Unit
+witht = match unit2t () with
+  x -> ()
+```
+
+```ucm
+
+  UnknownDecl:
+    data type
+    reference = T
+
+```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  UnknownDecl:
+    data type
+    reference = T
+
