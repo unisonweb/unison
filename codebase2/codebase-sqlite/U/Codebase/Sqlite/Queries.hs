@@ -116,6 +116,7 @@ module U.Codebase.Sqlite.Queries
     countWatches,
     getCausalsWithoutBranchObjects,
     removeHashObjectsByHashingVersion,
+    fixScopedNameLookupTables,
 
     -- ** type index
     addToTypeIndex,
@@ -296,6 +297,7 @@ createSchema = do
   addTempEntityTables
   addNamespaceStatsTables
   addReflogTable
+  fixScopedNameLookupTables
   where
     insertSchemaVersionSql =
       [here|
@@ -313,6 +315,10 @@ addNamespaceStatsTables =
 addReflogTable :: Transaction ()
 addReflogTable =
   executeFile [hereFile|unison/sql/002-reflog-table.sql|]
+
+fixScopedNameLookupTables :: Transaction ()
+fixScopedNameLookupTables =
+  executeFile [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =

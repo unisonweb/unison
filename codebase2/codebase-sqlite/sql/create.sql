@@ -231,13 +231,14 @@ CREATE INDEX dependencies_by_dependent ON dependents_index (
   dependent_component_index
 );
 
+
 -- This table allows us to look up which branch hashes have a name lookup.
 CREATE TABLE name_lookups (
     root_branch_hash_id INTEGER PRIMARY KEY REFERENCES hash(id) ON DELETE CASCADE
 );
 
 CREATE TABLE scoped_term_name_lookup (
-  root_branch_hash_id INTEGER NOT NULL REFERENCES name_lookups(root_branch_hash_id) ON DELETE CASCADE,
+  root_branch_hash_id INTEGER NOT NULL REFERENCES hash(id) ON DELETE CASCADE,
 
   -- The name of the term in reversed form, with a trailing '.':
   -- E.g. map.List.base.
@@ -288,11 +289,9 @@ CREATE INDEX scoped_term_names_by_namespace ON scoped_term_name_lookup(root_bran
 
 
 CREATE TABLE scoped_type_name_lookup (
-  root_branch_hash_id INTEGER NOT NULL REFERENCES name_lookups(root_branch_hash_id) ON DELETE CASCADE,
-
+  root_branch_hash_id INTEGER NOT NULL REFERENCES hash(id),
   -- The name of the term: E.g. List.base
   reversed_name TEXT NOT NULL,
-
   -- The last name segment of the name. This is used when looking up names for
   -- suffixification when building PPEs.
   -- E.g. for the name 'base.List.map' this would be 'map'
@@ -307,7 +306,7 @@ CREATE TABLE scoped_type_name_lookup (
   reference_builtin TEXT NULL,
   reference_component_hash INTEGER NULL,
   reference_component_index INTEGER NULL,
-  PRIMARY KEY (root_branch_hash_id, reversed_name, reference_builtin, reference_component_hash, reference_component_index)
+  PRIMARY KEY (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
 );
 
 -- This index allows finding all names we need to consider within a given namespace for
