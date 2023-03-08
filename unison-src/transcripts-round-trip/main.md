@@ -512,3 +512,38 @@ foo = cases
 ```ucm
 .> load scratch.u
 ```
+
+# Multi-line lambda let
+
+Regression test for #3110 and #3801
+
+```unison:hide
+foreach x f = 
+  _ = List.map f x
+  ()
+
+ignore x = ()
+
+test1 : ()
+test1 =
+  foreach [1, 2, 3] let x -> let
+      y = Nat.increment x
+      ()
+
+test2 = foreach [1, 2, 3] let x -> ignore (Nat.increment x) 
+
+test3 = foreach [1, 2, 3] do x -> do
+  y = Nat.increment x
+  ()
+```
+
+```ucm
+.> add
+.> edit test1 test2 test3 foreach ignore
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```
+

@@ -41,10 +41,10 @@ x = 1 + 1
                               its history to that of the
                               specified namespace.
   
-       When   Root Hash     Action
-  1.   now    #88srvru2o0   add
-  2.   now    #c5i2vql0hi   builtins.mergeio
-  3.          #sg60bvjo91   history starts here
+       When         Root Hash     Action
+  1.   now          #88srvru2o0   add
+  2.   1 secs ago   #c5i2vql0hi   builtins.mergeio
+  3.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
        two points in history.
@@ -127,12 +127,12 @@ Without the above stanza, the `edit` will send the definition to the most recent
                               its history to that of the
                               specified namespace.
   
-       When   Root Hash     Action
-  1.   now    #a16i2glj04   add
-  2.   now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.   now    #88srvru2o0   add
-  4.   now    #c5i2vql0hi   builtins.mergeio
-  5.          #sg60bvjo91   history starts here
+       When         Root Hash     Action
+  1.   now          #a16i2glj04   add
+  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  3.   now          #88srvru2o0   add
+  4.   1 secs ago   #c5i2vql0hi   builtins.mergeio
+  5.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
        two points in history.
@@ -206,14 +206,14 @@ f x = let
                               its history to that of the
                               specified namespace.
   
-       When   Root Hash     Action
-  1.   now    #8pc9a0uci4   add
-  2.   now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.   now    #a16i2glj04   add
-  4.   now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.   now    #88srvru2o0   add
-  6.   now    #c5i2vql0hi   builtins.mergeio
-  7.          #sg60bvjo91   history starts here
+       When         Root Hash     Action
+  1.   now          #8pc9a0uci4   add
+  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  3.   now          #a16i2glj04   add
+  4.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  5.   now          #88srvru2o0   add
+  6.   1 secs ago   #c5i2vql0hi   builtins.mergeio
+  7.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
        two points in history.
@@ -271,7 +271,7 @@ h xs = match xs with
   ☝️
   
   I added these definitions to the top of
-  /home/traveler/code/haskell/unison/pattern-match-coverage/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     f : [()] -> ()
     f = cases
@@ -299,16 +299,16 @@ h xs = match xs with
                               its history to that of the
                               specified namespace.
   
-       When   Root Hash     Action
-  1.   now    #psi40d6du2   add
-  2.   now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.   now    #8pc9a0uci4   add
-  4.   now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.   now    #a16i2glj04   add
-  6.   now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  7.   now    #88srvru2o0   add
-  8.   now    #c5i2vql0hi   builtins.mergeio
-  9.          #sg60bvjo91   history starts here
+       When         Root Hash     Action
+  1.   now          #psi40d6du2   add
+  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  3.   now          #8pc9a0uci4   add
+  4.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  5.   now          #a16i2glj04   add
+  6.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  7.   now          #88srvru2o0   add
+  8.   1 secs ago   #c5i2vql0hi   builtins.mergeio
+  9.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
        two points in history.
@@ -357,7 +357,7 @@ foo n _ = n
   ☝️
   
   I added these definitions to the top of
-  /home/traveler/code/haskell/unison/pattern-match-coverage/scratch.u
+  /Users/runar/work/unison/scratch.u
   
     unique type Foo x y
       = 
@@ -383,18 +383,18 @@ foo n _ = n
                               its history to that of the
                               specified namespace.
   
-        When   Root Hash     Action
-  1.    now    #9i8g6b1m8k   add
-  2.    now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.    now    #psi40d6du2   add
-  4.    now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.    now    #8pc9a0uci4   add
-  6.    now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  7.    now    #a16i2glj04   add
-  8.    now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  9.    now    #88srvru2o0   add
-  10.   now    #c5i2vql0hi   builtins.mergeio
-  11.          #sg60bvjo91   history starts here
+        When         Root Hash     Action
+  1.    now          #9i8g6b1m8k   add
+  2.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  3.    now          #psi40d6du2   add
+  4.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  5.    now          #8pc9a0uci4   add
+  6.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  7.    now          #a16i2glj04   add
+  8.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  9.    now          #88srvru2o0   add
+  10.   1 secs ago   #c5i2vql0hi   builtins.mergeio
+  11.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
        two points in history.
@@ -466,20 +466,20 @@ foo =
                               its history to that of the
                               specified namespace.
   
-        When   Root Hash     Action
-  1.    now    #mqg8tqk7i6   add
-  2.    now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.    now    #9i8g6b1m8k   add
-  4.    now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.    now    #psi40d6du2   add
-  6.    now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  7.    now    #8pc9a0uci4   add
-  8.    now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  9.    now    #a16i2glj04   add
-  10.   now    #c5i2vql0hi   reset-root #c5i2vql0hi
-  11.   now    #88srvru2o0   add
-  12.   now    #c5i2vql0hi   builtins.mergeio
-  13.          #sg60bvjo91   history starts here
+        When         Root Hash     Action
+  1.    now          #mqg8tqk7i6   add
+  2.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  3.    now          #9i8g6b1m8k   add
+  4.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  5.    now          #psi40d6du2   add
+  6.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  7.    now          #8pc9a0uci4   add
+  8.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  9.    now          #a16i2glj04   add
+  10.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  11.   now          #88srvru2o0   add
+  12.   1 secs ago   #c5i2vql0hi   builtins.mergeio
+  13.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
        two points in history.
@@ -1538,5 +1538,104 @@ foo = cases
     ⍟ These new definitions are ok to `add`:
     
       foo : Nat -> Nat -> Nat
+
+```
+# Multi-line lambda let
+
+Regression test for #3110 and #3801
+
+```unison
+foreach x f = 
+  _ = List.map f x
+  ()
+
+ignore x = ()
+
+test1 : ()
+test1 =
+  foreach [1, 2, 3] let x -> let
+      y = Nat.increment x
+      ()
+
+test2 = foreach [1, 2, 3] let x -> ignore (Nat.increment x) 
+
+test3 = foreach [1, 2, 3] do x -> do
+  y = Nat.increment x
+  ()
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    foreach : [a] -> (a ->{e} t) ->{e} ()
+    ignore  : x -> ()
+    test1   : ()
+    test2   : ()
+    test3   : ()
+
+.> edit test1 test2 test3 foreach ignore
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    foreach : [a] -> (a ->{e} t) ->{e} ()
+    foreach x f =
+      _ = List.map f x
+      ()
+    
+    ignore : x -> ()
+    ignore x = ()
+    
+    test1 : ()
+    test1 =
+      foreach
+        [1, 2, 3] (x -> let
+          y = Nat.increment x
+          ())
+    
+    test2 : ()
+    test2 = foreach [1, 2, 3] (x -> ignore (Nat.increment x))
+    
+    test3 : ()
+    test3 =
+      foreach
+        [1, 2, 3] '(x -> do
+            y = Nat.increment x
+            ())
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. foreach : [a] -> (a ->{e} t) ->{e} ()
+    2. ignore  : x -> ()
+    3. test1   : ()
+    4. test2   : ()
+    5. test3   : ()
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foreach : [a] -> (a ->{e} t) ->{e} ()
+      ignore  : x -> ()
+      test1   : ()
+      test2   : ()
+      test3   : ()
 
 ```
