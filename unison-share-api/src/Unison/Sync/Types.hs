@@ -78,12 +78,12 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
-import Unison.Share.API.Hash (HashJWT)
 import qualified Data.Text.Encoding as Text
 import Servant.Auth.JWT
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
 import Unison.Prelude
+import Unison.Share.API.Hash (HashJWT)
 import qualified Unison.Util.Set as Set
 import qualified Web.JWT as JWT
 
@@ -567,7 +567,11 @@ instance ToJSON DownloadEntitiesRequest where
 
 instance FromJSON DownloadEntitiesRequest where
   parseJSON = Aeson.withObject "DownloadEntitiesRequest" \obj -> do
-    repoInfo <- obj .: "repo_info" <|> obj .: "repo_name"
+    repoInfo <-
+      obj .: "repo_info" <|> do
+        -- Back-compat by converting old 'repo_name' fields into the new 'repo_info' format.
+        repoName <- obj .: "repo_name"
+        pure . RepoInfo $ "@" <> repoName
     hashes <- obj .: "hashes"
     pure DownloadEntitiesRequest {..}
 
