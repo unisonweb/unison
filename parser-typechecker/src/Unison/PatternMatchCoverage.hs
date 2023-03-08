@@ -64,7 +64,7 @@ checkMatch ::
 checkMatch matchLocation scrutineeType cases = do
   v0 <- fresh
   grdtree0 <- desugarMatch matchLocation scrutineeType v0 cases
-  (uncovered, grdtree1) <- uncoverAnnotate (Set.singleton (NC.declVar v0 scrutineeType id NC.emptyNormalizedConstraints)) grdtree0
+  (uncovered, grdtree1) <- uncoverAnnotate (Set.singleton (NC.markDirty v0 $ NC.declVar v0 scrutineeType id NC.emptyNormalizedConstraints)) grdtree0
   uncoveredExpanded <- concat . fmap Set.toList <$> traverse (expandSolution v0) (Set.toList uncovered)
   let sols = map (generateInhabitants v0) uncoveredExpanded
   let (_accessible, inaccessible, redundant) = classify grdtree1

@@ -68,7 +68,9 @@ uncoverAnnotate z grdtree0 = cata phi grdtree0 z
     phi = \case
       -- There is no way to fail matching a leaf, return the empty set
       -- to represent false.
-      LeafF l -> \nc -> pure (Set.empty, Leaf (nc, l))
+      LeafF l -> \nc -> do
+        nc' <- ensureInhabited' nc
+        pure (Set.empty, Leaf (nc', l))
       ForkF (kinit :| ks) -> \nc0 -> do
         -- depth-first fold in match-case order to acculate the
         -- constraints for a match failure at every case.
@@ -117,6 +119,16 @@ uncoverAnnotate z grdtree0 = cata phi grdtree0 z
             True -> nc0
             False -> ncFinalCandidate
       pure (ncFinal, t)
+
+    ensureInhabited' ::
+      Set (NormalizedConstraints vt v loc) ->
+      m (Set (NormalizedConstraints vt v loc))
+    ensureInhabited' ncs0 = foldlM phi Set.empty ncs0
+      where
+        phi ncs nc =
+          ensureInhabited initFuel nc <&> \case
+            Nothing -> ncs
+            Just nc -> Set.insert nc ncs
 
     -- Add a literal to each term in our DNF, dropping terms that
     -- become contradictory

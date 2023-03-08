@@ -119,14 +119,9 @@ test0 = cases
 
 ```ucm
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+  This case would be ignored because it's already covered by the preceding case(s):
+        5 |   _ -> ()
     
-      unique type V
-      test0 : V -> ()
 
 ```
 ```unison
