@@ -112,6 +112,21 @@ uninhabited patterns are reported as redundant
 ```unison
 unique type V =
 
+test0 : V -> ()
+test0 = cases
+  _ -> ()
+```
+
+```ucm
+
+  This case would be ignored because it's already covered by the preceding case(s):
+        5 |   _ -> ()
+    
+
+```
+```unison
+unique type V =
+
 test : Optional (Optional V) -> ()
 test = cases
   None -> ()
@@ -551,6 +566,102 @@ test = cases
 
   This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ ++ [true, false, true, false] -> ()
+    
+
+```
+# bugfix: Sufficient data decl map
+
+```unison
+unique type T = A
+
+unit2t : Unit -> T
+unit2t = cases
+  () -> A
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type T
+      unit2t : 'T
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    unique type T
+    unit2t : 'T
+
+```
+Pattern coverage checking needs the data decl map to contain all 
+transitive type dependencies of the scrutinee type. We do this 
+before typechecking begins in a roundabout way: fetching all
+transitive type dependencies of references that appear in the expression.
+
+This test ensures that we have fetched the `T` type although there is
+no data decl reference to `T` in `witht`.
+```unison
+witht : Unit
+witht = match unit2t () with
+  x -> ()
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      witht : ()
+
+```
+```unison
+unique type V =
+
+evil : Unit -> V
+evil = bug ""
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type V
+      evil : 'V
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    unique type V
+    evil : 'V
+
+```
+```unison
+withV : Unit
+withV = match evil () with
+  x -> ()
+```
+
+```ucm
+
+  This case would be ignored because it's already covered by the preceding case(s):
+        3 |   x -> ()
     
 
 ```
