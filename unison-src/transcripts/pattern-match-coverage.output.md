@@ -615,20 +615,53 @@ witht = match unit2t () with
 
 ```ucm
 
-  UnknownDecl:
-    data type
-    reference = T
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      witht : ()
 
 ```
+```unison
+unique type V =
 
+evil : Unit -> V
+evil = bug ""
+```
 
+```ucm
 
-🛑
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type V
+      evil : 'V
 
-The transcript failed due to an error in the stanza above. The error is:
+```
+```ucm
+.> add
 
+  ⍟ I've added these definitions:
+  
+    unique type V
+    evil : 'V
 
-  UnknownDecl:
-    data type
-    reference = T
+```
+```unison
+withV : Unit
+withV = match evil () with
+  x -> ()
+```
 
+```ucm
+
+  This case would be ignored because it's already covered by the preceding case(s):
+        3 |   x -> ()
+    
+
+```

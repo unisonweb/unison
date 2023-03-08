@@ -161,6 +161,7 @@ import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
+import qualified Unison.Type as Type
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
@@ -345,35 +346,38 @@ typeLookupForDependencies ::
   Sqlite.Transaction (TL.TypeLookup Symbol a)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
-  foldM go mempty s
+  depthFirstAccum mempty s
   where
+    depthFirstAccum :: TL.TypeLookup Symbol a -> Set Reference -> Sqlite.Transaction (TL.TypeLookup Symbol a)
+    depthFirstAccum tl refs = foldM go tl (Set.filter (unseen tl) refs)
+
+    -- We need the transitive dependencies of data decls
+    -- that are scrutinized in a match expression for
+    -- pattern match coverage checking (specifically for
+    -- the inhabitation check). We ensure these are found
+    -- by collecting all transitive type dependencies.
     go tl ref@(Reference.DerivedId id) =
       getTypeOfTerm codebase ref >>= \case
-        Just typ -> pure $ tl <> TypeLookup (Map.singleton ref typ) mempty mempty
+        Just typ ->
+          let z = tl <> TypeLookup (Map.singleton ref typ) mempty mempty
+           in depthFirstAccum z (Type.dependencies typ)
         Nothing ->
           getTypeDeclaration codebase id >>= \case
             Just (Left ed) ->
-              pure $ tl <> TypeLookup mempty mempty (Map.singleton ref ed)
-            Just (Right dd) -> do
-              -- We need the transitive dependencies of data decls
-              -- that are scrutinized in a match expression for
-              -- pattern match coverage checking (specifically for
-              -- the inhabitation check). We ensure these are found
-              -- by collecting all type dependencies for all data
-              -- decls.
-
-              -- All references from constructorTypes that we
-              -- have not already gathered.
-              let constructorRefs :: Set Reference
-                  constructorRefs = Set.filter (unseen tl) (DD.dependencies dd)
-
-              -- recursively call go for each constructor ref
+              let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed)
+               in depthFirstAccum z (DD.dependencies $ DD.toDataDecl ed)
+            Just (Right dd) ->
               let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty
-              foldM go z constructorRefs
+               in depthFirstAccum z (DD.dependencies dd)
             Nothing -> pure tl
     go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
     unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
-    unseen tl r = isNothing (Map.lookup r (TL.dataDecls tl))
+    unseen tl r =
+      isNothing
+        ( Map.lookup r (TL.dataDecls tl) $> ()
+            <|> Map.lookup r (TL.typeOfTerms tl) $> ()
+            <|> Map.lookup r (TL.effectDecls tl) $> ()
+        )
 
 toCodeLookup :: (MonadIO m) => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
 toCodeLookup c =
