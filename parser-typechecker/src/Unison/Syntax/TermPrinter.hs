@@ -9,12 +9,14 @@ module Unison.Syntax.TermPrinter
     prettyBindingWithoutTypeSignature,
     pretty0,
     runPretty,
+    prettyPattern,
   )
 where
 
 import Control.Lens (unsnoc, (^.))
 import Control.Monad.State (evalState)
 import qualified Control.Monad.State as State
+import Data.Char (isPrint)
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -226,6 +228,24 @@ pretty0
       --      metaprograms), then it needs to be able to print them (and then the
       --      parser ought to be able to parse them, to maintain symmetry.)
       Boolean' b -> pure . fmt S.BooleanLiteral $ if b then l "true" else l "false"
+      Text' s
+        | Just quotes <- useRaw s ->
+            pure . fmt S.TextLiteral $ PP.text quotes <> "\n" <> PP.text s <> PP.text quotes
+        where
+          -- we only use this syntax if we're not wrapped in something else,
+          -- to avoid possible round trip issues if the text ends at an odd column
+          useRaw _ | p > 0 = Nothing
+          useRaw s | Text.find (== '\n') s == Just '\n' && Text.all ok s = n 3
+          useRaw _ = Nothing
+          ok ch = isPrint ch || ch == '\n' || ch == '\r'
+          -- Picks smallest number of surrounding """ to be unique
+          n 10 = Nothing -- bail at 10, avoiding quadratic behavior in weird cases
+          n cur =
+            if null (Text.breakOnAll quotes s)
+              then Just quotes
+              else n (cur + 1)
+            where
+              quotes = Text.pack (replicate cur '"')
       Text' s -> pure . fmt S.TextLiteral $ l $ U.ushow s
       Char' c -> pure
         . fmt S.CharLiteral

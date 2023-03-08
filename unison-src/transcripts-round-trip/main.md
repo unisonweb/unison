@@ -84,17 +84,20 @@ f x = let
 Regression test for https://github.com/unisonweb/unison/issues/2224
 
 ```unison:hide
-f : [a] -> a
+f : [()] -> ()
 f xs = match xs with
   x +: (x' +: rest) -> x
+  _ -> ()
 
-g : [a] -> a
+g : [()] -> ()
 g xs = match xs with
-  (rest :+ x') :+ x -> x
+  (rest :+ x') :+ x -> ()
+  _ -> ()
 
-h : [[a]] -> a
+h : [[()]] -> ()
 h xs = match xs with
   (rest :+ (rest' :+ x)) -> x
+  _ -> ()
 ```
 
 ```ucm
@@ -301,6 +304,7 @@ broken tvar =
 ```unison:hide
 broken = cases
   Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
+  _ -> ()
 ```
 
 ``` ucm
@@ -325,6 +329,7 @@ foo = let
         lijaefliejalfijelfj == aefilaeifhlei -> 0
       SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
         lijaefliejalfijelfj == liaehjffeafijij -> 1
+      _ -> 2
   go (SomethingUnusuallyLong "one" "two" "three")
 ```
 

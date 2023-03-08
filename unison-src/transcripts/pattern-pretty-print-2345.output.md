@@ -7,45 +7,56 @@ structural ability Ab where
 
 dopey = cases
   ?0 -> ()
+  _ -> ()
 
 grumpy = cases
   d -> ()
 
 happy = cases
   true -> ()
+  false -> ()
 
 sneezy = cases
   +1 -> ()
+  _ -> ()
 
 bashful = cases
   Some a -> ()
+  _ -> ()
 
 mouthy = cases
   [] -> ()
+  _ -> ()
 
 pokey = cases
   h +: t -> ()
+  _ -> ()
 
 sleepy = cases
   i :+ l -> ()
+  _ -> ()
 
 demure = cases
   [0] -> ()
+  _ -> ()
 
 angry = cases
   a ++ [] -> ()
 
 tremulous = cases
   (0,1) -> ()
+  _ -> ()
 
 throaty = cases
   { Ab.a a -> k } -> ()
   
 agitated = cases
   a | a == 2 -> ()
+  _ -> ()
 
 doc = cases
   y@4 -> () 
+  _ -> ()
 ```
 
 ```ucm
@@ -63,7 +74,7 @@ doc = cases
       demure    : [Nat] -> ()
       doc       : Nat -> ()
       dopey     : Char -> ()
-      grumpy    : p4kl4dn7b41 -> ()
+      grumpy    : ff284oqf651 -> ()
       happy     : Boolean -> ()
       mouthy    : [t] -> ()
       pokey     : [t] -> ()
@@ -85,7 +96,7 @@ doc = cases
     demure    : [Nat] -> ()
     doc       : Nat -> ()
     dopey     : Char -> ()
-    grumpy    : p4kl4dn7b41 -> ()
+    grumpy    : ff284oqf651 -> ()
     happy     : Boolean -> ()
     mouthy    : [t] -> ()
     pokey     : [t] -> ()
@@ -97,47 +108,63 @@ doc = cases
 .> view dopey
 
   dopey : Char -> ()
-  dopey = cases ?0 -> ()
+  dopey = cases
+    ?0 -> ()
+    _  -> ()
 
 .> view grumpy
 
-  grumpy : p4kl4dn7b41 -> ()
+  grumpy : ff284oqf651 -> ()
   grumpy = cases d -> ()
 
 .> view happy
 
   happy : Boolean -> ()
-  happy = cases true -> ()
+  happy = cases
+    true  -> ()
+    false -> ()
 
 .> view sneezy
 
   sneezy : Int -> ()
-  sneezy = cases +1 -> ()
+  sneezy = cases
+    +1 -> ()
+    _  -> ()
 
 .> view bashful
 
   bashful : Optional a -> ()
-  bashful = cases Some a -> ()
+  bashful = cases
+    Some a -> ()
+    _      -> ()
 
 .> view mouthy
 
   mouthy : [t] -> ()
-  mouthy = cases [] -> ()
+  mouthy = cases
+    [] -> ()
+    _  -> ()
 
 .> view pokey
 
   pokey : [t] -> ()
-  pokey = cases h +: t -> ()
+  pokey = cases
+    h +: t -> ()
+    _      -> ()
 
 .> view sleepy
 
   sleepy : [t] -> ()
-  sleepy = cases i :+ l -> ()
+  sleepy = cases
+    i :+ l -> ()
+    _      -> ()
 
 .> view demure
 
   demure : [Nat] -> ()
-  demure = cases [0] -> ()
+  demure = cases
+    [0] -> ()
+    _   -> ()
 
 .> view angry
 
@@ -147,7 +174,9 @@ doc = cases
 .> view tremulous
 
   tremulous : (Nat, Nat) -> ()
-  tremulous = cases (0, 1) -> ()
+  tremulous = cases
+    (0, 1) -> ()
+    _      -> ()
 
 .> view throaty
 
@@ -157,11 +186,15 @@ doc = cases
 .> view agitated
 
   agitated : Nat -> ()
-  agitated = cases a | a == 2 -> ()
+  agitated = cases
+    a | a == 2 -> ()
+    _ -> ()
 
 .> view doc
 
   doc : Nat -> ()
-  doc = cases y@4 -> ()
+  doc = cases
+    y@4 -> ()
+    _   -> ()
 
 ```

@@ -34,16 +34,16 @@ x = 1 + 1
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7s9j9tscke .old`   to make an old namespace
+    `fork #c5i2vql0hi .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7s9j9tscke`  to reset the root namespace and
+    `reset-root #c5i2vql0hi`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
        When         Root Hash     Action
-  1.   now          #42cab6b47j   add
-  2.   1 secs ago   #7s9j9tscke   builtins.mergeio
+  1.   now          #88srvru2o0   add
+  2.   1 secs ago   #c5i2vql0hi   builtins.mergeio
   3.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
@@ -120,18 +120,18 @@ Without the above stanza, the `edit` will send the definition to the most recent
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7s9j9tscke .old`   to make an old namespace
+    `fork #c5i2vql0hi .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7s9j9tscke`  to reset the root namespace and
+    `reset-root #c5i2vql0hi`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
        When         Root Hash     Action
-  1.   now          #jsuccp4qsq   add
-  2.   now          #7s9j9tscke   reset-root #7s9j9tscke
-  3.   now          #42cab6b47j   add
-  4.   1 secs ago   #7s9j9tscke   builtins.mergeio
+  1.   now          #a16i2glj04   add
+  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  3.   now          #88srvru2o0   add
+  4.   1 secs ago   #c5i2vql0hi   builtins.mergeio
   5.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
@@ -199,20 +199,20 @@ f x = let
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7s9j9tscke .old`   to make an old namespace
+    `fork #c5i2vql0hi .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7s9j9tscke`  to reset the root namespace and
+    `reset-root #c5i2vql0hi`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
        When         Root Hash     Action
-  1.   now          #5nq1cqgki0   add
-  2.   now          #7s9j9tscke   reset-root #7s9j9tscke
-  3.   now          #jsuccp4qsq   add
-  4.   now          #7s9j9tscke   reset-root #7s9j9tscke
-  5.   now          #42cab6b47j   add
-  6.   1 secs ago   #7s9j9tscke   builtins.mergeio
+  1.   now          #8pc9a0uci4   add
+  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  3.   now          #a16i2glj04   add
+  4.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  5.   now          #88srvru2o0   add
+  6.   1 secs ago   #c5i2vql0hi   builtins.mergeio
   7.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
@@ -241,17 +241,20 @@ f x = let
 Regression test for https://github.com/unisonweb/unison/issues/2224
 
 ```unison
-f : [a] -> a
+f : [()] -> ()
 f xs = match xs with
   x +: (x' +: rest) -> x
+  _ -> ()
 
-g : [a] -> a
+g : [()] -> ()
 g xs = match xs with
-  (rest :+ x') :+ x -> x
+  (rest :+ x') :+ x -> ()
+  _ -> ()
 
-h : [[a]] -> a
+h : [[()]] -> ()
 h xs = match xs with
   (rest :+ (rest' :+ x)) -> x
+  _ -> ()
 ```
 
 ```ucm
@@ -259,9 +262,9 @@ h xs = match xs with
 
   ⍟ I've added these definitions:
   
-    f : [a] -> a
-    g : [a] -> a
-    h : [[a]] -> a
+    f : [()] -> ()
+    g : [()] -> ()
+    h : [[()]] -> ()
 
 .> edit f g
 
@@ -270,11 +273,15 @@ h xs = match xs with
   I added these definitions to the top of
   /Users/runar/work/unison/scratch.u
   
-    f : [a] -> a
-    f = cases x +: (x' +: rest) -> x
+    f : [()] -> ()
+    f = cases
+      x +: (x' +: rest) -> x
+      _                 -> ()
     
-    g : [a] -> a
-    g = cases rest :+ x' :+ x -> x
+    g : [()] -> ()
+    g = cases
+      rest :+ x' :+ x -> ()
+      _               -> ()
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -285,22 +292,22 @@ h xs = match xs with
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7s9j9tscke .old`   to make an old namespace
+    `fork #c5i2vql0hi .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7s9j9tscke`  to reset the root namespace and
+    `reset-root #c5i2vql0hi`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
        When         Root Hash     Action
-  1.   now          #70m5luveeu   add
-  2.   now          #7s9j9tscke   reset-root #7s9j9tscke
-  3.   now          #5nq1cqgki0   add
-  4.   now          #7s9j9tscke   reset-root #7s9j9tscke
-  5.   now          #jsuccp4qsq   add
-  6.   now          #7s9j9tscke   reset-root #7s9j9tscke
-  7.   now          #42cab6b47j   add
-  8.   1 secs ago   #7s9j9tscke   builtins.mergeio
+  1.   now          #psi40d6du2   add
+  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  3.   now          #8pc9a0uci4   add
+  4.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  5.   now          #a16i2glj04   add
+  6.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  7.   now          #88srvru2o0   add
+  8.   1 secs ago   #c5i2vql0hi   builtins.mergeio
   9.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
@@ -320,8 +327,8 @@ h xs = match xs with
   
     ⍟ These new definitions are ok to `add`:
     
-      f : [a] -> a
-      g : [a] -> a
+      f : [()] -> ()
+      g : [()] -> ()
 
 ```
 ## Type application inserts necessary parens
@@ -369,24 +376,24 @@ foo n _ = n
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7s9j9tscke .old`   to make an old namespace
+    `fork #c5i2vql0hi .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7s9j9tscke`  to reset the root namespace and
+    `reset-root #c5i2vql0hi`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
         When         Root Hash     Action
-  1.    now          #vniupjo3hs   add
-  2.    now          #7s9j9tscke   reset-root #7s9j9tscke
-  3.    now          #70m5luveeu   add
-  4.    now          #7s9j9tscke   reset-root #7s9j9tscke
-  5.    now          #5nq1cqgki0   add
-  6.    now          #7s9j9tscke   reset-root #7s9j9tscke
-  7.    now          #jsuccp4qsq   add
-  8.    now          #7s9j9tscke   reset-root #7s9j9tscke
-  9.    now          #42cab6b47j   add
-  10.   1 secs ago   #7s9j9tscke   builtins.mergeio
+  1.    now          #9i8g6b1m8k   add
+  2.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  3.    now          #psi40d6du2   add
+  4.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  5.    now          #8pc9a0uci4   add
+  6.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  7.    now          #a16i2glj04   add
+  8.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  9.    now          #88srvru2o0   add
+  10.   1 secs ago   #c5i2vql0hi   builtins.mergeio
   11.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
@@ -452,26 +459,26 @@ foo =
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7s9j9tscke .old`   to make an old namespace
+    `fork #c5i2vql0hi .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7s9j9tscke`  to reset the root namespace and
+    `reset-root #c5i2vql0hi`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
         When         Root Hash     Action
-  1.    now          #u6beqn7af5   add
-  2.    now          #7s9j9tscke   reset-root #7s9j9tscke
-  3.    now          #vniupjo3hs   add
-  4.    now          #7s9j9tscke   reset-root #7s9j9tscke
-  5.    now          #70m5luveeu   add
-  6.    now          #7s9j9tscke   reset-root #7s9j9tscke
-  7.    now          #5nq1cqgki0   add
-  8.    now          #7s9j9tscke   reset-root #7s9j9tscke
-  9.    now          #jsuccp4qsq   add
-  10.   now          #7s9j9tscke   reset-root #7s9j9tscke
-  11.   now          #42cab6b47j   add
-  12.   1 secs ago   #7s9j9tscke   builtins.mergeio
+  1.    now          #mqg8tqk7i6   add
+  2.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  3.    now          #9i8g6b1m8k   add
+  4.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  5.    now          #psi40d6du2   add
+  6.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  7.    now          #8pc9a0uci4   add
+  8.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  9.    now          #a16i2glj04   add
+  10.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
+  11.   now          #88srvru2o0   add
+  12.   1 secs ago   #c5i2vql0hi   builtins.mergeio
   13.                #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
@@ -909,6 +916,7 @@ broken tvar =
 ```unison
 broken = cases
   Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
+  _ -> ()
 ```
 
 ```ucm
@@ -931,6 +939,7 @@ broken = cases
         loooooooooooooooooooooooooooooooooooooooooooooooooooooooong| loooooooooooooooooooooooooooooooooooooooooooooooooooooooong
         == 1  ->
         ()
+      _ -> ()
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -968,6 +977,7 @@ foo = let
         lijaefliejalfijelfj == aefilaeifhlei -> 0
       SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
         lijaefliejalfijelfj == liaehjffeafijij -> 1
+      _ -> 2
   go (SomethingUnusuallyLong "one" "two" "three")
 ```
 
@@ -996,7 +1006,8 @@ foo = let
             SomethingUnusuallyLong
               lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij
               | lijaefliejalfijelfj == aefilaeifhlei    -> 0
-              | lijaefliejalfijelfj == liaehjffeafijij  -> 1)
+              | lijaefliejalfijelfj == liaehjffeafijij  -> 1
+            _ -> 2)
       go (SomethingUnusuallyLong "one" "two" "three")
   
   You can edit them there, then do `update` to replace the

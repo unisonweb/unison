@@ -338,6 +338,7 @@ lookupWatchCache codebase h = do
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
 typeLookupForDependencies ::
+  forall m a.
   (BuiltinAnnotation a) =>
   Codebase m Symbol a ->
   Set Reference ->
@@ -347,17 +348,32 @@ typeLookupForDependencies codebase s = do
   foldM go mempty s
   where
     go tl ref@(Reference.DerivedId id) =
-      fmap (tl <>) $
-        getTypeOfTerm codebase ref >>= \case
-          Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
-          Nothing ->
-            getTypeDeclaration codebase id >>= \case
-              Just (Left ed) ->
-                pure $ TypeLookup mempty mempty (Map.singleton ref ed)
-              Just (Right dd) ->
-                pure $ TypeLookup mempty (Map.singleton ref dd) mempty
-              Nothing -> pure mempty
+      getTypeOfTerm codebase ref >>= \case
+        Just typ -> pure $ tl <> TypeLookup (Map.singleton ref typ) mempty mempty
+        Nothing ->
+          getTypeDeclaration codebase id >>= \case
+            Just (Left ed) ->
+              pure $ tl <> TypeLookup mempty mempty (Map.singleton ref ed)
+            Just (Right dd) -> do
+              -- We need the transitive dependencies of data decls
+              -- that are scrutinized in a match expression for
+              -- pattern match coverage checking (specifically for
+              -- the inhabitation check). We ensure these are found
+              -- by collecting all type dependencies for all data
+              -- decls.
+
+              -- All references from constructorTypes that we
+              -- have not already gathered.
+              let constructorRefs :: Set Reference
+                  constructorRefs = Set.filter (unseen tl) (DD.dependencies dd)
+
+              -- recursively call go for each constructor ref
+              let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty
+              foldM go z constructorRefs
+            Nothing -> pure tl
     go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
+    unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
+    unseen tl r = isNothing (Map.lookup r (TL.dataDecls tl))
 
 toCodeLookup :: (MonadIO m) => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
 toCodeLookup c =
