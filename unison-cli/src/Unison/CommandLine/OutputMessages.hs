@@ -1970,7 +1970,7 @@ notifyUser dir = \case
       ( WriteRemotePathShare
           WriteShareRemotePath
             { server = RemoteRepo.DefaultCodeserver,
-              repo = ShareUserHandle $ Share.unRepoName (Share.pathRepoName sharePath),
+              repo = ShareUserHandle $ Share.unRepoInfo (Share.pathRepoInfo sharePath),
               path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
             }
       )

@@ -27,7 +27,7 @@ import qualified Unison.Share.API.Projects as Share.API
 import qualified Unison.Share.Sync as Share (downloadEntities)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Sync.Common (hash32ToCausalHash)
-import qualified Unison.Sync.Types as Share (RepoName (..))
+import qualified Unison.Sync.Types as Share (RepoInfo (..))
 import Witch (unsafeFrom)
 
 -- | Clone a remote project or remote project branch.
@@ -102,7 +102,7 @@ cloneProjectAndBranch remoteProjectAndBranch = do
     let download =
           Share.downloadEntities
             Share.hardCodedBaseUrl
-            (Share.RepoName remoteProjectUserSlug)
+            (Share.RepoInfo remoteProjectUserSlug)
             remoteBranchHeadJwt
             downloadedCallback
     download & onLeftM \err -> do

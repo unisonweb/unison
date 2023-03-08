@@ -6,9 +6,9 @@
 module Unison.Sync.Types
   ( -- * Misc. types
     Base64Bytes (..),
-    RepoName (..),
+    RepoInfo (..),
     Path (..),
-    pathRepoName,
+    pathRepoInfo,
     pathCodebasePath,
 
     -- ** Entity types
@@ -100,7 +100,7 @@ instance FromJSON Base64Bytes where
   parseJSON = Aeson.withText "Base64" \txt -> do
     either fail (pure . Base64Bytes) $ convertFromBase Base64 (Text.encodeUtf8 txt)
 
-newtype RepoName = RepoName {unRepoName :: Text}
+newtype RepoInfo = RepoInfo {unRepoInfo :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
 data Path = Path
@@ -113,8 +113,9 @@ data Path = Path
   }
   deriving stock (Show, Eq, Ord)
 
-pathRepoName :: Path -> RepoName
-pathRepoName (Path (p :| _)) = RepoName p
+-- | Convert a path like arya.public.mystuff to a "repo info" by treating the first segment as a user handle.
+pathRepoInfo :: Path -> RepoInfo
+pathRepoInfo (Path (p :| _)) = RepoInfo (Text.cons '@' p)
 
 pathCodebasePath :: Path -> [Text]
 pathCodebasePath (Path (_ :| ps)) = ps
@@ -552,21 +553,21 @@ instance FromJSON GetCausalHashByPathResponse where
 -- Download entities
 
 data DownloadEntitiesRequest = DownloadEntitiesRequest
-  { repoName :: RepoName,
+  { repoInfo :: RepoInfo,
     hashes :: NESet HashJWT
   }
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON DownloadEntitiesRequest where
-  toJSON (DownloadEntitiesRequest repoName hashes) =
+  toJSON (DownloadEntitiesRequest repoInfo hashes) =
     object
-      [ "repo_name" .= repoName,
+      [ "repo_info" .= repoInfo,
         "hashes" .= hashes
       ]
 
 instance FromJSON DownloadEntitiesRequest where
   parseJSON = Aeson.withObject "DownloadEntitiesRequest" \obj -> do
-    repoName <- obj .: "repo_name"
+    repoInfo <- obj .: "repo_info" <|> obj .: "repo_name"
     hashes <- obj .: "hashes"
     pure DownloadEntitiesRequest {..}
 
@@ -575,7 +576,7 @@ data DownloadEntitiesResponse
   | DownloadEntitiesFailure DownloadEntitiesError
 
 data DownloadEntitiesError
-  = DownloadEntitiesNoReadPermission RepoName
+  = DownloadEntitiesNoReadPermission RepoInfo
   deriving stock (Eq, Show)
 
 -- data DownloadEntities = DownloadEntities
@@ -586,7 +587,7 @@ data DownloadEntitiesError
 instance ToJSON DownloadEntitiesResponse where
   toJSON = \case
     DownloadEntitiesSuccess entities -> jsonUnion "success" entities
-    DownloadEntitiesFailure (DownloadEntitiesNoReadPermission repoName) -> jsonUnion "no_read_permission" repoName
+    DownloadEntitiesFailure (DownloadEntitiesNoReadPermission repoInfo) -> jsonUnion "no_read_permission" repoInfo
 
 instance FromJSON DownloadEntitiesResponse where
   parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj ->
@@ -609,28 +610,28 @@ instance FromJSON DownloadEntitiesResponse where
 -- Upload entities
 
 data UploadEntitiesRequest = UploadEntitiesRequest
-  { repoName :: RepoName,
+  { repoInfo :: RepoInfo,
     entities :: NEMap Hash32 (Entity Text Hash32 Hash32)
   }
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON UploadEntitiesRequest where
-  toJSON (UploadEntitiesRequest repoName entities) =
+  toJSON (UploadEntitiesRequest repoInfo entities) =
     object
-      [ "repo_name" .= repoName,
+      [ "repo_info" .= repoInfo,
         "entities" .= entities
       ]
 
 instance FromJSON UploadEntitiesRequest where
   parseJSON = Aeson.withObject "UploadEntitiesRequest" \obj -> do
-    repoName <- obj .: "repo_name"
+    repoInfo <- obj .: "repo_info" <|> obj .: "repo_name"
     entities <- obj .: "entities"
     pure UploadEntitiesRequest {..}
 
 data UploadEntitiesResponse
   = UploadEntitiesSuccess
   | UploadEntitiesNeedDependencies (NeedDependencies Hash32)
-  | UploadEntitiesNoWritePermission RepoName
+  | UploadEntitiesNoWritePermission RepoInfo
   | UploadEntitiesHashMismatchForEntity HashMismatchForEntity
   deriving stock (Show, Eq, Ord)
 
@@ -641,7 +642,7 @@ instance ToJSON UploadEntitiesResponse where
   toJSON = \case
     UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
     UploadEntitiesNeedDependencies nd -> jsonUnion "need_dependencies" nd
-    UploadEntitiesNoWritePermission repoName -> jsonUnion "no_write_permission" repoName
+    UploadEntitiesNoWritePermission repoInfo -> jsonUnion "no_write_permission" repoInfo
     UploadEntitiesHashMismatchForEntity mismatch -> jsonUnion "hash_mismatch_for_entity" mismatch
 
 instance FromJSON UploadEntitiesResponse where
