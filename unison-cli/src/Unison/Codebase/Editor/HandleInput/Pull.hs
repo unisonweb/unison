@@ -13,6 +13,7 @@ import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, rea
 import Control.Lens
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
+import Data.Void (absurd)
 import qualified System.Console.Regions as Console.Regions
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -52,7 +53,7 @@ import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.Sync.Types as Share
 
 doPullRemoteBranch ::
-  Maybe ReadRemoteNamespace ->
+  Maybe (ReadRemoteNamespace Void) ->
   Path' ->
   SyncMode.SyncMode ->
   PullMode ->
@@ -70,6 +71,7 @@ doPullRemoteBranch mayRepo path syncMode pullMode verbosity description = do
       Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
         Cli.returnEarly (Output.GitError err)
     ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
+    ReadRemoteProjectBranch v -> absurd v
   when (Branch.isEmpty0 (Branch.head remoteBranch)) do
     Cli.respond (PulledEmptyBranch ns)
   let unchangedMsg = PullAlreadyUpToDate ns path

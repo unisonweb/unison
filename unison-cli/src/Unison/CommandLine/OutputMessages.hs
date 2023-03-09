@@ -27,6 +27,7 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
+import Data.Void (absurd)
 import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
 import qualified Network.URI.Encode as URI
@@ -314,9 +315,9 @@ notifyNumbered o = case o of
       then
         ( P.wrap $
             "Looks like there's no difference between "
-              <> prettyReadRemoteNamespace baseRepo
+              <> prettyReadRemoteNamespace absurd baseRepo
               <> "and"
-              <> prettyReadRemoteNamespace headRepo
+              <> prettyReadRemoteNamespace absurd headRepo
               <> ".",
           mempty
         )
@@ -331,8 +332,8 @@ notifyNumbered o = case o of
                   P.indentN 2 $
                     IP.makeExampleNoBackticks
                       IP.loadPullRequest
-                      [ prettyReadRemoteNamespace baseRepo,
-                        prettyReadRemoteNamespace headRepo
+                      [ prettyReadRemoteNamespace absurd baseRepo,
+                        prettyReadRemoteNamespace absurd headRepo
                       ],
                   "",
                   p
@@ -558,9 +559,9 @@ showListEdits patch ppe =
 prettyURI :: URI -> Pretty
 prettyURI = P.bold . P.blue . P.shown
 
-prettyReadRemoteNamespace :: ReadRemoteNamespace -> Pretty
-prettyReadRemoteNamespace =
-  P.group . P.blue . P.text . RemoteRepo.printNamespace
+prettyReadRemoteNamespace :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
+prettyReadRemoteNamespace printProject =
+  P.group . P.blue . P.text . RemoteRepo.printNamespace printProject
 
 prettyWriteRemotePath :: WriteRemotePath -> Pretty
 prettyWriteRemotePath =
@@ -653,8 +654,8 @@ notifyUser dir = \case
   LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath ->
     pure $
       P.lines
-        [ P.wrap $ "I checked out" <> prettyReadRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> "."),
-          P.wrap $ "I checked out" <> prettyReadRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> "."),
+        [ P.wrap $ "I checked out" <> prettyReadRemoteNamespace absurd baseNS <> "to" <> P.group (prettyPath' basePath <> "."),
+          P.wrap $ "I checked out" <> prettyReadRemoteNamespace absurd headNS <> "to" <> P.group (prettyPath' headPath <> "."),
           "",
           P.wrap $ "The merged result is in" <> P.group (prettyPath' mergedPath <> "."),
           P.wrap $ "The (squashed) merged result is in" <> P.group (prettyPath' squashedPath <> "."),
@@ -680,11 +681,11 @@ notifyUser dir = \case
             "Use"
               <> IP.makeExample
                 IP.push
-                [prettyReadRemoteNamespace baseNS, prettyPath' mergedPath]
+                [prettyReadRemoteNamespace absurd baseNS, prettyPath' mergedPath]
               <> "or"
               <> IP.makeExample
                 IP.push
-                [prettyReadRemoteNamespace baseNS, prettyPath' squashedPath]
+                [prettyReadRemoteNamespace absurd baseNS, prettyPath' squashedPath]
               <> "to push the changes."
         ]
   DisplayDefinitions output -> displayDefinitions output
@@ -1291,7 +1292,7 @@ notifyUser dir = \case
           "I just finished importing the branch"
             <> P.red (P.shown h)
             <> "from"
-            <> P.red (prettyReadRemoteNamespace (RemoteRepo.ReadRemoteNamespaceGit ns))
+            <> P.red (prettyReadRemoteNamespace absurd (RemoteRepo.ReadRemoteNamespaceGit ns))
             <> "but now I can't find it."
       CouldntFindRemoteBranch repo path ->
         P.wrap $
@@ -1564,14 +1565,14 @@ notifyUser dir = \case
       P.wrap $
         prettyPath' dest
           <> "was already up-to-date with"
-          <> P.group (prettyReadRemoteNamespace ns <> ".")
+          <> P.group (prettyReadRemoteNamespace absurd ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated"
           <> prettyPath' dest
           <> "from"
-          <> P.group (prettyReadRemoteNamespace ns <> ".")
+          <> P.group (prettyReadRemoteNamespace absurd ns <> ".")
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
@@ -1717,7 +1718,7 @@ notifyUser dir = \case
       P.lines
         [ "Gist created. Pull via:",
           "",
-          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyReadRemoteNamespace remoteNamespace)
+          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyReadRemoteNamespace absurd remoteNamespace)
         ]
   InitiateAuthFlow authURI -> do
     pure $
@@ -1954,7 +1955,7 @@ notifyUser dir = \case
     pure mempty
   PulledEmptyBranch remote ->
     pure . P.warnCallout . P.wrap $
-      P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
+      P.group (prettyReadRemoteNamespace absurd remote) <> "has some history, but is currently empty."
   ProjectNameAlreadyExists name ->
     pure . P.wrap $
       prettyProjectName name <> "already exists."

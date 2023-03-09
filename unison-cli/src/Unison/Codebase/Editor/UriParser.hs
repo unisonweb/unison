@@ -57,13 +57,13 @@ type P = P.Parsec Void Text.Text
 
 -- $ git clone [user@]server:project.git[:treeish][:[#hash][.path]]
 
-repoPath :: P ReadRemoteNamespace
+repoPath :: P (ReadRemoteNamespace Void)
 repoPath =
   P.label "generic repo" $
     fmap ReadRemoteNamespaceGit readGitRemoteNamespace
       <|> fmap ReadRemoteNamespaceShare readShareRemoteNamespace
 
-parseReadRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
+parseReadRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) (ReadRemoteNamespace Void)
 parseReadRemoteNamespace label input =
   let printError err = P.lines [P.string "I couldn't parse the repository address given above.", P.prettyPrintParseError input err]
    in first printError (P.parse repoPath label (Text.pack input))

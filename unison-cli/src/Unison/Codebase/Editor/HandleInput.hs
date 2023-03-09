@@ -30,6 +30,7 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
+import Data.Void (absurd)
 import System.Directory
   ( XdgDirectory (..),
     createDirectoryIfMissing,
@@ -444,6 +445,7 @@ loop e = do
                       Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
                         Cli.returnEarly (Output.GitError err)
                     ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
+                    ReadRemoteProjectBranch v -> absurd v
               baseb <- getBranch baseRepo
               headb <- getBranch headRepo
               mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
@@ -1512,7 +1514,7 @@ inputDescription input =
           -- todo: show the actual config-loaded namespace
           <> maybe
             "(remote namespace from .unisonConfig)"
-            printNamespace
+            (printNamespace absurd)
             orepo
           <> " "
           <> dest
@@ -1521,9 +1523,9 @@ inputDescription input =
       dest <- p' dest0
       pure $
         "pr.load "
-          <> printNamespace base
+          <> printNamespace absurd base
           <> " "
-          <> printNamespace head
+          <> printNamespace absurd head
           <> " "
           <> dest
     RemoveTermReplacementI src p0 -> do
@@ -1608,17 +1610,18 @@ inputDescription input =
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
 
-handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Cli ()
+handleCreatePullRequest :: ReadRemoteNamespace Void -> ReadRemoteNamespace Void -> Cli ()
 handleCreatePullRequest baseRepo0 headRepo0 = do
   Cli.Env {codebase} <- ask
 
-  let withBranch :: ReadRemoteNamespace -> (forall x. (Branch IO -> Cli x) -> Cli x)
+  let withBranch :: ReadRemoteNamespace Void -> (forall x. (Branch IO -> Cli x) -> Cli x)
       withBranch rrn k = case rrn of
         ReadRemoteNamespaceGit repo -> do
           Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \case
             Left err -> Cli.returnEarly (Output.GitError err)
             Right x -> k x
         ReadRemoteNamespaceShare repo -> k =<< importRemoteShareBranch repo
+        ReadRemoteProjectBranch v -> absurd v
 
   (ppe, diff) <- withBranch baseRepo0 \baseBranch -> withBranch headRepo0 \headBranch -> do
     merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
