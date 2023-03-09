@@ -201,7 +201,7 @@
           (+ len-a (chunk-length b))
           (λ (chunk)
             (chunk-copy! chunk 0 a 0)
-            (chunk-copy! chunk (sub1 len-a) b 0))))
+            (chunk-copy! chunk len-a b 0))))
 
        ;; Given two chunks that together have more than CHUNK-CAPACITY
        ;; elements, moves elements from the end of the first chunk into
@@ -536,13 +536,13 @@
                (cond
                  [(< (+ (chunk-length last-c) (chunk-length chunk)) CHUNK-CAPACITY)
                   (struct-copy
-                   chunks cs-b
+                   chunks cs-a
                    [length (+ len (chunk-length chunk))]
                    [last-chunk (chunk-append last-c chunk)])]
                  [else
                   (define-values [full-chunk last-c*] (chunk-fill-left last-c chunk))
                   (struct-copy
-                   chunks cs-b
+                   chunks cs-a
                    [length (+ len (chunk-length chunk))]
                    [chunk-trie (vector-trie-add-last vt full-chunk)]
                    [last-chunk last-c*])])]
@@ -553,6 +553,17 @@
                (define first-b-len (chunk-length first-b))
                (define middle-len (+ last-a-len first-b-len))
                (cond
+                 ;; If the last chunk of the first sequence and the first chunk of the
+                 ;; second sequence are both full chunks, we can use `vector-trie-append`.
+                 [(and (= last-a-len CHUNK-CAPACITY)
+                       (= first-b-len CHUNK-CAPACITY))
+                  (chunks new-len
+                          first-a
+                          (vector-trie-append
+                           (vector-trie-add-last (vector-trie-add-last vt-a last-a) first-b)
+                           vt-b)
+                          last-b)]
+
                  ;; If the last chunk of the first sequence and the first chunk of the
                  ;; second sequence can be combined to make a single full chunk, we can
                  ;; use `vector-trie-append`.
@@ -574,35 +585,41 @@
                     (set! new-vt (vector-trie-add-first new-vt (unsafe-chunk->immutable-chunk! new-chunk)))
                     (set! new-chunk (if done? #f (make-mutable-chunk CHUNK-CAPACITY))))
 
-                  ;; Start by copying `first-b` into the end of the new chunk.
-                  (chunk-copy! new-chunk (- CHUNK-CAPACITY first-b-len) first-b 0)
-
-                  ;; Transfer `last-a` into the new chunk and compute where to
-                  ;; split each full chunk in `vt-a`.
+                  ;; Transfer `first-b` and `last-a` and compute where to split
+                  ;; each full chunk in `vt-a`.
                   (define split-i
                     (cond
-                      ;; If all of `last-a` fits in the new chunk, just copy it.
-                      [(< middle-len CHUNK-CAPACITY)
-                       (define split-i (- CHUNK-CAPACITY middle-len))
-                       (chunk-copy! new-chunk split-i last-a 0)
-                       split-i]
-
-                      ;; Otherwise, we have to transfer enough elements to fill the
-                      ;; new chunk and spill the leftovers into the next chunk.
+                      ;; If `first-b` is a full chunk, just transfer it directly.
+                      [(= first-b-len CHUNK-CAPACITY)
+                       (set! new-vt (vector-trie-add-first new-vt first-b))
+                       (chunk-copy! new-chunk (- CHUNK-CAPACITY last-a-len) last-a 0)
+                       last-a-len]
                       [else
-                       (define transfer-count (- CHUNK-CAPACITY first-b-len))
-                       (define leftover-count (- last-a-len transfer-count))
-                       (define split-i (- CHUNK-CAPACITY leftover-count))
-                       (chunk-copy! new-chunk 0 last-a leftover-count)
-                       (transfer-chunk!)
-                       (chunk-copy! new-chunk split-i last-a 0 leftover-count)
-                       split-i]))
+                       ;; Otherwise, copy `first-b` into the end of the new chunk.
+                       (chunk-copy! new-chunk (- CHUNK-CAPACITY first-b-len) first-b 0)
+                       (cond
+                         ;; If all of `last-a` fits in the new chunk, just copy it.
+                         [(< middle-len CHUNK-CAPACITY)
+                          (chunk-copy! new-chunk (- CHUNK-CAPACITY middle-len) last-a 0)
+                          middle-len]
+
+                         ;; Otherwise, we have to transfer enough elements to fill the
+                         ;; new chunk and spill the leftovers into the next chunk.
+                         [else
+                          (define transfer-count (- CHUNK-CAPACITY first-b-len))
+                          (define leftover-count (- last-a-len transfer-count))
+                          (chunk-copy! new-chunk 0 last-a leftover-count)
+                          (transfer-chunk!)
+                          (chunk-copy! new-chunk (- CHUNK-CAPACITY leftover-count) last-a 0 leftover-count)
+                          leftover-count])]))
+
+                  (define insert-i (- CHUNK-CAPACITY split-i))
 
                   ;; Split and transfer each full chunk in `vt-a`.
                   (for ([full-chunk (in-reversed-vector-trie vt-a)])
                     (chunk-copy! new-chunk 0 full-chunk split-i)
                     (transfer-chunk!)
-                    (chunk-copy! new-chunk split-i full-chunk 0 split-i))
+                    (chunk-copy! new-chunk insert-i full-chunk 0 split-i))
 
                   ;; Transfer `first-a`.
                   (define first-a-len (chunk-length first-a))
@@ -610,7 +627,7 @@
                     (cond
                       ;; If `first-a` contains too many elements to fit in the next
                       ;; partially-constructed chunk, we need to split it as well.
-                      [(> first-a-len split-i)
+                      [(> first-a-len insert-i)
                        (chunk-copy! new-chunk 0 first-a split-i)
                        (transfer-chunk! #:done? #t)
                        (chunk-slice first-a 0 split-i)]
@@ -619,10 +636,10 @@
                       ;; constructed chunk into the new first chunk.
                       [else
                        (make-chunk
-                        (+ first-a-len (- CHUNK-CAPACITY split-i))
+                        (+ first-a-len split-i)
                         (λ (new-first-c)
                           (chunk-copy! new-first-c 0 first-a 0)
-                          (chunk-copy! new-first-c first-a-len new-chunk split-i)))]))
+                          (chunk-copy! new-first-c first-a-len new-chunk insert-i)))]))
 
                   ;; All done: package the results and return.
                   (chunks new-len new-first-c new-vt last-b)]
@@ -635,32 +652,39 @@
                     (set! new-vt (vector-trie-add-last new-vt (unsafe-chunk->immutable-chunk! new-chunk)))
                     (set! new-chunk (if done? #f (make-mutable-chunk CHUNK-CAPACITY))))
 
-                  ;; Start by copying `last-a` into the start of the new chunk.
-                  (chunk-copy! new-chunk 0 last-a 0)
-
-                  ;; Transfer `first-b` into the new chunk and compute where to
-                  ;; split each full chunk in `vt-b`.
-                  (define split-i
+                  ;; Transfer `last-a` and `first-b` and compute where to split
+                  ;; each full chunk in `vt-b`.
+                  (define insert-i
                     (cond
-                      ;; If all of `first-b` fits in the new chunk, just copy it.
-                      [(< middle-len CHUNK-CAPACITY)
-                       (chunk-copy! new-chunk last-a-len first-b 0)
-                       (- CHUNK-CAPACITY middle-len)]
-
-                      ;; Otherwise, we have to transfer enough elements to fill the
-                      ;; new chunk and spill the leftovers into the next chunk.
+                      ;; If `last-a` is a full chunk, just transfer it directly.
+                      [(= last-a-len CHUNK-CAPACITY)
+                       (set! new-vt (vector-trie-add-last new-vt last-a))
+                       (chunk-copy! new-chunk 0 first-b 0)
+                       first-b-len]
                       [else
-                       (define transfer-count (- CHUNK-CAPACITY last-a-len))
-                       (define leftover-count (- first-b-len transfer-count))
-                       (define split-i (- CHUNK-CAPACITY leftover-count))
-                       (chunk-copy! new-chunk last-a-len first-b split-i)
-                       (transfer-chunk!)
-                       (chunk-copy! new-chunk 0 first-b split-i)
-                       split-i]))
+                       ;; Otherwise, copy `last-a` into the start of the new chunk.
+                       (chunk-copy! new-chunk 0 last-a 0)
+                       (cond
+                         ;; If all of `first-b` fits in the new chunk, just copy it.
+                         [(< middle-len CHUNK-CAPACITY)
+                          (chunk-copy! new-chunk last-a-len first-b 0)
+                          middle-len]
+
+                         ;; Otherwise, we have to transfer enough elements to fill the
+                         ;; new chunk and spill the leftovers into the next chunk.
+                         [else
+                          (define transfer-count (- CHUNK-CAPACITY last-a-len))
+                          (define leftover-count (- first-b-len transfer-count))
+                          (chunk-copy! new-chunk last-a-len first-b 0 transfer-count)
+                          (transfer-chunk!)
+                          (chunk-copy! new-chunk 0 first-b transfer-count)
+                          leftover-count])]))
+
+                  (define split-i (- CHUNK-CAPACITY insert-i))
 
                   ;; Split and transfer each full chunk in `vt-b`.
                   (for ([full-chunk (in-vector-trie vt-b)])
-                    (chunk-copy! new-chunk split-i full-chunk 0 split-i)
+                    (chunk-copy! new-chunk insert-i full-chunk 0 split-i)
                     (transfer-chunk!)
                     (chunk-copy! new-chunk 0 full-chunk split-i))
 
@@ -671,7 +695,7 @@
                       ;; If `last-b` contains too many elements to fit in the next
                       ;; partially-constructed chunk, we need to split it as well.
                       [(> last-b-len split-i)
-                       (chunk-copy! new-chunk split-i last-b 0 split-i)
+                       (chunk-copy! new-chunk insert-i last-b 0 split-i)
                        (transfer-chunk! #:done? #t)
                        (chunk-slice last-b split-i)]
 
@@ -679,10 +703,10 @@
                       ;; constructed chunk into the new last chunk.
                       [else
                        (make-chunk
-                        (+ (- CHUNK-CAPACITY split-i) last-b-len)
+                        (+ insert-i last-b-len)
                         (λ (new-last-c)
-                          (chunk-copy! new-last-c 0 new-chunk split-i)
-                          (chunk-copy! new-last-c split-i first-a 0)))]))
+                          (chunk-copy! new-last-c 0 new-chunk 0 insert-i)
+                          (chunk-copy! new-last-c insert-i last-b 0)))]))
 
                   ;; All done: package the results and return.
                   (chunks new-len first-a new-vt new-last-c)])])]

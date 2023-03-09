@@ -95,3 +95,23 @@
    (define lst (build-chunked-list len number->string))
    (with-check-info (['len len])
      (check-equal? (chunked-list-drop-last (chunked-list-add-last lst 'thing)) lst))))
+
+(test-case
+ "chunked-seq-append / build-chunked-seq"
+ (define (go len-a len-b)
+   (with-check-info (['len-a len-a]
+                     ['len-b len-b])
+     (define lst-a (build-chunked-list len-a number->string))
+     (define lst-b (build-chunked-list len-b (λ (i) (number->string (+ len-a i)))))
+     (define lst-c (build-chunked-list (+ len-a len-b) number->string))
+     (check-equal? (chunked-list-append lst-a lst-b) lst-c)))
+
+ (for* ([len-a (in-range 300)]
+        [len-b (in-range 300)])
+   (go len-a len-b))
+ (for* ([len-a (in-range 300 1000 100)]
+        [len-b (in-range 300 1000 100)])
+   (go len-a len-b))
+ (for* ([len-a (in-range 1000 10000 1000)]
+        [len-b (in-range 1000 10000 1000)])
+   (go len-a len-b)))
