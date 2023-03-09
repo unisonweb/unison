@@ -20,6 +20,8 @@ data CheckAndSetPushError
   = CheckAndSetPushErrorHashMismatch Share.HashMismatch
   | CheckAndSetPushErrorNoWritePermission Share.Path
   | CheckAndSetPushErrorServerMissingDependencies (NESet Hash32)
+  | CheckAndSetPushErrorInvalidRepoInfo Share.RepoInfo
+  | CheckAndSetPushErrorUserNotFound Share.Path
   deriving (Show)
 
 -- | An error occurred while fast-forward pushing code to Unison Share.
@@ -31,18 +33,26 @@ data FastForwardPushError
   | FastForwardPushErrorServerMissingDependencies (NESet Hash32)
   | --                              Parent Child
     FastForwardPushInvalidParentage Hash32 Hash32
+  | FastForwardPushErrorInvalidRepoInfo Share.RepoInfo
+  | FastForwardPushErrorUserNotFound Share.Path
   deriving (Show)
 
 -- | An error occurred while pulling code from Unison Share.
 data PullError
   = PullErrorNoHistoryAtPath Share.Path
   | PullErrorNoReadPermission Share.Path
+  | PullErrorInvalidRepoInfo Share.RepoInfo
+  | PullErrorUserNotFound Share.Path
   deriving (Show)
 
 -- | An error occurred when getting causal hash by path.
 data GetCausalHashByPathError
   = -- | The user does not have permission to read this path.
     GetCausalHashByPathErrorNoReadPermission Share.Path
+  | -- | The repo info was invalid.
+    GetCausalHashByPathErrorInvalidRepoInfo Share.RepoInfo
+  | -- | The user was not found.
+    GetCausalHashByPathErrorUserNotFound Share.Path
   deriving (Show)
 
 -- | Generic Codeserver transport errors
