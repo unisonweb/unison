@@ -98,11 +98,20 @@
 
 (test-case
  "vector-trie-append / build-vector-trie"
- (for* ([len-a (in-range 300)]
-        [len-b (in-range 300)])
+ (define (go len-a len-b)
    (with-check-info (['len-a len-a]
                      ['len-b len-b])
-     (define lst-a (build-vector-trie len-a number->string))
-     (define lst-b (build-vector-trie len-b (λ (i) (number->string (+ len-a i)))))
-     (define lst-c (build-vector-trie (+ len-a len-b) number->string))
-     (check-equal? (vector-trie-append lst-a lst-b) lst-c))))
+     (define vt-a (build-vector-trie len-a number->string))
+     (define vt-b (build-vector-trie len-b (λ (i) (number->string (+ len-a i)))))
+     (define vt-c (build-vector-trie (+ len-a len-b) number->string))
+     (check-equal? (vector-trie-append vt-a vt-b) vt-c)))
+
+ (for* ([len-a (in-range 300)]
+        [len-b (in-range 300)])
+   (go len-a len-b))
+ (for* ([len-a (in-range 300 1000 100)]
+        [len-b (in-range 300 1000 100)])
+   (go len-a len-b))
+ (for* ([len-a (in-range 1000 10000 1000)]
+        [len-b (in-range 1000 10000 1000)])
+   (go len-a len-b)))

@@ -4,7 +4,9 @@
                      syntax/parse)
          racket/contract
          racket/fixnum
+         racket/match
          racket/sequence
+         racket/splicing
          racket/unsafe/ops)
 
 (provide ->fx/wraparound ; used by chunked-seq.rkt
@@ -42,10 +44,6 @@
                      [-in-reversed-vector-trie in-reversed-vector-trie]))
 
 ;; -----------------------------------------------------------------------------
-
-(define NODE-BITS 5) ; 32-way branching
-(define NODE-CAPACITY (expt 2 NODE-BITS))
-(define NODE-INDEX-MASK (sub1 NODE-CAPACITY))
 
 (define (->fx/wraparound v)
   (if (fixnum? v)
@@ -96,17 +94,62 @@
 (define empty-vector-trie (vector-trie 0 0 #f #f))
 
 ;; -----------------------------------------------------------------------------
-;; node operations
+;; bit math operations
+
+(define NODE-BITS 5) ; 32-way branching
+(define NODE-CAPACITY (expt 2 NODE-BITS))
+(define NODE-INDEX-MASK (sub1 NODE-CAPACITY))
+
+(define (increment-shift shift) (+ shift NODE-BITS))
+(define (decrement-shift shift) (- shift NODE-BITS))
+
+;; Returns the capacity of each child of a node at the given level.
+(define (node-stride shift)
+  (arithmetic-shift 1 shift))
+
+(define (trie-capacity shift)
+  (arithmetic-shift 1 (increment-shift shift)))
+
+(define (extract-node-index i shift)
+  (bitwise-and (arithmetic-shift i (- shift)) NODE-INDEX-MASK))
+
+(define (restrict-index-to-child i shift)
+  (bitwise-and i (sub1 (arithmetic-shift 1 shift))))
+
+(define (restrict-index-to-node i shift)
+  (restrict-index-to-child i (increment-shift shift)))
+
+;; Returns an index like `i`, but aligned to point at the first element of the
+;; child node at `node-i` (at the level given by `shift`).
+(define (set-node-index i shift node-i)
+  (define mask (sub1 (arithmetic-shift 1 (increment-shift shift))))
+  (bitwise-ior (bitwise-and i (bitwise-not mask))
+               (arithmetic-shift node-i shift)))
 
 ;; Computes the height of the trie needed to contain `len` elements.
 ;; `len` must be a positive integer.
-(define (trie-length->height len)
-  (quotient (sub1 (integer-length (sub1 len))) NODE-BITS))
+(define (trie-length->shift len)
+  (define len-log2 (sub1 (integer-length (sub1 len))))
+  (- len-log2 (remainder len-log2 NODE-BITS)))
+
+;; -----------------------------------------------------------------------------
+;; node operations
+
+(define (make-mutable-node)
+  (make-vector NODE-CAPACITY #f))
+
+(define (unsafe-freeze-node! node)
+  (unsafe-vector*->immutable-vector! node))
 
 (define (make-node initialize-proc)
-  (define node (make-vector NODE-CAPACITY #f))
+  (define node (make-mutable-node))
   (initialize-proc node)
-  (unsafe-vector*->immutable-vector! node))
+  (unsafe-freeze-node! node))
+
+(define (make-node* initialize-proc)
+  (define node (make-mutable-node))
+  (define extra-result (initialize-proc node))
+  (values (unsafe-freeze-node! node) extra-result))
 
 ;; Makes a new chain of nodes containing a single value at the first
 ;; index such that the resulting node chain has the depth expected for
@@ -134,9 +177,6 @@
      (vector-set! new-node i v)
      (vector-copy! new-node (add1 i) node (add1 i)))))
 
-(define (extract-node-index i shift)
-  (bitwise-and (arithmetic-shift i (- shift)) NODE-INDEX-MASK))
-
 ;; Performs a functional update of a vector trie node at the given index.
 (define (vector-trie-node-set node shift i val)
   (let loop ([shift shift]
@@ -146,8 +186,7 @@
      node node-i
      (if (zero? shift)
          val
-         (loop (- shift NODE-BITS)
-               (vector-ref node node-i))))))
+         (loop (decrement-shift shift) (vector-ref node node-i))))))
 
 ;; Like `vector-trie-node-set`, but handles the case where new nodes
 ;; need to be created by applying the given `make-singleton-nodes` function.
@@ -163,8 +202,8 @@
        [else
         (define child-node (vector-ref node node-i))
         (if child-node
-            (loop (- shift NODE-BITS) child-node)
-            (make-singleton-nodes (- shift NODE-BITS) val))]))))
+            (loop (decrement-shift shift) child-node)
+            (make-singleton-nodes (decrement-shift shift) val))]))))
 
 ;; Like (vector-trie-node-set node shift i #f), but handles deleting
 ;; empty child nodes. If `from-start?` is #f, then a child node is
@@ -180,8 +219,7 @@
      (if (or (zero? shift)
              (zero? (bitwise-bit-field end-i 0 shift)))
          #f
-         (loop (- shift NODE-BITS)
-               (vector-ref node node-i))))))
+         (loop (decrement-shift shift) (vector-ref node node-i))))))
 
 ;; -----------------------------------------------------------------------------
 ;; core operations
@@ -194,7 +232,7 @@
     [(zero? len)
      empty-vector-trie]
     [else
-     (define root-shift (* (trie-length->height len) NODE-BITS))
+     (define root-shift (trie-length->shift len))
      (vector-trie
       len 0 root-shift
       (let build-trie ([shift root-shift]
@@ -209,7 +247,7 @@
               node-i
               (if (zero? shift)
                   (elem-proc i)
-                  (build-trie (- shift NODE-BITS) i))))))))]))
+                  (build-trie (decrement-shift shift) i))))))))]))
 
 (define (check-index-in-range who vt i)
   (unless (< i (vector-trie-length vt))
@@ -223,7 +261,7 @@
       (define node-i (extract-node-index i shift))
       (if (zero? shift)
           (vector-ref node node-i)
-          (loop (- shift NODE-BITS)
+          (loop (decrement-shift shift)
                 (vector-ref node node-i))))))
 
 (define (vector-trie-set vt i val)
@@ -243,7 +281,7 @@
     [(zero? (vector-trie-offset vt))
      ;; Out of room, need to allocate a new root.
      (define shift (vector-trie-shift vt))
-     (define new-shift (+ shift NODE-BITS))
+     (define new-shift (increment-shift shift))
      (struct-copy
       vector-trie vt
       [length (add1 (vector-trie-length vt))]
@@ -277,13 +315,13 @@
     [else
      (define next-i (+ (vector-trie-offset vt) (vector-trie-length vt)))
      (define shift (vector-trie-shift vt))
-     (if (= next-i (arithmetic-shift 1 (+ shift NODE-BITS)))
+     (if (= next-i (arithmetic-shift 1 (increment-shift shift)))
 
          ;; Out of room, need to allocate a new root.
          (struct-copy
           vector-trie vt
           [length (add1 (vector-trie-length vt))]
-          [shift (+ shift NODE-BITS)]
+          [shift (increment-shift shift)]
           [root-node
            (make-node
             (λ (new-root)
@@ -322,7 +360,7 @@
           vector-trie vt
           [length new-length]
           [offset 0]
-          [shift (- shift NODE-BITS)]
+          [shift (decrement-shift shift)]
           [root-node (vector-ref (vector-trie-root-node vt) (extract-node-index (add1 first-i) shift))])
 
          ;; Can’t pop the root, just delete an element.
@@ -352,7 +390,7 @@
          (struct-copy
           vector-trie vt
           [length new-length]
-          [shift (- shift NODE-BITS)]
+          [shift (decrement-shift shift)]
           [root-node (vector-ref (vector-trie-root-node vt) (extract-node-index (sub1 last-i) shift))])
 
          ;; Can’t pop the root, just delete an element.
@@ -360,6 +398,345 @@
           vector-trie vt
           [length new-length]
           [root-node (vector-trie-node-delete (vector-trie-root-node vt) shift last-i #:from-start? #f)]))]))
+
+;; -----------------------------------------------------------------------------
+;; appending
+
+;; Returns the index of the first filled element of the given vector
+;; trie. The index is relative to the containing leaf, so it is always
+;; in the range [0, NODE-CAPACITY).
+(define (first-leaf-start-index vt)
+  (bitwise-and (vector-trie-offset vt) NODE-INDEX-MASK))
+
+;; Returns the index immediately after the last filled element of the
+;; given vector trie. The index is relative to the containing leaf, so
+;; it is always in the range (0, NODE-CAPACITY].
+(define (last-leaf-end-index vt)
+  (add1 (bitwise-and (sub1 (+ (vector-trie-offset vt) (vector-trie-length vt))) NODE-INDEX-MASK)))
+
+(splicing-local [(struct frame (node shift next) #:transparent #:authentic)]
+  ;; Builds a procedure that encapsulates an imperative iterator over
+  ;; the leaf nodes of the given vector trie, which must not be empty.
+  ;; The returned procedure accepts no arguments and returns two values:
+  ;; the next leaf in the trie and a boolean indicating whether there
+  ;; are any more leaves. If the second result is #f, the procedure
+  ;; should not be applied again.
+  ;;
+  ;; Note that the first and last leaves (which may be the same if there
+  ;; is only one leaf) may be only partially filled; the unfilled
+  ;; portions may be obtained using `first-leaf-start-index` and
+  ;; `last-leaf-end-index`.
+  ;;
+  ;; If the `reverse?` is not #f, the leaves are iterated in reverse
+  ;; order, but otherwise the behavior is the same.
+  (define (stream-leaves vt #:reverse? [reverse? #f])
+    (cond
+      [(zero? (vector-trie-shift vt))
+       (define leaf (vector-trie-root-node vt))
+       (λ () (values leaf #f))]
+      [else
+       (define (align-to-leaf n)
+         (bitwise-and n (bitwise-not NODE-INDEX-MASK)))
+       (define first-i (align-to-leaf (vector-trie-offset vt)))
+       (define last-i (align-to-leaf (sub1 (+ (vector-trie-offset vt) (vector-trie-length vt)))))
+
+       (define-values [node-bound next-i]
+         (if reverse?
+             (values 0 last-i)
+             (values (sub1 NODE-CAPACITY) first-i)))
+
+       (define stack #f)
+       (define node (vector-trie-root-node vt))
+
+       ;; Descends into the trie until `node` is a node at the level just
+       ;; above the leaves, pushing frames onto `stack` as appropriate.
+       (define (descend! shift)
+         (unless (= shift NODE-BITS)
+           (define node-i (extract-node-index next-i shift))
+           ;; If we’re descending into the last element of this node, we don’t
+           ;; want to return to this node ever again, so omit the stack frame
+           ;; (effectively making a tail call).
+           (unless (= node-i node-bound)
+             (set! stack (frame node shift stack)))
+           (set! node (vector-ref node node-i))
+           (descend! (decrement-shift shift))))
+
+       ;; Ascends to the parent node, then descends into the next child.
+       (define (focus-next-node!)
+         (define shift (frame-shift stack))
+         (define node-i (extract-node-index next-i shift))
+         (set! node (vector-ref (frame-node stack) node-i))
+
+         ;; Pop the stack frame if we’re never going to return here again,
+         ;; otherwise leave it in place to avoid a redundant allocation.
+         (when (= node-i node-bound)
+           (set! stack (frame-next stack)))
+
+         (descend! (decrement-shift shift)))
+
+       (define (get-next-leaf!)
+         (define node-i (extract-node-index next-i NODE-BITS))
+         (define leaf (vector-ref node node-i))
+         (set! next-i (if reverse?
+                          (- next-i NODE-CAPACITY)
+                          (+ next-i NODE-CAPACITY)))
+         (cond
+           [(if reverse? (< next-i first-i) (> next-i last-i))
+            (values leaf #f)]
+           [else
+            (when (= node-i node-bound)
+              (focus-next-node!))
+            (values leaf #t)]))
+
+       (descend! (vector-trie-shift vt))
+       get-next-leaf!])))
+
+(define (vector-trie-append vt-a vt-b)
+  (define a-len (vector-trie-length vt-a))
+  (define b-len (vector-trie-length vt-b))
+  (cond
+    [(zero? a-len) vt-b]
+    [(zero? b-len) vt-a]
+    [else
+     (define new-len (+ a-len b-len))
+     (cond
+       [(>= a-len b-len)
+        (define a-offset (vector-trie-offset vt-a))
+        (define a-shift (vector-trie-shift vt-a))
+
+        (define first-leaf-start (first-leaf-start-index vt-b))
+        (define last-leaf-end (last-leaf-end-index vt-b))
+
+        (define a-last-leaf-slop (- NODE-CAPACITY (last-leaf-end-index vt-a)))
+        (define leaf-split-i (bitwise-and (+ first-leaf-start a-last-leaf-slop) NODE-INDEX-MASK))
+        (define leaf-insert-i (- NODE-CAPACITY leaf-split-i))
+
+        (define get-next-leaf! (stream-leaves vt-b))
+        (define-values [leaf more?] (get-next-leaf!))
+        (define (next-leaf!)
+          (set!-values [leaf more?] (get-next-leaf!)))
+
+        (define new-end-i (+ a-offset new-len))
+        (define new-shift (trie-length->shift new-end-i))
+
+        ;; Builds a subtrie of a given height that *exclusively* contains
+        ;; values from `vt-b`. If there aren’t enough values left in
+        ;; `vt-b` to fill the subtrie, then the result will be only
+        ;; partially full.
+        (define (build-new-subtrie shift)
+          (match-define-values [child _]
+            (let loop ([shift shift])
+              (cond
+                [(zero? shift)
+                 (cond
+                   ;; As an optimization, if `leaf-split-i` is 0, then we can reuse
+                   ;; leaf nodes from `vt-b` without slicing and copying.
+                   [(zero? leaf-split-i)
+                    (define this-leaf leaf)
+                    (if more?
+                        (begin0
+                          (values leaf #t)
+                          (next-leaf!))
+                        (values leaf #f))]
+
+                   ;; Otherwise, we need to combine elements from the current
+                   ;; leaf and the next one.
+                   [else
+                    (make-node*
+                     (λ (new-leaf)
+                       (vector-copy! new-leaf 0 leaf leaf-split-i)
+                       (cond
+                         [more?
+                          (next-leaf!)
+                          (vector-copy! new-leaf leaf-insert-i leaf 0 leaf-split-i)
+                          (or more? (< leaf-split-i last-leaf-end))]
+                         [else
+                          #f])))])]
+                [else
+                 (make-node*
+                  (λ (new-node)
+                    (define child-shift (decrement-shift shift))
+                    (for/and ([i (in-range NODE-CAPACITY)])
+                      (define-values [child more?] (loop child-shift))
+                      (vector-set! new-node i child)
+                      more?)))])))
+          child)
+
+        ;; Inserts subtries containing elements from `vt-b` into the given
+        ;; node, starting at the given index. The node must already contain an
+        ;; element at the previous index.
+        (define (insert-subtries node shift i)
+          (cond
+            [(zero? shift)
+             (define leaf-i (extract-node-index i 0))
+             (make-node
+              (λ (new-leaf)
+                (vector-copy! new-leaf 0 node 0 leaf-i)
+                (cond
+                  [(< leaf-i first-leaf-start)
+                   (vector-copy! new-leaf leaf-i leaf first-leaf-start)
+                   (when more?
+                     (next-leaf!)
+                     (vector-copy! new-leaf leaf-split-i leaf 0 leaf-split-i))]
+                  [else
+                   (vector-copy! new-leaf leaf-i leaf first-leaf-start leaf-split-i)])))]
+            [else
+             (make-node
+              (λ (new-node)
+                (define node-i (extract-node-index i shift))
+                (vector-copy! new-node 0 node 0 node-i)
+
+                (define child-shift (decrement-shift shift))
+                (define-values [i* node-i*]
+                  (cond
+                    [(zero? (restrict-index-to-child i shift))
+                     (values i node-i)]
+                    [else
+                     (vector-set! new-node node-i (insert-subtries (vector-ref node node-i) child-shift i))
+                     (values (set-node-index i shift (add1 node-i)) (add1 node-i))]))
+
+                (for ([i (in-range i* new-end-i (node-stride shift))]
+                      [node-i (in-range node-i* NODE-CAPACITY)])
+                  (vector-set! new-node node-i (build-new-subtrie child-shift)))))]))
+
+        (vector-trie
+         new-len
+         a-offset
+         new-shift
+         (let root-loop ([shift new-shift]
+                         [i (+ a-offset a-len)])
+           (cond
+             [(= shift a-shift)
+              (if (zero? (restrict-index-to-node i shift))
+                  (vector-trie-root-node vt-a)
+                  (insert-subtries (vector-trie-root-node vt-a) shift i))]
+             [else
+              (make-node
+               (λ (new-node)
+                 (define child-shift (decrement-shift shift))
+                 (vector-set! new-node 0 (root-loop child-shift i))
+                 (for ([i (in-range (set-node-index i shift 1) new-end-i (node-stride shift))]
+                       [node-i (in-range 1 NODE-CAPACITY)])
+                   (vector-set! new-node node-i (build-new-subtrie child-shift)))))])))]
+
+       [else
+        (define b-offset (vector-trie-offset vt-b))
+        (define b-shift (vector-trie-shift vt-b))
+
+        (define first-leaf-start (first-leaf-start-index vt-a))
+        (define last-leaf-end (last-leaf-end-index vt-a))
+
+        (define leaf-split-i (bitwise-and (- last-leaf-end (first-leaf-start-index vt-b)) NODE-INDEX-MASK))
+        (define leaf-insert-i (- NODE-CAPACITY leaf-split-i))
+
+        (define get-prev-leaf! (stream-leaves vt-a #:reverse? #t))
+        (define-values [leaf more?] (get-prev-leaf!))
+        (define (prev-leaf!)
+          (set!-values [leaf more?] (get-prev-leaf!)))
+
+        (define b-slop (- (trie-capacity b-shift) (+ b-offset b-len)))
+        (define new-shift (trie-length->shift (+ b-slop new-len)))
+        (define new-offset (- (trie-capacity new-shift) b-slop new-len))
+
+        ;; Builds a subtrie of a given height that *exclusively* contains
+        ;; values from `vt-a`. If there aren’t enough values left in
+        ;; `vt-a` to fill the subtrie, then the result will be only
+        ;; partially full.
+        (define (build-new-subtrie shift)
+          (match-define-values [child _]
+            (let loop ([shift shift])
+              (cond
+                [(zero? shift)
+                 (cond
+                   ;; As an optimization, if `leaf-split-i` is 0, then we can reuse
+                   ;; leaf nodes from `vt-a` without slicing and copying.
+                   [(zero? leaf-split-i)
+                    (define this-leaf leaf)
+                    (if more?
+                        (begin0
+                          (values leaf #t)
+                          (prev-leaf!))
+                        (values leaf #f))]
+
+                   ;; Otherwise, we need to combine elements from the current
+                   ;; leaf and the next one.
+                   [else
+                    (make-node*
+                     (λ (new-leaf)
+                       (vector-copy! new-leaf leaf-insert-i leaf 0 leaf-split-i)
+                       (cond
+                         [more?
+                          (prev-leaf!)
+                          (vector-copy! new-leaf 0 leaf leaf-split-i)
+                          (or more? (>= leaf-split-i first-leaf-start))]
+                         [else
+                          #f])))])]
+                [else
+                 (make-node*
+                  (λ (new-node)
+                    (define child-shift (decrement-shift shift))
+                    (for/and ([i (in-inclusive-range (sub1 NODE-CAPACITY) 0 -1)])
+                      (define-values [child more?] (loop child-shift))
+                      (vector-set! new-node i child)
+                      more?)))])))
+          child)
+
+        ;; Inserts subtries containing elements from `vt-a` into the given
+        ;; node, starting at the given index. The node must already contain an
+        ;; element at the following index.
+        (define (insert-subtries node shift i)
+          (cond
+            [(zero? shift)
+             (define leaf-i (extract-node-index i 0))
+             (make-node
+              (λ (new-leaf)
+                (vector-copy! new-leaf (add1 leaf-i) node (add1 leaf-i))
+                (cond
+                  [(>= leaf-i last-leaf-end)
+                   (vector-copy! new-leaf (- (add1 leaf-i) last-leaf-end) leaf 0 last-leaf-end)
+                   (when more?
+                     (prev-leaf!)
+                     (vector-copy! new-leaf 0 leaf leaf-split-i))]
+                  [else
+                   (vector-copy! new-leaf 0 leaf leaf-split-i last-leaf-end)])))]
+            [else
+             (make-node
+              (λ (new-node)
+                (define node-i (extract-node-index i shift))
+                (vector-copy! new-node (add1 node-i) node (add1 node-i))
+
+                (define child-shift (decrement-shift shift))
+                (define-values [i* node-i*]
+                  (cond
+                    [(zero? (restrict-index-to-child (add1 i) shift))
+                     (values i node-i)]
+                    [else
+                     (vector-set! new-node node-i (insert-subtries (vector-ref node node-i) child-shift i))
+                     (values (sub1 (set-node-index i shift node-i)) (sub1 node-i))]))
+
+                (for ([i (in-inclusive-range i* new-offset (- (node-stride shift)))]
+                      [node-i (in-inclusive-range node-i* 0 -1)])
+                  (vector-set! new-node node-i (build-new-subtrie child-shift)))))]))
+
+        (vector-trie
+         new-len
+         new-offset
+         new-shift
+         (let root-loop ([shift new-shift]
+                         [i (sub1 (+ new-offset a-len))])
+           (cond
+             [(= shift b-shift)
+              (if (zero? (restrict-index-to-node (add1 i) shift))
+                  (vector-trie-root-node vt-b)
+                  (insert-subtries (vector-trie-root-node vt-b) shift i))]
+             [else
+              (make-node
+               (λ (new-node)
+                 (define child-shift (decrement-shift shift))
+                 (vector-set! new-node (sub1 NODE-CAPACITY) (root-loop child-shift i))
+                 (for ([i (in-inclusive-range (sub1 (set-node-index i shift (sub1 NODE-CAPACITY))) new-offset (- (node-stride shift)))]
+                       [node-i (in-inclusive-range (- NODE-CAPACITY 2) 0 -1)])
+                   (vector-set! new-node node-i (build-new-subtrie child-shift)))))])))])]))
 
 ;; -----------------------------------------------------------------------------
 ;; derived operations
@@ -432,18 +809,6 @@
              #t
              [(sub1 i)])]]
     [_ #f]))
-
-;; FIXME: Currently very inefficient. Should be made a primitive
-;; operation that does bulk copying into the nodes of the result trie
-;; and avoids repeated traversal of the input trie.
-(define (vector-trie-append vt-a vt-b)
-  (if (<= (vector-trie-length vt-a) (vector-trie-length vt-b))
-      (for/fold ([vt vt-a])
-                ([val (-in-vector-trie vt-b)])
-        (vector-trie-add-last vt val))
-      (for/fold ([vt vt-b])
-                ([val (-in-reversed-vector-trie vt-a)])
-        (vector-trie-add-first vt val))))
 
 (define (check-vector-trie-length-in-range who vt n)
   (unless (<= n (vector-trie-length vt))
