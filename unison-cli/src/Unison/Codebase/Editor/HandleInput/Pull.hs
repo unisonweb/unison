@@ -13,7 +13,7 @@ import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, rea
 import Control.Lens
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
-import Data.Void (absurd)
+import Data.These (These)
 import qualified System.Console.Regions as Console.Regions
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -46,6 +46,7 @@ import qualified Unison.Codebase.SyncMode as SyncMode
 import qualified Unison.Codebase.Verbosity as Verbosity
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
+import Unison.Project (ProjectBranchName, ProjectName)
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Sync as Share
 import qualified Unison.Share.Sync.Types as Share
@@ -53,37 +54,50 @@ import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.Sync.Types as Share
 
 doPullRemoteBranch ::
-  Maybe (ReadRemoteNamespace Void) ->
-  Path' ->
+  PullSourceTarget ->
   SyncMode.SyncMode ->
   PullMode ->
   Verbosity.Verbosity ->
   Text ->
   Cli ()
-doPullRemoteBranch mayRepo path syncMode pullMode verbosity description = do
+doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity description = do
   Cli.Env {codebase} <- ask
   let preprocess = case pullMode of
         Input.PullWithHistory -> Unmodified
         Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-  ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
+  ns <-
+    case sourceTarget of
+      Input.PullSourceTarget0 -> wundefined -- (writePathToRead <$> resolveConfiguredUrl Pull path)
+      Input.PullSourceTarget1 source -> wundefined source
+      Input.PullSourceTarget2 source _target -> wundefined source
   remoteBranch <- case ns of
     ReadRemoteNamespaceGit repo ->
       Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
         Cli.returnEarly (Output.GitError err)
     ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-    ReadRemoteProjectBranch v -> absurd v
+  -- ReadRemoteProjectBranch v -> absurd v
   when (Branch.isEmpty0 (Branch.head remoteBranch)) do
     Cli.respond (PulledEmptyBranch ns)
-  let unchangedMsg = PullAlreadyUpToDate ns path
-  destAbs <- Cli.resolvePath' path
-  let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
+  target <- wundefined
+  let unchangedMsg = PullAlreadyUpToDate ns target
+  destAbs <-
+    case target of
+      PullTargetLooseCode path -> Cli.resolvePath' path
+      PullTargetProject _ -> wundefined
+  let printDiffPath =
+        if Verbosity.isSilent verbosity
+          then Nothing
+          else 
+            case target of
+              PullTargetLooseCode path -> Just path
+              PullTargetProject _ -> wundefined
   case pullMode of
     Input.PullWithHistory -> do
       destBranch <- Cli.getBranch0At destAbs
       if Branch.isEmpty0 destBranch
         then do
           void $ Cli.updateAtM description destAbs (const $ pure remoteBranch)
-          Cli.respond $ MergeOverEmpty path
+          Cli.respond $ MergeOverEmpty target
         else
           mergeBranchAndPropagateDefaultPatch
             Branch.RegularMerge
@@ -100,7 +114,7 @@ doPullRemoteBranch mayRepo path syncMode pullMode verbosity description = do
           (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
       Cli.respond
         if didUpdate
-          then PullSuccessful ns path
+          then PullSuccessful ns target
           else unchangedMsg
 
 importRemoteShareBranch :: ReadShareRemoteNamespace -> Cli (Branch IO)
@@ -118,7 +132,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
           Share.SyncError err -> Output.ShareErrorPull err
           Share.TransportError err -> Output.ShareErrorTransport err
   liftIO (Codebase.expectBranchForHash codebase causalHash)
-  
+
 -- Provide the given action a callback that display to the terminal.
 withEntitiesDownloadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
 withEntitiesDownloadedProgressCallback action = do

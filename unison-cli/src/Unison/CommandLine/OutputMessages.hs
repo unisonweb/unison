@@ -315,9 +315,9 @@ notifyNumbered o = case o of
       then
         ( P.wrap $
             "Looks like there's no difference between "
-              <> prettyReadRemoteNamespace absurd baseRepo
+              <> prettyReadRemoteNamespaceWith absurd baseRepo
               <> "and"
-              <> prettyReadRemoteNamespace absurd headRepo
+              <> prettyReadRemoteNamespaceWith absurd headRepo
               <> ".",
           mempty
         )
@@ -332,8 +332,8 @@ notifyNumbered o = case o of
                   P.indentN 2 $
                     IP.makeExampleNoBackticks
                       IP.loadPullRequest
-                      [ prettyReadRemoteNamespace absurd baseRepo,
-                        prettyReadRemoteNamespace absurd headRepo
+                      [ prettyReadRemoteNamespaceWith absurd baseRepo,
+                        prettyReadRemoteNamespaceWith absurd headRepo
                       ],
                   "",
                   p
@@ -559,8 +559,13 @@ showListEdits patch ppe =
 prettyURI :: URI -> Pretty
 prettyURI = P.bold . P.blue . P.shown
 
-prettyReadRemoteNamespace :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
-prettyReadRemoteNamespace printProject =
+prettyReadRemoteNamespace :: ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
+prettyReadRemoteNamespace =
+  prettyReadRemoteNamespaceWith \(ProjectAndBranch projectName branchName) ->
+    into @Text (These projectName branchName)
+
+prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
+prettyReadRemoteNamespaceWith printProject =
   P.group . P.blue . P.text . RemoteRepo.printNamespace printProject
 
 prettyWriteRemotePath :: WriteRemotePath -> Pretty
@@ -654,8 +659,8 @@ notifyUser dir = \case
   LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath ->
     pure $
       P.lines
-        [ P.wrap $ "I checked out" <> prettyReadRemoteNamespace absurd baseNS <> "to" <> P.group (prettyPath' basePath <> "."),
-          P.wrap $ "I checked out" <> prettyReadRemoteNamespace absurd headNS <> "to" <> P.group (prettyPath' headPath <> "."),
+        [ P.wrap $ "I checked out" <> prettyReadRemoteNamespaceWith absurd baseNS <> "to" <> P.group (prettyPath' basePath <> "."),
+          P.wrap $ "I checked out" <> prettyReadRemoteNamespaceWith absurd headNS <> "to" <> P.group (prettyPath' headPath <> "."),
           "",
           P.wrap $ "The merged result is in" <> P.group (prettyPath' mergedPath <> "."),
           P.wrap $ "The (squashed) merged result is in" <> P.group (prettyPath' squashedPath <> "."),
@@ -681,11 +686,11 @@ notifyUser dir = \case
             "Use"
               <> IP.makeExample
                 IP.push
-                [prettyReadRemoteNamespace absurd baseNS, prettyPath' mergedPath]
+                [prettyReadRemoteNamespaceWith absurd baseNS, prettyPath' mergedPath]
               <> "or"
               <> IP.makeExample
                 IP.push
-                [prettyReadRemoteNamespace absurd baseNS, prettyPath' squashedPath]
+                [prettyReadRemoteNamespaceWith absurd baseNS, prettyPath' squashedPath]
               <> "to push the changes."
         ]
   DisplayDefinitions output -> displayDefinitions output
@@ -695,8 +700,8 @@ notifyUser dir = \case
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -1085,11 +1090,11 @@ notifyUser dir = \case
 
         let prettyBindings =
               P.bracket . P.lines $
-                P.wrap "The watch expression(s) reference these definitions:" :
-                "" :
-                  [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
-                    | (v, b) <- bindings
-                  ]
+                P.wrap "The watch expression(s) reference these definitions:"
+                  : ""
+                  : [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
+                      | (v, b) <- bindings
+                    ]
             prettyWatches =
               P.sep
                 "\n\n"
@@ -1292,7 +1297,7 @@ notifyUser dir = \case
           "I just finished importing the branch"
             <> P.red (P.shown h)
             <> "from"
-            <> P.red (prettyReadRemoteNamespace absurd (RemoteRepo.ReadRemoteNamespaceGit ns))
+            <> P.red (prettyReadRemoteNamespaceWith absurd (RemoteRepo.ReadRemoteNamespaceGit ns))
             <> "but now I can't find it."
       CouldntFindRemoteBranch repo path ->
         P.wrap $
@@ -1337,13 +1342,13 @@ notifyUser dir = \case
       case (new, old) of
         ([], []) -> error "BustedBuiltins busted, as there were no busted builtins."
         ([], old) ->
-          P.wrap ("This codebase includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your codebase:") :
-          "" :
-          fmap (P.text . Reference.toText) old
+          P.wrap ("This codebase includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your codebase:")
+            : ""
+            : fmap (P.text . Reference.toText) old
         (new, []) ->
-          P.wrap ("This version of Unison provides builtins that are not part of your codebase. Use " <> makeExample' IP.updateBuiltins <> " to add them:") :
-          "" :
-          fmap (P.text . Reference.toText) new
+          P.wrap ("This version of Unison provides builtins that are not part of your codebase. Use " <> makeExample' IP.updateBuiltins <> " to add them:")
+            : ""
+            : fmap (P.text . Reference.toText) new
         (new@(_ : _), old@(_ : _)) ->
           [ P.wrap
               ( "Sorry and/or good news!  This version of Unison supports a different set of builtins than this codebase uses.  You can use "
@@ -1563,20 +1568,20 @@ notifyUser dir = \case
   PullAlreadyUpToDate ns dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPath' dest
+        prettyPullTarget dest
           <> "was already up-to-date with"
-          <> P.group (prettyReadRemoteNamespace absurd ns <> ".")
+          <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated"
-          <> prettyPath' dest
+          <> prettyPullTarget dest
           <> "from"
-          <> P.group (prettyReadRemoteNamespace absurd ns <> ".")
+          <> P.group (prettyReadRemoteNamespace ns <> ".")
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully pulled into newly created namespace " <> P.group (prettyPath' dest <> ".")
+        "Successfully pulled into " <> P.group (prettyPullTarget dest <> ", which was empty.")
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
@@ -1666,11 +1671,11 @@ notifyUser dir = \case
       num n = P.hiBlack $ P.shown n <> "."
       header = (P.hiBlack "Reference", P.hiBlack "Name")
       pairs =
-        header :
-        ( fmap (first c . second c) $
-            [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
-              ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
-        )
+        header
+          : ( fmap (first c . second c) $
+                [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
+                  ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
+            )
       p = prettyShortHash . SH.take hqLength
       c = P.syntaxToColor
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
@@ -1718,7 +1723,7 @@ notifyUser dir = \case
       P.lines
         [ "Gist created. Pull via:",
           "",
-          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyReadRemoteNamespace absurd remoteNamespace)
+          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyReadRemoteNamespaceWith absurd remoteNamespace)
         ]
   InitiateAuthFlow authURI -> do
     pure $
@@ -1955,7 +1960,7 @@ notifyUser dir = \case
     pure mempty
   PulledEmptyBranch remote ->
     pure . P.warnCallout . P.wrap $
-      P.group (prettyReadRemoteNamespace absurd remote) <> "has some history, but is currently empty."
+      P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
   ProjectNameAlreadyExists name ->
     pure . P.wrap $
       prettyProjectName name <> "already exists."
@@ -2046,6 +2051,11 @@ prettyPath' p' =
   if Path.isCurrentPath p'
     then "the current namespace"
     else P.blue (P.shown p')
+
+prettyPullTarget :: Input.PullTarget (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
+prettyPullTarget = \case
+  Input.PullTargetLooseCode path -> prettyPath' path
+  Input.PullTargetProject project -> prettyProjectAndBranchName project
 
 prettyBranchId :: Input.AbsBranchId -> Pretty
 prettyBranchId = \case
@@ -2359,10 +2369,10 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' name dt r aliases) =
   P.lines stuff <> P.newline
   where
     stuff =
-      (P.hiBlack "-- " <> greyHash (HQ.fromReference r)) :
-      fmap
-        (\name -> prettyDeclTriple (name, r, dt))
-        (name : map HQ'.toHQ (toList aliases))
+      (P.hiBlack "-- " <> greyHash (HQ.fromReference r))
+        : fmap
+          (\name -> prettyDeclTriple (name, r, dt))
+          (name : map HQ'.toHQ (toList aliases))
       where
         greyHash = styleHashQualified' id P.hiBlack
 
@@ -2647,7 +2657,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
@@ -3094,24 +3104,23 @@ listOfDefinitions' fscope ppe detailed results =
     else
       P.lines
         . P.nonEmpty
-        $ prettyNumberedResults :
-        [ formatMissingStuff termsWithMissingTypes missingTypes,
-          Monoid.unlessM (null missingBuiltins)
-            . bigproblem
-            $ P.wrap
-              "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:"
-              `P.hang` P.column2
-                ( (P.bold "Name", P.bold "Built-in")
-                  -- : ("-", "-")
-                  :
-                  fmap
-                    ( bimap
-                        (P.syntaxToColor . prettyHashQualified)
-                        (P.text . Referent.toText)
+        $ prettyNumberedResults
+          : [ formatMissingStuff termsWithMissingTypes missingTypes,
+              Monoid.unlessM (null missingBuiltins)
+                . bigproblem
+                $ P.wrap
+                  "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:"
+                  `P.hang` P.column2
+                    ( (P.bold "Name", P.bold "Built-in")
+                        -- : ("-", "-")
+                        : fmap
+                          ( bimap
+                              (P.syntaxToColor . prettyHashQualified)
+                              (P.text . Referent.toText)
+                          )
+                          missingBuiltins
                     )
-                    missingBuiltins
-                )
-        ]
+            ]
   where
     prettyNumberedResults = P.numberedList prettyResults
     -- todo: group this by namespace
@@ -3278,8 +3287,8 @@ prettyDiff diff =
                   "",
                   P.indentN 2 $
                     P.column2 $
-                      (P.hiBlack "Original name", P.hiBlack "New name") :
-                        [(prettyName n, prettyName n2) | (n, n2) <- moved]
+                      (P.hiBlack "Original name", P.hiBlack "New name")
+                        : [(prettyName n, prettyName n2) | (n, n2) <- moved]
                 ]
             else mempty,
           if not $ null copied
@@ -3289,10 +3298,10 @@ prettyDiff diff =
                   "",
                   P.indentN 2 $
                     P.column2 $
-                      (P.hiBlack "Original name", P.hiBlack "New name(s)") :
-                        [ (prettyName n, P.sep " " (prettyName <$> ns))
-                          | (n, ns) <- copied
-                        ]
+                      (P.hiBlack "Original name", P.hiBlack "New name(s)")
+                        : [ (prettyName n, P.sep " " (prettyName <$> ns))
+                            | (n, ns) <- copied
+                          ]
                 ]
             else mempty
         ]

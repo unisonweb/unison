@@ -30,7 +30,6 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
-import Data.Void (absurd)
 import System.Directory
   ( XdgDirectory (..),
     createDirectoryIfMissing,
@@ -204,6 +203,8 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
+import Data.These (These)
+import Unison.Project (ProjectName, ProjectBranchName)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -436,39 +437,40 @@ loop e = do
               Cli.respondNumbered (ShowDiffNamespace absBefore absAfter ppe diff)
             CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
             LoadPullRequestI baseRepo headRepo dest0 -> do
-              Cli.assertNoBranchAtPath' dest0
-              Cli.Env {codebase} <- ask
-              description <- inputDescription input
-              destAbs <- Cli.resolvePath' dest0
-              let getBranch = \case
-                    ReadRemoteNamespaceGit repo ->
-                      Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
-                        Cli.returnEarly (Output.GitError err)
-                    ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-                    ReadRemoteProjectBranch v -> absurd v
-              baseb <- getBranch baseRepo
-              headb <- getBranch headRepo
-              mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
-              squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
-              Cli.updateAt description destAbs $ Branch.step \destBranch0 ->
-                destBranch0
-                  & Branch.children
-                    %~ ( \childMap ->
-                           childMap
-                             & at "base" ?~ baseb
-                             & at "head" ?~ headb
-                             & at "merged" ?~ mergedb
-                             & at "squashed" ?~ squashedb
-                       )
-              let base = snoc dest0 "base"
-                  head = snoc dest0 "head"
-                  merged = snoc dest0 "merged"
-                  squashed = snoc dest0 "squashed"
-              Cli.respond $ LoadPullRequest baseRepo headRepo base head merged squashed
-              loadPropagateDiffDefaultPatch
-                description
-                (Just merged)
-                (snoc destAbs "merged")
+              -- Cli.assertNoBranchAtPath' dest0
+              -- Cli.Env {codebase} <- ask
+              -- description <- inputDescription input
+              -- destAbs <- Cli.resolvePath' dest0
+              -- let getBranch = \case
+              --       ReadRemoteNamespaceGit repo ->
+              --         Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
+              --           Cli.returnEarly (Output.GitError err)
+              --       ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
+              --       ReadRemoteProjectBranch v -> absurd v
+              -- baseb <- getBranch baseRepo
+              -- headb <- getBranch headRepo
+              -- mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
+              -- squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
+              -- Cli.updateAt description destAbs $ Branch.step \destBranch0 ->
+              --   destBranch0
+              --     & Branch.children
+              --       %~ ( \childMap ->
+              --              childMap
+              --                & at "base" ?~ baseb
+              --                & at "head" ?~ headb
+              --                & at "merged" ?~ mergedb
+              --                & at "squashed" ?~ squashedb
+              --          )
+              -- let base = snoc dest0 "base"
+              --     head = snoc dest0 "head"
+              --     merged = snoc dest0 "merged"
+              --     squashed = snoc dest0 "squashed"
+              -- Cli.respond $ LoadPullRequest baseRepo headRepo base head merged squashed
+              -- loadPropagateDiffDefaultPatch
+              --   description
+              --   (Just merged)
+              --   (snoc destAbs "merged")
+              wundefined
             MoveBranchI src' dest' -> do
               hasConfirmed <- confirmedCommand input
               description <- inputDescription input
@@ -1204,9 +1206,9 @@ loop e = do
               patch <- Cli.getPatchAt (fromMaybe Cli.defaultPatchPath maybePath)
               ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               Cli.respondNumbered $ ListEdits patch ppe
-            PullRemoteBranchI mRepo path sMode pMode verbosity ->
+            PullRemoteBranchI sourceTarget sMode pMode verbosity ->
               inputDescription input
-                >>= doPullRemoteBranch mRepo path sMode pMode verbosity
+                >>= doPullRemoteBranch sourceTarget sMode pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> do
@@ -1501,31 +1503,32 @@ inputDescription input =
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
     GenSchemeLibsI -> pure "compile.native.genlibs"
     FetchSchemeCompilerI -> pure "compile.native.fetch"
-    PullRemoteBranchI orepo dest0 _syncMode pullMode _ -> do
-      dest <- p' dest0
-      let command =
-            Text.pack . InputPattern.patternName $
-              case pullMode of
-                PullWithoutHistory -> InputPatterns.pullWithoutHistory
-                PullWithHistory -> InputPatterns.pull
-      pure $
-        command
-          <> " "
-          -- todo: show the actual config-loaded namespace
-          <> maybe
-            "(remote namespace from .unisonConfig)"
-            (printNamespace absurd)
-            orepo
-          <> " "
-          <> dest
+    PullRemoteBranchI sourceTarget _syncMode pullMode _ -> do
+      -- dest <- p' dest0
+      -- let command =
+      --       Text.pack . InputPattern.patternName $
+      --         case pullMode of
+      --           PullWithoutHistory -> InputPatterns.pullWithoutHistory
+      --           PullWithHistory -> InputPatterns.pull
+      -- pure $
+      --   command
+      --     <> " "
+      --     -- todo: show the actual config-loaded namespace
+      --     <> maybe
+      --       "(remote namespace from .unisonConfig)"
+      --       (printNamespace absurd)
+      --       orepo
+      --     <> " "
+      --     <> dest
+      wundefined
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
     LoadPullRequestI base head dest0 -> do
       dest <- p' dest0
       pure $
         "pr.load "
-          <> printNamespace absurd base
+          <> printNamespace (into @Text) base
           <> " "
-          <> printNamespace absurd head
+          <> printNamespace (into @Text) head
           <> " "
           <> dest
     RemoveTermReplacementI src p0 -> do
@@ -1610,23 +1613,27 @@ inputDescription input =
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
 
-handleCreatePullRequest :: ReadRemoteNamespace Void -> ReadRemoteNamespace Void -> Cli ()
+handleCreatePullRequest :: 
+  ReadRemoteNamespace (These ProjectName ProjectBranchName) ->
+  ReadRemoteNamespace (These ProjectName ProjectBranchName) ->
+  Cli ()
 handleCreatePullRequest baseRepo0 headRepo0 = do
-  Cli.Env {codebase} <- ask
+  -- Cli.Env {codebase} <- ask
 
-  let withBranch :: ReadRemoteNamespace Void -> (forall x. (Branch IO -> Cli x) -> Cli x)
-      withBranch rrn k = case rrn of
-        ReadRemoteNamespaceGit repo -> do
-          Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \case
-            Left err -> Cli.returnEarly (Output.GitError err)
-            Right x -> k x
-        ReadRemoteNamespaceShare repo -> k =<< importRemoteShareBranch repo
-        ReadRemoteProjectBranch v -> absurd v
+  -- let withBranch :: ReadRemoteNamespace Void -> (forall x. (Branch IO -> Cli x) -> Cli x)
+  --     withBranch rrn k = case rrn of
+  --       ReadRemoteNamespaceGit repo -> do
+  --         Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \case
+  --           Left err -> Cli.returnEarly (Output.GitError err)
+  --           Right x -> k x
+  --       ReadRemoteNamespaceShare repo -> k =<< importRemoteShareBranch repo
+  --       ReadRemoteProjectBranch v -> absurd v
 
-  (ppe, diff) <- withBranch baseRepo0 \baseBranch -> withBranch headRepo0 \headBranch -> do
-    merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
-    diffHelper (Branch.head baseBranch) (Branch.head merged)
-  Cli.respondNumbered (ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff)
+  -- (ppe, diff) <- withBranch baseRepo0 \baseBranch -> withBranch headRepo0 \headBranch -> do
+  --   merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
+  --   diffHelper (Branch.head baseBranch) (Branch.head merged)
+  -- Cli.respondNumbered (ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff)
+  wundefined
 
 handleFindI ::
   Bool ->
@@ -2310,8 +2317,7 @@ doFetchCompiler :: Cli ()
 doFetchCompiler =
   inputDescription pullInput
     >>= doPullRemoteBranch
-      repo
-      compilerPath
+      sourceTarget
       SyncMode.Complete
       Input.PullWithoutHistory
       Verbosity.Silent
@@ -2324,12 +2330,11 @@ doFetchCompiler =
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }
-    repo = Just $ ReadRemoteNamespaceShare ns
+    sourceTarget = PullSourceTarget2 (ReadRemoteNamespaceShare ns) (PullTargetLooseCode compilerPath)
 
     pullInput =
       PullRemoteBranchI
-        repo
-        compilerPath
+        sourceTarget
         SyncMode.Complete
         Input.PullWithoutHistory
         Verbosity.Silent

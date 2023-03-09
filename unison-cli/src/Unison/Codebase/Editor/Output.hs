@@ -246,10 +246,14 @@ data Output
   | WarnIncomingRootBranch ShortCausalHash (Set ShortCausalHash)
   | StartOfCurrentPathHistory
   | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
-  | PullAlreadyUpToDate (ReadRemoteNamespace Void) Path'
-  | PullSuccessful (ReadRemoteNamespace Void) Path'
+  | PullAlreadyUpToDate
+      (ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName))
+      (PullTarget (ProjectAndBranch ProjectName ProjectBranchName))
+  | PullSuccessful
+      (ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName))
+      (PullTarget (ProjectAndBranch ProjectName ProjectBranchName))
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
-    MergeOverEmpty Path'
+    MergeOverEmpty (PullTarget (ProjectAndBranch ProjectName ProjectBranchName))
   | MergeAlreadyUpToDate Path' Path'
   | PreviewMergeAlreadyUpToDate Path' Path'
   | -- | No conflicts or edits remain for the current patch.
@@ -286,7 +290,7 @@ data Output
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
   | ClearScreen
-  | PulledEmptyBranch (ReadRemoteNamespace Void)
+  | PulledEmptyBranch (ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName))
   | ProjectNameAlreadyExists ProjectName
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)

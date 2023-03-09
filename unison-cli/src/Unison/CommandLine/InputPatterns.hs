@@ -1065,14 +1065,14 @@ pullImpl name aliases verbosity pullMode addendum = do
         )
         ( \case
             [] ->
-              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
+              Right $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.ShortCircuit pullMode verbosity
             [url] -> do
               ns <- parseReadRemoteNamespace "remote-namespace" url
-              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
+              Right $ Input.PullRemoteBranchI (Input.PullSourceTarget1 ns) SyncMode.ShortCircuit pullMode verbosity
             [url, path] -> do
               ns <- parseReadRemoteNamespace "remote-namespace" url
-              p <- first fromString $ Path.parsePath' path
-              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit pullMode verbosity
+              p <- first fromString $ wundefined -- Path.parsePath' path
+              Right $ Input.PullRemoteBranchI (Input.PullSourceTarget2 ns p) SyncMode.ShortCircuit pullMode verbosity
             _ -> Left (I.help self)
         )
 
@@ -1096,14 +1096,14 @@ pullExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
+          Right $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
         [url] -> do
           ns <- parseReadRemoteNamespace "remote-namespace" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
+          Right $ Input.PullRemoteBranchI (Input.PullSourceTarget1 ns) SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
         [url, path] -> do
           ns <- parseReadRemoteNamespace "remote-namespace" url
-          p <- first fromString $ Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
+          p <- first fromString $ wundefined -- Path.parsePath' path
+          Right $ Input.PullRemoteBranchI (Input.PullSourceTarget2 ns p) SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
         _ -> Left (I.help pullVerbose)
     )
 
