@@ -28,7 +28,6 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
-import Data.These (These)
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import System.Directory
@@ -62,7 +61,7 @@ import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
-import Unison.Codebase (Codebase, Preprocessing (..))
+import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
@@ -73,9 +72,9 @@ import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
-import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.CreatePullRequest (handleCreatePullRequest)
+import Unison.Codebase.Editor.HandleInput.LoadPullRequest (handleLoadPullRequest)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
@@ -83,7 +82,7 @@ import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (projectClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
-import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, importRemoteShareBranch, loadPropagateDiffDefaultPatch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
+import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.TermResolution
   ( resolveCon,
@@ -158,7 +157,6 @@ import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo, empty)
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
-import Unison.Project (ProjectBranchName, ProjectName)
 import Unison.Reference (Reference (..), TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -438,40 +436,8 @@ loop e = do
               Cli.respondNumbered (ShowDiffNamespace absBefore absAfter ppe diff)
             CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
             LoadPullRequestI baseRepo headRepo dest0 -> do
-              -- Cli.assertNoBranchAtPath' dest0
-              -- Cli.Env {codebase} <- ask
-              -- description <- inputDescription input
-              -- destAbs <- Cli.resolvePath' dest0
-              -- let getBranch = \case
-              --       ReadRemoteNamespaceGit repo ->
-              --         Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
-              --           Cli.returnEarly (Output.GitError err)
-              --       ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-              --       ReadRemoteProjectBranch v -> absurd v
-              -- baseb <- getBranch baseRepo
-              -- headb <- getBranch headRepo
-              -- mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
-              -- squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
-              -- Cli.updateAt description destAbs $ Branch.step \destBranch0 ->
-              --   destBranch0
-              --     & Branch.children
-              --       %~ ( \childMap ->
-              --              childMap
-              --                & at "base" ?~ baseb
-              --                & at "head" ?~ headb
-              --                & at "merged" ?~ mergedb
-              --                & at "squashed" ?~ squashedb
-              --          )
-              -- let base = snoc dest0 "base"
-              --     head = snoc dest0 "head"
-              --     merged = snoc dest0 "merged"
-              --     squashed = snoc dest0 "squashed"
-              -- Cli.respond $ LoadPullRequest baseRepo headRepo base head merged squashed
-              -- loadPropagateDiffDefaultPatch
-              --   description
-              --   (Just merged)
-              --   (snoc destAbs "merged")
-              wundefined
+              description <- inputDescription input
+              handleLoadPullRequest description baseRepo headRepo dest0
             MoveBranchI src' dest' -> do
               hasConfirmed <- confirmedCommand input
               description <- inputDescription input
@@ -1505,23 +1471,22 @@ inputDescription input =
     GenSchemeLibsI -> pure "compile.native.genlibs"
     FetchSchemeCompilerI -> pure "compile.native.fetch"
     PullRemoteBranchI sourceTarget _syncMode pullMode _ -> do
-      -- dest <- p' dest0
-      -- let command =
-      --       Text.pack . InputPattern.patternName $
-      --         case pullMode of
-      --           PullWithoutHistory -> InputPatterns.pullWithoutHistory
-      --           PullWithHistory -> InputPatterns.pull
-      -- pure $
-      --   command
-      --     <> " "
-      --     -- todo: show the actual config-loaded namespace
-      --     <> maybe
-      --       "(remote namespace from .unisonConfig)"
-      --       (printNamespace absurd)
-      --       orepo
-      --     <> " "
-      --     <> dest
-      wundefined
+      dest <- wundefined -- p' dest0
+      let command =
+            Text.pack . InputPattern.patternName $
+              case pullMode of
+                PullWithoutHistory -> InputPatterns.pullWithoutHistory
+                PullWithHistory -> InputPatterns.pull
+      pure $
+        command
+          <> " "
+          -- todo: show the actual config-loaded namespace
+          <> maybe
+            "(remote namespace from .unisonConfig)"
+            wundefined -- (printNamespace absurd)
+            wundefined -- orepo
+          <> " "
+          <> dest
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
     LoadPullRequestI base head dest0 -> do
       dest <- p' dest0
