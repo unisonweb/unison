@@ -116,6 +116,7 @@ module U.Codebase.Sqlite.Queries
     countWatches,
     getCausalsWithoutBranchObjects,
     removeHashObjectsByHashingVersion,
+    fixScopedNameLookupTables,
 
     -- ** type index
     addToTypeIndex,
@@ -287,7 +288,7 @@ import qualified Unison.Util.Lens as Lens
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 8
+currentSchemaVersion = 9
 
 createSchema :: Transaction ()
 createSchema = do
@@ -296,6 +297,7 @@ createSchema = do
   addTempEntityTables
   addNamespaceStatsTables
   addReflogTable
+  fixScopedNameLookupTables
   where
     insertSchemaVersionSql =
       [here|
@@ -313,6 +315,10 @@ addNamespaceStatsTables =
 addReflogTable :: Transaction ()
 addReflogTable =
   executeFile [hereFile|unison/sql/002-reflog-table.sql|]
+
+fixScopedNameLookupTables :: Transaction ()
+fixScopedNameLookupTables =
+  executeFile [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =
@@ -1657,7 +1663,6 @@ insertScopedTermNames bhId names = do
       [here|
       INSERT INTO scoped_term_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT DO NOTHING
         |]
 
 -- | Insert the given set of type names into the name lookup table
@@ -1669,7 +1674,6 @@ insertScopedTypeNames bhId names =
       [here|
       INSERT INTO scoped_type_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, reference_builtin, reference_component_hash, reference_component_index)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT DO NOTHING
         |]
 
 -- | Remove the given set of term names into the name lookup table
