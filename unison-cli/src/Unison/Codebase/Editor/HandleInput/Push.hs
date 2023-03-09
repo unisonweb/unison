@@ -63,7 +63,6 @@ import Unison.Project
     prependUserSlugToProjectBranchName,
     prependUserSlugToProjectName,
     projectBranchNameUserSlug,
-    projectNameUserSlug,
   )
 import qualified Unison.Share.API.Hash as Share.API
 import qualified Unison.Share.API.Projects as Share.API
@@ -398,13 +397,13 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
                 Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
                   Cli.returnEarly (Output.Unauthorized message)
                 Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
-                  repoName <- expectRemoteProjectBranchRepoName remoteBranch
+                  remoteBranch1 <- expectRemoteProjectAndBranch remoteBranch
                   afterUploadAction <-
                     makeFastForwardAfterUploadAction
                       (PushingProjectBranch localProjectAndBranch)
                       localBranchHead
                       remoteBranch
-                  pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
+                  pure UploadPlan {remoteBranch = remoteBranch1, causalHash = localBranchHead, afterUploadAction}
         -- "push /foo" with remote mapping for project from ancestor branch
         Just remoteBranchName ->
           pushToProjectBranch1
@@ -442,16 +441,16 @@ data WhatAreWePushing
   | PushingLooseCode
 
 -- we have the remote project and branch names, but we don't know whether either already exist
+-- FIXME call this function with a slug-prefixed branch, so that it can create "main" without slug
 pushToProjectBranch0 :: WhatAreWePushing -> Hash32 -> ProjectAndBranch ProjectName ProjectBranchName -> Cli UploadPlan
 pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
-  repoName <- projectBranchRepoName remoteProjectAndBranch
   let remoteProjectName = remoteProjectAndBranch ^. #project
   let remoteBranchName = remoteProjectAndBranch ^. #branch
   Share.getProjectByName remoteProjectName >>= \case
     Share.API.GetProjectResponseNotFound {} -> do
       pure
         UploadPlan
-          { repoName,
+          { remoteBranch = remoteProjectAndBranch,
             causalHash = localBranchHead,
             afterUploadAction =
               createProjectAndBranchAfterUploadAction
@@ -467,7 +466,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
         Share.API.GetProjectBranchResponseBranchNotFound {} -> do
           pure
             UploadPlan
-              { repoName,
+              { remoteBranch = remoteProjectAndBranch,
                 causalHash = localBranchHead,
                 afterUploadAction =
                   createBranchAfterUploadAction
@@ -481,7 +480,12 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
           Cli.returnEarly (Output.Unauthorized message)
         Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
           afterUploadAction <- makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch
-          pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
+          pure
+            UploadPlan
+              { remoteBranch = remoteProjectAndBranch,
+                causalHash = localBranchHead,
+                afterUploadAction
+              }
 
 -- "push /foo" with a remote mapping for the project (either from this branch or one of our ancestors)
 -- but we don't know whether the remote branch exists
@@ -491,20 +495,11 @@ pushToProjectBranch1 ::
   ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   Cli UploadPlan
 pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
-  repoName <-
-    case projectBranchNameUserSlug (remoteProjectAndBranch ^. #branch) of
-      Nothing ->
-        Share.getProjectById (remoteProjectAndBranch ^. #project . _1) >>= \case
-          Share.API.GetProjectResponseNotFound _ -> remoteProjectBranchDoesntExist
-          Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized message) -> do
-            Cli.returnEarly (Output.Unauthorized message)
-          Share.API.GetProjectResponseSuccess remoteProject -> expectRemoteProjectRepoName remoteProject
-      Just userSlug -> pure (Share.RepoName userSlug)
   Share.getProjectBranchByName (over #project fst remoteProjectAndBranch) >>= \case
     Share.API.GetProjectBranchResponseBranchNotFound {} -> do
       pure
         UploadPlan
-          { repoName,
+          { remoteBranch = over #project snd remoteProjectAndBranch,
             causalHash = localBranchHead,
             afterUploadAction =
               createBranchAfterUploadAction
@@ -518,7 +513,12 @@ pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranc
     Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
       afterUploadAction <-
         makeFastForwardAfterUploadAction (PushingProjectBranch localProjectAndBranch) localBranchHead remoteBranch
-      pure UploadPlan {repoName, causalHash = localBranchHead, afterUploadAction}
+      pure
+        UploadPlan
+          { remoteBranch = over #project snd remoteProjectAndBranch,
+            causalHash = localBranchHead,
+            afterUploadAction
+          }
   where
     remoteProjectBranchDoesntExist :: Cli void
     remoteProjectBranchDoesntExist =
@@ -530,11 +530,10 @@ pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranc
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload plan
 
--- A plan for uploading a branch and doing something afterwards.
+-- A plan for uploading to a remote branch and doing something afterwards.
 data UploadPlan = UploadPlan
-  { -- The "repo name" to upload to. For a contributor branch like @arya/topic, for example, this will be the username
-    -- "arya".
-    repoName :: Share.RepoName,
+  { -- The remote branch we are uploading entities for.
+    remoteBranch :: ProjectAndBranch ProjectName ProjectBranchName,
     -- The causal hash to upload.
     causalHash :: Hash32,
     -- The action to call after a successful upload.
@@ -543,13 +542,15 @@ data UploadPlan = UploadPlan
 
 -- Execute an upload plan.
 executeUploadPlan :: UploadPlan -> Cli ()
-executeUploadPlan UploadPlan {repoName, causalHash, afterUploadAction} = do
+executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
   loggeth ["uploading entities"]
   Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
     let upload =
           Share.uploadEntities
             (codeserverBaseURL Codeserver.defaultCodeserver)
-            repoName
+            -- On the wire, the remote branch is encoded as e.g.
+            --   { "repo_info": "@unison/base/@arya/topic", ... }
+            (Share.RepoInfo (into @Text (These (remoteBranch ^. #project) (remoteBranch ^. #branch))))
             (Set.NonEmpty.singleton causalHash)
             uploadedCallback
     upload & onLeftM \err -> do
@@ -710,21 +711,6 @@ bugRemoteMissingCausalHash :: Hash32 -> a
 bugRemoteMissingCausalHash hash =
   error (reportBug "E796475" ("Create remote branch: causal hash missing: " ++ show hash))
 
--- A couple example repo names derived from the project/branch names:
---
---   "@unison/base" / "@arya/topic" => "arya", because the branch "@arya/topic" has a user component
---
---   "@unison/base" / "main"        => "unison", because the branch "main" doesn't have a user component
---
---   "something"    / "weird"       => oh no, we probably have to fail here, because even though we tried to design an
---                                     API that allows any ol' project and branch name, we don't really know *where* to
---                                     upload (i.e. the repo name of) a project that doesn't have a user component
-projectBranchRepoName :: ProjectAndBranch ProjectName ProjectBranchName -> Cli Share.RepoName
-projectBranchRepoName (ProjectAndBranch projectName branchName) =
-  case projectBranchNameUserSlug branchName of
-    Nothing -> expectProjectNameUserSlug projectName
-    Just userSlug -> pure (Share.RepoName userSlug)
-
 oinkGetLoggedInUser :: Cli Text
 oinkGetLoggedInUser = do
   loggeth ["Getting current logged-in user on Share"]
@@ -790,16 +776,11 @@ wouldNotBeFastForward localBranchHead remoteBranchHead = do
 --
 -- A Share project is just an opaque text, but we often need to assert that it actually is of the form @user/name
 
-expectRemoteProjectRepoName :: Share.API.Project -> Cli Share.RepoName
-expectRemoteProjectRepoName project = do
-  projectName <- expectProjectName (project ^. #projectName)
-  expectProjectNameUserSlug projectName
-
-expectRemoteProjectBranchRepoName :: Share.API.ProjectBranch -> Cli Share.RepoName
-expectRemoteProjectBranchRepoName branch = do
+expectRemoteProjectAndBranch :: Share.API.ProjectBranch -> Cli (ProjectAndBranch ProjectName ProjectBranchName)
+expectRemoteProjectAndBranch branch = do
   projectName <- expectProjectName (branch ^. #projectName)
   branchName <- expectBranchName (branch ^. #branchName)
-  projectBranchRepoName (ProjectAndBranch projectName branchName)
+  pure (ProjectAndBranch projectName branchName)
 
 expectProjectName :: Text -> Cli ProjectName
 expectProjectName projectName =
@@ -809,20 +790,6 @@ expectProjectName projectName =
       loggeth ["Invalid project name: ", tShow err]
       Cli.returnEarlyWithoutOutput
     Right x -> pure x
-
-expectProjectNameUserSlug :: ProjectName -> Cli Share.RepoName
-expectProjectNameUserSlug projectName =
-  case projectNameUserSlug projectName of
-    Nothing -> do
-      loggeth
-        [ "Expected project name: ",
-          tShow projectName,
-          " to contain a user slug.",
-          "\n",
-          tShow projectName
-        ]
-      Cli.returnEarlyWithoutOutput
-    Just userSlug -> pure (Share.RepoName userSlug)
 
 expectBranchName :: Text -> Cli ProjectBranchName
 expectBranchName branchName = case tryInto branchName of

@@ -27,7 +27,7 @@ import qualified Unison.Share.API.Projects as Share.API
 import qualified Unison.Share.Sync as Share (downloadEntities)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Sync.Common (hash32ToCausalHash)
-import qualified Unison.Sync.Types as Share (RepoName (..))
+import qualified Unison.Sync.Types as Share (RepoInfo (..))
 import Witch (unsafeFrom)
 
 -- | Clone a remote project or remote project branch.
@@ -62,12 +62,9 @@ cloneProjectAndBranch remoteProjectAndBranch = do
   let localBranchName = remoteBranchName
 
   -- Assert that this project name has a user slug
-  remoteProjectUserSlug <-
-    case projectNameUserSlug remoteProjectName of
-      Just slug -> pure slug
-      Nothing -> do
-        loggeth ["can't clone project without user slug"]
-        Cli.returnEarlyWithoutOutput
+  projectNameUserSlug remoteProjectName & onNothing do
+    loggeth ["can't clone project without user slug"]
+    Cli.returnEarlyWithoutOutput
 
   -- Quick local check before hitting share to determine whether this project+branch already exists.
   let assertLocalProjectBranchDoesntExist :: Sqlite.Transaction (Either Output.Output (Maybe Queries.Project))
@@ -102,7 +99,7 @@ cloneProjectAndBranch remoteProjectAndBranch = do
     let download =
           Share.downloadEntities
             Share.hardCodedBaseUrl
-            (Share.RepoName remoteProjectUserSlug)
+            (Share.RepoInfo (into @Text (These remoteProjectName remoteBranchName)))
             remoteBranchHeadJwt
             downloadedCallback
     download & onLeftM \err -> do

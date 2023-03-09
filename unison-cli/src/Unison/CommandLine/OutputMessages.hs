@@ -694,8 +694,8 @@ notifyUser dir = \case
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
+        pure $
+          P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -1084,11 +1084,11 @@ notifyUser dir = \case
 
         let prettyBindings =
               P.bracket . P.lines $
-                P.wrap "The watch expression(s) reference these definitions:"
-                  : ""
-                  : [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
-                      | (v, b) <- bindings
-                    ]
+                P.wrap "The watch expression(s) reference these definitions:" :
+                "" :
+                  [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
+                    | (v, b) <- bindings
+                  ]
             prettyWatches =
               P.sep
                 "\n\n"
@@ -1336,13 +1336,13 @@ notifyUser dir = \case
       case (new, old) of
         ([], []) -> error "BustedBuiltins busted, as there were no busted builtins."
         ([], old) ->
-          P.wrap ("This codebase includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your codebase:")
-            : ""
-            : fmap (P.text . Reference.toText) old
+          P.wrap ("This codebase includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your codebase:") :
+          "" :
+          fmap (P.text . Reference.toText) old
         (new, []) ->
-          P.wrap ("This version of Unison provides builtins that are not part of your codebase. Use " <> makeExample' IP.updateBuiltins <> " to add them:")
-            : ""
-            : fmap (P.text . Reference.toText) new
+          P.wrap ("This version of Unison provides builtins that are not part of your codebase. Use " <> makeExample' IP.updateBuiltins <> " to add them:") :
+          "" :
+          fmap (P.text . Reference.toText) new
         (new@(_ : _), old@(_ : _)) ->
           [ P.wrap
               ( "Sorry and/or good news!  This version of Unison supports a different set of builtins than this codebase uses.  You can use "
@@ -1665,11 +1665,11 @@ notifyUser dir = \case
       num n = P.hiBlack $ P.shown n <> "."
       header = (P.hiBlack "Reference", P.hiBlack "Name")
       pairs =
-        header
-          : ( fmap (first c . second c) $
-                [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
-                  ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
-            )
+        header :
+        ( fmap (first c . second c) $
+            [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
+              ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
+        )
       p = prettyShortHash . SH.take hqLength
       c = P.syntaxToColor
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
@@ -1779,6 +1779,8 @@ notifyUser dir = \case
           _ -> P.wrap $ P.text "It looks like someone modified" <> prettySharePath sharePath <> P.text "an instant before you. Pull and try again? 🤞"
       (Share.CheckAndSetPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
       (Share.CheckAndSetPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
+      (Share.CheckAndSetPushErrorInvalidRepoInfo repoInfo) -> invalidRepoInfo repoInfo
+      (Share.CheckAndSetPushErrorUserNotFound path) -> shareUserNotFound path
     ShareErrorFastForwardPush e -> case e of
       (Share.FastForwardPushErrorNoHistory sharePath) ->
         expectedNonEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
@@ -1806,10 +1808,14 @@ notifyUser dir = \case
           pull = P.group . P.backticked . IP.patternName $ IP.pull
       (Share.FastForwardPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
       (Share.FastForwardPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
+      (Share.FastForwardPushErrorInvalidRepoInfo repoInfo) -> invalidRepoInfo repoInfo
+      (Share.FastForwardPushErrorUserNotFound path) -> shareUserNotFound path
     ShareErrorPull e -> case e of
       Share.PullErrorNoHistoryAtPath sharePath ->
         P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
       Share.PullErrorNoReadPermission sharePath -> noReadPermission sharePath
+      Share.PullErrorInvalidRepoInfo repoInfo -> invalidRepoInfo repoInfo
+      Share.PullErrorUserNotFound path -> shareUserNotFound path
     ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
     ShareErrorTransport te -> case te of
       DecodeFailure msg resp ->
@@ -1855,6 +1861,21 @@ notifyUser dir = \case
           . coerce @[Text] @[NameSegment]
           . toList
           . Share.pathSegments
+      invalidRepoInfo repoInfo =
+        P.lines
+          [ P.wrap $
+              "The server doesn't recognize the codebase path UCM provided. This is probably a bug in UCM.",
+            P.text "",
+            P.text "The invalid path is:\n"
+              <> P.indentN 2 (P.text (Share.unRepoInfo repoInfo))
+          ]
+      shareUserNotFound (Share.Path pathSegments) =
+        P.lines
+          [ P.wrap $
+              "The user provided by the following path does not exist:",
+            "",
+            P.indentN 2 (P.text . Text.intercalate "." $ toList pathSegments)
+          ]
       missingDependencies hashes =
         -- maybe todo: stuff in all the args to CheckAndSetPush
         P.lines
@@ -1868,6 +1889,8 @@ notifyUser dir = \case
           ]
       handleGetCausalHashByPathError = \case
         Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermission sharePath
+        Share.GetCausalHashByPathErrorInvalidRepoInfo repoInfo -> invalidRepoInfo repoInfo
+        Share.GetCausalHashByPathErrorUserNotFound path -> shareUserNotFound path
       noReadPermission sharePath =
         P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettySharePath sharePath <> ".")
       noWritePermissionFastForwardPushError sharePath =
@@ -1970,7 +1993,7 @@ notifyUser dir = \case
       ( WriteRemotePathShare
           WriteShareRemotePath
             { server = RemoteRepo.DefaultCodeserver,
-              repo = ShareUserHandle $ Share.unRepoName (Share.pathRepoName sharePath),
+              repo = ShareUserHandle $ Share.unRepoInfo (Share.pathRepoInfo sharePath),
               path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
             }
       )
@@ -2335,10 +2358,10 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' name dt r aliases) =
   P.lines stuff <> P.newline
   where
     stuff =
-      (P.hiBlack "-- " <> greyHash (HQ.fromReference r))
-        : fmap
-          (\name -> prettyDeclTriple (name, r, dt))
-          (name : map HQ'.toHQ (toList aliases))
+      (P.hiBlack "-- " <> greyHash (HQ.fromReference r)) :
+      fmap
+        (\name -> prettyDeclTriple (name, r, dt))
+        (name : map HQ'.toHQ (toList aliases))
       where
         greyHash = styleHashQualified' id P.hiBlack
 
@@ -2623,7 +2646,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-      ("The namespaces are identical.", mempty)
+    ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
@@ -3070,23 +3093,24 @@ listOfDefinitions' fscope ppe detailed results =
     else
       P.lines
         . P.nonEmpty
-        $ prettyNumberedResults
-          : [ formatMissingStuff termsWithMissingTypes missingTypes,
-              Monoid.unlessM (null missingBuiltins)
-                . bigproblem
-                $ P.wrap
-                  "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:"
-                  `P.hang` P.column2
-                    ( (P.bold "Name", P.bold "Built-in")
-                        -- : ("-", "-")
-                        : fmap
-                          ( bimap
-                              (P.syntaxToColor . prettyHashQualified)
-                              (P.text . Referent.toText)
-                          )
-                          missingBuiltins
+        $ prettyNumberedResults :
+        [ formatMissingStuff termsWithMissingTypes missingTypes,
+          Monoid.unlessM (null missingBuiltins)
+            . bigproblem
+            $ P.wrap
+              "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:"
+              `P.hang` P.column2
+                ( (P.bold "Name", P.bold "Built-in")
+                  -- : ("-", "-")
+                  :
+                  fmap
+                    ( bimap
+                        (P.syntaxToColor . prettyHashQualified)
+                        (P.text . Referent.toText)
                     )
-            ]
+                    missingBuiltins
+                )
+        ]
   where
     prettyNumberedResults = P.numberedList prettyResults
     -- todo: group this by namespace
@@ -3253,8 +3277,8 @@ prettyDiff diff =
                   "",
                   P.indentN 2 $
                     P.column2 $
-                      (P.hiBlack "Original name", P.hiBlack "New name")
-                        : [(prettyName n, prettyName n2) | (n, n2) <- moved]
+                      (P.hiBlack "Original name", P.hiBlack "New name") :
+                        [(prettyName n, prettyName n2) | (n, n2) <- moved]
                 ]
             else mempty,
           if not $ null copied
@@ -3264,10 +3288,10 @@ prettyDiff diff =
                   "",
                   P.indentN 2 $
                     P.column2 $
-                      (P.hiBlack "Original name", P.hiBlack "New name(s)")
-                        : [ (prettyName n, P.sep " " (prettyName <$> ns))
-                            | (n, ns) <- copied
-                          ]
+                      (P.hiBlack "Original name", P.hiBlack "New name(s)") :
+                        [ (prettyName n, P.sep " " (prettyName <$> ns))
+                          | (n, ns) <- copied
+                        ]
                 ]
             else mempty
         ]
