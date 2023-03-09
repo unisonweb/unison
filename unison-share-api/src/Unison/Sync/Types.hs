@@ -632,7 +632,11 @@ instance ToJSON UploadEntitiesRequest where
 
 instance FromJSON UploadEntitiesRequest where
   parseJSON = Aeson.withObject "UploadEntitiesRequest" \obj -> do
-    repoInfo <- obj .: "repo_info" <|> obj .: "repo_name"
+    repoInfo <-
+      obj .: "repo_info" <|> do
+        -- Back-compat by converting old 'repo_name' fields into the new 'repo_info' format.
+        repoName <- obj .: "repo_name"
+        pure . RepoInfo $ "@" <> repoName
     entities <- obj .: "entities"
     pure UploadEntitiesRequest {..}
 
