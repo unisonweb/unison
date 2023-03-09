@@ -22,6 +22,7 @@ import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Cli.ProjectUtils (getCurrentProjectBranch, loggeth, projectBranchPath)
+import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
 import qualified Unison.Cli.UnisonConfigUtils as UnisonConfigUtils
 import Unison.Codebase (PushGitBranchOpts (..))
@@ -119,7 +120,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
       getCurrentProjectBranch >>= \case
         Nothing -> do
           localPath <- Cli.getCurrentPath
-          remoteProjectAndBranch <- branchNameSpecToNames remoteProjectAndBranch0
+          remoteProjectAndBranch <- ProjectUtils.resolveNames remoteProjectAndBranch0
           pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
         Just localProjectAndBranch ->
           pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch0)
@@ -130,64 +131,16 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
     -- push .some.path to @some/project
     PushSourceTarget2 (PathySource localPath0) (ProjyTarget remoteProjectAndBranch0) -> do
       localPath <- Cli.resolvePath' localPath0
-      remoteProjectAndBranch <- branchNameSpecToNames remoteProjectAndBranch0
+      remoteProjectAndBranch <- ProjectUtils.resolveNames remoteProjectAndBranch0
       pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
     -- push @some/project to .some.path
     PushSourceTarget2 (ProjySource localProjectAndBranch0) (PathyTarget remotePath) -> do
-      localProjectAndBranch <- branchNameSpecToIds localProjectAndBranch0
+      localProjectAndBranch <- ProjectUtils.resolveNamesToIds localProjectAndBranch0
       pushLooseCodeToLooseCode (projectBranchPath localProjectAndBranch) remotePath pushBehavior syncMode
     -- push @some/project to @some/project
     PushSourceTarget2 (ProjySource localProjectAndBranch0) (ProjyTarget remoteProjectAndBranch) -> do
-      localProjectAndBranch <- branchNameSpecToIds localProjectAndBranch0
+      localProjectAndBranch <- ProjectUtils.resolveNamesToIds localProjectAndBranch0
       pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch)
-
--- Convert a "branch name spec" (project name, or branch name, or both) into local ids for the project and branch, using
--- the following defaults, if a name is missing:
---
---   - The project at the current path
---   - The branch named "main"
-branchNameSpecToIds :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch ProjectId ProjectBranchId)
-branchNameSpecToIds = \case
-  This projectName -> branchNameSpecToIds (These projectName (unsafeFrom @Text "main"))
-  That branchName -> do
-    ProjectAndBranch projectId _branchId <-
-      getCurrentProjectBranch & onNothingM do
-        loggeth ["not on a project branch yo"]
-        Cli.returnEarlyWithoutOutput
-    branch <-
-      Cli.runTransaction (Queries.loadProjectBranchByName projectId (into @Text branchName)) & onNothingM do
-        project <- Cli.runTransaction (Queries.expectProject projectId)
-        Cli.returnEarly $
-          LocalProjectBranchDoesntExist (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
-    pure (ProjectAndBranch projectId (branch ^. #branchId))
-  These projectName branchName -> do
-    maybeProjectAndBranch <-
-      Cli.runTransaction do
-        runMaybeT do
-          project <- MaybeT (Queries.loadProjectByName (into @Text projectName))
-          let projectId = project ^. #projectId
-          branch <- MaybeT (Queries.loadProjectBranchByName projectId (into @Text branchName))
-          pure (ProjectAndBranch projectId (branch ^. #branchId))
-    maybeProjectAndBranch & onNothing do
-      Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
-
--- Convert a "branch name spec" (project name, or branch name, or both) into names for the project and branch, using the
--- following defaults, if a name is missing:
---
---   - The project at the current path
---   - The branch named "main"
-branchNameSpecToNames :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch ProjectName ProjectBranchName)
-branchNameSpecToNames = \case
-  This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
-  That branchName -> do
-    ProjectAndBranch projectId _branchId <-
-      getCurrentProjectBranch & onNothingM do
-        loggeth ["not on a project branch"]
-        Cli.returnEarlyWithoutOutput
-    Cli.runTransaction do
-      project <- Queries.expectProject projectId
-      pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
-  These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
 -- Push a local namespace ("loose code") to a remote namespace ("loose code").
 pushLooseCodeToLooseCode :: Path.Absolute -> WriteRemotePath -> PushBehavior -> SyncMode -> Cli ()
