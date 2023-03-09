@@ -28,6 +28,7 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
+import Data.These (These)
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import System.Directory
@@ -74,6 +75,7 @@ import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
+import Unison.Codebase.Editor.HandleInput.CreatePullRequest (handleCreatePullRequest)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
@@ -156,6 +158,7 @@ import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo, empty)
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
+import Unison.Project (ProjectBranchName, ProjectName)
 import Unison.Reference (Reference (..), TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -203,8 +206,6 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
-import Data.These (These)
-import Unison.Project (ProjectName, ProjectBranchName)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -1612,28 +1613,6 @@ inputDescription input =
       pure (p <> "." <> HQ'.toTextWith NameSegment.toText hq)
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
-
-handleCreatePullRequest :: 
-  ReadRemoteNamespace (These ProjectName ProjectBranchName) ->
-  ReadRemoteNamespace (These ProjectName ProjectBranchName) ->
-  Cli ()
-handleCreatePullRequest baseRepo0 headRepo0 = do
-  -- Cli.Env {codebase} <- ask
-
-  -- let withBranch :: ReadRemoteNamespace Void -> (forall x. (Branch IO -> Cli x) -> Cli x)
-  --     withBranch rrn k = case rrn of
-  --       ReadRemoteNamespaceGit repo -> do
-  --         Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \case
-  --           Left err -> Cli.returnEarly (Output.GitError err)
-  --           Right x -> k x
-  --       ReadRemoteNamespaceShare repo -> k =<< importRemoteShareBranch repo
-  --       ReadRemoteProjectBranch v -> absurd v
-
-  -- (ppe, diff) <- withBranch baseRepo0 \baseBranch -> withBranch headRepo0 \headBranch -> do
-  --   merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
-  --   diffHelper (Branch.head baseBranch) (Branch.head merged)
-  -- Cli.respondNumbered (ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff)
-  wundefined
 
 handleFindI ::
   Bool ->
