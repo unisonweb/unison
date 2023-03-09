@@ -1066,13 +1066,18 @@ pullImpl name aliases verbosity pullMode addendum = do
         ( \case
             [] ->
               Right $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.ShortCircuit pullMode verbosity
-            [url] -> do
-              ns <- parseReadRemoteNamespace "remote-namespace" url
-              Right $ Input.PullRemoteBranchI (Input.PullSourceTarget1 ns) SyncMode.ShortCircuit pullMode verbosity
-            [url, path] -> do
-              ns <- parseReadRemoteNamespace "remote-namespace" url
-              p <- first fromString $ wundefined -- Path.parsePath' path
-              Right $ Input.PullRemoteBranchI (Input.PullSourceTarget2 ns p) SyncMode.ShortCircuit pullMode verbosity
+            [sourceString] -> do
+              source <- parseReadRemoteNamespace "remote-namespace" sourceString
+              Right $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) SyncMode.ShortCircuit pullMode verbosity
+            [sourceString, targetString] -> do
+              source <- parseReadRemoteNamespace "remote-namespace" sourceString
+              target <- parsePullTarget targetString
+              Right $
+                Input.PullRemoteBranchI
+                  (Input.PullSourceTarget2 source target)
+                  SyncMode.ShortCircuit
+                  pullMode
+                  verbosity
             _ -> Left (I.help self)
         )
 
@@ -1096,14 +1101,29 @@ pullExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
-        [url] -> do
-          ns <- parseReadRemoteNamespace "remote-namespace" url
-          Right $ Input.PullRemoteBranchI (Input.PullSourceTarget1 ns) SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
-        [url, path] -> do
-          ns <- parseReadRemoteNamespace "remote-namespace" url
-          p <- first fromString $ wundefined -- Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Input.PullSourceTarget2 ns p) SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
+          Right $
+            Input.PullRemoteBranchI
+              Input.PullSourceTarget0
+              SyncMode.Complete
+              Input.PullWithHistory
+              Verbosity.Verbose
+        [sourceString] -> do
+          source <- parseReadRemoteNamespace "remote-namespace" sourceString
+          Right $
+            Input.PullRemoteBranchI
+              (Input.PullSourceTarget1 source)
+              SyncMode.Complete
+              Input.PullWithHistory
+              Verbosity.Verbose
+        [sourceString, targetString] -> do
+          source <- parseReadRemoteNamespace "remote-namespace" sourceString
+          target <- parsePullTarget targetString
+          Right $
+            Input.PullRemoteBranchI
+              (Input.PullSourceTarget2 source target)
+              SyncMode.Complete
+              Input.PullWithHistory
+              Verbosity.Verbose
         _ -> Left (I.help pullVerbose)
     )
 
@@ -2621,6 +2641,15 @@ parseProjectName s =
 parseProjectBranchName :: Text -> Either (P.Pretty P.ColorText) ProjectBranchName
 parseProjectBranchName s =
   mapLeft (\_ -> "Invalid branch name.") (tryInto @ProjectBranchName s)
+
+parsePullTarget :: String -> Either (P.Pretty CT.ColorText) (Input.PullTarget (These ProjectName ProjectBranchName))
+parsePullTarget targetString =
+  case tryInto @(These ProjectName ProjectBranchName) (Text.pack targetString) of
+    Left _ ->
+      case Path.parsePath' targetString of
+        Left _ -> Left (I.help pull)
+        Right path -> pure (Input.PullTargetLooseCode path)
+    Right project -> pure (Input.PullTargetProject project)
 
 -- | Parse a 'Input.PushSource'.
 parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource
