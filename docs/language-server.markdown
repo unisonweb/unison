@@ -79,6 +79,26 @@ Note that you'll need to start UCM _before_ you try connecting to it in your edi
 
 Simply install the [Unison Language VSCode extension](https://marketplace.visualstudio.com/items?itemName=unison-lang.unison).
 
+### Helix Editor
+
+To `~/.config/helix/languages.toml` append this code:
+
+```toml
+[[language]]
+name = "unison"
+scope = "source.unison"
+injection-regex = "unison"
+file-types = ["u"]
+shebangs = []
+roots = []
+auto-format = false
+comment-token = "--"
+indent = { tab-width = 4, unit = "    " }
+language-server = { command = "ncat", args = ["localhost", "5757"] }
+```
+
+or follow the instructions for Unison in "[How to install the default language servers](https://github.com/helix-editor/helix/wiki/How-to-install-the-default-language-servers#unison)" wiki page.
+
 
 ### Other Editors
 

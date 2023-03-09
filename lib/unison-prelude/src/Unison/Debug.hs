@@ -39,6 +39,8 @@ data DebugFlag
     Temp
   | -- | Shows Annotations when printing terms
     Annotations
+  | PatternCoverage
+  | PatternCoverageConstraintSolver
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -61,6 +63,8 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "TIMING" -> pure Timing
       "TEMP" -> pure Temp
       "ANNOTATIONS" -> pure Annotations
+      "PATTERN_COVERAGE" -> pure PatternCoverage
+      "PATTERN_COVERAGE_CONSTRAINT_SOLVER" -> pure PatternCoverageConstraintSolver
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -107,6 +111,14 @@ debugTemp = Temp `Set.member` debugFlags
 debugAnnotations :: Bool
 debugAnnotations = Annotations `Set.member` debugFlags
 {-# NOINLINE debugAnnotations #-}
+
+debugPatternCoverage :: Bool
+debugPatternCoverage = PatternCoverage `Set.member` debugFlags
+{-# NOINLINE debugPatternCoverage #-}
+
+debugPatternCoverageConstraintSolver :: Bool
+debugPatternCoverageConstraintSolver = PatternCoverageConstraintSolver `Set.member` debugFlags
+{-# NOINLINE debugPatternCoverageConstraintSolver #-}
 
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
@@ -159,3 +171,5 @@ shouldDebug = \case
   Timing -> debugTiming
   Temp -> debugTemp
   Annotations -> debugAnnotations
+  PatternCoverage -> debugPatternCoverage
+  PatternCoverageConstraintSolver -> debugPatternCoverageConstraintSolver

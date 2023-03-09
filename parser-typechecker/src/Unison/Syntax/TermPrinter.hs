@@ -9,12 +9,14 @@ module Unison.Syntax.TermPrinter
     prettyBindingWithoutTypeSignature,
     pretty0,
     runPretty,
+    prettyPattern,
   )
 where
 
 import Control.Lens (unsnoc, (^.))
 import Control.Monad.State (evalState)
 import qualified Control.Monad.State as State
+import Data.Char (isPrint)
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -86,12 +88,12 @@ data AmbientContext = AmbientContext
   { -- The operator precedence of the enclosing context (a number from 0 to 11,
     -- or -1 to render without outer parentheses unconditionally).
     -- Function application has precedence 10.
-    precedence :: Int,
-    blockContext :: BlockContext,
-    infixContext :: InfixContext,
-    imports :: Imports,
-    docContext :: DocLiteralContext,
-    elideUnit :: Bool -- `True` if a `()` at the end of a block should be elided
+    precedence :: !Int,
+    blockContext :: !BlockContext,
+    infixContext :: !InfixContext,
+    imports :: !Imports,
+    docContext :: !DocLiteralContext,
+    elideUnit :: !Bool -- `True` if a `()` at the end of a block should be elided
   }
 
 -- Description of the position of this ABT node, when viewed in the
@@ -226,6 +228,24 @@ pretty0
       --      metaprograms), then it needs to be able to print them (and then the
       --      parser ought to be able to parse them, to maintain symmetry.)
       Boolean' b -> pure . fmt S.BooleanLiteral $ if b then l "true" else l "false"
+      Text' s
+        | Just quotes <- useRaw s ->
+            pure . fmt S.TextLiteral $ PP.text quotes <> "\n" <> PP.text s <> PP.text quotes
+        where
+          -- we only use this syntax if we're not wrapped in something else,
+          -- to avoid possible round trip issues if the text ends at an odd column
+          useRaw _ | p > 0 = Nothing
+          useRaw s | Text.find (== '\n') s == Just '\n' && Text.all ok s = n 3
+          useRaw _ = Nothing
+          ok ch = isPrint ch || ch == '\n' || ch == '\r'
+          -- Picks smallest number of surrounding """ to be unique
+          n 10 = Nothing -- bail at 10, avoiding quadratic behavior in weird cases
+          n cur =
+            if null (Text.breakOnAll quotes s)
+              then Just quotes
+              else n (cur + 1)
+            where
+              quotes = Text.pack (replicate cur '"')
       Text' s -> pure . fmt S.TextLiteral $ l $ U.ushow s
       Char' c -> pure
         . fmt S.CharLiteral
@@ -470,7 +490,7 @@ pretty0
                 paren (p >= 10) <$> do
                   lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
                   booleanOps (fmt S.ControlKeyword "||") xs lastArg'
-              _ -> case (term, nonForcePred) of
+              _other -> case (term, nonForcePred) of
                 OverappliedBinaryAppPred' f a b r
                   | binaryOpsPred f ->
                       -- Special case for overapplied binary op
@@ -484,16 +504,20 @@ pretty0
                     f' <- pretty0 (ac 10 Normal im doc) f
                     args' <- PP.spacedTraverse (pretty0 (ac 10 Normal im doc)) args
                     pure $ f' `PP.hang` args'
-                _ -> case (term, \v -> nonUnitArgPred v && not (isDelay term)) of
+                _other -> case (term, \v -> nonUnitArgPred v && not (isDelay term)) of
                   (LamsNamedMatch' [] branches, _) -> do
                     pbs <- printCase im doc branches
                     pure . paren (p >= 3) $
                       PP.group (fmt S.ControlKeyword "cases") `PP.hang` pbs
                   LamsNamedPred' vs body -> do
-                    prettyBody <- pretty0 (ac 2 Block im doc) body
+                    prettyBody <- pretty0 (ac 2 Normal im doc) body
+                    let hang = case body of
+                          Delay' (Lets' _ _) -> PP.softHang
+                          Lets' _ _ -> PP.softHang
+                          _ -> PP.hang
                     pure . paren (p >= 3) $
-                      PP.group (varList vs <> fmt S.ControlKeyword " ->") `PP.hang` prettyBody
-                  _ -> go term
+                      PP.group (varList vs <> fmt S.ControlKeyword " ->") `hang` prettyBody
+                  _other -> go term
 
       isDelay (Delay' _) = True
       isDelay _ = False

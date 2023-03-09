@@ -234,6 +234,8 @@ analyseNotes fileUri ppe src notes = do
               (_v, locs) <- toList defns
               (r, rs) <- withNeighbours (locs >>= aToR)
               pure (r, ("duplicate definition",) <$> rs)
+            TypeError.RedundantPattern loc -> singleRange loc
+            TypeError.UncoveredPatterns loc _pats -> singleRange loc
             -- These type errors don't have custom type error conversions, but some
             -- still have valid diagnostics.
             TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of

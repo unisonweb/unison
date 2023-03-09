@@ -106,10 +106,12 @@ Even though the parser accepts any pattern on the LHS of a bind, it looks pretty
 ex5 : 'Text
 ex5 _ = match 99 + 1 with
   12 -> "Hi"
+  _ -> "Bye"
 
 ex5a : 'Text
 ex5a _ = match (99 + 1, "hi") with
   (x, "hi") -> "Not printed as a destructuring bind."
+  _ -> "impossible"
 ```
 
 ```ucm
@@ -137,13 +139,16 @@ ex5a _ = match (99 + 1, "hi") with
   ex5 : 'Text
   ex5 _ =
     use Nat +
-    match 99 + 1 with 12 -> "Hi"
+    match 99 + 1 with
+      12 -> "Hi"
+      _  -> "Bye"
   
   ex5a : 'Text
   ex5a _ =
     use Nat +
     match (99 + 1, "hi") with
       (x, "hi") -> "Not printed as a destructuring bind."
+      _         -> "impossible"
 
 ```
 Notice how it prints both an ordinary match.

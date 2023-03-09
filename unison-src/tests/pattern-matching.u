@@ -16,8 +16,8 @@ y = match Foo1 1 with
   Foo1 _ -> 10
 
 z = match Foo2 1 "hi" with
-  Foo2 x _ -> x
   Foo2 1 _ -> 1
+  Foo2 x _ -> x
 
 w = match Foo3.Foo3 1 2 "bye" with
   Foo3.Foo3 1 2 x -> x Text.++ "bye"
@@ -26,7 +26,6 @@ w = match Foo3.Foo3 1 2 "bye" with
 w2 = cases
   Foo3.Foo3 1 4 x -> x Text.++ "bye"
   Foo3.Foo3 x y z -> z Text.++ z
-  _ -> "hi"
 
 len : List a -> Nat
 len = cases
