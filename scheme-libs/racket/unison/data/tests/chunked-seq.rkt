@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require rackunit
+(require data/order
+         rackunit
          "../chunked-seq.rkt")
 
 (check-pred chunked-list-empty? empty-chunked-list)
@@ -115,3 +116,15 @@
  (for* ([len-a (in-range 1000 10000 1000)]
         [len-b (in-range 1000 10000 1000)])
    (go len-a len-b)))
+
+(let ()
+  (define datum-compare (order-comparator datum-order))
+  (define (compare vec-a vec-b)
+    (chunked-list-compare/recur (vector->chunked-list vec-a) (vector->chunked-list vec-b) datum-compare))
+
+  (check-equal? (compare #() #()) '=)
+  (check-equal? (compare #(1) #(1)) '=)
+  (check-equal? (compare #() #(1)) '<)
+  (check-equal? (compare #(1) #()) '>)
+  (check-equal? (compare #(1) #(2)) '<)
+  (check-equal? (compare #(2) #(1)) '>))
