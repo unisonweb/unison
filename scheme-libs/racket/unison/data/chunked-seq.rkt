@@ -53,6 +53,9 @@
 ;;
 ;;   chunked-seq-append : (-> chunked-seq? ... chunked-seq?)
 ;;
+;;   chunked-seq=?/recur : (-> chunked-seq? chunked-seq? (-> any/c any/c any/c) boolean?)
+;;   chunked-seq-compare/recur : (-> chunked-seq? chunked-seq? (-> any/c any/c ordering/c) ordering/c)
+;;
 ;;   in-chunked-seq : (-> chunked-seq? (sequence/c elem/c))
 ;;   in-chunked-seq-chunks : (-> chunked-seq? (sequence/c chunk?))
 ;;     Note: Like `in-list`, `in-chunked-seq` and `in-chunked-seq-chunks` can
@@ -100,6 +103,9 @@
 
    (define/with-syntax chunked-seq-append (derived-seq-id "~a-append"))
 
+   (define/with-syntax chunked-seq=?/recur (derived-seq-id "~a=?/recur"))
+   (define/with-syntax chunked-seq-compare/recur (derived-seq-id "~a-compare/recur"))
+
    (define/with-syntax in-chunked-seq (derived-seq-id "in-~a"))
    (define/with-syntax in-chunked-seq-chunks (derived-seq-id "in-~a-chunks"))
 
@@ -124,7 +130,13 @@
                  [chunked-seq-drop-first (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) chunked-seq?)]
                  [chunked-seq-drop-last (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) chunked-seq?)]
 
-                 [chunked-seq-append {... (-> chunked-seq? ... chunked-seq?)}])
+                 [chunked-seq-append {... (-> chunked-seq? ... chunked-seq?)}]
+
+                 [chunked-seq=?/recur (-> chunked-seq? chunked-seq? procedure? boolean?)]
+                 [chunked-seq-compare/recur (-> chunked-seq?
+                                                chunked-seq?
+                                                procedure? ; should be (-> any/c any/c ordering/c), but that’s expensive
+                                                (or/c '= '< '>))])
 
                 (rename-out
                  [-in-chunked-seq in-chunked-seq]
@@ -261,11 +273,7 @@
          #:property prop:equal+hash
          (let ()
            (define (equal-proc cs-a cs-b recur)
-             (and (= (chunked-seq-length cs-a)
-                     (chunked-seq-length cs-b))
-                  (for/and ([val-a (-in-chunked-seq cs-a)]
-                            [val-b (-in-chunked-seq cs-b)])
-                    (recur val-a val-b))))
+             (chunked-seq=?/recur cs-a cs-b recur))
 
            (define ((hash-proc init) cs recur)
              (for/fold ([hc init])
@@ -715,6 +723,55 @@
             (for/fold ([cs-a cs-a])
                       ([cs-b (in-list cs-bs)])
               (chunked-seq-append cs-a cs-b))]))
+
+       ;; ----------------------------------------------------------------------
+       ;; comparison
+
+       (define (chunked-seq=?/recur cs-a cs-b recur)
+         (and (= (chunked-seq-length cs-a)
+                 (chunked-seq-length cs-b))
+              (for/and ([val-a (-in-chunked-seq cs-a)]
+                        [val-b (-in-chunked-seq cs-b)])
+                (recur val-a val-b))
+              #t))
+
+       (define (chunked-seq-compare/recur cs-a cs-b recur)
+         (match* {cs-a cs-b}
+           [{(? chunked-seq-empty?) (? chunked-seq-empty?)} '=]
+           [{(? chunked-seq-empty?) _                     } '<]
+           [{_                      (? chunked-seq-empty?)} '>]
+           [{_ _}
+            (define-values [more-a? get-a] (sequence-generate (in-chunked-seq-chunks cs-a)))
+            (define-values [more-b? get-b] (sequence-generate (in-chunked-seq-chunks cs-b)))
+
+            (define (advance more? get chunk index len)
+              (let ([index (add1 index)])
+                (if (= index len)
+                    (if (more?)
+                        (let ([chunk (get)])
+                          (values chunk 0 (chunk-length chunk)))
+                        (values #f #f #f))
+                    (values chunk index len))))
+
+            (define first-a (get-a))
+            (define first-b (get-b))
+            (let loop ([chunk-a first-a]
+                       [index-a 0]
+                       [len-a (chunk-length first-a)]
+                       [chunk-b first-b]
+                       [index-b 0]
+                       [len-b (chunk-length first-b)])
+              (match (recur (chunk-ref chunk-a index-a) (chunk-ref chunk-b index-b))
+                ['< '<]
+                ['> '>]
+                ['= (let-values ([(chunk-a index-a len-a) (advance more-a? get-a chunk-a index-a len-a)]
+                                 [(chunk-b index-b len-b) (advance more-b? get-b chunk-b index-b len-b)])
+                      (match* {chunk-a chunk-b}
+                        [{#f #f} '=]
+                        [{#f _ } '<]
+                        [{_  #f} '>]
+                        [{_  _ } (loop chunk-a index-a len-a
+                                       chunk-b index-b len-b)]))]))]))
 
        ;; ----------------------------------------------------------------------
        ;; iteration
