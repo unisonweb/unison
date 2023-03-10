@@ -5,13 +5,11 @@ module Unison.Codebase.Editor.RemoteRepo where
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
 import qualified Data.Text as Text
-import Data.These (These (..))
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.Types
 import qualified Unison.Util.Monoid as Monoid
 

@@ -7,9 +7,14 @@ module Unison.Cli.ProjectUtils
     -- * Name resolution
     resolveNames,
     resolveNamesToIds,
+    resolveRemoteNames,
 
     -- ** Path prisms
     projectBranchPathPrism,
+
+    -- ** Project/Branch names
+    expectProjectName,
+    expectBranchName,
 
     -- ** Temp
     loggeth,
@@ -27,11 +32,14 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
+import qualified Unison.Cli.Share.Projects as Share
 import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
+import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Path as Path
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import qualified Unison.Share.API.Projects as Share.API
 import Witch (unsafeFrom)
 
 -- | Get the current project+branch that a user is on.
@@ -61,6 +69,72 @@ resolveNames = \case
       project <- Queries.expectProject projectId
       pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
+
+resolveRemoteNames :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch RemoteProjectId RemoteProjectBranchId)
+resolveRemoteNames = \case
+  This projectName -> do
+    (remoteProjectId, _) <- expectResolveRemoteProjectName projectName
+    (remoteProjectBranchId, _) <- expectResolveRemoteProjectBranchName remoteProjectId (unsafeFrom @Text "main")
+    pure (ProjectAndBranch remoteProjectId remoteProjectBranchId)
+  That branchName -> do
+    ProjectAndBranch projectId branchId <-
+      getCurrentProjectBranch & onNothingM do
+        loggeth ["not on a project branch"]
+        Cli.returnEarlyWithoutOutput
+    Cli.runTransaction (Queries.loadRemoteProjectBranch projectId branchId) >>= \case
+      Just (remoteProjectId, _) -> do
+        (remoteProjectBranchId, _) <- expectResolveRemoteProjectBranchName remoteProjectId branchName
+        pure (ProjectAndBranch remoteProjectId remoteProjectBranchId)
+      Nothing -> do
+        loggeth ["no remote associated with this project"]
+        Cli.returnEarlyWithoutOutput
+  These projectName branchName -> do
+    (remoteProjectId, _) <- expectResolveRemoteProjectName projectName
+    (remoteProjectBranchId, _) <- expectResolveRemoteProjectBranchName remoteProjectId branchName
+    pure (ProjectAndBranch remoteProjectId remoteProjectBranchId)
+
+expectResolveRemoteProjectName :: ProjectName -> Cli (RemoteProjectId, ProjectName)
+expectResolveRemoteProjectName remoteProjectName = do
+  resolveRemoteProjectName remoteProjectName >>= \case
+    Nothing -> do
+      loggeth ["project doesn't exist"]
+      Cli.returnEarlyWithoutOutput
+    Just x -> pure x
+
+expectResolveRemoteProjectBranchName :: RemoteProjectId -> ProjectBranchName -> Cli (RemoteProjectBranchId, ProjectBranchName)
+expectResolveRemoteProjectBranchName remoteProjectId branchName = do
+  resolveRemoteProjectBranchName remoteProjectId branchName >>= \case
+    Nothing -> do
+      loggeth ["branch doesn't exist: ", tShow branchName]
+      Cli.returnEarlyWithoutOutput
+    Just x -> pure x
+
+resolveRemoteProjectName :: ProjectName -> Cli (Maybe (RemoteProjectId, ProjectName))
+resolveRemoteProjectName remoteProjectName = do
+  Share.getProjectByName remoteProjectName >>= \case
+    Share.API.GetProjectResponseNotFound {} -> do
+      pure Nothing
+    Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized message) ->
+      Cli.returnEarly (Output.Unauthorized message)
+    Share.API.GetProjectResponseSuccess remoteProject -> do
+      let projectId = RemoteProjectId (remoteProject ^. #projectId)
+      projectName <- expectProjectName (remoteProject ^. #projectName)
+      pure (Just (projectId, projectName))
+
+resolveRemoteProjectBranchName :: RemoteProjectId -> ProjectBranchName -> Cli (Maybe (RemoteProjectBranchId, ProjectBranchName))
+resolveRemoteProjectBranchName remoteProjectId remoteProjectBranchName = do
+  Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteProjectBranchName) >>= \case
+    Share.API.GetProjectBranchResponseBranchNotFound {} -> do
+      pure Nothing
+    Share.API.GetProjectBranchResponseProjectNotFound {} ->
+      -- todo: mark remote project as deleted
+      pure Nothing
+    Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
+      Cli.returnEarly (Output.Unauthorized message)
+    Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
+      let remoteProjectBranchId = RemoteProjectBranchId (remoteBranch ^. #branchId)
+      remoteBranchName <- expectBranchName (remoteBranch ^. #branchName)
+      pure (Just (remoteProjectBranchId, remoteBranchName))
 
 -- Like 'resolveNames', but resolves to project and branch ids.
 resolveNamesToIds :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch ProjectId ProjectBranchId)
@@ -177,3 +251,25 @@ projectBranchPathPrism =
 loggeth :: [Text] -> Cli ()
 loggeth =
   liftIO . Text.putStrLn . Text.concat . ("[coolbeans] " :)
+
+expectProjectName :: Text -> Cli ProjectName
+expectProjectName projectName =
+  case tryInto projectName of
+    -- This shouldn't happen often - Share gave us a project name that we don't consider valid?
+    Left err -> do
+      loggeth ["Invalid project name: ", tShow err]
+      Cli.returnEarlyWithoutOutput
+    Right x -> pure x
+
+expectBranchName :: Text -> Cli ProjectBranchName
+expectBranchName branchName = case tryInto branchName of
+  Left err -> do
+    loggeth
+      [ "Expected text: ",
+        tShow branchName,
+        " to be a valid project branch name.",
+        "\n",
+        tShow err
+      ]
+    Cli.returnEarlyWithoutOutput
+  Right x -> pure x

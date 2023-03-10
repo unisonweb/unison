@@ -10,14 +10,19 @@ module Unison.Codebase.Editor.HandleInput.Pull
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens
+import Control.Lens (snoc, (&), (^.))
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import Data.These (These)
 import qualified System.Console.Regions as Console.Regions
+import U.Codebase.Sqlite.DbId (RemoteProjectBranchId (..), RemoteProjectId (..))
+import U.Codebase.Sqlite.Queries (RemoteProject (..), RemoteProjectBranch (..))
+import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
+import Unison.Cli.ProjectUtils (expectBranchName, expectProjectName, getCurrentProjectBranch, loggeth, resolveNames, resolveRemoteNames)
+import qualified Unison.Cli.Share.Projects as Share
 import Unison.Cli.UnisonConfigUtils (resolveConfiguredUrl)
 import Unison.Codebase (Preprocessing (..))
 import qualified Unison.Codebase as Codebase
@@ -46,11 +51,12 @@ import qualified Unison.Codebase.SyncMode as SyncMode
 import qualified Unison.Codebase.Verbosity as Verbosity
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Sync as Share
 import qualified Unison.Share.Sync.Types as Share
 import Unison.Share.Types (codeserverBaseURL)
+import Unison.Sqlite (Transaction)
 import qualified Unison.Sync.Types as Share
 
 doPullRemoteBranch ::
@@ -65,17 +71,34 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
   let preprocess = case pullMode of
         Input.PullWithHistory -> Unmodified
         Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-  ns <-
+  ns :: ReadRemoteNamespace (ProjectAndBranch RemoteProjectId RemoteProjectBranchId) <-
     case sourceTarget of
-      Input.PullSourceTarget0 -> wundefined -- (writePathToRead <$> resolveConfiguredUrl Pull path)
-      Input.PullSourceTarget1 source -> wundefined source
+      Input.PullSourceTarget0 ->
+        getCurrentProjectBranch >>= \case
+          Nothing -> wundefined
+          Just (ProjectAndBranch projectId projectBranchId) ->
+            let loadRemoteNames :: Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId))
+                loadRemoteNames = runMaybeT do
+                  (remoteProjectId, mremoteBranchId) <- MaybeT (Queries.loadRemoteProjectBranch projectId projectBranchId)
+                  remoteBranchId <- MaybeT (pure mremoteBranchId)
+                  pure (remoteProjectId, remoteBranchId)
+             in Cli.runTransaction loadRemoteNames >>= \case
+                  Nothing -> do
+                    loggeth ["No default pull target for this branch"]
+                    Cli.returnEarlyWithoutOutput
+                  Just (remoteProjectId, remoteProjectBranchId) -> do
+                    pure (ReadRemoteProjectBranch (ProjectAndBranch remoteProjectId remoteProjectBranchId))
+      Input.PullSourceTarget1 source -> case source of
+        ReadRemoteProjectBranch projectAndBranchNames -> ReadRemoteProjectBranch <$> resolveRemoteNames projectAndBranchNames
+        _ -> wundefined
       Input.PullSourceTarget2 source _target -> wundefined source
   remoteBranch <- case ns of
     ReadRemoteNamespaceGit repo ->
       Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
         Cli.returnEarly (Output.GitError err)
     ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-  -- ReadRemoteProjectBranch v -> absurd v
+    ReadRemoteProjectBranch (ProjectAndBranch remoteProjectId remoteProjectBranchId) -> wundefined
+  let ns = wundefined
   when (Branch.isEmpty0 (Branch.head remoteBranch)) do
     Cli.respond (PulledEmptyBranch ns)
   target <- wundefined
@@ -87,10 +110,9 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
   let printDiffPath =
         if Verbosity.isSilent verbosity
           then Nothing
-          else 
-            case target of
-              PullTargetLooseCode path -> Just path
-              PullTargetProject _ -> wundefined
+          else case target of
+            PullTargetLooseCode path -> Just path
+            PullTargetProject _ -> wundefined
   case pullMode of
     Input.PullWithHistory -> do
       destBranch <- Cli.getBranch0At destAbs

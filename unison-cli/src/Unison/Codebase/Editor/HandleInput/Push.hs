@@ -21,7 +21,7 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.ProjectUtils (getCurrentProjectBranch, loggeth, projectBranchPath)
+import Unison.Cli.ProjectUtils (expectBranchName, expectProjectName, getCurrentProjectBranch, loggeth, projectBranchPath)
 import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
 import qualified Unison.Cli.UnisonConfigUtils as UnisonConfigUtils
@@ -734,25 +734,3 @@ expectRemoteProjectAndBranch branch = do
   projectName <- expectProjectName (branch ^. #projectName)
   branchName <- expectBranchName (branch ^. #branchName)
   pure (ProjectAndBranch projectName branchName)
-
-expectProjectName :: Text -> Cli ProjectName
-expectProjectName projectName =
-  case tryInto projectName of
-    -- This shouldn't happen often - Share gave us a project name that we don't consider valid?
-    Left err -> do
-      loggeth ["Invalid project name: ", tShow err]
-      Cli.returnEarlyWithoutOutput
-    Right x -> pure x
-
-expectBranchName :: Text -> Cli ProjectBranchName
-expectBranchName branchName = case tryInto branchName of
-  Left err -> do
-    loggeth
-      [ "Expected text: ",
-        tShow branchName,
-        " to be a valid project branch name.",
-        "\n",
-        tShow err
-      ]
-    Cli.returnEarlyWithoutOutput
-  Right x -> pure x
