@@ -42,10 +42,7 @@
   (let ([certs (read-pem-certificates (open-input-bytes bytes))])
     (if (= 1 (length certs))
         (right certs)
-        (begin
-        (display certs)
-        (display "\n")
-        (left (error "Wrong number of certs"))))))
+        (exception "Wrong number of certs" "nope" certs))))
 (define (ServerConfig.default certs key) ; list tlsSignedCert tlsPrivateKey -> tlsServerConfig
   (list certs key))
 (define (ClientConfig.certificates.set config certs) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
