@@ -29,18 +29,23 @@
 
 (define (decodePrivateKey bytes) ; bytes -> list tlsPrivateKey
   (let* ([tmp (make-temporary-file* #"unison" #".pem")]
-        [ctx (ssl-make-server-context)]
-        [of (open-output-file tmp #:exists 'replace)])
+         [ctx (ssl-make-server-context)]
+         [of (open-output-file tmp #:exists 'replace)])
     (write-bytes bytes of)
     (flush-output of)
     (close-output-port of)
-    (ssl-load-private-key! ctx tmp)
-    (mlist bytes)))
+    (with-handlers
+        [[exn:fail? (lambda (e) (mlist))]]
+      (ssl-load-private-key! ctx tmp)
+      (mlist bytes))))
 (define (decodeCert.impl.v3 bytes) ; bytes -> either failure tlsSignedCert
   (let ([certs (read-pem-certificates (open-input-bytes bytes))])
     (if (= 1 (length certs))
         (right certs)
-        (left (error "Wrong number of certs")))))
+        (begin
+        (display certs)
+        (display "\n")
+        (left (error "Wrong number of certs"))))))
 (define (ServerConfig.default certs key) ; list tlsSignedCert tlsPrivateKey -> tlsServerConfig
   (list certs key))
 (define (ClientConfig.certificates.set config certs) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
