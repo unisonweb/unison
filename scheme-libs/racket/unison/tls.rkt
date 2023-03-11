@@ -45,15 +45,15 @@
         (exception "Wrong number of certs" "nope" certs))))
 (define (ServerConfig.default certs key) ; list tlsSignedCert tlsPrivateKey -> tlsServerConfig
   (list certs key))
-(define (ClientConfig.certificates.set config certs) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
-  (list config certs))
 (define (newServer.impl.v3 config sock) ; tlsServerConfig socket -> {io} tls
   (list config sock))
 
 (define (ClientConfig.default host service-identification-suffix)
   (if (= 0 (bytes-length service-identification-suffix))
-      (list host service-identification-suffix)
+      (list host (mlist))
       (error 'NotImplemented "service-identification-suffix not supported")))
+(define (ClientConfig.certificates.set certs config) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
+  (list (car config) certs))
 
 (define (handle-errors fn)
   (with-handlers

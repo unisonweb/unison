@@ -42,8 +42,9 @@ tcp.tests = do
   check "no send on listener" do shouldFail do
     match Socket.server None (Port "0") with
         BoundServerSocket socket -> Socket.send socket (toUtf8 "what")
+  !testServerAndClient
 
-
+testServerAndClient = do
   setup = catchAll do
       socket = Socket.listen (server None (Port "0"))
       port = match socket with
