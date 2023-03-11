@@ -37,16 +37,55 @@
     (with-handlers
         [[exn:fail? (lambda (e) (mlist))]]
       (ssl-load-private-key! ctx tmp)
-      (mlist bytes))))
+      (mlist tmp))))
+
 (define (decodeCert.impl.v3 bytes) ; bytes -> either failure tlsSignedCert
   (let ([certs (read-pem-certificates (open-input-bytes bytes))])
     (if (= 1 (length certs))
-        (right certs)
+        (right bytes)
         (exception "Wrong number of certs" "nope" certs))))
+
 (define (ServerConfig.default certs key) ; list tlsSignedCert tlsPrivateKey -> tlsServerConfig
+    (display "Making a config\n")
+    (display certs)
+    (display "\n🤔 \n")
   (list certs key))
-(define (newServer.impl.v3 config sock) ; tlsServerConfig socket -> {io} tls
-  (list config sock))
+
+(define (newServer.impl.v3 config sockets) ; tlsServerConfig socket -> {io} tls
+  (display "Are we at a sever\n")
+  (handle-errors
+   (lambda ()
+     (let* ([input (car sockets)]
+            [output (car (cdr sockets))]
+            [certs (car config)]
+            [key (car (cdr config))]
+            [ctx (ssl-make-server-context)]
+            [tmp (make-temporary-file* #"unison" #".pem")]
+            [of (open-output-file tmp #:exists 'replace)]
+            )
+       (display "Um\n")
+       (display certs)
+       (display "\n")
+       (display of)
+       (display "\nWriting bytes\n")
+       ; START HERE: I need to get the items out of certs,
+       ; but I'm not sure how.
+       (write-bytes (mcar certs) of)
+       (flush-output of)
+       (close-output-port of)
+       (ssl-load-private-key! ctx (car certs))
+       (ssl-load-certificate-chain! ctx tmp)
+       (display "server booting up\n")
+       (let-values ([(in out) (ports->ssl-ports
+                               input output
+                               #:mode 'accept
+                               #:context ctx
+                               #:close-original? #t
+                               )])
+         (display "server happened\n")
+         (right (cons (cons in out) config)))))))
+;     (list config sock)
+;   ))))
 
 (define (ClientConfig.default host service-identification-suffix)
   (if (= 0 (bytes-length service-identification-suffix))
@@ -57,9 +96,9 @@
 
 (define (handle-errors fn)
   (with-handlers
-      [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
-       [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exn->string e) '()))]
-       [(lambda _ #t) (lambda (e) (exception "MiscFailure" "Unknown exception" e))] ]
+      [[exn:fail:network? (lambda (e) (display e)(display "GOT AN ERROR\n") (exception "IOFailure" (exn->string e) '()))]
+       [exn:fail:contract? (lambda (e)  (display e)(display "GOT AN ERROR\n")(exception "InvalidArguments" (exn->string e) '()))]
+       [(lambda _ #t) (lambda (e)  (display e)(display "GOT AN ERROR\n")(exception "MiscFailure" "Unknown exception" e))] ]
     (fn)))
 
 (define (newClient.impl.v3 config socket)
@@ -68,11 +107,15 @@
      (let ([input (car socket)]
            [output (car (cdr socket))]
            [hostname (car config)])
+       (display "um got things\n")
        (let-values ([(in out) (ports->ssl-ports
                                input output
+                               #:mode 'connect ; WAIT This was defaulting to accept and it still worked connecting to example.com???
+                               ; maybe I should try connecting to unisonweb.org or something
                                #:hostname hostname
                                #:close-original? #t
                                )])
+         (display "ports are ported\n")
          (right (cons (cons in out) config)))))))
 
 (define (handshake.impl.v3 tls)
