@@ -278,7 +278,7 @@ I should be able to move the root into a sub-namespace
   
   
   
-  □ 1. #hu6p22qbe4 (start of history)
+  □ 1. #j17hvtt1rm (start of history)
 
 ```
 ```ucm
@@ -294,7 +294,7 @@ I should be able to move the root into a sub-namespace
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #8rae339vn9
+  ⊙ 1. #epknijg4pk
   
     - Deletes:
     
@@ -305,7 +305,7 @@ I should be able to move the root into a sub-namespace
       Original name      New name
       existing.a.termInA existing.b.termInA
   
-  ⊙ 2. #r697qei02b
+  ⊙ 2. #pmecta5so9
   
     + Adds / updates:
     
@@ -317,26 +317,26 @@ I should be able to move the root into a sub-namespace
       happy.b.termInA   existing.a.termInA
       history.b.termInA existing.a.termInA
   
-  ⊙ 3. #ca0k6ug92t
+  ⊙ 3. #lc7lsqgcmo
   
     + Adds / updates:
     
       existing.a.termInA existing.b.termInB
   
-  ⊙ 4. #7nnrjj85km
+  ⊙ 4. #j36gjaovv9
   
     > Moves:
     
       Original name     New name
       history.a.termInA history.b.termInA
   
-  ⊙ 5. #01cflse46b
+  ⊙ 5. #domisg9f2n
   
     - Deletes:
     
       history.b.termInB
   
-  ⊙ 6. #cna2qqmgcq
+  ⊙ 6. #69vk74hidq
   
     + Adds / updates:
     
@@ -347,13 +347,13 @@ I should be able to move the root into a sub-namespace
       Original name   New name(s)
       happy.b.termInA history.a.termInA
   
-  ⊙ 7. #qoce7dt2h1
+  ⊙ 7. #hslilthrkd
   
     + Adds / updates:
     
       history.a.termInA history.b.termInB
   
-  ⊙ 8. #g8m2g6bd1g
+  ⊙ 8. #ap9o8u4m1a
   
     > Moves:
     
@@ -363,7 +363,7 @@ I should be able to move the root into a sub-namespace
       happy.a.T.T2    happy.b.T.T2
       happy.a.termInA happy.b.termInA
   
-  ⊙ 9. #ngl33npfah
+  ⊙ 9. #tpka2u10nq
   
     + Adds / updates:
     
@@ -373,7 +373,7 @@ I should be able to move the root into a sub-namespace
     
       happy.a.T.T
   
-  ⊙ 10. #1rnd8dpisq
+  ⊙ 10. #ebk6c1po2f
   
     + Adds / updates:
     
@@ -385,7 +385,7 @@ I should be able to move the root into a sub-namespace
   
   ⠇
   
-  ⊙ 11. #7s9j9tscke
+  ⊙ 11. #c5i2vql0hi
   
 
 ```

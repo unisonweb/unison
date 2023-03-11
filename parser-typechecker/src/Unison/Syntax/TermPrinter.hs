@@ -9,6 +9,7 @@ module Unison.Syntax.TermPrinter
     prettyBindingWithoutTypeSignature,
     pretty0,
     runPretty,
+    prettyPattern,
   )
 where
 
@@ -87,12 +88,12 @@ data AmbientContext = AmbientContext
   { -- The operator precedence of the enclosing context (a number from 0 to 11,
     -- or -1 to render without outer parentheses unconditionally).
     -- Function application has precedence 10.
-    precedence :: Int,
-    blockContext :: BlockContext,
-    infixContext :: InfixContext,
-    imports :: Imports,
-    docContext :: DocLiteralContext,
-    elideUnit :: Bool -- `True` if a `()` at the end of a block should be elided
+    precedence :: !Int,
+    blockContext :: !BlockContext,
+    infixContext :: !InfixContext,
+    imports :: !Imports,
+    docContext :: !DocLiteralContext,
+    elideUnit :: !Bool -- `True` if a `()` at the end of a block should be elided
   }
 
 -- Description of the position of this ABT node, when viewed in the
@@ -489,7 +490,7 @@ pretty0
                 paren (p >= 10) <$> do
                   lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
                   booleanOps (fmt S.ControlKeyword "||") xs lastArg'
-              _ -> case (term, nonForcePred) of
+              _other -> case (term, nonForcePred) of
                 OverappliedBinaryAppPred' f a b r
                   | binaryOpsPred f ->
                       -- Special case for overapplied binary op
@@ -503,16 +504,20 @@ pretty0
                     f' <- pretty0 (ac 10 Normal im doc) f
                     args' <- PP.spacedTraverse (pretty0 (ac 10 Normal im doc)) args
                     pure $ f' `PP.hang` args'
-                _ -> case (term, \v -> nonUnitArgPred v && not (isDelay term)) of
+                _other -> case (term, \v -> nonUnitArgPred v && not (isDelay term)) of
                   (LamsNamedMatch' [] branches, _) -> do
                     pbs <- printCase im doc branches
                     pure . paren (p >= 3) $
                       PP.group (fmt S.ControlKeyword "cases") `PP.hang` pbs
                   LamsNamedPred' vs body -> do
-                    prettyBody <- pretty0 (ac 2 Block im doc) body
+                    prettyBody <- pretty0 (ac 2 Normal im doc) body
+                    let hang = case body of
+                          Delay' (Lets' _ _) -> PP.softHang
+                          Lets' _ _ -> PP.softHang
+                          _ -> PP.hang
                     pure . paren (p >= 3) $
-                      PP.group (varList vs <> fmt S.ControlKeyword " ->") `PP.hang` prettyBody
-                  _ -> go term
+                      PP.group (varList vs <> fmt S.ControlKeyword " ->") `hang` prettyBody
+                  _other -> go term
 
       isDelay (Delay' _) = True
       isDelay _ = False

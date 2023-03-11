@@ -84,17 +84,20 @@ f x = let
 Regression test for https://github.com/unisonweb/unison/issues/2224
 
 ```unison:hide
-f : [a] -> a
+f : [()] -> ()
 f xs = match xs with
   x +: (x' +: rest) -> x
+  _ -> ()
 
-g : [a] -> a
+g : [()] -> ()
 g xs = match xs with
-  (rest :+ x') :+ x -> x
+  (rest :+ x') :+ x -> ()
+  _ -> ()
 
-h : [[a]] -> a
+h : [[()]] -> ()
 h xs = match xs with
   (rest :+ (rest' :+ x)) -> x
+  _ -> ()
 ```
 
 ```ucm
@@ -301,6 +304,7 @@ broken tvar =
 ```unison:hide
 broken = cases
   Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
+  _ -> ()
 ```
 
 ``` ucm
@@ -325,6 +329,7 @@ foo = let
         lijaefliejalfijelfj == aefilaeifhlei -> 0
       SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
         lijaefliejalfijelfj == liaehjffeafijij -> 1
+      _ -> 2
   go (SomethingUnusuallyLong "one" "two" "three")
 ```
 
@@ -507,3 +512,38 @@ foo = cases
 ```ucm
 .> load scratch.u
 ```
+
+# Multi-line lambda let
+
+Regression test for #3110 and #3801
+
+```unison:hide
+foreach x f = 
+  _ = List.map f x
+  ()
+
+ignore x = ()
+
+test1 : ()
+test1 =
+  foreach [1, 2, 3] let x -> let
+      y = Nat.increment x
+      ()
+
+test2 = foreach [1, 2, 3] let x -> ignore (Nat.increment x) 
+
+test3 = foreach [1, 2, 3] do x -> do
+  y = Nat.increment x
+  ()
+```
+
+```ucm
+.> add
+.> edit test1 test2 test3 foreach ignore
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```
+

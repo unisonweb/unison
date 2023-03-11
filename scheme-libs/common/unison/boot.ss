@@ -32,7 +32,7 @@
           (for
             (only (unison core) syntax->list)
             expand)
-          (srfi :28) ; gives us "format"
+          (only (srfi :28) format)
           (unison core)
           (unison data)
           (unison cont)
