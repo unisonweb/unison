@@ -75,8 +75,12 @@ tcp.tests = do
 serverThread portVar toSend = 'let
   go: '{IO, Exception}()
   go = 'let
-    cert = match decodeCert (toUtf8 selfSignedCert) with Right c -> c
-    key = match (decodePrivateKey (toUtf8 selfSignedKey)) with k +: _ -> k
+    cert = match decodeCert (toUtf8 selfSignedCert) with
+        Right c -> c
+        Left _ -> raise (failure "Bad cert" selfSignedCert)
+    key = match (decodePrivateKey (toUtf8 selfSignedKey)) with
+        k +: _ -> k
+        [] -> raise (failure "No private keys" selfSignedKey)
     tlsconfig = Tls.ServerConfig.default [cert] key
     sock = Socket.listen (server (Some (HostName ("127" ++ ".0.0.1"))) (Port "0"))
     port = match sock with
@@ -116,7 +120,9 @@ testConnectSelfSigned = do
     toSend = "12345"
     tid = fork (serverThread portVar toSend)
     -- Client
-    cert = match decodeCert (toUtf8 selfSignedCert) with Right c -> c
+    cert = match decodeCert (toUtf8 selfSignedCert) with
+        Right c -> c
+        Left _ -> raise (failure "Bad cert" selfSignedCert)
     received = !(testClient (Some cert) "test.unison.cloud" portVar)
     checkEqual "should have received what we've sent" toSend received
 
@@ -126,6 +132,8 @@ testConnectSelfSignedWrongHost = do
     toSend = "12345"
     tid = fork (serverThread portVar toSend)
     -- Client
-    cert = match decodeCert (toUtf8 selfSignedCert) with Right c -> c
+    cert = match decodeCert (toUtf8 selfSignedCert) with
+        Right c -> c
+        Left _ -> raise (failure "Bad cert" selfSignedCert)
     received = !(testClient (Some cert) "test.unison.cloud.what" portVar)
     ()
