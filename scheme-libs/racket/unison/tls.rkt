@@ -4,6 +4,7 @@
          racket/exn
          racket/file
          unison/data
+         x509
          openssl)
 
 (provide
@@ -25,15 +26,18 @@
 ; TODO check out the tests in here
 ; unison-src/transcripts-using-base/net.md
 
-(define (decodePrivateKey text)
-  text)
-(define (decodeCert.impl.v3 text)
-  text)
-(define (ServerConfig.default certs key)
+(define (decodePrivateKey bytes) ; bytes -> list tlsPrivateKey
+  (list bytes))
+(define (decodeCert.impl.v3 bytes) ; bytes -> either failure tlsSignedCert
+  (let ([certs (read-pem-certificates (open-input-bytes bytes))])
+    (if (= 1 (length certs))
+        (right certs)
+        (left (error "Wrong number of certs")))))
+(define (ServerConfig.default certs key) ; list tlsSignedCert tlsPrivateKey -> tlsServerConfig
   (list certs key))
-(define (ClientConfig.certificates.set config certs)
+(define (ClientConfig.certificates.set config certs) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
   (list config certs))
-(define (newServer.impl.v3 config sock)
+(define (newServer.impl.v3 config sock) ; tlsServerConfig socket -> {io} tls
   (list config sock))
 
 (define (ClientConfig.default host service-identification-suffix)
