@@ -85,7 +85,8 @@
       [(and (data? l) (data? r))
        (and
          (eqv? (data-tag l) (data-tag r))
-         (pointwise (data-fields l) (data-fields r)))]))
+         (pointwise (data-fields l) (data-fields r)))]
+      [#t #f]))
 
   (define exception->string exn->string)
 

@@ -78,10 +78,14 @@ serverThread portVar toSend = 'let
   go = 'let
     cert = match decodeCert (toUtf8 selfSignedCert) with
         Right c -> c
-        Left _ -> raise (failure "Bad cert" selfSignedCert)
+        Left _ ->
+            _ = Promise.write portVar 0
+            raise (failure "Bad cert" selfSignedCert)
     key = match (decodePrivateKey (toUtf8 selfSignedKey)) with
         k +: _ -> k
-        [] -> raise (failure "No private keys" selfSignedKey)
+        [] -> 
+            _ = Promise.write portVar 0
+            raise (failure "No private keys" selfSignedKey)
     tlsconfig = Tls.ServerConfig.default [cert] key
     sock = Socket.listen (server (Some (HostName ("127" ++ ".0.0.1"))) (Port "0"))
     port = match sock with
@@ -98,6 +102,7 @@ serverThread portVar toSend = 'let
 
 testClient : Optional SignedCert -> Text -> Promise Nat -> '{IO, Exception} Text
 testClient cert hostname portVar _ =
+  use base.io.TLS
   -- create a client that will expect a cert from the given hostname (CN)
   defaultClient = (Tls.ClientConfig.default hostname Bytes.empty)
   -- if we were passed a certificate to trust, it is the only certificate we trust
@@ -108,12 +113,14 @@ testClient cert hostname portVar _ =
   sock = clientSocket (HostName ("127" ++ ".0.0.1")) (Port (Nat.toText (Promise.read portVar)))
   -- attach the TLS client to the TCP socket
   tls = Tls.newClient tlsconfig sock
-  -- verify that the server presents us with a certificate chain for
-  -- test.unison.cloud originating with a certificate we trust, and
-  -- that the server can use a compatible TLS version and cipher
+  --   -- verify that the server presents us with a certificate chain for
+  --   -- test.unison.cloud originating with a certificate we trust, and
+  --   -- that the server can use a compatible TLS version and cipher
   tlsock = Tls.handshake tls
-  -- receive a message from the server
+  --   -- receive a message from the server
   fromUtf8 (TlsSocket.receive tlsock)
+  -- "hello"
+--   "Hello"
 
 testConnectSelfSigned = do
     -- Server

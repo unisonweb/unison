@@ -107,5 +107,3 @@
        (ssl-abandon-port (car ports))
        (ssl-abandon-port (cdr ports))
        (right none)))))
-
-
