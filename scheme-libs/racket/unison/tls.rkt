@@ -27,7 +27,7 @@
 ; unison-src/transcripts-using-base/net.md
 
 (define (decodePrivateKey bytes) ; bytes -> list tlsPrivateKey
-  (list bytes))
+  (mcons 0 (list bytes)))
 (define (decodeCert.impl.v3 bytes) ; bytes -> either failure tlsSignedCert
   (let ([certs (read-pem-certificates (open-input-bytes bytes))])
     (if (= 1 (length certs))

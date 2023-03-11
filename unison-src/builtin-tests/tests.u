@@ -1,11 +1,11 @@
 
 tests : '{IO,Exception} ()
 tests = Tests.main do
+  !tls.tests
   !crypto.hash.tests
   !hmac.tests
   !concurrency.tests
   !tcp.tests
-  !tls.tests
   check "bug is caught" do shouldFail do bug ()
 
 crypto.hash.tests = do
