@@ -3,6 +3,7 @@
 (require racket/port
          racket/exn
          racket/file
+         compatibility/mlist
          unison/data
          x509
          openssl)
@@ -27,7 +28,14 @@
 ; unison-src/transcripts-using-base/net.md
 
 (define (decodePrivateKey bytes) ; bytes -> list tlsPrivateKey
-  (mcons 0 (list bytes)))
+  (let* ([tmp (make-temporary-file* #"unison" #".pem")]
+        [ctx (ssl-make-server-context)]
+        [of (open-output-file tmp #:exists 'replace)])
+    (write-bytes bytes of)
+    (flush-output of)
+    (close-output-port of)
+    (ssl-load-private-key! ctx tmp)
+    (mlist bytes)))
 (define (decodeCert.impl.v3 bytes) ; bytes -> either failure tlsSignedCert
   (let ([certs (read-pem-certificates (open-input-bytes bytes))])
     (if (= 1 (length certs))
