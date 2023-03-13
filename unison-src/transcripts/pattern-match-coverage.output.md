@@ -665,3 +665,52 @@ withV = match evil () with
     
 
 ```
+```unison
+unique type SomeType = A
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type SomeType
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    unique type SomeType
+
+```
+```unison
+unique type R = R SomeType
+
+get x = match x with
+  R y -> y
+```
+
+```ucm
+
+  UnknownDecl:
+    data type
+    reference = SomeType
+
+```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  UnknownDecl:
+    data type
+    reference = SomeType
+
