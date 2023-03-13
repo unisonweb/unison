@@ -697,20 +697,31 @@ get x = match x with
 
 ```ucm
 
-  UnknownDecl:
-    data type
-    reference = SomeType
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type R
+      get : R -> SomeType
 
 ```
+```unison
+unique type R = { someType : SomeType }
+```
 
+```ucm
 
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type R
+      R.someType        : R -> SomeType
+      R.someType.modify : (SomeType ->{g} SomeType) -> R ->{g} R
+      R.someType.set    : SomeType -> R -> R
 
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  UnknownDecl:
-    data type
-    reference = SomeType
-
+```
