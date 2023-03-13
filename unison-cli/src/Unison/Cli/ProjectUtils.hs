@@ -7,7 +7,6 @@ module Unison.Cli.ProjectUtils
     -- * Name resolution
     resolveNames,
     resolveNamesToIds,
-    resolveRemoteNames,
 
     -- ** Path prisms
     projectBranchPathPrism,
@@ -15,6 +14,11 @@ module Unison.Cli.ProjectUtils
     -- ** Project/Branch names
     expectProjectName,
     expectBranchName,
+    expectResolveRemoteProjectName,
+    expectResolveRemoteProjectBranchName,
+
+    -- * Error handlers
+    unauthorized,
 
     -- ** Temp
     loggeth,
@@ -70,29 +74,6 @@ resolveNames = \case
       pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
-resolveRemoteNames :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch RemoteProjectId RemoteProjectBranchId)
-resolveRemoteNames = \case
-  This projectName -> do
-    (remoteProjectId, _) <- expectResolveRemoteProjectName projectName
-    (remoteProjectBranchId, _) <- expectResolveRemoteProjectBranchName remoteProjectId (unsafeFrom @Text "main")
-    pure (ProjectAndBranch remoteProjectId remoteProjectBranchId)
-  That branchName -> do
-    ProjectAndBranch projectId branchId <-
-      getCurrentProjectBranch & onNothingM do
-        loggeth ["not on a project branch"]
-        Cli.returnEarlyWithoutOutput
-    Cli.runTransaction (Queries.loadRemoteProjectBranch projectId branchId) >>= \case
-      Just (remoteProjectId, _) -> do
-        (remoteProjectBranchId, _) <- expectResolveRemoteProjectBranchName remoteProjectId branchName
-        pure (ProjectAndBranch remoteProjectId remoteProjectBranchId)
-      Nothing -> do
-        loggeth ["no remote associated with this project"]
-        Cli.returnEarlyWithoutOutput
-  These projectName branchName -> do
-    (remoteProjectId, _) <- expectResolveRemoteProjectName projectName
-    (remoteProjectBranchId, _) <- expectResolveRemoteProjectBranchName remoteProjectId branchName
-    pure (ProjectAndBranch remoteProjectId remoteProjectBranchId)
-
 expectResolveRemoteProjectName :: ProjectName -> Cli (RemoteProjectId, ProjectName)
 expectResolveRemoteProjectName remoteProjectName = do
   resolveRemoteProjectName remoteProjectName >>= \case
@@ -108,6 +89,9 @@ expectResolveRemoteProjectBranchName remoteProjectId branchName = do
       loggeth ["branch doesn't exist: ", tShow branchName]
       Cli.returnEarlyWithoutOutput
     Just x -> pure x
+
+unauthorized :: Share.API.Unauthorized -> Cli a
+unauthorized (Share.API.Unauthorized message) = Cli.returnEarly (Output.Unauthorized message)
 
 resolveRemoteProjectName :: ProjectName -> Cli (Maybe (RemoteProjectId, ProjectName))
 resolveRemoteProjectName remoteProjectName = do

@@ -10,9 +10,10 @@ module Unison.Codebase.Editor.HandleInput.Pull
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (snoc, (&), (^.))
+import Control.Lens (snoc, (%~), (&), (^.))
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
+import Data.These
 import Data.These (These)
 import qualified System.Console.Regions as Console.Regions
 import U.Codebase.Sqlite.DbId (RemoteProjectBranchId (..), RemoteProjectId (..))
@@ -21,7 +22,8 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.ProjectUtils (expectBranchName, expectProjectName, getCurrentProjectBranch, loggeth, resolveNames, resolveRemoteNames)
+import Unison.Cli.ProjectUtils (loggeth)
+import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
 import Unison.Cli.UnisonConfigUtils (resolveConfiguredUrl)
 import Unison.Codebase (Preprocessing (..))
@@ -52,12 +54,14 @@ import qualified Unison.Codebase.Verbosity as Verbosity
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import qualified Unison.Share.API.Projects as Share
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Sync as Share
 import qualified Unison.Share.Sync.Types as Share
 import Unison.Share.Types (codeserverBaseURL)
 import Unison.Sqlite (Transaction)
 import qualified Unison.Sync.Types as Share
+import Witch (unsafeFrom)
 
 doPullRemoteBranch ::
   PullSourceTarget ->
@@ -71,23 +75,26 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
   let preprocess = case pullMode of
         Input.PullWithHistory -> Unmodified
         Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-  ns :: ReadRemoteNamespace (ProjectAndBranch RemoteProjectId RemoteProjectBranchId) <-
+  ns :: ReadRemoteNamespace (ProjectAndBranch (RemoteProjectId, ProjectName) Share.ProjectBranch) <-
     case sourceTarget of
       Input.PullSourceTarget0 ->
-        getCurrentProjectBranch >>= \case
+        ProjectUtils.getCurrentProjectBranch >>= \case
           Nothing -> wundefined
           Just (ProjectAndBranch projectId projectBranchId) ->
-            let loadRemoteNames :: Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId))
+            let loadRemoteNames :: Transaction (Maybe (RemoteProjectId, ProjectName, RemoteProjectBranchId, ProjectBranchName))
                 loadRemoteNames = runMaybeT do
                   (remoteProjectId, mremoteBranchId) <- MaybeT (Queries.loadRemoteProjectBranch projectId projectBranchId)
                   remoteBranchId <- MaybeT (pure mremoteBranchId)
-                  pure (remoteProjectId, remoteBranchId)
+                  remoteProjectName <- lift $ Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
+                  remoteProjectBranchName <- lift $ Queries.expectRemoteProjectBranchName Share.hardCodedUri remoteProjectId remoteBranchId
+                  pure (remoteProjectId, unsafeFrom remoteProjectName, remoteBranchId, unsafeFrom remoteProjectBranchName)
              in Cli.runTransaction loadRemoteNames >>= \case
                   Nothing -> do
                     loggeth ["No default pull target for this branch"]
                     Cli.returnEarlyWithoutOutput
-                  Just (remoteProjectId, remoteProjectBranchId) -> do
-                    pure (ReadRemoteProjectBranch (ProjectAndBranch remoteProjectId remoteProjectBranchId))
+                  Just (remoteProjectId, remoteProjectName, remoteProjectBranchId, _remoteProjectBranchName) -> do
+                    branch <- expectRemoteProjectBranchById remoteProjectId remoteProjectBranchId
+                    pure (ReadRemoteProjectBranch (ProjectAndBranch (remoteProjectId, remoteProjectName) branch))
       Input.PullSourceTarget1 source -> case source of
         ReadRemoteProjectBranch projectAndBranchNames -> ReadRemoteProjectBranch <$> resolveRemoteNames projectAndBranchNames
         _ -> wundefined
@@ -97,12 +104,25 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
       Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
         Cli.returnEarly (Output.GitError err)
     ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-    ReadRemoteProjectBranch (ProjectAndBranch remoteProjectId remoteProjectBranchId) -> wundefined
-  let ns = wundefined
+    ReadRemoteProjectBranch (ProjectAndBranch (_, remoteProjectName) branch) ->
+      let repoInfo = Share.RepoInfo (into @Text (These remoteProjectName remoteProjectBranchName))
+          causalHash = wundefined
+          causalHashJwt = wundefined
+          remoteProjectBranchName = unsafeFrom @Text @ProjectBranchName $ branch ^. #branchName
+       in Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
+            Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback >>= \case
+              Left err -> wundefined err
+              Right () -> liftIO (Codebase.expectBranchForHash codebase causalHash)
+  nsNamesOnly :: ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) <-
+    #_ReadRemoteProjectBranch
+      ( \(ProjectAndBranch (_, a) branch) -> do
+          ProjectAndBranch a <$> (ProjectUtils.expectBranchName $ branch ^. #branchName)
+      )
+      ns
   when (Branch.isEmpty0 (Branch.head remoteBranch)) do
-    Cli.respond (PulledEmptyBranch ns)
+    Cli.respond (PulledEmptyBranch nsNamesOnly)
   target <- wundefined
-  let unchangedMsg = PullAlreadyUpToDate ns target
+  let unchangedMsg = PullAlreadyUpToDate nsNamesOnly target
   destAbs <-
     case target of
       PullTargetLooseCode path -> Cli.resolvePath' path
@@ -136,7 +156,7 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
           (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
       Cli.respond
         if didUpdate
-          then PullSuccessful ns target
+          then PullSuccessful nsNamesOnly target
           else unchangedMsg
 
 importRemoteShareBranch :: ReadShareRemoteNamespace -> Cli (Branch IO)
@@ -229,3 +249,63 @@ propagatePatch inputDescription patch scopePath = do
     Cli.stepAt'
       (inputDescription <> " (applying patch)")
       (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
+
+resolveRemoteNames ::
+  These ProjectName ProjectBranchName ->
+  Cli (ProjectAndBranch (RemoteProjectId, ProjectName) Share.ProjectBranch)
+resolveRemoteNames = \case
+  This projectName -> do
+    remoteProjectId <- expectRemoteProject projectName
+    let remoteBranchName = unsafeFrom @Text "main"
+    remoteBranch <- expectRemoteProjectBranchByName remoteProjectId remoteBranchName
+    pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
+  That branchName -> do
+    ProjectAndBranch projectId branchId <-
+      ProjectUtils.getCurrentProjectBranch & onNothingM do
+        loggeth ["not on a project branch"]
+        Cli.returnEarlyWithoutOutput
+    Cli.runTransaction (Queries.loadRemoteProjectBranch projectId branchId) >>= \case
+      Just (remoteProjectId, _maybeProjectBranchId) -> do
+        projectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
+        remoteBranch <- expectRemoteProjectBranchByName remoteProjectId branchName
+        pure (ProjectAndBranch (remoteProjectId, unsafeFrom projectName) remoteBranch)
+      Nothing -> do
+        loggeth ["no remote associated with this project"]
+        Cli.returnEarlyWithoutOutput
+  These projectName branchName -> do
+    remoteProjectId <- expectRemoteProject projectName
+    remoteBranch <- expectRemoteProjectBranchByName remoteProjectId branchName
+    pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
+
+expectRemoteProject :: ProjectName -> Cli RemoteProjectId
+expectRemoteProject projectName =
+  Share.getProjectByName projectName >>= \case
+    Share.GetProjectResponseNotFound {} -> do
+      loggeth ["Project doesn't exist"]
+      Cli.returnEarlyWithoutOutput
+    Share.GetProjectResponseUnauthorized x -> ProjectUtils.unauthorized x
+    Share.GetProjectResponseSuccess prj -> pure (RemoteProjectId $ prj ^. #projectId)
+
+expectRemoteProjectBranchByName :: RemoteProjectId -> ProjectBranchName -> Cli Share.ProjectBranch
+expectRemoteProjectBranchByName remoteProjectId remoteBranchName =
+  Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
+    Share.GetProjectBranchResponseBranchNotFound {} -> do
+      loggeth ["The associated remote no longer exists"]
+      Cli.returnEarlyWithoutOutput
+    Share.GetProjectBranchResponseProjectNotFound {} -> do
+      loggeth ["The associated remote doesn't have a branch named: ", tShow remoteBranchName]
+      Cli.returnEarlyWithoutOutput
+    Share.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
+    Share.GetProjectBranchResponseSuccess branch -> pure branch
+
+expectRemoteProjectBranchById :: RemoteProjectId -> RemoteProjectBranchId -> Cli Share.ProjectBranch
+expectRemoteProjectBranchById remoteProjectId remoteProjectBranchId =
+  Share.getProjectBranchById (ProjectAndBranch remoteProjectId remoteProjectBranchId) >>= \case
+    Share.GetProjectBranchResponseBranchNotFound {} -> do
+      loggeth ["The associated remote no longer exists"]
+      Cli.returnEarlyWithoutOutput
+    Share.GetProjectBranchResponseProjectNotFound {} -> do
+      loggeth ["The associated remote doesn't have a branch with id: ", tShow remoteProjectBranchId]
+      Cli.returnEarlyWithoutOutput
+    Share.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
+    Share.GetProjectBranchResponseSuccess branch -> pure branch
