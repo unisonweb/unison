@@ -9,19 +9,19 @@ list.tests = do
   check "List builder" do
     _ = [1, 2, 3]
     true
-  checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [4, 5] -- [1, 2, 3]
-  checkEqual "List.snoc" ([] :+ 1 :+ 2 :+ 3) [4, 5] -- [1, 2, 3]
-  checkEqual "List.++" ([] ++ [1, 2] ++ [3, 4] ++ []) [4, 5] -- [1, 2, 3, 4]
-  checkEqual "List.take (1)" (List.take 0 [1,2,3]) [4, 5] -- []
-  checkEqual "List.take (2)" (List.take 2 [1,2,3]) [4, 5] -- [1,2]
-  checkEqual "List.take (3)" (List.take 3 [1,2,3]) [4, 5] -- [1,2,3]
-  checkEqual "List.take (4)" (List.take 100 [1,2,3]) [4, 5] -- [1,2,3]
-  checkEqual "List.take (5)" (List.take 3 []) [4, 5] -- []
-  checkEqual "List.drop (1)" (List.drop 0 [1,2,3]) [4, 5] -- [1,2,3]
-  checkEqual "List.drop (2)" (List.drop 2 [1,2,3]) [4, 5] -- [3]
-  checkEqual "List.drop (3)" (List.drop 3 [1,2,3]) [4, 5] -- []
-  checkEqual "List.drop (4)" (List.drop 100 [1,2,3]) [4, 5] -- []
-  checkEqual "List.drop (5)" (List.drop 3 []) [4, 5] -- []
+  checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [1, 2, 3]
+  checkEqual "List.snoc" ([] :+ 1 :+ 2 :+ 3) [1, 2, 3]
+  checkEqual "List.++" ([] ++ [1, 2] ++ [3, 4] ++ []) [1, 2, 3, 4]
+  checkEqual "List.take (1)" (List.take 0 [1,2,3]) []
+  checkEqual "List.take (2)" (List.take 2 [1,2,3]) [1,2]
+  checkEqual "List.take (3)" (List.take 3 [1,2,3]) [1,2,3]
+  checkEqual "List.take (4)" (List.take 100 [1,2,3]) [1,2,3]
+  checkEqual "List.take (5)" (List.take 3 []) []
+  checkEqual "List.drop (1)" (List.drop 0 [1,2,3]) [1,2,3]
+  checkEqual "List.drop (2)" (List.drop 2 [1,2,3]) [3]
+  checkEqual "List.drop (3)" (List.drop 3 [1,2,3]) []
+  checkEqual "List.drop (4)" (List.drop 100 [1,2,3]) []
+  checkEqual "List.drop (5)" (List.drop 3 []) []
   checkEqual "List.size (1)" (List.size []) 0
   checkEqual "List.size (2)" (List.size [1,2,3]) 3
   checkEqual "List.at (1)" (List.at 0 [1,2,3]) (Some 1)
@@ -96,8 +96,8 @@ list.matching.tests = do
     _ -> None
 
   checkEqual "middle matching (1)" (middle []) None
-  checkEqual "middle matching (2)" (middle [1, 2]) (Some [72]) -- (Some [])
-  checkEqual "middle matching (3)" (middle [1, 2, 3, 4, 5, 6]) (Some [72]) -- (Some [2, 3, 4, 5])
+  checkEqual "middle matching (2)" (middle [1, 2]) (Some [])
+  checkEqual "middle matching (3)" (middle [1, 2, 3, 4, 5, 6]) (Some [2, 3, 4, 5])
 
   middleNel = cases
     [_] ++ (h +: t) ++ [_] -> Some (h, t)
@@ -105,7 +105,7 @@ list.matching.tests = do
 
   checkEqual "middle matching with non-empty list (1)" (middleNel []) None
   checkEqual "middle matching with non-empty list (2)" (middleNel [1, 2]) None
-  checkEqual "middle matching with non-empty list (3)" (middleNel [1, 2, 3, 4, 5, 6]) (Some (72, [72])) -- (Some (2, [3, 4, 5]))
+  checkEqual "middle matching with non-empty list (3)" (middleNel [1, 2, 3, 4, 5, 6]) (Some (2, [3, 4, 5]))
 
   splitAtFour : [a] -> ([a], [a])
   splitAtFour l = match l with

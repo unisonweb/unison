@@ -46,7 +46,8 @@
             (bytes bytevector))
     (racket exn)
     (racket unsafe ops)
-    (unison data))
+    (unison data)
+    (unison data chunked-seq))
 
   (define (fx1- n) (fx- n 1))
 
@@ -89,7 +90,8 @@
     (newline)
     (cond
       [(eq? l r) 1]
-      [(equal? l r) 1]
+      [(and (chunked-list? l) (chunked-list? r))
+       (chunked-list=?/recur l r universal-equal?)]
       [(and (data? l) (data? r))
        (and
          (eqv? (data-tag l) (data-tag r))
