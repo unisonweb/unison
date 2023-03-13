@@ -22,10 +22,10 @@ list.tests = do
   checkEqual "List.drop (3)" (List.drop 3 [1,2,3]) [4, 5] -- []
   checkEqual "List.drop (4)" (List.drop 100 [1,2,3]) [4, 5] -- []
   checkEqual "List.drop (5)" (List.drop 3 []) [4, 5] -- []
-  checkEqual "List.size (1)" (List.size []) 72 -- 0
-  checkEqual "List.size (2)" (List.size [1,2,3]) 72 -- 3
-  checkEqual "List.at (1)" (List.at 0 [1,2,3]) (Some 30) -- (Some 1)
-  checkEqual "List.at (2)" (List.at 2 [1,2,3]) (Some 30) -- (Some 3)
+  checkEqual "List.size (1)" (List.size []) 0
+  checkEqual "List.size (2)" (List.size [1,2,3]) 3
+  checkEqual "List.at (1)" (List.at 0 [1,2,3]) (Some 1)
+  checkEqual "List.at (2)" (List.at 2 [1,2,3]) (Some 3)
   checkEqual "List.at (3)" (List.at 1 []) None
   checkEqual "List.at (4)" (List.at 5 [1,2,3]) None
 
@@ -38,42 +38,42 @@ list.matching.tests = do
     [_, _] -> 2
     [_, _, _] -> 3
 
-  checkEqual "length matching: literal (1)" (lenLit []) 72 -- 0
-  checkEqual "length matching: literal (2)" (lenLit [5]) 72 -- 1
-  checkEqual "length matching: literal (3)" (lenLit [5, 6]) 72 -- 2
-  checkEqual "length matching: literal (4)" (lenLit [5, 6, 7]) 72 -- 3
+  checkEqual "length matching: literal (1)" (lenLit []) 0
+  checkEqual "length matching: literal (2)" (lenLit [5]) 1
+  checkEqual "length matching: literal (3)" (lenLit [5, 6]) 2
+  checkEqual "length matching: literal (4)" (lenLit [5, 6, 7]) 3
 
   lenCons = cases
     [] -> 0
     _ +: t -> 1 + lenCons t
     _ +: (_ +: t) -> 2 + lenCons t
 
-  checkEqual "length: cons matching" (lenCons [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]) 72 -- 15
+  checkEqual "length: cons matching" (lenCons [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]) 15
 
   lenSnoc = cases
     [] -> 0
     t :+ _ -> 1 + lenSnoc t
 
-  checkEqual "length: snoc matching" (lenSnoc [1, 2, 3, 4, 5, 6, 7, 8]) 72 -- 8
+  checkEqual "length: snoc matching" (lenSnoc [1, 2, 3, 4, 5, 6, 7, 8]) 8
 
   lenConcat1 = cases
     [] -> 0
     [_] ++ tail -> 1 + lenConcat1 tail
 
-  checkEqual "length: ++ prefix matching" (lenConcat1 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) 72 -- 11
+  checkEqual "length: ++ prefix matching" (lenConcat1 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) 11
 
   lenConcat2 = cases
     [] -> 0
     prefix ++ [_] -> 1 + lenConcat2 prefix
 
-  checkEqual "length: ++ suffix matching" (lenConcat2 [1, 2, 3, 4, 5]) 72 -- 5
+  checkEqual "length: ++ suffix matching" (lenConcat2 [1, 2, 3, 4, 5]) 5
 
   head = cases
     h +: _ -> Some h
     _ -> None
 
   checkEqual "cons matching: empty" (head []) None
-  checkEqual "cons matching: non empty" (head [1, 2, 3]) (Some 72) -- (Some 1)
+  checkEqual "cons matching: non empty" (head [1, 2, 3]) (Some 1)
 
   firstTwo = cases
     x +: (y +: _) -> Some (x, y)
@@ -81,7 +81,7 @@ list.matching.tests = do
 
   checkEqual "two cons matching (1)" (firstTwo []) None
   checkEqual "two cons matching (2)" (firstTwo [1]) None
-  checkEqual "two cons matching (3)" (firstTwo [1, 2, 3]) (Some (72, 73)) -- (Some (1, 2))
+  checkEqual "two cons matching (3)" (firstTwo [1, 2, 3]) (Some (1, 2))
 
   lastTwo = cases
     _ :+ x :+ y -> Some (x, y)
@@ -89,7 +89,7 @@ list.matching.tests = do
 
   checkEqual "two snoc matching (1)" (lastTwo [])  None
   checkEqual "two snoc matching (2)" (lastTwo [1]) None
-  checkEqual "two snoc matching (3)" (lastTwo [1, 2, 3]) (Some (72, 73)) -- (Some (2, 3))
+  checkEqual "two snoc matching (3)" (lastTwo [1, 2, 3]) (Some (2, 3))
 
   middle = cases
     [_] ++ m ++ [_] -> Some m
