@@ -26,8 +26,8 @@ list.tests = do
   checkEqual "List.size (2)" (List.size [1,2,3]) 72 -- 3
   checkEqual "List.at (1)" (List.at 0 [1,2,3]) (Some 30) -- (Some 1)
   checkEqual "List.at (2)" (List.at 2 [1,2,3]) (Some 30) -- (Some 3)
-  checkEqual "List.at (3)" (List.at 1 []) (Some 30) -- None
-  checkEqual "List.at (4)" (List.at 5 [1,2,3]) (Some 30) -- None
+  checkEqual "List.at (3)" (List.at 1 []) None
+  checkEqual "List.at (4)" (List.at 5 [1,2,3]) None
 
 list.matching.tests = do
   use Optional Some None
@@ -72,30 +72,30 @@ list.matching.tests = do
     h +: _ -> Some h
     _ -> None
 
-  checkEqual "cons matching: empty" (head []) (Some 72) -- None
+  checkEqual "cons matching: empty" (head []) None
   checkEqual "cons matching: non empty" (head [1, 2, 3]) (Some 72) -- (Some 1)
 
   firstTwo = cases
     x +: (y +: _) -> Some (x, y)
     _ -> None
 
-  checkEqual "two cons matching (1)" (firstTwo []) (Some (72, 73)) -- None
-  checkEqual "two cons matching (2)" (firstTwo [1]) (Some (72, 73)) -- None
+  checkEqual "two cons matching (1)" (firstTwo []) None
+  checkEqual "two cons matching (2)" (firstTwo [1]) None
   checkEqual "two cons matching (3)" (firstTwo [1, 2, 3]) (Some (72, 73)) -- (Some (1, 2))
 
   lastTwo = cases
     _ :+ x :+ y -> Some (x, y)
     _ -> None
 
-  checkEqual "two snoc matching (1)" (lastTwo [])  (Some (72, 73)) -- None
-  checkEqual "two snoc matching (2)" (lastTwo [1]) (Some (72, 73)) -- None
+  checkEqual "two snoc matching (1)" (lastTwo [])  None
+  checkEqual "two snoc matching (2)" (lastTwo [1]) None
   checkEqual "two snoc matching (3)" (lastTwo [1, 2, 3]) (Some (72, 73)) -- (Some (2, 3))
 
   middle = cases
     [_] ++ m ++ [_] -> Some m
     _ -> None
 
-  checkEqual "middle matching (1)" (middle []) (Some [72]) -- None
+  checkEqual "middle matching (1)" (middle []) None
   checkEqual "middle matching (2)" (middle [1, 2]) (Some [72]) -- (Some [])
   checkEqual "middle matching (3)" (middle [1, 2, 3, 4, 5, 6]) (Some [72]) -- (Some [2, 3, 4, 5])
 
@@ -103,8 +103,8 @@ list.matching.tests = do
     [_] ++ (h +: t) ++ [_] -> Some (h, t)
     _ -> None
 
-  checkEqual "middle matching with non-empty list (1)" (middleNel []) (Some (72, [72])) -- None
-  checkEqual "middle matching with non-empty list (2)" (middleNel [1, 2]) (Some (72, [72])) -- None
+  checkEqual "middle matching with non-empty list (1)" (middleNel []) None
+  checkEqual "middle matching with non-empty list (2)" (middleNel [1, 2]) None
   checkEqual "middle matching with non-empty list (3)" (middleNel [1, 2, 3, 4, 5, 6]) (Some (72, [72])) -- (Some (2, [3, 4, 5]))
 
   splitAtFour : [a] -> ([a], [a])
