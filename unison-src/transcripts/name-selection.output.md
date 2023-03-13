@@ -308,139 +308,140 @@ d = c + 10
     142. builtin.crypto.HashAlgorithm.Blake2b_256      : HashAlgorithm
     143. builtin.crypto.HashAlgorithm.Blake2b_512      : HashAlgorithm
     144. builtin.crypto.HashAlgorithm.Blake2s_256      : HashAlgorithm
-    145. builtin.crypto.HashAlgorithm.Sha1             : HashAlgorithm
-    146. builtin.crypto.HashAlgorithm.Sha2_256         : HashAlgorithm
-    147. builtin.crypto.HashAlgorithm.Sha2_512         : HashAlgorithm
-    148. builtin.crypto.HashAlgorithm.Sha3_256         : HashAlgorithm
-    149. builtin.crypto.HashAlgorithm.Sha3_512         : HashAlgorithm
-    150. builtin.Float.abs                             : Float
+    145. builtin.crypto.HashAlgorithm.Md5              : HashAlgorithm
+    146. builtin.crypto.HashAlgorithm.Sha1             : HashAlgorithm
+    147. builtin.crypto.HashAlgorithm.Sha2_256         : HashAlgorithm
+    148. builtin.crypto.HashAlgorithm.Sha2_512         : HashAlgorithm
+    149. builtin.crypto.HashAlgorithm.Sha3_256         : HashAlgorithm
+    150. builtin.crypto.HashAlgorithm.Sha3_512         : HashAlgorithm
+    151. builtin.Float.abs                             : Float
                                                        -> Float
-    151. builtin.Float.acos                            : Float
+    152. builtin.Float.acos                            : Float
                                                        -> Float
-    152. builtin.Float.acosh                           : Float
+    153. builtin.Float.acosh                           : Float
                                                        -> Float
-    153. builtin.Char.Class.alphanumeric               : Class
-    154. builtin.Char.Class.and                        : Class
+    154. builtin.Char.Class.alphanumeric               : Class
+    155. builtin.Char.Class.and                        : Class
                                                        -> Class
                                                        -> Class
-    155. builtin.Int.and                               : Int
+    156. builtin.Int.and                               : Int
                                                        -> Int
                                                        -> Int
-    156. builtin.Nat.and                               : Nat
+    157. builtin.Nat.and                               : Nat
                                                        -> Nat
                                                        -> Nat
-    157. builtin.Char.Class.any                        : Class
-    158. builtin.Text.patterns.anyChar                 : Pattern
+    158. builtin.Char.Class.any                        : Class
+    159. builtin.Text.patterns.anyChar                 : Pattern
                                                          Text
-    159. builtin.Char.Class.anyOf                      : [Char]
+    160. builtin.Char.Class.anyOf                      : [Char]
                                                        -> Class
-    160. builtin.io2.IO.array                          : Nat
+    161. builtin.io2.IO.array                          : Nat
                                                        ->{IO} MutableArray
                                                          {IO} a
-    161. builtin.Scope.array                           : Nat
+    162. builtin.Scope.array                           : Nat
                                                        ->{Scope
                                                          s} MutableArray
                                                          (Scope
                                                            s)
                                                          a
-    162. builtin.io2.IO.arrayOf                        : a
+    163. builtin.io2.IO.arrayOf                        : a
                                                        -> Nat
                                                        ->{IO} MutableArray
                                                          {IO} a
-    163. builtin.Scope.arrayOf                         : a
+    164. builtin.Scope.arrayOf                         : a
                                                        -> Nat
                                                        ->{Scope
                                                          s} MutableArray
                                                          (Scope
                                                            s)
                                                          a
-    164. builtin.Float.asin                            : Float
+    165. builtin.Float.asin                            : Float
                                                        -> Float
-    165. builtin.Float.asinh                           : Float
+    166. builtin.Float.asinh                           : Float
                                                        -> Float
-    166. builtin.Bytes.at                              : Nat
+    167. builtin.Bytes.at                              : Nat
                                                        -> Bytes
                                                        -> Optional
                                                          Nat
-    167. builtin.List.at                               : Nat
+    168. builtin.List.at                               : Nat
                                                        -> [a]
                                                        -> Optional
                                                          a
-    168. builtin.Float.atan                            : Float
+    169. builtin.Float.atan                            : Float
                                                        -> Float
-    169. builtin.Float.atan2                           : Float
+    170. builtin.Float.atan2                           : Float
                                                        -> Float
                                                        -> Float
-    170. builtin.Float.atanh                           : Float
+    171. builtin.Float.atanh                           : Float
                                                        -> Float
-    171. builtin.io2.STM.atomically                    : '{STM} a
+    172. builtin.io2.STM.atomically                    : '{STM} a
                                                        ->{IO} a
-    172. builtin.bug                                   : a -> b
-    173. builtin.io2.IO.bytearray                      : Nat
+    173. builtin.bug                                   : a -> b
+    174. builtin.io2.IO.bytearray                      : Nat
                                                        ->{IO} MutableByteArray
                                                          {IO}
-    174. builtin.Scope.bytearray                       : Nat
+    175. builtin.Scope.bytearray                       : Nat
                                                        ->{Scope
                                                          s} MutableByteArray
                                                          (Scope
                                                            s)
-    175. builtin.io2.IO.bytearrayOf                    : Nat
+    176. builtin.io2.IO.bytearrayOf                    : Nat
                                                        -> Nat
                                                        ->{IO} MutableByteArray
                                                          {IO}
-    176. builtin.Scope.bytearrayOf                     : Nat
+    177. builtin.Scope.bytearrayOf                     : Nat
                                                        -> Nat
                                                        ->{Scope
                                                          s} MutableByteArray
                                                          (Scope
                                                            s)
-    177. ┌ c#gjmq673r1v                                : Nat
-    178. └ long.name.but.shortest.suffixification      : Nat
-    179. builtin.Code.cache_                           : [( Term,
+    178. ┌ c#gjmq673r1v                                : Nat
+    179. └ long.name.but.shortest.suffixification      : Nat
+    180. builtin.Code.cache_                           : [( Term,
                                                          Code)]
                                                        ->{IO} [Term]
-    180. builtin.io2.IO.process.call                   : Text
+    181. builtin.io2.IO.process.call                   : Text
                                                        -> [Text]
                                                        ->{IO} Nat
-    181. builtin.Pattern.capture                       : Pattern
+    182. builtin.Pattern.capture                       : Pattern
                                                          a
                                                        -> Pattern
                                                          a
-    182. builtin.io2.Ref.cas                           : Ref
+    183. builtin.io2.Ref.cas                           : Ref
                                                          {IO} a
                                                        -> Ticket
                                                          a
                                                        -> a
                                                        ->{IO} Boolean
-    183. builtin.Float.ceiling                         : Float
+    184. builtin.Float.ceiling                         : Float
                                                        -> Int
-    184. builtin.Text.patterns.char                    : Class
+    185. builtin.Text.patterns.char                    : Class
                                                        -> Pattern
                                                          Text
-    185. builtin.Text.patterns.charIn                  : [Char]
+    186. builtin.Text.patterns.charIn                  : [Char]
                                                        -> Pattern
                                                          Text
-    186. builtin.Text.patterns.charRange               : Char
+    187. builtin.Text.patterns.charRange               : Char
                                                        -> Char
                                                        -> Pattern
                                                          Text
-    187. builtin.unsafe.coerceAbilities                : (a
+    188. builtin.unsafe.coerceAbilities                : (a
                                                        ->{e1} b)
                                                        -> a
                                                        ->{e2} b
-    188. builtin.Universal.compare                     : a
+    189. builtin.Universal.compare                     : a
                                                        -> a
                                                        -> Int
-    189. builtin.Int.complement                        : Int
+    190. builtin.Int.complement                        : Int
                                                        -> Int
-    190. builtin.Nat.complement                        : Nat
+    191. builtin.Nat.complement                        : Nat
                                                        -> Nat
-    191. builtin.Bytes.gzip.compress                   : Bytes
+    192. builtin.Bytes.gzip.compress                   : Bytes
                                                        -> Bytes
-    192. builtin.Bytes.zlib.compress                   : Bytes
+    193. builtin.Bytes.zlib.compress                   : Bytes
                                                        -> Bytes
-    193. builtin.Char.Class.control                    : Class
-    194. builtin.ImmutableArray.copyTo!                : MutableArray
+    194. builtin.Char.Class.control                    : Class
+    195. builtin.ImmutableArray.copyTo!                : MutableArray
                                                          g a
                                                        -> Nat
                                                        -> ImmutableArray
@@ -449,7 +450,7 @@ d = c + 10
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    195. builtin.ImmutableByteArray.copyTo!            : MutableByteArray
+    196. builtin.ImmutableByteArray.copyTo!            : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> ImmutableByteArray
@@ -457,7 +458,7 @@ d = c + 10
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    196. builtin.MutableArray.copyTo!                  : MutableArray
+    197. builtin.MutableArray.copyTo!                  : MutableArray
                                                          g a
                                                        -> Nat
                                                        -> MutableArray
@@ -466,7 +467,7 @@ d = c + 10
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    197. builtin.MutableByteArray.copyTo!              : MutableByteArray
+    198. builtin.MutableByteArray.copyTo!              : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> MutableByteArray
@@ -475,979 +476,979 @@ d = c + 10
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    198. builtin.Float.cos                             : Float
+    199. builtin.Float.cos                             : Float
                                                        -> Float
-    199. builtin.Float.cosh                            : Float
+    200. builtin.Float.cosh                            : Float
                                                        -> Float
-    200. builtin.Bytes.decodeNat16be                   : Bytes
+    201. builtin.Bytes.decodeNat16be                   : Bytes
                                                        -> Optional
                                                          ( Nat,
                                                            Bytes)
-    201. builtin.Bytes.decodeNat16le                   : Bytes
+    202. builtin.Bytes.decodeNat16le                   : Bytes
                                                        -> Optional
                                                          ( Nat,
                                                            Bytes)
-    202. builtin.Bytes.decodeNat32be                   : Bytes
+    203. builtin.Bytes.decodeNat32be                   : Bytes
                                                        -> Optional
                                                          ( Nat,
                                                            Bytes)
-    203. builtin.Bytes.decodeNat32le                   : Bytes
+    204. builtin.Bytes.decodeNat32le                   : Bytes
                                                        -> Optional
                                                          ( Nat,
                                                            Bytes)
-    204. builtin.Bytes.decodeNat64be                   : Bytes
+    205. builtin.Bytes.decodeNat64be                   : Bytes
                                                        -> Optional
                                                          ( Nat,
                                                            Bytes)
-    205. builtin.Bytes.decodeNat64le                   : Bytes
+    206. builtin.Bytes.decodeNat64le                   : Bytes
                                                        -> Optional
                                                          ( Nat,
                                                            Bytes)
-    206. builtin.io2.Tls.decodePrivateKey              : Bytes
+    207. builtin.io2.Tls.decodePrivateKey              : Bytes
                                                        -> [PrivateKey]
-    207. builtin.Bytes.gzip.decompress                 : Bytes
+    208. builtin.Bytes.gzip.decompress                 : Bytes
                                                        -> Either
                                                          Text
                                                          Bytes
-    208. builtin.Bytes.zlib.decompress                 : Bytes
+    209. builtin.Bytes.zlib.decompress                 : Bytes
                                                        -> Either
                                                          Text
                                                          Bytes
-    209. builtin.io2.Tls.ClientConfig.default          : Text
+    210. builtin.io2.Tls.ClientConfig.default          : Text
                                                        -> Bytes
                                                        -> ClientConfig
-    210. builtin.io2.Tls.ServerConfig.default          : [SignedCert]
+    211. builtin.io2.Tls.ServerConfig.default          : [SignedCert]
                                                        -> PrivateKey
                                                        -> ServerConfig
-    211. builtin.Code.dependencies                     : Code
+    212. builtin.Code.dependencies                     : Code
                                                        -> [Term]
-    212. builtin.Value.dependencies                    : Value
+    213. builtin.Value.dependencies                    : Value
                                                        -> [Term]
-    213. builtin.Code.deserialize                      : Bytes
+    214. builtin.Code.deserialize                      : Bytes
                                                        -> Either
                                                          Text
                                                          Code
-    214. builtin.Value.deserialize                     : Bytes
+    215. builtin.Value.deserialize                     : Bytes
                                                        -> Either
                                                          Text
                                                          Value
-    215. builtin.Text.patterns.digit                   : Pattern
+    216. builtin.Text.patterns.digit                   : Pattern
                                                          Text
-    216. builtin.Code.display                          : Text
+    217. builtin.Code.display                          : Text
                                                        -> Code
                                                        -> Text
-    217. builtin.Bytes.drop                            : Nat
+    218. builtin.Bytes.drop                            : Nat
                                                        -> Bytes
                                                        -> Bytes
-    218. builtin.List.drop                             : Nat
+    219. builtin.List.drop                             : Nat
                                                        -> [a]
                                                        -> [a]
-    219. builtin.Nat.drop                              : Nat
+    220. builtin.Nat.drop                              : Nat
                                                        -> Nat
                                                        -> Nat
-    220. builtin.Text.drop                             : Nat
+    221. builtin.Text.drop                             : Nat
                                                        -> Text
                                                        -> Text
-    221. builtin.Bytes.empty                           : Bytes
-    222. builtin.List.empty                            : [a]
-    223. builtin.Text.empty                            : Text
-    224. builtin.io2.Tls.encodeCert                    : SignedCert
+    222. builtin.Bytes.empty                           : Bytes
+    223. builtin.List.empty                            : [a]
+    224. builtin.Text.empty                            : Text
+    225. builtin.io2.Tls.encodeCert                    : SignedCert
                                                        -> Bytes
-    225. builtin.Bytes.encodeNat16be                   : Nat
+    226. builtin.Bytes.encodeNat16be                   : Nat
                                                        -> Bytes
-    226. builtin.Bytes.encodeNat16le                   : Nat
+    227. builtin.Bytes.encodeNat16le                   : Nat
                                                        -> Bytes
-    227. builtin.Bytes.encodeNat32be                   : Nat
+    228. builtin.Bytes.encodeNat32be                   : Nat
                                                        -> Bytes
-    228. builtin.Bytes.encodeNat32le                   : Nat
+    229. builtin.Bytes.encodeNat32le                   : Nat
                                                        -> Bytes
-    229. builtin.Bytes.encodeNat64be                   : Nat
+    230. builtin.Bytes.encodeNat64be                   : Nat
                                                        -> Bytes
-    230. builtin.Bytes.encodeNat64le                   : Nat
+    231. builtin.Bytes.encodeNat64le                   : Nat
                                                        -> Bytes
-    231. builtin.io2.Tls.encodePrivateKey              : PrivateKey
+    232. builtin.io2.Tls.encodePrivateKey              : PrivateKey
                                                        -> Bytes
-    232. builtin.Text.patterns.eof                     : Pattern
+    233. builtin.Text.patterns.eof                     : Pattern
                                                          Text
-    233. builtin.Float.eq                              : Float
+    234. builtin.Float.eq                              : Float
                                                        -> Float
                                                        -> Boolean
-    234. builtin.Int.eq                                : Int
+    235. builtin.Int.eq                                : Int
                                                        -> Int
                                                        -> Boolean
-    235. builtin.Nat.eq                                : Nat
+    236. builtin.Nat.eq                                : Nat
                                                        -> Nat
                                                        -> Boolean
-    236. builtin.Text.eq                               : Text
+    237. builtin.Text.eq                               : Text
                                                        -> Text
                                                        -> Boolean
-    237. builtin.io2.IO.process.exitCode               : ProcessHandle
+    238. builtin.io2.IO.process.exitCode               : ProcessHandle
                                                        ->{IO} Optional
                                                          Nat
-    238. builtin.Float.exp                             : Float
+    239. builtin.Float.exp                             : Float
                                                        -> Float
-    239. builtin.Bytes.flatten                         : Bytes
+    240. builtin.Bytes.flatten                         : Bytes
                                                        -> Bytes
-    240. builtin.Float.floor                           : Float
+    241. builtin.Float.floor                           : Float
                                                        -> Int
-    241. builtin.io2.IO.forkComp                       : '{IO} a
+    242. builtin.io2.IO.forkComp                       : '{IO} a
                                                        ->{IO} ThreadId
-    242. builtin.MutableArray.freeze                   : MutableArray
+    243. builtin.MutableArray.freeze                   : MutableArray
                                                          g a
                                                        -> Nat
                                                        -> Nat
                                                        ->{g} ImmutableArray
                                                          a
-    243. builtin.MutableByteArray.freeze               : MutableByteArray
+    244. builtin.MutableByteArray.freeze               : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat
                                                        ->{g} ImmutableByteArray
-    244. builtin.MutableArray.freeze!                  : MutableArray
+    245. builtin.MutableArray.freeze!                  : MutableArray
                                                          g a
                                                        ->{g} ImmutableArray
                                                          a
-    245. builtin.MutableByteArray.freeze!              : MutableByteArray
+    246. builtin.MutableByteArray.freeze!              : MutableByteArray
                                                          g
                                                        ->{g} ImmutableByteArray
-    246. builtin.Bytes.fromBase16                      : Bytes
+    247. builtin.Bytes.fromBase16                      : Bytes
                                                        -> Either
                                                          Text
                                                          Bytes
-    247. builtin.Bytes.fromBase32                      : Bytes
+    248. builtin.Bytes.fromBase32                      : Bytes
                                                        -> Either
                                                          Text
                                                          Bytes
-    248. builtin.Bytes.fromBase64                      : Bytes
+    249. builtin.Bytes.fromBase64                      : Bytes
                                                        -> Either
                                                          Text
                                                          Bytes
-    249. builtin.Bytes.fromBase64UrlUnpadded           : Bytes
+    250. builtin.Bytes.fromBase64UrlUnpadded           : Bytes
                                                        -> Either
                                                          Text
                                                          Bytes
-    250. builtin.Text.fromCharList                     : [Char]
+    251. builtin.Text.fromCharList                     : [Char]
                                                        -> Text
-    251. builtin.Bytes.fromList                        : [Nat]
+    252. builtin.Bytes.fromList                        : [Nat]
                                                        -> Bytes
-    252. builtin.Char.fromNat                          : Nat
+    253. builtin.Char.fromNat                          : Nat
                                                        -> Char
-    253. builtin.Float.fromRepresentation              : Nat
+    254. builtin.Float.fromRepresentation              : Nat
                                                        -> Float
-    254. builtin.Int.fromRepresentation                : Nat
+    255. builtin.Int.fromRepresentation                : Nat
                                                        -> Int
-    255. builtin.Float.fromText                        : Text
+    256. builtin.Float.fromText                        : Text
                                                        -> Optional
                                                          Float
-    256. builtin.Int.fromText                          : Text
+    257. builtin.Int.fromText                          : Text
                                                        -> Optional
                                                          Int
-    257. builtin.Nat.fromText                          : Text
+    258. builtin.Nat.fromText                          : Text
                                                        -> Optional
                                                          Nat
-    258. builtin.Float.gt                              : Float
+    259. builtin.Float.gt                              : Float
                                                        -> Float
                                                        -> Boolean
-    259. builtin.Int.gt                                : Int
+    260. builtin.Int.gt                                : Int
                                                        -> Int
                                                        -> Boolean
-    260. builtin.Nat.gt                                : Nat
+    261. builtin.Nat.gt                                : Nat
                                                        -> Nat
                                                        -> Boolean
-    261. builtin.Text.gt                               : Text
+    262. builtin.Text.gt                               : Text
                                                        -> Text
                                                        -> Boolean
-    262. builtin.Float.gteq                            : Float
+    263. builtin.Float.gteq                            : Float
                                                        -> Float
                                                        -> Boolean
-    263. builtin.Int.gteq                              : Int
+    264. builtin.Int.gteq                              : Int
                                                        -> Int
                                                        -> Boolean
-    264. builtin.Nat.gteq                              : Nat
+    265. builtin.Nat.gteq                              : Nat
                                                        -> Nat
                                                        -> Boolean
-    265. builtin.Text.gteq                             : Text
+    266. builtin.Text.gteq                             : Text
                                                        -> Text
                                                        -> Boolean
-    266. builtin.crypto.hash                           : HashAlgorithm
+    267. builtin.crypto.hash                           : HashAlgorithm
                                                        -> a
                                                        -> Bytes
-    267. builtin.crypto.hashBytes                      : HashAlgorithm
+    268. builtin.crypto.hashBytes                      : HashAlgorithm
                                                        -> Bytes
                                                        -> Bytes
-    268. builtin.crypto.hmac                           : HashAlgorithm
+    269. builtin.crypto.hmac                           : HashAlgorithm
                                                        -> Bytes
                                                        -> a
                                                        -> Bytes
-    269. builtin.crypto.hmacBytes                      : HashAlgorithm
+    270. builtin.crypto.hmacBytes                      : HashAlgorithm
                                                        -> Bytes
                                                        -> Bytes
                                                        -> Bytes
-    270. builtin.io2.IO.clientSocket.impl              : Text
+    271. builtin.io2.IO.clientSocket.impl              : Text
                                                        -> Text
                                                        ->{IO} Either
                                                          Failure
                                                          Socket
-    271. builtin.io2.IO.closeFile.impl                 : Handle
+    272. builtin.io2.IO.closeFile.impl                 : Handle
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    272. builtin.io2.IO.closeSocket.impl               : Socket
+    273. builtin.io2.IO.closeSocket.impl               : Socket
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    273. builtin.io2.IO.createDirectory.impl           : Text
+    274. builtin.io2.IO.createDirectory.impl           : Text
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    274. builtin.io2.IO.createTempDirectory.impl       : Text
+    275. builtin.io2.IO.createTempDirectory.impl       : Text
                                                        ->{IO} Either
                                                          Failure
                                                          Text
-    275. builtin.io2.Tls.decodeCert.impl               : Bytes
+    276. builtin.io2.Tls.decodeCert.impl               : Bytes
                                                        -> Either
                                                          Failure
                                                          SignedCert
-    276. builtin.io2.IO.delay.impl                     : Nat
+    277. builtin.io2.IO.delay.impl                     : Nat
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    277. builtin.io2.IO.directoryContents.impl         : Text
+    278. builtin.io2.IO.directoryContents.impl         : Text
                                                        ->{IO} Either
                                                          Failure
                                                          [Text]
-    278. builtin.io2.IO.fileExists.impl                : Text
+    279. builtin.io2.IO.fileExists.impl                : Text
                                                        ->{IO} Either
                                                          Failure
                                                          Boolean
-    279. builtin.Text.fromUtf8.impl                    : Bytes
+    280. builtin.Text.fromUtf8.impl                    : Bytes
                                                        -> Either
                                                          Failure
                                                          Text
-    280. builtin.io2.IO.getArgs.impl                   : '{IO} Either
+    281. builtin.io2.IO.getArgs.impl                   : '{IO} Either
                                                          Failure
                                                          [Text]
-    281. builtin.io2.IO.getBuffering.impl              : Handle
+    282. builtin.io2.IO.getBuffering.impl              : Handle
                                                        ->{IO} Either
                                                          Failure
                                                          BufferMode
-    282. builtin.io2.IO.getBytes.impl                  : Handle
+    283. builtin.io2.IO.getBytes.impl                  : Handle
                                                        -> Nat
                                                        ->{IO} Either
                                                          Failure
                                                          Bytes
-    283. builtin.io2.IO.getChar.impl                   : Handle
+    284. builtin.io2.IO.getChar.impl                   : Handle
                                                        ->{IO} Either
                                                          Failure
                                                          Char
-    284. builtin.io2.IO.getCurrentDirectory.impl       : '{IO} Either
+    285. builtin.io2.IO.getCurrentDirectory.impl       : '{IO} Either
                                                          Failure
                                                          Text
-    285. builtin.io2.IO.getEcho.impl                   : Handle
+    286. builtin.io2.IO.getEcho.impl                   : Handle
                                                        ->{IO} Either
                                                          Failure
                                                          Boolean
-    286. builtin.io2.IO.getEnv.impl                    : Text
+    287. builtin.io2.IO.getEnv.impl                    : Text
                                                        ->{IO} Either
                                                          Failure
                                                          Text
-    287. builtin.io2.IO.getFileSize.impl               : Text
+    288. builtin.io2.IO.getFileSize.impl               : Text
                                                        ->{IO} Either
                                                          Failure
                                                          Nat
-    288. builtin.io2.IO.getFileTimestamp.impl          : Text
+    289. builtin.io2.IO.getFileTimestamp.impl          : Text
                                                        ->{IO} Either
                                                          Failure
                                                          Nat
-    289. builtin.io2.IO.getLine.impl                   : Handle
+    290. builtin.io2.IO.getLine.impl                   : Handle
                                                        ->{IO} Either
                                                          Failure
                                                          Text
-    290. builtin.io2.IO.getSomeBytes.impl              : Handle
+    291. builtin.io2.IO.getSomeBytes.impl              : Handle
                                                        -> Nat
                                                        ->{IO} Either
                                                          Failure
                                                          Bytes
-    291. builtin.io2.IO.getTempDirectory.impl          : '{IO} Either
+    292. builtin.io2.IO.getTempDirectory.impl          : '{IO} Either
                                                          Failure
                                                          Text
-    292. builtin.io2.IO.handlePosition.impl            : Handle
+    293. builtin.io2.IO.handlePosition.impl            : Handle
                                                        ->{IO} Either
                                                          Failure
                                                          Nat
-    293. builtin.io2.Tls.handshake.impl                : Tls
+    294. builtin.io2.Tls.handshake.impl                : Tls
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    294. builtin.io2.IO.isDirectory.impl               : Text
+    295. builtin.io2.IO.isDirectory.impl               : Text
                                                        ->{IO} Either
                                                          Failure
                                                          Boolean
-    295. builtin.io2.IO.isFileEOF.impl                 : Handle
+    296. builtin.io2.IO.isFileEOF.impl                 : Handle
                                                        ->{IO} Either
                                                          Failure
                                                          Boolean
-    296. builtin.io2.IO.isFileOpen.impl                : Handle
+    297. builtin.io2.IO.isFileOpen.impl                : Handle
                                                        ->{IO} Either
                                                          Failure
                                                          Boolean
-    297. builtin.io2.IO.isSeekable.impl                : Handle
+    298. builtin.io2.IO.isSeekable.impl                : Handle
                                                        ->{IO} Either
                                                          Failure
                                                          Boolean
-    298. builtin.io2.IO.kill.impl                      : ThreadId
+    299. builtin.io2.IO.kill.impl                      : ThreadId
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    299. builtin.io2.IO.listen.impl                    : Socket
+    300. builtin.io2.IO.listen.impl                    : Socket
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    300. builtin.io2.Tls.newClient.impl                : ClientConfig
+    301. builtin.io2.Tls.newClient.impl                : ClientConfig
                                                        -> Socket
                                                        ->{IO} Either
                                                          Failure
                                                          Tls
-    301. builtin.io2.Tls.newServer.impl                : ServerConfig
+    302. builtin.io2.Tls.newServer.impl                : ServerConfig
                                                        -> Socket
                                                        ->{IO} Either
                                                          Failure
                                                          Tls
-    302. builtin.io2.IO.openFile.impl                  : Text
+    303. builtin.io2.IO.openFile.impl                  : Text
                                                        -> FileMode
                                                        ->{IO} Either
                                                          Failure
                                                          Handle
-    303. builtin.io2.MVar.put.impl                     : MVar a
+    304. builtin.io2.MVar.put.impl                     : MVar a
                                                        -> a
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    304. builtin.io2.IO.putBytes.impl                  : Handle
+    305. builtin.io2.IO.putBytes.impl                  : Handle
                                                        -> Bytes
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    305. builtin.io2.MVar.read.impl                    : MVar a
+    306. builtin.io2.MVar.read.impl                    : MVar a
                                                        ->{IO} Either
                                                          Failure
                                                          a
-    306. builtin.io2.IO.ready.impl                     : Handle
+    307. builtin.io2.IO.ready.impl                     : Handle
                                                        ->{IO} Either
                                                          Failure
                                                          Boolean
-    307. builtin.io2.Tls.receive.impl                  : Tls
+    308. builtin.io2.Tls.receive.impl                  : Tls
                                                        ->{IO} Either
                                                          Failure
                                                          Bytes
-    308. builtin.io2.IO.removeDirectory.impl           : Text
+    309. builtin.io2.IO.removeDirectory.impl           : Text
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    309. builtin.io2.IO.removeFile.impl                : Text
+    310. builtin.io2.IO.removeFile.impl                : Text
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    310. builtin.io2.IO.renameDirectory.impl           : Text
+    311. builtin.io2.IO.renameDirectory.impl           : Text
                                                        -> Text
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    311. builtin.io2.IO.renameFile.impl                : Text
+    312. builtin.io2.IO.renameFile.impl                : Text
                                                        -> Text
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    312. builtin.io2.IO.seekHandle.impl                : Handle
+    313. builtin.io2.IO.seekHandle.impl                : Handle
                                                        -> SeekMode
                                                        -> Int
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    313. builtin.io2.Tls.send.impl                     : Tls
+    314. builtin.io2.Tls.send.impl                     : Tls
                                                        -> Bytes
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    314. builtin.io2.IO.serverSocket.impl              : Optional
+    315. builtin.io2.IO.serverSocket.impl              : Optional
                                                          Text
                                                        -> Text
                                                        ->{IO} Either
                                                          Failure
                                                          Socket
-    315. builtin.io2.IO.setBuffering.impl              : Handle
+    316. builtin.io2.IO.setBuffering.impl              : Handle
                                                        -> BufferMode
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    316. builtin.io2.IO.setCurrentDirectory.impl       : Text
+    317. builtin.io2.IO.setCurrentDirectory.impl       : Text
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    317. builtin.io2.IO.setEcho.impl                   : Handle
+    318. builtin.io2.IO.setEcho.impl                   : Handle
                                                        -> Boolean
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    318. builtin.io2.IO.socketAccept.impl              : Socket
+    319. builtin.io2.IO.socketAccept.impl              : Socket
                                                        ->{IO} Either
                                                          Failure
                                                          Socket
-    319. builtin.io2.IO.socketPort.impl                : Socket
+    320. builtin.io2.IO.socketPort.impl                : Socket
                                                        ->{IO} Either
                                                          Failure
                                                          Nat
-    320. builtin.io2.IO.socketReceive.impl             : Socket
+    321. builtin.io2.IO.socketReceive.impl             : Socket
                                                        -> Nat
                                                        ->{IO} Either
                                                          Failure
                                                          Bytes
-    321. builtin.io2.IO.socketSend.impl                : Socket
+    322. builtin.io2.IO.socketSend.impl                : Socket
                                                        -> Bytes
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    322. builtin.io2.MVar.swap.impl                    : MVar a
+    323. builtin.io2.MVar.swap.impl                    : MVar a
                                                        -> a
                                                        ->{IO} Either
                                                          Failure
                                                          a
-    323. builtin.io2.IO.systemTime.impl                : '{IO} Either
+    324. builtin.io2.IO.systemTime.impl                : '{IO} Either
                                                          Failure
                                                          Nat
-    324. builtin.io2.MVar.take.impl                    : MVar a
+    325. builtin.io2.MVar.take.impl                    : MVar a
                                                        ->{IO} Either
                                                          Failure
                                                          a
-    325. builtin.io2.Tls.terminate.impl                : Tls
+    326. builtin.io2.Tls.terminate.impl                : Tls
                                                        ->{IO} Either
                                                          Failure
                                                          ()
-    326. builtin.io2.MVar.tryPut.impl                  : MVar a
+    327. builtin.io2.MVar.tryPut.impl                  : MVar a
                                                        -> a
                                                        ->{IO} Either
                                                          Failure
                                                          Boolean
-    327. builtin.io2.MVar.tryRead.impl                 : MVar a
+    328. builtin.io2.MVar.tryRead.impl                 : MVar a
                                                        ->{IO} Either
                                                          Failure
                                                          (Optional
                                                            a)
-    328. builtin.Int.increment                         : Int
+    329. builtin.Int.increment                         : Int
                                                        -> Int
-    329. builtin.Nat.increment                         : Nat
+    330. builtin.Nat.increment                         : Nat
                                                        -> Nat
-    330. builtin.Char.Class.is                         : Class
+    331. builtin.Char.Class.is                         : Class
                                                        -> Char
                                                        -> Boolean
-    331. builtin.io2.MVar.isEmpty                      : MVar a
+    332. builtin.io2.MVar.isEmpty                      : MVar a
                                                        ->{IO} Boolean
-    332. builtin.Int.isEven                            : Int
+    333. builtin.Int.isEven                            : Int
                                                        -> Boolean
-    333. builtin.Nat.isEven                            : Nat
+    334. builtin.Nat.isEven                            : Nat
                                                        -> Boolean
-    334. builtin.Pattern.isMatch                       : Pattern
+    335. builtin.Pattern.isMatch                       : Pattern
                                                          a
                                                        -> a
                                                        -> Boolean
-    335. builtin.Code.isMissing                        : Term
+    336. builtin.Code.isMissing                        : Term
                                                        ->{IO} Boolean
-    336. builtin.Int.isOdd                             : Int
+    337. builtin.Int.isOdd                             : Int
                                                        -> Boolean
-    337. builtin.Nat.isOdd                             : Nat
+    338. builtin.Nat.isOdd                             : Nat
                                                        -> Boolean
-    338. builtin.metadata.isPropagated                 : IsPropagated
-    339. builtin.metadata.isTest                       : IsTest
-    340. builtin.Pattern.join                          : [Pattern
+    339. builtin.metadata.isPropagated                 : IsPropagated
+    340. builtin.metadata.isTest                       : IsTest
+    341. builtin.Pattern.join                          : [Pattern
                                                          a]
                                                        -> Pattern
                                                          a
-    341. builtin.io2.IO.process.kill                   : ProcessHandle
+    342. builtin.io2.IO.process.kill                   : ProcessHandle
                                                        ->{IO} ()
-    342. builtin.Int.leadingZeros                      : Int
+    343. builtin.Int.leadingZeros                      : Int
                                                        -> Nat
-    343. builtin.Nat.leadingZeros                      : Nat
+    344. builtin.Nat.leadingZeros                      : Nat
                                                        -> Nat
-    344. builtin.Char.Class.letter                     : Class
-    345. builtin.Text.patterns.letter                  : Pattern
+    345. builtin.Char.Class.letter                     : Class
+    346. builtin.Text.patterns.letter                  : Pattern
                                                          Text
-    346. builtin.Text.patterns.literal                 : Text
+    347. builtin.Text.patterns.literal                 : Text
                                                        -> Pattern
                                                          Text
-    347. builtin.Value.load                            : Value
+    348. builtin.Value.load                            : Value
                                                        ->{IO} Either
                                                          [Term]
                                                          a
-    348. builtin.Float.log                             : Float
+    349. builtin.Float.log                             : Float
                                                        -> Float
-    349. builtin.Float.logBase                         : Float
+    350. builtin.Float.logBase                         : Float
                                                        -> Float
                                                        -> Float
-    350. builtin.Code.lookup                           : Term
+    351. builtin.Code.lookup                           : Term
                                                        ->{IO} Optional
                                                          Code
-    351. builtin.Char.Class.lower                      : Class
-    352. builtin.Float.lt                              : Float
+    352. builtin.Char.Class.lower                      : Class
+    353. builtin.Float.lt                              : Float
                                                        -> Float
                                                        -> Boolean
-    353. builtin.Int.lt                                : Int
+    354. builtin.Int.lt                                : Int
                                                        -> Int
                                                        -> Boolean
-    354. builtin.Nat.lt                                : Nat
+    355. builtin.Nat.lt                                : Nat
                                                        -> Nat
                                                        -> Boolean
-    355. builtin.Text.lt                               : Text
+    356. builtin.Text.lt                               : Text
                                                        -> Text
                                                        -> Boolean
-    356. builtin.Float.lteq                            : Float
+    357. builtin.Float.lteq                            : Float
                                                        -> Float
                                                        -> Boolean
-    357. builtin.Int.lteq                              : Int
+    358. builtin.Int.lteq                              : Int
                                                        -> Int
                                                        -> Boolean
-    358. builtin.Nat.lteq                              : Nat
+    359. builtin.Nat.lteq                              : Nat
                                                        -> Nat
                                                        -> Boolean
-    359. builtin.Text.lteq                             : Text
+    360. builtin.Text.lteq                             : Text
                                                        -> Text
                                                        -> Boolean
-    360. builtin.Pattern.many                          : Pattern
+    361. builtin.Pattern.many                          : Pattern
                                                          a
                                                        -> Pattern
                                                          a
-    361. builtin.Char.Class.mark                       : Class
-    362. builtin.Float.max                             : Float
+    362. builtin.Char.Class.mark                       : Class
+    363. builtin.Float.max                             : Float
                                                        -> Float
                                                        -> Float
-    363. builtin.Float.min                             : Float
+    364. builtin.Float.min                             : Float
                                                        -> Float
                                                        -> Float
-    364. builtin.Int.mod                               : Int
+    365. builtin.Int.mod                               : Int
                                                        -> Int
                                                        -> Int
-    365. builtin.Nat.mod                               : Nat
+    366. builtin.Nat.mod                               : Nat
                                                        -> Nat
                                                        -> Nat
-    366. builtin.io2.Clock.internals.monotonic         : '{IO} Either
+    367. builtin.io2.Clock.internals.monotonic         : '{IO} Either
                                                          Failure
                                                          TimeSpec
-    367. builtin.Universal.murmurHash                  : a
+    368. builtin.Universal.murmurHash                  : a
                                                        -> Nat
-    368. builtin.Int.negate                            : Int
+    369. builtin.Int.negate                            : Int
                                                        -> Int
-    369. builtin.io2.MVar.new                          : a
+    370. builtin.io2.MVar.new                          : a
                                                        ->{IO} MVar
                                                          a
-    370. builtin.io2.Promise.new                       : '{IO} Promise
+    371. builtin.io2.Promise.new                       : '{IO} Promise
                                                          a
-    371. builtin.io2.TVar.new                          : a
+    372. builtin.io2.TVar.new                          : a
                                                        ->{STM} TVar
                                                          a
-    372. builtin.io2.MVar.newEmpty                     : '{IO} MVar
+    373. builtin.io2.MVar.newEmpty                     : '{IO} MVar
                                                          a
-    373. builtin.io2.TVar.newIO                        : a
+    374. builtin.io2.TVar.newIO                        : a
                                                        ->{IO} TVar
                                                          a
-    374. builtin.Boolean.not                           : Boolean
+    375. builtin.Boolean.not                           : Boolean
                                                        -> Boolean
-    375. builtin.Char.Class.not                        : Class
+    376. builtin.Char.Class.not                        : Class
                                                        -> Class
-    376. builtin.Text.patterns.notCharIn               : [Char]
+    377. builtin.Text.patterns.notCharIn               : [Char]
                                                        -> Pattern
                                                          Text
-    377. builtin.Text.patterns.notCharRange            : Char
+    378. builtin.Text.patterns.notCharRange            : Char
                                                        -> Char
                                                        -> Pattern
                                                          Text
-    378. builtin.io2.Clock.internals.nsec              : TimeSpec
+    379. builtin.io2.Clock.internals.nsec              : TimeSpec
                                                        -> Nat
-    379. builtin.Char.Class.number                     : Class
-    380. builtin.Char.Class.or                         : Class
+    380. builtin.Char.Class.number                     : Class
+    381. builtin.Char.Class.or                         : Class
                                                        -> Class
                                                        -> Class
-    381. builtin.Int.or                                : Int
+    382. builtin.Int.or                                : Int
                                                        -> Int
                                                        -> Int
-    382. builtin.Nat.or                                : Nat
+    383. builtin.Nat.or                                : Nat
                                                        -> Nat
                                                        -> Nat
-    383. builtin.Pattern.or                            : Pattern
+    384. builtin.Pattern.or                            : Pattern
                                                          a
                                                        -> Pattern
                                                          a
                                                        -> Pattern
                                                          a
-    384. builtin.Int.popCount                          : Int
+    385. builtin.Int.popCount                          : Int
                                                        -> Nat
-    385. builtin.Nat.popCount                          : Nat
+    386. builtin.Nat.popCount                          : Nat
                                                        -> Nat
-    386. builtin.Float.pow                             : Float
+    387. builtin.Float.pow                             : Float
                                                        -> Float
                                                        -> Float
-    387. builtin.Int.pow                               : Int
+    388. builtin.Int.pow                               : Int
                                                        -> Nat
                                                        -> Int
-    388. builtin.Nat.pow                               : Nat
+    389. builtin.Nat.pow                               : Nat
                                                        -> Nat
                                                        -> Nat
-    389. builtin.Char.Class.printable                  : Class
-    390. builtin.io2.Clock.internals.processCPUTime    : '{IO} Either
+    390. builtin.Char.Class.printable                  : Class
+    391. builtin.io2.Clock.internals.processCPUTime    : '{IO} Either
                                                          Failure
                                                          TimeSpec
-    391. builtin.Char.Class.punctuation                : Class
-    392. builtin.Text.patterns.punctuation             : Pattern
+    392. builtin.Char.Class.punctuation                : Class
+    393. builtin.Text.patterns.punctuation             : Pattern
                                                          Text
-    393. builtin.Char.Class.range                      : Char
+    394. builtin.Char.Class.range                      : Char
                                                        -> Char
                                                        -> Class
-    394. builtin.ImmutableArray.read                   : ImmutableArray
+    395. builtin.ImmutableArray.read                   : ImmutableArray
                                                          a
                                                        -> Nat
                                                        ->{Exception} a
-    395. builtin.MutableArray.read                     : MutableArray
+    396. builtin.MutableArray.read                     : MutableArray
                                                          g a
                                                        -> Nat
                                                        ->{g,
                                                        Exception} a
-    396. builtin.io2.Promise.read                      : Promise
+    397. builtin.io2.Promise.read                      : Promise
                                                          a
                                                        ->{IO} a
-    397. builtin.Ref.read                              : Ref g a
+    398. builtin.Ref.read                              : Ref g a
                                                        ->{g} a
-    398. builtin.io2.TVar.read                         : TVar a
+    399. builtin.io2.TVar.read                         : TVar a
                                                        ->{STM} a
-    399. builtin.io2.Ref.Ticket.read                   : Ticket
+    400. builtin.io2.Ref.Ticket.read                   : Ticket
                                                          a
                                                        -> a
-    400. builtin.ImmutableByteArray.read16be           : ImmutableByteArray
+    401. builtin.ImmutableByteArray.read16be           : ImmutableByteArray
                                                        -> Nat
                                                        ->{Exception} Nat
-    401. builtin.MutableByteArray.read16be             : MutableByteArray
+    402. builtin.MutableByteArray.read16be             : MutableByteArray
                                                          g
                                                        -> Nat
                                                        ->{g,
                                                        Exception} Nat
-    402. builtin.ImmutableByteArray.read24be           : ImmutableByteArray
+    403. builtin.ImmutableByteArray.read24be           : ImmutableByteArray
                                                        -> Nat
                                                        ->{Exception} Nat
-    403. builtin.MutableByteArray.read24be             : MutableByteArray
+    404. builtin.MutableByteArray.read24be             : MutableByteArray
                                                          g
                                                        -> Nat
                                                        ->{g,
                                                        Exception} Nat
-    404. builtin.ImmutableByteArray.read32be           : ImmutableByteArray
+    405. builtin.ImmutableByteArray.read32be           : ImmutableByteArray
                                                        -> Nat
                                                        ->{Exception} Nat
-    405. builtin.MutableByteArray.read32be             : MutableByteArray
+    406. builtin.MutableByteArray.read32be             : MutableByteArray
                                                          g
                                                        -> Nat
                                                        ->{g,
                                                        Exception} Nat
-    406. builtin.ImmutableByteArray.read40be           : ImmutableByteArray
+    407. builtin.ImmutableByteArray.read40be           : ImmutableByteArray
                                                        -> Nat
                                                        ->{Exception} Nat
-    407. builtin.MutableByteArray.read40be             : MutableByteArray
+    408. builtin.MutableByteArray.read40be             : MutableByteArray
                                                          g
                                                        -> Nat
                                                        ->{g,
                                                        Exception} Nat
-    408. builtin.ImmutableByteArray.read64be           : ImmutableByteArray
+    409. builtin.ImmutableByteArray.read64be           : ImmutableByteArray
                                                        -> Nat
                                                        ->{Exception} Nat
-    409. builtin.MutableByteArray.read64be             : MutableByteArray
+    410. builtin.MutableByteArray.read64be             : MutableByteArray
                                                          g
                                                        -> Nat
                                                        ->{g,
                                                        Exception} Nat
-    410. builtin.ImmutableByteArray.read8              : ImmutableByteArray
+    411. builtin.ImmutableByteArray.read8              : ImmutableByteArray
                                                        -> Nat
                                                        ->{Exception} Nat
-    411. builtin.MutableByteArray.read8                : MutableByteArray
+    412. builtin.MutableByteArray.read8                : MutableByteArray
                                                          g
                                                        -> Nat
                                                        ->{g,
                                                        Exception} Nat
-    412. builtin.io2.Ref.readForCas                    : Ref
+    413. builtin.io2.Ref.readForCas                    : Ref
                                                          {IO} a
                                                        ->{IO} Ticket
                                                          a
-    413. builtin.io2.TVar.readIO                       : TVar a
+    414. builtin.io2.TVar.readIO                       : TVar a
                                                        ->{IO} a
-    414. builtin.io2.Clock.internals.realtime          : '{IO} Either
+    415. builtin.io2.Clock.internals.realtime          : '{IO} Either
                                                          Failure
                                                          TimeSpec
-    415. builtin.io2.IO.ref                            : a
+    416. builtin.io2.IO.ref                            : a
                                                        ->{IO} Ref
                                                          {IO} a
-    416. builtin.Scope.ref                             : a
+    417. builtin.Scope.ref                             : a
                                                        ->{Scope
                                                          s} Ref
                                                          {Scope
                                                            s}
                                                          a
-    417. builtin.Text.repeat                           : Nat
+    418. builtin.Text.repeat                           : Nat
                                                        -> Text
                                                        -> Text
-    418. builtin.Pattern.replicate                     : Nat
+    419. builtin.Pattern.replicate                     : Nat
                                                        -> Nat
                                                        -> Pattern
                                                          a
                                                        -> Pattern
                                                          a
-    419. builtin.io2.STM.retry                         : '{STM} a
-    420. builtin.Text.reverse                          : Text
+    420. builtin.io2.STM.retry                         : '{STM} a
+    421. builtin.Text.reverse                          : Text
                                                        -> Text
-    421. builtin.Float.round                           : Float
+    422. builtin.Float.round                           : Float
                                                        -> Int
-    422. builtin.Pattern.run                           : Pattern
+    423. builtin.Pattern.run                           : Pattern
                                                          a
                                                        -> a
                                                        -> Optional
                                                          ( [a],
                                                            a)
-    423. builtin.Scope.run                             : (∀ s.
+    424. builtin.Scope.run                             : (∀ s.
                                                          '{g,
                                                          Scope s} r)
                                                        ->{g} r
-    424. builtin.io2.Clock.internals.sec               : TimeSpec
+    425. builtin.io2.Clock.internals.sec               : TimeSpec
                                                        -> Int
-    425. builtin.Char.Class.separator                  : Class
-    426. builtin.Code.serialize                        : Code
+    426. builtin.Char.Class.separator                  : Class
+    427. builtin.Code.serialize                        : Code
                                                        -> Bytes
-    427. builtin.Value.serialize                       : Value
+    428. builtin.Value.serialize                       : Value
                                                        -> Bytes
-    428. builtin.io2.Tls.ClientConfig.certificates.set : [SignedCert]
+    429. builtin.io2.Tls.ClientConfig.certificates.set : [SignedCert]
                                                        -> ClientConfig
                                                        -> ClientConfig
-    429. builtin.io2.Tls.ServerConfig.certificates.set : [SignedCert]
+    430. builtin.io2.Tls.ServerConfig.certificates.set : [SignedCert]
                                                        -> ServerConfig
                                                        -> ServerConfig
-    430. builtin.io2.TLS.ClientConfig.ciphers.set      : [Cipher]
+    431. builtin.io2.TLS.ClientConfig.ciphers.set      : [Cipher]
                                                        -> ClientConfig
                                                        -> ClientConfig
-    431. builtin.io2.Tls.ServerConfig.ciphers.set      : [Cipher]
+    432. builtin.io2.Tls.ServerConfig.ciphers.set      : [Cipher]
                                                        -> ServerConfig
                                                        -> ServerConfig
-    432. builtin.io2.Tls.ClientConfig.versions.set     : [Version]
+    433. builtin.io2.Tls.ClientConfig.versions.set     : [Version]
                                                        -> ClientConfig
                                                        -> ClientConfig
-    433. builtin.io2.Tls.ServerConfig.versions.set     : [Version]
+    434. builtin.io2.Tls.ServerConfig.versions.set     : [Version]
                                                        -> ServerConfig
                                                        -> ServerConfig
-    434. builtin.Int.shiftLeft                         : Int
+    435. builtin.Int.shiftLeft                         : Int
                                                        -> Nat
                                                        -> Int
-    435. builtin.Nat.shiftLeft                         : Nat
+    436. builtin.Nat.shiftLeft                         : Nat
                                                        -> Nat
                                                        -> Nat
-    436. builtin.Int.shiftRight                        : Int
+    437. builtin.Int.shiftRight                        : Int
                                                        -> Nat
                                                        -> Int
-    437. builtin.Nat.shiftRight                        : Nat
+    438. builtin.Nat.shiftRight                        : Nat
                                                        -> Nat
                                                        -> Nat
-    438. builtin.Int.signum                            : Int
+    439. builtin.Int.signum                            : Int
                                                        -> Int
-    439. builtin.Float.sin                             : Float
+    440. builtin.Float.sin                             : Float
                                                        -> Float
-    440. builtin.Float.sinh                            : Float
+    441. builtin.Float.sinh                            : Float
                                                        -> Float
-    441. builtin.Bytes.size                            : Bytes
+    442. builtin.Bytes.size                            : Bytes
                                                        -> Nat
-    442. builtin.ImmutableArray.size                   : ImmutableArray
+    443. builtin.ImmutableArray.size                   : ImmutableArray
                                                          a
                                                        -> Nat
-    443. builtin.ImmutableByteArray.size               : ImmutableByteArray
+    444. builtin.ImmutableByteArray.size               : ImmutableByteArray
                                                        -> Nat
-    444. builtin.List.size                             : [a]
+    445. builtin.List.size                             : [a]
                                                        -> Nat
-    445. builtin.MutableArray.size                     : MutableArray
+    446. builtin.MutableArray.size                     : MutableArray
                                                          g a
                                                        -> Nat
-    446. builtin.MutableByteArray.size                 : MutableByteArray
+    447. builtin.MutableByteArray.size                 : MutableByteArray
                                                          g
                                                        -> Nat
-    447. builtin.Text.size                             : Text
+    448. builtin.Text.size                             : Text
                                                        -> Nat
-    448. builtin.Text.patterns.space                   : Pattern
+    449. builtin.Text.patterns.space                   : Pattern
                                                          Text
-    449. builtin.Float.sqrt                            : Float
+    450. builtin.Float.sqrt                            : Float
                                                        -> Float
-    450. builtin.io2.IO.process.start                  : Text
+    451. builtin.io2.IO.process.start                  : Text
                                                        -> [Text]
                                                        ->{IO} ( Handle,
                                                          Handle,
                                                          Handle,
                                                          ProcessHandle)
-    451. builtin.io2.IO.stdHandle                      : StdHandle
+    452. builtin.io2.IO.stdHandle                      : StdHandle
                                                        -> Handle
-    452. builtin.Nat.sub                               : Nat
+    453. builtin.Nat.sub                               : Nat
                                                        -> Nat
                                                        -> Int
-    453. builtin.io2.TVar.swap                         : TVar a
+    454. builtin.io2.TVar.swap                         : TVar a
                                                        -> a
                                                        ->{STM} a
-    454. builtin.Char.Class.symbol                     : Class
-    455. builtin.io2.IO.systemTimeMicroseconds         : '{IO} Int
-    456. builtin.Bytes.take                            : Nat
+    455. builtin.Char.Class.symbol                     : Class
+    456. builtin.io2.IO.systemTimeMicroseconds         : '{IO} Int
+    457. builtin.Bytes.take                            : Nat
                                                        -> Bytes
                                                        -> Bytes
-    457. builtin.List.take                             : Nat
+    458. builtin.List.take                             : Nat
                                                        -> [a]
                                                        -> [a]
-    458. builtin.Text.take                             : Nat
+    459. builtin.Text.take                             : Nat
                                                        -> Text
                                                        -> Text
-    459. builtin.Float.tan                             : Float
+    460. builtin.Float.tan                             : Float
                                                        -> Float
-    460. builtin.Float.tanh                            : Float
+    461. builtin.Float.tanh                            : Float
                                                        -> Float
-    461. builtin.io2.Clock.internals.threadCPUTime     : '{IO} Either
+    462. builtin.io2.Clock.internals.threadCPUTime     : '{IO} Either
                                                          Failure
                                                          TimeSpec
-    462. builtin.Bytes.toBase16                        : Bytes
+    463. builtin.Bytes.toBase16                        : Bytes
                                                        -> Bytes
-    463. builtin.Bytes.toBase32                        : Bytes
+    464. builtin.Bytes.toBase32                        : Bytes
                                                        -> Bytes
-    464. builtin.Bytes.toBase64                        : Bytes
+    465. builtin.Bytes.toBase64                        : Bytes
                                                        -> Bytes
-    465. builtin.Bytes.toBase64UrlUnpadded             : Bytes
+    466. builtin.Bytes.toBase64UrlUnpadded             : Bytes
                                                        -> Bytes
-    466. builtin.Text.toCharList                       : Text
+    467. builtin.Text.toCharList                       : Text
                                                        -> [Char]
-    467. builtin.Int.toFloat                           : Int
+    468. builtin.Int.toFloat                           : Int
                                                        -> Float
-    468. builtin.Nat.toFloat                           : Nat
+    469. builtin.Nat.toFloat                           : Nat
                                                        -> Float
-    469. builtin.Nat.toInt                             : Nat
+    470. builtin.Nat.toInt                             : Nat
                                                        -> Int
-    470. builtin.Bytes.toList                          : Bytes
+    471. builtin.Bytes.toList                          : Bytes
                                                        -> [Nat]
-    471. builtin.Text.toLowercase                      : Text
+    472. builtin.Text.toLowercase                      : Text
                                                        -> Text
-    472. builtin.Char.toNat                            : Char
+    473. builtin.Char.toNat                            : Char
                                                        -> Nat
-    473. builtin.Float.toRepresentation                : Float
+    474. builtin.Float.toRepresentation                : Float
                                                        -> Nat
-    474. builtin.Int.toRepresentation                  : Int
+    475. builtin.Int.toRepresentation                  : Int
                                                        -> Nat
-    475. builtin.Char.toText                           : Char
+    476. builtin.Char.toText                           : Char
                                                        -> Text
-    476. builtin.Debug.toText                          : a
+    477. builtin.Debug.toText                          : a
                                                        -> Optional
                                                          (Either
                                                            Text
                                                            Text)
-    477. builtin.Float.toText                          : Float
+    478. builtin.Float.toText                          : Float
                                                        -> Text
-    478. builtin.Handle.toText                         : Handle
+    479. builtin.Handle.toText                         : Handle
                                                        -> Text
-    479. builtin.Int.toText                            : Int
+    480. builtin.Int.toText                            : Int
                                                        -> Text
-    480. builtin.Nat.toText                            : Nat
+    481. builtin.Nat.toText                            : Nat
                                                        -> Text
-    481. builtin.Socket.toText                         : Socket
+    482. builtin.Socket.toText                         : Socket
                                                        -> Text
-    482. builtin.Link.Term.toText                      : Term
+    483. builtin.Link.Term.toText                      : Term
                                                        -> Text
-    483. builtin.ThreadId.toText                       : ThreadId
+    484. builtin.ThreadId.toText                       : ThreadId
                                                        -> Text
-    484. builtin.Text.toUppercase                      : Text
+    485. builtin.Text.toUppercase                      : Text
                                                        -> Text
-    485. builtin.Text.toUtf8                           : Text
+    486. builtin.Text.toUtf8                           : Text
                                                        -> Bytes
-    486. builtin.todo                                  : a -> b
-    487. builtin.Debug.trace                           : Text
+    487. builtin.todo                                  : a -> b
+    488. builtin.Debug.trace                           : Text
                                                        -> a
                                                        -> ()
-    488. builtin.Int.trailingZeros                     : Int
+    489. builtin.Int.trailingZeros                     : Int
                                                        -> Nat
-    489. builtin.Nat.trailingZeros                     : Nat
+    490. builtin.Nat.trailingZeros                     : Nat
                                                        -> Nat
-    490. builtin.Float.truncate                        : Float
+    491. builtin.Float.truncate                        : Float
                                                        -> Int
-    491. builtin.Int.truncate0                         : Int
+    492. builtin.Int.truncate0                         : Int
                                                        -> Nat
-    492. builtin.io2.IO.tryEval                        : '{IO} a
+    493. builtin.io2.IO.tryEval                        : '{IO} a
                                                        ->{IO,
                                                        Exception} a
-    493. builtin.io2.Promise.tryRead                   : Promise
+    494. builtin.io2.Promise.tryRead                   : Promise
                                                          a
                                                        ->{IO} Optional
                                                          a
-    494. builtin.io2.MVar.tryTake                      : MVar a
+    495. builtin.io2.MVar.tryTake                      : MVar a
                                                        ->{IO} Optional
                                                          a
-    495. builtin.Text.uncons                           : Text
+    496. builtin.Text.uncons                           : Text
                                                        -> Optional
                                                          ( Char,
                                                            Text)
-    496. builtin.Any.unsafeExtract                     : Any
+    497. builtin.Any.unsafeExtract                     : Any
                                                        -> a
-    497. builtin.Text.unsnoc                           : Text
+    498. builtin.Text.unsnoc                           : Text
                                                        -> Optional
                                                          ( Text,
                                                            Char)
-    498. builtin.Char.Class.upper                      : Class
-    499. builtin.Code.validate                         : [( Term,
+    499. builtin.Char.Class.upper                      : Class
+    500. builtin.Code.validate                         : [( Term,
                                                          Code)]
                                                        ->{IO} Optional
                                                          Failure
-    500. builtin.io2.validateSandboxed                 : [Term]
+    501. builtin.io2.validateSandboxed                 : [Term]
                                                        -> a
                                                        -> Boolean
-    501. builtin.Value.value                           : a
+    502. builtin.Value.value                           : a
                                                        -> Value
-    502. builtin.io2.IO.process.wait                   : ProcessHandle
+    503. builtin.io2.IO.process.wait                   : ProcessHandle
                                                        ->{IO} Nat
-    503. builtin.Debug.watch                           : Text
+    504. builtin.Debug.watch                           : Text
                                                        -> a
                                                        -> a
-    504. builtin.Char.Class.whitespace                 : Class
-    505. builtin.MutableArray.write                    : MutableArray
+    505. builtin.Char.Class.whitespace                 : Class
+    506. builtin.MutableArray.write                    : MutableArray
                                                          g a
                                                        -> Nat
                                                        -> a
                                                        ->{g,
                                                        Exception} ()
-    506. builtin.io2.Promise.write                     : Promise
+    507. builtin.io2.Promise.write                     : Promise
                                                          a
                                                        -> a
                                                        ->{IO} Boolean
-    507. builtin.Ref.write                             : Ref g a
+    508. builtin.Ref.write                             : Ref g a
                                                        -> a
                                                        ->{g} ()
-    508. builtin.io2.TVar.write                        : TVar a
+    509. builtin.io2.TVar.write                        : TVar a
                                                        -> a
                                                        ->{STM} ()
-    509. builtin.MutableByteArray.write16be            : MutableByteArray
+    510. builtin.MutableByteArray.write16be            : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    510. builtin.MutableByteArray.write32be            : MutableByteArray
+    511. builtin.MutableByteArray.write32be            : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    511. builtin.MutableByteArray.write64be            : MutableByteArray
+    512. builtin.MutableByteArray.write64be            : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    512. builtin.MutableByteArray.write8               : MutableByteArray
+    513. builtin.MutableByteArray.write8               : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    513. builtin.Int.xor                               : Int
+    514. builtin.Int.xor                               : Int
                                                        -> Int
                                                        -> Int
-    514. builtin.Nat.xor                               : Nat
+    515. builtin.Nat.xor                               : Nat
                                                        -> Nat
                                                        -> Nat
   
