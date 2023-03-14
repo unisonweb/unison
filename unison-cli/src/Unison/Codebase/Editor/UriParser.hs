@@ -12,6 +12,7 @@ import Data.Bifunctor (first)
 import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Sequence as Seq
 import qualified Data.Text as Text
+import Data.These (These)
 import Data.Void
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as C
@@ -33,6 +34,7 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
+import Unison.Project (ProjectBranchName, ProjectName)
 import qualified Unison.Syntax.Lexer
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Pretty.MegaParsec as P
@@ -57,13 +59,17 @@ type P = P.Parsec Void Text.Text
 
 -- $ git clone [user@]server:project.git[:treeish][:[#hash][.path]]
 
-repoPath :: P ReadRemoteNamespace
+repoPath :: P (ReadRemoteNamespace (These ProjectName ProjectBranchName))
 repoPath =
   P.label "generic repo" $
     fmap ReadRemoteNamespaceGit readGitRemoteNamespace
       <|> fmap ReadRemoteNamespaceShare readShareRemoteNamespace
+      <|> wundefined
 
-parseReadRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
+parseReadRemoteNamespace ::
+  String ->
+  String ->
+  Either (P.Pretty P.ColorText) (ReadRemoteNamespace (These ProjectName ProjectBranchName))
 parseReadRemoteNamespace label input =
   let printError err = P.lines [P.string "I couldn't parse the repository address given above.", P.prettyPrintParseError input err]
    in first printError (P.parse repoPath label (Text.pack input))

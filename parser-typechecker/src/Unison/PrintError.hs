@@ -28,6 +28,7 @@ import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
+import Unison.Pattern (Pattern)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
@@ -36,6 +37,7 @@ import Unison.Referent (Referent, pattern Ref)
 import Unison.Result (Note (..))
 import qualified Unison.Result as Result
 import qualified Unison.Settings as Settings
+import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.HashQualified as HQ (toString)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Name as Name (toText)
@@ -591,6 +593,22 @@ renderTypeError e env src curPath = case e of
                   <> annotatedAsErrorSite src typeSite,
         "Make sure it's imported and spelled correctly."
       ]
+  UncoveredPatterns loc tms ->
+    mconcat
+      [ Pr.hang
+          "Pattern match doesn't cover all possible cases:"
+          (annotatedAsErrorSite src loc),
+        "\n\n"
+      ]
+      <> Pr.hang
+        "Patterns not matched:\n"
+        ( Pr.bulleted
+            (map (\x -> Pr.lit (renderPattern env x)) (Nel.toList tms))
+        )
+  RedundantPattern loc ->
+    Pr.hang
+      "This case would be ignored because it's already covered by the preceding case(s):"
+      (annotatedAsErrorSite src loc)
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
           foldr sep id suggestions ([], [], [])
@@ -809,6 +827,26 @@ renderTypeError e env src curPath = case e of
     --     C.InMatchBody     -> "InMatchBody"
     simpleCause :: C.Cause v loc -> Pretty ColorText
     simpleCause = \case
+      C.UncoveredPatterns loc tms ->
+        mconcat
+          [ "Incomplete pattern matches:\n",
+            annotatedAsErrorSite src loc,
+            "\n\n",
+            "Uncovered cases:\n"
+          ]
+          <> Pr.sep "\n" (map (\x -> Pr.lit (renderPattern env x)) (Nel.toList tms))
+      C.RedundantPattern loc ->
+        mconcat
+          [ "Redundant pattern match: ",
+            "\n",
+            annotatedAsErrorSite src loc
+          ]
+      C.InaccessiblePattern loc ->
+        mconcat
+          [ "Inaccessible pattern match: ",
+            "\n",
+            annotatedAsErrorSite src loc
+          ]
       C.TypeMismatch c ->
         mconcat ["TypeMismatch\n", "  context:\n", renderContext env c]
       C.HandlerOfUnexpectedType loc typ ->
@@ -935,7 +973,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
         C.Data -> "  data type"
         C.Effect -> "  ability",
       "\n",
-      "  reerence = ",
+      "  reference = ",
       showTypeRef env rf
     ]
   C.UnknownConstructor sort (ConstructorReference rf i) _decl ->
@@ -1019,12 +1057,15 @@ renderContext env ctx@(C.Context es) =
       shortName v <> " : " <> renderType' env (C.apply ctx t)
     showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 
-renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
+renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) v loc1 -> s
 renderTerm env e =
   let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e)
    in if length s > Settings.renderTermMaxLength
         then fromString (take Settings.renderTermMaxLength s <> "...")
         else fromString s
+
+renderPattern :: Env -> Pattern ann -> ColorText
+renderPattern env e = Pr.renderUnbroken . Pr.syntaxToColor . fst $ TermPrinter.prettyPattern env TermPrinter.emptyAc 0 ([] :: [Symbol]) e
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type v loc -> s

@@ -32,15 +32,13 @@ projectSwitch = \case
         Cli.returnEarlyWithoutOutput
     let projectId = projectAndBranch ^. #project
     project <- Cli.runTransaction (Queries.expectProject projectId)
-    let projectName = unsafeFrom @Text (project ^. #name)
-    switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName) (Just projectAndBranch)
+    switchToProjectAndBranch2 (ProjectAndBranch (projectId, project ^. #name) branchName) (Just projectAndBranch)
 
 -- Switch to a project+branch.
 switchToProjectAndBranch :: ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
 switchToProjectAndBranch projectAndBranch = do
-  project <- do
-    let projectName = into @Text (projectAndBranch ^. #project)
-    Cli.runTransaction (Queries.loadProjectByName projectName) & onNothingM do
+  project <-
+    Cli.runTransaction (Queries.loadProjectByName (projectAndBranch ^. #project)) & onNothingM do
       loggeth ["no such project"]
       Cli.returnEarlyWithoutOutput
   let projectId = project ^. #projectId
@@ -59,11 +57,11 @@ switchToProjectAndBranch2 ::
 switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName) maybeCurrentProject = do
   (outcome, branchId) <-
     Cli.runTransaction do
-      Queries.loadProjectBranchByName projectId (into @Text branchName) >>= \case
+      Queries.loadProjectBranchByName projectId branchName >>= \case
         Just branch -> pure (SwitchedToExistingBranch, branch ^. #branchId)
         Nothing -> do
           newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
-          Queries.insertProjectBranch projectId newBranchId (into @Text branchName)
+          Queries.insertProjectBranch projectId newBranchId branchName
           fromBranchId <-
             case maybeCurrentProject of
               Just (ProjectAndBranch currentProjectId currentBranchId)
@@ -73,7 +71,7 @@ switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName)
                 -- For now, we treat switching to a new branch from outside of a project as equivalent to switching to a
                 -- new branch from the branch called "main" in that project. Eventually, we should probably instead
                 -- use the default project branch
-                Queries.loadProjectBranchByName projectId "main" >>= \case
+                Queries.loadProjectBranchByName projectId (unsafeFrom @Text "main") >>= \case
                   Nothing ->
                     error $
                       reportBug "E469471" $

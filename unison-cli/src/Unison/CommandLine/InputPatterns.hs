@@ -1065,14 +1065,19 @@ pullImpl name aliases verbosity pullMode addendum = do
         )
         ( \case
             [] ->
-              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
-            [url] -> do
-              ns <- parseReadRemoteNamespace "remote-namespace" url
-              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
-            [url, path] -> do
-              ns <- parseReadRemoteNamespace "remote-namespace" url
-              p <- first fromString $ Path.parsePath' path
-              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit pullMode verbosity
+              Right $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.ShortCircuit pullMode verbosity
+            [sourceString] -> do
+              source <- parseReadRemoteNamespace "remote-namespace" sourceString
+              Right $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) SyncMode.ShortCircuit pullMode verbosity
+            [sourceString, targetString] -> do
+              source <- parseReadRemoteNamespace "remote-namespace" sourceString
+              target <- parsePullTarget targetString
+              Right $
+                Input.PullRemoteBranchI
+                  (Input.PullSourceTarget2 source target)
+                  SyncMode.ShortCircuit
+                  pullMode
+                  verbosity
             _ -> Left (I.help self)
         )
 
@@ -1096,14 +1101,29 @@ pullExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
-        [url] -> do
-          ns <- parseReadRemoteNamespace "remote-namespace" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
-        [url, path] -> do
-          ns <- parseReadRemoteNamespace "remote-namespace" url
-          p <- first fromString $ Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
+          Right $
+            Input.PullRemoteBranchI
+              Input.PullSourceTarget0
+              SyncMode.Complete
+              Input.PullWithHistory
+              Verbosity.Verbose
+        [sourceString] -> do
+          source <- parseReadRemoteNamespace "remote-namespace" sourceString
+          Right $
+            Input.PullRemoteBranchI
+              (Input.PullSourceTarget1 source)
+              SyncMode.Complete
+              Input.PullWithHistory
+              Verbosity.Verbose
+        [sourceString, targetString] -> do
+          source <- parseReadRemoteNamespace "remote-namespace" sourceString
+          target <- parsePullTarget targetString
+          Right $
+            Input.PullRemoteBranchI
+              (Input.PullSourceTarget2 source target)
+              SyncMode.Complete
+              Input.PullWithHistory
+              Verbosity.Verbose
         _ -> Left (I.help pullVerbose)
     )
 
@@ -2181,12 +2201,16 @@ fetchScheme =
               <> "is run\
                  \ if the library is not already in the standard location\
                  \ (unison.internal). However, this command will force\
-                 \ a pull even if the library already exists."
+                 \ a pull even if the library already exists. You can also specify\
+                 \ a username to pull from (the default is `unison`) to use an alternate\
+                 \ implementation of the scheme compiler. It will attempt to fetch\
+                 \ [username].public.internal.trunk for use."
           )
         ]
     )
     ( \case
-        [] -> pure Input.FetchSchemeCompilerI
+        [] -> pure (Input.FetchSchemeCompilerI "unison")
+        [name] -> pure (Input.FetchSchemeCompilerI name)
         _ -> Left $ showPatternHelp fetchScheme
     )
 
@@ -2621,6 +2645,15 @@ parseProjectName s =
 parseProjectBranchName :: Text -> Either (P.Pretty P.ColorText) ProjectBranchName
 parseProjectBranchName s =
   mapLeft (\_ -> "Invalid branch name.") (tryInto @ProjectBranchName s)
+
+parsePullTarget :: String -> Either (P.Pretty CT.ColorText) (Input.PullTarget (These ProjectName ProjectBranchName))
+parsePullTarget targetString =
+  case tryInto @(These ProjectName ProjectBranchName) (Text.pack targetString) of
+    Left _ ->
+      case Path.parsePath' targetString of
+        Left _ -> Left (I.help pull)
+        Right path -> pure (Input.PullTargetLooseCode path)
+    Right project -> pure (Input.PullTargetProject project)
 
 -- | Parse a 'Input.PushSource'.
 parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource

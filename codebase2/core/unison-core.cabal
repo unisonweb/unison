@@ -19,6 +19,7 @@ library
       U.Codebase.HashTags
       U.Core.ABT
       U.Core.ABT.Var
+      Unison.Core.Project
       Unison.NameSegment
       Unison.Util.Alphabetical
   hs-source-dirs:

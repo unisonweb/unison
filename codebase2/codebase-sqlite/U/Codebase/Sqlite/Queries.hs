@@ -322,6 +322,8 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
+import Unison.Core.Orphans.Sqlite ()
+import Unison.Core.Project (ProjectBranchName, ProjectName)
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import Unison.Hash32 (Hash32)
@@ -2484,7 +2486,7 @@ getReflog numEntries = queryListRow sql (Only numEntries)
 
 data Project = Project
   { projectId :: ProjectId,
-    name :: Text
+    name :: ProjectName
   }
   deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
@@ -2492,7 +2494,7 @@ data Project = Project
 data RemoteProject = RemoteProject
   { projectId :: RemoteProjectId,
     host :: URI,
-    name :: Text
+    name :: ProjectName
   }
   deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
@@ -2500,7 +2502,7 @@ data RemoteProject = RemoteProject
 data Branch = Branch
   { projectId :: ProjectId,
     branchId :: ProjectBranchId,
-    name :: Text
+    name :: ProjectBranchName
   }
   deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
@@ -2509,7 +2511,7 @@ data RemoteProjectBranch = RemoteProjectBranch
   { projectId :: RemoteProjectId,
     branchId :: RemoteProjectBranchId,
     host :: URI,
-    name :: Text
+    name :: ProjectBranchName
   }
   deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
@@ -2528,7 +2530,7 @@ projectExists projectId =
     (Only projectId)
 
 -- | Does a project exist by this name?
-projectExistsByName :: Text -> Transaction Bool
+projectExistsByName :: ProjectName -> Transaction Bool
 projectExistsByName name =
   queryOneCol
     [sql|
@@ -2558,7 +2560,7 @@ loadProjectSql =
       id = ?
   |]
 
-loadProjectByName :: Text -> Transaction (Maybe Project)
+loadProjectByName :: ProjectName -> Transaction (Maybe Project)
 loadProjectByName name =
   queryMaybeRow
     [sql|
@@ -2572,17 +2574,18 @@ loadProjectByName name =
     |]
     (Only name)
 
-insertProject :: ProjectId -> Text -> Transaction ()
+-- | Insert a `project` row.
+insertProject :: ProjectId -> ProjectName -> Transaction ()
 insertProject uuid name = execute bonk (uuid, name)
   where
     bonk =
       [sql|
         INSERT INTO project (id, name)
           VALUES (?, ?)
-           |]
+      |]
 
 -- | Does a project branch exist by this name?
-projectBranchExistsByName :: ProjectId -> Text -> Transaction Bool
+projectBranchExistsByName :: ProjectId -> ProjectBranchName -> Transaction Bool
 projectBranchExistsByName projectId name =
   queryOneCol
     [sql|
@@ -2620,7 +2623,7 @@ loadProjectBranchSql =
       AND branch_id = ?
   |]
 
-loadProjectBranchByName :: ProjectId -> Text -> Transaction (Maybe Branch)
+loadProjectBranchByName :: ProjectId -> ProjectBranchName -> Transaction (Maybe Branch)
 loadProjectBranchByName projectId name =
   queryMaybeRow
     [sql|
@@ -2636,7 +2639,7 @@ loadProjectBranchByName projectId name =
     |]
     (projectId, name)
 
-loadProjectAndBranchNames :: ProjectId -> ProjectBranchId -> Transaction (Maybe (Text, Text))
+loadProjectAndBranchNames :: ProjectId -> ProjectBranchId -> Transaction (Maybe (ProjectName, ProjectBranchName))
 loadProjectAndBranchNames projectId branchId =
   queryMaybeRow
     [sql|
@@ -2652,7 +2655,8 @@ loadProjectAndBranchNames projectId branchId =
     |]
     (projectId, branchId)
 
-insertProjectBranch :: ProjectId -> ProjectBranchId -> Text -> Transaction ()
+-- | Insert a `project_branch` row.
+insertProjectBranch :: ProjectId -> ProjectBranchId -> ProjectBranchName -> Transaction ()
 insertProjectBranch pid bid bname = execute bonk (pid, bid, bname)
   where
     bonk =
@@ -2797,7 +2801,7 @@ loadRemoteProject rpid host =
     |]
     (rpid, host)
 
-ensureRemoteProject :: RemoteProjectId -> URI -> Text -> Transaction ()
+ensureRemoteProject :: RemoteProjectId -> URI -> ProjectName -> Transaction ()
 ensureRemoteProject rpid host name =
   execute
     [sql|
@@ -2817,7 +2821,7 @@ ensureRemoteProject rpid host name =
         |]
     (rpid, host, name)
 
-expectRemoteProjectName :: RemoteProjectId -> URI -> Transaction Text
+expectRemoteProjectName :: RemoteProjectId -> URI -> Transaction ProjectName
 expectRemoteProjectName projectId host =
   queryOneCol
     [sql|
@@ -2831,7 +2835,7 @@ expectRemoteProjectName projectId host =
     |]
     (projectId, host)
 
-setRemoteProjectName :: RemoteProjectId -> Text -> Transaction ()
+setRemoteProjectName :: RemoteProjectId -> ProjectName -> Transaction ()
 setRemoteProjectName rpid name =
   execute
     [sql|
@@ -2862,7 +2866,7 @@ loadRemoteBranch rpid host rbid =
     |]
     (rpid, rbid, host)
 
-ensureRemoteProjectBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> Text -> Transaction ()
+ensureRemoteProjectBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> ProjectBranchName -> Transaction ()
 ensureRemoteProjectBranch rpid host rbid name =
   execute
     [sql|
@@ -2885,7 +2889,7 @@ ensureRemoteProjectBranch rpid host rbid name =
         |]
     (rpid, host, rbid, name)
 
-expectRemoteProjectBranchName :: URI -> RemoteProjectId -> RemoteProjectBranchId -> Transaction Text
+expectRemoteProjectBranchName :: URI -> RemoteProjectId -> RemoteProjectBranchId -> Transaction ProjectBranchName
 expectRemoteProjectBranchName host projectId branchId =
   queryOneCol
     [sql|
@@ -2900,7 +2904,7 @@ expectRemoteProjectBranchName host projectId branchId =
     |]
     (host, projectId, branchId)
 
-setRemoteProjectBranchName :: RemoteProjectId -> URI -> RemoteProjectBranchId -> Text -> Transaction ()
+setRemoteProjectBranchName :: RemoteProjectId -> URI -> RemoteProjectBranchId -> ProjectBranchName -> Transaction ()
 setRemoteProjectBranchName rpid host rbid name =
   execute
     [sql|

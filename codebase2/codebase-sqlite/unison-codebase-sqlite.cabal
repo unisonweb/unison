@@ -110,6 +110,7 @@ library
     , unison-codebase
     , unison-codebase-sync
     , unison-core
+    , unison-core-orphans-sqlite
     , unison-hash
     , unison-hash-orphans-sqlite
     , unison-prelude

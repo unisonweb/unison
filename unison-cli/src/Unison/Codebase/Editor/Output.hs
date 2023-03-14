@@ -90,7 +90,7 @@ data NumberedOutput
   | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterCreatePR (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
@@ -136,7 +136,7 @@ data Output
       -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
   | BranchNotEmpty Path'
-  | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
+  | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | FindNoLocalMatches
@@ -246,10 +246,14 @@ data Output
   | WarnIncomingRootBranch ShortCausalHash (Set ShortCausalHash)
   | StartOfCurrentPathHistory
   | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
-  | PullAlreadyUpToDate ReadRemoteNamespace Path'
-  | PullSuccessful ReadRemoteNamespace Path'
+  | PullAlreadyUpToDate
+      (ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName))
+      (PullTarget (ProjectAndBranch ProjectName ProjectBranchName))
+  | PullSuccessful
+      (ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName))
+      (PullTarget (ProjectAndBranch ProjectName ProjectBranchName))
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
-    MergeOverEmpty Path'
+    MergeOverEmpty (PullTarget (ProjectAndBranch ProjectName ProjectBranchName))
   | MergeAlreadyUpToDate Path' Path'
   | PreviewMergeAlreadyUpToDate Path' Path'
   | -- | No conflicts or edits remain for the current patch.
@@ -276,7 +280,7 @@ data Output
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
     RefusedToPush PushBehavior WriteRemotePath
   | -- | @GistCreated repo@ means a causal was just published to @repo@.
-    GistCreated ReadRemoteNamespace
+    GistCreated (ReadRemoteNamespace Void)
   | -- | Directs the user to URI to begin an authorization flow.
     InitiateAuthFlow URI
   | UnknownCodeServer Text
@@ -286,7 +290,7 @@ data Output
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
   | ClearScreen
-  | PulledEmptyBranch ReadRemoteNamespace
+  | PulledEmptyBranch (ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName))
   | ProjectNameAlreadyExists ProjectName
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)

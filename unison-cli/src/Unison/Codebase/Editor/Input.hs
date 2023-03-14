@@ -2,6 +2,8 @@ module Unison.Codebase.Editor.Input
   ( Input (..),
     DiffNamespaceToPatchInput (..),
     GistInput (..),
+    PullSourceTarget (..),
+    PullTarget (..),
     PushRemoteBranchInput (..),
     PushSourceTarget (..),
     PushTarget (..),
@@ -97,10 +99,15 @@ data Input
     MergeLocalBranchI Path' Path' Branch.MergeMode
   | PreviewMergeLocalBranchI Path' Path'
   | DiffNamespaceI BranchId BranchId -- old new
-  | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode PullMode Verbosity
+  | PullRemoteBranchI PullSourceTarget SyncMode PullMode Verbosity
   | PushRemoteBranchI PushRemoteBranchInput
-  | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
-  | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
+  | CreatePullRequestI
+      (ReadRemoteNamespace (These ProjectName ProjectBranchName))
+      (ReadRemoteNamespace (These ProjectName ProjectBranchName))
+  | LoadPullRequestI
+      (ReadRemoteNamespace (These ProjectName ProjectBranchName))
+      (ReadRemoteNamespace (These ProjectName ProjectBranchName))
+      Path'
   | ResetRootI (Either ShortCausalHash Path')
   | -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
@@ -166,8 +173,8 @@ data Input
     CompileSchemeI String (HQ.HashQualified Name)
   | -- generate scheme libraries
     GenSchemeLibsI
-  | -- fetch scheme compiler
-    FetchSchemeCompilerI
+  | -- fetch scheme compiler from a given username
+    FetchSchemeCompilerI String
   | TestI TestInput
   | -- metadata
     -- `link metadata definitions` (adds metadata to all of `definitions`)
@@ -232,6 +239,21 @@ data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
 data GistInput = GistInput
   { repo :: WriteGitRepo
   }
+  deriving stock (Eq, Show)
+
+-- | Pull source and target: either neither is specified, or only a source, or both.
+data PullSourceTarget
+  = PullSourceTarget0
+  | PullSourceTarget1 (ReadRemoteNamespace (These ProjectName ProjectBranchName))
+  | PullSourceTarget2
+      (ReadRemoteNamespace (These ProjectName ProjectBranchName))
+      (PullTarget (These ProjectName ProjectBranchName))
+  deriving stock (Eq, Show)
+
+-- | Where are we pulling into?
+data PullTarget a
+  = PullTargetLooseCode Path'
+  | PullTargetProject a
   deriving stock (Eq, Show)
 
 data PushTarget

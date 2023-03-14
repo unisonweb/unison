@@ -8,7 +8,7 @@ import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
-import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..), RemoteProjectBranchId (..), RemoteProjectId (..))
+import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..))
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -23,7 +23,6 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName, projectNameUserSlug)
 import qualified Unison.Share.API.Hash as Share.API
-import qualified Unison.Share.API.Projects as Share.API
 import qualified Unison.Share.Sync as Share (downloadEntities)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Sync.Common (hash32ToCausalHash)
@@ -69,29 +68,23 @@ cloneProjectAndBranch remoteProjectAndBranch = do
   -- Quick local check before hitting share to determine whether this project+branch already exists.
   let assertLocalProjectBranchDoesntExist :: Sqlite.Transaction (Either Output.Output (Maybe Queries.Project))
       assertLocalProjectBranchDoesntExist =
-        Queries.loadProjectByName (into @Text localProjectName) >>= \case
+        Queries.loadProjectByName localProjectName >>= \case
           Nothing -> pure (Right Nothing)
           Just project ->
-            Queries.projectBranchExistsByName (project ^. #projectId) (into @Text localBranchName) <&> \case
+            Queries.projectBranchExistsByName (project ^. #projectId) localBranchName <&> \case
               False -> Right (Just project)
-              True -> Left (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch localProjectName localBranchName))
+              True ->
+                let localProject = ProjectAndBranch localProjectName localBranchName
+                 in Left (Output.ProjectAndBranchNameAlreadyExists localProject)
   void (Cli.runEitherTransaction assertLocalProjectBranchDoesntExist)
 
   -- Get the branch of the given project.
   remoteProjectBranch <- do
-    project <-
-      Share.getProjectByName remoteProjectName >>= \case
-        Share.API.GetProjectResponseNotFound _ -> remoteProjectBranchDoesntExist
-        Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized message) ->
-          Cli.returnEarly (Output.Unauthorized message)
-        Share.API.GetProjectResponseSuccess project -> pure project
-    let remoteProjectId = RemoteProjectId (project ^. #projectId)
-    Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-      Share.API.GetProjectBranchResponseBranchNotFound _ -> remoteProjectBranchDoesntExist
-      Share.API.GetProjectBranchResponseProjectNotFound _ -> remoteProjectBranchDoesntExist
-      Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
-        Cli.returnEarly (Output.Unauthorized message)
-      Share.API.GetProjectBranchResponseSuccess projectBranch -> pure projectBranch
+    project <- Share.getProjectByName remoteProjectName & onNothingM remoteProjectBranchDoesntExist
+    Share.getProjectBranchByName (ProjectAndBranch (project ^. #projectId) remoteBranchName) >>= \case
+      Share.GetProjectBranchResponseBranchNotFound -> remoteProjectBranchDoesntExist
+      Share.GetProjectBranchResponseProjectNotFound -> remoteProjectBranchDoesntExist
+      Share.GetProjectBranchResponseSuccess projectBranch -> pure projectBranch
 
   -- Pull the remote branch's contents
   let remoteBranchHeadJwt = remoteProjectBranch ^. #branchHead
@@ -118,17 +111,17 @@ cloneProjectAndBranch remoteProjectAndBranch = do
             case maybeLocalProject of
               Nothing -> do
                 localProjectId <- Sqlite.unsafeIO (ProjectId <$> UUID.nextRandom)
-                Queries.insertProject localProjectId (into @Text localProjectName)
+                Queries.insertProject localProjectId localProjectName
                 pure localProjectId
               Just localProject -> pure (localProject ^. #projectId)
           localBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
-          Queries.insertProjectBranch localProjectId localBranchId (into @Text localBranchName)
+          Queries.insertProjectBranch localProjectId localBranchId localBranchName
           Queries.insertBranchRemoteMapping
             localProjectId
             localBranchId
-            (RemoteProjectId (remoteProjectBranch ^. #projectId))
+            (remoteProjectBranch ^. #projectId)
             Share.hardCodedUri
-            (RemoteProjectBranchId (remoteProjectBranch ^. #branchId))
+            (remoteProjectBranch ^. #branchId)
           pure (Right (ProjectAndBranch localProjectId localBranchId))
 
   -- Manipulate the root namespace and cd

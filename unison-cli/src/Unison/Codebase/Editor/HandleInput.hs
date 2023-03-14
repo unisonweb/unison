@@ -61,7 +61,7 @@ import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
-import Unison.Codebase (Codebase, Preprocessing (..))
+import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
@@ -72,8 +72,9 @@ import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
-import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
+import Unison.Codebase.Editor.HandleInput.CreatePullRequest (handleCreatePullRequest)
+import Unison.Codebase.Editor.HandleInput.LoadPullRequest (handleLoadPullRequest)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
@@ -81,7 +82,7 @@ import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (projectClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
-import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, importRemoteShareBranch, loadPropagateDiffDefaultPatch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
+import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.TermResolution
   ( resolveCon,
@@ -435,38 +436,8 @@ loop e = do
               Cli.respondNumbered (ShowDiffNamespace absBefore absAfter ppe diff)
             CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
             LoadPullRequestI baseRepo headRepo dest0 -> do
-              Cli.assertNoBranchAtPath' dest0
-              Cli.Env {codebase} <- ask
               description <- inputDescription input
-              destAbs <- Cli.resolvePath' dest0
-              let getBranch = \case
-                    ReadRemoteNamespaceGit repo ->
-                      Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
-                        Cli.returnEarly (Output.GitError err)
-                    ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-              baseb <- getBranch baseRepo
-              headb <- getBranch headRepo
-              mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
-              squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
-              Cli.updateAt description destAbs $ Branch.step \destBranch0 ->
-                destBranch0
-                  & Branch.children
-                    %~ ( \childMap ->
-                           childMap
-                             & at "base" ?~ baseb
-                             & at "head" ?~ headb
-                             & at "merged" ?~ mergedb
-                             & at "squashed" ?~ squashedb
-                       )
-              let base = snoc dest0 "base"
-                  head = snoc dest0 "head"
-                  merged = snoc dest0 "merged"
-                  squashed = snoc dest0 "squashed"
-              Cli.respond $ LoadPullRequest baseRepo headRepo base head merged squashed
-              loadPropagateDiffDefaultPatch
-                description
-                (Just merged)
-                (snoc destAbs "merged")
+              handleLoadPullRequest description baseRepo headRepo dest0
             MoveBranchI src' dest' -> do
               hasConfirmed <- confirmedCommand input
               description <- inputDescription input
@@ -1149,7 +1120,7 @@ loop e = do
             CompileSchemeI output main -> doCompileScheme output main
             ExecuteSchemeI main args -> doRunAsScheme main args
             GenSchemeLibsI -> doGenerateSchemeBoot True Nothing
-            FetchSchemeCompilerI -> doFetchCompiler
+            FetchSchemeCompilerI name -> doFetchCompiler name
             IOTestI main -> handleIOTest main
             -- UpdateBuiltinsI -> do
             --   stepAt updateBuiltins
@@ -1202,9 +1173,9 @@ loop e = do
               patch <- Cli.getPatchAt (fromMaybe Cli.defaultPatchPath maybePath)
               ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               Cli.respondNumbered $ ListEdits patch ppe
-            PullRemoteBranchI mRepo path sMode pMode verbosity ->
+            PullRemoteBranchI sourceTarget sMode pMode verbosity ->
               inputDescription input
-                >>= doPullRemoteBranch mRepo path sMode pMode verbosity
+                >>= doPullRemoteBranch sourceTarget sMode pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> do
@@ -1498,9 +1469,9 @@ inputDescription input =
           <> Text.unwords (fmap Text.pack args)
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
     GenSchemeLibsI -> pure "compile.native.genlibs"
-    FetchSchemeCompilerI -> pure "compile.native.fetch"
-    PullRemoteBranchI orepo dest0 _syncMode pullMode _ -> do
-      dest <- p' dest0
+    FetchSchemeCompilerI name -> pure ("compile.native.fetch" <> Text.pack name)
+    PullRemoteBranchI sourceTarget _syncMode pullMode _ -> do
+      dest <- wundefined -- p' dest0
       let command =
             Text.pack . InputPattern.patternName $
               case pullMode of
@@ -1512,8 +1483,8 @@ inputDescription input =
           -- todo: show the actual config-loaded namespace
           <> maybe
             "(remote namespace from .unisonConfig)"
-            printNamespace
-            orepo
+            wundefined -- (printNamespace absurd)
+            wundefined -- orepo
           <> " "
           <> dest
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
@@ -1521,9 +1492,9 @@ inputDescription input =
       dest <- p' dest0
       pure $
         "pr.load "
-          <> printNamespace base
+          <> printNamespace (into @Text) base
           <> " "
-          <> printNamespace head
+          <> printNamespace (into @Text) head
           <> " "
           <> dest
     RemoveTermReplacementI src p0 -> do
@@ -1607,23 +1578,6 @@ inputDescription input =
       pure (p <> "." <> HQ'.toTextWith NameSegment.toText hq)
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
-
-handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Cli ()
-handleCreatePullRequest baseRepo0 headRepo0 = do
-  Cli.Env {codebase} <- ask
-
-  let withBranch :: ReadRemoteNamespace -> (forall x. (Branch IO -> Cli x) -> Cli x)
-      withBranch rrn k = case rrn of
-        ReadRemoteNamespaceGit repo -> do
-          Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \case
-            Left err -> Cli.returnEarly (Output.GitError err)
-            Right x -> k x
-        ReadRemoteNamespaceShare repo -> k =<< importRemoteShareBranch repo
-
-  (ppe, diff) <- withBranch baseRepo0 \baseBranch -> withBranch headRepo0 \headBranch -> do
-    merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
-    diffHelper (Branch.head baseBranch) (Branch.head merged)
-  Cli.respondNumbered (ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff)
 
 handleFindI ::
   Bool ->
@@ -2303,12 +2257,11 @@ compilerPath = Path.Path' {Path.unPath' = Left abs}
     rootPath = Path.Path {Path.toSeq = Seq.fromList segs}
     abs = Path.Absolute {Path.unabsolute = rootPath}
 
-doFetchCompiler :: Cli ()
-doFetchCompiler =
+doFetchCompiler :: String -> Cli ()
+doFetchCompiler username =
   inputDescription pullInput
     >>= doPullRemoteBranch
-      repo
-      compilerPath
+      sourceTarget
       SyncMode.Complete
       Input.PullWithoutHistory
       Verbosity.Silent
@@ -2317,16 +2270,15 @@ doFetchCompiler =
     ns =
       ReadShareRemoteNamespace
         { server = RemoteRepo.DefaultCodeserver,
-          repo = ShareUserHandle "unison",
+          repo = ShareUserHandle (Text.pack username),
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }
-    repo = Just $ ReadRemoteNamespaceShare ns
+    sourceTarget = PullSourceTarget2 (ReadRemoteNamespaceShare ns) (PullTargetLooseCode compilerPath)
 
     pullInput =
       PullRemoteBranchI
-        repo
-        compilerPath
+        sourceTarget
         SyncMode.Complete
         Input.PullWithoutHistory
         Verbosity.Silent
@@ -2334,7 +2286,7 @@ doFetchCompiler =
 ensureCompilerExists :: Cli ()
 ensureCompilerExists =
   Cli.branchExistsAtPath' compilerPath
-    >>= flip unless doFetchCompiler
+    >>= flip unless (doFetchCompiler "unison")
 
 getCacheDir :: Cli String
 getCacheDir = liftIO $ getXdgDirectory XdgCache "unisonlanguage"

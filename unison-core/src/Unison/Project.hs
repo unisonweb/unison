@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 -- | Projects.
 --
 -- The syntax-related parsing code (what makes a valid project name, etc) could conceivably be moved into a different
@@ -20,15 +22,9 @@ import qualified Text.Builder
 import qualified Text.Builder as Text (Builder)
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Megaparsec.Char as Megaparsec
+import Unison.Core.Project (ProjectName(..), ProjectBranchName(..), ProjectAndBranch(..))
 import Unison.Prelude
 import Witch
-
--- | The name of a project.
---
--- Convert to and from text with the 'From' and 'TryFrom' instances.
-newtype ProjectName
-  = ProjectName Text
-  deriving stock (Eq, Ord, Show)
 
 instance From ProjectName Text
 
@@ -40,7 +36,7 @@ projectNameParser :: Megaparsec.Parsec Void Text ProjectName
 projectNameParser = do
   userSlug <- userSlugParser <|> pure mempty
   projectSlug <- projectSlugParser
-  pure (ProjectName (Text.Builder.run (userSlug <> projectSlug)))
+  pure (UnsafeProjectName (Text.Builder.run (userSlug <> projectSlug)))
   where
     projectSlugParser :: Megaparsec.Parsec Void Text Text.Builder
     projectSlugParser = do
@@ -60,7 +56,7 @@ projectNameParser = do
 -- >>> projectNameUserSlug "lens"
 -- Nothing
 projectNameUserSlug :: ProjectName -> Maybe Text
-projectNameUserSlug (ProjectName projectName) =
+projectNameUserSlug (UnsafeProjectName projectName) =
   if Text.head projectName == '@'
     then Just (Text.takeWhile (/= '/') (Text.drop 1 projectName))
     else Nothing
@@ -76,10 +72,10 @@ projectNameUserSlug (ProjectName projectName) =
 -- >>> prependUserSlugToProjectName "???invalid???" "@unison/base"
 -- "@unison/base"
 prependUserSlugToProjectName :: Text -> ProjectName -> ProjectName
-prependUserSlugToProjectName userSlug (ProjectName projectName) =
+prependUserSlugToProjectName userSlug (UnsafeProjectName projectName) =
   if Text.head projectName == '@'
-    then ProjectName projectName
-    else fromMaybe (ProjectName projectName) (Megaparsec.parseMaybe projectNameParser newProjectName)
+    then UnsafeProjectName projectName
+    else fromMaybe (UnsafeProjectName projectName) (Megaparsec.parseMaybe projectNameParser newProjectName)
   where
     newProjectName =
       Text.Builder.run $
@@ -87,13 +83,6 @@ prependUserSlugToProjectName userSlug (ProjectName projectName) =
           <> Text.Builder.text userSlug
           <> Text.Builder.char '/'
           <> Text.Builder.text projectName
-
--- | The name of a branch of a project.
---
--- Convert to and from text with the 'From' and 'TryFrom' instances.
-newtype ProjectBranchName
-  = ProjectBranchName Text
-  deriving stock (Eq, Ord, Show)
 
 instance From ProjectBranchName Text
 
@@ -152,13 +141,6 @@ prependUserSlugToProjectBranchName userSlug (ProjectBranchName branchName) =
           <> Text.Builder.text userSlug
           <> Text.Builder.char '/'
           <> Text.Builder.text branchName
-
--- | A generic data structure that contains information about a project and a branch in that project.
-data ProjectAndBranch a b = ProjectAndBranch
-  { project :: a,
-    branch :: b
-  }
-  deriving stock (Eq, Generic, Show)
 
 -- | @project/branch@ syntax for project+branch pair, with up to one
 -- side optional. Missing value means "the current one".

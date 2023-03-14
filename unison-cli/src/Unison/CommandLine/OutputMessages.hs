@@ -27,6 +27,7 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
+import Data.Void (absurd)
 import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
 import qualified Network.URI.Encode as URI
@@ -314,9 +315,9 @@ notifyNumbered o = case o of
       then
         ( P.wrap $
             "Looks like there's no difference between "
-              <> prettyReadRemoteNamespace baseRepo
+              <> prettyReadRemoteNamespaceWith absurd baseRepo
               <> "and"
-              <> prettyReadRemoteNamespace headRepo
+              <> prettyReadRemoteNamespaceWith absurd headRepo
               <> ".",
           mempty
         )
@@ -331,8 +332,8 @@ notifyNumbered o = case o of
                   P.indentN 2 $
                     IP.makeExampleNoBackticks
                       IP.loadPullRequest
-                      [ prettyReadRemoteNamespace baseRepo,
-                        prettyReadRemoteNamespace headRepo
+                      [ prettyReadRemoteNamespaceWith absurd baseRepo,
+                        prettyReadRemoteNamespaceWith absurd headRepo
                       ],
                   "",
                   p
@@ -558,9 +559,14 @@ showListEdits patch ppe =
 prettyURI :: URI -> Pretty
 prettyURI = P.bold . P.blue . P.shown
 
-prettyReadRemoteNamespace :: ReadRemoteNamespace -> Pretty
+prettyReadRemoteNamespace :: ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
 prettyReadRemoteNamespace =
-  P.group . P.blue . P.text . RemoteRepo.printNamespace
+  prettyReadRemoteNamespaceWith \(ProjectAndBranch projectName branchName) ->
+    into @Text (These projectName branchName)
+
+prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
+prettyReadRemoteNamespaceWith printProject =
+  P.group . P.blue . P.text . RemoteRepo.printNamespace printProject
 
 prettyWriteRemotePath :: WriteRemotePath -> Pretty
 prettyWriteRemotePath =
@@ -653,8 +659,8 @@ notifyUser dir = \case
   LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath ->
     pure $
       P.lines
-        [ P.wrap $ "I checked out" <> prettyReadRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> "."),
-          P.wrap $ "I checked out" <> prettyReadRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> "."),
+        [ P.wrap $ "I checked out" <> prettyReadRemoteNamespaceWith absurd baseNS <> "to" <> P.group (prettyPath' basePath <> "."),
+          P.wrap $ "I checked out" <> prettyReadRemoteNamespaceWith absurd headNS <> "to" <> P.group (prettyPath' headPath <> "."),
           "",
           P.wrap $ "The merged result is in" <> P.group (prettyPath' mergedPath <> "."),
           P.wrap $ "The (squashed) merged result is in" <> P.group (prettyPath' squashedPath <> "."),
@@ -680,11 +686,11 @@ notifyUser dir = \case
             "Use"
               <> IP.makeExample
                 IP.push
-                [prettyReadRemoteNamespace baseNS, prettyPath' mergedPath]
+                [prettyReadRemoteNamespaceWith absurd baseNS, prettyPath' mergedPath]
               <> "or"
               <> IP.makeExample
                 IP.push
-                [prettyReadRemoteNamespace baseNS, prettyPath' squashedPath]
+                [prettyReadRemoteNamespaceWith absurd baseNS, prettyPath' squashedPath]
               <> "to push the changes."
         ]
   DisplayDefinitions output -> displayDefinitions output
@@ -1291,7 +1297,7 @@ notifyUser dir = \case
           "I just finished importing the branch"
             <> P.red (P.shown h)
             <> "from"
-            <> P.red (prettyReadRemoteNamespace (RemoteRepo.ReadRemoteNamespaceGit ns))
+            <> P.red (prettyReadRemoteNamespaceWith absurd (RemoteRepo.ReadRemoteNamespaceGit ns))
             <> "but now I can't find it."
       CouldntFindRemoteBranch repo path ->
         P.wrap $
@@ -1562,20 +1568,20 @@ notifyUser dir = \case
   PullAlreadyUpToDate ns dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPath' dest
+        prettyPullTarget dest
           <> "was already up-to-date with"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated"
-          <> prettyPath' dest
+          <> prettyPullTarget dest
           <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully pulled into newly created namespace " <> P.group (prettyPath' dest <> ".")
+        "Successfully pulled into " <> P.group (prettyPullTarget dest <> ", which was empty.")
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
@@ -1717,7 +1723,7 @@ notifyUser dir = \case
       P.lines
         [ "Gist created. Pull via:",
           "",
-          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyReadRemoteNamespace remoteNamespace)
+          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyReadRemoteNamespaceWith absurd remoteNamespace)
         ]
   InitiateAuthFlow authURI -> do
     pure $
@@ -1779,8 +1785,9 @@ notifyUser dir = \case
           _ -> P.wrap $ P.text "It looks like someone modified" <> prettySharePath sharePath <> P.text "an instant before you. Pull and try again? 🤞"
       (Share.CheckAndSetPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
       (Share.CheckAndSetPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
-      (Share.CheckAndSetPushErrorInvalidRepoInfo repoInfo) -> invalidRepoInfo repoInfo
+      (Share.CheckAndSetPushErrorInvalidRepoInfo err repoInfo) -> invalidRepoInfo err repoInfo
       (Share.CheckAndSetPushErrorUserNotFound path) -> shareUserNotFound path
+      (Share.CheckAndSetPushErrorProjectNotFound projectShortHand) -> shareProjectNotFound projectShortHand
     ShareErrorFastForwardPush e -> case e of
       (Share.FastForwardPushErrorNoHistory sharePath) ->
         expectedNonEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
@@ -1808,14 +1815,16 @@ notifyUser dir = \case
           pull = P.group . P.backticked . IP.patternName $ IP.pull
       (Share.FastForwardPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
       (Share.FastForwardPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
-      (Share.FastForwardPushErrorInvalidRepoInfo repoInfo) -> invalidRepoInfo repoInfo
+      (Share.FastForwardPushErrorInvalidRepoInfo err repoInfo) -> invalidRepoInfo err repoInfo
       (Share.FastForwardPushErrorUserNotFound path) -> shareUserNotFound path
+      (Share.FastForwardPushErrorProjectNotFound projectShortHand) -> shareProjectNotFound projectShortHand
     ShareErrorPull e -> case e of
       Share.PullErrorNoHistoryAtPath sharePath ->
         P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
       Share.PullErrorNoReadPermission sharePath -> noReadPermission sharePath
-      Share.PullErrorInvalidRepoInfo repoInfo -> invalidRepoInfo repoInfo
+      Share.PullErrorInvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
       Share.PullErrorUserNotFound path -> shareUserNotFound path
+      Share.PullErrorProjectNotFound projectShortHand -> shareProjectNotFound projectShortHand
     ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
     ShareErrorTransport te -> case te of
       DecodeFailure msg resp ->
@@ -1861,13 +1870,14 @@ notifyUser dir = \case
           . coerce @[Text] @[NameSegment]
           . toList
           . Share.pathSegments
-      invalidRepoInfo repoInfo =
+      invalidRepoInfo err repoInfo =
         P.lines
           [ P.wrap $
               "The server doesn't recognize the codebase path UCM provided. This is probably a bug in UCM.",
             P.text "",
             P.text "The invalid path is:\n"
-              <> P.indentN 2 (P.text (Share.unRepoInfo repoInfo))
+              <> P.indentN 2 (P.text (Share.unRepoInfo repoInfo)),
+            P.text err
           ]
       shareUserNotFound (Share.Path pathSegments) =
         P.lines
@@ -1875,6 +1885,11 @@ notifyUser dir = \case
               "The user provided by the following path does not exist:",
             "",
             P.indentN 2 (P.text . Text.intercalate "." $ toList pathSegments)
+          ]
+      shareProjectNotFound projectShortHand =
+        P.lines
+          [ P.wrap $
+              "This project does not exist: " <> P.text projectShortHand
           ]
       missingDependencies hashes =
         -- maybe todo: stuff in all the args to CheckAndSetPush
@@ -1889,7 +1904,7 @@ notifyUser dir = \case
           ]
       handleGetCausalHashByPathError = \case
         Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermission sharePath
-        Share.GetCausalHashByPathErrorInvalidRepoInfo repoInfo -> invalidRepoInfo repoInfo
+        Share.GetCausalHashByPathErrorInvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
         Share.GetCausalHashByPathErrorUserNotFound path -> shareUserNotFound path
       noReadPermission sharePath =
         P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettySharePath sharePath <> ".")
@@ -2045,6 +2060,11 @@ prettyPath' p' =
   if Path.isCurrentPath p'
     then "the current namespace"
     else P.blue (P.shown p')
+
+prettyPullTarget :: Input.PullTarget (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
+prettyPullTarget = \case
+  Input.PullTargetLooseCode path -> prettyPath' path
+  Input.PullTargetProject project -> prettyProjectAndBranchName project
 
 prettyBranchId :: Input.AbsBranchId -> Pretty
 prettyBranchId = \case

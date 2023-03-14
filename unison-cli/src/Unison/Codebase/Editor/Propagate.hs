@@ -559,7 +559,7 @@ typecheckFile ::
   Codebase m Symbol Ann ->
   [Type Symbol Ann] ->
   UF.UnisonFile Symbol Ann ->
-  Sqlite.Transaction (Result.Result (Seq (Result.Note Symbol Ann)) (Either Names (UF.TypecheckedUnisonFile Symbol Ann)))
+  Sqlite.Transaction (Result.Result (Seq (Result.Note Symbol Ann)) (Either x (UF.TypecheckedUnisonFile Symbol Ann)))
 typecheckFile codebase ambient file = do
   typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   pure . fmap Right $ synthesizeFile' ambient (typeLookup <> Builtin.typeLookup) file

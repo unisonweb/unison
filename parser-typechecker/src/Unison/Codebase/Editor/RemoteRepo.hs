@@ -63,7 +63,7 @@ writeToReadGit :: WriteGitRepo -> ReadGitRepo
 writeToReadGit = \case
   WriteGitRepo {url, branch} -> ReadGitRepo {url = url, ref = branch}
 
-writePathToRead :: WriteRemotePath -> ReadRemoteNamespace
+writePathToRead :: WriteRemotePath -> ReadRemoteNamespace void
 writePathToRead = \case
   WriteRemotePathGit WriteGitRemotePath {repo, path} ->
     ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo = writeToReadGit repo, sch = Nothing, path}
@@ -78,8 +78,8 @@ printWriteGitRepo :: WriteGitRepo -> Text
 printWriteGitRepo WriteGitRepo {url, branch} = "git(" <> url <> Monoid.fromMaybe (Text.cons ':' <$> branch) <> ")"
 
 -- | print remote namespace
-printNamespace :: ReadRemoteNamespace -> Text
-printNamespace = \case
+printNamespace :: (a -> Text) -> ReadRemoteNamespace a -> Text
+printNamespace printProject = \case
   ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo, sch, path} ->
     printReadGitRepo repo <> maybePrintSCH sch <> maybePrintPath path
     where
@@ -88,6 +88,7 @@ printNamespace = \case
         Just sch -> "#" <> SCH.toText sch
   ReadRemoteNamespaceShare ReadShareRemoteNamespace {server, repo, path} ->
     displayShareCodeserver server repo path
+  ReadRemoteProjectBranch project -> printProject project
 
 -- | Render a 'WriteRemotePath' as text.
 printWriteRemotePath :: WriteRemotePath -> Text
@@ -103,10 +104,13 @@ maybePrintPath path =
     then mempty
     else "." <> Path.toText path
 
-data ReadRemoteNamespace
+data ReadRemoteNamespace a
   = ReadRemoteNamespaceGit ReadGitRemoteNamespace
   | ReadRemoteNamespaceShare ReadShareRemoteNamespace
-  deriving stock (Eq, Show)
+  | -- | A remote project+branch, specified by name (e.g. @unison/base/main).
+    -- Currently assumed to be hosted on Share, though we could include a ShareCodeserver in here, too.
+    ReadRemoteProjectBranch a
+  deriving stock (Eq, Show, Generic)
 
 data ReadGitRemoteNamespace = ReadGitRemoteNamespace
   { repo :: ReadGitRepo,

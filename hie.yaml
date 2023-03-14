@@ -21,13 +21,16 @@ cradle:
     - path: "codebase2/util-term/./"
       component: "unison-util-term:lib"
 
+    - path: "lib/orphans/unison-core-orphans-sqlite/src"
+      component: "unison-core-orphans-sqlite:lib"
+
     - path: "lib/unison-hash/src"
       component: "unison-hash:lib"
 
-    - path: "lib/unison-hash-orphans-aeson/src"
+    - path: "lib/orphans/unison-hash-orphans-aeson/src"
       component: "unison-hash-orphans-aeson:lib"
 
-    - path: "lib/unison-hash-orphans-sqlite/src"
+    - path: "lib/orphans/unison-hash-orphans-sqlite/src"
       component: "unison-hash-orphans-sqlite:lib"
 
     - path: "lib/unison-hashing/src"
@@ -75,7 +78,7 @@ cradle:
     - path: "lib/unison-util-rope/src"
       component: "unison-util-rope:lib"
 
-    - path: "lib/uuid-orphans-sqlite/src"
+    - path: "lib/orphans/uuid-orphans-sqlite/src"
       component: "uuid-orphans-sqlite:lib"
 
     - path: "parser-typechecker/src"

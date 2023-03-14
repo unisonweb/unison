@@ -17,6 +17,7 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectName)
+import Witch (unsafeFrom)
 
 -- | Create a new project.
 --
@@ -50,10 +51,10 @@ projectCreate name = do
   branchId <- liftIO (ProjectBranchId <$> UUID.nextRandom)
 
   Cli.runEitherTransaction do
-    Queries.projectExistsByName (into @Text name) >>= \case
+    Queries.projectExistsByName name >>= \case
       False -> do
-        Queries.insertProject projectId (into @Text name)
-        Queries.insertProjectBranch projectId branchId "main"
+        Queries.insertProject projectId name
+        Queries.insertProjectBranch projectId branchId (unsafeFrom @Text "main")
         pure (Right ())
       True -> pure (Left (Output.ProjectNameAlreadyExists name))
 

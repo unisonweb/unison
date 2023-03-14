@@ -60,8 +60,7 @@ pullBase ns =
       abs = Path.Absolute {Path.unabsolute = rootPath}
       pullRemote =
         PullRemoteBranchI
-          (Just (ReadRemoteNamespaceShare ns))
-          (Path.Path' {Path.unPath' = Left abs})
+          (PullSourceTarget2 (ReadRemoteNamespaceShare ns) (PullTargetLooseCode (Path.Path' {Path.unPath' = Left abs})))
           SyncMode.Complete
           PullWithHistory
           Verbosity.Silent
