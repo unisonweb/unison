@@ -60,7 +60,7 @@ data Codebase m v a = Codebase
     -- semantics of 'putTypeDeclaration'.
     getTypeDeclaration :: Reference.Id -> Sqlite.Transaction (Maybe (Decl v a)),
     -- | Get the type of a given decl.
-    getDeclType :: V2.Reference -> m CT.ConstructorType,
+    getDeclType :: V2.Reference -> Sqlite.Transaction CT.ConstructorType,
     -- | Enqueue the put of a user-defined term (with its type) into the codebase, if it doesn't already exist. The
     -- implementation may choose to delay the put until all of the term's (and its type's) references are stored as
     -- well.
