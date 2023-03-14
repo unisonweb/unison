@@ -14,6 +14,7 @@ import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli (stepAt)
 import Unison.Cli.ProjectUtils (loggeth, projectBranchPath)
+import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -82,15 +83,13 @@ cloneProjectAndBranch remoteProjectAndBranch = do
     project <-
       Share.getProjectByName remoteProjectName >>= \case
         Share.API.GetProjectResponseNotFound _ -> remoteProjectBranchDoesntExist
-        Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized message) ->
-          Cli.returnEarly (Output.Unauthorized message)
+        Share.API.GetProjectResponseUnauthorized x -> ProjectUtils.unauthorized x
         Share.API.GetProjectResponseSuccess project -> pure project
     let remoteProjectId = RemoteProjectId (project ^. #projectId)
     Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
       Share.API.GetProjectBranchResponseBranchNotFound _ -> remoteProjectBranchDoesntExist
       Share.API.GetProjectBranchResponseProjectNotFound _ -> remoteProjectBranchDoesntExist
-      Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
-        Cli.returnEarly (Output.Unauthorized message)
+      Share.API.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
       Share.API.GetProjectBranchResponseSuccess projectBranch -> pure projectBranch
 
   -- Pull the remote branch's contents

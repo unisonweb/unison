@@ -347,8 +347,7 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
               Share.getProjectBranchById (ProjectAndBranch remoteProjectId remoteBranchId) >>= \case
                 Share.API.GetProjectBranchResponseBranchNotFound _ -> remoteProjectBranchDoesntExist
                 Share.API.GetProjectBranchResponseProjectNotFound _ -> remoteProjectBranchDoesntExist
-                Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
-                  Cli.returnEarly (Output.Unauthorized message)
+                Share.API.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
                 Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
                   remoteBranch1 <- expectRemoteProjectAndBranch remoteBranch
                   afterUploadAction <-
@@ -403,8 +402,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
       remoteProject <- do
         let request = Share.API.CreateProjectRequest {projectName = into @Text remoteProjectName}
         Share.createProject request >>= \case
-          Share.API.CreateProjectResponseUnauthorized (Share.API.Unauthorized message) ->
-            Cli.returnEarly (Output.Unauthorized message)
+          Share.API.CreateProjectResponseUnauthorized x -> ProjectUtils.unauthorized x
           Share.API.CreateProjectResponseNotFound _ -> do
             Cli.returnEarly $
               Output.RemoteProjectBranchDoesntExist
@@ -422,8 +420,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
                 localBranchHead
                 (over #project (remoteProjectId,) remoteProjectAndBranch)
           }
-    Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized message) ->
-      Cli.returnEarly (Output.Unauthorized message)
+    Share.API.GetProjectResponseUnauthorized x -> ProjectUtils.unauthorized x
     Share.API.GetProjectResponseSuccess remoteProject -> do
       let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
       Share.getProjectBranchByName (remoteProjectAndBranch & #project .~ remoteProjectId) >>= \case
@@ -440,8 +437,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
               }
         Share.API.GetProjectBranchResponseProjectNotFound {} ->
           Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranch)
-        Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
-          Cli.returnEarly (Output.Unauthorized message)
+        Share.API.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
         Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
           afterUploadAction <- makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch
           pure
@@ -472,8 +468,7 @@ pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranc
                 remoteProjectAndBranch
           }
     Share.API.GetProjectBranchResponseProjectNotFound {} -> remoteProjectBranchDoesntExist
-    Share.API.GetProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
-      Cli.returnEarly (Output.Unauthorized message)
+    Share.API.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
     Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
       afterUploadAction <-
         makeFastForwardAfterUploadAction (PushingProjectBranch localProjectAndBranch) localBranchHead remoteBranch
@@ -573,8 +568,7 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
           }
   remoteBranch <-
     Share.createProjectBranch createProjectBranchRequest >>= \case
-      Share.API.CreateProjectBranchResponseUnauthorized (Share.API.Unauthorized message) ->
-        Cli.returnEarly (Output.Unauthorized message)
+      Share.API.CreateProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
       Share.API.CreateProjectBranchResponseNotFound _ ->
         Cli.returnEarly $
           Output.RemoteProjectBranchDoesntExist Share.hardCodedUri (over #project snd remoteProjectAndBranch)
@@ -623,8 +617,7 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
               branchNewCausalHash = localBranchHead
             }
     Share.setProjectBranchHead request >>= \case
-      Share.API.SetProjectBranchHeadResponseUnauthorized (Share.API.Unauthorized message) ->
-        Cli.returnEarly (Output.Unauthorized message)
+      Share.API.SetProjectBranchHeadResponseUnauthorized x -> ProjectUtils.unauthorized x
       Share.API.SetProjectBranchHeadResponseNotFound _ -> do
         Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranchNames)
       Share.API.SetProjectBranchHeadResponseMissingCausalHash hash -> bugRemoteMissingCausalHash hash
