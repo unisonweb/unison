@@ -6,7 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Push
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (over, to, (^.), _1)
+import Control.Lens (over, to, (.~), (^.), _1)
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set.NonEmpty as Set.NonEmpty
@@ -398,24 +398,35 @@ data WhatAreWePushing
 pushToProjectBranch0 :: WhatAreWePushing -> Hash32 -> ProjectAndBranch ProjectName ProjectBranchName -> Cli UploadPlan
 pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
   let remoteProjectName = remoteProjectAndBranch ^. #project
-  let remoteBranchName = remoteProjectAndBranch ^. #branch
   Share.getProjectByName remoteProjectName >>= \case
     Share.API.GetProjectResponseNotFound {} -> do
+      remoteProject <- do
+        let request = Share.API.CreateProjectRequest {projectName = into @Text remoteProjectName}
+        Share.createProject request >>= \case
+          Share.API.CreateProjectResponseUnauthorized (Share.API.Unauthorized message) ->
+            Cli.returnEarly (Output.Unauthorized message)
+          Share.API.CreateProjectResponseNotFound _ -> do
+            Cli.returnEarly $
+              Output.RemoteProjectBranchDoesntExist
+                Share.hardCodedUri
+                remoteProjectAndBranch
+          Share.API.CreateProjectResponseSuccess remoteProject -> pure remoteProject
+      let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
       pure
         UploadPlan
           { remoteBranch = remoteProjectAndBranch,
             causalHash = localBranchHead,
             afterUploadAction =
-              createProjectAndBranchAfterUploadAction
+              createBranchAfterUploadAction
                 pushing
                 localBranchHead
-                remoteProjectAndBranch
+                (over #project (remoteProjectId,) remoteProjectAndBranch)
           }
     Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized message) ->
       Cli.returnEarly (Output.Unauthorized message)
     Share.API.GetProjectResponseSuccess remoteProject -> do
       let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
-      Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
+      Share.getProjectBranchByName (remoteProjectAndBranch & #project .~ remoteProjectId) >>= \case
         Share.API.GetProjectBranchResponseBranchNotFound {} -> do
           pure
             UploadPlan
@@ -525,32 +536,6 @@ executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
 
 -- An action to call after a successful upload.
 type AfterUploadAction = Cli ()
-
--- An after-upload action that creates a remote project, then a remote branch.
---
--- Precondition: the remote project doesn't exist.
-createProjectAndBranchAfterUploadAction ::
-  WhatAreWePushing ->
-  Hash32 ->
-  ProjectAndBranch ProjectName ProjectBranchName ->
-  AfterUploadAction
-createProjectAndBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = do
-  remoteProject <- do
-    let request = Share.API.CreateProjectRequest {projectName = into @Text (remoteProjectAndBranch ^. #project)}
-    Share.createProject request >>= \case
-      Share.API.CreateProjectResponseUnauthorized (Share.API.Unauthorized message) ->
-        Cli.returnEarly (Output.Unauthorized message)
-      Share.API.CreateProjectResponseNotFound _ -> do
-        Cli.returnEarly $
-          Output.RemoteProjectBranchDoesntExist
-            Share.hardCodedUri
-            remoteProjectAndBranch
-      Share.API.CreateProjectResponseSuccess remoteProject -> pure remoteProject
-  let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
-  createBranchAfterUploadAction
-    pushing
-    localBranchHead
-    (over #project (remoteProjectId,) remoteProjectAndBranch)
 
 -- An after-upload action that creates a remote branch.
 --
