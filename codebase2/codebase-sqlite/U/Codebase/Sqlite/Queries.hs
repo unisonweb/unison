@@ -321,6 +321,7 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
+import Unison.Core.Orphans.Sqlite ()
 import Unison.Core.Project (ProjectName)
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
@@ -2525,7 +2526,7 @@ projectExists projectId =
     (Only projectId)
 
 -- | Does a project exist by this name?
-projectExistsByName :: Text -> Transaction Bool
+projectExistsByName :: ProjectName -> Transaction Bool
 projectExistsByName name =
   queryOneCol
     [sql|

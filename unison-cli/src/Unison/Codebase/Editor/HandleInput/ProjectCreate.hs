@@ -50,7 +50,7 @@ projectCreate name = do
   branchId <- liftIO (ProjectBranchId <$> UUID.nextRandom)
 
   Cli.runEitherTransaction do
-    Queries.projectExistsByName (into @Text name) >>= \case
+    Queries.projectExistsByName name >>= \case
       False -> do
         Queries.insertProject projectId (into @Text name)
         Queries.insertProjectBranch projectId branchId "main"
