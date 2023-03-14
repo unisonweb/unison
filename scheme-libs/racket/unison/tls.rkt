@@ -46,9 +46,8 @@
         (exception "Wrong number of certs" "nope" certs))))
 
 (define (ServerConfig.default certs key) ; list tlsSignedCert tlsPrivateKey -> tlsServerConfig
-    (display "Making a config\n")
-    (display certs)
-    (display "\n🤔 \n")
+  (display "Making a config\n")
+  (display certs)
   (list certs key))
 
 (define (newServer.impl.v3 config sockets) ; tlsServerConfig socket -> {io} tls
@@ -130,12 +129,16 @@
      (let* ([ports (car tls)]
             [output (cdr ports)])
        (write-bytes data output)
+       (flush-output output)
        (right none)))))
 
 (define (receive.impl.v3 tls)
   (handle-errors
    (lambda ()
-     (right (port->bytes (car (car tls)) #:close? #f)))))
+     (let ([buffer (make-bytes 4096)])
+        (read-bytes-avail! buffer (car (car tls)))
+        (right buffer)))))
+    ;  (right (port->bytes (car (car tls)) #:close? #f))
 
 (define (terminate.impl.v3 tls)
   ; NOTE: This actually does more than the unison impl,
