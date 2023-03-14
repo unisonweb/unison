@@ -21,7 +21,7 @@ import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
-import Unison.Codebase.Editor.RemoteRepo (WriteGitRepo, WriteRemotePath)
+import Unison.Codebase.Editor.RemoteRepo (WriteGitRepo, WriteRemoteNamespace)
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import Unison.Codebase.Editor.UriParser (parseReadRemoteNamespace)
 import qualified Unison.Codebase.Editor.UriParser as UriParser
@@ -2665,15 +2665,12 @@ parsePushSource sourceStr =
         Right path -> Right (Input.PathySource path)
     Right branch -> Right (Input.ProjySource branch)
 
--- | Parse a 'Input.PushTarget'.
-parsePushTarget :: String -> Either (P.Pretty CT.ColorText) Input.PushTarget
-parsePushTarget targetStr =
-  case tryFrom (Text.pack targetStr) of
-    Left _ ->
-      case parseWriteRemotePath "remote-path" targetStr of
-        Left _ -> Left (I.help push)
-        Right path -> Right (Input.PathyTarget path)
-    Right branch -> Right (Input.ProjyTarget branch)
+-- | Parse a push target.
+parsePushTarget :: String -> Either (P.Pretty CT.ColorText) (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+parsePushTarget target =
+  case P.parse (UriParser.writeRemoteNamespace) "remote namespace" (Text.pack target) of
+    Left _ -> Left (I.help push)
+    Right path -> Right path
 
 parseHashQualifiedName ::
   String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
@@ -2694,12 +2691,6 @@ parseWriteGitRepo label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.
     (P.parse UriParser.writeGitRepo label (Text.pack input))
-
-parseWriteRemotePath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
-parseWriteRemotePath label input = do
-  first
-    (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeRemotePath label (Text.pack input))
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]

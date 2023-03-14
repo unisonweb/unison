@@ -1,15 +1,16 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Unison.Codebase.Editor.RemoteRepo where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
 import qualified Data.Text as Text
+import Data.These (These (..))
+import Data.Void (absurd)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.Prelude
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.Types
 import qualified Unison.Util.Monoid as Monoid
 
@@ -63,12 +64,13 @@ writeToReadGit :: WriteGitRepo -> ReadGitRepo
 writeToReadGit = \case
   WriteGitRepo {url, branch} -> ReadGitRepo {url = url, ref = branch}
 
-writePathToRead :: WriteRemotePath -> ReadRemoteNamespace void
-writePathToRead = \case
-  WriteRemotePathGit WriteGitRemotePath {repo, path} ->
+writeNamespaceToRead :: WriteRemoteNamespace Void -> ReadRemoteNamespace void
+writeNamespaceToRead = \case
+  WriteRemoteNamespaceGit WriteGitRemoteNamespace {repo, path} ->
     ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo = writeToReadGit repo, sch = Nothing, path}
-  WriteRemotePathShare WriteShareRemotePath {server, repo, path} ->
+  WriteRemoteNamespaceShare WriteShareRemoteNamespace {server, repo, path} ->
     ReadRemoteNamespaceShare ReadShareRemoteNamespace {server, repo, path}
+  WriteRemoteProjectBranch v -> absurd v
 
 printReadGitRepo :: ReadGitRepo -> Text
 printReadGitRepo ReadGitRepo {url, ref} =
@@ -90,13 +92,14 @@ printNamespace printProject = \case
     displayShareCodeserver server repo path
   ReadRemoteProjectBranch project -> printProject project
 
--- | Render a 'WriteRemotePath' as text.
-printWriteRemotePath :: WriteRemotePath -> Text
-printWriteRemotePath = \case
-  WriteRemotePathGit (WriteGitRemotePath {repo, path}) ->
+-- | Render a 'WriteRemoteNamespace' as text.
+printWriteRemoteNamespace :: WriteRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Text
+printWriteRemoteNamespace = \case
+  WriteRemoteNamespaceGit (WriteGitRemoteNamespace {repo, path}) ->
     printWriteGitRepo repo <> maybePrintPath path
-  WriteRemotePathShare (WriteShareRemotePath {server, repo, path}) ->
+  WriteRemoteNamespaceShare (WriteShareRemoteNamespace {server, repo, path}) ->
     displayShareCodeserver server repo path
+  WriteRemoteProjectBranch (ProjectAndBranch project branch) -> into @Text (These project branch)
 
 maybePrintPath :: Path -> Text
 maybePrintPath path =
@@ -133,29 +136,35 @@ isPublic ReadShareRemoteNamespace {path} =
     ("public" Path.:< _) -> True
     _ -> False
 
-data WriteRemotePath
-  = WriteRemotePathGit WriteGitRemotePath
-  | WriteRemotePathShare WriteShareRemotePath
-  deriving stock (Eq, Show)
+data WriteRemoteNamespace a
+  = WriteRemoteNamespaceGit WriteGitRemoteNamespace
+  | WriteRemoteNamespaceShare WriteShareRemoteNamespace
+  | WriteRemoteProjectBranch a
+  deriving stock (Eq, Functor, Show)
 
--- | A lens which focuses the path of a remote path.
-remotePath_ :: Lens' WriteRemotePath Path
+-- | A lens which focuses the path of a remote namespace.
+remotePath_ :: Lens' (WriteRemoteNamespace Void) Path
 remotePath_ = Lens.lens getter setter
   where
     getter = \case
-      WriteRemotePathGit (WriteGitRemotePath _ path) -> path
-      WriteRemotePathShare (WriteShareRemotePath _ _ path) -> path
-    setter remote path = case remote of
-      WriteRemotePathGit (WriteGitRemotePath repo _) -> WriteRemotePathGit $ WriteGitRemotePath repo path
-      WriteRemotePathShare (WriteShareRemotePath server repo _) -> WriteRemotePathShare $ WriteShareRemotePath server repo path
+      WriteRemoteNamespaceGit (WriteGitRemoteNamespace _ path) -> path
+      WriteRemoteNamespaceShare (WriteShareRemoteNamespace _ _ path) -> path
+      WriteRemoteProjectBranch v -> absurd v
+    setter remote path =
+      case remote of
+        WriteRemoteNamespaceGit (WriteGitRemoteNamespace repo _) ->
+          WriteRemoteNamespaceGit $ WriteGitRemoteNamespace repo path
+        WriteRemoteNamespaceShare (WriteShareRemoteNamespace server repo _) ->
+          WriteRemoteNamespaceShare $ WriteShareRemoteNamespace server repo path
+        WriteRemoteProjectBranch v -> absurd v
 
-data WriteGitRemotePath = WriteGitRemotePath
+data WriteGitRemoteNamespace = WriteGitRemoteNamespace
   { repo :: WriteGitRepo,
     path :: Path
   }
   deriving stock (Eq, Generic, Show)
 
-data WriteShareRemotePath = WriteShareRemotePath
+data WriteShareRemoteNamespace = WriteShareRemoteNamespace
   { server :: ShareCodeserver,
     repo :: ShareUserHandle,
     path :: Path

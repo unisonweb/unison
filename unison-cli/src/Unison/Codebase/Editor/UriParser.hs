@@ -1,8 +1,9 @@
 module Unison.Codebase.Editor.UriParser
   ( repoPath,
     writeGitRepo,
-    deprecatedWriteGitRemotePath,
-    writeRemotePath,
+    deprecatedWriteGitRemoteNamespace,
+    writeRemoteNamespace,
+    writeRemoteNamespaceWith,
     parseReadRemoteNamespace,
     parseReadShareRemoteNamespace,
   )
@@ -24,17 +25,17 @@ import Unison.Codebase.Editor.RemoteRepo
     ReadShareRemoteNamespace (..),
     ShareCodeserver (DefaultCodeserver),
     ShareUserHandle (..),
-    WriteGitRemotePath (..),
+    WriteGitRemoteNamespace (..),
     WriteGitRepo (..),
-    WriteRemotePath (..),
-    WriteShareRemotePath (..),
+    WriteRemoteNamespace (..),
+    WriteShareRemoteNamespace (..),
   )
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectBranchName, ProjectName, projectAndBranchNamesParser)
 import qualified Unison.Syntax.Lexer
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Pretty.MegaParsec as P
@@ -79,21 +80,26 @@ parseReadShareRemoteNamespace label input =
   let printError err = P.lines [P.string "I couldn't parse this as a share path.", P.prettyPrintParseError input err]
    in first printError (P.parse readShareRemoteNamespace label (Text.pack input))
 
--- >>> P.parseMaybe writeRemotePath "unisonweb.base._releases.M4"
--- >>> P.parseMaybe writeRemotePath "git(git@github.com:unisonweb/base:v3)._releases.M3"
--- Just (WriteRemotePathShare (WriteShareRemotePath {server = ShareRepo, repo = "unisonweb", path = base._releases.M4}))
--- Just (WriteRemotePathGit (WriteGitRemotePath {repo = WriteGitRepo {url = "git@github.com:unisonweb/base", branch = Just "v3"}, path = _releases.M3}))
-writeRemotePath :: P WriteRemotePath
-writeRemotePath =
-  (fmap WriteRemotePathGit writeGitRemotePath)
-    <|> fmap WriteRemotePathShare writeShareRemotePath
+-- >>> P.parseMaybe writeRemoteNamespace "unisonweb.base._releases.M4"
+-- >>> P.parseMaybe writeRemoteNamespace "git(git@github.com:unisonweb/base:v3)._releases.M3"
+-- Just (WriteRemoteNamespaceShare (WriteShareRemoteNamespace {server = ShareRepo, repo = "unisonweb", path = base._releases.M4}))
+-- Just (WriteRemoteNamespaceGit (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "git@github.com:unisonweb/base", branch = Just "v3"}, path = _releases.M3}))
+writeRemoteNamespace :: P (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+writeRemoteNamespace =
+  writeRemoteNamespaceWith projectAndBranchNamesParser
 
--- >>> P.parseMaybe writeShareRemotePath "unisonweb.base._releases.M4"
--- Just (WriteShareRemotePath {server = ShareRepo, repo = "unisonweb", path = base._releases.M4})
-writeShareRemotePath :: P WriteShareRemotePath
-writeShareRemotePath =
-  P.label "write share remote path" $
-    WriteShareRemotePath
+writeRemoteNamespaceWith :: P a -> P (WriteRemoteNamespace a)
+writeRemoteNamespaceWith projectBranchParser =
+  WriteRemoteProjectBranch <$> projectBranchParser
+    <|> WriteRemoteNamespaceGit <$> writeGitRemoteNamespace
+    <|> WriteRemoteNamespaceShare <$> writeShareRemoteNamespace
+
+-- >>> P.parseMaybe writeShareRemoteNamespace "unisonweb.base._releases.M4"
+-- Just (WriteShareRemoteNamespace {server = ShareRepo, repo = "unisonweb", path = base._releases.M4})
+writeShareRemoteNamespace :: P WriteShareRemoteNamespace
+writeShareRemoteNamespace =
+  P.label "write share remote namespace" $
+    WriteShareRemoteNamespace
       <$> pure DefaultCodeserver
       <*> shareUserHandle
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
@@ -184,39 +190,39 @@ writeGitRepo = P.label "repo root for writing" $ do
 -- | A parser for the deprecated format of git URLs, which may still exist in old GitURL
 -- unisonConfigs.
 --
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "/srv/git/project.git:.namespace"
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "/srv/git/project.git:branch:.namespace"
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "/srv/git/project.git", branch = Nothing}, path = namespace})
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "/srv/git/project.git", branch = Just "branch"}, path = namespace})
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "/srv/git/project.git:.namespace"
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "/srv/git/project.git:branch:.namespace"
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "/srv/git/project.git", branch = Nothing}, path = namespace})
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "/srv/git/project.git", branch = Just "branch"}, path = namespace})
 --
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "file:///srv/git/project.git"
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "file:///srv/git/project.git:branch"
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "file:///srv/git/project.git", branch = Nothing}, path = })
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "file:///srv/git/project.git", branch = Just "branch"}, path = })
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "file:///srv/git/project.git"
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "file:///srv/git/project.git:branch"
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "file:///srv/git/project.git", branch = Nothing}, path = })
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "file:///srv/git/project.git", branch = Just "branch"}, path = })
 --
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "https://example.com/gitproject.git"
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "https://example.com/gitproject.git:base"
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "https://example.com/gitproject.git", branch = Nothing}, path = })
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "https://example.com/gitproject.git", branch = Just "base"}, path = })
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "https://example.com/gitproject.git"
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "https://example.com/gitproject.git:base"
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "https://example.com/gitproject.git", branch = Nothing}, path = })
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "https://example.com/gitproject.git", branch = Just "base"}, path = })
 --
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "ssh://user@server/project.git"
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "ssh://user@server/project.git:branch"
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "ssh://server/project.git"
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "ssh://server/project.git:branch"
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "ssh://user@server/project.git", branch = Nothing}, path = })
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "ssh://user@server/project.git", branch = Just "branch"}, path = })
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "ssh://server/project.git", branch = Nothing}, path = })
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "ssh://server/project.git", branch = Just "branch"}, path = })
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "ssh://user@server/project.git"
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "ssh://user@server/project.git:branch"
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "ssh://server/project.git"
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "ssh://server/project.git:branch"
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "ssh://user@server/project.git", branch = Nothing}, path = })
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "ssh://user@server/project.git", branch = Just "branch"}, path = })
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "ssh://server/project.git", branch = Nothing}, path = })
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "ssh://server/project.git", branch = Just "branch"}, path = })
 --
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "server:project"
--- >>> P.parseMaybe deprecatedWriteGitRemotePath "user@server:project.git:branch"
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "server:project", branch = Nothing}, path = })
--- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "user@server:project.git", branch = Just "branch"}, path = })
-deprecatedWriteGitRemotePath :: P WriteGitRemotePath
-deprecatedWriteGitRemotePath = P.label "generic write repo" $ do
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "server:project"
+-- >>> P.parseMaybe deprecatedWriteGitRemoteNamespace "user@server:project.git:branch"
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "server:project", branch = Nothing}, path = })
+-- Just (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "user@server:project.git", branch = Just "branch"}, path = })
+deprecatedWriteGitRemoteNamespace :: P WriteGitRemoteNamespace
+deprecatedWriteGitRemoteNamespace = P.label "generic write repo" $ do
   repo <- deprecatedWriteGitRepo
   path <- P.optional (C.char ':' *> absolutePath)
-  pure WriteGitRemotePath {repo, path = fromMaybe Path.empty path}
+  pure WriteGitRemoteNamespace {repo, path = fromMaybe Path.empty path}
   where
     deprecatedWriteGitRepo :: P WriteGitRepo
     deprecatedWriteGitRepo = do
@@ -232,11 +238,11 @@ deprecatedWriteGitRemotePath = P.label "generic write repo" $ do
       pure $ Text.cons notdothash rest
 
 -- git(myrepo@git.com).foo.bar
-writeGitRemotePath :: P WriteGitRemotePath
-writeGitRemotePath = P.label "generic write repo" $ do
+writeGitRemoteNamespace :: P WriteGitRemoteNamespace
+writeGitRemoteNamespace = P.label "generic write repo" $ do
   repo <- writeGitRepo
   path <- P.optional absolutePath
-  pure WriteGitRemotePath {repo, path = fromMaybe Path.empty path}
+  pure WriteGitRemoteNamespace {repo, path = fromMaybe Path.empty path}
 
 data GitProtocol
   = HttpsProtocol (Maybe User) HostInfo UrlPath

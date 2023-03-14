@@ -74,8 +74,8 @@ import Unison.Codebase.Editor.RemoteRepo
     ReadRemoteNamespace,
     ShareUserHandle (..),
     WriteGitRepo,
-    WriteRemotePath (..),
-    WriteShareRemotePath (..),
+    WriteRemoteNamespace (..),
+    WriteShareRemoteNamespace (..),
     shareUserHandleToText,
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
@@ -568,9 +568,9 @@ prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
 prettyReadRemoteNamespaceWith printProject =
   P.group . P.blue . P.text . RemoteRepo.printNamespace printProject
 
-prettyWriteRemotePath :: WriteRemotePath -> Pretty
-prettyWriteRemotePath =
-  P.group . P.blue . P.text . RemoteRepo.printWriteRemotePath
+prettyWriteRemoteNamespace :: WriteRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
+prettyWriteRemoteNamespace =
+  P.group . P.blue . P.text . RemoteRepo.printWriteRemoteNamespace
 
 notifyUser :: FilePath -> Output -> IO Pretty
 notifyUser dir = \case
@@ -1990,23 +1990,25 @@ notifyUser dir = \case
       P.text ("Unauthorized: " <> message)
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
-    expectedEmptyPushDest writeRemotePath =
+    expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
+    expectedEmptyPushDest namespace =
       P.lines
-        [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
+        [ "The remote namespace " <> prettyWriteRemoteNamespace (absurd <$> namespace) <> " is not empty.",
           "",
           "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
         ]
-    expectedNonEmptyPushDest writeRemotePath =
+    expectedNonEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
+    expectedNonEmptyPushDest namespace =
       P.lines
-        [ P.wrap ("The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty."),
+        [ P.wrap ("The remote namespace " <> prettyWriteRemoteNamespace (absurd <$> namespace) <> " is empty."),
           "",
           P.wrap ("Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?")
         ]
     sharePathToWriteRemotePathShare sharePath =
       -- Recover the original WriteRemotePath from the information in the error, which is thrown from generic share
       -- client code that doesn't know about WriteRemotePath
-      ( WriteRemotePathShare
-          WriteShareRemotePath
+      ( WriteRemoteNamespaceShare
+          WriteShareRemoteNamespace
             { server = RemoteRepo.DefaultCodeserver,
               repo = ShareUserHandle $ Share.unRepoInfo (Share.pathRepoInfo sharePath),
               path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
@@ -2043,8 +2045,8 @@ notifyUser dir = \case
 shareOrigin :: Text
 shareOrigin = "https://share.unison-lang.org"
 
-prettyShareLink :: WriteShareRemotePath -> Pretty
-prettyShareLink WriteShareRemotePath {repo, path} =
+prettyShareLink :: WriteShareRemoteNamespace -> Pretty
+prettyShareLink WriteShareRemoteNamespace {repo, path} =
   let encodedPath =
         Path.toList path
           & fmap (URI.encodeText . NameSegment.toText)

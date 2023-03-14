@@ -6,7 +6,6 @@ module Unison.Codebase.Editor.Input
     PullTarget (..),
     PushRemoteBranchInput (..),
     PushSourceTarget (..),
-    PushTarget (..),
     PushSource (..),
     TestInput (..),
     Event (..),
@@ -256,11 +255,6 @@ data PullTarget a
   | PullTargetProject a
   deriving stock (Eq, Show)
 
-data PushTarget
-  = PathyTarget WriteRemotePath
-  | ProjyTarget (These ProjectName ProjectBranchName)
-  deriving stock (Eq, Show)
-
 data PushSource
   = PathySource Path'
   | ProjySource (These ProjectName ProjectBranchName)
@@ -269,8 +263,8 @@ data PushSource
 -- | Push source and target: either neither is specified, or only a target, or both.
 data PushSourceTarget
   = PushSourceTarget0
-  | PushSourceTarget1 PushTarget
-  | PushSourceTarget2 PushSource PushTarget
+  | PushSourceTarget1 (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+  | PushSourceTarget2 PushSource (WriteRemoteNamespace (These ProjectName ProjectBranchName))
   deriving stock (Eq, Show)
 
 data PushRemoteBranchInput = PushRemoteBranchInput

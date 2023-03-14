@@ -232,7 +232,7 @@ data Output
     BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
   | ShareError ShareError
-  | ViewOnShare WriteShareRemotePath
+  | ViewOnShare WriteShareRemoteNamespace
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
@@ -278,7 +278,7 @@ data Output
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-    RefusedToPush PushBehavior WriteRemotePath
+    RefusedToPush PushBehavior (WriteRemoteNamespace Void)
   | -- | @GistCreated repo@ means a causal was just published to @repo@.
     GistCreated (ReadRemoteNamespace Void)
   | -- | Directs the user to URI to begin an authorization flow.
