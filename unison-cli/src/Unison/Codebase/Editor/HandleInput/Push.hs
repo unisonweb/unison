@@ -21,7 +21,13 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.ProjectUtils (expectBranchName, expectProjectName, getCurrentProjectBranch, loggeth, projectBranchPath)
+import Unison.Cli.ProjectUtils
+  ( expectBranchName,
+    expectProjectName,
+    getCurrentProjectBranch,
+    loggeth,
+    projectBranchPath,
+  )
 import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
 import qualified Unison.Cli.UnisonConfigUtils as UnisonConfigUtils
@@ -31,7 +37,13 @@ import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.HandleInput.AuthLogin (ensureAuthenticatedWithCodeserver)
 import qualified Unison.Codebase.Editor.HandleInput.AuthLogin as AuthLogin
-import Unison.Codebase.Editor.Input (GistInput (..), PushRemoteBranchInput (..), PushSource (..), PushSourceTarget (..), PushTarget (..))
+import Unison.Codebase.Editor.Input
+  ( GistInput (..),
+    PushRemoteBranchInput (..),
+    PushSource (..),
+    PushSourceTarget (..),
+    PushTarget (..),
+  )
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Push))
@@ -398,18 +410,13 @@ pushToProjectBranch0 :: WhatAreWePushing -> Hash32 -> ProjectAndBranch ProjectNa
 pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
   let remoteProjectName = remoteProjectAndBranch ^. #project
   Share.getProjectByName remoteProjectName >>= \case
-    Share.API.GetProjectResponseNotFound {} -> do
-      remoteProject <- do
-        let request = Share.API.CreateProjectRequest {projectName = into @Text remoteProjectName}
-        Share.createProject request >>= \case
-          Share.API.CreateProjectResponseUnauthorized x -> ProjectUtils.unauthorized x
-          Share.API.CreateProjectResponseNotFound _ -> do
-            Cli.returnEarly $
-              Output.RemoteProjectBranchDoesntExist
-                Share.hardCodedUri
-                remoteProjectAndBranch
-          Share.API.CreateProjectResponseSuccess remoteProject -> pure remoteProject
-      let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
+    Nothing -> do
+      remoteProject <-
+        Share.createProject remoteProjectName & onNothingM do
+          Cli.returnEarly $
+            Output.RemoteProjectBranchDoesntExist
+              Share.hardCodedUri
+              remoteProjectAndBranch
       pure
         UploadPlan
           { remoteBranch = remoteProjectAndBranch,
@@ -418,11 +425,10 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
               createBranchAfterUploadAction
                 pushing
                 localBranchHead
-                (over #project (remoteProjectId,) remoteProjectAndBranch)
+                (over #project (remoteProject ^. #projectId,) remoteProjectAndBranch)
           }
-    Share.API.GetProjectResponseUnauthorized x -> ProjectUtils.unauthorized x
-    Share.API.GetProjectResponseSuccess remoteProject -> do
-      let remoteProjectId = RemoteProjectId (remoteProject ^. #projectId)
+    Just remoteProject -> do
+      let remoteProjectId = remoteProject ^. #projectId
       Share.getProjectBranchByName (remoteProjectAndBranch & #project .~ remoteProjectId) >>= \case
         Share.API.GetProjectBranchResponseBranchNotFound {} -> do
           pure

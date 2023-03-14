@@ -2,8 +2,15 @@
 {-# LANGUAGE TypeOperators #-}
 
 -- | This module contains Share API calls related to projects, wrapped in the Cli monad.
+--
+-- Here, we also validate inputs from Share that the API itself does not. For example, in the API,
+-- a project name is just a Text. But because our client requires a richer structure for project names, we try parsing
+-- them into a ProjectName, and fail right away if parsing fails.
 module Unison.Cli.Share.Projects
-  ( -- * API functions
+  ( -- * API types
+    RemoteProject (..),
+
+    -- * API functions
     getProjectById,
     getProjectByName,
     createProject,
@@ -30,6 +37,7 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified Unison.Auth.HTTPClient as Auth
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
+import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Share.API.Projects as Share.API
@@ -37,35 +45,39 @@ import Unison.Share.Codeserver (defaultCodeserver)
 import Unison.Share.Types (codeserverBaseURL)
 import Witch (unsafeFrom)
 
+-- | A remote project.
+data RemoteProject = RemoteProject
+  { projectId :: RemoteProjectId,
+    projectName :: ProjectName
+  }
+  deriving stock (Eq, Generic, Show)
+
 -- | Get a project by id.
 --
 -- On success, update the `remote_project` table.
-getProjectById :: RemoteProjectId -> Cli Share.API.GetProjectResponse
+getProjectById :: RemoteProjectId -> Cli (Maybe RemoteProject)
 getProjectById (RemoteProjectId projectId) = do
   response <- servantClientToCli (getProject0 (Just projectId) Nothing)
   onGetProjectResponse response
-  pure response
 
 -- | Get a project by name.
 --
 -- On success, update the `remote_project` table.
-getProjectByName :: ProjectName -> Cli Share.API.GetProjectResponse
+getProjectByName :: ProjectName -> Cli (Maybe RemoteProject)
 getProjectByName projectName = do
   response <- servantClientToCli (getProject0 Nothing (Just (into @Text projectName)))
   onGetProjectResponse response
-  pure response
 
 -- | Create a new project.
 --
 -- On success, update the `remote_project` table.
-createProject :: Share.API.CreateProjectRequest -> Cli Share.API.CreateProjectResponse
-createProject request = do
-  response <- servantClientToCli (createProject0 request)
-  case response of
-    Share.API.CreateProjectResponseNotFound {} -> pure ()
-    Share.API.CreateProjectResponseUnauthorized {} -> pure ()
-    Share.API.CreateProjectResponseSuccess project -> onProject project
-  pure response
+createProject :: ProjectName -> Cli (Maybe RemoteProject)
+createProject projectName = do
+  let request = Share.API.CreateProjectRequest {projectName = into @Text projectName}
+  servantClientToCli (createProject0 request) >>= \case
+    Share.API.CreateProjectResponseNotFound {} -> pure Nothing
+    Share.API.CreateProjectResponseUnauthorized x -> unauthorized x
+    Share.API.CreateProjectResponseSuccess project -> Just <$> onProject project
 
 -- | Get a project branch by id.
 --
@@ -106,11 +118,11 @@ setProjectBranchHead request =
 ------------------------------------------------------------------------------------------------------------------------
 -- Database manipulation callbacks
 
-onGetProjectResponse :: Share.API.GetProjectResponse -> Cli ()
+onGetProjectResponse :: Share.API.GetProjectResponse -> Cli (Maybe RemoteProject)
 onGetProjectResponse = \case
-  Share.API.GetProjectResponseNotFound {} -> pure ()
-  Share.API.GetProjectResponseUnauthorized {} -> pure ()
-  Share.API.GetProjectResponseSuccess project -> onProject project
+  Share.API.GetProjectResponseNotFound {} -> pure Nothing
+  Share.API.GetProjectResponseUnauthorized x -> unauthorized x
+  Share.API.GetProjectResponseSuccess project -> Just <$> onProject project
 
 onGetProjectBranchResponse :: Share.API.GetProjectBranchResponse -> Cli ()
 onGetProjectBranchResponse = \case
@@ -119,13 +131,12 @@ onGetProjectBranchResponse = \case
   Share.API.GetProjectBranchResponseUnauthorized {} -> pure ()
   Share.API.GetProjectBranchResponseSuccess branch -> onProjectBranch branch
 
-onProject :: Share.API.Project -> Cli ()
-onProject project =
-  Cli.runTransaction do
-    Queries.ensureRemoteProject
-      (RemoteProjectId (project ^. #projectId))
-      hardCodedUri
-      (unsafeFrom @Text (project ^. #projectName))
+onProject :: Share.API.Project -> Cli RemoteProject
+onProject project = do
+  let projectId = RemoteProjectId (project ^. #projectId)
+  let projectName = unsafeFrom @Text (project ^. #projectName)
+  Cli.runTransaction (Queries.ensureRemoteProject projectId hardCodedUri projectName)
+  pure RemoteProject {projectId, projectName}
 
 onProjectBranch :: Share.API.ProjectBranch -> Cli ()
 onProjectBranch branch =
@@ -135,6 +146,10 @@ onProjectBranch branch =
       hardCodedUri
       (RemoteProjectBranchId (branch ^. #branchId))
       (unsafeFrom @Text (branch ^. #branchName))
+
+unauthorized :: Share.API.Unauthorized -> Cli void
+unauthorized (Share.API.Unauthorized message) =
+  Cli.returnEarly (Output.Unauthorized message)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Low-level servant client generation and wrapping

@@ -74,13 +74,11 @@ resolveNames = \case
       pure (ProjectAndBranch (project ^. #name) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
-expectResolveRemoteProjectName :: ProjectName -> Cli (RemoteProjectId, ProjectName)
+expectResolveRemoteProjectName :: ProjectName -> Cli Share.RemoteProject
 expectResolveRemoteProjectName remoteProjectName = do
-  resolveRemoteProjectName remoteProjectName >>= \case
-    Nothing -> do
-      loggeth ["project doesn't exist"]
-      Cli.returnEarlyWithoutOutput
-    Just x -> pure x
+  Share.getProjectByName remoteProjectName & onNothingM do
+    loggeth ["remote project doesn't exist"]
+    Cli.returnEarlyWithoutOutput
 
 expectResolveRemoteProjectBranchName :: RemoteProjectId -> ProjectBranchName -> Cli (RemoteProjectBranchId, ProjectBranchName)
 expectResolveRemoteProjectBranchName remoteProjectId branchName = do
@@ -92,18 +90,6 @@ expectResolveRemoteProjectBranchName remoteProjectId branchName = do
 
 unauthorized :: Share.API.Unauthorized -> Cli a
 unauthorized (Share.API.Unauthorized message) = Cli.returnEarly (Output.Unauthorized message)
-
-resolveRemoteProjectName :: ProjectName -> Cli (Maybe (RemoteProjectId, ProjectName))
-resolveRemoteProjectName remoteProjectName = do
-  Share.getProjectByName remoteProjectName >>= \case
-    Share.API.GetProjectResponseNotFound {} -> do
-      pure Nothing
-    Share.API.GetProjectResponseUnauthorized (Share.API.Unauthorized message) ->
-      Cli.returnEarly (Output.Unauthorized message)
-    Share.API.GetProjectResponseSuccess remoteProject -> do
-      let projectId = RemoteProjectId (remoteProject ^. #projectId)
-      projectName <- expectProjectName (remoteProject ^. #projectName)
-      pure (Just (projectId, projectName))
 
 resolveRemoteProjectBranchName :: RemoteProjectId -> ProjectBranchName -> Cli (Maybe (RemoteProjectBranchId, ProjectBranchName))
 resolveRemoteProjectBranchName remoteProjectId remoteProjectBranchName = do

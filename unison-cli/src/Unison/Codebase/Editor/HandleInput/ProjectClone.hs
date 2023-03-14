@@ -82,13 +82,8 @@ cloneProjectAndBranch remoteProjectAndBranch = do
 
   -- Get the branch of the given project.
   remoteProjectBranch <- do
-    project <-
-      Share.getProjectByName remoteProjectName >>= \case
-        Share.API.GetProjectResponseNotFound _ -> remoteProjectBranchDoesntExist
-        Share.API.GetProjectResponseUnauthorized x -> ProjectUtils.unauthorized x
-        Share.API.GetProjectResponseSuccess project -> pure project
-    let remoteProjectId = RemoteProjectId (project ^. #projectId)
-    Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
+    project <- Share.getProjectByName remoteProjectName & onNothingM remoteProjectBranchDoesntExist
+    Share.getProjectBranchByName (ProjectAndBranch (project ^. #projectId) remoteBranchName) >>= \case
       Share.API.GetProjectBranchResponseBranchNotFound _ -> remoteProjectBranchDoesntExist
       Share.API.GetProjectBranchResponseProjectNotFound _ -> remoteProjectBranchDoesntExist
       Share.API.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x

@@ -249,7 +249,8 @@ resolveRemoteNames ::
   Cli (ProjectAndBranch (RemoteProjectId, ProjectName) Share.ProjectBranch)
 resolveRemoteNames = \case
   This projectName -> do
-    remoteProjectId <- expectRemoteProject projectName
+    remoteProject <- ProjectUtils.expectResolveRemoteProjectName projectName
+    let remoteProjectId = remoteProject ^. #projectId
     let remoteBranchName = unsafeFrom @Text "main"
     remoteBranch <- expectRemoteProjectBranchByName remoteProjectId remoteBranchName
     pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
@@ -267,18 +268,10 @@ resolveRemoteNames = \case
         loggeth ["no remote associated with this project"]
         Cli.returnEarlyWithoutOutput
   These projectName branchName -> do
-    remoteProjectId <- expectRemoteProject projectName
+    remoteProject <- ProjectUtils.expectResolveRemoteProjectName projectName
+    let remoteProjectId = remoteProject ^. #projectId
     remoteBranch <- expectRemoteProjectBranchByName remoteProjectId branchName
     pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
-
-expectRemoteProject :: ProjectName -> Cli RemoteProjectId
-expectRemoteProject projectName =
-  Share.getProjectByName projectName >>= \case
-    Share.GetProjectResponseNotFound {} -> do
-      loggeth ["Project doesn't exist"]
-      Cli.returnEarlyWithoutOutput
-    Share.GetProjectResponseUnauthorized x -> ProjectUtils.unauthorized x
-    Share.GetProjectResponseSuccess prj -> pure (RemoteProjectId $ prj ^. #projectId)
 
 expectRemoteProjectBranchByName :: RemoteProjectId -> ProjectBranchName -> Cli Share.ProjectBranch
 expectRemoteProjectBranchByName remoteProjectId remoteBranchName =
