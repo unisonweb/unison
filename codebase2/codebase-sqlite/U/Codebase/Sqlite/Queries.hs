@@ -322,7 +322,7 @@ import qualified U.Core.ABT as ABT
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
 import Unison.Core.Orphans.Sqlite ()
-import Unison.Core.Project (ProjectName)
+import Unison.Core.Project (ProjectBranchName, ProjectName)
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import Unison.Hash32 (Hash32)
@@ -2482,7 +2482,7 @@ getReflog numEntries = queryListRow sql (Only numEntries)
 
 data Project = Project
   { projectId :: ProjectId,
-    name :: Text
+    name :: ProjectName
   }
   deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
@@ -2498,7 +2498,7 @@ data RemoteProject = RemoteProject
 data Branch = Branch
   { projectId :: ProjectId,
     branchId :: ProjectBranchId,
-    name :: Text
+    name :: ProjectBranchName
   }
   deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
@@ -2556,7 +2556,7 @@ loadProjectSql =
       id = ?
   |]
 
-loadProjectByName :: Text -> Transaction (Maybe Project)
+loadProjectByName :: ProjectName -> Transaction (Maybe Project)
 loadProjectByName name =
   queryMaybeRow
     [sql|
@@ -2570,17 +2570,18 @@ loadProjectByName name =
     |]
     (Only name)
 
-insertProject :: ProjectId -> Text -> Transaction ()
+-- | Insert a `project` row.
+insertProject :: ProjectId -> ProjectName -> Transaction ()
 insertProject uuid name = execute bonk (uuid, name)
   where
     bonk =
       [sql|
         INSERT INTO project (id, name)
           VALUES (?, ?)
-           |]
+      |]
 
 -- | Does a project branch exist by this name?
-projectBranchExistsByName :: ProjectId -> Text -> Transaction Bool
+projectBranchExistsByName :: ProjectId -> ProjectBranchName -> Transaction Bool
 projectBranchExistsByName projectId name =
   queryOneCol
     [sql|
@@ -2618,7 +2619,7 @@ loadProjectBranchSql =
       AND branch_id = ?
   |]
 
-loadProjectBranchByName :: ProjectId -> Text -> Transaction (Maybe Branch)
+loadProjectBranchByName :: ProjectId -> ProjectBranchName -> Transaction (Maybe Branch)
 loadProjectBranchByName projectId name =
   queryMaybeRow
     [sql|
@@ -2634,7 +2635,7 @@ loadProjectBranchByName projectId name =
     |]
     (projectId, name)
 
-loadProjectAndBranchNames :: ProjectId -> ProjectBranchId -> Transaction (Maybe (Text, Text))
+loadProjectAndBranchNames :: ProjectId -> ProjectBranchId -> Transaction (Maybe (ProjectName, ProjectBranchName))
 loadProjectAndBranchNames projectId branchId =
   queryMaybeRow
     [sql|
@@ -2650,7 +2651,8 @@ loadProjectAndBranchNames projectId branchId =
     |]
     (projectId, branchId)
 
-insertProjectBranch :: ProjectId -> ProjectBranchId -> Text -> Transaction ()
+-- | Insert a `project_branch` row.
+insertProjectBranch :: ProjectId -> ProjectBranchId -> ProjectBranchName -> Transaction ()
 insertProjectBranch pid bid bname = execute bonk (pid, bid, bname)
   where
     bonk =

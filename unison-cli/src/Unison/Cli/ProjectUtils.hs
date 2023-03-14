@@ -71,7 +71,7 @@ resolveNames = \case
         Cli.returnEarlyWithoutOutput
     Cli.runTransaction do
       project <- Queries.expectProject projectId
-      pure (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
+      pure (ProjectAndBranch (project ^. #name) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
 expectResolveRemoteProjectName :: ProjectName -> Cli (RemoteProjectId, ProjectName)
@@ -130,18 +130,17 @@ resolveNamesToIds = \case
         loggeth ["not on a project branch yo"]
         Cli.returnEarlyWithoutOutput
     branch <-
-      Cli.runTransaction (Queries.loadProjectBranchByName projectId (into @Text branchName)) & onNothingM do
+      Cli.runTransaction (Queries.loadProjectBranchByName projectId branchName) & onNothingM do
         project <- Cli.runTransaction (Queries.expectProject projectId)
-        Cli.returnEarly $
-          LocalProjectBranchDoesntExist (ProjectAndBranch (unsafeFrom @Text (project ^. #name)) branchName)
+        Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
     pure (ProjectAndBranch projectId (branch ^. #branchId))
   These projectName branchName -> do
     maybeProjectAndBranch <-
       Cli.runTransaction do
         runMaybeT do
-          project <- MaybeT (Queries.loadProjectByName (into @Text projectName))
+          project <- MaybeT (Queries.loadProjectByName projectName)
           let projectId = project ^. #projectId
-          branch <- MaybeT (Queries.loadProjectBranchByName projectId (into @Text branchName))
+          branch <- MaybeT (Queries.loadProjectBranchByName projectId branchName)
           pure (ProjectAndBranch projectId (branch ^. #branchId))
     maybeProjectAndBranch & onNothing do
       Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))

@@ -70,12 +70,14 @@ cloneProjectAndBranch remoteProjectAndBranch = do
   -- Quick local check before hitting share to determine whether this project+branch already exists.
   let assertLocalProjectBranchDoesntExist :: Sqlite.Transaction (Either Output.Output (Maybe Queries.Project))
       assertLocalProjectBranchDoesntExist =
-        Queries.loadProjectByName (into @Text localProjectName) >>= \case
+        Queries.loadProjectByName localProjectName >>= \case
           Nothing -> pure (Right Nothing)
           Just project ->
-            Queries.projectBranchExistsByName (project ^. #projectId) (into @Text localBranchName) <&> \case
+            Queries.projectBranchExistsByName (project ^. #projectId) localBranchName <&> \case
               False -> Right (Just project)
-              True -> Left (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch localProjectName localBranchName))
+              True ->
+                let localProject = ProjectAndBranch localProjectName localBranchName
+                 in Left (Output.ProjectAndBranchNameAlreadyExists localProject)
   void (Cli.runEitherTransaction assertLocalProjectBranchDoesntExist)
 
   -- Get the branch of the given project.
@@ -117,11 +119,11 @@ cloneProjectAndBranch remoteProjectAndBranch = do
             case maybeLocalProject of
               Nothing -> do
                 localProjectId <- Sqlite.unsafeIO (ProjectId <$> UUID.nextRandom)
-                Queries.insertProject localProjectId (into @Text localProjectName)
+                Queries.insertProject localProjectId localProjectName
                 pure localProjectId
               Just localProject -> pure (localProject ^. #projectId)
           localBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
-          Queries.insertProjectBranch localProjectId localBranchId (into @Text localBranchName)
+          Queries.insertProjectBranch localProjectId localBranchId localBranchName
           Queries.insertBranchRemoteMapping
             localProjectId
             localBranchId

@@ -324,7 +324,7 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
             -- "push" with remote mapping for project from ancestor branch
             Nothing -> do
               myUserHandle <- oinkGetLoggedInUser
-              let localBranchName = unsafeFrom @Text (localProjectAndBranch ^. #branch . #name)
+              let localBranchName = localProjectAndBranch ^. #branch . #name
               -- Derive the remote branch name from the user's handle and the local branch name.
               --
               -- user "bob" has local branch "topic":        remoteBranchName = "@bob/topic"
@@ -374,8 +374,8 @@ bazinga10 ::
   Cli UploadPlan
 bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = do
   myUserHandle <- oinkGetLoggedInUser
-  let localProjectName = unsafeFrom @Text (localProjectAndBranch ^. #project . #name)
-  let localBranchName = unsafeFrom @Text (localProjectAndBranch ^. #branch . #name)
+  let localProjectName = localProjectAndBranch ^. #project . #name
+  let localBranchName = localProjectAndBranch ^. #branch . #name
   let remoteProjectName =
         case remoteProjectAndBranchMaybes ^. #project of
           Nothing -> prependUserSlugToProjectName myUserHandle localProjectName
