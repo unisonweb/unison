@@ -321,6 +321,7 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
+import Unison.Core.Project (ProjectName)
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import Unison.Hash32 (Hash32)
