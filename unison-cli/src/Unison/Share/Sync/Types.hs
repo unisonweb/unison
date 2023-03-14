@@ -20,8 +20,12 @@ data CheckAndSetPushError
   = CheckAndSetPushErrorHashMismatch Share.HashMismatch
   | CheckAndSetPushErrorNoWritePermission Share.Path
   | CheckAndSetPushErrorServerMissingDependencies (NESet Hash32)
-  | CheckAndSetPushErrorInvalidRepoInfo Share.RepoInfo
-  | CheckAndSetPushErrorUserNotFound Share.Path
+  | -- | The repo info was invalid. (err, repoInfo)
+    CheckAndSetPushErrorInvalidRepoInfo Text Share.RepoInfo
+  | -- | The user was not found.
+    CheckAndSetPushErrorUserNotFound Share.Path
+  | --  | (projectShortHand)
+    CheckAndSetPushErrorProjectNotFound Text
   deriving (Show)
 
 -- | An error occurred while fast-forward pushing code to Unison Share.
@@ -33,24 +37,30 @@ data FastForwardPushError
   | FastForwardPushErrorServerMissingDependencies (NESet Hash32)
   | --                              Parent Child
     FastForwardPushInvalidParentage Hash32 Hash32
-  | FastForwardPushErrorInvalidRepoInfo Share.RepoInfo
+  | -- | The repo info was invalid. (err, repoInfo)
+    FastForwardPushErrorInvalidRepoInfo Text Share.RepoInfo
   | FastForwardPushErrorUserNotFound Share.Path
+  | --  | (projectShortHand)
+    FastForwardPushErrorProjectNotFound Text
   deriving (Show)
 
 -- | An error occurred while pulling code from Unison Share.
 data PullError
   = PullErrorNoHistoryAtPath Share.Path
   | PullErrorNoReadPermission Share.Path
-  | PullErrorInvalidRepoInfo Share.RepoInfo
+  | -- | The repo info was invalid. (err, repoInfo)
+    PullErrorInvalidRepoInfo Text Share.RepoInfo
   | PullErrorUserNotFound Share.Path
+  | -- | (projectShortHand)
+    PullErrorProjectNotFound Text
   deriving (Show)
 
 -- | An error occurred when getting causal hash by path.
 data GetCausalHashByPathError
   = -- | The user does not have permission to read this path.
     GetCausalHashByPathErrorNoReadPermission Share.Path
-  | -- | The repo info was invalid.
-    GetCausalHashByPathErrorInvalidRepoInfo Share.RepoInfo
+  | -- | The repo info was invalid. (err, repoInfo)
+    GetCausalHashByPathErrorInvalidRepoInfo Text Share.RepoInfo
   | -- | The user was not found.
     GetCausalHashByPathErrorUserNotFound Share.Path
   deriving (Show)

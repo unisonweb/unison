@@ -10,14 +10,12 @@ module Unison.Codebase.Editor.HandleInput.Pull
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (snoc, (%~), (&), (^.))
+import Control.Lens (snoc, (^.))
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import Data.These
-import Data.These (These)
 import qualified System.Console.Regions as Console.Regions
 import U.Codebase.Sqlite.DbId (RemoteProjectBranchId (..), RemoteProjectId (..))
-import U.Codebase.Sqlite.Queries (RemoteProject (..), RemoteProjectBranch (..))
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -25,7 +23,6 @@ import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Cli.ProjectUtils (loggeth)
 import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
-import Unison.Cli.UnisonConfigUtils (resolveConfiguredUrl)
 import Unison.Codebase (Preprocessing (..))
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..))
@@ -37,17 +34,14 @@ import Unison.Codebase.Editor.Input
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
-import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull))
 import qualified Unison.Codebase.Editor.Propagate as Propagate
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadRemoteNamespace (..),
     ReadShareRemoteNamespace (..),
     ShareUserHandle (..),
-    writePathToRead,
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Unison.Codebase.Patch (Patch (..))
-import Unison.Codebase.Path (Path' (..))
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
 import qualified Unison.Codebase.Verbosity as Verbosity

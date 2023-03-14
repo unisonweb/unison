@@ -531,7 +531,7 @@ data GetCausalHashByPathResponse
   = GetCausalHashByPathSuccess (Maybe HashJWT)
   | GetCausalHashByPathNoReadPermission Path
   | GetCausalHashByPathUserNotFound
-  | GetCausalHashByPathInvalidRepoInfo RepoInfo
+  | GetCausalHashByPathInvalidRepoInfo Text RepoInfo
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON GetCausalHashByPathResponse where
@@ -539,7 +539,7 @@ instance ToJSON GetCausalHashByPathResponse where
     GetCausalHashByPathSuccess hashJWT -> jsonUnion "success" hashJWT
     GetCausalHashByPathNoReadPermission path -> jsonUnion "no_read_permission" path
     GetCausalHashByPathUserNotFound -> jsonUnion "user_not_found" ()
-    GetCausalHashByPathInvalidRepoInfo repoInfo -> jsonUnion "invalid_repo_info" repoInfo
+    GetCausalHashByPathInvalidRepoInfo msg repoInfo -> jsonUnion "invalid_repo_info" (msg, repoInfo)
 
 instance FromJSON GetCausalHashByPathResponse where
   parseJSON = Aeson.withObject "GetCausalHashByPathResponse" \obj -> do
@@ -547,7 +547,7 @@ instance FromJSON GetCausalHashByPathResponse where
       "success" -> GetCausalHashByPathSuccess <$> obj .: "payload"
       "no_read_permission" -> GetCausalHashByPathNoReadPermission <$> obj .: "payload"
       "user_not_found" -> pure GetCausalHashByPathUserNotFound
-      "invalid_repo_info" -> GetCausalHashByPathInvalidRepoInfo <$> obj .: "payload"
+      "invalid_repo_info" -> uncurry GetCausalHashByPathInvalidRepoInfo <$> obj .: "payload"
       t -> failText $ "Unexpected GetCausalHashByPathResponse type: " <> t
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -582,7 +582,12 @@ data DownloadEntitiesResponse
 
 data DownloadEntitiesError
   = DownloadEntitiesNoReadPermission RepoInfo
-  | DownloadEntitiesInvalidRepoInfo RepoInfo
+  | -- | (msg, repoInfo)
+    DownloadEntitiesInvalidRepoInfo Text RepoInfo
+  | -- | (userHandle)
+    DownloadEntitiesUserNotFound Text
+  | -- | (project shorthand)
+    DownloadEntitiesProjectNotFound Text
   deriving stock (Eq, Show)
 
 -- data DownloadEntities = DownloadEntities
@@ -594,14 +599,18 @@ instance ToJSON DownloadEntitiesResponse where
   toJSON = \case
     DownloadEntitiesSuccess entities -> jsonUnion "success" entities
     DownloadEntitiesFailure (DownloadEntitiesNoReadPermission repoInfo) -> jsonUnion "no_read_permission" repoInfo
-    DownloadEntitiesFailure (DownloadEntitiesInvalidRepoInfo repoInfo) -> jsonUnion "invalid_repo_info" repoInfo
+    DownloadEntitiesFailure (DownloadEntitiesInvalidRepoInfo msg repoInfo) -> jsonUnion "invalid_repo_info" (msg, repoInfo)
+    DownloadEntitiesFailure (DownloadEntitiesUserNotFound userHandle) -> jsonUnion "user_not_found" userHandle
+    DownloadEntitiesFailure (DownloadEntitiesProjectNotFound projectShorthand) -> jsonUnion "project_not_found" projectShorthand
 
 instance FromJSON DownloadEntitiesResponse where
   parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj ->
     obj .: "type" >>= Aeson.withText "type" \case
       "success" -> DownloadEntitiesSuccess <$> obj .: "payload"
       "no_read_permission" -> DownloadEntitiesFailure . DownloadEntitiesNoReadPermission <$> obj .: "payload"
-      "invalid_repo_info" -> DownloadEntitiesFailure . DownloadEntitiesInvalidRepoInfo <$> obj .: "payload"
+      "invalid_repo_info" -> DownloadEntitiesFailure . uncurry DownloadEntitiesInvalidRepoInfo <$> obj .: "payload"
+      "user_not_found" -> DownloadEntitiesFailure . DownloadEntitiesUserNotFound <$> obj .: "payload"
+      "project_not_found" -> DownloadEntitiesFailure . DownloadEntitiesProjectNotFound <$> obj .: "payload"
       t -> failText $ "Unexpected DownloadEntitiesResponse type: " <> t
 
 -- instance ToJSON DownloadEntities where
@@ -645,7 +654,12 @@ data UploadEntitiesResponse
   | UploadEntitiesNeedDependencies (NeedDependencies Hash32)
   | UploadEntitiesNoWritePermission RepoInfo
   | UploadEntitiesHashMismatchForEntity HashMismatchForEntity
-  | UploadEntitiesInvalidRepoInfo RepoInfo
+  | -- | (msg, repoInfo)
+    UploadEntitiesInvalidRepoInfo Text RepoInfo
+  | -- | (userHandle)
+    UploadEntitiesUserNotFound Text
+  | -- | (project shorthand)
+    UploadEntitiesProjectNotFound Text
   deriving stock (Show, Eq, Ord)
 
 data HashMismatchForEntity = HashMismatchForEntity {supplied :: Hash32, computed :: Hash32}
@@ -657,7 +671,9 @@ instance ToJSON UploadEntitiesResponse where
     UploadEntitiesNeedDependencies nd -> jsonUnion "need_dependencies" nd
     UploadEntitiesNoWritePermission repoInfo -> jsonUnion "no_write_permission" repoInfo
     UploadEntitiesHashMismatchForEntity mismatch -> jsonUnion "hash_mismatch_for_entity" mismatch
-    UploadEntitiesInvalidRepoInfo repoInfo -> jsonUnion "invalid_repo_info" repoInfo
+    UploadEntitiesInvalidRepoInfo msg repoInfo -> jsonUnion "invalid_repo_info" (msg, repoInfo)
+    UploadEntitiesUserNotFound userHandle -> jsonUnion "user_not_found" userHandle
+    UploadEntitiesProjectNotFound projectShorthand -> jsonUnion "project_not_found" projectShorthand
 
 instance FromJSON UploadEntitiesResponse where
   parseJSON = Aeson.withObject "UploadEntitiesResponse" \obj ->
@@ -666,7 +682,9 @@ instance FromJSON UploadEntitiesResponse where
       "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
       "no_write_permission" -> UploadEntitiesNoWritePermission <$> obj .: "payload"
       "hash_mismatch_for_entity" -> UploadEntitiesHashMismatchForEntity <$> obj .: "payload"
-      "invalid_repo_info" -> UploadEntitiesInvalidRepoInfo <$> obj .: "payload"
+      "invalid_repo_info" -> uncurry UploadEntitiesInvalidRepoInfo <$> obj .: "payload"
+      "user_not_found" -> UploadEntitiesUserNotFound <$> obj .: "payload"
+      "project_not_found" -> UploadEntitiesProjectNotFound <$> obj .: "payload"
       t -> failText $ "Unexpected UploadEntitiesResponse type: " <> t
 
 instance ToJSON HashMismatchForEntity where
@@ -739,7 +757,7 @@ data FastForwardPathResponse
     FastForwardPathNoHistory
   | -- | This wasn't a fast-forward. You said the first hash was a parent of the second hash, but I disagree.
     FastForwardPathInvalidParentage InvalidParentage
-  | FastForwardPathInvalidRepoInfo RepoInfo
+  | FastForwardPathInvalidRepoInfo Text RepoInfo
   | FastForwardPathUserNotFound
   deriving stock (Show)
 
@@ -754,7 +772,7 @@ instance ToJSON FastForwardPathResponse where
     FastForwardPathNotFastForward hashJwt -> jsonUnion "not_fast_forward" hashJwt
     FastForwardPathNoHistory -> jsonUnion "no_history" (Object mempty)
     FastForwardPathInvalidParentage invalidParentage -> jsonUnion "invalid_parentage" invalidParentage
-    FastForwardPathInvalidRepoInfo repoInfo -> jsonUnion "invalid_repo_info" repoInfo
+    FastForwardPathInvalidRepoInfo msg repoInfo -> jsonUnion "invalid_repo_info" (msg, repoInfo)
     FastForwardPathUserNotFound -> jsonUnion "user_not_found" (Object mempty)
 
 instance FromJSON FastForwardPathResponse where
@@ -767,7 +785,7 @@ instance FromJSON FastForwardPathResponse where
         "not_fast_forward" -> FastForwardPathNotFastForward <$> o .: "payload"
         "no_history" -> pure FastForwardPathNoHistory
         "invalid_parentage" -> FastForwardPathInvalidParentage <$> o .: "payload"
-        "invalid_repo_info" -> FastForwardPathInvalidRepoInfo <$> o .: "payload"
+        "invalid_repo_info" -> uncurry FastForwardPathInvalidRepoInfo <$> o .: "payload"
         "user_not_found" -> pure FastForwardPathUserNotFound
         t -> failText $ "Unexpected FastForwardPathResponse type: " <> t
 
@@ -808,7 +826,8 @@ data UpdatePathResponse
   | UpdatePathHashMismatch HashMismatch
   | UpdatePathMissingDependencies (NeedDependencies Hash32)
   | UpdatePathNoWritePermission Path
-  | UpdatePathInvalidRepoInfo RepoInfo
+  | -- | (errMsg, repoInfo)
+    UpdatePathInvalidRepoInfo Text RepoInfo
   | UpdatePathUserNotFound
   deriving stock (Show, Eq, Ord)
 
@@ -818,7 +837,7 @@ instance ToJSON UpdatePathResponse where
     UpdatePathHashMismatch hm -> jsonUnion "hash_mismatch" hm
     UpdatePathMissingDependencies md -> jsonUnion "missing_dependencies" md
     UpdatePathNoWritePermission path -> jsonUnion "no_write_permission" path
-    UpdatePathInvalidRepoInfo repoInfo -> jsonUnion "invalid_repo_info" repoInfo
+    UpdatePathInvalidRepoInfo errMsg repoInfo -> jsonUnion "invalid_repo_info" (errMsg, repoInfo)
     UpdatePathUserNotFound -> jsonUnion "user_not_found" (Object mempty)
 
 instance FromJSON UpdatePathResponse where
@@ -829,7 +848,7 @@ instance FromJSON UpdatePathResponse where
         "hash_mismatch" -> UpdatePathHashMismatch <$> obj .: "payload"
         "missing_dependencies" -> UpdatePathMissingDependencies <$> obj .: "payload"
         "no_write_permission" -> UpdatePathNoWritePermission <$> obj .: "payload"
-        "invalid_repo_info" -> UpdatePathInvalidRepoInfo <$> obj .: "payload"
+        "invalid_repo_info" -> uncurry UpdatePathInvalidRepoInfo <$> obj .: "payload"
         "user_not_found" -> pure UpdatePathUserNotFound
         t -> failText $ "Unexpected UpdatePathResponse type: " <> t
 
