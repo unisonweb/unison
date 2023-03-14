@@ -10,7 +10,7 @@ module Unison.Codebase.Editor.HandleInput.Pull
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (snoc, (^.))
+import Control.Lens (over, snoc, (^.))
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import Data.These
@@ -48,7 +48,6 @@ import qualified Unison.Codebase.Verbosity as Verbosity
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
-import qualified Unison.Share.API.Projects as Share
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Sync as Share
 import qualified Unison.Share.Sync.Types as Share
@@ -69,7 +68,7 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
   let preprocess = case pullMode of
         Input.PullWithHistory -> Unmodified
         Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-  ns :: ReadRemoteNamespace (ProjectAndBranch (RemoteProjectId, ProjectName) Share.ProjectBranch) <-
+  ns :: ReadRemoteNamespace (ProjectAndBranch (RemoteProjectId, ProjectName) Share.RemoteProjectBranch) <-
     case sourceTarget of
       Input.PullSourceTarget0 ->
         ProjectUtils.getCurrentProjectBranch >>= \case
@@ -102,17 +101,17 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
       let repoInfo = Share.RepoInfo (into @Text (These remoteProjectName remoteProjectBranchName))
           causalHash = wundefined
           causalHashJwt = wundefined
-          remoteProjectBranchName = unsafeFrom @Text @ProjectBranchName $ branch ^. #branchName
+          remoteProjectBranchName = branch ^. #branchName
        in Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
             Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback >>= \case
               Left err -> wundefined err
               Right () -> liftIO (Codebase.expectBranchForHash codebase causalHash)
-  nsNamesOnly :: ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) <-
-    #_ReadRemoteProjectBranch
-      ( \(ProjectAndBranch (_, a) branch) -> do
-          ProjectAndBranch a <$> (ProjectUtils.expectBranchName $ branch ^. #branchName)
-      )
-      ns
+  let nsNamesOnly :: ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName)
+      nsNamesOnly =
+        over
+          #_ReadRemoteProjectBranch
+          (\(ProjectAndBranch (_, projectName) branch) -> ProjectAndBranch projectName (branch ^. #branchName))
+          ns
   when (Branch.isEmpty0 (Branch.head remoteBranch)) do
     Cli.respond (PulledEmptyBranch nsNamesOnly)
   target <- wundefined
@@ -246,7 +245,7 @@ propagatePatch inputDescription patch scopePath = do
 
 resolveRemoteNames ::
   These ProjectName ProjectBranchName ->
-  Cli (ProjectAndBranch (RemoteProjectId, ProjectName) Share.ProjectBranch)
+  Cli (ProjectAndBranch (RemoteProjectId, ProjectName) Share.RemoteProjectBranch)
 resolveRemoteNames = \case
   This projectName -> do
     remoteProject <- ProjectUtils.expectResolveRemoteProjectName projectName
@@ -273,26 +272,24 @@ resolveRemoteNames = \case
     remoteBranch <- expectRemoteProjectBranchByName remoteProjectId branchName
     pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
 
-expectRemoteProjectBranchByName :: RemoteProjectId -> ProjectBranchName -> Cli Share.ProjectBranch
+expectRemoteProjectBranchByName :: RemoteProjectId -> ProjectBranchName -> Cli Share.RemoteProjectBranch
 expectRemoteProjectBranchByName remoteProjectId remoteBranchName =
   Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-    Share.GetProjectBranchResponseBranchNotFound {} -> do
+    Share.GetProjectBranchResponseBranchNotFound -> do
       loggeth ["The associated remote no longer exists"]
       Cli.returnEarlyWithoutOutput
-    Share.GetProjectBranchResponseProjectNotFound {} -> do
+    Share.GetProjectBranchResponseProjectNotFound -> do
       loggeth ["The associated remote doesn't have a branch named: ", tShow remoteBranchName]
       Cli.returnEarlyWithoutOutput
-    Share.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
     Share.GetProjectBranchResponseSuccess branch -> pure branch
 
-expectRemoteProjectBranchById :: RemoteProjectId -> RemoteProjectBranchId -> Cli Share.ProjectBranch
+expectRemoteProjectBranchById :: RemoteProjectId -> RemoteProjectBranchId -> Cli Share.RemoteProjectBranch
 expectRemoteProjectBranchById remoteProjectId remoteProjectBranchId =
   Share.getProjectBranchById (ProjectAndBranch remoteProjectId remoteProjectBranchId) >>= \case
-    Share.GetProjectBranchResponseBranchNotFound {} -> do
+    Share.GetProjectBranchResponseBranchNotFound -> do
       loggeth ["The associated remote no longer exists"]
       Cli.returnEarlyWithoutOutput
-    Share.GetProjectBranchResponseProjectNotFound {} -> do
+    Share.GetProjectBranchResponseProjectNotFound -> do
       loggeth ["The associated remote doesn't have a branch with id: ", tShow remoteProjectBranchId]
       Cli.returnEarlyWithoutOutput
-    Share.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
     Share.GetProjectBranchResponseSuccess branch -> pure branch

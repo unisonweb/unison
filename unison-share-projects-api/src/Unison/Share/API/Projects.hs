@@ -281,10 +281,10 @@ instance ToJSON SetProjectBranchHeadRequest where
 data SetProjectBranchHeadResponse
   = SetProjectBranchHeadResponseUnauthorized Unauthorized
   | SetProjectBranchHeadResponseNotFound NotFound
-  | SetProjectBranchHeadResponseSuccess
   | SetProjectBranchHeadResponseMissingCausalHash !Hash32
   | -- | (expected, actual)
     SetProjectBranchHeadResponseExpectedCausalHashMismatch !Hash32 !Hash32
+  | SetProjectBranchHeadResponseSuccess
   deriving stock (Eq, Show, Generic)
 
 instance FromJSON SetProjectBranchHeadResponse where

@@ -8,13 +8,12 @@ import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
-import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..), RemoteProjectBranchId (..), RemoteProjectId (..))
+import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..))
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli (stepAt)
 import Unison.Cli.ProjectUtils (loggeth, projectBranchPath)
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -24,7 +23,6 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName, projectNameUserSlug)
 import qualified Unison.Share.API.Hash as Share.API
-import qualified Unison.Share.API.Projects as Share.API
 import qualified Unison.Share.Sync as Share (downloadEntities)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Sync.Common (hash32ToCausalHash)
@@ -84,10 +82,9 @@ cloneProjectAndBranch remoteProjectAndBranch = do
   remoteProjectBranch <- do
     project <- Share.getProjectByName remoteProjectName & onNothingM remoteProjectBranchDoesntExist
     Share.getProjectBranchByName (ProjectAndBranch (project ^. #projectId) remoteBranchName) >>= \case
-      Share.API.GetProjectBranchResponseBranchNotFound _ -> remoteProjectBranchDoesntExist
-      Share.API.GetProjectBranchResponseProjectNotFound _ -> remoteProjectBranchDoesntExist
-      Share.API.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
-      Share.API.GetProjectBranchResponseSuccess projectBranch -> pure projectBranch
+      Share.GetProjectBranchResponseBranchNotFound -> remoteProjectBranchDoesntExist
+      Share.GetProjectBranchResponseProjectNotFound -> remoteProjectBranchDoesntExist
+      Share.GetProjectBranchResponseSuccess projectBranch -> pure projectBranch
 
   -- Pull the remote branch's contents
   let remoteBranchHeadJwt = remoteProjectBranch ^. #branchHead
@@ -122,9 +119,9 @@ cloneProjectAndBranch remoteProjectAndBranch = do
           Queries.insertBranchRemoteMapping
             localProjectId
             localBranchId
-            (RemoteProjectId (remoteProjectBranch ^. #projectId))
+            (remoteProjectBranch ^. #projectId)
             Share.hardCodedUri
-            (RemoteProjectBranchId (remoteProjectBranch ^. #branchId))
+            (remoteProjectBranch ^. #branchId)
           pure (Right (ProjectAndBranch localProjectId localBranchId))
 
   -- Manipulate the root namespace and cd

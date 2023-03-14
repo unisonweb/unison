@@ -6,7 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Push
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (over, to, (.~), (^.), _1)
+import Control.Lens (over, (.~), (^.), _1)
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set.NonEmpty as Set.NonEmpty
@@ -21,13 +21,7 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.ProjectUtils
-  ( expectBranchName,
-    expectProjectName,
-    getCurrentProjectBranch,
-    loggeth,
-    projectBranchPath,
-  )
+import Unison.Cli.ProjectUtils (getCurrentProjectBranch, loggeth, projectBranchPath)
 import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
 import qualified Unison.Cli.UnisonConfigUtils as UnisonConfigUtils
@@ -85,7 +79,6 @@ import qualified Unison.Share.Sync.Types as Share
 import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.Types as Share
-import Witch (unsafeFrom)
 
 -- | Handle a @gist@ command.
 handleGist :: GistInput -> Cli ()
@@ -357,17 +350,20 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
                         Share.hardCodedUri
                         (ProjectAndBranch remoteProjectName remoteBranchName)
               Share.getProjectBranchById (ProjectAndBranch remoteProjectId remoteBranchId) >>= \case
-                Share.API.GetProjectBranchResponseBranchNotFound _ -> remoteProjectBranchDoesntExist
-                Share.API.GetProjectBranchResponseProjectNotFound _ -> remoteProjectBranchDoesntExist
-                Share.API.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
-                Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
-                  remoteBranch1 <- expectRemoteProjectAndBranch remoteBranch
+                Share.GetProjectBranchResponseBranchNotFound -> remoteProjectBranchDoesntExist
+                Share.GetProjectBranchResponseProjectNotFound -> remoteProjectBranchDoesntExist
+                Share.GetProjectBranchResponseSuccess remoteBranch -> do
                   afterUploadAction <-
                     makeFastForwardAfterUploadAction
                       (PushingProjectBranch localProjectAndBranch)
                       localBranchHead
                       remoteBranch
-                  pure UploadPlan {remoteBranch = remoteBranch1, causalHash = localBranchHead, afterUploadAction}
+                  pure
+                    UploadPlan
+                      { remoteBranch = ProjectAndBranch (remoteBranch ^. #projectName) (remoteBranch ^. #branchName),
+                        causalHash = localBranchHead,
+                        afterUploadAction
+                      }
         -- "push /foo" with remote mapping for project from ancestor branch
         Just remoteBranchName ->
           pushToProjectBranch1
@@ -430,7 +426,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
     Just remoteProject -> do
       let remoteProjectId = remoteProject ^. #projectId
       Share.getProjectBranchByName (remoteProjectAndBranch & #project .~ remoteProjectId) >>= \case
-        Share.API.GetProjectBranchResponseBranchNotFound {} -> do
+        Share.GetProjectBranchResponseBranchNotFound -> do
           pure
             UploadPlan
               { remoteBranch = remoteProjectAndBranch,
@@ -441,10 +437,9 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
                     localBranchHead
                     (over #project (remoteProjectId,) remoteProjectAndBranch)
               }
-        Share.API.GetProjectBranchResponseProjectNotFound {} ->
+        Share.GetProjectBranchResponseProjectNotFound ->
           Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranch)
-        Share.API.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
-        Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
+        Share.GetProjectBranchResponseSuccess remoteBranch -> do
           afterUploadAction <- makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch
           pure
             UploadPlan
@@ -462,7 +457,7 @@ pushToProjectBranch1 ::
   Cli UploadPlan
 pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
   Share.getProjectBranchByName (over #project fst remoteProjectAndBranch) >>= \case
-    Share.API.GetProjectBranchResponseBranchNotFound {} -> do
+    Share.GetProjectBranchResponseBranchNotFound -> do
       pure
         UploadPlan
           { remoteBranch = over #project snd remoteProjectAndBranch,
@@ -473,9 +468,8 @@ pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranc
                 localBranchHead
                 remoteProjectAndBranch
           }
-    Share.API.GetProjectBranchResponseProjectNotFound {} -> remoteProjectBranchDoesntExist
-    Share.API.GetProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
-    Share.API.GetProjectBranchResponseSuccess remoteBranch -> do
+    Share.GetProjectBranchResponseProjectNotFound -> remoteProjectBranchDoesntExist
+    Share.GetProjectBranchResponseSuccess remoteBranch -> do
       afterUploadAction <-
         makeFastForwardAfterUploadAction (PushingProjectBranch localProjectAndBranch) localBranchHead remoteBranch
       pure
@@ -573,13 +567,9 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
             branchMergeTarget
           }
   remoteBranch <-
-    Share.createProjectBranch createProjectBranchRequest >>= \case
-      Share.API.CreateProjectBranchResponseUnauthorized x -> ProjectUtils.unauthorized x
-      Share.API.CreateProjectBranchResponseNotFound _ ->
-        Cli.returnEarly $
-          Output.RemoteProjectBranchDoesntExist Share.hardCodedUri (over #project snd remoteProjectAndBranch)
-      Share.API.CreateProjectBranchResponseMissingCausalHash hash -> bugRemoteMissingCausalHash hash
-      Share.API.CreateProjectBranchResponseSuccess remoteBranch -> pure remoteBranch
+    Share.createProjectBranch createProjectBranchRequest & onNothingM do
+      Cli.returnEarly $
+        Output.RemoteProjectBranchDoesntExist Share.hardCodedUri (over #project snd remoteProjectAndBranch)
   case pushing of
     PushingLooseCode -> pure ()
     PushingProjectBranch (ProjectAndBranch localProject localBranch) ->
@@ -589,9 +579,9 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
         Queries.ensureBranchRemoteMapping
           (localProject ^. #projectId)
           (localBranch ^. #branchId)
-          (RemoteProjectId (remoteBranch ^. #projectId))
+          (remoteBranch ^. #projectId)
           Share.hardCodedUri
-          (RemoteProjectBranchId (remoteBranch ^. #branchId))
+          (remoteBranch ^. #branchId)
 
 -- We intend to fast-forward a remote branch. There's one last check to do, which may cause this action to
 -- short-circuit: check to see if the remote branch is indeed behind the given causal hash. If it is, then return an
@@ -599,14 +589,10 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
 makeFastForwardAfterUploadAction ::
   WhatAreWePushing ->
   Hash32 ->
-  Share.API.ProjectBranch ->
+  Share.RemoteProjectBranch ->
   Cli AfterUploadAction
 makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
-  let remoteProjectAndBranchNames =
-        ProjectAndBranch
-          (unsafeFrom @Text (remoteBranch ^. #projectName))
-          (unsafeFrom @Text (remoteBranch ^. #branchName))
-
+  let remoteProjectAndBranchNames = ProjectAndBranch (remoteBranch ^. #projectName) (remoteBranch ^. #branchName)
   let remoteProjectBranchHeadMismatch :: Cli a
       remoteProjectBranchHeadMismatch =
         Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
@@ -617,19 +603,17 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
   pure do
     let request =
           Share.API.SetProjectBranchHeadRequest
-            { projectId = remoteBranch ^. #projectId,
-              branchId = remoteBranch ^. #branchId,
+            { projectId = unRemoteProjectId (remoteBranch ^. #projectId),
+              branchId = unRemoteProjectBranchId (remoteBranch ^. #branchId),
               branchOldCausalHash = Just remoteBranchHead,
               branchNewCausalHash = localBranchHead
             }
     Share.setProjectBranchHead request >>= \case
-      Share.API.SetProjectBranchHeadResponseUnauthorized x -> ProjectUtils.unauthorized x
-      Share.API.SetProjectBranchHeadResponseNotFound _ -> do
-        Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranchNames)
-      Share.API.SetProjectBranchHeadResponseMissingCausalHash hash -> bugRemoteMissingCausalHash hash
-      Share.API.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected _actual ->
+      Share.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected _actual ->
         remoteProjectBranchHeadMismatch
-      Share.API.SetProjectBranchHeadResponseSuccess -> do
+      Share.SetProjectBranchHeadResponseNotFound -> do
+        Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranchNames)
+      Share.SetProjectBranchHeadResponseSuccess -> do
         case pushing of
           PushingLooseCode -> pure ()
           PushingProjectBranch (ProjectAndBranch localProject localBranch) -> do
@@ -637,16 +621,12 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
               Queries.ensureBranchRemoteMapping
                 (localProject ^. #projectId)
                 (localBranch ^. #branchId)
-                (remoteBranch ^. #projectId . to RemoteProjectId)
+                (remoteBranch ^. #projectId)
                 Share.hardCodedUri
-                (remoteBranch ^. #branchId . to RemoteProjectBranchId)
+                (remoteBranch ^. #branchId)
   where
     remoteBranchHead =
       Share.API.hashJWTHash (remoteBranch ^. #branchHead)
-
-bugRemoteMissingCausalHash :: Hash32 -> a
-bugRemoteMissingCausalHash hash =
-  error (reportBug "E796475" ("Create remote branch: causal hash missing: " ++ show hash))
 
 oinkGetLoggedInUser :: Cli Text
 oinkGetLoggedInUser = do
@@ -707,14 +687,3 @@ wouldNotBeFastForward localBranchHead remoteBranchHead = do
   case maybeHashIds of
     Nothing -> pure True
     Just (localBranchHead1, remoteBranchHead1) -> not <$> Queries.before remoteBranchHead1 localBranchHead1
-
-------------------------------------------------------------------------------------------------------------------------
--- Extracting things out of Share project/branch names
---
--- A Share project is just an opaque text, but we often need to assert that it actually is of the form @user/name
-
-expectRemoteProjectAndBranch :: Share.API.ProjectBranch -> Cli (ProjectAndBranch ProjectName ProjectBranchName)
-expectRemoteProjectAndBranch branch = do
-  projectName <- expectProjectName (branch ^. #projectName)
-  branchName <- expectBranchName (branch ^. #branchName)
-  pure (ProjectAndBranch projectName branchName)
