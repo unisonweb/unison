@@ -312,8 +312,8 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
               for maybeRemoteBranchId \remoteBranchId -> do
                 remoteBranchName <-
                   Queries.expectRemoteProjectBranchName Share.hardCodedUri remoteProjectId remoteBranchId
-                pure (remoteBranchId, unsafeFrom @Text remoteBranchName)
-            pure (Just (remoteProjectId, unsafeFrom @Text remoteProjectName, maybeRemoteBranchInfo))
+                pure (remoteBranchId, remoteBranchName)
+            pure (Just (remoteProjectId, remoteProjectName, maybeRemoteBranchInfo))
 
   Cli.runTransaction loadRemoteProjectInfo >>= \case
     Nothing -> bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch Nothing maybeRemoteBranchName)

@@ -32,14 +32,15 @@ import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
-import Unison.Share.API.Projects
+import qualified Unison.Share.API.Projects as Share.API
 import Unison.Share.Codeserver (defaultCodeserver)
 import Unison.Share.Types (codeserverBaseURL)
+import Witch (unsafeFrom)
 
 -- | Get a project by id.
 --
 -- On success, update the `remote_project` table.
-getProjectById :: RemoteProjectId -> Cli GetProjectResponse
+getProjectById :: RemoteProjectId -> Cli Share.API.GetProjectResponse
 getProjectById (RemoteProjectId projectId) = do
   response <- servantClientToCli (getProject0 (Just projectId) Nothing)
   onGetProjectResponse response
@@ -48,7 +49,7 @@ getProjectById (RemoteProjectId projectId) = do
 -- | Get a project by name.
 --
 -- On success, update the `remote_project` table.
-getProjectByName :: ProjectName -> Cli GetProjectResponse
+getProjectByName :: ProjectName -> Cli Share.API.GetProjectResponse
 getProjectByName projectName = do
   response <- servantClientToCli (getProject0 Nothing (Just (into @Text projectName)))
   onGetProjectResponse response
@@ -57,19 +58,19 @@ getProjectByName projectName = do
 -- | Create a new project.
 --
 -- On success, update the `remote_project` table.
-createProject :: CreateProjectRequest -> Cli CreateProjectResponse
+createProject :: Share.API.CreateProjectRequest -> Cli Share.API.CreateProjectResponse
 createProject request = do
   response <- servantClientToCli (createProject0 request)
   case response of
-    CreateProjectResponseNotFound {} -> pure ()
-    CreateProjectResponseUnauthorized {} -> pure ()
-    CreateProjectResponseSuccess project -> onProject project
+    Share.API.CreateProjectResponseNotFound {} -> pure ()
+    Share.API.CreateProjectResponseUnauthorized {} -> pure ()
+    Share.API.CreateProjectResponseSuccess project -> onProject project
   pure response
 
 -- | Get a project branch by id.
 --
 -- On success, update the `remote_project_branch` table.
-getProjectBranchById :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli GetProjectBranchResponse
+getProjectBranchById :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli Share.API.GetProjectBranchResponse
 getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjectBranchId branchId)) = do
   response <- servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing)
   onGetProjectBranchResponse response
@@ -78,7 +79,7 @@ getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjec
 -- | Get a project branch by name.
 --
 -- On success, update the `remote_project_branch` table.
-getProjectBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli GetProjectBranchResponse
+getProjectBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli Share.API.GetProjectBranchResponse
 getProjectBranchByName (ProjectAndBranch (RemoteProjectId projectId) branchName) = do
   response <- servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)))
   onGetProjectBranchResponse response
@@ -87,53 +88,53 @@ getProjectBranchByName (ProjectAndBranch (RemoteProjectId projectId) branchName)
 -- | Create a new project branch.
 --
 -- On success, update the `remote_project_branch` table.
-createProjectBranch :: CreateProjectBranchRequest -> Cli CreateProjectBranchResponse
+createProjectBranch :: Share.API.CreateProjectBranchRequest -> Cli Share.API.CreateProjectBranchResponse
 createProjectBranch request = do
   response <- servantClientToCli (createProjectBranch0 request)
   case response of
-    CreateProjectBranchResponseMissingCausalHash {} -> pure ()
-    CreateProjectBranchResponseNotFound {} -> pure ()
-    CreateProjectBranchResponseUnauthorized {} -> pure ()
-    CreateProjectBranchResponseSuccess branch -> onProjectBranch branch
+    Share.API.CreateProjectBranchResponseMissingCausalHash {} -> pure ()
+    Share.API.CreateProjectBranchResponseNotFound {} -> pure ()
+    Share.API.CreateProjectBranchResponseUnauthorized {} -> pure ()
+    Share.API.CreateProjectBranchResponseSuccess branch -> onProjectBranch branch
   pure response
 
 -- | Set a project branch head (can be a fast-forward or force-push).
-setProjectBranchHead :: SetProjectBranchHeadRequest -> Cli SetProjectBranchHeadResponse
+setProjectBranchHead :: Share.API.SetProjectBranchHeadRequest -> Cli Share.API.SetProjectBranchHeadResponse
 setProjectBranchHead request =
   servantClientToCli (setProjectBranchHead0 request)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database manipulation callbacks
 
-onGetProjectResponse :: GetProjectResponse -> Cli ()
+onGetProjectResponse :: Share.API.GetProjectResponse -> Cli ()
 onGetProjectResponse = \case
-  GetProjectResponseNotFound {} -> pure ()
-  GetProjectResponseUnauthorized {} -> pure ()
-  GetProjectResponseSuccess project -> onProject project
+  Share.API.GetProjectResponseNotFound {} -> pure ()
+  Share.API.GetProjectResponseUnauthorized {} -> pure ()
+  Share.API.GetProjectResponseSuccess project -> onProject project
 
-onGetProjectBranchResponse :: GetProjectBranchResponse -> Cli ()
+onGetProjectBranchResponse :: Share.API.GetProjectBranchResponse -> Cli ()
 onGetProjectBranchResponse = \case
-  GetProjectBranchResponseBranchNotFound {} -> pure ()
-  GetProjectBranchResponseProjectNotFound {} -> pure ()
-  GetProjectBranchResponseUnauthorized {} -> pure ()
-  GetProjectBranchResponseSuccess branch -> onProjectBranch branch
+  Share.API.GetProjectBranchResponseBranchNotFound {} -> pure ()
+  Share.API.GetProjectBranchResponseProjectNotFound {} -> pure ()
+  Share.API.GetProjectBranchResponseUnauthorized {} -> pure ()
+  Share.API.GetProjectBranchResponseSuccess branch -> onProjectBranch branch
 
-onProject :: Project -> Cli ()
+onProject :: Share.API.Project -> Cli ()
 onProject project =
   Cli.runTransaction do
     Queries.ensureRemoteProject
       (RemoteProjectId (project ^. #projectId))
       hardCodedUri
-      (project ^. #projectName)
+      (unsafeFrom @Text (project ^. #projectName))
 
-onProjectBranch :: ProjectBranch -> Cli ()
+onProjectBranch :: Share.API.ProjectBranch -> Cli ()
 onProjectBranch branch =
   Cli.runTransaction do
     Queries.ensureRemoteProjectBranch
       (RemoteProjectId (branch ^. #projectId))
       hardCodedUri
       (RemoteProjectBranchId (branch ^. #branchId))
-      (branch ^. #branchName)
+      (unsafeFrom @Text (branch ^. #branchName))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Low-level servant client generation and wrapping
@@ -164,15 +165,15 @@ servantClientToCli action = do
     liftIO (putStrLn "FIXME: ^ make this prettier")
     Cli.returnEarlyWithoutOutput
 
-getProject0 :: Maybe Text -> Maybe Text -> ClientM GetProjectResponse
-createProject0 :: CreateProjectRequest -> ClientM CreateProjectResponse
-getProjectBranch0 :: Text -> Maybe Text -> Maybe Text -> ClientM GetProjectBranchResponse
-createProjectBranch0 :: CreateProjectBranchRequest -> ClientM CreateProjectBranchResponse
-setProjectBranchHead0 :: SetProjectBranchHeadRequest -> ClientM SetProjectBranchHeadResponse
+getProject0 :: Maybe Text -> Maybe Text -> ClientM Share.API.GetProjectResponse
+createProject0 :: Share.API.CreateProjectRequest -> ClientM Share.API.CreateProjectResponse
+getProjectBranch0 :: Text -> Maybe Text -> Maybe Text -> ClientM Share.API.GetProjectBranchResponse
+createProjectBranch0 :: Share.API.CreateProjectBranchRequest -> ClientM Share.API.CreateProjectBranchResponse
+setProjectBranchHead0 :: Share.API.SetProjectBranchHeadRequest -> ClientM Share.API.SetProjectBranchHeadResponse
 ( getProject0
     :<|> createProject0
     :<|> getProjectBranch0
     :<|> createProjectBranch0
     :<|> setProjectBranchHead0
   ) =
-    client (Proxy :: Proxy ("ucm" :> "v1" :> "projects" :> ProjectsAPI))
+    client (Proxy :: Proxy ("ucm" :> "v1" :> "projects" :> Share.API.ProjectsAPI))

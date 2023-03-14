@@ -81,7 +81,7 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
                   remoteBranchId <- MaybeT (pure mremoteBranchId)
                   remoteProjectName <- lift $ Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
                   remoteProjectBranchName <- lift $ Queries.expectRemoteProjectBranchName Share.hardCodedUri remoteProjectId remoteBranchId
-                  pure (remoteProjectId, unsafeFrom remoteProjectName, remoteBranchId, unsafeFrom remoteProjectBranchName)
+                  pure (remoteProjectId, remoteProjectName, remoteBranchId, remoteProjectBranchName)
              in Cli.runTransaction loadRemoteNames >>= \case
                   Nothing -> do
                     loggeth ["No default pull target for this branch"]
@@ -262,7 +262,7 @@ resolveRemoteNames = \case
       Just (remoteProjectId, _maybeProjectBranchId) -> do
         projectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
         remoteBranch <- expectRemoteProjectBranchByName remoteProjectId branchName
-        pure (ProjectAndBranch (remoteProjectId, unsafeFrom projectName) remoteBranch)
+        pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
       Nothing -> do
         loggeth ["no remote associated with this project"]
         Cli.returnEarlyWithoutOutput

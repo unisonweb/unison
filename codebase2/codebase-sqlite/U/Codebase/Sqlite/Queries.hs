@@ -2490,7 +2490,7 @@ data Project = Project
 data RemoteProject = RemoteProject
   { projectId :: RemoteProjectId,
     host :: URI,
-    name :: Text
+    name :: ProjectName
   }
   deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
@@ -2507,7 +2507,7 @@ data RemoteProjectBranch = RemoteProjectBranch
   { projectId :: RemoteProjectId,
     branchId :: RemoteProjectBranchId,
     host :: URI,
-    name :: Text
+    name :: ProjectBranchName
   }
   deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
@@ -2797,7 +2797,7 @@ loadRemoteProject rpid host =
     |]
     (rpid, host)
 
-ensureRemoteProject :: RemoteProjectId -> URI -> Text -> Transaction ()
+ensureRemoteProject :: RemoteProjectId -> URI -> ProjectName -> Transaction ()
 ensureRemoteProject rpid host name =
   execute
     [sql|
@@ -2817,7 +2817,7 @@ ensureRemoteProject rpid host name =
         |]
     (rpid, host, name)
 
-expectRemoteProjectName :: RemoteProjectId -> URI -> Transaction Text
+expectRemoteProjectName :: RemoteProjectId -> URI -> Transaction ProjectName
 expectRemoteProjectName projectId host =
   queryOneCol
     [sql|
@@ -2831,7 +2831,7 @@ expectRemoteProjectName projectId host =
     |]
     (projectId, host)
 
-setRemoteProjectName :: RemoteProjectId -> Text -> Transaction ()
+setRemoteProjectName :: RemoteProjectId -> ProjectName -> Transaction ()
 setRemoteProjectName rpid name =
   execute
     [sql|
@@ -2862,7 +2862,7 @@ loadRemoteBranch rpid host rbid =
     |]
     (rpid, rbid, host)
 
-ensureRemoteProjectBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> Text -> Transaction ()
+ensureRemoteProjectBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> ProjectBranchName -> Transaction ()
 ensureRemoteProjectBranch rpid host rbid name =
   execute
     [sql|
@@ -2885,7 +2885,7 @@ ensureRemoteProjectBranch rpid host rbid name =
         |]
     (rpid, host, rbid, name)
 
-expectRemoteProjectBranchName :: URI -> RemoteProjectId -> RemoteProjectBranchId -> Transaction Text
+expectRemoteProjectBranchName :: URI -> RemoteProjectId -> RemoteProjectBranchId -> Transaction ProjectBranchName
 expectRemoteProjectBranchName host projectId branchId =
   queryOneCol
     [sql|
@@ -2900,7 +2900,7 @@ expectRemoteProjectBranchName host projectId branchId =
     |]
     (host, projectId, branchId)
 
-setRemoteProjectBranchName :: RemoteProjectId -> URI -> RemoteProjectBranchId -> Text -> Transaction ()
+setRemoteProjectBranchName :: RemoteProjectId -> URI -> RemoteProjectBranchId -> ProjectBranchName -> Transaction ()
 setRemoteProjectBranchName rpid host rbid name =
   execute
     [sql|
