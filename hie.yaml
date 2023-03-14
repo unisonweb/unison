@@ -21,6 +21,9 @@ cradle:
     - path: "codebase2/util-term/./"
       component: "unison-util-term:lib"
 
+    - path: "lib/unison-core-orphans-sqlite/src"
+      component: "unison-core-orphans-sqlite:lib"
+
     - path: "lib/unison-hash/src"
       component: "unison-hash:lib"
 

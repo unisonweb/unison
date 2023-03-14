@@ -26,6 +26,7 @@ packages:
 - codebase2/util-serialization
 - codebase2/util-term
 - lib/network-uri-orphans-sqlite
+- lib/unison-core-orphans-sqlite
 - lib/unison-hash
 - lib/unison-hash-orphans-aeson
 - lib/unison-hash-orphans-sqlite
