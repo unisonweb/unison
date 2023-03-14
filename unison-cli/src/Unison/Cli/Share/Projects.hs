@@ -48,7 +48,6 @@ import qualified Unison.Share.API.Hash as Share.API
 import qualified Unison.Share.API.Projects as Share.API
 import Unison.Share.Codeserver (defaultCodeserver)
 import Unison.Share.Types (codeserverBaseURL)
-import Witch (unsafeFrom)
 
 -- | A remote project.
 data RemoteProject = RemoteProject
@@ -163,16 +162,16 @@ onGetProjectBranchResponse = \case
 onProject :: Share.API.Project -> Cli RemoteProject
 onProject project = do
   let projectId = RemoteProjectId (project ^. #projectId)
-  let projectName = unsafeFrom @Text (project ^. #projectName)
+  projectName <- validateProjectName (project ^. #projectName)
   Cli.runTransaction (Queries.ensureRemoteProject projectId hardCodedUri projectName)
   pure RemoteProject {projectId, projectName}
 
 onProjectBranch :: Share.API.ProjectBranch -> Cli RemoteProjectBranch
 onProjectBranch branch = do
   let projectId = RemoteProjectId (branch ^. #projectId)
-  let projectName = unsafeFrom @Text (branch ^. #projectName)
   let branchId = RemoteProjectBranchId (branch ^. #branchId)
-  let branchName = unsafeFrom @Text (branch ^. #branchName)
+  projectName <- validateProjectName (branch ^. #projectName)
+  branchName <- validateBranchName (branch ^. #branchName)
   Cli.runTransaction do
     Queries.ensureRemoteProjectBranch
       projectId
@@ -188,17 +187,15 @@ onProjectBranch branch = do
         branchHead = branch ^. #branchHead
       }
 
-_validateProjectName :: Text -> Cli ProjectName
-_validateProjectName projectName =
-  case tryInto @ProjectName projectName of
-    Left _err -> Cli.returnEarlyWithoutOutput
-    Right x -> pure x
+validateProjectName :: Text -> Cli ProjectName
+validateProjectName projectName =
+  tryInto @ProjectName projectName & onLeft \err -> do
+    Cli.returnEarlyWithoutOutput
 
-_validateBranchName :: Text -> Cli ProjectBranchName
-_validateBranchName branchName =
-  case tryInto @ProjectBranchName branchName of
-    Left _err -> Cli.returnEarlyWithoutOutput
-    Right x -> pure x
+validateBranchName :: Text -> Cli ProjectBranchName
+validateBranchName branchName =
+  tryInto @ProjectBranchName branchName & onLeft \err -> do
+    Cli.returnEarlyWithoutOutput
 
 unauthorized :: Share.API.Unauthorized -> Cli void
 unauthorized (Share.API.Unauthorized message) =
