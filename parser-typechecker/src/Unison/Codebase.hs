@@ -252,12 +252,11 @@ getBranchForHash codebase h =
         maybe (getBranchForHashImpl codebase h) (pure . Just) (find rootBranch)
 
 -- | Like 'getBranchForHash', but for when the hash is known to be in the codebase.
-expectBranchForHash :: Monad m => Codebase m v a -> CausalHash -> m (Branch m)
+expectBranchForHash :: (Monad m) => Codebase m v a -> CausalHash -> m (Branch m)
 expectBranchForHash codebase hash =
   getBranchForHash codebase hash >>= \case
     Just branch -> pure branch
     Nothing -> error $ reportBug "E412939" ("expectBranchForHash: " ++ show hash ++ " not found in codebase")
-
 
 -- | Get the metadata attached to the term at a given path and name relative to the given branch.
 termMetadata ::

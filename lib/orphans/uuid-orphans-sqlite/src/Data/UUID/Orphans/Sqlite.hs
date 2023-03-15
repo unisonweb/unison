@@ -4,7 +4,6 @@ module Data.UUID.Orphans.Sqlite () where
 
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
-
 import qualified Database.SQLite.Simple.FromField as Sqlite
 import qualified Database.SQLite.Simple.ToField as Sqlite
 

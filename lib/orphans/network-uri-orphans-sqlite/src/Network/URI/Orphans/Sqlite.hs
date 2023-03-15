@@ -2,11 +2,10 @@
 
 module Network.URI.Orphans.Sqlite () where
 
-import Network.URI (URI)
-import qualified Network.URI as URI
-
 import qualified Database.SQLite.Simple.FromField as Sqlite
 import qualified Database.SQLite.Simple.ToField as Sqlite
+import Network.URI (URI)
+import qualified Network.URI as URI
 
 instance Sqlite.FromField URI where
   fromField field = do

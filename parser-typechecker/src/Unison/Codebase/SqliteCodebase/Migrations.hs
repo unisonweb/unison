@@ -185,7 +185,7 @@ backupCodebaseIfNecessary backupStrategy localOrRemote conn currentSchemaVersion
     (Backup, Local)
       | (currentSchemaVersion >= highestKnownSchemaVersion) -> pure ()
       | otherwise -> do
-        backupPath <- getPOSIXTime <&> (\t -> root </> backupCodebasePath currentSchemaVersion t)
-        Sqlite.vacuumInto conn backupPath
-        putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
-        putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
+          backupPath <- getPOSIXTime <&> (\t -> root </> backupCodebasePath currentSchemaVersion t)
+          Sqlite.vacuumInto conn backupPath
+          putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
+          putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
