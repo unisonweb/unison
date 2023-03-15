@@ -8,70 +8,23 @@
 
   outputs = { self, flake-utils, nixpkgs }:
     let
+      ghc-version = "8107";
       systemAttrs = flake-utils.lib.eachDefaultSystem (system:
         let
           pkgs = nixpkgs.legacyPackages."${system}".extend self.overlay;
-
-          mystack = pkgs.symlinkJoin {
-            name = "stack";
-            paths = [ pkgs.stack ];
-            buildInputs = [ pkgs.makeWrapper ];
-            postBuild = let
-              flags = [ "--no-nix" "--system-ghc" "--no-install-ghc" ];
-              add-flags =
-                "--add-flags '${pkgs.lib.concatStringsSep " " flags}'";
-            in ''
-              wrapProgram "$out/bin/stack" ${add-flags}
-            '';
-          };
           ghc-version = "8107";
           ghc = pkgs.haskell.packages."ghc${ghc-version}";
-          make-ormolu = p:
-            p.callHackageDirect {
-              pkg = "ormolu";
-              ver = "0.4.0.0";
-              sha256 = "0r8jb8lpaxx7wxnvxiynx2dkrfibfl8nxnjl5n4vwy0az166bbnd";
-            } {
-              ghc-lib-parser =
-                pkgs.haskellPackages.ghc-lib-parser_9_2_5_20221107;
-              Cabal = pkgs.haskellPackages.Cabal_3_6_3_0;
-            };
-          myhls = let
-            hp = pkgs.haskellPackages.extend hp-override;
-            hp-override = final: prev: {
-              hls-floskell-plugin =
-                pkgs.haskell.lib.dontCheck prev.hls-floskell-plugin;
-              hls-rename-plugin =
-                pkgs.haskell.lib.dontCheck prev.hls-rename-plugin;
-              haskell-language-server =
-                pkgs.haskell.lib.overrideCabal prev.haskell-language-server
-                (drv: {
-                  configureFlags = drv.configureFlags ++ [
-                    "-f-brittany"
-                    "-f-fourmolu"
-                    "-f-floskell"
-                    "-f-stylishhaskell"
-                    "-f-hlint"
-                  ];
-                });
-              ormolu = make-ormolu final;
-            };
-          in pkgs.haskell-language-server.override {
-            haskellPackages = hp;
-            dynamic = true;
-            supportedGhcVersions = [ ghc-version ];
-          };
-          myormolu = make-ormolu pkgs.haskellPackages;
-          nativePackages = pkgs.lib.optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [ Cocoa ]);
+          nativePackages = pkgs.lib.optionals pkgs.stdenv.isDarwin
+            (with pkgs.darwin.apple_sdk.frameworks; [ Cocoa ]);
 
           unison-env = pkgs.mkShell {
-            packages = with pkgs; [
-              mystack
-              (haskell.compiler."ghc${ghc-version}".override {
-                useLLVM = pkgs.stdenv.isAarch64;
-              })
-              myormolu
-              myhls
+            packages = let exports = self.packages."${system}";
+            in with pkgs;
+            [
+              exports.stack
+              exports.hls
+              exports.ormolu
+              exports.ghc
               pkg-config
               zlib
             ] ++ nativePackages;
@@ -94,12 +47,103 @@
 
           pkgs = pkgs;
 
-          devShell = unison-env;
+          devShells.default = unison-env;
 
-          packages = { };
+          packages = {
+            hls = pkgs.unison-hls;
+            hls-call-hierarchy-plugin = ghc.hls-call-hierarchy-plugin;
+            ormolu = pkgs.ormolu;
+            ghc = pkgs.haskell.compiler."ghc${ghc-version}".override {
+              useLLVM = pkgs.stdenv.isAarch64;
+            };
+            stack = pkgs.unison-stack;
+            devShell = self.devShells."${system}".default;
 
-          defaultPackage = self.packages."${system}".unison-env;
+          };
+
+          defaultPackage = self.packages."${system}".devShell;
         });
-      topLevelAttrs = { overlay = final: prev: { }; };
+      topLevelAttrs = {
+        overlay = final: prev: {
+          ormolu = prev.haskell.lib.justStaticExecutables
+            final.haskell.packages."ghc${ghc-version}".ormolu;
+          haskell = with prev.haskell.lib;
+            prev.haskell // {
+              packages = prev.haskell.packages // {
+                "ghc${ghc-version}" = prev.haskell.packages.ghc8107.extend
+                  (hfinal: hprev: {
+                    mkDerivation = drv:
+                      hprev.mkDerivation (drv // {
+                        doCheck = false;
+                        doHaddock = false;
+                        doBenchmark = false;
+                        enableLibraryProfiling = false;
+                        enableExecutableProfiling = false;
+                      });
+                    aeson = hfinal.aeson_2_1_1_0;
+                    lens-aeson = hfinal.lens-aeson_1_2_2;
+                    Cabal = hfinal.Cabal_3_6_3_0;
+                    ormolu = hfinal.ormolu_0_5_0_1;
+                    ghc-lib-parser = hfinal.ghc-lib-parser_9_2_5_20221107;
+                    # avoid deprecated version https://github.com/Avi-D-coder/implicit-hie/issues/50
+                    implicit-hie = hfinal.callHackageDirect {
+                      pkg = "implicit-hie";
+                      ver = "0.1.4.0";
+                      sha256 =
+                        "15qy9vwm8vbnyv47vh6kd50m09vc4vhqbbrhf8gdifrvlxhad69l";
+                    } { };
+                    haskell-language-server = let
+                      p = prev.haskell.lib.overrideCabal
+                        hprev.haskell-language-server (drv: {
+                          # undo terrible nixpkgs hacks
+                          buildDepends =
+                            prev.lib.filter (x: x != hprev.hls-brittany-plugin)
+                            drv.buildDepends;
+                          configureFlags = drv.configureFlags ++ [
+                            "-f-brittany"
+                            "-f-fourmolu"
+                            "-f-floskell"
+                            "-f-stylishhaskell"
+                            "-f-hlint"
+                          ];
+                        });
+                    in p.overrideScope (lfinal: lprev: {
+                      # undo all of the horrible overrideScope in
+                      # nixpkgs configuration files
+                      ormolu = hfinal.ormolu;
+                      ghc-lib-parser = hfinal.ghc-lib-parser;
+                      ghc-lib-parser-ex = hfinal.ghc-lib-parser-ex;
+                      ghc-paths = hfinal.ghc-paths;
+                      aeson = hfinal.aeson;
+                      lsp-types = hfinal.lsp-types;
+                      # null out some dependencies that we drop with cabal flags
+                      hls-fourmolu-plugin = null;
+                      hls-floskell-plugin = null;
+                      hls-brittany-plugin = hfinal.hls-brittany-plugin;
+                      hls-stylish-haskell-plugin = null;
+                      hls-hlint-plugin = null;
+                    });
+                  });
+              };
+            };
+          unison-hls = final.haskell-language-server.override {
+            haskellPackages = final.haskell.packages."ghc${ghc-version}";
+            dynamic = true;
+            supportedGhcVersions = [ ghc-version ];
+          };
+          unison-stack = prev.symlinkJoin {
+            name = "stack";
+            paths = [ final.stack ];
+            buildInputs = [ final.makeWrapper ];
+            postBuild = let
+              flags = [ "--no-nix" "--system-ghc" "--no-install-ghc" ];
+              add-flags =
+                "--add-flags '${prev.lib.concatStringsSep " " flags}'";
+            in ''
+              wrapProgram "$out/bin/stack" ${add-flags}
+            '';
+          };
+        };
+      };
     in systemAttrs // topLevelAttrs;
 }
