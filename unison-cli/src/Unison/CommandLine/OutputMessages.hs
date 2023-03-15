@@ -700,8 +700,8 @@ notifyUser dir = \case
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -1090,11 +1090,11 @@ notifyUser dir = \case
 
         let prettyBindings =
               P.bracket . P.lines $
-                P.wrap "The watch expression(s) reference these definitions:" :
-                "" :
-                  [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
-                    | (v, b) <- bindings
-                  ]
+                P.wrap "The watch expression(s) reference these definitions:"
+                  : ""
+                  : [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
+                      | (v, b) <- bindings
+                    ]
             prettyWatches =
               P.sep
                 "\n\n"
@@ -1342,13 +1342,13 @@ notifyUser dir = \case
       case (new, old) of
         ([], []) -> error "BustedBuiltins busted, as there were no busted builtins."
         ([], old) ->
-          P.wrap ("This codebase includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your codebase:") :
-          "" :
-          fmap (P.text . Reference.toText) old
+          P.wrap ("This codebase includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your codebase:")
+            : ""
+            : fmap (P.text . Reference.toText) old
         (new, []) ->
-          P.wrap ("This version of Unison provides builtins that are not part of your codebase. Use " <> makeExample' IP.updateBuiltins <> " to add them:") :
-          "" :
-          fmap (P.text . Reference.toText) new
+          P.wrap ("This version of Unison provides builtins that are not part of your codebase. Use " <> makeExample' IP.updateBuiltins <> " to add them:")
+            : ""
+            : fmap (P.text . Reference.toText) new
         (new@(_ : _), old@(_ : _)) ->
           [ P.wrap
               ( "Sorry and/or good news!  This version of Unison supports a different set of builtins than this codebase uses.  You can use "
@@ -1671,11 +1671,11 @@ notifyUser dir = \case
       num n = P.hiBlack $ P.shown n <> "."
       header = (P.hiBlack "Reference", P.hiBlack "Name")
       pairs =
-        header :
-        ( fmap (first c . second c) $
-            [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
-              ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
-        )
+        header
+          : ( fmap (first c . second c) $
+                [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
+                  ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
+            )
       p = prettyShortHash . SH.take hqLength
       c = P.syntaxToColor
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
@@ -2380,10 +2380,10 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' name dt r aliases) =
   P.lines stuff <> P.newline
   where
     stuff =
-      (P.hiBlack "-- " <> greyHash (HQ.fromReference r)) :
-      fmap
-        (\name -> prettyDeclTriple (name, r, dt))
-        (name : map HQ'.toHQ (toList aliases))
+      (P.hiBlack "-- " <> greyHash (HQ.fromReference r))
+        : fmap
+          (\name -> prettyDeclTriple (name, r, dt))
+          (name : map HQ'.toHQ (toList aliases))
       where
         greyHash = styleHashQualified' id P.hiBlack
 
@@ -2496,7 +2496,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2511,7 +2511,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)
@@ -2668,7 +2668,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
@@ -3115,24 +3115,23 @@ listOfDefinitions' fscope ppe detailed results =
     else
       P.lines
         . P.nonEmpty
-        $ prettyNumberedResults :
-        [ formatMissingStuff termsWithMissingTypes missingTypes,
-          Monoid.unlessM (null missingBuiltins)
-            . bigproblem
-            $ P.wrap
-              "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:"
-              `P.hang` P.column2
-                ( (P.bold "Name", P.bold "Built-in")
-                  -- : ("-", "-")
-                  :
-                  fmap
-                    ( bimap
-                        (P.syntaxToColor . prettyHashQualified)
-                        (P.text . Referent.toText)
+        $ prettyNumberedResults
+          : [ formatMissingStuff termsWithMissingTypes missingTypes,
+              Monoid.unlessM (null missingBuiltins)
+                . bigproblem
+                $ P.wrap
+                  "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:"
+                  `P.hang` P.column2
+                    ( (P.bold "Name", P.bold "Built-in")
+                        -- : ("-", "-")
+                        : fmap
+                          ( bimap
+                              (P.syntaxToColor . prettyHashQualified)
+                              (P.text . Referent.toText)
+                          )
+                          missingBuiltins
                     )
-                    missingBuiltins
-                )
-        ]
+            ]
   where
     prettyNumberedResults = P.numberedList prettyResults
     -- todo: group this by namespace
@@ -3299,8 +3298,8 @@ prettyDiff diff =
                   "",
                   P.indentN 2 $
                     P.column2 $
-                      (P.hiBlack "Original name", P.hiBlack "New name") :
-                        [(prettyName n, prettyName n2) | (n, n2) <- moved]
+                      (P.hiBlack "Original name", P.hiBlack "New name")
+                        : [(prettyName n, prettyName n2) | (n, n2) <- moved]
                 ]
             else mempty,
           if not $ null copied
@@ -3310,10 +3309,10 @@ prettyDiff diff =
                   "",
                   P.indentN 2 $
                     P.column2 $
-                      (P.hiBlack "Original name", P.hiBlack "New name(s)") :
-                        [ (prettyName n, P.sep " " (prettyName <$> ns))
-                          | (n, ns) <- copied
-                        ]
+                      (P.hiBlack "Original name", P.hiBlack "New name(s)")
+                        : [ (prettyName n, P.sep " " (prettyName <$> ns))
+                            | (n, ns) <- copied
+                          ]
                 ]
             else mempty
         ]

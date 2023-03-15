@@ -439,7 +439,7 @@ objectWithMaybes nonMaybeFields maybeFields =
   Object (appEndo (fold maybeFields) (HashMap.fromList nonMaybeFields))
 
 -- | Like ('.='), but omits the key/value pair if the value is Nothing.
-(.=?) :: ToJSON a => Text -> Maybe a -> Endo Object
+(.=?) :: (ToJSON a) => Text -> Maybe a -> Endo Object
 k .=? mv =
   case mv of
     Nothing -> mempty
