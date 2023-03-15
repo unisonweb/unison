@@ -88,14 +88,12 @@ serverThread portVar toSend = 'let
             raise (failure "No private keys" selfSignedKey)
     tlsconfig = Tls.ServerConfig.default [cert] key
     sock = Socket.listen (server (Some (HostName ("127" ++ ".0.0.1"))) (Port "0"))
-    port = match sock with ListeningServerSocket sock -> Socket.port sock
+    port = match sock with
+        ListeningServerSocket sock -> Socket.port sock
     _ = Promise.write portVar port
-    Debug.trace "wrote" port
     sock' = Socket.accept sock
-    Debug.trace "accepted" sock'
     -- attach TLS to our TCP connection
     tls = Tls.newServer tlsconfig sock'
-    Debug.trace "ready to handshale" tls
     tlsock = net.Tls.handshake tls
     TlsSocket.send tlsock (toUtf8 toSend)
     TlsSocket.close tlsock
@@ -112,35 +110,29 @@ testClient cert hostname portVar _ =
     None        -> defaultClient
     Some (cert) -> defaultClient |> ClientConfig.certificates.set [cert]
   -- create a tcp connection with the server
-  match Promise.read portVar with
-    0 -> raise (failure "Server must have failed" 0)
-    serverPort ->
-        sock = clientSocket (HostName.HostName ("127" ++ ".0.0.1")) (Port.Port (Nat.toText serverPort))
-        Debug.trace "made a client socket to the server port" serverPort
-        -- attach the TLS client to the TCP socket
-        tls = Tls.newClient tlsconfig sock
-        --   -- verify that the server presents us with a certificate chain for
-        --   -- test.unison.cloud originating with a certificate we trust, and
-        --   -- that the server can use a compatible TLS version and cipher
-        -- tlsock = Tls.handshake tls
-        --   -- receive a message from the server
-        -- fromUtf8 (TlsSocket.receive tlsock)
-        "hello"
-        --   "Hello"
+  sock = clientSocket (HostName.HostName ("127" ++ ".0.0.1")) (Port.Port (Nat.toText (Promise.read portVar)))
+  -- attach the TLS client to the TCP socket
+  tls = Tls.newClient tlsconfig sock
+  --   -- verify that the server presents us with a certificate chain for
+  --   -- test.unison.cloud originating with a certificate we trust, and
+  --   -- that the server can use a compatible TLS version and cipher
+  tlsock = Tls.handshake tls
+  --   -- receive a message from the server
+  fromUtf8 (TlsSocket.receive tlsock)
+--   "hello"
+--   "Hello"
 
 testConnectSelfSigned = do
     -- Server
     portVar = Promise.new ()
     toSend = "12345"
-    tid = fork do catchAll do
-        cert = match decodeCert (toUtf8 selfSignedCert) with
-            Right c -> c
-            Left _ -> raise (failure "Bad cert" selfSignedCert)
-        !(testClient (Some cert) "test.unison.cloud" portVar)
-    _ = serverThread portVar toSend
-    -- tid = fork ()
+    tid = fork (serverThread portVar toSend)
     -- Client
-    checkEqual "should have received what we've sent" toSend "Badnews"
+    cert = match decodeCert (toUtf8 selfSignedCert) with
+        Right c -> c
+        Left _ -> raise (failure "Bad cert" selfSignedCert)
+    received = !(testClient (Some cert) "test.unison.cloud" portVar)
+    checkEqual "should have received what we've sent" toSend received
 
 testConnectSelfSignedWrongHost = do
     -- Server
