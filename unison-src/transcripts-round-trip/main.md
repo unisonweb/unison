@@ -547,3 +547,46 @@ test3 = foreach [1, 2, 3] do x -> do
 .> load scratch.u
 ```
 
+# Destructuring bind in delay or lambda
+
+Regression test for https://github.com/unisonweb/unison/issues/3710
+
+```unison:hide
+d1 = do
+  (a,b) = (1,2)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+d2 = let
+  (a,b) = (1,2)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+d3 x = let
+  (a,b) = (1,x)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+d4 x = do
+  (a,b) = (1,x)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+d5 x = match x with
+  Some x -> x
+  None -> bug "oops"
+```
+
+```ucm
+.> add
+.> edit d1 d2 d3 d4 d5
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```

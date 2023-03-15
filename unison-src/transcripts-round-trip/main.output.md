@@ -1002,12 +1002,13 @@ foo = let
     foo : 'Nat
     foo =
       go x =
-        '(match (a -> a) x with
+        do
+          match (a -> a) x with
             SomethingUnusuallyLong
               lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij
               | lijaefliejalfijelfj == aefilaeifhlei    -> 0
               | lijaefliejalfijelfj == liaehjffeafijij  -> 1
-            _ -> 2)
+            _ -> 2
       go (SomethingUnusuallyLong "one" "two" "three")
   
   You can edit them there, then do `update` to replace the
@@ -1637,5 +1638,122 @@ test3 = foreach [1, 2, 3] do x -> do
       test1   : ()
       test2   : ()
       test3   : ()
+
+```
+# Destructuring bind in delay or lambda
+
+Regression test for https://github.com/unisonweb/unison/issues/3710
+
+```unison
+d1 = do
+  (a,b) = (1,2)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+d2 = let
+  (a,b) = (1,2)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+d3 x = let
+  (a,b) = (1,x)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+d4 x = do
+  (a,b) = (1,x)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+d5 x = match x with
+  Some x -> x
+  None -> bug "oops"
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
+    d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
+    d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
+    d4 : x -> () -> (Nat, x, Nat, Nat, Nat, Nat)
+    d5 : Optional a -> a
+
+.> edit d1 d2 d3 d4 d5
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
+    d1 = do
+      (a, b) = (1, 2)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
+    d2 =
+      (a, b) = (1, 2)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
+    d3 x =
+      (a, b) = (1, x)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    d4 : x -> () -> (Nat, x, Nat, Nat, Nat, Nat)
+    d4 x = do
+      (a, b) = (1, x)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    d5 : Optional a -> a
+    d5 = cases
+      Some x -> x
+      None   -> bug "oops"
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
+    2. d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
+    3. d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
+    4. d4 : x -> () -> (Nat, x, Nat, Nat, Nat, Nat)
+    5. d5 : Optional a -> a
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
+      d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
+      d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
+      d4 : x -> '(Nat, x, Nat, Nat, Nat, Nat)
+      d5 : Optional a -> a
 
 ```

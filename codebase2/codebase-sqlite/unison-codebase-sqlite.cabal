@@ -13,6 +13,7 @@ extra-source-files:
     sql/001-temp-entity-tables.sql
     sql/002-reflog-table.sql
     sql/003-namespace-statistics.sql
+    sql/004-fix-scoped-name-lookup-tables.sql
     sql/004-project-tables.sql
     sql/create.sql
 

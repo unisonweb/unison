@@ -324,3 +324,22 @@ withV : Unit
 withV = match evil () with
   x -> ()
 ```
+
+```unison
+unique type SomeType = A
+```
+
+```ucm
+.> add
+```
+
+```unison
+unique type R = R SomeType
+
+get x = match x with
+  R y -> y
+```
+
+```unison
+unique type R = { someType : SomeType }
+```
