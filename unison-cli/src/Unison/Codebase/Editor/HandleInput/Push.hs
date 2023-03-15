@@ -12,6 +12,7 @@ import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set.NonEmpty as Set.NonEmpty
 import Data.Text as Text
 import Data.These (These (..))
+import Data.Void (absurd)
 import qualified System.Console.Regions as Console.Regions
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId
@@ -36,7 +37,6 @@ import Unison.Codebase.Editor.Input
     PushRemoteBranchInput (..),
     PushSource (..),
     PushSourceTarget (..),
-    PushTarget (..),
   )
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
@@ -45,9 +45,9 @@ import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadRemoteNamespace (..),
     ShareUserHandle (..),
-    WriteGitRemotePath (..),
-    WriteRemotePath (..),
-    WriteShareRemotePath (..),
+    WriteGitRemoteNamespace (..),
+    WriteRemoteNamespace (..),
+    WriteShareRemoteNamespace (..),
     writeToReadGit,
   )
 import Unison.Codebase.Path (Path)
@@ -113,15 +113,21 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
       getCurrentProjectBranch >>= \case
         Nothing -> do
           localPath <- Cli.getCurrentPath
-          remotePath <- UnisonConfigUtils.resolveConfiguredUrl Push Path.currentPath
-          pushLooseCodeToLooseCode localPath remotePath pushBehavior syncMode
+          UnisonConfigUtils.resolveConfiguredUrl Push Path.currentPath >>= \case
+            WriteRemoteNamespaceGit namespace -> pushLooseCodeToGitLooseCode localPath namespace pushBehavior syncMode
+            WriteRemoteNamespaceShare namespace -> pushLooseCodeToShareLooseCode localPath namespace pushBehavior
+            WriteRemoteProjectBranch v -> absurd v
         Just localProjectAndBranch -> pushProjectBranchToProjectBranch localProjectAndBranch Nothing
-    -- push <implicit> to .some.path
-    PushSourceTarget1 (PathyTarget remotePath) -> do
+    -- push <implicit> to .some.path (git)
+    PushSourceTarget1 (WriteRemoteNamespaceGit namespace) -> do
       localPath <- Cli.getCurrentPath
-      pushLooseCodeToLooseCode localPath remotePath pushBehavior syncMode
+      pushLooseCodeToGitLooseCode localPath namespace pushBehavior syncMode
+    -- push <implicit> to .some.path (share)
+    PushSourceTarget1 (WriteRemoteNamespaceShare namespace) -> do
+      localPath <- Cli.getCurrentPath
+      pushLooseCodeToShareLooseCode localPath namespace pushBehavior
     -- push <implicit> to @some/project
-    PushSourceTarget1 (ProjyTarget remoteProjectAndBranch0) ->
+    PushSourceTarget1 (WriteRemoteProjectBranch remoteProjectAndBranch0) ->
       getCurrentProjectBranch >>= \case
         Nothing -> do
           localPath <- Cli.getCurrentPath
@@ -129,33 +135,34 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
           pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
         Just localProjectAndBranch ->
           pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch0)
-    -- push .some.path to .some.path
-    PushSourceTarget2 (PathySource localPath0) (PathyTarget remotePath) -> do
+    -- push .some.path to .some.path (git)
+    PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceGit namespace) -> do
       localPath <- Cli.resolvePath' localPath0
-      pushLooseCodeToLooseCode localPath remotePath pushBehavior syncMode
+      pushLooseCodeToGitLooseCode localPath namespace pushBehavior syncMode
+    -- push .some.path to .some.path (share)
+    PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceShare namespace) -> do
+      localPath <- Cli.resolvePath' localPath0
+      pushLooseCodeToShareLooseCode localPath namespace pushBehavior
     -- push .some.path to @some/project
-    PushSourceTarget2 (PathySource localPath0) (ProjyTarget remoteProjectAndBranch0) -> do
+    PushSourceTarget2 (PathySource localPath0) (WriteRemoteProjectBranch remoteProjectAndBranch0) -> do
       localPath <- Cli.resolvePath' localPath0
       remoteProjectAndBranch <- ProjectUtils.resolveNames remoteProjectAndBranch0
       pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
-    -- push @some/project to .some.path
-    PushSourceTarget2 (ProjySource localProjectAndBranch0) (PathyTarget remotePath) -> do
+    -- push @some/project to .some.path (git)
+    PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteNamespaceGit namespace) -> do
       localProjectAndBranch <- ProjectUtils.resolveNamesToIds localProjectAndBranch0
-      pushLooseCodeToLooseCode (projectBranchPath localProjectAndBranch) remotePath pushBehavior syncMode
+      pushLooseCodeToGitLooseCode (projectBranchPath localProjectAndBranch) namespace pushBehavior syncMode
+    -- push @some/project to .some.path (share)
+    PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteNamespaceShare namespace) -> do
+      localProjectAndBranch <- ProjectUtils.resolveNamesToIds localProjectAndBranch0
+      pushLooseCodeToShareLooseCode (projectBranchPath localProjectAndBranch) namespace pushBehavior
     -- push @some/project to @some/project
-    PushSourceTarget2 (ProjySource localProjectAndBranch0) (ProjyTarget remoteProjectAndBranch) -> do
+    PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteProjectBranch remoteProjectAndBranch) -> do
       localProjectAndBranch <- ProjectUtils.resolveNamesToIds localProjectAndBranch0
       pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch)
 
--- Push a local namespace ("loose code") to a remote namespace ("loose code").
-pushLooseCodeToLooseCode :: Path.Absolute -> WriteRemotePath -> PushBehavior -> SyncMode -> Cli ()
-pushLooseCodeToLooseCode localPath remotePath pushBehavior syncMode = do
-  case remotePath of
-    WriteRemotePathGit gitRemotePath -> pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode
-    WriteRemotePathShare shareRemotePath -> pushLooseCodeToShareLooseCode localPath shareRemotePath pushBehavior
-
 -- Push a local namespace ("loose code") to a Git-hosted remote namespace ("loose code").
-pushLooseCodeToGitLooseCode :: Path.Absolute -> WriteGitRemotePath -> PushBehavior -> SyncMode -> Cli ()
+pushLooseCodeToGitLooseCode :: Path.Absolute -> WriteGitRemoteNamespace -> PushBehavior -> SyncMode -> Cli ()
 pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode = do
   sourceBranch <- Cli.getBranchAt localPath
   let withRemoteRoot :: Branch IO -> Either Output (Branch IO)
@@ -165,7 +172,7 @@ pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode = do
             -- already.
             f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
         case Branch.modifyAtM (gitRemotePath ^. #path) f remoteRoot of
-          Nothing -> Left (RefusedToPush pushBehavior (WriteRemotePathGit gitRemotePath))
+          Nothing -> Left (RefusedToPush pushBehavior (WriteRemoteNamespaceGit gitRemotePath))
           Just newRemoteRoot -> Right newRemoteRoot
   let opts =
         PushGitBranchOpts
@@ -202,8 +209,8 @@ pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode = do
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
 -- Push a local namespace ("loose code") to a Share-hosted remote namespace ("loose code").
-pushLooseCodeToShareLooseCode :: Path.Absolute -> WriteShareRemotePath -> PushBehavior -> Cli ()
-pushLooseCodeToShareLooseCode localPath remote@WriteShareRemotePath {server, repo, path = remotePath} behavior = do
+pushLooseCodeToShareLooseCode :: Path.Absolute -> WriteShareRemoteNamespace -> PushBehavior -> Cli ()
+pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server, repo, path = remotePath} behavior = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)

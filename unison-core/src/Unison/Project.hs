@@ -12,6 +12,7 @@ module Unison.Project
     projectBranchNameUserSlug,
     prependUserSlugToProjectBranchName,
     ProjectAndBranch (..),
+    projectAndBranchNamesParser,
   )
 where
 
@@ -22,7 +23,7 @@ import qualified Text.Builder
 import qualified Text.Builder as Text (Builder)
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Megaparsec.Char as Megaparsec
-import Unison.Core.Project (ProjectName(..), ProjectBranchName(..), ProjectAndBranch(..))
+import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.Prelude
 import Witch
 

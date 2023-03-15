@@ -2669,9 +2669,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     (Eval
                                       (Term.Term
                                         (Any
-                                          ('(match 1 with
+                                          (do
+                                            match 1 with
                                               1 -> "hi"
-                                              _ -> "goodbye")))))))),
+                                              _ -> "goodbye"))))))),
                             Lit () (Right (Plain "\n")),
                             Lit () (Right (Plain "\n")),
                             Indent

@@ -11,14 +11,14 @@ import Control.Lens
 import qualified Data.Foldable.Extra as Foldable
 import Data.Sequence (Seq (..))
 import qualified Data.Sequence as Seq
-import Data.Text as Text
+import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output.PushPull (PushPull)
-import Unison.Codebase.Editor.RemoteRepo (WriteRemotePath (..))
+import Unison.Codebase.Editor.RemoteRepo (WriteRemoteNamespace (..))
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Path (Path' (..))
@@ -46,7 +46,7 @@ remoteMappingKey = configKey "RemoteMapping"
 -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
 -- otherwise, tries to load a value from .unisonConfig, and complains
 -- if needed.
-resolveConfiguredUrl :: PushPull -> Path' -> Cli WriteRemotePath
+resolveConfiguredUrl :: PushPull -> Path' -> Cli (WriteRemoteNamespace Void)
 resolveConfiguredUrl pushPull destPath' = do
   destPath <- Cli.resolvePath' destPath'
   whenNothingM (remoteMappingForPath pushPull destPath) do
@@ -54,7 +54,7 @@ resolveConfiguredUrl pushPull destPath' = do
     -- Fall back to deprecated GitUrl key
     Cli.getConfig gitUrlConfigKey >>= \case
       Just url ->
-        (WriteRemotePathGit <$> P.parse UriParser.deprecatedWriteGitRemotePath (Text.unpack gitUrlConfigKey) url) & onLeft \err ->
+        (WriteRemoteNamespaceGit <$> P.parse UriParser.deprecatedWriteGitRemoteNamespace (Text.unpack gitUrlConfigKey) url) & onLeft \err ->
           Cli.returnEarly (ConfiguredRemoteMappingParseError pushPull destPath url (show err))
       Nothing -> Cli.returnEarly (NoConfiguredRemoteMapping pushPull destPath)
 
@@ -74,13 +74,13 @@ resolveConfiguredUrl pushPull destPath' = do
 -- .myshare.foo.bar -> .me.public.foo.bar
 -- .myshare.foo.bar.baz -> .me.public.foo.bar.baz
 -- .myshare -> <Nothing>
-remoteMappingForPath :: PushPull -> Path.Absolute -> Cli (Maybe WriteRemotePath)
+remoteMappingForPath :: PushPull -> Path.Absolute -> Cli (Maybe (WriteRemoteNamespace Void))
 remoteMappingForPath pushPull dest = do
   pathPrefixes dest & Foldable.firstJustM \(prefix, suffix) -> do
     let remoteMappingConfigKey = remoteMappingKey prefix
     Cli.getConfig remoteMappingConfigKey >>= \case
       Just url -> do
-        let parseResult = P.parse UriParser.writeRemotePath (Text.unpack remoteMappingConfigKey) url
+        let parseResult = P.parse (UriParser.writeRemoteNamespaceWith empty) (Text.unpack remoteMappingConfigKey) url
          in case parseResult of
               Left err -> Cli.returnEarly (ConfiguredRemoteMappingParseError pushPull dest url (show err))
               Right wrp -> do

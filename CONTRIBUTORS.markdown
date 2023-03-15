@@ -74,3 +74,4 @@ The format for this list: name, GitHub handle
 * Vlad Posmangiu Luchian (@cstml)
 * Andrii Uvarov (@unorsk)
 * Mario Bašić (@mabasic)
+* Chris Krycho (@chriskrycho)

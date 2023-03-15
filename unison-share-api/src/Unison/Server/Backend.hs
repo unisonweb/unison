@@ -218,8 +218,10 @@ prettyNamesForBranch root = namesForBranch root <&> \(_, n, _) -> n
 
 shallowPPE :: (MonadIO m) => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
 shallowPPE codebase b = do
-  hashLength <- Codebase.runTransaction codebase Codebase.hashLength
-  names <- shallowNames codebase b
+  (hashLength, names) <- Codebase.runTransaction codebase do
+    hl <- Codebase.hashLength
+    names <- shallowNames codebase b
+    pure (hl, names)
   pure $ PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory names mempty
 
 -- | A 'Names' which only includes mappings for things _directly_ accessible from the branch.
@@ -227,7 +229,7 @@ shallowPPE codebase b = do
 -- I.e. names in nested children are omitted.
 -- This should probably live elsewhere, but the package dependency graph makes it hard to find
 -- a good place.
-shallowNames :: forall m v a. (Monad m) => Codebase m v a -> V2Branch.Branch m -> m Names
+shallowNames :: forall m v a. (Monad m) => Codebase m v a -> V2Branch.Branch m -> Sqlite.Transaction Names
 shallowNames codebase b = do
   newTerms <-
     V2Branch.terms b
@@ -415,8 +417,10 @@ termListEntry ::
   ExactName NameSegment V2Referent.Referent ->
   m (TermEntry Symbol Ann)
 termListEntry codebase branch (ExactName nameSegment ref) = do
-  v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
-  ot <- Codebase.runTransaction codebase (loadReferentType codebase v1Referent)
+  ot <- Codebase.runTransaction codebase $ do
+    v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
+    ot <- loadReferentType codebase v1Referent
+    pure (ot)
   tag <- getTermTag codebase ref ot
   pure $
     TermEntry
@@ -436,7 +440,7 @@ termListEntry codebase branch (ExactName nameSegment ref) = do
         & (> 1)
 
 getTermTag ::
-  (Monad m, Var v) =>
+  (Var v, MonadIO m) =>
   Codebase m v a ->
   V2Referent.Referent ->
   Maybe (Type v Ann) ->
@@ -455,7 +459,7 @@ getTermTag codebase r sig = do
         Nothing -> False
   constructorType <- case r of
     V2Referent.Ref {} -> pure Nothing
-    V2Referent.Con ref _ -> Just <$> Codebase.getDeclType codebase ref
+    V2Referent.Con ref _ -> Just <$> Codebase.runTransaction codebase (Codebase.getDeclType codebase ref)
   pure $
     if
         | isDoc -> Doc
