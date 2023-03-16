@@ -67,8 +67,8 @@ Configuration for [coc-nvim](https://github.com/neoclide/coc.nvim), enter the fo
   }
 ```
 
-For [lspconfig](https://github.com/neovim/nvim-lspconfig) with optional autocomplete [nvim-cmp](https://github.com/hrsh7th/nvim-cmp),
-you can use the following setup function(s):
+For [lspconfig](https://github.com/neovim/nvim-lspconfig) with optional autocomplete [nvim-cmp](https://github.com/hrsh7th/nvim-cmp) for LSP
+[cmp-nvim-lsp](https://github.com/hrsh7th/cmp-nvim-lsp), you can use the following setup function(s):
 
 ```lua
 -- This function is for configuring a buffer when an LSP is attached
