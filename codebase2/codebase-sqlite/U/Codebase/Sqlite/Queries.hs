@@ -339,7 +339,7 @@ import qualified Unison.Util.Lens as Lens
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 9
+currentSchemaVersion = 10
 
 createSchema :: Transaction ()
 createSchema = do
