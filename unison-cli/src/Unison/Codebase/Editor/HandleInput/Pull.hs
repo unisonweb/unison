@@ -48,11 +48,13 @@ import qualified Unison.Codebase.Verbosity as Verbosity
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import qualified Unison.Share.API.Hash as Share
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Sync as Share
 import qualified Unison.Share.Sync.Types as Share
 import Unison.Share.Types (codeserverBaseURL)
 import Unison.Sqlite (Transaction)
+import qualified Unison.Sync.Common as Common
 import qualified Unison.Sync.Types as Share
 import Witch (unsafeFrom)
 
@@ -99,12 +101,14 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
     ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
     ReadRemoteProjectBranch (ProjectAndBranch (_, remoteProjectName) branch) ->
       let repoInfo = Share.RepoInfo (into @Text (These remoteProjectName remoteProjectBranchName))
-          causalHash = wundefined
-          causalHashJwt = wundefined
+          causalHash = Common.hash32ToCausalHash . Share.hashJWTHash $ causalHashJwt
+          causalHashJwt = branch ^. #branchHead
           remoteProjectBranchName = branch ^. #branchName
        in Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
             Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback >>= \case
-              Left err -> wundefined err
+              Left err -> do
+                loggeth ["Downloading failure: ", tShow err]
+                Cli.returnEarlyWithoutOutput
               Right () -> liftIO (Codebase.expectBranchForHash codebase causalHash)
   let nsNamesOnly :: ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName)
       nsNamesOnly =
