@@ -64,7 +64,7 @@ repoPath :: P (ReadRemoteNamespace (These ProjectName ProjectBranchName))
 repoPath =
   P.label "generic repo" $
     ReadRemoteNamespaceGit <$> readGitRemoteNamespace
-      <|> ReadRemoteProjectBranch <$> projectAndBranchNamesParser
+      <|> ReadShareProjectBranch <$> projectAndBranchNamesParser
       <|> ReadRemoteNamespaceShare <$> readShareRemoteNamespace
 
 parseReadRemoteNamespace ::

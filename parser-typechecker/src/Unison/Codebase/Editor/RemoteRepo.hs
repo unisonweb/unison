@@ -90,7 +90,7 @@ printNamespace printProject = \case
         Just sch -> "#" <> SCH.toText sch
   ReadRemoteNamespaceShare ReadShareRemoteNamespace {server, repo, path} ->
     displayShareCodeserver server repo path
-  ReadRemoteProjectBranch project -> printProject project
+  ReadShareProjectBranch project -> printProject project
 
 -- | Render a 'WriteRemoteNamespace' as text.
 printWriteRemoteNamespace :: WriteRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Text
@@ -112,7 +112,7 @@ data ReadRemoteNamespace a
   | ReadRemoteNamespaceShare ReadShareRemoteNamespace
   | -- | A remote project+branch, specified by name (e.g. @unison/base/main).
     -- Currently assumed to be hosted on Share, though we could include a ShareCodeserver in here, too.
-    ReadRemoteProjectBranch a
+    ReadShareProjectBranch a
   deriving stock (Eq, Show, Generic)
 
 data ReadGitRemoteNamespace = ReadGitRemoteNamespace

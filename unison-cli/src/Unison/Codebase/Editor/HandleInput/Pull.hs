@@ -89,9 +89,9 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
                     Cli.returnEarlyWithoutOutput
                   Just (remoteProjectId, remoteProjectName, remoteProjectBranchId, _remoteProjectBranchName) -> do
                     branch <- expectRemoteProjectBranchById remoteProjectId remoteProjectBranchId
-                    pure (ReadRemoteProjectBranch (ProjectAndBranch (remoteProjectId, remoteProjectName) branch))
+                    pure (ReadShareProjectBranch (ProjectAndBranch (remoteProjectId, remoteProjectName) branch))
       Input.PullSourceTarget1 source -> case source of
-        ReadRemoteProjectBranch projectAndBranchNames -> ReadRemoteProjectBranch <$> resolveRemoteNames projectAndBranchNames
+        ReadShareProjectBranch projectAndBranchNames -> ReadShareProjectBranch <$> resolveRemoteNames projectAndBranchNames
         _ -> wundefined
       Input.PullSourceTarget2 source _target -> wundefined source
   remoteBranch <- case ns of
@@ -99,7 +99,7 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
       Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
         Cli.returnEarly (Output.GitError err)
     ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-    ReadRemoteProjectBranch (ProjectAndBranch (_, remoteProjectName) branch) ->
+    ReadShareProjectBranch (ProjectAndBranch (_, remoteProjectName) branch) ->
       let repoInfo = Share.RepoInfo (into @Text (These remoteProjectName remoteProjectBranchName))
           causalHash = Common.hash32ToCausalHash . Share.hashJWTHash $ causalHashJwt
           causalHashJwt = branch ^. #branchHead
@@ -113,7 +113,7 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
   let nsNamesOnly :: ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName)
       nsNamesOnly =
         over
-          #_ReadRemoteProjectBranch
+          #_ReadShareProjectBranch
           (\(ProjectAndBranch (_, projectName) branch) -> ProjectAndBranch projectName (branch ^. #branchName))
           ns
   when (Branch.isEmpty0 (Branch.head remoteBranch)) do

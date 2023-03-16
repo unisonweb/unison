@@ -34,7 +34,7 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
             Left err -> Cli.returnEarly (Output.GitError err)
             Right x -> k x
         ReadRemoteNamespaceShare repo -> k =<< importRemoteShareBranch repo
-        ReadRemoteProjectBranch _ -> wundefined
+        ReadShareProjectBranch _ -> wundefined
 
   (ppe, diff) <- withBranch (wundefined baseRepo0) \baseBranch -> withBranch (wundefined headRepo0) \headBranch -> do
     merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
