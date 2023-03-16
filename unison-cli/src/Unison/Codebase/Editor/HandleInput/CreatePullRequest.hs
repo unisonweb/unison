@@ -33,8 +33,8 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
           Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \case
             Left err -> Cli.returnEarly (Output.GitError err)
             Right x -> k x
-        ReadRemoteNamespaceShare repo -> k =<< importRemoteShareBranch repo
-        ReadShareProjectBranch _ -> wundefined
+        ReadShare'LooseCode repo -> k =<< importRemoteShareBranch repo
+        ReadShare'ProjectBranch _ -> wundefined
 
   (ppe, diff) <- withBranch (wundefined baseRepo0) \baseBranch -> withBranch (wundefined headRepo0) \headBranch -> do
     merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)

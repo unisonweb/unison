@@ -37,7 +37,7 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Propagate as Propagate
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadRemoteNamespace (..),
-    ReadShareRemoteNamespace (..),
+    ReadShareLooseCode (..),
     ShareUserHandle (..),
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
@@ -89,17 +89,19 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
                     Cli.returnEarlyWithoutOutput
                   Just (remoteProjectId, remoteProjectName, remoteProjectBranchId, _remoteProjectBranchName) -> do
                     branch <- expectRemoteProjectBranchById remoteProjectId remoteProjectBranchId
-                    pure (ReadShareProjectBranch (ProjectAndBranch (remoteProjectId, remoteProjectName) branch))
-      Input.PullSourceTarget1 source -> case source of
-        ReadShareProjectBranch projectAndBranchNames -> ReadShareProjectBranch <$> resolveRemoteNames projectAndBranchNames
-        _ -> wundefined
+                    pure (ReadShare'ProjectBranch (ProjectAndBranch (remoteProjectId, remoteProjectName) branch))
+      Input.PullSourceTarget1 source ->
+        case source of
+          ReadShare'ProjectBranch projectAndBranchNames ->
+            ReadShare'ProjectBranch <$> resolveRemoteNames projectAndBranchNames
+          _ -> wundefined
       Input.PullSourceTarget2 source _target -> wundefined source
   remoteBranch <- case ns of
     ReadRemoteNamespaceGit repo ->
       Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
         Cli.returnEarly (Output.GitError err)
-    ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-    ReadShareProjectBranch (ProjectAndBranch (_, remoteProjectName) branch) ->
+    ReadShare'LooseCode repo -> importRemoteShareBranch repo
+    ReadShare'ProjectBranch (ProjectAndBranch (_, remoteProjectName) branch) ->
       let repoInfo = Share.RepoInfo (into @Text (These remoteProjectName remoteProjectBranchName))
           causalHash = Common.hash32ToCausalHash . Share.hashJWTHash $ causalHashJwt
           causalHashJwt = branch ^. #branchHead
@@ -113,7 +115,7 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
   let nsNamesOnly :: ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName)
       nsNamesOnly =
         over
-          #_ReadShareProjectBranch
+          #_ReadShare'ProjectBranch
           (\(ProjectAndBranch (_, projectName) branch) -> ProjectAndBranch projectName (branch ^. #branchName))
           ns
   when (Branch.isEmpty0 (Branch.head remoteBranch)) do
@@ -156,8 +158,8 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
           then PullSuccessful nsNamesOnly target
           else unchangedMsg
 
-importRemoteShareBranch :: ReadShareRemoteNamespace -> Cli (Branch IO)
-importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
+importRemoteShareBranch :: ReadShareLooseCode -> Cli (Branch IO)
+importRemoteShareBranch rrn@(ReadShareLooseCode {server, repo, path}) = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path

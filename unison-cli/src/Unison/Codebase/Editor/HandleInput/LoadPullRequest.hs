@@ -36,8 +36,8 @@ handleLoadPullRequest description baseRepo headRepo dest0 = do
         ReadRemoteNamespaceGit repo ->
           Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
             Cli.returnEarly (Output.GitError err)
-        ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-        ReadShareProjectBranch _ -> wundefined
+        ReadShare'LooseCode repo -> importRemoteShareBranch repo
+        ReadShare'ProjectBranch _ -> wundefined
   baseb <- getBranch baseRepo
   headb <- getBranch headRepo
   mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)

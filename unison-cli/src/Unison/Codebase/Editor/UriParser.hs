@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.UriParser
     writeRemoteNamespace,
     writeRemoteNamespaceWith,
     parseReadRemoteNamespace,
-    parseReadShareRemoteNamespace,
+    parseReadShareLooseCode,
   )
 where
 
@@ -22,7 +22,7 @@ import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadGitRepo (..),
     ReadRemoteNamespace (..),
-    ReadShareRemoteNamespace (..),
+    ReadShareLooseCode (..),
     ShareCodeserver (DefaultCodeserver),
     ShareUserHandle (..),
     WriteGitRemoteNamespace (..),
@@ -64,8 +64,8 @@ repoPath :: P (ReadRemoteNamespace (These ProjectName ProjectBranchName))
 repoPath =
   P.label "generic repo" $
     ReadRemoteNamespaceGit <$> readGitRemoteNamespace
-      <|> ReadShareProjectBranch <$> projectAndBranchNamesParser
-      <|> ReadRemoteNamespaceShare <$> readShareRemoteNamespace
+      <|> ReadShare'ProjectBranch <$> projectAndBranchNamesParser
+      <|> ReadShare'LooseCode <$> readShareLooseCode
 
 parseReadRemoteNamespace ::
   String ->
@@ -75,10 +75,10 @@ parseReadRemoteNamespace label input =
   let printError err = P.lines [P.string "I couldn't parse the repository address given above.", P.prettyPrintParseError input err]
    in first printError (P.parse repoPath label (Text.pack input))
 
-parseReadShareRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadShareRemoteNamespace
-parseReadShareRemoteNamespace label input =
+parseReadShareLooseCode :: String -> String -> Either (P.Pretty P.ColorText) ReadShareLooseCode
+parseReadShareLooseCode label input =
   let printError err = P.lines [P.string "I couldn't parse this as a share path.", P.prettyPrintParseError input err]
-   in first printError (P.parse readShareRemoteNamespace label (Text.pack input))
+   in first printError (P.parse readShareLooseCode label (Text.pack input))
 
 -- >>> P.parseMaybe writeRemoteNamespace "unisonweb.base._releases.M4"
 -- >>> P.parseMaybe writeRemoteNamespace "git(git@github.com:unisonweb/base:v3)._releases.M3"
@@ -104,14 +104,14 @@ writeShareRemoteNamespace =
       <*> shareUserHandle
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
 
--- >>> P.parseMaybe readShareRemoteNamespace ".unisonweb.base._releases.M4"
--- >>> P.parseMaybe readShareRemoteNamespace "unisonweb.base._releases.M4"
+-- >>> P.parseMaybe readShareLooseCode ".unisonweb.base._releases.M4"
+-- >>> P.parseMaybe readShareLooseCode "unisonweb.base._releases.M4"
 -- Nothing
--- Just (ReadShareRemoteNamespace {server = ShareRepo, repo = "unisonweb", path = base._releases.M4})
-readShareRemoteNamespace :: P ReadShareRemoteNamespace
-readShareRemoteNamespace = do
-  P.label "read share remote namespace" $
-    ReadShareRemoteNamespace
+-- Just (ReadShareLooseCode {server = ShareRepo, repo = "unisonweb", path = base._releases.M4})
+readShareLooseCode :: P ReadShareLooseCode
+readShareLooseCode = do
+  P.label "read share loose code" $
+    ReadShareLooseCode
       <$> pure DefaultCodeserver
       -- <*> sch <- P.optional shortBranchHash
       <*> shareUserHandle

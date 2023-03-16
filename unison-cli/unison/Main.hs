@@ -58,8 +58,8 @@ import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Editor.Input as Input
-import Unison.Codebase.Editor.RemoteRepo (ReadShareRemoteNamespace)
-import Unison.Codebase.Editor.UriParser (parseReadShareRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode)
+import Unison.Codebase.Editor.UriParser (parseReadShareLooseCode)
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import Unison.Codebase.Execute (execute)
 import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResult (..), SpecifiedCodebase (..))
@@ -517,7 +517,7 @@ isFlag f arg = arg == f || arg == "-" ++ f || arg == "--" ++ f
 getConfigFilePath :: Maybe FilePath -> IO FilePath
 getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseDir mcodepath
 
-defaultBaseLib :: Maybe ReadShareRemoteNamespace
+defaultBaseLib :: Maybe ReadShareLooseCode
 defaultBaseLib =
   let mayBaseSharePath =
         $( do
@@ -525,7 +525,7 @@ defaultBaseLib =
              TH.lift mayPath
          )
    in mayBaseSharePath & \case
-        Just s -> eitherToMaybe $ parseReadShareRemoteNamespace "UNISON_BASE_PATH" s
+        Just s -> eitherToMaybe $ parseReadShareLooseCode "UNISON_BASE_PATH" s
         Nothing -> rightMay $ runParser VP.defaultBaseLib "version" gitRef
   where
     (gitRef, _date) = Version.gitDescribe

@@ -97,7 +97,7 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadRemoteNamespace (..),
-    ReadShareRemoteNamespace (..),
+    ReadShareLooseCode (..),
     ShareUserHandle (..),
     printNamespace,
   )
@@ -2268,13 +2268,13 @@ doFetchCompiler username =
   where
     -- fetching info
     ns =
-      ReadShareRemoteNamespace
+      ReadShareLooseCode
         { server = RemoteRepo.DefaultCodeserver,
           repo = ShareUserHandle (Text.pack username),
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }
-    sourceTarget = PullSourceTarget2 (ReadRemoteNamespaceShare ns) (PullTargetLooseCode compilerPath)
+    sourceTarget = PullSourceTarget2 (ReadShare'LooseCode ns) (PullTargetLooseCode compilerPath)
 
     pullInput =
       PullRemoteBranchI

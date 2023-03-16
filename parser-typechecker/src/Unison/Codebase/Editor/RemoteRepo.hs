@@ -69,7 +69,7 @@ writeNamespaceToRead = \case
   WriteRemoteNamespaceGit WriteGitRemoteNamespace {repo, path} ->
     ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo = writeToReadGit repo, sch = Nothing, path}
   WriteRemoteNamespaceShare WriteShareRemoteNamespace {server, repo, path} ->
-    ReadRemoteNamespaceShare ReadShareRemoteNamespace {server, repo, path}
+    ReadShare'LooseCode ReadShareLooseCode {server, repo, path}
   WriteRemoteProjectBranch v -> absurd v
 
 printReadGitRepo :: ReadGitRepo -> Text
@@ -88,9 +88,8 @@ printNamespace printProject = \case
       maybePrintSCH = \case
         Nothing -> mempty
         Just sch -> "#" <> SCH.toText sch
-  ReadRemoteNamespaceShare ReadShareRemoteNamespace {server, repo, path} ->
-    displayShareCodeserver server repo path
-  ReadShareProjectBranch project -> printProject project
+  ReadShare'LooseCode ReadShareLooseCode {server, repo, path} -> displayShareCodeserver server repo path
+  ReadShare'ProjectBranch project -> printProject project
 
 -- | Render a 'WriteRemoteNamespace' as text.
 printWriteRemoteNamespace :: WriteRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Text
@@ -108,37 +107,37 @@ maybePrintPath path =
     else "." <> Path.toText path
 
 data ReadRemoteNamespace a
-  = ReadRemoteNamespaceGit ReadGitRemoteNamespace
-  | ReadRemoteNamespaceShare ReadShareRemoteNamespace
+  = ReadRemoteNamespaceGit !ReadGitRemoteNamespace
+  | ReadShare'LooseCode !ReadShareLooseCode
   | -- | A remote project+branch, specified by name (e.g. @unison/base/main).
     -- Currently assumed to be hosted on Share, though we could include a ShareCodeserver in here, too.
-    ReadShareProjectBranch a
+    ReadShare'ProjectBranch !a
   deriving stock (Eq, Show, Generic)
 
 data ReadGitRemoteNamespace = ReadGitRemoteNamespace
-  { repo :: ReadGitRepo,
-    sch :: Maybe ShortCausalHash,
-    path :: Path
+  { repo :: !ReadGitRepo,
+    sch :: !(Maybe ShortCausalHash),
+    path :: !Path
   }
   deriving stock (Eq, Show)
 
-data ReadShareRemoteNamespace = ReadShareRemoteNamespace
-  { server :: ShareCodeserver,
-    repo :: ShareUserHandle,
+data ReadShareLooseCode = ReadShareLooseCode
+  { server :: !ShareCodeserver,
+    repo :: !ShareUserHandle,
     -- sch :: Maybe ShortCausalHash, -- maybe later
-    path :: Path
+    path :: !Path
   }
   deriving stock (Eq, Show)
 
-isPublic :: ReadShareRemoteNamespace -> Bool
-isPublic ReadShareRemoteNamespace {path} =
+isPublic :: ReadShareLooseCode -> Bool
+isPublic ReadShareLooseCode {path} =
   case path of
     ("public" Path.:< _) -> True
     _ -> False
 
 data WriteRemoteNamespace a
-  = WriteRemoteNamespaceGit WriteGitRemoteNamespace
-  | WriteRemoteNamespaceShare WriteShareRemoteNamespace
+  = WriteRemoteNamespaceGit !WriteGitRemoteNamespace
+  | WriteRemoteNamespaceShare !WriteShareRemoteNamespace
   | WriteRemoteProjectBranch a
   deriving stock (Eq, Functor, Show)
 
@@ -159,14 +158,14 @@ remotePath_ = Lens.lens getter setter
         WriteRemoteProjectBranch v -> absurd v
 
 data WriteGitRemoteNamespace = WriteGitRemoteNamespace
-  { repo :: WriteGitRepo,
-    path :: Path
+  { repo :: !WriteGitRepo,
+    path :: !Path
   }
   deriving stock (Eq, Generic, Show)
 
 data WriteShareRemoteNamespace = WriteShareRemoteNamespace
-  { server :: ShareCodeserver,
-    repo :: ShareUserHandle,
-    path :: Path
+  { server :: !ShareCodeserver,
+    repo :: !ShareUserHandle,
+    path :: !Path
   }
   deriving stock (Eq, Show)
