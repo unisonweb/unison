@@ -4,7 +4,6 @@
 module Unison.Server.Endpoints.NamespaceListing (serve, NamespaceListingAPI, NamespaceListing (..), NamespaceObject (..), NamedNamespace (..), NamedPatch (..), KindExpression (..)) where
 
 import Control.Monad.Except
-import Control.Monad.Reader
 import Data.Aeson
 import Data.OpenApi (ToSchema)
 import Servant
@@ -21,7 +20,6 @@ import Servant.OpenApi ()
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
-import qualified U.Codebase.Sqlite.Operations as Operations
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
@@ -156,17 +154,12 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
 
 serve ::
   Codebase IO Symbol Ann ->
-  Maybe ShortCausalHash ->
+  Maybe (Either ShortCausalHash CausalHash) ->
   Maybe Path.Path ->
   Maybe Path.Path ->
   Backend.Backend IO NamespaceListing
 serve codebase maySCH mayRelativeTo mayNamespaceName = do
-  useIndex <- asks Backend.useNamesIndex
-  (mayRootHash, codebaseRootHash) <-
-    Backend.hoistBackend (Codebase.runTransaction codebase) do
-      mayRootHash <- traverse Backend.expandShortCausalHash maySCH
-      codebaseRootHash <- lift Operations.expectRootCausalHash
-      pure (mayRootHash, codebaseRootHash)
+  rootCausal <- Backend.hoistBackend (Codebase.runTransaction codebase) $ Backend.normaliseRootCausalHash maySCH
 
   -- Relative and Listing Path resolution
   --
@@ -185,52 +178,9 @@ serve codebase maySCH mayRelativeTo mayNamespaceName = do
   let namespacePath = fromMaybe Path.empty mayNamespaceName
   let path = relativeToPath <> namespacePath
   let path' = Path.toPath' path
-
-  case (useIndex, mayRootHash) of
-    (True, Nothing) ->
-      serveFromIndex codebase mayRootHash path'
-    (True, Just rh)
-      | rh == codebaseRootHash ->
-          serveFromIndex codebase mayRootHash path'
-      | otherwise -> do
-          serveFromBranch codebase path' rh
-    (False, Just rh) -> do
-      serveFromBranch codebase path' rh
-    (False, Nothing) -> do
-      ch <- liftIO $ Codebase.runTransaction codebase Operations.expectRootCausalHash
-      serveFromBranch codebase path' ch
-
-serveFromBranch ::
-  Codebase IO Symbol Ann ->
-  Path.Path' ->
-  CausalHash ->
-  Backend.Backend IO NamespaceListing
-serveFromBranch codebase path' rootHash = do
-  let absPath = Path.Absolute . Path.fromPath' $ path'
-  -- TODO: Currently the ppe is just used to render the types returned from the namespace
-  -- listing, which are currently unused because we don't show types in the side-bar.
-  -- If we ever show types on hover we need to build and use a proper PPE here, but it's not
-  -- worth slowing down the request for this right now.
-  let ppe = PPE.empty
-  let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-  (causalAtPath, branchAtPath) <-
-    (lift . Codebase.runTransaction codebase) do
-      causalAtPath <- Codebase.getShallowCausalFromRoot (Just rootHash) (Path.unabsolute absPath)
-      branchAtPath <- V2Causal.value causalAtPath
-      pure (causalAtPath, branchAtPath)
-  let listingHash = v2CausalBranchToUnisonHash causalAtPath
-  listingEntries <- liftIO $ Backend.lsBranch codebase branchAtPath
-  makeNamespaceListing ppe listingFQN listingHash listingEntries
-
-serveFromIndex ::
-  Codebase IO Symbol Ann ->
-  Maybe CausalHash ->
-  Path.Path' ->
-  Backend.Backend IO NamespaceListing
-serveFromIndex codebase mayRootHash path' = do
   (listingCausal, listingBranch) <-
     (lift . Codebase.runTransaction codebase) do
-      listingCausal <- Backend.getShallowCausalAtPathFromRootHash mayRootHash (Path.fromPath' path')
+      listingCausal <- Codebase.getShallowCausalAtPath (Path.fromPath' path') (Just rootCausal)
       listingBranch <- V2Causal.value listingCausal
       pure (listingCausal, listingBranch)
   -- TODO: Currently the ppe is just used to render the types returned from the namespace
