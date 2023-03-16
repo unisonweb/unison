@@ -63,9 +63,9 @@ type P = P.Parsec Void Text.Text
 repoPath :: P (ReadRemoteNamespace (These ProjectName ProjectBranchName))
 repoPath =
   P.label "generic repo" $
-    fmap ReadRemoteNamespaceGit readGitRemoteNamespace
-      <|> fmap ReadRemoteNamespaceShare readShareRemoteNamespace
-      <|> wundefined
+    ReadRemoteNamespaceGit <$> readGitRemoteNamespace
+      <|> ReadRemoteProjectBranch <$> projectAndBranchNamesParser
+      <|> ReadRemoteNamespaceShare <$> readShareRemoteNamespace
 
 parseReadRemoteNamespace ::
   String ->
