@@ -115,7 +115,7 @@ newtype CompletionTree = CompletionTree
 
 instance Semigroup CompletionTree where
   CompletionTree (a Cofree.:< subtreeA) <> CompletionTree (b Cofree.:< subtreeB) =
-    CompletionTree (a <> b Cofree.:< Map.unionWith (\a b -> unCompletionTree $ CompletionTree a <> CompletionTree b) subtreeA subtreeB)
+    CompletionTree (a <> b Cofree.:< Map.unionWith (\x y -> unCompletionTree $ CompletionTree x <> CompletionTree y) subtreeA subtreeB)
 
 instance Monoid CompletionTree where
   mempty = CompletionTree $ mempty Cofree.:< mempty

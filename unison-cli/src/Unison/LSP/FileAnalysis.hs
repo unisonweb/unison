@@ -400,6 +400,10 @@ getLatestTypecheckedAnalysis :: Uri -> Lsp (Maybe FileAnalysis)
 getLatestTypecheckedAnalysis uri = do
   getFileAnalysisTriple uri <&> \mayTriple -> mayTriple >>= lastSuccessfulTypecheck
 
+getLatestTypecheckedFileSummary :: Uri -> Lsp (Maybe FileSummary)
+getLatestTypecheckedFileSummary uri = do
+  getLatestTypecheckedAnalysis uri <&> \mayAnalysis -> mayAnalysis >>= fileSummary
+
 getFileSummary :: Uri -> MaybeT Lsp FileSummary
 getFileSummary uri = do
   FileAnalysis {fileSummary} <- MaybeT $ getCurrentFileAnalysis uri
@@ -408,7 +412,7 @@ getFileSummary uri = do
 -- TODO memoize per file
 ppedForFile :: Uri -> Lsp PPED.PrettyPrintEnvDecl
 ppedForFile fileUri = do
-  getCurrentFileAnalysis fileUri >>= \case
+  getLatestTypecheckedAnalysis fileUri >>= \case
     Just (FileAnalysis {typecheckedFile = tf, parsedFile = uf}) ->
       ppedForFileHelper uf tf
     _ -> ppedForFileHelper Nothing Nothing

@@ -41,7 +41,7 @@ completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
     let fileUri = (m ^. params . textDocument . uri)
     (range, prefix) <- VFS.completionPrefix (m ^. params . textDocument . uri) (m ^. params . position)
-    ppe <- PPED.suffixifiedPPE <$> lift globalPPED
+    ppe <- PPED.suffixifiedPPE <$> lift (ppedForFile fileUri)
     codebaseCompletions <- lift getCodebaseCompletions
     fileComps <- lift (getLatestTypecheckedAnalysis fileUri) <&> maybe mempty fileCompletions
     let allCompletions = fileComps <> codebaseCompletions
