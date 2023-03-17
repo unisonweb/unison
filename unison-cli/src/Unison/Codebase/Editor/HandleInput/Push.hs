@@ -72,6 +72,7 @@ import Unison.Project
     prependUserSlugToProjectBranchName,
     prependUserSlugToProjectName,
     projectBranchNameUserSlug,
+    projectNameUserSlug,
   )
 import qualified Unison.Share.API.Hash as Share.API
 import qualified Unison.Share.API.Projects as Share.API
@@ -81,6 +82,7 @@ import qualified Unison.Share.Sync.Types as Share
 import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.Types as Share
+import Witch (unsafeFrom)
 
 -- | Handle a @gist@ command.
 handleGist :: GistInput -> Cli ()
@@ -339,14 +341,7 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
             Nothing -> do
               myUserHandle <- oinkGetLoggedInUser
               let localBranchName = localProjectAndBranch ^. #branch . #name
-              -- Derive the remote branch name from the user's handle and the local branch name.
-              --
-              -- user "bob" has local branch "topic":        remoteBranchName = "@bob/topic"
-              -- user "bob" has local branch "@runar/topic": remoteBranchName = "@runar/topic"
-              let remoteBranchName =
-                    case projectBranchNameUserSlug localBranchName of
-                      Nothing -> prependUserSlugToProjectBranchName myUserHandle localBranchName
-                      Just _userSlug -> localBranchName
+              let remoteBranchName = deriveRemoteBranchName myUserHandle remoteProjectName localBranchName
               pushToProjectBranch1
                 localProjectAndBranch
                 localBranchHead
@@ -399,10 +394,41 @@ bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = d
           Just remoteProjectName1 -> remoteProjectName1
   let remoteBranchName =
         case remoteProjectAndBranchMaybes ^. #branch of
-          Nothing -> prependUserSlugToProjectBranchName myUserHandle localBranchName
+          Nothing -> deriveRemoteBranchName myUserHandle remoteProjectName localBranchName
           Just remoteBranchName1 -> remoteBranchName1
   let remoteProjectAndBranch = ProjectAndBranch remoteProjectName remoteBranchName
   pushToProjectBranch0 (PushingProjectBranch localProjectAndBranch) localBranchHead remoteProjectAndBranch
+
+-- If left unspecified (and we don't yet have a remote mapping), we derive the remote branch name from the user's
+-- handle, remote project name, and local branch name as follows:
+--
+--   * If the local branch name already has a user slug prefix, then we leave it alone.
+--   * Otherwise, if the remote project name's user prefix matches the user's handle (i.e. they are pushing to their own
+--     project) *and* the local branch name is "main", then we leave it alone.
+--   * Otherwise, we prepend the user's handle to the local branch name.
+--
+-- This way, users (who let us infer remote branch names) tend to make topic branches, even when contributing to their
+-- own project (e.g. pushing a local branch "foo" to my own project "@runar/lens" will create a remote branch called
+-- "@runar/foo", not "foo"), because ephemeral topic branches are far more common than long-lived branches.
+--
+-- If a user wants to create a long-lived branch alongside their "main" branch (say "oldstuff"), they'll just have to
+-- name "oldstuff" explicitly when pushing (the first time).
+--
+-- And "main" is an exception to the rule that we prefix your local branch name with your user handle. That way, you
+-- won't end up with a *topic branch* called "@arya/main" when pushing a local branch called "main". Of course,
+-- special-casing "main" in this way is only temporary, before we have a first-class notion of a default branch.
+deriveRemoteBranchName :: Text -> ProjectName -> ProjectBranchName -> ProjectBranchName
+deriveRemoteBranchName userHandle remoteProjectName localBranchName =
+  case projectBranchNameUserSlug localBranchName of
+    Just _ -> localBranchName -- already "@user/branch"; don't mess with it
+    Nothing ->
+      case projectNameUserSlug remoteProjectName of
+        -- I'm "arya" pushing local branch "main" to "@arya/lens", so don't call it "@arya/main"
+        Just projectUserSlug
+          | projectUserSlug == userHandle && localBranchName == unsafeFrom @Text "main" ->
+              localBranchName
+        -- Nothing is a weird unlikely case: project doesn't begin with a user slug? server will likely reject
+        _ -> prependUserSlugToProjectBranchName userHandle localBranchName
 
 -- What are we pushing, a project branch or loose code?
 data WhatAreWePushing
@@ -410,7 +436,6 @@ data WhatAreWePushing
   | PushingLooseCode
 
 -- we have the remote project and branch names, but we don't know whether either already exist
--- FIXME call this function with a slug-prefixed branch, so that it can create "main" without slug
 pushToProjectBranch0 :: WhatAreWePushing -> Hash32 -> ProjectAndBranch ProjectName ProjectBranchName -> Cli UploadPlan
 pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
   let remoteProjectName = remoteProjectAndBranch ^. #project
@@ -511,7 +536,6 @@ data UploadPlan = UploadPlan
 -- Execute an upload plan.
 executeUploadPlan :: UploadPlan -> Cli ()
 executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
-  loggeth ["uploading entities"]
   Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
     let upload =
           Share.uploadEntities
