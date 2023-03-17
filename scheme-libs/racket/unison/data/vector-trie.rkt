@@ -25,20 +25,26 @@
           [vector-trie->vector (-> vector-trie? vector?)]
 
           [vector-trie-ref (-> vector-trie? exact-nonnegative-integer? any/c)]
+          [vector-trie-first (-> (and/c vector-trie? (not/c vector-trie-empty?)) any/c)]
+          [vector-trie-last (-> (and/c vector-trie? (not/c vector-trie-empty?)) any/c)]
           [vector-trie-set (-> vector-trie? exact-nonnegative-integer? any/c vector-trie?)]
+          [vector-trie-update (-> vector-trie? exact-nonnegative-integer? (-> any/c any/c) vector-trie?)]
+
           [vector-trie-add-first (-> vector-trie? any/c vector-trie?)]
           [vector-trie-add-last (-> vector-trie? any/c vector-trie?)]
           [vector-trie-drop-first (-> (and/c vector-trie? (not/c vector-trie-empty?)) vector-trie?)]
           [vector-trie-drop-last (-> (and/c vector-trie? (not/c vector-trie-empty?)) vector-trie?)]
-
-          [vector-trie-first (-> (and/c vector-trie? (not/c vector-trie-empty?)) any/c)]
-          [vector-trie-last (-> (and/c vector-trie? (not/c vector-trie-empty?)) any/c)]
           [vector-trie-pop-first (-> (and/c vector-trie? (not/c vector-trie-empty?)) (values vector-trie? any/c))]
           [vector-trie-pop-last (-> (and/c vector-trie? (not/c vector-trie-empty?)) (values vector-trie? any/c))]
-          [vector-trie-update (-> vector-trie? exact-nonnegative-integer? (-> any/c any/c) vector-trie?)]
+
           [vector-trie-append (-> vector-trie? vector-trie? vector-trie?)]
-          [vector-trie-drop-left (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
-          [vector-trie-drop-right (-> vector-trie? exact-nonnegative-integer? vector-trie?)])
+
+          [vector-trie-take (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
+          [vector-trie-drop (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
+          [vector-trie-split-at (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
+          [vector-trie-take-right (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
+          [vector-trie-drop-right (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
+          [vector-trie-split-at-right (-> vector-trie? exact-nonnegative-integer? vector-trie?)])
 
          (rename-out [-in-vector-trie in-vector-trie]
                      [-in-reversed-vector-trie in-reversed-vector-trie]))
@@ -221,8 +227,72 @@
          #f
          (loop (decrement-shift shift) (vector-ref node node-i))))))
 
+;; Copies the given node, but only includes elements up to `last-i`, inclusive.
+(define (vector-trie-node-take node shift last-i)
+  (let loop ([shift shift]
+             [node node])
+    (cond
+      ;; If the last element is the very last element of this subtrie,
+      ;; we can just return without doing any slicing.
+      [(zero? (restrict-index-to-node (add1 last-i) shift))
+       node]
+      ;; Otherwise, we have to slice this node.
+      [else
+       (define last-child-i (extract-node-index last-i shift))
+       (cond
+         [(zero? shift)
+          (make-node
+           (λ (new-leaf)
+             (vector-copy! new-leaf 0 node 0 (add1 last-child-i))))]
+         [else
+          (make-node
+           (λ (new-node)
+             (vector-copy! new-node 0 node 0 last-child-i)
+             (vector-set! new-node
+                          last-child-i
+                          (loop (decrement-shift shift)
+                                (vector-ref node last-child-i)))))])])))
+
+;; Like `vector-trie-node-take`, but only includes elements at or after `first-i`.
+(define (vector-trie-node-drop node shift first-i)
+  (let loop ([shift shift]
+             [node node])
+    (cond
+      ;; If the first element is the very first element of this subtrie,
+      ;; we can just return without doing any slicing.
+      [(zero? (restrict-index-to-node first-i shift))
+       node]
+      ;; Otherwise, we have to slice this node.
+      [else
+       (define first-child-i (extract-node-index first-i shift))
+       (cond
+         [(zero? shift)
+          (make-node
+           (λ (new-leaf)
+             (vector-copy! new-leaf first-child-i node first-child-i)))]
+         [else
+          (make-node
+           (λ (new-node)
+             (vector-set! new-node
+                          first-child-i
+                          (loop (decrement-shift shift)
+                                (vector-ref node first-child-i)))
+             (vector-copy! new-node (add1 first-child-i) node (add1 first-child-i))))])])))
+
 ;; -----------------------------------------------------------------------------
 ;; core operations
+
+(define (check-index-in-range who vt i)
+  (unless (< i (vector-trie-length vt))
+    (raise-range-error who "vector trie" "" i vt 0 (sub1 (vector-trie-length vt)))))
+
+(define (check-length-in-range who vt n)
+  (unless (<= n (vector-trie-length vt))
+    (raise-arguments-error who "length is out of range"
+                           "length" n
+                           "valid range" (unquoted-printing-string
+                                          (format "[0, ~a]" (vector-trie-length vt)))
+                           "vector trie" vt)))
 
 (define (vector-trie-empty? vt)
   (zero? (vector-trie-length vt)))
@@ -248,10 +318,6 @@
               (if (zero? shift)
                   (elem-proc i)
                   (build-trie (decrement-shift shift) i))))))))]))
-
-(define (check-index-in-range who vt i)
-  (unless (< i (vector-trie-length vt))
-    (raise-range-error who "vector trie" "" i vt 0 (sub1 (vector-trie-length vt)))))
 
 (define (vector-trie-ref vt i)
   (check-index-in-range 'vector-trie-ref vt i)
@@ -739,6 +805,57 @@
                    (vector-set! new-node node-i (build-new-subtrie child-shift)))))])))])]))
 
 ;; -----------------------------------------------------------------------------
+;; splitting
+
+(define (vector-trie-take vt n)
+  (check-length-in-range 'vector-trie-take vt n)
+  (cond
+    [(zero? n)
+     empty-vector-trie]
+    [(= n (vector-trie-length vt))
+     vt]
+    [else
+     (let loop ([root (vector-trie-root-node vt)]
+                [offset (vector-trie-offset vt)]
+                [shift (vector-trie-shift vt)])
+       (define first-child-i (extract-node-index offset shift))
+       (define last-i (sub1 (+ offset n)))
+       (define last-child-i (extract-node-index last-i shift))
+       (cond
+         ;; If the first and last elements are in the same subtrie,
+         ;; we can pop the root.
+         [(and (not (zero? shift)) (= first-child-i last-child-i))
+          (loop (vector-ref root first-child-i)
+                (- offset (* (node-stride shift) first-child-i))
+                (decrement-shift shift))]
+         [else
+          (vector-trie n offset shift (vector-trie-node-take root shift last-i))]))]))
+
+(define (vector-trie-drop vt n)
+  (check-length-in-range 'vector-trie-drop vt n)
+  (cond
+    [(zero? n)
+     vt]
+    [(= n (vector-trie-length vt))
+     empty-vector-trie]
+    [else
+     (define len (- (vector-trie-length vt) n))
+     (let loop ([root (vector-trie-root-node vt)]
+                [offset (+ (vector-trie-offset vt) n)]
+                [shift (vector-trie-shift vt)])
+       (define first-child-i (extract-node-index offset shift))
+       (define last-child-i (extract-node-index (sub1 (+ offset len)) shift))
+       (cond
+         ;; If the first and last elements are in the same subtrie,
+         ;; we can pop the root.
+         [(and (not (zero? shift)) (= first-child-i last-child-i))
+          (loop (vector-ref root first-child-i)
+                (- offset (* (node-stride shift) first-child-i))
+                (decrement-shift shift))]
+         [else
+          (vector-trie len offset shift (vector-trie-node-drop root shift offset))]))]))
+
+;; -----------------------------------------------------------------------------
 ;; derived operations
 
 (define (vector-trie-first vt)
@@ -810,31 +927,21 @@
              [(sub1 i)])]]
     [_ #f]))
 
-(define (check-vector-trie-length-in-range who vt n)
-  (unless (<= n (vector-trie-length vt))
-    (raise-arguments-error who "length is out of range"
-                           "length" n
-                           "valid range" (unquoted-printing-string
-                                          (format "[0, ~a]" (vector-trie-length vt)))
-                           "vector trie" vt)))
+(define (vector-trie-split-at vt n)
+  (check-length-in-range 'vector-trie-split-at vt n)
+  (values (vector-trie-take vt n) (vector-trie-drop vt n)))
 
-;; TODO: Could be made significantly more efficient by making this a
-;; primitive operation that does the whole drop in one go rather than
-;; repeatedly dropping single elements.
-(define (vector-trie-drop-left vt n)
-  (check-vector-trie-length-in-range 'vector-trie-drop-left vt n)
-  (for/fold ([vt vt])
-            ([i (in-range n)])
-    (vector-trie-drop-first vt)))
+(define (vector-trie-take-right vt n)
+  (check-length-in-range 'vector-trie-take-right vt n)
+  (vector-trie-drop vt (- (vector-trie-length vt) n)))
 
-;; TODO: Could be made significantly more efficient by making this a
-;; primitive operation that does the whole drop in one go rather than
-;; repeatedly dropping single elements.
 (define (vector-trie-drop-right vt n)
-  (check-vector-trie-length-in-range 'vector-trie-drop-right vt n)
-  (for/fold ([vt vt])
-            ([i (in-range n)])
-    (vector-trie-drop-last vt)))
+  (check-length-in-range 'vector-trie-drop-right vt n)
+  (vector-trie-take vt (- (vector-trie-length vt) n)))
+
+(define (vector-trie-split-at-right vt n)
+  (check-length-in-range 'vector-trie-split-at-right vt n)
+  (vector-trie-split-at vt (- (vector-trie-length vt) n)))
 
 (define (make-vector-trie len elem)
   (build-vector-trie len (λ (i) elem)))
