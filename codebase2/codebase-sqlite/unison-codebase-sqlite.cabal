@@ -44,6 +44,7 @@ library
       U.Codebase.Sqlite.Patch.Full
       U.Codebase.Sqlite.Patch.TermEdit
       U.Codebase.Sqlite.Patch.TypeEdit
+      U.Codebase.Sqlite.Project
       U.Codebase.Sqlite.Queries
       U.Codebase.Sqlite.Reference
       U.Codebase.Sqlite.Referent

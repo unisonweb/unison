@@ -9,6 +9,7 @@ import Control.Monad.Reader (ask)
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
 import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..))
+import qualified U.Codebase.Sqlite.Project as Sqlite (Project)
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -66,7 +67,7 @@ cloneProjectAndBranch remoteProjectAndBranch = do
     Cli.returnEarlyWithoutOutput
 
   -- Quick local check before hitting share to determine whether this project+branch already exists.
-  let assertLocalProjectBranchDoesntExist :: Sqlite.Transaction (Either Output.Output (Maybe Queries.Project))
+  let assertLocalProjectBranchDoesntExist :: Sqlite.Transaction (Either Output.Output (Maybe Sqlite.Project))
       assertLocalProjectBranchDoesntExist =
         Queries.loadProjectByName localProjectName >>= \case
           Nothing -> pure (Right Nothing)

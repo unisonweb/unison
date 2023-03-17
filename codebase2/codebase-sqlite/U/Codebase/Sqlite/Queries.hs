@@ -100,7 +100,6 @@ module U.Codebase.Sqlite.Queries
     clearWatches,
 
     -- * projects
-    Project (..),
     projectExists,
     projectExistsByName,
     expectProject,
@@ -303,6 +302,7 @@ import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import U.Codebase.Sqlite.Orphans ()
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
+import U.Codebase.Sqlite.Project (Project (..))
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Reference as S
 import qualified U.Codebase.Sqlite.Reference as S.Reference
@@ -2487,13 +2487,6 @@ getReflog numEntries = queryListRow sql (Only numEntries)
           ORDER BY time DESC
           LIMIT ?
       |]
-
-data Project = Project
-  { projectId :: ProjectId,
-    name :: ProjectName
-  }
-  deriving stock (Generic, Show)
-  deriving anyclass (ToRow, FromRow)
 
 data RemoteProject = RemoteProject
   { projectId :: RemoteProjectId,
