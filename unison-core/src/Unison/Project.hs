@@ -42,7 +42,7 @@ projectNameParser = do
     projectSlugParser :: Megaparsec.Parsec Void Text Text.Builder
     projectSlugParser = do
       c0 <- Megaparsec.satisfy isStartChar
-      c1 <- Megaparsec.takeWhileP Nothing (\c -> isStartChar c || c == '-')
+      c1 <- Megaparsec.takeWhileP Nothing (\c -> isStartChar c || Char.isDigit c || c == '-')
       pure (Text.Builder.char c0 <> Text.Builder.text c1)
       where
         isStartChar :: Char -> Bool
@@ -100,7 +100,7 @@ projectBranchNameParser = do
     branchSlugParser :: Megaparsec.Parsec Void Text Text.Builder
     branchSlugParser = do
       c0 <- Megaparsec.satisfy isStartChar
-      c1 <- Megaparsec.takeWhileP Nothing (\c -> isStartChar c || c == '-')
+      c1 <- Megaparsec.takeWhileP Nothing (\c -> isStartChar c || Char.isDigit c || c == '-')
       pure (Text.Builder.char c0 <> Text.Builder.text c1)
       where
         isStartChar :: Char -> Bool
@@ -184,16 +184,12 @@ projectAndBranchNamesParser = do
 -- Projects and branches may begin with a "user slug", which looks like "@arya/".
 --
 -- slug       = @ start-char char* /
--- start-char = alpha | _
--- char       = start-char | -
+-- start-char = alpha
+-- char       = alpha | digit | -
 userSlugParser :: Megaparsec.Parsec Void Text Text.Builder.Builder
 userSlugParser = do
   c0 <- Megaparsec.char '@'
-  c1 <- Megaparsec.satisfy isStartChar
-  c2 <- Megaparsec.takeWhileP Nothing (\c -> isStartChar c || c == '-')
+  c1 <- Megaparsec.satisfy Char.isAlpha
+  c2 <- Megaparsec.takeWhileP Nothing (\c -> Char.isAlpha c || Char.isDigit c || c == '-')
   c3 <- Megaparsec.char '/'
   pure (Text.Builder.char c0 <> Text.Builder.char c1 <> Text.Builder.text c2 <> Text.Builder.char c3)
-  where
-    isStartChar :: Char -> Bool
-    isStartChar c =
-      Char.isAlpha c || c == '_'
