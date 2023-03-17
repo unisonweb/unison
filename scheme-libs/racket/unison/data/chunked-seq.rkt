@@ -50,8 +50,12 @@
 ;;   chunked-seq-add-first, chunked-seq-add-last : (-> chunked-seq? elem/c chunked-seq?)
 ;;   chunked-seq-drop-first, chunked-seq-drop-last :
 ;;     (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) chunked-seq?)
+;;   chunked-seq-pop-first, chunked-seq-pop-last :
+;;     (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) (values chunked-seq? elem/c))
 ;;
 ;;   chunked-seq-append : (-> chunked-seq? ... chunked-seq?)
+;;   chunked-seq-take, chunked-seq-drop : (-> chunked-seq? exact-nonnegative-integer? chunked-seq?)
+;;   chunked-seq-split-at : (-> chunked-seq? exact-nonnegative-integer? (values chunked-seq? chunked-seq?))
 ;;
 ;;   chunked-seq=?/recur : (-> chunked-seq? chunked-seq? (-> any/c any/c any/c) boolean?)
 ;;   chunked-seq-compare/recur : (-> chunked-seq? chunked-seq? (-> any/c any/c ordering/c) ordering/c)
@@ -100,8 +104,13 @@
    (define/with-syntax chunked-seq-add-last (derived-seq-id "~a-add-last"))
    (define/with-syntax chunked-seq-drop-first (derived-seq-id "~a-drop-first"))
    (define/with-syntax chunked-seq-drop-last (derived-seq-id "~a-drop-last"))
+   (define/with-syntax chunked-seq-pop-first (derived-seq-id "~a-pop-first"))
+   (define/with-syntax chunked-seq-pop-last (derived-seq-id "~a-pop-last"))
 
    (define/with-syntax chunked-seq-append (derived-seq-id "~a-append"))
+   (define/with-syntax chunked-seq-take (derived-seq-id "~a-take"))
+   (define/with-syntax chunked-seq-drop (derived-seq-id "~a-drop"))
+   (define/with-syntax chunked-seq-split-at (derived-seq-id "~a-split-at"))
 
    (define/with-syntax chunked-seq=?/recur (derived-seq-id "~a=?/recur"))
    (define/with-syntax chunked-seq-compare/recur (derived-seq-id "~a-compare/recur"))
@@ -129,8 +138,13 @@
                  [chunked-seq-add-last (-> chunked-seq? elem/c chunked-seq?)]
                  [chunked-seq-drop-first (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) chunked-seq?)]
                  [chunked-seq-drop-last (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) chunked-seq?)]
+                 [chunked-seq-pop-first (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) (values chunked-seq? elem/c))]
+                 [chunked-seq-pop-last (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) (values chunked-seq? elem/c))]
 
                  [chunked-seq-append {... (-> chunked-seq? ... chunked-seq?)}]
+                 [chunked-seq-take (-> chunked-seq? exact-nonnegative-integer? chunked-seq?)]
+                 [chunked-seq-drop (-> chunked-seq? exact-nonnegative-integer? chunked-seq?)]
+                 [chunked-seq-split-at (-> chunked-seq? exact-nonnegative-integer? (values chunked-seq? chunked-seq?))]
 
                  [chunked-seq=?/recur (-> chunked-seq? chunked-seq? procedure? boolean?)]
                  [chunked-seq-compare/recur (-> chunked-seq?
@@ -164,6 +178,11 @@
             (chunk-copy! new-chunk 0 chunk 0 i)
             (chunk-set! new-chunk i val)
             (chunk-copy! new-chunk (add1 i) chunk (add1 i)))))
+
+       (define (chunk-first chunk)
+         (chunk-ref chunk 0))
+       (define (chunk-last chunk)
+         (chunk-ref chunk (sub1 (chunk-length chunk))))
 
        (define (chunk-add-first chunk val)
          (make-chunk
@@ -436,74 +455,88 @@
                  [last-chunk (singleton-chunk val)]))]))
 
        (define (chunked-seq-drop-first cs)
+         (match-define-values [cs* _] (chunked-seq-pop-first cs))
+         cs*)
+
+       (define (chunked-seq-drop-last cs)
+         (match-define-values [cs* _] (chunked-seq-pop-last cs))
+         cs*)
+
+       (define (chunked-seq-pop-first cs)
          (match cs
            [(single-chunk chunk)
-            (if (= (chunk-length chunk) 1)
-                empty-chunked-seq
-                (single-chunk (chunk-drop-first chunk)))]
+            (values (if (= (chunk-length chunk) 1)
+                        empty-chunked-seq
+                        (single-chunk (chunk-drop-first chunk)))
+                    (chunk-first chunk))]
 
            [(chunks len first-c vt last-c)
             (define new-len (sub1 len))
             (define first-len (chunk-length first-c))
-            (cond
-              [(<= new-len CHUNK-CAPACITY)
-               ;; Not enough elements; must collapse into a single
-               ;; chunk (see Note [chunks-length invariant]).
-               (single-chunk
-                (if (= first-len 1)
-                    last-c
-                    (make-chunk
-                     new-len
-                     (λ (chunk)
-                       (chunk-copy! chunk 0 first-c 1)
-                       (chunk-copy! chunk first-len last-c 0)))))]
-              [(= first-len 1)
-               (define-values [vt* first-c*] (vector-trie-pop-first vt))
-               (struct-copy
-                chunks cs
-                [length (sub1 len)]
-                [first-chunk first-c*]
-                [chunk-trie vt*])]
-              [else
-               (struct-copy
-                chunks cs
-                [length (sub1 len)]
-                [first-chunk (chunk-drop-first last-c)])])]))
+            (values
+             (cond
+               [(<= new-len CHUNK-CAPACITY)
+                ;; Not enough elements; must collapse into a single
+                ;; chunk (see Note [chunks-length invariant]).
+                (single-chunk
+                 (if (= first-len 1)
+                     last-c
+                     (make-chunk
+                      new-len
+                      (λ (chunk)
+                        (chunk-copy! chunk 0 first-c 1)
+                        (chunk-copy! chunk first-len last-c 0)))))]
+               [(= first-len 1)
+                (define-values [vt* first-c*] (vector-trie-pop-first vt))
+                (struct-copy
+                 chunks cs
+                 [length (sub1 len)]
+                 [first-chunk first-c*]
+                 [chunk-trie vt*])]
+               [else
+                (struct-copy
+                 chunks cs
+                 [length (sub1 len)]
+                 [first-chunk (chunk-drop-first last-c)])])
+             (chunk-first first-c))]))
 
-       (define (chunked-seq-drop-last cs)
+       (define (chunked-seq-pop-last cs)
          (match cs
            [(single-chunk chunk)
-            (if (= (chunk-length chunk) 1)
-                empty-chunked-seq
-                (single-chunk (chunk-drop-last chunk)))]
+            (values (if (= (chunk-length chunk) 1)
+                        empty-chunked-seq
+                        (single-chunk (chunk-drop-last chunk)))
+                    (chunk-last chunk))]
 
            [(chunks len first-c vt last-c)
             (define new-len (sub1 len))
             (define last-len (chunk-length last-c))
-            (cond
-              [(<= new-len CHUNK-CAPACITY)
-               ;; Not enough elements; must collapse into a single
-               ;; chunk (see Note [chunks-length invariant]).
-               (single-chunk
-                (if (= last-len 1)
-                    first-c
-                    (make-chunk
-                     new-len
-                     (λ (chunk)
-                       (chunk-copy! chunk 0 first-c 0)
-                       (chunk-copy! chunk (chunk-length first-c) last-c 0 (sub1 last-len))))))]
-              [(= last-len 1)
-               (define-values [vt* last-c*] (vector-trie-pop-last vt))
-               (struct-copy
-                chunks cs
-                [length (sub1 len)]
-                [chunk-trie vt*]
-                [last-chunk last-c*])]
-              [else
-               (struct-copy
-                chunks cs
-                [length (sub1 len)]
-                [last-chunk (chunk-drop-last last-c)])])]))
+            (values
+             (cond
+               [(<= new-len CHUNK-CAPACITY)
+                ;; Not enough elements; must collapse into a single
+                ;; chunk (see Note [chunks-length invariant]).
+                (single-chunk
+                 (if (= last-len 1)
+                     first-c
+                     (make-chunk
+                      new-len
+                      (λ (chunk)
+                        (chunk-copy! chunk 0 first-c 0)
+                        (chunk-copy! chunk (chunk-length first-c) last-c 0 (sub1 last-len))))))]
+               [(= last-len 1)
+                (define-values [vt* last-c*] (vector-trie-pop-last vt))
+                (struct-copy
+                 chunks cs
+                 [length (sub1 len)]
+                 [chunk-trie vt*]
+                 [last-chunk last-c*])]
+               [else
+                (struct-copy
+                 chunks cs
+                 [length (sub1 len)]
+                 [last-chunk (chunk-drop-last last-c)])])
+             (chunk-last last-c))]))
 
        ;; ----------------------------------------------------------------------
        ;; appending
@@ -723,6 +756,109 @@
             (for/fold ([cs-a cs-a])
                       ([cs-b (in-list cs-bs)])
               (chunked-seq-append cs-a cs-b))]))
+
+       ;; ----------------------------------------------------------------------
+       ;; splitting
+
+       (define (chunked-seq-take cs n)
+         (cond
+           [(zero? n)
+            empty-chunked-seq]
+           [(= n (chunked-seq-length cs))
+            cs]
+           [else
+            (match cs
+              [(single-chunk chunk)
+               (single-chunk (chunk-slice chunk 0 n))]
+              [(chunks len first-c vt last-c)
+               (define first-c-len (chunk-length first-c))
+               (cond
+                 ;; Not enough elements; must collapse into a single
+                 ;; chunk (see Note [chunks-length invariant]).
+                 [(<= n CHUNK-CAPACITY)
+                  (single-chunk
+                   (cond
+                     [(= n first-c-len)
+                      first-c]
+                     [(< n first-c-len)
+                      (chunk-slice first-c 0 n)]
+                     [else
+                      (make-chunk
+                       n
+                       (λ (new-chunk)
+                         (chunk-copy! new-chunk 0 first-c 0)
+                         (define next-c (if (zero? (vector-trie-length vt))
+                                            last-c
+                                            (vector-trie-first vt)))
+                         (chunk-copy! new-chunk first-c-len next-c 0 (- n first-c-len))))]))]
+                 [else
+                  (define drop-n (- len n))
+                  (define last-c-len (chunk-length last-c))
+                  (cond
+                    [(< drop-n last-c-len)
+                     (chunks n first-c vt (chunk-slice last-c 0 (- last-c-len drop-n)))]
+                    [else
+                     (define-values [keep-chunks new-last-c-len] (quotient/remainder (- n first-c-len) CHUNK-CAPACITY))
+                     (if (zero? new-last-c-len)
+                         (chunks n
+                                 first-c
+                                 (vector-trie-take vt (sub1 keep-chunks))
+                                 (vector-trie-ref vt (sub1 keep-chunks)))
+                         (chunks n
+                                 first-c
+                                 (vector-trie-take vt keep-chunks)
+                                 (chunk-slice (vector-trie-ref vt keep-chunks) 0 new-last-c-len)))])])])]))
+
+       (define (chunked-seq-drop cs n)
+         (cond
+           [(zero? n)
+            cs]
+           [(= n (chunked-seq-length cs))
+            empty-chunked-seq]
+           [else
+            (match cs
+              [(single-chunk chunk)
+               (single-chunk (chunk-slice chunk n))]
+              [(chunks len first-c vt last-c)
+               (define new-len (- len n))
+               (cond
+                 ;; Not enough elements; must collapse into a single
+                 ;; chunk (see Note [chunks-length invariant]).
+                 [(<= new-len CHUNK-CAPACITY)
+                  (define last-c-len (chunk-length last-c))
+                  (single-chunk
+                   (cond
+                     [(= new-len last-c-len)
+                      last-c]
+                     [(< new-len last-c-len)
+                      (chunk-slice last-c (- last-c-len new-len))]
+                     [else
+                      (make-chunk
+                       new-len
+                       (λ (new-chunk)
+                         (define split-i (- new-len last-c-len))
+                         (define prev-c (if (zero? (vector-trie-length vt))
+                                            first-c
+                                            (vector-trie-last vt)))
+                         (chunk-copy! new-chunk 0 prev-c (- (chunk-length prev-c) split-i))
+                         (chunk-copy! new-chunk split-i last-c 0)))]))]
+                 [else
+                  (define first-c-len (chunk-length first-c))
+                  (cond
+                    [(< n first-c-len)
+                     (chunks new-len (chunk-slice first-c n) vt last-c)]
+                    [else
+                     (define-values [first-c-index drop-first-c-elems] (quotient/remainder (- n first-c-len) CHUNK-CAPACITY))
+                     (define new-first-c (vector-trie-ref vt first-c-index))
+                     (chunks new-len
+                             (if (zero? drop-first-c-elems)
+                                 new-first-c
+                                 (chunk-slice new-first-c drop-first-c-elems))
+                             (vector-trie-drop vt (add1 first-c-index))
+                             last-c)])])])]))
+
+       (define (chunked-seq-split-at cs n)
+         (values (chunked-seq-take cs n) (chunked-seq-drop cs n)))
 
        ;; ----------------------------------------------------------------------
        ;; comparison
