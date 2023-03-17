@@ -5,12 +5,14 @@ module Unison.LSP.FileAnalysis where
 import Control.Lens
 import Control.Monad.Reader
 import qualified Crypto.Random as Random
+import qualified Data.Align as Align
 import Data.Bifunctor (second)
 import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import Data.These
 import Debug.RecoverRTTI (anythingToString)
 import Language.LSP.Types
   ( Diagnostic,
@@ -27,6 +29,7 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
+import Unison.LSP.Completion.Helpers (namesToCompletionTree)
 import Unison.LSP.Conversions
 import Unison.LSP.Diagnostics
   ( mkDiagnostic,
@@ -93,6 +96,7 @@ checkFile doc = runMaybeT $ do
           & toRangeMap
   let fileSummary = mkFileSummary parsedFile typecheckedFile
   let tokenMap = getTokenMap tokens
+  let fileCompletions = fromMaybe mempty ((namesToCompletionTree . UF.typecheckedToNames <$> typecheckedFile) <|> (namesToCompletionTree . UF.toNames <$> parsedFile))
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, ..}
   pure $ fileAnalysis
 
@@ -187,9 +191,27 @@ fileAnalysisWorker = forever do
       pure (docUri, fileInfo)
   Debug.debugM Debug.LSP "Freshly Typechecked " (anythingToString (Map.toList freshlyCheckedFiles))
   -- Overwrite any files we successfully checked
-  atomically $ modifyTVar' checkedFilesV (Map.union freshlyCheckedFiles)
+  atomically $ modifyTVar' checkedFilesV (Align.alignWith updateAnalysisTriple freshlyCheckedFiles)
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
+  where
+    updateAnalysisTriple :: These FileAnalysis FileAnalysisTriple -> FileAnalysisTriple
+    updateAnalysisTriple = \case
+      This currentAnalysis@FileAnalysis {typecheckedFile, parsedFile} ->
+        FileAnalysisTriple
+          { currentAnalysis,
+            -- Must be 'Just' if this analysis typechecked, Nothing otherwise, so we take
+            -- advantage of Maybe's applicative instance here.
+            lastSuccessfulParse = if isJust parsedFile then Just currentAnalysis else Nothing,
+            lastSuccessfulTypecheck = if isJust typecheckedFile then Just currentAnalysis else Nothing
+          }
+      That triple -> triple
+      These currentAnalysis (FileAnalysisTriple {lastSuccessfulParse, lastSuccessfulTypecheck}) ->
+        FileAnalysisTriple
+          { currentAnalysis,
+            lastSuccessfulParse = if isJust (parsedFile currentAnalysis) then Just currentAnalysis else lastSuccessfulParse,
+            lastSuccessfulTypecheck = if isJust (typecheckedFile currentAnalysis) then Just currentAnalysis else lastSuccessfulTypecheck
+          }
 
 analyseFile :: (Foldable f) => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText notes = do
@@ -361,21 +383,33 @@ toRangeMap :: (Foldable f) => f (Range, a) -> IntervalMap Position [a]
 toRangeMap vs =
   IM.fromListWith (<>) (toList vs <&> \(r, a) -> (rangeToInterval r, [a]))
 
-getFileAnalysis :: Uri -> Lsp (Maybe FileAnalysis)
-getFileAnalysis uri = do
+getFileAnalysisTriple :: Uri -> Lsp (Maybe FileAnalysisTriple)
+getFileAnalysisTriple uri = do
   checkedFilesV <- asks checkedFilesVar
   checkedFiles <- readTVarIO checkedFilesV
   pure $ Map.lookup uri checkedFiles
 
+getCurrentFileAnalysis :: Uri -> Lsp (Maybe FileAnalysis)
+getCurrentFileAnalysis uri =
+  fmap currentAnalysis <$> getFileAnalysisTriple uri
+
+getLatestParsedAnalysis :: Uri -> Lsp (Maybe FileAnalysis)
+getLatestParsedAnalysis uri = do
+  getFileAnalysisTriple uri <&> \mayTriple -> mayTriple >>= lastSuccessfulParse
+
+getLatestTypecheckedAnalysis :: Uri -> Lsp (Maybe FileAnalysis)
+getLatestTypecheckedAnalysis uri = do
+  getFileAnalysisTriple uri <&> \mayTriple -> mayTriple >>= lastSuccessfulTypecheck
+
 getFileSummary :: Uri -> MaybeT Lsp FileSummary
 getFileSummary uri = do
-  FileAnalysis {fileSummary} <- MaybeT $ getFileAnalysis uri
+  FileAnalysis {fileSummary} <- MaybeT $ getCurrentFileAnalysis uri
   MaybeT . pure $ fileSummary
 
 -- TODO memoize per file
 ppedForFile :: Uri -> Lsp PPED.PrettyPrintEnvDecl
 ppedForFile fileUri = do
-  getFileAnalysis fileUri >>= \case
+  getCurrentFileAnalysis fileUri >>= \case
     Just (FileAnalysis {typecheckedFile = tf, parsedFile = uf}) ->
       ppedForFileHelper uf tf
     _ -> ppedForFileHelper Nothing Nothing

@@ -67,6 +67,24 @@ logError msg = do
   let LogAction log = LSP.defaultClientLogger
   log (WithSeverity msg Error)
 
+-- | Certain analysis can only be performed on a file that either parses or typecheckes.
+-- Since the user may want access to some of that information even if the file is in an
+-- invalid state, we store _past_ successful analysis results in addition to the current
+-- analysis so we can provide the user with a reasonable fallback in most cases.
+--
+-- E.g. We can't analyze the top-level names available in a file if it doesn't parse, but
+-- the user likely still wants to be able to autocomplete the names from the last time it
+-- did parse.
+data FileAnalysisTriple = FileAnalysisTriple
+  { -- The most up-to-date analysis
+    currentAnalysis :: FileAnalysis,
+    -- A snapshot of the analysis from the last time we successfully parsed the file.
+    lastSuccessfulParse :: Maybe FileAnalysis,
+    -- A snapshot of the analysis from the last time we successfully typechecked the file.
+    lastSuccessfulTypecheck :: Maybe FileAnalysis
+  }
+  deriving stock (Show)
+
 -- | Environment for the Lsp monad.
 data Env = Env
   { -- contains handlers for talking to the client.
@@ -79,7 +97,7 @@ data Env = Env
     runtime :: Runtime Symbol,
     -- The information we have for each file, which may or may not have a valid parse or
     -- typecheck.
-    checkedFilesVar :: TVar (Map Uri FileAnalysis),
+    checkedFilesVar :: TVar (Map Uri FileAnalysisTriple),
     dirtyFilesVar :: TVar (Set Uri),
     -- A map  of request IDs to an action which kills that request.
     cancellationMapVar :: TVar (Map SomeLspId (IO ())),
@@ -117,8 +135,10 @@ data FileAnalysis = FileAnalysis
     notes :: Seq (Note Symbol Ann),
     diagnostics :: IntervalMap Position [Diagnostic],
     codeActions :: IntervalMap Position [CodeAction],
-    fileSummary :: Maybe FileSummary
+    fileSummary :: Maybe FileSummary,
+    fileCompletions :: CompletionTree
   }
+  deriving stock (Show)
 
 -- | A file that parses might not always type-check, but often we just want to get as much
 -- information as we have available. This provides a type where we can summarize the

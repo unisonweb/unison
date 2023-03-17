@@ -75,6 +75,7 @@ library
       Unison.LSP.CancelRequest
       Unison.LSP.CodeAction
       Unison.LSP.Completion
+      Unison.LSP.Completion.Helpers
       Unison.LSP.Configuration
       Unison.LSP.Conversions
       Unison.LSP.Diagnostics

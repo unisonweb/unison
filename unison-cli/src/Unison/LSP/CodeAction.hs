@@ -18,7 +18,7 @@ import Unison.Prelude
 codeActionHandler :: RequestMessage 'TextDocumentCodeAction -> (Either ResponseError (ResponseResult 'TextDocumentCodeAction) -> Lsp ()) -> Lsp ()
 codeActionHandler m respond =
   respond . maybe (Right mempty) (Right . List . fmap InR) =<< runMaybeT do
-    FileAnalysis {codeActions} <- MaybeT $ getFileAnalysis (m ^. params . textDocument . uri)
+    FileAnalysis {codeActions} <- MaybeT $ getCurrentFileAnalysis (m ^. params . textDocument . uri)
     let r = m ^. params . range
     let relevantActions = IM.intersecting codeActions (rangeToInterval r)
     Debug.debugM Debug.LSP "All CodeActions" (codeActions)
