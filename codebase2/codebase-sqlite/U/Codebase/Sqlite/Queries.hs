@@ -256,7 +256,6 @@ import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import NeatInterpolation (trimming)
 import Network.URI (URI)
-import Network.URI.Orphans.Sqlite ()
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
@@ -310,6 +309,7 @@ import qualified U.Codebase.Sqlite.Reference as S
 import qualified U.Codebase.Sqlite.Reference as S.Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import qualified U.Codebase.Sqlite.Referent as S.Referent
+import U.Codebase.Sqlite.RemoteProject (RemoteProject (..))
 import U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.TempEntity (TempEntity)
@@ -325,7 +325,6 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
-import Unison.Core.Orphans.Sqlite ()
 import Unison.Core.Project (ProjectBranchName, ProjectName)
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
@@ -2489,14 +2488,6 @@ getReflog numEntries = queryListRow sql (Only numEntries)
           ORDER BY time DESC
           LIMIT ?
       |]
-
-data RemoteProject = RemoteProject
-  { projectId :: RemoteProjectId,
-    host :: URI,
-    name :: ProjectName
-  }
-  deriving stock (Generic, Show)
-  deriving anyclass (ToRow, FromRow)
 
 data RemoteProjectBranch = RemoteProjectBranch
   { projectId :: RemoteProjectId,
