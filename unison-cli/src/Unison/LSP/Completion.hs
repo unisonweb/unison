@@ -43,7 +43,7 @@ completionHandler m respond =
     (range, prefix) <- VFS.completionPrefix (m ^. params . textDocument . uri) (m ^. params . position)
     ppe <- PPED.suffixifiedPPE <$> lift globalPPED
     codebaseCompletions <- lift getCodebaseCompletions
-    fileComps <- lift (getLatestParsedAnalysis fileUri) <&> maybe mempty fileCompletions
+    fileComps <- lift (getLatestTypecheckedAnalysis fileUri) <&> maybe mempty fileCompletions
     let allCompletions = fileComps <> codebaseCompletions
     Config {maxCompletions} <- lift getConfig
     let defMatches = matchCompletions allCompletions prefix
