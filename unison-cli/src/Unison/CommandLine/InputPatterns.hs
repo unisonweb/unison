@@ -2668,9 +2668,9 @@ parsePushSource sourceStr =
 -- | Parse a push target.
 parsePushTarget :: String -> Either (P.Pretty CT.ColorText) (WriteRemoteNamespace (These ProjectName ProjectBranchName))
 parsePushTarget target =
-  case P.parse (UriParser.writeRemoteNamespace) "remote namespace" (Text.pack target) of
-    Left _ -> Left (I.help push)
-    Right path -> Right path
+  case P.parseMaybe UriParser.writeRemoteNamespace (Text.pack target) of
+    Nothing -> Left (I.help push)
+    Just path -> Right path
 
 parseHashQualifiedName ::
   String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
@@ -2690,7 +2690,7 @@ parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitR
 parseWriteGitRepo label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeGitRepo label (Text.pack input))
+    (P.parse (UriParser.writeGitRepo <* P.eof) label (Text.pack input))
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
