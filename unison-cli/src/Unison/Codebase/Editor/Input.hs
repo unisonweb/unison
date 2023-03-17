@@ -253,7 +253,7 @@ data PullSourceTarget
 data PullTarget a
   = PullTargetLooseCode Path'
   | PullTargetProject a
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 data PushSource
   = PathySource Path'
