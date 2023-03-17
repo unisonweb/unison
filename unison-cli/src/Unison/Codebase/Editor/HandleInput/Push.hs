@@ -19,6 +19,7 @@ import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Project as Sqlite (Project)
+import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite (ProjectBranch)
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -306,7 +307,7 @@ pushProjectBranchToProjectBranch localProjectAndBranchIds maybeRemoteProjectAndB
   executeUploadPlan uploadPlan
 
 -- "push" or "push /foo", remote mapping unknown
-bazinga50 :: ProjectAndBranch Sqlite.Project Queries.Branch -> Hash32 -> Maybe ProjectBranchName -> Cli UploadPlan
+bazinga50 :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Hash32 -> Maybe ProjectBranchName -> Cli UploadPlan
 bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
   let loadRemoteProjectInfo ::
         Sqlite.Transaction
@@ -384,7 +385,7 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
 
 -- "push", "push foo", or "push /foo" ignoring remote mapping (if any)
 bazinga10 ::
-  ProjectAndBranch Sqlite.Project Queries.Branch ->
+  ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
   Hash32 ->
   ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
   Cli UploadPlan
@@ -405,7 +406,7 @@ bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = d
 
 -- What are we pushing, a project branch or loose code?
 data WhatAreWePushing
-  = PushingProjectBranch (ProjectAndBranch Sqlite.Project Queries.Branch)
+  = PushingProjectBranch (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | PushingLooseCode
 
 -- we have the remote project and branch names, but we don't know whether either already exist
@@ -459,7 +460,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
 -- "push /foo" with a remote mapping for the project (either from this branch or one of our ancestors)
 -- but we don't know whether the remote branch exists
 pushToProjectBranch1 ::
-  ProjectAndBranch Sqlite.Project Queries.Branch ->
+  ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
   Hash32 ->
   ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   Cli UploadPlan
@@ -668,7 +669,7 @@ withEntitiesUploadedProgressCallback action = do
 -- Resolve project/branch ids to project/branch records.
 expectProjectAndBranch ::
   ProjectAndBranch ProjectId ProjectBranchId ->
-  Sqlite.Transaction (ProjectAndBranch Sqlite.Project Queries.Branch)
+  Sqlite.Transaction (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
 expectProjectAndBranch (ProjectAndBranch projectId branchId) =
   ProjectAndBranch
     <$> Queries.expectProject projectId

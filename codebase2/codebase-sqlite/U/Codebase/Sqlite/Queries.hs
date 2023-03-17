@@ -102,17 +102,18 @@ module U.Codebase.Sqlite.Queries
     -- * projects
     projectExists,
     projectExistsByName,
-    expectProject,
+    loadProject,
     loadProjectByName,
+    expectProject,
     insertProject,
-    Branch (..),
+
+    -- ** project branches
     projectBranchExistsByName,
-    expectProjectBranch,
     loadProjectBranchByName,
+    expectProjectBranch,
     loadProjectAndBranchNames,
     insertProjectBranch,
     markProjectBranchChild,
-    loadProject,
     loadProjectBranch,
 
     -- ** remote projects
@@ -303,6 +304,7 @@ import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import U.Codebase.Sqlite.Orphans ()
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Reference as S
 import qualified U.Codebase.Sqlite.Reference as S.Reference
@@ -2496,14 +2498,6 @@ data RemoteProject = RemoteProject
   deriving stock (Generic, Show)
   deriving anyclass (ToRow, FromRow)
 
-data Branch = Branch
-  { projectId :: ProjectId,
-    branchId :: ProjectBranchId,
-    name :: ProjectBranchName
-  }
-  deriving stock (Generic, Show)
-  deriving anyclass (ToRow, FromRow)
-
 data RemoteProjectBranch = RemoteProjectBranch
   { projectId :: RemoteProjectId,
     branchId :: RemoteProjectBranchId,
@@ -2598,11 +2592,11 @@ projectBranchExistsByName projectId name =
     |]
     (projectId, name)
 
-loadProjectBranch :: ProjectId -> ProjectBranchId -> Transaction (Maybe Branch)
+loadProjectBranch :: ProjectId -> ProjectBranchId -> Transaction (Maybe ProjectBranch)
 loadProjectBranch pid bid =
   queryMaybeRow loadProjectBranchSql (pid, bid)
 
-expectProjectBranch :: ProjectId -> ProjectBranchId -> Transaction Branch
+expectProjectBranch :: ProjectId -> ProjectBranchId -> Transaction ProjectBranch
 expectProjectBranch projectId branchId =
   queryOneRow loadProjectBranchSql (projectId, branchId)
 
@@ -2620,7 +2614,7 @@ loadProjectBranchSql =
       AND branch_id = ?
   |]
 
-loadProjectBranchByName :: ProjectId -> ProjectBranchName -> Transaction (Maybe Branch)
+loadProjectBranchByName :: ProjectId -> ProjectBranchName -> Transaction (Maybe ProjectBranch)
 loadProjectBranchByName projectId name =
   queryMaybeRow
     [sql|
