@@ -2665,10 +2665,6 @@ markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
           VALUES (?, ?, ?)
           |]
 
--- TODO: Get this from some canonical place
-unisonShareUri :: Text
-unisonShareUri = "https://api.unison-lang.org"
-
 data LoadRemoteBranchFlag
   = IncludeSelfRemote
   | ExcludeSelfRemote
@@ -2679,10 +2675,11 @@ data LoadRemoteBranchFlag
 -- project of the nearest ancestor.
 loadRemoteProjectBranch ::
   ProjectId ->
+  URI ->
   ProjectBranchId ->
   Transaction (Maybe (RemoteProjectId, Maybe RemoteProjectBranchId))
-loadRemoteProjectBranch p b = do
-  loadRemoteProjectBranchGen IncludeSelfRemote p b <&> fmap fixup
+loadRemoteProjectBranch p u b = do
+  loadRemoteProjectBranchGen IncludeSelfRemote p u b <&> fmap fixup
   where
     -- If the depth is 0 then the local project/branch we provided has
     -- a remote mapping. Otherwise we found some ancestor's remote
@@ -2696,10 +2693,11 @@ loadRemoteProjectBranch p b = do
 -- ancestor's remote mapping)
 loadDefaultMergeTargetForLocalProjectBranch ::
   ProjectId ->
+  URI ->
   ProjectBranchId ->
   Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId))
-loadDefaultMergeTargetForLocalProjectBranch p b = do
-  loadRemoteProjectBranchGen ExcludeSelfRemote p b <&> fmap fixup
+loadDefaultMergeTargetForLocalProjectBranch p u b = do
+  loadRemoteProjectBranchGen ExcludeSelfRemote p u b <&> fmap fixup
   where
     fixup = \case
       (project, branch, _) -> (project, branch)
@@ -2709,10 +2707,11 @@ loadDefaultMergeTargetForLocalProjectBranch p b = do
 loadRemoteProjectBranchGen ::
   LoadRemoteBranchFlag ->
   ProjectId ->
+  URI ->
   ProjectBranchId ->
   Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId, Int64))
-loadRemoteProjectBranchGen loadRemoteBranchFlag pid bid =
-  queryMaybeRow theSql (unisonShareUri, pid, bid, unisonShareUri)
+loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
+  queryMaybeRow theSql (remoteUri, pid, bid, remoteUri)
   where
     theSql =
       [sql|

@@ -1471,7 +1471,8 @@ inputDescription input =
     GenSchemeLibsI -> pure "compile.native.genlibs"
     FetchSchemeCompilerI name -> pure ("compile.native.fetch" <> Text.pack name)
     PullRemoteBranchI sourceTarget _syncMode pullMode _ -> do
-      dest <- wundefined -- p' dest0
+      -- TODO
+      dest <- pure "" -- p' dest0
       let command =
             Text.pack . InputPattern.patternName $
               case pullMode of
@@ -1484,7 +1485,7 @@ inputDescription input =
           <> maybe
             "(remote namespace from .unisonConfig)"
             wundefined -- (printNamespace absurd)
-            wundefined -- orepo
+            Nothing -- orepo todo
           <> " "
           <> dest
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)

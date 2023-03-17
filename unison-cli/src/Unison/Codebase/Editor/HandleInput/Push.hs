@@ -318,7 +318,7 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
               )
           )
       loadRemoteProjectInfo =
-        Queries.loadRemoteProjectBranch localProjectId localBranchId >>= \case
+        Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId >>= \case
           Nothing -> pure Nothing
           Just (remoteProjectId, maybeRemoteBranchId) -> do
             remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
@@ -563,6 +563,7 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
           Cli.runTransaction do
             Queries.loadDefaultMergeTargetForLocalProjectBranch
               (localProject ^. #projectId)
+              Share.hardCodedUri
               (localBranch ^. #branchId)
       pure $
         Share.API.ProjectBranchIds

@@ -55,6 +55,7 @@ import qualified Unison.Share.Sync as Share
 import qualified Unison.Share.Sync.Types as Share
 import Unison.Share.Types (codeserverBaseURL)
 import Unison.Sqlite (Transaction)
+import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.Common as Common
 import qualified Unison.Sync.Types as Share
 import Witch (unsafeFrom)
@@ -72,12 +73,14 @@ type ResolvedInfo =
 handlePullSourceTarget0 :: Cli ResolvedInfo
 handlePullSourceTarget0 =
   ProjectUtils.getCurrentProjectBranch >>= \case
-    Nothing -> wundefined
+    Nothing -> do
+      loggeth ["Not on a project branch"]
+      Cli.returnEarlyWithoutOutput
     Just (ProjectAndBranch projectId projectBranchId) ->
       let loadRemoteNames :: ExceptT LoadInfoError Transaction (RemoteProjectId, ProjectName, RemoteProjectBranchId, ProjectBranchName)
           loadRemoteNames = ExceptT $
             fmap (maybe (Left NoDefaultPullTarget) Right) $ runMaybeT do
-              (remoteProjectId, mremoteBranchId) <- MaybeT (Queries.loadRemoteProjectBranch projectId projectBranchId)
+              (remoteProjectId, mremoteBranchId) <- MaybeT (Queries.loadRemoteProjectBranch projectId Share.hardCodedUri projectBranchId)
               remoteBranchId <- MaybeT (pure mremoteBranchId)
               remoteProjectName <- lift $ Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
               remoteProjectBranchName <- lift $ Queries.expectRemoteProjectBranchName Share.hardCodedUri remoteProjectId remoteBranchId
@@ -108,7 +111,9 @@ handlePullSourceTarget1 :: ReadRemoteNamespace (These ProjectName ProjectBranchN
 handlePullSourceTarget1 = \case
   ReadShare'ProjectBranch projectAndBranchNames ->
     ProjectUtils.getCurrentProjectBranch >>= \case
-      Nothing -> wundefined
+      Nothing -> do
+        loggeth ["Not on a project branch"]
+        Cli.returnEarlyWithoutOutput
       Just (ProjectAndBranch projectId projectBranchId) -> do
         source <- ReadShare'ProjectBranch <$> resolveRemoteNames projectId projectBranchId projectAndBranchNames
         target <-
@@ -132,6 +137,7 @@ doPullRemoteBranch ::
   Text ->
   Cli ()
 doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity description = do
+  loggeth ["doPullRemoteBranch"]
   Cli.Env {codebase} <- ask
   let preprocess = case pullMode of
         Input.PullWithHistory -> Unmodified
@@ -172,19 +178,25 @@ doPullRemoteBranch sourceTarget {- mayRepo target -} syncMode pullMode verbosity
           #_PullTargetProject
           (\(ProjectAndBranch (_, projectName) (_, branchName)) -> ProjectAndBranch projectName branchName)
           resolvedTarget
+      targetIdsOnly :: PullTarget (ProjectAndBranch ProjectId ProjectBranchId)
+      targetIdsOnly =
+        over
+          #_PullTargetProject
+          (\(ProjectAndBranch (projectId, _) (branchId, _)) -> ProjectAndBranch projectId branchId)
+          resolvedTarget
   when (Branch.isEmpty0 (Branch.head remoteBranch)) do
     Cli.respond (PulledEmptyBranch nsNamesOnly)
   let unchangedMsg = PullAlreadyUpToDate nsNamesOnly targetNamesOnly
   destAbs <-
-    case targetNamesOnly of
+    case targetIdsOnly of
       PullTargetLooseCode path -> Cli.resolvePath' path
-      PullTargetProject _ -> wundefined
+      PullTargetProject pb -> pure $ ProjectUtils.projectBranchPath pb
   let printDiffPath =
         if Verbosity.isSilent verbosity
           then Nothing
           else case targetNamesOnly of
             PullTargetLooseCode path -> Just path
-            PullTargetProject _ -> wundefined
+            PullTargetProject _ -> Nothing -- todo
   case pullMode of
     Input.PullWithHistory -> do
       destBranch <- Cli.getBranch0At destAbs
@@ -315,7 +327,7 @@ resolveRemoteNames projectId branchId = \case
     remoteBranch <- expectRemoteProjectBranchByName remoteProjectId remoteBranchName
     pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
   That branchName -> do
-    Cli.runTransaction (Queries.loadRemoteProjectBranch projectId branchId) >>= \case
+    Cli.runTransaction (Queries.loadRemoteProjectBranch projectId Share.hardCodedUri branchId) >>= \case
       Just (remoteProjectId, _maybeProjectBranchId) -> do
         projectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
         remoteBranch <- expectRemoteProjectBranchByName remoteProjectId branchName
