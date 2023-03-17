@@ -117,8 +117,6 @@ module U.Codebase.Sqlite.Queries
     loadProjectBranch,
 
     -- ** remote projects
-    RemoteProject (..),
-    RemoteProjectBranch (..),
     loadRemoteProject,
     ensureRemoteProject,
     expectRemoteProjectName,
@@ -310,6 +308,7 @@ import qualified U.Codebase.Sqlite.Reference as S.Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import qualified U.Codebase.Sqlite.Referent as S.Referent
 import U.Codebase.Sqlite.RemoteProject (RemoteProject (..))
+import U.Codebase.Sqlite.RemoteProjectBranch (RemoteProjectBranch)
 import U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.TempEntity (TempEntity)
@@ -2488,15 +2487,6 @@ getReflog numEntries = queryListRow sql (Only numEntries)
           ORDER BY time DESC
           LIMIT ?
       |]
-
-data RemoteProjectBranch = RemoteProjectBranch
-  { projectId :: RemoteProjectId,
-    branchId :: RemoteProjectBranchId,
-    host :: URI,
-    name :: ProjectBranchName
-  }
-  deriving stock (Generic, Show)
-  deriving anyclass (ToRow, FromRow)
 
 -- | Does a project exist with this id?
 projectExists :: ProjectId -> Transaction Bool
