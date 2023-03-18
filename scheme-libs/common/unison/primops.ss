@@ -224,10 +224,7 @@
   (define (unison-POp-DECI n) (fx1- n))
   (define (unison-POp-DIVN m n) (fxdiv m n))
   (define (unison-POp-DRPB n bs) (ibytevector-drop n bs))
-  (define (unison-POp-DRPS n l) ; TODO replace with faster impl in chunked-seq when available
-    (cond
-      [(or (= n 0) (chunked-list-empty? l)) l]
-      [else (unison-POp-DRPS (- n 1) (chunked-list-drop-first l))]))
+  (define (unison-POp-DRPS n l) (chunked-list-drop l n))
   (define (unison-POp-DRPT n t) (istring-drop n t))
   (define (unison-POp-EQLN m n) (if (fx=? m n) 1 0))
   (define (unison-POp-EQLT s t) (if (string=? s t) 1 0))
