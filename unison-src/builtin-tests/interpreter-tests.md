@@ -30,7 +30,7 @@ to `Tests.check` and `Tests.checkEqual`).
 ```
 
 ```ucm:hide
-.> load unison-src/builtin-tests/seq-tests.u
+.> load unison-src/builtin-tests/list-tests.u
 .> add
 ```
 

@@ -1,8 +1,8 @@
-seq.tests = do
-  !list.tests
+list.tests = do
+  !list.ops.tests
   !list.matching.tests
 
-list.tests = do
+list.ops.tests = do
   check "List.empty builder" do
     _ = []
     true

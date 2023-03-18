@@ -7,7 +7,7 @@ tests = Tests.main do
   --  !concurrency.tests
   --   !tcp.tests
   --  check "bug is caught" do isLeft (catchAll do bug ())
-  !seq.tests
+  !list.tests
 
 
 crypto.hash.tests = do
