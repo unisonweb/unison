@@ -832,7 +832,7 @@
          (cond
            [(zero? n)
             cs]
-           [(= n (chunked-seq-length cs))
+           [(>= n (chunked-seq-length cs))
             empty-chunked-seq]
            [else
             (match cs
