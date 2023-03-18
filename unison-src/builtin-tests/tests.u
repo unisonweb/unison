@@ -8,6 +8,7 @@ tests = Tests.main do
   --   !tcp.tests
   --  check "bug is caught" do isLeft (catchAll do bug ())
   !list.tests
+  !text.tests
 
 
 crypto.hash.tests = do
