@@ -34,8 +34,8 @@ testConnectSelfSigned = do
   received = clientThread "test.unison.cloud" portPromise
   _ = Either.toException <| Promise.read serverResult
   -- Check it
-  Debug.trace "sent" toSend
-  Debug.trace "received" received
+  Debug.trace "sent" (toSend ++ ":" ++ received)
+  Debug.trace "sent" (toSend == received)
   checkEqual "should have received what we've sent" toSend received
 
 expectError msg text fn = match catchAll fn with

@@ -146,7 +146,6 @@
      (let ([buffer (make-bytes 4096)])
        (read-bytes-avail! buffer (tls-input tls))
        (right buffer)))))
-;  (right (port->bytes (car (car tls)) #:close? #f))
 
 (define (terminate.impl.v3 tls)
   ; NOTE: This actually does more than the unison impl,
