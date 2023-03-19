@@ -2633,6 +2633,7 @@ declareForeigns = do
   declareHashAlgorithm "Blake2b_512" Hash.Blake2b_512
   declareHashAlgorithm "Blake2b_256" Hash.Blake2b_256
   declareHashAlgorithm "Blake2s_256" Hash.Blake2s_256
+  declareHashAlgorithm "Md5" Hash.MD5
 
   declareForeign Untracked "crypto.hashBytes" boxBoxDirect . mkForeign $
     \(HashAlgorithm _ alg, b :: Bytes.Bytes) ->

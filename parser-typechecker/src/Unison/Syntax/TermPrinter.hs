@@ -293,6 +293,10 @@ pretty0
             px <- pretty0 (ac 0 Block im doc) x
             pure . paren (p >= 3) $
               fmt S.ControlKeyword "do" `PP.hang` px
+        | Match' _ _ <- x -> do
+            px <- pretty0 (ac 0 Block im doc) x
+            pure . paren (p >= 3) $
+              fmt S.ControlKeyword "do" `PP.hang` px
         | otherwise -> do
             px <- pretty0 (ac 10 Normal im doc) x
             pure . paren (p >= 11 || isBlock x && p >= 3) $
@@ -354,7 +358,7 @@ pretty0
       --   blah
       -- See `isDestructuringBind` definition.
       Match' scrutinee cs@[MatchCase pat guard (AbsN' vs body)]
-        | p < 1 && isDestructuringBind scrutinee cs -> do
+        | p <= 2 && isDestructuringBind scrutinee cs -> do
             n <- getPPE
             let letIntro = case bc of
                   Block -> id
@@ -514,6 +518,7 @@ pretty0
                     let hang = case body of
                           Delay' (Lets' _ _) -> PP.softHang
                           Lets' _ _ -> PP.softHang
+                          Match' _ _ -> PP.softHang
                           _ -> PP.hang
                     pure . paren (p >= 3) $
                       PP.group (varList vs <> fmt S.ControlKeyword " ->") `hang` prettyBody
@@ -937,6 +942,7 @@ prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
           -- Special case for 'let being on the same line
           let hang = case body' of
                 Delay' (Lets' _ _) -> PP.softHang
+                Delay' (Match' _ _) -> PP.softHang
                 _ -> PP.hang
           pure
             PrettyBinding

@@ -225,6 +225,29 @@ test> hmac_sha2_512.tests.ex2 =
     "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"
 ```
 
+## MD5 tests
+
+Test vectors here pulled from [Wikipedia's writeup](https://en.wikipedia.org/wiki/MD5).
+
+```unison
+ex alg input expected = checks [hashBytes alg (ascii input) == fromHex expected]
+
+test> md5.tests.ex1 =
+  ex Md5
+    ""
+    "d41d8cd98f00b204e9800998ecf8427e"
+
+test> md5.tests.ex2 =
+  ex Md5
+    "The quick brown fox jumps over the lazy dog"
+    "9e107d9d372bb6826bd81d3542a419d6"
+
+test> md5.tests.ex3 =
+  ex Md5
+    "The quick brown fox jumps over the lazy dog."
+    "e4d909c290d0fb1ca068ffaddf22cbd0"
+```
+
 ```ucm:hide
 .> add
 ```
