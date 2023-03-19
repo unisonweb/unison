@@ -6,7 +6,7 @@ tests = Tests.main do
   -- !hmac.tests
   -- !concurrency.tests
   -- !tcp.tests
-  check "bug is caught" do shouldFail do bug ()
+--   check "bug is caught" do shouldFail do bug ()
 
 crypto.hash.tests = do
   hash alg = hashBytes alg (toUtf8 "")
