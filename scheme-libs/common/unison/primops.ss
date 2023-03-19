@@ -227,7 +227,11 @@
   (define (unison-POp-EQLT s t) (if (string=? s t) 1 0))
   (define (unison-POp-EQLU x y)
     (display "why are you like this\n")
-    (display (format "Ok ~s and ~s\n" x y))
+    (display (format "Ok ~s and ~s equal? ~s string=? ~s univ ~s\n" x y
+    (equal? x y)
+    (string=? x y)
+    (universal-equal? x y)
+    ))
     (if (universal-equal? x y) 1 0))
   (define (unison-POp-EROR fnm x)
     (let-values ([(p g) (open-string-output-port)])

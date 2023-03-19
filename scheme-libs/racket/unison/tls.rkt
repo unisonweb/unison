@@ -54,7 +54,6 @@
 
 (struct client-config (host certs))
 (struct tls (config input output))
-; (struct server (conf input output))
 
 (define (newServer.impl.v3 config sockets) ; tlsServerConfig socket -> {io} tls
   (display "Are we at a sever\n")
@@ -88,7 +87,6 @@
 
 (define (ClientConfig.certificates.set certs config) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
   (client-config (client-config-host config) certs))
-;   (list (car config) certs))
 
 (define (handle-errors fn)
   (with-handlers
