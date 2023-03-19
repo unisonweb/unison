@@ -48,15 +48,12 @@
 (struct server-config (certs key))
 
 (define (ServerConfig.default certs key) ; list tlsSignedCert tlsPrivateKey -> tlsServerConfig
-  (display "Making a config\n")
-  (display certs)
   (server-config certs key))
 
 (struct client-config (host certs))
 (struct tls (config input output))
 
 (define (newServer.impl.v3 config sockets) ; tlsServerConfig socket -> {io} tls
-  (display "Are we at a sever\n")
   (handle-errors
    (lambda ()
      (let* ([input (car sockets)]
@@ -90,9 +87,9 @@
 
 (define (handle-errors fn)
   (with-handlers
-      [[exn:fail:network? (lambda (e) (display e)(display "GOT AN ERROR\n") (exception "IOFailure" (exn->string e) '()))]
-       [exn:fail:contract? (lambda (e)  (display e)(display "GOT AN ERROR\n")(exception "InvalidArguments" (exn->string e) '()))]
-       [(lambda _ #t) (lambda (e)  (display e)(display "GOT AN ERROR\n")(exception "MiscFailure" "Unknown exception" e))] ]
+      [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
+       [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exn->string e) '()))]
+       [(lambda _ #t) (lambda (e) (exception "MiscFailure" "Unknown exception" e))] ]
     (fn)))
 
 (define (newClient.impl.v3 config socket)
