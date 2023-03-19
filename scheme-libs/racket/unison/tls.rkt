@@ -45,10 +45,16 @@
         (right bytes)
         (exception "Wrong number of certs" "nope" certs))))
 
+(struct server-config (certs key))
+
 (define (ServerConfig.default certs key) ; list tlsSignedCert tlsPrivateKey -> tlsServerConfig
   (display "Making a config\n")
   (display certs)
-  (list certs key))
+  (server-config certs key))
+
+(struct client-config (host certs))
+(struct tls (config input output))
+; (struct server (conf input output))
 
 (define (newServer.impl.v3 config sockets) ; tlsServerConfig socket -> {io} tls
   (display "Are we at a sever\n")
@@ -56,12 +62,11 @@
    (lambda ()
      (let* ([input (car sockets)]
             [output (car (cdr sockets))]
-            [certs (car config)]
-            [key (car (cdr config))]
+            [certs (server-config-certs config)]
+            [key (server-config-key config)]
             ; [ctx (ssl-make-server-context)]
             [tmp (make-temporary-file* #"unison" #".pem")]
-            [of (open-output-file tmp #:exists 'replace)]
-            )
+            [of (open-output-file tmp #:exists 'replace)])
        (display "Um\n")
        (display certs)
        (display "\n")
@@ -72,30 +77,30 @@
        (write-bytes (mcar certs) of)
        (flush-output of)
        (close-output-port of)
-    ;    (ssl-load-private-key! ctx (car certs))
-    ;    (ssl-load-certificate-chain! ctx tmp)
+       ;    (ssl-load-private-key! ctx (car certs))
+       ;    (ssl-load-certificate-chain! ctx tmp)
        (display "server booting up\n")
        (let*-values (
-            [(ctx) (ssl-make-server-context
-                #:private-key (list 'pem tmp)
-                #:certificate-chain (car certs))]
-            [(in out) (ports->ssl-ports
-                               input output
-                               #:mode 'accept
-                               #:context ctx
-                               #:close-original? #t
-                               )])
+                     [(ctx) (ssl-make-server-context
+                             #:private-key (list 'pem key)
+                             #:certificate-chain tmp)]
+                     [(in out) (ports->ssl-ports
+                                input output
+                                #:mode 'accept
+                                #:context ctx
+                                #:close-original? #t
+                                )])
          (display "server happened\n")
-         (right (cons (cons in out) config)))))))
-;     (list config sock)
-;   ))))
+         (right (tls config in out)))))))
 
 (define (ClientConfig.default host service-identification-suffix)
   (if (= 0 (bytes-length service-identification-suffix))
-      (list host (mlist))
+      (client-config host (mlist))
       (error 'NotImplemented "service-identification-suffix not supported")))
+
 (define (ClientConfig.certificates.set certs config) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
-  (list (car config) certs))
+  (client-config (client-config-host config) certs))
+;   (list (car config) certs))
 
 (define (handle-errors fn)
   (with-handlers
@@ -109,7 +114,7 @@
    (lambda ()
      (let ([input (car socket)]
            [output (car (cdr socket))]
-           [hostname (car config)])
+           [hostname (client-config-host config)])
        (display "um got things\n")
        (let-values ([(in out) (ports->ssl-ports
                                input output
@@ -119,19 +124,18 @@
                                #:close-original? #t
                                )])
          (display "ports are ported\n")
-         (right (cons (cons in out) config)))))))
+         (right (tls config in out)))))))
 
 (define (handshake.impl.v3 tls)
   (handle-errors
    (lambda ()
-     (ssl-set-verify! (car (car tls)) #t)
+     (ssl-set-verify! (tls-input tls) #t)
      (right none))))
 
 (define (send.impl.v3 tls data)
   (handle-errors
    (lambda ()
-     (let* ([ports (car tls)]
-            [output (cdr ports)])
+     (let* ([output (tls-output tls)])
        (write-bytes data output)
        (flush-output output)
        (right none)))))
@@ -140,9 +144,9 @@
   (handle-errors
    (lambda ()
      (let ([buffer (make-bytes 4096)])
-        (read-bytes-avail! buffer (car (car tls)))
-        (right buffer)))))
-    ;  (right (port->bytes (car (car tls)) #:close? #f))
+       (read-bytes-avail! buffer (tls-input tls))
+       (right buffer)))))
+;  (right (port->bytes (car (car tls)) #:close? #f))
 
 (define (terminate.impl.v3 tls)
   ; NOTE: This actually does more than the unison impl,
@@ -153,7 +157,6 @@
   ; SSL_Shutdown on a port without also closing it.
   (handle-errors
    (lambda ()
-     (let ([ports (car tls)])
-       (ssl-abandon-port (car ports))
-       (ssl-abandon-port (cdr ports))
-       (right none)))))
+     (ssl-abandon-port (tls-input tls))
+     (ssl-abandon-port (tls-output tls))
+     (right none))))

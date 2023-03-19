@@ -5,6 +5,7 @@
          racket/file
          racket/unsafe/ops
          unison/tls
+         racket/tcp
          unison/concurrent
          compatibility/mlist
          unison/data
@@ -17,9 +18,14 @@
 (define (example-client prom)
     (let*-values (
         [(port) (promise-read prom)]
-        [(input output) (ssl-connect "0.0.0.0" port)]
-        [(buf) (make-bytes 200)])
+        [(in out) (tcp-connect "0.0.0.0" port)]
+        ; [(input output) (ssl-connect "0.0.0.0" port)]
+        [(input output) (ports->ssl-ports in out
+                                #:mode 'connect
+                                #:hostname "some.hosename"
+                                #:close-original? #t)]
 
+        [(buf) (make-bytes 200)])
         (read-bytes-avail! buf input)
         (display (bytes->string/utf-8 buf))
         (display "\n")
