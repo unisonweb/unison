@@ -272,17 +272,16 @@
     (let ([mn (string->number s)])
       (if mn (sum 1 mn) (sum 0))))
   (define (unison-POp-UPKT t) (string->list t))
-  (define (unison-POp-VWLS l) ; TODO does this admit a faster impl in chunked-seq?
+  (define (unison-POp-VWLS l)
     (if (chunked-list-empty? l)
         (sum 0)
         (let-values ([(t h) (chunked-list-pop-first l)])
           (sum 1 h t))))
-  (define (unison-POp-VWRS l) ; TODO does this admit a faster impl in chunked-seq?
+  (define (unison-POp-VWRS l)
     (if (chunked-list-empty? l)
         (sum 0)
-        (sum 1
-             (chunked-list-drop-last l)
-             (chunked-list-ref l (- (chunked-list-length l) 1)))))
+        (let-values ([(t h) (chunked-list-pop-last l)])
+          (sum 1 t h))))
 
   (define (unison-POp-XORN m n) (fxxor m n))
   (define (unison-POp-VALU c) (decode-value c))
