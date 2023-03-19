@@ -65,8 +65,7 @@
        (write-bytes (mcar certs) of)
        (flush-output of)
        (close-output-port of)
-       (let*-values (
-                     [(ctx) (ssl-make-server-context
+       (let*-values ([(ctx) (ssl-make-server-context
                              #:private-key (list 'pem key)
                              #:certificate-chain tmp)]
                      [(in out) (ports->ssl-ports
@@ -100,7 +99,7 @@
            [hostname (client-config-host config)])
        (let-values ([(in out) (ports->ssl-ports
                                input output
-                               #:mode 'connect ; WAIT This was defaulting to accept and it still worked connecting to example.com???
+                               #:mode 'connect
                                ; maybe I should try connecting to unisonweb.org or something
                                #:hostname hostname
                                #:close-original? #t
@@ -122,23 +121,23 @@
        (right none)))))
 
 (define (read-more n port)
-    (let* ([buffer (make-bytes n)]
-          [read (read-bytes-avail! buffer port)])
+  (let* ([buffer (make-bytes n)]
+         [read (read-bytes-avail! buffer port)])
     (if (< read n)
         (subbytes buffer 0 read)
         (bytes-append buffer (read-more (* 2 n) port)))))
 
 (define (read-all n port)
-    (let* ([buffer (make-bytes n)]
-          [read (read-bytes-avail! buffer port)])
-        (if (= n read)
-            (bytes-append buffer (read-more (* 2 n) port))
-            (subbytes buffer 0 read))))
+  (let* ([buffer (make-bytes n)]
+         [read (read-bytes-avail! buffer port)])
+    (if (= n read)
+        (bytes-append buffer (read-more (* 2 n) port))
+        (subbytes buffer 0 read))))
 
 (define (receive.impl.v3 tls)
   (handle-errors
    (lambda ()
-    (right (read-all 4096 (tls-input tls))))))
+     (right (read-all 4096 (tls-input tls))))))
 
 (define (terminate.impl.v3 tls)
   ; NOTE: This actually does more than the unison impl,

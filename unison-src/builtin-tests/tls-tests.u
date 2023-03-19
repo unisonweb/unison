@@ -11,15 +11,16 @@ tls.tests = do
 --   check "decoding an invalid cert should fail" do isLeft (decodeCert (toUtf8 "not a cert"))
   !testConnectSelfSigned
 --   expectError "self signed wrong host" "NameMismatch" testConnectSelfSignedWrongHost
---   check "connects to example.com over tls" do
---     socket = Socket.client (HostName "example.com") (Port "443")
---     config = ClientConfig.default (HostName "example.com") ""
---     tls = base.IO.net.Tls.newClient config socket
---     conn = base.IO.net.Tls.handshake tls
---     TlsSocket.send conn (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
---     response = TlsSocket.receive conn
---     TlsSocket.close conn
---     contains "HTTP/1.0 200 OK" (fromUtf8 response)
+  check "connects to example.com over tls" do
+    socket = Socket.client (HostName "github.com") (Port "443")
+    config = ClientConfig.default (HostName "github.com") ""
+    tls = base.IO.net.Tls.newClient config socket
+    conn = base.IO.net.Tls.handshake tls
+    TlsSocket.send conn (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
+    response = TlsSocket.receive conn
+    TlsSocket.close conn
+    Debug.trace "um response" (fromUtf8 response)
+    contains "HTTP/1.0 200 OK" (fromUtf8 response)
 --   check "trying to connect to example.com:443 without tls fails" do shouldFail do
 --     socket = Socket.client (HostName "example.com") (Port "443")
 --     Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
