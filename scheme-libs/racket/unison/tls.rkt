@@ -58,7 +58,7 @@
             [output (car (cdr sockets))]
             [certs (car config)]
             [key (car (cdr config))]
-            [ctx (ssl-make-server-context)]
+            ; [ctx (ssl-make-server-context)]
             [tmp (make-temporary-file* #"unison" #".pem")]
             [of (open-output-file tmp #:exists 'replace)]
             )
@@ -72,10 +72,14 @@
        (write-bytes (mcar certs) of)
        (flush-output of)
        (close-output-port of)
-       (ssl-load-private-key! ctx (car certs))
-       (ssl-load-certificate-chain! ctx tmp)
+    ;    (ssl-load-private-key! ctx (car certs))
+    ;    (ssl-load-certificate-chain! ctx tmp)
        (display "server booting up\n")
-       (let-values ([(in out) (ports->ssl-ports
+       (let*-values (
+            [(ctx) (ssl-make-server-context
+                #:private-key (list 'pem tmp)
+                #:certificate-chain (car certs))]
+            [(in out) (ports->ssl-ports
                                input output
                                #:mode 'accept
                                #:context ctx
