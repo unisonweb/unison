@@ -274,8 +274,9 @@
   (define (unison-POp-UPKT t) (string->list t))
   (define (unison-POp-VWLS l) ; TODO does this admit a faster impl in chunked-seq?
     (if (chunked-list-empty? l)
-      (sum 0)
-      (sum 1 (chunked-list-ref l 0) (chunked-list-drop-first l))))
+        (sum 0)
+        (let-values ([(t h) (chunked-list-pop-first l)])
+          (sum 1 h t))))
   (define (unison-POp-VWRS l) ; TODO does this admit a faster impl in chunked-seq?
     (if (chunked-list-empty? l)
         (sum 0)
