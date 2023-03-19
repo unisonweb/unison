@@ -82,6 +82,7 @@
                  (pointwise (cdr ll) (cdr lr)))])))
     (cond
       [(eq? l r) 1]
+    ;   [(equal? l r) 1]
       [(and (data? l) (data? r))
        (and
          (eqv? (data-tag l) (data-tag r))

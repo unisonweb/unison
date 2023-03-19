@@ -64,22 +64,11 @@
             [output (car (cdr sockets))]
             [certs (server-config-certs config)]
             [key (server-config-key config)]
-            ; [ctx (ssl-make-server-context)]
             [tmp (make-temporary-file* #"unison" #".pem")]
             [of (open-output-file tmp #:exists 'replace)])
-       (display "Um\n")
-       (display certs)
-       (display "\n")
-       (display of)
-       (display "\nWriting bytes\n")
-       ; START HERE: I need to get the items out of certs,
-       ; but I'm not sure how.
        (write-bytes (mcar certs) of)
        (flush-output of)
        (close-output-port of)
-       ;    (ssl-load-private-key! ctx (car certs))
-       ;    (ssl-load-certificate-chain! ctx tmp)
-       (display "server booting up\n")
        (let*-values (
                      [(ctx) (ssl-make-server-context
                              #:private-key (list 'pem key)
@@ -90,7 +79,6 @@
                                 #:context ctx
                                 #:close-original? #t
                                 )])
-         (display "server happened\n")
          (right (tls config in out)))))))
 
 (define (ClientConfig.default host service-identification-suffix)
@@ -115,7 +103,6 @@
      (let ([input (car socket)]
            [output (car (cdr socket))]
            [hostname (client-config-host config)])
-       (display "um got things\n")
        (let-values ([(in out) (ports->ssl-ports
                                input output
                                #:mode 'connect ; WAIT This was defaulting to accept and it still worked connecting to example.com???
@@ -123,7 +110,6 @@
                                #:hostname hostname
                                #:close-original? #t
                                )])
-         (display "ports are ported\n")
          (right (tls config in out)))))))
 
 (define (handshake.impl.v3 tls)
@@ -140,12 +126,24 @@
        (flush-output output)
        (right none)))))
 
+(define (read-more n port)
+    (let* ([buffer (make-bytes n)]
+          [read (read-bytes-avail! buffer port)])
+    (if (< read n)
+        (subbytes buffer 0 read)
+        (bytes-append buffer (read-more (* 2 n) port)))))
+
+(define (read-all n port)
+    (let* ([buffer (make-bytes n)]
+          [read (read-bytes-avail! buffer port)])
+        (if (= n read)
+            (bytes-append buffer (read-more (* 2 n) port))
+            (subbytes buffer 0 read))))
+
 (define (receive.impl.v3 tls)
   (handle-errors
    (lambda ()
-     (let ([buffer (make-bytes 4096)])
-       (read-bytes-avail! buffer (tls-input tls))
-       (right buffer)))))
+    (right (read-all 4096 (tls-input tls))))))
 
 (define (terminate.impl.v3 tls)
   ; NOTE: This actually does more than the unison impl,
