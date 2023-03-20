@@ -33,7 +33,7 @@
     unison-FOp-IO.closeFile.impl.v3
     unison-FOp-IO.openFile.impl.v3
     unison-FOp-IO.putBytes.impl.v3
-    ; unison-FOp-Text.fromUtf8.impl.v3
+    unison-FOp-Text.fromUtf8.impl.v3
     unison-FOp-Text.repeat
     unison-FOp-Text.toUtf8
     ; unison-FOp-Value.serialize
@@ -48,6 +48,15 @@
     unison-FOp-MutableArray.read
     unison-FOp-MutableArray.write
 
+    unison-FOp-MutableArray.size
+    unison-FOp-ImmutableArray.size
+
+    unison-FOp-MutableByteArray.size
+    unison-FOp-ImmutableByteArray.size
+
+    unison-FOp-MutableByteArray.length
+    unison-FOp-ImmutableByteArray.length
+
     unison-FOp-ImmutableByteArray.copyTo!
     unison-FOp-ImmutableByteArray.read8
 
@@ -55,8 +64,15 @@
     unison-FOp-MutableByteArray.write8
 
     unison-FOp-Scope.bytearray
+    unison-FOp-Scope.bytearrayOf
     unison-FOp-Scope.array
+    unison-FOp-Scope.arrayOf
     unison-FOp-Scope.ref
+
+    unison-FOp-IO.bytearray
+    unison-FOp-IO.bytearrayOf
+    unison-FOp-IO.array
+    unison-FOp-IO.arrayOf
 
     unison-FOp-IO.ref
     unison-FOp-Ref.read
@@ -87,6 +103,7 @@
     unison-POp-DIVN
     unison-POp-DRPB
     unison-POp-DRPS
+    unison-POp-DRPT
     unison-POp-EQLN
     unison-POp-EQLT
     unison-POp-EQLU
@@ -140,12 +157,24 @@
     unison-FOp-crypto.HashAlgorithm.Blake2s_256
     unison-FOp-crypto.HashAlgorithm.Blake2b_256
     unison-FOp-crypto.HashAlgorithm.Blake2b_512
+
+    unison-FOp-IO.clientSocket.impl.v3
+    unison-FOp-IO.closeSocket.impl.v3
+    unison-FOp-IO.socketReceive.impl.v3
+    unison-FOp-IO.socketSend.impl.v3
+    unison-FOp-IO.socketPort.impl.v3
+    unison-FOp-IO.serverSocket.impl.v3
+    unison-FOp-IO.socketAccept.impl.v3
+    unison-FOp-IO.listen.impl.v3
     )
 
   (import (rnrs)
           (unison core)
+          (unison data)
           (unison string)
           (unison crypto)
+          (unison data)
+          (unison tcp)
           (unison bytevector)
           (unison vector)
           (unison concurrent))
@@ -163,7 +192,7 @@
   (define (reify-exn thunk)
     (guard
       (e [else
-           (list 0 '() (exception->string e) e) ])
+           (sum 0 '() (exception->string e) e)])
       (thunk)))
 
   ; Core implemented primops, upon which primops-in-unison can be built.
@@ -183,7 +212,7 @@
   (define (unison-POp-DRPT n t) (istring-drop n t))
   (define (unison-POp-EQLN m n) (if (fx=? m n) 1 0))
   (define (unison-POp-EQLT s t) (if (string=? s t) 1 0))
-  (define (unison-POp-EQLU x y) (if (equal? x y) 1 0))
+  (define (unison-POp-EQLU x y) (if (universal-equal? x y) 1 0))
   (define (unison-POp-EROR fnm x)
     (let-values ([(p g) (open-string-output-port)])
       (put-string p fnm)
@@ -193,8 +222,8 @@
   (define (unison-POp-FTOT f) (number->istring f))
   (define (unison-POp-IDXB n bs) (bytevector-u8-ref bs n))
   (define (unison-POp-IDXS n l)
-    (guard (x [else (list 0)])
-      (list 1 (list-ref l n))))
+    (guard (x [else (sum 0)])
+      (sum 1 (list-ref l n))))
   (define (unison-POp-IORN m n) (fxior m n))
   (define (unison-POp-ITOT i) (signed-number->istring i))
   (define (unison-POp-LEQN m n) (if (fx<=? m n) 1 0))
@@ -217,21 +246,23 @@
   (define (unison-POp-TRCE s x)
     (display s)
     (display "\n")
+    (display x)
+    (display "\n")
     (display (describe-value x))
     (display "\n"))
   (define (unison-POp-TTON s)
     (let ([mn (string->number s)])
-      (if mn (list 1 mn) (list 0))))
+      (if mn (sum 1 mn) (sum 0))))
   (define (unison-POp-UPKT t) (string->list t))
   (define (unison-POp-VWLS l)
     (if (null? l)
-      (list 0)
-      (list 1 (car l) (cdr l))))
+      (sum 0)
+      (sum 1 (car l) (cdr l))))
   (define (unison-POp-VWRS l)
     (if (null? l)
-      (list 0)
+      (sum 0)
       (let ([r (reverse l)])
-      (list 1 (reverse (cdr l)) (car l)))))
+      (sum 1 (reverse (cdr l)) (car l)))))
 
   (define (unison-POp-XORN m n) (fxxor m n))
   (define (unison-POp-VALU c) (decode-value c))
@@ -240,7 +271,7 @@
     (begin
       (put-bytevector p bs)
       (flush-output-port p)
-      (list 1 #f)))
+      (sum 1 #f)))
 
   (define (unison-FOp-Char.toText c) (istring c))
 
@@ -255,7 +286,10 @@
       [(2) stderr]))
 
   (define (unison-FOp-IO.getArgs.impl.v1)
-    (list 1 (cdr (command-line))))
+    (sum 1 (cdr (command-line))))
+
+  (define (unison-FOp-Text.fromUtf8.impl.v3 s)
+    (right (bytevector->string s utf-8-transcoder)))
 
   (define (unison-FOp-Text.toUtf8 s)
     (string->bytevector s utf-8-transcoder))
@@ -278,14 +312,14 @@
   (define (unison-FOp-ImmutableArray.read vec i)
     (catch-array
       (lambda ()
-        (list 1 (vector-ref vec i)))))
+        (sum 1 (vector-ref vec i)))))
 
   (define (unison-FOp-ImmutableArray.copyTo! dst doff src soff n)
     (catch-array
       (lambda ()
         (let next ([i (fx1- n)])
           (if (< i 0)
-            (list 1 #f)
+            (sum 1 #f)
             (begin
               (vector-set! dst (+ doff i) (vector-ref src (+ soff i)))
               (next (fx1- i))))))))
@@ -297,24 +331,24 @@
   (define (unison-FOp-MutableArray.read src i)
     (catch-array
       (lambda ()
-        (list 1 (vector-ref src i)))))
+        (sum 1 (vector-ref src i)))))
 
   (define (unison-FOp-MutableArray.write dst i x)
     (catch-array
       (lambda ()
         (vector-set! dst i x)
-        (list 1))))
+        (sum 1))))
 
   (define (unison-FOp-ImmutableByteArray.copyTo! dst doff src soff n)
     (catch-array
       (lambda ()
         (bytevector-copy! src soff dst doff n)
-        (list 1 #f))))
+        (sum 1 #f))))
 
   (define (unison-FOp-ImmutableByteArray.read8 arr i)
     (catch-array
       (lambda ()
-        (list 1 (bytevector-u8-ref arr i)))))
+        (sum 1 (bytevector-u8-ref arr i)))))
 
   (define unison-FOp-MutableByteArray.freeze! freeze-bytevector!)
 
@@ -322,10 +356,26 @@
     (catch-array
       (lambda ()
         (bytevector-u8-set! arr i b)
-        (list 1))))
+        (sum 1))))
 
   (define (unison-FOp-Scope.bytearray n) (make-bytevector n))
+  (define (unison-FOp-IO.bytearray n) (make-bytevector n))
+
   (define (unison-FOp-Scope.array n) (make-vector n))
+  (define (unison-FOp-IO.array n) (make-vector n))
+
+  (define (unison-FOp-Scope.bytearrayOf b n) (make-bytevector n b))
+  (define (unison-FOp-IO.bytearrayOf b n) (make-bytevector n b))
+
+  (define (unison-FOp-Scope.arrayOf v n) (make-vector n v))
+  (define (unison-FOp-IO.arrayOf v n) (make-vector n v))
+
+  (define unison-FOp-MutableByteArray.length bytevector-length)
+  (define unison-FOp-ImmutableByteArray.length bytevector-length)
+  (define unison-FOp-MutableByteArray.size bytevector-length)
+  (define unison-FOp-ImmutableByteArray.size bytevector-length)
+  (define unison-FOp-MutableArray.size vector-length)
+  (define unison-FOp-ImmutableArray.size vector-length)
 
   (define (unison-POp-FORK thunk) (fork thunk))
   (define (unison-POp-TFRC thunk) (try-eval thunk))

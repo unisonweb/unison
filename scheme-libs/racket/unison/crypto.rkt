@@ -2,6 +2,7 @@
 (require ffi/unsafe
          ffi/unsafe/define
          racket/exn
+         openssl/libcrypto
          )
 
 (provide (prefix-out unison-FOp-crypto.
@@ -18,10 +19,12 @@
         hmacBytes)))
 
 (define libcrypto
-    (with-handlers [[exn:fail? exn->string]] (ffi-lib "libcrypto.1.1")))
+    (with-handlers [[exn:fail? exn->string]]
+                   (ffi-lib "libcrypto" openssl-lib-versions)))
 
 (define libb2
-    (with-handlers [[exn:fail? exn->string]] (ffi-lib "libb2")))
+  (with-handlers [[exn:fail? exn->string]]
+                 (ffi-lib "libb2" '("" "1"))))
 
 (define _EVP-pointer (_cpointer 'EVP))
 

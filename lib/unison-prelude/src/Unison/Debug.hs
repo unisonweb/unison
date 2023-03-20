@@ -41,6 +41,8 @@ data DebugFlag
     Annotations
   | -- | Debug endpoints of the local UI (or Share) server
     Server
+  | PatternCoverage
+  | PatternCoverageConstraintSolver
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -64,6 +66,8 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "TEMP" -> pure Temp
       "ANNOTATIONS" -> pure Annotations
       "SERVER" -> pure Server
+      "PATTERN_COVERAGE" -> pure PatternCoverage
+      "PATTERN_COVERAGE_CONSTRAINT_SOLVER" -> pure PatternCoverageConstraintSolver
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -114,6 +118,14 @@ debugAnnotations = Annotations `Set.member` debugFlags
 debugServer :: Bool
 debugServer = Server `Set.member` debugFlags
 {-# NOINLINE debugServer #-}
+
+debugPatternCoverage :: Bool
+debugPatternCoverage = PatternCoverage `Set.member` debugFlags
+{-# NOINLINE debugPatternCoverage #-}
+
+debugPatternCoverageConstraintSolver :: Bool
+debugPatternCoverageConstraintSolver = PatternCoverageConstraintSolver `Set.member` debugFlags
+{-# NOINLINE debugPatternCoverageConstraintSolver #-}
 
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
@@ -167,3 +179,5 @@ shouldDebug = \case
   Temp -> debugTemp
   Annotations -> debugAnnotations
   Server -> debugServer
+  PatternCoverage -> debugPatternCoverage
+  PatternCoverageConstraintSolver -> debugPatternCoverageConstraintSolver

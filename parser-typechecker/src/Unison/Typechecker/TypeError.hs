@@ -5,6 +5,7 @@ module Unison.Typechecker.TypeError where
 import Data.Bifunctor (second)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Unison.ABT as ABT
+import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -103,6 +104,8 @@ data TypeError v loc
       { defns :: NonEmpty (v, [loc]),
         note :: C.ErrorNote v loc
       }
+  | UncoveredPatterns loc (NonEmpty (Pattern ()))
+  | RedundantPattern loc
   | Other (C.ErrorNote v loc)
   deriving (Show)
 
@@ -145,13 +148,25 @@ allErrors =
       unguardedCycle,
       unknownType,
       unknownTerm,
-      duplicateDefinitions
+      duplicateDefinitions,
+      redundantPattern,
+      uncoveredPatterns
     ]
 
 topLevelComponent :: Ex.InfoExtractor v a (TypeInfo v a)
 topLevelComponent = do
   defs <- Ex.topLevelComponent
   pure $ TopLevelComponent defs
+
+redundantPattern :: Ex.ErrorExtractor v a (TypeError v a)
+redundantPattern = do
+  ploc <- Ex.redundantPattern
+  pure (RedundantPattern ploc)
+
+uncoveredPatterns :: Ex.ErrorExtractor v a (TypeError v a)
+uncoveredPatterns = do
+  (mloc, uncoveredCases) <- Ex.uncoveredPatterns
+  pure (UncoveredPatterns mloc uncoveredCases)
 
 abilityCheckFailure :: Ex.ErrorExtractor v a (TypeError v a)
 abilityCheckFailure = do

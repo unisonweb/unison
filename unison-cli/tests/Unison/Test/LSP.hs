@@ -11,10 +11,12 @@ import qualified Data.Text as Text
 import EasyTest
 import qualified System.IO.Temp as Temp
 import qualified Unison.ABT as ABT
+import Unison.Builtin.Decls (unitRef)
 import qualified Unison.Cli.TypeCheck as Typecheck
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Init as Codebase.Init
 import qualified Unison.Codebase.SqliteCodebase as SC
+import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.LSP.Queries as LSPQ
 import qualified Unison.Lexer.Pos as Lexer
 import Unison.Parser.Ann (Ann (..))
@@ -138,11 +140,11 @@ term = let
       ( "Test annotations within pattern binds",
         [here|
 term = let
-  (third, tr^ue) = (false, true)
+  (third, (^)) = (false, ())
   true
   |],
         True,
-        pat (Pattern.Boolean () True)
+        pat (Pattern.Constructor () (ConstructorReference unitRef 0) [])
       ),
       ( "Test annotations for types with arrows",
         [here|
