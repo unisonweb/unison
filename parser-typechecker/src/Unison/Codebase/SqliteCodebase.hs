@@ -350,10 +350,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                 { getTerm,
                   getTypeOfTermImpl,
                   getTypeDeclaration,
-                  getDeclType =
-                    \r ->
-                      withConn \conn ->
-                        Sqlite.runReadOnlyTransaction conn \run -> run (getDeclType r),
+                  getDeclType,
                   putTerm,
                   putTermComponent,
                   putTypeDeclaration,

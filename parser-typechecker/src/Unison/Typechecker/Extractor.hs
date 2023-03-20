@@ -6,6 +6,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import qualified Unison.Blank as B
 import Unison.ConstructorReference (ConstructorReference)
+import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -241,6 +242,18 @@ duplicateDefinitions =
   cause >>= \case
     C.DuplicateDefinitions vs -> pure vs
     _ -> mzero
+
+uncoveredPatterns :: ErrorExtractor v loc (loc, NonEmpty (Pattern ()))
+uncoveredPatterns =
+  cause >>= \case
+    C.UncoveredPatterns matchLoc xs -> pure (matchLoc, xs)
+    _ -> empty
+
+redundantPattern :: ErrorExtractor v loc loc
+redundantPattern =
+  cause >>= \case
+    C.RedundantPattern patternLoc -> pure patternLoc
+    _ -> empty
 
 typeMismatch :: ErrorExtractor v loc (C.Context v loc)
 typeMismatch =

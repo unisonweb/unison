@@ -119,13 +119,14 @@ Here's another example:
 ```unison
 structural type B = T | F
 
+blah : B -> B -> Text
 blah = cases
   T, x -> "hi"
-  x, F -> "bye"
+  x, y -> "bye"
 
 blorf = cases
   x, T -> x
-  T, x -> x
+  x, y -> y
 
 > blah T F
 > blah F F
@@ -147,15 +148,15 @@ blorf = cases
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    11 | > blah T F
+    12 | > blah T F
            ⧩
            "hi"
   
-    12 | > blah F F
+    13 | > blah F F
            ⧩
            "bye"
   
-    13 | > blorf T F
+    14 | > blorf T F
            ⧩
            F
 

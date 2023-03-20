@@ -32,6 +32,7 @@
           (for
             (only (unison core) syntax->list)
             expand)
+          (only (srfi :28) format)
           (unison core)
           (unison data)
           (unison cont)
@@ -162,7 +163,12 @@
     (syntax-rules ()
       [(request r t . args)
        (let ([rq (make-request (quote r) t (list . args))])
-         ((cdr (ref-mark (quote r))) rq))]))
+         (let ([current-mark (ref-mark (quote r))])
+            (if (equal? #f current-mark)
+                (raise (condition
+                            (make-error)
+                            (make-message-condition (format "Unhandled top-level effect! ~a" (list r t . args)))))
+                ((cdr current-mark) rq))))]))
 
   ; See the explanation of `handle` for a more thorough understanding
   ; of why this is doing two control operations.
