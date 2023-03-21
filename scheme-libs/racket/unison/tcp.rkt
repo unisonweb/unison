@@ -21,6 +21,16 @@
 (define (input socket) (car socket))
 (define (output socket) (car (cdr socket)))
 
+(define (handle-errors fn)
+  (with-handlers
+      [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
+       [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exn->string e) '()))]
+       ;    [(lambda err
+       ;       (string-contains? (exn->string err) "not valid for hostname"))
+       ;     (lambda (e) (exception "IOFailure" "NameMismatch" '()))]
+       [(lambda _ #t) (lambda (e) (exception "MiscFailure" (format "Unknown exception ~a" (exn->string e)) e))] ]
+    (fn)))
+
 (define (closeSocket.impl.v3 socket)
   (if (pair? socket)
       (begin

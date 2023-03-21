@@ -8,12 +8,44 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm
 .> run tests
 
-  ()
+  💔💥
+  
+  I've encountered a call to builtin.bug with the following
+  value:
+  
+    ()
+  
+  
+  Stack trace:
+    bug
+    shouldFail
+    Tests.check
+    Tests.run
+    main
+    #2upq759t0r
 
 ```
-```ucm
-.> run threadKilledTypeLinkTest
 
-  ()
 
-```
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  💔💥
+  
+  I've encountered a call to builtin.bug with the following
+  value:
+  
+    ()
+  
+  
+  Stack trace:
+    bug
+    shouldFail
+    Tests.check
+    Tests.run
+    main
+    #2upq759t0r
+
