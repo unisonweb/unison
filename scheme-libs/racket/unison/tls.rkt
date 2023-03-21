@@ -25,9 +25,6 @@
    send.impl.v3
    terminate.impl.v3)))
 
-; TODO check out the tests in here
-; unison-src/transcripts-using-base/net.md
-
 (define (decodePrivateKey bytes) ; bytes -> list tlsPrivateKey
   (let* ([tmp (make-temporary-file* #"unison" #".pem")]
          [ctx (ssl-make-server-context)]
