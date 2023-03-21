@@ -1,1 +1,15 @@
 text.tests = do ()
+
+text.eq.tests = do
+  check "String.empty builder" do
+    _ = ""
+    true
+  check "String.builder" do
+    _ = "foo"
+    true
+  checkEqual "String equality: empty" "" ""
+  checkEqual "String equality: non empty" "foo" "foo"
+  check "String inequality: non empty" do "foo" !== "bar"
+  check "String inequality: empty" do "foo" !== ""
+  checkEqual "String equality: nested" (Some ["foo", "bar"]) (Some ["foo", "bar"])
+  check "String inequality: nested" do (Some ["foo", "bar"]) !== (Some ["foo", "baz"])
