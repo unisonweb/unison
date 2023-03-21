@@ -32,21 +32,21 @@
     (fn)))
 
 (define (closeSocket.impl.v3 socket)
-  (if (pair? socket)
-      (begin
-        (close-input-port (input socket))
-        (close-output-port (output socket)))
-      (tcp-close socket))
-  (right none))
+  (handle-errors
+   (lambda ()
+     (if (pair? socket)
+         (begin
+           (close-input-port (input socket))
+           (close-output-port (output socket)))
+         (tcp-close socket))
+     (right none))))
 
 (define (clientSocket.impl.v3 host port)
-  (with-handlers
-      [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
-       [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exn->string e) '()))]
-       [(lambda _ #t) (lambda (e) (exception "MiscFailure" "Unknown exception" e))] ]
+  (handle-errors
+   (lambda ()
 
     (let-values ([(input output) (tcp-connect host (string->number port))])
-      (right (list input output)))))
+      (right (list input output))))))
 
 (define (socketSend.impl.v3 socket data)
   (if (not (pair? socket))
