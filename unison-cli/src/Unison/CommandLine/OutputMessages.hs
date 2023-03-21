@@ -1971,12 +1971,20 @@ notifyUser dir = \case
   PulledEmptyBranch remote ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
+  CreatedProject projectName branchName ->
+    pure . P.wrap $
+      "I just created a project called"
+        <> prettyProjectName projectName
+        <> "with a branch called"
+        <> prettyProjectBranchName branchName
   ProjectNameAlreadyExists name ->
     pure . P.wrap $
       prettyProjectName name <> "already exists."
   ProjectNameRequiresUserSlug name ->
     pure . P.wrap $
-      prettyProjectName name <> "requires a username, as in" <> prettyProjectName (unsafeFrom @Text "@unison/base")
+      prettyProjectName name
+        <> "requires a username, as in"
+        <> prettyProjectName (unsafeFrom @Text "@unison/base")
   ProjectAndBranchNameAlreadyExists projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "already exists."
@@ -2103,6 +2111,10 @@ prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
 
 prettyProjectName :: ProjectName -> Pretty
 prettyProjectName =
+  P.blue . P.text . into @Text
+
+prettyProjectBranchName :: ProjectBranchName -> Pretty
+prettyProjectBranchName =
   P.blue . P.text . into @Text
 
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty

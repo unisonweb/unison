@@ -46,20 +46,24 @@ import Witch (unsafeFrom)
 -- For now, it doesn't seem worth it to do (1) or (2), since we want to do (3) eventually, and we'd rather not waste too
 -- much time getting everything perfectly correct before we get there.
 projectCreate :: ProjectName -> Cli ()
-projectCreate name = do
+projectCreate projectName = do
   projectId <- liftIO (ProjectId <$> UUID.nextRandom)
   branchId <- liftIO (ProjectBranchId <$> UUID.nextRandom)
 
+  let branchName = unsafeFrom @Text "main"
   Cli.runEitherTransaction do
-    Queries.projectExistsByName name >>= \case
+    Queries.projectExistsByName projectName >>= \case
       False -> do
-        Queries.insertProject projectId name
-        Queries.insertProjectBranch projectId branchId (unsafeFrom @Text "main")
+        Queries.insertProject projectId projectName
+        Queries.insertProjectBranch projectId branchId branchName
         pure (Right ())
-      True -> pure (Left (Output.ProjectNameAlreadyExists name))
+      True -> pure (Left (Output.ProjectNameAlreadyExists projectName))
 
   let path = projectBranchPath ProjectAndBranch {project = projectId, branch = branchId}
   Cli.stepAt "project.create" (Path.unabsolute path, const mainBranchContents)
+
+  Cli.respond (Output.CreatedProject projectName branchName)
+
   Cli.cd path
 
 -- The initial contents of the main branch of a new project.

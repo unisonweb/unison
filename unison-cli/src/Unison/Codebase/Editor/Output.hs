@@ -291,6 +291,7 @@ data Output
   | DisplayDebugCompletions [Completion.Completion]
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName))
+  | CreatedProject ProjectName ProjectBranchName
   | ProjectNameAlreadyExists ProjectName
   | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
@@ -345,8 +346,6 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
-  ProjectNameAlreadyExists {} -> True
-  ProjectNameRequiresUserSlug {} -> True
   NoLastRunResult {} -> True
   SaveTermNameConflict {} -> True
   RunResult {} -> False
@@ -464,6 +463,9 @@ isFailure o = case o of
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False
   PulledEmptyBranch {} -> False
+  CreatedProject {} -> False
+  ProjectNameAlreadyExists {} -> True
+  ProjectNameRequiresUserSlug {} -> True
   ProjectAndBranchNameAlreadyExists {} -> True
   LocalProjectBranchDoesntExist {} -> True
   RemoteProjectBranchDoesntExist {} -> True
