@@ -1,7 +1,6 @@
 ; TLS primitives! Supplied by openssl (libssl)
 #lang racket/base
-(require racket/port
-         racket/exn
+(require racket/exn
          racket/string
          racket/file
          compatibility/mlist
