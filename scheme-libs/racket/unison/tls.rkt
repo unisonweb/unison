@@ -4,6 +4,7 @@
          racket/exn
          racket/file
          compatibility/mlist
+         srfi/28
          unison/data
          x509
          openssl)
@@ -88,7 +89,7 @@
   (with-handlers
       [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
        [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exn->string e) '()))]
-       [(lambda _ #t) (lambda (e) (exception "MiscFailure" "Unknown exception" e))] ]
+       [(lambda _ #t) (lambda (e) (exception "MiscFailure" (format "Unknown exception ~a" (exn->string e)) e))] ]
     (fn)))
 
 (define (newClient.impl.v3 config socket)
@@ -103,6 +104,7 @@
                                input output
                                #:mode 'connect
                                #:context ctx
+                               #:error/ssl exn:fail:network
                                #:hostname hostname
                                #:close-original? #t
                                )])
