@@ -1,8 +1,8 @@
 
 Note: This should be forked off of the codebase created by base.md
 
-.> compile.native.fetch
 ```ucm:hide
+.> compile.native.fetch
 .> compile.native.genlibs
 .> load unison-src/builtin-tests/testlib.u
 .> add
@@ -18,7 +18,7 @@ to `Tests.check` and `Tests.checkEqual`).
 ```
 
 ```ucm:hide
-.> load unison-src/builtin-tests/networking-tests.u
+.> load unison-src/builtin-tests/tcp-tests.u
 .> add
 .> load unison-src/builtin-tests/tls-tests.u
 .> add
