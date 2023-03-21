@@ -178,6 +178,7 @@ import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import Witch (unsafeFrom)
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1973,6 +1974,9 @@ notifyUser dir = \case
   ProjectNameAlreadyExists name ->
     pure . P.wrap $
       prettyProjectName name <> "already exists."
+  ProjectNameRequiresUserSlug name ->
+    pure . P.wrap $
+      prettyProjectName name <> "requires a username, as in" <> prettyProjectName (unsafeFrom @Text "@unison/base")
   ProjectAndBranchNameAlreadyExists projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "already exists."

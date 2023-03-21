@@ -63,8 +63,7 @@ cloneProjectAndBranch remoteProjectAndBranch = do
 
   -- Assert that this project name has a user slug
   projectNameUserSlug remoteProjectName & onNothing do
-    loggeth ["can't clone project without user slug"]
-    Cli.returnEarlyWithoutOutput
+    Cli.returnEarly (Output.ProjectNameRequiresUserSlug remoteProjectName)
 
   -- Quick local check before hitting share to determine whether this project+branch already exists.
   let assertLocalProjectBranchDoesntExist :: Sqlite.Transaction (Either Output.Output (Maybe Sqlite.Project))
