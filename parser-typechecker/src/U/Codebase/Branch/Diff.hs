@@ -147,8 +147,6 @@ diffBranches from to = do
                       if (isEmptyDefDiffs defDiffs && null children)
                         then pure Nothing
                         else pure . Just $ (defDiffs :< Compose (pure children))
-  -- pure . Just $ cfr
-  -- Lens.Empty -> pure Nothing
   pure $ TreeDiff (defDiff :< Compose childDiff)
   where
     diffMap :: forall ref. (Ord ref) => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Diff ref)
@@ -198,7 +196,7 @@ nameBasedDiff (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose mchil
 
 -- | Stream a summary of all of the name adds and removals from a tree diff.
 -- Callback is passed the diff from one namespace level at a time, with the name representing
--- that location. Callback is only called with non-empty diffs.
+-- that location.
 -- Optional accumulator is folded strictly.
 streamNameChanges ::
   (Monad m, Monoid r) =>
@@ -218,10 +216,7 @@ streamNameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :
             let name = appendName ns
              in (listifyNames name $ adds diff, listifyNames name $ removals diff)
   let nameChanges = NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}
-  acc <-
-    if (nameChanges /= mempty @NameChanges)
-      then f namePrefix nameChanges
-      else pure mempty
+  acc <- f namePrefix nameChanges
   children <- getChildren
   childAcc <-
     children

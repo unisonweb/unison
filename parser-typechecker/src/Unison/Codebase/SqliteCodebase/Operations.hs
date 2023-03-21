@@ -643,7 +643,6 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
       treeDiff <- BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
-      -- TODO: Might be worth switching to a streaming lib to make this less confusing.
       Ops.buildNameLookupForBranchHash
         mayExistingLookupBH
         toBranchHash
