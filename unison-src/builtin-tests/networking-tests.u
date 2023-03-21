@@ -1,7 +1,6 @@
 
 shouldFail fn =
   result = catch fn
-  Debug.trace "result should fail" result
   isLeft result
 
 tcp.tests = do
@@ -29,7 +28,6 @@ testServerAndClient = do
 
   match setup with
     Left exn ->
-      Debug.trace "Setup failed" exn
       Tests.fail "Unable to bind and listen on a socket" ""
     Right (socket, port) ->
       serve = do
