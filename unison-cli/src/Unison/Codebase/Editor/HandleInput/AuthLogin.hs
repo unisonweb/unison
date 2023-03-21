@@ -71,10 +71,13 @@ authLogin host = do
   -- So, annoyingly we just embed an MVar which will be filled as soon as the server boots up,
   -- and it all works out fine.
   redirectURIVar <- liftIO newEmptyMVar
+  Debug.debugLogM Debug.Auth "Generating auth params"
   (verifier, challenge, state) <- generateParams
   let codeHandler :: (Code -> Maybe URI -> (Response -> IO ResponseReceived) -> IO ResponseReceived)
       codeHandler code mayNextURI respond = do
+        Debug.debugLogM Debug.Auth "Getting redirect  URI"
         redirectURI <- readMVar redirectURIVar
+        Debug.debugLogM Debug.Auth "Exchanging code"
         result <- exchangeCode httpClient tokenEndpoint code verifier redirectURI
         respReceived <- case result of
           Left err -> do
@@ -93,17 +96,24 @@ authLogin host = do
         -- otherwise the server will shut down prematurely.
         putMVar authResultVar result
         pure respReceived
+  Debug.debugLogM Debug.Auth "Launching local auth server"
   tokens@(Tokens {accessToken}) <-
     Cli.with (Warp.withApplication (pure $ authTransferServer codeHandler)) \port -> do
+      Debug.debugLogM Debug.Auth ("Auth server running on port: " <> show port)
       let redirectURI = "http://localhost:" <> show port <> "/redirect"
+      Debug.debugLogM Debug.Auth "Filling redirect URI MVar"
       liftIO (putMVar redirectURIVar redirectURI)
       let authorizationKickoff = authURI authorizationEndpoint redirectURI state challenge
+      Debug.debugLogM Debug.Auth "Attempting to open browser"
       void . liftIO $ Web.openBrowser (show authorizationKickoff)
+      Debug.debugLogM Debug.Auth "Printing message"
       Cli.respond . Output.InitiateAuthFlow $ authorizationKickoff
       bailOnFailure (readMVar authResultVar)
+  Debug.debugLogM Debug.Auth "Getting user info from  tokens"
   userInfo <- bailOnFailure (getUserInfo doc accessToken)
   let codeserverId = codeserverIdFromCodeserverURI host
   let creds = codeserverCredentials discoveryURI tokens userInfo
+  Debug.debugLogM Debug.Auth "Saving credentials"
   liftIO (saveCredentials credentialManager codeserverId creds)
   Cli.respond Output.Success
   pure userInfo
@@ -174,6 +184,7 @@ exchangeCode httpClient tokenEndpoint code verifier redirectURI = liftIO $ do
             ("client_id", ucmOAuthClientID)
           ]
   let fullReq = addFormData $ req {HTTP.method = "POST", HTTP.requestHeaders = [("Accept", "application/json")]}
+  Debug.debugLogM Debug.Auth "Exchanging code for tokens"
   resp <- HTTP.httpLbs fullReq httpClient
   case HTTP.responseStatus resp of
     status
