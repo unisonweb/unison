@@ -89,6 +89,7 @@ data NameChanges = NameChanges
     typeNameAdds :: [(Name, Reference)],
     typeNameRemovals :: [(Name, Reference)]
   }
+  deriving stock (Show, Eq)
 
 instance Semigroup NameChanges where
   NameChanges a b c d <> NameChanges a2 b2 c2 d2 =
@@ -197,7 +198,7 @@ nameBasedDiff (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose mchil
 
 -- | Stream a summary of all of the name adds and removals from a tree diff.
 -- Callback is passed the diff from one namespace level at a time, with the name representing
--- that location.
+-- that location. Callback is only called with non-empty diffs.
 -- Optional accumulator is folded strictly.
 streamNameChanges ::
   (Monad m, Monoid r) =>
@@ -216,7 +217,11 @@ streamNameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :
           & ifoldMap \ns diff ->
             let name = appendName ns
              in (listifyNames name $ adds diff, listifyNames name $ removals diff)
-  acc <- f namePrefix $ NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}
+  let nameChanges = NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}
+  acc <-
+    if (nameChanges /= mempty @NameChanges)
+      then f namePrefix nameChanges
+      else pure mempty
   children <- getChildren
   childAcc <-
     children
