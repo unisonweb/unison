@@ -566,7 +566,7 @@ prettyReadRemoteNamespace =
 
 prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
 prettyReadRemoteNamespaceWith printProject =
-  P.group . P.blue . P.text . RemoteRepo.printNamespace printProject
+  P.group . P.blue . P.text . RemoteRepo.printReadRemoteNamespace printProject
 
 prettyWriteRemoteNamespace :: WriteRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
 prettyWriteRemoteNamespace =

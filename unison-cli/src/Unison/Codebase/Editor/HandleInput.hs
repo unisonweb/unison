@@ -99,7 +99,7 @@ import Unison.Codebase.Editor.RemoteRepo
   ( ReadRemoteNamespace (..),
     ReadShareLooseCode (..),
     ShareUserHandle (..),
-    printNamespace,
+    printReadRemoteNamespace,
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.Slurp as Slurp
@@ -1470,32 +1470,32 @@ inputDescription input =
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
     GenSchemeLibsI -> pure "compile.native.genlibs"
     FetchSchemeCompilerI name -> pure ("compile.native.fetch" <> Text.pack name)
-    PullRemoteBranchI sourceTarget _syncMode pullMode _ -> do
-      -- TODO
-      dest <- pure "" -- p' dest0
+    PullRemoteBranchI sourceTarget _syncMode pullMode _verbosity -> do
       let command =
             Text.pack . InputPattern.patternName $
               case pullMode of
                 PullWithoutHistory -> InputPatterns.pullWithoutHistory
                 PullWithHistory -> InputPatterns.pull
-      pure $
-        command
-          <> " "
-          -- todo: show the actual config-loaded namespace
-          <> maybe
-            "(remote namespace from .unisonConfig)"
-            wundefined -- (printNamespace absurd)
-            Nothing -- orepo todo
-          <> " "
-          <> dest
+      case sourceTarget of
+        PullSourceTarget0 -> pure command
+        PullSourceTarget1 source0 ->
+          let source = printReadRemoteNamespace (into @Text) source0
+          in pure (command <> " " <> source)
+        PullSourceTarget2 source0 target0 -> do
+          let source = printReadRemoteNamespace (into @Text) source0
+          target <-
+            case target0 of
+              PullTargetLooseCode target1 -> p' target1
+              PullTargetProject target1 -> pure (into @Text target1)
+          pure (command <> " " <> source <> " " <> target)
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
     LoadPullRequestI base head dest0 -> do
       dest <- p' dest0
       pure $
         "pr.load "
-          <> printNamespace (into @Text) base
+          <> printReadRemoteNamespace (into @Text) base
           <> " "
-          <> printNamespace (into @Text) head
+          <> printReadRemoteNamespace (into @Text) head
           <> " "
           <> dest
     RemoveTermReplacementI src p0 -> do

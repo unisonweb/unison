@@ -80,8 +80,8 @@ printWriteGitRepo :: WriteGitRepo -> Text
 printWriteGitRepo WriteGitRepo {url, branch} = "git(" <> url <> Monoid.fromMaybe (Text.cons ':' <$> branch) <> ")"
 
 -- | print remote namespace
-printNamespace :: (a -> Text) -> ReadRemoteNamespace a -> Text
-printNamespace printProject = \case
+printReadRemoteNamespace :: (a -> Text) -> ReadRemoteNamespace a -> Text
+printReadRemoteNamespace printProject = \case
   ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo, sch, path} ->
     printReadGitRepo repo <> maybePrintSCH sch <> maybePrintPath path
     where
