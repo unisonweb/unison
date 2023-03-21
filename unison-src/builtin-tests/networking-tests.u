@@ -1,6 +1,6 @@
 
 shouldFail fn =
-  result = catch fn
+  result = catchAll fn
   isLeft result
 
 tcp.tests = do

@@ -50,12 +50,12 @@
 (define (socketSend.impl.v3 socket data)
   (if (not (pair? socket))
       (exception "InvalidArguments" "Cannot send on a server socket" '())
-      (if (port-closed? (output socket))
-          (exception "IOError" "Connection reset" '())
+    ;   (if (port-closed? (output socket))
+    ;       (exception "IOError" "Connection reset" '())
           (begin
             (write-bytes data (output socket))
             (flush-output (output socket))
-            (right none)))))
+            (right none)))); )
 
 (define (socketReceive.impl.v3 socket amt)
   (if (not (pair? socket))
