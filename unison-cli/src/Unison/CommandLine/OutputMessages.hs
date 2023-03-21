@@ -891,8 +891,11 @@ notifyUser dir = \case
     pure . P.warnCallout $ "Invalid namespace " <> P.blue (P.string path) <> ", " <> P.string msg
   BranchNotFound b ->
     pure . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " doesn't exist."
-  EmptyPush b ->
+  EmptyLooseCodePush b ->
     pure . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " is empty. There is nothing to push."
+  EmptyProjectBranchPush projectAndBranch ->
+    pure . P.warnCallout . P.wrap $
+      prettyProjectAndBranchName projectAndBranch <> "is empty. There is nothing to push."
   CreatedNewBranch path ->
     pure $
       "☝️  The namespace " <> P.blue (P.shown path) <> " is empty."
@@ -2512,7 +2515,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2527,7 +2530,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

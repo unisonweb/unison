@@ -335,9 +335,11 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                         else do
                           atomically $ Q.undequeue cmdQueue (Just p)
                           pure $ Just (SwitchBranchI $ Just (Path.absoluteToPath' path))
-                    UcmContextProject projectNames -> do
-                      projectIds <- ProjectUtils.resolveNamesToIds (These (projectNames ^. #project) (projectNames ^. #branch))
-                      if curPath == ProjectUtils.projectBranchPath projectIds
+                    UcmContextProject (ProjectAndBranch projectName branchName) -> do
+                      ProjectAndBranch project branch <-
+                        ProjectUtils.expectProjectAndBranchByTheseNames (These projectName branchName)
+                      let projectAndBranchIds = ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)
+                      if curPath == ProjectUtils.projectBranchPath projectAndBranchIds
                         then pure Nothing
                         else undefined
                 case maybeSwitchCommand of

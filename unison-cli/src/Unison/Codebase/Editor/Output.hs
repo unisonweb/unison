@@ -155,7 +155,8 @@ data Output
   | BranchHashAmbiguous ShortCausalHash (Set ShortCausalHash)
   | BadNamespace String String
   | BranchNotFound Path'
-  | EmptyPush Path'
+  | EmptyLooseCodePush Path'
+  | EmptyProjectBranchPush (ProjectAndBranch ProjectName ProjectBranchName)
   | NameNotFound Path.HQSplit'
   | NamesNotFound [Name]
   | PatchNotFound Path.Split'
@@ -364,7 +365,8 @@ isFailure o = case o of
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True
-  EmptyPush {} -> True
+  EmptyLooseCodePush {} -> True
+  EmptyProjectBranchPush {} -> True
   BranchNotEmpty {} -> True
   TypeAlreadyExists {} -> True
   TypeParseError {} -> True

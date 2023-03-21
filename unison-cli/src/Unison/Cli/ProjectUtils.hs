@@ -6,12 +6,13 @@ module Unison.Cli.ProjectUtils
 
     -- * Name resolution
     resolveNames,
-    resolveNamesToIds,
 
     -- ** Path prisms
     projectBranchPathPrism,
 
     -- ** Project/Branch names
+    expectProjectAndBranchByIds,
+    expectProjectAndBranchByTheseNames,
     expectResolveRemoteProjectName,
     expectResolveRemoteProjectBranchName,
 
@@ -27,6 +28,8 @@ import Data.These (These (..))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import U.Codebase.Sqlite.DbId
+import qualified U.Codebase.Sqlite.Project as Sqlite
+import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -37,6 +40,7 @@ import qualified Unison.Codebase.Path as Path
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import qualified Unison.Sqlite as Sqlite
 import Witch (unsafeFrom)
 
 -- | Get the current project+branch that a user is on.
@@ -67,6 +71,44 @@ resolveNames = \case
       pure (ProjectAndBranch (project ^. #name) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
+-- Expect a local project+branch by ids.
+expectProjectAndBranchByIds ::
+  ProjectAndBranch ProjectId ProjectBranchId ->
+  Sqlite.Transaction (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+expectProjectAndBranchByIds (ProjectAndBranch projectId branchId) = do
+  project <- Queries.expectProject projectId
+  branch <- Queries.expectProjectBranch projectId branchId
+  pure (ProjectAndBranch project branch)
+
+-- Expect a local project branch by a "these names", using the following defaults if a name is missing:
+--
+--   * The project at the current path
+--   * The branch named "main"
+expectProjectAndBranchByTheseNames ::
+  These ProjectName ProjectBranchName ->
+  Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+expectProjectAndBranchByTheseNames = \case
+  This projectName -> expectProjectAndBranchByTheseNames (These projectName (unsafeFrom @Text "main"))
+  That branchName -> do
+    ProjectAndBranch projectId _branchId <-
+      getCurrentProjectBranch & onNothingM do
+        loggeth ["not on a project branch yo"]
+        Cli.returnEarlyWithoutOutput
+    project <- Cli.runTransaction (Queries.expectProject projectId)
+    branch <-
+      Cli.runTransaction (Queries.loadProjectBranchByName projectId branchName) & onNothingM do
+        Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
+    pure (ProjectAndBranch project branch)
+  These projectName branchName -> do
+    maybeProjectAndBranch <-
+      Cli.runTransaction do
+        runMaybeT do
+          project <- MaybeT (Queries.loadProjectByName projectName)
+          branch <- MaybeT (Queries.loadProjectBranchByName (project ^. #projectId) branchName)
+          pure (ProjectAndBranch project branch)
+    maybeProjectAndBranch & onNothing do
+      Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
+
 expectResolveRemoteProjectName :: ProjectName -> Cli Share.RemoteProject
 expectResolveRemoteProjectName remoteProjectName = do
   Share.getProjectByName remoteProjectName & onNothingM do
@@ -89,31 +131,6 @@ resolveRemoteProjectBranchName remoteProjectId remoteProjectBranchName = do
       -- todo: mark remote project as deleted
       pure Nothing
     Share.GetProjectBranchResponseSuccess remoteBranch -> pure (Just remoteBranch)
-
--- Like 'resolveNames', but resolves to project and branch ids.
-resolveNamesToIds :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch ProjectId ProjectBranchId)
-resolveNamesToIds = \case
-  This projectName -> resolveNamesToIds (These projectName (unsafeFrom @Text "main"))
-  That branchName -> do
-    ProjectAndBranch projectId _branchId <-
-      getCurrentProjectBranch & onNothingM do
-        loggeth ["not on a project branch yo"]
-        Cli.returnEarlyWithoutOutput
-    branch <-
-      Cli.runTransaction (Queries.loadProjectBranchByName projectId branchName) & onNothingM do
-        project <- Cli.runTransaction (Queries.expectProject projectId)
-        Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
-    pure (ProjectAndBranch projectId (branch ^. #branchId))
-  These projectName branchName -> do
-    maybeProjectAndBranch <-
-      Cli.runTransaction do
-        runMaybeT do
-          project <- MaybeT (Queries.loadProjectByName projectName)
-          let projectId = project ^. #projectId
-          branch <- MaybeT (Queries.loadProjectBranchByName projectId branchName)
-          pure (ProjectAndBranch projectId (branch ^. #branchId))
-    maybeProjectAndBranch & onNothing do
-      Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
 
 -- | Get the path that a project is stored at. Users aren't supposed to go here.
 --
