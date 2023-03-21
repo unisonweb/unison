@@ -70,6 +70,12 @@
     (cond
       [(equal? l r) 1]
       [(and (number? l) (number? r)) (if (< l r) 0 2)]
+      [(and (chunked-list? l) (chunked-list? r))
+       (let ([ r (chunked-list-compare/recur l r universal-compare)])
+         (cond
+           [(eq? r '<) 0]
+           [(eq? r '=) 1]
+           [(eq? r '>) 2]))]
       [else (raise "universal-compare: unimplemented")]))
 
   (define (universal-equal? l r)
