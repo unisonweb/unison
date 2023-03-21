@@ -99,6 +99,7 @@
     unison-POp-CMPU
     unison-POp-COMN
     unison-POp-CONS
+    unison-POp-DBTX
     unison-POp-DECI
     unison-POp-DIVN
     unison-POp-DRPB
@@ -180,6 +181,7 @@
     )
 
   (import (rnrs)
+          (only (srfi :28) format)
           (unison core)
           (unison data)
           (unison string)
@@ -255,6 +257,8 @@
   (define (unison-POp-SUBN m n) (fx- m n))
   (define (unison-POp-TAKS n s) (list-head s n))
   (define (unison-POp-TAKT n t) (istring-take n t))
+  (define (unison-POp-DBTX x)
+    (format "~a" x))
   (define (unison-POp-TRCE s x)
     (display s)
     (display "\n")

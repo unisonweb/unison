@@ -63,9 +63,9 @@
       (handle-errors
        (lambda ()
          (begin
-           (let ([buffer (make-bytes amt)])
-             (read-bytes-avail! buffer (input socket))
-             (right buffer)))))))
+           (let* ([buffer (make-bytes amt)]
+                  [read (read-bytes-avail! buffer (input socket))])
+             (right (subbytes buffer 0 read))))))))
 
 ; A "connected" socket is represented as a list of (list input-port output-port),
 ; while a "listening" socket is just the tcp-listener itself.
