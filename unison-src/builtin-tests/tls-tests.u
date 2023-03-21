@@ -20,6 +20,12 @@ tls.tests = do
     response = TlsSocket.receive conn
     TlsSocket.close conn
     contains "HTTP/1.0 200 OK" (fromUtf8 response)
+  expectError "wrong host example.com fails" "NameMismatch" do
+    socket = Socket.client (HostName "example.com") (Port "443")
+    config = ClientConfig.default (HostName "examplez.com") ""
+    tls = base.IO.net.Tls.newClient config socket
+    _ = base.IO.net.Tls.handshake tls
+    ()
   expectError "trying to connect to example.com:443 without tls fails" "Connection reset" do
     socket = Socket.client (HostName "example.com") (Port "443")
     Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
