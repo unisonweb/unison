@@ -96,11 +96,13 @@
    (lambda ()
      (let ([input (car socket)]
            [output (car (cdr socket))]
-           [hostname (client-config-host config)])
+           [hostname (client-config-host config)]
+           [ctx (ssl-make-client-context)])
+        (ssl-set-verify-hostname! ctx #t)
        (let-values ([(in out) (ports->ssl-ports
                                input output
                                #:mode 'connect
-                               ; maybe I should try connecting to unisonweb.org or something
+                               #:context ctx
                                #:hostname hostname
                                #:close-original? #t
                                )])
