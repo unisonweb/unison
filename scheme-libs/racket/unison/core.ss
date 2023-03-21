@@ -95,7 +95,7 @@
     (display r)
     (newline)
     (cond
-      [(eq? l r) 1]
+      [(eq? l r) #t]
       [(and (chunked-list? l) (chunked-list? r))
        (chunked-list=?/recur l r universal-equal?)]
       [(and (data? l) (data? r))
