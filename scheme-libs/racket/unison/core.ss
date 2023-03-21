@@ -63,20 +63,18 @@
   (define (describe-value x) '())
   (define (decode-value x) '())
 
-  ; 0 = LT
-  ; 1 = EQ
-  ; 2 = GT
   (define (universal-compare l r)
-    (cond
-      [(equal? l r) 1]
-      [(and (number? l) (number? r)) (if (< l r) 0 2)]
-      [(and (chunked-list? l) (chunked-list? r))
-       (let ([ r (chunked-list-compare/recur l r universal-compare)])
-         (cond
-           [(eq? r '<) 0]
-           [(eq? r '=) 1]
-           [(eq? r '>) 2]))]
-      [else (raise "universal-compare: unimplemented")]))
+    (define (go l r)
+      (cond
+        [(equal? l r) '=]
+        [(and (number? l) (number? r)) (if (< l r) '< '>)]
+        [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r go)]
+        [else (raise "universal-compare: unimplemented")]))
+    (let ([out (go l r)])
+      (cond
+        [(eq? out '<) 0]
+        [(eq? out '=) 1]
+        [(eq? out '>) 2])))
 
   (define (universal-equal? l r)
     (define (pointwise ll lr)
