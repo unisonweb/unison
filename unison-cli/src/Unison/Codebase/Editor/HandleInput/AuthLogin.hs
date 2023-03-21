@@ -42,7 +42,6 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Debug as Debug
 import Unison.Prelude
 import Unison.Share.Types
-import qualified Web.Browser as Web
 
 ucmOAuthClientID :: ByteString
 ucmOAuthClientID = "ucm"
@@ -104,10 +103,10 @@ authLogin host = do
       Debug.debugLogM Debug.Auth "Filling redirect URI MVar"
       liftIO (putMVar redirectURIVar redirectURI)
       let authorizationKickoff = authURI authorizationEndpoint redirectURI state challenge
-      Debug.debugLogM Debug.Auth "Attempting to open browser"
-      void . liftIO $ Web.openBrowser (show authorizationKickoff)
       Debug.debugLogM Debug.Auth "Printing message"
       Cli.respond . Output.InitiateAuthFlow $ authorizationKickoff
+      -- Debug.debugLogM Debug.Auth "Attempting to open browser"
+      -- void . liftIO $ Web.openBrowser (show authorizationKickoff)
       bailOnFailure (readMVar authResultVar)
   Debug.debugLogM Debug.Auth "Getting user info from  tokens"
   userInfo <- bailOnFailure (getUserInfo doc accessToken)
