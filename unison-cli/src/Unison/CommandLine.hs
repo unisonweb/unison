@@ -50,6 +50,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
+import Data.Char (isSpace)
 
 disableWatchConfig :: Bool
 disableWatchConfig = False
@@ -114,37 +115,53 @@ parseInput ::
   [String] ->
   -- | Input Pattern Map
   Map String InputPattern ->
-  -- | command:arguments
-  [String] ->
+  -- | command
+  String ->  
+  -- | arguments string
+  String ->
   IO (Either (P.Pretty CT.ColorText) Input)
-parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
-  case segments of
-    [] -> throwE ""
-    command : args -> case Map.lookup command patterns of
-      Just pat@(InputPattern {parse}) -> do
-        let expandedNumbers :: [String]
-            expandedNumbers = foldMap (expandNumber numberedArgs) args
-        expandedGlobs <- ifor expandedNumbers $ \i arg -> do
-          if Globbing.containsGlob arg
-            then do
-              rootBranch <- liftIO getRoot
-              let targets = case InputPattern.argType pat i of
-                    Just argT -> InputPattern.globTargets argT
-                    Nothing -> mempty
-              case Globbing.expandGlobs targets rootBranch currentPath arg of
-                -- No globs encountered
-                Nothing -> pure [arg]
-                Just [] -> throwE $ "No matches for: " <> fromString arg
-                Just matches -> pure matches
-            else pure [arg]
-        except $ parse (concat expandedGlobs)
-      Nothing ->
-        throwE
-          . warn
-          . P.wrap
-          $ "I don't know how to "
-            <> P.group (fromString command <> ".")
-            <> "Type `help` or `?` to get help."
+parseInput getRoot currentPath numberedArgs patterns command args = runExceptT do
+  case Map.lookup command patterns of
+    Just pat@(InputPattern {parse}) -> do
+      let expandedNumbers :: [String]
+          expandedNumbers = foldMap (expandNumber numberedArgs) $ words' args
+      expandedGlobs <- ifor expandedNumbers $ \i arg -> do
+        if Globbing.containsGlob arg
+          then do
+            rootBranch <- liftIO getRoot
+            let targets = case InputPattern.argType pat i of
+                  Just argT -> InputPattern.globTargets argT
+                  Nothing -> mempty
+            case Globbing.expandGlobs targets rootBranch currentPath arg of
+              -- No globs encountered
+              Nothing -> pure [arg]
+              Just [] -> throwE $ "No matches for: " <> fromString arg
+              Just matches -> pure matches
+          else pure [arg]
+      except $ parse (concat expandedGlobs)
+    Nothing ->
+      throwE
+        . warn
+        . P.wrap
+        $ "I don't know how to "
+          <> P.group (fromString command <> ".")
+          <> "Type `help` or `?` to get help."
+
+-- | A version of 'words' that treats sequences enclosed in double quotes as
+-- single words and that does not break on backslash-escaped spaces.
+-- E.g., 'words\' "\"lorem ipsum\" dolor"' and 'words\' "lorem\\ ipsum dolor"'
+-- yield '["lorem ipsum", "dolor"]'.
+-- https://github.com/ghc/ghc/blob/73d07c6e1986bd2b3516d4f009cc1e30ba804f06/ghc/GHCi/UI.hs#L2499
+words' :: String -> [String]
+words' s = case dropWhile isSpace s of
+  "" -> []
+  s'@('\"' : _) | [(w, s'')] <- reads s' -> w : words' s''
+  s' -> go id s'
+ where
+  go acc []                          = [acc []]
+  go acc ('\\' : c : cs) | isSpace c = go (acc . (c :)) cs
+  go acc (c : cs) | isSpace c = acc [] : words' cs
+                  | otherwise = go (acc . (c :)) cs
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]

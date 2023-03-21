@@ -200,7 +200,7 @@ runFileCommand =
   where
     help =
       "Execute a definition from a file, passing on the provided arguments. "
-        <> " To pass flags to your program, use `run.file <file> -- --my-flag`"
+        <> " To pass flags to your program, use `run.file <file> <symbol> -- --my-flag`"
 
 runPipeCommand :: Mod CommandFields Command
 runPipeCommand =

@@ -50,6 +50,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
 import UnliftIO.STM
+import Data.Char (isSpace)
 
 getUserInput ::
   forall m v a.
@@ -80,10 +81,10 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
           P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
       case line of
         Nothing -> pure QuitI
-        Just l -> case words l of
-          [] -> go
-          ws -> do
-            liftIO (parseInput (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
+        Just l -> case break isSpace $ dropWhile isSpace l of
+          ("", _) -> go
+          (command, argsString) -> do
+            liftIO (parseInput (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap command argsString) >>= \case
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go

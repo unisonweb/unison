@@ -71,6 +71,7 @@ import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
 import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
+import Data.Char (isSpace)
 
 -- | Render transcript errors at a width of 65 chars.
 terminalWidth :: Pretty.Width
@@ -313,12 +314,12 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                   then do
                     atomically $ Q.undequeue cmdQueue (Just p)
                     pure $ Right (SwitchBranchI $ Just (Path.absoluteToPath' path))
-                  else case words . Text.unpack $ lineTxt of
-                    [] -> awaitInput loopState
-                    args -> do
+                  else case break isSpace $ dropWhile isSpace . Text.unpack $ lineTxt of
+                    ("", _) -> awaitInput loopState
+                    (command, argsString) -> do
                       output ("\n" <> show p <> "\n")
                       let getRoot = fmap Branch.head . atomically $ readTMVar (loopState ^. #root)
-                      parseInput getRoot curPath (loopState ^. #numberedArgs) patternMap args >>= \case
+                      parseInput getRoot curPath (loopState ^. #numberedArgs) patternMap command argsString >>= \case
                         -- invalid command is treated as a failure
                         Left msg -> dieWithMsg $ Pretty.toPlain terminalWidth msg
                         Right input -> pure $ Right input
