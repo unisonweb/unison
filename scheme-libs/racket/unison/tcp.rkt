@@ -6,6 +6,8 @@
          unison/data)
 
 (provide
+ socket-pair-input
+ socket-pair-output
  (prefix-out
   unison-FOp-IO.
   (combine-out
@@ -18,26 +20,22 @@
    socketAccept.impl.v3
    socketSend.impl.v3)))
 
-(define (input socket) (car socket))
-(define (output socket) (car (cdr socket)))
+(struct socket-pair (input output))
 
 (define (handle-errors fn)
   (with-handlers
       [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
        [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exn->string e) '()))]
-       ;    [(lambda err
-       ;       (string-contains? (exn->string err) "not valid for hostname"))
-       ;     (lambda (e) (exception "IOFailure" "NameMismatch" '()))]
        [(lambda _ #t) (lambda (e) (exception "MiscFailure" (format "Unknown exception ~a" (exn->string e)) e))] ]
     (fn)))
 
 (define (closeSocket.impl.v3 socket)
   (handle-errors
    (lambda ()
-     (if (pair? socket)
+     (if (socket-pair? socket)
          (begin
-           (close-input-port (input socket))
-           (close-output-port (output socket)))
+           (close-input-port (socket-pair-input socket))
+           (close-output-port (socket-pair-output socket)))
          (tcp-close socket))
      (right none))))
 
@@ -45,32 +43,31 @@
   (handle-errors
    (lambda ()
      (let-values ([(input output) (tcp-connect host (string->number port))])
-       (right (list input output))))))
+       (right (socket-pair input output))))))
 
 (define (socketSend.impl.v3 socket data)
-  (if (not (pair? socket))
+  (if (not (socket-pair? socket))
       (exception "InvalidArguments" "Cannot send on a server socket" '())
-    ;   (if (port-closed? (output socket))
-    ;       (exception "IOError" "Connection reset" '())
-          (begin
-            (write-bytes data (output socket))
-            (flush-output (output socket))
-            (right none)))); )
+      (begin
+        (write-bytes data (socket-pair-output socket))
+        (flush-output (socket-pair-output socket))
+        (right none)))); )
 
 (define (socketReceive.impl.v3 socket amt)
-  (if (not (pair? socket))
+  (if (not (socket-pair? socket))
       (exception "InvalidArguments" "Cannot receive on a server socket")
       (handle-errors
        (lambda ()
          (begin
            (let* ([buffer (make-bytes amt)]
-                  [read (read-bytes-avail! buffer (input socket))])
+                  [read (read-bytes-avail! buffer (socket-pair-input socket))])
              (right (subbytes buffer 0 read))))))))
 
-; A "connected" socket is represented as a list of (list input-port output-port),
-; while a "listening" socket is just the tcp-listener itself.
 (define (socketPort.impl.v3 socket)
-  (let-values ([(_ local-port __ ___) (tcp-addresses (if (pair? socket) (input socket) socket) #t)])
+  (let-values ([(_ local-port __ ___) (tcp-addresses
+                                       (if (socket-pair? socket)
+                                           (socket-pair-input socket)
+                                           socket) #t)])
     (right local-port)))
 
 (define serverSocket.impl.v3
@@ -97,8 +94,8 @@
   (right none))
 
 (define (socketAccept.impl.v3 listener)
-  (if (pair? listener)
+  (if (socket-pair? listener)
       (exception "InvalidArguments" "Cannot accept on a non-server socket")
       (begin
         (let-values ([(input output) (tcp-accept listener)])
-          (right (list input output))))))
+          (right (socket-pair input output))))))

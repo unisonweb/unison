@@ -5,6 +5,7 @@
          racket/file
          compatibility/mlist
          unison/data
+         unison/tcp
          x509
          openssl)
 
@@ -56,8 +57,8 @@
 (define (newServer.impl.v3 config sockets) ; tlsServerConfig socket -> {io} tls
   (handle-errors
    (lambda ()
-     (let* ([input (car sockets)]
-            [output (car (cdr sockets))]
+     (let* ([input (socket-pair-input sockets)]
+            [output (socket-pair-output sockets)]
             [certs (server-config-certs config)]
             [key (server-config-key config)]
             [tmp (make-temporary-file* #"unison" #".pem")]
@@ -97,8 +98,8 @@
 (define (newClient.impl.v3 config socket)
   (handle-errors
    (lambda ()
-     (let ([input (car socket)]
-           [output (car (cdr socket))]
+     (let ([input (socket-pair-input socket)]
+           [output (socket-pair-output socket)]
            [hostname (client-config-host config)]
            [ctx (ssl-make-client-context)])
        (ssl-set-verify-hostname! ctx #t)
