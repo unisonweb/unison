@@ -44,25 +44,28 @@
 (define (clientSocket.impl.v3 host port)
   (handle-errors
    (lambda ()
-
-    (let-values ([(input output) (tcp-connect host (string->number port))])
-      (right (list input output))))))
+     (let-values ([(input output) (tcp-connect host (string->number port))])
+       (right (list input output))))))
 
 (define (socketSend.impl.v3 socket data)
   (if (not (pair? socket))
-      (exception "InvalidArguments" "Cannot send on a server socket")
-      (begin
-        (write-bytes data (output socket))
-        (flush-output (output socket))
-        (right none))))
+      (exception "InvalidArguments" "Cannot send on a server socket" '())
+      (if (port-closed? (output socket))
+          (exception "IOError" "Connection reset" '())
+          (begin
+            (write-bytes data (output socket))
+            (flush-output (output socket))
+            (right none)))))
 
 (define (socketReceive.impl.v3 socket amt)
   (if (not (pair? socket))
       (exception "InvalidArguments" "Cannot receive on a server socket")
-      (begin
-        (let ([buffer (make-bytes amt)])
-          (read-bytes-avail! buffer (input socket))
-          (right buffer)))))
+      (handle-errors
+       (lambda ()
+         (begin
+           (let ([buffer (make-bytes amt)])
+             (read-bytes-avail! buffer (input socket))
+             (right buffer)))))))
 
 ; A "connected" socket is represented as a list of (list input-port output-port),
 ; while a "listening" socket is just the tcp-listener itself.
