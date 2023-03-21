@@ -1,14 +1,24 @@
 list.tests = do
+  !list.eq.tests
   !list.ops.tests
   !list.matching.tests
 
-list.ops.tests = do
+list.eq.tests = do
   check "List.empty builder" do
     _ = []
     true
   check "List builder" do
     _ = [1, 2, 3]
     true
+  checkEqual "List equality: empty" [] []
+  checkEqual "List equality: non empty" [1, 2] [1, 2]
+  check "List inequality: non empty (1)" do [1, 2] !== [1, 2, 3]
+  check "List inequality: non empty (2)" do [1, 2, 3] !== [1, 2]
+  check "List inequality: empty" do [1, 2] !== []
+  checkEqual "List equality: nested" (Some [Some 1, Some 2]) (Some [Some 1, Some 2])
+  check "List inequality: nested" do (Some [Some 1, Some 2]) !== (Some [Some 1, Some 3])
+
+list.ops.tests = do
   checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [1, 2, 3]
   checkEqual "List.snoc" ([] :+ 1 :+ 2 :+ 3) [1, 2, 3]
   checkEqual "List.++" ([] ++ [1, 2] ++ [3, 4] ++ []) [1, 2, 3, 4]
