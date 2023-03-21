@@ -2,9 +2,9 @@
 #lang racket/base
 (require racket/port
          racket/exn
+         racket/string
          racket/file
          compatibility/mlist
-         srfi/28
          unison/data
          x509
          openssl)
@@ -89,6 +89,9 @@
   (with-handlers
       [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
        [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exn->string e) '()))]
+       [(lambda err
+          (string-contains? (exn->string err) "not valid for hostname"))
+        (lambda (e) (exception "IOFailure" "NameMismatch" '()))]
        [(lambda _ #t) (lambda (e) (exception "MiscFailure" (format "Unknown exception ~a" (exn->string e)) e))] ]
     (fn)))
 
@@ -99,12 +102,11 @@
            [output (car (cdr socket))]
            [hostname (client-config-host config)]
            [ctx (ssl-make-client-context)])
-        (ssl-set-verify-hostname! ctx #t)
+       (ssl-set-verify-hostname! ctx #t)
        (let-values ([(in out) (ports->ssl-ports
                                input output
                                #:mode 'connect
                                #:context ctx
-                               #:error/ssl exn:fail:network
                                #:hostname hostname
                                #:close-original? #t
                                )])
