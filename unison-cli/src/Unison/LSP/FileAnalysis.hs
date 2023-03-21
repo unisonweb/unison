@@ -240,9 +240,25 @@ analyseNotes fileUri ppe src notes = do
             -- still have valid diagnostics.
             TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
               Context.PatternArityMismatch loc _typ _numArgs -> singleRange loc
-              _ -> do
-                Debug.debugM Debug.LSP "No Diagnostic configured for type error: " e
-                empty
+              Context.HandlerOfUnexpectedType loc _typ -> singleRange loc
+              Context.TypeMismatch {} -> shouldHaveBeenHandled e
+              Context.IllFormedType {} -> shouldHaveBeenHandled e
+              Context.UnknownSymbol loc _ -> singleRange loc
+              Context.UnknownTerm loc _ _ _ -> singleRange loc
+              Context.AbilityCheckFailure {} -> shouldHaveBeenHandled e
+              Context.AbilityEqFailure {} -> shouldHaveBeenHandled e
+              Context.EffectConstructorWrongArgCount {} -> shouldHaveBeenHandled e
+              Context.MalformedEffectBind {} -> shouldHaveBeenHandled e
+              Context.DuplicateDefinitions {} -> shouldHaveBeenHandled e
+              Context.UnguardedLetRecCycle {} -> shouldHaveBeenHandled e
+              Context.ConcatPatternWithoutConstantLength loc _ -> singleRange loc
+              Context.DataEffectMismatch _ _ decl -> singleRange $ DD.annotation decl
+              Context.UncoveredPatterns loc _ -> singleRange loc
+              Context.RedundantPattern loc -> singleRange loc
+              Context.InaccessiblePattern loc -> singleRange loc
+          shouldHaveBeenHandled e = do
+            Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e
+            empty
           diags = noteDiagnostic currentPath note ranges
       -- Sort on match accuracy first, then name.
       codeActions <- case cause of
