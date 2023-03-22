@@ -2324,7 +2324,7 @@ projectClone :: InputPattern
 projectClone =
   InputPattern
     { patternName = "project.clone",
-      aliases = [],
+      aliases = ["clone"],
       visibility = I.Visible,
       argTypes = [(Required, projectAndBranchNamesArg)],
       help = P.wrap "Clone a project branch from a remote server.",
@@ -2340,7 +2340,7 @@ projectCreate :: InputPattern
 projectCreate =
   InputPattern
     { patternName = "project.create",
-      aliases = [],
+      aliases = ["create"],
       visibility = I.Visible,
       argTypes = [(Required, projectNameArg)],
       help = P.wrap "Create a project.",
@@ -2356,7 +2356,7 @@ projectSwitch :: InputPattern
 projectSwitch =
   InputPattern
     { patternName = "project.switch",
-      aliases = [],
+      aliases = ["switch"],
       visibility = I.Visible,
       argTypes = [(Required, projectAndBranchNamesArg)],
       help = P.wrap "Switch to a project or project branch.",
