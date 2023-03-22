@@ -1976,13 +1976,19 @@ notifyUser dir = \case
       P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
   CreatedProject projectName branchName ->
     pure . P.wrap $
-      "I just created a project called"
+      "I just created project"
         <> prettyProjectName projectName
-        <> "with a branch called"
+        <> "with branch"
         <> prettyProjectBranchName branchName
+  CreatedProjectBranch parentBranchName childBranchName ->
+    pure . P.wrap $
+      "I just created branch"
+        <> prettyProjectBranchName childBranchName
+        <> "from branch"
+        <> prettyProjectBranchName parentBranchName
   ProjectNameAlreadyExists name ->
     pure . P.wrap $
-      prettyProjectName name <> "already exists."
+      "Project" <> prettyProjectName name <> "already exists."
   ProjectNameRequiresUserSlug name ->
     pure . P.wrap $
       prettyProjectName name

@@ -9,11 +9,13 @@ import qualified Data.Text as Text
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
 import U.Codebase.Sqlite.DbId
+import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli (getBranch0At, stepAt)
 import Unison.Cli.ProjectUtils (getCurrentProjectBranch, loggeth, projectBranchPath)
+import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
@@ -47,7 +49,7 @@ switchToProjectAndBranch projectAndBranch = do
 
 data SwitchToBranchOutcome
   = SwitchedToExistingBranch
-  | SwitchedToNewBranchFrom ProjectBranchId -- id of branch we switched from
+  | SwitchedToNewBranchFrom Sqlite.ProjectBranch -- branch we switched from
 
 -- Switch to a project+branch.
 switchToProjectAndBranch2 ::
@@ -62,11 +64,11 @@ switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName)
         Nothing -> do
           newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
           Queries.insertProjectBranch projectId newBranchId branchName
-          fromBranchId <-
+          fromBranch <-
             case maybeCurrentProject of
               Just (ProjectAndBranch currentProjectId currentBranchId)
                 | projectId == currentProjectId ->
-                    pure currentBranchId
+                    Queries.expectProjectBranch currentProjectId currentBranchId
               _ -> do
                 -- For now, we treat switching to a new branch from outside of a project as equivalent to switching to a
                 -- new branch from the branch called "main" in that project. Eventually, we should probably instead
@@ -80,14 +82,14 @@ switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName)
                           ++ " (id = "
                           ++ show projectId
                           ++ "). We (currently) require 'main' to exist."
-                  Just branch -> pure (branch ^. #branchId)
-          Queries.markProjectBranchChild projectId fromBranchId newBranchId
-          pure (SwitchedToNewBranchFrom fromBranchId, newBranchId)
+                  Just branch -> pure branch
+          Queries.markProjectBranchChild projectId (fromBranch ^. #branchId) newBranchId
+          pure (SwitchedToNewBranchFrom fromBranch, newBranchId)
   let path = projectBranchPath (ProjectAndBranch projectId branchId)
   case outcome of
     SwitchedToExistingBranch -> pure ()
-    SwitchedToNewBranchFrom fromBranchId -> do
-      fromBranch <- Cli.getBranch0At (projectBranchPath (ProjectAndBranch projectId fromBranchId))
-      Cli.stepAt "project.switch" (Path.unabsolute path, const fromBranch)
-      loggeth ["I just created a new branch"]
+    SwitchedToNewBranchFrom fromBranch -> do
+      fromBranch0 <- Cli.getBranch0At (projectBranchPath (ProjectAndBranch projectId (fromBranch ^. #branchId)))
+      Cli.stepAt "project.switch" (Path.unabsolute path, const fromBranch0)
+      Cli.respond (Output.CreatedProjectBranch (fromBranch ^. #name) branchName)
   Cli.cd path

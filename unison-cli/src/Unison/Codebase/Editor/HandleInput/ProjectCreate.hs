@@ -61,9 +61,7 @@ projectCreate projectName = do
 
   let path = projectBranchPath ProjectAndBranch {project = projectId, branch = branchId}
   Cli.stepAt "project.create" (Path.unabsolute path, const mainBranchContents)
-
   Cli.respond (Output.CreatedProject projectName branchName)
-
   Cli.cd path
 
 -- The initial contents of the main branch of a new project.

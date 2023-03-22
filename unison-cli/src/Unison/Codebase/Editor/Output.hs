@@ -294,6 +294,7 @@ data Output
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName))
   | CreatedProject ProjectName ProjectBranchName
+  | CreatedProjectBranch ProjectBranchName ProjectBranchName -- parent, child
   | ProjectNameAlreadyExists ProjectName
   | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
@@ -468,6 +469,7 @@ isFailure o = case o of
   ClearScreen -> False
   PulledEmptyBranch {} -> False
   CreatedProject {} -> False
+  CreatedProjectBranch {} -> False
   ProjectNameAlreadyExists {} -> True
   ProjectNameRequiresUserSlug {} -> True
   ProjectAndBranchNameAlreadyExists {} -> True
