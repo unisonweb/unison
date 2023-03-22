@@ -1,18 +1,19 @@
 -- | Project-related utilities.
 module Unison.Cli.ProjectUtils
-  ( getCurrentProjectBranch,
+  ( -- * Project/path helpers
+    getCurrentProjectBranch,
     projectPath,
     projectBranchPath,
+    projectBranchPathPrism,
 
     -- * Name resolution
     resolveNames,
 
-    -- ** Path prisms
-    projectBranchPathPrism,
-
-    -- ** Project/Branch names
+    -- * Loading local project info
     expectProjectAndBranchByIds,
     expectProjectAndBranchByTheseNames,
+
+    -- * Loading remote project info
     expectResolveRemoteProjectName,
     expectResolveRemoteProjectBranchName,
 
@@ -36,6 +37,7 @@ import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
 import qualified Unison.Cli.Share.Projects as Share
 import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
+import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Path as Path
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
@@ -63,9 +65,7 @@ resolveNames = \case
   This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
     ProjectAndBranch projectId _branchId <-
-      getCurrentProjectBranch & onNothingM do
-        loggeth ["not on a project branch"]
-        Cli.returnEarlyWithoutOutput
+      getCurrentProjectBranch & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
     Cli.runTransaction do
       project <- Queries.expectProject projectId
       pure (ProjectAndBranch (project ^. #name) branchName)
@@ -91,9 +91,7 @@ expectProjectAndBranchByTheseNames = \case
   This projectName -> expectProjectAndBranchByTheseNames (These projectName (unsafeFrom @Text "main"))
   That branchName -> do
     ProjectAndBranch projectId _branchId <-
-      getCurrentProjectBranch & onNothingM do
-        loggeth ["not on a project branch yo"]
-        Cli.returnEarlyWithoutOutput
+      getCurrentProjectBranch & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
     project <- Cli.runTransaction (Queries.expectProject projectId)
     branch <-
       Cli.runTransaction (Queries.loadProjectBranchByName projectId branchName) & onNothingM do

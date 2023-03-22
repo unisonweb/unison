@@ -14,7 +14,7 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli (getBranch0At, stepAt)
-import Unison.Cli.ProjectUtils (getCurrentProjectBranch, loggeth, projectBranchPath)
+import Unison.Cli.ProjectUtils (getCurrentProjectBranch, projectBranchPath)
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
@@ -28,10 +28,7 @@ projectSwitch = \case
   These projectName branchName -> switchToProjectAndBranch (ProjectAndBranch projectName branchName)
   This projectName -> switchToProjectAndBranch (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
-    projectAndBranch <-
-      getCurrentProjectBranch & onNothingM do
-        loggeth ["Not currently on a branch"]
-        Cli.returnEarlyWithoutOutput
+    projectAndBranch <- getCurrentProjectBranch & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
     let projectId = projectAndBranch ^. #project
     project <- Cli.runTransaction (Queries.expectProject projectId)
     switchToProjectAndBranch2 (ProjectAndBranch (projectId, project ^. #name) branchName) (Just projectAndBranch)
@@ -41,8 +38,7 @@ switchToProjectAndBranch :: ProjectAndBranch ProjectName ProjectBranchName -> Cl
 switchToProjectAndBranch projectAndBranch = do
   project <-
     Cli.runTransaction (Queries.loadProjectByName (projectAndBranch ^. #project)) & onNothingM do
-      loggeth ["no such project"]
-      Cli.returnEarlyWithoutOutput
+      Cli.returnEarly (Output.LocalProjectBranchDoesntExist projectAndBranch)
   let projectId = project ^. #projectId
   maybeCurrentProject <- getCurrentProjectBranch
   switchToProjectAndBranch2 (over #project (projectId,) projectAndBranch) maybeCurrentProject

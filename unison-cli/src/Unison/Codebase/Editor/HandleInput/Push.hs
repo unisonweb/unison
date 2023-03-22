@@ -359,7 +359,7 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
           case maybeRemoteBranchInfo of
             -- "push" with remote mapping for project from ancestor branch
             Nothing -> do
-              myUserHandle <- oinkGetLoggedInUser
+              myUserHandle <- view #handle <$> AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
               let localBranchName = localProjectAndBranch ^. #branch . #name
               let remoteBranchName = deriveRemoteBranchName myUserHandle remoteProjectName localBranchName
               pushToProjectBranch1
@@ -405,7 +405,7 @@ bazinga10 ::
   ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
   Cli UploadPlan
 bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = do
-  myUserHandle <- oinkGetLoggedInUser
+  myUserHandle <- view #handle <$> AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   let localProjectName = localProjectAndBranch ^. #project . #name
   let localBranchName = localProjectAndBranch ^. #branch . #name
   let remoteProjectName =
@@ -681,14 +681,6 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
   where
     remoteBranchHead =
       Share.API.hashJWTHash (remoteBranch ^. #branchHead)
-
-oinkGetLoggedInUser :: Cli Text
-oinkGetLoggedInUser = do
-  loggeth ["Getting current logged-in user on Share"]
-  userInfo <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
-  let myUserHandle = userInfo ^. #handle
-  loggeth ["Got current logged-in user on Share: ", myUserHandle]
-  pure myUserHandle
 
 -- Provide the given action a callback that displays to the terminal.
 withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
