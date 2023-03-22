@@ -6,8 +6,8 @@ module Unison.Cli.ProjectUtils
     projectBranchPath,
     projectBranchPathPrism,
 
-    -- * Name resolution
-    resolveNames,
+    -- * Name hydration
+    hydrateNames,
 
     -- * Loading local project info
     expectProjectAndBranchByIds,
@@ -56,12 +56,14 @@ getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
   pure (preview projectBranchPathPrism path)
 
--- Resolve a "these names" to a "both names", using the following defaults if a name is missing:
+-- We often accept a `These ProjectName ProjectBranchName` from the user, so they can leave off either a project or 
+-- branch name, which we infer. This helper "hydrates" such a type to a `(ProjectName, BranchName)`, using the following 
+-- defaults if a name is missing:
 --
 --   * The project at the current path
 --   * The branch named "main"
-resolveNames :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch ProjectName ProjectBranchName)
-resolveNames = \case
+hydrateNames :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch ProjectName ProjectBranchName)
+hydrateNames = \case
   This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
     ProjectAndBranch projectId _branchId <-

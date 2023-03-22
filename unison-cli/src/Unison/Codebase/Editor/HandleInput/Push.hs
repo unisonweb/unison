@@ -138,7 +138,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
       getCurrentProjectBranch >>= \case
         Nothing -> do
           localPath <- Cli.getCurrentPath
-          remoteProjectAndBranch <- ProjectUtils.resolveNames remoteProjectAndBranch0
+          remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
           pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
         Just localProjectAndBranchIds -> do
           localProjectAndBranch <-
@@ -155,7 +155,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
     -- push .some.path to @some/project
     PushSourceTarget2 (PathySource localPath0) (WriteRemoteProjectBranch remoteProjectAndBranch0) -> do
       localPath <- Cli.resolvePath' localPath0
-      remoteProjectAndBranch <- ProjectUtils.resolveNames remoteProjectAndBranch0
+      remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
       pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
     -- push @some/project to .some.path (git)
     PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteNamespaceGit namespace) -> do
