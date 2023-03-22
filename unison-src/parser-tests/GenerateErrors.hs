@@ -25,12 +25,12 @@ unisonFilesInCurrDir = getCurrentDirectory >>= unisonFilesInDir
 errorFileName :: String -> String
 errorFileName n = dropExtension n ++ ".message.txt"
 
-emitAsPlainTextTo :: Var v => String -> Err v -> FilePath -> IO ()
+emitAsPlainTextTo :: (Var v) => String -> Err v -> FilePath -> IO ()
 emitAsPlainTextTo src e f = writeUtf8 f plainErr
   where
     plainErr = Color.toPlain $ prettyParseError src e
 
-printError :: Var v => String -> Err v -> IO ()
+printError :: (Var v) => String -> Err v -> IO ()
 printError src e = putStrLn $ B.showParseError src e
 
 processFile :: FilePath -> IO ()

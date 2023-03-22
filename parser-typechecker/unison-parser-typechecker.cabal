@@ -82,6 +82,8 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema8To9
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
@@ -96,6 +98,20 @@ library
       Unison.FileParsers
       Unison.Hashing.V2.Convert
       Unison.Parsers
+      Unison.PatternMatchCoverage
+      Unison.PatternMatchCoverage.Class
+      Unison.PatternMatchCoverage.Constraint
+      Unison.PatternMatchCoverage.Desugar
+      Unison.PatternMatchCoverage.Fix
+      Unison.PatternMatchCoverage.GrdTree
+      Unison.PatternMatchCoverage.IntervalSet
+      Unison.PatternMatchCoverage.ListPat
+      Unison.PatternMatchCoverage.Literal
+      Unison.PatternMatchCoverage.NormalizedConstraints
+      Unison.PatternMatchCoverage.PmGrd
+      Unison.PatternMatchCoverage.PmLit
+      Unison.PatternMatchCoverage.Solve
+      Unison.PatternMatchCoverage.UFMap
       Unison.PrettyPrintEnv
       Unison.PrettyPrintEnv.FQN
       Unison.PrettyPrintEnv.MonadPretty

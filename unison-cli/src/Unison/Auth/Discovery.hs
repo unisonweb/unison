@@ -15,7 +15,7 @@ discoveryURIForCodeserver cs =
   let uri = codeserverToURI cs
    in uri {uriPath = uriPath uri <> "/.well-known/openid-configuration"}
 
-fetchDiscoveryDoc :: MonadIO m => URI -> m (Either CredentialFailure DiscoveryDoc)
+fetchDiscoveryDoc :: (MonadIO m) => URI -> m (Either CredentialFailure DiscoveryDoc)
 fetchDiscoveryDoc discoveryURI = liftIO . UnliftIO.try @_ @CredentialFailure $ do
   unauthenticatedHttpClient <- HTTP.getGlobalManager
   req <- HTTP.requestFromURI discoveryURI

@@ -5,6 +5,7 @@
 ; implements all the functions we'd want. This library exports the
 ; desired functionality on top of an unsafe in-place freeze
 ; re-exported from the (unison core) module.
+#!r6rs
 (library (unison bytevector)
   (export
     freeze-bytevector!

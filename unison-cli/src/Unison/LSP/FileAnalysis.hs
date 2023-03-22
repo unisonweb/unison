@@ -66,7 +66,7 @@ import Unison.WatchKind (pattern TestWatch)
 import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
 
 -- | Lex, parse, and typecheck a file.
-checkFile :: HasUri d Uri => d -> Lsp (Maybe FileAnalysis)
+checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
 checkFile doc = runMaybeT $ do
   let fileUri = doc ^. uri
   (fileVersion, contents) <- VFS.getFileContents fileUri
@@ -151,12 +151,14 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
   where
     declsRefMap :: (Ord v, Ord r) => Map v (r, a) -> Map r (Map v a)
     declsRefMap m =
-      m & Map.toList
+      m
+        & Map.toList
         & fmap (\(v, (r, a)) -> (r, Map.singleton v a))
         & Map.fromListWith (<>)
     termsRefMap :: (Ord v, Ord r) => Map v (r, a, b) -> Map r (Map v (a, b))
     termsRefMap m =
-      m & Map.toList
+      m
+        & Map.toList
         & fmap (\(v, (r, a, b)) -> (r, Map.singleton v (a, b)))
         & Map.fromListWith (<>)
     -- Gets the user provided type annotation for a term if there is one.
@@ -189,7 +191,7 @@ fileAnalysisWorker = forever do
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
-analyseFile :: Foldable f => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseFile :: (Foldable f) => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText notes = do
   pped <- PPED.suffixifiedPPE <$> LSP.globalPPED
   analyseNotes fileUri pped (Text.unpack srcText) notes
@@ -203,7 +205,7 @@ getTokenMap tokens =
       )
     & fold
 
-analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseNotes :: (Foldable f) => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseNotes fileUri ppe src notes = do
   currentPath <- getCurrentPath
   flip foldMapM notes \note -> case note of
@@ -232,6 +234,8 @@ analyseNotes fileUri ppe src notes = do
               (_v, locs) <- toList defns
               (r, rs) <- withNeighbours (locs >>= aToR)
               pure (r, ("duplicate definition",) <$> rs)
+            TypeError.RedundantPattern loc -> singleRange loc
+            TypeError.UncoveredPatterns loc _pats -> singleRange loc
             -- These type errors don't have custom type error conversions, but some
             -- still have valid diagnostics.
             TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of

@@ -14,21 +14,39 @@
     decode-value
 
     universal-compare
+    universal-equal?
 
     fx1-
     list-head
 
+    syntax->list
+    raise-syntax-error
+
     exception->string
-    record-case
-    fluid-let
+    let-marks
+    ref-mark
 
     freeze-string!
     string-copy!
 
     freeze-bytevector!
-    freeze-vector!)
+    freeze-vector!
+    
+    bytevector)
 
-  (import (rnrs) (racket exn))
+  (import
+    (rnrs)
+    (rename (only (racket)
+                  string-copy!
+                  bytes
+                  with-continuation-mark
+                  continuation-mark-set-first
+                  raise-syntax-error)
+            (string-copy! racket-string-copy!)
+            (bytes bytevector))
+    (racket exn)
+    (racket unsafe ops)
+    (unison data))
 
   (define (fx1- n) (fx- n 1))
 
@@ -53,40 +71,50 @@
       [(and (number? l) (number? r)) (if (< l r) 0 2)]
       [else (raise "universal-compare: unimplemented")]))
 
+  (define (universal-equal? l r)
+    (define (pointwise ll lr)
+      (let ([nl (null? ll)] [nr (null? lr)])
+        (cond
+          [(and nl nr) #t]
+          [(or nl nr) #f]
+          [else
+            (and (universal-equal? (car ll) (car lr))
+                 (pointwise (cdr ll) (cdr lr)))])))
+    (cond
+      [(eq? l r) 1]
+      [(and (data? l) (data? r))
+       (and
+         (eqv? (data-tag l) (data-tag r))
+         (pointwise (data-fields l) (data-fields r)))]))
+
   (define exception->string exn->string)
 
-  (define-syntax record-case
-    (syntax-rules (else)
-      ; no else
-      [(record-case expr
-         [(tag0 tag1 ...) (v ...) e ...]
-         ...)
-       (let ([val expr])
-         (case (car val)
-           [(tag0 tag1 ...)
-            (let-values ([(v ...) (apply values (cdr val))])
-              e ...)]
-            ...))]
+  (define (syntax->list stx)
+    (syntax-case stx ()
+      [() '()]
+      [(x . xs) (cons #'x (syntax->list #'xs))]))
 
-      ; with else
-      [(record-case expr
-         [(tag0 tag1 ...) (v ...) e ...]
-         ...
-         [else ee ...])
-       (let ([val expr])
-         (case (car val)
-           [(tag0 tag1 ...)
-            (let-values ([(v ...) (apply values (cdr val))])
-              e ...)]
-           ...
-           [else ee ...]))]))
+  (define (call-with-marks rs v f)
+    (cond
+      [(null? rs) (f)]
+      [else
+        (with-continuation-mark (car rs) v
+          (call-with-marks (cdr rs) v f))]))
 
-  (define (fluid-let) '())
+  (define-syntax let-marks
+    (syntax-rules ()
+      [(let-marks ks bn e ...)
+       (call-with-marks ks bn (lambda () e ...))]))
+
+  (define (ref-mark k) (continuation-mark-set-first #f k))
 
   (define freeze-string! unsafe-string->immutable-string!)
   (define freeze-bytevector! unsafe-bytes->immutable-bytes!)
 
   (define freeze-vector! unsafe-vector*->immutable-vector!)
 
+  ; racket string-copy! has the opposite argument order convention
+  ; from chez.
+  (define (string-copy! src soff dst doff len)
+    (racket-string-copy! dst doff src soff len))
   )
-

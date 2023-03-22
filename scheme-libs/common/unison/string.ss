@@ -4,6 +4,7 @@
 ; entirely in terms of immutable strings. This module takes the
 ; freezing function, re-exported by (unison core) and implements the
 ; API needed for unison.
+#!r6rs
 (library (unison string)
   (export
     istring

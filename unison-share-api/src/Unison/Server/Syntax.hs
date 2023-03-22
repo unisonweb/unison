@@ -47,11 +47,11 @@ instance FromJSON Element
 
 deriving instance ToSchema Element
 
-instance ToJSON a => ToJSON (Segment a)
+instance (ToJSON a) => ToJSON (Segment a)
 
-instance FromJSON a => FromJSON (Segment a)
+instance (FromJSON a) => FromJSON (Segment a)
 
-deriving instance ToSchema a => ToSchema (Segment a)
+deriving instance (ToSchema a) => ToSchema (Segment a)
 
 instance ToJSON SeqOp
 
@@ -65,7 +65,7 @@ instance FromJSON SyntaxText
 
 deriving anyclass instance ToSchema SyntaxText
 
-instance ToSchema r => ToSchema (Seq r) where
+instance (ToSchema r) => ToSchema (Seq r) where
   declareNamedSchema _ = declareNamedSchema (Proxy @[r])
 
 convertElement :: SyntaxText.Element Reference -> Element

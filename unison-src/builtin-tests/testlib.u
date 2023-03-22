@@ -4,12 +4,14 @@ unique ability Tests where
   fail : Text -> Text -> ()   
   exception : Text -> Failure -> ()
 
+Tests.check : Text -> '{g, Exception} Boolean ->{g, Tests} ()
 Tests.check msg b = 
   match catch b with 
     Left e -> exception msg e
     Right true -> pass msg
     Right false -> fail msg ""
 
+Tests.checkEqual : Text -> a -> a ->{Tests} ()
 Tests.checkEqual msg a1 a2 = 
   match catch '(a1 === a2) with
     Left e -> exception msg e
@@ -18,37 +20,37 @@ Tests.checkEqual msg a1 a2 =
 
 Tests.main : '{IO,Exception,Tests} () -> '{IO,Exception} ()
 Tests.main suite = do
-  passed = IO.ref 0
-  failed = IO.ref 0
-  h = cases
-    { _ } -> () 
+  if Tests.run suite then ()
+  else bug "test suite failed" 
+
+Tests.run : '{IO,Exception,Tests} () ->{IO,Exception} Boolean
+Tests.run suite =
+  h passed failed = cases
+    { _ } -> (passed, failed) 
     { pass msg -> k } -> 
       printLine (" ✅  " ++ msg)
-      Ref.write passed (Ref.read passed + 1)
-      handle !k with h
+      handle !k with h (passed + 1) failed
     { fail msg reason -> k } -> 
       printLine (" 🆘  " ++ msg ++ "   " ++ reason)
-      Ref.write failed (Ref.read failed + 1)
-      handle !k with h
+      handle !k with h passed (failed + 1)
     { exception msg failure@(Failure _ cause payload) -> k} -> 
       printLine (" 💥  " ++ msg ++ " " ++ cause)
-      Ref.write failed (Ref.read failed + 1)
-      handle !k with h
+      handle !k with h passed (failed + 1)
 
   printLine ""
   printLine "*** Test suite ***"
   printLine ""
 
-  handle !suite with h
+  (passed, failed) = handle !suite with h 0 0 
 
   printLine ""
   printLine ""
   printLine "Summary of results:"
   printLine ""
 
-  if Ref.read failed == 0 then
-    printLine ("  ✅✅✅  " ++ Nat.toText (Ref.read passed) ++ " PASSED")
+  if failed == 0 then
+    printLine ("  ✅✅✅  " ++ Nat.toText passed ++ " PASSED")
   else
-    printLine ("  🆘🆘🆘  " ++ Nat.toText (Ref.read failed) ++ " FAILED, " 
-                           ++ Nat.toText (Ref.read passed) ++ " passed")
-    bug "test suite failed"
+    printLine ("  🆘🆘🆘  " ++ Nat.toText failed ++ " FAILED, " 
+                           ++ Nat.toText passed ++ " passed")
+  failed == 0

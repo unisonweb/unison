@@ -18,7 +18,7 @@ data Causal m hc he e = Causal
   }
   deriving (Functor)
 
-hoist :: Functor n => (forall x. m x -> n x) -> Causal m hc he e -> Causal n hc he e
+hoist :: (Functor n) => (forall x. m x -> n x) -> Causal m hc he e -> Causal n hc he e
 hoist f (Causal {..}) =
   Causal
     { parents = parents & fmap f & (fmap . fmap) (hoist f),

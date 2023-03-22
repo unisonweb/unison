@@ -124,14 +124,15 @@ And here's the full API:
   3.  HashAlgorithm.Blake2b_256 : HashAlgorithm
   4.  HashAlgorithm.Blake2b_512 : HashAlgorithm
   5.  HashAlgorithm.Blake2s_256 : HashAlgorithm
-  6.  HashAlgorithm.Sha1 : HashAlgorithm
-  7.  HashAlgorithm.Sha2_256 : HashAlgorithm
-  8.  HashAlgorithm.Sha2_512 : HashAlgorithm
-  9.  HashAlgorithm.Sha3_256 : HashAlgorithm
-  10. HashAlgorithm.Sha3_512 : HashAlgorithm
-  11. hashBytes : HashAlgorithm -> Bytes -> Bytes
-  12. hmac : HashAlgorithm -> Bytes -> a -> Bytes
-  13. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
+  6.  HashAlgorithm.Md5 : HashAlgorithm
+  7.  HashAlgorithm.Sha1 : HashAlgorithm
+  8.  HashAlgorithm.Sha2_256 : HashAlgorithm
+  9.  HashAlgorithm.Sha2_512 : HashAlgorithm
+  10. HashAlgorithm.Sha3_256 : HashAlgorithm
+  11. HashAlgorithm.Sha3_512 : HashAlgorithm
+  12. hashBytes : HashAlgorithm -> Bytes -> Bytes
+  13. hmac : HashAlgorithm -> Bytes -> a -> Bytes
+  14. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
   
 
 .> cd .
@@ -390,41 +391,93 @@ test> hmac_sha2_512.tests.ex2 =
     ✅ Passed Passed
 
 ```
+## MD5 tests
+
+Test vectors here pulled from [Wikipedia's writeup](https://en.wikipedia.org/wiki/MD5).
+
+```unison
+ex alg input expected = checks [hashBytes alg (ascii input) == fromHex expected]
+
+test> md5.tests.ex1 =
+  ex Md5
+    ""
+    "d41d8cd98f00b204e9800998ecf8427e"
+
+test> md5.tests.ex2 =
+  ex Md5
+    "The quick brown fox jumps over the lazy dog"
+    "9e107d9d372bb6826bd81d3542a419d6"
+
+test> md5.tests.ex3 =
+  ex Md5
+    "The quick brown fox jumps over the lazy dog."
+    "e4d909c290d0fb1ca068ffaddf22cbd0"
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⊡ Previously added definitions will be ignored: ex
+    
+    ⍟ These new definitions are ok to `add`:
+    
+      md5.tests.ex1 : [Result]
+      md5.tests.ex2 : [Result]
+      md5.tests.ex3 : [Result]
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    4 |   ex Md5
+    
+    ✅ Passed Passed
+  
+    9 |   ex Md5
+    
+    ✅ Passed Passed
+  
+    14 |   ex Md5
+    
+    ✅ Passed Passed
+
+```
 ```ucm
 .> test
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2b_512.tests.ex1     Passed
-  ◉ blake2b_512.tests.ex2     Passed
-  ◉ blake2b_512.tests.ex3     Passed
-  ◉ blake2s_256.tests.ex1     Passed
-  ◉ hmac_sha2_256.tests.ex1   Passed
-  ◉ hmac_sha2_256.tests.ex2   Passed
-  ◉ hmac_sha2_512.tests.ex1   Passed
-  ◉ hmac_sha2_512.tests.ex2   Passed
-  ◉ sha1.tests.ex1            Passed
-  ◉ sha1.tests.ex2            Passed
-  ◉ sha1.tests.ex3            Passed
-  ◉ sha1.tests.ex4            Passed
-  ◉ sha2_256.tests.ex1        Passed
-  ◉ sha2_256.tests.ex2        Passed
-  ◉ sha2_256.tests.ex3        Passed
-  ◉ sha2_256.tests.ex4        Passed
-  ◉ sha2_512.tests.ex1        Passed
-  ◉ sha2_512.tests.ex2        Passed
-  ◉ sha2_512.tests.ex3        Passed
-  ◉ sha2_512.tests.ex4        Passed
-  ◉ sha3_256.tests.ex1        Passed
-  ◉ sha3_256.tests.ex2        Passed
-  ◉ sha3_256.tests.ex3        Passed
-  ◉ sha3_256.tests.ex4        Passed
-  ◉ sha3_512.tests.ex1        Passed
-  ◉ sha3_512.tests.ex2        Passed
-  ◉ sha3_512.tests.ex3        Passed
-  ◉ sha3_512.tests.ex4        Passed
+  ◉ blake2b_512.tests.ex1   Passed
+  ◉ blake2b_512.tests.ex2   Passed
+  ◉ blake2b_512.tests.ex3   Passed
+  ◉ blake2s_256.tests.ex1   Passed
+  ◉ md5.tests.ex1           Passed
+  ◉ md5.tests.ex2           Passed
+  ◉ md5.tests.ex3           Passed
+  ◉ sha1.tests.ex1          Passed
+  ◉ sha1.tests.ex2          Passed
+  ◉ sha1.tests.ex3          Passed
+  ◉ sha1.tests.ex4          Passed
+  ◉ sha2_256.tests.ex1      Passed
+  ◉ sha2_256.tests.ex2      Passed
+  ◉ sha2_256.tests.ex3      Passed
+  ◉ sha2_256.tests.ex4      Passed
+  ◉ sha2_512.tests.ex1      Passed
+  ◉ sha2_512.tests.ex2      Passed
+  ◉ sha2_512.tests.ex3      Passed
+  ◉ sha2_512.tests.ex4      Passed
+  ◉ sha3_256.tests.ex1      Passed
+  ◉ sha3_256.tests.ex2      Passed
+  ◉ sha3_256.tests.ex3      Passed
+  ◉ sha3_256.tests.ex4      Passed
+  ◉ sha3_512.tests.ex1      Passed
+  ◉ sha3_512.tests.ex2      Passed
+  ◉ sha3_512.tests.ex3      Passed
+  ◉ sha3_512.tests.ex4      Passed
   
-  ✅ 28 test(s) passing
+  ✅ 27 test(s) passing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.

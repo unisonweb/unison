@@ -149,7 +149,7 @@ prefixFindInBranch b hq =
 
 -- only search before the # before the # and after the # after the #
 fuzzyFindInBranch ::
-  HasCallStack =>
+  (HasCallStack) =>
   Names ->
   HQ'.HashQualified Name ->
   [(SearchResult, P.Pretty P.ColorText)]

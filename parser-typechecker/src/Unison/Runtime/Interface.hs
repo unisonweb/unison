@@ -77,8 +77,8 @@ import Unison.Runtime.MCode
 import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
   ( ActiveThreads,
-    Tracer (..),
     CCache (..),
+    Tracer (..),
     apply0,
     baseCCache,
     cacheAdd,
@@ -151,6 +151,7 @@ recursiveDeclDeps ::
   Set RF.LabeledDependency ->
   CodeLookup Symbol IO () ->
   Decl Symbol () ->
+  -- (type deps, term deps)
   IO (Set Reference, Set Reference)
 recursiveDeclDeps seen0 cl d = do
   rec <- for (toList newDeps) $ \case
@@ -176,6 +177,7 @@ recursiveTermDeps ::
   Set RF.LabeledDependency ->
   CodeLookup Symbol IO () ->
   Term Symbol ->
+  -- (type deps, term deps)
   IO (Set Reference, Set Reference)
 recursiveTermDeps seen0 cl tm = do
   rec <- for (toList (deps \\ seen0)) $ \case
@@ -273,7 +275,7 @@ backrefLifted ref tm dcmp =
   Map.fromList . (fmap . fmap) (Map.singleton 0) $ (ref, tm) : dcmp
 
 intermediateTerms ::
-  HasCallStack =>
+  (HasCallStack) =>
   PrettyPrintEnv ->
   EvalCtx ->
   [(Reference, Term Symbol)] ->
@@ -284,7 +286,7 @@ intermediateTerms ppe ctx rtms =
   foldMap (\(ref, tm) -> intermediateTerm ppe ref ctx tm) rtms
 
 intermediateTerm ::
-  HasCallStack =>
+  (HasCallStack) =>
   PrettyPrintEnv ->
   Reference ->
   EvalCtx ->
@@ -311,7 +313,7 @@ intermediateTerm ppe ref ctx tm =
     tmName = HQ.toString . termName ppe $ RF.Ref ref
 
 prepareEvaluation ::
-  HasCallStack =>
+  (HasCallStack) =>
   PrettyPrintEnv ->
   Term Symbol ->
   EvalCtx ->
@@ -319,7 +321,8 @@ prepareEvaluation ::
 prepareEvaluation ppe tm ctx = do
   missing <- cacheAdd rgrp (ccache ctx)
   when (not . null $ missing) . fail $
-    reportBug "E029347" $ "Error in prepareEvaluation, cache is missing: " <> show missing
+    reportBug "E029347" $
+      "Error in prepareEvaluation, cache is missing: " <> show missing
   (,) (backrefAdd rbkr ctx) <$> refNumTm (ccache ctx) rmn
   where
     (rmn, rtms)
@@ -370,7 +373,8 @@ evalInContext ppe ctx activeThreads w = do
         Right dv -> SimpleTrace . fmt $ pretty ppe dv
         Left _ -> MsgTrace ("Couldn't decompile value") (show c)
         where
-        fmt | fancy = toANSI 50
+          fmt
+            | fancy = toANSI 50
             | otherwise = toPlain 50
 
   result <-
@@ -410,7 +414,8 @@ bugMsg ppe tr name tm
   | name == "blank expression" =
       P.callout icon . P.lines $
         [ P.wrap
-            ( "I encountered a" <> P.red (P.text name)
+            ( "I encountered a"
+                <> P.red (P.text name)
                 <> "with the following name/message:"
             ),
           "",
@@ -421,7 +426,8 @@ bugMsg ppe tr name tm
   | "pattern match failure" `isPrefixOf` name =
       P.callout icon . P.lines $
         [ P.wrap
-            ( "I've encountered a" <> P.red (P.text name)
+            ( "I've encountered a"
+                <> P.red (P.text name)
                 <> "while scrutinizing:"
             ),
           "",
@@ -445,7 +451,8 @@ bugMsg ppe tr name tm
     "pattern match failure" `isPrefixOf` msg =
       P.callout icon . P.lines $
         [ P.wrap
-            ( "I've encountered a" <> P.red (P.text msg)
+            ( "I've encountered a"
+                <> P.red (P.text msg)
                 <> "while scrutinizing:"
             ),
           "",
@@ -459,7 +466,8 @@ bugMsg ppe tr name tm
 bugMsg ppe tr name tm =
   P.callout icon . P.lines $
     [ P.wrap
-        ( "I've encountered a call to" <> P.red (P.text name)
+        ( "I've encountered a call to"
+            <> P.red (P.text name)
             <> "with the following value:"
         ),
       "",
@@ -551,7 +559,7 @@ startRuntime sandboxed runtimeHost version = do
         ioTestType = builtinTest External
       }
 
-withRuntime :: MonadUnliftIO m => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
+withRuntime :: (MonadUnliftIO m) => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
 withRuntime sandboxed runtimeHost version action =
   UnliftIO.bracket (liftIO $ startRuntime sandboxed runtimeHost version) (liftIO . terminate) action
 
@@ -578,7 +586,7 @@ data StoredCache
       (Map Reference (Set Reference))
   deriving (Show)
 
-putStoredCache :: MonadPut m => StoredCache -> m ()
+putStoredCache :: (MonadPut m) => StoredCache -> m ()
 putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
   putEnumMap putNat (putEnumMap putNat putComb) cs
   putEnumMap putNat putReference crs
@@ -590,7 +598,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
   putMap putReference putNat rty
   putMap putReference (putFoldable putReference) sbs
 
-getStoredCache :: MonadGet m => m StoredCache
+getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =
   SCache
     <$> getEnumMap getNat (getEnumMap getNat getComb)

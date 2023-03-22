@@ -132,7 +132,7 @@ instance Eq (Pattern loc) where
   SequenceOp _ ph op pt == SequenceOp _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
   _ == _ = False
 
-foldMap' :: Monoid m => (Pattern loc -> m) -> Pattern loc -> m
+foldMap' :: (Monoid m) => (Pattern loc -> m) -> Pattern loc -> m
 foldMap' f p = case p of
   Unbound _ -> f p
   Var _ -> f p
@@ -150,7 +150,7 @@ foldMap' f p = case p of
   SequenceOp _ p1 _ p2 -> f p <> foldMap' f p1 <> foldMap' f p2
 
 generalizedDependencies ::
-  Ord r =>
+  (Ord r) =>
   (Reference -> r) ->
   (Reference -> ConstructorId -> r) ->
   (Reference -> r) ->

@@ -24,18 +24,18 @@ import Prelude hiding (head, read, tail)
 {-
 `Causal a` has 5 operations, specified algebraically here:
 
-* `before : Causal m a -> Causal m a -> m Bool` defines a partial order on
+\* `before : Causal m a -> Causal m a -> m Bool` defines a partial order on
             `Causal`.
-* `head : Causal m a -> a`, which represents the "latest" `a` value in a causal
+\* `head : Causal m a -> a`, which represents the "latest" `a` value in a causal
           chain.
-* `one : a -> Causal m a`, satisfying `head (one hd) == hd`
-* `cons : a -> Causal a -> Causal a`, satisfying `head (cons hd tl) == hd` and
+\* `one : a -> Causal m a`, satisfying `head (one hd) == hd`
+\* `cons : a -> Causal a -> Causal a`, satisfying `head (cons hd tl) == hd` and
           also `before tl (cons hd tl)`.
-* `merge : CommutativeSemigroup a => Causal a -> Causal a -> Causal a`, which is
+\* `merge : CommutativeSemigroup a => Causal a -> Causal a -> Causal a`, which is
            commutative (but not associative) and satisfies:
   * `before c1 (merge c1 c2)`
   * `before c2 (merge c1 c2)`
-* `sequence : Causal a -> Causal a -> Causal a`, which is defined as
+\* `sequence : Causal a -> Causal a -> Causal a`, which is defined as
               `sequence c1 c2 = cons (head c2) (merge c1 c2)`.
   * `before c1 (sequence c1 c2)`
   * `head (sequence c1 c2) == head c2`
@@ -85,11 +85,11 @@ predecessors (UnsafeOne _ _ _) = Seq.empty
 predecessors (UnsafeCons _ _ _ (_, t)) = Seq.singleton t
 predecessors (UnsafeMerge _ _ _ ts) = Seq.fromList $ Map.elems ts
 
-before :: Monad m => Causal m e -> Causal m e -> m Bool
+before :: (Monad m) => Causal m e -> Causal m e -> m Bool
 before a b = (== Just a) <$> lca a b
 
 -- Find the lowest common ancestor of two causals.
-lca :: Monad m => Causal m e -> Causal m e -> m (Maybe (Causal m e))
+lca :: (Monad m) => Causal m e -> Causal m e -> m (Maybe (Causal m e))
 lca a b =
   lca' (Seq.singleton $ pure a) (Seq.singleton $ pure b)
 
@@ -97,7 +97,7 @@ lca a b =
 -- element of `ys`.
 -- This is a breadth-first search used in the implementation of `lca a b`.
 lca' ::
-  Monad m =>
+  (Monad m) =>
   Seq (m (Causal m e)) ->
   Seq (m (Causal m e)) ->
   m (Maybe (Causal m e))

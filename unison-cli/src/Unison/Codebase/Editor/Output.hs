@@ -156,6 +156,7 @@ data Output
   | BranchNotFound Path'
   | EmptyPush Path'
   | NameNotFound Path.HQSplit'
+  | NamesNotFound [Name]
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
   | TermNotFound Path.HQSplit'
@@ -365,6 +366,7 @@ isFailure o = case o of
   BadNamespace {} -> True
   BranchNotFound {} -> True
   NameNotFound {} -> True
+  NamesNotFound _ -> True
   PatchNotFound {} -> True
   TypeNotFound {} -> True
   TypeNotFound' {} -> True

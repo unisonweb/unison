@@ -52,18 +52,18 @@ bothEq h1 h2 a1 a2 b1 b2 =
       then cyclicEq h1 h2 b1 b2
       else pure False
 
-instance CyclicEq a => CyclicEq [a] where
+instance (CyclicEq a) => CyclicEq [a] where
   cyclicEq h1 h2 (x : xs) (y : ys) = bothEq h1 h2 x y xs ys
   cyclicEq _ _ [] [] = pure True
   cyclicEq _ _ _ _ = pure False
 
-instance CyclicEq a => CyclicEq (S.Seq a) where
+instance (CyclicEq a) => CyclicEq (S.Seq a) where
   cyclicEq h1 h2 xs ys =
     if S.length xs == S.length ys
       then cyclicEq h1 h2 (toList xs) (toList ys)
       else pure False
 
-instance CyclicEq a => CyclicEq (Vector a) where
+instance (CyclicEq a) => CyclicEq (Vector a) where
   cyclicEq h1 h2 xs ys =
     if V.length xs /= V.length ys
       then pure False

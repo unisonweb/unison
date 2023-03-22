@@ -214,10 +214,12 @@ parseNamesForBranch root = namesForBranch root <&> \(n, _, _) -> n
 prettyNamesForBranch :: Branch m -> NameScoping -> Names
 prettyNamesForBranch root = namesForBranch root <&> \(_, n, _) -> n
 
-shallowPPE :: MonadIO m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
+shallowPPE :: (MonadIO m) => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
 shallowPPE codebase b = do
-  hashLength <- Codebase.runTransaction codebase Codebase.hashLength
-  names <- shallowNames codebase b
+  (hashLength, names) <- Codebase.runTransaction codebase do
+    hl <- Codebase.hashLength
+    names <- shallowNames codebase b
+    pure (hl, names)
   pure $ PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory names mempty
 
 -- | A 'Names' which only includes mappings for things _directly_ accessible from the branch.
@@ -225,7 +227,7 @@ shallowPPE codebase b = do
 -- I.e. names in nested children are omitted.
 -- This should probably live elsewhere, but the package dependency graph makes it hard to find
 -- a good place.
-shallowNames :: forall m v a. Monad m => Codebase m v a -> V2Branch.Branch m -> m Names
+shallowNames :: forall m v a. (Monad m) => Codebase m v a -> V2Branch.Branch m -> Sqlite.Transaction Names
 shallowNames codebase b = do
   newTerms <-
     V2Branch.terms b
@@ -337,7 +339,7 @@ fuzzyFind printNames query =
 
 -- List the immediate children of a namespace
 lsAtPath ::
-  MonadIO m =>
+  (MonadIO m) =>
   Codebase m Symbol Ann ->
   -- The root to follow the path from.
   Maybe (V2Branch.Branch Sqlite.Transaction) ->
@@ -407,14 +409,16 @@ resultListType :: (Ord v, Monoid a) => Type v a
 resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testResultRef)
 
 termListEntry ::
-  MonadIO m =>
+  (MonadIO m) =>
   Codebase m Symbol Ann ->
   V2Branch.Branch n ->
   ExactName NameSegment V2Referent.Referent ->
   m (TermEntry Symbol Ann)
 termListEntry codebase branch (ExactName nameSegment ref) = do
-  v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
-  ot <- Codebase.runTransaction codebase (loadReferentType codebase v1Referent)
+  ot <- Codebase.runTransaction codebase $ do
+    v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
+    ot <- loadReferentType codebase v1Referent
+    pure (ot)
   tag <- getTermTag codebase ref ot
   pure $
     TermEntry
@@ -434,7 +438,7 @@ termListEntry codebase branch (ExactName nameSegment ref) = do
         & (> 1)
 
 getTermTag ::
-  (Monad m, Var v) =>
+  (Var v, MonadIO m) =>
   Codebase m v a ->
   V2Referent.Referent ->
   Maybe (Type v Ann) ->
@@ -453,7 +457,7 @@ getTermTag codebase r sig = do
         Nothing -> False
   constructorType <- case r of
     V2Referent.Ref {} -> pure Nothing
-    V2Referent.Con ref _ -> Just <$> Codebase.getDeclType codebase ref
+    V2Referent.Con ref _ -> Just <$> Codebase.runTransaction codebase (Codebase.getDeclType codebase ref)
   pure $
     if
         | isDoc -> Doc
@@ -463,7 +467,7 @@ getTermTag codebase r sig = do
         | otherwise -> Plain
 
 getTypeTag ::
-  Var v =>
+  (Var v) =>
   Codebase m v Ann ->
   Reference ->
   Sqlite.Transaction TypeTag
@@ -477,7 +481,7 @@ getTypeTag codebase r = do
     _ -> pure (if Set.member r Type.builtinAbilities then Ability else Data)
 
 typeListEntry ::
-  Var v =>
+  (Var v) =>
   Codebase m v Ann ->
   V2Branch.Branch n ->
   ExactName NameSegment Reference ->
@@ -503,7 +507,7 @@ typeListEntry codebase b (ExactName nameSegment ref) = do
 
 typeDeclHeader ::
   forall v m.
-  Var v =>
+  (Var v) =>
   Codebase m v Ann ->
   PPE.PrettyPrintEnv ->
   Reference ->
@@ -532,7 +536,7 @@ formatTypeName' ppe r =
     $ PPE.typeName ppe r
 
 termEntryToNamedTerm ::
-  Var v => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
+  (Var v) => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
 termEntryToNamedTerm ppe typeWidth te@TermEntry {termEntryType = mayType, termEntryTag = tag, termEntryHash} =
   NamedTerm
     { termName = termEntryHQName te,
@@ -551,7 +555,7 @@ typeEntryToNamedType te@TypeEntry {typeEntryTag, typeEntryHash} =
 
 -- | Find all definitions and children reachable from the given 'V2Branch.Branch',
 lsBranch ::
-  MonadIO m =>
+  (MonadIO m) =>
   Codebase m Symbol Ann ->
   V2Branch.Branch n ->
   m [ShallowListEntry Symbol Ann]
@@ -702,7 +706,7 @@ makeNameSearch hashLength names =
     }
 
 -- | Interpret a 'Search' as a function from name to search results.
-applySearch :: Show r => Search r -> HQ'.HashQualified Name -> [SR.SearchResult]
+applySearch :: (Show r) => Search r -> HQ'.HashQualified Name -> [SR.SearchResult]
 applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} query = do
   -- a bunch of references will match a HQ ref.
   toList (lookupRelativeHQRefs' query) <&> \ref ->
@@ -806,15 +810,15 @@ getShallowCausalAtPathFromRootHash mayRootHash path = do
     Just h -> Codebase.expectCausalBranchByCausalHash h
   Codebase.getShallowCausalAtPath path (Just shallowRoot)
 
-formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
+formatType' :: (Var v) => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
 formatType' ppe w =
   Pretty.render w . TypePrinter.prettySyntax ppe
 
-formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> Syntax.SyntaxText
+formatType :: (Var v) => PPE.PrettyPrintEnv -> Width -> Type v a -> Syntax.SyntaxText
 formatType ppe w = mungeSyntaxText . formatType' ppe w
 
 formatSuffixedType ::
-  Var v =>
+  (Var v) =>
   PPED.PrettyPrintEnvDecl ->
   Width ->
   Type v Ann ->
@@ -822,7 +826,7 @@ formatSuffixedType ::
 formatSuffixedType ppe = formatType (PPED.suffixifiedPPE ppe)
 
 mungeSyntaxText ::
-  Functor g => g (UST.Element Reference) -> g Syntax.Element
+  (Functor g) => g (UST.Element Reference) -> g Syntax.Element
 mungeSyntaxText = fmap Syntax.convertElement
 
 -- | Renders a definition for the given name or hash alongside its documentation.
@@ -1113,7 +1117,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
             writeFile fullPath (Text.unpack fileContents)
 
 bestNameForTerm ::
-  forall v. Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text
+  forall v. (Var v) => PPE.PrettyPrintEnv -> Width -> Referent -> Text
 bestNameForTerm ppe width =
   Text.pack
     . Pretty.render width
@@ -1123,7 +1127,7 @@ bestNameForTerm ppe width =
     . Term.fromReferent mempty
 
 bestNameForType ::
-  forall v. Var v => PPE.PrettyPrintEnv -> Width -> Reference -> Text
+  forall v. (Var v) => PPE.PrettyPrintEnv -> Width -> Reference -> Text
 bestNameForType ppe width =
   Text.pack
     . Pretty.render width
@@ -1140,7 +1144,7 @@ bestNameForType ppe width =
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
 scopedNamesForBranchHash ::
   forall m n v a.
-  MonadIO m =>
+  (MonadIO m) =>
   Codebase m v a ->
   Maybe (V2Branch.CausalBranch n) ->
   Path ->
@@ -1183,7 +1187,7 @@ scopedNamesForBranchHash codebase mbh path = do
       pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::
-  Monad m => Maybe CausalHash -> Codebase m v a -> Backend m (Branch m)
+  (Monad m) => Maybe CausalHash -> Codebase m v a -> Backend m (Branch m)
 resolveCausalHash h codebase = case h of
   Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do
@@ -1196,7 +1200,7 @@ resolveCausalHashV2 h = case h of
   Just ch -> Codebase.expectCausalBranchByCausalHash ch
 
 resolveRootBranchHash ::
-  MonadIO m => Maybe ShortCausalHash -> Codebase m v a -> Backend m (Branch m)
+  (MonadIO m) => Maybe ShortCausalHash -> Codebase m v a -> Backend m (Branch m)
 resolveRootBranchHash mayRoot codebase = case mayRoot of
   Nothing ->
     lift (Codebase.getRootBranch codebase)
@@ -1281,8 +1285,8 @@ displayType codebase = \case
     pure (UserObject decl)
 
 termsToSyntax ::
-  Var v =>
-  Ord a =>
+  (Var v) =>
+  (Ord a) =>
   Suffixify ->
   Width ->
   PPED.PrettyPrintEnvDecl ->
@@ -1311,8 +1315,8 @@ termsToSyntax suff width ppe0 terms =
           $ TermPrinter.prettyBinding (ppeBody r) n tm
 
 typesToSyntax ::
-  Var v =>
-  Ord a =>
+  (Var v) =>
+  (Ord a) =>
   Suffixify ->
   Width ->
   PPED.PrettyPrintEnvDecl ->

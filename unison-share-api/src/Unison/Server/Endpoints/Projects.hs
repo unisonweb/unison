@@ -38,7 +38,8 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Monoid (foldMapM)
 
 type ProjectsAPI =
-  "projects" :> QueryParam "rootBranch" ShortCausalHash
+  "projects"
+    :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "owner" ProjectOwner
     :> APIGet [ProjectListing]
 
@@ -118,7 +119,7 @@ entryToOwner = \case
 
 serve ::
   forall m.
-  MonadIO m =>
+  (MonadIO m) =>
   Codebase m Symbol Ann ->
   Maybe ShortCausalHash ->
   Maybe ProjectOwner ->

@@ -105,7 +105,7 @@ lookupD1 a = fromMaybe mempty . Map.lookup a . d1
 lookupD2 :: (Ord a, Ord b, Ord c, Ord d) => b -> Relation4 a b c d -> Relation3 a c d
 lookupD2 b = fromMaybe mempty . Map.lookup b . d2
 
-d1set :: Ord a => Relation4 a b c d -> Set a
+d1set :: (Ord a) => Relation4 a b c d -> Set a
 d1set = Map.keysSet . d1
 
 d12 :: (Ord a, Ord b) => Relation4 a b c d -> Relation a b
@@ -196,11 +196,11 @@ mapD2Monotonic f Relation4 {d1, d2, d3, d4} =
     }
 
 insertAll ::
-  Foldable f =>
-  Ord a =>
-  Ord b =>
-  Ord c =>
-  Ord d =>
+  (Foldable f) =>
+  (Ord a) =>
+  (Ord b) =>
+  (Ord c) =>
+  (Ord d) =>
   f (a, b, c, d) ->
   Relation4 a b c d ->
   Relation4 a b c d

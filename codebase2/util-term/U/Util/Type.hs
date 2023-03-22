@@ -13,13 +13,13 @@ import qualified U.Core.ABT.Var as ABT
 
 -- * Constructors
 
-effect :: Ord v => [TypeR r v] -> TypeR r v -> TypeR r v
+effect :: (Ord v) => [TypeR r v] -> TypeR r v -> TypeR r v
 effect es (Effect1' fs t) =
   let es' = (es >>= flattenEffects) ++ flattenEffects fs
    in ABT.tm () (Effect (ABT.tm () (Effects es')) t)
 effect es t = ABT.tm () (Effect (ABT.tm () (Effects es)) t)
 
-effects :: Ord v => [TypeR r v] -> TypeR r v
+effects :: (Ord v) => [TypeR r v] -> TypeR r v
 effects es = ABT.tm () (Effects $ es >>= flattenEffects)
 
 -- * Modification
@@ -28,7 +28,7 @@ effects es = ABT.tm () (Effects $ es >>= flattenEffects)
 -- Used for type-based search, we apply this transformation to both the
 -- indexed type and the query type, so the user can supply `a -> b` that will
 -- match `a ->{e} b` (but not `a ->{IO} b`).
-removeAllEffectVars :: ABT.Var v => TypeR r v -> TypeR r v
+removeAllEffectVars :: (ABT.Var v) => TypeR r v -> TypeR r v
 removeAllEffectVars t =
   let allEffectVars = foldMap go (ABT.subterms t)
       go (Effects' vs) = Set.fromList [v | Var' v <- vs]
@@ -38,7 +38,7 @@ removeAllEffectVars t =
    in generalize vs (removeEffectVars allEffectVars tu)
 
 -- Remove free effect variables from the type that are in the set
-removeEffectVars :: ABT.Var v => Set v -> TypeR r v -> TypeR r v
+removeEffectVars :: (ABT.Var v) => Set v -> TypeR r v -> TypeR r v
 removeEffectVars removals t =
   let z = effects []
       t' = ABT.substsInheritAnnotation ((,z) <$> Set.toList removals) t
@@ -58,7 +58,7 @@ flattenEffects (Effects' es) = es >>= flattenEffects
 flattenEffects es = [es]
 
 -- | Bind the given variables with an outer `forall`, if they are used in `t`.
-generalize :: Ord v => [v] -> TypeR r v -> TypeR r v
+generalize :: (Ord v) => [v] -> TypeR r v -> TypeR r v
 generalize vs t = foldr f t vs
   where
     f v t = if Set.member v (ABT.freeVars t) then forall v t else t
@@ -80,7 +80,7 @@ pattern Effect1' e t <- ABT.Tm' (Effect e t)
 pattern Ref' :: r -> TypeR r v
 pattern Ref' r <- ABT.Tm' (Ref r)
 
-forall :: Ord v => v -> TypeR r v -> TypeR r v
+forall :: (Ord v) => v -> TypeR r v -> TypeR r v
 forall v body = ABT.tm () (Forall (ABT.abs () v body))
 
 unforall' :: TypeR r v -> ([v], TypeR r v)

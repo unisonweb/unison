@@ -248,10 +248,11 @@ token'' tok p = do
     topHasClosePair ((name, _) : _) =
       name `elem` ["{", "(", "[", "handle", "match", "if", "then"]
 
-showErrorFancy :: P.ShowErrorComponent e => P.ErrorFancy e -> String
+showErrorFancy :: (P.ShowErrorComponent e) => P.ErrorFancy e -> String
 showErrorFancy (P.ErrorFail msg) = msg
 showErrorFancy (P.ErrorIndentation ord ref actual) =
-  "incorrect indentation (got " <> show (P.unPos actual)
+  "incorrect indentation (got "
+    <> show (P.unPos actual)
     <> ", should be "
     <> p
     <> show (P.unPos ref)
@@ -300,19 +301,19 @@ lexer0' scope rem =
     tweak (h@(payload -> Reserved _) : t) = h : tweak t
     tweak (t1 : t2@(payload -> Numeric num) : rem)
       | notLayout t1 && touches t1 t2 && isSigned num =
-          t1 :
-          Token
-            (SymbolyId (take 1 num) Nothing)
-            (start t2)
-            (inc $ start t2) :
-          Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
-          tweak rem
+          t1
+            : Token
+              (SymbolyId (take 1 num) Nothing)
+              (start t2)
+              (inc $ start t2)
+            : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
+            : tweak rem
     tweak (h : t) = h : tweak t
     isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
 
 infixl 2 <+>
 
-(<+>) :: Monoid a => P a -> P a -> P a
+(<+>) :: (Monoid a) => P a -> P a -> P a
 p1 <+> p2 = do a1 <- p1; a2 <- p2; pure (a1 <> a2)
 
 lexemes :: P [Token Lexeme]
@@ -349,7 +350,11 @@ lexemes' eof =
     pure $ hd <> tl
   where
     toks =
-      doc2 <|> doc <|> token numeric <|> token character <|> reserved
+      doc2
+        <|> doc
+        <|> token numeric
+        <|> token character
+        <|> reserved
         <|> token symbolyId
         <|> token blank
         <|> token wordyId
@@ -418,7 +423,10 @@ lexemes' eof =
         leafy closing = groupy closing gs
           where
             gs =
-              link <|> externalLink <|> exampleInline <|> expr
+              link
+                <|> externalLink
+                <|> exampleInline
+                <|> expr
                 <|> boldOrItalicOrStrikethrough closing
                 <|> verbatim
                 <|> atDoc
@@ -528,7 +536,8 @@ lexemes' eof =
         link =
           P.label "link (examples: {type List}, {Nat.+})" $
             wrap "syntax.docLink" $
-              P.try $ lit "{" *> (typeLink <|> termLink) <* lit "}"
+              P.try $
+                lit "{" *> (typeLink <|> termLink) <* lit "}"
 
         expr =
           P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
@@ -587,7 +596,8 @@ lexemes' eof =
 
         boldOrItalicOrStrikethrough closing = do
           let start =
-                some (P.satisfy (== '*')) <|> some (P.satisfy (== '_'))
+                some (P.satisfy (== '*'))
+                  <|> some (P.satisfy (== '_'))
                   <|> some
                     (P.satisfy (== '~'))
               name s =
@@ -773,7 +783,24 @@ lexemes' eof =
 
     semi = char ';' $> Semi False
     textual = Textual <$> quoted
-    quoted = char '"' *> P.manyTill (LP.charLiteral <|> sp) (char '"')
+    quoted = quotedRaw <|> quotedSingleLine
+    quotedRaw = do
+      _ <- lit "\"\"\""
+      n <- many (char '"')
+      _ <- optional (char '\n') -- initial newline is skipped
+      s <- P.manyTill P.anySingle (lit (replicate (length n + 3) '"'))
+      col0 <- column <$> pos
+      let col = col0 - (length n) - 3
+      let leading = replicate (max 0 (col - 1)) ' '
+      -- lines "foo\n" will produce ["foo"]     (ignoring last newline),
+      -- lines' "foo\n" will produce ["foo",""] (preserving trailing newline)
+      let lines' s = lines s <> (if take 1 (reverse s) == "\n" then [""] else [])
+      pure $ case lines' s of
+        [] -> s
+        ls
+          | all (\l -> isPrefixOf leading l || all isSpace l) ls -> intercalate "\n" (drop (length leading) <$> ls)
+          | otherwise -> s
+    quotedSingleLine = char '"' *> P.manyTill (LP.charLiteral <|> sp) (char '"')
       where
         sp = lit "\\s" $> ' '
     character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
@@ -925,14 +952,21 @@ lexemes' eof =
 
         layoutKeywords :: P [Token Lexeme]
         layoutKeywords =
-          ifElse <|> withKw <|> openKw "match" <|> openKw "handle" <|> typ <|> arr <|> eq
+          ifElse
+            <|> withKw
+            <|> openKw "match"
+            <|> openKw "handle"
+            <|> typ
+            <|> arr
+            <|> eq
             <|> openKw "cases"
             <|> openKw "where"
             <|> openKw "let"
             <|> openKw "do"
           where
             ifElse =
-              openKw "if" <|> closeKw' (Just "then") ["if"] (lit "then")
+              openKw "if"
+                <|> closeKw' (Just "then") ["if"] (lit "then")
                 <|> closeKw' (Just "else") ["then"] (lit "else")
             modKw = typeModifiersAlt (openKw1 wordySep)
             typeOrAbilityKw = typeOrAbilityAlt openTypeKw1
@@ -1114,10 +1148,11 @@ headToken :: T a -> a
 headToken (T a _ _) = a
 headToken (L a) = a
 
-instance Show a => Show (T a) where
+instance (Show a) => Show (T a) where
   show (L a) = show a
   show (T open mid close) =
-    show open ++ "\n"
+    show open
+      ++ "\n"
       ++ indent "  " (intercalateMap "\n" show mid)
       ++ "\n"
       ++ intercalateMap "" show close
@@ -1294,14 +1329,14 @@ keywords =
 typeOrAbility :: Set String
 typeOrAbility = Set.fromList ["type", "ability"]
 
-typeOrAbilityAlt :: Alternative f => (String -> f a) -> f a
+typeOrAbilityAlt :: (Alternative f) => (String -> f a) -> f a
 typeOrAbilityAlt f =
   asum $ map f (toList typeOrAbility)
 
 typeModifiers :: Set String
 typeModifiers = Set.fromList ["structural", "unique"]
 
-typeModifiersAlt :: Alternative f => (String -> f a) -> f a
+typeModifiersAlt :: (Alternative f) => (String -> f a) -> f a
 typeModifiersAlt f =
   asum $ map f (toList typeModifiers)
 
@@ -1329,7 +1364,10 @@ debugLex'' [Token (Err (Opaque msg)) start end] =
   where
     msg1 = "Error on line " <> show (line start) <> ", column " <> show (column start)
     msg2 =
-      "Error on line " <> show (line start) <> ", column " <> show (column start)
+      "Error on line "
+        <> show (line start)
+        <> ", column "
+        <> show (column start)
         <> " - line "
         <> show (line end)
         <> ", column "

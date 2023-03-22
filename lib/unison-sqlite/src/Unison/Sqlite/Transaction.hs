@@ -86,7 +86,7 @@ unsafeGetConnection :: Transaction Connection
 unsafeGetConnection = Transaction pure
 
 -- | Run a transaction on the given connection.
-runTransaction :: MonadIO m => Connection -> Transaction a -> m a
+runTransaction :: (MonadIO m) => Connection -> Transaction a -> m a
 runTransaction conn (Transaction f) = liftIO do
   uninterruptibleMask \restore -> do
     Connection.begin conn
@@ -111,7 +111,7 @@ runTransaction conn (Transaction f) = liftIO do
 --
 -- The transaction is never retried, so it is (more) safe to interleave arbitrary IO actions. If the transaction does
 -- attempt a write and gets SQLITE_BUSY, it's your fault!
-runReadOnlyTransaction :: MonadUnliftIO m => Connection -> ((forall x. Transaction x -> m x) -> m a) -> m a
+runReadOnlyTransaction :: (MonadUnliftIO m) => Connection -> ((forall x. Transaction x -> m x) -> m a) -> m a
 runReadOnlyTransaction conn f =
   withRunInIO \runInIO ->
     runReadOnlyTransaction_ conn (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
@@ -134,7 +134,7 @@ runReadOnlyTransaction_ conn action = do
 -- BEGIN/COMMIT statements.
 --
 -- The transaction is never retried, so it is (more) safe to interleave arbitrary IO actions.
-runWriteTransaction :: MonadUnliftIO m => Connection -> ((forall x. Transaction x -> m x) -> m a) -> m a
+runWriteTransaction :: (MonadUnliftIO m) => Connection -> ((forall x. Transaction x -> m x) -> m a) -> m a
 runWriteTransaction conn f =
   withRunInIO \runInIO ->
     uninterruptibleMask \restore ->
@@ -197,11 +197,11 @@ unsafeIO action =
 
 -- Without results, with parameters
 
-execute :: Sqlite.ToRow a => Sql -> a -> Transaction ()
+execute :: (Sqlite.ToRow a) => Sql -> a -> Transaction ()
 execute s params = do
   Transaction \conn -> Connection.execute conn s params
 
-executeMany :: Sqlite.ToRow a => Sql -> [a] -> Transaction ()
+executeMany :: (Sqlite.ToRow a) => Sql -> [a] -> Transaction ()
 executeMany s params =
   Transaction \conn -> Connection.executeMany conn s params
 
@@ -324,27 +324,27 @@ queryOneColCheck s params check =
 
 -- With results, without parameters, without checks
 
-queryListRow_ :: Sqlite.FromRow a => Sql -> Transaction [a]
+queryListRow_ :: (Sqlite.FromRow a) => Sql -> Transaction [a]
 queryListRow_ s =
   Transaction \conn -> Connection.queryListRow_ conn s
 
-queryListCol_ :: Sqlite.FromField a => Sql -> Transaction [a]
+queryListCol_ :: (Sqlite.FromField a) => Sql -> Transaction [a]
 queryListCol_ s =
   Transaction \conn -> Connection.queryListCol_ conn s
 
-queryMaybeRow_ :: Sqlite.FromRow a => Sql -> Transaction (Maybe a)
+queryMaybeRow_ :: (Sqlite.FromRow a) => Sql -> Transaction (Maybe a)
 queryMaybeRow_ s =
   Transaction \conn -> Connection.queryMaybeRow_ conn s
 
-queryMaybeCol_ :: Sqlite.FromField a => Sql -> Transaction (Maybe a)
+queryMaybeCol_ :: (Sqlite.FromField a) => Sql -> Transaction (Maybe a)
 queryMaybeCol_ s =
   Transaction \conn -> Connection.queryMaybeCol_ conn s
 
-queryOneRow_ :: Sqlite.FromRow a => Sql -> Transaction a
+queryOneRow_ :: (Sqlite.FromRow a) => Sql -> Transaction a
 queryOneRow_ s =
   Transaction \conn -> Connection.queryOneRow_ conn s
 
-queryOneCol_ :: Sqlite.FromField a => Sql -> Transaction a
+queryOneCol_ :: (Sqlite.FromField a) => Sql -> Transaction a
 queryOneCol_ s =
   Transaction \conn -> Connection.queryOneCol_ conn s
 
