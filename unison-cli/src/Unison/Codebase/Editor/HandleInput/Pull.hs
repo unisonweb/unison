@@ -36,11 +36,7 @@ import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Propagate as Propagate
-import Unison.Codebase.Editor.RemoteRepo
-  ( ReadRemoteNamespace (..),
-    ReadShareLooseCode (..),
-    ShareUserHandle (..),
-  )
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..), ShareUserHandle (..))
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Path as Path
@@ -96,7 +92,7 @@ handlePullSourceTarget0 =
               ( (localProjectName, localProjectBranchName),
                 (remoteProjectId, remoteProjectName, remoteProjectBranchId, _remoteProjectBranchName)
                 ) -> do
-                branch <- expectRemoteProjectBranchById remoteProjectId remoteProjectBranchId
+                branch <- ProjectUtils.expectRemoteProjectBranchById remoteProjectId remoteProjectBranchId
                 let pullTarget = PullTargetProject (ProjectAndBranch (projectId, localProjectName) (projectBranchId, localProjectBranchName))
                 pure (ReadShare'ProjectBranch (ProjectAndBranch (remoteProjectId, remoteProjectName) branch), pullTarget)
             Left err -> case err of
@@ -321,44 +317,22 @@ resolveRemoteNames ::
   Cli (ProjectAndBranch (RemoteProjectId, ProjectName) Share.RemoteProjectBranch)
 resolveRemoteNames projectId branchId = \case
   This projectName -> do
-    remoteProject <- ProjectUtils.expectResolveRemoteProjectName projectName
+    remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
     let remoteProjectId = remoteProject ^. #projectId
     let remoteBranchName = unsafeFrom @Text "main"
-    remoteBranch <- expectRemoteProjectBranchByName remoteProjectId remoteBranchName
+    remoteBranch <- ProjectUtils.expectRemoteProjectBranchByName remoteProjectId remoteBranchName
     pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
   That branchName -> do
     Cli.runTransaction (Queries.loadRemoteProjectBranch projectId Share.hardCodedUri branchId) >>= \case
       Just (remoteProjectId, _maybeProjectBranchId) -> do
         projectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
-        remoteBranch <- expectRemoteProjectBranchByName remoteProjectId branchName
+        remoteBranch <- ProjectUtils.expectRemoteProjectBranchByName remoteProjectId branchName
         pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
       Nothing -> do
         loggeth ["no remote associated with this project"]
         Cli.returnEarlyWithoutOutput
   These projectName branchName -> do
-    remoteProject <- ProjectUtils.expectResolveRemoteProjectName projectName
+    remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
     let remoteProjectId = remoteProject ^. #projectId
-    remoteBranch <- expectRemoteProjectBranchByName remoteProjectId branchName
+    remoteBranch <- ProjectUtils.expectRemoteProjectBranchByName remoteProjectId branchName
     pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
-
-expectRemoteProjectBranchByName :: RemoteProjectId -> ProjectBranchName -> Cli Share.RemoteProjectBranch
-expectRemoteProjectBranchByName remoteProjectId remoteBranchName =
-  Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-    Share.GetProjectBranchResponseBranchNotFound -> do
-      loggeth ["The associated remote no longer exists"]
-      Cli.returnEarlyWithoutOutput
-    Share.GetProjectBranchResponseProjectNotFound -> do
-      loggeth ["The associated remote doesn't have a branch named: ", tShow remoteBranchName]
-      Cli.returnEarlyWithoutOutput
-    Share.GetProjectBranchResponseSuccess branch -> pure branch
-
-expectRemoteProjectBranchById :: RemoteProjectId -> RemoteProjectBranchId -> Cli Share.RemoteProjectBranch
-expectRemoteProjectBranchById remoteProjectId remoteProjectBranchId =
-  Share.getProjectBranchById (ProjectAndBranch remoteProjectId remoteProjectBranchId) >>= \case
-    Share.GetProjectBranchResponseBranchNotFound -> do
-      loggeth ["The associated remote no longer exists"]
-      Cli.returnEarlyWithoutOutput
-    Share.GetProjectBranchResponseProjectNotFound -> do
-      loggeth ["The associated remote doesn't have a branch with id: ", tShow remoteProjectBranchId]
-      Cli.returnEarlyWithoutOutput
-    Share.GetProjectBranchResponseSuccess branch -> pure branch

@@ -14,8 +14,9 @@ module Unison.Cli.ProjectUtils
     expectProjectAndBranchByTheseNames,
 
     -- * Loading remote project info
-    expectResolveRemoteProjectName,
-    expectResolveRemoteProjectBranchName,
+    expectRemoteProjectByName,
+    expectRemoteProjectBranchById,
+    expectRemoteProjectBranchByName,
 
     -- ** Temp
     loggeth,
@@ -56,8 +57,8 @@ getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
   pure (preview projectBranchPathPrism path)
 
--- We often accept a `These ProjectName ProjectBranchName` from the user, so they can leave off either a project or 
--- branch name, which we infer. This helper "hydrates" such a type to a `(ProjectName, BranchName)`, using the following 
+-- We often accept a `These ProjectName ProjectBranchName` from the user, so they can leave off either a project or
+-- branch name, which we infer. This helper "hydrates" such a type to a `(ProjectName, BranchName)`, using the following
 -- defaults if a name is missing:
 --
 --   * The project at the current path
@@ -109,28 +110,38 @@ expectProjectAndBranchByTheseNames = \case
     maybeProjectAndBranch & onNothing do
       Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
 
-expectResolveRemoteProjectName :: ProjectName -> Cli Share.RemoteProject
-expectResolveRemoteProjectName remoteProjectName = do
+------------------------------------------------------------------------------------------------------------------------
+-- Remote project utils
+
+expectRemoteProjectByName :: ProjectName -> Cli Share.RemoteProject
+expectRemoteProjectByName remoteProjectName = do
   Share.getProjectByName remoteProjectName & onNothingM do
     loggeth ["remote project doesn't exist"]
     Cli.returnEarlyWithoutOutput
 
-expectResolveRemoteProjectBranchName :: RemoteProjectId -> ProjectBranchName -> Cli Share.RemoteProjectBranch
-expectResolveRemoteProjectBranchName remoteProjectId branchName = do
-  resolveRemoteProjectBranchName remoteProjectId branchName >>= \case
-    Nothing -> do
-      loggeth ["branch doesn't exist: ", tShow branchName]
+expectRemoteProjectBranchById :: RemoteProjectId -> RemoteProjectBranchId -> Cli Share.RemoteProjectBranch
+expectRemoteProjectBranchById remoteProjectId remoteProjectBranchId =
+  Share.getProjectBranchById (ProjectAndBranch remoteProjectId remoteProjectBranchId) >>= \case
+    Share.GetProjectBranchResponseBranchNotFound -> do
+      loggeth ["remote branch doesn't exist"]
       Cli.returnEarlyWithoutOutput
-    Just x -> pure x
-
-resolveRemoteProjectBranchName :: RemoteProjectId -> ProjectBranchName -> Cli (Maybe Share.RemoteProjectBranch)
-resolveRemoteProjectBranchName remoteProjectId remoteProjectBranchName = do
-  Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteProjectBranchName) >>= \case
-    Share.GetProjectBranchResponseBranchNotFound -> pure Nothing
     Share.GetProjectBranchResponseProjectNotFound -> do
-      -- todo: mark remote project as deleted
-      pure Nothing
-    Share.GetProjectBranchResponseSuccess remoteBranch -> pure (Just remoteBranch)
+      loggeth ["remote project doesn't exist"]
+      Cli.returnEarlyWithoutOutput
+    Share.GetProjectBranchResponseSuccess branch -> pure branch
+
+expectRemoteProjectBranchByName :: RemoteProjectId -> ProjectBranchName -> Cli Share.RemoteProjectBranch
+expectRemoteProjectBranchByName remoteProjectId remoteBranchName =
+  Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
+    Share.GetProjectBranchResponseBranchNotFound -> do
+      loggeth ["remote branch doesn't exist"]
+      Cli.returnEarlyWithoutOutput
+    Share.GetProjectBranchResponseProjectNotFound -> do
+      loggeth ["remote project doesn't exist"]
+      Cli.returnEarlyWithoutOutput
+    Share.GetProjectBranchResponseSuccess branch -> pure branch
+
+------------------------------------------------------------------------------------------------------------------------
 
 -- | Get the path that a project is stored at. Users aren't supposed to go here.
 --
@@ -147,8 +158,6 @@ projectPath projectId =
 projectBranchPath :: ProjectAndBranch ProjectId ProjectBranchId -> Path.Absolute
 projectBranchPath =
   review projectBranchPathPrism
-
-------------------------------------------------------------------------------------------------------------------------
 
 pattern UUIDNameSegment :: UUID -> NameSegment
 pattern UUIDNameSegment uuid <-

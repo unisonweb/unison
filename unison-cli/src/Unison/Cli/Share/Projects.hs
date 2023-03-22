@@ -91,7 +91,7 @@ createProject projectName = do
   servantClientToCli (createProject0 request) >>= \case
     Share.API.CreateProjectResponseNotFound {} -> pure Nothing
     Share.API.CreateProjectResponseUnauthorized x -> unauthorized x
-    Share.API.CreateProjectResponseSuccess project -> Just <$> onProject project
+    Share.API.CreateProjectResponseSuccess project -> Just <$> onGotProject project
 
 data GetProjectBranchResponse
   = GetProjectBranchResponseBranchNotFound
@@ -123,7 +123,7 @@ createProjectBranch request =
     Share.API.CreateProjectBranchResponseMissingCausalHash hash -> bugRemoteMissingCausalHash hash
     Share.API.CreateProjectBranchResponseNotFound {} -> pure Nothing
     Share.API.CreateProjectBranchResponseUnauthorized x -> unauthorized x
-    Share.API.CreateProjectBranchResponseSuccess branch -> Just <$> onProjectBranch branch
+    Share.API.CreateProjectBranchResponseSuccess branch -> Just <$> onGotProjectBranch branch
 
 data SetProjectBranchHeadResponse
   = SetProjectBranchHeadResponseNotFound
@@ -148,26 +148,28 @@ setProjectBranchHead request =
 
 onGetProjectResponse :: Share.API.GetProjectResponse -> Cli (Maybe RemoteProject)
 onGetProjectResponse = \case
+  -- FIXME should we mark remote project as deleted?
   Share.API.GetProjectResponseNotFound {} -> pure Nothing
   Share.API.GetProjectResponseUnauthorized x -> unauthorized x
-  Share.API.GetProjectResponseSuccess project -> Just <$> onProject project
+  Share.API.GetProjectResponseSuccess project -> Just <$> onGotProject project
 
 onGetProjectBranchResponse :: Share.API.GetProjectBranchResponse -> Cli GetProjectBranchResponse
 onGetProjectBranchResponse = \case
+  -- FIXME should we mark remote project/branch as deleted in these two cases?
   Share.API.GetProjectBranchResponseBranchNotFound {} -> pure GetProjectBranchResponseBranchNotFound
   Share.API.GetProjectBranchResponseProjectNotFound {} -> pure GetProjectBranchResponseProjectNotFound
   Share.API.GetProjectBranchResponseUnauthorized x -> unauthorized x
-  Share.API.GetProjectBranchResponseSuccess branch -> GetProjectBranchResponseSuccess <$> onProjectBranch branch
+  Share.API.GetProjectBranchResponseSuccess branch -> GetProjectBranchResponseSuccess <$> onGotProjectBranch branch
 
-onProject :: Share.API.Project -> Cli RemoteProject
-onProject project = do
+onGotProject :: Share.API.Project -> Cli RemoteProject
+onGotProject project = do
   let projectId = RemoteProjectId (project ^. #projectId)
   projectName <- validateProjectName (project ^. #projectName)
   Cli.runTransaction (Queries.ensureRemoteProject projectId hardCodedUri projectName)
   pure RemoteProject {projectId, projectName}
 
-onProjectBranch :: Share.API.ProjectBranch -> Cli RemoteProjectBranch
-onProjectBranch branch = do
+onGotProjectBranch :: Share.API.ProjectBranch -> Cli RemoteProjectBranch
+onGotProjectBranch branch = do
   let projectId = RemoteProjectId (branch ^. #projectId)
   let branchId = RemoteProjectBranchId (branch ^. #branchId)
   projectName <- validateProjectName (branch ^. #projectName)
