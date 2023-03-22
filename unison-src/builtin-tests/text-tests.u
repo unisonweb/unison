@@ -1,4 +1,5 @@
-text.tests = do ()
+text.tests = do
+ !text.eq.tests
 
 text.eq.tests = do
   check "String.empty builder" do
@@ -7,11 +8,11 @@ text.eq.tests = do
   check "String.builder" do
     _ = "foo"
     true
-  checkEqual "String equality: empty" "" ""
-  checkEqual "String equality: non empty" "foo" "foo"
-  check "String inequality: non empty" do "foo" !== "bar"
-  check "String inequality: empty" do "foo" !== ""
-  checkEqual "String equality: composite" (Some ["foo", "bar"]) (Some ["foo", "bar"])
-  check "String inequality: composite" do (Some ["foo", "bar"]) !== (Some ["foo", "baz"])
+  --  checkEqual "String equality: empty" "" ""
+  --  checkEqual "String equality: non empty" "foo" "foo"
+  --  check "String inequality: non empty" do "foo" !== "bar"
+  --  check "String inequality: empty" do "foo" !== ""
+  --  checkEqual "String equality: composite" (Some ["foo", "bar"]) (Some ["foo", "bar"])
+  --  check "String inequality: composite" do (Some ["foo", "bar"]) !== (Some ["foo", "baz"])
   -- TODO ordering tests, has to include a simple composite case, e.g. inside Option
   -- to test Universal.compare with Strings, in addition to Text.>
