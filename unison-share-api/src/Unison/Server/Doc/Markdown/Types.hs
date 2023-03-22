@@ -1,4 +1,4 @@
-module Unison.Doc.Markdown.Types where
+module Unison.Server.Doc.Markdown.Types where
 
 import Control.Lens (ifoldMap)
 import qualified Data.Char as Char
@@ -85,3 +85,6 @@ toLines = \case
   Link label uri -> ["[" <> Text.unwords (toLines label) <> "](" <> uri <> ")"]
   Image label uri -> ["![" <> Text.unwords (toLines label) <> "](" <> uri <> ")"]
   Table _headers _rows -> [] -- TODO
+
+toText :: Markdown -> Text
+toText = Text.unlines . toLines

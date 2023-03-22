@@ -1,14 +1,14 @@
 -- | Render Unison.Server.Doc as plain markdown, used in the LSP
-module Unison.Doc.AsMarkdown (toMarkdown) where
+module Unison.Server.Doc.Markdown.Render (toMarkdown) where
 
 import Control.Monad.Reader
 import Data.Foldable
 import qualified Data.Text as Text
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
-import qualified Unison.Doc.Markdown.Types as Md
 import Unison.Prelude
 import Unison.Server.Doc
 import qualified Unison.Server.Doc as Doc
+import qualified Unison.Server.Doc.Markdown.Types as Md
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
 import Unison.Util.Monoid (foldMapM)

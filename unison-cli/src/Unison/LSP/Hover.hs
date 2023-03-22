@@ -9,7 +9,6 @@ import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import qualified Unison.ABT as ABT
-import qualified Unison.Doc.AsMarkdown as Doc
 import qualified Unison.HashQualified as HQ
 import Unison.LSP.FileAnalysis (ppedForFile)
 import qualified Unison.LSP.Queries as LSPQ
@@ -24,6 +23,8 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Reference as Reference
 import qualified Unison.Server.Backend as Backend
+import qualified Unison.Server.Doc.Markdown.Render as Md
+import qualified Unison.Server.Doc.Markdown.Types as Md
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.Name as Name
@@ -105,8 +106,7 @@ hoverInfo uri pos =
           docRefs <- Backend.docsForDefinitionName codebase nameSearch name
           for docRefs $ \docRef -> do
             (_, _, doc) <- Backend.renderDoc pped (Pretty.Width 80) runtime codebase docRef
-            let (_, contents, _) = Doc.toMarkdown mempty doc
-            pure contents
+            pure . Md.toText $ Md.toMarkdown doc
 
 -- | Get the type for term literals.
 builtinTypeForTermLiterals :: Term.Term Symbol Ann -> Maybe Text
