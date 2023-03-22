@@ -9,6 +9,7 @@ import Control.Exception (catch, finally, mask)
 import Control.Lens ((?~), (^.))
 import Control.Monad.Catch (MonadMask)
 import qualified Crypto.Random as Random
+import Data.Char (isSpace)
 import Data.Configurator.Types (Config)
 import Data.IORef
 import qualified Data.Text as Text
@@ -50,7 +51,6 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
 import UnliftIO.STM
-import Data.Char (isSpace)
 
 getUserInput ::
   forall m v a.

@@ -23,6 +23,7 @@ import qualified Crypto.Random as Random
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BL
+import Data.Char (isSpace)
 import qualified Data.Char as Char
 import qualified Data.Configurator as Configurator
 import Data.Configurator.Types (Config)
@@ -71,7 +72,6 @@ import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
 import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
-import Data.Char (isSpace)
 
 -- | Render transcript errors at a width of 65 chars.
 terminalWidth :: Pretty.Width

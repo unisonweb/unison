@@ -28,6 +28,7 @@ where
 import Control.Concurrent (forkIO, killThread)
 import Control.Lens (ifor)
 import Control.Monad.Trans.Except
+import Data.Char (isSpace)
 import Data.Configurator (autoConfig, autoReload)
 import qualified Data.Configurator as Config
 import Data.Configurator.Types (Config, Worth (..))
@@ -50,7 +51,6 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
-import Data.Char (isSpace)
 
 disableWatchConfig :: Bool
 disableWatchConfig = False
@@ -116,7 +116,7 @@ parseInput ::
   -- | Input Pattern Map
   Map String InputPattern ->
   -- | command
-  String ->  
+  String ->
   -- | arguments string
   String ->
   IO (Either (P.Pretty CT.ColorText) Input)
@@ -157,11 +157,12 @@ words' s = case dropWhile isSpace s of
   "" -> []
   s'@('\"' : _) | [(w, s'')] <- reads s' -> w : words' s''
   s' -> go id s'
- where
-  go acc []                          = [acc []]
-  go acc ('\\' : c : cs) | isSpace c = go (acc . (c :)) cs
-  go acc (c : cs) | isSpace c = acc [] : words' cs
-                  | otherwise = go (acc . (c :)) cs
+  where
+    go acc [] = [acc []]
+    go acc ('\\' : c : cs) | isSpace c = go (acc . (c :)) cs
+    go acc (c : cs)
+      | isSpace c = acc [] : words' cs
+      | otherwise = go (acc . (c :)) cs
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
