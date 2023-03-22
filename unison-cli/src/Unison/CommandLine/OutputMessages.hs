@@ -2003,6 +2003,45 @@ notifyUser dir = \case
   Unauthorized message ->
     pure . P.wrap $
       P.text ("Unauthorized: " <> message)
+  ServantClientError err ->
+    pure case err of
+      Servant.ConnectionError _exception -> P.wrap "Something went wrong with the connection. Try again?"
+      Servant.DecodeFailure message response ->
+        P.wrap "Huh, I failed to decode a response from the server."
+          <> P.newline
+          <> P.newline
+          <> P.indentN 2 (P.text message)
+          <> P.newline
+          <> P.newline
+          <> P.wrap "Here is the full response."
+          <> P.newline
+          <> P.newline
+          <> P.indentN 2 (P.pshown response)
+      Servant.FailureResponse request response ->
+        P.wrap "Oops, I received an unexpected status code from the server."
+          <> P.newline
+          <> P.newline
+          <> P.wrap "Here is the request."
+          <> P.newline
+          <> P.newline
+          <> P.indentN 2 (P.pshown request)
+          <> P.newline
+          <> P.newline
+          <> P.wrap "Here is the full response."
+          <> P.newline
+          <> P.newline
+          <> P.indentN 2 (P.pshown response)
+      Servant.InvalidContentTypeHeader response -> wrongContentType response
+      Servant.UnsupportedContentType _mediaType response -> wrongContentType response
+    where
+      wrongContentType response =
+        P.wrap "Huh, the server sent me the wrong content type."
+          <> P.newline
+          <> P.newline
+          <> P.wrap "Here is the full response."
+          <> P.newline
+          <> P.newline
+          <> P.indentN 2 (P.pshown response)
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty

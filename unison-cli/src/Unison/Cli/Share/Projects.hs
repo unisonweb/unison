@@ -229,10 +229,8 @@ servantClientToCli action = do
       clientEnv =
         mkClientEnv httpManager hardCodedBaseUrl
 
-  liftIO (runClientM action clientEnv) & onLeftM \err -> do
-    liftIO (print err)
-    liftIO (putStrLn "FIXME: ^ make this prettier")
-    Cli.returnEarlyWithoutOutput
+  liftIO (runClientM action clientEnv) & onLeftM \err ->
+    Cli.returnEarly (Output.ServantClientError err)
 
 getProject0 :: Maybe Text -> Maybe Text -> ClientM Share.API.GetProjectResponse
 createProject0 :: Share.API.CreateProjectRequest -> ClientM Share.API.CreateProjectResponse

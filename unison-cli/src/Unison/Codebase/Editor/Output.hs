@@ -19,6 +19,7 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Time (UTCTime)
 import Network.URI (URI)
+import qualified Servant.Client as Servant (ClientError)
 import qualified System.Console.Haskeline as Completion
 import U.Codebase.Branch.Diff (NameChanges)
 import U.Codebase.HashTags (CausalHash)
@@ -301,6 +302,7 @@ data Output
   | -- A remote project branch head wasn't in the expected state
     RemoteProjectBranchHeadMismatch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | Unauthorized Text
+  | ServantClientError Servant.ClientError
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
   { isTest :: TermReference -> Bool,
@@ -473,6 +475,7 @@ isFailure o = case o of
   RemoteProjectBranchDoesntExist {} -> True
   RemoteProjectBranchHeadMismatch {} -> True
   Unauthorized {} -> True
+  ServantClientError {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

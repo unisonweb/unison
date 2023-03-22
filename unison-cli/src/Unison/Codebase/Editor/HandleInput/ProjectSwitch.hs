@@ -85,7 +85,7 @@ switchToProjectAndBranch2 (ProjectAndBranch (projectId, projectName) branchName)
           pure (SwitchedToNewBranchFrom fromBranchId, newBranchId)
   let path = projectBranchPath (ProjectAndBranch projectId branchId)
   case outcome of
-    SwitchedToExistingBranch -> loggeth ["I just switched to an existing branch"]
+    SwitchedToExistingBranch -> pure ()
     SwitchedToNewBranchFrom fromBranchId -> do
       fromBranch <- Cli.getBranch0At (projectBranchPath (ProjectAndBranch projectId fromBranchId))
       Cli.stepAt "project.switch" (Path.unabsolute path, const fromBranch)
