@@ -90,11 +90,25 @@ handlePullSourceTarget0 =
        in Cli.runTransaction (runExceptT ((,) <$> loadLocalNames <*> loadRemoteNames)) >>= \case
             Right
               ( (localProjectName, localProjectBranchName),
-                (remoteProjectId, remoteProjectName, remoteProjectBranchId, _remoteProjectBranchName)
+                (remoteProjectId, remoteProjectName, remoteProjectBranchId, remoteProjectBranchName)
                 ) -> do
-                branch <- ProjectUtils.expectRemoteProjectBranchById remoteProjectId remoteProjectBranchId
-                let pullTarget = PullTargetProject (ProjectAndBranch (projectId, localProjectName) (projectBranchId, localProjectBranchName))
-                pure (ReadShare'ProjectBranch (ProjectAndBranch (remoteProjectId, remoteProjectName) branch), pullTarget)
+                branch <-
+                  ProjectUtils.expectRemoteProjectBranchById $
+                    ProjectAndBranch
+                      (remoteProjectId, remoteProjectName)
+                      (remoteProjectBranchId, remoteProjectBranchName)
+                let pullTarget =
+                      PullTargetProject $
+                        ProjectAndBranch
+                          (projectId, localProjectName)
+                          (projectBranchId, localProjectBranchName)
+                pure
+                  ( ReadShare'ProjectBranch $
+                      ProjectAndBranch
+                        (remoteProjectId, remoteProjectName)
+                        branch,
+                    pullTarget
+                  )
             Left err -> case err of
               NoDefaultPullTarget -> do
                 loggeth ["No default pull target for this branch"]
@@ -320,13 +334,13 @@ resolveRemoteNames projectId branchId = \case
     remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
     let remoteProjectId = remoteProject ^. #projectId
     let remoteBranchName = unsafeFrom @Text "main"
-    remoteBranch <- ProjectUtils.expectRemoteProjectBranchByName remoteProjectId remoteBranchName
+    remoteBranch <- ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) remoteBranchName)
     pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
   That branchName -> do
     Cli.runTransaction (Queries.loadRemoteProjectBranch projectId Share.hardCodedUri branchId) >>= \case
       Just (remoteProjectId, _maybeProjectBranchId) -> do
         projectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
-        remoteBranch <- ProjectUtils.expectRemoteProjectBranchByName remoteProjectId branchName
+        remoteBranch <- ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) branchName)
         pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
       Nothing -> do
         loggeth ["no remote associated with this project"]
@@ -334,5 +348,7 @@ resolveRemoteNames projectId branchId = \case
   These projectName branchName -> do
     remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
     let remoteProjectId = remoteProject ^. #projectId
-    remoteBranch <- ProjectUtils.expectRemoteProjectBranchByName remoteProjectId branchName
+    remoteBranch <-
+      ProjectUtils.expectRemoteProjectBranchByName
+        (ProjectAndBranch (remoteProjectId, projectName) branchName)
     pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)

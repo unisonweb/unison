@@ -119,27 +119,33 @@ expectRemoteProjectByName remoteProjectName = do
     loggeth ["remote project doesn't exist"]
     Cli.returnEarlyWithoutOutput
 
-expectRemoteProjectBranchById :: RemoteProjectId -> RemoteProjectBranchId -> Cli Share.RemoteProjectBranch
-expectRemoteProjectBranchById remoteProjectId remoteProjectBranchId =
-  Share.getProjectBranchById (ProjectAndBranch remoteProjectId remoteProjectBranchId) >>= \case
-    Share.GetProjectBranchResponseBranchNotFound -> do
-      loggeth ["remote branch doesn't exist"]
-      Cli.returnEarlyWithoutOutput
-    Share.GetProjectBranchResponseProjectNotFound -> do
-      loggeth ["remote project doesn't exist"]
-      Cli.returnEarlyWithoutOutput
+expectRemoteProjectBranchById ::
+  ProjectAndBranch (RemoteProjectId, ProjectName) (RemoteProjectBranchId, ProjectBranchName) ->
+  Cli Share.RemoteProjectBranch
+expectRemoteProjectBranchById projectAndBranch = do
+  Share.getProjectBranchById projectAndBranchIds >>= \case
+    Share.GetProjectBranchResponseBranchNotFound -> remoteProjectBranchDoesntExist projectAndBranchNames
+    Share.GetProjectBranchResponseProjectNotFound -> remoteProjectBranchDoesntExist projectAndBranchNames
     Share.GetProjectBranchResponseSuccess branch -> pure branch
+  where
+    projectAndBranchIds = projectAndBranch & over #project fst & over #branch fst
+    projectAndBranchNames = projectAndBranch & over #project snd & over #branch snd
 
-expectRemoteProjectBranchByName :: RemoteProjectId -> ProjectBranchName -> Cli Share.RemoteProjectBranch
-expectRemoteProjectBranchByName remoteProjectId remoteBranchName =
-  Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) >>= \case
-    Share.GetProjectBranchResponseBranchNotFound -> do
-      loggeth ["remote branch doesn't exist"]
-      Cli.returnEarlyWithoutOutput
-    Share.GetProjectBranchResponseProjectNotFound -> do
-      loggeth ["remote project doesn't exist"]
-      Cli.returnEarlyWithoutOutput
+expectRemoteProjectBranchByName ::
+  ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
+  Cli Share.RemoteProjectBranch
+expectRemoteProjectBranchByName projectAndBranch =
+  Share.getProjectBranchByName (projectAndBranch & over #project fst) >>= \case
+    Share.GetProjectBranchResponseBranchNotFound -> doesntExist
+    Share.GetProjectBranchResponseProjectNotFound -> doesntExist
     Share.GetProjectBranchResponseSuccess branch -> pure branch
+  where
+    doesntExist =
+      remoteProjectBranchDoesntExist (projectAndBranch & over #project snd)
+
+remoteProjectBranchDoesntExist :: ProjectAndBranch ProjectName ProjectBranchName -> Cli void
+remoteProjectBranchDoesntExist projectAndBranch =
+  Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri projectAndBranch)
 
 ------------------------------------------------------------------------------------------------------------------------
 

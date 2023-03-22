@@ -15,6 +15,7 @@ import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli (stepAt)
 import Unison.Cli.ProjectUtils (loggeth, projectBranchPath)
+import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -80,11 +81,9 @@ cloneProjectAndBranch remoteProjectAndBranch = do
 
   -- Get the branch of the given project.
   remoteProjectBranch <- do
-    project <- Share.getProjectByName remoteProjectName & onNothingM remoteProjectBranchDoesntExist
-    Share.getProjectBranchByName (ProjectAndBranch (project ^. #projectId) remoteBranchName) >>= \case
-      Share.GetProjectBranchResponseBranchNotFound -> remoteProjectBranchDoesntExist
-      Share.GetProjectBranchResponseProjectNotFound -> remoteProjectBranchDoesntExist
-      Share.GetProjectBranchResponseSuccess projectBranch -> pure projectBranch
+    project <- ProjectUtils.expectRemoteProjectByName remoteProjectName
+    ProjectUtils.expectRemoteProjectBranchByName
+      (ProjectAndBranch (project ^. #projectId, project ^. #projectName) remoteBranchName)
 
   -- Pull the remote branch's contents
   let remoteBranchHeadJwt = remoteProjectBranch ^. #branchHead
@@ -131,7 +130,3 @@ cloneProjectAndBranch remoteProjectAndBranch = do
   let path = projectBranchPath localProjectAndBranch
   Cli.stepAt "project.clone" (Path.unabsolute path, const (Branch.head theBranch))
   Cli.cd path
-  where
-    remoteProjectBranchDoesntExist :: Cli a
-    remoteProjectBranchDoesntExist =
-      Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranch)
