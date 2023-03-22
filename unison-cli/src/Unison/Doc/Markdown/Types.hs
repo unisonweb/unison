@@ -9,13 +9,15 @@ import Unison.Prelude
 -- I tried using an existing library for this, but we have too many edge-cases
 -- to make it worth it.
 data Markdown
-  = ThematicBreak
+  = -- | E.g. '---'
+    ThematicBreak
   | Paragraph [Markdown]
   | BlockQuote Markdown
   | -- lang, contents
     CodeBlock Text Text
   | Heading Int Markdown
-  | OrderedList [Markdown]
+  | OrderedList Int [Markdown]
+  | UnorderedList [Markdown]
   | Txt Text
   | Linebreak
   | InlineCode Text
@@ -63,11 +65,16 @@ toLines = \case
       [] -> [Text.replicate n "#"]
       (x : xs) -> (Text.replicate n "#" <> " " <> x) : xs
   -- TODO: Nested lists
-  OrderedList items ->
+  OrderedList startNum items ->
     items & ifoldMap \n item ->
       case toLines item of
-        [] -> [tShow (n + 1) <> "."]
-        (x : xs) -> tShow (n + 1) <> ". " <> x : (("  " <>) <$> xs)
+        [] -> [tShow (n + startNum) <> "."]
+        (x : xs) -> tShow (n + startNum) <> ". " <> x : (("  " <>) <$> xs)
+  UnorderedList items ->
+    items & ifoldMap \_ item ->
+      case toLines item of
+        [] -> ["-"]
+        (x : xs) -> "- " <> x : (("  " <>) <$> xs)
   Txt txt -> Text.lines txt
   Linebreak -> [""]
   InlineCode txt -> [txt]
