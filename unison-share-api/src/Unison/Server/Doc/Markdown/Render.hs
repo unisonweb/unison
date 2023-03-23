@@ -34,7 +34,7 @@ normalizeHref label = \case
   Group d ->
     normalizeHref label d
   j@Join {} -> do
-    let uri = toText j
+    let uri = toRawText j
     pure [Md.Link label uri]
   Special (Link {}) -> do
     -- We don't support cross-doc links in Markdown (yet)
@@ -53,29 +53,29 @@ embeddedSourceToMarkdown source =
 
 -- | Used when a contained block is expected to be raw text. E.g. inside a CodeBlock.
 -- Other renderers may need to handle links and things in code blocks, but for Markdown we don't.
-toText :: Doc -> Text
-toText doc =
+toRawText :: Doc -> Text
+toRawText doc =
   case doc of
     Paragraph ds -> listToText ds <> "\n"
-    Group d -> toText d
+    Group d -> toRawText d
     Join ds -> listToText ds
-    Bold d -> "**" <> toText d <> "** "
-    Italic d -> "_" <> toText d <> "_ "
-    Strikethrough d -> "~~" <> toText d <> "~~ "
-    Blockquote d -> ">" <> toText d <> " "
+    Bold d -> "**" <> toRawText d <> "** "
+    Italic d -> "_" <> toRawText d <> "_ "
+    Strikethrough d -> "~~" <> toRawText d <> "~~ "
+    Blockquote d -> ">" <> toRawText d <> " "
     Section d ds ->
       Text.unlines
-        [ "#" <> toText d,
+        [ "#" <> toRawText d,
           listToText ds
         ]
     UntitledSection ds -> listToText ds
     Column ds -> listToText ds
     Word w -> w <> " "
-    Code code -> "`" <> toText code <> "` "
+    Code code -> "`" <> toRawText code <> "` "
     CodeBlock lang code ->
       Text.unlines
         [ "```" <> lang,
-          toText code,
+          toRawText code,
           "```\n"
         ]
     Style {} -> ""
@@ -91,7 +91,7 @@ toText doc =
   where
     listToText xs =
       xs
-        & fmap toText
+        & fmap toRawText
         & filter (not . Text.null)
         & Text.unwords
 
@@ -99,9 +99,10 @@ data MarkdownEnv = MarkdownEnv
   { section :: Word64
   }
 
--- | Tracks the current section level and accumulates side content
+-- | Tracks the current section level
 type MarkdownM = Reader MarkdownEnv
 
+-- | Renders a Doc to a list of Markdown blocks
 toMarkdown :: Doc -> [Md.Markdown]
 toMarkdown doc = (runReader (toMarkdown_ doc) env)
   where
@@ -119,11 +120,11 @@ toMarkdown_ doc =
     Code (Word txt) -> do
       pure [Md.InlineCode txt]
     Code contents -> do
-      pure [Md.InlineCode (toText contents)]
+      pure [Md.InlineCode (toRawText contents)]
     CodeBlock lang (Word txt) -> do
       pure [Md.CodeBlock lang txt]
     CodeBlock lang contents -> do
-      pure [Md.CodeBlock lang (toText contents)]
+      pure [Md.CodeBlock lang (toRawText contents)]
     Bold d -> do
       result <- toMarkdown_ d
       pure [Md.Strong result]
@@ -156,7 +157,7 @@ toMarkdown_ doc =
         (ico :: Text) =
           case icon of
             Just emoji ->
-              ( toText $ emoji
+              ( toRawText $ emoji
               )
             Nothing -> ("")
     Table rows -> do
@@ -185,7 +186,7 @@ toMarkdown_ doc =
     Image altText src caption -> do
       renderedAltText <- toMarkdown_ altText
       renderedCaption <- traverse toMarkdown_ caption
-      let srcText = toText src
+      let srcText = toRawText src
       pure $ [Md.Image renderedAltText srcText] <> (fromMaybe mempty renderedCaption)
     Special specialForm -> do
       case specialForm of
