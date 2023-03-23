@@ -135,7 +135,6 @@ library
     , base
     , bytes
     , bytestring
-    , cmark-gfm
     , co-log-core
     , concurrent-output
     , configurator
@@ -261,7 +260,6 @@ executable cli-integration-tests
     , base
     , bytes
     , bytestring
-    , cmark-gfm
     , co-log-core
     , code-page
     , concurrent-output
@@ -383,7 +381,6 @@ executable transcripts
     , base
     , bytes
     , bytestring
-    , cmark-gfm
     , co-log-core
     , code-page
     , concurrent-output
@@ -511,7 +508,6 @@ executable unison
     , base
     , bytes
     , bytestring
-    , cmark-gfm
     , co-log-core
     , code-page
     , concurrent-output
@@ -645,7 +641,6 @@ test-suite cli-tests
     , base
     , bytes
     , bytestring
-    , cmark-gfm
     , co-log-core
     , code-page
     , concurrent-output
