@@ -101,7 +101,7 @@ hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
 
 typecheckedUnisonFile ::
   forall v a.
-  Var v =>
+  (Var v) =>
   Map v (Reference.Id, DataDeclaration v a) ->
   Map v (Reference.Id, EffectDeclaration v a) ->
   [[(v, a, Term v a, Type v a)]] ->
@@ -132,7 +132,7 @@ typecheckedUnisonFile datas effects tlcs watches =
             ]
 
 lookupDecl ::
-  Ord v =>
+  (Ord v) =>
   v ->
   TypecheckedUnisonFile v a ->
   Maybe (Reference.Id, DD.Decl v a)
@@ -157,7 +157,7 @@ indexByReference uf = (tms, tys)
 -- The returned terms refer to other definitions in the file by their
 -- var, not by reference.
 -- Includes test watches.
-allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (Term v a)
+allTerms :: (Ord v) => TypecheckedUnisonFile v a -> Map v (Term v a)
 allTerms uf =
   Map.fromList [(v, t) | (v, _a, t, _) <- join $ topLevelComponents uf]
 
@@ -170,7 +170,7 @@ topLevelComponents file =
 
 -- External type references that appear in the types of the file's terms
 termSignatureExternalLabeledDependencies ::
-  Ord v => TypecheckedUnisonFile v a -> Set LabeledDependency
+  (Ord v) => TypecheckedUnisonFile v a -> Set LabeledDependency
 termSignatureExternalLabeledDependencies
   (TypecheckedUnisonFile dataDeclarations' effectDeclarations' _ _ hashTerms) =
     Set.difference
@@ -201,7 +201,7 @@ discardTypes (TypecheckedUnisonFileId datas effects terms watches _) =
       g tup3s = [(v, a, e) | (v, a, e, _t) <- tup3s]
    in UnisonFileId datas effects [(v, a, trm) | (v, a, trm, _typ) <- join terms] watches'
 
-declsToTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
+declsToTypeLookup :: (Var v) => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf =
   TL.TypeLookup
     mempty
@@ -219,7 +219,7 @@ nonEmpty uf =
     || any (not . null) (watchComponents uf)
 
 hashConstructors ::
-  forall v a. Ord v => TypecheckedUnisonFile v a -> Map v Referent.Id
+  forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v Referent.Id
 hashConstructors file =
   let ctors1 =
         Map.elems (dataDeclarationsId' file) >>= \(ref, dd) ->
@@ -230,7 +230,7 @@ hashConstructors file =
    in Map.fromList (ctors1 ++ ctors2)
 
 -- | Returns the set of constructor names for decls whose names in the given Set.
-constructorsForDecls :: Ord v => Set v -> TypecheckedUnisonFile v a -> Set v
+constructorsForDecls :: (Ord v) => Set v -> TypecheckedUnisonFile v a -> Set v
 constructorsForDecls types uf =
   let dataConstructors =
         dataDeclarationsId' uf
@@ -245,15 +245,3 @@ constructorsForDecls types uf =
           & fmap (DD.toDataDecl . snd)
           & concatMap DD.constructorVars
    in Set.fromList (dataConstructors <> effectConstructors)
-
-
-
-
-1. Inside each bullet, there's a phone number Bob: 123-798-1234, and that's the phone number
-2. Inside each bullet, other text number Alice: 127-717-3742 new phone
-3. Inside each bullet, there's a phone number Bob: 123-798-1234, and that's the phone number
-
-
-
-
-
