@@ -56,9 +56,9 @@ toText' =
         <> lang
         <> "\n"
         <> contents
-        <> "\n```\n"
+        <> "\n```\n\n"
     Heading n contents ->
-      Text.unwords [Text.replicate n "#", (flattenInline contents)]
+      (Text.replicate n "#" <> " " <> (flattenInline contents)) <> "\n\n"
     -- TODO: Nested lists
     OrderedList startNum items ->
       items

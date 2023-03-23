@@ -34,8 +34,6 @@ Term signature:
 
 * List item
 
-    Indented Code block
-
 Inline code:
 
 `` 1 + 2 ``
@@ -76,6 +74,10 @@ Table
 | -------- | -------- | 
 | Cell 1 | Cell 2 | 
 
+
+    Indented Code block
+
+
 }}
 ```
 
@@ -88,7 +90,11 @@ Table
   
   Here's a cool **BOLD** _italic_ ~~strikethrough~~ thing with an inline code block `1 + 2`
   
-  # Heading ## Heading 2 Term Link: `otherTerm`
+  # Heading
+  
+  ## Heading 2
+  
+  Term Link: `otherTerm`
   
   Type Link: `Optional`
   
@@ -100,6 +106,7 @@ Table
   ```
   
   
+  
   Term signature:
   
   ```unison
@@ -107,9 +114,8 @@ Table
   ```
   
   
-  - List item
   
-  Indented Code block
+  - List item
   
   Inline code:
   
@@ -144,6 +150,8 @@ Table
   Table
   
   | Header 1 | Header 2 | | -------- | -------- | | Cell 1 | Cell 2 |
+  
+  Indented Code block
   
   
   

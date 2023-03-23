@@ -31,6 +31,7 @@ import qualified Unison.Syntax.Name as Name
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Term as Term
 import qualified Unison.Util.Pretty as Pretty
+import qualified UnliftIO
 
 -- | Hover help handler
 --
@@ -65,7 +66,17 @@ hoverInfo uri pos =
       let fqn = case ref of
             LD.TypeReference ref -> PPE.typeName unsuffixifiedPPE ref
             LD.TermReferent ref -> PPE.termName unsuffixifiedPPE ref
-      renderedDocs <- lift $ renderedDocForFQN fqn
+      renderedDocs <-
+        -- We don't want to block the type signature hover info if the docs are taking a long time to render;
+        -- We know it's also possible to write docs that eval forever, so the timeout helps
+        -- protect against that.
+        lift (UnliftIO.timeout 2_000_000 (renderedDocForFQN fqn))
+          >>= ( \case
+                  Nothing -> pure ["\n---\n⏳ Timed out rendering docs"]
+                  Just [] -> pure []
+                  -- Add some space from the type signature
+                  Just xs@(_ : _) -> pure ("\n---\n" : xs)
+              )
       typeSig <-
         case ref of
           LD.TypeReference (Reference.Builtin {}) -> do

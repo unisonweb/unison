@@ -38,8 +38,6 @@ Term signature:
 
 * List item
 
-    Indented Code block
-
 Inline code:
 
 `` 1 + 2 ``
@@ -79,6 +77,10 @@ Table
 | Header 1 | Header 2 | 
 | -------- | -------- | 
 | Cell 1 | Cell 2 | 
+
+
+    Indented Code block
+
 
 }}
 ```
