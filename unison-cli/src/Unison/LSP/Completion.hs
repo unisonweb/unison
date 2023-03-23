@@ -45,6 +45,7 @@ import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.Relation as Relation
+import qualified UnliftIO
 
 completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
 completionHandler m respond =
@@ -262,26 +263,37 @@ completionItemResolveHandler message respond = do
     case Aeson.fromJSON <$> (completion ^. xdata) of
       Just (Aeson.Success (CompletionItemDetails {dep, fullyQualifiedName, relativeName, fileUri})) -> do
         pped <- lift $ ppedForFile fileUri
+        renderedDocs <-
+          -- We don't want to block the type signature hover info if the docs are taking a long time to render;
+          -- We know it's also possible to write docs that eval forever, so the timeout helps
+          -- protect against that.
+          lift (UnliftIO.timeout 2_000_000 (LSPQ.markdownDocsForFQN fileUri (HQ.NameOnly fullyQualifiedName)))
+            >>= ( \case
+                    Nothing -> pure ["\n---\n⏳ Timed out rendering docs"]
+                    Just [] -> pure []
+                    -- Add some space from the type signature
+                    Just xs@(_ : _) -> pure ("\n---\n" : xs)
+                )
         case dep of
           LD.TermReferent ref -> do
             typ <- LSPQ.getTypeOfReferent fileUri ref
             let renderedType = ": " <> (Text.pack $ TypePrinter.prettyStr (Just typeWidth) (PPED.suffixifiedPPE pped) typ)
-            let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+            let doc = CompletionDocMarkup $ toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
             pure $ (completion {_detail = Just renderedType, _documentation = Just doc} :: CompletionItem)
           LD.TypeReference ref ->
             case ref of
               Reference.Builtin {} -> do
                 let renderedBuiltin = ": <builtin>"
-                let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+                let doc = CompletionDocMarkup $ toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
                 pure $ (completion {_detail = Just renderedBuiltin, _documentation = Just doc} :: CompletionItem)
               Reference.DerivedId refId -> do
                 decl <- LSPQ.getTypeDeclaration fileUri refId
                 let renderedDecl = ": " <> (Text.pack . Pretty.toPlain typeWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly relativeName) decl)
-                let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+                let doc = CompletionDocMarkup $ toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
                 pure $ (completion {_detail = Just renderedDecl, _documentation = Just doc} :: CompletionItem)
       _ -> empty
   where
-    toUnisonMarkup txt = MarkupContent {_kind = MkMarkdown, _value = Text.unlines ["```unison", txt, "```"]}
+    toMarkup txt = MarkupContent {_kind = MkMarkdown, _value = txt}
     -- Completion windows can be very small, so this seems like a good default
     typeWidth = Pretty.Width 20
 
