@@ -34,12 +34,14 @@ import qualified Unison.Typechecker as Typechecker
 import qualified Unison.Typechecker.Context as Context
 import Unison.Typechecker.Extractor (RedundantTypeAnnotation)
 import qualified Unison.Typechecker.TypeLookup as TL
+import Unison.UnisonFile (definitionLocation)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.Var as Var
+import Unison.WatchKind (WatchKind)
 
 type Term v = Term.Term v Ann
 
@@ -160,14 +162,14 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
   Result (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
-    (topLevelComponents :: [[(v, Ann, Term v, Type v)]]) <-
+    (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let topLevelBindings :: Map v (Term v)
           topLevelBindings = Map.mapKeys Var.reset $ extractTopLevelBindings tdnrTerm
           extractTopLevelBindings :: (Term.Term v a -> Map v (Term.Term v a))
           extractTopLevelBindings (Term.LetRecNamedAnnotatedTop' True _ bs body) =
             Map.fromList (first snd <$> bs) <> extractTopLevelBindings body
           extractTopLevelBindings _ = Map.empty
-          tlcsFromTypechecker :: [[(v, Ann, Type.Type v Ann, RedundantTypeAnnotation)]]
+          tlcsFromTypechecker :: [[(v, Type.Type v Ann, RedundantTypeAnnotation)]]
           tlcsFromTypechecker =
             List.uniqueBy'
               (fmap vars)
@@ -184,14 +186,21 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
        in traverse (traverse addTypesToTopLevelBindings) tlcsFromTypechecker
     let doTdnr = applyTdnrDecisions infos
     let doTdnrInComponent (v, t, tp) = (v, doTdnr t, tp)
-    let tdnredTlcs = (fmap . fmap) doTdnrInComponent topLevelComponents
+    let tdnredTlcs =
+          topLevelComponents
+            & (fmap . fmap)
+              ( \vtt ->
+                  vtt
+                    & doTdnrInComponent
+                    & \(v, t, tp) -> (v, fromMaybe (error $ "Symbol from typechecked file not present in parsed file" <> show v) (definitionLocation v uf), t, tp)
+              )
     let (watches', terms') = partition isWatch tdnredTlcs
-        isWatch = all (\(v, _, _) -> Set.member v watchedVars)
+        isWatch = all (\(v, _, _, _) -> Set.member v watchedVars)
         watchedVars = Set.fromList [v | (v, _a, _) <- UF.allWatches uf]
         tlcKind [] = error "empty TLC, should never occur"
-        tlcKind tlc@((v, _, _) : _) =
-          let hasE k =
-                elem v . view _2 $ Map.findWithDefault [] k (UF.watches uf)
+        tlcKind tlc@((v, _, _, _) : _) =
+          let hasE :: WatchKind -> Bool
+              hasE k = elem v . fmap (view _1) $ Map.findWithDefault [] k (UF.watches uf)
            in case Foldable.find hasE (Map.keys $ UF.watches uf) of
                 Nothing -> error "wat"
                 Just kind -> (kind, tlc)

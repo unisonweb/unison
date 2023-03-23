@@ -14,6 +14,7 @@ module Unison.UnisonFile
     effectDeclarations,
     typecheckingTerm,
     watchesOfKind,
+    definitionLocation,
 
     -- * TypecheckedUnisonFile
     TypecheckedUnisonFile (..),
@@ -75,6 +76,14 @@ watchesOfOtherKinds kind uf =
 
 allWatches :: UnisonFile v a -> [(v, a, Term v a)]
 allWatches = join . Map.elems . watches
+
+-- | Get the location of a given definition in the file.
+definitionLocation :: (Var v) => v -> UnisonFile v a -> Maybe a
+definitionLocation v uf =
+  terms uf ^? folded . filteredBy (_1 . only v) . _2
+    <|> watches uf ^? folded . folded . filteredBy (_1 . only v) . _2
+    <|> dataDeclarations uf ^? ix v . _2 . to DD.annotation
+    <|> effectDeclarations uf ^? ix v . _2 . to (DD.annotation . DD.toDataDecl)
 
 -- Converts a file to a single let rec with a body of `()`, for
 -- purposes of typechecking.
