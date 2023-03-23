@@ -35,20 +35,20 @@ writeTranscriptOutput = False
 test :: Test ()
 test =
   scope "gitsync22" . tests $
-    fastForwardPush :
-    nonFastForwardPush :
-    destroyedRemote :
-    flip
-      map
-      [(Ucm.CodebaseFormat2, "sc")]
-      \(fmt, name) ->
-        scope name $
-          tests
-            [ pushPullTest
-                "pull-over-deleted-namespace"
-                fmt
-                ( \repo ->
-                    [i|
+    fastForwardPush
+      : nonFastForwardPush
+      : destroyedRemote
+      : flip
+        map
+        [(Ucm.CodebaseFormat2, "sc")]
+        \(fmt, name) ->
+          scope name $
+            tests
+              [ pushPullTest
+                  "pull-over-deleted-namespace"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```unison:hide
                       x = 1
                       ```
@@ -57,9 +57,9 @@ test =
                       .> push.create git(${repo})
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```unison:hide
                       child.y = 2
                       ```
@@ -71,12 +71,12 @@ test =
                       .> pull git(${repo}) child
                       ```
                     |]
-                ),
-              pushPullTest
-                "pull.without-history"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "pull.without-history"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```unison:hide
                       child.x = 1
                       ```
@@ -102,9 +102,9 @@ test =
                       .> push.create git(${repo})
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
       Should be able to pull the branch from the remote without its history.
       Note that this only tests that the pull succeeds, since (at time of writing) we don't
       track/test transcript output for these tests in the unison repo.
@@ -113,12 +113,12 @@ test =
       .> history .child
       ```
     |]
-                ),
-              pushPullTest
-                "push-over-deleted-namespace"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "push-over-deleted-namespace"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```unison:hide
                       child.x = 1
                       y = 2
@@ -129,9 +129,9 @@ test =
                       .> push.create git(${repo})
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```unison:hide
                       child.z = 3
                       ```
@@ -142,12 +142,12 @@ test =
                       .> push.create git(${repo}).child child
                       ```
                     |]
-                ),
-              pushPullTest
-                "typeAlias"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "typeAlias"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> alias.type ##Nat builtin.Nat
                       .> history
@@ -155,9 +155,9 @@ test =
                       .> push.create git(${repo})
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> pull git(${repo})
                       ```
@@ -166,12 +166,12 @@ test =
                       x = 3
                       ```
                     |]
-                ),
-              pushPullTest
-                "topLevelTerm"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "topLevelTerm"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```unison:hide
                       y = 3
                       ```
@@ -181,9 +181,9 @@ test =
                       .> push.create git(${repo})
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> pull git(${repo})
                       .> find
@@ -192,12 +192,12 @@ test =
                       > y
                       ```
                     |]
-                ),
-              pushPullTest
-                "metadataForTerm"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "metadataForTerm"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```unison:hide
                       doc = "y is the number 3"
                       y = 3
@@ -211,20 +211,20 @@ test =
                       .> push.create git(${repo})
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> pull git(${repo})
                       .> links y
                       ```
                     |]
-                ),
-              pushPullTest
-                "metadataForType"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "metadataForType"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```unison:hide
                       doc = "Nat means natural number"
                       ```
@@ -235,20 +235,20 @@ test =
                       .> push.create git(${repo})
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> pull git(${repo})
                       .> links Nat
                       ```
                     |]
-                ),
-              pushPullTest
-                "subNamespace"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "subNamespace"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> alias.type ##Nat builtin.Nat
                       ```
@@ -261,9 +261,9 @@ test =
                       .> push.create git(${repo})
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> pull.silent git(${repo})
                       .> find
@@ -272,12 +272,12 @@ test =
                       > a.b.C.C a.b.d
                       ```
                     |]
-                ),
-              pushPullTest
-                "accessPatch"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "accessPatch"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> alias.type ##Nat builtin.Nat
                       ```
@@ -302,20 +302,20 @@ test =
                       .> push.create git(${repo})
                       ```
                    |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> pull.silent git(${repo})
                       .> view.patch patch
                       ```
                    |]
-                ),
-              pushPullTest
-                "history"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "history"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```unison
                       foo = 3
                       ```
@@ -331,9 +331,9 @@ test =
                       .> push.create git(${repo})
                       ```
                    |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> pull git(${repo})
                       .> history
@@ -341,19 +341,19 @@ test =
                       .> history
                       ```
                   |] -- Not sure why this hash is here.
-                    -- Is it to test `reset-root`?
-                    -- Or to notice a change in hashing?
-                    -- Or to test that two distinct points of history were pulled?
-                    -- It would be great to not need the explicit hash here,
-                    -- since it does change periodically.
-                    -- Though, I guess that should also be rare, so maybe this is fine.
-                ),
-              pushPullTest
-                "one-term"
-                fmt
-                -- simplest-author
-                ( \repo ->
-                    [i|
+                      -- Is it to test `reset-root`?
+                      -- Or to notice a change in hashing?
+                      -- Or to test that two distinct points of history were pulled?
+                      -- It would be great to not need the explicit hash here,
+                      -- since it does change periodically.
+                      -- Though, I guess that should also be rare, so maybe this is fine.
+                  ),
+                pushPullTest
+                  "one-term"
+                  fmt
+                  -- simplest-author
+                  ( \repo ->
+                      [i|
                       ```unison
                       c = 3
                       ```
@@ -363,10 +363,10 @@ test =
                       .myLib> push.create git(${repo})
                       ```
                     |]
-                )
-                -- simplest-user
-                ( \repo ->
-                    [i|
+                  )
+                  -- simplest-user
+                  ( \repo ->
+                      [i|
                     ```ucm
                     .yourLib> pull git(${repo})
                     ```
@@ -374,13 +374,13 @@ test =
                     > c
                     ```
                     |]
-                ),
-              pushPullTest
-                "one-type"
-                fmt
-                -- simplest-author
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "one-type"
+                  fmt
+                  -- simplest-author
+                  ( \repo ->
+                      [i|
                     ```unison
                     structural type Foo = Foo
                     ```
@@ -390,10 +390,10 @@ test =
                     .myLib> push.create git(${repo})
                     ```
                     |]
-                )
-                -- simplest-user
-                ( \repo ->
-                    [i|
+                  )
+                  -- simplest-user
+                  ( \repo ->
+                      [i|
                     ```ucm
                     .yourLib> pull git(${repo})
                     ```
@@ -401,12 +401,12 @@ test =
                     > Foo.Foo
                     ```
                     |]
-                ),
-              pushPullTest
-                "patching"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "patching"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .myLib> alias.term ##Nat.+ +
                       ```
@@ -429,9 +429,9 @@ test =
                       .workaround1552.myLib> push.create git(${repo})
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .myApp> pull git(${repo}).v1 external.yourLib
                       .myApp> alias.term ##Nat.* *
@@ -454,13 +454,13 @@ test =
                       > greatApp
                       ```
                     |]
-                ),
-              -- TODO: remove the alias.type .defns.A A line once patch syncing is fixed
-              pushPullTest
-                "lightweightPatch"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                -- TODO: remove the alias.type .defns.A A line once patch syncing is fixed
+                pushPullTest
+                  "lightweightPatch"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> builtins.merge
                       ```
@@ -478,21 +478,21 @@ test =
                       .patches> push.create git(${repo})
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> builtins.merge
                       .> pull git(${repo}) patches
                       .> view.patch patches.patch
                       ```
                     |]
-                ),
-              watchPushPullTest
-                "test-watches"
-                fmt
-                ( \repo ->
-                    [i|
+                  ),
+                watchPushPullTest
+                  "test-watches"
+                  fmt
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> builtins.merge
                       ```
@@ -504,60 +504,60 @@ test =
                       .> push.create git(${repo})
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> pull git(${repo})
                       ```
                     |]
-                )
-                ( \cb -> do
-                    Codebase.runTransaction cb do
-                      void . fmap (fromJust . sequence) $
-                        traverse (Codebase.getWatch cb TestWatch)
-                          =<< Codebase.watches TestWatch
-                ),
-              gistTest fmt,
-              pushPullBranchesTests fmt,
-              pushPullTest
-                "fix2068_a_"
-                fmt
-                -- this triggers
-                {-
-                gitsync22.sc.fix2068(a) EXCEPTION!!!: Called SqliteCodebase.setNamespaceRoot on unknown causal hash CausalHash (fromBase32Hex "codddvgt1ep57qpdkhe2j4pe1ehlpi5iitcrludtb8ves1aaqjl453onvfphqg83vukl7bbrj49itceqfob2b3alf47u4vves5s7pog")
-                CallStack (from HasCallStack):
-                  error, called at src/Unison/Codebase/SqliteCodebase.hs:1072:17 in unison-parser-typechecker-0.0.0-6U6boimwb8GAC5qrhLfs8h:Unison.Codebase.SqliteCodebase
-                     -}
-                ( \repo ->
-                    [i|
+                  )
+                  ( \cb -> do
+                      Codebase.runTransaction cb do
+                        void . fmap (fromJust . sequence) $
+                          traverse (Codebase.getWatch cb TestWatch)
+                            =<< Codebase.watches TestWatch
+                  ),
+                gistTest fmt,
+                pushPullBranchesTests fmt,
+                pushPullTest
+                  "fix2068_a_"
+                  fmt
+                  -- this triggers
+                  {-
+                  gitsync22.sc.fix2068(a) EXCEPTION!!!: Called SqliteCodebase.setNamespaceRoot on unknown causal hash CausalHash (fromBase32Hex "codddvgt1ep57qpdkhe2j4pe1ehlpi5iitcrludtb8ves1aaqjl453onvfphqg83vukl7bbrj49itceqfob2b3alf47u4vves5s7pog")
+                  CallStack (from HasCallStack):
+                    error, called at src/Unison/Codebase/SqliteCodebase.hs:1072:17 in unison-parser-typechecker-0.0.0-6U6boimwb8GAC5qrhLfs8h:Unison.Codebase.SqliteCodebase
+                       -}
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> alias.type ##Nat builtin.Nat2
                       .> alias.type ##Int builtin.Int2
                       .> push.create git(${repo}).foo.bar
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> pull git(${repo}) pulled
                       .> view pulled.foo.bar.builtin.Nat2
                       .> view pulled.foo.bar.builtin.Int2
                       ```
                     |]
-                ),
-              pushPullTest
-                "fix2068_b_"
-                fmt
-                -- this triggers
-                {-
-                     - gitsync22.sc.fix2068(b) EXCEPTION!!!: I couldn't find the hash ndn6fa85ggqtbgffqhd4d3bca2d08pgp3im36oa8k6p257aid90ovjq75htmh7lmg7akaqneva80ml1o21iscjmp9n1uc3lmqgg9rgg that I just synced to the cached copy of /private/var/folders/6m/p3szds2j67d8vwmxr51yrf5c0000gn/T/git-simple-1047398c149d3d5c/repo.git in "/Users/pchiusano/.cache/unisonlanguage/gitfiles/$x2F$private$x2F$var$x2F$folders$x2F$6m$x2F$p3szds2j67d8vwmxr51yrf5c0000gn$x2F$T$x2F$git-simple-1047398c149d3d5c$x2F$repo$dot$git".
-                CallStack (from HasCallStack):
-                  error, called at src/Unison/Codebase/SqliteCodebase.hs:1046:13 in unison-parser-typechecker-0.0.0-6U6boimwb8GAC5qrhLfs8h:Unison.Codebase.SqliteCodebase
-                     -}
-                ( \repo ->
-                    [i|
+                  ),
+                pushPullTest
+                  "fix2068_b_"
+                  fmt
+                  -- this triggers
+                  {-
+                       - gitsync22.sc.fix2068(b) EXCEPTION!!!: I couldn't find the hash ndn6fa85ggqtbgffqhd4d3bca2d08pgp3im36oa8k6p257aid90ovjq75htmh7lmg7akaqneva80ml1o21iscjmp9n1uc3lmqgg9rgg that I just synced to the cached copy of /private/var/folders/6m/p3szds2j67d8vwmxr51yrf5c0000gn/T/git-simple-1047398c149d3d5c/repo.git in "/Users/pchiusano/.cache/unisonlanguage/gitfiles/$x2F$private$x2F$var$x2F$folders$x2F$6m$x2F$p3szds2j67d8vwmxr51yrf5c0000gn$x2F$T$x2F$git-simple-1047398c149d3d5c$x2F$repo$dot$git".
+                  CallStack (from HasCallStack):
+                    error, called at src/Unison/Codebase/SqliteCodebase.hs:1046:13 in unison-parser-typechecker-0.0.0-6U6boimwb8GAC5qrhLfs8h:Unison.Codebase.SqliteCodebase
+                       -}
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> alias.type ##Nat builtin.Nat2
                       .> alias.type ##Int builtin.Int2
@@ -565,17 +565,17 @@ test =
                       .> push.create git(${repo}).foo.bar
                       ```
                     |]
-                )
-                ( \repo ->
-                    [i|
+                  )
+                  ( \repo ->
+                      [i|
                       ```ucm
                       .> pull git(${repo}) pulled
                       .> view pulled.foo.bar.builtin.Nat2
                       .> view pulled.foo.bar.builtin.Int2
                       ```
                     |]
-                )
-            ]
+                  )
+              ]
 
 pushPullTest :: String -> CodebaseFormat -> (FilePath -> Transcript) -> (FilePath -> Transcript) -> Test ()
 pushPullTest name fmt authorScript userScript = scope name do

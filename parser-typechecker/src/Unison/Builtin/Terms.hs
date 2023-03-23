@@ -36,7 +36,7 @@ builtinTermsSrc ann =
     )
   ]
 
-v :: Var v => Text -> v
+v :: (Var v) => Text -> v
 v = Var.named
 
 builtinTermsRef :: Map Symbol Reference.Id

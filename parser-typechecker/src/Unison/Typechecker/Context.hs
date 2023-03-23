@@ -42,10 +42,12 @@ where
 
 import Control.Lens (over, view, _3)
 import qualified Control.Monad.Fail as MonadFail
+import Control.Monad.Fix (MonadFix (..))
 import Control.Monad.State
   ( MonadState,
     StateT,
     evalState,
+    evalStateT,
     get,
     gets,
     put,
@@ -59,6 +61,7 @@ import qualified Data.Foldable as Foldable
 import Data.Function (on)
 import Data.List
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import Data.Sequence.NonEmpty (NESeq)
@@ -81,9 +84,13 @@ import qualified Unison.DataDeclaration as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
+import Unison.PatternMatchCoverage (checkMatch)
+import Unison.PatternMatchCoverage.Class (EnumeratedConstructors (..), Pmc (..), traverseConstructors)
+import qualified Unison.PatternMatchCoverage.ListPat as ListPat
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Syntax.TypePrinter as TP
 import qualified Unison.Term as Term
@@ -172,6 +179,14 @@ instance Monad (Result v loc) where
   TypeError es is >>= _ = TypeError es is
   CompilerBug bug es is >>= _ = CompilerBug bug es is
   {-# INLINE (>>=) #-}
+
+instance MonadFix (Result v loc) where
+  mfix f =
+    let res = f theA
+        theA = case res of
+          Success _ a -> a
+          _ -> error "mfix Result: forced an unsuccessful value"
+     in res
 
 btw' :: InfoNote v loc -> Result v loc ()
 btw' note = Success (Seq.singleton note) ()
@@ -374,6 +389,9 @@ data Cause v loc
   | ConcatPatternWithoutConstantLength loc (Type v loc)
   | HandlerOfUnexpectedType loc (Type v loc)
   | DataEffectMismatch Unknown Reference (DataDeclaration v loc)
+  | UncoveredPatterns loc (NonEmpty (Pattern ()))
+  | RedundantPattern loc
+  | InaccessiblePattern loc
   deriving (Show)
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -764,6 +782,26 @@ getEffectDeclaration r = do
 
 getDataConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (Type v loc)
 getDataConstructorType = getConstructorType' Data getDataDeclaration
+
+getDataConstructors :: (Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
+getDataConstructors typ
+  | Type.Ref' r <- typ, r == Type.booleanRef = pure BooleanType
+  | Type.App' (Type.Ref' r) arg <- typ,
+    r == Type.listRef =
+      let xs =
+            [ (ListPat.Cons, [arg]),
+              (ListPat.Nil, [])
+            ]
+       in pure (SequenceType xs)
+  | Just r <- theRef = do
+      decl <- getDataDeclaration r
+      pure $ ConstructorType [(v, ConstructorReference r i, ABT.vmap TypeVar.Universal t) | (i, (v, t)) <- zip [0 ..] (DD.constructors decl)]
+  | otherwise = pure OtherType
+  where
+    theRef = case typ of
+      Type.Apps' (Type.Ref' r@Reference.DerivedId {}) _targs -> Just r
+      Type.Ref' r@Reference.DerivedId {} -> Just r
+      _ -> Nothing
 
 getEffectConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (Type v loc)
 getEffectConstructorType = getConstructorType' Effect go
@@ -1213,12 +1251,68 @@ synthesizeWanted e
       let outputType = existential' l B.Blank outputTypev
       appendContext [existential outputTypev]
       cwant <- checkCases scrutineeType outputType cases
+      ensurePatternCoverage e scrutinee scrutineeType cases
       want <- coalesceWanted cwant swant
       ctx <- getContext
       pure $ (apply ctx outputType, want)
   where
     l = loc e
 synthesizeWanted _e = compilerCrash PatternMatchFailure
+
+getDataConstructorsAtType :: (Ord loc, Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
+getDataConstructorsAtType t0 = do
+  dataConstructors <- getDataConstructors t0
+  res <- traverseConstructors (\v cr t -> (v,cr,) <$> fixType t) dataConstructors
+  pure res
+  where
+    fixType t = do
+      t <- ungeneralize t
+      let lastT = case t of
+            Type.Arrows' xs -> last xs
+            _ -> t
+      equate t0 lastT
+      applyM t
+
+instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (Set v) (M v loc)) where
+  getConstructors = lift . getDataConstructorsAtType
+  getConstructorVarTypes t cref@(ConstructorReference _r cid) = do
+    getConstructors t >>= \case
+      ConstructorType cs -> case drop (fromIntegral cid) cs of
+        [] -> error $ show cref <> " not found in constructor list: " <> show cs
+        (_, _, consArgs) : _ -> case consArgs of
+          Type.Arrows' xs -> pure (init xs)
+          _ -> pure []
+      BooleanType -> pure []
+      OtherType -> pure []
+      SequenceType {} -> pure []
+  fresh = do
+    vs <- get
+    let v = Var.freshIn vs (Var.typed Var.Pattern)
+    put (Set.insert v vs)
+    pure v
+
+ensurePatternCoverage ::
+  forall v loc.
+  (Ord loc, Var v) =>
+  Term v loc ->
+  Term v loc ->
+  Type v loc ->
+  [Term.MatchCase loc (Term v loc)] ->
+  MT v loc (Result v loc) ()
+ensurePatternCoverage wholeMatch _scrutinee scrutineeType cases = do
+  let matchLoc = ABT.annotation wholeMatch
+  scrutineeType <- applyM scrutineeType
+  case scrutineeType of
+    -- Don't check coverage on ability handlers yet
+    Type.Apps' (Type.Ref' r) _args | r == Type.effectRef -> pure ()
+    _ -> do
+      (redundant, _inaccessible, uncovered) <- flip evalStateT (ABT.freeVars wholeMatch) do
+        checkMatch matchLoc scrutineeType cases
+      let checkUncovered = case Nel.nonEmpty uncovered of
+            Nothing -> pure ()
+            Just xs -> failWith (UncoveredPatterns matchLoc xs)
+          checkRedundant = foldr (\a b -> failWith (RedundantPattern a) *> b) (pure ()) redundant
+      checkUncovered *> checkRedundant
 
 checkCases ::
   (Var v) =>
@@ -3054,3 +3148,8 @@ instance (Monad f) => Applicative (MT v loc f) where
 instance (Monad f) => MonadState (Env v loc) (MT v loc f) where
   get = MT \_ _ env -> pure (env, env)
   put env = MT \_ _ _ -> pure ((), env)
+
+instance (MonadFix f) => MonadFix (MT v loc f) where
+  mfix f = MT \a b c ->
+    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) a b c)
+     in res

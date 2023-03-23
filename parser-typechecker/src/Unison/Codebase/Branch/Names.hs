@@ -40,7 +40,7 @@ toNames b =
 -- This stops searching for a given HashQualified once it encounters
 -- any term or type in any Branch0 that satisfies that HashQualified.
 findHistoricalHQs ::
-  Monad m =>
+  (Monad m) =>
   Set (HashQualified Name) ->
   Branch m ->
   m (Set (HashQualified Name), Names)
@@ -50,7 +50,7 @@ findHistoricalHQs =
     (\hq r n -> HQ.matchesNamedReference n r hq)
 
 findHistoricalRefs ::
-  Monad m =>
+  (Monad m) =>
   Set LabeledDependency ->
   Branch m ->
   m (Set LabeledDependency, Names)
@@ -60,7 +60,7 @@ findHistoricalRefs =
     (\query r _n -> LD.fold (== r) (const False) query)
 
 findHistoricalRefs' ::
-  Monad m =>
+  (Monad m) =>
   Set Reference ->
   Branch m ->
   m (Set Reference, Names)

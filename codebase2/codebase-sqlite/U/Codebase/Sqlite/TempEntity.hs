@@ -7,7 +7,7 @@ import qualified U.Codebase.Sqlite.Entity as Entity
 import U.Codebase.Sqlite.LocalIds (LocalIds')
 import qualified U.Codebase.Sqlite.Patch.Format as Patch
 import qualified U.Codebase.Sqlite.Term.Format as Term
-import U.Util.Hash32 (Hash32)
+import Unison.Hash32 (Hash32)
 import Unison.Prelude
 
 -- |

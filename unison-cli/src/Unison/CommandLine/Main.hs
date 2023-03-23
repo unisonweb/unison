@@ -15,7 +15,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Lazy.IO as Text.Lazy
 import qualified Ki
 import qualified System.Console.Haskeline as Line
-import System.IO (hPutStrLn, stderr)
+import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
 import Text.Pretty.Simple (pShow)
 import qualified U.Codebase.Sqlite.Operations as Operations
@@ -143,8 +143,12 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
   credentialManager <- newCredentialManager
   let tokenProvider = AuthN.newTokenProvider credentialManager
   authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
+  initialEcho <- hGetEcho stdin
+  let restoreEcho = (\currentEcho -> when (currentEcho /= initialEcho) $ hSetEcho stdin initialEcho)
   let getInput :: Cli.LoopState -> IO Input
       getInput loopState = do
+        currentEcho <- hGetEcho stdin
+        liftIO $ restoreEcho currentEcho
         getUserInput
           codebase
           authHTTPClient

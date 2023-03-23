@@ -17,7 +17,7 @@ import qualified Data.Text as Text
 import Data.Void (Void)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
-import Unison.Builtin.Decls (pattern TupleType', unitRef)
+import Unison.Builtin.Decls (unitRef, pattern TupleType')
 import qualified Unison.Codebase.Path as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
@@ -29,6 +29,7 @@ import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
+import Unison.Pattern (Pattern)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
@@ -37,6 +38,7 @@ import Unison.Referent (Referent, pattern Ref)
 import Unison.Result (Note (..))
 import qualified Unison.Result as Result
 import qualified Unison.Settings as Settings
+import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.HashQualified as HQ (toString)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Name as Name (toText)
@@ -89,11 +91,11 @@ defaultWidth :: Pr.Width
 defaultWidth = 60
 
 -- Various links used in error messages, collected here for a quick overview
-structuralVsUniqueDocsLink :: IsString a => Pretty a
+structuralVsUniqueDocsLink :: (IsString a) => Pretty a
 structuralVsUniqueDocsLink = "https://www.unison-lang.org/learn/language-reference/unique-types/"
 
 fromOverHere' ::
-  Ord a =>
+  (Ord a) =>
   String ->
   [Maybe (Range, a)] ->
   [Maybe (Range, a)] ->
@@ -102,7 +104,7 @@ fromOverHere' s spots0 removing =
   fromOverHere s (catMaybes spots0) (catMaybes removing)
 
 fromOverHere ::
-  Ord a => String -> [(Range, a)] -> [(Range, a)] -> Pretty (AnnotatedText a)
+  (Ord a) => String -> [(Range, a)] -> [(Range, a)] -> Pretty (AnnotatedText a)
 fromOverHere src spots0 removing =
   let spots = toList $ Set.fromList spots0 Set.\\ Set.fromList removing
    in case length spots of
@@ -122,7 +124,7 @@ showTypeWithProvenance env src color typ =
     <> ".\n"
     <> fromOverHere' src [styleAnnotated color typ] []
 
-styleAnnotated :: Annotated a => sty -> a -> Maybe (Range, sty)
+styleAnnotated :: (Annotated a) => sty -> a -> Maybe (Range, sty)
 styleAnnotated sty a = (,sty) <$> rangeForAnnotated a
 
 style :: s -> String -> Pretty (AnnotatedText s)
@@ -147,7 +149,8 @@ renderTypeInfo ::
 renderTypeInfo i env = case i of
   TopLevelComponent {..} -> case definitions of
     [def] ->
-      Pr.wrap "🌟 I found and typechecked a definition:" <> Pr.newline
+      Pr.wrap "🌟 I found and typechecked a definition:"
+        <> Pr.newline
         <> mconcat
           (renderOne def)
     [] -> mempty
@@ -156,7 +159,7 @@ renderTypeInfo i env = case i of
         <> Pr.newline
         <> intercalateMap Pr.newline (foldMap ("\t" <>) . renderOne) definitions
   where
-    renderOne :: IsString s => (v, Type v loc, RedundantTypeAnnotation) -> [s]
+    renderOne :: (IsString s) => (v, Type v loc, RedundantTypeAnnotation) -> [s]
     renderOne (v, typ, _) =
       [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
 
@@ -286,7 +289,9 @@ renderTypeError e env src curPath = case e of
      in mconcat
           [ Pr.lines
               [ Pr.wrap $
-                  "The " <> ordinal argNum <> " argument to "
+                  "The "
+                    <> ordinal argNum
+                    <> " argument to "
                     <> Pr.backticked (style ErrorSite (renderTerm env f)),
                 "",
                 "          has type:  " <> style Type2 (renderType' env foundType),
@@ -400,17 +405,20 @@ renderTypeError e env src curPath = case e of
             ],
         debugSummary note
       ]
-      where
-        unitHintMsg = 
-          "\nHint: Actions within a block must have type " <> 
-             style Type2 (renderType' env expectedLeaf)    <> ".\n" <> 
-             "      Use " <> style Type1 "_ = <expr>" <> " to ignore a result."  
-        unitHint = if giveUnitHint then unitHintMsg else "" 
-        giveUnitHint = case expectedType of  
-          Type.Ref' u | u == unitRef -> case mismatchSite of 
-            Term.Let1Named' v _ _ -> Var.isAction v
-            _ -> False
+    where
+      unitHintMsg =
+        "\nHint: Actions within a block must have type "
+          <> style Type2 (renderType' env expectedLeaf)
+          <> ".\n"
+          <> "      Use "
+          <> style Type1 "_ = <expr>"
+          <> " to ignore a result."
+      unitHint = if giveUnitHint then unitHintMsg else ""
+      giveUnitHint = case expectedType of
+        Type.Ref' u | u == unitRef -> case mismatchSite of
+          Term.Let1Named' v _ _ -> Var.isAction v
           _ -> False
+        _ -> False
   AbilityCheckFailure {..}
     | [tv@(Type.Var' ev)] <- ambient,
       ev `Set.member` foldMap Type.freeVars requested ->
@@ -580,10 +588,28 @@ renderTypeError e env src curPath = case e of
             if ann typeSite == External
               then "I don't know about the type " <> style ErrorSite (renderVar unknownTypeV) <> ". "
               else
-                "I don't know about the type " <> style ErrorSite (renderVar unknownTypeV) <> ":\n"
+                "I don't know about the type "
+                  <> style ErrorSite (renderVar unknownTypeV)
+                  <> ":\n"
                   <> annotatedAsErrorSite src typeSite,
         "Make sure it's imported and spelled correctly."
       ]
+  UncoveredPatterns loc tms ->
+    mconcat
+      [ Pr.hang
+          "Pattern match doesn't cover all possible cases:"
+          (annotatedAsErrorSite src loc),
+        "\n\n"
+      ]
+      <> Pr.hang
+        "Patterns not matched:\n"
+        ( Pr.bulleted
+            (map (\x -> Pr.lit (renderPattern env x)) (Nel.toList tms))
+        )
+  RedundantPattern loc ->
+    Pr.hang
+      "This case would be ignored because it's already covered by the preceding case(s):"
+      (annotatedAsErrorSite src loc)
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
           foldr sep id suggestions ([], [], [])
@@ -657,7 +683,8 @@ renderTypeError e env src curPath = case e of
         "",
         annotatedAsErrorSite src loc,
         Pr.wrap $
-          "has type " <> stylePretty ErrorSite (Pr.group (renderType' env typ))
+          "has type "
+            <> stylePretty ErrorSite (Pr.group (renderType' env typ))
             <> "but I'm expecting a function of the form"
             <> Pr.group (Pr.blue (renderType' env exHandler) <> ".")
       ]
@@ -801,6 +828,26 @@ renderTypeError e env src curPath = case e of
     --     C.InMatchBody     -> "InMatchBody"
     simpleCause :: C.Cause v loc -> Pretty ColorText
     simpleCause = \case
+      C.UncoveredPatterns loc tms ->
+        mconcat
+          [ "Incomplete pattern matches:\n",
+            annotatedAsErrorSite src loc,
+            "\n\n",
+            "Uncovered cases:\n"
+          ]
+          <> Pr.sep "\n" (map (\x -> Pr.lit (renderPattern env x)) (Nel.toList tms))
+      C.RedundantPattern loc ->
+        mconcat
+          [ "Redundant pattern match: ",
+            "\n",
+            annotatedAsErrorSite src loc
+          ]
+      C.InaccessiblePattern loc ->
+        mconcat
+          [ "Inaccessible pattern match: ",
+            "\n",
+            annotatedAsErrorSite src loc
+          ]
       C.TypeMismatch c ->
         mconcat ["TypeMismatch\n", "  context:\n", renderContext env c]
       C.HandlerOfUnexpectedType loc typ ->
@@ -927,7 +974,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
         C.Data -> "  data type"
         C.Effect -> "  ability",
       "\n",
-      "  reerence = ",
+      "  reference = ",
       showTypeRef env rf
     ]
   C.UnknownConstructor sort (ConstructorReference rf i) _decl ->
@@ -1011,12 +1058,15 @@ renderContext env ctx@(C.Context es) =
       shortName v <> " : " <> renderType' env (C.apply ctx t)
     showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 
-renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
+renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) v loc1 -> s
 renderTerm env e =
   let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e)
    in if length s > Settings.renderTermMaxLength
         then fromString (take Settings.renderTermMaxLength s <> "...")
         else fromString s
+
+renderPattern :: Env -> Pattern ann -> ColorText
+renderPattern env e = Pr.renderUnbroken . Pr.syntaxToColor . fst $ TermPrinter.prettyPattern env TermPrinter.emptyAc 0 ([] :: [Symbol]) e
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
@@ -1026,7 +1076,7 @@ renderType' env typ =
 -- | `f` may do some styling based on `loc`.
 -- | You can pass `(const id)` if no styling is needed, or call `renderType'`.
 renderType ::
-  Var v =>
+  (Var v) =>
   Env ->
   (loc -> Pretty (AnnotatedText a) -> Pretty (AnnotatedText a)) ->
   Type v loc ->
@@ -1065,7 +1115,8 @@ renderType env f t = renderType0 env f (0 :: Int) (Type.removePureEffects t)
 renderSuggestion ::
   (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
 renderSuggestion env sug =
-  fromString (Text.unpack $ C.suggestionName sug) <> " : "
+  fromString (Text.unpack $ C.suggestionName sug)
+    <> " : "
     <> renderType'
       env
       (C.suggestionType sug)
@@ -1087,21 +1138,21 @@ renderVar' env ctx v = case C.lookupSolved ctx v of
   Nothing -> "unsolved"
   Just t -> renderType' env $ Type.getPolytype t
 
-prettyVar :: Var v => v -> Pretty ColorText
+prettyVar :: (Var v) => v -> Pretty ColorText
 prettyVar = Pr.text . Var.name
 
 renderKind :: Kind -> Pretty (AnnotatedText a)
 renderKind Kind.Star = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
-showTermRef :: IsString s => Env -> Referent -> s
+showTermRef :: (IsString s) => Env -> Referent -> s
 showTermRef env r = fromString . HQ.toString $ PPE.termName env r
 
-showTypeRef :: IsString s => Env -> R.Reference -> s
+showTypeRef :: (IsString s) => Env -> R.Reference -> s
 showTypeRef env r = fromString . HQ.toString $ PPE.typeName env r
 
 -- todo: do something different/better if cid not found
-showConstructor :: IsString s => Env -> ConstructorReference -> s
+showConstructor :: (IsString s) => Env -> ConstructorReference -> s
 showConstructor env r =
   fromString . HQ.toString $
     PPE.patternName env r
@@ -1117,14 +1168,14 @@ styleInOverallType e overallType leafType c = renderType e f overallType
   where
     f loc s = if loc == ABT.annotation leafType then Color.style c <$> s else s
 
-_posToEnglish :: IsString s => L.Pos -> s
+_posToEnglish :: (IsString s) => L.Pos -> s
 _posToEnglish (L.Pos l c) =
   fromString $ "Line " ++ show l ++ ", Column " ++ show c
 
 rangeForToken :: L.Token a -> Range
 rangeForToken t = Range (L.start t) (L.end t)
 
-rangeToEnglish :: IsString s => Range -> s
+rangeToEnglish :: (IsString s) => Range -> s
 rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
   fromString $
     let showColumn = True
@@ -1156,7 +1207,7 @@ annotatedToEnglish a = case ann a of
   External -> "an external"
   Ann start end -> rangeToEnglish $ Range start end
 
-rangeForAnnotated :: Annotated a => a -> Maybe Range
+rangeForAnnotated :: (Annotated a) => a -> Maybe Range
 rangeForAnnotated a = case ann a of
   Intrinsic -> Nothing
   External -> Nothing
@@ -1175,7 +1226,7 @@ renderNoteAsANSI ::
   String
 renderNoteAsANSI w e s curPath n = Pr.toANSI w $ printNoteWithSource e s curPath n
 
-renderParseErrorAsANSI :: Var v => Pr.Width -> String -> Parser.Err v -> String
+renderParseErrorAsANSI :: (Var v) => Pr.Width -> String -> Parser.Err v -> String
 renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
 
 printNoteWithSource ::
@@ -1214,13 +1265,13 @@ _printArrowsAtPos s line column =
 pattern LexerError :: [L.Token L.Lexeme] -> L.Err -> Maybe (P.ErrorItem (L.Token L.Lexeme))
 pattern LexerError ts e <- Just (P.Tokens (firstLexerError -> Just (ts, e)))
 
-firstLexerError :: Foldable t => t (L.Token L.Lexeme) -> Maybe ([L.Token L.Lexeme], L.Err)
+firstLexerError :: (Foldable t) => t (L.Token L.Lexeme) -> Maybe ([L.Token L.Lexeme], L.Err)
 firstLexerError ts =
   find (const True) [(toList ts, e) | (L.payload -> L.Err e) <- toList ts]
 
 prettyParseError ::
   forall v.
-  Var v =>
+  (Var v) =>
   String ->
   Parser.Err v ->
   Pretty ColorText
@@ -1235,7 +1286,7 @@ prettyParseError s e =
 
 renderParseErrors ::
   forall v.
-  Var v =>
+  (Var v) =>
   String ->
   Parser.Err v ->
   [(Pretty ColorText, [Range])]
@@ -1246,11 +1297,13 @@ renderParseErrors s = \case
       excerpt = showSource s ((\r -> (r, ErrorSite)) <$> ranges)
       go = \case
         L.UnexpectedDelimiter s ->
-          "I found a " <> style ErrorSite (fromString s)
+          "I found a "
+            <> style ErrorSite (fromString s)
             <> " here, but I didn't see a list or tuple that it might be a separator for.\n\n"
             <> excerpt
         L.CloseWithoutMatchingOpen open close ->
-          "I found a closing " <> style ErrorSite (fromString close)
+          "I found a closing "
+            <> style ErrorSite (fromString close)
             <> " here without a matching "
             <> style ErrorSite (fromString open)
             <> ".\n\n"
@@ -1476,7 +1529,9 @@ renderParseErrors s = \case
                           "You can write"
                             <> Pr.group
                               ( Pr.blue $
-                                  "use " <> Pr.text (Name.toText (Name.makeRelative parent)) <> " "
+                                  "use "
+                                    <> Pr.text (Name.toText (Name.makeRelative parent))
+                                    <> " "
                                     <> Pr.text (Name.toText (Name.unqualified (L.payload tok)))
                               )
                             <> "to introduce "
@@ -1516,7 +1571,9 @@ renderParseErrors s = \case
       where
         ranges = ts >>= snd >>= toList . rangeForAnnotated
         showDup (v, locs) =
-          "I found multiple types with the name " <> errorVar v <> ":\n\n"
+          "I found multiple types with the name "
+            <> errorVar v
+            <> ":\n\n"
             <> annotatedsStartingLineAsStyle ErrorSite s locs
     go (Parser.DuplicateTermNames ts) =
       (Pr.fatalCallout $ intercalateMap "\n\n" showDup ts, ranges)
@@ -1575,7 +1632,9 @@ renderParseErrors s = \case
                 "\n  - A binding, like " <> t <> style Code " = 42" <> " OR",
                 "\n                    " <> t <> style Code " : Nat",
                 "\n                    " <> t <> style Code " = 42",
-                "\n  - A watch expression, like " <> style Code "> " <> t
+                "\n  - A watch expression, like "
+                  <> style Code "> "
+                  <> t
                   <> style
                     Code
                     " + 1",
@@ -1637,7 +1696,7 @@ renderParseErrors s = \case
                         <> style ErrorSite "match"
                         <> "/"
                         <> style ErrorSite "with"
-                        <> " but I didn't find any."
+                        <> " or cases but I didn't find any."
                     ),
                   "",
                   tokenAsErrorSite s tok
@@ -1735,7 +1794,7 @@ renderParseErrors s = \case
         ]
 
 annotatedAsErrorSite ::
-  Annotated a => String -> a -> Pretty ColorText
+  (Annotated a) => String -> a -> Pretty ColorText
 annotatedAsErrorSite = annotatedAsStyle ErrorSite
 
 annotatedAsStyle ::
@@ -1769,17 +1828,17 @@ tokensAsErrorSite src ts =
   showSource src [(rangeForToken t, ErrorSite) | t <- ts]
 
 showSourceMaybes ::
-  Ord a => String -> [Maybe (Range, a)] -> Pretty (AnnotatedText a)
+  (Ord a) => String -> [Maybe (Range, a)] -> Pretty (AnnotatedText a)
 showSourceMaybes src annotations = showSource src $ catMaybes annotations
 
-showSource :: Ord a => String -> [(Range, a)] -> Pretty (AnnotatedText a)
+showSource :: (Ord a) => String -> [(Range, a)] -> Pretty (AnnotatedText a)
 showSource src annotations =
   Pr.lit . AT.condensedExcerptToText 6 $
     AT.markup
       (fromString src)
       (Map.fromList annotations)
 
-showSource1 :: Ord a => String -> (Range, a) -> Pretty (AnnotatedText a)
+showSource1 :: (Ord a) => String -> (Range, a) -> Pretty (AnnotatedText a)
 showSource1 src annotation = showSource src [annotation]
 
 findTerm :: Seq (C.PathElement v loc) -> Maybe loc

@@ -195,7 +195,8 @@ trySync hh runSrc runDest tCache hCache oCache cCache = \case
                   localIds' <- traverse syncLocalIds localIds
                   -- reassemble and save the reindexed term
                   let bytes' =
-                        runPutS . S.recomposeDeclFormat
+                        runPutS
+                          . S.recomposeDeclFormat
                           . DeclFormat.SyncDecl
                           . DeclFormat.SyncLocallyIndexedComponent
                           $ Vector.zip localIds' declBytes

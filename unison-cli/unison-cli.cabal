@@ -30,6 +30,7 @@ library
       Unison.Auth.HTTPClient
       Unison.Auth.Tokens
       Unison.Auth.Types
+      Unison.Auth.UserInfo
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
@@ -129,6 +130,7 @@ library
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -186,6 +188,7 @@ library
     , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -252,6 +255,7 @@ executable cli-integration-tests
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -312,6 +316,7 @@ executable cli-integration-tests
     , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -371,6 +376,7 @@ executable transcripts
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -432,6 +438,7 @@ executable transcripts
     , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -496,6 +503,7 @@ executable unison
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -559,6 +567,7 @@ executable unison
     , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -627,6 +636,7 @@ test-suite cli-tests
     , ListLike
     , aeson
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -689,6 +699,7 @@ test-suite cli-tests
     , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer

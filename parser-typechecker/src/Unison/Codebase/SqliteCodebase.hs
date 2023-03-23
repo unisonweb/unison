@@ -9,7 +9,9 @@
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
     MigrationStrategy (..),
+    BackupStrategy (..),
     CodebaseLockOption (..),
+    copyCodebase,
   )
 where
 
@@ -27,7 +29,7 @@ import qualified System.Console.ANSI as ANSI
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
-import U.Codebase.HashTags (BranchHash, CausalHash, PatchHash (..))
+import U.Codebase.HashTags (CausalHash, PatchHash (..))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -47,12 +49,11 @@ import Unison.Codebase.Editor.RemoteRepo
     writeToReadGit,
   )
 import qualified Unison.Codebase.GitError as GitError
-import Unison.Codebase.Init (CodebaseLockOption (..), MigrationStrategy (..))
+import Unison.Codebase.Init (BackupStrategy (..), CodebaseLockOption (..), MigrationStrategy (..))
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
-import Unison.Codebase.Path (Path)
 import Unison.Codebase.RootBranchCache
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
@@ -88,7 +89,7 @@ debug, debugProcessBranches :: Bool
 debug = False
 debugProcessBranches = False
 
-init :: HasCallStack => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
+init :: (HasCallStack) => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
 init =
   Codebase.Init
     { withOpenCodebase = withCodebaseOrError,
@@ -103,7 +104,7 @@ data CodebaseStatus
 
 -- | Open the codebase at the given location, or create it if one doesn't already exist.
 withOpenOrCreateCodebase ::
-  MonadUnliftIO m =>
+  (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
   LocalOrRemote ->
@@ -159,7 +160,7 @@ withCodebaseOrError debugName dir lockOption migrationStrategy action = do
     False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
     True -> sqliteCodebase debugName dir Local lockOption migrationStrategy action
 
-initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
+initSchemaIfNotExist :: (MonadIO m) => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
   unlessM (doesDirectoryExist $ makeCodebaseDirPath path) $
     createDirectoryIfMissing True (makeCodebaseDirPath path)
@@ -176,7 +177,7 @@ initSchemaIfNotExist path = liftIO do
 -- | Run an action with a connection to the codebase, closing the connection on completion or
 -- failure.
 withConnection ::
-  MonadUnliftIO m =>
+  (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
   (Sqlite.Connection -> m a) ->
@@ -186,7 +187,7 @@ withConnection name root action =
 
 sqliteCodebase ::
   forall m r.
-  MonadUnliftIO m =>
+  (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
   -- | When local, back up the existing codebase before migrating, in case there's a catastrophic bug in the migration.
@@ -212,17 +213,17 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
       Migrations.CodebaseRequiresMigration fromSv toSv ->
         case migrationStrategy of
           DontMigrate -> pure $ Left (OpenCodebaseRequiresMigration fromSv toSv)
-          MigrateAfterPrompt -> do
+          MigrateAfterPrompt backupStrategy -> do
             let shouldPrompt = True
-            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt conn
-          MigrateAutomatically -> do
+            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy conn
+          MigrateAutomatically backupStrategy -> do
             let shouldPrompt = False
-            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt conn
+            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy conn
 
   case result of
     Left err -> pure $ Left err
     Right () -> do
-      let finalizer :: MonadIO m => m ()
+      let finalizer :: (MonadIO m) => m ()
           finalizer = do
             decls <- readTVarIO declBuffer
             terms <- readTVarIO termBuffer
@@ -344,19 +345,12 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             referentsByPrefix =
               CodebaseOps.referentsByPrefix getDeclType
 
-            updateNameLookup :: Path -> Maybe BranchHash -> BranchHash -> Sqlite.Transaction ()
-            updateNameLookup =
-              CodebaseOps.updateNameLookupIndex getDeclType
-
         let codebase =
               C.Codebase
                 { getTerm,
                   getTypeOfTermImpl,
                   getTypeDeclaration,
-                  getDeclType =
-                    \r ->
-                      withConn \conn ->
-                        Sqlite.runReadOnlyTransaction conn \run -> run (getDeclType r),
+                  getDeclType,
                   putTerm,
                   putTermComponent,
                   putTypeDeclaration,
@@ -374,7 +368,6 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
                   termReferentsByPrefix = referentsByPrefix,
-                  updateNameLookup,
                   withConnection = withConn,
                   withConnectionIO = withConnection debugName root
                 }
@@ -397,7 +390,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
 
 syncInternal ::
   forall m.
-  MonadUnliftIO m =>
+  (MonadUnliftIO m) =>
   Sync.Progress m Sync22.Entity ->
   (forall a. Sqlite.Transaction a -> m a) ->
   (forall a. Sqlite.Transaction a -> m a) ->
@@ -485,7 +478,7 @@ data SyncProgressState = SyncProgressState
 emptySyncProgressState :: SyncProgressState
 emptySyncProgressState = SyncProgressState (Just mempty) (Right mempty) (Right mempty)
 
-syncProgress :: forall m. MonadIO m => IORef SyncProgressState -> Sync.Progress m Sync22.Entity
+syncProgress :: forall m. (MonadIO m) => IORef SyncProgressState -> Sync.Progress m Sync22.Entity
 syncProgress progressStateRef = Sync.Progress (liftIO . need) (liftIO . done) (liftIO . warn) (liftIO allDone)
   where
     quiet = False
@@ -546,7 +539,9 @@ syncProgress progressStateRef = Sync.Progress (liftIO . need) (liftIO . done) (l
       SyncProgressState Nothing (Left done) (Left warn) ->
         "\r" ++ prefix ++ show done ++ " entities" ++ if warn > 0 then " with " ++ show warn ++ " warnings." else "."
       SyncProgressState (Just _need) (Right done) (Right warn) ->
-        "\r" ++ prefix ++ show (Set.size done + Set.size warn)
+        "\r"
+          ++ prefix
+          ++ show (Set.size done + Set.size warn)
           ++ " entities"
           ++ if Set.size warn > 0
             then " with " ++ show (Set.size warn) ++ " warnings."
@@ -586,7 +581,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior act
           then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
           else throwIO exception
 
-      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote DoLock MigrateAfterPrompt \codebase -> do
+      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote DoLock (MigrateAfterPrompt Codebase.Backup) \codebase -> do
         -- try to load the requested branch from it
         branch <- time "Git fetch (sch)" $ case sch of
           -- no sub-branch was specified, so use the root.
@@ -612,7 +607,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior act
 -- the existing root.
 pushGitBranch ::
   forall m e.
-  MonadUnliftIO m =>
+  (MonadUnliftIO m) =>
   Sqlite.Connection ->
   WriteGitRepo ->
   PushGitBranchOpts ->
@@ -636,7 +631,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
   -- set up the cache dir
   throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
     newBranchOrErr <- throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
-      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote DoLock MigrateAfterPrompt
+      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote DoLock (MigrateAfterPrompt Codebase.Backup)
       $ \(codebaseStatus, destCodebase) -> do
         currentRootBranch <-
           Codebase1.runTransaction destCodebase CodebaseOps.getRootBranchExists >>= \case
@@ -728,7 +723,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
         hasDeleteShm = any isShmDelete statusLines
 
     -- Commit our changes
-    push :: forall n. MonadIO n => Git.GitRepo -> WriteGitRepo -> Branch m -> n Bool -- withIOError needs IO
+    push :: forall n. (MonadIO n) => Git.GitRepo -> WriteGitRepo -> Branch m -> n Bool -- withIOError needs IO
     push remotePath repo@(WriteGitRepo {url, branch = mayGitBranch}) newRootBranch = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       -- note: -uall recursively shows status for all files in untracked directories
@@ -764,3 +759,12 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
             (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", url] ++ Git.gitVerbosity ++ maybe [] (pure @[]) mayGitBranch
             when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
             pure True
+
+-- | Given two codebase roots (e.g. "./mycodebase"), safely copy the codebase
+-- at the source to the destination.
+-- Note: this does not copy the .unisonConfig file.
+copyCodebase :: (MonadIO m) => CodebasePath -> CodebasePath -> m ()
+copyCodebase src dest = liftIO $ do
+  createDirectoryIfMissing True (makeCodebaseDirPath dest)
+  withConnection ("copy-from:" <> src) src $ \srcConn -> do
+    Sqlite.vacuumInto srcConn (makeCodebasePath dest)

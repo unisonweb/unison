@@ -168,6 +168,24 @@ load =
         _ -> Left (I.help load)
     )
 
+clear :: InputPattern
+clear =
+  InputPattern
+    "clear"
+    []
+    I.Visible
+    []
+    ( P.wrapColumn2
+        [ ( makeExample' clear,
+            "Clears the screen."
+          )
+        ]
+    )
+    ( \case
+        [] -> pure $ Input.ClearI
+        _ -> Left (I.help clear)
+    )
+
 add :: InputPattern
 add =
   InputPattern
@@ -588,7 +606,7 @@ renameType =
               "`rename.type` takes two arguments, like `rename.type oldname newname`."
     )
 
-deleteGen :: Maybe String -> String -> (Path.HQSplit' -> DeleteTarget) -> InputPattern
+deleteGen :: Maybe String -> String -> ([Path.HQSplit'] -> DeleteTarget) -> InputPattern
 deleteGen suffix target mkTarget =
   let cmd = maybe "delete" ("delete." <>) suffix
       info =
@@ -613,11 +631,10 @@ deleteGen suffix target mkTarget =
         [(OnePlus, exactDefinitionTermQueryArg)]
         info
         ( \case
-            [query] -> first fromString $ do
-              p <- Path.parseHQSplit' query
-              pure $ Input.DeleteI (mkTarget p)
-            _ ->
-              Left . P.warnCallout $ P.wrap warn
+            [] -> Left . P.warnCallout $ P.wrap warn
+            queries -> first fromString $ do
+              paths <- traverse Path.parseHQSplit' queries
+              pure $ Input.DeleteI (mkTarget paths)
         )
 
 delete :: InputPattern
@@ -1007,29 +1024,30 @@ resetRoot =
         _ -> Left (I.help resetRoot)
     )
 
-pullSilent :: InputPattern
-pullSilent =
-  pullImpl "pull.silent" Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
-
 pull :: InputPattern
-pull = pullImpl "pull" Verbosity.Default Input.PullWithHistory ""
+pull =
+  pullImpl "pull" ["pull.silent"] Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
+
+pullVerbose :: InputPattern
+pullVerbose = pullImpl "pull.verbose" [] Verbosity.Verbose Input.PullWithHistory "and lists the merged entities"
 
 pullWithoutHistory :: InputPattern
 pullWithoutHistory =
   pullImpl
     "pull.without-history"
-    Verbosity.Default
+    []
+    Verbosity.Silent
     Input.PullWithoutHistory
     "without including the remote's history. This usually results in smaller codebase sizes."
 
-pullImpl :: String -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
-pullImpl name verbosity pullMode addendum = do
+pullImpl :: String -> [String] -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
+pullImpl name aliases verbosity pullMode addendum = do
   self
   where
     self =
       InputPattern
         name
-        []
+        aliases
         I.Visible
         [(Optional, remoteNamespaceArg), (Optional, namespaceArg)]
         ( P.lines
@@ -1079,8 +1097,10 @@ pullExhaustive =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
-            "The " <> makeExample' pullExhaustive <> "command can be used in place of"
-              <> makeExample' pull
+            "The "
+              <> makeExample' pullExhaustive
+              <> "command can be used in place of"
+              <> makeExample' pullVerbose
               <> "to complete namespaces"
               <> "which were pulled incompletely due to a bug in UCM"
               <> "versions M1l and earlier.  It may be extra slow!"
@@ -1088,15 +1108,15 @@ pullExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
+          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
         [url] -> do
           ns <- parseReadRemoteNamespace "remote-namespace" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
         [url, path] -> do
           ns <- parseReadRemoteNamespace "remote-namespace" url
           p <- first fromString $ Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Default
-        _ -> Left (I.help pull)
+          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
+        _ -> Left (I.help pullVerbose)
     )
 
 debugTabCompletion :: InputPattern
@@ -1267,7 +1287,9 @@ pushExhaustive =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
-            "The " <> makeExample' pushExhaustive <> "command can be used in place of"
+            "The "
+              <> makeExample' pushExhaustive
+              <> "command can be used in place of"
               <> makeExample' push
               <> "to repair remote namespaces"
               <> "which were pushed incompletely due to a bug in UCM"
@@ -1537,19 +1559,20 @@ viewReflog =
 edit :: InputPattern
 edit =
   InputPattern
-    "edit"
-    []
-    I.Visible
-    [(OnePlus, definitionQueryArg)]
-    ( P.lines
-        [ "`edit foo` prepends the definition of `foo` to the top of the most "
-            <> "recently saved file.",
-          "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
-        ]
-    )
-    ( fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
-        . traverse parseHashQualifiedName
-    )
+    { patternName = "edit",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(OnePlus, definitionQueryArg)],
+      help =
+        P.lines
+          [ "`edit foo` prepends the definition of `foo` to the top of the most "
+              <> "recently saved file.",
+            "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
+          ],
+      parse =
+        fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
+          . traverse parseHashQualifiedName
+    }
 
 topicNameArg :: ArgumentType
 topicNameArg =
@@ -1642,7 +1665,8 @@ helpTopicsMap =
     testCacheMsg =
       P.callout "🎈" . P.lines $
         [ P.wrap $
-            "Unison caches the results of " <> P.blue "test>"
+            "Unison caches the results of "
+              <> P.blue "test>"
               <> "watch expressions. Since these expressions are pure and"
               <> "always yield the same result when evaluated, there's no need"
               <> "to run them more than once!",
@@ -1654,7 +1678,8 @@ helpTopicsMap =
     pathnamesMsg =
       P.callout "\129488" . P.lines $
         [ P.wrap $
-            "There are two kinds of namespaces," <> P.group (P.blue "absolute" <> ",")
+            "There are two kinds of namespaces,"
+              <> P.group (P.blue "absolute" <> ",")
               <> "such as"
               <> P.group ("(" <> P.blue ".foo.bar")
               <> "or"
@@ -1677,12 +1702,15 @@ helpTopicsMap =
           P.indentN 2 $ P.green "x" <> " = 41",
           "",
           P.wrap $
-            "then doing an" <> P.blue "add"
+            "then doing an"
+              <> P.blue "add"
               <> "will create the definition with the absolute name"
               <> P.group (P.blue ".foo.bar.x" <> " = 41"),
           "",
           P.wrap $
-            "and you can refer to" <> P.green "x" <> "by its absolute name "
+            "and you can refer to"
+              <> P.green "x"
+              <> "by its absolute name "
               <> P.blue ".foo.bar.x"
               <> "elsewhere"
               <> "in your code. For instance:",
@@ -2084,20 +2112,20 @@ saveExecuteResult =
 ioTest :: InputPattern
 ioTest =
   InputPattern
-    "io.test"
-    ["test.io"]
-    I.Visible
-    [(Required, exactDefinitionTermQueryArg)]
-    ( P.wrapColumn2
-        [ ( "`io.test mytest`",
-            "Runs `!mytest`, where `mytest` is a delayed test that can use the `IO` and `Exception` abilities. Note: `mytest` must already be added to the codebase."
-          )
-        ]
-    )
-    ( \case
+    { patternName = "io.test",
+      aliases = ["test.io"],
+      visibility = I.Visible,
+      argTypes = [(Required, exactDefinitionTermQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ( "`io.test mytest`",
+              "Runs `!mytest`, where `mytest` is a delayed test that can use the `IO` and `Exception` abilities."
+            )
+          ],
+      parse = \case
         [thing] -> fmap Input.IOTestI $ parseHashQualifiedName thing
         _ -> Left $ showPatternHelp ioTest
-    )
+    }
 
 makeStandalone :: InputPattern
 makeStandalone =
@@ -2128,14 +2156,14 @@ runScheme =
     I.Visible
     [(Required, exactDefinitionTermQueryArg)]
     ( P.wrapColumn2
-        [ ( makeExample runScheme ["main"],
+        [ ( makeExample runScheme ["main", "args"],
             "Executes !main using native compilation via scheme."
           )
         ]
     )
     ( \case
-        [main] ->
-          Input.ExecuteSchemeI <$> parseHashQualifiedName main
+        (main : args) ->
+          flip Input.ExecuteSchemeI args <$> parseHashQualifiedName main
         _ -> Left $ showPatternHelp runScheme
     )
 
@@ -2201,12 +2229,16 @@ fetchScheme =
               <> "is run\
                  \ if the library is not already in the standard location\
                  \ (unison.internal). However, this command will force\
-                 \ a pull even if the library already exists."
+                 \ a pull even if the library already exists. You can also specify\
+                 \ a username to pull from (the default is `unison`) to use an alternate\
+                 \ implementation of the scheme compiler. It will attempt to fetch\
+                 \ [username].public.internal.trunk for use."
           )
         ]
     )
     ( \case
-        [] -> pure Input.FetchSchemeCompilerI
+        [] -> pure (Input.FetchSchemeCompilerI "unison")
+        [name] -> pure (Input.FetchSchemeCompilerI name)
         _ -> Left $ showPatternHelp fetchScheme
     )
 
@@ -2323,6 +2355,7 @@ validInputs =
     [ help,
       helpTopics,
       load,
+      clear,
       add,
       previewAdd,
       update,
@@ -2340,9 +2373,9 @@ validInputs =
       push,
       pushCreate,
       pushForce,
-      pull,
+      pullVerbose,
       pullWithoutHistory,
-      pullSilent,
+      pull,
       pushExhaustive,
       pullExhaustive,
       createPullRequest,
@@ -2574,10 +2607,11 @@ explainRemote pushPull =
   where
     gitRepo = PushPull.fold @(P.Pretty P.ColorText) "git@github.com:" "https://github.com/" pushPull
 
-showErrorFancy :: P.ShowErrorComponent e => P.ErrorFancy e -> String
+showErrorFancy :: (P.ShowErrorComponent e) => P.ErrorFancy e -> String
 showErrorFancy (P.ErrorFail msg) = msg
 showErrorFancy (P.ErrorIndentation ord ref actual) =
-  "incorrect indentation (got " <> show (P.unPos actual)
+  "incorrect indentation (got "
+    <> show (P.unPos actual)
     <> ", should be "
     <> p
     <> show (P.unPos ref)

@@ -34,7 +34,7 @@ data TodoOutput v a = TodoOutput
     editConflicts :: Patch
   }
 
-labeledDependencies :: Ord v => TodoOutput v a -> Set LabeledDependency
+labeledDependencies :: (Ord v) => TodoOutput v a -> Set LabeledDependency
 labeledDependencies TodoOutput {..} =
   Set.fromList
     ( -- term refs

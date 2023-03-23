@@ -34,10 +34,10 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as UF
 import Prelude hiding (readFile)
 
-resolutionFailures :: Ord v => [Names.ResolutionFailure v Ann] -> P v x
+resolutionFailures :: (Ord v) => [Names.ResolutionFailure v Ann] -> P v x
 resolutionFailures es = P.customFailure (ResolutionFailures es)
 
-file :: forall v. Var v => P v (UnisonFile v Ann)
+file :: forall v. (Var v) => P v (UnisonFile v Ann)
 file = do
   _ <- openBlock
   -- The file may optionally contain top-level imports,
@@ -132,7 +132,7 @@ file = do
     pure uf
 
 -- | Final validations and sanity checks to perform before finishing parsing.
-validateUnisonFile :: forall v. Var v => UnisonFile v Ann -> P v ()
+validateUnisonFile :: forall v. (Var v) => UnisonFile v Ann -> P v ()
 validateUnisonFile uf =
   checkForDuplicateTermsAndConstructors uf
 
@@ -190,14 +190,14 @@ data Stanza v term
   | Bindings [((Ann, v), term)]
   deriving (Foldable, Traversable, Functor)
 
-getVars :: Var v => Stanza v term -> [v]
+getVars :: (Var v) => Stanza v term -> [v]
 getVars = \case
   WatchBinding _ _ ((_, v), _) -> [v]
   WatchExpression _ guid _ _ -> [Var.unnamedTest guid]
   Binding ((_, v), _) -> [v]
   Bindings bs -> [v | ((_, v), _) <- bs]
 
-stanza :: Var v => P v (Stanza v (Term v Ann))
+stanza :: (Var v) => P v (Stanza v (Term v Ann))
 stanza = watchExpression <|> unexpectedAction <|> binding
   where
     unexpectedAction = failureIf (TermParser.blockTerm $> getErr) binding
@@ -230,7 +230,7 @@ stanza = watchExpression <|> unexpectedAction <|> binding
         Nothing -> Binding binding
         Just doc -> Bindings [((ann doc, Var.joinDot v (Var.named "doc")), doc), binding]
 
-watched :: Var v => P v (UF.WatchKind, Text, Ann)
+watched :: (Var v) => P v (UF.WatchKind, Text, Ann)
 watched = P.try $ do
   kind <- optional wordyIdString
   guid <- uniqueName 10
@@ -249,7 +249,7 @@ watched = P.try $ do
 type Accessors v = [(L.Token v, [(L.Token v, Type v Ann)])]
 
 declarations ::
-  Var v =>
+  (Var v) =>
   P
     v
     ( Map v (DataDeclaration v Ann),
@@ -260,7 +260,7 @@ declarations = do
   declarations <- many $ declaration <* optional semi
   let (dataDecls0, effectDecls) = partitionEithers declarations
       dataDecls = [(a, b) | (a, b, _) <- dataDecls0]
-      multimap :: Ord k => [(k, v)] -> Map k [v]
+      multimap :: (Ord k) => [(k, v)] -> Map k [v]
       multimap = foldl' mi Map.empty
       mi m (k, v) = Map.insertWith (++) k [v] m
       mds = multimap dataDecls
@@ -280,7 +280,7 @@ declarations = do
           <> [(v, DD.annotation . DD.toDataDecl <$> es) | (v, es) <- Map.toList mesBad]
 
 -- unique[someguid] type Blah = ...
-modifier :: Var v => P v (Maybe (L.Token DD.Modifier))
+modifier :: (Var v) => P v (Maybe (L.Token DD.Modifier))
 modifier = do
   optional (unique <|> structural)
   where
@@ -297,7 +297,7 @@ modifier = do
       pure (DD.Structural <$ tok)
 
 declaration ::
-  Var v =>
+  (Var v) =>
   P
     v
     ( Either
@@ -310,13 +310,14 @@ declaration = do
 
 dataDeclaration ::
   forall v.
-  Var v =>
+  (Var v) =>
   Maybe (L.Token DD.Modifier) ->
   P v (v, DataDeclaration v Ann, Accessors v)
 dataDeclaration mod = do
   keywordTok <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <-
-    (,) <$> TermParser.verifyRelativeVarName prefixDefinitionName
+    (,)
+      <$> TermParser.verifyRelativeVarName prefixDefinitionName
       <*> many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let typeArgVs = L.payload <$> typeArgs
   eq <- reserved "="
@@ -371,7 +372,7 @@ dataDeclaration mod = do
         )
 
 effectDeclaration ::
-  Var v => Maybe (L.Token DD.Modifier) -> P v (v, EffectDeclaration v Ann)
+  (Var v) => Maybe (L.Token DD.Modifier) -> P v (v, EffectDeclaration v Ann)
 effectDeclaration mod = do
   keywordTok <- fmap void (reserved "ability") <|> openBlockWith "ability"
   name <- TermParser.verifyRelativeVarName prefixDefinitionName
@@ -397,7 +398,7 @@ effectDeclaration mod = do
         )
   where
     constructor ::
-      Var v => [L.Token v] -> L.Token v -> P v (Ann, v, Type v Ann)
+      (Var v) => [L.Token v] -> L.Token v -> P v (Ann, v, Type v Ann)
     constructor typeArgs name =
       explodeToken
         <$> TermParser.verifyRelativeVarName prefixDefinitionName

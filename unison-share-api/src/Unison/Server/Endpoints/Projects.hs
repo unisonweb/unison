@@ -1,10 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators #-}
 
 module Unison.Server.Endpoints.Projects where
 
@@ -27,12 +21,12 @@ import Servant.Docs
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
-import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Hash as Hash
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -44,7 +38,8 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Monoid (foldMapM)
 
 type ProjectsAPI =
-  "projects" :> QueryParam "rootBranch" ShortCausalHash
+  "projects"
+    :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "owner" ProjectOwner
     :> APIGet [ProjectListing]
 
@@ -124,7 +119,7 @@ entryToOwner = \case
 
 serve ::
   forall m.
-  MonadIO m =>
+  (MonadIO m) =>
   Codebase m Symbol Ann ->
   Maybe ShortCausalHash ->
   Maybe ProjectOwner ->

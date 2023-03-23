@@ -53,7 +53,7 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
-import Unison.Runtime.IOSource (isTest)
+import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Name as Name (toVar, unsafeFromVar)
@@ -171,7 +171,7 @@ handleUpdate input optionalPatch requestedNames = do
             step1 p (_, r, r') = Patch.updateType r (TypeEdit.Replace r') p
             step2 p (_, r, r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
         (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
-        updatePatches :: Monad m => Branch0 m -> m (Branch0 m)
+        updatePatches :: (Monad m) => Branch0 m -> m (Branch0 m)
         updatePatches = Branch.modifyPatches seg updatePatch
     pure (updatePatch ye'ol'Patch, updatePatches, p)
 
@@ -202,7 +202,8 @@ handleUpdate input optionalPatch requestedNames = do
   Cli.syncRoot case patchPath of
     Nothing -> "update.nopatch"
     Just p ->
-      p & Path.unsplit'
+      p
+        & Path.unsplit'
         & Path.resolve @_ @_ @Path.Absolute currentPath'
         & tShow
 
@@ -564,7 +565,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
 
   pure slurp1
 
-rewriteTermReferences :: Ord v => Map TermReference TermReferenceId -> Term v a -> Term v a
+rewriteTermReferences :: (Ord v) => Map TermReference TermReferenceId -> Term v a -> Term v a
 rewriteTermReferences mapping =
   ABT.rebuildUp \term ->
     case term of
@@ -577,7 +578,7 @@ rewriteTermReferences mapping =
 -- updates the namespace for adding `slurp`
 doSlurpAdds ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   SlurpComponent ->
   TypecheckedUnisonFile Symbol Ann ->
   (Branch0 m -> Branch0 m)
@@ -589,7 +590,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
         SC.terms slurp <> UF.constructorsForDecls (SC.types slurp) uf
     names = UF.typecheckedToNames uf
     tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
-    (isTestType, isTestValue) = isTest
+    (isTestType, isTestValue) = IOSource.isTest
     md v =
       if Set.member v tests
         then Metadata.singleton isTestType isTestValue
@@ -621,7 +622,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
     errorMissingVar v = error $ "expected to find " ++ show v ++ " in " ++ show uf
 
 doSlurpUpdates ::
-  Monad m =>
+  (Monad m) =>
   [(Name, TypeReference, TypeReference)] ->
   [(Name, TermReference, TermReference)] ->
   [(Name, Referent)] ->

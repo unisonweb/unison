@@ -5,7 +5,7 @@ import qualified Data.List.NonEmpty as NEL
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import Unison.Prelude
-import Unison.Sqlite (FromField (..), FromRow (..), SQLData (..), ToField (..), ToRow (..), field)
+import Unison.Sqlite
 
 type ReversedSegments = NonEmpty Text
 
@@ -28,19 +28,43 @@ instance FromField (ConstructorType) where
 data NamedRef ref = NamedRef {reversedSegments :: ReversedSegments, ref :: ref}
   deriving stock (Show, Functor, Foldable, Traversable)
 
-instance ToRow ref => ToRow (NamedRef ref) where
+instance (ToRow ref) => ToRow (NamedRef ref) where
   toRow (NamedRef {reversedSegments = segments, ref}) =
     [toField reversedName] <> toRow ref
     where
-      reversedName = Text.intercalate "." . toList $ segments
+      reversedName =
+        segments
+          & toList
+          & Text.intercalate "."
+          & (<> ".") -- Add trailing dot, see notes on scoped_term_name_lookup schema
 
-instance FromRow ref => FromRow (NamedRef ref) where
+instance (FromRow ref) => FromRow (NamedRef ref) where
   fromRow = do
-    reversedSegments <- NonEmpty.fromList . Text.splitOn "." <$> field
+    reversedSegments <-
+      field <&> \f ->
+        f
+          & Text.init -- Drop trailing dot, see notes on scoped_term_name_lookup schema
+          & Text.splitOn "."
+          & NonEmpty.fromList
     ref <- fromRow
     pure (NamedRef {reversedSegments, ref})
 
-toRowWithNamespace :: ToRow ref => NamedRef ref -> [SQLData]
+toRowWithNamespace :: (ToRow ref) => NamedRef ref -> [SQLData]
 toRowWithNamespace nr = toRow nr <> [SQLText namespace]
   where
     namespace = Text.intercalate "." . reverse . NEL.tail . reversedSegments $ nr
+
+-- | The new 'scoped' name lookup format is different from the old version.
+--
+-- Specifically, the scoped format adds the 'lastNameSegment' as well as adding a trailing '.' to the db format
+-- of both the namespace and reversed_name.
+--
+-- Converts a NamedRef to SQLData of the form:
+-- [reversedName, namespace, lastNameSegment] <> ref fields...
+namedRefToScopedRow :: (ToRow ref) => NamedRef ref -> [SQLData]
+namedRefToScopedRow (NamedRef {reversedSegments = revSegments, ref}) =
+  toRow $ (SQLText reversedName, SQLText namespace, SQLText lastNameSegment) :. ref
+  where
+    reversedName = (Text.intercalate "." . toList $ revSegments) <> "."
+    namespace = (Text.intercalate "." . reverse . NEL.tail $ revSegments) <> "."
+    lastNameSegment = NEL.head revSegments

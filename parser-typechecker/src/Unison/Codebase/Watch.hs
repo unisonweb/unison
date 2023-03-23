@@ -35,11 +35,11 @@ import UnliftIO.MVar
   )
 import UnliftIO.STM (atomically)
 
-untilJust :: Monad m => m (Maybe a) -> m a
+untilJust :: (Monad m) => m (Maybe a) -> m a
 untilJust act = act >>= maybe (untilJust act) return
 
 watchDirectory' ::
-  forall m. MonadIO m => FilePath -> m (IO (), IO (FilePath, UTCTime))
+  forall m. (MonadIO m) => FilePath -> m (IO (), IO (FilePath, UTCTime))
 watchDirectory' d = do
   mvar <- newEmptyMVar
   let handler :: Event -> IO ()
@@ -85,7 +85,7 @@ collectUntilPause queue minPauseµsec = do
 
 watchDirectory ::
   forall m.
-  MonadIO m =>
+  (MonadIO m) =>
   FilePath ->
   (FilePath -> Bool) ->
   m (IO (), IO (FilePath, Text))
@@ -126,7 +126,8 @@ watchDirectory dir allow = do
     forever $ do
       event@(file, _) <- watcher
       when (allow file) $
-        STM.atomically $ TQueue.enqueue queue event
+        STM.atomically $
+          TQueue.enqueue queue event
   pending <- newIORef []
   let await :: IO (FilePath, Text)
       await =

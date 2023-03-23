@@ -1,6 +1,3 @@
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Editor.RemoteRepo where
@@ -26,6 +23,9 @@ data ShareCodeserver
   | CustomCodeserver CodeserverURI
   deriving stock (Eq, Ord, Show)
 
+newtype ShareUserHandle = ShareUserHandle {shareUserHandleToText :: Text}
+  deriving stock (Eq, Ord, Show)
+
 -- |
 -- >>> :set -XOverloadedLists
 -- >>> import Data.Maybe (fromJust)
@@ -36,12 +36,12 @@ data ShareCodeserver
 -- "share"
 -- >>> displayShareCodeserver (CustomCodeserver . fromJust $ parseURI "https://share-next.unison-lang.org/api" >>= codeserverFromURI ) "unison" ["base", "List"]
 -- "share(https://share-next.unison-lang.org:443/api).unison.base.List"
-displayShareCodeserver :: ShareCodeserver -> Text -> Path -> Text
-displayShareCodeserver cs repo path =
+displayShareCodeserver :: ShareCodeserver -> ShareUserHandle -> Path -> Text
+displayShareCodeserver cs shareUser path =
   let shareServer = case cs of
         DefaultCodeserver -> ""
         CustomCodeserver cu -> "share(" <> tShow cu <> ")."
-   in shareServer <> repo <> maybePrintPath path
+   in shareServer <> shareUserHandleToText shareUser <> maybePrintPath path
 
 data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}
   deriving stock (Eq, Ord, Show)
@@ -117,7 +117,7 @@ data ReadGitRemoteNamespace = ReadGitRemoteNamespace
 
 data ReadShareRemoteNamespace = ReadShareRemoteNamespace
   { server :: ShareCodeserver,
-    repo :: Text,
+    repo :: ShareUserHandle,
     -- sch :: Maybe ShortCausalHash, -- maybe later
     path :: Path
   }
@@ -153,7 +153,7 @@ data WriteGitRemotePath = WriteGitRemotePath
 
 data WriteShareRemotePath = WriteShareRemotePath
   { server :: ShareCodeserver,
-    repo :: Text,
+    repo :: ShareUserHandle,
     path :: Path
   }
   deriving stock (Eq, Show)

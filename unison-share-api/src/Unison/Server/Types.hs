@@ -1,10 +1,5 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 module Unison.Server.Types where
 
@@ -295,7 +290,7 @@ deriving instance ToSchema TypeTag
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.Lazy.fromStrict
 
-mungeShow :: Show s => s -> LZ.ByteString
+mungeShow :: (Show s) => s -> LZ.ByteString
 mungeShow = mungeString . show
 
 mungeString :: String -> LZ.ByteString
@@ -304,7 +299,7 @@ mungeString = Text.encodeUtf8 . Text.Lazy.pack
 defaultWidth :: Width
 defaultWidth = 80
 
-discard :: Applicative m => a -> m ()
+discard :: (Applicative m) => a -> m ()
 discard = const $ pure ()
 
 mayDefaultWidth :: Maybe Width -> Width
@@ -315,8 +310,8 @@ setCacheControl = addHeader @"Cache-Control" "public"
 
 branchToUnisonHash :: Branch.Branch m -> UnisonHash
 branchToUnisonHash b =
-  ("#" <>) . Hash.base32Hex . unCausalHash $ Branch.headHash b
+  ("#" <>) . Hash.toBase32HexText . unCausalHash $ Branch.headHash b
 
 v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
 v2CausalBranchToUnisonHash b =
-  ("#" <>) . Hash.base32Hex . unCausalHash $ V2Causal.causalHash b
+  ("#" <>) . Hash.toBase32HexText . unCausalHash $ V2Causal.causalHash b

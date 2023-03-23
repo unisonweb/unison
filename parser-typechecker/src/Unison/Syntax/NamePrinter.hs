@@ -18,7 +18,7 @@ import qualified Unison.Util.SyntaxText as S
 
 type SyntaxText = S.SyntaxText' Reference
 
-prettyName :: IsString s => Name -> Pretty s
+prettyName :: (IsString s) => Name -> Pretty s
 prettyName = PP.text . Name.toText
 
 prettyHashQualified :: HQ.HashQualified Name -> Pretty SyntaxText
@@ -27,7 +27,7 @@ prettyHashQualified hq = styleHashQualified' id (fmt $ S.HashQualifier hq) hq
 prettyHashQualified' :: HQ'.HashQualified Name -> Pretty SyntaxText
 prettyHashQualified' = prettyHashQualified . HQ'.toHQ
 
-prettyHashQualified0 :: IsString s => HQ.HashQualified Name -> Pretty s
+prettyHashQualified0 :: (IsString s) => HQ.HashQualified Name -> Pretty s
 prettyHashQualified0 = PP.text . HQ.toText
 
 -- | Pretty-print a reference as a name and the given number of characters of
@@ -55,15 +55,15 @@ prettyReferent len =
 prettyLabeledDependency :: Int -> LabeledDependency -> Pretty SyntaxText
 prettyLabeledDependency len = LD.fold (prettyReference len) (prettyReferent len)
 
-prettyShortHash :: IsString s => ShortHash -> Pretty s
+prettyShortHash :: (IsString s) => ShortHash -> Pretty s
 prettyShortHash = fromString . SH.toString
 
 styleHashQualified ::
-  IsString s => (Pretty s -> Pretty s) -> HQ.HashQualified Name -> Pretty s
+  (IsString s) => (Pretty s -> Pretty s) -> HQ.HashQualified Name -> Pretty s
 styleHashQualified style hq = styleHashQualified' style id hq
 
 styleHashQualified' ::
-  IsString s =>
+  (IsString s) =>
   (Pretty s -> Pretty s) ->
   (Pretty s -> Pretty s) ->
   HQ.HashQualified Name ->

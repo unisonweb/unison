@@ -6,6 +6,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import qualified Unison.Blank as B
 import Unison.ConstructorReference (ConstructorReference)
+import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -36,13 +37,13 @@ extract = runReader . runMaybeT
 subseqExtractor :: (C.ErrorNote v loc -> [Ranged a]) -> SubseqExtractor v loc a
 subseqExtractor f = SubseqExtractor' f
 
-traceSubseq :: Show a => String -> SubseqExtractor' n a -> SubseqExtractor' n a
+traceSubseq :: (Show a) => String -> SubseqExtractor' n a -> SubseqExtractor' n a
 traceSubseq s ex = SubseqExtractor' $ \n ->
   let rs = runSubseq ex n
    in trace (if null s then show rs else s ++ ": " ++ show rs) rs
 
 traceNote ::
-  Show a => String -> ErrorExtractor v loc a -> ErrorExtractor v loc a
+  (Show a) => String -> ErrorExtractor v loc a -> ErrorExtractor v loc a
 traceNote s ex = extractor $ \n ->
   let result = extract ex n
    in trace (if null s then show result else s ++ ": " ++ show result) result
@@ -242,6 +243,18 @@ duplicateDefinitions =
     C.DuplicateDefinitions vs -> pure vs
     _ -> mzero
 
+uncoveredPatterns :: ErrorExtractor v loc (loc, NonEmpty (Pattern ()))
+uncoveredPatterns =
+  cause >>= \case
+    C.UncoveredPatterns matchLoc xs -> pure (matchLoc, xs)
+    _ -> empty
+
+redundantPattern :: ErrorExtractor v loc loc
+redundantPattern =
+  cause >>= \case
+    C.RedundantPattern patternLoc -> pure patternLoc
+    _ -> empty
+
 typeMismatch :: ErrorExtractor v loc (C.Context v loc)
 typeMismatch =
   cause >>= \case
@@ -260,7 +273,7 @@ unknownSymbol =
     C.UnknownSymbol loc v -> pure (loc, v)
     _ -> mzero
 
-unknownTerm :: Var v => ErrorExtractor v loc (loc, v, [C.Suggestion v loc], C.Type v loc)
+unknownTerm :: (Var v) => ErrorExtractor v loc (loc, v, [C.Suggestion v loc], C.Type v loc)
 unknownTerm =
   cause >>= \case
     C.UnknownTerm loc v suggestions expectedType -> do

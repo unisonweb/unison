@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -13,6 +13,7 @@ extra-source-files:
     sql/001-temp-entity-tables.sql
     sql/002-reflog-table.sql
     sql/003-namespace-statistics.sql
+    sql/004-fix-scoped-name-lookup-tables.sql
     sql/create.sql
 
 source-repository head
@@ -106,10 +107,11 @@ library
     , unison-codebase
     , unison-codebase-sync
     , unison-core
+    , unison-hash
+    , unison-hash-orphans-sqlite
     , unison-prelude
     , unison-sqlite
     , unison-util-base32hex
-    , unison-util-base32hex-orphans-sqlite
     , unison-util-cache
     , unison-util-serialization
     , unison-util-term

@@ -1,9 +1,9 @@
 module Unison.Hashing.V2.Tokenizable
   ( Tokenizable (..),
-    Accumulate (..),
     Hashable1 (..),
     Token (..),
     hashTokenizable,
+    accumulate,
     accumulateToken,
   )
 where
@@ -15,8 +15,8 @@ import Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString, word64BE)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import U.Util.Hash (Hash)
-import qualified U.Util.Hash as Hash
+import Unison.Hash (Hash)
+import qualified Unison.Hash as Hash
 import Unison.Prelude
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as Relation
@@ -34,28 +34,23 @@ import qualified Unison.Util.Relation4 as Relation4
 -- simple types (like an Int for example) to keep the same hashes, which would lead to
 -- collisions in the `hash` table, since each hash has a different hash version but the same
 -- base32 representation.
-hashingVersion :: Token h
+hashingVersion :: Token
 hashingVersion = Tag 2
 
-data Token h
+data Token
   = Tag !Word8
   | Bytes !ByteString
   | Int !Int64
   | Text !Text
   | Double !Double
-  | Hashed !h
+  | Hashed !Hash
   | Nat !Word64
 
-class Accumulate h where
-  accumulate :: [Token h] -> h
-  fromBytes :: ByteString -> h
-  toBytes :: h -> ByteString
-
-accumulateToken :: (Accumulate h, Tokenizable t) => t -> Token h
+accumulateToken :: (Tokenizable t) => t -> Token
 accumulateToken = Hashed . hashTokenizable
 
 -- | Tokenize then accumulate a type into a Hash.
-hashTokenizable :: (Tokenizable t, Accumulate h) => t -> h
+hashTokenizable :: (Tokenizable t) => t -> Hash
 hashTokenizable = accumulate . tokens
 
 -- | Tokenizable converts a value into a set of hashing tokens which will later be accumulated
@@ -74,9 +69,9 @@ hashTokenizable = accumulate . tokens
 --   hash (TaggedBranch _ b) = hash b
 -- @@
 class Tokenizable t where
-  tokens :: Accumulate h => t -> [Token h]
+  tokens :: t -> [Token]
 
-instance Tokenizable a => Tokenizable [a] where
+instance (Tokenizable a) => Tokenizable [a] where
   tokens = map accumulateToken
 
 instance (Tokenizable a, Tokenizable b) => Tokenizable (a, b) where
@@ -124,27 +119,22 @@ instance Tokenizable Bool where
 instance Tokenizable Hash where
   tokens h = [Bytes (Hash.toByteString h)]
 
--- | A class for all types which can accumulate tokens into a hash.
--- If you want to provide an instance for hashing a Unison value, see 'Tokenizable'
--- and 'Hashable' instead.
-instance Accumulate Hash where
-  accumulate = fromBytes . BA.convert . CH.hashFinalize . go CH.hashInit
-    where
-      go :: CH.Context CH.SHA3_512 -> [Token Hash] -> CH.Context CH.SHA3_512
-      go acc tokens = CH.hashUpdates acc (hashingVersion : tokens >>= toBS)
-      toBS (Tag b) = [B.singleton b]
-      toBS (Bytes bs) = [encodeLength $ B.length bs, bs]
-      toBS (Int i) = [BL.toStrict . toLazyByteString . int64BE $ i]
-      toBS (Nat i) = [BL.toStrict . toLazyByteString . word64BE $ i]
-      toBS (Double d) = [BL.toStrict . toLazyByteString . doubleBE $ d]
-      toBS (Text txt) =
-        let tbytes = encodeUtf8 txt
-         in [encodeLength (B.length tbytes), tbytes]
-      toBS (Hashed h) = [Hash.toByteString h]
-      encodeLength :: Integral n => n -> B.ByteString
-      encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral
-  fromBytes = Hash.fromByteString
-  toBytes = Hash.toByteString
+accumulate :: [Token] -> Hash
+accumulate = Hash.fromByteString . BA.convert . CH.hashFinalize . go CH.hashInit
+  where
+    go :: CH.Context CH.SHA3_512 -> [Token] -> CH.Context CH.SHA3_512
+    go acc tokens = CH.hashUpdates acc (hashingVersion : tokens >>= toBS)
+    toBS (Tag b) = [B.singleton b]
+    toBS (Bytes bs) = [encodeLength $ B.length bs, bs]
+    toBS (Int i) = [BL.toStrict . toLazyByteString . int64BE $ i]
+    toBS (Nat i) = [BL.toStrict . toLazyByteString . word64BE $ i]
+    toBS (Double d) = [BL.toStrict . toLazyByteString . doubleBE $ d]
+    toBS (Text txt) =
+      let tbytes = encodeUtf8 txt
+       in [encodeLength (B.length tbytes), tbytes]
+    toBS (Hashed h) = [Hash.toByteString h]
+    encodeLength :: (Integral n) => n -> B.ByteString
+    encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral
 
 class Hashable1 f where
   -- | Produce a hash for an `f a`, given a hashing function for `a`.
@@ -173,4 +163,4 @@ class Hashable1 f where
   --     hash1 hashUnordered _ (U unordered uno dos) =
   --       let (hs, hash) = hashUnordered unordered
   --       in accumulate $ map Hashed hs ++ [Hashed (hash uno), Hashed (hash dos)]
-  hash1 :: (Ord h, Accumulate h) => ([a] -> ([h], a -> h)) -> (a -> h) -> f a -> h
+  hash1 :: ([a] -> ([Hash], a -> Hash)) -> (a -> Hash) -> f a -> Hash

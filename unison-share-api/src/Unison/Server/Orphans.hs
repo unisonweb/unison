@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Orphans where
@@ -16,8 +15,6 @@ import qualified Data.Text as Text
 import Servant
 import Servant.Docs (DocCapture (DocCapture), DocQueryParam (..), ParamKind (..), ToCapture (..), ToParam (..))
 import U.Codebase.HashTags
-import U.Util.Hash (Hash (..))
-import qualified U.Util.Hash as Hash
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
@@ -26,6 +23,8 @@ import Unison.Codebase.ShortCausalHash
   )
 import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.ConstructorType (ConstructorType)
+import Unison.Hash (Hash (..))
+import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
@@ -354,6 +353,6 @@ instance ToHttpApiData Name where
 
 deriving newtype instance ToSchema NameSegment
 
-deriving anyclass instance ToSchema n => ToSchema (HQ.HashQualified n)
+deriving anyclass instance (ToSchema n) => ToSchema (HQ.HashQualified n)
 
-deriving anyclass instance ToSchema n => ToSchema (HQ'.HashQualified n)
+deriving anyclass instance (ToSchema n) => ToSchema (HQ'.HashQualified n)

@@ -29,6 +29,7 @@ module Unison.Names
     prefix0,
     restrictReferences,
     refTermsNamed,
+    refTermsHQNamed,
     termReferences,
     termReferents,
     typeReferences,
@@ -71,6 +72,7 @@ import qualified Unison.ShortHash as SH
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation as Relation
+import qualified Unison.Util.Set as Set (mapMaybe)
 import Prelude hiding (filter, map)
 import qualified Prelude
 
@@ -249,9 +251,23 @@ numHashChars = 3
 termsNamed :: Names -> Name -> Set Referent
 termsNamed = flip R.lookupDom . terms
 
+-- | Get all terms with a specific name.
 refTermsNamed :: Names -> Name -> Set TermReference
 refTermsNamed names n =
-  Set.fromList [r | Referent.Ref r <- toList $ termsNamed names n]
+  Set.mapMaybe Referent.toTermReference (termsNamed names n)
+
+-- | Get all terms with a specific hash-qualified name.
+refTermsHQNamed :: Names -> HQ.HashQualified Name -> Set TermReference
+refTermsHQNamed names = \case
+  HQ.NameOnly name -> refTermsNamed names name
+  HQ.HashOnly _hash -> Set.empty
+  HQ.HashQualified name hash ->
+    let f :: Referent -> Maybe TermReference
+        f ref0 = do
+          ref <- Referent.toTermReference ref0
+          guard (Reference.isPrefixOf hash ref)
+          Just ref
+     in Set.mapMaybe f (termsNamed names name)
 
 typesNamed :: Names -> Name -> Set TypeReference
 typesNamed = flip R.lookupDom . types
@@ -479,7 +495,7 @@ hashQualifyTermsRelation = hashQualifyRelation HQ.fromNamedReferent
 hashQualifyTypesRelation :: R.Relation Name TypeReference -> R.Relation (HQ.HashQualified Name) TypeReference
 hashQualifyTypesRelation = hashQualifyRelation HQ.fromNamedReference
 
-hashQualifyRelation :: Ord r => (Name -> r -> HQ.HashQualified Name) -> R.Relation Name r -> R.Relation (HQ.HashQualified Name) r
+hashQualifyRelation :: (Ord r) => (Name -> r -> HQ.HashQualified Name) -> R.Relation Name r -> R.Relation (HQ.HashQualified Name) r
 hashQualifyRelation fromNamedRef rel = R.map go rel
   where
     go (n, r) =

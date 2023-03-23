@@ -1,35 +1,15 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE UnicodeSyntax #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module U.Codebase.Term where
 
 import qualified Control.Monad.Writer as Writer
 import qualified Data.Foldable as Foldable
-import Data.Int (Int64)
-import Data.Sequence (Seq)
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Text (Text)
-import Data.Word (Word64)
-import GHC.Generics (Generic, Generic1)
 import U.Codebase.Reference (Reference, Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Type (TypeR)
 import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
-import U.Util.Hash (Hash)
+import Unison.Hash (Hash)
+import Unison.Prelude
 
 type ConstructorId = Word64
 

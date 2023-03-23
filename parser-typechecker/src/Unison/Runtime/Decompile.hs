@@ -61,14 +61,14 @@ import qualified Unison.Util.Text as Text
 import Unison.Var (Var)
 import Unsafe.Coerce -- for Int -> Double
 
-con :: Var v => Reference -> Word64 -> Term v ()
+con :: (Var v) => Reference -> Word64 -> Term v ()
 con rf ct = constructor () (ConstructorReference rf $ fromIntegral ct)
 
 err :: String -> Either Error a
 err = Left . lit . fromString
 
 decompile ::
-  Var v =>
+  (Var v) =>
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Closure ->
   Either Error (Term v ())
@@ -105,7 +105,7 @@ tag2bool 0 = Right False
 tag2bool 1 = Right True
 tag2bool _ = err "bad boolean tag"
 
-substitute :: Var v => Term v () -> [Term v ()] -> Term v ()
+substitute :: (Var v) => Term v () -> [Term v ()] -> Term v ()
 substitute = align []
   where
     align vts (LamNamed' v bd) (t : ts) = align ((v, t) : vts) bd ts
@@ -114,7 +114,7 @@ substitute = align []
     align vts tm ts = apps' (substs vts tm) ts
 
 decompileUnboxed ::
-  Var v => Reference -> Word64 -> Int -> Either Error (Term v ())
+  (Var v) => Reference -> Word64 -> Int -> Either Error (Term v ())
 decompileUnboxed r _ i
   | r == natRef = pure . nat () $ fromIntegral i
   | r == intRef = pure . int () $ fromIntegral i
@@ -124,7 +124,7 @@ decompileUnboxed r _ _ =
   err $ "cannot decompile unboxed data type with reference: " ++ show r
 
 decompileForeign ::
-  Var v =>
+  (Var v) =>
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Foreign ->
   Either Error (Term v ())
@@ -141,14 +141,14 @@ decompileForeign topTerms f
 decompileForeign _ f =
   err $ "cannot decompile Foreign: " ++ show f
 
-decompileBytes :: Var v => By.Bytes -> Term v ()
+decompileBytes :: (Var v) => By.Bytes -> Term v ()
 decompileBytes =
   app () (builtin () $ fromString "Bytes.fromList")
     . list ()
     . fmap (nat () . fromIntegral)
     . By.toWord8s
 
-decompileHashAlgorithm :: Var v => HashAlgorithm -> Term v ()
+decompileHashAlgorithm :: (Var v) => HashAlgorithm -> Term v ()
 decompileHashAlgorithm (HashAlgorithm r _) = ref () r
 
 unwrapSeq :: Foreign -> Maybe (Seq Closure)

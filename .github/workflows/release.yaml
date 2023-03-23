@@ -104,7 +104,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-linux-x86_64.tar.gz | tar -xz
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-linux-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: build
@@ -176,7 +176,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-osx-x86_64.tar.gz | tar -xz
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-osx-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: remove ~/.stack/setup-exe-cache on macOS
@@ -252,7 +252,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-windows-x86_64.tar.gz | tar -xz
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-windows-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: build
@@ -277,7 +277,7 @@ jobs:
         run: |
           mkdir -p tmp\ui
           mkdir -p release\ui
-          $UCM = .\stack\stack-2.7.5-windows-x86_64\stack.exe exec -- where unison
+          $UCM = .\stack\stack-2.9.1-windows-x86_64\stack.exe exec -- where unison
           cp $UCM .\release\ucm.exe
           Invoke-WebRequest -Uri https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
           Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui

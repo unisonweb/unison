@@ -17,6 +17,10 @@ source-repository head
   type: git
   location: https://github.com/unisonweb/unison
 
+flag arraychecks
+  manual: True
+  default: False
+
 flag optimized
   manual: True
   default: True
@@ -78,6 +82,8 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema8To9
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
@@ -92,6 +98,20 @@ library
       Unison.FileParsers
       Unison.Hashing.V2.Convert
       Unison.Parsers
+      Unison.PatternMatchCoverage
+      Unison.PatternMatchCoverage.Class
+      Unison.PatternMatchCoverage.Constraint
+      Unison.PatternMatchCoverage.Desugar
+      Unison.PatternMatchCoverage.Fix
+      Unison.PatternMatchCoverage.GrdTree
+      Unison.PatternMatchCoverage.IntervalSet
+      Unison.PatternMatchCoverage.ListPat
+      Unison.PatternMatchCoverage.Literal
+      Unison.PatternMatchCoverage.NormalizedConstraints
+      Unison.PatternMatchCoverage.PmGrd
+      Unison.PatternMatchCoverage.PmLit
+      Unison.PatternMatchCoverage.Solve
+      Unison.PatternMatchCoverage.UFMap
       Unison.PrettyPrintEnv
       Unison.PrettyPrintEnv.FQN
       Unison.PrettyPrintEnv.MonadPretty
@@ -103,6 +123,7 @@ library
       Unison.Result
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Serialize
+      Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
@@ -147,6 +168,7 @@ library
       Unison.Util.Logger
       Unison.Util.PinBoard
       Unison.Util.Pretty.MegaParsec
+      Unison.Util.RefPromise
       Unison.Util.Star3
       Unison.Util.Text
       Unison.Util.Text.Pattern
@@ -188,6 +210,7 @@ library
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring
@@ -232,6 +255,7 @@ library
     , mmorph
     , monad-validate
     , mtl
+    , murmur-hash
     , mutable-containers
     , mwc-random
     , natural-transformation
@@ -277,6 +301,7 @@ library
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-hashing-v2
     , unison-prelude
     , unison-pretty-printer
@@ -302,6 +327,8 @@ library
   default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
 
 test-suite parser-typechecker-tests
   type: exitcode-stdio-1.0
@@ -370,6 +397,7 @@ test-suite parser-typechecker-tests
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring
@@ -417,6 +445,7 @@ test-suite parser-typechecker-tests
     , mmorph
     , monad-validate
     , mtl
+    , murmur-hash
     , mutable-containers
     , mwc-random
     , natural-transformation
@@ -463,6 +492,7 @@ test-suite parser-typechecker-tests
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
@@ -489,3 +519,5 @@ test-suite parser-typechecker-tests
   default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK

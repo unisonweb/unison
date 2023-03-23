@@ -12,6 +12,8 @@
 module Unison.ABT.Normalized
   ( ABT (..),
     Term (.., TAbs, TTm, TAbss),
+    Align (..),
+    alpha,
     renames,
     rename,
     transform,
@@ -20,6 +22,7 @@ where
 
 import Data.Bifoldable
 import Data.Bifunctor
+import Data.Foldable (toList)
 -- import Data.Bitraversable
 
 import Data.Map.Strict (Map)
@@ -41,24 +44,41 @@ data Term f v = Term
   }
 
 instance
-  (forall a b. Show a => Show b => Show (f a b), Show v) =>
+  (forall a b. (Show a) => (Show b) => Show (f a b), Show v) =>
   Show (ABT f v)
   where
   showsPrec p a = showParen (p >= 9) $ case a of
     Abs v tm ->
-      showString "Abs " . showsPrec 10 v
+      showString "Abs "
+        . showsPrec 10 v
         . showString " "
         . showsPrec 10 tm
     Tm e -> showString "Tm " . showsPrec 10 e
 
 instance
-  (forall a b. Show a => Show b => Show (f a b), Show v) =>
+  (forall a b. (Show a) => (Show b) => Show (f a b), Show v) =>
   Show (Term f v)
   where
   showsPrec p (Term _ e) =
     showParen (p >= 9) $ showString "Term " . showsPrec 10 e
 
-pattern TAbs :: Var v => v -> Term f v -> Term f v
+instance
+  (forall a b. (Eq a) => (Eq b) => Eq (f a b), Bifunctor f, Bifoldable f, Var v) =>
+  Eq (ABT f v)
+  where
+  Abs v1 e1 == Abs v2 e2
+    | v1 == v2 = e1 == e2
+    | otherwise = e1 == rename v2 v1 e2
+  Tm e1 == Tm e2 = e1 == e2
+  _ == _ = False
+
+instance
+  (forall a b. (Eq a) => (Eq b) => Eq (f a b), Bifunctor f, Bifoldable f, Var v) =>
+  Eq (Term f v)
+  where
+  Term _ abt1 == Term _ abt2 = abt1 == abt2
+
+pattern TAbs :: (Var v) => v -> Term f v -> Term f v
 pattern TAbs u bd <-
   Term _ (Abs u bd)
   where
@@ -72,11 +92,40 @@ pattern TTm bd <-
 
 {-# COMPLETE TAbs, TTm #-}
 
-unabss :: Var v => Term f v -> ([v], Term f v)
+class (Bifoldable f, Bifunctor f) => Align f where
+  align ::
+    (Applicative g) =>
+    (vl -> vr -> g vs) ->
+    (el -> er -> g es) ->
+    f vl el ->
+    f vr er ->
+    Maybe (g (f vs es))
+
+alphaErr ::
+  (Align f) => (Var v) => Map v v -> Term f v -> Term f v -> Either (Term f v, Term f v) a
+alphaErr un tml tmr = Left (tml, renames count un tmr)
+  where
+    count = Map.fromListWith (+) . flip zip [1, 1 ..] $ toList un
+
+-- Checks if two terms are equal up to a given variable renaming. The
+-- renaming should map variables in the right hand term to the
+-- equivalent variable in the left hand term.
+alpha :: (Align f) => (Var v) => Map v v -> Term f v -> Term f v -> Either (Term f v, Term f v) ()
+alpha un (TAbs u tml) (TAbs v tmr) =
+  alpha (Map.insert v u (Map.filter (/= u) un)) tml tmr
+alpha un tml@(TTm bdl) tmr@(TTm bdr)
+  | Just sub <- align av (alpha un) bdl bdr = () <$ sub
+  where
+    av u v
+      | maybe False (== u) (Map.lookup v un) = pure ()
+      | otherwise = alphaErr un tml tmr
+alpha un tml tmr = alphaErr un tml tmr
+
+unabss :: (Var v) => Term f v -> ([v], Term f v)
 unabss (TAbs v (unabss -> (vs, bd))) = (v : vs, bd)
 unabss bd = ([], bd)
 
-pattern TAbss :: Var v => [v] -> Term f v -> Term f v
+pattern TAbss :: (Var v) => [v] -> Term f v -> Term f v
 pattern TAbss vs bd <-
   (unabss -> (vs, bd))
   where

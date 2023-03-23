@@ -50,7 +50,7 @@ data Dependencies' = Dependencies'
 to' :: Dependencies -> Dependencies'
 to' Dependencies {..} = Dependencies' (toList patches) (toList terms) (toList decls)
 
-fromBranch :: Applicative m => Branch m -> (Branches m, Dependencies)
+fromBranch :: (Applicative m) => Branch m -> (Branches m, Dependencies)
 fromBranch (Branch c) = case c of
   Causal.One _hh _eh e -> fromBranch0 e
   Causal.Cons _hh _eh e (h, m) -> fromBranch0 e <> fromTails (Map.singleton h m)
@@ -58,7 +58,7 @@ fromBranch (Branch c) = case c of
   where
     fromTails m = ([(h, Branch <$> mc) | (h, mc) <- Map.toList m], mempty)
 
-fromBranch0 :: Applicative m => Branch0 m -> (Branches m, Dependencies)
+fromBranch0 :: (Applicative m) => Branch0 m -> (Branches m, Dependencies)
 fromBranch0 b =
   ( fromChildren (Branch._children b),
     fromTermsStar (Branch._terms b)
@@ -66,7 +66,7 @@ fromBranch0 b =
       <> fromEdits (Branch._edits b)
   )
   where
-    fromChildren :: Applicative m => Map NameSegment (Branch m) -> Branches m
+    fromChildren :: (Applicative m) => Map NameSegment (Branch m) -> Branches m
     fromChildren m = [(Branch.headHash b, pure b) | b <- toList m]
     references :: Branch.Star r NameSegment -> [r]
     references = toList . R.dom . Star3.d1

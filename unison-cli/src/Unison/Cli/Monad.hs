@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DefaultSignatures #-}
 
 -- | The main CLI monad.
 module Unison.Cli.Monad
@@ -193,7 +192,7 @@ data LoopState = LoopState
 
 instance
   {-# OVERLAPS #-}
-  Functor f =>
+  (Functor f) =>
   IsLabel "currentPath" ((Path.Absolute -> f Path.Absolute) -> (LoopState -> f LoopState))
   where
   fromLabel :: (Path.Absolute -> f Path.Absolute) -> (LoopState -> f LoopState)

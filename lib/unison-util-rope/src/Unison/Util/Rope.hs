@@ -40,7 +40,7 @@ data Rope a
 chunks :: Rope a -> [a]
 chunks = toList
 
-singleton, one :: Sized a => a -> Rope a
+singleton, one :: (Sized a) => a -> Rope a
 one a | size a == 0 = Empty
 one a = One a
 singleton = one
@@ -49,7 +49,7 @@ singleton = one
 -- be used unless the function is "roughly" size-preserving.
 -- So converting from text to utf-8 encoded text chunks is okay,
 -- wherease filtering out 95% of the chunks will lead to a size-unbalanced tree
-map :: Sized b => (a -> b) -> Rope a -> Rope b
+map :: (Sized b) => (a -> b) -> Rope a -> Rope b
 map f = \case
   Empty -> Empty
   One a -> one (f a)
@@ -73,16 +73,16 @@ class Index a elem where unsafeIndex :: Int -> a -> elem
 
 class Reverse a where reverse :: a -> a
 
-instance Sized a => Sized (Rope a) where
+instance (Sized a) => Sized (Rope a) where
   size = \case
     Empty -> 0
     One a -> size a
     Two n _ _ -> n
 
-null :: Sized a => Rope a -> Bool
+null :: (Sized a) => Rope a -> Bool
 null r = size r == 0
 
-flatten :: Monoid a => Rope a -> a
+flatten :: (Monoid a) => Rope a -> a
 flatten = mconcat . toList
 
 instance (Sized a, Semigroup a) => Semigroup (Rope a) where
@@ -100,7 +100,7 @@ instance (Sized a, Semigroup a) => Monoid (Rope a) where
   mempty = Empty
 
 -- size-balanced append, leaving the left tree as is
-appendL :: Sized a => Int -> Rope a -> Rope a -> Rope a
+appendL :: (Sized a) => Int -> Rope a -> Rope a -> Rope a
 appendL 0 _ a = a
 appendL _ l Empty = l
 appendL szl l r@(One a) = Two (szl + size a) l r
@@ -109,7 +109,7 @@ appendL szl l r@(Two szr r1 r2)
   | otherwise = Two (szl + szr) (appendL szl l r1) r2
 
 -- size-balanced append, leaving the right tree as is
-appendR :: Sized a => Rope a -> Int -> Rope a -> Rope a
+appendR :: (Sized a) => Rope a -> Int -> Rope a -> Rope a
 appendR a 0 _ = a
 appendR Empty _ r = r
 appendR l@(One a) szr r = Two (size a + szr) l r
@@ -151,13 +151,13 @@ snoc' as szN aN = go as
         | szN >= sz -> Two (sz + szN) as (One aN)
         | otherwise -> appendL (size l) l (go r)
 
-instance Reverse a => Reverse (Rope a) where
+instance (Reverse a) => Reverse (Rope a) where
   reverse = \case
     One a -> One (reverse a)
     Two sz l r -> Two sz (reverse r) (reverse l)
     Empty -> Empty
 
-two :: Sized a => Rope a -> Rope a -> Rope a
+two :: (Sized a) => Rope a -> Rope a -> Rope a
 two r1 r2 = Two (size r1 + size r2) r1 r2
 
 -- Cutoff for when `snoc` or `cons` will create a new subtree
@@ -204,7 +204,7 @@ instance (Sized a, Semigroup a, Drop a) => Drop (Rope a) where
       | otherwise -> two (drop n l) r -- don't rebalance
     Empty -> Empty
 
-uncons :: Sized a => Rope a -> Maybe (a, Rope a)
+uncons :: (Sized a) => Rope a -> Maybe (a, Rope a)
 uncons = \case
   Empty -> Nothing
   One a -> Just (a, Empty)
@@ -212,7 +212,7 @@ uncons = \case
     Nothing -> uncons r
     Just (hd, tl) -> Just (hd, two tl r)
 
-unsnoc :: Sized a => Rope a -> Maybe (Rope a, a)
+unsnoc :: (Sized a) => Rope a -> Maybe (Rope a, a)
 unsnoc = \case
   Empty -> Nothing
   One a -> Just (Empty, a)
@@ -249,7 +249,7 @@ instance (Sized a, Take a, Drop a, Eq a) => Eq (Rope a) where
 instance (Sized a, Take a, Drop a, Ord a) => Ord (Rope a) where
   b1 `compare` b2 = uncurry compare (alignChunks (chunks b1) (chunks b2))
 
-instance NFData a => NFData (Rope a) where
+instance (NFData a) => NFData (Rope a) where
   rnf Empty = ()
   rnf (One a) = rnf a
   rnf (Two _ l r) = rnf l `seq` rnf r

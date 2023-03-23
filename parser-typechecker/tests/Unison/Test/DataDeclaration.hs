@@ -8,9 +8,9 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 import EasyTest
 import Text.RawString.QQ
-import qualified U.Util.Hash as Hash
 import Unison.DataDeclaration (DataDeclaration (..), Decl)
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Hash as Hash
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers (unsafeParseFile)

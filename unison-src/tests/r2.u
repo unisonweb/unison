@@ -3,4 +3,5 @@ r2 : Nat
 r2 = match Optional.Some true with
   Optional.Some true -> 1
   Optional.Some false -> 0
+  Optional.None -> bug "unexpected"
 

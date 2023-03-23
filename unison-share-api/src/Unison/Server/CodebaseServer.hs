@@ -277,7 +277,7 @@ startServer env opts rt codebase onStart = do
   token <- case token opts of
     Just t -> return $ C8.pack t
     _ -> genToken
-  let baseUrl = BaseUrl "http://127.0.0.1" token
+  let baseUrl = BaseUrl (fromMaybe "http://127.0.0.1" (host opts)) token
   let settings =
         defaultSettings
           & maybe id setPort (port opts)
@@ -347,7 +347,7 @@ serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
 serveOpenAPI :: Handler OpenApi
 serveOpenAPI = pure openAPI
 
-hoistWithAuth :: forall api. HasServer api '[] => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
+hoistWithAuth :: forall api. (HasServer api '[]) => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
 hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handler api (\h -> handleAuth expectedToken token *> h) server
 
 serveUnison ::

@@ -96,7 +96,6 @@ resolveNames ::
     (Term v, TDNRMap v, TL.TypeLookup v Ann)
 resolveNames typeLookupf preexistingNames uf = do
   let tm = UF.typecheckingTerm uf
-      deps = Term.dependencies tm
       possibleDeps =
         [ (Name.toText name, Var.name v, r)
           | (name, r) <- Rel.toList (Names.terms preexistingNames),
@@ -104,9 +103,7 @@ resolveNames typeLookupf preexistingNames uf = do
             name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v))
         ]
       possibleRefs = Referent.toReference . view _3 <$> possibleDeps
-  tl <-
-    lift . lift . fmap (UF.declsToTypeLookup uf <>) $
-      typeLookupf (deps <> Set.fromList possibleRefs)
+  tl <- lift . lift $ fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
   -- For populating the TDNR environment, we pick definitions
   -- from the namespace and from the local file whose full name
   -- has a suffix that equals one of the free variables in the file.

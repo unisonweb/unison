@@ -14,17 +14,18 @@ import qualified Data.List as List (sort)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Unison.ABT
-import Unison.Hashing.V2.Tokenizable (Accumulate, Hashable1, hash1)
+import Unison.Hash (Hash)
+import Unison.Hashing.V2.Tokenizable (Hashable1, hash1)
 import qualified Unison.Hashing.V2.Tokenizable as Hashable
 import Unison.Prelude
 import Prelude hiding (abs, cycle)
 
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
-  forall a f h v.
-  (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Ord v, Ord h, Accumulate h) =>
+  forall a f v.
+  (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Ord v) =>
   Map.Map v (Term f v a) ->
-  (h, [(v, Term f v a)])
+  (Hash, [(v, Term f v a)])
 hashComponent byName =
   let ts = Map.toList byName
       -- First, compute a canonical hash ordering of the component, as well as an environment in which we can hash
@@ -32,11 +33,11 @@ hashComponent byName =
       (hashes, env) = doHashCycle [] ts
       -- Construct a list of tokens that is shared by all members of the component. They are disambiguated only by their
       -- name that gets tumbled into the hash.
-      commonTokens :: [Hashable.Token h]
+      commonTokens :: [Hashable.Token]
       commonTokens = Hashable.Tag 1 : map Hashable.Hashed hashes
       -- Use a helper function that hashes a single term given its name, now that we have an environment in which we can
       -- look the name up, as well as the common tokens.
-      hashName :: v -> h
+      hashName :: v -> Hash
       hashName v = Hashable.accumulate (commonTokens ++ [Hashable.Hashed (hash' env (var v :: Term f v ()))])
       (hashes', permutedTerms) =
         ts
@@ -53,10 +54,10 @@ hashComponent byName =
 -- components (using the `termFromHash` function). Requires that the
 -- overall component has no free variables.
 hashComponents ::
-  (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v, Ord h, Accumulate h) =>
-  (h -> Word64 -> Term f v ()) ->
+  (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v) =>
+  (Hash -> Word64 -> Term f v ()) ->
   Map.Map v (Term f v a) ->
-  [(h, [(v, Term f v a)])]
+  [(Hash, [(v, Term f v a)])]
 hashComponents termFromHash termsByName =
   let bound = Set.fromList (Map.keys termsByName)
       escapedVars = Set.unions (freeVars <$> Map.elems termsByName) `Set.difference` bound
@@ -82,36 +83,37 @@ hashComponents termFromHash termsByName =
 -- | We ignore annotations in the `Term`, as these should never affect the
 -- meaning of the term.
 hash ::
-  forall f v a h.
-  (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h) =>
+  forall f v a.
+  (Functor f, Hashable1 f, Eq v, Show v) =>
   Term f v a ->
-  h
-hash = hash' [] where
+  Hash
+hash = hash' []
 
 hash' ::
-  forall f v a h.
-  (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h) =>
+  forall f v a.
+  (Functor f, Hashable1 f, Eq v, Show v) =>
   [Either [v] v] ->
   Term f v a ->
-  h
+  Hash
 hash' env = \case
   Var' v -> maybe die hashInt ind
     where
       lookup (Left cycle) = v `elem` cycle
       lookup (Right v') = v == v'
       ind = findIndex lookup env
-      hashInt :: Int -> h
+      hashInt :: Int -> Hash
       hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
       die =
         error $
-          "unknown var in environment: " ++ show v
+          "unknown var in environment: "
+            ++ show v
             ++ " environment = "
             ++ show env
   Cycle' vs t -> hash1 (hashCycle vs env) undefined t
   Abs'' v t -> hash' (Right v : env) t
   Tm' t -> hash1 (\ts -> (List.sort (map (hash' env) ts), hash' env)) (hash' env) t
   where
-    hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
+    hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> ([Hash], Term f v a -> Hash)
     hashCycle cycle env ts =
       let (ts', env') = doHashCycle env (zip cycle ts)
        in (ts', hash' env')
@@ -119,11 +121,11 @@ hash' env = \case
 -- | @doHashCycle env terms@ hashes cycle @terms@ in environment @env@, and returns the canonical ordering of the hashes
 -- of those terms, as well as an updated environment with each of the terms' bindings in the canonical ordering.
 doHashCycle ::
-  forall a f h v.
-  (Accumulate h, Eq v, Functor f, Hashable1 f, Ord h, Show v) =>
+  forall a f v.
+  (Eq v, Functor f, Hashable1 f, Show v) =>
   [Either [v] v] ->
   [(v, Term f v a)] ->
-  ([h], [Either [v] v])
+  ([Hash], [Either [v] v])
 doHashCycle env namedTerms =
   (map (hash' newEnv) permutedTerms, newEnv)
   where
@@ -132,7 +134,7 @@ doHashCycle env namedTerms =
     permutationEnv = Left names : env
     (permutedNames, permutedTerms) =
       namedTerms
-        & sortOn @h (hash' permutationEnv . snd)
+        & sortOn (hash' permutationEnv . snd)
         & unzip
     -- The new environment, which includes the names of all of the terms in the cycle, now that we have computed their
     -- canonical ordering
