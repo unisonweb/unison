@@ -43,6 +43,7 @@ import qualified Unison.CommandLine.Welcome as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
+import Unison.Runtime.IOSource (typecheckedFile)
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
@@ -116,10 +117,12 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
       -- Try putting the root, but if someone else as already written over the root, don't
       -- overwrite it.
       void $ tryPutTMVar rootVar root
-    -- Start forcing the thunk in a background thread.
+    -- Start forcing thunks in a background thread.
     -- This might be overly aggressive, maybe we should just evaluate the top level but avoid
     -- recursive "deep*" things.
-    void $ UnliftIO.evaluate root
+    UnliftIO.concurrently_
+      (UnliftIO.evaluate root)
+      (UnliftIO.evaluate typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
   let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
   Ki.fork_ scope $ do
     let loop lastRoot = do
