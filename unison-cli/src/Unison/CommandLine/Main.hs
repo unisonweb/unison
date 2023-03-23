@@ -43,7 +43,7 @@ import qualified Unison.CommandLine.Welcome as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
-import Unison.Runtime.IOSource (typecheckedFile)
+import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
@@ -122,7 +122,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
     -- recursive "deep*" things.
     UnliftIO.concurrently_
       (UnliftIO.evaluate root)
-      (UnliftIO.evaluate typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
+      (UnliftIO.evaluate IOSource.typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
   let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
   Ki.fork_ scope $ do
     let loop lastRoot = do
