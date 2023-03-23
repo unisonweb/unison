@@ -120,6 +120,7 @@ data FileAnalysis = FileAnalysis
     codeActions :: IntervalMap Position [CodeAction],
     fileSummary :: Maybe FileSummary
   }
+  deriving stock (Show)
 
 -- | A file that parses might not always type-check, but often we just want to get as much
 -- information as we have available. This provides a type where we can summarize the

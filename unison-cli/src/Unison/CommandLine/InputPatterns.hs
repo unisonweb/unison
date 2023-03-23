@@ -2422,6 +2422,7 @@ validInputs =
       api,
       ui,
       docs,
+      docToMarkdown,
       docsToHtml,
       findPatch,
       viewPatch,

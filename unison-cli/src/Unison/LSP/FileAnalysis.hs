@@ -11,7 +11,6 @@ import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import Debug.RecoverRTTI (anythingToString)
 import Language.LSP.Types
   ( Diagnostic,
     DiagnosticSeverity (DsError),
@@ -185,7 +184,7 @@ fileAnalysisWorker = forever do
     Map.fromList <$> forMaybe (toList dirtyFileIDs) \docUri -> runMaybeT do
       fileInfo <- MaybeT (checkFile $ TextDocumentIdentifier docUri)
       pure (docUri, fileInfo)
-  Debug.debugM Debug.LSP "Freshly Typechecked " (anythingToString (Map.toList freshlyCheckedFiles))
+  Debug.debugM Debug.LSP "Freshly Typechecked " (Map.toList freshlyCheckedFiles)
   -- Overwrite any files we successfully checked
   atomically $ modifyTVar' checkedFilesV (Map.union freshlyCheckedFiles)
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do

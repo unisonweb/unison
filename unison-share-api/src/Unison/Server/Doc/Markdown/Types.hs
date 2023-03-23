@@ -1,8 +1,10 @@
 module Unison.Server.Doc.Markdown.Types where
 
-import Control.Lens (ifoldMap)
+import Control.Lens (imap)
 import qualified Data.Char as Char
+import qualified Data.Char as Text
 import qualified Data.Text as Text
+import qualified Unison.Debug as Debug
 import Unison.Prelude
 
 -- | Custom type for converting Docs into Markdown.
@@ -12,79 +14,98 @@ data Markdown
   = -- | E.g. '---'
     ThematicBreak
   | Paragraph [Markdown]
-  | BlockQuote Markdown
+  | BlockQuote [Markdown]
   | -- lang, contents
     CodeBlock Text Text
-  | Heading Int Markdown
-  | OrderedList Int [Markdown]
-  | UnorderedList [Markdown]
+  | Heading Int [Markdown]
+  | OrderedList Int [[Markdown]]
+  | UnorderedList [[Markdown]]
   | Txt Text
   | Linebreak
   | InlineCode Text
-  | Italics Markdown
-  | Strong Markdown
-  | Strikethrough Markdown
+  | Italics [Markdown]
+  | Strong [Markdown]
+  | Strikethrough [Markdown]
   | -- label, uri
-    Link Markdown Text
+    Link [Markdown] Text
   | -- label, uri
-    Image Markdown Text
+    Image [Markdown] Text
   | -- Header, cells
-    Table (Maybe [Markdown]) [[Markdown]]
+    Table (Maybe [[Markdown]]) [[[Markdown]]]
   deriving (Show)
 
-instance Semigroup Markdown where
-  a <> b = case (a, b) of
-    (Paragraph xs, Paragraph ys) -> Paragraph (xs <> ys)
-    (Paragraph xs, y) -> Paragraph (xs <> [y])
-    (x, Paragraph ys) -> Paragraph (x : ys)
-    (x, y) -> Paragraph [x, y]
+-- instance Semigroup Markdown where
+--   a <> b = case (a, b) of
+--     (Paragraph xs, Paragraph ys) -> Paragraph (xs <> ys)
+--     (Paragraph xs, y) -> Paragraph (xs <> [y])
+--     (x, Paragraph ys) -> Paragraph (x : ys)
+--     (x, y) -> Paragraph [x, y]
 
-instance Monoid Markdown where
-  mempty = Paragraph []
+-- instance Monoid Markdown where
+--   mempty = Paragraph []
 
 -- TODO: HTML Escaping
-toLines :: Markdown -> [Text]
-toLines = \case
-  ThematicBreak -> ["---"]
-  Paragraph m ->
-    let go acc next = case (Text.unsnoc acc, Text.uncons next) of
-          (Nothing, _) -> next
-          (_, Nothing) -> acc
-          (Just (_, lastChar), Just (firstChar, _))
-            | Char.isSpace lastChar || Char.isSpace firstChar -> acc <> next
-            | otherwise -> Text.unwords [acc, next]
-     in [foldl' go mempty (foldMap toLines m)]
-  BlockQuote m -> ("> " <>) <$> toLines m
-  CodeBlock lang contents ->
-    [ "```" <> lang
-    ]
-      <> Text.lines contents
-      <> ["```"]
-  Heading n contents ->
-    case toLines contents of
-      [] -> [Text.replicate n "#"]
-      (x : xs) -> (Text.replicate n "#" <> " " <> x) : xs
-  -- TODO: Nested lists
-  OrderedList startNum items ->
-    items & ifoldMap \n item ->
-      case toLines item of
-        [] -> [tShow (n + startNum) <> "."]
-        (x : xs) -> tShow (n + startNum) <> ". " <> x : (("  " <>) <$> xs)
-  UnorderedList items ->
-    items & ifoldMap \_ item ->
-      case toLines item of
-        [] -> ["-"]
-        (x : xs) -> "- " <> x : (("  " <>) <$> xs)
-  Txt txt -> Text.lines txt
-  Linebreak -> [""]
-  InlineCode txt -> [txt]
-  Italics md -> toLines md
-  Strong md -> toLines md
-  Strikethrough md -> toLines md
-  -- label, uri
-  Link label uri -> ["[" <> Text.unwords (toLines label) <> "](" <> uri <> ")"]
-  Image label uri -> ["![" <> Text.unwords (toLines label) <> "](" <> uri <> ")"]
-  Table _headers _rows -> [] -- TODO
+toText' :: Markdown -> Text
+toText' =
+  Debug.debug Debug.Temp "Markdown" >>> \case
+    ThematicBreak -> "\n---"
+    Paragraph m -> flattenParagraph m
+    BlockQuote m -> "> " <> flattenParagraph m
+    CodeBlock lang contents ->
+      "```"
+        <> lang
+        <> "\n"
+        <> contents
+        <> "\n```\n"
+    Heading n contents ->
+      Text.unwords [Text.replicate n "#", (flattenInline contents)]
+    -- TODO: Nested lists
+    OrderedList startNum items ->
+      items
+        & imap
+          ( \n item ->
+              tShow (n + startNum) <> ". " <> flattenInline item
+          )
+        & Text.unlines
+        & (<> "\n")
+    UnorderedList items ->
+      items
+        & fmap
+          ( \item ->
+              "- " <> flattenInline item
+          )
+        & Text.unlines
+        & (<> "\n")
+    Txt txt -> txt
+    Linebreak -> "\n\n"
+    InlineCode txt -> "`" <> txt <> "`"
+    Italics md -> "_" <> flattenInline md <> "_"
+    Strong md -> "**" <> flattenInline md <> "**"
+    Strikethrough md -> "~~" <> flattenInline md <> "~~"
+    -- label, uri
+    Link label uri ->
+      "[" <> (flattenInline label) <> "](" <> uri <> ")"
+    Image label uri -> "![" <> flattenInline label <> "](" <> uri <> ")"
+    Table _headers _rows -> mempty -- TODO
+  where
+    flattenInline :: [Markdown] -> Text
+    flattenInline m =
+      (toText' <$> m)
+        & filter (Text.any (not . Text.isSpace))
+        & Text.unwords
+    flattenParagraph :: [Markdown] -> Text
+    flattenParagraph m =
+      let go :: Maybe Text -> Text -> Maybe Text
+          go Nothing next = Just next
+          go (Just acc) next = case (Text.unsnoc acc, Text.uncons next) of
+            (Nothing, _) -> Just $ "\n" <> next
+            (_, Nothing) -> Just $ acc <> "\n"
+            (Just (_, lastChar), Just (firstChar, _))
+              | Char.isSpace lastChar || Char.isSpace firstChar -> Just $ acc <> next
+              | otherwise -> Just $ Text.unwords [acc, next]
+       in case foldl' go Nothing (toText' <$> m) of
+            Nothing -> ""
+            Just x -> x <> "\n"
 
-toText :: Markdown -> Text
-toText = Text.unlines . toLines
+toText :: [Markdown] -> Text
+toText = Debug.debug Debug.Temp "Rendered Text" . toText' . Paragraph
