@@ -66,7 +66,7 @@ typeToReferenceMentions =
 -- include type in hash
 hashTermComponents ::
   forall v a extra.
-  Var v =>
+  (Var v) =>
   Map v (Memory.Term.Term v a, Memory.Type.Type v a, extra) ->
   Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a, extra)
 hashTermComponents mTerms =
