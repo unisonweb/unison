@@ -85,10 +85,10 @@ typecheckTerm tm = do
   let v = Symbol 0 (Var.Inference Var.Other)
   liftIO $
     fmap extract
-      <$> Codebase.runTransaction codebase (typecheckFile' codebase [] (UF.UnisonFileId mempty mempty [(v, tm)] mempty))
+      <$> Codebase.runTransaction codebase (typecheckFile' codebase [] (UF.UnisonFileId mempty mempty [(v, External, tm)] mempty))
   where
     extract tuf
-      | [[(_, _, ty)]] <- UF.topLevelComponents' tuf = ty
+      | [[(_, _, _, ty)]] <- UF.topLevelComponents' tuf = ty
       | otherwise = error "internal error: typecheckTerm"
 
 typecheckFile' ::

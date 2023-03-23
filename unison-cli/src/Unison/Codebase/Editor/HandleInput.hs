@@ -1279,7 +1279,7 @@ loop e = do
               let datas, effects, terms :: [(Name, Reference.Id)]
                   datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
                   effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
-                  terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
+                  terms = [(Name.unsafeFromVar v, r) | (v, (_, r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugTabCompletionI inputs -> do
               Cli.Env {authHTTPClient, codebase} <- ask
@@ -1852,7 +1852,7 @@ handleIOTest main = do
       -- First, look at the terms in the latest typechecked file for a name-match.
       whenJustM Cli.getLatestTypecheckedFile \typecheckedFile -> do
         whenJust (HQ.toName main) \mainName ->
-          whenJust (Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)) \(ref, _wk, _term, typ) ->
+          whenJust (Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)) \(_, ref, _wk, _term, typ) ->
             returnMatches [(Reference.fromId ref, typ)]
 
       -- Then, if we get here (because nothing in the scratch file matched), look at the terms in the codebase.
@@ -2345,14 +2345,14 @@ doDisplay outputLoc names tm = do
           evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) $ Cli.runTransaction (Codebase.getTerm codebase r)
-        Just (tm, _) -> pure (Just $ Term.unannotate tm)
+        Just (_, tm, _) -> pure (Just $ Term.unannotate tm)
       loadTerm _ = pure Nothing
       loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
         Nothing -> fmap (fmap $ DD.amap (const ())) $ Cli.runTransaction $ Codebase.getTypeDeclaration codebase r
         Just decl -> pure (Just $ DD.amap (const ()) decl)
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
-        | Just (_, ty) <- Map.lookup r tms = pure $ Just (void ty)
+        | Just (_, _, ty) <- Map.lookup r tms = pure $ Just (void ty)
       loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . loadTypeOfTerm codebase $ r
   rendered <-
     DisplayValues.displayTerm
@@ -3239,7 +3239,7 @@ addWatch watchName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
   let mainComponent = filter ((\v -> Var.nameStr v == watchName) . view _1) components
   case mainComponent of
-    [(v, tm, ty)] ->
+    [(v, ann, tm, ty)] ->
       Just $
         let v2 = Var.freshIn (Set.fromList [v]) v
             a = ABT.annotation tm
@@ -3248,7 +3248,7 @@ addWatch watchName (Just uf) = do
                 (UF.dataDeclarationsId' uf)
                 (UF.effectDeclarationsId' uf)
                 (UF.topLevelComponents' uf)
-                (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, Term.var a v, ty)])])
+                (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, ann, Term.var a v, ty)])])
             )
     _ -> addWatch watchName Nothing
 
@@ -3266,7 +3266,7 @@ addSavedTermToUnisonFile resultName = do
     UF.typecheckedUnisonFile
       (UF.dataDeclarationsId' uf)
       (UF.effectDeclarationsId' uf)
-      ([(resultSymbol, trm, typ)] : UF.topLevelComponents' uf)
+      ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf)
       (UF.watchComponents uf)
 
 -- | Look up runnable term with the given name in the codebase or
@@ -3308,7 +3308,7 @@ getTerm' mainName =
         let components = join $ UF.topLevelComponents uf
         let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
         case mainComponent of
-          [(v, tm, ty)] ->
+          [(v, _, tm, ty)] ->
             checkType ty \otyp ->
               let runMain = DD.forceTerm a a (Term.var a v)
                   v2 = Var.freshIn (Set.fromList [v]) v
@@ -3330,7 +3330,7 @@ getTerm' mainName =
 createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli (TypecheckedUnisonFile Symbol Ann)
 createWatcherFile v tm typ =
   Cli.getLatestTypecheckedFile >>= \case
-    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, tm, typ)])])
+    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, External, tm, typ)])])
     Just uf ->
       let v2 = Var.freshIn (Set.fromList [v]) v
        in pure $
@@ -3339,7 +3339,7 @@ createWatcherFile v tm typ =
               (UF.effectDeclarationsId' uf)
               (UF.topLevelComponents' uf)
               -- what about main's component? we have dropped them if they existed.
-              [(magicMainWatcherString, [(v2, tm, typ)])]
+              [(magicMainWatcherString, [(v2, External, tm, typ)])]
 
 executePPE ::
   (Var v) =>
@@ -3533,7 +3533,7 @@ evalUnisonTerm sandbox ppe useCache tm =
 stripUnisonFileReferences :: TypecheckedUnisonFile Symbol a -> Term Symbol () -> Term Symbol ()
 stripUnisonFileReferences unisonFile term =
   let refMap :: Map Reference.Id Symbol
-      refMap = Map.fromList . map (\(sym, (refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
+      refMap = Map.fromList . map (\(sym, (_, refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
       alg () = \case
         ABT.Var x -> ABT.var x
         ABT.Cycle x -> ABT.cycle x

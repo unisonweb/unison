@@ -547,13 +547,19 @@ propagate patch b = case validatePatch patch of
                 UnisonFileId
                   mempty
                   mempty
-                  (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
+                  ( componentMap
+                      & Map.toList
+                      & fmap
+                        ( \(v, (_ref, tm, _)) ->
+                            (v, External, tm)
+                        )
+                  )
                   mempty
           typecheckResult <- typecheckFile codebase [] file
-          pure
-            . fmap UF.hashTerms
-            $ runIdentity (Result.toMaybe typecheckResult)
-              >>= hush
+          (runIdentity (Result.toMaybe typecheckResult) >>= hush)
+            & fmap UF.hashTerms
+            & (fmap . fmap) (\(_ann, ref, wk, tm, tp) -> (ref, wk, tm, tp))
+            & pure
 
 typecheckFile ::
   Codebase m Symbol Ann ->

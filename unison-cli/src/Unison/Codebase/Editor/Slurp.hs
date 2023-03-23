@@ -280,13 +280,13 @@ buildVarReferences uf =
         -- Filter out non-test watch expressions
         & Map.filter
           ( \case
-              (_, w, _, _)
+              (_, _, w, _, _)
                 | w == Just TestWatch || w == Nothing -> True
                 | otherwise -> False
           )
         & Map.bimap
           TermVar
-          (\(refId, _, _, _) -> LD.derivedTerm refId)
+          (\(_, refId, _, _, _) -> LD.derivedTerm refId)
     decls :: Map TaggedVar LD.LabeledDependency
     decls =
       UF.dataDeclarationsId' uf

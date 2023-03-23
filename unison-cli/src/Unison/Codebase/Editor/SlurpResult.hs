@@ -194,7 +194,7 @@ pretty isPast ppe sr =
       okTerm v = case Map.lookup v tms of
         Nothing ->
           [(P.bold (prettyVar v), Just $ P.red "(Unison bug, unknown term)")]
-        Just (_, _, _, ty) ->
+        Just (_, _, _, _, ty) ->
           ( plus <> P.bold (prettyVar v),
             Just $ ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)
           )
@@ -244,7 +244,7 @@ pretty isPast ppe sr =
                 (typeLineFor Collision <$> toList (types (collisions sr)))
                   ++ (typeLineFor BlockedDependency <$> toList (types (defsWithBlockedDependencies sr)))
             termLineFor status v = case Map.lookup v tms of
-              Just (_ref, _wk, _tm, ty) ->
+              Just (_, _ref, _wk, _tm, ty) ->
                 ( prettyStatus status,
                   P.bold (P.text $ Var.name v),
                   ": " <> P.indentNAfterNewline 6 (TP.pretty ppe ty)
@@ -349,4 +349,4 @@ filterUnisonFile
       effects = Map.restrictKeys effectDeclarations' keepTypes
       tlcs = filter (not . null) $ fmap (List.filter filterTLC) topLevelComponents'
       watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
-      filterTLC (v, _, _) = Set.member v keepTerms
+      filterTLC (v, _, _, _) = Set.member v keepTerms
