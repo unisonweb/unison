@@ -192,11 +192,6 @@ defaultLSPConfig = Config {..}
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
 lspBackend = liftIO . runExceptT . flip runReaderT (Backend.BackendEnv False) . Backend.runBackend
 
-sendNotification :: forall (m :: Method 'FromServer 'Notification). (Message m ~ NotificationMessage m) => NotificationMessage m -> Lsp ()
-sendNotification notif = do
-  sendServerMessage <- asks (resSendMessage . lspContext)
-  liftIO $ sendServerMessage $ FromServerMess (notif ^. method) (notif)
-
 data RangedCodeAction = RangedCodeAction
   { -- All the ranges the code action applies
     _codeActionRanges :: [Range],

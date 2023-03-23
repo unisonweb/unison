@@ -82,6 +82,7 @@ library
       Unison.LSP.FoldingRange
       Unison.LSP.HandlerUtils
       Unison.LSP.Hover
+      Unison.LSP.JumpTo
       Unison.LSP.NotificationHandlers
       Unison.LSP.Orphans
       Unison.LSP.Queries

@@ -1,5 +1,6 @@
 module Unison.LSP.Diagnostics where
 
+import qualified Language.LSP.Server as LSP
 import Language.LSP.Types
 import Unison.LSP.Types
 import Unison.Parser.Ann (Ann)
@@ -33,9 +34,8 @@ reportDiagnostics ::
   f Diagnostic ->
   Lsp ()
 reportDiagnostics docUri fileVersion diags = do
-  let jsonRPC = "2.0"
   let params = PublishDiagnosticsParams {_uri = docUri, _version = fromIntegral <$> fileVersion, _diagnostics = List . toList $ diags}
-  sendNotification (NotificationMessage jsonRPC STextDocumentPublishDiagnostics params)
+  LSP.sendNotification STextDocumentPublishDiagnostics params
 
 mkDiagnostic :: Uri -> Range -> DiagnosticSeverity -> Text -> [(Text, Range)] -> Diagnostic
 mkDiagnostic uri r severity msg references =

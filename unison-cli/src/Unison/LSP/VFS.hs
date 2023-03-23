@@ -6,9 +6,10 @@
 module Unison.LSP.VFS where
 
 import qualified Colog.Core as Colog
-import Control.Lens
+import Control.Lens hiding (List)
 import Control.Monad.Reader
 import Control.Monad.State
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Set.Lens (setOf)
@@ -16,6 +17,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Utf16.Rope as Rope
 import Data.Tuple (swap)
 import qualified Language.LSP.Logging as LSP
+import qualified Language.LSP.Server as LSP
 import Language.LSP.Types
 import Language.LSP.Types.Lens (HasCharacter (character), HasParams (params), HasTextDocument (textDocument), HasUri (uri))
 import qualified Language.LSP.Types.Lens as LSP
@@ -102,3 +104,13 @@ lspChangeFile :: NotificationMessage 'TextDocumentDidChange -> Lsp ()
 lspChangeFile msg = do
   usingVFS . changeFromClientVFS vfsLogger $ msg
   markFilesDirty [msg ^. params . textDocument]
+
+-- | Edit a file in the client, returns a 'waiter' which will block until the edit has been
+-- received by the client.
+editFileInClient :: Uri -> Text -> Range -> Text -> Lsp (IO (Either ResponseError ApplyWorkspaceEditResponseBody))
+editFileInClient uri description range newText = do
+  let changes = HashMap.singleton uri (List [TextEdit range newText])
+  let workspaceEdit = WorkspaceEdit (Just changes) Nothing Nothing
+  blocker <- newEmptyMVar
+  void $ LSP.sendRequest SWorkspaceApplyEdit (ApplyWorkspaceEditParams (Just description) (workspaceEdit)) (putMVar blocker)
+  pure (takeMVar blocker)

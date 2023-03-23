@@ -35,6 +35,7 @@ import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
 import qualified Unison.LSP.HandlerUtils as Handlers
 import Unison.LSP.Hover (hoverHandler)
+import Unison.LSP.JumpTo (jumpToDefinitionHandler)
 import qualified Unison.LSP.NotificationHandlers as Notifications
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
@@ -159,6 +160,7 @@ lspRequestHandlers =
     & SMM.insert STextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert STextDocumentCompletion (mkHandler completionHandler)
     & SMM.insert SCompletionItemResolve (mkHandler completionItemResolveHandler)
+    & SMM.insert STextDocumentDefinition (mkHandler jumpToDefinitionHandler)
   where
     defaultTimeout = 10_000 -- 10s
     mkHandler ::
