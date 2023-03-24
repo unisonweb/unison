@@ -1,0 +1,1 @@
+ex = do console.printLine "Hello chunked strings!"

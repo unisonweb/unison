@@ -14,6 +14,4 @@ TODO remember to re-add ucm to this snippet to run it
 ```ucm
 .> run.native ex
 
-  Scheme evaluation failed.
-
 ```

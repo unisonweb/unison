@@ -311,8 +311,8 @@
   (define (unison-FOp-Text.fromUtf8.impl.v3 s)
     (right (bytevector->string s utf-8-transcoder)))
 
-  (define (unison-FOp-Text.toUtf8 s)
-    (string->bytevector s utf-8-transcoder))
+  (define (unison-FOp-Text.toUtf8 s) ; TODO convert directly without going through String?
+    (string->bytevector (chunked-string->string s) utf-8-transcoder))
 
   (define (unison-FOp-IO.closeFile.impl.v3 h)
     (close-input-port h))
