@@ -37,6 +37,9 @@
           [vector-trie-pop-first (-> (and/c vector-trie? (not/c vector-trie-empty?)) (values vector-trie? any/c))]
           [vector-trie-pop-last (-> (and/c vector-trie? (not/c vector-trie-empty?)) (values vector-trie? any/c))]
 
+          [vector-trie-first-index-where (-> vector-trie? procedure? (or/c exact-nonnegative-integer? #f))]
+          [vector-trie-last-index-where (-> vector-trie? procedure? (or/c exact-nonnegative-integer? #f))]
+
           [vector-trie-append (-> vector-trie? vector-trie? vector-trie?)]
 
           [vector-trie-take (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
@@ -44,10 +47,11 @@
           [vector-trie-split-at (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
           [vector-trie-take-right (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
           [vector-trie-drop-right (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
-          [vector-trie-split-at-right (-> vector-trie? exact-nonnegative-integer? vector-trie?)])
+          [vector-trie-split-at-right (-> vector-trie? exact-nonnegative-integer? vector-trie?)]
+          [vector-trie-take-while (-> vector-trie? procedure? vector-trie?)]
+          [vector-trie-drop-while (-> vector-trie? procedure? vector-trie?)])
 
-         (rename-out [-in-vector-trie in-vector-trie]
-                     [-in-reversed-vector-trie in-reversed-vector-trie]))
+         (rename-out [-in-vector-trie in-vector-trie]))
 
 ;; -----------------------------------------------------------------------------
 
@@ -466,7 +470,7 @@
           [root-node (vector-trie-node-delete (vector-trie-root-node vt) shift last-i #:from-start? #f)]))]))
 
 ;; -----------------------------------------------------------------------------
-;; appending
+;; iteration
 
 ;; Returns the index of the first filled element of the given vector
 ;; trie. The index is relative to the containing leaf, so it is always
@@ -556,6 +560,76 @@
 
        (descend! (vector-trie-shift vt))
        get-next-leaf!])))
+
+;; Like `stream-leaves`, but iterates over individual elements rather than leaves.
+(define (stream-elements vt #:reverse? [reverse? #f])
+  (define first-i (first-leaf-start-index vt))
+  (define last-i (sub1 (last-leaf-end-index vt)))
+  (define get-next-leaf! (stream-leaves vt #:reverse? reverse?))
+
+  (define leaf-initial-i (if reverse? (sub1 NODE-CAPACITY) 0))
+  (define leaf-final-i (if reverse? 0 (sub1 NODE-CAPACITY)))
+  (define final-i (if reverse? first-i last-i))
+
+  (define-values [leaf more-leaves?] (get-next-leaf!))
+  (define next-i (if reverse? last-i first-i))
+
+  (define (get-next-element!)
+    (values
+     (vector-ref leaf next-i)
+     (cond
+       [(and (not more-leaves?) (= next-i final-i))
+        (set! leaf #f)
+        #f]
+       [(= next-i leaf-final-i)
+        (set!-values [leaf more-leaves?] (get-next-leaf!))
+        (set! next-i leaf-initial-i)
+        #t]
+       [else
+        (set! next-i (if reverse? (sub1 next-i) (add1 next-i)))
+        #t])))
+
+  get-next-element!)
+
+(define (in-vector-trie vt #:reverse? [reverse? #f])
+  (unless (vector-trie? vt)
+    (raise-argument-error 'in-vector-trie "vector-trie?" vt))
+  (if (vector-trie-empty? vt)
+      empty-sequence
+      (let ([reverse? (and reverse? #t)])
+        (make-do-sequence
+         (λ ()
+           (define get-next-element! (stream-elements vt #:reverse? reverse?))
+           (define-values [elem more?] (get-next-element!))
+           (values
+            (λ (p) elem)
+            (λ (p) (set!-values [elem more?] (get-next-element!)) #f)
+            #f
+            #f
+            #f
+            (λ (p val) more?)))))))
+
+(define-sequence-syntax -in-vector-trie
+  (λ () #'in-vector-trie)
+  (syntax-parser
+    [[(x:id) (_ {~alt {~once {~var vt-e (expr/c #'vector-trie?)}}
+                      {~optional {~seq #:reverse? reverse?-e:expr}}}
+                ...)]
+     #'[(x) (:do-in
+             ([(vt) vt-e.c]
+              [(reverse?) {~? reverse?-e #f}])
+             (void)
+             ([next! (and (not (vector-trie-empty? vt))
+                          (stream-elements vt #:reverse? reverse?))])
+             next!
+             ([(x more?) (next!)])
+             #t
+             #t
+             [(and more? next!)])]]
+    [_ #f]))
+
+;; -----------------------------------------------------------------------------
+;; appending
 
 (define (vector-trie-append vt-a vt-b)
   (define a-len (vector-trie-length vt-a))
@@ -882,50 +956,16 @@
   (values (vector-trie-drop-last vt)
           (vector-trie-last vt)))
 
-;; TODO: Could be made more efficient by directly walking the internal
-;; structure, avoiding repeated traversals.
-(define (in-vector-trie vt)
-  (unless (vector-trie? vt)
-    (raise-argument-error 'in-vector-trie "vector-trie?" vt))
-  (sequence-map (λ (i) (vector-trie-ref vt i)) (in-range (vector-trie-length vt))))
-(define-sequence-syntax -in-vector-trie
-  (λ () #'in-vector-trie)
-  (syntax-parser
-    [[(x:id) (_ {~var vt-e (expr/c #'vector-trie?)})]
-     #'[(x) (:do-in
-             ([(vt vt-len) (let ([vt vt-e.c])
-                             (values vt (vector-trie-length vt)))])
-             (void)
-             ([i 0])
-             (< i vt-len)
-             ([(x) (vector-trie-ref vt i)])
-             #t
-             #t
-             [(add1 i)])]]
-    [_ #f]))
+(define (vector-trie-first-index-where vt pred)
+  (for/first ([(val i) (in-indexed (-in-vector-trie vt))]
+              #:when (pred val))
+    i))
 
-;; TODO: Could be made more efficient by directly walking the internal
-;; structure, avoiding repeated traversals.
-(define (in-reversed-vector-trie vt)
-  (unless (vector-trie? vt)
-    (raise-argument-error 'in-reversed-vector-trie "vector-trie?" vt))
-  (sequence-map (λ (i) (vector-trie-ref vt i))
-                (in-inclusive-range (sub1 (vector-trie-length vt)) 0 -1)))
-(define-sequence-syntax -in-reversed-vector-trie
-  (λ () #'in-reversed-vector-trie)
-  (syntax-parser
-    [[(x:id) (_ {~var vt-e (expr/c #'vector-trie?)})]
-     #'[(x) (:do-in
-             ([(vt vt-len) (let ([vt vt-e.c])
-                             (values vt (vector-trie-length vt)))])
-             (void)
-             ([i (sub1 (vector-trie-length vt))])
-             (>= i 0)
-             ([(x) (vector-trie-ref vt i)])
-             #t
-             #t
-             [(sub1 i)])]]
-    [_ #f]))
+(define (vector-trie-last-index-where vt pred)
+  (for/first ([val (-in-vector-trie vt #:reverse? #t)]
+              [i (in-inclusive-range (sub1 (vector-trie-length vt)) 0 -1)]
+              #:when (pred val))
+    i))
 
 (define (vector-trie-split-at vt n)
   (check-length-in-range 'vector-trie-split-at vt n)
@@ -942,6 +982,14 @@
 (define (vector-trie-split-at-right vt n)
   (check-length-in-range 'vector-trie-split-at-right vt n)
   (vector-trie-split-at vt (- (vector-trie-length vt) n)))
+
+(define (vector-trie-take-while vt pred)
+  (define len (vector-trie-first-index-where vt (λ (v) (not (pred v)))))
+  (if len (vector-trie-take vt len) vt))
+
+(define (vector-trie-drop-while vt pred)
+  (define len (vector-trie-first-index-where vt (λ (v) (not (pred v)))))
+  (if len (vector-trie-drop vt len) empty-vector-trie))
 
 (define (make-vector-trie len elem)
   (build-vector-trie len (λ (i) elem)))

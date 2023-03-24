@@ -53,9 +53,14 @@
 ;;   chunked-seq-pop-first, chunked-seq-pop-last :
 ;;     (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) (values chunked-seq? elem/c))
 ;;
+;;   chunked-seq-first-index-where, chunked-seq-first-index-where-not :
+;;     (-> chunked-seq? (-> any/c any/c) (or/c exact-nonnegative-integer? #f))
+;;
 ;;   chunked-seq-append : (-> chunked-seq? ... chunked-seq?)
 ;;   chunked-seq-take, chunked-seq-drop : (-> chunked-seq? exact-nonnegative-integer? chunked-seq?)
 ;;   chunked-seq-split-at : (-> chunked-seq? exact-nonnegative-integer? (values chunked-seq? chunked-seq?))
+;;   chunked-seq-take-while, chunked-seq-drop-while, chunked-seq-take-until, chunked-seq-drop-until :
+;;     (-> chunked-seq? (-> any/c any/c) chunked-seq?)
 ;;
 ;;   chunked-seq=?/recur : (-> chunked-seq? chunked-seq? (-> any/c any/c any/c) boolean?)
 ;;   chunked-seq-compare/recur : (-> chunked-seq? chunked-seq? (-> any/c any/c ordering/c) ordering/c)
@@ -107,10 +112,17 @@
    (define/with-syntax chunked-seq-pop-first (derived-seq-id "~a-pop-first"))
    (define/with-syntax chunked-seq-pop-last (derived-seq-id "~a-pop-last"))
 
+   (define/with-syntax chunked-seq-first-index-where (derived-seq-id "~a-first-index-where"))
+   (define/with-syntax chunked-seq-first-index-where-not (derived-seq-id "~a-first-index-where-not"))
+
    (define/with-syntax chunked-seq-append (derived-seq-id "~a-append"))
    (define/with-syntax chunked-seq-take (derived-seq-id "~a-take"))
    (define/with-syntax chunked-seq-drop (derived-seq-id "~a-drop"))
    (define/with-syntax chunked-seq-split-at (derived-seq-id "~a-split-at"))
+   (define/with-syntax chunked-seq-take-while (derived-seq-id "~a-take-while"))
+   (define/with-syntax chunked-seq-drop-while (derived-seq-id "~a-drop-while"))
+   (define/with-syntax chunked-seq-take-until (derived-seq-id "~a-take-until"))
+   (define/with-syntax chunked-seq-drop-until (derived-seq-id "~a-drop-until"))
 
    (define/with-syntax chunked-seq=?/recur (derived-seq-id "~a=?/recur"))
    (define/with-syntax chunked-seq-compare/recur (derived-seq-id "~a-compare/recur"))
@@ -141,10 +153,17 @@
                  [chunked-seq-pop-first (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) (values chunked-seq? elem/c))]
                  [chunked-seq-pop-last (-> (and/c chunked-seq? (not/c chunked-seq-empty?)) (values chunked-seq? elem/c))]
 
+                 [chunked-seq-first-index-where (-> vector-trie? procedure? (or/c exact-nonnegative-integer? #f))]
+                 [chunked-seq-first-index-where-not (-> vector-trie? procedure? (or/c exact-nonnegative-integer? #f))]
+
                  [chunked-seq-append {... (-> chunked-seq? ... chunked-seq?)}]
                  [chunked-seq-take (-> chunked-seq? exact-nonnegative-integer? chunked-seq?)]
                  [chunked-seq-drop (-> chunked-seq? exact-nonnegative-integer? chunked-seq?)]
                  [chunked-seq-split-at (-> chunked-seq? exact-nonnegative-integer? (values chunked-seq? chunked-seq?))]
+                 [chunked-seq-take-while (-> chunked-seq? procedure? chunked-seq?)]
+                 [chunked-seq-drop-while (-> chunked-seq? procedure? chunked-seq?)]
+                 [chunked-seq-take-until (-> chunked-seq? procedure? chunked-seq?)]
+                 [chunked-seq-drop-until (-> chunked-seq? procedure? chunked-seq?)]
 
                  [chunked-seq=?/recur (-> chunked-seq? chunked-seq? procedure? boolean?)]
                  [chunked-seq-compare/recur (-> chunked-seq?
@@ -657,7 +676,7 @@
                   (define insert-i (- CHUNK-CAPACITY split-i))
 
                   ;; Split and transfer each full chunk in `vt-a`.
-                  (for ([full-chunk (in-reversed-vector-trie vt-a)])
+                  (for ([full-chunk (in-vector-trie vt-a #:reverse? #t)])
                     (chunk-copy! new-chunk 0 full-chunk split-i)
                     (transfer-chunk!)
                     (chunk-copy! new-chunk insert-i full-chunk 0 split-i))
@@ -1050,6 +1069,35 @@
                     chunk
                     [next-vt-i* chunk* chunk-len* chunk-i*])]]
            [_ #f]))
+
+       ;; ----------------------------------------------------------------------
+       ;; searching
+
+       (define (chunked-seq-first-index-where cs pred)
+         (for/first ([(val i) (in-indexed (-in-chunked-seq cs))]
+                     #:when (pred val))
+           i))
+
+       (define (chunked-seq-first-index-where-not cs pred)
+         (for/first ([(val i) (in-indexed (-in-chunked-seq cs))]
+                     #:unless (pred val))
+           i))
+
+       (define (chunked-seq-take-while cs pred)
+         (define len (chunked-seq-first-index-where-not cs pred))
+         (if len (chunked-seq-take cs len) cs))
+
+       (define (chunked-seq-drop-while cs pred)
+         (define len (chunked-seq-first-index-where-not cs pred))
+         (if len (chunked-seq-drop cs len) empty-chunked-seq))
+
+       (define (chunked-seq-take-until cs pred)
+         (define len (chunked-seq-first-index-where cs pred))
+         (if len (chunked-seq-take cs len) cs))
+
+       (define (chunked-seq-drop-until cs pred)
+         (define len (chunked-seq-first-index-where cs pred))
+         (if len (chunked-seq-drop cs len) empty-chunked-seq))
 
        ;; ----------------------------------------------------------------------
        ;; conversion
