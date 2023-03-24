@@ -231,9 +231,10 @@
   (define (unison-POp-EQLU x y) (if (universal-equal? x y) 1 0))
   (define (unison-POp-EROR fnm x)
     (let-values ([(p g) (open-string-output-port)])
-      (put-string p fnm)
+      ;; TODO perhaps append first, then put to the port at once
+      (put-string p (chunked-string->string fnm))
       (put-string p ": ")
-      (display x p)
+      (display (chunked-string->string x) p)
       (raise (g))))
   (define (unison-POp-FTOT f) (number->istring f))
   (define (unison-POp-IDXB n bs) (bytevector-u8-ref bs n))
