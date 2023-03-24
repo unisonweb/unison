@@ -5,8 +5,14 @@ If you want to define more complex tests somewhere other than `tests.u`, just `l
 then reference those tests (which should be of type `'{IO,Exception,Tests} ()`, written using calls
 to `Tests.check` and `Tests.checkEqual`).
 
-```ucm
+TODO remember to re-add ucm to this snippet to run it
+```
 .> run.native tests
+
+```
+
+```ucm
+.> run.native ex
 
   Scheme evaluation failed.
 

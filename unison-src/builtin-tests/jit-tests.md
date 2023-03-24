@@ -47,6 +47,16 @@ to `Tests.check` and `Tests.checkEqual`).
 .> add
 ```
 
-```ucm
+TODO remember to re-add ucm to this snippet to run it
+```
 .> run.native tests
+```
+
+```ucm:hide
+.> load unison-src/builtin-tests/ex.u
+.> add
+```
+
+```ucm
+.> run.native ex
 ```
