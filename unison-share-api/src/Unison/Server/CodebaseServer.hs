@@ -332,7 +332,7 @@ corsPolicy = maybe id \allowFrom ->
     const $
       Just
         simpleCorsResourcePolicy
-          { corsMethods = ["GET", "POST", "PUT", "OPTIONS"],
+          { corsMethods = ["GET", "OPTIONS"],
             corsOrigins = Just ([C8.pack allowFrom], True)
           }
 
