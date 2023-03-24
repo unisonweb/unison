@@ -26,7 +26,8 @@
     request-case
     sum
     sum-case
-    unison-force)
+    unison-force
+    string->chunked-string)
 
   (import (rnrs)
           (for
@@ -36,7 +37,8 @@
           (unison core)
           (unison data)
           (unison cont)
-          (unison crypto))
+          (unison crypto)
+          (only (unison data chunked-seq) string->chunked-string))
 
   ; Computes a symbol for automatically generated partial application
   ; cases, based on number of arguments applied. The partial
