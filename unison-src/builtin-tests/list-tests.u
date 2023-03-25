@@ -4,10 +4,10 @@ list.tests = do
   !list.matching.tests
 
 list.eq.tests = do
-  check "List.empty builder" do
+  check "List empty literal" do
     _ = []
     true
-  check "List builder" do
+  check "List literal" do
     _ = [1, 2, 3]
     true
   checkEqual "List equality: empty" [] []
