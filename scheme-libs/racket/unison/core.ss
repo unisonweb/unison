@@ -65,17 +65,11 @@
 
   ;; TODO move final transformation to data lib
   (define (universal-compare l r)
-    (define (go l r)
-      (cond
-        [(equal? l r) '=]
-        [(and (number? l) (number? r)) (if (< l r) '< '>)]
-        [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r go)]
-        [else (raise "universal-compare: unimplemented")]))
-    (let ([out (go l r)])
-      (cond
-        [(eq? out '<) 0]
-        [(eq? out '=) 1]
-        [(eq? out '>) 2])))
+    (cond
+      [(equal? l r) '=]
+      [(and (number? l) (number? r)) (if (< l r) '< '>)]
+      [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
+      [else (raise "universal-compare: unimplemented")]))
 
   ;; TODO sort out consistent treatment of booleans
   (define (universal-equal? l r)
