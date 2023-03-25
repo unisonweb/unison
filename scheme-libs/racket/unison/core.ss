@@ -14,9 +14,9 @@
     decode-value
 
     universal-compare
-    string-<?
-    universal-equal?
-    string-equal?
+    text<?
+    universal=?
+    text=?
 
     fx1-
     list-head
@@ -73,17 +73,17 @@
       [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
       [else (raise "universal-compare: unimplemented")]))
 
-  (define (string-<? l r) #t)
+  (define (text<? l r) #t)
 
   ;; TODO sort out consistent treatment of booleans
-  (define (universal-equal? l r)
+  (define (universal=? l r)
     (define (pointwise ll lr)
       (let ([nl (null? ll)] [nr (null? lr)])
         (cond
           [(and nl nr) #t]
           [(or nl nr) #f]
           [else
-            (and (universal-equal? (car ll) (car lr))
+            (and (universal=? (car ll) (car lr))
                  (pointwise (cdr ll) (cdr lr)))])))
     ; TODO remove
     (display "Arguments to ==")
@@ -95,16 +95,16 @@
     (cond
       [(eq? l r) #t]
       [(and (chunked-list? l) (chunked-list? r))
-       (chunked-list=?/recur l r universal-equal?)]
+       (chunked-list=?/recur l r universal=?)]
       [(and (chunked-string? l) (chunked-string? r))
-       (string-equal? l r)]
+       (text=? l r)]
       [(and (data? l) (data? r))
        (and
          (eqv? (data-tag l) (data-tag r))
          (pointwise (data-fields l) (data-fields r)))]
       [else #f]))
 
-  (define (string-equal? l r) (chunked-string=?/recur l r char=?))
+  (define (text=? l r) (chunked-string=?/recur l r char=?))
 
   (define exception->string exn->string)
 

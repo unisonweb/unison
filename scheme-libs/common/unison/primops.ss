@@ -228,9 +228,9 @@
   (define (unison-POp-DRPS n l) (chunked-list-drop l n))
   (define (unison-POp-DRPT n t) (istring-drop n t))
   (define (unison-POp-EQLN m n) (bool (fx=? m n)))
-  (define (unison-POp-EQLT s t) (bool (string-equal? s t)))
-  (define (unison-POp-LEQT s t) (bool (string-<? s t)))
-  (define (unison-POp-EQLU x y) (bool (universal-equal? x y)))
+  (define (unison-POp-EQLT s t) (bool (text=? s t)))
+  (define (unison-POp-LEQT s t) (bool (text<? s t)))
+  (define (unison-POp-EQLU x y) (bool (universal=? x y)))
   (define (unison-POp-EROR fnm x)
     (let-values ([(p g) (open-string-output-port)])
       ;; TODO perhaps append first, then put to the port at once
