@@ -264,7 +264,7 @@
   (define (unison-POp-TAKT n t) (istring-take n t))
   (define (unison-POp-DBTX x)
     (format "~a" x))
-  (define (unison-POp-TRCE s x)
+  (define (unison-POp-TRCE s x) ;; TODO port to chunked-string
     (display s)
     (display "\n")
     (display x)
