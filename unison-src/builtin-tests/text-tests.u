@@ -16,3 +16,7 @@ text.eq.tests = do
   --  check "String inequality: composite" do (Some ["foo", "bar"]) !== (Some ["foo", "baz"])
   -- TODO ordering tests, has to include a simple composite case, e.g. inside Option
   -- to test Universal.compare with Strings, in addition to Text.>
+
+-- TODO op tests
+
+-- TODO conversion tests (number, char, string, etc to Text)
