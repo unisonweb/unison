@@ -14,7 +14,9 @@
     decode-value
 
     universal-compare
+    string-<?
     universal-equal?
+    string-equal?
 
     fx1-
     list-head
@@ -71,6 +73,8 @@
       [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
       [else (raise "universal-compare: unimplemented")]))
 
+  (define (string-<? l r) #t)
+
   ;; TODO sort out consistent treatment of booleans
   (define (universal-equal? l r)
     (define (pointwise ll lr)
@@ -93,12 +97,14 @@
       [(and (chunked-list? l) (chunked-list? r))
        (chunked-list=?/recur l r universal-equal?)]
       [(and (chunked-string? l) (chunked-string? r))
-       (chunked-string=?/recur l r char=?)]
+       (string-equal? l r)]
       [(and (data? l) (data? r))
        (and
          (eqv? (data-tag l) (data-tag r))
          (pointwise (data-fields l) (data-fields r)))]
       [else #f]))
+
+  (define (string-equal? l r) (chunked-string=?/recur l r char=?))
 
   (define exception->string exn->string)
 

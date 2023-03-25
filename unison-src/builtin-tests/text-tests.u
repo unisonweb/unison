@@ -1,5 +1,6 @@
 text.tests = do
  !text.eq.tests
+ !text.ord.tests
 
 text.eq.tests = do
   check "Empty Text literal" do
@@ -20,9 +21,20 @@ text.eq.tests = do
   check "Universal inequality with Text: non empty" do "foo" !== "bar"
   checkEqual "Universal equality with Text: composite" (Some ["foo", "bar"]) (Some ["foo", "bar"])
   check "Universal inequality with Text: composite" do (Some ["foo", "bar"]) !== (Some ["foo", "baz"])
+
+text.ord.tests = do
+  check "Text ordering (1)" do "a" > ""
+  check "Text ordering (2)" do "" < "a"
+  check "Text ordering (3)" do "ba" > "b"
+  check "Text ordering (4)" do "b" > "ab"
+  check "Text ordering (5)" do "ac" > "ab"
+
+  checkEqual "Universal ordering with Text (1)" (Universal.compare "a" "") +1
+  checkEqual "Universal ordering with Text (2)" (Universal.compare "" "a") -1
+  checkEqual "Universal ordering with Text (3)" (Universal.compare "ba" "b") +1
+  checkEqual "Universal ordering with Text (4)" (Universal.compare "b" "ab") +1
+  checkEqual "Universal ordering with Text (5)" (Universal.compare "ac" "ab") +1
   -- TODO ordering tests, has to include a simple composite case, e.g. inside Option
-  -- to test Universal.compare with Strings, in addition to Text.>
-  -- what about string equality directly
 
 -- TODO op tests
 

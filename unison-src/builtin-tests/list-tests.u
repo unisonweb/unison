@@ -1,5 +1,6 @@
 list.tests = do
   !list.eq.tests
+  !list.ord.tests
   !list.ops.tests
   !list.matching.tests
 
@@ -18,6 +19,8 @@ list.eq.tests = do
   check "List inequality: empty" do [1, 2] !== []
   checkEqual "List equality: composite" (Some [Some 1, Some 2]) (Some [Some 1, Some 2])
   check "List inequality: composite" do (Some [Some 1, Some 2]) !== (Some [Some 1, Some 3])
+
+list.ord.tests = do
   checkEqual "List ordering (1)" (Universal.compare [1] []) +1
   checkEqual "List ordering (2)" (Universal.compare [] [1]) -1
   checkEqual "List ordering (3)" (Universal.compare [1, 0] [1]) +1
