@@ -217,7 +217,7 @@
     (lambda args-list
       (fold-right (lambda (e l) (chunked-list-add-first l e)) empty-chunked-list args-list)))
   (define (unison-POp-CATS l r) (chunked-list-append l r))
-  (define (unison-POp-CATT l r) (istring-append l r))
+  (define (unison-POp-CATT l r) (chunked-string-append l r))
   (define (unison-POp-CMPU l r) (universal-compare l r))
   (define (unison-POp-COMN n) (fxnot n))
   (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
@@ -247,7 +247,7 @@
   (define (unison-POp-LZRO m) (- 64 (fxlength m)))
   (define (unison-POp-MULN m n) (fx* m n))
   (define (unison-POp-MODN m n) (fxmod m n))
-  (define (unison-POp-NTOT m) (number->istring m))
+  (define (unison-POp-NTOT n) (string->chunked-string (number->string n)))
   (define (unison-POp-PAKB l) (u8-list->ibytevector l))
   (define (unison-POp-PAKT l) (list->istring l))
   (define (unison-POp-SHLI i k) (fxarithmetic-shift-left i k))

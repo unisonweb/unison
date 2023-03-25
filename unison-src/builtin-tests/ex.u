@@ -1,1 +1,1 @@
-ex = do console.printLine "Hello chunked strings!"
+ex = do console.printLine ("Hello chunked strings: " ++ Nat.toText 42)
