@@ -40,16 +40,19 @@ text.ord.tests = do
   checkEqual "Universal ordering with Text (5)" (Universal.compare "ac" "ab") +1
 
 text.ops.tests = do
-  -- Done in previous tests
-  --  empty
-  --  equal
-  --  compare
-
-  -- Port list tests
-  --  ++
-  --  take
-  --  drop
-  --  size
+  checkEqual "Text.++" ("" ++ "ab" ++ "cd" ++ "") "abcd"
+  checkEqual "Text.take (1)" (Text.take 0 "abc") ""
+  checkEqual "Text.take (2)" (Text.take 2 "abc") "ab"
+  checkEqual "Text.take (3)" (Text.take 3 "abc") "abc"
+  checkEqual "Text.take (4)" (Text.take 100 "abc") "abc"
+  checkEqual "Text.take (5)" (Text.take 3 "") ""
+  checkEqual "Text.drop (1)" (Text.drop 0 "abc") "abc"
+  checkEqual "Text.drop (2)" (Text.drop 2 "abc") "c"
+  checkEqual "Text.drop (3)" (Text.drop 3 "abc") ""
+  checkEqual "Text.drop (4)" (Text.drop 100 "abc") ""
+  checkEqual "Text.drop (5)" (Text.drop 3 "") ""
+  checkEqual "Text.size (1)" (Text.size "") 0
+  checkEqual "Text.size (2)" (Text.size "abc") 3
 
   -- New ops
   --  reverse
@@ -65,29 +68,10 @@ text.ops.tests = do
   --  toUft8
   --  fromUtf8
 
-  --  checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [1, 2, 3]
-  --  checkEqual "List.snoc" ([] :+ 1 :+ 2 :+ 3) [1, 2, 3]
-  --  checkEqual "List.++" ([] ++ [1, 2] ++ [3, 4] ++ []) [1, 2, 3, 4]
-  --  checkEqual "List.take (1)" (List.take 0 [1,2,3]) []
-  --  checkEqual "List.take (2)" (List.take 2 [1,2,3]) [1,2]
-  --  checkEqual "List.take (3)" (List.take 3 [1,2,3]) [1,2,3]
-  --  checkEqual "List.take (4)" (List.take 100 [1,2,3]) [1,2,3]
-  --  checkEqual "List.take (5)" (List.take 3 []) []
-  --  checkEqual "List.drop (1)" (List.drop 0 [1,2,3]) [1,2,3]
-  --  checkEqual "List.drop (2)" (List.drop 2 [1,2,3]) [3]
-  --  checkEqual "List.drop (3)" (List.drop 3 [1,2,3]) []
-  --  checkEqual "List.drop (4)" (List.drop 100 [1,2,3]) []
-  --  checkEqual "List.drop (5)" (List.drop 3 []) []
-  --  checkEqual "List.size (1)" (List.size []) 0
-  --  checkEqual "List.size (2)" (List.size [1,2,3]) 3
-  --  checkEqual "List.at (1)" (List.at 0 [1,2,3]) (Some 1)
-  --  checkEqual "List.at (2)" (List.at 2 [1,2,3]) (Some 3)
-  --  checkEqual "List.at (3)" (List.at 1 []) None
-  --  checkEqual "List.at (4)" (List.at 5 [1,2,3]) None
 
   -- TODO op tests
-  -- TODO conversion tests (number, char, string, etc to Text)
+  -- TODO conversion tests (number char string etc to Text)
 
-  -- TODO pattern matching tests, include Pattern api I reckon
+  -- TODO pattern matching tests include Pattern api I reckon
 
   ()
