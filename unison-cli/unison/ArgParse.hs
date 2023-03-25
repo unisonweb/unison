@@ -157,7 +157,7 @@ codebaseServerOptsFromEnv :: IO CodebaseServerOpts
 codebaseServerOptsFromEnv = do
   token <- lookupEnv Server.ucmTokenVar
   host <- lookupEnv Server.ucmHostVar
-  allowFrom <- lookupEnv Server.ucmAllowFrom
+  allowCorsHost <- lookupEnv Server.ucmAllowCorsHost
   port <- lookupEnv Server.ucmPortVar <&> (>>= readMaybe)
   codebaseUIPath <- lookupEnv Server.ucmUIVar
   pure $ CodebaseServerOpts {..}
@@ -313,14 +313,14 @@ codebaseServerOptsParser envOpts = do
   cliToken <- tokenFlag <|> pure (token envOpts)
   cliHost <- hostFlag <|> pure (host envOpts)
   cliPort <- portFlag <|> pure (port envOpts)
-  cliAllowFrom <- allowFromFlag <|> pure (allowFrom envOpts)
+  cliAllowCorsHost <- allowCorsHostFlag <|> pure (allowCorsHost envOpts)
   cliCodebaseUIPath <- codebaseUIPathFlag <|> pure (codebaseUIPath envOpts)
   pure
     CodebaseServerOpts
       { token = cliToken <|> token envOpts,
         host = cliHost <|> host envOpts,
         port = cliPort <|> port envOpts,
-        allowFrom = cliAllowFrom <|> allowFrom envOpts,
+        allowCorsHost = cliAllowCorsHost <|> allowCorsHost envOpts,
         codebaseUIPath = cliCodebaseUIPath <|> codebaseUIPath envOpts
       }
   where
@@ -342,11 +342,11 @@ codebaseServerOptsParser envOpts = do
           <> metavar "NUMBER"
           <> help "Codebase server port"
           <> noGlobal
-    allowFromFlag =
+    allowCorsHostFlag =
       optional . strOption $
-        long "allow-from"
+        long "allow-cors-host"
           <> metavar "STRING"
-          <> help "Hosts that should be allowed to access api (cors)"
+          <> help "Host that should be allowed to access api (cors)"
           <> noGlobal
     codebaseUIPathFlag =
       optional . strOption $

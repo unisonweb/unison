@@ -210,8 +210,8 @@ app ::
   Strict.ByteString ->
   Maybe String ->
   Application
-app env rt codebase uiPath expectedToken allowFrom =
-  corsPolicy allowFrom $ serve appAPI $ server env rt codebase uiPath expectedToken
+app env rt codebase uiPath expectedToken allowCorsHost =
+  corsPolicy allowCorsHost $ serve appAPI $ server env rt codebase uiPath expectedToken
 
 -- | The Token is used to help prevent multiple users on a machine gain access to
 -- each others codebases.
@@ -244,8 +244,8 @@ ucmPortVar = "UCM_PORT"
 ucmHostVar :: String
 ucmHostVar = "UCM_HOST"
 
-ucmAllowFrom :: String
-ucmAllowFrom = "UCM_ALLOW_FROM"
+ucmAllowCorsHost :: String
+ucmAllowCorsHost = "UCM_ALLOW_CORS_HOST"
 
 ucmTokenVar :: String
 ucmTokenVar = "UCM_TOKEN"
@@ -254,7 +254,7 @@ data CodebaseServerOpts = CodebaseServerOpts
   { token :: Maybe String,
     host :: Maybe String,
     port :: Maybe Int,
-    allowFrom :: Maybe String,
+    allowCorsHost :: Maybe String,
     codebaseUIPath :: Maybe FilePath
   }
   deriving (Show, Eq)
@@ -265,7 +265,7 @@ defaultCodebaseServerOpts =
     { token = Nothing,
       host = Nothing,
       port = Nothing,
-      allowFrom = Nothing,
+      allowCorsHost = Nothing,
       codebaseUIPath = Nothing
     }
 
@@ -289,7 +289,7 @@ startServer env opts rt codebase onStart = do
         defaultSettings
           & maybe id setPort (port opts)
           & maybe id (setHost . fromString) (host opts)
-  let a = app env rt codebase envUI token (allowFrom opts)
+  let a = app env rt codebase envUI token (allowCorsHost opts)
   case port opts of
     Nothing -> withApplicationSettings settings (pure a) (onStart . baseUrl)
     Just p -> do
@@ -325,15 +325,15 @@ serveIndex path = do
 serveUI :: FilePath -> Server WebUI
 serveUI path _ = serveIndex path
 
--- Apply cors if there is 'allowFrom'
+-- Apply cors if there is allow-cors-host defined
 corsPolicy :: Maybe String -> Middleware
-corsPolicy = maybe id \allowFrom ->
+corsPolicy = maybe id \allowCorsHost ->
   cors $
     const $
       Just
         simpleCorsResourcePolicy
           { corsMethods = ["GET", "OPTIONS"],
-            corsOrigins = Just ([C8.pack allowFrom], True)
+            corsOrigins = Just ([C8.pack allowCorsHost], True)
           }
 
 server ::
