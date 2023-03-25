@@ -1,14 +1,18 @@
 text.tests = do
+ !text.lit.tests
  !text.eq.tests
  !text.ord.tests
+ !text.ops.tests
 
-text.eq.tests = do
+text.lit.tests = do
   check "Empty Text literal" do
     _ = ""
     true
   check "Text literal" do
     _ = "foo"
     true
+
+text.eq.tests = do
   check "Text equality: empty" do "" Text.== ""
   check "Text equality: non empty" do "foo" Text.== "foo"
   check "Text inequality: empty (1)" do not ("foo" Text.== "")
@@ -34,8 +38,56 @@ text.ord.tests = do
   checkEqual "Universal ordering with Text (3)" (Universal.compare "ba" "b") +1
   checkEqual "Universal ordering with Text (4)" (Universal.compare "b" "ab") +1
   checkEqual "Universal ordering with Text (5)" (Universal.compare "ac" "ab") +1
-  -- TODO ordering tests, has to include a simple composite case, e.g. inside Option
 
--- TODO op tests
+text.ops.tests = do
+  -- Done in previous tests
+  --  empty
+  --  equal
+  --  compare
 
--- TODO conversion tests (number, char, string, etc to Text)
+  -- Port list tests
+  --  ++
+  --  take
+  --  drop
+  --  size
+
+  -- New ops
+  --  reverse
+  --  repeat
+  --  toUppercase
+  --  toLowercase
+  --  uncons
+  --  unsnoc
+
+  -- conversions
+  --  toCharList
+  --  fromCharList
+  --  toUft8
+  --  fromUtf8
+
+  --  checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [1, 2, 3]
+  --  checkEqual "List.snoc" ([] :+ 1 :+ 2 :+ 3) [1, 2, 3]
+  --  checkEqual "List.++" ([] ++ [1, 2] ++ [3, 4] ++ []) [1, 2, 3, 4]
+  --  checkEqual "List.take (1)" (List.take 0 [1,2,3]) []
+  --  checkEqual "List.take (2)" (List.take 2 [1,2,3]) [1,2]
+  --  checkEqual "List.take (3)" (List.take 3 [1,2,3]) [1,2,3]
+  --  checkEqual "List.take (4)" (List.take 100 [1,2,3]) [1,2,3]
+  --  checkEqual "List.take (5)" (List.take 3 []) []
+  --  checkEqual "List.drop (1)" (List.drop 0 [1,2,3]) [1,2,3]
+  --  checkEqual "List.drop (2)" (List.drop 2 [1,2,3]) [3]
+  --  checkEqual "List.drop (3)" (List.drop 3 [1,2,3]) []
+  --  checkEqual "List.drop (4)" (List.drop 100 [1,2,3]) []
+  --  checkEqual "List.drop (5)" (List.drop 3 []) []
+  --  checkEqual "List.size (1)" (List.size []) 0
+  --  checkEqual "List.size (2)" (List.size [1,2,3]) 3
+  --  checkEqual "List.at (1)" (List.at 0 [1,2,3]) (Some 1)
+  --  checkEqual "List.at (2)" (List.at 2 [1,2,3]) (Some 3)
+  --  checkEqual "List.at (3)" (List.at 1 []) None
+  --  checkEqual "List.at (4)" (List.at 5 [1,2,3]) None
+
+  -- TODO op tests
+  -- TODO conversion tests (number, char, string, etc to Text)
+
+  -- TODO pattern matching tests, include Pattern api I reckon
+
+  ()

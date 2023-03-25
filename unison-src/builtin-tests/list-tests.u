@@ -1,16 +1,19 @@
 list.tests = do
+  !list.lit.tests
   !list.eq.tests
   !list.ord.tests
   !list.ops.tests
   !list.matching.tests
 
-list.eq.tests = do
+list.lit.tests = do
   check "List empty literal" do
     _ = []
     true
   check "List literal" do
     _ = [1, 2, 3]
     true
+
+list.eq.tests = do
   checkEqual "List equality: empty" [] []
   checkEqual "List equality: non empty" [1, 2] [1, 2]
   check "List inequality: non empty (1)" do [1, 2] !== [1, 2, 3]
@@ -132,7 +135,7 @@ list.matching.tests = do
     [a] ++ x@(b +: (c +: y@([] :+ d))) ++ tail -> ([a, b, c, d], tail)
     _ -> (l, [])
 
-   --  The program halted with an unhandled exception:
+   --  TODO The program halted with an unhandled exception:
 
    --     Failure
    --       (typeLink CompileError)
