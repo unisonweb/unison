@@ -73,7 +73,7 @@
       [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
       [else (raise "universal-compare: unimplemented")]))
 
-  (define (text<? l r) #t)
+  (define (text<? l r) (chunked-string=?/recur l r char<?))
 
   ;; TODO sort out consistent treatment of booleans
   (define (universal=? l r)
