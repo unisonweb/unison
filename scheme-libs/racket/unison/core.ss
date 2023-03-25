@@ -71,6 +71,15 @@
       [(equal? l r) '=]
       [(and (number? l) (number? r)) (if (< l r) '< '>)]
       [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
+      [(and (chunked-string? l) (chunked-string? r))
+       (chunked-string-compare/recur
+        l
+        r
+        (lambda (a b)
+          (cond
+            [(char<? a b) '<]
+            [(char>? a b) '>]
+            [else '=])))]
       [else (raise "universal-compare: unimplemented")]))
 
   (define (text<? l r) (chunked-string=?/recur l r char<?))
