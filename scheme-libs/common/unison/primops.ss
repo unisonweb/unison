@@ -227,7 +227,7 @@
   (define (unison-POp-DRPS n l) (chunked-list-drop l n))
   (define (unison-POp-DRPT n t) (istring-drop n t))
   (define (unison-POp-EQLN m n) (if (fx=? m n) 1 0))
-  (define (unison-POp-EQLT s t) (if (string=? s t) 1 0))
+  (define (unison-POp-EQLT s t) (if (chunked-string=?/recur s t char=?) 1 0))
   (define (unison-POp-EQLU x y) (if (universal-equal? x y) 1 0))
   (define (unison-POp-EROR fnm x)
     (let-values ([(p g) (open-string-output-port)])

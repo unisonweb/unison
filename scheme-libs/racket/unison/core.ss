@@ -98,6 +98,8 @@
       [(eq? l r) #t]
       [(and (chunked-list? l) (chunked-list? r))
        (chunked-list=?/recur l r universal-equal?)]
+      [(and (chunked-string? l) (chunked-string? r))
+       (chunked-string=?/recur l r char=?)]
       [(and (data? l) (data? r))
        (and
          (eqv? (data-tag l) (data-tag r))
