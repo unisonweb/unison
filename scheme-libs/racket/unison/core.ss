@@ -46,11 +46,12 @@
                   with-continuation-mark
                   continuation-mark-set-first
                   raise-syntax-error
-                  for)
+                  for/fold)
             (string-copy! racket-string-copy!)
             (bytes bytevector))
     (racket exn)
     (racket unsafe ops)
+    (only (srfi :13) string-reverse)
     (unison data)
     (unison data chunked-seq))
 
@@ -139,11 +140,10 @@
   (define (ref-mark k) (continuation-mark-set-first #f k))
 
   (define (chunked-string-reverse s)
-    (for ([c (in-chunked-string-chunks s)])
-      (display "YOOOOO")
-      (display c)
-      (newline))
-    s)
+    (for/fold
+        ([acc empty-chunked-string])
+        ([c (in-chunked-string-chunks s)])
+      (chunked-string-append (string->chunked-string (string-reverse c)) acc)))
 
   (define freeze-string! unsafe-string->immutable-string!)
   (define freeze-bytevector! unsafe-bytes->immutable-bytes!)

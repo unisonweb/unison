@@ -64,17 +64,14 @@ text.ops.tests = do
   checkEqual "Text.repeat (3)" (Text.repeat 0 "abc") ""
   checkEqual "Text.repeat (3)" (Text.repeat 10 "xy-") "xy-xy-xy-xy-xy-xy-xy-xy-xy-xy-"
   checkEqual "Text.reverse (1)" (Text.reverse "") ""
-  -- 256 chars for a chunk
-  -- use `repeat abc 256` ++ repeat def 256 ++ repeat ghi 42
-  -- The string is long enough to test the chunking structure
-  checkEqual "Text.reverse (2)" (Text.reverse "abcweaefeawfawgaebawegaefeafeawfceawfearfeaaefaefafeafeafeafeafafeafeafeafafeafafeafaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") "cba"
-  checkEqual "Text.reverse (2)" (Text.reverse ("abc" ++ "def" ++ "ghi")) "cba"
-
+  checkEqual "Text.reverse (2)" (Text.reverse "abc") "cba"
+  checkEqual -- The string is long enough to test the chunking structure
+    "Text.reverse (3)"
+    (Text.reverse (Text.repeat 256 "abc" ++ Text.repeat 256 "def" ++ Text.repeat 42 "ghi"))
+    (Text.repeat 42 "ihg" ++ Text.repeat 256 "fed" ++ Text.repeat 256 "cba")
 
 
   -- New ops
-  --  reverse
-  --  repeat
   --  toUppercase
   --  toLowercase
 
