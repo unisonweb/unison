@@ -340,7 +340,13 @@
       [(2) (open-file-output-port fn 'no-truncate)]
       [else (open-file-input/output-port fn)]))
 
-  (define (unison-FOp-Text.repeat n t) (istring-repeat n t))
+  (define (unison-FOp-Text.repeat n t)
+    (let loop ([cnt 0]
+               [acc empty-chunked-string])
+      (if (= cnt n)
+          acc
+          (loop (+ cnt 1) (chunked-string-append acc t)))))
+
   (define (unison-FOp-Text.reverse t) (chunked-string-reverse t))
 
   (define (catch-array thunk)
