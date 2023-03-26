@@ -59,7 +59,8 @@ text.ops.tests = do
   checkEqual "Text.unsnoc (1)" (Text.unsnoc "") None
   checkEqual "Text.unsnoc (2)" (Text.unsnoc "a") (Some ("", ?a))
   checkEqual "Text.unsnoc (3)" (Text.unsnoc "abc") (Some ("ab", ?c))
-
+  checkEqual "Text.reverse (1)" (Text.reverse "") ""
+  checkEqual "Text.reverse (2)" (Text.reverse "abc") "cba"
 
   -- New ops
   --  reverse

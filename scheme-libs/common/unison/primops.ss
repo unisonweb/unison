@@ -35,6 +35,7 @@
     unison-FOp-IO.putBytes.impl.v3
     unison-FOp-Text.fromUtf8.impl.v3
     unison-FOp-Text.repeat
+    unison-FOp-Text.reverse
     unison-FOp-Text.toUtf8
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
@@ -340,6 +341,7 @@
       [else (open-file-input/output-port fn)]))
 
   (define (unison-FOp-Text.repeat n t) (istring-repeat n t))
+  (define (unison-FOp-Text.reverse t) t)
 
   (define (catch-array thunk)
     (reify-exn thunk))
