@@ -65,7 +65,6 @@
   (define (describe-value x) '())
   (define (decode-value x) '())
 
-  ;; TODO move final transformation to data lib
   (define (universal-compare l r)
     (cond
       [(equal? l r) '=]
@@ -84,7 +83,6 @@
 
   (define (text<? l r) (chunked-string=?/recur l r char<?))
 
-  ;; TODO sort out consistent treatment of booleans
   (define (universal=? l r)
     (define (pointwise ll lr)
       (let ([nl (null? ll)] [nr (null? lr)])
