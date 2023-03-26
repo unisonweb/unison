@@ -53,14 +53,19 @@ text.ops.tests = do
   checkEqual "Text.drop (5)" (Text.drop 3 "") ""
   checkEqual "Text.size (1)" (Text.size "") 0
   checkEqual "Text.size (2)" (Text.size "abc") 3
+  checkEqual "Text.uncons (1)" (Text.uncons "") None
+  checkEqual "Text.uncons (2)" (Text.uncons "a") (Some (?a, ""))
+  checkEqual "Text.uncons (3)" (Text.uncons "abc") (Some (?a, "bc"))
+  checkEqual "Text.unsnoc (1)" (Text.unsnoc "") None
+  checkEqual "Text.unsnoc (2)" (Text.unsnoc "a") (Some ("", ?a))
+  checkEqual "Text.unsnoc (3)" (Text.unsnoc "abc") (Some ("ab", ?c))
+
 
   -- New ops
   --  reverse
   --  repeat
   --  toUppercase
   --  toLowercase
-  --  uncons
-  --  unsnoc
 
   -- conversions
   --  toCharList

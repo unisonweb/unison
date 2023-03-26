@@ -138,6 +138,8 @@
     unison-POp-XORN
     unison-POp-VALU
     unison-POp-VWLS
+    unison-POp-UCNS
+    unison-POp-USNC
 
     unison-POp-UPKB
     unison-POp-PAKB
@@ -284,6 +286,17 @@
     (if (chunked-list-empty? l)
         (sum 0)
         (let-values ([(t h) (chunked-list-pop-last l)])
+          (sum 1 t h))))
+  (define (unison-POp-UCNS s)
+    (if (chunked-string-empty? s)
+        (sum 0)
+        (let-values ([(t h) (chunked-string-pop-first s)])
+          (sum 1 h t))))
+
+  (define (unison-POp-USNC s)
+    (if (chunked-string-empty? s)
+        (sum 0)
+        (let-values ([(t h) (chunked-string-pop-last s)])
           (sum 1 t h))))
 
   (define (unison-POp-XORN m n) (fxxor m n))
