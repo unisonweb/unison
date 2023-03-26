@@ -14,9 +14,9 @@
     decode-value
 
     universal-compare
-    text<?
+    chunked-string<?
     universal=?
-    text=?
+    chunked-string=?
 
     fx1-
     list-head
@@ -81,7 +81,7 @@
             [else '=])))]
       [else (raise "universal-compare: unimplemented")]))
 
-  (define (text<? l r) (chunked-string=?/recur l r char<?))
+  (define (chunked-string<? l r) (chunked-string=?/recur l r char<?))
 
   (define (universal=? l r)
     (define (pointwise ll lr)
@@ -104,15 +104,16 @@
       [(and (chunked-list? l) (chunked-list? r))
        (chunked-list=?/recur l r universal=?)]
       [(and (chunked-string? l) (chunked-string? r))
-       (text=? l r)]
+       (chunked-string=? l r)]
       [(and (data? l) (data? r))
        (and
          (eqv? (data-tag l) (data-tag r))
          (pointwise (data-fields l) (data-fields r)))]
       [else #f]))
 
-  (define (text=? l r) (chunked-string=?/recur l r char=?))
+  (define (chunked-string=? l r) (chunked-string=?/recur l r char=?))
 
+  ;; TODO convert to text
   (define exception->string exn->string)
 
   (define (syntax->list stx)
