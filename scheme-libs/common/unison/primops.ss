@@ -341,7 +341,7 @@
       [else (open-file-input/output-port fn)]))
 
   (define (unison-FOp-Text.repeat n t) (istring-repeat n t))
-  (define (unison-FOp-Text.reverse t) t)
+  (define (unison-FOp-Text.reverse t) (chunked-string-reverse t))
 
   (define (catch-array thunk)
     (reify-exn thunk))

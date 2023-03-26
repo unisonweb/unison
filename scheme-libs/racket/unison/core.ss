@@ -28,12 +28,14 @@
     let-marks
     ref-mark
 
+    chunked-string-reverse
+
     freeze-string!
     string-copy!
 
     freeze-bytevector!
     freeze-vector!
-    
+
     bytevector)
 
   (import
@@ -43,7 +45,8 @@
                   bytes
                   with-continuation-mark
                   continuation-mark-set-first
-                  raise-syntax-error)
+                  raise-syntax-error
+                  for)
             (string-copy! racket-string-copy!)
             (bytes bytevector))
     (racket exn)
@@ -134,6 +137,13 @@
        (call-with-marks ks bn (lambda () e ...))]))
 
   (define (ref-mark k) (continuation-mark-set-first #f k))
+
+  (define (chunked-string-reverse s)
+    (for ([c (in-chunked-string-chunks s)])
+      (display "YOOOOO")
+      (display c)
+      (newline))
+    s)
 
   (define freeze-string! unsafe-string->immutable-string!)
   (define freeze-bytevector! unsafe-bytes->immutable-bytes!)
