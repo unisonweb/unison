@@ -69,6 +69,10 @@ text.ops.tests = do
     "Text.reverse (3)"
     (Text.reverse (Text.repeat 256 "abc" ++ Text.repeat 256 "def" ++ Text.repeat 42 "ghi"))
     (Text.repeat 42 "ihg" ++ Text.repeat 256 "fed" ++ Text.repeat 256 "cba")
+  checkEqual "Text.toUppercase (1)" (Text.toUppercase "") ""
+  checkEqual "Text.toUppercase (2)" (Text.toUppercase "abcABC123{({})}.") "ABCABC123{({})}."
+  checkEqual "Text.toLowercase (1)" (Text.toLowercase "") ""
+  checkEqual "Text.toLowercase (2)" (Text.toLowercase "abcABC123{({})}.") "abcabc123{({})}."
 
 
   -- New ops

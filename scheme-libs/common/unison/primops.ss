@@ -37,6 +37,8 @@
     unison-FOp-Text.repeat
     unison-FOp-Text.reverse
     unison-FOp-Text.toUtf8
+    unison-FOp-Text.toLowercase
+    unison-FOp-Text.toUppercase
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
     unison-FOp-IO.getArgs.impl.v1
@@ -348,6 +350,9 @@
           (loop (+ cnt 1) (chunked-string-append acc t)))))
 
   (define (unison-FOp-Text.reverse t) (chunked-string-reverse t))
+
+  (define (unison-FOp-Text.toLowercase t) (chunked-string-downcase t))
+  (define (unison-FOp-Text.toUppercase t) (chunked-string-upcase t))
 
   (define (catch-array thunk)
     (reify-exn thunk))

@@ -29,6 +29,9 @@
     ref-mark
 
     chunked-string-reverse
+    chunked-string-downcase
+    chunked-string-upcase
+
 
     freeze-string!
     string-copy!
@@ -46,7 +49,9 @@
                   with-continuation-mark
                   continuation-mark-set-first
                   raise-syntax-error
-                  for/fold)
+                  for/fold
+                  string-upcase
+                  string-downcase)
             (string-copy! racket-string-copy!)
             (bytes bytevector))
     (racket exn)
@@ -144,6 +149,23 @@
         ([acc empty-chunked-string])
         ([c (in-chunked-string-chunks s)])
       (chunked-string-append (string->chunked-string (string-reverse c)) acc)))
+
+  ;; These casing functions don't account for a corner case in Unicode in
+  ;; a scenario where a code-point sequence is split across two chunks.
+  ;; TODO
+  ;; Alternative is to roundtrip to string, which maybe it's preferable,
+  ;; I'd expect casing functions to be called on small strings
+  (define (chunked-string-downcase s)
+    (for/fold
+        ([acc empty-chunked-string])
+        ([c (in-chunked-string-chunks s)])
+      (chunked-string-append acc (string->chunked-string (string-downcase c)))))
+
+  (define (chunked-string-upcase s)
+    (for/fold
+        ([acc empty-chunked-string])
+        ([c (in-chunked-string-chunks s)])
+      (chunked-string-append acc (string->chunked-string (string-upcase c)))))
 
   (define freeze-string! unsafe-string->immutable-string!)
   (define freeze-bytevector! unsafe-bytes->immutable-bytes!)
