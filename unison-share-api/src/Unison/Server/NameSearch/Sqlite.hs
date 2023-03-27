@@ -18,7 +18,6 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
@@ -62,14 +61,14 @@ scopedNameSearch codebase rootHash path =
     pathText :: Text
     pathText = Path.toText path
     lookupNamesForTypes :: Reference -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
-    lookupNamesForTypes ref = track "lookupNamesForTypes" do
+    lookupNamesForTypes ref = do
       names <- Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 ref) Nothing
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Reference.toShortHash ref))
         & Set.fromList
         & pure
     lookupNamesForTerms :: Referent -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
-    lookupNamesForTerms ref = track "lookupNamesForTerms" do
+    lookupNamesForTerms ref = do
       names <- Ops.termNamesForRefWithinNamespace rootHash pathText (Cv.referent1to2 ref) Nothing
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Referent.toShortHash ref))
@@ -85,20 +84,16 @@ scopedNameSearch codebase rootHash path =
       exact <- hqTermSearch ExactMatch hqName
       if Set.null exact
         then do
-          Debug.debugLogM Debug.Temp $ "Falling back to suffix search for term: " <> show hqName
           hqTermSearch SuffixMatch hqName
         else do
-          Debug.debugLogM Debug.Temp $ "Found exact match for term: " <> show hqName
           pure exact
     lookupRelativeHQRefsForTypes :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
     lookupRelativeHQRefsForTypes hqName = do
       exact <- hqTypeSearch ExactMatch hqName
       if Set.null exact
         then do
-          Debug.debugLogM Debug.Temp $ "Falling back to suffix search for type: " <> show hqName
           hqTypeSearch SuffixMatch hqName
         else do
-          Debug.debugLogM Debug.Temp $ "Found exact match for type " <> show hqName
           pure exact
     -- Search the codebase for matches to the given hq name.
     -- Supports either an exact match or a suffix match.
@@ -157,13 +152,6 @@ scopedNameSearch codebase rootHash path =
 
     reversedSegmentsToName :: NamedRef.ReversedSegments -> Name
     reversedSegmentsToName = Name.fromReverseSegments . coerce
-
-    track :: String -> Sqlite.Transaction a -> Sqlite.Transaction a
-    track name m = do
-      Debug.debugLogM Debug.Server $ "Starting " <> name
-      r <- m
-      Debug.debugLogM Debug.Server $ "Finished " <> name
-      pure r
 
 -- | Look up types in the codebase by short hash, and include builtins.
 typeReferencesByShortHash :: SH.ShortHash -> Sqlite.Transaction (Set Reference)

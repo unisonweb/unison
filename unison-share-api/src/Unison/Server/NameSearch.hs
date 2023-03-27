@@ -13,7 +13,12 @@ import qualified Unison.Server.SearchResult as SR
 
 -- | A @Search r@ is a small bag of functions that is used to power a search for @r@s.
 --
--- Construct a 'Search' with 'makeTypeSearch' or 'makeTermSearch', and eliminate it with 'applySearch'.
+-- There are currently two implementations of this interface:
+--
+-- * 'NameSearch.FromNames' which builds a name search from a 'Names' object
+-- * 'NameSearch.Sqlite which builds a name search that uses a sqlite name lookup index.
+--
+-- You can use the individual methods of a name search or can use 'applySearch'.
 data Search m r = Search
   { lookupNames :: r -> m (Set (HQ'.HashQualified Name)),
     lookupRelativeHQRefs' :: HQ'.HashQualified Name -> m (Set r),

@@ -1845,6 +1845,33 @@ termNamesBySuffix bhId namespaceRoot suffix = do
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
+-- Get the list of type names within a given namespace which have the given suffix.
+typeNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+typeNamesBySuffix bhId namespaceRoot suffix = do
+  Debug.debugM Debug.Server "typeNamesBySuffix" (namespaceRoot, suffix)
+  let namespaceGlob = toNamespaceGlob namespaceRoot
+  let lastNameSegment = NonEmpty.head suffix
+  queryListRow sql (bhId, lastNameSegment, namespaceGlob, toSuffixGlob suffix)
+  where
+    sql =
+      -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+      -- GLOB, but this helps improve query performance.
+      -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+      -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+      -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+      -- names which couldn't possibly match before we then manually filter the remaining names
+      -- using the `reversed_name` glob which can't be optimized with an index.
+      [here|
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
+        WHERE     root_branch_hash_id = ?
+              AND last_name_segment IS ?
+              AND namespace GLOB ?
+              AND reversed_name GLOB ?
+        |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
 -- Get the set of refs for an exact name.
 termRefsForExactName :: BranchHashId -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termRefsForExactName bhId reversedSegments = do
@@ -1920,6 +1947,22 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
               AND reversed_name GLOB ?
         |]
 
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- The goal of this query is to search the codebase for the single name which has a different
+-- hash from the provided name, but shares longest matching suffix for for that name.
+--
+-- Including this name in the pretty-printer object causes it to suffixify the name so that it
+-- is unambiguous from other names in scope.
+--
+-- Sqlite doesn't provide enough functionality to do this query in a single query, so we do
+-- it iteratively, querying for longer and longer suffixes we no longer find matches.
+-- Then we return the name with longest matching suffix.
+--
+-- This is still relatively efficient because we can use an index and LIMIT 1 to make each
+-- individual query fast, and in the common case we'll only need two or three queries to find
+-- the longest matching suffix.
 longestMatchingTermNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
 longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(lastSegment NonEmpty.:| _), ref}) = do
   let namespaceGlob = globEscape namespaceRoot <> ".*"
@@ -2010,33 +2053,6 @@ longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
               AND NOT (reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?)
         LIMIT 1
       |]
-
--- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
--- is only true on Share.
---
--- Get the list of type names within a given namespace which have the given suffix.
-typeNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
-typeNamesBySuffix bhId namespaceRoot suffix = do
-  Debug.debugM Debug.Server "typeNamesBySuffix" (namespaceRoot, suffix)
-  let namespaceGlob = toNamespaceGlob namespaceRoot
-  let lastNameSegment = NonEmpty.head suffix
-  queryListRow sql (bhId, lastNameSegment, namespaceGlob, toSuffixGlob suffix)
-  where
-    sql =
-      -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
-      -- GLOB, but this helps improve query performance.
-      -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
-      -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
-      -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
-      -- names which couldn't possibly match before we then manually filter the remaining names
-      -- using the `reversed_name` glob which can't be optimized with an index.
-      [here|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
-        WHERE     root_branch_hash_id = ?
-              AND last_name_segment IS ?
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
-        |]
 
 -- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool
