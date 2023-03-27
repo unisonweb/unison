@@ -74,6 +74,7 @@ data Env = Env
     codebase :: Codebase IO Symbol Ann,
     parseNamesCache :: IO NamesWithHistory,
     ppedCache :: IO PrettyPrintEnvDecl,
+    nameSearchCache :: IO Backend.NameSearch,
     currentPathCache :: IO Path.Absolute,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
@@ -119,6 +120,7 @@ data FileAnalysis = FileAnalysis
     codeActions :: IntervalMap Position [CodeAction],
     fileSummary :: Maybe FileSummary
   }
+  deriving stock (Show)
 
 -- | A file that parses might not always type-check, but often we just want to get as much
 -- information as we have available. This provides a type where we can summarize the
@@ -147,6 +149,9 @@ getCodebaseCompletions = asks completionsVar >>= readTVarIO
 
 globalPPED :: Lsp PrettyPrintEnvDecl
 globalPPED = asks ppedCache >>= liftIO
+
+getNameSearch :: Lsp Backend.NameSearch
+getNameSearch = asks nameSearchCache >>= liftIO
 
 getParseNames :: Lsp NamesWithHistory
 getParseNames = asks parseNamesCache >>= liftIO

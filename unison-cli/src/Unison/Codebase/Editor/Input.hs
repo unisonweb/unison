@@ -203,6 +203,7 @@ data Input
   | QuitI
   | ApiI
   | UiI
+  | DocToMarkdownI Name
   | DocsToHtmlI Path' FilePath
   | GistI GistInput
   | AuthLoginI
