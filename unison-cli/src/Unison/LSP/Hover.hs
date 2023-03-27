@@ -21,6 +21,7 @@ import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Reference as Reference
+import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.Name as Name
@@ -62,13 +63,27 @@ hoverInfo uri pos =
       let fqn = case ref of
             LD.TypeReference ref -> PPE.typeName unsuffixifiedPPE ref
             LD.TermReferent ref -> PPE.termName unsuffixifiedPPE ref
+
+      builtinsAsync <- liftIO . UnliftIO.async $ UnliftIO.evaluate IOSource.typecheckedFile
+      checkBuiltinsReady <- liftIO do
+        pure
+          ( UnliftIO.poll builtinsAsync
+              <&> ( \case
+                      Nothing -> False
+                      Just (Left {}) -> False
+                      Just (Right {}) -> True
+                  )
+          )
       renderedDocs <-
         -- We don't want to block the type signature hover info if the docs are taking a long time to render;
         -- We know it's also possible to write docs that eval forever, so the timeout helps
         -- protect against that.
         lift (UnliftIO.timeout 2_000_000 (LSPQ.markdownDocsForFQN uri fqn))
           >>= ( \case
-                  Nothing -> pure ["\n---\n⏳ Timed out rendering docs"]
+                  Nothing ->
+                    checkBuiltinsReady >>= \case
+                      False -> pure ["\n---\n🔜 Doc renderer is initializing, try again in a few seconds."]
+                      True -> pure ["\n---\n⏳ Timeout evaluating docs"]
                   Just [] -> pure []
                   -- Add some space from the type signature
                   Just xs@(_ : _) -> pure ("\n---\n" : xs)
