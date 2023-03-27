@@ -3,6 +3,7 @@ text.tests = do
  !text.eq.tests
  !text.ord.tests
  !text.ops.tests
+ !text.conversion.tests
 
 text.lit.tests = do
   check "Empty Text literal" do
@@ -75,20 +76,16 @@ text.ops.tests = do
   checkEqual "Text.toLowercase (2)" (Text.toLowercase "abcABC123{({})}.") "abcabc123{({})}."
 
 
-  -- New ops
-  --  toUppercase
-  --  toLowercase
-
-  -- conversions
+text.conversion.tests = do
   --  toCharList
   --  fromCharList
   --  toUft8
   --  fromUtf8
-
-
-  -- TODO op tests
-  -- TODO conversion tests (number signed number char string etc to Text)
-
-  -- TODO pattern matching tests include Pattern api I reckon
-
+  -- char
+  -- nat
+  -- int
+  -- float
+  -- check others
   ()
+
+ -- TODO pattern matching tests (with Pattern api)
