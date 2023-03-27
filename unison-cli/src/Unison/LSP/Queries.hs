@@ -2,7 +2,8 @@
 
 -- | Rewrites of some codebase queries, but which check the scratch file for info first.
 module Unison.LSP.Queries
-  ( getTypeOfReferent,
+  ( markdownDocsForFQN,
+    getTypeOfReferent,
     getTypeDeclaration,
     refAtPosition,
     nodeAtPosition,
@@ -27,13 +28,15 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.HashQualified as HQ
 import Unison.LSP.Conversions (lspToUPos)
-import Unison.LSP.FileAnalysis (getFileSummary)
+import Unison.LSP.FileAnalysis (getFileSummary, ppedForFile)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LabeledDependency
 import qualified Unison.LabeledDependency as LD
 import Unison.Lexer.Pos (Pos (..))
+import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Pattern as Pattern
@@ -42,12 +45,16 @@ import Unison.Reference (TypeReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
+import qualified Unison.Server.Backend as Backend
+import qualified Unison.Server.Doc.Markdown.Render as Md
+import qualified Unison.Server.Doc.Markdown.Types as Md
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser (ann)
 import Unison.Term (MatchCase (MatchCase), Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
+import qualified Unison.Util.Pretty as Pretty
 
 -- | Returns a reference to whatever the symbol at the given position refers to.
 refAtPosition :: Uri -> Position -> MaybeT Lsp LabeledDependency
@@ -369,3 +376,17 @@ removeInferredTypeAnnotations =
       -- If the type's annotation is identical to the term's annotation, then this must be an inferred type
       | ABT.annotation typ == ABT.annotation trm -> trm
     t -> t
+
+-- | Renders all docs for a given FQN to markdown.
+markdownDocsForFQN :: Uri -> HQ.HashQualified Name -> Lsp [Text]
+markdownDocsForFQN fileUri fqn =
+  fromMaybe [] <$> runMaybeT do
+    pped <- lift $ ppedForFile fileUri
+    name <- MaybeT . pure $ HQ.toName fqn
+    nameSearch <- lift $ getNameSearch
+    Env {codebase, runtime} <- ask
+    liftIO $ do
+      docRefs <- Backend.docsForDefinitionName codebase nameSearch name
+      for docRefs $ \docRef -> do
+        (_, _, doc) <- Backend.renderDoc pped (Pretty.Width 80) runtime codebase docRef
+        pure . Md.toText $ Md.toMarkdown doc
