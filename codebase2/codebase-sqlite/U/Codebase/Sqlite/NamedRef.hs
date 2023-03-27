@@ -7,6 +7,7 @@ import qualified Data.Text as Text
 import Unison.Prelude
 import Unison.Sqlite
 
+-- | E.g. ("map" :| ["List", "base"])
 type ReversedSegments = NonEmpty Text
 
 data ConstructorType
@@ -48,11 +49,6 @@ instance (FromRow ref) => FromRow (NamedRef ref) where
           & NonEmpty.fromList
     ref <- fromRow
     pure (NamedRef {reversedSegments, ref})
-
-toRowWithNamespace :: (ToRow ref) => NamedRef ref -> [SQLData]
-toRowWithNamespace nr = toRow nr <> [SQLText namespace]
-  where
-    namespace = Text.intercalate "." . reverse . NEL.tail . reversedSegments $ nr
 
 -- | The new 'scoped' name lookup format is different from the old version.
 --

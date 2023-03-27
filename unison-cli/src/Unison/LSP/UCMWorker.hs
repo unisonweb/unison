@@ -13,13 +13,16 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.PrettyPrintEnvDecl
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import qualified Unison.Server.Backend as Backend
+import Unison.Server.NameSearch (NameSearch)
+import qualified Unison.Server.NameSearch.FromNames as NameSearch
+import qualified Unison.Sqlite as Sqlite
 import UnliftIO.STM
 
 -- | Watches for state changes in UCM and updates cached LSP state accordingly
 ucmWorker ::
   TVar PrettyPrintEnvDecl ->
   TVar NamesWithHistory ->
-  TVar Backend.NameSearch ->
+  TVar (NameSearch Sqlite.Transaction) ->
   STM (Branch IO) ->
   STM Path.Absolute ->
   Lsp ()
@@ -34,7 +37,7 @@ ucmWorker ppeVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = 
         atomically $ do
           writeTVar parseNamesVar parseNames
           writeTVar ppeVar ppe
-          writeTVar nameSearchCacheVar (Backend.makeNameSearch hl parseNames)
+          writeTVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNames)
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
         atomically do

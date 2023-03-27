@@ -182,6 +182,7 @@ import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
 import qualified Unison.Server.Doc.Markdown.Render as Md
 import qualified Unison.Server.Doc.Markdown.Types as Md
+import qualified Unison.Server.NameSearch.FromNames as NameSearch
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
@@ -581,12 +582,12 @@ loop e = do
               hqLength <- Cli.runTransaction Codebase.hashLength
               let pped = PPED.fromNamesDecl hqLength (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
               basicPrettyPrintNames <- basicParseNames
-              let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames basicPrettyPrintNames)
+              let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames basicPrettyPrintNames)
               Cli.Env {codebase, runtime} <- ask
               mdText <- liftIO $ do
                 docRefs <- Backend.docsForDefinitionName codebase nameSearch docName
                 for docRefs $ \docRef -> do
-                  (_, _, doc) <- Backend.renderDoc pped (Pretty.Width 80) runtime codebase docRef
+                  Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
                   pure . Md.toText $ Md.toMarkdown doc
               Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
             DocsToHtmlI namespacePath' sourceDirectory -> do
@@ -2100,7 +2101,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
       pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
-    let nameSearch = Backend.makeNameSearch hqLength names
+    let nameSearch = NameSearch.makeNameSearch hqLength names
     Cli.runTransaction (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
@@ -3384,7 +3385,7 @@ hqNameQuery query = do
   Cli.runTransaction do
     hqLength <- Codebase.hashLength
     let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
-    let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+    let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
     Backend.hqNameQuery codebase nameSearch query
 
 -- | Select a definition from the given branch.

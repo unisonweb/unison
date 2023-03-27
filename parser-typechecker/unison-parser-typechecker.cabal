@@ -119,6 +119,7 @@ library
       Unison.PrettyPrintEnv.Util
       Unison.PrettyPrintEnvDecl
       Unison.PrettyPrintEnvDecl.Names
+      Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
       Unison.Result
       Unison.Runtime.ANF

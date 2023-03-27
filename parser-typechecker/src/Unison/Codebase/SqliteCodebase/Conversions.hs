@@ -309,6 +309,12 @@ referent2to1 lookupCT = \case
   V2.Ref r -> pure $ V1.Ref (reference2to1 r)
   V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) <$> lookupCT r
 
+-- | Like referent2to1, but uses the provided constructor type directly
+referent2to1UsingCT :: V2.ConstructorType -> V2.Referent -> V1.Referent
+referent2to1UsingCT ct = \case
+  V2.Ref r -> V1.Ref (reference2to1 r)
+  V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) (constructorType2to1 ct)
+
 referent1to2 :: V1.Referent -> V2.Referent
 referent1to2 = \case
   V1.Ref r -> V2.Ref $ reference1to2 r

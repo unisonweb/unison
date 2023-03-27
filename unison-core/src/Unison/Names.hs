@@ -47,6 +47,7 @@ module Unison.Names
     isEmpty,
     hashQualifyTypesRelation,
     hashQualifyTermsRelation,
+    fromTermsAndTypes,
   )
 where
 
@@ -365,6 +366,10 @@ fromTerms ts = Names (R.fromList ts) mempty
 
 fromTypes :: [(Name, TypeReference)] -> Names
 fromTypes ts = Names mempty (R.fromList ts)
+
+fromTermsAndTypes :: [(Name, Referent)] -> [(Name, TypeReference)] -> Names
+fromTermsAndTypes terms types =
+  fromTerms terms <> fromTypes types
 
 -- | Map over each name in a 'Names'.
 mapNames :: (Name -> Name) -> Names -> Names
