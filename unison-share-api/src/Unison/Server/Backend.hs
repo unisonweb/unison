@@ -66,7 +66,7 @@ module Unison.Server.Backend
     typeReferencesByShortHash,
     typeToSyntaxHeader,
     renderDocRefs,
-    docsForTermName,
+    docsForDefinitionName,
 
     -- * Unused, could remove?
     resolveRootBranchHash,
@@ -886,7 +886,7 @@ prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt 
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do
-        docRefs <- docsForTermName codebase nameSearch name
+        docRefs <- docsForDefinitionName codebase nameSearch name
         renderDocRefs pped width codebase rt docRefs
 
   let fqnPPE = PPED.unsuffixifiedPPE pped
@@ -1045,12 +1045,12 @@ evalDocRef rt codebase r = do
 
 -- | Fetch the docs associated with the given name.
 -- Returns all references with a Doc type which are at the name provided, or at '<name>.doc'.
-docsForTermName ::
+docsForDefinitionName ::
   Codebase IO Symbol Ann ->
   NameSearch Sqlite.Transaction ->
   Name ->
   IO [TermReference]
-docsForTermName codebase (NameSearch {termSearch}) name = do
+docsForDefinitionName codebase (NameSearch {termSearch}) name = do
   let potentialDocNames = [name, name Cons.:> "doc"]
   Codebase.runTransaction codebase do
     refs <-
@@ -1069,13 +1069,13 @@ docsForTermName codebase (NameSearch {termSearch}) name = do
 
 -- | Evaluate and render the given docs
 renderDocRefs ::
+  (Traversable t) =>
   PPED.PrettyPrintEnvDecl ->
   Width ->
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
-  [TermReference] ->
-  IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
-renderDocRefs _pped _width _codebase _rt [] = pure []
+  t TermReference ->
+  IO (t (HashQualifiedName, UnisonHash, Doc.Doc))
 renderDocRefs pped width codebase rt docRefs = do
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
   for eDocs \(ref, eDoc) -> do

@@ -79,7 +79,7 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do
-        docRefs <- liftIO $ docsForTermName codebase nameSearch name
+        docRefs <- liftIO $ docsForDefinitionName codebase nameSearch name
         renderDocRefs ppedBuilder width codebase rt docRefs
 
   let drDeps = definitionResultsDependencies dr
