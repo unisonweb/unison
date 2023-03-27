@@ -124,6 +124,7 @@ library
     , utf8-string
     , vector
     , wai
+    , wai-cors
     , warp
     , yaml
   default-language: Haskell2010

@@ -19,3 +19,5 @@ You can then run the tests with
 $ raco test scheme-libs/racket/unison/crypto.rkt
 ```
 On success, it has no output.
+
+You'll also need to install `x509-lib` with `raco pkg install x509-lib`
