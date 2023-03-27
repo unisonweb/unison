@@ -144,23 +144,23 @@
 
   (define (ref-mark k) (continuation-mark-set-first #f k))
 
-  (define (chunked-string-reverse s)
+  (define (chunked-string-foldMap-chunks s m f)
     (for/fold
         ([acc empty-chunked-string])
         ([c (in-chunked-string-chunks s)])
-      (chunked-string-append (string->chunked-string (string-reverse c)) acc)))
+      (f acc (string->chunked-string (m c)))))
+
+  (define (chunked-string-reverse s)
+    (chunked-string-foldMap-chunks
+     s
+     string-reverse
+     (lambda (acc c) (chunked-string-append c acc))))
 
   (define (chunked-string-downcase s)
-    (for/fold
-        ([acc empty-chunked-string])
-        ([c (in-chunked-string-chunks s)])
-      (chunked-string-append acc (string->chunked-string (string-downcase c)))))
+    (chunked-string-foldMap-chunks s string-downcase chunked-string-append))
 
   (define (chunked-string-upcase s)
-    (for/fold
-        ([acc empty-chunked-string])
-        ([c (in-chunked-string-chunks s)])
-      (chunked-string-append acc (string->chunked-string (string-upcase c)))))
+    (chunked-string-foldMap-chunks s string-upcase chunked-string-append))
 
   (define freeze-string! unsafe-string->immutable-string!)
   (define freeze-bytevector! unsafe-bytes->immutable-bytes!)
