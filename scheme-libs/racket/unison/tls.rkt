@@ -45,6 +45,36 @@
 
 (struct server-config (certs key))
 
+; list of certificates
+; and a single private key.
+; So is the first one, the special one,
+; and the others the chain?
+
+; ugh I think I need to learn more about
+; certificate chains.
+; because it looks like the
+; credential here is just using the chain
+; and not .. using something else.
+; > Credentials [(X.CertificateChain certs, key)]
+; 
+; credentialLoadX509FromMemory loads a cert and a privkey
+; credentialLoadX509ChainSource does a cert, a list of chain certs, and a privkey
+; which sounds very much like SSL_CTX_use_cert_and_key
+; 
+
+; https://www.openssl.org/docs/man1.1.1/man3/SSL_CTX_add1_chain_cert.html
+; https://www.openssl.org/docs/man1.1.1/man3/SSL_CTX_use_certificate_chain_file.html
+
+
+; readKeyFileFromMemory for the priv key, that's fine
+
+; but for certificates, we're doing `decodeSignedCertificate` on
+; a pem bytestring
+; and then just using the list of that
+; as the "certificate chain".
+; 🤔
+
+
 (define (ServerConfig.default certs key) ; list tlsSignedCert tlsPrivateKey -> tlsServerConfig
   (server-config certs key))
 

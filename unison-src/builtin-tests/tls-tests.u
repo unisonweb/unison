@@ -10,7 +10,14 @@ tls.tests = do
   check "decoding an invalid private key should ignore" do 0 == List.size (decodePrivateKey (toUtf8 "not a private key"))
   check "decoding an invalid cert should fail" do isLeft (decodeCert (toUtf8 "not a cert"))
   !testConnectSelfSigned
-  expectError "self signed wrong host" "NameMismatch" testConnectSelfSignedWrongHost
+  expectError "self signed with the wrong hostname should fail" "NameMismatch" testConnectSelfSignedWrongHost
+  expectError "self signed with an unknown CA should fail" "certificate has unknown CA" do
+    portPromise = Promise.new ()
+    toSend = "12345"
+    -- Server
+    serverResult = defer do serverThread portPromise toSend
+    -- Client
+    Either.toException !(testClient None "test.unison.cloud" portPromise)
   check "connects to example.com over tls" do
     socket = Socket.client (HostName "example.com") (Port "443")
     config = ClientConfig.default (HostName "example.com") ""
@@ -40,7 +47,7 @@ testConnectSelfSigned = do
   received = clientThread "test.unison.cloud" portPromise
   _ = Either.toException <| Promise.read serverResult
   -- Check it
-  checkEqual "should have received what we've sent" toSend received
+  checkEqual "self signed should connect & receive what we sent" toSend received
 
 expectError msg text fn = match catchAll fn with
   Left (Failure _ message _) ->
@@ -96,6 +103,7 @@ testClient cert hostname portVar _ = catch do
   -- create a client that will expect a cert from the given hostname (CN)
   defaultClient = (Tls.ClientConfig.default (HostName.HostName hostname) "")
   -- if we were passed a certificate to trust, it is the only certificate we trust
+  -- otherwise, we'll reject self-signed certificates
   tlsconfig = match cert with
     None        -> defaultClient
     Some (cert) -> defaultClient |> ClientConfig.certificates.set [cert]
