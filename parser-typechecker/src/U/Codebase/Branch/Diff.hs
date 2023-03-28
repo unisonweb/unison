@@ -61,9 +61,6 @@ instance Semigroup DefinitionDiffs where
 instance Monoid DefinitionDiffs where
   mempty = DefinitionDiffs mempty mempty
 
-isEmptyDefDiffs :: DefinitionDiffs -> Bool
-isEmptyDefDiffs dd = dd == mempty
-
 -- | A tree of local diffs. Each node of the tree contains the definition diffs at that path.
 newtype TreeDiff m = TreeDiff
   { unTreeDiff :: Cofree (Compose m (Map NameSegment)) DefinitionDiffs
@@ -117,12 +114,12 @@ instance Semigroup NameBasedDiff where
     NameBasedDiff (terms0 <> terms1) (types0 <> types1)
 
 -- | Diff two Branches, returning a tree containing all of the changes
-diffBranches :: forall m. (Monad m) => Branch m -> Branch m -> m (TreeDiff m)
-diffBranches from to = do
+diffBranches :: forall m. (Monad m) => Branch m -> Branch m -> TreeDiff m
+diffBranches from to =
   let termDiffs = diffMap (Branch.terms from) (Branch.terms to)
-  let typeDiffs = diffMap (Branch.types from) (Branch.types to)
-  let defDiff = DefinitionDiffs {termDiffs, typeDiffs}
-  let childDiff = do
+      typeDiffs = diffMap (Branch.types from) (Branch.types to)
+      defDiff = DefinitionDiffs {termDiffs, typeDiffs}
+      childDiff = do
         Align.align (children from) (children to)
           & wither \case
             This ca -> do
@@ -130,10 +127,10 @@ diffBranches from to = do
               -- names were removed, we just need to delete from the index using a
               -- prefix query, this would be faster than crawling to get all the deletes.
               removedChildBranch <- Causal.value ca
-              Just . unTreeDiff <$> diffBranches removedChildBranch Branch.empty
+              pure . Just . unTreeDiff $ diffBranches removedChildBranch Branch.empty
             That ca -> do
               newChildBranch <- Causal.value ca
-              Just . unTreeDiff <$> diffBranches Branch.empty newChildBranch
+              pure . Just . unTreeDiff $ diffBranches Branch.empty newChildBranch
             These fromC toC
               | Causal.valueHash fromC == Causal.valueHash toC -> do
                   -- This child didn't change.
@@ -141,13 +138,10 @@ diffBranches from to = do
               | otherwise -> do
                   fromChildBranch <- Causal.value fromC
                   toChildBranch <- Causal.value toC
-                  diffBranches fromChildBranch toChildBranch >>= \case
+                  case diffBranches fromChildBranch toChildBranch of
                     TreeDiff (defDiffs :< Compose mchildren) -> do
-                      children <- mchildren
-                      if (isEmptyDefDiffs defDiffs && null children)
-                        then pure Nothing
-                        else pure . Just $ (defDiffs :< Compose (pure children))
-  pure $ TreeDiff (defDiff :< Compose childDiff)
+                      pure . Just $ (defDiffs :< Compose mchildren)
+   in TreeDiff (defDiff :< Compose childDiff)
   where
     diffMap :: forall ref. (Ord ref) => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Diff ref)
     diffMap l r =

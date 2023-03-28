@@ -641,7 +641,7 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
               -- history looking for a Branch Hash we already have an index for.
               pure (V2Branch.empty, Nothing)
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
-      treeDiff <- BranchDiff.diffBranches fromBranch toBranch
+      let treeDiff = BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
       Ops.buildNameLookupForBranchHash
         mayExistingLookupBH
