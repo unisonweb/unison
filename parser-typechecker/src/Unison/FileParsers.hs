@@ -157,13 +157,13 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
   let -- substitute Blanks for any remaining free vars in UF body
       tdnrTerm = Term.prepareTDNR term
       env0 = Typechecker.Env ambient tl fqnsByShortName
-      ppe =
+      unisonFilePPE =
         ( PPE.fromNames
             10
             (NamesWithHistory.shadowing (UF.toNames uf) Builtin.names)
         )
       Result notes mayType =
-        evalStateT (Typechecker.synthesizeAndResolve ppe env0) tdnrTerm
+        evalStateT (Typechecker.synthesizeAndResolve unisonFilePPE env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
   Result (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
