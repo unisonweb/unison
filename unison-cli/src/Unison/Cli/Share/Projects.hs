@@ -40,31 +40,14 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified Unison.Auth.HTTPClient as Auth
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
+import Unison.Cli.Share.Projects.Types (RemoteProject (..), RemoteProjectBranch (..))
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
-import qualified Unison.Share.API.Hash as Share.API
 import qualified Unison.Share.API.Projects as Share.API
 import Unison.Share.Codeserver (defaultCodeserver)
 import Unison.Share.Types (codeserverBaseURL)
-
--- | A remote project.
-data RemoteProject = RemoteProject
-  { projectId :: RemoteProjectId,
-    projectName :: ProjectName
-  }
-  deriving stock (Eq, Generic, Show)
-
--- | A remote project branch.
-data RemoteProjectBranch = RemoteProjectBranch
-  { projectId :: RemoteProjectId,
-    projectName :: ProjectName,
-    branchId :: RemoteProjectBranchId,
-    branchName :: ProjectBranchName,
-    branchHead :: Share.API.HashJWT
-  }
-  deriving stock (Eq, Show, Generic)
 
 -- | Get a project by id.
 --

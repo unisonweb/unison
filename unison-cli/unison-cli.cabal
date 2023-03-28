@@ -37,6 +37,7 @@ library
       Unison.Cli.PrettyPrintUtils
       Unison.Cli.ProjectUtils
       Unison.Cli.Share.Projects
+      Unison.Cli.Share.Projects.Types
       Unison.Cli.TypeCheck
       Unison.Cli.UnisonConfigUtils
       Unison.Codebase.Editor.AuthorInfo

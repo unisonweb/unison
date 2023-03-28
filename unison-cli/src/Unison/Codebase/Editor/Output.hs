@@ -23,7 +23,10 @@ import qualified Servant.Client as Servant (ClientError)
 import qualified System.Console.Haskeline as Completion
 import U.Codebase.Branch.Diff (NameChanges)
 import U.Codebase.HashTags (CausalHash)
+import qualified U.Codebase.Sqlite.Project as Sqlite
+import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
 import Unison.Auth.Types (CredentialFailure)
+import qualified Unison.Cli.Share.Projects.Types as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
@@ -249,13 +252,13 @@ data Output
   | StartOfCurrentPathHistory
   | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
   | PullAlreadyUpToDate
-      (ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName))
-      (PullTarget (ProjectAndBranch ProjectName ProjectBranchName))
+      (ReadRemoteNamespace Share.RemoteProjectBranch)
+      (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | PullSuccessful
-      (ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName))
-      (PullTarget (ProjectAndBranch ProjectName ProjectBranchName))
+      (ReadRemoteNamespace Share.RemoteProjectBranch)
+      (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
-    MergeOverEmpty (PullTarget (ProjectAndBranch ProjectName ProjectBranchName))
+    MergeOverEmpty (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | MergeAlreadyUpToDate Path' Path'
   | PreviewMergeAlreadyUpToDate Path' Path'
   | -- | No conflicts or edits remain for the current patch.
@@ -292,7 +295,7 @@ data Output
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
   | ClearScreen
-  | PulledEmptyBranch (ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName))
+  | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject ProjectName ProjectBranchName
   | CreatedProjectBranch ProjectBranchName ProjectBranchName -- parent, child
   | ProjectNameAlreadyExists ProjectName

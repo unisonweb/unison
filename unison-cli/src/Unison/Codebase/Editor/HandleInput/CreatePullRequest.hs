@@ -13,7 +13,7 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
-import Unison.Codebase.Editor.HandleInput.Pull (importRemoteShareBranch)
+import Unison.Codebase.Editor.HandleInput.Pull (loadShareLooseCodeIntoMemory)
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..))
@@ -33,7 +33,7 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
           Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \case
             Left err -> Cli.returnEarly (Output.GitError err)
             Right x -> k x
-        ReadShare'LooseCode repo -> k =<< importRemoteShareBranch repo
+        ReadShare'LooseCode repo -> k =<< loadShareLooseCodeIntoMemory repo
         ReadShare'ProjectBranch _ -> wundefined
 
   (ppe, diff) <- withBranch (wundefined baseRepo0) \baseBranch -> withBranch (wundefined headRepo0) \headBranch -> do

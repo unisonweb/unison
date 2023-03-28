@@ -13,7 +13,7 @@ import Unison.Codebase (Preprocessing (..))
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
-import Unison.Codebase.Editor.HandleInput.Pull (importRemoteShareBranch, loadPropagateDiffDefaultPatch)
+import Unison.Codebase.Editor.HandleInput.Pull (loadPropagateDiffDefaultPatch, loadShareLooseCodeIntoMemory)
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..))
@@ -36,7 +36,7 @@ handleLoadPullRequest description baseRepo headRepo dest0 = do
         ReadRemoteNamespaceGit repo ->
           Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
             Cli.returnEarly (Output.GitError err)
-        ReadShare'LooseCode repo -> importRemoteShareBranch repo
+        ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
         ReadShare'ProjectBranch _ -> wundefined
   baseb <- getBranch baseRepo
   headb <- getBranch headRepo

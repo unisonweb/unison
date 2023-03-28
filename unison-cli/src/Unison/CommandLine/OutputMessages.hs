@@ -43,11 +43,14 @@ import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
+import qualified U.Codebase.Sqlite.Project as Sqlite
+import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
 import qualified Unison.Builtin.Decls as DD
+import qualified Unison.Cli.Share.Projects.Types as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
@@ -560,10 +563,10 @@ showListEdits patch ppe =
 prettyURI :: URI -> Pretty
 prettyURI = P.bold . P.blue . P.shown
 
-prettyReadRemoteNamespace :: ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
+prettyReadRemoteNamespace :: ReadRemoteNamespace Share.RemoteProjectBranch -> Pretty
 prettyReadRemoteNamespace =
-  prettyReadRemoteNamespaceWith \(ProjectAndBranch projectName branchName) ->
-    into @Text (These projectName branchName)
+  prettyReadRemoteNamespaceWith \remoteProjectBranch ->
+    into @Text (These (remoteProjectBranch ^. #projectName) (remoteProjectBranch ^. #branchName))
 
 prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
 prettyReadRemoteNamespaceWith printProject =
@@ -2124,10 +2127,11 @@ prettyPath' p' =
     then "the current namespace"
     else P.blue (P.shown p')
 
-prettyPullTarget :: Input.PullTarget (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
+prettyPullTarget :: Input.PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Pretty
 prettyPullTarget = \case
   Input.PullTargetLooseCode path -> prettyPath' path
-  Input.PullTargetProject project -> prettyProjectAndBranchName project
+  Input.PullTargetProject (ProjectAndBranch project branch) ->
+    prettyProjectAndBranchName (ProjectAndBranch (project ^. #name) (branch ^. #name))
 
 prettyBranchId :: Input.AbsBranchId -> Pretty
 prettyBranchId = \case
