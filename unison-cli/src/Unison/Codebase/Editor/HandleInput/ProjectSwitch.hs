@@ -14,7 +14,7 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli (getBranch0At, stepAt)
-import Unison.Cli.ProjectUtils (getCurrentProjectBranch, projectBranchPath)
+import Unison.Cli.ProjectUtils (expectCurrentProjectBranch, getCurrentProjectBranch, projectBranchPath)
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
@@ -28,7 +28,7 @@ projectSwitch = \case
   These projectName branchName -> switchToProjectAndBranch (ProjectAndBranch projectName branchName)
   This projectName -> switchToProjectAndBranch (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
-    projectAndBranch <- getCurrentProjectBranch & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
+    projectAndBranch <- expectCurrentProjectBranch
     let projectId = projectAndBranch ^. #project
     project <- Cli.runTransaction (Queries.expectProject projectId)
     switchToProjectAndBranch2 (ProjectAndBranch (projectId, project ^. #name) branchName) (Just projectAndBranch)

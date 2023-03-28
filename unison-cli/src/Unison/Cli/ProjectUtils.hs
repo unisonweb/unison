@@ -2,6 +2,7 @@
 module Unison.Cli.ProjectUtils
   ( -- * Project/path helpers
     getCurrentProjectBranch,
+    expectCurrentProjectBranch,
     projectPath,
     projectBranchPath,
     projectBranchPathPrism,
@@ -57,6 +58,11 @@ getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
   pure (preview projectBranchPathPrism path)
 
+-- | Like 'getCurrentProjectBranch', but fails with a message if the user is not on a project branch.
+expectCurrentProjectBranch :: Cli (ProjectAndBranch ProjectId ProjectBranchId)
+expectCurrentProjectBranch =
+  getCurrentProjectBranch & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
+
 -- We often accept a `These ProjectName ProjectBranchName` from the user, so they can leave off either a project or
 -- branch name, which we infer. This helper "hydrates" such a type to a `(ProjectName, BranchName)`, using the following
 -- defaults if a name is missing:
@@ -67,8 +73,7 @@ hydrateNames :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch Pro
 hydrateNames = \case
   This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
-    ProjectAndBranch projectId _branchId <-
-      getCurrentProjectBranch & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
+    ProjectAndBranch projectId _branchId <- expectCurrentProjectBranch
     Cli.runTransaction do
       project <- Queries.expectProject projectId
       pure (ProjectAndBranch (project ^. #name) branchName)
@@ -93,8 +98,7 @@ expectProjectAndBranchByTheseNames ::
 expectProjectAndBranchByTheseNames = \case
   This projectName -> expectProjectAndBranchByTheseNames (These projectName (unsafeFrom @Text "main"))
   That branchName -> do
-    ProjectAndBranch projectId _branchId <-
-      getCurrentProjectBranch & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
+    ProjectAndBranch projectId _branchId <- expectCurrentProjectBranch
     project <- Cli.runTransaction (Queries.expectProject projectId)
     branch <-
       Cli.runTransaction (Queries.loadProjectBranchByName projectId branchName) & onNothingM do

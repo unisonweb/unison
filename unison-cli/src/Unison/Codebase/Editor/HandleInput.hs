@@ -1480,7 +1480,7 @@ inputDescription input =
         PullSourceTarget0 -> pure command
         PullSourceTarget1 source0 ->
           let source = printReadRemoteNamespace (into @Text) source0
-          in pure (command <> " " <> source)
+           in pure (command <> " " <> source)
         PullSourceTarget2 source0 target0 -> do
           let source = printReadRemoteNamespace (into @Text) source0
           target <-
