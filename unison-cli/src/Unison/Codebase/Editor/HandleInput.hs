@@ -170,7 +170,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo, empty)
 import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.PrettyPrintEnvDecl.Names as PPE
+import qualified Unison.PrettyPrintEnvDecl.Names as PPED
 import Unison.Reference (Reference (..), TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -180,6 +180,9 @@ import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Server.Backend (ShallowListEntry (..))
 import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
+import qualified Unison.Server.Doc.Markdown.Render as Md
+import qualified Unison.Server.Doc.Markdown.Types as Md
+import qualified Unison.Server.NameSearch.FromNames as NameSearch
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
@@ -194,7 +197,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toText, unsafeFromString)
 import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Name as Name (toString, toVar, unsafeFromString, unsafeFromVar)
+import qualified Unison.Syntax.Name as Name (toString, toText, toVar, unsafeFromString, unsafeFromVar)
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TermPrinter as TP
 import Unison.Term (Term)
@@ -211,6 +214,7 @@ import qualified Unison.Util.Find as Find
 import Unison.Util.List (uniqueBy)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Relation4 as R4
@@ -573,6 +577,19 @@ loop e = do
               whenJust serverBaseUrl \url -> do
                 _success <- liftIO (openBrowser (Server.urlFor Server.UI url))
                 pure ()
+            DocToMarkdownI docName -> do
+              basicPrettyPrintNames <- getBasicPrettyPrintNames
+              hqLength <- Cli.runTransaction Codebase.hashLength
+              let pped = PPED.fromNamesDecl hqLength (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+              basicPrettyPrintNames <- basicParseNames
+              let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames basicPrettyPrintNames)
+              Cli.Env {codebase, runtime} <- ask
+              mdText <- liftIO $ do
+                docRefs <- Backend.docsForDefinitionName codebase nameSearch docName
+                for docRefs $ \docRef -> do
+                  Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
+                  pure . Md.toText $ Md.toMarkdown doc
+              Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
             DocsToHtmlI namespacePath' sourceDirectory -> do
               Cli.Env {codebase, sandboxedRuntime} <- ask
               rootBranch <- Cli.getRootBranch
@@ -713,7 +730,7 @@ loop e = do
                     let root0 = Branch.head root
                     let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
                     -- Use an absolutely qualified ppe for view.global
-                    let pped = PPE.fromNamesDecl hqLength names
+                    let pped = PPED.fromNamesDecl hqLength names
                     pure (names, pped)
                   else do
                     currentBranch <- Cli.getCurrentBranch0
@@ -1600,6 +1617,7 @@ inputDescription input =
     UpI {} -> wat
     VersionI -> wat
     DebugTabCompletionI _input -> wat
+    DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
     hp' = either (pure . Text.pack . show) p'
@@ -2075,7 +2093,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     (_, ShowDefinitionGlobal) -> do
       let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
       -- Use an absolutely qualified ppe for view.global
-      let ppe = PPE.fromNamesDecl hqLength names
+      let ppe = PPED.fromNamesDecl hqLength names
       pure (names, ppe)
     (_, ShowDefinitionLocal) -> do
       currentBranch <- Cli.getCurrentBranch0
@@ -2083,7 +2101,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
       pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
-    let nameSearch = Backend.makeNameSearch hqLength names
+    let nameSearch = NameSearch.makeNameSearch hqLength names
     Cli.runTransaction (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
@@ -3367,7 +3385,7 @@ hqNameQuery query = do
   Cli.runTransaction do
     hqLength <- Codebase.hashLength
     let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
-    let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+    let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
     Backend.hqNameQuery codebase nameSearch query
 
 -- | Select a definition from the given branch.

@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -21,6 +21,8 @@ library
       Unison.Server.CodebaseServer
       Unison.Server.Doc
       Unison.Server.Doc.AsHtml
+      Unison.Server.Doc.Markdown.Render
+      Unison.Server.Doc.Markdown.Types
       Unison.Server.Endpoints.DefinitionSummary
       Unison.Server.Endpoints.FuzzyFind
       Unison.Server.Endpoints.GetDefinitions
@@ -28,10 +30,14 @@ library
       Unison.Server.Endpoints.NamespaceListing
       Unison.Server.Endpoints.Projects
       Unison.Server.Errors
+      Unison.Server.NameSearch
+      Unison.Server.NameSearch.FromNames
+      Unison.Server.NameSearch.Sqlite
       Unison.Server.Orphans
       Unison.Server.QueryResult
       Unison.Server.SearchResult
       Unison.Server.SearchResult'
+      Unison.Server.Share.Definitions
       Unison.Server.Syntax
       Unison.Server.Types
       Unison.Sync.API
@@ -120,6 +126,7 @@ library
     , utf8-string
     , vector
     , wai
+    , wai-cors
     , warp
     , yaml
   default-language: Haskell2010

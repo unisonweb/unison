@@ -18,14 +18,17 @@ import qualified Unison.LabeledDependency as LD
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
+import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Reference as Reference
+import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.Name as Name
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Term as Term
 import qualified Unison.Util.Pretty as Pretty
+import qualified UnliftIO
 
 -- | Hover help handler
 --
@@ -45,7 +48,7 @@ hoverHandler m respond =
 
 hoverInfo :: Uri -> Position -> MaybeT Lsp Text
 hoverInfo uri pos =
-  markdownify <$> (hoverInfoForRef <|> hoverInfoForLiteral)
+  (hoverInfoForRef <|> hoverInfoForLiteral)
   where
     markdownify :: Text -> Text
     markdownify rendered = Text.unlines ["```unison", rendered, "```"]
@@ -56,27 +59,60 @@ hoverInfo uri pos =
       symAtCursor <- VFS.identifierAtPosition uri pos
       ref <- LSPQ.refAtPosition uri pos
       pped <- lift $ ppedForFile uri
-      case ref of
-        LD.TypeReference (Reference.Builtin {}) -> pure (symAtCursor <> " : <builtin>")
-        LD.TypeReference ref@(Reference.DerivedId refId) -> do
-          nameAtCursor <- MaybeT . pure $ Name.fromText symAtCursor
-          decl <- LSPQ.getTypeDeclaration uri refId
-          let typ = Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly nameAtCursor) decl
-          pure typ
-        LD.TermReferent ref -> do
-          typ <- LSPQ.getTypeOfReferent uri ref
-          let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
-          pure (symAtCursor <> " : " <> renderedType)
+      let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
+      let fqn = case ref of
+            LD.TypeReference ref -> PPE.typeName unsuffixifiedPPE ref
+            LD.TermReferent ref -> PPE.termName unsuffixifiedPPE ref
+
+      builtinsAsync <- liftIO . UnliftIO.async $ UnliftIO.evaluate IOSource.typecheckedFile
+      checkBuiltinsReady <- liftIO do
+        pure
+          ( UnliftIO.poll builtinsAsync
+              <&> ( \case
+                      Nothing -> False
+                      Just (Left {}) -> False
+                      Just (Right {}) -> True
+                  )
+          )
+      renderedDocs <-
+        -- We don't want to block the type signature hover info if the docs are taking a long time to render;
+        -- We know it's also possible to write docs that eval forever, so the timeout helps
+        -- protect against that.
+        lift (UnliftIO.timeout 2_000_000 (LSPQ.markdownDocsForFQN uri fqn))
+          >>= ( \case
+                  Nothing ->
+                    checkBuiltinsReady >>= \case
+                      False -> pure ["\n---\n🔜 Doc renderer is initializing, try again in a few seconds."]
+                      True -> pure ["\n---\n⏳ Timeout evaluating docs"]
+                  Just [] -> pure []
+                  -- Add some space from the type signature
+                  Just xs@(_ : _) -> pure ("\n---\n" : xs)
+              )
+      typeSig <-
+        case ref of
+          LD.TypeReference (Reference.Builtin {}) -> do
+            pure (symAtCursor <> " : <builtin>")
+          LD.TypeReference ref@(Reference.DerivedId refId) -> do
+            nameAtCursor <- MaybeT . pure $ Name.fromText symAtCursor
+            decl <- LSPQ.getTypeDeclaration uri refId
+            let typ = Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly nameAtCursor) decl
+            pure typ
+          LD.TermReferent ref -> do
+            typ <- LSPQ.getTypeOfReferent uri ref
+            let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
+            pure (symAtCursor <> " : " <> renderedType)
+      pure . Text.unlines $ [markdownify typeSig] <> renderedDocs
     hoverInfoForLiteral :: MaybeT Lsp Text
-    hoverInfoForLiteral = do
-      LSPQ.nodeAtPosition uri pos >>= \case
-        LSPQ.TermNode term -> do
-          typ <- hoistMaybe $ builtinTypeForTermLiterals term
-          pure (": " <> typ)
-        LSPQ.TypeNode {} -> empty
-        LSPQ.PatternNode pat -> do
-          typ <- hoistMaybe $ builtinTypeForPatternLiterals pat
-          pure (": " <> typ)
+    hoverInfoForLiteral =
+      markdownify <$> do
+        LSPQ.nodeAtPosition uri pos >>= \case
+          LSPQ.TermNode term -> do
+            typ <- hoistMaybe $ builtinTypeForTermLiterals term
+            pure (": " <> typ)
+          LSPQ.TypeNode {} -> empty
+          LSPQ.PatternNode pat -> do
+            typ <- hoistMaybe $ builtinTypeForPatternLiterals pat
+            pure (": " <> typ)
 
     hoistMaybe :: Maybe a -> MaybeT Lsp a
     hoistMaybe = MaybeT . pure

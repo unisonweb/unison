@@ -59,6 +59,7 @@ import Data.Bifunctor
   )
 import qualified Data.Foldable as Foldable
 import Data.Function (on)
+import Data.Functor.Compose
 import Data.List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
@@ -1272,8 +1273,20 @@ getDataConstructorsAtType t0 = do
       equate t0 lastT
       applyM t
 
-instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (Set v) (M v loc)) where
-  getConstructors = lift . getDataConstructorsAtType
+data PmcState vt v loc = PmcState
+  { variables :: !(Set v),
+    constructorCache :: !(Map (Type v loc) (EnumeratedConstructors vt v loc))
+  }
+
+instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (PmcState (TypeVar v loc) v loc) (M v loc)) where
+  getConstructors typ = do
+    st@PmcState {constructorCache} <- get
+    let f = \case
+          Nothing -> Compose $ (\t -> (t, Just t)) <$> lift (getDataConstructorsAtType typ)
+          Just t -> Compose $ pure (t, Just t)
+    (result, newCache) <- getCompose (Map.alterF f typ constructorCache)
+    put st {constructorCache = newCache}
+    pure result
   getConstructorVarTypes t cref@(ConstructorReference _r cid) = do
     getConstructors t >>= \case
       ConstructorType cs -> case drop (fromIntegral cid) cs of
@@ -1285,9 +1298,9 @@ instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (Set v) (M v loc)
       OtherType -> pure []
       SequenceType {} -> pure []
   fresh = do
-    vs <- get
-    let v = Var.freshIn vs (Var.typed Var.Pattern)
-    put (Set.insert v vs)
+    st@PmcState {variables} <- get
+    let v = Var.freshIn variables (Var.typed Var.Pattern)
+    put (st {variables = Set.insert v variables})
     pure v
 
 ensurePatternCoverage ::
@@ -1305,7 +1318,12 @@ ensurePatternCoverage wholeMatch _scrutinee scrutineeType cases = do
     -- Don't check coverage on ability handlers yet
     Type.Apps' (Type.Ref' r) _args | r == Type.effectRef -> pure ()
     _ -> do
-      (redundant, _inaccessible, uncovered) <- flip evalStateT (ABT.freeVars wholeMatch) do
+      let pmcState :: PmcState (TypeVar v loc) v loc =
+            PmcState
+              { variables = ABT.freeVars wholeMatch,
+                constructorCache = mempty
+              }
+      (redundant, _inaccessible, uncovered) <- flip evalStateT pmcState do
         checkMatch matchLoc scrutineeType cases
       let checkUncovered = case Nel.nonEmpty uncovered of
             Nothing -> pure ()
