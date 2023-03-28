@@ -63,11 +63,6 @@ data LoadInfoError
   | NoLocalProjectRows
   deriving stock (Show)
 
-type ResolvedInfo =
-  ( ReadRemoteNamespace (ProjectAndBranch (RemoteProjectId, ProjectName) Share.RemoteProjectBranch),
-    PullTarget (ProjectAndBranch (ProjectId, ProjectName) (ProjectBranchId, ProjectBranchName))
-  )
-
 doPullRemoteBranch ::
   PullSourceTarget ->
   SyncMode.SyncMode ->
@@ -82,27 +77,28 @@ doPullRemoteBranch sourceAndTarget syncMode pullMode verbosity description = do
   let preprocess = case pullMode of
         Input.PullWithHistory -> Unmodified
         Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-  remoteBranch <- case resolvedSource of
-    ReadRemoteNamespaceGit repo ->
-      Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
-        Cli.returnEarly (Output.GitError err)
-    ReadShare'LooseCode repo -> importRemoteShareBranch repo
-    ReadShare'ProjectBranch (ProjectAndBranch (_, remoteProjectName) branch) ->
-      let repoInfo = Share.RepoInfo (into @Text (These remoteProjectName remoteProjectBranchName))
-          causalHash = Common.hash32ToCausalHash . Share.hashJWTHash $ causalHashJwt
-          causalHashJwt = branch ^. #branchHead
-          remoteProjectBranchName = branch ^. #branchName
-       in Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
-            Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback >>= \case
-              Left err -> do
-                loggeth ["Downloading failure: ", tShow err]
-                Cli.returnEarlyWithoutOutput
-              Right () -> liftIO (Codebase.expectBranchForHash codebase causalHash)
+  remoteBranch <-
+    case resolvedSource of
+      ReadRemoteNamespaceGit repo ->
+        Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
+          Cli.returnEarly (Output.GitError err)
+      ReadShare'LooseCode repo -> importRemoteShareBranch repo
+      ReadShare'ProjectBranch remoteBranch ->
+        let repoInfo = Share.RepoInfo (into @Text (These (remoteBranch ^. #projectName) remoteProjectBranchName))
+            causalHash = Common.hash32ToCausalHash . Share.hashJWTHash $ causalHashJwt
+            causalHashJwt = remoteBranch ^. #branchHead
+            remoteProjectBranchName = remoteBranch ^. #branchName
+         in Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
+              Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback >>= \case
+                Left err -> do
+                  loggeth ["Downloading failure: ", tShow err]
+                  Cli.returnEarlyWithoutOutput
+                Right () -> liftIO (Codebase.expectBranchForHash codebase causalHash)
   let nsNamesOnly :: ReadRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName)
       nsNamesOnly =
         over
           #_ReadShare'ProjectBranch
-          (\(ProjectAndBranch (_, projectName) branch) -> ProjectAndBranch projectName (branch ^. #branchName))
+          (\branch -> ProjectAndBranch (branch ^. #projectName) (branch ^. #branchName))
           resolvedSource
       targetNamesOnly :: PullTarget (ProjectAndBranch ProjectName ProjectBranchName)
       targetNamesOnly =
@@ -156,7 +152,7 @@ doPullRemoteBranch sourceAndTarget syncMode pullMode verbosity description = do
           else unchangedMsg
 
 type ResolvedSource =
-  ReadRemoteNamespace (ProjectAndBranch (RemoteProjectId, ProjectName) Share.RemoteProjectBranch)
+  ReadRemoteNamespace Share.RemoteProjectBranch
 
 type ResolvedTarget =
   PullTarget (ProjectAndBranch (ProjectId, ProjectName) (ProjectBranchId, ProjectBranchName))
@@ -164,16 +160,16 @@ type ResolvedTarget =
 resolveSourceAndTarget :: PullSourceTarget -> Cli (ResolvedSource, ResolvedTarget)
 resolveSourceAndTarget = \case
   Input.PullSourceTarget0 -> resolveSourceAndTarget0
-  Input.PullSourceTarget1 source -> handlePullSourceTarget1 source
+  Input.PullSourceTarget1 source -> resolveSourceAndTarget1 source
   Input.PullSourceTarget2 source _target -> wundefined source
 
+-- Resolve source and target when neither are specified.
 resolveSourceAndTarget0 :: Cli (ResolvedSource, ResolvedTarget)
 resolveSourceAndTarget0 =
   ProjectUtils.getCurrentProjectBranch >>= \case
     Nothing -> do
       source <- RemoteRepo.writeNamespaceToRead <$> resolveConfiguredUrl PushPull.Pull Path.currentPath
-      let target = PullTargetLooseCode Path.currentPath
-      pure (source, target)
+      pure (source, PullTargetLooseCode Path.currentPath)
     Just (ProjectAndBranch projectId projectBranchId) ->
       let loadRemoteNames :: ExceptT LoadInfoError Transaction (RemoteProjectId, ProjectName, RemoteProjectBranchId, ProjectBranchName)
           loadRemoteNames = ExceptT $
@@ -204,13 +200,7 @@ resolveSourceAndTarget0 =
                         ProjectAndBranch
                           (projectId, localProjectName)
                           (projectBranchId, localProjectBranchName)
-                pure
-                  ( ReadShare'ProjectBranch $
-                      ProjectAndBranch
-                        (remoteProjectId, remoteProjectName)
-                        branch,
-                    pullTarget
-                  )
+                pure (ReadShare'ProjectBranch branch, pullTarget)
             Left err -> case err of
               NoDefaultPullTarget -> do
                 loggeth ["No default pull target for this branch"]
@@ -219,27 +209,33 @@ resolveSourceAndTarget0 =
                 loggeth ["Corrupt DB: No projects rows for current project"]
                 Cli.returnEarlyWithoutOutput
 
-handlePullSourceTarget1 :: ReadRemoteNamespace (These ProjectName ProjectBranchName) -> Cli ResolvedInfo
-handlePullSourceTarget1 = \case
-  ReadShare'ProjectBranch projectAndBranchNames ->
+-- Resolve source and target when source is specified
+resolveSourceAndTarget1 ::
+  ReadRemoteNamespace (These ProjectName ProjectBranchName) ->
+  Cli (ResolvedSource, ResolvedTarget)
+resolveSourceAndTarget1 unresolvedSource = do
+  source <-
+    case unresolvedSource of
+      ReadRemoteNamespaceGit namespace -> pure (ReadRemoteNamespaceGit namespace)
+      ReadShare'LooseCode namespace -> pure (ReadShare'LooseCode namespace)
+      ReadShare'ProjectBranch projectAndBranchNames ->
+        ReadShare'ProjectBranch <$> resolveRemoteNames projectAndBranchNames
+
+  target <-
     ProjectUtils.getCurrentProjectBranch >>= \case
-      Nothing -> do
-        loggeth ["Not on a project branch"]
-        Cli.returnEarlyWithoutOutput
-      Just (ProjectAndBranch projectId projectBranchId) -> do
-        source <- ReadShare'ProjectBranch <$> resolveRemoteNames projectId projectBranchId projectAndBranchNames
-        target <-
-          Cli.runTransaction (Queries.loadProjectAndBranchNames projectId projectBranchId) >>= \case
-            Nothing -> wundefined
-            Just (localProjectName, localProjectBranchName) ->
-              pure $
-                PullTargetProject
-                  ( ProjectAndBranch
-                      (projectId, localProjectName)
-                      (projectBranchId, localProjectBranchName)
-                  )
-        pure (source, target)
-  _ -> wundefined
+      Nothing -> pure (PullTargetLooseCode Path.currentPath)
+      Just (ProjectAndBranch projectId projectBranchId) ->
+        Cli.runTransaction (Queries.loadProjectAndBranchNames projectId projectBranchId) >>= \case
+          Nothing -> wundefined -- FIXME expect, not load
+          Just (localProjectName, localProjectBranchName) ->
+            pure $
+              PullTargetProject
+                ( ProjectAndBranch
+                    (projectId, localProjectName)
+                    (projectBranchId, localProjectBranchName)
+                )
+
+  pure (source, target)
 
 importRemoteShareBranch :: ReadShareLooseCode -> Cli (Branch IO)
 importRemoteShareBranch rrn@(ReadShareLooseCode {server, repo, path}) = do
@@ -332,31 +328,23 @@ propagatePatch inputDescription patch scopePath = do
       (inputDescription <> " (applying patch)")
       (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
-resolveRemoteNames ::
-  ProjectId ->
-  ProjectBranchId ->
-  These ProjectName ProjectBranchName ->
-  Cli (ProjectAndBranch (RemoteProjectId, ProjectName) Share.RemoteProjectBranch)
-resolveRemoteNames projectId branchId = \case
+resolveRemoteNames :: These ProjectName ProjectBranchName -> Cli Share.RemoteProjectBranch
+resolveRemoteNames = \case
   This projectName -> do
     remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
     let remoteProjectId = remoteProject ^. #projectId
     let remoteBranchName = unsafeFrom @Text "main"
-    remoteBranch <- ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) remoteBranchName)
-    pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
+    ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) remoteBranchName)
   That branchName -> do
-    Cli.runTransaction (Queries.loadRemoteProjectBranch projectId Share.hardCodedUri branchId) >>= \case
+    ProjectAndBranch localProjectId localBranchId <- ProjectUtils.expectCurrentProjectBranch
+    Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
       Just (remoteProjectId, _maybeProjectBranchId) -> do
         projectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
-        remoteBranch <- ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) branchName)
-        pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
+        ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) branchName)
       Nothing -> do
         loggeth ["no remote associated with this project"]
         Cli.returnEarlyWithoutOutput
   These projectName branchName -> do
     remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
     let remoteProjectId = remoteProject ^. #projectId
-    remoteBranch <-
-      ProjectUtils.expectRemoteProjectBranchByName
-        (ProjectAndBranch (remoteProjectId, projectName) branchName)
-    pure (ProjectAndBranch (remoteProjectId, projectName) remoteBranch)
+    ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) branchName)
