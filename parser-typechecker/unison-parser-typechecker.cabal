@@ -110,6 +110,7 @@ library
       Unison.PatternMatchCoverage.NormalizedConstraints
       Unison.PatternMatchCoverage.PmGrd
       Unison.PatternMatchCoverage.PmLit
+      Unison.PatternMatchCoverage.Pretty
       Unison.PatternMatchCoverage.Solve
       Unison.PatternMatchCoverage.UFMap
       Unison.PrettyPrintEnv

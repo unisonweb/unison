@@ -7,7 +7,8 @@ where
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
 import Unison.PatternMatchCoverage.PmLit
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PatternMatchCoverage.Pretty
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import Unison.Type (Type)
 import Unison.Util.Pretty
@@ -53,20 +54,21 @@ data Constraint vt v loc
     Eq v v
   deriving stock (Eq, Ord)
 
-prettyConstraint :: (Var vt, Var v) => Constraint vt v loc -> Pretty ColorText
-prettyConstraint = \case
+prettyConstraint :: forall vt v loc. (Var vt, Var v) => PrettyPrintEnv -> Constraint vt v loc -> Pretty ColorText
+prettyConstraint ppe = \case
   PosCon var con convars ->
-    let xs = pc con : fmap (\(trm, typ) -> sep " " [pv trm, ":", TypePrinter.pretty PPE.empty typ]) convars ++ ["<-", pv var]
+    let xs = pc con : fmap (\(trm, typ) -> sep " " ["(" <> prettyVar trm, ":", TypePrinter.pretty ppe typ <> ")"]) convars ++ ["<-", prettyVar var]
      in sep " " xs
-  NegCon var con -> sep " " [pv var, "≠", pc con]
-  PosLit var lit -> sep " " [prettyPmLit lit, "<-", pv var]
-  NegLit var lit -> sep " " [pv var, "≠", prettyPmLit lit]
-  PosListHead root n el -> sep " " [pv el, "<-", "head", pc n, pv root]
-  PosListTail root n el -> sep " " [pv el, "<-", "tail", pc n, pv root]
-  NegListInterval var x -> sep " " [pv var, "≠", string (show x)]
-  Effectful var -> "!" <> pv var
-  Eq v0 v1 -> sep " " [pv v0, "=", pv v1]
+  NegCon var con -> sep " " [prettyVar var, "≠", pc con]
+  PosLit var lit -> sep " " [prettyPmLit lit, "<-", prettyVar var]
+  NegLit var lit -> sep " " [prettyVar var, "≠", prettyPmLit lit]
+  PosListHead root n el -> sep " " [prettyVar el, "<-", "head", pany n, prettyVar root]
+  PosListTail root n el -> sep " " [prettyVar el, "<-", "tail", pany n, prettyVar root]
+  NegListInterval var x -> sep " " [prettyVar var, "≠", string (show x)]
+  Effectful var -> "!" <> prettyVar var
+  Eq v0 v1 -> sep " " [prettyVar v0, "=", prettyVar v1]
   where
-    pv = string . show
-    pc :: forall a. (Show a) => a -> Pretty ColorText
-    pc = string . show
+    pany :: Show a => a -> Pretty ColorText
+    pany = string . show
+
+    pc = prettyConstructorReference ppe
