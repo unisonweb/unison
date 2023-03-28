@@ -68,7 +68,7 @@ prettyConstraint ppe = \case
   Effectful var -> "!" <> prettyVar var
   Eq v0 v1 -> sep " " [prettyVar v0, "=", prettyVar v1]
   where
-    pany :: Show a => a -> Pretty ColorText
+    pany :: (Show a) => a -> Pretty ColorText
     pany = string . show
 
     pc = prettyConstructorReference ppe

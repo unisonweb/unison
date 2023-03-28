@@ -10,7 +10,7 @@ import Unison.Util.Pretty
 import qualified Unison.Util.Pretty as P
 import Unison.Var
 
-prettyVar :: Var v => v -> Pretty ColorText
+prettyVar :: (Var v) => v -> Pretty ColorText
 prettyVar v =
   let go x =
         let (d, m) = divMod x 26
