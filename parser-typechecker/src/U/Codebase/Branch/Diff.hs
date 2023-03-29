@@ -191,7 +191,7 @@ nameBasedDiff (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose mchil
 -- | Stream a summary of all of the name adds and removals from a tree diff.
 -- Callback is passed the diff from one namespace level at a time, with the name representing
 -- that location.
--- Optional accumulator is folded strictly.
+-- Accumulator is folded strictly, use '()' if you don't need one.
 streamNameChanges ::
   (Monad m, Monoid r) =>
   Maybe Name ->
