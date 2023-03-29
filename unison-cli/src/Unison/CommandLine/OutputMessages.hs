@@ -1989,6 +1989,12 @@ notifyUser dir = \case
         <> prettyProjectBranchName childBranchName
         <> "from branch"
         <> prettyProjectBranchName parentBranchName
+  RefusedToCreateProjectBranch projectAndBranch ->
+    pure . P.wrap $
+      "You can only create"
+        <> prettyProjectAndBranchName projectAndBranch
+        <> "from another branch in"
+        <> prettyProjectName (projectAndBranch ^. #project)
   ProjectNameAlreadyExists name ->
     pure . P.wrap $
       "Project" <> prettyProjectName name <> "already exists."

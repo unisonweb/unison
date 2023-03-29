@@ -298,10 +298,12 @@ data Output
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject ProjectName ProjectBranchName
   | CreatedProjectBranch ProjectBranchName ProjectBranchName -- parent, child
+  | RefusedToCreateProjectBranch (ProjectAndBranch ProjectName ProjectBranchName)
   | ProjectNameAlreadyExists ProjectName
   | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
-  | NotOnProjectBranch -- ran a command that only makes sense if on a project branch
+  | -- ran a command that only makes sense if on a project branch
+    NotOnProjectBranch
   | -- there's no remote project associated with branch, nor any of its parent branches
     NoAssociatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- there's no remote branch associated with branch
@@ -478,9 +480,10 @@ isFailure o = case o of
   PulledEmptyBranch {} -> False
   CreatedProject {} -> False
   CreatedProjectBranch {} -> False
+  RefusedToCreateProjectBranch {} -> True
   ProjectNameAlreadyExists {} -> True
   ProjectNameRequiresUserSlug {} -> True
-  NotOnProjectBranch -> True
+  NotOnProjectBranch {} -> True
   NoAssociatedRemoteProject {} -> True
   NoAssociatedRemoteProjectBranch {} -> True
   ProjectAndBranchNameAlreadyExists {} -> True

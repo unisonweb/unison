@@ -5,7 +5,6 @@ module Unison.Codebase.Editor.HandleInput.ProjectSwitch
 where
 
 import Control.Lens ((^.))
-import qualified Data.Text as Text
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
 import U.Codebase.Sqlite.DbId
@@ -20,7 +19,6 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Sqlite as Sqlite
-import Witch (unsafeFrom)
 
 data SwitchToBranchOutcome
   = SwitchedToExistingBranch
@@ -31,37 +29,24 @@ projectSwitch :: These ProjectName ProjectBranchName -> Cli ()
 projectSwitch projectAndBranchNames0 = do
   projectAndBranchNames@(ProjectAndBranch projectName branchName) <- ProjectUtils.hydrateNames projectAndBranchNames0
   project <-
-    Cli.runTransaction (Queries.loadProjectByName (projectAndBranchNames ^. #project)) & onNothingM do
+    Cli.runTransaction (Queries.loadProjectByName projectName) & onNothingM do
       Cli.returnEarly (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
   let projectId = project ^. #projectId
   maybeCurrentProject <- ProjectUtils.getCurrentProjectBranch
   (outcome, branchId) <-
-    Cli.runTransaction do
+    Cli.runEitherTransaction do
       Queries.loadProjectBranchByName projectId branchName >>= \case
-        Just branch -> pure (SwitchedToExistingBranch, branch ^. #branchId)
+        Just branch -> pure (Right (SwitchedToExistingBranch, branch ^. #branchId))
         Nothing -> do
-          newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
-          Queries.insertProjectBranch projectId newBranchId branchName
-          fromBranch <-
-            case maybeCurrentProject of
-              Just (ProjectAndBranch currentProject currentBranch)
-                | projectId == currentProject ^. #projectId -> pure currentBranch
-              _ -> do
-                -- For now, we treat switching to a new branch from outside of a project as equivalent to switching to a
-                -- new branch from the branch called "main" in that project. Eventually, we should probably instead
-                -- use the default project branch
-                Queries.loadProjectBranchByName projectId (unsafeFrom @Text "main") >>= \case
-                  Nothing ->
-                    error $
-                      reportBug "E469471" $
-                        "No branch called 'main' in project "
-                          ++ Text.unpack (into @Text projectName)
-                          ++ " (id = "
-                          ++ show projectId
-                          ++ "). We (currently) require 'main' to exist."
-                  Just branch -> pure branch
-          Queries.markProjectBranchChild projectId (fromBranch ^. #branchId) newBranchId
-          pure (SwitchedToNewBranchFrom fromBranch, newBranchId)
+          -- We don't support creating a new branch from outside its project, because we want to require that the user
+          -- picks some parent branch to start from
+          case maybeCurrentProject of
+            Just (ProjectAndBranch currentProject currentBranch) | projectId == currentProject ^. #projectId -> do
+              newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
+              Queries.insertProjectBranch projectId newBranchId branchName
+              Queries.markProjectBranchChild projectId (currentBranch ^. #branchId) newBranchId
+              pure (Right (SwitchedToNewBranchFrom currentBranch, newBranchId))
+            _ -> pure (Left (Output.RefusedToCreateProjectBranch projectAndBranchNames))
   let path = ProjectUtils.projectBranchPath (ProjectAndBranch projectId branchId)
   case outcome of
     SwitchedToExistingBranch -> pure ()
