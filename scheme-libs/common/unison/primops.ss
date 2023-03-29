@@ -137,6 +137,7 @@
     unison-POp-TAKT
     unison-POp-TRCE
     unison-POp-TTON
+    unison-POp-TTOI
     unison-POp-UPKT
     unison-POp-XORN
     unison-POp-VALU
@@ -183,8 +184,7 @@
     unison-FOp-Tls.newClient.impl.v3
     unison-FOp-Tls.receive.impl.v3
     unison-FOp-Tls.send.impl.v3
-    unison-FOp-Tls.terminate.impl.v3
-    )
+    unison-FOp-Tls.terminate.impl.v3)
 
   (import (rnrs)
           (only (srfi :28) format)
@@ -249,7 +249,8 @@
     (guard (x [else none])
       (some (chunked-list-ref l n))))
   (define (unison-POp-IORN m n) (fxior m n))
-  (define (unison-POp-ITOT i) (signed-number->istring i))
+  (define (unison-POp-ITOT n)
+    (string->chunked-string (number->string n)))
   (define (unison-POp-LEQN m n) (bool (fx<=? m n)))
   (define (unison-POp-LZRO m) (- 64 (fxlength m)))
   (define (unison-POp-MULN m n) (fx* m n))
@@ -279,6 +280,9 @@
   (define (unison-POp-TTON s)
     (let ([mn (string->number (chunked-string->string s))])
       (if (and (fixnum? mn) (>= mn 0)) (some mn) none)))
+  (define (unison-POp-TTOI s)
+    (let ([mn (string->number (chunked-string->string s))])
+      (if (fixnum? mn) (some mn) none)))
   (define (unison-POp-UPKT t) (string->list t))
   (define (unison-POp-VWLS l)
     (if (chunked-list-empty? l)

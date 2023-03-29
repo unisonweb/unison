@@ -93,19 +93,21 @@ text.conversion.tests = do
   checkEqual "Nat.fromText (3)" (Nat.fromText "3940") (Some 3940)
   checkEqual "Nat.fromText (4)" (Nat.fromText "-3940") None
   checkEqual "Nat.fromText (5)" (Nat.fromText "1000000000000000000000000000") None
+  checkEqual "Nat.fromText (6)" (Nat.fromText "1.5") None
   checkEqual "Nat <-> Text roundtrip (1)" (Nat.fromText (Nat.toText 123)) (Some 123)
 
-  --  checkEqual "Int.toText (1)" (Int.toText +0) "0"
-  --  checkEqual "Int.toText (2)" (Int.toText +10) "10"
-  --  checkEqual "Int.toText (3)" (Int.toText -1039) "-1039"
-  --  checkEqual "Int.fromText (1)" (Int.fromText "+0") (Some +0)
-  --  checkEqual "Int.fromText (2)" (Int.fromText "a8f9djasdlfkj") None
-  --  checkEqual "Int.fromText (3)" (Int.fromText "3940") (Some +3940)
-  --  checkEqual "Int.fromText (3)" (Int.fromText "-3940") (Some -3940)
-  --  checkEqual "Int.fromText (4)" (Int.fromText "1000000000000000000000000000") None
-  --  checkEqual "Int.fromText (5)" (Int.fromText "-1000000000000000000000000000") None
-  --  checkEqual "Int <-> Text roundtrip (1)" (Int.fromText (Int.toText +123)) (Some +123)
-  --  checkEqual "Int <-> Text roundtrip (2)" (Int.fromText (Int.toText -123)) (Some -123)
+  checkEqual "Int.toText (1)" (Int.toText +0) "0"
+  checkEqual "Int.toText (2)" (Int.toText +10) "10"
+  checkEqual "Int.toText (3)" (Int.toText -1039) "-1039"
+  checkEqual "Int.fromText (1)" (Int.fromText "+0") (Some +0)
+  checkEqual "Int.fromText (2)" (Int.fromText "a8f9djasdlfkj") None
+  checkEqual "Int.fromText (3)" (Int.fromText "3940") (Some +3940)
+  checkEqual "Int.fromText (3)" (Int.fromText "-3940") (Some -3940)
+  checkEqual "Int.fromText (4)" (Int.fromText "1000000000000000000000000000") None
+  checkEqual "Int.fromText (5)" (Int.fromText "-1000000000000000000000000000") None
+  checkEqual "Int.fromText (6)" (Int.fromText "1.5") None
+  checkEqual "Int <-> Text roundtrip (1)" (Int.fromText (Int.toText +123)) (Some +123)
+  checkEqual "Int <-> Text roundtrip (2)" (Int.fromText (Int.toText -123)) (Some -123)
 
   --  checkEqual "Float.toText" (Float.toText 1.1) "1.1"
   --  checkEqual "Float.fromText (1)" (Float.fromText "1.5") (Some 1.5)
