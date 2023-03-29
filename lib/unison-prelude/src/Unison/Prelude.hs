@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 module Unison.Prelude
   ( module X,
     readUtf8,

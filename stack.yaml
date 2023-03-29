@@ -38,7 +38,12 @@ packages:
 - lib/unison-pretty-printer
 
 #compiler-check: match-exact
-resolver: lts-18.28
+resolver: lts-20.11
+
+extra-include-dirs:
+- /opt/homebrew/opt/libffi/include
+extra-lib-dirs:
+- /opt/homebrew/opt/libffi/lib
 
 extra-deps:
 - github: unisonweb/configurator
@@ -74,6 +79,9 @@ extra-deps:
 - terminal-size-0.3.3
 # lts 18.28 provides 3.1.1.1 but we need at least 3.1.2.7
 - network-3.1.2.7
+- servant-docs-0.12
+- servant-auth-0.4.1.0
+- base32-0.2.2.0
 
 ghc-options:
  # All packages

@@ -326,29 +326,36 @@ withConstructors nil vinfo k = do
         pure ((v, cref), cvts)
       k arg (\v (_, cref) args -> [C.PosCon v cref args]) (\v (_, cref) -> C.NegCon v cref)
     SequenceType _cs ->
-      let Vc'ListRoot elemType consPos snocPos iset = case vi_con vinfo of
-            Vc'ListRoot {} -> vi_con vinfo
-            _ -> error "impossible: constraint for sequence type not a list root"
-          varCount = length consPos + length snocPos
-          minLen = fromMaybe 0 $ IntervalSet.lookupMin iset
+      case vi_con vinfo of
+        Vc'ListRoot elemType consPos snocPos iset ->
+          let varCount = length consPos + length snocPos
+              minLen = fromMaybe 0 $ IntervalSet.lookupMin iset
 
-          mkPosCons :: (Int -> [v] -> [Constraint vt v loc]) -> Int -> [v] -> [Constraint vt v loc]
-          mkPosCons z elvs0 = foldr (\_ b n (elv : elvs) -> C.PosListHead v n elv : b (n + 1) elvs) z consPos elvs0
+              mkPosCons :: (Int -> [v] -> [Constraint vt v loc]) -> Int -> [v] -> [Constraint vt v loc]
+              mkPosCons z elvs0 =
+                foldr f z consPos elvs0
+                where
+                  f _ b n (elv : elvs) = C.PosListHead v n elv : b (n + 1) elvs
+                  f _ _ _ _ = error "Impossible: empty list in mkPostCons"
 
-          mkPosSnoc :: (Int -> [v] -> [Constraint vt v loc]) -> Int -> [v] -> [Constraint vt v loc]
-          mkPosSnoc z elvs0 = foldr (\_ b n (elv : elvs) -> C.PosListTail v n elv : b (n + 1) elvs) z snocPos elvs0
+              mkPosSnoc :: (Int -> [v] -> [Constraint vt v loc]) -> Int -> [v] -> [Constraint vt v loc]
+              mkPosSnoc z elvs0 = foldr f z snocPos elvs0
+                where
+                  f _ b n (elv : elvs) = C.PosListTail v n elv : b (n + 1) elvs
+                  f _ _ _ _ = error "Impossible: empty list in mkPostSnoc"
 
-          constraints :: [(([(v, Type vt loc)] -> [Constraint vt v loc], Constraint vt v loc), [Type vt loc])]
-          constraints =
-            let mk f elvs = mkPosCons (\_ elvs -> mkPosSnoc (\_ elvs -> f elvs) 0 elvs) 0 (map fst elvs)
-             in [ ((mk \[] -> [], C.NegListInterval v (IntervalSet.singleton (minLen, maxBound))), replicate varCount elemType)
-                ]
+              constraints :: [(([(v, Type vt loc)] -> [Constraint vt v loc], Constraint vt v loc), [Type vt loc])]
+              constraints =
+                let mk f elvs = mkPosCons (\_ elvs -> mkPosSnoc (\_ elvs -> f elvs) 0 elvs) 0 (map fst elvs)
+                 in [ ((mk (const []), C.NegListInterval v (IntervalSet.singleton (minLen, maxBound))), replicate varCount elemType)
+                    ]
 
-          mkPos _v (pos, _neg) args =
-            pos args
-          mkNeg _v (_pos, neg) =
-            neg
-       in k constraints mkPos mkNeg
+              mkPos _v (pos, _neg) args =
+                pos args
+              mkNeg _v (_pos, neg) =
+                neg
+           in k constraints mkPos mkNeg
+        _ -> error "impossible: constraint for sequence type not a list root"
     BooleanType -> do
       k [(True, []), (False, [])] (\v b _ -> [C.PosLit v (PmLit.Boolean b)]) (\v b -> C.NegLit v (PmLit.Boolean b))
     OtherType -> nil
