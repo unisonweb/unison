@@ -24,7 +24,6 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.ProjectUtils (getCurrentProjectBranch, loggeth, projectBranchPath)
 import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
 import qualified Unison.Cli.UnisonConfigUtils as UnisonConfigUtils
@@ -114,17 +113,14 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
   case sourceTarget of
     -- push <implicit> to <implicit>
     PushSourceTarget0 ->
-      getCurrentProjectBranch >>= \case
+      ProjectUtils.getCurrentProjectBranch >>= \case
         Nothing -> do
           localPath <- Cli.getCurrentPath
           UnisonConfigUtils.resolveConfiguredUrl Push Path.currentPath >>= \case
             WriteRemoteNamespaceGit namespace -> pushLooseCodeToGitLooseCode localPath namespace pushBehavior syncMode
             WriteRemoteNamespaceShare namespace -> pushLooseCodeToShareLooseCode localPath namespace pushBehavior
             WriteRemoteProjectBranch v -> absurd v
-        Just localProjectAndBranchIds -> do
-          localProjectAndBranch <-
-            Cli.runTransaction (ProjectUtils.expectProjectAndBranchByIds localProjectAndBranchIds)
-          pushProjectBranchToProjectBranch localProjectAndBranch Nothing
+        Just localProjectAndBranch -> pushProjectBranchToProjectBranch localProjectAndBranch Nothing
     -- push <implicit> to .some.path (git)
     PushSourceTarget1 (WriteRemoteNamespaceGit namespace) -> do
       localPath <- Cli.getCurrentPath
@@ -135,14 +131,12 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
       pushLooseCodeToShareLooseCode localPath namespace pushBehavior
     -- push <implicit> to @some/project
     PushSourceTarget1 (WriteRemoteProjectBranch remoteProjectAndBranch0) ->
-      getCurrentProjectBranch >>= \case
+      ProjectUtils.getCurrentProjectBranch >>= \case
         Nothing -> do
           localPath <- Cli.getCurrentPath
           remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
           pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
-        Just localProjectAndBranchIds -> do
-          localProjectAndBranch <-
-            Cli.runTransaction (ProjectUtils.expectProjectAndBranchByIds localProjectAndBranchIds)
+        Just localProjectAndBranch ->
           pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch0)
     -- push .some.path to .some.path (git)
     PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceGit namespace) -> do
@@ -161,7 +155,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
     PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteNamespaceGit namespace) -> do
       ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames localProjectAndBranch0
       pushLooseCodeToGitLooseCode
-        (projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
+        (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
         namespace
         pushBehavior
         syncMode
@@ -169,7 +163,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
     PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteNamespaceShare namespace) -> do
       ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames localProjectAndBranch0
       pushLooseCodeToShareLooseCode
-        (projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
+        (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
         namespace
         pushBehavior
     -- push @some/project to @some/project
@@ -308,7 +302,7 @@ pushProjectBranchToProjectBranch localProjectAndBranch maybeRemoteProjectAndBran
   -- Load local project and branch from database and get the causal hash to push
   (localProjectAndBranch, localBranchHead) <-
     Cli.runEitherTransaction do
-      loadCausalHashToPush (projectBranchPath localProjectAndBranchIds) >>= \case
+      loadCausalHashToPush (ProjectUtils.projectBranchPath localProjectAndBranchIds) >>= \case
         Nothing -> pure (Left (EmptyProjectBranchPush localProjectAndBranchNames))
         Just hash -> do
           localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
@@ -566,8 +560,8 @@ executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
             (Set.NonEmpty.singleton causalHash)
             uploadedCallback
     upload & onLeftM \err -> do
-      loggeth ["upload entities error"]
-      loggeth [tShow err]
+      ProjectUtils.loggeth ["upload entities error"]
+      ProjectUtils.loggeth [tShow err]
       Cli.returnEarlyWithoutOutput
   afterUploadAction
 

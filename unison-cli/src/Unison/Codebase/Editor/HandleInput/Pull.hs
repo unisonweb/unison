@@ -120,9 +120,11 @@ resolveImplicitSource :: Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
 resolveImplicitSource =
   ProjectUtils.getCurrentProjectBranch >>= \case
     Nothing -> RemoteRepo.writeNamespaceToRead <$> resolveConfiguredUrl PushPull.Pull Path.currentPath
-    Just (ProjectAndBranch localProjectId localBranchId) -> do
+    Just (ProjectAndBranch localProject localBranch) -> do
       (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
         Cli.runEitherTransaction do
+          let localProjectId = localProject ^. #projectId
+          let localBranchId = localBranch ^. #branchId
           Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId >>= \case
             Just (remoteProjectId, Just remoteBranchId) -> do
               remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
@@ -132,14 +134,12 @@ resolveImplicitSource =
                   remoteProjectId
                   remoteBranchId
               pure (Right (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName))
-            _ -> do
-              project <- Queries.expectProject localProjectId
-              branch <- Queries.expectProjectBranch localProjectId localBranchId
+            _ ->
               pure $
                 Left $
                   Output.NoAssociatedRemoteProjectBranch
                     Share.hardCodedUri
-                    (ProjectAndBranch (project ^. #name) (branch ^. #name))
+                    (ProjectAndBranch (localProject ^. #name) (localBranch ^. #name))
       remoteBranch <-
         ProjectUtils.expectRemoteProjectBranchById $
           ProjectAndBranch
@@ -158,13 +158,9 @@ resolveExplicitSource = \case
 
 resolveImplicitTarget :: Cli (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
 resolveImplicitTarget =
-  ProjectUtils.getCurrentProjectBranch >>= \case
-    Nothing -> pure (PullTargetLooseCode Path.currentPath)
-    Just (ProjectAndBranch projectId projectBranchId) ->
-      Cli.runTransaction do
-        project <- Queries.expectProject projectId
-        branch <- Queries.expectProjectBranch projectId projectBranchId
-        pure (PullTargetProject (ProjectAndBranch project branch))
+  ProjectUtils.getCurrentProjectBranch <&> \case
+    Nothing -> PullTargetLooseCode Path.currentPath
+    Just projectAndBranch -> PullTargetProject projectAndBranch
 
 resolveExplicitTarget ::
   PullTarget (These ProjectName ProjectBranchName) ->
