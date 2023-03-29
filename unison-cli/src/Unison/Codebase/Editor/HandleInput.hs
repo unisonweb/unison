@@ -1509,9 +1509,9 @@ inputDescription input =
       branchId2 <- hp' (input ^. #branchId2)
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
-    ProjectCloneI {} -> wundefined
-    ProjectCreateI {} -> wundefined
-    ProjectSwitchI {} -> wundefined
+    ProjectCloneI projectAndBranch -> pure ("project.clone " <> into @Text projectAndBranch)
+    ProjectCreateI project -> pure ("project.create " <> into @Text project)
+    ProjectSwitchI projectAndBranch -> pure ("project.create " <> into @Text projectAndBranch)
     --
     ApiI -> wat
     AuthLoginI {} -> wat
