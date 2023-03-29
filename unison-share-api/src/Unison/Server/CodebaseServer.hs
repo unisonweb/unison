@@ -31,7 +31,7 @@ import Network.HTTP.Media ((//), (/:))
 import Network.HTTP.Types (HeaderName)
 import Network.HTTP.Types.Status (ok200)
 import qualified Network.URI.Encode as URI
-import Network.Wai (responseLBS)
+import Network.Wai (Middleware, responseLBS)
 import Network.Wai.Handler.Warp
   ( Port,
     defaultSettings,
@@ -41,6 +41,7 @@ import Network.Wai.Handler.Warp
     setPort,
     withApplicationSettings,
   )
+import Network.Wai.Middleware.Cors (cors, corsMethods, corsOrigins, simpleCorsResourcePolicy)
 import Servant
   ( Handler,
     HasServer,
@@ -207,9 +208,10 @@ app ::
   Codebase IO Symbol Ann ->
   FilePath ->
   Strict.ByteString ->
+  Maybe String ->
   Application
-app env rt codebase uiPath expectedToken =
-  serve appAPI $ server env rt codebase uiPath expectedToken
+app env rt codebase uiPath expectedToken allowCorsHost =
+  corsPolicy allowCorsHost $ serve appAPI $ server env rt codebase uiPath expectedToken
 
 -- | The Token is used to help prevent multiple users on a machine gain access to
 -- each others codebases.
@@ -242,6 +244,9 @@ ucmPortVar = "UCM_PORT"
 ucmHostVar :: String
 ucmHostVar = "UCM_HOST"
 
+ucmAllowCorsHost :: String
+ucmAllowCorsHost = "UCM_ALLOW_CORS_HOST"
+
 ucmTokenVar :: String
 ucmTokenVar = "UCM_TOKEN"
 
@@ -249,6 +254,7 @@ data CodebaseServerOpts = CodebaseServerOpts
   { token :: Maybe String,
     host :: Maybe String,
     port :: Maybe Int,
+    allowCorsHost :: Maybe String,
     codebaseUIPath :: Maybe FilePath
   }
   deriving (Show, Eq)
@@ -259,6 +265,7 @@ defaultCodebaseServerOpts =
     { token = Nothing,
       host = Nothing,
       port = Nothing,
+      allowCorsHost = Nothing,
       codebaseUIPath = Nothing
     }
 
@@ -282,7 +289,7 @@ startServer env opts rt codebase onStart = do
         defaultSettings
           & maybe id setPort (port opts)
           & maybe id (setHost . fromString) (host opts)
-  let a = app env rt codebase envUI token
+  let a = app env rt codebase envUI token (allowCorsHost opts)
   case port opts of
     Nothing -> withApplicationSettings settings (pure a) (onStart . baseUrl)
     Just p -> do
@@ -317,6 +324,17 @@ serveIndex path = do
 
 serveUI :: FilePath -> Server WebUI
 serveUI path _ = serveIndex path
+
+-- Apply cors if there is allow-cors-host defined
+corsPolicy :: Maybe String -> Middleware
+corsPolicy = maybe id \allowCorsHost ->
+  cors $
+    const $
+      Just
+        simpleCorsResourcePolicy
+          { corsMethods = ["GET", "OPTIONS"],
+            corsOrigins = Just ([C8.pack allowCorsHost], True)
+          }
 
 server ::
   BackendEnv ->

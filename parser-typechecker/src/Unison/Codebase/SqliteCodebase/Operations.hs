@@ -605,7 +605,7 @@ namesAtPath bh namesRootPath relativeToPath = do
         (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
     convertTerms names =
       names <&> \(S.NamedRef {reversedSegments, ref = (ref, ct)}) ->
-        let v1ref = runIdentity $ Cv.referent2to1 (const . pure . Cv.constructorType2to1 . fromMaybe (error "Required constructor type for constructor but it was null") $ ct) ref
+        let v1ref = Cv.referent2to1UsingCT (fromMaybe (error "Required constructor type for constructor but it was null") ct) ref
          in (Name.fromReverseSegments (coerce reversedSegments), v1ref)
 
     -- If the given prefix matches the given name, the prefix is stripped and it's collected

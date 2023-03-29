@@ -16,12 +16,14 @@ import qualified Data.Set as Set
 import Data.Text (unpack)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
+import qualified Unison.Builtin as Builtin
 import qualified Unison.Name as Name
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parsers as Parsers
 import Unison.Prelude
+import qualified Unison.PrettyPrintEnv.Names as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Referent as Referent
 import Unison.Result (CompilerBug (..), Note (..), Result, ResultT, pattern Result)
@@ -155,8 +157,13 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
   let -- substitute Blanks for any remaining free vars in UF body
       tdnrTerm = Term.prepareTDNR term
       env0 = Typechecker.Env ambient tl fqnsByShortName
+      unisonFilePPE =
+        ( PPE.fromNames
+            10
+            (NamesWithHistory.shadowing (UF.toNames uf) Builtin.names)
+        )
       Result notes mayType =
-        evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
+        evalStateT (Typechecker.synthesizeAndResolve unisonFilePPE env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
   Result (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes

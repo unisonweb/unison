@@ -99,6 +99,7 @@
     unison-POp-CMPU
     unison-POp-COMN
     unison-POp-CONS
+    unison-POp-DBTX
     unison-POp-DECI
     unison-POp-DIVN
     unison-POp-DRPB
@@ -166,14 +167,27 @@
     unison-FOp-IO.serverSocket.impl.v3
     unison-FOp-IO.socketAccept.impl.v3
     unison-FOp-IO.listen.impl.v3
+    unison-FOp-Tls.ClientConfig.default
+    unison-FOp-Tls.ClientConfig.certificates.set
+    unison-FOp-Tls.decodeCert.impl.v3
+    unison-FOp-Tls.newServer.impl.v3
+    unison-FOp-Tls.decodePrivateKey
+    unison-FOp-Tls.ServerConfig.default
+    unison-FOp-Tls.handshake.impl.v3
+    unison-FOp-Tls.newClient.impl.v3
+    unison-FOp-Tls.receive.impl.v3
+    unison-FOp-Tls.send.impl.v3
+    unison-FOp-Tls.terminate.impl.v3
     )
 
   (import (rnrs)
+          (only (srfi :28) format)
           (unison core)
           (unison data)
           (unison string)
           (unison crypto)
           (unison data)
+          (unison tls)
           (unison tcp)
           (unison bytevector)
           (unison vector)
@@ -243,6 +257,8 @@
   (define (unison-POp-SUBN m n) (fx- m n))
   (define (unison-POp-TAKS n s) (list-head s n))
   (define (unison-POp-TAKT n t) (istring-take n t))
+  (define (unison-POp-DBTX x)
+    (format "~a" x))
   (define (unison-POp-TRCE s x)
     (display s)
     (display "\n")

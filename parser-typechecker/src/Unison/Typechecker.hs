@@ -24,6 +24,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import qualified Unison.Name as Name
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Referent (Referent)
 import Unison.Result
   ( Result,
@@ -90,13 +91,15 @@ makeLenses ''Env
 -- contained in that term.
 synthesize ::
   (Monad f, Var v, Ord loc) =>
+  PrettyPrintEnv ->
   Env v loc ->
   Term v loc ->
   ResultT (Notes v loc) f (Type v loc)
-synthesize env t =
+synthesize ppe env t =
   let result =
         convertResult $
           Context.synthesizeClosed
+            ppe
             (TypeVar.liftType <$> view ambientAbilities env)
             (view typeLookup env)
             (TypeVar.liftTerm t)
@@ -150,11 +153,11 @@ data Resolution v loc = Resolution
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
 synthesizeAndResolve ::
-  (Monad f, Var v, Monoid loc, Ord loc) => Env v loc -> TDNR f v loc (Type v loc)
-synthesizeAndResolve env = do
+  (Monad f, Var v, Monoid loc, Ord loc) => PrettyPrintEnv -> Env v loc -> TDNR f v loc (Type v loc)
+synthesizeAndResolve ppe env = do
   tm <- get
-  (tp, notes) <- listen . lift $ synthesize env tm
-  typeDirectedNameResolution notes tp env
+  (tp, notes) <- listen . lift $ synthesize ppe env tm
+  typeDirectedNameResolution ppe notes tp env
 
 compilerBug :: Context.CompilerBug v loc -> Result (Notes v loc) ()
 compilerBug bug = do
@@ -185,11 +188,12 @@ liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
 typeDirectedNameResolution ::
   forall v loc f.
   (Monad f, Var v, Ord loc, Monoid loc) =>
+  PrettyPrintEnv ->
   Notes v loc ->
   Type v loc ->
   Env v loc ->
   TDNR f v loc (Type v loc)
-typeDirectedNameResolution oldNotes oldType env = do
+typeDirectedNameResolution ppe oldNotes oldType env = do
   -- Add typed components (local definitions) to the TDNR environment.
   let tdnrEnv = execState (traverse_ addTypedComponent $ infos oldNotes) env
   -- Resolve blanks in the notes and generate some resolutions
@@ -205,7 +209,7 @@ typeDirectedNameResolution oldNotes oldType env = do
        in if goAgain
             then do
               traverse_ substSuggestion rs
-              synthesizeAndResolve tdnrEnv
+              synthesizeAndResolve ppe tdnrEnv
             else do
               -- The type hasn't changed
               liftResult $ suggest rs
@@ -299,11 +303,12 @@ typeDirectedNameResolution oldNotes oldType env = do
 -- and a note about typechecking failure otherwise.
 check ::
   (Monad f, Var v, Ord loc) =>
+  PrettyPrintEnv ->
   Env v loc ->
   Term v loc ->
   Type v loc ->
   ResultT (Notes v loc) f (Type v loc)
-check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
+check ppe env term typ = synthesize ppe env (Term.ann (ABT.annotation term) term typ)
 
 -- | `checkAdmissible' e t` tests that `(f : t -> r) e` is well-typed.
 -- If `t` has quantifiers, these are moved outside, so if `t : forall a . a`,
@@ -315,8 +320,8 @@ check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
 --     tweak (Type.ForallNamed' v body) = Type.forall() v (tweak body)
 --     tweak t = Type.arrow() t t
 -- | Returns `True` if the expression is well-typed, `False` otherwise
-wellTyped :: (Monad f, Var v, Ord loc) => Env v loc -> Term v loc -> f Bool
-wellTyped env term = go <$> runResultT (synthesize env term)
+wellTyped :: (Monad f, Var v, Ord loc) => PrettyPrintEnv -> Env v loc -> Term v loc -> f Bool
+wellTyped ppe env term = go <$> runResultT (synthesize ppe env term)
   where
     go (may, _) = isJust may
 

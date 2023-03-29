@@ -69,8 +69,16 @@ module U.Codebase.Sqlite.Operations
     -- ** name lookup index
     namesByPath,
     NamesByPath (..),
+    termNamesForRefWithinNamespace,
+    typeNamesForRefWithinNamespace,
+    termNamesBySuffix,
+    typeNamesBySuffix,
+    termRefsForExactName,
+    typeRefsForExactName,
     checkBranchHashNameLookupExists,
     buildNameLookupForBranchHash,
+    longestMatchingTermNameForSuffixification,
+    longestMatchingTypeNameForSuffixification,
 
     -- * reflog
     getReflog,
@@ -212,9 +220,7 @@ loadRootCausalHash =
     lift . Q.expectCausalHash =<< MaybeT Q.loadNamespaceRoot
 
 -- | Load the causal hash at the given path from the root.
---
--- FIXME should we move some Path type here?
-loadCausalHashAtPath :: [Text] -> Transaction (Maybe CausalHash)
+loadCausalHashAtPath :: Q.TextPathSegments -> Transaction (Maybe CausalHash)
 loadCausalHashAtPath =
   let go :: Db.CausalHashId -> [Text] -> MaybeT Transaction CausalHash
       go hashId = \case
@@ -229,9 +235,7 @@ loadCausalHashAtPath =
         runMaybeT (go hashId path)
 
 -- | Expect the causal hash at the given path from the root.
---
--- FIXME should we move some Path type here?
-expectCausalHashAtPath :: [Text] -> Transaction CausalHash
+expectCausalHashAtPath :: Q.TextPathSegments -> Transaction CausalHash
 expectCausalHashAtPath =
   let go :: Db.CausalHashId -> [Text] -> Transaction CausalHash
       go hashId = \case
@@ -735,7 +739,7 @@ expectBranchByBranchHashId bhId = do
 
 expectBranchByBranchHash :: BranchHash -> Transaction (C.Branch.Branch Transaction)
 expectBranchByBranchHash bh = do
-  bhId <- Q.saveBranchHash bh
+  bhId <- Q.expectBranchHashId bh
   expectBranchByBranchHashId bhId
 
 -- | Expect a branch value given its causal hash id.
@@ -1086,13 +1090,13 @@ buildNameLookupForBranchHash ::
   ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
   Transaction ()
 buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
-  newBranchHashId <- Q.saveBranchHash newBranchHash
+  newBranchHashId <- Q.expectBranchHashId newBranchHash
   Q.trackNewBranchHashNameLookup newBranchHashId
   case mayExistingBranchIndex of
     Nothing -> pure ()
     Just existingBranchIndex -> do
       unlessM (checkBranchHashNameLookupExists existingBranchIndex) $ error "buildNameLookupForBranchHash: existingBranchIndex was provided, but no index was found for that branch hash."
-      existingBranchHashId <- Q.saveBranchHash existingBranchIndex
+      existingBranchHashId <- Q.expectBranchHashId existingBranchIndex
       Q.copyScopedNameLookup existingBranchHashId newBranchHashId
   Q.removeScopedTermNames newBranchHashId ((fmap c2sTextReferent <$> removedTermNames))
   Q.removeScopedTypeNames newBranchHashId ((fmap c2sTextReference <$> removedTypeNames))
@@ -1102,7 +1106,7 @@ buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash (newTermNames,
 -- | Check whether we've already got an index for a given branch hash.
 checkBranchHashNameLookupExists :: BranchHash -> Transaction Bool
 checkBranchHashNameLookupExists bh = do
-  bhId <- Q.saveBranchHash bh
+  bhId <- Q.expectBranchHashId bh
   Q.checkBranchHashNameLookupExists bhId
 
 data NamesByPath = NamesByPath
@@ -1131,11 +1135,71 @@ namesByPath bh path = do
     convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
     convertTypes = fmap s2cTextReference
 
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of a names for a given Referent.
+termNamesForRefWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Referent -> Maybe S.ReversedSegments -> Transaction [S.ReversedSegments]
+termNamesForRefWithinNamespace bh namespace ref maySuffix = do
+  bhId <- Q.expectBranchHashId bh
+  Q.termNamesForRefWithinNamespace bhId namespace (c2sTextReferent ref) maySuffix
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of a names for a given Reference, with an optional required suffix.
+typeNamesForRefWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Reference -> Maybe S.ReversedSegments -> Transaction [S.ReversedSegments]
+typeNamesForRefWithinNamespace bh namespace ref maySuffix = do
+  bhId <- Q.expectBranchHashId bh
+  Q.typeNamesForRefWithinNamespace bhId namespace (c2sTextReference ref) maySuffix
+
+termNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesBySuffix bh namespace suffix = do
+  bhId <- Q.expectBranchHashId bh
+  Q.termNamesBySuffix bhId namespace suffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+
+typeNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeNamesBySuffix bh namespace suffix = do
+  bhId <- Q.expectBranchHashId bh
+  Q.typeNamesBySuffix bhId namespace suffix <&> fmap (fmap s2cTextReference)
+
+termRefsForExactName :: BranchHash -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termRefsForExactName bh reversedName = do
+  bhId <- Q.expectBranchHashId bh
+  Q.termRefsForExactName bhId reversedName <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+
+typeRefsForExactName :: BranchHash -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeRefsForExactName bh reversedName = do
+  bhId <- Q.expectBranchHashId bh
+  Q.typeRefsForExactName bhId reversedName <&> fmap (fmap s2cTextReference)
+
+-- | Get the name within the provided namespace that has the longest matching suffix
+-- with the provided name, but a different ref.
+-- This is a bit of a hack but allows us to shortcut suffixification.
+-- We can clean this up if we make a custom PPE type just for sqlite pretty printing, but
+-- for now this works fine.
+longestMatchingTermNameForSuffixification :: BranchHash -> Q.NamespaceText -> S.NamedRef C.Referent -> Transaction (Maybe (S.NamedRef (C.Referent, Maybe C.ConstructorType)))
+longestMatchingTermNameForSuffixification bh namespace namedRef = do
+  bhId <- Q.expectBranchHashId bh
+  Q.longestMatchingTermNameForSuffixification bhId namespace (c2sTextReferent <$> namedRef)
+    <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+
+-- | Get the name within the provided namespace that has the longest matching suffix
+-- with the provided name, but a different ref.
+-- This is a bit of a hack but allows us to shortcut suffixification.
+-- We can clean this up if we make a custom PPE type just for sqlite pretty printing, but
+-- for now this works fine.
+longestMatchingTypeNameForSuffixification :: BranchHash -> Q.NamespaceText -> S.NamedRef C.Reference -> Transaction (Maybe (S.NamedRef C.Reference))
+longestMatchingTypeNameForSuffixification bh namespace namedRef = do
+  bhId <- Q.expectBranchHashId bh
+  Q.longestMatchingTypeNameForSuffixification bhId namespace (c2sTextReference <$> namedRef)
+    <&> fmap (fmap s2cTextReference)
+
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them
 -- then return them.
 expectNamespaceStatsByHash :: BranchHash -> Transaction C.Branch.NamespaceStats
 expectNamespaceStatsByHash bh = do
-  bhId <- Q.saveBranchHash bh
+  bhId <- Q.expectBranchHashId bh
   expectNamespaceStatsByHashId bhId
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them

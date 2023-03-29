@@ -68,15 +68,17 @@ checkMatch matchLocation scrutineeType cases = do
   uncoveredExpanded <- concat . fmap Set.toList <$> traverse (expandSolution v0) (Set.toList uncovered)
   let sols = map (generateInhabitants v0) uncoveredExpanded
   let (_accessible, inaccessible, redundant) = classify grdtree1
+  ppe <- getPrettyPrintEnv
   let debugOutput =
         P.sep
-          "\n"
-          [ P.hang "desugared:" (prettyGrdTree prettyPmGrd (\_ -> "<loc>") grdtree0),
-            P.hang "annotated:" (prettyGrdTree NC.prettyDnf (NC.prettyDnf . fst) grdtree1),
-            P.hang "uncovered:" (NC.prettyDnf uncovered),
-            P.hang "uncovered expanded:" (NC.prettyDnf (Set.fromList uncoveredExpanded))
+          "\n\n"
+          [ P.hang (title "desugared:") (prettyGrdTree (prettyPmGrd ppe) (\_ -> "<loc>") grdtree0),
+            P.hang (title "annotated:") (prettyGrdTree (NC.prettyDnf ppe) (NC.prettyDnf ppe . fst) grdtree1),
+            P.hang (title "uncovered:") (NC.prettyDnf ppe uncovered),
+            P.hang (title "uncovered expanded:") (NC.prettyDnf ppe (Set.fromList uncoveredExpanded))
           ]
+      title = P.bold
       doDebug = case shouldDebug PatternCoverage of
-        True -> trace (P.toPlainUnbroken debugOutput)
+        True -> trace (P.toAnsiUnbroken debugOutput)
         False -> id
   doDebug (pure (redundant, inaccessible, sols))

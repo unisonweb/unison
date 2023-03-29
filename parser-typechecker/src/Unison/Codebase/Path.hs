@@ -263,7 +263,11 @@ splitFromName name =
   case Name.reverseSegments name of
     (seg :| pathSegments) -> (fromList $ reverse pathSegments, seg)
 
--- | what is this? —AI
+-- | Remove a path prefix from a name.
+-- Returns 'Nothing' if there are no remaining segments to construct the name from.
+--
+-- >>> unprefixName (Absolute $ fromList ["base", "List"]) (Name.unsafeFromText "base.List.map")
+-- Just (Name Relative (NameSegment {toText = "map"} :| []))
 unprefixName :: Absolute -> Name -> Maybe Name
 unprefixName prefix = toName . unprefix prefix . fromName'
 

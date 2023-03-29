@@ -46,7 +46,7 @@ import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectBranchName, ProjectName)
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
-import qualified Unison.Syntax.Name as Name (unsafeFromString)
+import qualified Unison.Syntax.Name as Name (fromText, unsafeFromString)
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
@@ -2044,6 +2044,26 @@ docsToHtml =
         _ -> Left $ showPatternHelp docsToHtml
     )
 
+docToMarkdown :: InputPattern
+docToMarkdown =
+  InputPattern
+    "debug.doc-to-markdown"
+    []
+    I.Visible
+    []
+    ( P.wrapColumn2
+        [ ( "`debug.doc-to-markdown term.doc`",
+            "Render a doc to markdown."
+          )
+        ]
+    )
+    ( \case
+        [docNameText] -> first fromString $ do
+          docName <- maybeToEither "Invalid name" . Name.fromText . Text.pack $ docNameText
+          pure $ Input.DocToMarkdownI docName
+        _ -> Left $ showPatternHelp docToMarkdown
+    )
+
 execute :: InputPattern
 execute =
   InputPattern
@@ -2422,6 +2442,7 @@ validInputs =
       api,
       ui,
       docs,
+      docToMarkdown,
       docsToHtml,
       findPatch,
       viewPatch,

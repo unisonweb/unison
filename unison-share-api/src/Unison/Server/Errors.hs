@@ -53,6 +53,7 @@ backendError = \case
   Backend.NoSuchDefinition hqName -> noSuchDefinition hqName
   Backend.AmbiguousHashForDefinition shorthash -> ambiguousHashForDefinition shorthash
   Backend.ExpectedNameLookup branchHash -> expectedNameLookup branchHash
+  Backend.DisjointProjectAndPerspective perspective projectRoot -> disjointProjectAndPerspective perspective projectRoot
 
 badNamespace :: String -> String -> ServerError
 badNamespace err namespace =
@@ -118,4 +119,15 @@ expectedNameLookup branchHash =
   err500
     { errBody =
         "Name lookup index required for branch hash: " <> BSC.pack (show branchHash)
+    }
+
+disjointProjectAndPerspective :: Path.Path -> Path.Path -> ServerError
+disjointProjectAndPerspective perspective projectRoot =
+  err500
+    { errBody =
+        "The project root "
+          <> munge (Path.toText projectRoot)
+          <> " is disjoint with the perspective "
+          <> munge (Path.toText perspective)
+          <> ". This is a bug, please report it."
     }

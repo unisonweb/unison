@@ -314,6 +314,7 @@ data Output
     RemoteProjectBranchHeadMismatch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | Unauthorized Text
   | ServantClientError Servant.ClientError
+  | MarkdownOut Text
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
   { isTest :: TermReference -> Bool,
@@ -492,6 +493,7 @@ isFailure o = case o of
   RemoteProjectBranchHeadMismatch {} -> True
   Unauthorized {} -> True
   ServantClientError {} -> False
+  MarkdownOut {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

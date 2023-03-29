@@ -7,7 +7,7 @@ import Data.Functor (void)
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.These (These(..))
+import Data.These (These (..))
 import EasyTest
 import qualified Text.Megaparsec as P
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo (..), ReadRemoteNamespace (..), ShareCodeserver (..), ShareUserHandle (..), pattern ReadGitRemoteNamespace, pattern ReadShareLooseCode)
@@ -15,8 +15,8 @@ import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
-import Unison.NameSegment (NameSegment (..))
 import Unison.Core.Project (ProjectBranchName, ProjectName)
+import Unison.NameSegment (NameSegment (..))
 
 test :: Test ()
 test = scope "uriparser" . tests $ [testShare, testGit]
