@@ -113,7 +113,7 @@ text.conversion.tests = do
   checkEqual "Float.fromText (1)" (Float.fromText "1.5") (Some 1.5)
   checkEqual "Float.fromText (2)" (Float.fromText "Hello world!") None
 
-  --  checkEqual "Char.toText" (Char.toText ?a) "a"
+  checkEqual "Char.toText" (Char.toText ?a) "a"
 
   --  toCharList
   --  fromCharList

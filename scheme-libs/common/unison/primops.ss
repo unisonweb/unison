@@ -319,7 +319,7 @@
       (flush-output-port p)
       (sum 1 #f)))
 
-  (define (unison-FOp-Char.toText c) (istring c))
+  (define (unison-FOp-Char.toText c) (string->chunked-string (string c)))
 
   (define stdin (standard-input-port))
   (define stdout (standard-output-port))
