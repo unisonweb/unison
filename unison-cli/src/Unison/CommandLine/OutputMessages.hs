@@ -2068,6 +2068,7 @@ notifyUser dir = \case
           <> P.newline
           <> P.indentN 2 (P.pshown response)
   MarkdownOut md -> pure $ P.text md
+  NotImplementedYet message -> pure (P.wrap ("Not implemented:" <> P.text message))
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty

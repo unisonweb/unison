@@ -34,7 +34,8 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
             Left err -> Cli.returnEarly (Output.GitError err)
             Right x -> k x
         ReadShare'LooseCode repo -> k =<< loadShareLooseCodeIntoMemory repo
-        ReadShare'ProjectBranch _ -> wundefined
+        ReadShare'ProjectBranch _ ->
+          Cli.returnEarly (Output.NotImplementedYet "creating a pull request from a project branch")
 
   (ppe, diff) <- withBranch (wundefined baseRepo0) \baseBranch -> withBranch (wundefined headRepo0) \headBranch -> do
     merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
