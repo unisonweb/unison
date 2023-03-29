@@ -302,6 +302,7 @@ data Output
   | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
   | NotOnProjectBranch -- ran a command that only makes sense if on a project branch
+  | NoAssociatedRemoteProject URI -- there's no remote project associated with branch, nor any of its parent branches
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
   | RemoteProjectBranchDoesntExist URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- A remote project branch head wasn't in the expected state
@@ -477,6 +478,7 @@ isFailure o = case o of
   ProjectNameAlreadyExists {} -> True
   ProjectNameRequiresUserSlug {} -> True
   NotOnProjectBranch -> True
+  NoAssociatedRemoteProject {} -> True
   ProjectAndBranchNameAlreadyExists {} -> True
   LocalProjectBranchDoesntExist {} -> True
   RemoteProjectBranchDoesntExist {} -> True

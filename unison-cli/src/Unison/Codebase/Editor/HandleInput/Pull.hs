@@ -55,7 +55,6 @@ import qualified Unison.Share.Sync.Types as Share
 import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.Sync.Common as Common
 import qualified Unison.Sync.Types as Share
-import Witch (unsafeFrom)
 
 doPullRemoteBranch ::
   PullSourceTarget ->
@@ -144,7 +143,7 @@ resolveExplicitSource = \case
   ReadRemoteNamespaceGit namespace -> pure (ReadRemoteNamespaceGit namespace)
   ReadShare'LooseCode namespace -> pure (ReadShare'LooseCode namespace)
   ReadShare'ProjectBranch projectAndBranchNames ->
-    ReadShare'ProjectBranch <$> resolveRemoteNames projectAndBranchNames
+    ReadShare'ProjectBranch <$> ProjectUtils.expectRemoteProjectBranchByTheseNames projectAndBranchNames
 
 resolveImplicitTarget :: Cli (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
 resolveImplicitTarget =
@@ -282,24 +281,3 @@ propagatePatch inputDescription patch scopePath = do
     Cli.stepAt'
       (inputDescription <> " (applying patch)")
       (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
-
-resolveRemoteNames :: These ProjectName ProjectBranchName -> Cli Share.RemoteProjectBranch
-resolveRemoteNames = \case
-  This projectName -> do
-    remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
-    let remoteProjectId = remoteProject ^. #projectId
-    let remoteBranchName = unsafeFrom @Text "main"
-    ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) remoteBranchName)
-  That branchName -> do
-    ProjectAndBranch localProjectId localBranchId <- ProjectUtils.expectCurrentProjectBranch
-    Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
-      Just (remoteProjectId, _maybeProjectBranchId) -> do
-        projectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
-        ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) branchName)
-      Nothing -> do
-        loggeth ["no remote associated with this project"]
-        Cli.returnEarlyWithoutOutput
-  These projectName branchName -> do
-    remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
-    let remoteProjectId = remoteProject ^. #projectId
-    ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) branchName)

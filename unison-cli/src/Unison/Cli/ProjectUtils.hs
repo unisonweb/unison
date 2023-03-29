@@ -18,6 +18,7 @@ module Unison.Cli.ProjectUtils
     expectRemoteProjectByName,
     expectRemoteProjectBranchById,
     expectRemoteProjectBranchByName,
+    expectRemoteProjectBranchByTheseNames,
 
     -- ** Temp
     loggeth,
@@ -146,6 +147,33 @@ expectRemoteProjectBranchByName projectAndBranch =
   where
     doesntExist =
       remoteProjectBranchDoesntExist (projectAndBranch & over #project snd)
+
+-- Expect a remote project branch by a "these names".
+--
+--   If both names are provided, use them.
+--
+--   If only a project name is provided, use branch name "main".
+--
+--   If only a branch name is provided, use the current branch's remote mapping (falling back to its parent, etc) to get
+--   the project.
+expectRemoteProjectBranchByTheseNames :: These ProjectName ProjectBranchName -> Cli Share.RemoteProjectBranch
+expectRemoteProjectBranchByTheseNames = \case
+  This projectName -> do
+    remoteProject <- expectRemoteProjectByName projectName
+    let remoteProjectId = remoteProject ^. #projectId
+    let remoteBranchName = unsafeFrom @Text "main"
+    expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) remoteBranchName)
+  That branchName -> do
+    ProjectAndBranch localProjectId localBranchId <- expectCurrentProjectBranch
+    Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
+      Just (remoteProjectId, _maybeProjectBranchId) -> do
+        projectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
+        expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) branchName)
+      Nothing -> Cli.returnEarly (Output.NoAssociatedRemoteProject Share.hardCodedUri)
+  These projectName branchName -> do
+    remoteProject <- expectRemoteProjectByName projectName
+    let remoteProjectId = remoteProject ^. #projectId
+    expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) branchName)
 
 remoteProjectBranchDoesntExist :: ProjectAndBranch ProjectName ProjectBranchName -> Cli void
 remoteProjectBranchDoesntExist projectAndBranch =

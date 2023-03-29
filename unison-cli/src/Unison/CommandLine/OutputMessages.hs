@@ -2001,6 +2001,7 @@ notifyUser dir = \case
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "already exists."
   NotOnProjectBranch -> pure (P.wrap "You are not currently on a branch.")
+  NoAssociatedRemoteProject host -> pure (P.wrap "This branch isn't associated with any project on" <> prettyURI host)
   LocalProjectBranchDoesntExist projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist."
@@ -2009,7 +2010,10 @@ notifyUser dir = \case
       prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
   RemoteProjectBranchHeadMismatch host projectAndBranch ->
     pure . P.wrap $
-      prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host <> "is not behind local TODO better wording"
+      prettyProjectAndBranchName projectAndBranch
+        <> "on"
+        <> prettyURI host
+        <> "has some history that I don't know about."
   Unauthorized message ->
     pure . P.wrap $
       P.text ("Unauthorized: " <> message)
