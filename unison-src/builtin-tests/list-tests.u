@@ -139,14 +139,7 @@ list.matching.tests = do
     [a] ++ x@(b +: (c +: y@([] :+ d))) ++ tail -> ([a, b, c, d], tail)
     _ -> (l, [])
 
-   --  TODO The program halted with an unhandled exception:
-
-   --     Failure
-   --       (typeLink CompileError)
-   --       "PrimType mismatch: expected sum"
-   --       (Any (2, [(2, Boxed)], Boxed))
-   --
-   -- ^ this is broken on trunk too
-
+  -- TODO implement SPLL
   -- checkEqual "Complex matching" (splitAtFour [1, 2, 3, 4, 5, 6, 7])  ([1, 2, 3, 4], [5, 6, 7])
+  -- TODO find test that stresses SPLR
   ()
