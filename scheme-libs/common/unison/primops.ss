@@ -278,7 +278,7 @@
     (display "\n"))
   (define (unison-POp-TTON s)
     (let ([mn (string->number (chunked-string->string s))])
-      (if mn (some mn) none)))
+      (if (and (fixnum? mn) (>= mn 0)) (some mn) none)))
   (define (unison-POp-UPKT t) (string->list t))
   (define (unison-POp-VWLS l)
     (if (chunked-list-empty? l)
