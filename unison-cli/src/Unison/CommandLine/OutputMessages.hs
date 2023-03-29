@@ -2001,7 +2001,12 @@ notifyUser dir = \case
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "already exists."
   NotOnProjectBranch -> pure (P.wrap "You are not currently on a branch.")
-  NoAssociatedRemoteProject host -> pure (P.wrap "This branch isn't associated with any project on" <> prettyURI host)
+  NoAssociatedRemoteProject host projectAndBranch ->
+    pure . P.wrap $
+      prettyProjectAndBranchName projectAndBranch <> "isn't associated with any project on" <> prettyURI host
+  NoAssociatedRemoteProjectBranch host projectAndBranch ->
+    pure . P.wrap $
+      prettyProjectAndBranchName projectAndBranch <> "isn't associated with any branch on" <> prettyURI host
   LocalProjectBranchDoesntExist projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist."

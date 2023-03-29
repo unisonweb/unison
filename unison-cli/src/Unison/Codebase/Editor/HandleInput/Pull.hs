@@ -126,9 +126,20 @@ resolveImplicitSource =
           Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId >>= \case
             Just (remoteProjectId, Just remoteBranchId) -> do
               remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
-              remoteBranchName <- Queries.expectRemoteProjectBranchName Share.hardCodedUri remoteProjectId remoteBranchId
+              remoteBranchName <-
+                Queries.expectRemoteProjectBranchName
+                  Share.hardCodedUri
+                  remoteProjectId
+                  remoteBranchId
               pure (Right (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName))
-            _ -> pure (Left wundefined) -- no pull target
+            _ -> do
+              project <- Queries.expectProject localProjectId
+              branch <- Queries.expectProjectBranch localProjectId localBranchId
+              pure $
+                Left $
+                  Output.NoAssociatedRemoteProjectBranch
+                    Share.hardCodedUri
+                    (ProjectAndBranch (project ^. #name) (branch ^. #name))
       remoteBranch <-
         ProjectUtils.expectRemoteProjectBranchById $
           ProjectAndBranch

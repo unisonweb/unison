@@ -158,18 +158,27 @@ expectRemoteProjectBranchByName projectAndBranch =
 --   the project.
 expectRemoteProjectBranchByTheseNames :: These ProjectName ProjectBranchName -> Cli Share.RemoteProjectBranch
 expectRemoteProjectBranchByTheseNames = \case
-  This projectName -> do
-    remoteProject <- expectRemoteProjectByName projectName
+  This remoteProjectName -> do
+    remoteProject <- expectRemoteProjectByName remoteProjectName
     let remoteProjectId = remoteProject ^. #projectId
     let remoteBranchName = unsafeFrom @Text "main"
-    expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) remoteBranchName)
+    expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
   That branchName -> do
     ProjectAndBranch localProjectId localBranchId <- expectCurrentProjectBranch
     Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
       Just (remoteProjectId, _maybeProjectBranchId) -> do
-        projectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
-        expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) branchName)
-      Nothing -> Cli.returnEarly (Output.NoAssociatedRemoteProject Share.hardCodedUri)
+        remoteProjectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
+        expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, remoteProjectName) branchName)
+      Nothing -> do
+        (project, branch) <-
+          Cli.runTransaction do
+            project <- Queries.expectProject localProjectId
+            branch <- Queries.expectProjectBranch localProjectId localBranchId
+            pure (project, branch)
+        Cli.returnEarly $
+          Output.NoAssociatedRemoteProject
+            Share.hardCodedUri
+            (ProjectAndBranch (project ^. #name) (branch ^. #name))
   These projectName branchName -> do
     remoteProject <- expectRemoteProjectByName projectName
     let remoteProjectId = remoteProject ^. #projectId
