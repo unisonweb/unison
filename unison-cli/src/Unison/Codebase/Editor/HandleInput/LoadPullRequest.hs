@@ -28,7 +28,17 @@ handleLoadPullRequest ::
   (ReadRemoteNamespace (These ProjectName ProjectBranchName)) ->
   Path' ->
   Cli ()
-handleLoadPullRequest description baseRepo headRepo dest0 = do
+handleLoadPullRequest description baseRepo0 headRepo0 dest0 = do
+  (baseRepo, headRepo) <-
+    let rejectProjectBranch ::
+          ReadRemoteNamespace (These ProjectName ProjectBranchName) ->
+          Cli (ReadRemoteNamespace Void)
+        rejectProjectBranch = \case
+          ReadShare'ProjectBranch {} ->
+            Cli.returnEarly (Output.NotImplementedYet "loading a pull request from a project branch")
+          ReadRemoteNamespaceGit namespace -> pure (ReadRemoteNamespaceGit namespace)
+          ReadShare'LooseCode namespace -> pure (ReadShare'LooseCode namespace)
+     in (,) <$> rejectProjectBranch baseRepo0 <*> rejectProjectBranch headRepo0
   Cli.assertNoBranchAtPath' dest0
   Cli.Env {codebase} <- ask
   destAbs <- Cli.resolvePath' dest0
@@ -37,8 +47,6 @@ handleLoadPullRequest description baseRepo headRepo dest0 = do
           Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
             Cli.returnEarly (Output.GitError err)
         ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
-        ReadShare'ProjectBranch _ ->
-          Cli.returnEarly (Output.NotImplementedYet "loading a pull request from a project branch")
   baseb <- getBranch baseRepo
   headb <- getBranch headRepo
   mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
@@ -57,7 +65,7 @@ handleLoadPullRequest description baseRepo headRepo dest0 = do
       head = snoc dest0 "head"
       merged = snoc dest0 "merged"
       squashed = snoc dest0 "squashed"
-  Cli.respond $ LoadPullRequest (wundefined baseRepo) (wundefined headRepo) base head merged squashed
+  Cli.respond $ LoadPullRequest baseRepo headRepo base head merged squashed
   loadPropagateDiffDefaultPatch
     description
     (Just merged)
