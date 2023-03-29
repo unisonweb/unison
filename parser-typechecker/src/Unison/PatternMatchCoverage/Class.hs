@@ -10,6 +10,7 @@ where
 import Control.Monad.Fix (MonadFix)
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.ListPat (ListPat)
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Type (Type)
 import Unison.Var (Var)
 
@@ -24,6 +25,8 @@ class (Ord loc, Var vt, Var v, MonadFix m) => Pmc vt v loc m | m -> vt v loc whe
 
   -- | Get a fresh variable
   fresh :: m v
+
+  getPrettyPrintEnv :: m PrettyPrintEnv
 
 data EnumeratedConstructors vt v loc
   = ConstructorType [(v, ConstructorReference, Type vt loc)]
