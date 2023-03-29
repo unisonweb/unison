@@ -27,6 +27,17 @@ handleCreatePullRequest ::
 handleCreatePullRequest baseRepo0 headRepo0 = do
   Cli.Env {codebase} <- ask
 
+  (baseRepo, headRepo) <-
+    let rejectProjectBranch ::
+          ReadRemoteNamespace (These ProjectName ProjectBranchName) ->
+          Cli (ReadRemoteNamespace Void)
+        rejectProjectBranch = \case
+          ReadShare'ProjectBranch {} ->
+            Cli.returnEarly (Output.NotImplementedYet "creating a pull request from a project branch")
+          ReadRemoteNamespaceGit namespace -> pure (ReadRemoteNamespaceGit namespace)
+          ReadShare'LooseCode namespace -> pure (ReadShare'LooseCode namespace)
+     in (,) <$> rejectProjectBranch baseRepo0 <*> rejectProjectBranch headRepo0
+
   let withBranch :: ReadRemoteNamespace Void -> (forall x. (Branch IO -> Cli x) -> Cli x)
       withBranch rrn k = case rrn of
         ReadRemoteNamespaceGit repo -> do
@@ -34,10 +45,8 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
             Left err -> Cli.returnEarly (Output.GitError err)
             Right x -> k x
         ReadShare'LooseCode repo -> k =<< loadShareLooseCodeIntoMemory repo
-        ReadShare'ProjectBranch _ ->
-          Cli.returnEarly (Output.NotImplementedYet "creating a pull request from a project branch")
 
-  (ppe, diff) <- withBranch (wundefined baseRepo0) \baseBranch -> withBranch (wundefined headRepo0) \headBranch -> do
+  (ppe, diff) <- withBranch baseRepo \baseBranch -> withBranch headRepo \headBranch -> do
     merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
     diffHelper (Branch.head baseBranch) (Branch.head merged)
-  Cli.respondNumbered (ShowDiffAfterCreatePR (wundefined baseRepo0) (wundefined headRepo0) ppe diff)
+  Cli.respondNumbered (ShowDiffAfterCreatePR baseRepo headRepo ppe diff)
