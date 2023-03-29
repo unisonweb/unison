@@ -109,9 +109,9 @@ text.conversion.tests = do
   checkEqual "Int <-> Text roundtrip (1)" (Int.fromText (Int.toText +123)) (Some +123)
   checkEqual "Int <-> Text roundtrip (2)" (Int.fromText (Int.toText -123)) (Some -123)
 
-  --  checkEqual "Float.toText" (Float.toText 1.1) "1.1"
-  --  checkEqual "Float.fromText (1)" (Float.fromText "1.5") (Some 1.5)
-  --  checkEqual "Float.fromText (2)" (Float.fromText "Hello world!") None
+  checkEqual "Float.toText" (Float.toText 1.1) "1.1"
+  checkEqual "Float.fromText (1)" (Float.fromText "1.5") (Some 1.5)
+  checkEqual "Float.fromText (2)" (Float.fromText "Hello world!") None
 
   --  checkEqual "Char.toText" (Char.toText ?a) "a"
 

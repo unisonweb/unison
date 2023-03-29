@@ -138,6 +138,7 @@
     unison-POp-TRCE
     unison-POp-TTON
     unison-POp-TTOI
+    unison-POp-TTOF
     unison-POp-UPKT
     unison-POp-XORN
     unison-POp-VALU
@@ -243,7 +244,7 @@
       (put-string p ": ")
       (display (chunked-string->string x) p)
       (raise (g))))
-  (define (unison-POp-FTOT f) (number->istring f))
+  (define (unison-POp-FTOT f) (string->chunked-string (number->string f)))
   (define (unison-POp-IDXB n bs) (bytevector-u8-ref bs n))
   (define (unison-POp-IDXS n l)
     (guard (x [else none])
@@ -283,6 +284,9 @@
   (define (unison-POp-TTOI s)
     (let ([mn (string->number (chunked-string->string s))])
       (if (fixnum? mn) (some mn) none)))
+  (define (unison-POp-TTOF s)
+    (let ([mn (string->number (chunked-string->string s))])
+      (if mn (some mn) none)))
   (define (unison-POp-UPKT t) (string->list t))
   (define (unison-POp-VWLS l)
     (if (chunked-list-empty? l)

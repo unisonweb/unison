@@ -111,6 +111,7 @@
     (newline)
     (cond
       [(eq? l r) #t]
+      [(and (number? l) (number? r)) (= l r)]
       [(and (chunked-list? l) (chunked-list? r))
        (chunked-list=?/recur l r universal=?)]
       [(and (chunked-string? l) (chunked-string? r))
