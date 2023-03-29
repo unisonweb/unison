@@ -37,7 +37,8 @@ handleLoadPullRequest description baseRepo headRepo dest0 = do
           Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
             Cli.returnEarly (Output.GitError err)
         ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
-        ReadShare'ProjectBranch _ -> wundefined
+        ReadShare'ProjectBranch _ ->
+          Cli.returnEarly (Output.NotImplementedYet "loading a pull request from a project branch")
   baseb <- getBranch baseRepo
   headb <- getBranch headRepo
   mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)

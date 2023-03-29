@@ -314,6 +314,8 @@ data Output
     RemoteProjectBranchHeadMismatch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | Unauthorized Text
   | ServantClientError Servant.ClientError
+  | -- A generic "not implemented" message, for WIP code that's nonetheless been merged into trunk
+    NotImplementedYet Text
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
   { isTest :: TermReference -> Bool,
@@ -492,6 +494,7 @@ isFailure o = case o of
   RemoteProjectBranchHeadMismatch {} -> True
   Unauthorized {} -> True
   ServantClientError {} -> False
+  NotImplementedYet {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
