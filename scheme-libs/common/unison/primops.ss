@@ -189,6 +189,7 @@
 
   (import (rnrs)
           (only (srfi :28) format)
+          (only (srfi :13) string-reverse)
           (unison core)
           (unison data)
           (unison data chunked-seq)
@@ -258,7 +259,10 @@
   (define (unison-POp-MODN m n) (fxmod m n))
   (define (unison-POp-NTOT n) (string->chunked-string (number->string n)))
   (define (unison-POp-PAKB l) (u8-list->ibytevector l))
-  (define (unison-POp-PAKT l) (list->chunked-string l))
+  (define (unison-POp-PAKT l)
+    (build-chunked-string
+     (chunked-list-length l)
+     (lambda (i) (chunked-list-ref l i))))
   (define (unison-POp-SHLI i k) (fxarithmetic-shift-left i k))
   (define (unison-POp-SHLN n k) (fxarithmetic-shift-left n k))
   (define (unison-POp-SHRI i k) (fxarithmetic-shift-right i k))
@@ -287,7 +291,10 @@
   (define (unison-POp-TTOF s)
     (let ([mn (string->number (chunked-string->string s))])
       (if mn (some mn) none)))
-  (define (unison-POp-UPKT t) (chunked-string->list t))
+  (define (unison-POp-UPKT s)
+    (build-chunked-list
+     (chunked-string-length s)
+     (lambda (i) (chunked-string-ref s i))))
   (define (unison-POp-VWLS l)
     (if (chunked-list-empty? l)
         (sum 0)
@@ -357,10 +364,17 @@
           acc
           (loop (+ cnt 1) (chunked-string-append acc t)))))
 
-  (define (unison-FOp-Text.reverse t) (chunked-string-reverse t))
+  (define (unison-FOp-Text.reverse s)
+    (chunked-string-foldMap-chunks
+     s
+     string-reverse
+     (lambda (acc c) (chunked-string-append c acc))))
 
-  (define (unison-FOp-Text.toLowercase t) (chunked-string-downcase t))
-  (define (unison-FOp-Text.toUppercase t) (chunked-string-upcase t))
+    (define (unison-FOp-Text.toLowercase s)
+      (chunked-string-foldMap-chunks s string-downcase chunked-string-append))
+
+    (define (unison-FOp-Text.toUppercase s)
+      (chunked-string-foldMap-chunks s string-upcase chunked-string-append))
 
   (define (catch-array thunk)
     (reify-exn thunk))

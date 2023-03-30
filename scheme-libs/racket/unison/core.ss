@@ -28,11 +28,7 @@
     let-marks
     ref-mark
 
-    chunked-string-reverse
-    chunked-string-downcase
-    chunked-string-upcase
-    chunked-string->list
-    list->chunked-string
+    chunked-string-foldMap-chunks
 
     freeze-string!
     string-copy!
@@ -57,7 +53,6 @@
             (bytes bytevector))
     (racket exn)
     (racket unsafe ops)
-    (only (srfi :13) string-reverse)
     (unison data)
     (unison data chunked-seq))
 
@@ -152,28 +147,6 @@
         ([acc empty-chunked-string])
         ([c (in-chunked-string-chunks s)])
       (f acc (string->chunked-string (m c)))))
-
-  (define (chunked-string-reverse s)
-    (chunked-string-foldMap-chunks
-     s
-     string-reverse
-     (lambda (acc c) (chunked-string-append c acc))))
-
-  (define (chunked-string-downcase s)
-    (chunked-string-foldMap-chunks s string-downcase chunked-string-append))
-
-  (define (chunked-string-upcase s)
-    (chunked-string-foldMap-chunks s string-upcase chunked-string-append))
-
-  (define (chunked-string->list s)
-    (build-chunked-list
-     (chunked-string-length s)
-     (lambda (i) (chunked-string-ref s i))))
-
-  (define (list->chunked-string l)
-    (build-chunked-string
-     (chunked-list-length l)
-     (lambda (i) (chunked-list-ref l i))))
 
   (define freeze-string! unsafe-string->immutable-string!)
   (define freeze-bytevector! unsafe-bytes->immutable-bytes!)
