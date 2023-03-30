@@ -82,7 +82,7 @@ testGit =
         [ ( "git(https://example.com/git/project.git)",
             gitHelper (ReadGitRepo "https://example.com/git/project.git" Nothing, Nothing, Path.empty)
           ),
-          ( "git(https://user@example.com/git/project.git:abc)#def.hij.klm]",
+          ( "git(https://user@example.com/git/project.git:abc)#def.hij.klm",
             gitHelper (ReadGitRepo "https://user@example.com/git/project.git" (Just "abc"), sch "def", path ["hij", "klm"])
           )
         ],
