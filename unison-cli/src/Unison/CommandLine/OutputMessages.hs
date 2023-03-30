@@ -1829,6 +1829,8 @@ notifyUser dir = \case
         <> prettyProjectBranchName childBranchName
         <> "from branch"
         <> prettyProjectBranchName parentBranchName
+  InvalidProjectName name -> pure (P.wrap (P.text name <> "is not a valid project name."))
+  InvalidProjectBranchName name -> pure (P.wrap (P.text name <> "is not a valid branch name."))
   RefusedToCreateProjectBranch projectAndBranch ->
     pure . P.wrap $
       "You can only create"

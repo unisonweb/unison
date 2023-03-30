@@ -391,13 +391,13 @@ addReflogTable :: Transaction ()
 addReflogTable =
   executeFile [hereFile|unison/sql/002-reflog-table.sql|]
 
-addProjectTables :: Transaction ()
-addProjectTables =
-  executeFile [hereFile|unison/sql/004-project-tables.sql|]
-
 fixScopedNameLookupTables :: Transaction ()
 fixScopedNameLookupTables =
   executeFile [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|]
+
+addProjectTables :: Transaction ()
+addProjectTables =
+  executeFile [hereFile|unison/sql/005-project-tables.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =

@@ -1576,7 +1576,6 @@ inputDescription input =
     UiI -> wat
     UpI {} -> wat
     VersionI -> wat
-    DebugTabCompletionI _input -> wat
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text

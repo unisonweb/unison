@@ -174,13 +174,13 @@ onGotProjectBranch branch = do
 
 validateProjectName :: Text -> Cli ProjectName
 validateProjectName projectName =
-  tryInto @ProjectName projectName & onLeft \err -> do
-    Cli.returnEarlyWithoutOutput
+  tryInto @ProjectName projectName & onLeft \_ ->
+    Cli.returnEarly (Output.InvalidProjectName projectName)
 
 validateBranchName :: Text -> Cli ProjectBranchName
 validateBranchName branchName =
-  tryInto @ProjectBranchName branchName & onLeft \err -> do
-    Cli.returnEarlyWithoutOutput
+  tryInto @ProjectBranchName branchName & onLeft \_ ->
+    Cli.returnEarly (Output.InvalidProjectBranchName branchName)
 
 unauthorized :: Share.API.Unauthorized -> Cli void
 unauthorized (Share.API.Unauthorized message) =

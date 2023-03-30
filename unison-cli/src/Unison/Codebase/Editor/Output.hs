@@ -299,6 +299,8 @@ data Output
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject ProjectName ProjectBranchName
   | CreatedProjectBranch ProjectBranchName ProjectBranchName -- parent, child
+  | InvalidProjectName Text
+  | InvalidProjectBranchName Text
   | RefusedToCreateProjectBranch (ProjectAndBranch ProjectName ProjectBranchName)
   | ProjectNameAlreadyExists ProjectName
   | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
@@ -487,6 +489,8 @@ isFailure o = case o of
   PulledEmptyBranch {} -> False
   CreatedProject {} -> False
   CreatedProjectBranch {} -> False
+  InvalidProjectName {} -> True
+  InvalidProjectBranchName {} -> True
   RefusedToCreateProjectBranch {} -> True
   ProjectNameAlreadyExists {} -> True
   ProjectNameRequiresUserSlug {} -> True
