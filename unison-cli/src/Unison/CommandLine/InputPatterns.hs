@@ -2345,7 +2345,7 @@ projectClone =
   InputPattern
     { patternName = "project.clone",
       aliases = ["clone"],
-      visibility = I.Visible,
+      visibility = I.Hidden,
       argTypes = [(Required, projectAndBranchNamesArg)],
       help = P.wrap "Clone a project branch from a remote server.",
       parse = \case
@@ -2361,7 +2361,7 @@ projectCreate =
   InputPattern
     { patternName = "project.create",
       aliases = ["create"],
-      visibility = I.Visible,
+      visibility = I.Hidden,
       argTypes = [(Required, projectNameArg)],
       help = P.wrap "Create a project.",
       parse = \case
@@ -2377,7 +2377,7 @@ projectSwitch =
   InputPattern
     { patternName = "project.switch",
       aliases = ["switch"],
-      visibility = I.Visible,
+      visibility = I.Hidden,
       argTypes = [(Required, projectAndBranchNamesArg)],
       help = P.wrap "Switch to a project or project branch.",
       parse = \case
