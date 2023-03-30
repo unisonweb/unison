@@ -17,15 +17,7 @@ backupInto ::
   FilePath ->
   IO ()
 backupInto (Text.pack -> srcPath) (Text.pack -> destPath) = do
-  UnliftIO.bracket openDBs cleanup $ \(_, _, backup) -> do
-    void $ SQLite3.backupStep backup (-1) -- -1 means copy the whole db at once
-  where
-    openDBs = do
-      srcDb <- SQLite3.open srcPath
-      destDb <- SQLite3.open destPath
-      backup <- SQLite3.backupInit destDb destPath srcDb srcPath
-      return (srcDb, destDb, backup)
-    cleanup (srcDb, destDb, backup) = do
-      SQLite3.backupFinish backup
-      SQLite3.close srcDb
-      SQLite3.close destDb
+  UnliftIO.bracket (SQLite3.open srcPath) SQLite3.close $ \srcDb -> do
+    UnliftIO.bracket (SQLite3.open destPath) SQLite3.close $ \destDb -> do
+      UnliftIO.bracket (SQLite3.backupInit destDb destPath srcDb srcPath) SQLite3.backupFinish $ \backup -> do
+        void $ SQLite3.backupStep backup (-1) -- -1 means copy the whole db at once
