@@ -273,7 +273,7 @@
   (define (unison-POp-SUBN m n) (fx- m n))
   (define (unison-POp-TAKS n s) (chunked-list-take s n))
   (define (unison-POp-DBTX x)
-    (format "~a" x))
+    (string->chunked-string (format "~a" x))) ;; TODO currently broken
   (define (unison-POp-TAKT n t) (chunked-string-take t n))
   (define (unison-POp-TRCE s x) ;; TODO port to chunked-string
     (display s)

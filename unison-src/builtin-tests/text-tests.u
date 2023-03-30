@@ -120,16 +120,24 @@ text.conversion.tests = do
   checkEqual "Text.fromCharList: empty" (Text.fromCharList []) ""
   checkEqual "Text.fromCharList: non empty" (Text.fromCharList [?a, ?b, ?c]) "abc"
 
-  --  toUft8
+  --  check "Debug.toTex runs" do
+  --    console.printLine (Debug.toText (Some 3))
+  --    true
+
+--  toUft8
   --  fromUtf8
   --  B "Socket.toText" $ socket --> text,
   --  B "Handle.toText" $ handle --> text,
   --  B "ThreadId.toText" $ threadId --> text,
-  --  B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a),
-  --  B "Debug.trace" $ forall1 "a" (\a -> text --> a --> unit),
-  --  B "Debug.toText" $
   --   Link.Term.toText
 
+  --  ("bug", (Untracked, bug "builtin.bug")),
+  --  ("todo", (Untracked, bug "builtin.todo")),
+  --  ("Debug.watch", (Tracked, watch))
+  --  ("Debug.trace", (Tracked, gen'trace)),
+  --  ("Debug.toText", (Tracked, debug'text)),
+
+  -- bug 3
   ()
 
  -- TODO pattern matching tests (with Pattern api)
