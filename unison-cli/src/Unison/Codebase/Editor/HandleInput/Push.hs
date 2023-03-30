@@ -559,10 +559,10 @@ executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
             (Share.RepoInfo (into @Text (These (remoteBranch ^. #project) (remoteBranch ^. #branch))))
             (Set.NonEmpty.singleton causalHash)
             uploadedCallback
-    upload & onLeftM \err -> do
-      ProjectUtils.loggeth ["upload entities error"]
-      ProjectUtils.loggeth [tShow err]
-      Cli.returnEarlyWithoutOutput
+    upload & onLeftM \err0 -> do
+      (Cli.returnEarly . Output.ShareError) case err0 of
+        Share.SyncError err -> ShareErrorUploadEntities err
+        Share.TransportError err -> ShareErrorTransport err
   afterUploadAction
 
 ------------------------------------------------------------------------------------------------------------------------

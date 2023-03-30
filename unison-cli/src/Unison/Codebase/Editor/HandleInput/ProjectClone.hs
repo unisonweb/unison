@@ -14,7 +14,7 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli (stepAt)
-import Unison.Cli.ProjectUtils (loggeth, projectBranchPath)
+import Unison.Cli.ProjectUtils (projectBranchPath)
 import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
 import qualified Unison.Codebase as Codebase
@@ -26,9 +26,10 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName, projectNameUserSlug)
 import qualified Unison.Share.API.Hash as Share.API
 import qualified Unison.Share.Sync as Share (downloadEntities)
+import qualified Unison.Share.Sync.Types as Share
 import qualified Unison.Sqlite as Sqlite
 import Unison.Sync.Common (hash32ToCausalHash)
-import qualified Unison.Sync.Types as Share (RepoInfo (..))
+import qualified Unison.Sync.Types as Share
 import Witch (unsafeFrom)
 
 -- | Clone a remote project or remote project branch.
@@ -51,8 +52,7 @@ cloneProject projectName = do
 -- Clone a branch from the remote project associated with the current project.
 cloneBranch :: ProjectBranchName -> Cli ()
 cloneBranch _remoteBranchName = do
-  loggeth ["not implemented: project.clone /branch"]
-  Cli.returnEarlyWithoutOutput
+  Cli.returnEarly (Output.NotImplementedYet "cloning a branch of the current project")
 
 cloneProjectAndBranch :: ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
 cloneProjectAndBranch remoteProjectAndBranch = do
@@ -94,9 +94,10 @@ cloneProjectAndBranch remoteProjectAndBranch = do
             (Share.RepoInfo (into @Text (These remoteProjectName remoteBranchName)))
             remoteBranchHeadJwt
             downloadedCallback
-    download & onLeftM \err -> do
-      loggeth ["download entities error: ", tShow err]
-      Cli.returnEarlyWithoutOutput
+    download & onLeftM \err0 ->
+      (Cli.returnEarly . Output.ShareError) case err0 of
+        Share.SyncError err -> Output.ShareErrorDownloadEntities err
+        Share.TransportError err -> Output.ShareErrorTransport err
 
   localProjectAndBranch <-
     Cli.runEitherTransaction do

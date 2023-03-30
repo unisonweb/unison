@@ -67,6 +67,7 @@ import Unison.Server.SearchResult' (SearchResult')
 import qualified Unison.Share.Sync.Types as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Symbol (Symbol)
+import qualified Unison.Sync.Types as Share (DownloadEntitiesError, UploadEntitiesError)
 import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -309,6 +310,7 @@ data Output
   | -- there's no remote branch associated with branch
     NoAssociatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
+  | RemoteProjectDoesntExist URI ProjectName
   | RemoteProjectBranchDoesntExist URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- A remote project branch head wasn't in the expected state
     RemoteProjectBranchHeadMismatch URI (ProjectAndBranch ProjectName ProjectBranchName)
@@ -333,10 +335,12 @@ data WhichBranchEmpty
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
+  | ShareErrorDownloadEntities Share.DownloadEntitiesError
   | ShareErrorFastForwardPush Sync.FastForwardPushError
-  | ShareErrorPull Sync.PullError
   | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
+  | ShareErrorPull Sync.PullError
   | ShareErrorTransport Sync.CodeserverTransportError
+  | ShareErrorUploadEntities Share.UploadEntitiesError
 
 data HistoryTail
   = EndOfLog CausalHash
@@ -491,6 +495,7 @@ isFailure o = case o of
   NoAssociatedRemoteProjectBranch {} -> True
   ProjectAndBranchNameAlreadyExists {} -> True
   LocalProjectBranchDoesntExist {} -> True
+  RemoteProjectDoesntExist {} -> True
   RemoteProjectBranchDoesntExist {} -> True
   RemoteProjectBranchHeadMismatch {} -> True
   Unauthorized {} -> True

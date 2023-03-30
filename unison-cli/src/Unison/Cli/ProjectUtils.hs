@@ -19,15 +19,11 @@ module Unison.Cli.ProjectUtils
     expectRemoteProjectBranchById,
     expectRemoteProjectBranchByName,
     expectRemoteProjectBranchByTheseNames,
-
-    -- ** Temp
-    loggeth,
   )
 where
 
 import Control.Lens
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 import Data.These (These (..))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
@@ -124,8 +120,7 @@ expectProjectAndBranchByTheseNames = \case
 expectRemoteProjectByName :: ProjectName -> Cli Share.RemoteProject
 expectRemoteProjectByName remoteProjectName = do
   Share.getProjectByName remoteProjectName & onNothingM do
-    loggeth ["remote project doesn't exist"]
-    Cli.returnEarlyWithoutOutput
+    Cli.returnEarly (Output.RemoteProjectDoesntExist Share.hardCodedUri remoteProjectName)
 
 expectRemoteProjectBranchById ::
   ProjectAndBranch (RemoteProjectId, ProjectName) (RemoteProjectBranchId, ProjectBranchName) ->
@@ -272,8 +267,3 @@ projectBranchPathPrism =
         ["__projects", UUIDNameSegment projectId, "branches", UUIDNameSegment branchId] ->
           Just ProjectAndBranch {project = ProjectId projectId, branch = ProjectBranchId branchId}
         _ -> Nothing
-
--- Dumb temporary debug logger to use for the new project commands
-loggeth :: [Text] -> Cli ()
-loggeth =
-  liftIO . Text.putStrLn . Text.concat . ("[coolbeans] " :)

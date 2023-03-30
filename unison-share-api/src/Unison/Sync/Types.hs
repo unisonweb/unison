@@ -45,14 +45,17 @@ module Unison.Sync.Types
     -- ** Upload entities
     UploadEntitiesRequest (..),
     UploadEntitiesResponse (..),
+    UploadEntitiesError (..),
 
     -- ** Fast-forward path
     FastForwardPathRequest (..),
     FastForwardPathResponse (..),
+    FastForwardPathError (..),
 
     -- ** Update path
     UpdatePathRequest (..),
     UpdatePathResponse (..),
+    UpdatePathError (..),
     HashMismatch (..),
 
     -- * Common/shared error types
@@ -582,18 +585,13 @@ data DownloadEntitiesResponse
 
 data DownloadEntitiesError
   = DownloadEntitiesNoReadPermission RepoInfo
-  | -- | (msg, repoInfo)
+  | -- | msg, repoInfo
     DownloadEntitiesInvalidRepoInfo Text RepoInfo
-  | -- | (userHandle)
+  | -- | userHandle
     DownloadEntitiesUserNotFound Text
-  | -- | (project shorthand)
+  | -- | project shorthand
     DownloadEntitiesProjectNotFound Text
   deriving stock (Eq, Show)
-
--- data DownloadEntities = DownloadEntities
---   { entities :: NEMap Hash (Entity Text Hash HashJWT)
---   }
---   deriving stock (Show, Eq, Ord)
 
 instance ToJSON DownloadEntitiesResponse where
   toJSON = \case
@@ -612,16 +610,6 @@ instance FromJSON DownloadEntitiesResponse where
       "user_not_found" -> DownloadEntitiesFailure . DownloadEntitiesUserNotFound <$> obj .: "payload"
       "project_not_found" -> DownloadEntitiesFailure . DownloadEntitiesProjectNotFound <$> obj .: "payload"
       t -> failText $ "Unexpected DownloadEntitiesResponse type: " <> t
-
--- instance ToJSON DownloadEntities where
---   toJSON (DownloadEntities entities) =
---     object
---       [ "entities" .= entities
---       ]
-
--- instance FromJSON DownloadEntities where
---   parseJSON = Aeson.withObject "DownloadEntities" \obj -> do
---     DownloadEntities <$> obj .: "entities"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
@@ -651,47 +639,68 @@ instance FromJSON UploadEntitiesRequest where
 
 data UploadEntitiesResponse
   = UploadEntitiesSuccess
-  | UploadEntitiesNeedDependencies (NeedDependencies Hash32)
-  | UploadEntitiesNoWritePermission RepoInfo
-  | UploadEntitiesHashMismatchForEntity HashMismatchForEntity
-  | -- | (msg, repoInfo)
-    UploadEntitiesInvalidRepoInfo Text RepoInfo
-  | -- | (userHandle)
-    UploadEntitiesUserNotFound Text
-  | -- | (project shorthand)
-    UploadEntitiesProjectNotFound Text
+  | UploadEntitiesFailure UploadEntitiesError
   deriving stock (Show, Eq, Ord)
 
-data HashMismatchForEntity = HashMismatchForEntity {supplied :: Hash32, computed :: Hash32}
+data UploadEntitiesError
+  = UploadEntitiesError'HashMismatchForEntity HashMismatchForEntity
+  | -- | msg, repoInfo
+    UploadEntitiesError'InvalidRepoInfo Text RepoInfo
+  | UploadEntitiesError'NeedDependencies (NeedDependencies Hash32)
+  | UploadEntitiesError'NoWritePermission RepoInfo
+  | -- | project shorthand
+    UploadEntitiesError'ProjectNotFound Text
+  | -- | userHandle
+    UploadEntitiesError'UserNotFound Text
+  deriving stock (Show, Eq, Ord)
+
+data HashMismatchForEntity = HashMismatchForEntity
+  { supplied :: Hash32,
+    computed :: Hash32
+  }
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON UploadEntitiesResponse where
   toJSON = \case
     UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
-    UploadEntitiesNeedDependencies nd -> jsonUnion "need_dependencies" nd
-    UploadEntitiesNoWritePermission repoInfo -> jsonUnion "no_write_permission" repoInfo
-    UploadEntitiesHashMismatchForEntity mismatch -> jsonUnion "hash_mismatch_for_entity" mismatch
-    UploadEntitiesInvalidRepoInfo msg repoInfo -> jsonUnion "invalid_repo_info" (msg, repoInfo)
-    UploadEntitiesUserNotFound userHandle -> jsonUnion "user_not_found" userHandle
-    UploadEntitiesProjectNotFound projectShorthand -> jsonUnion "project_not_found" projectShorthand
+    UploadEntitiesFailure (UploadEntitiesError'HashMismatchForEntity mismatch) ->
+      jsonUnion "hash_mismatch_for_entity" mismatch
+    UploadEntitiesFailure (UploadEntitiesError'InvalidRepoInfo msg repoInfo) ->
+      jsonUnion "invalid_repo_info" (msg, repoInfo)
+    UploadEntitiesFailure (UploadEntitiesError'NeedDependencies nd) -> jsonUnion "need_dependencies" nd
+    UploadEntitiesFailure (UploadEntitiesError'NoWritePermission repoInfo) -> jsonUnion "no_write_permission" repoInfo
+    UploadEntitiesFailure (UploadEntitiesError'ProjectNotFound projectShorthand) ->
+      jsonUnion "project_not_found" projectShorthand
+    UploadEntitiesFailure (UploadEntitiesError'UserNotFound userHandle) -> jsonUnion "user_not_found" userHandle
 
 instance FromJSON UploadEntitiesResponse where
   parseJSON = Aeson.withObject "UploadEntitiesResponse" \obj ->
     obj .: "type" >>= Aeson.withText "type" \case
       "success" -> pure UploadEntitiesSuccess
-      "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
-      "no_write_permission" -> UploadEntitiesNoWritePermission <$> obj .: "payload"
-      "hash_mismatch_for_entity" -> UploadEntitiesHashMismatchForEntity <$> obj .: "payload"
-      "invalid_repo_info" -> uncurry UploadEntitiesInvalidRepoInfo <$> obj .: "payload"
-      "user_not_found" -> UploadEntitiesUserNotFound <$> obj .: "payload"
-      "project_not_found" -> UploadEntitiesProjectNotFound <$> obj .: "payload"
+      "need_dependencies" -> UploadEntitiesFailure . UploadEntitiesError'NeedDependencies <$> obj .: "payload"
+      "no_write_permission" -> UploadEntitiesFailure . UploadEntitiesError'NoWritePermission <$> obj .: "payload"
+      "hash_mismatch_for_entity" ->
+        UploadEntitiesFailure . UploadEntitiesError'HashMismatchForEntity <$> obj .: "payload"
+      "invalid_repo_info" -> do
+        (msg, repoInfo) <- obj .: "payload"
+        pure (UploadEntitiesFailure (UploadEntitiesError'InvalidRepoInfo msg repoInfo))
+      "user_not_found" -> UploadEntitiesFailure . UploadEntitiesError'UserNotFound <$> obj .: "payload"
+      "project_not_found" -> UploadEntitiesFailure . UploadEntitiesError'ProjectNotFound <$> obj .: "payload"
       t -> failText $ "Unexpected UploadEntitiesResponse type: " <> t
 
 instance ToJSON HashMismatchForEntity where
-  toJSON (HashMismatchForEntity supplied computed) = object ["supplied" .= supplied, "computed" .= computed]
+  toJSON (HashMismatchForEntity supplied computed) =
+    object
+      [ "supplied" .= supplied,
+        "computed" .= computed
+      ]
 
 instance FromJSON HashMismatchForEntity where
-  parseJSON = Aeson.withObject "HashMismatchForEntity" \obj -> HashMismatchForEntity <$> obj .: "supplied" <*> obj .: "computed"
+  parseJSON =
+    Aeson.withObject "HashMismatchForEntity" \obj ->
+      HashMismatchForEntity
+        <$> obj .: "supplied"
+        <*> obj .: "computed"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Fast-forward path
@@ -749,16 +758,20 @@ instance FromJSON FastForwardPathRequest where
 
 data FastForwardPathResponse
   = FastForwardPathSuccess
-  | FastForwardPathMissingDependencies (NeedDependencies Hash32)
-  | FastForwardPathNoWritePermission Path
+  | FastForwardPathFailure FastForwardPathError
+  deriving stock (Show)
+
+data FastForwardPathError
+  = FastForwardPathError'MissingDependencies (NeedDependencies Hash32)
+  | FastForwardPathError'NoWritePermission Path
   | -- | This wasn't a fast-forward. Here's a JWT to download the causal head, if you want it.
-    FastForwardPathNotFastForward HashJWT
+    FastForwardPathError'NotFastForward HashJWT
   | -- | There was no history at this path; the client should use the "update path" endpoint instead.
-    FastForwardPathNoHistory
+    FastForwardPathError'NoHistory
   | -- | This wasn't a fast-forward. You said the first hash was a parent of the second hash, but I disagree.
-    FastForwardPathInvalidParentage InvalidParentage
-  | FastForwardPathInvalidRepoInfo Text RepoInfo
-  | FastForwardPathUserNotFound
+    FastForwardPathError'InvalidParentage InvalidParentage
+  | FastForwardPathError'InvalidRepoInfo Text RepoInfo
+  | FastForwardPathError'UserNotFound
   deriving stock (Show)
 
 data InvalidParentage = InvalidParentage {parent :: Hash32, child :: Hash32}
@@ -767,26 +780,31 @@ data InvalidParentage = InvalidParentage {parent :: Hash32, child :: Hash32}
 instance ToJSON FastForwardPathResponse where
   toJSON = \case
     FastForwardPathSuccess -> jsonUnion "success" (Object mempty)
-    FastForwardPathMissingDependencies deps -> jsonUnion "missing_dependencies" deps
-    FastForwardPathNoWritePermission path -> jsonUnion "no_write_permission" path
-    FastForwardPathNotFastForward hashJwt -> jsonUnion "not_fast_forward" hashJwt
-    FastForwardPathNoHistory -> jsonUnion "no_history" (Object mempty)
-    FastForwardPathInvalidParentage invalidParentage -> jsonUnion "invalid_parentage" invalidParentage
-    FastForwardPathInvalidRepoInfo msg repoInfo -> jsonUnion "invalid_repo_info" (msg, repoInfo)
-    FastForwardPathUserNotFound -> jsonUnion "user_not_found" (Object mempty)
+    (FastForwardPathFailure (FastForwardPathError'MissingDependencies deps)) -> jsonUnion "missing_dependencies" deps
+    (FastForwardPathFailure (FastForwardPathError'NoWritePermission path)) -> jsonUnion "no_write_permission" path
+    (FastForwardPathFailure (FastForwardPathError'NotFastForward hashJwt)) -> jsonUnion "not_fast_forward" hashJwt
+    (FastForwardPathFailure FastForwardPathError'NoHistory) -> jsonUnion "no_history" (Object mempty)
+    (FastForwardPathFailure (FastForwardPathError'InvalidParentage invalidParentage)) ->
+      jsonUnion "invalid_parentage" invalidParentage
+    (FastForwardPathFailure (FastForwardPathError'InvalidRepoInfo msg repoInfo)) ->
+      jsonUnion "invalid_repo_info" (msg, repoInfo)
+    (FastForwardPathFailure FastForwardPathError'UserNotFound) ->
+      jsonUnion "user_not_found" (Object mempty)
 
 instance FromJSON FastForwardPathResponse where
   parseJSON =
     Aeson.withObject "FastForwardPathResponse" \o ->
       o .: "type" >>= Aeson.withText "type" \case
         "success" -> pure FastForwardPathSuccess
-        "missing_dependencies" -> FastForwardPathMissingDependencies <$> o .: "payload"
-        "no_write_permission" -> FastForwardPathNoWritePermission <$> o .: "payload"
-        "not_fast_forward" -> FastForwardPathNotFastForward <$> o .: "payload"
-        "no_history" -> pure FastForwardPathNoHistory
-        "invalid_parentage" -> FastForwardPathInvalidParentage <$> o .: "payload"
-        "invalid_repo_info" -> uncurry FastForwardPathInvalidRepoInfo <$> o .: "payload"
-        "user_not_found" -> pure FastForwardPathUserNotFound
+        "missing_dependencies" -> FastForwardPathFailure . FastForwardPathError'MissingDependencies <$> o .: "payload"
+        "no_write_permission" -> FastForwardPathFailure . FastForwardPathError'NoWritePermission <$> o .: "payload"
+        "not_fast_forward" -> FastForwardPathFailure . FastForwardPathError'NotFastForward <$> o .: "payload"
+        "no_history" -> pure (FastForwardPathFailure FastForwardPathError'NoHistory)
+        "invalid_parentage" -> FastForwardPathFailure . FastForwardPathError'InvalidParentage <$> o .: "payload"
+        "invalid_repo_info" -> do
+          (msg, repoInfo) <- o .: "payload"
+          pure (FastForwardPathFailure (FastForwardPathError'InvalidRepoInfo msg repoInfo))
+        "user_not_found" -> pure (FastForwardPathFailure FastForwardPathError'UserNotFound)
         t -> failText $ "Unexpected FastForwardPathResponse type: " <> t
 
 instance ToJSON InvalidParentage where
@@ -823,33 +841,38 @@ instance FromJSON UpdatePathRequest where
 
 data UpdatePathResponse
   = UpdatePathSuccess
-  | UpdatePathHashMismatch HashMismatch
-  | UpdatePathMissingDependencies (NeedDependencies Hash32)
-  | UpdatePathNoWritePermission Path
-  | -- | (errMsg, repoInfo)
-    UpdatePathInvalidRepoInfo Text RepoInfo
-  | UpdatePathUserNotFound
+  | UpdatePathFailure UpdatePathError
+  deriving stock (Show, Eq, Ord)
+
+data UpdatePathError
+  = UpdatePathError'HashMismatch HashMismatch
+  | UpdatePathError'InvalidRepoInfo Text RepoInfo -- err msg, repo info
+  | UpdatePathError'MissingDependencies (NeedDependencies Hash32)
+  | UpdatePathError'NoWritePermission Path
+  | UpdatePathError'UserNotFound
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON UpdatePathResponse where
   toJSON = \case
     UpdatePathSuccess -> jsonUnion "success" (Object mempty)
-    UpdatePathHashMismatch hm -> jsonUnion "hash_mismatch" hm
-    UpdatePathMissingDependencies md -> jsonUnion "missing_dependencies" md
-    UpdatePathNoWritePermission path -> jsonUnion "no_write_permission" path
-    UpdatePathInvalidRepoInfo errMsg repoInfo -> jsonUnion "invalid_repo_info" (errMsg, repoInfo)
-    UpdatePathUserNotFound -> jsonUnion "user_not_found" (Object mempty)
+    UpdatePathFailure (UpdatePathError'HashMismatch hm) -> jsonUnion "hash_mismatch" hm
+    UpdatePathFailure (UpdatePathError'MissingDependencies md) -> jsonUnion "missing_dependencies" md
+    UpdatePathFailure (UpdatePathError'NoWritePermission path) -> jsonUnion "no_write_permission" path
+    UpdatePathFailure (UpdatePathError'InvalidRepoInfo errMsg repoInfo) -> jsonUnion "invalid_repo_info" (errMsg, repoInfo)
+    UpdatePathFailure UpdatePathError'UserNotFound -> jsonUnion "user_not_found" (Object mempty)
 
 instance FromJSON UpdatePathResponse where
   parseJSON v =
     v & Aeson.withObject "UpdatePathResponse" \obj ->
       obj .: "type" >>= Aeson.withText "type" \case
         "success" -> pure UpdatePathSuccess
-        "hash_mismatch" -> UpdatePathHashMismatch <$> obj .: "payload"
-        "missing_dependencies" -> UpdatePathMissingDependencies <$> obj .: "payload"
-        "no_write_permission" -> UpdatePathNoWritePermission <$> obj .: "payload"
-        "invalid_repo_info" -> uncurry UpdatePathInvalidRepoInfo <$> obj .: "payload"
-        "user_not_found" -> pure UpdatePathUserNotFound
+        "hash_mismatch" -> UpdatePathFailure . UpdatePathError'HashMismatch <$> obj .: "payload"
+        "missing_dependencies" -> UpdatePathFailure . UpdatePathError'MissingDependencies <$> obj .: "payload"
+        "no_write_permission" -> UpdatePathFailure . UpdatePathError'NoWritePermission <$> obj .: "payload"
+        "invalid_repo_info" -> do
+          (errMsg, repoInfo) <- obj .: "payload"
+          pure (UpdatePathFailure (UpdatePathError'InvalidRepoInfo errMsg repoInfo))
+        "user_not_found" -> pure (UpdatePathFailure UpdatePathError'UserNotFound)
         t -> failText $ "Unexpected UpdatePathResponse type: " <> t
 
 data HashMismatch = HashMismatch

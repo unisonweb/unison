@@ -21,7 +21,6 @@ import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.ProjectUtils (loggeth)
 import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Cli.Share.Projects as Share
 import Unison.Cli.UnisonConfigUtils (resolveConfiguredUrl)
@@ -193,9 +192,10 @@ loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
           remoteProjectBranchName = remoteBranch ^. #branchName
        in Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
             Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback >>= \case
-              Left err -> do
-                loggeth ["Downloading failure: ", tShow err]
-                Cli.returnEarlyWithoutOutput
+              Left err0 -> do
+                (Cli.returnEarly . Output.ShareError) case err0 of
+                  Share.SyncError err -> Output.ShareErrorDownloadEntities err
+                  Share.TransportError err -> Output.ShareErrorTransport err
               Right () -> liftIO (Codebase.expectBranchForHash codebase causalHash)
 
 loadShareLooseCodeIntoMemory :: ReadShareLooseCode -> Cli (Branch IO)

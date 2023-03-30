@@ -58,13 +58,7 @@ import Unison.Codebase.Editor.Output
     NumberedArgs,
     NumberedOutput (..),
     Output (..),
-    ShareError
-      ( ShareErrorCheckAndSetPush,
-        ShareErrorFastForwardPush,
-        ShareErrorGetCausalHashByPath,
-        ShareErrorPull,
-        ShareErrorTransport
-      ),
+    ShareError (..),
     TestReportStats (CachedTests, NewlyComputed),
     UndoFailureReason (CantUndoPastMerge, CantUndoPastStart),
     WhichBranchEmpty (..),
@@ -101,6 +95,7 @@ import qualified Unison.Codebase.TermEdit as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.CommandLine (bigproblem, note, tip)
+import Unison.CommandLine.InputPattern (InputPattern)
 import Unison.CommandLine.InputPatterns (makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -1784,162 +1779,7 @@ notifyUser dir = \case
           "Please `auth.login` then try again, if this error persists please file a bug report and include the above error message."
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
-  ShareError x -> (pure . P.fatalCallout) case x of
-    ShareErrorCheckAndSetPush e -> case e of
-      (Share.CheckAndSetPushErrorHashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash}) ->
-        case (expectedHash, actualHash) of
-          (Nothing, Just _) -> expectedEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
-          _ -> P.wrap $ P.text "It looks like someone modified" <> prettySharePath sharePath <> P.text "an instant before you. Pull and try again? 🤞"
-      (Share.CheckAndSetPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
-      (Share.CheckAndSetPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
-      (Share.CheckAndSetPushErrorInvalidRepoInfo err repoInfo) -> invalidRepoInfo err repoInfo
-      (Share.CheckAndSetPushErrorUserNotFound path) -> shareUserNotFound path
-      (Share.CheckAndSetPushErrorProjectNotFound projectShortHand) -> shareProjectNotFound projectShortHand
-    ShareErrorFastForwardPush e -> case e of
-      (Share.FastForwardPushErrorNoHistory sharePath) ->
-        expectedNonEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
-      (Share.FastForwardPushErrorNoReadPermission sharePath) ->
-        noWritePermissionFastForwardPushError sharePath
-      (Share.FastForwardPushInvalidParentage parent child) ->
-        P.lines
-          [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
-            "The history in question is the hash: " <> prettyHash32 child <> " with the ancestor: " <> prettyHash32 parent
-          ]
-      Share.FastForwardPushErrorNotFastForward sharePath ->
-        P.lines $
-          [ P.wrap $
-              "There are some changes at" <> prettySharePath sharePath <> "that aren't in the history you pushed.",
-            "",
-            P.wrap $
-              "If you're sure you got the right paths, try"
-                <> pull
-                <> "to merge these changes locally, then"
-                <> push
-                <> "again."
-          ]
-        where
-          push = P.group . P.backticked . IP.patternName $ IP.push
-          pull = P.group . P.backticked . IP.patternName $ IP.pull
-      (Share.FastForwardPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
-      (Share.FastForwardPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
-      (Share.FastForwardPushErrorInvalidRepoInfo err repoInfo) -> invalidRepoInfo err repoInfo
-      (Share.FastForwardPushErrorUserNotFound path) -> shareUserNotFound path
-      (Share.FastForwardPushErrorProjectNotFound projectShortHand) -> shareProjectNotFound projectShortHand
-    ShareErrorPull e -> case e of
-      Share.PullErrorNoHistoryAtPath sharePath ->
-        P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
-      Share.PullErrorNoReadPermission sharePath -> noReadPermission sharePath
-      Share.PullErrorInvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
-      Share.PullErrorUserNotFound path -> shareUserNotFound path
-      Share.PullErrorProjectNotFound projectShortHand -> shareProjectNotFound projectShortHand
-    ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
-    ShareErrorTransport te -> case te of
-      DecodeFailure msg resp ->
-        (P.lines . catMaybes)
-          [ Just ("The server sent a response that we couldn't decode: " <> P.text msg),
-            responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
-          ]
-      Unauthenticated codeServerURL ->
-        P.wrap . P.lines $
-          [ "Authentication with this code server (" <> P.string (Servant.showBaseUrl codeServerURL) <> ") is missing or expired.",
-            "Please run " <> makeExample' IP.authLogin <> "."
-          ]
-      PermissionDenied msg -> P.hang "Permission denied:" (P.text msg)
-      UnreachableCodeserver codeServerURL ->
-        P.lines $
-          [ P.wrap $ "Unable to reach the code server hosted at:" <> P.string (Servant.showBaseUrl codeServerURL),
-            "",
-            P.wrap "Please check your network, ensure you've provided the correct location, or try again later."
-          ]
-      RateLimitExceeded -> "Rate limit exceeded, please try again later."
-      Timeout -> "The code server timed-out when responding to your request. Please try again later or report an issue if the problem persists."
-      UnexpectedResponse resp ->
-        (P.lines . catMaybes)
-          [ Just
-              ( "The server sent a "
-                  <> P.red (P.shown (Http.statusCode (Servant.responseStatusCode resp)))
-                  <> " that we didn't expect."
-              ),
-            let body = Text.decodeUtf8 (LazyByteString.toStrict (Servant.responseBody resp))
-             in if Text.null body then Nothing else Just (P.newline <> "Response body: " <> P.text body),
-            responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
-          ]
-    where
-      -- Dig the request id out of a response header.
-      responseRequestId :: Servant.Response -> Maybe Text
-      responseRequestId =
-        fmap Text.decodeUtf8 . List.lookup "X-RequestId" . Foldable.toList @Seq . Servant.responseHeaders
-
-      prettySharePath =
-        prettyRelative
-          . Path.Relative
-          . Path.fromList
-          . coerce @[Text] @[NameSegment]
-          . toList
-          . Share.pathSegments
-      invalidRepoInfo err repoInfo =
-        P.lines
-          [ P.wrap $
-              "The server doesn't recognize the codebase path UCM provided. This is probably a bug in UCM.",
-            P.text "",
-            P.text "The invalid path is:\n"
-              <> P.indentN 2 (P.text (Share.unRepoInfo repoInfo)),
-            P.text err
-          ]
-      shareUserNotFound (Share.Path pathSegments) =
-        P.lines
-          [ P.wrap $
-              "The user provided by the following path does not exist:",
-            "",
-            P.indentN 2 (P.text . Text.intercalate "." $ toList pathSegments)
-          ]
-      shareProjectNotFound projectShortHand =
-        P.lines
-          [ P.wrap $
-              "This project does not exist: " <> P.text projectShortHand
-          ]
-      missingDependencies hashes =
-        -- maybe todo: stuff in all the args to CheckAndSetPush
-        P.lines
-          [ P.wrap
-              ( P.text "The server was expecting to have received some stuff from UCM during that last command, but claims to have not received it."
-                  <> P.text "(This is probably a bug in UCM.)"
-              ),
-            P.text "",
-            P.text "The hashes it expected are:\n"
-              <> P.indentN 2 (P.lines (map prettyHash32 (toList hashes)))
-          ]
-      handleGetCausalHashByPathError = \case
-        Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermission sharePath
-        Share.GetCausalHashByPathErrorInvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
-        Share.GetCausalHashByPathErrorUserNotFound path -> shareUserNotFound path
-      noReadPermission sharePath =
-        P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettySharePath sharePath <> ".")
-      noWritePermissionFastForwardPushError sharePath =
-        case Share.pathSegments sharePath of
-          _ NEList.:| "public" : _ ->
-            P.wrap $
-              P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
-          uname NEList.:| ys -> pushPublicNote IP.push uname ys
-      pushPublicNote cmd uname ys =
-        let msg =
-              mconcat
-                [ "Unison Share currently only supports sharing public code. ",
-                  "This is done by hosting code in a public namespace under your handle.",
-                  "It looks like you were trying to push directly to the" <> P.backticked (P.text uname),
-                  "handle. Try nesting under `public` like so: "
-                ]
-            pushCommand = IP.makeExampleNoBackticks cmd [prettySharePath exPath]
-            exPath = Share.Path (uname NEList.:| "public" : ys)
-         in P.lines
-              [ P.wrap msg,
-                "",
-                P.indentN 4 pushCommand
-              ]
-      noWritePermission sharePath =
-        case Share.pathSegments sharePath of
-          _ NEList.:| "public" : _ -> P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
-          uname NEList.:| ys -> pushPublicNote IP.pushCreate uname ys
+  ShareError shareError -> pure (prettyShareError shareError)
   ViewOnShare repoPath ->
     pure $
       "View it on Unison Share: " <> prettyShareLink repoPath
@@ -2016,6 +1856,9 @@ notifyUser dir = \case
   LocalProjectBranchDoesntExist projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist."
+  RemoteProjectDoesntExist host project ->
+    pure . P.wrap $
+      prettyProjectName project <> "does not exist on" <> prettyURI host
   RemoteProjectBranchDoesntExist host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
@@ -2071,60 +1914,246 @@ notifyUser dir = \case
   NotImplementedYet message -> pure (P.wrap ("Not implemented:" <> P.text message))
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
-    expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
-    expectedEmptyPushDest namespace =
-      P.lines
-        [ "The remote namespace " <> prettyWriteRemoteNamespace (absurd <$> namespace) <> " is not empty.",
-          "",
-          "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
-        ]
-    expectedNonEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
-    expectedNonEmptyPushDest namespace =
-      P.lines
-        [ P.wrap ("The remote namespace " <> prettyWriteRemoteNamespace (absurd <$> namespace) <> " is empty."),
-          "",
-          P.wrap ("Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?")
-        ]
-    sharePathToWriteRemotePathShare sharePath =
-      -- Recover the original WriteRemotePath from the information in the error, which is thrown from generic share
-      -- client code that doesn't know about WriteRemotePath
-      ( WriteRemoteNamespaceShare
-          WriteShareRemoteNamespace
-            { server = RemoteRepo.DefaultCodeserver,
-              repo = ShareUserHandle $ Share.unRepoInfo (Share.pathRepoInfo sharePath),
-              path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
-            }
-      )
 
--- do
---   when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
---     P.wrap $ "I" <> pastTenseCmd <> "the"
---       <> ns (E.changedSuccessfully r)
---       <> P.blue (prettyName oldName)
---       <> "to" <> P.group (P.green (prettyName newName) <> ".")
---   when (not . Set.null $ E.oldNameConflicted r) . putPrettyLn . P.warnCallout $
---     (P.wrap $ "I couldn't" <> cmd <> "the"
---          <> ns (E.oldNameConflicted r)
---          <> P.blue (prettyName oldName)
---          <> "to" <> P.green (prettyName newName)
---          <> "because of conflicts.")
---     <> "\n\n"
---     <> tip ("Use " <> makeExample' IP.todo <> " to view more information on conflicts and remaining work.")
---   when (not . Set.null $ E.newNameAlreadyExists r) . putPrettyLn . P.warnCallout $
---     (P.wrap $ "I couldn't" <> cmd <> P.blue (prettyName oldName)
---          <> "to" <> P.green (prettyName newName)
---          <> "because the "
---          <> ns (E.newNameAlreadyExists r)
---          <> "already exist(s).")
---     <> "\n\n"
---     <> tip
---        ("Use" <> makeExample IP.rename [prettyName newName, "<newname>"] <> "to make" <> prettyName newName <> "available.")
---    where
---      ns targets = P.oxfordCommas $
---        map (fromString . Names.renderNameTarget) (toList targets)
+expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
+expectedEmptyPushDest namespace =
+  P.lines
+    [ "The remote namespace " <> prettyWriteRemoteNamespace (absurd <$> namespace) <> " is not empty.",
+      "",
+      "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
+    ]
+
+expectedNonEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
+expectedNonEmptyPushDest namespace =
+  P.lines
+    [ P.wrap ("The remote namespace " <> prettyWriteRemoteNamespace (absurd <$> namespace) <> " is empty."),
+      "",
+      P.wrap ("Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?")
+    ]
+
+prettyShareError :: ShareError -> Pretty
+prettyShareError =
+  P.fatalCallout . \case
+    ShareErrorCheckAndSetPush err -> prettyCheckAndSetPushError err
+    ShareErrorDownloadEntities err -> prettyDownloadEntitiesError err
+    ShareErrorFastForwardPush err -> prettyFastForwardPushError err
+    ShareErrorGetCausalHashByPath err -> prettyGetCausalHashByPathError err
+    ShareErrorPull err -> prettyPullError err
+    ShareErrorTransport err -> prettyTransportError err
+    ShareErrorUploadEntities err -> prettyUploadEntitiesError err
+
+prettyCheckAndSetPushError :: Share.CheckAndSetPushError -> Pretty
+prettyCheckAndSetPushError = \case
+  Share.CheckAndSetPushError'UpdatePath repoInfo err -> prettyUpdatePathError repoInfo err
+  Share.CheckAndSetPushError'UploadEntities err -> prettyUploadEntitiesError err
+
+prettyDownloadEntitiesError :: Share.DownloadEntitiesError -> Pretty
+prettyDownloadEntitiesError = \case
+  Share.DownloadEntitiesNoReadPermission repoInfo -> noReadPermissionForRepo repoInfo
+  Share.DownloadEntitiesInvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
+  Share.DownloadEntitiesUserNotFound userHandle -> shareUserNotFound (Share.RepoInfo userHandle)
+  Share.DownloadEntitiesProjectNotFound project -> shareProjectNotFound project
+
+prettyFastForwardPathError :: Share.Path -> Share.FastForwardPathError -> Pretty
+prettyFastForwardPathError path = \case
+  Share.FastForwardPathError'InvalidParentage Share.InvalidParentage {child, parent} ->
+    P.lines
+      [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
+        "The history in question is the hash: " <> prettyHash32 child <> " with the ancestor: " <> prettyHash32 parent
+      ]
+  Share.FastForwardPathError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
+  Share.FastForwardPathError'MissingDependencies dependencies -> needDependencies dependencies
+  Share.FastForwardPathError'NoHistory -> expectedNonEmptyPushDest (sharePathToWriteRemotePathShare path)
+  Share.FastForwardPathError'NoWritePermission path -> noWritePermissionForPath path
+  Share.FastForwardPathError'NotFastForward _hashJwt -> notFastForward path
+  Share.FastForwardPathError'UserNotFound -> shareUserNotFound (Share.pathRepoInfo path)
+
+prettyFastForwardPushError :: Share.FastForwardPushError -> Pretty
+prettyFastForwardPushError = \case
+  Share.FastForwardPushError'FastForwardPath path err -> prettyFastForwardPathError path err
+  Share.FastForwardPushError'GetCausalHash err -> prettyGetCausalHashByPathError err
+  Share.FastForwardPushError'NotFastForward path -> notFastForward path
+  Share.FastForwardPushError'UploadEntities err -> prettyUploadEntitiesError err
+
+prettyGetCausalHashByPathError :: Share.GetCausalHashByPathError -> Pretty
+prettyGetCausalHashByPathError = \case
+  Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermissionForPath sharePath
+  Share.GetCausalHashByPathErrorInvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
+  Share.GetCausalHashByPathErrorUserNotFound repoInfo -> shareUserNotFound repoInfo
+
+prettyPullError :: Share.PullError -> Pretty
+prettyPullError = \case
+  Share.PullError'DownloadEntities err -> prettyDownloadEntitiesError err
+  Share.PullError'GetCausalHash err -> prettyGetCausalHashByPathError err
+  Share.PullError'NoHistoryAtPath sharePath ->
+    P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
+
+prettyUpdatePathError :: Share.RepoInfo -> Share.UpdatePathError -> Pretty
+prettyUpdatePathError repoInfo = \case
+  Share.UpdatePathError'HashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash} ->
+    case (expectedHash, actualHash) of
+      (Nothing, Just _) -> expectedEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
+      _ ->
+        P.wrap $
+          P.text "It looks like someone modified"
+            <> prettySharePath sharePath
+            <> P.text "an instant before you. Pull and try again? 🤞"
+  Share.UpdatePathError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
+  Share.UpdatePathError'MissingDependencies dependencies -> needDependencies dependencies
+  Share.UpdatePathError'NoWritePermission path -> noWritePermissionForPath path
+  Share.UpdatePathError'UserNotFound -> shareUserNotFound repoInfo
+
+prettyUploadEntitiesError :: Share.UploadEntitiesError -> Pretty
+prettyUploadEntitiesError = \case
+  Share.UploadEntitiesError'HashMismatchForEntity _hashMismatch -> error "TODO: hash mismatch error message"
+  Share.UploadEntitiesError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
+  Share.UploadEntitiesError'NeedDependencies dependencies -> needDependencies dependencies
+  Share.UploadEntitiesError'NoWritePermission repoInfo -> noWritePermissionForRepo repoInfo
+  Share.UploadEntitiesError'ProjectNotFound project -> shareProjectNotFound project
+  Share.UploadEntitiesError'UserNotFound userHandle -> shareUserNotFound (Share.RepoInfo userHandle)
+
+prettyTransportError :: CodeserverTransportError -> Pretty
+prettyTransportError = \case
+  DecodeFailure msg resp ->
+    (P.lines . catMaybes)
+      [ Just ("The server sent a response that we couldn't decode: " <> P.text msg),
+        responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
+      ]
+  Unauthenticated codeServerURL ->
+    P.wrap . P.lines $
+      [ "Authentication with this code server (" <> P.string (Servant.showBaseUrl codeServerURL) <> ") is missing or expired.",
+        "Please run " <> makeExample' IP.authLogin <> "."
+      ]
+  PermissionDenied msg -> P.hang "Permission denied:" (P.text msg)
+  UnreachableCodeserver codeServerURL ->
+    P.lines $
+      [ P.wrap $ "Unable to reach the code server hosted at:" <> P.string (Servant.showBaseUrl codeServerURL),
+        "",
+        P.wrap "Please check your network, ensure you've provided the correct location, or try again later."
+      ]
+  RateLimitExceeded -> "Rate limit exceeded, please try again later."
+  Timeout -> "The code server timed-out when responding to your request. Please try again later or report an issue if the problem persists."
+  UnexpectedResponse resp ->
+    (P.lines . catMaybes)
+      [ Just
+          ( "The server sent a "
+              <> P.red (P.shown (Http.statusCode (Servant.responseStatusCode resp)))
+              <> " that we didn't expect."
+          ),
+        let body = Text.decodeUtf8 (LazyByteString.toStrict (Servant.responseBody resp))
+         in if Text.null body then Nothing else Just (P.newline <> "Response body: " <> P.text body),
+        responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
+      ]
+  where
+    -- Dig the request id out of a response header.
+    responseRequestId :: Servant.Response -> Maybe Text
+    responseRequestId =
+      fmap Text.decodeUtf8 . List.lookup "X-RequestId" . Foldable.toList @Seq . Servant.responseHeaders
+
+invalidRepoInfo :: Text -> Share.RepoInfo -> Pretty
+invalidRepoInfo err repoInfo =
+  P.lines
+    [ P.wrap $
+        "The server doesn't recognize the codebase path UCM provided. This is probably a bug in UCM.",
+      P.text "",
+      P.text "The invalid path is:\n"
+        <> P.indentN 2 (P.text (Share.unRepoInfo repoInfo)),
+      P.text err
+    ]
+
+pushPublicNote :: InputPattern -> Text -> [Text] -> Pretty
+pushPublicNote cmd uname ys =
+  let msg =
+        mconcat
+          [ "Unison Share currently only supports sharing public code. ",
+            "This is done by hosting code in a public namespace under your handle.",
+            "It looks like you were trying to push directly to the" <> P.backticked (P.text uname),
+            "handle. Try nesting under `public` like so: "
+          ]
+      pushCommand = IP.makeExampleNoBackticks cmd [prettySharePath exPath]
+      exPath = Share.Path (uname NEList.:| "public" : ys)
+   in P.lines
+        [ P.wrap msg,
+          "",
+          P.indentN 4 pushCommand
+        ]
+
+needDependencies :: Share.NeedDependencies Hash32 -> Pretty
+needDependencies (Share.NeedDependencies hashes) =
+  -- maybe todo: stuff in all the args to CheckAndSetPush
+  P.lines
+    [ P.wrap
+        ( P.text "The server was expecting to have received some stuff from UCM during that last command, but claims to have not received it."
+            <> P.text "(This is probably a bug in UCM.)"
+        ),
+      P.text "",
+      P.text "The hashes it expected are:\n"
+        <> P.indentN 2 (P.lines (map prettyHash32 (toList hashes)))
+    ]
+
+noReadPermissionForPath :: Share.Path -> Pretty
+noReadPermissionForPath sharePath =
+  P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettySharePath sharePath <> ".")
+
+noReadPermissionForRepo :: Share.RepoInfo -> Pretty
+noReadPermissionForRepo repoInfo =
+  P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettyRepoInfo repoInfo <> ".")
+
+noWritePermissionForPath :: Share.Path -> Pretty
+noWritePermissionForPath sharePath =
+  case Share.pathSegments sharePath of
+    _ NEList.:| "public" : _ -> P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
+    uname NEList.:| ys -> pushPublicNote IP.pushCreate uname ys
+
+noWritePermissionForRepo :: Share.RepoInfo -> Pretty
+noWritePermissionForRepo repoInfo =
+  P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettyRepoInfo repoInfo <> ".")
+
+notFastForward :: Share.Path -> Pretty
+notFastForward path =
+  P.lines $
+    [ P.wrap $
+        "There are some changes at" <> prettySharePath path <> "that aren't in the history you pushed.",
+      "",
+      P.wrap $
+        "If you're sure you got the right paths, try"
+          <> pull
+          <> "to merge these changes locally, then"
+          <> push
+          <> "again."
+    ]
+  where
+    push = P.group . P.backticked . IP.patternName $ IP.push
+    pull = P.group . P.backticked . IP.patternName $ IP.pull
+
+shareProjectNotFound :: Text -> Pretty
+shareProjectNotFound projectShortHand =
+  P.lines
+    [ P.wrap $
+        "This project does not exist: " <> P.text projectShortHand
+    ]
+
+shareUserNotFound :: Share.RepoInfo -> Pretty
+shareUserNotFound repoInfo =
+  P.wrap ("User" <> prettyRepoInfo repoInfo <> "does not exist.")
+
+sharePathToWriteRemotePathShare :: Share.Path -> WriteRemoteNamespace void
+sharePathToWriteRemotePathShare sharePath =
+  -- Recover the original WriteRemotePath from the information in the error, which is thrown from generic share
+  -- client code that doesn't know about WriteRemotePath
+  WriteRemoteNamespaceShare
+    WriteShareRemoteNamespace
+      { server = RemoteRepo.DefaultCodeserver,
+        repo = ShareUserHandle $ Share.unRepoInfo (Share.pathRepoInfo sharePath),
+        path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
+      }
 
 shareOrigin :: Text
 shareOrigin = "https://share.unison-lang.org"
+
+prettyRepoInfo :: Share.RepoInfo -> Pretty
+prettyRepoInfo (Share.RepoInfo repoInfo) =
+  P.blue (P.text repoInfo)
 
 prettyShareLink :: WriteShareRemoteNamespace -> Pretty
 prettyShareLink WriteShareRemoteNamespace {repo, path} =
@@ -2133,6 +2162,15 @@ prettyShareLink WriteShareRemoteNamespace {repo, path} =
           & fmap (URI.encodeText . NameSegment.toText)
           & Text.intercalate "/"
    in P.green . P.text $ shareOrigin <> "/@" <> shareUserHandleToText repo <> "/p/code/latest/namespaces/" <> encodedPath
+
+prettySharePath :: Share.Path -> Pretty
+prettySharePath =
+  prettyRelative
+    . Path.Relative
+    . Path.fromList
+    . coerce @[Text] @[NameSegment]
+    . toList
+    . Share.pathSegments
 
 prettyFilePath :: FilePath -> Pretty
 prettyFilePath fp =
