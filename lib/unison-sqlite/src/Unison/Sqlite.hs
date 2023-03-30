@@ -91,6 +91,7 @@ module Unison.Sqlite
     -- * Vacuum
     vacuum,
     vacuumInto,
+    backupInto,
 
     -- * Exceptions
     SomeSqliteException (..),
@@ -120,6 +121,7 @@ import qualified Database.SQLite.Simple as Sqlite.Simple
 import qualified Database.SQLite.Simple.FromField as Sqlite.Simple
 import qualified Database.SQLite.Simple.FromRow as Sqlite.Simple
 import qualified Database.SQLite.Simple.ToField as Sqlite.Simple
+import Unison.Sqlite.Backup (backupInto)
 import Unison.Sqlite.Connection
   ( Connection,
     ExpectedAtMostOneRowException (..),

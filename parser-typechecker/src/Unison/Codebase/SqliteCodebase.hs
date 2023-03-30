@@ -11,7 +11,8 @@ module Unison.Codebase.SqliteCodebase
     MigrationStrategy (..),
     BackupStrategy (..),
     CodebaseLockOption (..),
-    copyCodebase,
+    vacuumIntoCodebase,
+    backupCodebaseTo,
   )
 where
 
@@ -760,11 +761,24 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
             when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
             pure True
 
--- | Given two codebase roots (e.g. "./mycodebase"), safely copy the codebase
--- at the source to the destination.
+-- | Given two codebase roots (e.g. "./mycodebase"), safely vacuum the codebase
+-- at the source to the destination using `VACUUM INTO`
 -- Note: this does not copy the .unisonConfig file.
-copyCodebase :: (MonadIO m) => CodebasePath -> CodebasePath -> m ()
-copyCodebase src dest = liftIO $ do
+vacuumIntoCodebase :: (MonadIO m) => CodebasePath -> CodebasePath -> m ()
+vacuumIntoCodebase src dest = liftIO $ do
   createDirectoryIfMissing True (makeCodebaseDirPath dest)
   withConnection ("copy-from:" <> src) src $ \srcConn -> do
     Sqlite.vacuumInto srcConn (makeCodebasePath dest)
+
+-- | Given two codebase roots (e.g. "./mycodebase"), safely copy the codebase
+-- at the source to the destination using sqlite's backup API.
+--
+-- This is faster than vacuuming, but doesn't reduce the size of the database.
+-- However, since Unison databases are generally append-only, vacuuming isn't
+-- typically helpful.
+--
+-- Note: this does not copy the .unisonConfig file.
+backupCodebaseTo :: (MonadIO m) => CodebasePath -> CodebasePath -> m ()
+backupCodebaseTo src dest = liftIO $ do
+  createDirectoryIfMissing True (makeCodebaseDirPath dest)
+  Sqlite.backupInto (makeCodebasePath src) (makeCodebasePath dest)

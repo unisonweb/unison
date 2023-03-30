@@ -18,6 +18,7 @@ source-repository head
 library
   exposed-modules:
       Unison.Sqlite
+      Unison.Sqlite.Backup
       Unison.Sqlite.Connection
       Unison.Sqlite.Connection.Internal
       Unison.Sqlite.Transaction
