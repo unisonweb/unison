@@ -31,7 +31,8 @@
     chunked-string-reverse
     chunked-string-downcase
     chunked-string-upcase
-
+    chunked-string->list
+    list->chunked-string
 
     freeze-string!
     string-copy!
@@ -164,6 +165,16 @@
   (define (chunked-string-upcase s)
     (chunked-string-foldMap-chunks s string-upcase chunked-string-append))
 
+  (define (chunked-string->list s)
+    (build-chunked-list
+     (chunked-string-length s)
+     (lambda (i) (chunked-string-ref s i))))
+
+  (define (list->chunked-string l)
+    (build-chunked-string
+     (chunked-list-length l)
+     (lambda (i) (chunked-list-ref l i))))
+
   (define freeze-string! unsafe-string->immutable-string!)
   (define freeze-bytevector! unsafe-bytes->immutable-bytes!)
 
@@ -172,5 +183,4 @@
   ; racket string-copy! has the opposite argument order convention
   ; from chez.
   (define (string-copy! src soff dst doff len)
-    (racket-string-copy! dst doff src soff len))
-  )
+    (racket-string-copy! dst doff src soff len)))

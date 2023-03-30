@@ -115,8 +115,11 @@ text.conversion.tests = do
 
   checkEqual "Char.toText" (Char.toText ?a) "a"
 
-  --  toCharList
-  --  fromCharList
+  checkEqual "Text.toCharList: empty" (Text.toCharList "") []
+  checkEqual "Text.toCharList non empty" (Text.toCharList "abc") [?a, ?b, ?c]
+  checkEqual "Text.fromCharList: empty" (Text.fromCharList []) ""
+  checkEqual "Text.fromCharList: non empty" (Text.fromCharList [?a, ?b, ?c]) "abc"
+
   --  toUft8
   --  fromUtf8
   --  B "Socket.toText" $ socket --> text,
