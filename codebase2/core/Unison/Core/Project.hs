@@ -19,7 +19,7 @@ newtype ProjectName
 
 -- | The name of a branch of a project.
 newtype ProjectBranchName
-  = ProjectBranchName Text
+  = UnsafeProjectBranchName Text
   deriving stock (Eq, Ord, Show)
 
 -- | A generic data structure that contains information about a project and a branch in that project.

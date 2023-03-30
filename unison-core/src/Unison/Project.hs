@@ -95,7 +95,7 @@ projectBranchNameParser :: Megaparsec.Parsec Void Text ProjectBranchName
 projectBranchNameParser = do
   userSlug <- userSlugParser <|> pure mempty
   branchSlug <- branchSlugParser
-  pure (ProjectBranchName (Text.Builder.run (userSlug <> branchSlug)))
+  pure (UnsafeProjectBranchName (Text.Builder.run (userSlug <> branchSlug)))
   where
     branchSlugParser :: Megaparsec.Parsec Void Text Text.Builder
     branchSlugParser = do
@@ -115,7 +115,7 @@ projectBranchNameParser = do
 -- >>> projectBranchNameUserSlug "topic"
 -- Nothing
 projectBranchNameUserSlug :: ProjectBranchName -> Maybe Text
-projectBranchNameUserSlug (ProjectBranchName branchName) =
+projectBranchNameUserSlug (UnsafeProjectBranchName branchName) =
   if Text.head branchName == '@'
     then Just (Text.takeWhile (/= '/') (Text.drop 1 branchName))
     else Nothing
@@ -131,10 +131,10 @@ projectBranchNameUserSlug (ProjectBranchName branchName) =
 -- >>> prependUserSlugToProjectBranchName "???invalid???" "@unison/main"
 -- "@unison/main"
 prependUserSlugToProjectBranchName :: Text -> ProjectBranchName -> ProjectBranchName
-prependUserSlugToProjectBranchName userSlug (ProjectBranchName branchName) =
+prependUserSlugToProjectBranchName userSlug (UnsafeProjectBranchName branchName) =
   if Text.head branchName == '@'
-    then ProjectBranchName branchName
-    else fromMaybe (ProjectBranchName branchName) (Megaparsec.parseMaybe projectBranchNameParser newBranchName)
+    then UnsafeProjectBranchName branchName
+    else fromMaybe (UnsafeProjectBranchName branchName) (Megaparsec.parseMaybe projectBranchNameParser newBranchName)
   where
     newBranchName =
       Text.Builder.run $

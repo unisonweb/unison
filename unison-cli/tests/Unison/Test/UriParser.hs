@@ -15,7 +15,7 @@ import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
-import Unison.Core.Project (ProjectBranchName, ProjectName)
+import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.NameSegment (NameSegment (..))
 
 test :: Test ()
@@ -30,6 +30,12 @@ testShare =
     [ parseAugmented
         ( "unisonweb.base._releases.M4",
           ReadShare'LooseCode (ReadShareLooseCode DefaultCodeserver (ShareUserHandle "unisonweb") (path ["base", "_releases", "M4"]))
+        ),
+      parseAugmented ("project", ReadShare'ProjectBranch (This (UnsafeProjectName "project"))),
+      parseAugmented ("/branch", ReadShare'ProjectBranch (That (UnsafeProjectBranchName "branch"))),
+      parseAugmented
+        ( "project/branch",
+          ReadShare'ProjectBranch (These (UnsafeProjectName "project") (UnsafeProjectBranchName "branch"))
         ),
       expectParseFailure ".unisonweb.base"
     ]
@@ -106,12 +112,12 @@ testGit =
 
 parseAugmented :: (Text, ReadRemoteNamespace (These ProjectName ProjectBranchName)) -> Test ()
 parseAugmented (s, r) = scope (Text.unpack s) $
-  case P.parse UriParser.repoPath "test case" s of
-    Left x -> crash $ show x
+  case P.parse (UriParser.repoPath <* P.eof) "test case" s of
+    Left x -> crash $ P.errorBundlePretty x
     Right x -> expectEqual x r
 
 expectParseFailure :: Text -> Test ()
-expectParseFailure s = void . scope (Text.unpack s) . expectLeft . P.parse UriParser.repoPath "negative test case" $ s
+expectParseFailure s = void . scope (Text.unpack s) . expectLeft . P.parse (UriParser.repoPath <* P.eof) "negative test case" $ s
 
 path :: [Text] -> Path
 path = Path . Seq.fromList . fmap NameSegment

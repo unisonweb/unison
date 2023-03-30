@@ -64,7 +64,13 @@ repoPath :: P (ReadRemoteNamespace (These ProjectName ProjectBranchName))
 repoPath =
   P.label "generic repo" $
     ReadRemoteNamespaceGit <$> readGitRemoteNamespace
-      <|> ReadShare'ProjectBranch <$> projectAndBranchNamesParser
+      <|> ( do
+              P.try do
+                projectAndBranch <- projectAndBranchNamesParser
+                -- we don't want to succeed parsing the 'foo' off of 'foo.bar', leaving '.bar' behind
+                P.notFollowedBy (C.char '.')
+                pure (ReadShare'ProjectBranch projectAndBranch)
+          )
       <|> ReadShare'LooseCode <$> readShareLooseCode
 
 parseReadRemoteNamespace ::
