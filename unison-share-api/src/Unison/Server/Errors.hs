@@ -10,7 +10,7 @@ import qualified Data.Set as Set
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant (ServerError (..), err400, err404, err409, err500)
-import U.Codebase.HashTags (CausalHash)
+import U.Codebase.HashTags (BranchHash, CausalHash)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.HashQualified as HQ
@@ -52,6 +52,7 @@ backendError = \case
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
   Backend.NoSuchDefinition hqName -> noSuchDefinition hqName
   Backend.AmbiguousHashForDefinition shorthash -> ambiguousHashForDefinition shorthash
+  Backend.ExpectedNameLookup branchHash -> expectedNameLookup branchHash
   Backend.DisjointProjectAndPerspective perspective projectRoot -> disjointProjectAndPerspective perspective projectRoot
 
 badNamespace :: String -> String -> ServerError
@@ -111,6 +112,13 @@ ambiguousHashForDefinition shorthash =
   err400
     { errBody =
         "The hash prefix " <> BSC.pack (SH.toString shorthash) <> " is ambiguous"
+    }
+
+expectedNameLookup :: BranchHash -> ServerError
+expectedNameLookup branchHash =
+  err500
+    { errBody =
+        "Name lookup index required for branch hash: " <> BSC.pack (show branchHash)
     }
 
 disjointProjectAndPerspective :: Path.Path -> Path.Path -> ServerError

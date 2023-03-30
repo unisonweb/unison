@@ -16,6 +16,7 @@ import Servant (Capture, QueryParam, (:>))
 import Servant.Docs (DocCapture (..), ToCapture (..), ToSample (..))
 import Servant.OpenApi ()
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
@@ -75,18 +76,23 @@ namespaceDetails ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Path.Path ->
-  Maybe ShortCausalHash ->
+  Maybe (Either ShortCausalHash CausalHash) ->
   Maybe Width ->
   Backend IO NamespaceDetails
-namespaceDetails runtime codebase namespacePath maySCH mayWidth =
+namespaceDetails runtime codebase namespacePath mayRoot mayWidth =
   let width = mayDefaultWidth mayWidth
    in do
         (rootCausal, namespaceCausal, shallowBranch) <-
           Backend.hoistBackend (Codebase.runTransaction codebase) do
-            rootCausal <- Backend.resolveRootBranchHashV2 maySCH
-            namespaceCausal <- lift $ Codebase.getShallowCausalAtPath namespacePath (Just rootCausal)
+            rootCausalHash <-
+              case mayRoot of
+                Nothing -> Backend.resolveRootBranchHashV2 Nothing
+                Just (Left sch) -> Backend.resolveRootBranchHashV2 (Just sch)
+                Just (Right ch) -> lift $ Backend.resolveCausalHashV2 (Just ch)
+            -- lift (Backend.resolveCausalHashV2 rootCausalHash)
+            namespaceCausal <- lift $ Codebase.getShallowCausalAtPath namespacePath (Just rootCausalHash)
             shallowBranch <- lift $ V2Causal.value namespaceCausal
-            pure (rootCausal, namespaceCausal, shallowBranch)
+            pure (rootCausalHash, namespaceCausal, shallowBranch)
         namespaceDetails <- do
           (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) namespacePath
           readme <-

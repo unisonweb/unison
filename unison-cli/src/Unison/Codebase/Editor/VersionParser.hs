@@ -15,17 +15,17 @@ import qualified Unison.Codebase.Path as Path
 -- >>> parseMaybe defaultBaseLib "release/M4"
 -- >>> parseMaybe defaultBaseLib "release/M4b"
 -- >>> parseMaybe defaultBaseLib "release/M4c.2"
--- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.releases.M4})
--- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.releases.M4b})
--- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.releases.M4c_2})
+-- Just (ReadShareLooseCode {server = DefaultCodeserver, repo = "unison", path = public.base.releases.M4})
+-- Just (ReadShareLooseCode {server = DefaultCodeserver, repo = "unison", path = public.base.releases.M4b})
+-- Just (ReadShareLooseCode {server = DefaultCodeserver, repo = "unison", path = public.base.releases.M4c_2})
 
 -- >>> parseMaybe defaultBaseLib "dev/M4-1-g22ccb0b3b"
--- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.main})
+-- Just (ReadShareLooseCode {server = DefaultCodeserver, repo = "unison", path = public.base.main})
 
 -- A version with the 'dirty' flag
 -- >>> parseMaybe defaultBaseLib "dev/M3-409-gbcdf68db3'"
--- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.main})
-defaultBaseLib :: Parsec Void Text ReadShareRemoteNamespace
+-- Just (ReadShareLooseCode {server = DefaultCodeserver, repo = "unison", path = public.base.main})
+defaultBaseLib :: Parsec Void Text ReadShareLooseCode
 defaultBaseLib = fmap makeNS $ release <|> unknown
   where
     unknown, release, milestoneVersion :: Parsec Void Text Text
@@ -38,9 +38,9 @@ defaultBaseLib = fmap makeNS $ release <|> unknown
       _minor <- many (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))
       _dirty <- optional (char '\'')
       pure . Text.pack $ m : milestoneVersion
-    makeNS :: Text -> ReadShareRemoteNamespace
+    makeNS :: Text -> ReadShareLooseCode
     makeNS t =
-      ReadShareRemoteNamespace
+      ReadShareLooseCode
         { server = DefaultCodeserver,
           repo = ShareUserHandle "unison",
           path = "public" Path.:< "base" Path.:< Path.fromText t

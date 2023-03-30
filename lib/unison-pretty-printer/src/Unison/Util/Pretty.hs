@@ -95,6 +95,7 @@ module Unison.Util.Pretty
     sepNonEmpty,
     sepSpaced,
     shown,
+    pshown,
     singleQuoted,
     singleQuoted',
     softbreak,
@@ -153,6 +154,8 @@ import qualified Data.List as List
 import qualified Data.ListLike as LL
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as Text.Lazy
+import Text.Pretty.Simple (pShow)
 import Unison.Prelude
 import Unison.Util.AnnotatedText (annotateMaybe)
 import qualified Unison.Util.AnnotatedText as AT
@@ -782,6 +785,10 @@ string = fromString
 
 shown :: (Show a, IsString s) => a -> Pretty s
 shown = fromString . show
+
+-- | Like 'shown', but uses a pretty layout (so long as the Show instance is derived).
+pshown :: (Show a, IsString s) => a -> Pretty s
+pshown = text . Text.Lazy.toStrict . pShow
 
 -- `softHang foo bar` will attempt to put the first line of `bar` right after
 -- `foo` on the same line, but will behave like `hang foo bar` if there's not

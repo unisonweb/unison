@@ -18,6 +18,7 @@ import Servant.Docs
     ToSample (..),
     noSamples,
   )
+import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
@@ -118,7 +119,7 @@ instance ToSample DefinitionDisplayResults where
 serveDefinitions ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  Maybe ShortCausalHash ->
+  Maybe (Either ShortCausalHash CausalHash) ->
   Maybe Path.Path ->
   [HQ.HashQualified Name] ->
   Maybe Width ->
@@ -126,12 +127,12 @@ serveDefinitions ::
   Backend.Backend IO DefinitionDisplayResults
 serveDefinitions rt codebase mayRoot relativePath hqns width suff =
   do
-    root <- traverse (Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.expandShortCausalHash) mayRoot
+    rootCausalHash <- Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.normaliseRootCausalHash $ mayRoot
     hqns
       & foldMapM
         ( Backend.prettyDefinitionsForHQName
             (fromMaybe Path.empty relativePath)
-            root
+            rootCausalHash
             width
             (fromMaybe (Suffixify True) suff)
             rt

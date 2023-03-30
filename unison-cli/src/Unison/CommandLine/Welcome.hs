@@ -7,7 +7,7 @@ import System.Random (randomRIO)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.Input
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareRemoteNamespace (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..))
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
@@ -27,7 +27,7 @@ data Welcome = Welcome
   }
 
 data DownloadBase
-  = DownloadBase ReadShareRemoteNamespace
+  = DownloadBase ReadShareLooseCode
   | DontDownloadBase
   deriving (Show, Eq)
 
@@ -42,7 +42,7 @@ data CodebaseInitStatus
 
 data Onboarding
   = Init CodebaseInitStatus -- Can transition to [DownloadingBase, Author, Finished, PreviouslyOnboarded]
-  | DownloadingBase ReadShareRemoteNamespace -- Can transition to [Author, Finished]
+  | DownloadingBase ReadShareLooseCode -- Can transition to [Author, Finished]
   | Author -- Can transition to [Finished]
   -- End States
   | Finished
@@ -53,15 +53,17 @@ welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> Text -> ShouldWatch
 welcome initStatus downloadBase filePath unisonVersion shouldWatchFiles =
   Welcome (Init initStatus) downloadBase filePath unisonVersion shouldWatchFiles
 
-pullBase :: ReadShareRemoteNamespace -> Either Event Input
+pullBase :: ReadShareLooseCode -> Either Event Input
 pullBase ns =
   let seg = NameSegment "base"
       rootPath = Path.Path {Path.toSeq = singleton seg}
       abs = Path.Absolute {Path.unabsolute = rootPath}
       pullRemote =
         PullRemoteBranchI
-          (Just (ReadRemoteNamespaceShare ns))
-          (Path.Path' {Path.unPath' = Left abs})
+          ( PullSourceTarget2
+              (ReadShare'LooseCode ns)
+              (PullTargetLooseCode (Path.Path' {Path.unPath' = Left abs}))
+          )
           SyncMode.Complete
           PullWithHistory
           Verbosity.Silent
@@ -82,7 +84,7 @@ run codebase Welcome {onboarding = onboarding, downloadBase = downloadBase, watc
           go PreviouslyOnboarded (headerMsg : acc)
           where
             headerMsg = toInput (header version)
-        DownloadingBase ns@(ReadShareRemoteNamespace {path}) ->
+        DownloadingBase ns@(ReadShareLooseCode {path}) ->
           go Author ([pullBaseInput, downloadMsg] ++ acc)
           where
             downloadMsg = Right $ CreateMessage (downloading path)
