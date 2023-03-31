@@ -145,8 +145,11 @@ text.debug.tests = do
   --  checkEqual "todo (1)" (catchMsg do todo 3) "builtin.todo"
   --  checkEqual "todo (2)" (catchMsg do todo "hello") "builtin.todo"
 
+  check "Debug.trace" do
+    Debug.trace "First message " 3
+    Debug.trace "Second message" "hello"
+    true
   --  ("Debug.watch", (Tracked, watch))
-  --  ("Debug.trace", (Tracked, gen'trace)),
 
   ()
 

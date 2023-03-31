@@ -273,13 +273,12 @@
   (define (unison-POp-DBTX x)
     (string->chunked-string (describe-value x))) ;; TODO currently broken type
   (define (unison-POp-TAKT n t) (chunked-string-take t n))
-  (define (unison-POp-TRCE s x) ;; TODO port to chunked-string
-    (display s)
-    (display "\n")
-    (display x)
-    (display "\n")
+  (define (unison-POp-TRCE s x)
+    (display "trace: ")
+    (display (chunked-string->string s))
+    (newline)
     (display (describe-value x))
-    (display "\n"))
+    (newline))
   (define (unison-POp-TTON s)
     (let ([mn (string->number (chunked-string->string s))])
       (if (and (fixnum? mn) (>= mn 0)) (some mn) none)))
