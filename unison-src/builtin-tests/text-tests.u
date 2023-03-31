@@ -4,6 +4,7 @@ text.tests = do
  !text.ord.tests
  !text.ops.tests
  !text.conversion.tests
+ !text.debug.tests
 
 text.lit.tests = do
   check "Empty Text literal" do
@@ -120,16 +121,28 @@ text.conversion.tests = do
   checkEqual "Text.fromCharList: empty" (Text.fromCharList []) ""
   checkEqual "Text.fromCharList: non empty" (Text.fromCharList [?a, ?b, ?c]) "abc"
 
-  --  check "Debug.toTex runs" do
-  --    console.printLine (Debug.toText (Some 3))
-  --    true
-
---  toUft8
+  --  toUft8
   --  fromUtf8
   --  B "Socket.toText" $ socket --> text,
   --  B "Handle.toText" $ handle --> text,
   --  B "ThreadId.toText" $ threadId --> text,
   --   Link.Term.toText
+
+  ()
+
+text.debug.tests = do
+  --  check "Debug.toText runs" do
+  --    console.printLine (Debug.toText 3)
+  --    true
+
+  --  check "bug runs" do
+  --    match (catchAll do bug 3) with
+  --      Left (Failure _ "builtin.bug: 3" _) -> true
+  --      _ -> false
+
+  -- bug 3
+  --  bug "hello"
+
 
   --  ("bug", (Untracked, bug "builtin.bug")),
   --  ("todo", (Untracked, bug "builtin.todo")),
@@ -137,7 +150,6 @@ text.conversion.tests = do
   --  ("Debug.trace", (Tracked, gen'trace)),
   --  ("Debug.toText", (Tracked, debug'text)),
 
-  -- bug 3
   ()
 
  -- TODO pattern matching tests (with Pattern api)

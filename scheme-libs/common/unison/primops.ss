@@ -188,7 +188,6 @@
     unison-FOp-Tls.terminate.impl.v3)
 
   (import (rnrs)
-          (only (srfi :28) format)
           (only (srfi :13) string-reverse)
           (unison core)
           (unison data)
@@ -240,10 +239,9 @@
   (define (unison-POp-EQLU x y) (bool (universal=? x y)))
   (define (unison-POp-EROR fnm x)
     (let-values ([(p g) (open-string-output-port)])
-      ;; TODO perhaps append first, then put to the port at once
       (put-string p (chunked-string->string fnm))
       (put-string p ": ")
-      (display (chunked-string->string x) p)
+      (display (describe-value x) p)
       (raise (g))))
   (define (unison-POp-FTOT f) (string->chunked-string (number->string f)))
   (define (unison-POp-IDXB n bs) (bytevector-u8-ref bs n))
@@ -273,7 +271,7 @@
   (define (unison-POp-SUBN m n) (fx- m n))
   (define (unison-POp-TAKS n s) (chunked-list-take s n))
   (define (unison-POp-DBTX x)
-    (string->chunked-string (format "~a" x))) ;; TODO currently broken
+    (string->chunked-string (describe-value x))) ;; TODO currently broken type
   (define (unison-POp-TAKT n t) (chunked-string-take t n))
   (define (unison-POp-TRCE s x) ;; TODO port to chunked-string
     (display s)

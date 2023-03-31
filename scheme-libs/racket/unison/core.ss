@@ -51,6 +51,7 @@
                   string-downcase)
             (string-copy! racket-string-copy!)
             (bytes bytevector))
+    (only (srfi :28) format)
     (racket exn)
     (racket unsafe ops)
     (unison data)
@@ -67,8 +68,12 @@
           (let ([sub (rec (cdr c) (- m 1))])
             (cons (car c) sub))])))
 
-  ;; TODO improve this
-  (define (describe-value x) '())
+  ;; TODO support for records
+  (define (describe-value x)
+    (cond
+      [(chunked-string? x) (chunked-string->string x)]
+      [else (format "~a" x)]))
+
   (define (decode-value x) '())
 
   (define (universal-compare l r)
