@@ -372,11 +372,11 @@
      string-reverse
      (lambda (acc c) (chunked-string-append c acc))))
 
-    (define (unison-FOp-Text.toLowercase s)
-      (chunked-string-foldMap-chunks s string-downcase chunked-string-append))
+  (define (unison-FOp-Text.toLowercase s)
+    (chunked-string-foldMap-chunks s string-downcase chunked-string-append))
 
-    (define (unison-FOp-Text.toUppercase s)
-      (chunked-string-foldMap-chunks s string-upcase chunked-string-append))
+  (define (unison-FOp-Text.toUppercase s)
+    (chunked-string-foldMap-chunks s string-upcase chunked-string-append))
 
   (define (catch-array thunk)
     (reify-exn thunk))
