@@ -149,7 +149,9 @@ text.debug.tests = do
     Debug.trace "First message " 3
     Debug.trace "Second message" "hello"
     true
-  --  ("Debug.watch", (Tracked, watch))
+
+  -- TODO currently wrong type in the primitives
+  --  checkEqual "Debug.watch" (Debug.watch "Watch" 3) 3
 
   ()
 

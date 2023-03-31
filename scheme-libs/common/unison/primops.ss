@@ -136,6 +136,7 @@
     unison-POp-TAKS
     unison-POp-TAKT
     unison-POp-TRCE
+    unison-POp-PRNT
     unison-POp-TTON
     unison-POp-TTOI
     unison-POp-TTOF
@@ -237,7 +238,7 @@
   (define (unison-POp-EQLT s t) (bool (chunked-string=? s t)))
   (define (unison-POp-LEQT s t) (bool (chunked-string<? s t)))
   (define (unison-POp-EQLU x y) (bool (universal=? x y)))
-  (define (unison-POp-EROR fnm x) ;; TODO raise the correct failure
+  (define (unison-POp-EROR fnm x) ;; TODO raise the correct failure, use display
     (let-values ([(p g) (open-string-output-port)])
       (put-string p (chunked-string->string fnm))
       (put-string p ": ")
@@ -279,6 +280,10 @@
     (newline)
     (display (describe-value x))
     (newline))
+  (define (unison-POp-PRNT s x) ;; TODO currently arity mismatch error
+    (display (chunked-string->string s))
+    (newline)
+    unit)
   (define (unison-POp-TTON s)
     (let ([mn (string->number (chunked-string->string s))])
       (if (and (fixnum? mn) (>= mn 0)) (some mn) none)))
