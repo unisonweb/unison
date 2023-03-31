@@ -457,10 +457,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
     Nothing -> do
       remoteProject <-
         Share.createProject remoteProjectName & onNothingM do
-          Cli.returnEarly $
-            Output.RemoteProjectBranchDoesntExist
-              Share.hardCodedUri
-              remoteProjectAndBranch
+          Cli.returnEarly (Output.RemoteProjectDoesntExist Share.hardCodedUri remoteProjectName)
       pure
         UploadPlan
           { remoteBranch = remoteProjectAndBranch,
@@ -468,6 +465,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
             afterUploadAction =
               createBranchAfterUploadAction
                 pushing
+                True -- just created the project
                 localBranchHead
                 (over #project (remoteProject ^. #projectId,) remoteProjectAndBranch)
           }
@@ -482,6 +480,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
                 afterUploadAction =
                   createBranchAfterUploadAction
                     pushing
+                    False -- didn't just create the project
                     localBranchHead
                     (over #project (remoteProjectId,) remoteProjectAndBranch)
               }
@@ -513,6 +512,7 @@ pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranc
             afterUploadAction =
               createBranchAfterUploadAction
                 (PushingProjectBranch localProjectAndBranch)
+                False -- didn't just create the project
                 localBranchHead
                 remoteProjectAndBranch
           }
@@ -584,10 +584,11 @@ type AfterUploadAction = Cli ()
 -- Precondition: the remote project exists, but the remote branch doesn't.
 createBranchAfterUploadAction ::
   WhatAreWePushing ->
+  Bool ->
   Hash32 ->
   ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   AfterUploadAction
-createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = do
+createBranchAfterUploadAction pushing justCreatedProject localBranchHead remoteProjectAndBranch = do
   let remoteProjectId = remoteProjectAndBranch ^. #project . _1
   let remoteBranchName = remoteProjectAndBranch ^. #branch
   branchMergeTarget <-
@@ -618,6 +619,10 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
     Share.createProjectBranch createProjectBranchRequest & onNothingM do
       Cli.returnEarly $
         Output.RemoteProjectDoesntExist Share.hardCodedUri (remoteProjectAndBranch ^. #project . _2)
+  Cli.respond
+    if justCreatedProject
+      then Output.CreatedRemoteProject Share.hardCodedUri (over #project snd remoteProjectAndBranch)
+      else Output.CreatedRemoteProjectBranch Share.hardCodedUri (over #project snd remoteProjectAndBranch)
   case pushing of
     PushingLooseCode -> pure ()
     PushingProjectBranch (ProjectAndBranch localProject localBranch) ->
@@ -631,9 +636,13 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
           Share.hardCodedUri
           (remoteBranch ^. #branchId)
 
--- We intend to fast-forward a remote branch. There's one last check to do, which may cause this action to
--- short-circuit: check to see if the remote branch is indeed behind the given causal hash. If it is, then return an
--- action to perform after uploading (which will set the remote branch head).
+-- We intend to fast-forward a remote branch.
+--
+-- There are two last checks to do that may cause this action to short-circuit:
+--
+--   1. If the remote branch head is equal to the hash we intend to fast-forward it to, then there's nothing to upload.
+--   2. If the remote branch head is ahead of the hash we intend to fast-forward it to, then we will refuse to push
+--      (until we implement some syntax for a force-push).
 makeFastForwardAfterUploadAction ::
   WhatAreWePushing ->
   Hash32 ->
@@ -641,12 +650,12 @@ makeFastForwardAfterUploadAction ::
   Cli AfterUploadAction
 makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
   let remoteProjectAndBranchNames = ProjectAndBranch (remoteBranch ^. #projectName) (remoteBranch ^. #branchName)
-  let remoteProjectBranchHeadMismatch :: Cli a
-      remoteProjectBranchHeadMismatch =
-        Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
+
+  when (localBranchHead == Share.API.hashJWTHash (remoteBranch ^. #branchHead)) do
+    Cli.returnEarly (RemoteProjectBranchIsUpToDate Share.hardCodedUri remoteProjectAndBranchNames)
 
   whenM (Cli.runTransaction (wouldNotBeFastForward localBranchHead remoteBranchHead)) do
-    remoteProjectBranchHeadMismatch
+    Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
 
   pure do
     let request =
@@ -658,7 +667,7 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
             }
     Share.setProjectBranchHead request >>= \case
       Share.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected _actual ->
-        remoteProjectBranchHeadMismatch
+        Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponseNotFound -> do
         Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponseSuccess -> do

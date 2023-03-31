@@ -299,6 +299,10 @@ data Output
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject ProjectName ProjectBranchName
   | CreatedProjectBranch ProjectBranchName ProjectBranchName -- parent, child
+  | CreatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | CreatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- We didn't push anything because the remote server is already in the state we want it to be
+    RemoteProjectBranchIsUpToDate URI (ProjectAndBranch ProjectName ProjectBranchName)
   | InvalidProjectName Text
   | InvalidProjectBranchName Text
   | RefusedToCreateProjectBranch (ProjectAndBranch ProjectName ProjectBranchName)
@@ -489,6 +493,8 @@ isFailure o = case o of
   PulledEmptyBranch {} -> False
   CreatedProject {} -> False
   CreatedProjectBranch {} -> False
+  CreatedRemoteProject {} -> False
+  CreatedRemoteProjectBranch {} -> False
   InvalidProjectName {} -> True
   InvalidProjectBranchName {} -> True
   RefusedToCreateProjectBranch {} -> True
@@ -506,6 +512,7 @@ isFailure o = case o of
   ServantClientError {} -> False
   MarkdownOut {} -> False
   NotImplementedYet {} -> True
+  RemoteProjectBranchIsUpToDate {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
