@@ -131,24 +131,22 @@ text.conversion.tests = do
   ()
 
 text.debug.tests = do
-  --  check "Debug.toText runs" do
-  --    console.printLine (Debug.toText 3)
-  --    true
+  -- TODO currently wrong type in the primitives
+  --  checkEqual "Debug.toText (1)" (Debug.toText 3) "3"
+  --  checkEqual "Debug.toText (2)" (Debug.toText "hello") "hello"
 
-  --  check "bug runs" do
-  --    match (catchAll do bug 3) with
-  --      Left (Failure _ "builtin.bug: 3" _) -> true
-  --      _ -> false
+  catchMsg p = match catchAll p with
+    Left (Failure _ msg v) -> msg
+    _ -> "Success!"
 
-  -- bug 3
-  --  bug "hello"
+  -- TODO currently wrong exception raised in the primitives
+  --  checkEqual "bug (1)" (catchMsg do bug 3) "builtin.bug"
+  --  checkEqual "bug (2)" (catchMsg do bug "hello") "builtin.bug"
+  --  checkEqual "todo (1)" (catchMsg do todo 3) "builtin.todo"
+  --  checkEqual "todo (2)" (catchMsg do todo "hello") "builtin.todo"
 
-
-  --  ("bug", (Untracked, bug "builtin.bug")),
-  --  ("todo", (Untracked, bug "builtin.todo")),
   --  ("Debug.watch", (Tracked, watch))
   --  ("Debug.trace", (Tracked, gen'trace)),
-  --  ("Debug.toText", (Tracked, debug'text)),
 
   ()
 

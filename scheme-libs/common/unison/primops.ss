@@ -237,7 +237,7 @@
   (define (unison-POp-EQLT s t) (bool (chunked-string=? s t)))
   (define (unison-POp-LEQT s t) (bool (chunked-string<? s t)))
   (define (unison-POp-EQLU x y) (bool (universal=? x y)))
-  (define (unison-POp-EROR fnm x)
+  (define (unison-POp-EROR fnm x) ;; TODO raise the correct failure
     (let-values ([(p g) (open-string-output-port)])
       (put-string p (chunked-string->string fnm))
       (put-string p ": ")
