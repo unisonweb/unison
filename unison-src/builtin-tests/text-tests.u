@@ -160,7 +160,13 @@ text.debug.tests = do
  -- TODO pattern matching tests (with Pattern api)
 
 text.matching.tests = do
-  -- TODO currently fails
+  -- TODO currently fails:
+  -- The Unison compiler lib translates matching on test to a scheme `case`
+  -- construct, which uses `equal?` for checking equality.
+  -- I would either have to change the compiler to emit a call to text equality
+  -- or change chunked-string to have a valid equal, which is a bit annoying due to
+  -- the generated api. However note that `case` is O(logN) in the number of clauses
+
   --  check "String literal matching: empty" do
   --    match "" with
   --      "" -> true
