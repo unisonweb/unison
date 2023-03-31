@@ -455,7 +455,7 @@ deriveRemoteBranchName userHandle remoteProjectName localBranchName =
         -- I'm "arya" pushing local branch "main" to "@arya/lens", so don't call it "@arya/main"
         Just projectUserSlug
           | projectUserSlug == userHandle && localBranchName == unsafeFrom @Text "main" ->
-            localBranchName
+              localBranchName
         -- Nothing is a weird unlikely case: project doesn't begin with a user slug? server will likely reject
         _ -> prependUserSlugToProjectBranchName userHandle localBranchName
 
