@@ -299,6 +299,10 @@ data Output
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject ProjectName ProjectBranchName
   | CreatedProjectBranch ProjectBranchName ProjectBranchName -- parent, child
+  | CreatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | CreatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- We didn't push anything because the remote server is already in the state we want it to be
+    RemoteProjectBranchIsUpToDate URI (ProjectAndBranch ProjectName ProjectBranchName)
   | InvalidProjectName Text
   | InvalidProjectBranchName Text
   | RefusedToCreateProjectBranch (ProjectAndBranch ProjectName ProjectBranchName)
@@ -319,6 +323,8 @@ data Output
   | Unauthorized Text
   | ServantClientError Servant.ClientError
   | MarkdownOut Text
+  | DownloadedEntities Int
+  | UploadedEntities Int
   | -- A generic "not implemented" message, for WIP code that's nonetheless been merged into trunk
     NotImplementedYet Text
 
@@ -489,6 +495,8 @@ isFailure o = case o of
   PulledEmptyBranch {} -> False
   CreatedProject {} -> False
   CreatedProjectBranch {} -> False
+  CreatedRemoteProject {} -> False
+  CreatedRemoteProjectBranch {} -> False
   InvalidProjectName {} -> True
   InvalidProjectBranchName {} -> True
   RefusedToCreateProjectBranch {} -> True
@@ -503,9 +511,12 @@ isFailure o = case o of
   RemoteProjectBranchDoesntExist {} -> True
   RemoteProjectBranchHeadMismatch {} -> True
   Unauthorized {} -> True
-  ServantClientError {} -> False
+  ServantClientError {} -> True
   MarkdownOut {} -> False
   NotImplementedYet {} -> True
+  RemoteProjectBranchIsUpToDate {} -> False
+  DownloadedEntities {} -> False
+  UploadedEntities {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

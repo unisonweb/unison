@@ -87,17 +87,22 @@ cloneProjectAndBranch remoteProjectAndBranch = do
 
   -- Pull the remote branch's contents
   let remoteBranchHeadJwt = remoteProjectBranch ^. #branchHead
-  Cli.with HandleInput.Pull.withEntitiesDownloadedProgressCallback \downloadedCallback -> do
-    let download =
-          Share.downloadEntities
-            Share.hardCodedBaseUrl
-            (Share.RepoInfo (into @Text (These remoteProjectName remoteBranchName)))
-            remoteBranchHeadJwt
-            downloadedCallback
-    download & onLeftM \err0 ->
+  (result, numDownloaded) <-
+    Cli.with HandleInput.Pull.withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
+      result <-
+        Share.downloadEntities
+          Share.hardCodedBaseUrl
+          (Share.RepoInfo (into @Text (These remoteProjectName remoteBranchName)))
+          remoteBranchHeadJwt
+          downloadedCallback
+      numDownloaded <- liftIO getNumDownloaded
+      pure (result, numDownloaded)
+  case result of
+    Left err0 ->
       (Cli.returnEarly . Output.ShareError) case err0 of
         Share.SyncError err -> Output.ShareErrorDownloadEntities err
         Share.TransportError err -> Output.ShareErrorTransport err
+    Right () -> Cli.respond (Output.DownloadedEntities numDownloaded)
 
   localProjectAndBranch <-
     Cli.runEitherTransaction do

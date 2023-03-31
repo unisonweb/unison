@@ -1829,6 +1829,17 @@ notifyUser dir = \case
         <> prettyProjectBranchName childBranchName
         <> "from branch"
         <> prettyProjectBranchName parentBranchName
+  CreatedRemoteProject host (ProjectAndBranch projectName _) ->
+    pure . P.wrap $
+      "I just created"
+        <> prettyProjectName projectName
+        <> "on"
+        <> prettyURI host
+  CreatedRemoteProjectBranch host projectAndBranch ->
+    pure . P.wrap $
+      "I just created" <> prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host
+  RemoteProjectBranchIsUpToDate host projectAndBranch ->
+    pure (P.wrap (prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host <> "is already up-to-date."))
   InvalidProjectName name -> pure (P.wrap (P.text name <> "is not a valid project name."))
   InvalidProjectBranchName name -> pure (P.wrap (P.text name <> "is not a valid branch name."))
   RefusedToCreateProjectBranch projectAndBranch ->
@@ -1913,6 +1924,8 @@ notifyUser dir = \case
           <> P.newline
           <> P.indentN 2 (P.pshown response)
   MarkdownOut md -> pure $ P.text md
+  DownloadedEntities n -> pure (P.wrap ("Downloaded" <> P.num n <> "entities."))
+  UploadedEntities n -> pure (P.wrap ("Uploaded" <> P.num n <> "entities."))
   NotImplementedYet message -> pure (P.wrap ("Not implemented:" <> P.text message))
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"

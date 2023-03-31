@@ -6,7 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Push
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (over, view, (.~), (^.), _1)
+import Control.Lens (over, view, (.~), (^.), _1, _2)
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set.NonEmpty as Set.NonEmpty
@@ -230,18 +230,25 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
     Cli.runTransaction (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))) & onNothingM do
       Cli.returnEarly (EmptyLooseCodePush (Path.absoluteToPath' localPath))
 
-  let checkAndSetPush :: Maybe Hash32 -> Cli ()
+  let checkAndSetPush :: Maybe Hash32 -> Cli (Maybe Int)
       checkAndSetPush remoteHash =
-        when (Just (Hash32.fromHash (unCausalHash localCausalHash)) /= remoteHash) do
-          let push =
-                Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
-                  Share.checkAndSetPush
-                    baseURL
-                    sharePath
-                    remoteHash
-                    localCausalHash
-                    uploadedCallback
-          push & onLeftM (pushError ShareErrorCheckAndSetPush)
+        if Just (Hash32.fromHash (unCausalHash localCausalHash)) == remoteHash
+          then pure Nothing
+          else do
+            let push =
+                  Cli.with withEntitiesUploadedProgressCallback \(uploadedCallback, getNumUploaded) -> do
+                    result <-
+                      Share.checkAndSetPush
+                        baseURL
+                        sharePath
+                        remoteHash
+                        localCausalHash
+                        uploadedCallback
+                    numUploaded <- liftIO getNumUploaded
+                    pure (result, numUploaded)
+            push >>= \case
+              (Left err, _) -> pushError ShareErrorCheckAndSetPush err
+              (Right (), numUploaded) -> pure (Just numUploaded)
 
   case behavior of
     PushBehavior.ForcePush -> do
@@ -250,22 +257,30 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
           (Cli.returnEarly . Output.ShareError) case err0 of
             Share.SyncError err -> ShareErrorGetCausalHashByPath err
             Share.TransportError err -> ShareErrorTransport err
-      checkAndSetPush (Share.API.hashJWTHash <$> maybeHashJwt)
+      maybeNumUploaded <- checkAndSetPush (Share.API.hashJWTHash <$> maybeHashJwt)
+      whenJust maybeNumUploaded (Cli.respond . Output.UploadedEntities)
       Cli.respond (ViewOnShare remote)
     PushBehavior.RequireEmpty -> do
-      checkAndSetPush Nothing
+      maybeNumUploaded <- checkAndSetPush Nothing
+      whenJust maybeNumUploaded (Cli.respond . Output.UploadedEntities)
       Cli.respond (ViewOnShare remote)
     PushBehavior.RequireNonEmpty -> do
-      let push :: Cli (Either (Share.SyncError Share.FastForwardPushError) ())
+      let push :: Cli (Either (Share.SyncError Share.FastForwardPushError) (), Int)
           push =
-            Cli.with withEntitiesUploadedProgressCallback \uploadedCallback ->
-              Share.fastForwardPush
-                baseURL
-                sharePath
-                localCausalHash
-                uploadedCallback
-      push & onLeftM (pushError ShareErrorFastForwardPush)
-      Cli.respond (ViewOnShare remote)
+            Cli.with withEntitiesUploadedProgressCallback \(uploadedCallback, getNumUploaded) -> do
+              result <-
+                Share.fastForwardPush
+                  baseURL
+                  sharePath
+                  localCausalHash
+                  uploadedCallback
+              numUploaded <- liftIO getNumUploaded
+              pure (result, numUploaded)
+      push >>= \case
+        (Left err, _) -> pushError ShareErrorFastForwardPush err
+        (Right (), numUploaded) -> do
+          Cli.respond (UploadedEntities numUploaded)
+          Cli.respond (ViewOnShare remote)
   where
     pathToSegments :: Path -> [Text]
     pathToSegments =
@@ -457,10 +472,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
     Nothing -> do
       remoteProject <-
         Share.createProject remoteProjectName & onNothingM do
-          Cli.returnEarly $
-            Output.RemoteProjectBranchDoesntExist
-              Share.hardCodedUri
-              remoteProjectAndBranch
+          Cli.returnEarly (Output.RemoteProjectDoesntExist Share.hardCodedUri remoteProjectName)
       pure
         UploadPlan
           { remoteBranch = remoteProjectAndBranch,
@@ -468,6 +480,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
             afterUploadAction =
               createBranchAfterUploadAction
                 pushing
+                True -- just created the project
                 localBranchHead
                 (over #project (remoteProject ^. #projectId,) remoteProjectAndBranch)
           }
@@ -482,6 +495,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
                 afterUploadAction =
                   createBranchAfterUploadAction
                     pushing
+                    False -- didn't just create the project
                     localBranchHead
                     (over #project (remoteProjectId,) remoteProjectAndBranch)
               }
@@ -513,6 +527,7 @@ pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranc
             afterUploadAction =
               createBranchAfterUploadAction
                 (PushingProjectBranch localProjectAndBranch)
+                False -- didn't just create the project
                 localBranchHead
                 remoteProjectAndBranch
           }
@@ -550,19 +565,22 @@ data UploadPlan = UploadPlan
 -- Execute an upload plan.
 executeUploadPlan :: UploadPlan -> Cli ()
 executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
-  Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
-    let upload =
-          Share.uploadEntities
-            (codeserverBaseURL Codeserver.defaultCodeserver)
-            -- On the wire, the remote branch is encoded as e.g.
-            --   { "repo_info": "@unison/base/@arya/topic", ... }
-            (Share.RepoInfo (into @Text (These (remoteBranch ^. #project) (remoteBranch ^. #branch))))
-            (Set.NonEmpty.singleton causalHash)
-            uploadedCallback
-    upload & onLeftM \err0 -> do
-      (Cli.returnEarly . Output.ShareError) case err0 of
-        Share.SyncError err -> ShareErrorUploadEntities err
-        Share.TransportError err -> ShareErrorTransport err
+  numUploaded <-
+    Cli.with withEntitiesUploadedProgressCallback \(uploadedCallback, getNumUploaded) -> do
+      let upload =
+            Share.uploadEntities
+              (codeserverBaseURL Codeserver.defaultCodeserver)
+              -- On the wire, the remote branch is encoded as e.g.
+              --   { "repo_info": "@unison/base/@arya/topic", ... }
+              (Share.RepoInfo (into @Text (These (remoteBranch ^. #project) (remoteBranch ^. #branch))))
+              (Set.NonEmpty.singleton causalHash)
+              uploadedCallback
+      upload & onLeftM \err0 -> do
+        (Cli.returnEarly . Output.ShareError) case err0 of
+          Share.SyncError err -> ShareErrorUploadEntities err
+          Share.TransportError err -> ShareErrorTransport err
+      liftIO getNumUploaded
+  Cli.respond (Output.UploadedEntities numUploaded)
   afterUploadAction
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -584,10 +602,11 @@ type AfterUploadAction = Cli ()
 -- Precondition: the remote project exists, but the remote branch doesn't.
 createBranchAfterUploadAction ::
   WhatAreWePushing ->
+  Bool ->
   Hash32 ->
   ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   AfterUploadAction
-createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = do
+createBranchAfterUploadAction pushing justCreatedProject localBranchHead remoteProjectAndBranch = do
   let remoteProjectId = remoteProjectAndBranch ^. #project . _1
   let remoteBranchName = remoteProjectAndBranch ^. #branch
   branchMergeTarget <-
@@ -617,7 +636,11 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
   remoteBranch <-
     Share.createProjectBranch createProjectBranchRequest & onNothingM do
       Cli.returnEarly $
-        Output.RemoteProjectBranchDoesntExist Share.hardCodedUri (over #project snd remoteProjectAndBranch)
+        Output.RemoteProjectDoesntExist Share.hardCodedUri (remoteProjectAndBranch ^. #project . _2)
+  Cli.respond
+    if justCreatedProject
+      then Output.CreatedRemoteProject Share.hardCodedUri (over #project snd remoteProjectAndBranch)
+      else Output.CreatedRemoteProjectBranch Share.hardCodedUri (over #project snd remoteProjectAndBranch)
   case pushing of
     PushingLooseCode -> pure ()
     PushingProjectBranch (ProjectAndBranch localProject localBranch) ->
@@ -631,9 +654,13 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
           Share.hardCodedUri
           (remoteBranch ^. #branchId)
 
--- We intend to fast-forward a remote branch. There's one last check to do, which may cause this action to
--- short-circuit: check to see if the remote branch is indeed behind the given causal hash. If it is, then return an
--- action to perform after uploading (which will set the remote branch head).
+-- We intend to fast-forward a remote branch.
+--
+-- There are two last checks to do that may cause this action to short-circuit:
+--
+--   1. If the remote branch head is equal to the hash we intend to fast-forward it to, then there's nothing to upload.
+--   2. If the remote branch head is ahead of the hash we intend to fast-forward it to, then we will refuse to push
+--      (until we implement some syntax for a force-push).
 makeFastForwardAfterUploadAction ::
   WhatAreWePushing ->
   Hash32 ->
@@ -641,12 +668,12 @@ makeFastForwardAfterUploadAction ::
   Cli AfterUploadAction
 makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
   let remoteProjectAndBranchNames = ProjectAndBranch (remoteBranch ^. #projectName) (remoteBranch ^. #branchName)
-  let remoteProjectBranchHeadMismatch :: Cli a
-      remoteProjectBranchHeadMismatch =
-        Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
+
+  when (localBranchHead == Share.API.hashJWTHash (remoteBranch ^. #branchHead)) do
+    Cli.returnEarly (RemoteProjectBranchIsUpToDate Share.hardCodedUri remoteProjectAndBranchNames)
 
   whenM (Cli.runTransaction (wouldNotBeFastForward localBranchHead remoteBranchHead)) do
-    remoteProjectBranchHeadMismatch
+    Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
 
   pure do
     let request =
@@ -658,7 +685,7 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
             }
     Share.setProjectBranchHead request >>= \case
       Share.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected _actual ->
-        remoteProjectBranchHeadMismatch
+        Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponseNotFound -> do
         Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponseSuccess -> do
@@ -677,7 +704,7 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
       Share.API.hashJWTHash (remoteBranch ^. #branchHead)
 
 -- Provide the given action a callback that displays to the terminal.
-withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
+withEntitiesUploadedProgressCallback :: ((Int -> IO (), IO Int) -> IO a) -> IO a
 withEntitiesUploadedProgressCallback action = do
   entitiesUploadedVar <- newTVarIO 0
   Console.Regions.displayConsoleRegions do
@@ -688,11 +715,7 @@ withEntitiesUploadedProgressCallback action = do
           "\n  Uploaded "
             <> tShow entitiesUploaded
             <> " entities...\n\n"
-      result <- action (\n -> atomically (modifyTVar' entitiesUploadedVar (+ n)))
-      entitiesUploaded <- readTVarIO entitiesUploadedVar
-      Console.Regions.finishConsoleRegion region $
-        "\n  Uploaded " <> tShow entitiesUploaded <> " entities."
-      pure result
+      action ((\n -> atomically (modifyTVar' entitiesUploadedVar (+ n))), readTVarIO entitiesUploadedVar)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Misc. sqlite queries

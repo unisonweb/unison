@@ -185,18 +185,24 @@ loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
       Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
         Cli.returnEarly (Output.GitError err)
     ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
-    ReadShare'ProjectBranch remoteBranch ->
+    ReadShare'ProjectBranch remoteBranch -> do
       let repoInfo = Share.RepoInfo (into @Text (These (remoteBranch ^. #projectName) remoteProjectBranchName))
           causalHash = Common.hash32ToCausalHash . Share.hashJWTHash $ causalHashJwt
           causalHashJwt = remoteBranch ^. #branchHead
           remoteProjectBranchName = remoteBranch ^. #branchName
-       in Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
-            Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback >>= \case
-              Left err0 -> do
-                (Cli.returnEarly . Output.ShareError) case err0 of
-                  Share.SyncError err -> Output.ShareErrorDownloadEntities err
-                  Share.TransportError err -> Output.ShareErrorTransport err
-              Right () -> liftIO (Codebase.expectBranchForHash codebase causalHash)
+      (result, numDownloaded) <-
+        Cli.with withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
+          result <- Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback
+          numDownloaded <- liftIO getNumDownloaded
+          pure (result, numDownloaded)
+      case result of
+        Left err0 ->
+          (Cli.returnEarly . Output.ShareError) case err0 of
+            Share.SyncError err -> Output.ShareErrorDownloadEntities err
+            Share.TransportError err -> Output.ShareErrorTransport err
+        Right () -> do
+          Cli.respond (Output.DownloadedEntities numDownloaded)
+          liftIO (Codebase.expectBranchForHash codebase causalHash)
 
 loadShareLooseCodeIntoMemory :: ReadShareLooseCode -> Cli (Branch IO)
 loadShareLooseCodeIntoMemory rrn@(ReadShareLooseCode {server, repo, path}) = do
@@ -206,16 +212,20 @@ loadShareLooseCodeIntoMemory rrn@(ReadShareLooseCode {server, repo, path}) = do
   when (not $ RemoteRepo.isPublic rrn) . void $ ensureAuthenticatedWithCodeserver codeserver
   let shareFlavoredPath = Share.Path (shareUserHandleToText repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
   Cli.Env {codebase} <- ask
-  causalHash <-
-    Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
-      Share.pull baseURL shareFlavoredPath downloadedCallback & onLeftM \err0 ->
-        (Cli.returnEarly . Output.ShareError) case err0 of
-          Share.SyncError err -> Output.ShareErrorPull err
-          Share.TransportError err -> Output.ShareErrorTransport err
+  (causalHash, numDownloaded) <-
+    Cli.with withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
+      causalHash <-
+        Share.pull baseURL shareFlavoredPath downloadedCallback & onLeftM \err0 ->
+          (Cli.returnEarly . Output.ShareError) case err0 of
+            Share.SyncError err -> Output.ShareErrorPull err
+            Share.TransportError err -> Output.ShareErrorTransport err
+      numDownloaded <- liftIO getNumDownloaded
+      pure (causalHash, numDownloaded)
+  Cli.respond (Output.DownloadedEntities numDownloaded)
   liftIO (Codebase.expectBranchForHash codebase causalHash)
 
 -- Provide the given action a callback that display to the terminal.
-withEntitiesDownloadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
+withEntitiesDownloadedProgressCallback :: ((Int -> IO (), IO Int) -> IO a) -> IO a
 withEntitiesDownloadedProgressCallback action = do
   entitiesDownloadedVar <- newTVarIO 0
   Console.Regions.displayConsoleRegions do
@@ -226,11 +236,7 @@ withEntitiesDownloadedProgressCallback action = do
           "\n  Downloaded "
             <> tShow entitiesDownloaded
             <> " entities...\n\n"
-      result <- action (\n -> atomically (modifyTVar' entitiesDownloadedVar (+ n)))
-      entitiesDownloaded <- readTVarIO entitiesDownloadedVar
-      Console.Regions.finishConsoleRegion region $
-        "\n  Downloaded " <> tShow entitiesDownloaded <> " entities."
-      pure result
+      action ((\n -> atomically (modifyTVar' entitiesDownloadedVar (+ n))), readTVarIO entitiesDownloadedVar)
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect

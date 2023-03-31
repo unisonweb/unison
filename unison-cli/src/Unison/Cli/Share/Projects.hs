@@ -65,7 +65,7 @@ getProjectByName projectName = do
   response <- servantClientToCli (getProject0 Nothing (Just (into @Text projectName)))
   onGetProjectResponse response
 
--- | Create a new project.
+-- | Create a new project. Kinda weird: returns `Nothing` if the user handle part of the project doesn't exist.
 --
 -- On success, update the `remote_project` table.
 createProject :: ProjectName -> Cli (Maybe RemoteProject)
