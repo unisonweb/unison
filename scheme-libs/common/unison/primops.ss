@@ -39,6 +39,7 @@
     unison-FOp-Text.toUtf8
     unison-FOp-Text.toLowercase
     unison-FOp-Text.toUppercase
+    unison-FOp-Pattern.run
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
     unison-FOp-IO.getArgs.impl.v1
@@ -194,6 +195,7 @@
           (unison data)
           (unison data chunked-seq)
           (unison string)
+          (unison pattern)
           (unison crypto)
           (unison data)
           (unison tls)
@@ -377,6 +379,12 @@
 
   (define (unison-FOp-Text.toUppercase s)
     (chunked-string-foldMap-chunks s string-upcase chunked-string-append))
+
+  (define (unison-FOp-Pattern.run p s)
+    (let ([r (pattern-match p s)])
+      (if (r)
+          (sum 1 (car r) (cdr r))
+          (sum 0))))
 
   (define (catch-array thunk)
     (reify-exn thunk))
