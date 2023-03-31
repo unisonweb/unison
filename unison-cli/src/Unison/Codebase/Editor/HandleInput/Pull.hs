@@ -229,7 +229,7 @@ withEntitiesDownloadedProgressCallback action = do
       result <- action (\n -> atomically (modifyTVar' entitiesDownloadedVar (+ n)))
       entitiesDownloaded <- readTVarIO entitiesDownloadedVar
       Console.Regions.finishConsoleRegion region $
-        "\n  Downloaded " <> tShow entitiesDownloaded <> " entities."
+        "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
       pure result
 
 -- | supply `dest0` if you want to print diff messages

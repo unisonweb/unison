@@ -6,7 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Push
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (over, view, (.~), (^.), _1)
+import Control.Lens (over, view, (.~), (^.), _1, _2)
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set.NonEmpty as Set.NonEmpty
@@ -617,7 +617,7 @@ createBranchAfterUploadAction pushing localBranchHead remoteProjectAndBranch = d
   remoteBranch <-
     Share.createProjectBranch createProjectBranchRequest & onNothingM do
       Cli.returnEarly $
-        Output.RemoteProjectBranchDoesntExist Share.hardCodedUri (over #project snd remoteProjectAndBranch)
+        Output.RemoteProjectDoesntExist Share.hardCodedUri (remoteProjectAndBranch ^. #project . _2)
   case pushing of
     PushingLooseCode -> pure ()
     PushingProjectBranch (ProjectAndBranch localProject localBranch) ->
@@ -691,7 +691,7 @@ withEntitiesUploadedProgressCallback action = do
       result <- action (\n -> atomically (modifyTVar' entitiesUploadedVar (+ n)))
       entitiesUploaded <- readTVarIO entitiesUploadedVar
       Console.Regions.finishConsoleRegion region $
-        "\n  Uploaded " <> tShow entitiesUploaded <> " entities."
+        "\n  Uploaded " <> tShow entitiesUploaded <> " entities.\n"
       pure result
 
 ------------------------------------------------------------------------------------------------------------------------
