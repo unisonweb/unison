@@ -1924,6 +1924,8 @@ notifyUser dir = \case
           <> P.newline
           <> P.indentN 2 (P.pshown response)
   MarkdownOut md -> pure $ P.text md
+  DownloadedEntities n -> pure (P.wrap ("Downloaded" <> P.num n <> "entities."))
+  UploadedEntities n -> pure (P.wrap ("Uploaded" <> P.num n <> "entities."))
   NotImplementedYet message -> pure (P.wrap ("Not implemented:" <> P.text message))
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"

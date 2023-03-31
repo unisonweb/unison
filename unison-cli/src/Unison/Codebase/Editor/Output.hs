@@ -323,6 +323,8 @@ data Output
   | Unauthorized Text
   | ServantClientError Servant.ClientError
   | MarkdownOut Text
+  | DownloadedEntities Int
+  | UploadedEntities Int
   | -- A generic "not implemented" message, for WIP code that's nonetheless been merged into trunk
     NotImplementedYet Text
 
@@ -509,10 +511,12 @@ isFailure o = case o of
   RemoteProjectBranchDoesntExist {} -> True
   RemoteProjectBranchHeadMismatch {} -> True
   Unauthorized {} -> True
-  ServantClientError {} -> False
+  ServantClientError {} -> True
   MarkdownOut {} -> False
   NotImplementedYet {} -> True
   RemoteProjectBranchIsUpToDate {} -> False
+  DownloadedEntities {} -> False
+  UploadedEntities {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
