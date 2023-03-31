@@ -18,6 +18,8 @@
   (import (rnrs)
           (rnrs records syntactic)
           (unison data)
+          (unison core)
+          (unison data chunked-seq)
           (rename
            (only (racket base)
                  box
@@ -45,7 +47,6 @@
            (unbox ref-read)
            (set-box! ref-write)
            (sleep sleep-secs))
-          (only (racket exn) exn->string)
           (only (racket unsafe ops) unsafe-struct*-cas!))
 
   (define-record-type promise (fields semaphore event (mutable value)))
@@ -107,9 +108,11 @@
   ;; TODO Replace strings with proper type links once we have them
   (define (try-eval thunk)
     (with-handlers
-      ([exn:break? (lambda (e) (exception "ThreadKilledFailure" "thread killed" ()))]
-       [exn:io? (lambda (e) (exception "IOFailure" (exn->string e) ()))]
-       [exn:arith? (lambda (e) (exception "ArithmeticFailure" (exn->string e) ()))]
-       [exn:fail? (lambda (e) (exception "RuntimeFailure" (exn->string e) ()))]
-       [(lambda (x) #t) (lambda (e) (exception "MiscFailure" "unknown exception" e))])
+      ([exn:break?
+        (lambda (e) (exception "ThreadKilledFailure" (string->chunked-string "thread killed") ()))]
+       [exn:io? (lambda (e) (exception "IOFailure" (exception->string e) ()))]
+       [exn:arith? (lambda (e) (exception "ArithmeticFailure" (exception->string e) ()))]
+       [exn:fail? (lambda (e) (exception "RuntimeFailure" (exception->string e) ()))]
+       [(lambda (x) #t)
+        (lambda (e) (exception "MiscFailure" (string->chunked-string "unknown exception") e))])
       (right (thunk)))))

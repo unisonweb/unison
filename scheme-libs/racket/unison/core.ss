@@ -126,7 +126,7 @@
   (define (chunked-string=? l r) (chunked-string=?/recur l r char=?))
 
   ;; TODO convert to text
-  (define exception->string exn->string)
+  (define (exception->string e) (string->chunked-string (exn->string e)))
 
   (define (syntax->list stx)
     (syntax-case stx ()
