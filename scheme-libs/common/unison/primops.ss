@@ -282,10 +282,9 @@
     (newline)
     (display (describe-value x))
     (newline))
-  (define (unison-POp-PRNT s x) ;; TODO currently arity mismatch error
+  (define (unison-POp-PRNT s)
     (display (chunked-string->string s))
-    (newline)
-    unit)
+    (newline))
   (define (unison-POp-TTON s)
     (let ([mn (string->number (chunked-string->string s))])
       (if (and (fixnum? mn) (>= mn 0)) (some mn) none)))
