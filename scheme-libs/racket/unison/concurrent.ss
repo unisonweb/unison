@@ -112,6 +112,7 @@
         (lambda (e) (exception "ThreadKilledFailure" (string->chunked-string "thread killed") ()))]
        [exn:io? (lambda (e) (exception "IOFailure" (exception->string e) ()))]
        [exn:arith? (lambda (e) (exception "ArithmeticFailure" (exception->string e) ()))]
+       [exn:bug? (lambda (e) (exn:bug->exception e))]
        [exn:fail? (lambda (e) (exception "RuntimeFailure" (exception->string e) ()))]
        [(lambda (x) #t)
         (lambda (e) (exception "MiscFailure" (string->chunked-string "unknown exception") e))])

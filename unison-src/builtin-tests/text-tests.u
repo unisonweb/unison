@@ -138,14 +138,13 @@ text.debug.tests = do
   checkEqual "Debug.toText (2)" (Debug.toText "hello") "hello"
 
   catchMsg p = match catchAll p with
-    Left (Failure _ msg v) -> msg
+    Left (Failure tl msg v) -> msg
     _ -> "Success!"
 
-  -- TODO currently wrong exception raised in the primitives
-  --  checkEqual "bug (1)" (catchMsg do bug 3) "builtin.bug"
-  --  checkEqual "bug (2)" (catchMsg do bug "hello") "builtin.bug"
-  --  checkEqual "todo (1)" (catchMsg do todo 3) "builtin.todo"
-  --  checkEqual "todo (2)" (catchMsg do todo "hello") "builtin.todo"
+  checkEqual "bug (1)" (catchMsg do bug 3) "builtin.bug"
+  checkEqual "bug (2)" (catchMsg do bug "hello") "builtin.bug"
+  checkEqual "todo (1)" (catchMsg do todo 3) "builtin.todo"
+  checkEqual "todo (2)" (catchMsg do todo "hello") "builtin.todo"
 
   check "Debug.trace" do
     Debug.trace "First message " 3

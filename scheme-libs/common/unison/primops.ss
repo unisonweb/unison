@@ -245,7 +245,7 @@
       (put-string p (chunked-string->string fnm))
       (put-string p ": ")
       (display (describe-value x) p)
-      (raise (g))))
+      (raise (make-exn:bug fnm x))))
   (define (unison-POp-FTOT f) (string->chunked-string (number->string f)))
   (define (unison-POp-IDXB n bs) (bytevector-u8-ref bs n))
   (define (unison-POp-IDXS n l)
