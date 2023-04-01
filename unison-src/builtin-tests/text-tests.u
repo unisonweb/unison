@@ -133,9 +133,8 @@ text.conversion.tests = do
   ()
 
 text.debug.tests = do
-  -- TODO currently wrong type in the primitives
-  --  checkEqual "Debug.toText (1)" (Debug.toText 3) "3"
-  --  checkEqual "Debug.toText (2)" (Debug.toText "hello") "hello"
+  checkEqual "Debug.toText (1)" (Debug.toText 3) "3"
+  checkEqual "Debug.toText (2)" (Debug.toText "hello") "hello"
 
   catchMsg p = match catchAll p with
     Left (Failure _ msg v) -> msg

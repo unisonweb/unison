@@ -273,8 +273,11 @@
   (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
   (define (unison-POp-SUBN m n) (fx- m n))
   (define (unison-POp-TAKS n s) (chunked-list-take s n))
+
+  ;; TODO currently only runs in low-level tracing support
   (define (unison-POp-DBTX x)
-    (string->chunked-string (describe-value x))) ;; TODO currently broken type
+    (sum 1 (string->chunked-string (describe-value x))))
+
   (define (unison-POp-TAKT n t) (chunked-string-take t n))
   (define (unison-POp-TRCE s x)
     (display "trace: ")
