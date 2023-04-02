@@ -42,11 +42,14 @@
     unison-FOp-Pattern.run
     unison-FOp-Pattern.many
     unison-FOp-Pattern.capture
+    unison-FOp-Pattern.join
     unison-FOp-Text.patterns.digit
     unison-FOp-Text.patterns.letter
     unison-FOp-Text.patterns.punctuation
     unison-FOp-Text.patterns.charIn
     unison-FOp-Text.patterns.notCharIn
+    unison-FOp-Text.patterns.anyChar
+    unison-FOp-Text.patterns.space
 
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
@@ -199,7 +202,8 @@
 
   (import (rnrs)
           (only (srfi :13) string-reverse)
-          (rename (only (racket base) car cdr foldl) (car icar) (cdr icdr))
+          (rename (only (racket base) car cdr foldl vector->list)
+                  (car icar) (cdr icdr) (vector->list vector->ilist))
           (unison core)
           (unison data)
           (unison data chunked-seq)
@@ -402,6 +406,8 @@
 
   (define (unison-FOp-Pattern.many p) (many p))
   (define (unison-FOp-Pattern.capture p) (capture p))
+  (define (unison-FOp-Pattern.join ps)
+   (join* (vector->ilist (chunked-list->vector ps))))
 
   (define (unison-FOp-Text.patterns.digit) digit)
   (define (unison-FOp-Text.patterns.letter) letter)
@@ -410,6 +416,8 @@
     (chars (unison-POp-PAKT cs)))
   (define (unison-FOp-Text.patterns.notCharIn cs)
     (not-chars (unison-POp-PAKT cs)))
+  (define (unison-FOp-Text.patterns.anyChar) any-char)
+  (define (unison-FOp-Text.patterns.space) space)
 
   (define (catch-array thunk)
     (reify-exn thunk))
