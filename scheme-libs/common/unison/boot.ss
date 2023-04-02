@@ -27,7 +27,8 @@
     sum
     sum-case
     unison-force
-    string->chunked-string)
+    string->chunked-string
+    chunked-string=?)
 
   (import (rnrs)
           (for

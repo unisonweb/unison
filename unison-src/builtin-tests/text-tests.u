@@ -155,25 +155,25 @@ text.debug.tests = do
 
   ()
 
- -- TODO pattern matching tests (with Pattern api)
-
 text.matching.tests = do
-  -- TODO currently fails:
-  -- The Unison compiler lib translates matching on test to a scheme `case`
-  -- construct, which uses `equal?` for checking equality.
-  -- I would either have to change the compiler to emit a call to text equality
-  -- or change chunked-string to have a valid equal, which is a bit annoying due to
-  -- the generated api. However note that `case` is O(logN) in the number of clauses
+  -- TODO implemented in the Unison compiler with a `cond` which means
+  -- it not pretty printed (e.g. no indentation).
+  -- Could try to use Racket match instead, which should let me use a
+  -- `Cases`, and gain indentation back
+  check "String literal matching: empty" do
+    match "" with
+      "" -> true
+      _ -> false
 
-  --  check "String literal matching: empty" do
-  --    match "" with
-  --      "" -> true
-  --      _ -> false
+  check "String literal matching: non empty" do
+    match "example" with
+      "example" -> true
+      _ -> false
 
-  --  check "String literal matching: non empty" do
-  --    match "example" with
-  --      "example" -> true
-  --      _ -> false
+  check "String literal matching: default" do
+    match "example" with
+      "" -> false
+      _ -> true
 
   use Pattern many or run isMatch capture join replicate
   use Text.patterns literal digit letter anyChar space punctuation notCharIn charIn charRange notCharRange eof
