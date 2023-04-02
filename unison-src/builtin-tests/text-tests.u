@@ -185,8 +185,8 @@ text.matching.tests = do
   checkEqual "Pattern api ()"  (run (many letter) "abc11234abc") (Some ([], "11234abc"))
   checkEqual "Pattern api ()"  (run (many punctuation) "!!!!,,,...") (Some ([], ""))
   checkEqual "Pattern api ()"  (run (charIn [?0,?1]) "0") (Some ([], ""))
-  --  checkEqual "Pattern api ()"  (run (notCharIn [?0,?1]) "0") None
-  --  checkEqual "Pattern api ()"  (run (many (notCharIn [?0,?1])) "asjdfskdfjlskdjflskdjf011") (Some ([], "011"))
+  checkEqual "Pattern api ()"  (run (notCharIn [?0,?1]) "0") None
+  checkEqual "Pattern api ()"  (run (many (notCharIn [?0,?1])) "asjdfskdfjlskdjflskdjf011") (Some ([], "011"))
 
   --  checkEqual "Pattern api ()"  (run (capture (many digit)) "11234abc") (Some (["11234"], "abc"))
   --  checkEqual "Pattern api ()"  (run (join [many space, capture (many anyChar)]) "   abc123") (Some (["abc123"], ""))
