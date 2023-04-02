@@ -50,6 +50,8 @@
     unison-FOp-Text.patterns.notCharIn
     unison-FOp-Text.patterns.anyChar
     unison-FOp-Text.patterns.space
+    unison-FOp-Text.patterns.charRange
+    unison-FOp-Text.patterns.notCharRange
 
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
@@ -418,6 +420,8 @@
     (not-chars (unison-POp-PAKT cs)))
   (define (unison-FOp-Text.patterns.anyChar) any-char)
   (define (unison-FOp-Text.patterns.space) space)
+  (define (unison-FOp-Text.patterns.charRange a z) (char-range a z))
+  (define (unison-FOp-Text.patterns.notCharRange a z) (not-char-range a z))
 
   (define (catch-array thunk)
     (reify-exn thunk))
