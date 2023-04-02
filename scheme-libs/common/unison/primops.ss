@@ -44,6 +44,7 @@
     unison-FOp-Text.patterns.digit
     unison-FOp-Text.patterns.letter
     unison-FOp-Text.patterns.punctuation
+    unison-FOp-Text.patterns.charIn
 
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
@@ -401,6 +402,8 @@
   (define (unison-FOp-Text.patterns.digit) digit)
   (define (unison-FOp-Text.patterns.letter) letter)
   (define (unison-FOp-Text.patterns.punctuation) punctuation)
+  (define (unison-FOp-Text.patterns.charIn cs)
+    (chars (unison-POp-PAKT cs)))
 
   (define (catch-array thunk)
     (reify-exn thunk))
