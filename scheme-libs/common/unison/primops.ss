@@ -41,6 +41,7 @@
     unison-FOp-Text.toUppercase
     unison-FOp-Pattern.run
     unison-FOp-Pattern.many
+    unison-FOp-Pattern.capture
     unison-FOp-Text.patterns.digit
     unison-FOp-Text.patterns.letter
     unison-FOp-Text.patterns.punctuation
@@ -400,6 +401,8 @@
           (sum 0))))
 
   (define (unison-FOp-Pattern.many p) (many p))
+  (define (unison-FOp-Pattern.capture p) (capture p))
+
   (define (unison-FOp-Text.patterns.digit) digit)
   (define (unison-FOp-Text.patterns.letter) letter)
   (define (unison-FOp-Text.patterns.punctuation) punctuation)
