@@ -40,6 +40,7 @@
     unison-FOp-Text.toLowercase
     unison-FOp-Text.toUppercase
     unison-FOp-Pattern.run
+    unison-FOp-Text.patterns.digit
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
     unison-FOp-IO.getArgs.impl.v1
@@ -191,6 +192,7 @@
 
   (import (rnrs)
           (only (srfi :13) string-reverse)
+          (rename (only (racket base) car cdr foldl) (car icar) (cdr icdr))
           (unison core)
           (unison data)
           (unison data chunked-seq)
@@ -383,10 +385,15 @@
     (chunked-string-foldMap-chunks s string-upcase chunked-string-append))
 
   (define (unison-FOp-Pattern.run p s)
-    (let ([r (pattern-match p s)])
-      (if (r)
-          (sum 1 (car r) (cdr r))
+    (let* ([r (pattern-match p s)])
+      (if r
+          (let* ([build (lambda (e acc) (chunked-list-add-last acc e))]
+                 [rem (icar r)]
+                 [captures (foldl build empty-chunked-list (icdr r))])
+            (sum 1 captures rem))
           (sum 0))))
+
+  (define (unison-FOp-Text.patterns.digit) digit)
 
   (define (catch-array thunk)
     (reify-exn thunk))
