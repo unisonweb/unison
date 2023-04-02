@@ -139,7 +139,7 @@ list.matching.tests = do
     [a] ++ x@(b +: (c +: y@([] :+ d))) ++ tail -> ([a, b, c, d], tail)
     _ -> (l, [])
 
-  -- TODO implement SPLL
+  -- TODO implement SPLL gets passed an int from the matcher, to know where to split
   -- checkEqual "Complex matching" (splitAtFour [1, 2, 3, 4, 5, 6, 7])  ([1, 2, 3, 4], [5, 6, 7])
-  -- TODO find test that stresses SPLR
+  -- TODO find test that stresses SPLR, you have to have a ++ fixedLength @ to trigger it
   ()
