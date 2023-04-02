@@ -139,6 +139,7 @@
   (define (exception typeLink msg a)
     (failure typeLink msg (any a)))
 
+  ; TODO needs better pretty printing for when it isn't caught
   (define-record-type exn:bug (fields msg a))
   (define (exn:bug->exception b) (exception "RuntimeFailure" (exn:bug-msg b) (exn:bug-a b))))
 

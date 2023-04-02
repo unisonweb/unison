@@ -180,6 +180,7 @@ text.matching.tests = do
 
   -- TODO need bindings
   --  checkEqual "Pattern api ()"  (run digit "1abc") (Some ([], "abc"))
+  -- TODO need example with more than one capture
   --  checkEqual "Pattern api ()"  (run (capture (many digit)) "11234abc") (Some (["11234"], "abc"))
   --  checkEqual "Pattern api ()"  (run (many letter) "abc11234abc") (Some ([], "11234abc"))
   --  checkEqual "Pattern api ()"  (run (join [many space, capture (many anyChar)]) "   abc123") (Some (["abc123"], ""))
