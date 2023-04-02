@@ -180,14 +180,16 @@ text.matching.tests = do
 
   -- TODO need bindings
   -- TODO need example with more than one capture
+  -- TODO numbering
   checkEqual "Pattern api ()"  (run digit "1abc") (Some ([], "abc"))
-  --  checkEqual "Pattern api ()"  (run (capture (many digit)) "11234abc") (Some (["11234"], "abc"))
-  --  checkEqual "Pattern api ()"  (run (many letter) "abc11234abc") (Some ([], "11234abc"))
-  --  checkEqual "Pattern api ()"  (run (join [many space, capture (many anyChar)]) "   abc123") (Some (["abc123"], ""))
-  --  checkEqual "Pattern api ()"  (run (many punctuation) "!!!!,,,...") (Some ([], ""))
+  checkEqual "Pattern api ()"  (run (many letter) "abc11234abc") (Some ([], "11234abc"))
+  checkEqual "Pattern api ()"  (run (many punctuation) "!!!!,,,...") (Some ([], ""))
   --  checkEqual "Pattern api ()"  (run (charIn [?0,?1]) "0") (Some ([], ""))
   --  checkEqual "Pattern api ()"  (run (notCharIn [?0,?1]) "0") None
   --  checkEqual "Pattern api ()"  (run (many (notCharIn [?0,?1])) "asjdfskdfjlskdjflskdjf011") (Some ([], "011"))
+
+  --  checkEqual "Pattern api ()"  (run (capture (many digit)) "11234abc") (Some (["11234"], "abc"))
+  --  checkEqual "Pattern api ()"  (run (join [many space, capture (many anyChar)]) "   abc123") (Some (["abc123"], ""))
   --  checkEqual "Pattern api ()"  (run (capture (many (charRange ?a ?z))) "hi123") (Some (["hi"], "123"))
   --  checkEqual "Pattern api ()"  (run (capture (many (notCharRange ?, ?,))) "abc123,") (Some (["abc123"], ","))
   --  checkEqual "Pattern api ()"  (run (capture (many (notCharIn [?,,]))) "abracadabra,123") (Some (["abracadabra"], ",123"))

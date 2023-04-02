@@ -40,7 +40,11 @@
     unison-FOp-Text.toLowercase
     unison-FOp-Text.toUppercase
     unison-FOp-Pattern.run
+    unison-FOp-Pattern.many
     unison-FOp-Text.patterns.digit
+    unison-FOp-Text.patterns.letter
+    unison-FOp-Text.patterns.punctuation
+
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
     unison-FOp-IO.getArgs.impl.v1
@@ -393,7 +397,10 @@
             (sum 1 captures rem))
           (sum 0))))
 
+  (define (unison-FOp-Pattern.many p) (many p))
   (define (unison-FOp-Text.patterns.digit) digit)
+  (define (unison-FOp-Text.patterns.letter) letter)
+  (define (unison-FOp-Text.patterns.punctuation) punctuation)
 
   (define (catch-array thunk)
     (reify-exn thunk))
