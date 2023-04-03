@@ -73,6 +73,7 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
+import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.CreatePullRequest (handleCreatePullRequest)
 import Unison.Codebase.Editor.HandleInput.LoadPullRequest (handleLoadPullRequest)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
@@ -1356,6 +1357,7 @@ loop e = do
             ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
+            BranchesI -> handleBranches
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1568,6 +1570,7 @@ inputDescription input =
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
     ProjectsI -> wat
+    BranchesI -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ShowDefinitionByPrefixI {} -> wat

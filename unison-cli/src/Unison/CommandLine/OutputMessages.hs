@@ -454,6 +454,26 @@ notifyNumbered = \case
     ( P.numberedList (map (prettyProjectName . view #name) projects),
       map (Text.unpack . into @Text . view #name) projects
     )
+  ListBranches projectName branches ->
+    ( P.columnNHeader
+        ["", "Branch", "Remote branch"]
+        ( do
+            (i, (branchName, remoteBranches0)) <- zip [(1 :: Int) ..] branches
+            case uncons remoteBranches0 of
+              Nothing -> pure [P.hiBlack (P.shown i <> "."), prettyProjectBranchName branchName, ""]
+              Just (firstRemoteBranch, remoteBranches) ->
+                [ P.hiBlack (P.shown i <> "."),
+                  prettyProjectBranchName branchName,
+                  prettyRemoteBranchInfo firstRemoteBranch
+                ]
+                  : map (\branch -> ["", "", prettyRemoteBranchInfo branch]) remoteBranches
+        ),
+      map (\(branchName, _) -> Text.unpack (into @Text (These projectName branchName))) branches
+    )
+    where
+      prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
+      prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
+        prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch) <> " on " <> prettyURI host
   where
     absPathToBranchId = Right
 

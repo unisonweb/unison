@@ -224,6 +224,7 @@ data Input
   | ProjectCreateI ProjectName
   | ProjectSwitchI (These ProjectName ProjectBranchName)
   | ProjectsI
+  | BranchesI
   deriving (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
