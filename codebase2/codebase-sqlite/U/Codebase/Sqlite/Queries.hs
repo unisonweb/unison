@@ -105,6 +105,7 @@ module U.Codebase.Sqlite.Queries
     loadProject,
     loadProjectByName,
     expectProject,
+    loadAllProjects,
     insertProject,
 
     -- ** project branches
@@ -2812,6 +2813,16 @@ loadProjectByName name =
         name = ?
     |]
     (Only name)
+
+-- | Load all projects.
+loadAllProjects :: Transaction [Project]
+loadAllProjects =
+  queryListRow_
+    [sql|
+      SELECT id, name
+      FROM project
+    |]
+
 
 -- | Insert a `project` row.
 insertProject :: ProjectId -> ProjectName -> Transaction ()

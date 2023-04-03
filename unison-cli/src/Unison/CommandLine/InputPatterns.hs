@@ -2511,7 +2511,8 @@ validInputs =
       diffNamespaceToPatch,
       projectClone,
       projectCreate,
-      projectSwitch
+      projectSwitch,
+      projects
     ]
 
 -- | A map of all command patterns by pattern name or alias.

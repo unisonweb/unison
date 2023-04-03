@@ -191,7 +191,7 @@ renderFileName :: FilePath -> IO Pretty
 renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 
 notifyNumbered :: NumberedOutput -> (Pretty, NumberedArgs)
-notifyNumbered o = case o of
+notifyNumbered = \case
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
     showDiffNamespace ShowNumbers ppe oldPrefix newPrefix diffOutput
   ShowDiffAfterDeleteDefinitions ppe diff ->
@@ -450,6 +450,10 @@ notifyNumbered o = case o of
       numberedArgsForEndangerments ppeDecl endangerments
     )
   ListEdits patch ppe -> showListEdits patch ppe
+  ListProjects projects ->
+    ( P.numberedList (map (prettyProjectName . view #name) projects),
+      map (Text.unpack . into @Text . view #name) projects
+    )
   where
     absPathToBranchId = Right
 
