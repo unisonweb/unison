@@ -12,10 +12,9 @@ import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli (getBranch0At, stepAt)
+import qualified Unison.Cli.MonadUtils as Cli (getBranchAt, updateAt)
 import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Codebase.Editor.Output as Output
-import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Sqlite as Sqlite
@@ -51,8 +50,8 @@ projectSwitch projectAndBranchNames0 = do
   case outcome of
     SwitchedToExistingBranch -> pure ()
     SwitchedToNewBranchFrom fromBranch -> do
-      fromBranch0 <-
-        Cli.getBranch0At (ProjectUtils.projectBranchPath (ProjectAndBranch projectId (fromBranch ^. #branchId)))
-      Cli.stepAt "project.switch" (Path.unabsolute path, const fromBranch0)
+      fromBranchObject <-
+        Cli.getBranchAt (ProjectUtils.projectBranchPath (ProjectAndBranch projectId (fromBranch ^. #branchId)))
+      _ <- Cli.updateAt "project.switch" path (const fromBranchObject)
       Cli.respond (Output.CreatedProjectBranch (fromBranch ^. #name) branchName)
   Cli.cd path
