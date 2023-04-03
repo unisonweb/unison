@@ -178,32 +178,29 @@ text.matching.tests = do
   use Pattern many or run isMatch capture join replicate
   use Text.patterns literal digit letter anyChar space punctuation notCharIn charIn charRange notCharRange eof
 
-  -- TODO need bindings
-  -- TODO need example with more than one capture
-  -- TODO numbering
-  checkEqual "Pattern api ()"  (run digit "1abc") (Some ([], "abc"))
-  checkEqual "Pattern api ()"  (run (many letter) "abc11234abc") (Some ([], "11234abc"))
-  checkEqual "Pattern api ()" (run (literal "abc") "abc") (Some ([], ""))
-  checkEqual "Pattern api ()"  (run (many punctuation) "!!!!,,,...") (Some ([], ""))
-  checkEqual "Pattern api ()"  (run (charIn [?0,?1]) "0") (Some ([], ""))
-  checkEqual "Pattern api ()"  (run (notCharIn [?0,?1]) "0") None
-  checkEqual "Pattern api ()"  (run (many (notCharIn [?0,?1])) "asjdfskdfjlskdjflskdjf011") (Some ([], "011"))
-  checkEqual "Pattern api ()"  (run (capture (many digit)) "11234abc") (Some (["11234"], "abc"))
-  checkEqual "Pattern api ()"  (run (join [many space, capture (many anyChar)]) "   abc123") (Some (["abc123"], ""))
-  checkEqual "Pattern api ()" (run (join [capture digit, capture digit]) "12abc") (Some (["1", "2"], "abc"))
-  checkEqual "Pattern api ()"  (run (capture (many (charRange ?a ?z))) "hi123") (Some (["hi"], "123"))
-  checkEqual "Pattern api ()"  (run (capture (many (notCharRange ?, ?,))) "abc123,") (Some (["abc123"], ","))
-  checkEqual "Pattern api ()"  (run (capture (many (notCharIn [?,,]))) "abracadabra,123") (Some (["abracadabra"], ",123"))
-  checkEqual "Pattern api ()"  (run (capture (many (or digit letter))) "11234abc,remainder") (Some (["11234abc"], ",remainder"))
-  checkEqual "Pattern api ()"  (run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa") (Some (["1a2ba"], " aaa"))
+  checkEqual "Pattern api (1)"  (run digit "1abc") (Some ([], "abc"))
+  checkEqual "Pattern api (2)"  (run (many letter) "abc11234abc") (Some ([], "11234abc"))
+  checkEqual "Pattern api (3)" (run (literal "abc") "abc") (Some ([], ""))
+  checkEqual "Pattern api (4)"  (run (many punctuation) "!!!!,,,...") (Some ([], ""))
+  checkEqual "Pattern api (5)"  (run (charIn [?0,?1]) "0") (Some ([], ""))
+  checkEqual "Pattern api (6)"  (run (notCharIn [?0,?1]) "0") None
+  checkEqual "Pattern api (7)"  (run (many (notCharIn [?0,?1])) "asjdfskdfjlskdjflskdjf011") (Some ([], "011"))
+  checkEqual "Pattern api (8)"  (run (capture (many digit)) "11234abc") (Some (["11234"], "abc"))
+  checkEqual "Pattern api (9)"  (run (join [many space, capture (many anyChar)]) "   abc123") (Some (["abc123"], ""))
+  checkEqual "Pattern api (10)" (run (join [capture digit, capture digit]) "12abc") (Some (["1", "2"], "abc"))
+  checkEqual "Pattern api (11)"  (run (capture (many (charRange ?a ?z))) "hi123") (Some (["hi"], "123"))
+  checkEqual "Pattern api (12)"  (run (capture (many (notCharRange ?, ?,))) "abc123,") (Some (["abc123"], ","))
+  checkEqual "Pattern api (13)"  (run (capture (many (notCharIn [?,,]))) "abracadabra,123") (Some (["abracadabra"], ",123"))
+  checkEqual "Pattern api (14)"  (run (capture (many (or digit letter))) "11234abc,remainder") (Some (["11234abc"], ",remainder"))
+  checkEqual "Pattern api (15)"  (run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa") (Some (["1a2ba"], " aaa"))
   -- Regression test for: https://github.com/unisonweb/unison/issues/353)
   -- TODO broken until replicate supports lower bound
-  --  checkEqual "Pattern api ()"  (run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac") (Some ([""], "ac"))
-  checkEqual "Pattern api ()"  (run (join [many letter, eof]) "aaaaabbbb") (Some ([], ""))
-  checkEqual "Pattern api ()"  (run (join [many letter, eof]) "aaaaabbbb1") None
+  --  checkEqual "Pattern api (16)"  (run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac") (Some ([""], "ac"))
+  checkEqual "Pattern api (17)"  (run (join [many letter, eof]) "aaaaabbbb") (Some ([], ""))
+  checkEqual "Pattern api (18)"  (run (join [many letter, eof]) "aaaaabbbb1") None
   -- TODO isMatch is missing type spec in the Unison compiler lib
-  -- checkEqual "Pattern api ()"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
-  -- checkEqual "Pattern api ()"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
-  -- checkEqual "Pattern api ()"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
+  -- checkEqual "Pattern api (19)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
+  -- checkEqual "Pattern api (20)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
+  -- checkEqual "Pattern api (21)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
 
   ()
