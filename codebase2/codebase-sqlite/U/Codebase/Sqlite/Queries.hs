@@ -2823,7 +2823,6 @@ loadAllProjects =
       FROM project
     |]
 
-
 -- | Insert a `project` row.
 insertProject :: ProjectId -> ProjectName -> Transaction ()
 insertProject uuid name = execute bonk (uuid, name)
