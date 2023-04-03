@@ -43,6 +43,7 @@
     unison-FOp-Pattern.many
     unison-FOp-Pattern.capture
     unison-FOp-Pattern.join
+    unison-FOp-Pattern.or
     unison-FOp-Text.patterns.digit
     unison-FOp-Text.patterns.letter
     unison-FOp-Text.patterns.punctuation
@@ -409,7 +410,8 @@
   (define (unison-FOp-Pattern.many p) (many p))
   (define (unison-FOp-Pattern.capture p) (capture p))
   (define (unison-FOp-Pattern.join ps)
-   (join* (vector->ilist (chunked-list->vector ps))))
+    (join* (vector->ilist (chunked-list->vector ps))))
+  (define (unison-FOp-Pattern.or p1 p2) (choice p1 p2))
 
   (define (unison-FOp-Text.patterns.digit) digit)
   (define (unison-FOp-Text.patterns.letter) letter)
