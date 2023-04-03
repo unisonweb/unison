@@ -80,7 +80,7 @@
 
   (define (universal-compare l r)
     (cond
-      [(equal? l r) '=] ;; TODO should this call universal=? instead
+      [(equal? l r) '=]
       [(and (number? l) (number? r)) (if (< l r) '< '>)]
       [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
       [(and (chunked-string? l) (chunked-string? r))
