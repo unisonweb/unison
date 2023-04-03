@@ -2821,6 +2821,7 @@ loadAllProjects =
     [sql|
       SELECT id, name
       FROM project
+      ORDER BY name ASC
     |]
 
 -- | Insert a `project` row.
