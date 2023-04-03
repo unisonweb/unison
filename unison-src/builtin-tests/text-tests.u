@@ -134,8 +134,7 @@ text.conversion.tests = do
 
 text.debug.tests = do
   checkEqual "Debug.toText (1)" (Debug.toText 3) "3"
-  -- TODO The JIT has to implement escaping for text
-  -- checkEqual "Debug.toText (2)" (Debug.toText "hello") "hello"
+  checkEqual "Debug.toText (2)" (Debug.toText "hello") "\"hello\""
 
   catchMsg p = match catchAll p with
     Left (Failure tl msg v) -> msg
