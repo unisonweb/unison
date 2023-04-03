@@ -156,10 +156,6 @@ text.debug.tests = do
   ()
 
 text.matching.tests = do
-  -- TODO implemented in the Unison compiler with a `cond` which means
-  -- it not pretty printed (e.g. no indentation).
-  -- Could try to use Racket match instead, which should let me use a
-  -- `Cases`, and gain indentation back
   check "String literal matching: empty" do
     match "" with
       "" -> true
