@@ -113,6 +113,10 @@
     unison-FOp-IO.kill.impl.v3
     unison-POp-TFRC
 
+    unison-FOp-Handle.toText
+    unison-FOp-Socket.toText
+    unison-FOp-ThreadId.toText
+
     unison-POp-ADDN
     unison-POp-ANDN
     unison-POp-BLDS
@@ -297,6 +301,13 @@
   ;; TODO currently only runs in low-level tracing support
   (define (unison-POp-DBTX x)
     (sum 1 (string->chunked-string (describe-value x))))
+
+  (define (unison-FOp-Handle.toText h)
+    (string->chunked-string (describe-value h)))
+  (define (unison-FOp-Socket.toText s)
+    (string->chunked-string (describe-value s)))
+  (define (unison-FOp-ThreadId.toText tid)
+    (string->chunked-string (describe-value tid)))
 
   (define (unison-POp-TAKT n t) (chunked-string-take t n))
   (define (unison-POp-TRCE s x)
