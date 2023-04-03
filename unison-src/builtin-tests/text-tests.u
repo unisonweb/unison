@@ -193,9 +193,8 @@ text.matching.tests = do
   --  checkEqual "Pattern api (16)"  (run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac") (Some ([""], "ac"))
   checkEqual "Pattern api (17)"  (run (join [many letter, eof]) "aaaaabbbb") (Some ([], ""))
   checkEqual "Pattern api (18)"  (run (join [many letter, eof]) "aaaaabbbb1") None
-  -- TODO isMatch is missing type spec in the Unison compiler lib
-  -- checkEqual "Pattern api (19)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
-  -- checkEqual "Pattern api (20)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
-  -- checkEqual "Pattern api (21)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
+  checkEqual "Pattern api (19)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
+  checkEqual "Pattern api (20)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
+  checkEqual "Pattern api (21)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
 
   ()

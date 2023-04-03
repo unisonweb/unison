@@ -2302,7 +2302,7 @@ doFetchCompiler username =
         { server = RemoteRepo.DefaultCodeserver,
           repo = ShareUserHandle (Text.pack username),
           path =
-            Path.fromList $ NameSegment <$> ["public", "internal", "text"]
+            Path.fromList $ NameSegment <$> ["public", "internal", "text"] -- TODO restore
         }
     sourceTarget = PullSourceTarget2 (ReadShare'LooseCode ns) (PullTargetLooseCode compilerPath)
 
