@@ -190,6 +190,7 @@ text.matching.tests = do
   checkEqual "Pattern api ()"  (run (many (notCharIn [?0,?1])) "asjdfskdfjlskdjflskdjf011") (Some ([], "011"))
   checkEqual "Pattern api ()"  (run (capture (many digit)) "11234abc") (Some (["11234"], "abc"))
   checkEqual "Pattern api ()"  (run (join [many space, capture (many anyChar)]) "   abc123") (Some (["abc123"], ""))
+  checkEqual "Pattern api ()" (run (join [capture digit, capture digit]) "12abc") (Some (["1", "2"], "abc"))
   checkEqual "Pattern api ()"  (run (capture (many (charRange ?a ?z))) "hi123") (Some (["hi"], "123"))
   checkEqual "Pattern api ()"  (run (capture (many (notCharRange ?, ?,))) "abc123,") (Some (["abc123"], ","))
   checkEqual "Pattern api ()"  (run (capture (many (notCharIn [?,,]))) "abracadabra,123") (Some (["abracadabra"], ",123"))
