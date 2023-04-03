@@ -378,8 +378,8 @@
   (define (unison-FOp-IO.getArgs.impl.v1)
     (sum 1 (cdr (command-line))))
 
-  (define (unison-FOp-Text.fromUtf8.impl.v3 s)
-    (right (bytevector->string s utf-8-transcoder)))
+  (define (unison-FOp-Text.fromUtf8.impl.v3 s) ; TODO convert directly without going through String?
+    (right (string->chunked-string (bytevector->string s utf-8-transcoder))))
 
   (define (unison-FOp-Text.toUtf8 s) ; TODO convert directly without going through String?
     (string->bytevector (chunked-string->string s) utf-8-transcoder))
