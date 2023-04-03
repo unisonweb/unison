@@ -2388,6 +2388,17 @@ projectSwitch =
         _ -> Left (showPatternHelp projectSwitch)
     }
 
+projects :: InputPattern
+projects =
+  InputPattern
+    { patternName = "projects",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [],
+      help = P.wrap "List projects.",
+      parse = \_ -> Right Input.ProjectsI
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
