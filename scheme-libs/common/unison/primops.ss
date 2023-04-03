@@ -44,6 +44,7 @@
     unison-FOp-Pattern.capture
     unison-FOp-Pattern.join
     unison-FOp-Pattern.or
+    unison-FOp-Pattern.replicate
     unison-FOp-Text.patterns.digit
     unison-FOp-Text.patterns.letter
     unison-FOp-Text.patterns.punctuation
@@ -53,6 +54,7 @@
     unison-FOp-Text.patterns.space
     unison-FOp-Text.patterns.charRange
     unison-FOp-Text.patterns.notCharRange
+    unison-FOp-Text.patterns.literal
 
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
@@ -412,6 +414,8 @@
   (define (unison-FOp-Pattern.join ps)
     (join* (vector->ilist (chunked-list->vector ps))))
   (define (unison-FOp-Pattern.or p1 p2) (choice p1 p2))
+  ;; TODO discrepancy between Unison and Scheme pattern lib
+  (define (unison-FOp-Pattern.replicate n m p) (replicate p m))
 
   (define (unison-FOp-Text.patterns.digit) digit)
   (define (unison-FOp-Text.patterns.letter) letter)
@@ -424,6 +428,7 @@
   (define (unison-FOp-Text.patterns.space) space)
   (define (unison-FOp-Text.patterns.charRange a z) (char-range a z))
   (define (unison-FOp-Text.patterns.notCharRange a z) (not-char-range a z))
+  (define (unison-FOp-Text.patterns.literal s) (literal s))
 
   (define (catch-array thunk)
     (reify-exn thunk))
