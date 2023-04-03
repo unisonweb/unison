@@ -202,5 +202,7 @@ text.matching.tests = do
   --  checkEqual "Pattern api ()"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
   --  checkEqual "Pattern api ()"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
   --  checkEqual "Pattern api ()"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
+  checkEqual "Pattern api ()"  (run (join [many letter, eof]) "aaaaabbbb") (Some ([], ""))
+  checkEqual "Pattern api ()"  (run (join [many letter, eof]) "aaaaabbbb1") None
 
   ()

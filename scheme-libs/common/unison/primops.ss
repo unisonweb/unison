@@ -55,6 +55,7 @@
     unison-FOp-Text.patterns.charRange
     unison-FOp-Text.patterns.notCharRange
     unison-FOp-Text.patterns.literal
+    unison-FOp-Text.patterns.eof
 
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
@@ -429,6 +430,7 @@
   (define (unison-FOp-Text.patterns.charRange a z) (char-range a z))
   (define (unison-FOp-Text.patterns.notCharRange a z) (not-char-range a z))
   (define (unison-FOp-Text.patterns.literal s) (literal s))
+  (define (unison-FOp-Text.patterns.eof) eof)
 
   (define (catch-array thunk)
     (reify-exn thunk))
