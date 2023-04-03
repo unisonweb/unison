@@ -195,14 +195,14 @@ text.matching.tests = do
   checkEqual "Pattern api ()"  (run (capture (many (notCharIn [?,,]))) "abracadabra,123") (Some (["abracadabra"], ",123"))
   checkEqual "Pattern api ()"  (run (capture (many (or digit letter))) "11234abc,remainder") (Some (["11234abc"], ",remainder"))
   checkEqual "Pattern api ()"  (run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa") (Some (["1a2ba"], " aaa"))
-
   -- Regression test for: https://github.com/unisonweb/unison/issues/353)
   -- TODO broken until replicate supports lower bound
   --  checkEqual "Pattern api ()"  (run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac") (Some ([""], "ac"))
-  --  checkEqual "Pattern api ()"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
-  --  checkEqual "Pattern api ()"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
-  --  checkEqual "Pattern api ()"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
   checkEqual "Pattern api ()"  (run (join [many letter, eof]) "aaaaabbbb") (Some ([], ""))
   checkEqual "Pattern api ()"  (run (join [many letter, eof]) "aaaaabbbb1") None
+  -- TODO isMatch is missing type spec in the Unison compiler lib
+  -- checkEqual "Pattern api ()"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
+  -- checkEqual "Pattern api ()"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
+  -- checkEqual "Pattern api ()"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
 
   ()

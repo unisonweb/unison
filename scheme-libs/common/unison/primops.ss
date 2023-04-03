@@ -40,6 +40,7 @@
     unison-FOp-Text.toLowercase
     unison-FOp-Text.toUppercase
     unison-FOp-Pattern.run
+    unison-FOp-Pattern.isMatch
     unison-FOp-Pattern.many
     unison-FOp-Pattern.capture
     unison-FOp-Pattern.join
@@ -410,6 +411,7 @@
             (sum 1 captures rem))
           (sum 0))))
 
+  (define (unison-FOp-Pattern.isMatch p s) (bool (pattern-match? p s)))
   (define (unison-FOp-Pattern.many p) (many p))
   (define (unison-FOp-Pattern.capture p) (capture p))
   (define (unison-FOp-Pattern.join ps)
