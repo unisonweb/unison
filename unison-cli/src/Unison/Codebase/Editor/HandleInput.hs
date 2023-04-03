@@ -82,6 +82,7 @@ import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (projectClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
+import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.TermResolution
@@ -1354,6 +1355,7 @@ loop e = do
             ProjectSwitchI name -> projectSwitch name
             ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
+            ProjectsI -> handleProjects
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1565,6 +1567,7 @@ inputDescription input =
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
+    ProjectsI -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ShowDefinitionByPrefixI {} -> wat

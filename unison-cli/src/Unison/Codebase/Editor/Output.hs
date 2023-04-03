@@ -113,6 +113,7 @@ data NumberedOutput
       [(CausalHash, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
   | ListEdits Patch PPE.PrettyPrintEnv
+  | ListProjects [Sqlite.Project]
 
 --  | ShowDiff
 
@@ -537,3 +538,4 @@ isNumberedFailure = \case
   History {} -> False
   DeletedDespiteDependents {} -> False
   ListEdits {} -> False
+  ListProjects {} -> False
