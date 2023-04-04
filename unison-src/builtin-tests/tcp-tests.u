@@ -6,7 +6,7 @@ shouldFail fn =
 tcp.tests = do
   check "connects to example.com" do
     socket = Socket.client (HostName "example.com") (Port "80")
-    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
+    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n")
     response = Socket.receive socket
     Socket.close socket
     contains "HTTP/1.0 200 OK" (base.Text.fromUtf8 response)

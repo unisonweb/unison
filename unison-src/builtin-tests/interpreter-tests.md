@@ -18,6 +18,8 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm:hide
 .> load unison-src/builtin-tests/tcp-tests.u
 .> add
+.> load unison-src/builtin-tests/tls-chain-tests.u
+.> add
 .> load unison-src/builtin-tests/tls-tests.u
 .> add
 ```

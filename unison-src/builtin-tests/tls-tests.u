@@ -5,39 +5,39 @@ selfSignedKey  = "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCB
 selfSignedCert = "-----BEGIN CERTIFICATE-----\nMIIDVTCCAj2gAwIBAgIUdMNT5sYMfDJYH48Rh8LrlN+5wwgwDQYJKoZIhvcNAQEL\nBQAwOjEaMBgGA1UEAwwRdGVzdC51bmlzb24uY2xvdWQxDzANBgNVBAoMBlVuaXNv\nbjELMAkGA1UEBhMCVVMwHhcNMjIwMTI0MjAxNzQ2WhcNMzIwMTIyMjAxNzQ2WjA6\nMRowGAYDVQQDDBF0ZXN0LnVuaXNvbi5jbG91ZDEPMA0GA1UECgwGVW5pc29uMQsw\nCQYDVQQGEwJVUzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAO1XQuqT\n2LkMokZ7nPAMW7EfFLGE7KAK6romXjGieyOXiF29fFRSK6rEYZu/jH0dK9q+kfDK\nuIaIhFCgiNqdaI0r0mnpUNhY68SudMb/5F+bW8KhQpC+fyUOsP2SdI9ShPPcLPsl\nLwUT+usVHchHJdrSClea8jBfXpJ4JL8tv8t72jUcmH0OuTFXKgWrfOVfU4TQBVXR\nrTXggME2muoshPCJXPIM9CQ/ytskX1Y8jlp/Nbz7f6/lRqcgWSc449omXyl/eCao\njmDx/GT9JIyU+Cct3UWLuH3SAHKB2knDd2jf9kDUg6+YVD4tcTXG2pTUDLd/cC3c\nOImBPE/ybAFh210CAwEAAaNTMFEwHQYDVR0OBBYEFIfwxpuqtqxfCpaJGW32jH2J\nNbnYMB8GA1UdIwQYMBaAFIfwxpuqtqxfCpaJGW32jH2JNbnYMA8GA1UdEwEB/wQF\nMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAKh7EDo5XjSd6J190WGH3V8v49J0Sh8M\nP7APe1eL8eTkW1Vh7/QCOhRpkSnyCz2OxJjjeFVAsCO3aLxlRM6wQZQKXu45iM2U\niPmv7ECS5xUn7LqRZd/JG1P6jvRPtBC1+oqA+NNDe27wzQp3rWyDG3pWZga8jJfW\nq+2xQ+s6GfzszxYZ/8MLn4zaUSymnOA+70yQ8czXkSO7MT2jJ7QDX8jxuJPZZARW\nuXeAYPRqD+b4MjdBATEtxgPTDWEi8gtfHFGUgInFhD4hOu+D3NLiE6lfR5brUqpQ\nZ4v8prCI8OjGSUx1dIJhqQHB5O0vdaxO0hkVdfqDVE93UrGBPwBRDlo=\n-----END CERTIFICATE-----"
 
 tls.tests = do
---   check "decoding a cert should work" do isRight (decodeCert (toUtf8 selfSignedCert))
---   check "decoding a private key should work" do 1 == List.size (decodePrivateKey (toUtf8 selfSignedKey))
---   check "decoding an invalid private key should ignore" do 0 == List.size (decodePrivateKey (toUtf8 "not a private key"))
---   check "decoding an invalid cert should fail" do isLeft (decodeCert (toUtf8 "not a cert"))
---   !testConnectSelfSigned
+  check "decoding a cert should work" do isRight (decodeCert (toUtf8 selfSignedCert))
+  check "decoding a private key should work" do 1 == List.size (decodePrivateKey (toUtf8 selfSignedKey))
+  check "decoding an invalid private key should ignore" do 0 == List.size (decodePrivateKey (toUtf8 "not a private key"))
+  check "decoding an invalid cert should fail" do isLeft (decodeCert (toUtf8 "not a cert"))
+  !testConnectSelfSigned
   !tlsChainTest
---   expectError "self signed with the wrong hostname should fail" "NameMismatch" testConnectSelfSignedWrongHost
---   expectError "self signed with an unknown CA should fail" "certificate has unknown CA" do
---     portPromise = Promise.new ()
---     toSend = "12345"
---     -- Server
---     serverResult = defer do serverThread portPromise toSend
---     -- Client
---     Either.toException !(testClient None "test.unison.cloud" portPromise)
---   check "connects to example.com over tls" do
---     socket = Socket.client (HostName "example.com") (Port "443")
---     config = ClientConfig.default (HostName "example.com") ""
---     tls = base.IO.net.Tls.newClient config socket
---     conn = base.IO.net.Tls.handshake tls
---     TlsSocket.send conn (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
---     response = TlsSocket.receive conn
---     TlsSocket.close conn
---     contains "HTTP/1.0 200 OK" (fromUtf8 response)
---   expectError "wrong host example.com fails" "NameMismatch" do
---     socket = Socket.client (HostName "example.com") (Port "443")
---     config = ClientConfig.default (HostName "examplez.com") ""
---     tls = base.IO.net.Tls.newClient config socket
---     _ = base.IO.net.Tls.handshake tls
---     ()
---   expectError "trying to connect to example.com:443 without tls fails" "Connection reset" do
---     socket = Socket.client (HostName "example.com") (Port "443")
---     Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
---     Socket.receive socket
+  expectError "self signed with the wrong hostname should fail" "NameMismatch" testConnectSelfSignedWrongHost
+  expectError "self signed with an unknown CA should fail" "certificate has unknown CA" do
+    portPromise = Promise.new ()
+    toSend = "12345"
+    -- Server
+    serverResult = defer do serverThread portPromise toSend
+    -- Client
+    Either.toException !(testClient None "test.unison.cloud" portPromise)
+  check "connects to example.com over tls" do
+    socket = Socket.client (HostName "example.com") (Port "443")
+    config = ClientConfig.default (HostName "example.com") ""
+    tls = base.IO.net.Tls.newClient config socket
+    conn = base.IO.net.Tls.handshake tls
+    TlsSocket.send conn (toUtf8 "GET /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n")
+    response = TlsSocket.receive conn
+    TlsSocket.close conn
+    contains "HTTP/1.0 200 OK" (fromUtf8 response)
+  expectError "wrong host example.com fails" "NameMismatch" do
+    socket = Socket.client (HostName "example.com") (Port "443")
+    config = ClientConfig.default (HostName "examplez.com") ""
+    tls = base.IO.net.Tls.newClient config socket
+    _ = base.IO.net.Tls.handshake tls
+    ()
+  expectError "trying to connect to example.com:443 without tls fails" "Connection reset" do
+    socket = Socket.client (HostName "example.com") (Port "443")
+    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
+    Socket.receive socket
 
 testConnectSelfSigned = do
   portPromise = Promise.new ()
@@ -73,15 +73,6 @@ clientThread host portPromise =
   cert = Either.toException (decodeCert (toUtf8 selfSignedCert))
   Either.toException !(testClient (Some cert) host portPromise)
 
-defer comp =
-  result = Promise.new ()
-  _ = fork do Promise.write result (catchAll comp)
-  result
-
-Optional.toException message = cases
-  Some x -> x
-  None -> raise (failure message 0)
-
 serverThread portPromise toSend =
   cert = Either.toException (decodeCert (toUtf8 selfSignedCert))
   key = Optional.toException "No private key decoded" <| List.head (decodePrivateKey (toUtf8 selfSignedKey))
@@ -116,87 +107,3 @@ testClient cert hostname portVar _ = catch do
   tlsock = Tls.handshake tls
   --   -- receive a message from the server
   fromUtf8 (TlsSocket.receive tlsock)
-
--- more complex certificate scenario, with a root CA,
--- an intermediate CA, and a website (registered as "example.com")
-
-siteKey = "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC/gjZrabSInd+J\n+lZmWW/qdDGRrMFyzE2n2rTfZ0ueszZb9lTZIHl4xPsN1hvP/wd48Dy+t9Dmp3LH\npxPVT7LXPGiTgkmQzaRwPa1cos6FYwbRb2lC7GnT9BueXNUvl5DhyHsl+E4DDRwL\nb51GYRiCouSqDuuMLSAA2nVD/8AHwYRAQciaShji6EShJPpFaipq5A20Vp8tW509\nlaRqSYbRbLUsiiboisrOV1600vyxCQUT9MyRwqEm25mrNeuf7fKSdhRmhjSBGBZ7\nHT12OxuPqpl5b0TroTZRBQfFUnM1kCvZS/uK+SvWm8C9/nUzS0z0xum2XS08c1VG\nbTxZMF6zAgMBAAECggEAWDm0uGdKNGYGxZn+k8hANtKww1vDAw/79ohbK1B7FfGZ\n6WPiUuUTEQAuaIFq7reeyahjU7l7E8ewqSnfiTXePiomQ06SdZNHXi4L39FhMzIb\nwgCBjcM8PdkHoD1EOVip9lpV4Xgy+FThxqL04ad5kzVYAsA846cmRz5dJ6Z64RcJ\npGdxENMGqfOKPf4ZJMaU3J7zqlyWaixWG1p0mU079LjMsumCHhE9QJ6XIStgf+RE\nhe+U6UVPE0v+zxrSCrfLpFzuEeNONsl91umxcabV9C0sohd0o7LsEZgj1u62HWSx\nXUnuCE/zbWvkPF8jAUebYfOE9bxW86O0PLCffawCAQKBgQDlJ0CDEaOfb9j+okkq\n5AfDzV7Ci3yR9CVktWeH1vLHhaui507wTL1vs5pyhjZ+bs63zt58uLHMKJtKmX37\nA0UnpCVHg+BYV/UzLhFZGtXxzbABPosdfJ/+M+cYXDyQ68dleAU6DB+2b1FCbzwq\nDu8Wmnn5E0g8P3HROPEgIIPZ4wKBgQDV8eyaqU+V1D64e98BapyntRgUrc0oKdu6\n10Sh5wdWrnpguKEw2K/0zBZlVUEtK812BL9CNNMIm8zXDBMY24ZHo8NH8Y8z/G/o\nC7pJVNAjbHu9rglE6f0mtdcSa4F9yx37rfeRLgKZ628+nFSucgGdyL3BNiG40rlG\ndRd6qKLA8QKBgHPQDLixV4Ki4oZ+un/k00/QIY4tNP4G6Ecnr3Vl2zmfgwlH4gts\nnWkw2mP7FNt9YRhggu2B4soN0742KQeNtYu9V+H28pFzkscVB0uDVpFopQVb+K8k\nZy/wR2F2bF3J6/KKYAngSr7HL8hls4CGH6vK0s5hQmbAoeNd5e+Yv0qFAoGAQkuZ\nGcPlWXRPizM3Q2UZ7g37zEyfChcOc7NJHTJN39ppKZeMu2op/B1Rw0zLyYeNP0jx\nSz67NiuxKeIf+M/tqD1iweRkj6Nlue4IZ7jUVmXDYl+Pl786JsiqQJb3pVdPjzG1\nSVOMks2Vxz0CMJw7S/1sb3aqtG734pFeGTAwXsECgYAX5Fpbqwi0N26jkCSa4oYy\nKxVO0DfAcA51oYaQ/Pwreq1zOKv1xL2b6EeNmtSVvCSr7Ee8cBsPG+gPF3OJACQQ\navwixN1uJhO9nDrSgTcLCZzLPT/GIOjOTBIR1dlQg76+CkCdjc/Ip4opLoSn8cP1\nTAlVfAt2xOabNxk0gFEDpg==\n-----END PRIVATE KEY-----\n"
--- site certificate, example.com
-siteCert = "-----BEGIN CERTIFICATE-----\nMIIEWDCCAkCgAwIBAgIBATANBgkqhkiG9w0BAQsFADBCMQswCQYDVQQGEwJVUzEL\nMAkGA1UECBMCTU8xDzANBgNVBAoTBkV4Um9vdDEVMBMGA1UEAxMMaW50ZXJtZWRp\nYXRlMB4XDTIzMDMyNzE1MDQ0NloXDTMwMDYyODE1MDQ0NlowNTELMAkGA1UEBhMC\nVVMxEDAOBgNVBAoMB0V4YW1wbGUxFDASBgNVBAMMC2V4YW1wbGUuY29tMIIBIjAN\nBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv4I2a2m0iJ3fifpWZllv6nQxkazB\ncsxNp9q032dLnrM2W/ZU2SB5eMT7DdYbz/8HePA8vrfQ5qdyx6cT1U+y1zxok4JJ\nkM2kcD2tXKLOhWMG0W9pQuxp0/QbnlzVL5eQ4ch7JfhOAw0cC2+dRmEYgqLkqg7r\njC0gANp1Q//AB8GEQEHImkoY4uhEoST6RWoqauQNtFafLVudPZWkakmG0Wy1LIom\n6IrKzldetNL8sQkFE/TMkcKhJtuZqzXrn+3yknYUZoY0gRgWex09djsbj6qZeW9E\n66E2UQUHxVJzNZAr2Uv7ivkr1pvAvf51M0tM9Mbptl0tPHNVRm08WTBeswIDAQAB\no2YwZDAdBgNVHQ4EFgQUS34Lu4VpXUCCre6QxCAZdyAzgN4wHwYDVR0jBBgwFoAU\n27OdzRI7IREkMewS5n+F4ovzl/4wEgYDVR0TAQH/BAgwBgEB/wIBADAOBgNVHQ8B\nAf8EBAMCAYYwDQYJKoZIhvcNAQELBQADggIBAGBkXgWoAzum/f/VgJWKPt8Bo9Dy\nLYjckSbaQcw0YmgXLzJn71QTD+jvSbGRT2tYSkgCVOlVLzHV6mtgC/tR7gfKWmkx\nEhnTdzGQ3G/y03+c2newwkDrvT35/4BLlsrJv/19/LIc6OJ0/BJOBIeb4dZGmo2N\nH0qgIvjpuV9BAzwc7euENob0K2jkhFTUi5WmXMBzT2besc1T9iGz0wUpn5osGc/7\nCVcEPdvrwOLfi7jqhxC7tTzbZO8qu7MmmqaSx4UbDVM84652HTbDpSbEeHeD122D\nJcAFE8ouoDKRttxk+N9yT6lBzJIV8UmkabDiymceQ8fmh2CsIog/aodskLszcUHL\nlqc2KOAe6qVEc+vVLBj3/Duqy7F+Z0f/S/s1hbRawW95bJJJOFhHW5wErCPlKH0O\ndzNxC/mmAEuf39JAm9K1Pbi4dr92rck8C9llp/xyUUT7gIkZx562RmkBftcf3+29\nQe7MJGTHHN1FXfVK/F7C6pFeSVogeR28klCnD2LnrFFvdFtLa9uht2o82dPXN88B\nDMVCPgP1hUvXWkPEdKol69zMxQf8GANHWLGpJaoqcsVGmwHaitpeCMCwrtDi0Y91\nvrL+QoXpJPd5FaDdQHo+Pln7O6hU6euzVibi9WdAFxs1w/neWhyzJbUcJZ70aHPM\n77PNweTWNCaNkP+Y\n-----END CERTIFICATE-----"
--- intermediate certificate
-intermediateCert = "-----BEGIN CERTIFICATE-----\nMIIFXTCCA0WgAwIBAgIBATANBgkqhkiG9w0BAQsFADA6MQ0wCwYDVQQDEwRyb290\nMQ8wDQYDVQQKEwZFeFJvb3QxCzAJBgNVBAYTAlVTMQswCQYDVQQIEwJNTzAeFw0y\nMzAzMjcxNTAxMTNaFw0zMDA2MjgxNTAxMTNaMEIxCzAJBgNVBAYTAlVTMQswCQYD\nVQQIEwJNTzEPMA0GA1UEChMGRXhSb290MRUwEwYDVQQDEwxpbnRlcm1lZGlhdGUw\nggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQCuBOyOUa/oleaNPAZ0qVS9\nYABi+FNeflM7dmRMIq01m8qiIaVV9dNl4jgHYMq7iBhZU+re1hFq1J+d4wDMctDj\nH8KreEmOSYiAqI9n4/g//Y5z+QeMEcIjqppyVCVQqvXOYzvHHS/bvObKF2cs+FRc\nURWIXM99D7/IgqiyGilhjWLqd8pLOWs58MjZyEBdJlS7NTFJDFKsK8EvrPMwVVx6\nVUZaCJyTdK0ZtbA/eNEJk76LTSA9+WqIbDqrWjhP3j0DVg9CdFCJvvdiSNHpw8W8\nCC3V1r3+J8rK9zSYYmV6Yvn1sDVJX2CnPvnFJrjsGiROpzwd5zo3K190shjAAsHG\ngJokSahQtwKVz8vaCLb/hIGPa1GWonSTqaNCcWI3pH9GWuZXFVFxuw/FNDmUU9eN\ndMxXTx64huX+FpDx5NZYre9W/Gb0VYIPRdVF/vWswmW1i1Zz9NZrP00X9IRFimjM\nOHVwJ1NaTnGzg/uu8SbzKc9pc+zocdJwMqiwICHbcIN4JTDYwDsbTS/moJUk+oJw\n5OiL1KZQ4HoTCJpmx1nVZocMVQuajEILyEDiRF3h670TNNnkfoFcPnM293IMWPwX\neC5MoADlpzMpTeHcdlkIkgw9/1ainOGYa1B+1d7/V07Tfq2nOKQUY/4Z/WeLEhPm\nfjF9C333Yz6MLlGN8DMKawIDAQABo2YwZDAdBgNVHQ4EFgQU27OdzRI7IREkMewS\n5n+F4ovzl/4wHwYDVR0jBBgwFoAUY2dM5JVlK9JVFFb3mZrJXd1YO8owEgYDVR0T\nAQH/BAgwBgEB/wIBADAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZIhvcNAQELBQADggIB\nACkow/OmLPd2DzrsBhDvlGQ29ZYKuvGCVFlT0PSWFbu+5DD2HFrKffaBTeuEAY2k\n3d8HJE7CtyxOSl5vFDSfr9si4EmvFeWN0d+2n3AGLUxxC18XsW6ctTnQkpvcOMEk\nm9Opu6q4JNWP+iWle9U3+RC8suotWc1trGBk1y7yHfFmqim1aoxygS1xUpo1j/8L\n+W00sxprog48E0tQ2/AML+yKmXwt5QapO3e0UIoOkYaSyapk+K3KymvCFmwsU/7Q\n0+KJBiCS4HXUFe5iWpnoCuLL18o1gO6LPW9nBB6EIKnmcsZNt/Z9KRMoQeBS+eRY\nGOxxJwdyzDJAFEKPhIO4xrZtG505Ea73nm6NqoRYUERLDBUFY1BnECcBKqSZmmVi\n4zNQj5d6sevliLx/V3LDa/BPkHjDalHgZxEEkTCGfppTYC5oAB4eOwJWhpM+n2gM\n18gmbmN7ECUWw9jvQrKMGepp4s9ggtf6gyqqCvMtfP9i25OGX860VcvxCV7yqjjh\n58Nwkn5WK9ZnUXZLb9h34KjKenxzlXad+j761OpQ3fh9DuK1H0EmdrkPgnHCUT+3\nEWM+rtnhl/XAZ453InJXdG0yiGgM0uoXDHi8iuVaBkOiY27e6jg9LPg6zq3Kju6C\nVzlYLIwqPf6AAPL+ugUbnH/zNfy6JXdDlufQ/ZcFLjLj\n-----END CERTIFICATE-----"
--- root (self-signed) certificate
-rootCert = "-----BEGIN CERTIFICATE-----\nMIIFSjCCAzKgAwIBAgIJAJBvc61E2pT1MA0GCSqGSIb3DQEBCwUAMDoxDTALBgNV\nBAMTBHJvb3QxDzANBgNVBAoTBkV4Um9vdDELMAkGA1UEBhMCVVMxCzAJBgNVBAgT\nAk1PMB4XDTIzMDMyNzE1MDA0OVoXDTMzMDMyNDE1MDA0OVowOjENMAsGA1UEAxME\ncm9vdDEPMA0GA1UEChMGRXhSb290MQswCQYDVQQGEwJVUzELMAkGA1UECBMCTU8w\nggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDOeole9DHTycMh669FgRUw\ngch3RAb3TPhN9mwEnnIb7WhaUU+wltpImedYbUBrh89w+eF34OZ3yIXvdpKv3ihI\na8ucZDCGJK4mPw0UKLfBoplGM0u+eXMFQsX08OvZmGf1kTkIlhOkSpIwZK8N1Dn8\nVmOs1t1xSdxecJ8cc+3IE25qCRE66x0g175XkoZ0At5M2ZlzWBP00H2N1cXpXbIb\nZ7IdsMRtI00WI3f/MMFasFhTO9c/8iRNjLsoCuOIUDjy8m4AGX0tPmV6FQV6WMNA\ng+6U+rkWo4wdxbQhAbfMQHIU9wm0Tj0lXAh7ma3zlIbaZjG6EEZWGUOedknf+IfO\n2VGR3T9WoTyfNGIOqBHtKhDiB0PcPa5mw+KsN1UycFvIxH6aJkXq04nnnZkNEFNd\n7F0jhPt6O0K14y08yEmZqT1HJQCHQdEierDQo+u7R0sJ4zTlDxogvVyftPWtgXYk\nd6OfWgS1Qk/qRrtRnLtf13dkv0ia7Ndr2Ua5j4T80StIxyoFNUKHOelep7iO33E7\nHjCcuNVPdeOZSmLzUjwu5DSKQnHyHXlIrktgPNDTAzhx2WGr84Fs4jMKXrntjRM2\n7P0k/70ZUM7R5jbgVvnTQAl7y5+oWWySw7Oigrme0PDP0ZESVMeNl1NcxnqtLO8l\nbaVTVFtB/dz3VP1J0om51QIDAQABo1MwUTAdBgNVHQ4EFgQUY2dM5JVlK9JVFFb3\nmZrJXd1YO8owHwYDVR0jBBgwFoAUY2dM5JVlK9JVFFb3mZrJXd1YO8owDwYDVR0T\nAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAgEAYd0hcSjSBhUCdibKdLbzglyq\nSYeQlSEuqmeNQDpDVbnWTsPK+LQ66Nj1kAuITWdpdn9wnA1Gp2P45PR1sc7d1eI6\nj4NvoOQMSwZtxt+3+ZncZMBf96VZwdX5v3ydk3pZy0KhwiKI/aaHRU5WneibLs+F\nisBUlUNolALPMgmV47gN/jlGqZRrHi1cOZVLs10q9p5TMEm1JuFOAjk3RINo2EzE\nz3oA4CtC+8wmKi0SqvQF1wxV1fJXh4oTXYCaq6feFBsTqUYpA9GjciYH4h/Ihe2/\nSBhBXSYXcMdamglZwsKnVZ7zqkhJlARQC0NnSwmVK4B6vIlm0ImEcsRFwo/6xmML\nZu8EQAu7h3cSS6p9ghHqeuKgEltiiNVCvJim/9R6Z9DjdVQJnPnDtTofKoCkmgVE\nFe7hGIKdrFmP0zKRPAiUuaHLDsvayUUsFAgc3bGr8YPPTwCtk5RlRAdwofsliAN0\n5FIkDM2ftCc1Kh4mE3HBoB5JYhH9WqhoeDlCpp242RxiVVsmgPxkGaEIzL7Q0/X8\nIFrhTaIWPPsF9PJtwswEePGO56tIXaQTV9ct3vfYIxrJp+iG11wqRn8FgFset17V\n/MMsxyRqBDCznAykoViCFrfolZpjcdtVr/m9vVhR4YkUZlG8VDi7BTD6AaDEBkOM\nImFGWriD+Irt4Ubr/D4=\n-----END CERTIFICATE-----"
--- root key
-rootKey = "-----BEGIN RSA PRIVATE KEY-----\n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\n-----END RSA PRIVATE KEY-----"
--- intermediate key
-intermediateKey = "-----BEGIN RSA PRIVATE KEY-----\n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\n-----END RSA PRIVATE KEY-----\n"
-
-customCertChain = [siteCert, intermediateCert, rootCert]
-
-parseCert text = Either.toException (decodeCert (toUtf8 text))
-
--- client sends then receives
-chainClient portPromise toSend =
-  use base.IO.net
-  printLine "A"
-  defaultClient = (Tls.ClientConfig.default (HostName.HostName "intermediate") "")
-  printLine "B"
-  tlsconfig = ClientConfig.certificates.set [parseCert rootCert] defaultClient
-  printLine "C"
-
-  sock = clientSocket (HostName.HostName ("127" ++ ".0.0.1")) (Port.Port (Nat.toText (Promise.read portPromise)))
-  printLine "D"
-  tls = Tls.newClient tlsconfig sock
-  printLine "E"
-  tlsock = Tls.handshake tls
-  printLine "F"
-  TlsSocket.send tlsock (toUtf8 toSend)
-  printLine "G"
-  -- res = fromUtf8 (TlsSocket.receive tlsock)
-  TlsSocket.close tlsock
-  -- res
-
--- server receives then sends
-chainServer portPromise toSend =
-  key = Optional.toException "No private key decoded" <| List.head (decodePrivateKey (toUtf8 intermediateKey)) -- siteKey
-  printLine "a"
-  tlsconfig = Tls.ServerConfig.default [
-    -- parseCert siteKey,
-    parseCert intermediateCert,
-    parseCert rootCert ] key
-
-  printLine "b"
-  sock = Socket.listen (server (Some (HostName ("127" ++ ".0.0.1"))) (Port "0"))
-  printLine "c"
-  port = match sock with ListeningServerSocket sock -> Socket.port sock
-  printLine "d"
-  _ = Promise.write portPromise port
-  printLine "e"
-  sock' = Socket.accept sock
-  printLine "f"
-  -- attach TLS to our TCP connection
-  tls = Tls.newServer tlsconfig sock'
-  printLine "g"
-  tlsock = net.Tls.handshake tls
-  printLine "h"
-  res = fromUtf8 (TlsSocket.receive tlsock)
-  printLine "i"
-  -- TlsSocket.send tlsock (toUtf8 toSend)
-  TlsSocket.close tlsock
-  res
-
-tlsChainTest = do
-  portPromise = Promise.new ()
-  clientSend = "12345"
-  serverSend = "56789"
-  -- Client
-  clientResult = defer do chainClient portPromise clientSend
-  -- Server
-  serverResult = defer do chainServer portPromise serverSend
-  -- Get the results
-  clientReceived = Either.toException <| Promise.read clientResult
-  serverReceived = Either.toException <| Promise.read serverResult
-  -- Check it
-  -- checkEqual "self signed chain client received" serverSend clientReceived
-  checkEqual "self signed chain server received" clientSend serverReceived
