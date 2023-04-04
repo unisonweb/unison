@@ -16,7 +16,6 @@
     universal-compare
     chunked-string<?
     universal=?
-    chunked-string=?
 
     fx1-
     list-head
@@ -114,19 +113,13 @@
     (newline)
     (cond
       [(equal? l r) #t]
-      [(and (number? l) (number? r)) (= l r)]
       [(and (chunked-list? l) (chunked-list? r))
        (chunked-list=?/recur l r universal=?)]
-      [(and (chunked-string? l) (chunked-string? r))
-       (chunked-string=? l r)]
       [(and (data? l) (data? r))
        (and
          (eqv? (data-tag l) (data-tag r))
          (pointwise (data-fields l) (data-fields r)))]
       [else #f]))
-
-  ;; TODO this can be replaced by `equal?`
-  (define (chunked-string=? l r) (chunked-string=?/recur l r char=?))
 
   (define (exception->string e) (string->chunked-string (exn->string e)))
 
