@@ -125,6 +125,7 @@
          (pointwise (data-fields l) (data-fields r)))]
       [else #f]))
 
+  ;; TODO this can be replaced by `equal?`
   (define (chunked-string=? l r) (chunked-string=?/recur l r char=?))
 
   (define (exception->string e) (string->chunked-string (exn->string e)))

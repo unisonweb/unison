@@ -261,7 +261,7 @@
   (define (unison-POp-DRPS n l) (chunked-list-drop l n))
   (define (unison-POp-DRPT n t) (chunked-string-drop t n))
   (define (unison-POp-EQLN m n) (bool (fx=? m n)))
-  (define (unison-POp-EQLT s t) (bool (chunked-string=? s t)))
+  (define (unison-POp-EQLT s t) (bool (chunked-string=? s t))) ;; TODO could be replaced by `equal?`
   (define (unison-POp-LEQT s t) (bool (chunked-string<? s t)))
   (define (unison-POp-EQLU x y) (bool (universal=? x y)))
   (define (unison-POp-EROR fnm x) ;; TODO raise the correct failure, use display
