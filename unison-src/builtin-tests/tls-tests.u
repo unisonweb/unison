@@ -10,6 +10,7 @@ tls.tests = do
   check "decoding an invalid private key should ignore" do 0 == List.size (decodePrivateKey (toUtf8 "not a private key"))
   check "decoding an invalid cert should fail" do isLeft (decodeCert (toUtf8 "not a cert"))
   !testConnectSelfSigned
+  !tlsChainTest
   expectError "self signed with the wrong hostname should fail" "NameMismatch" testConnectSelfSignedWrongHost
   expectError "self signed with an unknown CA should fail" "certificate has unknown CA" do
     portPromise = Promise.new ()
@@ -69,9 +70,7 @@ testConnectSelfSignedWrongHost = do
   ()
 
 clientThread host portPromise =
-  cert = match decodeCert (toUtf8 selfSignedCert) with
-    Right c -> c
-    Left _ -> raise (failure "Bad cert" selfSignedCert)
+  cert = Either.toException (decodeCert (toUtf8 selfSignedCert))
   Either.toException !(testClient (Some cert) host portPromise)
 
 defer comp =
@@ -117,3 +116,81 @@ testClient cert hostname portVar _ = catch do
   tlsock = Tls.handshake tls
   --   -- receive a message from the server
   fromUtf8 (TlsSocket.receive tlsock)
+
+-- more complex certificate scenario, with a root CA,
+-- an intermediate CA, and a website (registered as "example.com")
+
+siteKey = "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC/gjZrabSInd+J\n+lZmWW/qdDGRrMFyzE2n2rTfZ0ueszZb9lTZIHl4xPsN1hvP/wd48Dy+t9Dmp3LH\npxPVT7LXPGiTgkmQzaRwPa1cos6FYwbRb2lC7GnT9BueXNUvl5DhyHsl+E4DDRwL\nb51GYRiCouSqDuuMLSAA2nVD/8AHwYRAQciaShji6EShJPpFaipq5A20Vp8tW509\nlaRqSYbRbLUsiiboisrOV1600vyxCQUT9MyRwqEm25mrNeuf7fKSdhRmhjSBGBZ7\nHT12OxuPqpl5b0TroTZRBQfFUnM1kCvZS/uK+SvWm8C9/nUzS0z0xum2XS08c1VG\nbTxZMF6zAgMBAAECggEAWDm0uGdKNGYGxZn+k8hANtKww1vDAw/79ohbK1B7FfGZ\n6WPiUuUTEQAuaIFq7reeyahjU7l7E8ewqSnfiTXePiomQ06SdZNHXi4L39FhMzIb\nwgCBjcM8PdkHoD1EOVip9lpV4Xgy+FThxqL04ad5kzVYAsA846cmRz5dJ6Z64RcJ\npGdxENMGqfOKPf4ZJMaU3J7zqlyWaixWG1p0mU079LjMsumCHhE9QJ6XIStgf+RE\nhe+U6UVPE0v+zxrSCrfLpFzuEeNONsl91umxcabV9C0sohd0o7LsEZgj1u62HWSx\nXUnuCE/zbWvkPF8jAUebYfOE9bxW86O0PLCffawCAQKBgQDlJ0CDEaOfb9j+okkq\n5AfDzV7Ci3yR9CVktWeH1vLHhaui507wTL1vs5pyhjZ+bs63zt58uLHMKJtKmX37\nA0UnpCVHg+BYV/UzLhFZGtXxzbABPosdfJ/+M+cYXDyQ68dleAU6DB+2b1FCbzwq\nDu8Wmnn5E0g8P3HROPEgIIPZ4wKBgQDV8eyaqU+V1D64e98BapyntRgUrc0oKdu6\n10Sh5wdWrnpguKEw2K/0zBZlVUEtK812BL9CNNMIm8zXDBMY24ZHo8NH8Y8z/G/o\nC7pJVNAjbHu9rglE6f0mtdcSa4F9yx37rfeRLgKZ628+nFSucgGdyL3BNiG40rlG\ndRd6qKLA8QKBgHPQDLixV4Ki4oZ+un/k00/QIY4tNP4G6Ecnr3Vl2zmfgwlH4gts\nnWkw2mP7FNt9YRhggu2B4soN0742KQeNtYu9V+H28pFzkscVB0uDVpFopQVb+K8k\nZy/wR2F2bF3J6/KKYAngSr7HL8hls4CGH6vK0s5hQmbAoeNd5e+Yv0qFAoGAQkuZ\nGcPlWXRPizM3Q2UZ7g37zEyfChcOc7NJHTJN39ppKZeMu2op/B1Rw0zLyYeNP0jx\nSz67NiuxKeIf+M/tqD1iweRkj6Nlue4IZ7jUVmXDYl+Pl786JsiqQJb3pVdPjzG1\nSVOMks2Vxz0CMJw7S/1sb3aqtG734pFeGTAwXsECgYAX5Fpbqwi0N26jkCSa4oYy\nKxVO0DfAcA51oYaQ/Pwreq1zOKv1xL2b6EeNmtSVvCSr7Ee8cBsPG+gPF3OJACQQ\navwixN1uJhO9nDrSgTcLCZzLPT/GIOjOTBIR1dlQg76+CkCdjc/Ip4opLoSn8cP1\nTAlVfAt2xOabNxk0gFEDpg==\n-----END PRIVATE KEY-----\n"
+-- site certificate, example.com
+siteCert = "-----BEGIN CERTIFICATE-----\nMIIEWDCCAkCgAwIBAgIBATANBgkqhkiG9w0BAQsFADBCMQswCQYDVQQGEwJVUzEL\nMAkGA1UECBMCTU8xDzANBgNVBAoTBkV4Um9vdDEVMBMGA1UEAxMMaW50ZXJtZWRp\nYXRlMB4XDTIzMDMyNzE1MDQ0NloXDTMwMDYyODE1MDQ0NlowNTELMAkGA1UEBhMC\nVVMxEDAOBgNVBAoMB0V4YW1wbGUxFDASBgNVBAMMC2V4YW1wbGUuY29tMIIBIjAN\nBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv4I2a2m0iJ3fifpWZllv6nQxkazB\ncsxNp9q032dLnrM2W/ZU2SB5eMT7DdYbz/8HePA8vrfQ5qdyx6cT1U+y1zxok4JJ\nkM2kcD2tXKLOhWMG0W9pQuxp0/QbnlzVL5eQ4ch7JfhOAw0cC2+dRmEYgqLkqg7r\njC0gANp1Q//AB8GEQEHImkoY4uhEoST6RWoqauQNtFafLVudPZWkakmG0Wy1LIom\n6IrKzldetNL8sQkFE/TMkcKhJtuZqzXrn+3yknYUZoY0gRgWex09djsbj6qZeW9E\n66E2UQUHxVJzNZAr2Uv7ivkr1pvAvf51M0tM9Mbptl0tPHNVRm08WTBeswIDAQAB\no2YwZDAdBgNVHQ4EFgQUS34Lu4VpXUCCre6QxCAZdyAzgN4wHwYDVR0jBBgwFoAU\n27OdzRI7IREkMewS5n+F4ovzl/4wEgYDVR0TAQH/BAgwBgEB/wIBADAOBgNVHQ8B\nAf8EBAMCAYYwDQYJKoZIhvcNAQELBQADggIBAGBkXgWoAzum/f/VgJWKPt8Bo9Dy\nLYjckSbaQcw0YmgXLzJn71QTD+jvSbGRT2tYSkgCVOlVLzHV6mtgC/tR7gfKWmkx\nEhnTdzGQ3G/y03+c2newwkDrvT35/4BLlsrJv/19/LIc6OJ0/BJOBIeb4dZGmo2N\nH0qgIvjpuV9BAzwc7euENob0K2jkhFTUi5WmXMBzT2besc1T9iGz0wUpn5osGc/7\nCVcEPdvrwOLfi7jqhxC7tTzbZO8qu7MmmqaSx4UbDVM84652HTbDpSbEeHeD122D\nJcAFE8ouoDKRttxk+N9yT6lBzJIV8UmkabDiymceQ8fmh2CsIog/aodskLszcUHL\nlqc2KOAe6qVEc+vVLBj3/Duqy7F+Z0f/S/s1hbRawW95bJJJOFhHW5wErCPlKH0O\ndzNxC/mmAEuf39JAm9K1Pbi4dr92rck8C9llp/xyUUT7gIkZx562RmkBftcf3+29\nQe7MJGTHHN1FXfVK/F7C6pFeSVogeR28klCnD2LnrFFvdFtLa9uht2o82dPXN88B\nDMVCPgP1hUvXWkPEdKol69zMxQf8GANHWLGpJaoqcsVGmwHaitpeCMCwrtDi0Y91\nvrL+QoXpJPd5FaDdQHo+Pln7O6hU6euzVibi9WdAFxs1w/neWhyzJbUcJZ70aHPM\n77PNweTWNCaNkP+Y\n-----END CERTIFICATE-----"
+-- intermediate certificate
+intermediateCert = "-----BEGIN CERTIFICATE-----\nMIIFXTCCA0WgAwIBAgIBATANBgkqhkiG9w0BAQsFADA6MQ0wCwYDVQQDEwRyb290\nMQ8wDQYDVQQKEwZFeFJvb3QxCzAJBgNVBAYTAlVTMQswCQYDVQQIEwJNTzAeFw0y\nMzAzMjcxNTAxMTNaFw0zMDA2MjgxNTAxMTNaMEIxCzAJBgNVBAYTAlVTMQswCQYD\nVQQIEwJNTzEPMA0GA1UEChMGRXhSb290MRUwEwYDVQQDEwxpbnRlcm1lZGlhdGUw\nggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQCuBOyOUa/oleaNPAZ0qVS9\nYABi+FNeflM7dmRMIq01m8qiIaVV9dNl4jgHYMq7iBhZU+re1hFq1J+d4wDMctDj\nH8KreEmOSYiAqI9n4/g//Y5z+QeMEcIjqppyVCVQqvXOYzvHHS/bvObKF2cs+FRc\nURWIXM99D7/IgqiyGilhjWLqd8pLOWs58MjZyEBdJlS7NTFJDFKsK8EvrPMwVVx6\nVUZaCJyTdK0ZtbA/eNEJk76LTSA9+WqIbDqrWjhP3j0DVg9CdFCJvvdiSNHpw8W8\nCC3V1r3+J8rK9zSYYmV6Yvn1sDVJX2CnPvnFJrjsGiROpzwd5zo3K190shjAAsHG\ngJokSahQtwKVz8vaCLb/hIGPa1GWonSTqaNCcWI3pH9GWuZXFVFxuw/FNDmUU9eN\ndMxXTx64huX+FpDx5NZYre9W/Gb0VYIPRdVF/vWswmW1i1Zz9NZrP00X9IRFimjM\nOHVwJ1NaTnGzg/uu8SbzKc9pc+zocdJwMqiwICHbcIN4JTDYwDsbTS/moJUk+oJw\n5OiL1KZQ4HoTCJpmx1nVZocMVQuajEILyEDiRF3h670TNNnkfoFcPnM293IMWPwX\neC5MoADlpzMpTeHcdlkIkgw9/1ainOGYa1B+1d7/V07Tfq2nOKQUY/4Z/WeLEhPm\nfjF9C333Yz6MLlGN8DMKawIDAQABo2YwZDAdBgNVHQ4EFgQU27OdzRI7IREkMewS\n5n+F4ovzl/4wHwYDVR0jBBgwFoAUY2dM5JVlK9JVFFb3mZrJXd1YO8owEgYDVR0T\nAQH/BAgwBgEB/wIBADAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZIhvcNAQELBQADggIB\nACkow/OmLPd2DzrsBhDvlGQ29ZYKuvGCVFlT0PSWFbu+5DD2HFrKffaBTeuEAY2k\n3d8HJE7CtyxOSl5vFDSfr9si4EmvFeWN0d+2n3AGLUxxC18XsW6ctTnQkpvcOMEk\nm9Opu6q4JNWP+iWle9U3+RC8suotWc1trGBk1y7yHfFmqim1aoxygS1xUpo1j/8L\n+W00sxprog48E0tQ2/AML+yKmXwt5QapO3e0UIoOkYaSyapk+K3KymvCFmwsU/7Q\n0+KJBiCS4HXUFe5iWpnoCuLL18o1gO6LPW9nBB6EIKnmcsZNt/Z9KRMoQeBS+eRY\nGOxxJwdyzDJAFEKPhIO4xrZtG505Ea73nm6NqoRYUERLDBUFY1BnECcBKqSZmmVi\n4zNQj5d6sevliLx/V3LDa/BPkHjDalHgZxEEkTCGfppTYC5oAB4eOwJWhpM+n2gM\n18gmbmN7ECUWw9jvQrKMGepp4s9ggtf6gyqqCvMtfP9i25OGX860VcvxCV7yqjjh\n58Nwkn5WK9ZnUXZLb9h34KjKenxzlXad+j761OpQ3fh9DuK1H0EmdrkPgnHCUT+3\nEWM+rtnhl/XAZ453InJXdG0yiGgM0uoXDHi8iuVaBkOiY27e6jg9LPg6zq3Kju6C\nVzlYLIwqPf6AAPL+ugUbnH/zNfy6JXdDlufQ/ZcFLjLj\n-----END CERTIFICATE-----"
+-- root (self-signed) certificate
+rootCert = "-----BEGIN CERTIFICATE-----\nMIIFSjCCAzKgAwIBAgIJAJBvc61E2pT1MA0GCSqGSIb3DQEBCwUAMDoxDTALBgNV\nBAMTBHJvb3QxDzANBgNVBAoTBkV4Um9vdDELMAkGA1UEBhMCVVMxCzAJBgNVBAgT\nAk1PMB4XDTIzMDMyNzE1MDA0OVoXDTMzMDMyNDE1MDA0OVowOjENMAsGA1UEAxME\ncm9vdDEPMA0GA1UEChMGRXhSb290MQswCQYDVQQGEwJVUzELMAkGA1UECBMCTU8w\nggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDOeole9DHTycMh669FgRUw\ngch3RAb3TPhN9mwEnnIb7WhaUU+wltpImedYbUBrh89w+eF34OZ3yIXvdpKv3ihI\na8ucZDCGJK4mPw0UKLfBoplGM0u+eXMFQsX08OvZmGf1kTkIlhOkSpIwZK8N1Dn8\nVmOs1t1xSdxecJ8cc+3IE25qCRE66x0g175XkoZ0At5M2ZlzWBP00H2N1cXpXbIb\nZ7IdsMRtI00WI3f/MMFasFhTO9c/8iRNjLsoCuOIUDjy8m4AGX0tPmV6FQV6WMNA\ng+6U+rkWo4wdxbQhAbfMQHIU9wm0Tj0lXAh7ma3zlIbaZjG6EEZWGUOedknf+IfO\n2VGR3T9WoTyfNGIOqBHtKhDiB0PcPa5mw+KsN1UycFvIxH6aJkXq04nnnZkNEFNd\n7F0jhPt6O0K14y08yEmZqT1HJQCHQdEierDQo+u7R0sJ4zTlDxogvVyftPWtgXYk\nd6OfWgS1Qk/qRrtRnLtf13dkv0ia7Ndr2Ua5j4T80StIxyoFNUKHOelep7iO33E7\nHjCcuNVPdeOZSmLzUjwu5DSKQnHyHXlIrktgPNDTAzhx2WGr84Fs4jMKXrntjRM2\n7P0k/70ZUM7R5jbgVvnTQAl7y5+oWWySw7Oigrme0PDP0ZESVMeNl1NcxnqtLO8l\nbaVTVFtB/dz3VP1J0om51QIDAQABo1MwUTAdBgNVHQ4EFgQUY2dM5JVlK9JVFFb3\nmZrJXd1YO8owHwYDVR0jBBgwFoAUY2dM5JVlK9JVFFb3mZrJXd1YO8owDwYDVR0T\nAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAgEAYd0hcSjSBhUCdibKdLbzglyq\nSYeQlSEuqmeNQDpDVbnWTsPK+LQ66Nj1kAuITWdpdn9wnA1Gp2P45PR1sc7d1eI6\nj4NvoOQMSwZtxt+3+ZncZMBf96VZwdX5v3ydk3pZy0KhwiKI/aaHRU5WneibLs+F\nisBUlUNolALPMgmV47gN/jlGqZRrHi1cOZVLs10q9p5TMEm1JuFOAjk3RINo2EzE\nz3oA4CtC+8wmKi0SqvQF1wxV1fJXh4oTXYCaq6feFBsTqUYpA9GjciYH4h/Ihe2/\nSBhBXSYXcMdamglZwsKnVZ7zqkhJlARQC0NnSwmVK4B6vIlm0ImEcsRFwo/6xmML\nZu8EQAu7h3cSS6p9ghHqeuKgEltiiNVCvJim/9R6Z9DjdVQJnPnDtTofKoCkmgVE\nFe7hGIKdrFmP0zKRPAiUuaHLDsvayUUsFAgc3bGr8YPPTwCtk5RlRAdwofsliAN0\n5FIkDM2ftCc1Kh4mE3HBoB5JYhH9WqhoeDlCpp242RxiVVsmgPxkGaEIzL7Q0/X8\nIFrhTaIWPPsF9PJtwswEePGO56tIXaQTV9ct3vfYIxrJp+iG11wqRn8FgFset17V\n/MMsxyRqBDCznAykoViCFrfolZpjcdtVr/m9vVhR4YkUZlG8VDi7BTD6AaDEBkOM\nImFGWriD+Irt4Ubr/D4=\n-----END CERTIFICATE-----"
+
+customCertChain = [siteCert, intermediateCert, rootCert]
+
+parseCert text = Either.toException (decodeCert (toUtf8 text))
+
+-- client sends then receives
+chainClient portPromise toSend =
+  use base.IO.net
+  printLine "A"
+  defaultClient = (Tls.ClientConfig.default (HostName.HostName "example.com") "")
+  printLine "B"
+  tlsconfig = ClientConfig.certificates.set [parseCert rootCert] defaultClient
+  printLine "C"
+
+  sock = clientSocket (HostName.HostName ("127" ++ ".0.0.1")) (Port.Port (Nat.toText (Promise.read portPromise)))
+  printLine "D"
+  tls = Tls.newClient tlsconfig sock
+  printLine "E"
+  tlsock = Tls.handshake tls
+  printLine "F"
+  TlsSocket.send tlsock (toUtf8 toSend)
+  printLine "G"
+  -- res = fromUtf8 (TlsSocket.receive tlsock)
+  TlsSocket.close tlsock
+  -- res
+
+-- server receives then sends
+chainServer portPromise toSend =
+  key = Optional.toException "No private key decoded" <| List.head (decodePrivateKey (toUtf8 siteKey))
+  printLine "a"
+  tlsconfig = Tls.ServerConfig.default [
+    parseCert siteKey,
+    parseCert intermediateCert,
+    parseCert rootCert ] key
+
+  printLine "b"
+  sock = Socket.listen (server (Some (HostName ("127" ++ ".0.0.1"))) (Port "0"))
+  printLine "c"
+  port = match sock with ListeningServerSocket sock -> Socket.port sock
+  printLine "d"
+  _ = Promise.write portPromise port
+  printLine "e"
+  sock' = Socket.accept sock
+  printLine "f"
+  -- attach TLS to our TCP connection
+  tls = Tls.newServer tlsconfig sock'
+  printLine "g"
+  tlsock = net.Tls.handshake tls
+  printLine "h"
+  res = fromUtf8 (TlsSocket.receive tlsock)
+  printLine "i"
+  -- TlsSocket.send tlsock (toUtf8 toSend)
+  TlsSocket.close tlsock
+  res
+
+tlsChainTest = do
+  portPromise = Promise.new ()
+  clientSend = "12345"
+  serverSend = "56789"
+  -- Server
+  serverResult = defer do chainServer portPromise serverSend
+  -- Client
+  clientReceived = chainClient portPromise clientSend
+  serverReceived = Either.toException <| Promise.read serverResult
+  -- Check it
+  -- checkEqual "self signed chain client received" serverSend clientReceived
+  checkEqual "self signed chain server received" clientSend serverReceived
