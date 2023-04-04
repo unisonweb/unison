@@ -1,26 +1,13 @@
 
 Note: This should be forked off of the codebase created by base.md
 
+If you want to define more complex tests somewhere other than `tests.u`, just `load my-tests.u` then `add`,
+then reference those tests (which should be of type `'{IO,Exception,Tests} ()`, written using calls
+to `Tests.check` and `Tests.checkEqual`).
+
 ```ucm
-.> compile.native.fetch.> compile.native.genlibs.> load unison-src/builtin-tests/testlib.u.> add
+.> run.native tests
+
+  Scheme evaluation failed.
+
 ```
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  ❗️
-  
-  The server sent a 502 that we didn't expect.
-  
-  Response body: <html>
-  <head><title>502 Bad Gateway</title></head>
-  <body>
-  <center><h1>502 Bad Gateway</h1></center>
-  <hr><center>nginx/1.22.1</center>
-  </body>
-  </html>
-  
-
