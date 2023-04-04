@@ -1,0 +1,57 @@
+name: unison-share-projects-api
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2023 Unison Computing, PBC and contributors
+
+library:
+  source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_share_projects_api
+
+dependencies:
+  - aeson
+  - base
+  - containers
+  - jose
+  - jwt
+  - lens
+  - servant
+  - servant-auth
+  - text
+  - unison-hash
+  - unison-hash-orphans-aeson
+  - unison-prelude
+  - unordered-containers
+
+ghc-options:
+  -Wall
+
+default-extensions:
+  - BlockArguments
+  - ConstraintKinds
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveGeneric
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - GADTs
+  - GeneralizedNewtypeDeriving
+  - KindSignatures
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - NumericUnderscores
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+  - TypeApplications
+  - TypeOperators
+  - ViewPatterns
+

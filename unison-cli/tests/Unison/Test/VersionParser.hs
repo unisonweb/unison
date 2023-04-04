@@ -28,7 +28,7 @@ makeTest (version, path) =
     expectEqual
       (rightMay $ runParser defaultBaseLib "versionparser" version)
       ( Just
-          ( ReadShareRemoteNamespace
+          ( ReadShareLooseCode
               { server = DefaultCodeserver,
                 repo = ShareUserHandle "unison",
                 path = Path.fromList ["public", "base"] <> Path.fromText path

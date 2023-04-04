@@ -84,6 +84,7 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema8To9
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema9To10
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
@@ -110,6 +111,7 @@ library
       Unison.PatternMatchCoverage.NormalizedConstraints
       Unison.PatternMatchCoverage.PmGrd
       Unison.PatternMatchCoverage.PmLit
+      Unison.PatternMatchCoverage.Pretty
       Unison.PatternMatchCoverage.Solve
       Unison.PatternMatchCoverage.UFMap
       Unison.PrettyPrintEnv
@@ -119,6 +121,7 @@ library
       Unison.PrettyPrintEnv.Util
       Unison.PrettyPrintEnvDecl
       Unison.PrettyPrintEnvDecl.Names
+      Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
       Unison.Result
       Unison.Runtime.ANF

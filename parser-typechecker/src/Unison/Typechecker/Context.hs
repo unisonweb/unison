@@ -59,6 +59,7 @@ import Data.Bifunctor
   )
 import qualified Data.Foldable as Foldable
 import Data.Function (on)
+import Data.Functor.Compose
 import Data.List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
@@ -85,9 +86,11 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
-import Unison.PatternMatchCoverage.Class (EnumeratedConstructors (..), Pmc (..), traverseConstructors)
+import Unison.PatternMatchCoverage.Class (EnumeratedConstructors (..), Pmc, traverseConstructors)
+import qualified Unison.PatternMatchCoverage.Class as Pmc
 import qualified Unison.PatternMatchCoverage.ListPat as ListPat
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -217,6 +220,8 @@ mapErrors f r = case r of
 
 newtype MT v loc f a = MT
   { runM ::
+      -- for debug output
+      PrettyPrintEnv ->
       -- Data declarations in scope
       DataDeclarations v loc ->
       -- Effect declarations in scope
@@ -234,10 +239,10 @@ type M v loc = MT v loc (Result v loc)
 type TotalM v loc = MT v loc (Either (CompilerBug v loc))
 
 liftResult :: Result v loc a -> M v loc a
-liftResult r = MT (\_ _ env -> (,env) <$> r)
+liftResult r = MT (\_ _ _ env -> (,env) <$> r)
 
 liftTotalM :: TotalM v loc a -> M v loc a
-liftTotalM (MT m) = MT $ \datas effects env -> case m datas effects env of
+liftTotalM (MT m) = MT $ \ppe datas effects env -> case m ppe datas effects env of
   Left bug -> CompilerBug bug mempty mempty
   Right a -> Success mempty a
 
@@ -251,7 +256,7 @@ modEnv :: (Env v loc -> Env v loc) -> M v loc ()
 modEnv f = modEnv' $ ((),) . f
 
 modEnv' :: (Env v loc -> (a, Env v loc)) -> M v loc a
-modEnv' f = MT (\_ _ env -> pure . f $ env)
+modEnv' f = MT (\_ _ _ env -> pure . f $ env)
 
 data Unknown = Data | Effect deriving (Show)
 
@@ -414,7 +419,7 @@ scope' p (ErrorNote cause path) = ErrorNote cause (path `mappend` pure p)
 
 -- Add `p` onto the end of the `path` of any `ErrorNote`s emitted by the action
 scope :: PathElement v loc -> M v loc a -> M v loc a
-scope p (MT m) = MT \datas effects env -> mapErrors (scope' p) (m datas effects env)
+scope p (MT m) = MT \ppe datas effects env -> mapErrors (scope' p) (m ppe datas effects env)
 
 newtype Context v loc = Context [(Element v loc, Info v loc)]
 
@@ -725,7 +730,7 @@ extendN ctx es = foldM (flip extend) ctx es
 orElse :: M v loc a -> M v loc a -> M v loc a
 orElse m1 m2 = MT go
   where
-    go datas effects env = runM m1 datas effects env <|> runM m2 datas effects env
+    go ppe datas effects env = runM m1 ppe datas effects env <|> runM m2 ppe datas effects env
     s@(Success _ _) <|> _ = s
     TypeError _ _ <|> r = r
     CompilerBug _ _ _ <|> r = r -- swallowing bugs for now: when checking whether a type annotation
@@ -738,11 +743,14 @@ orElse m1 m2 = MT go
 -- hoistMaybe :: (Maybe a -> Maybe b) -> Result v loc a -> Result v loc b
 -- hoistMaybe f (Result es is a) = Result es is (f a)
 
+getPrettyPrintEnv :: M v loc PrettyPrintEnv
+getPrettyPrintEnv = MT \ppe _ _ env -> pure (ppe, env)
+
 getDataDeclarations :: M v loc (DataDeclarations v loc)
-getDataDeclarations = MT \datas _ env -> pure (datas, env)
+getDataDeclarations = MT \_ datas _ env -> pure (datas, env)
 
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
-getEffectDeclarations = MT \_ effects env -> pure (effects, env)
+getEffectDeclarations = MT \_ _ effects env -> pure (effects, env)
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -1272,10 +1280,23 @@ getDataConstructorsAtType t0 = do
       equate t0 lastT
       applyM t
 
-instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (Set v) (M v loc)) where
-  getConstructors = lift . getDataConstructorsAtType
+data PmcState vt v loc = PmcState
+  { variables :: !(Set v),
+    constructorCache :: !(Map (Type v loc) (EnumeratedConstructors vt v loc))
+  }
+
+instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (PmcState (TypeVar v loc) v loc) (M v loc)) where
+  getPrettyPrintEnv = lift getPrettyPrintEnv
+  getConstructors typ = do
+    st@PmcState {constructorCache} <- get
+    let f = \case
+          Nothing -> Compose $ (\t -> (t, Just t)) <$> lift (getDataConstructorsAtType typ)
+          Just t -> Compose $ pure (t, Just t)
+    (result, newCache) <- getCompose (Map.alterF f typ constructorCache)
+    put st {constructorCache = newCache}
+    pure result
   getConstructorVarTypes t cref@(ConstructorReference _r cid) = do
-    getConstructors t >>= \case
+    Pmc.getConstructors t >>= \case
       ConstructorType cs -> case drop (fromIntegral cid) cs of
         [] -> error $ show cref <> " not found in constructor list: " <> show cs
         (_, _, consArgs) : _ -> case consArgs of
@@ -1285,9 +1306,9 @@ instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (Set v) (M v loc)
       OtherType -> pure []
       SequenceType {} -> pure []
   fresh = do
-    vs <- get
-    let v = Var.freshIn vs (Var.typed Var.Pattern)
-    put (Set.insert v vs)
+    st@PmcState {variables} <- get
+    let v = Var.freshIn variables (Var.typed Var.Pattern)
+    put (st {variables = Set.insert v variables})
     pure v
 
 ensurePatternCoverage ::
@@ -1305,7 +1326,12 @@ ensurePatternCoverage wholeMatch _scrutinee scrutineeType cases = do
     -- Don't check coverage on ability handlers yet
     Type.Apps' (Type.Ref' r) _args | r == Type.effectRef -> pure ()
     _ -> do
-      (redundant, _inaccessible, uncovered) <- flip evalStateT (ABT.freeVars wholeMatch) do
+      let pmcState :: PmcState (TypeVar v loc) v loc =
+            PmcState
+              { variables = ABT.freeVars wholeMatch,
+                constructorCache = mempty
+              }
+      (redundant, _inaccessible, uncovered) <- flip evalStateT pmcState do
         checkMatch matchLoc scrutineeType cases
       let checkUncovered = case Nel.nonEmpty uncovered of
             Nothing -> pure ()
@@ -2964,18 +2990,19 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
 -- | public interface to the typechecker
 synthesizeClosed ::
   (Var v, Ord loc) =>
+  PrettyPrintEnv ->
   [Type v loc] ->
   TL.TypeLookup v loc ->
   Term v loc ->
   Result v loc (Type v loc)
-synthesizeClosed abilities lookupType term0 =
+synthesizeClosed ppe abilities lookupType term0 =
   let datas = TL.dataDecls lookupType
       effects = TL.effectDecls lookupType
       term = annotateRefs (TL.typeOfTerm' lookupType) term0
    in case term of
         Left missingRef ->
           compilerCrashResult (UnknownTermReference missingRef)
-        Right term -> run datas effects $ do
+        Right term -> run ppe datas effects $ do
           liftResult $
             verifyDataDeclarations datas
               *> verifyDataDeclarations (DD.toDataDecl <$> effects)
@@ -3014,13 +3041,14 @@ annotateRefs synth = ABT.visit f
 
 run ::
   (Var v, Ord loc, Functor f) =>
+  PrettyPrintEnv ->
   DataDeclarations v loc ->
   EffectDeclarations v loc ->
   MT v loc f a ->
   f a
-run datas effects m =
+run ppe datas effects m =
   fmap fst
-    . runM m datas effects
+    . runM m ppe datas effects
     $ Env 1 context0
 
 synthesizeClosed' ::
@@ -3044,8 +3072,8 @@ synthesizeClosed' abilities term = do
 -- Check if the given typechecking action succeeds.
 succeeds :: M v loc a -> TotalM v loc Bool
 succeeds m =
-  MT \datas effects env ->
-    case runM m datas effects env of
+  MT \ppe datas effects env ->
+    case runM m ppe datas effects env of
       Success _ _ -> Right (True, env)
       TypeError _ _ -> Right (False, env)
       CompilerBug bug _ _ -> Left bug
@@ -3060,7 +3088,7 @@ isSubtype' type1 type2 = succeeds $ do
 
 -- See documentation at 'Unison.Typechecker.fitsScheme'
 fitsScheme :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
-fitsScheme type1 type2 = run Map.empty Map.empty $
+fitsScheme type1 type2 = run PPE.empty Map.empty Map.empty $
   succeeds $ do
     let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
     reserveAll (TypeVar.underlying <$> vars)
@@ -3101,7 +3129,7 @@ isRedundant userType0 inferredType0 = do
 isSubtype ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isSubtype t1 t2 =
-  run Map.empty Map.empty (isSubtype' t1 t2)
+  run PPE.empty Map.empty Map.empty (isSubtype' t1 t2)
 
 isEqual ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
@@ -3131,22 +3159,22 @@ instance (Ord loc, Var v) => Show (Context v loc) where
 
 instance (Monad f) => Monad (MT v loc f) where
   return = pure
-  m >>= f = MT \datas effects env0 -> do
-    (a, env1) <- runM m datas effects env0
-    runM (f a) datas effects $! env1
+  m >>= f = MT \ppe datas effects env0 -> do
+    (a, env1) <- runM m ppe datas effects env0
+    runM (f a) ppe datas effects $! env1
 
 instance (Monad f) => MonadFail.MonadFail (MT v loc f) where
   fail = error
 
 instance (Monad f) => Applicative (MT v loc f) where
-  pure a = MT (\_ _ env -> pure (a, env))
+  pure a = MT (\_ _ _ env -> pure (a, env))
   (<*>) = ap
 
 instance (Monad f) => MonadState (Env v loc) (MT v loc f) where
-  get = MT \_ _ env -> pure (env, env)
-  put env = MT \_ _ _ -> pure ((), env)
+  get = MT \_ _ _ env -> pure (env, env)
+  put env = MT \_ _ _ _ -> pure ((), env)
 
 instance (MonadFix f) => MonadFix (MT v loc f) where
-  mfix f = MT \a b c ->
-    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) a b c)
+  mfix f = MT \ppe a b c ->
+    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) ppe a b c)
      in res

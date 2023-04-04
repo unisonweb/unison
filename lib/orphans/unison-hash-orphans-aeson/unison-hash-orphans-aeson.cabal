@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
-name:           unison-hash-orphans-sqlite
+name:           unison-hash-orphans-aeson
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
@@ -17,7 +17,7 @@ source-repository head
 
 library
   exposed-modules:
-      Unison.Hash32.Orphans.Sqlite
+      Unison.Hash32.Orphans.Aeson
   hs-source-dirs:
       src
   default-extensions:
@@ -46,8 +46,8 @@ library
       ViewPatterns
   ghc-options: -Wall -fno-warn-orphans
   build-depends:
-      base
-    , sqlite-simple
+      aeson
+    , base
     , text
     , unison-hash
     , unison-util-base32hex

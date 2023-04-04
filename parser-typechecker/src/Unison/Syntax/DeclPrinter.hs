@@ -128,7 +128,8 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
     field (fname, typ) =
       P.group $
         styleHashQualified'' (fmt (S.TypeReference r)) fname
-          <> fmt S.TypeAscriptionColon " :" `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
+          <> fmt S.TypeAscriptionColon " :"
+            `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
     header = prettyDataHeader name dd <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
 
 -- Comes up with field names for a data declaration which has the form of a
@@ -176,7 +177,7 @@ fieldNames env r name dd = do
           }
   accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
     for accessors \(v, trm) ->
-      case Result.result (Typechecker.synthesize typecheckingEnv trm) of
+      case Result.result (Typechecker.synthesize env typecheckingEnv trm) of
         Nothing -> Nothing
         Just typ -> Just (v, trm, typ)
   let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ))) $ accessorsWithTypes)

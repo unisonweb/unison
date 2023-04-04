@@ -42,6 +42,7 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Debug as Debug
 import Unison.Prelude
 import Unison.Share.Types
+import qualified UnliftIO
 import qualified Web.Browser as Web
 
 ucmOAuthClientID :: ByteString
@@ -98,9 +99,8 @@ authLogin host = do
       let redirectURI = "http://localhost:" <> show port <> "/redirect"
       liftIO (putMVar redirectURIVar redirectURI)
       let authorizationKickoff = authURI authorizationEndpoint redirectURI state challenge
-      void . liftIO $ Web.openBrowser (show authorizationKickoff)
       Cli.respond . Output.InitiateAuthFlow $ authorizationKickoff
-      bailOnFailure (readMVar authResultVar)
+      bailOnFailure . liftIO $ UnliftIO.withAsync (Web.openBrowser (show authorizationKickoff)) \_ -> readMVar authResultVar
   userInfo <- bailOnFailure (getUserInfo doc accessToken)
   let codeserverId = codeserverIdFromCodeserverURI host
   let creds = codeserverCredentials discoveryURI tokens userInfo

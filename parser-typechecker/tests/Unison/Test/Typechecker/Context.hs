@@ -4,6 +4,7 @@ module Unison.Test.Typechecker.Context (test) where
 
 import Data.Foldable (for_)
 import EasyTest
+import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Symbol (Symbol)
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
@@ -33,7 +34,7 @@ verifyClosedTermTest =
                 ()
                 (Term.ann () (Term.var () a) (Type.var () a'))
                 (Term.ann () (Term.var () b) (Type.var () b'))
-            res = Context.synthesizeClosed [] mempty t
+            res = Context.synthesizeClosed PPE.empty [] mempty t
             errors = Context.typeErrors res
             expectUnknownSymbol (Context.ErrorNote cause _) = case cause of
               Context.UnknownSymbol _ _ -> ok

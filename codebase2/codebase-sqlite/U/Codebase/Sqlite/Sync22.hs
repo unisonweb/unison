@@ -19,7 +19,6 @@ import Data.Bytes.Put (runPutS)
 import Data.List.Extra (nubOrd)
 import qualified Data.Set as Set
 import qualified Data.Vector as Vector
-import Data.Void (Void)
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
 import U.Codebase.Sqlite.DbId

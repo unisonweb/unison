@@ -19,10 +19,14 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Time (UTCTime)
 import Network.URI (URI)
+import qualified Servant.Client as Servant (ClientError)
 import qualified System.Console.Haskeline as Completion
 import U.Codebase.Branch.Diff (NameChanges)
 import U.Codebase.HashTags (CausalHash)
+import qualified U.Codebase.Sqlite.Project as Sqlite
+import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
 import Unison.Auth.Types (CredentialFailure)
+import qualified Unison.Cli.Share.Projects.Types as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
@@ -54,6 +58,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
+import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -62,6 +67,7 @@ import Unison.Server.SearchResult' (SearchResult')
 import qualified Unison.Share.Sync.Types as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Symbol (Symbol)
+import qualified Unison.Sync.Types as Share (DownloadEntitiesError, UploadEntitiesError)
 import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -89,7 +95,7 @@ data NumberedOutput
   | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterCreatePR (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
@@ -107,6 +113,7 @@ data NumberedOutput
       [(CausalHash, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
   | ListEdits Patch PPE.PrettyPrintEnv
+  | ListProjects [Sqlite.Project]
 
 --  | ShowDiff
 
@@ -135,7 +142,7 @@ data Output
       -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
   | BranchNotEmpty Path'
-  | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
+  | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | FindNoLocalMatches
@@ -154,7 +161,8 @@ data Output
   | BranchHashAmbiguous ShortCausalHash (Set ShortCausalHash)
   | BadNamespace String String
   | BranchNotFound Path'
-  | EmptyPush Path'
+  | EmptyLooseCodePush Path'
+  | EmptyProjectBranchPush (ProjectAndBranch ProjectName ProjectBranchName)
   | NameNotFound Path.HQSplit'
   | NamesNotFound [Name]
   | PatchNotFound Path.Split'
@@ -231,7 +239,7 @@ data Output
     BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
   | ShareError ShareError
-  | ViewOnShare WriteShareRemotePath
+  | ViewOnShare WriteShareRemoteNamespace
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
@@ -245,10 +253,14 @@ data Output
   | WarnIncomingRootBranch ShortCausalHash (Set ShortCausalHash)
   | StartOfCurrentPathHistory
   | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
-  | PullAlreadyUpToDate ReadRemoteNamespace Path'
-  | PullSuccessful ReadRemoteNamespace Path'
+  | PullAlreadyUpToDate
+      (ReadRemoteNamespace Share.RemoteProjectBranch)
+      (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+  | PullSuccessful
+      (ReadRemoteNamespace Share.RemoteProjectBranch)
+      (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
-    MergeOverEmpty Path'
+    MergeOverEmpty (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | MergeAlreadyUpToDate Path' Path'
   | PreviewMergeAlreadyUpToDate Path' Path'
   | -- | No conflicts or edits remain for the current patch.
@@ -273,9 +285,9 @@ data Output
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-    RefusedToPush PushBehavior WriteRemotePath
+    RefusedToPush PushBehavior (WriteRemoteNamespace Void)
   | -- | @GistCreated repo@ means a causal was just published to @repo@.
-    GistCreated ReadRemoteNamespace
+    GistCreated (ReadRemoteNamespace Void)
   | -- | Directs the user to URI to begin an authorization flow.
     InitiateAuthFlow URI
   | UnknownCodeServer Text
@@ -285,7 +297,37 @@ data Output
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
   | ClearScreen
-  | PulledEmptyBranch ReadRemoteNamespace
+  | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
+  | CreatedProject ProjectName ProjectBranchName
+  | CreatedProjectBranch ProjectBranchName ProjectBranchName -- parent, child
+  | CreatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | CreatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- We didn't push anything because the remote server is already in the state we want it to be
+    RemoteProjectBranchIsUpToDate URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | InvalidProjectName Text
+  | InvalidProjectBranchName Text
+  | RefusedToCreateProjectBranch (ProjectAndBranch ProjectName ProjectBranchName)
+  | ProjectNameAlreadyExists ProjectName
+  | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
+  | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- ran a command that only makes sense if on a project branch
+    NotOnProjectBranch
+  | -- there's no remote project associated with branch, nor any of its parent branches
+    NoAssociatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- there's no remote branch associated with branch
+    NoAssociatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
+  | RemoteProjectDoesntExist URI ProjectName
+  | RemoteProjectBranchDoesntExist URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- A remote project branch head wasn't in the expected state
+    RemoteProjectBranchHeadMismatch URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | Unauthorized Text
+  | ServantClientError Servant.ClientError
+  | MarkdownOut Text
+  | DownloadedEntities Int
+  | UploadedEntities Int
+  | -- A generic "not implemented" message, for WIP code that's nonetheless been merged into trunk
+    NotImplementedYet Text
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
   { isTest :: TermReference -> Bool,
@@ -302,10 +344,12 @@ data WhichBranchEmpty
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
+  | ShareErrorDownloadEntities Share.DownloadEntitiesError
   | ShareErrorFastForwardPush Sync.FastForwardPushError
-  | ShareErrorPull Sync.PullError
   | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
+  | ShareErrorPull Sync.PullError
   | ShareErrorTransport Sync.CodeserverTransportError
+  | ShareErrorUploadEntities Share.UploadEntitiesError
 
 data HistoryTail
   = EndOfLog CausalHash
@@ -350,7 +394,8 @@ isFailure o = case o of
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True
-  EmptyPush {} -> True
+  EmptyLooseCodePush {} -> True
+  EmptyProjectBranchPush {} -> True
   BranchNotEmpty {} -> True
   TypeAlreadyExists {} -> True
   TypeParseError {} -> True
@@ -449,6 +494,30 @@ isFailure o = case o of
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False
   PulledEmptyBranch {} -> False
+  CreatedProject {} -> False
+  CreatedProjectBranch {} -> False
+  CreatedRemoteProject {} -> False
+  CreatedRemoteProjectBranch {} -> False
+  InvalidProjectName {} -> True
+  InvalidProjectBranchName {} -> True
+  RefusedToCreateProjectBranch {} -> True
+  ProjectNameAlreadyExists {} -> True
+  ProjectNameRequiresUserSlug {} -> True
+  NotOnProjectBranch {} -> True
+  NoAssociatedRemoteProject {} -> True
+  NoAssociatedRemoteProjectBranch {} -> True
+  ProjectAndBranchNameAlreadyExists {} -> True
+  LocalProjectBranchDoesntExist {} -> True
+  RemoteProjectDoesntExist {} -> True
+  RemoteProjectBranchDoesntExist {} -> True
+  RemoteProjectBranchHeadMismatch {} -> True
+  Unauthorized {} -> True
+  ServantClientError {} -> True
+  MarkdownOut {} -> False
+  NotImplementedYet {} -> True
+  RemoteProjectBranchIsUpToDate {} -> False
+  DownloadedEntities {} -> False
+  UploadedEntities {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
@@ -469,3 +538,4 @@ isNumberedFailure = \case
   History {} -> False
   DeletedDespiteDependents {} -> False
   ListEdits {} -> False
+  ListProjects {} -> False

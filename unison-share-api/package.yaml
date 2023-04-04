@@ -51,6 +51,7 @@ dependencies:
   - unison-pretty-printer
   - unison-util-base32hex
   - unison-util-relation
+  - unison-share-projects-api
   - unison-sqlite
   - unison-syntax
   - unliftio
@@ -59,6 +60,7 @@ dependencies:
   - utf8-string
   - vector
   - wai
+  - wai-cors
   - warp
   - yaml
 

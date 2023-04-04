@@ -8,7 +8,8 @@ module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
 where
 
 import Control.Concurrent.STM (TVar)
-import Control.Lens
+import Control.Lens hiding (from)
+import qualified Control.Lens as Lens
 import Control.Monad.Except (runExceptT)
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Except (throwE)
@@ -805,7 +806,7 @@ remapObjIdRefs objMapping refMapping someObjIdRef = newSomeObjId
       Nothing -> error $ "Expected reference mapping for ID: " <> show oldSomeRefId
       Just r -> r
     newSomeObjId :: SomeReference (UReference.Id' (New ObjectId))
-    newSomeObjId = (newSomeRefId ^. from uRefIdAsRefId_) & someRef_ . UReference.idH .~ newObjId
+    newSomeObjId = (newSomeRefId ^. Lens.from uRefIdAsRefId_) & someRef_ . UReference.idH .~ newObjId
 
 data SomeReference ref
   = TermReference ref

@@ -572,14 +572,15 @@ before h1 h2 =
 -- NOTE: this method requires an up-to-date name lookup index, which is
 -- currently not kept up-to-date automatically (because it's slow to do so).
 namesAtPath ::
+  BranchHash ->
   -- Include ALL names within this path
   Path ->
   -- Make names within this path relative to this path, other names will be absolute.
   Path ->
   Transaction ScopedNames
-namesAtPath namesRootPath relativeToPath = do
+namesAtPath bh namesRootPath relativeToPath = do
   let namesRoot = if namesRootPath == Path.empty then Nothing else Just $ tShow namesRootPath
-  NamesByPath {termNamesInPath, typeNamesInPath} <- Ops.rootNamesByPath namesRoot
+  NamesByPath {termNamesInPath, typeNamesInPath} <- Ops.namesByPath bh namesRoot
   let termsInPath = convertTerms termNamesInPath
   let typesInPath = convertTypes typeNamesInPath
   let rootTerms = Rel.fromList termsInPath
@@ -604,7 +605,7 @@ namesAtPath namesRootPath relativeToPath = do
         (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
     convertTerms names =
       names <&> \(S.NamedRef {reversedSegments, ref = (ref, ct)}) ->
-        let v1ref = runIdentity $ Cv.referent2to1 (const . pure . Cv.constructorType2to1 . fromMaybe (error "Required constructor type for constructor but it was null") $ ct) ref
+        let v1ref = Cv.referent2to1UsingCT (fromMaybe (error "Required constructor type for constructor but it was null") ct) ref
          in (Name.fromReverseSegments (coerce reversedSegments), v1ref)
 
     -- If the given prefix matches the given name, the prefix is stripped and it's collected
