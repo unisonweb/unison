@@ -30,6 +30,7 @@ import Data.Tuple.Extra (dupe)
 import Data.Void (absurd)
 import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
+import qualified Network.URI as URI
 import qualified Network.URI.Encode as URI
 import qualified Servant.Client as Servant
 import qualified System.Console.ANSI as ANSI
@@ -454,6 +455,37 @@ notifyNumbered = \case
     ( P.numberedList (map (prettyProjectName . view #name) projects),
       map (Text.unpack . into @Text . view #name) projects
     )
+  ListBranches projectName branches ->
+    ( P.columnNHeader
+        ["", "Branch", "Remote branch"]
+        ( do
+            (i, (branchName, remoteBranches0)) <- zip [(1 :: Int) ..] branches
+            case uncons remoteBranches0 of
+              Nothing -> pure [P.hiBlack (P.shown i <> "."), prettyProjectBranchName branchName, ""]
+              Just (firstRemoteBranch, remoteBranches) ->
+                [ P.hiBlack (P.shown i <> "."),
+                  prettyProjectBranchName branchName,
+                  prettyRemoteBranchInfo firstRemoteBranch
+                ]
+                  : map (\branch -> ["", "", prettyRemoteBranchInfo branch]) remoteBranches
+        ),
+      map (\(branchName, _) -> Text.unpack (into @Text (These projectName branchName))) branches
+    )
+    where
+      prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
+      prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
+        -- Special-case Unison Share since we know its project branch URLs
+        if URI.uriToString id host "" == "https://api.unison-lang.org"
+          then
+            P.hiBlack . P.text $
+              "https://share.unison-lang.org/"
+                <> into @Text remoteProject
+                <> "/branches/"
+                <> into @Text remoteBranch
+          else
+            prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
+              <> " on "
+              <> P.hiBlack (P.shown host)
   where
     absPathToBranchId = Right
 
