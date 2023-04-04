@@ -42,8 +42,13 @@ projectSwitch projectAndBranchNames0 = do
           case maybeCurrentProject of
             Just (ProjectAndBranch currentProject currentBranch) | projectId == currentProject ^. #projectId -> do
               newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
-              Queries.insertProjectBranch projectId newBranchId branchName
-              Queries.markProjectBranchChild projectId (currentBranch ^. #branchId) newBranchId
+              Queries.insertProjectBranch
+                Sqlite.ProjectBranch
+                  { projectId,
+                    branchId = newBranchId,
+                    name = branchName,
+                    parentBranchId = Just (currentBranch ^. #branchId)
+                  }
               pure (Right (SwitchedToNewBranchFrom currentBranch, newBranchId))
             _ -> pure (Left (Output.RefusedToCreateProjectBranch projectAndBranchNames))
   let path = ProjectUtils.projectBranchPath (ProjectAndBranch projectId branchId)
