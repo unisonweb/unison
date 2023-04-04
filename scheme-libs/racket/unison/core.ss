@@ -113,7 +113,7 @@
     (display r)
     (newline)
     (cond
-      [(eq? l r) #t]
+      [(equal? l r) #t]
       [(and (number? l) (number? r)) (= l r)]
       [(and (chunked-list? l) (chunked-list? r))
        (chunked-list=?/recur l r universal=?)]
