@@ -30,6 +30,7 @@ import Data.Tuple.Extra (dupe)
 import Data.Void (absurd)
 import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
+import qualified Network.URI as URI
 import qualified Network.URI.Encode as URI
 import qualified Servant.Client as Servant
 import qualified System.Console.ANSI as ANSI
@@ -473,7 +474,18 @@ notifyNumbered = \case
     where
       prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
       prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
-        prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch) <> " on " <> prettyURI host
+        -- Special-case Unison Share since we know its project branch URLs
+        if URI.uriToString id host "" == "https://api.unison-lang.org"
+          then
+            P.hiBlack . P.text $
+              "https://share.unison-lang.org/"
+                <> into @Text remoteProject
+                <> "/branches/"
+                <> into @Text remoteBranch
+          else
+            prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
+              <> " on "
+              <> P.hiBlack (P.shown host)
   where
     absPathToBranchId = Right
 
