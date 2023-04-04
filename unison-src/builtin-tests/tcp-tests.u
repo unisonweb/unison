@@ -4,12 +4,8 @@ shouldFail fn =
   isLeft result
 
 tcp.tests = do
-  check "connects to example.com" do
-    socket = Socket.client (HostName "example.com") (Port "80")
-    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n")
-    response = Socket.receive socket
-    Socket.close socket
-    contains "HTTP/1.0 200 OK" (base.Text.fromUtf8 response)
+  -- -- TODO: Enable this once scheme output correctly escapes \r
+  -- check "connects to example.com" tcp.example.com
   check "rejects invalid port" do shouldFail do Socket.client (HostName "example.com") (Port "what")
   check "no send after close" do shouldFail do
     socket = Socket.client (HostName "example.com") (Port "80")
@@ -19,6 +15,13 @@ tcp.tests = do
     match Socket.server None (Port "0") with
         BoundServerSocket socket -> Socket.send socket (toUtf8 "what")
   !testServerAndClient
+
+tcp.example.com = do
+    socket = Socket.client (HostName "example.com") (Port "80")
+    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n")
+    response = Socket.receive socket
+    Socket.close socket
+    contains "HTTP/1.0 200 OK" (base.Text.fromUtf8 response)
 
 testServerAndClient = do
   setup = catchAll do
