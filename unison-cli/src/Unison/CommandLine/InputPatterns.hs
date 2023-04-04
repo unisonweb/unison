@@ -2372,6 +2372,22 @@ projectCreate =
         _ -> Left (showPatternHelp projectCreate)
     }
 
+projectDeleteBranch :: InputPattern
+projectDeleteBranch =
+  InputPattern
+    { patternName = "project.delete-branch",
+      aliases = ["delete-branch"],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectBranchNameArg)],
+      help = P.wrap "Delete a branch of the current project.",
+      parse = \case
+        [name] ->
+          case tryInto @ProjectBranchName (Text.pack name) of
+            Left _ -> Left "Invalid branch name."
+            Right name1 -> Right (Input.ProjectDeleteBranchI name1)
+        _ -> Left (showPatternHelp projectDeleteBranch)
+    }
+
 projectSwitch :: InputPattern
 projectSwitch =
   InputPattern

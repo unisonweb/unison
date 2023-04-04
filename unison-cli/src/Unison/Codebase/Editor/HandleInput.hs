@@ -81,6 +81,7 @@ import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as Nam
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (projectClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
+import Unison.Codebase.Editor.HandleInput.ProjectDeleteBranch (handleProjectDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
@@ -1355,6 +1356,7 @@ loop e = do
             ProjectSwitchI name -> projectSwitch name
             ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
+            ProjectDeleteBranchI branch -> handleProjectDeleteBranch branch
             ProjectsI -> handleProjects
 
 magicMainWatcherString :: String
@@ -1530,6 +1532,7 @@ inputDescription input =
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     ProjectCloneI projectAndBranch -> pure ("project.clone " <> into @Text projectAndBranch)
     ProjectCreateI project -> pure ("project.create " <> into @Text project)
+    ProjectDeleteBranchI branch -> pure ("project.delete-branch " <> into @Text branch)
     ProjectSwitchI projectAndBranch -> pure ("project.create " <> into @Text projectAndBranch)
     --
     ApiI -> wat
