@@ -63,18 +63,18 @@ instance Monoid DefinitionDiffs where
 
 -- | A tree of local diffs. Each node of the tree contains the definition diffs at that path.
 newtype TreeDiff m = TreeDiff
-  { unTreeDiff :: Cofree (Compose m (Map NameSegment)) DefinitionDiffs
+  { unTreeDiff :: Cofree (Compose (Map NameSegment) m) DefinitionDiffs
   }
   deriving stock (Show, Eq, Ord)
 
 instance (Applicative m) => Semigroup (TreeDiff m) where
   TreeDiff (a :< Compose mas) <> TreeDiff (b :< Compose mbs) =
-    TreeDiff $ (a <> b) :< Compose (liftA2 (Map.unionWith mergeCofrees) mas mbs)
+    TreeDiff $ (a <> b) :< Compose (Map.unionWith mergeCofrees mas mbs)
     where
-      mergeCofrees x y = unTreeDiff (TreeDiff x <> TreeDiff y)
+      mergeCofrees = liftA2 (\x y -> unTreeDiff (TreeDiff x <> TreeDiff y))
 
 instance (Applicative m) => Monoid (TreeDiff m) where
-  mempty = TreeDiff (mempty :< Compose (pure mempty))
+  mempty = TreeDiff (mempty :< Compose mempty)
 
 -- | A summary of a 'TreeDiff', containing all names added and removed.
 -- Note that there isn't a clear notion of a name "changing" since conflicts might muddy the notion
@@ -119,28 +119,29 @@ diffBranches from to =
   let termDiffs = diffMap (Branch.terms from) (Branch.terms to)
       typeDiffs = diffMap (Branch.types from) (Branch.types to)
       defDiff = DefinitionDiffs {termDiffs, typeDiffs}
+      childDiff :: (Map NameSegment (m (Cofree (Compose (Map NameSegment) m) DefinitionDiffs)))
       childDiff = do
         Align.align (children from) (children to)
-          & wither \case
-            This ca -> do
+          & mapMaybe \case
+            This ca -> Just do
               -- TODO: For the names index we really don't need to know which exact
               -- names were removed, we just need to delete from the index using a
               -- prefix query, this would be faster than crawling to get all the deletes.
               removedChildBranch <- Causal.value ca
-              pure . Just . unTreeDiff $ diffBranches removedChildBranch Branch.empty
-            That ca -> do
+              pure . unTreeDiff $ diffBranches removedChildBranch Branch.empty
+            That ca -> Just do
               newChildBranch <- Causal.value ca
-              pure . Just . unTreeDiff $ diffBranches Branch.empty newChildBranch
+              pure . unTreeDiff $ diffBranches Branch.empty newChildBranch
             These fromC toC
-              | Causal.valueHash fromC == Causal.valueHash toC -> do
-                  -- This child didn't change.
-                  pure Nothing
-              | otherwise -> do
-                  fromChildBranch <- Causal.value fromC
-                  toChildBranch <- Causal.value toC
-                  case diffBranches fromChildBranch toChildBranch of
-                    TreeDiff (defDiffs :< Compose mchildren) -> do
-                      pure . Just $ (defDiffs :< Compose mchildren)
+              | Causal.valueHash fromC == Causal.valueHash toC ->
+                -- This child didn't change.
+                Nothing
+              | otherwise -> Just $ do
+                fromChildBranch <- Causal.value fromC
+                toChildBranch <- Causal.value toC
+                case diffBranches fromChildBranch toChildBranch of
+                  TreeDiff (defDiffs :< Compose mchildren) -> do
+                    pure $ (defDiffs :< Compose mchildren)
    in TreeDiff (defDiff :< Compose childDiff)
   where
     diffMap :: forall ref. (Ord ref) => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Diff ref)
@@ -168,8 +169,8 @@ allNameChanges mayPrefix treediff = do
 
 -- | Get a 'NameBasedDiff' from a 'TreeDiff'.
 nameBasedDiff :: (Monad m) => TreeDiff m -> m NameBasedDiff
-nameBasedDiff (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose mchildren)) = do
-  children <- mchildren >>= foldMapM (nameBasedDiff . TreeDiff)
+nameBasedDiff (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose childMap)) = do
+  children <- sequenceA childMap >>= foldMapM (nameBasedDiff . TreeDiff)
   let terms = foldMap nameBasedTermDiff termDiffs
   let types = foldMap nameBasedTypeDiff typeDiffs
   pure $ NameBasedDiff {terms, types} <> children
@@ -198,7 +199,7 @@ streamNameChanges ::
   TreeDiff m ->
   (Maybe Name -> NameChanges -> m r) ->
   m r
-streamNameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose getChildren)) f = do
+streamNameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose children)) f = do
   let (termNameAdds, termNameRemovals) =
         termDiffs
           & ifoldMap \ns diff ->
@@ -211,11 +212,11 @@ streamNameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :
              in (listifyNames name $ adds diff, listifyNames name $ removals diff)
   let nameChanges = NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}
   acc <- f namePrefix nameChanges
-  children <- getChildren
   childAcc <-
     children
       & ifoldMapM
-        ( \ns childTree ->
+        ( \ns mchildTree -> do
+            childTree <- mchildTree
             streamNameChanges (Just $ appendName ns) (TreeDiff childTree) f
         )
   pure $! acc <> childAcc
