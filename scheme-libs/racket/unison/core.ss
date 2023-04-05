@@ -83,7 +83,7 @@
       [(and (number? l) (number? r)) (if (< l r) '< '>)]
       [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
       [(and (chunked-string? l) (chunked-string? r))
-       (chunked-string-compare/recur
+       (chunked-string-compare/recur ;; TODO simplify given that `equal?` applies to chunked-string
         l
         r
         (lambda (a b)
