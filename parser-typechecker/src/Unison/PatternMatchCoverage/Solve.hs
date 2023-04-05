@@ -457,8 +457,9 @@ addConstraint ::
   Constraint vt v loc ->
   NormalizedConstraints vt v loc ->
   m (Maybe (NormalizedConstraints vt v loc))
-addConstraint con0 nc =
-  debugConstraint <$> case con0 of
+addConstraint con0 nc = do
+  ppe <- getPrettyPrintEnv
+  debugConstraint ppe <$> case con0 of
     C.PosLit var pmlit ->
       let updateLiteral pos neg lit
             | Just lit1 <- pos,
@@ -568,13 +569,13 @@ addConstraint con0 nc =
           | otherwise -> pure $ Just $ insertVarInfo var vi {vi_eff = IsEffectful} nc
     C.Eq x y -> union x y nc
   where
-    debugConstraint x =
+    debugConstraint ppe x =
       let debugOutput =
             P.sep
               "\n"
-              [ P.hang (P.red "input constraints: ") (prettyNormalizedConstraints nc),
-                P.hang (P.yellow "additional constraint: ") (C.prettyConstraint con0),
-                P.hang (P.green "resulting constraint: ") (maybe "contradiction" prettyNormalizedConstraints x),
+              [ P.hang (P.red "input constraints: ") (prettyNormalizedConstraints ppe nc),
+                P.hang (P.yellow "additional constraint: ") (C.prettyConstraint ppe con0),
+                P.hang (P.green "resulting constraint: ") (maybe "contradiction" (prettyNormalizedConstraints ppe) x),
                 ""
               ]
        in if shouldDebug PatternCoverageConstraintSolver then trace (P.toAnsiUnbroken debugOutput) x else x

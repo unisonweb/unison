@@ -28,6 +28,9 @@ module Unison.Cli.Monad
     returnEarlyWithoutOutput,
     haltRepl,
 
+    -- * Changing the current directory
+    cd,
+
     -- * Communicating output to the user
     respond,
     respondNumbered,
@@ -364,6 +367,11 @@ time label action =
         us = ns / 1_000
         ms = ns / 1_000_000
         s = ns / 1_000_000_000
+
+cd :: Path.Absolute -> Cli ()
+cd path =
+  State.modify' \state ->
+    state {currentPathStack = List.NonEmpty.cons path (currentPathStack state)}
 
 respond :: Output -> Cli ()
 respond output = do

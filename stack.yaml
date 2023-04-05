@@ -10,13 +10,6 @@ build:
   interleaved-output: false
 
 packages:
-- yaks/easytest
-- parser-typechecker
-- unison-core
-- unison-cli
-- unison-hashing-v2
-- unison-share-api
-- unison-syntax
 - codebase2/codebase
 - codebase2/codebase-sqlite
 - codebase2/codebase-sqlite-hashing-v2
@@ -24,18 +17,29 @@ packages:
 - codebase2/core
 - codebase2/util-serialization
 - codebase2/util-term
+- lib/orphans/network-uri-orphans-sqlite
+- lib/orphans/unison-core-orphans-sqlite
+- lib/orphans/unison-hash-orphans-aeson
+- lib/orphans/unison-hash-orphans-sqlite
+- lib/orphans/uuid-orphans-sqlite
 - lib/unison-hash
-- lib/unison-hash-orphans-aeson
-- lib/unison-hash-orphans-sqlite
 - lib/unison-hashing
 - lib/unison-prelude
+- lib/unison-pretty-printer
 - lib/unison-sqlite
 - lib/unison-util-base32hex
 - lib/unison-util-bytes
 - lib/unison-util-cache
 - lib/unison-util-relation
 - lib/unison-util-rope
-- lib/unison-pretty-printer
+- parser-typechecker
+- unison-cli
+- unison-core
+- unison-hashing-v2
+- unison-share-api
+- unison-share-projects-api
+- unison-syntax
+- yaks/easytest
 
 #compiler-check: match-exact
 resolver: lts-18.28
@@ -74,6 +78,9 @@ extra-deps:
 - terminal-size-0.3.3
 # lts 18.28 provides 3.1.1.1 but we need at least 3.1.2.7
 - network-3.1.2.7
+# 0.4.18.0 is in lts-18.28, but 0.4.18.2 adds generic
+# implementations of ToRow and FromRow
+- sqlite-simple-0.4.18.2
 
 ghc-options:
  # All packages

@@ -67,6 +67,7 @@ module Unison.Server.Backend
     typeToSyntaxHeader,
     renderDocRefs,
     docsForDefinitionName,
+    normaliseRootCausalHash,
 
     -- * Unused, could remove?
     resolveRootBranchHash,
@@ -109,10 +110,11 @@ import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
-import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.HashTags (BranchHash, CausalHash (..))
 import U.Codebase.Projects as Projects
 import qualified U.Codebase.Referent as V2Referent
 import qualified U.Codebase.Sqlite.Operations as Operations
+import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -229,6 +231,8 @@ data BackendError
   | CouldntLoadBranch CausalHash
   | MissingSignatureForTerm Reference
   | NoSuchDefinition (HQ.HashQualified Name)
+  | -- We needed a name lookup index we didn't have.
+    ExpectedNameLookup BranchHash
   | -- The inferred project root for a given perspective is neither a parent nor child
     -- of the perspective. This shouldn't happen and indicates a bug.
     -- (perspective, project root)
@@ -851,7 +855,7 @@ prettyDefinitionsForHQName ::
   -- this path.
   Path ->
   -- | The root branch to use
-  Maybe CausalHash ->
+  V2Branch.CausalBranch Sqlite.Transaction ->
   Maybe Width ->
   -- | Whether to suffixify bindings in the rendered syntax
   Suffixify ->
@@ -861,9 +865,8 @@ prettyDefinitionsForHQName ::
   -- | The name, hash, or both, of the definition to display.
   HQ.HashQualified Name ->
   Backend IO DefinitionDisplayResults
-prettyDefinitionsForHQName perspective mayRoot renderWidth suffixifyBindings rt codebase perspectiveQuery = do
+prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings rt codebase perspectiveQuery = do
   result <- liftIO . Codebase.runTransaction codebase $ do
-    shallowRoot <- resolveCausalHashV2 mayRoot
     shallowBranch <- V2Causal.value shallowRoot
     relocateToProjectRoot perspective perspectiveQuery shallowBranch >>= \case
       Left err -> pure $ Left err
@@ -1203,23 +1206,21 @@ scopedNamesForBranchHash ::
   Backend m (Names, PPED.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
+  (rootBranchHash, rootCausalHash) <- case mbh of
+    Just cb -> pure (V2Causal.valueHash cb, V2Causal.causalHash cb)
+    Nothing -> lift $ do
+      cb <- Codebase.runTransaction codebase Operations.expectRootCausal
+      pure (V2Causal.valueHash cb, V2Causal.causalHash cb)
+  haveNameLookupForRoot <- lift $ Codebase.runTransaction codebase (Ops.checkBranchHashNameLookupExists rootBranchHash)
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
-  (parseNames, localNames) <- case mbh of
-    Nothing
-      | shouldUseNamesIndex -> do
-          lift $ Codebase.runTransaction codebase indexNames
-      | otherwise -> do
-          rootBranch <- lift $ Codebase.getRootBranch codebase
-          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-          pure (parseNames, localNames)
-    Just rootCausal -> do
-      let ch = V2Causal.causalHash rootCausal
-      rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash
-      if (ch == rootHash) && shouldUseNamesIndex
-        then lift $ Codebase.runTransaction codebase indexNames
-        else do
-          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just ch) codebase
-          pure (parseNames, localNames)
+  (parseNames, localNames) <-
+    if shouldUseNamesIndex
+      then do
+        when (not haveNameLookupForRoot) . throwError $ ExpectedNameLookup rootBranchHash
+        lift . Codebase.runTransaction codebase $ indexNames rootBranchHash
+      else do
+        (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just rootCausalHash) codebase
+        pure (parseNames, localNames)
 
   let localPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
   let globalPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames parseNames)
@@ -1230,12 +1231,12 @@ scopedNamesForBranchHash codebase mbh path = do
       PPED.PrettyPrintEnvDecl
         (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE addFallback)
         (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE addFallback)
-    indexNames :: Sqlite.Transaction (Names, Names)
-    indexNames = do
+    indexNames :: BranchHash -> Sqlite.Transaction (Names, Names)
+    indexNames bh = do
       branch <- Codebase.getShallowRootBranch
       mayProjectRoot <- Projects.inferNamesRoot path branch
       let namesRoot = fromMaybe path mayProjectRoot
-      scopedNames <- Codebase.namesAtPath namesRoot path
+      scopedNames <- Codebase.namesAtPath bh namesRoot path
       pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::
@@ -1267,6 +1268,14 @@ resolveRootBranchHashV2 mayRoot = case mayRoot of
   Just sch -> do
     h <- expandShortCausalHash sch
     lift (resolveCausalHashV2 (Just h))
+
+normaliseRootCausalHash :: Maybe (Either ShortCausalHash CausalHash) -> Backend Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+normaliseRootCausalHash mayCh = case mayCh of
+  Nothing -> lift $ resolveCausalHashV2 Nothing
+  Just (Left sch) -> do
+    ch <- expandShortCausalHash sch
+    lift $ resolveCausalHashV2 (Just ch)
+  Just (Right ch) -> lift $ resolveCausalHashV2 (Just ch)
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
 --

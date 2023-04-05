@@ -52,6 +52,7 @@ library:
     - text
     - mtl
     - unliftio
+    - pretty-simple
     - process
     - extra
     - terminal-size
