@@ -1356,7 +1356,7 @@ loop e = do
             ProjectSwitchI name -> projectSwitch name
             ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
-            ProjectDeleteBranchI branch -> handleProjectDeleteBranch branch
+            ProjectDeleteBranchI name -> handleProjectDeleteBranch name
             ProjectsI -> handleProjects
 
 magicMainWatcherString :: String
@@ -1532,7 +1532,7 @@ inputDescription input =
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     ProjectCloneI projectAndBranch -> pure ("project.clone " <> into @Text projectAndBranch)
     ProjectCreateI project -> pure ("project.create " <> into @Text project)
-    ProjectDeleteBranchI branch -> pure ("project.delete-branch " <> into @Text branch)
+    ProjectDeleteBranchI projectAndBranch -> pure ("project.delete-branch " <> into @Text projectAndBranch)
     ProjectSwitchI projectAndBranch -> pure ("project.create " <> into @Text projectAndBranch)
     --
     ApiI -> wat

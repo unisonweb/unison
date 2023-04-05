@@ -2378,13 +2378,13 @@ projectDeleteBranch =
     { patternName = "project.delete-branch",
       aliases = ["delete-branch"],
       visibility = I.Hidden,
-      argTypes = [(Required, projectBranchNameArg)],
-      help = P.wrap "Delete a branch of the current project.",
+      argTypes = [(Required, projectAndBranchNamesArg)],
+      help = P.wrap "Delete a project branch.",
       parse = \case
         [name] ->
-          case tryInto @ProjectBranchName (Text.pack name) of
-            Left _ -> Left "Invalid branch name."
-            Right name1 -> Right (Input.ProjectDeleteBranchI name1)
+          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+            Left _ -> Left (showPatternHelp projectDeleteBranch)
+            Right projectAndBranch -> Right (Input.ProjectDeleteBranchI projectAndBranch)
         _ -> Left (showPatternHelp projectDeleteBranch)
     }
 
@@ -2527,6 +2527,7 @@ validInputs =
       diffNamespaceToPatch,
       projectClone,
       projectCreate,
+      projectDeleteBranch,
       projectSwitch,
       projects
     ]

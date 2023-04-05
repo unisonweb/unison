@@ -1827,12 +1827,13 @@ notifyUser dir = \case
         <> prettyProjectName projectName
         <> "with branch"
         <> prettyProjectBranchName branchName
-  CreatedProjectBranch parentBranchName childBranchName ->
+  CreatedProjectBranch maybeParentBranchName childBranchName ->
     pure . P.wrap $
       "I just created branch"
         <> prettyProjectBranchName childBranchName
-        <> "from branch"
-        <> prettyProjectBranchName parentBranchName
+        <> case maybeParentBranchName of
+          Nothing -> mempty
+          Just parentBranchName -> "from branch" <> prettyProjectBranchName parentBranchName
   CreatedRemoteProject host (ProjectAndBranch projectName _) ->
     pure . P.wrap $
       "I just created"
@@ -1846,12 +1847,6 @@ notifyUser dir = \case
     pure (P.wrap (prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host <> "is already up-to-date."))
   InvalidProjectName name -> pure (P.wrap (P.text name <> "is not a valid project name."))
   InvalidProjectBranchName name -> pure (P.wrap (P.text name <> "is not a valid branch name."))
-  RefusedToCreateProjectBranch projectAndBranch ->
-    pure . P.wrap $
-      "You can only create"
-        <> prettyProjectAndBranchName projectAndBranch
-        <> "from another branch in"
-        <> prettyProjectName (projectAndBranch ^. #project)
   ProjectNameAlreadyExists name ->
     pure . P.wrap $
       "Project" <> prettyProjectName name <> "already exists."

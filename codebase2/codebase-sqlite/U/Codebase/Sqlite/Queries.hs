@@ -116,6 +116,7 @@ module U.Codebase.Sqlite.Queries
     loadProjectAndBranchNames,
     insertProjectBranch,
     loadProjectBranch,
+    deleteProjectBranch,
 
     -- ** remote projects
     loadRemoteProject,
@@ -2947,6 +2948,44 @@ insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBran
           VALUES (?, ?, ?)
       |]
       (projectId, parentBranchId, branchId)
+
+-- | Delete a project branch.
+--
+-- Re-parenting happens in the obvious way:
+--
+--   Before:
+--
+--     main <- topic <- topic2
+--
+--  After deleting `topic`:
+--
+--    main <- topic2
+deleteProjectBranch :: ProjectId -> ProjectBranchId -> Transaction ()
+deleteProjectBranch projectId branchId = do
+  maybeParentBranchId :: Maybe ProjectBranchId <-
+    queryMaybeCol
+      [sql|
+        SELECT parent_branch_id
+        FROM project_branch_parent
+        WHERE project_id = ? AND branch_id = ?
+      |]
+      (projectId, branchId)
+  -- If the branch being deleted has a parent, then reparent its children. Otherwise, the 'on delete cascade' foreign
+  -- key from `project_branch_parent` will take care of deleting its children's parent entries.
+  whenJust maybeParentBranchId \parentBranchId ->
+    execute
+      [sql|
+        UPDATE project_branch_parent
+        SET parent_branch_id = ?
+        WHERE project_id = ? AND parent_branch_id = ?
+      |]
+      (parentBranchId, projectId, branchId)
+  execute
+    [sql|
+      DELETE FROM project_branch
+      WHERE project_id = ? AND branch_id = ?
+    |]
+    (projectId, branchId)
 
 data LoadRemoteBranchFlag
   = IncludeSelfRemote

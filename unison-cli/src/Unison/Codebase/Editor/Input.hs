@@ -222,7 +222,7 @@ data Input
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   | ProjectCloneI (These ProjectName ProjectBranchName)
   | ProjectCreateI ProjectName
-  | ProjectDeleteBranchI ProjectBranchName
+  | ProjectDeleteBranchI (These ProjectName ProjectBranchName)
   | ProjectSwitchI (These ProjectName ProjectBranchName)
   | ProjectsI
   deriving (Eq, Show)

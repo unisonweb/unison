@@ -16,5 +16,5 @@ data ProjectBranch = ProjectBranch
     name :: ProjectBranchName,
     parentBranchId :: Maybe ProjectBranchId
   }
-  deriving stock (Generic, Show)
+  deriving stock (Eq, Generic, Show)
   deriving anyclass (ToRow, FromRow)
