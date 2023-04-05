@@ -468,6 +468,12 @@ data WhatAreWePushing
 pushToProjectBranch0 :: WhatAreWePushing -> Hash32 -> ProjectAndBranch ProjectName ProjectBranchName -> Cli UploadPlan
 pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
   let remoteProjectName = remoteProjectAndBranch ^. #project
+
+  -- Assert that this project name has a user slug before bothering to hit Share
+  _ <-
+    projectNameUserSlug remoteProjectName & onNothing do
+      Cli.returnEarly (Output.ProjectNameRequiresUserSlug remoteProjectName)
+
   Share.getProjectByName remoteProjectName >>= \case
     Nothing -> do
       remoteProject <-
