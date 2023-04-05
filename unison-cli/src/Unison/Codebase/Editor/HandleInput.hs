@@ -74,8 +74,6 @@ import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
-import Unison.Codebase.Editor.HandleInput.CreatePullRequest (handleCreatePullRequest)
-import Unison.Codebase.Editor.HandleInput.LoadPullRequest (handleLoadPullRequest)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
@@ -440,10 +438,6 @@ loop e = do
                 (False, False) -> pure ()
               (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
               Cli.respondNumbered (ShowDiffNamespace absBefore absAfter ppe diff)
-            CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
-            LoadPullRequestI baseRepo headRepo dest0 -> do
-              description <- inputDescription input
-              handleLoadPullRequest description baseRepo headRepo dest0
             MoveBranchI src' dest' -> do
               hasConfirmed <- confirmedCommand input
               description <- inputDescription input
@@ -1510,15 +1504,6 @@ inputDescription input =
               PullTargetProject target1 -> pure (into @Text target1)
           pure (command <> " " <> source <> " " <> target)
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
-    LoadPullRequestI base head dest0 -> do
-      dest <- p' dest0
-      pure $
-        "pr.load "
-          <> printReadRemoteNamespace (into @Text) base
-          <> " "
-          <> printReadRemoteNamespace (into @Text) head
-          <> " "
-          <> dest
     RemoveTermReplacementI src p0 -> do
       p <- opatch p0
       pure ("delete.term-replacement" <> HQ.toText src <> " " <> p)
@@ -1538,7 +1523,6 @@ inputDescription input =
     AuthLoginI {} -> wat
     ClearI {} -> pure "clear"
     CreateMessage {} -> wat
-    CreatePullRequestI {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat
     DebugDumpNamespaceSimpleI {} -> wat
