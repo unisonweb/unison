@@ -134,14 +134,14 @@ diffBranches from to =
               pure . unTreeDiff $ diffBranches Branch.empty newChildBranch
             These fromC toC
               | Causal.valueHash fromC == Causal.valueHash toC ->
-                -- This child didn't change.
-                Nothing
+                  -- This child didn't change.
+                  Nothing
               | otherwise -> Just $ do
-                fromChildBranch <- Causal.value fromC
-                toChildBranch <- Causal.value toC
-                case diffBranches fromChildBranch toChildBranch of
-                  TreeDiff (defDiffs :< Compose mchildren) -> do
-                    pure $ (defDiffs :< Compose mchildren)
+                  fromChildBranch <- Causal.value fromC
+                  toChildBranch <- Causal.value toC
+                  case diffBranches fromChildBranch toChildBranch of
+                    TreeDiff (defDiffs :< Compose mchildren) -> do
+                      pure $ (defDiffs :< Compose mchildren)
    in TreeDiff (defDiff :< Compose childDiff)
   where
     diffMap :: forall ref. (Ord ref) => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Diff ref)
