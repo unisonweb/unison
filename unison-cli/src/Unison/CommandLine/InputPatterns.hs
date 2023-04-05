@@ -724,7 +724,6 @@ deleteBranch =
         _ -> Left (showPatternHelp deleteBranch)
     }
 
-
 deleteTermReplacement :: InputPattern
 deleteTermReplacement = deleteReplacement True
 
