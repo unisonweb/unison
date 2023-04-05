@@ -1,6 +1,8 @@
 -- | Project-related utilities.
 module Unison.Cli.ProjectUtils
   ( -- * Project/path helpers
+    getCurrentProject,
+    expectCurrentProject,
     getCurrentProjectBranch,
     expectCurrentProjectBranch,
     projectPath,
@@ -43,6 +45,22 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Sqlite as Sqlite
 import Witch (unsafeFrom)
+
+-- | Get the current project that a user is on.
+getCurrentProject :: Cli (Maybe Sqlite.Project)
+getCurrentProject = do
+  path <- Cli.getCurrentPath
+  case preview projectBranchPathPrism path of
+    Nothing -> pure Nothing
+    Just (ProjectAndBranch projectId _branchId) ->
+      Cli.runTransaction do
+        project <- Queries.expectProject projectId
+        pure (Just project)
+
+-- | Like 'getCurrentProject', but fails with a message if the user is not on a project branch.
+expectCurrentProject :: Cli Sqlite.Project
+expectCurrentProject = do
+  getCurrentProject & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
 
 -- | Get the current project+branch that a user is on.
 --
