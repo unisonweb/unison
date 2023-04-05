@@ -1084,12 +1084,16 @@ buildNameLookupForBranchHash ::
   -- If Just, the name lookup must exist or an error will be thrown.
   Maybe BranchHash ->
   BranchHash ->
-  -- |  (add terms, remove terms)
-  ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
-  -- |  (add types, remove types)
-  ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
+  ( ( -- (add terms, remove terms)
+      ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
+      --  (add types, remove types)
+      ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
+      Transaction ()
+    ) ->
+    Transaction ()
+  ) ->
   Transaction ()
-buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
+buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash callback = do
   newBranchHashId <- Q.expectBranchHashId newBranchHash
   Q.trackNewBranchHashNameLookup newBranchHashId
   case mayExistingBranchIndex of
@@ -1098,10 +1102,11 @@ buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash (newTermNames,
       unlessM (checkBranchHashNameLookupExists existingBranchIndex) $ error "buildNameLookupForBranchHash: existingBranchIndex was provided, but no index was found for that branch hash."
       existingBranchHashId <- Q.expectBranchHashId existingBranchIndex
       Q.copyScopedNameLookup existingBranchHashId newBranchHashId
-  Q.removeScopedTermNames newBranchHashId ((fmap c2sTextReferent <$> removedTermNames))
-  Q.removeScopedTypeNames newBranchHashId ((fmap c2sTextReference <$> removedTypeNames))
-  Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
-  Q.insertScopedTypeNames newBranchHashId (fmap c2sTextReference <$> newTypeNames)
+  callback \(newTermNames, removedTermNames) (newTypeNames, removedTypeNames) -> do
+    Q.removeScopedTermNames newBranchHashId ((fmap c2sTextReferent <$> removedTermNames))
+    Q.removeScopedTypeNames newBranchHashId ((fmap c2sTextReference <$> removedTypeNames))
+    Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
+    Q.insertScopedTypeNames newBranchHashId (fmap c2sTextReference <$> newTypeNames)
 
 -- | Check whether we've already got an index for a given branch hash.
 checkBranchHashNameLookupExists :: BranchHash -> Transaction Bool
