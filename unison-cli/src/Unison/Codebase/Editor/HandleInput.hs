@@ -75,6 +75,7 @@ import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.CreatePullRequest (handleCreatePullRequest)
+import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.LoadPullRequest (handleLoadPullRequest)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
@@ -82,7 +83,6 @@ import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as Nam
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (projectClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
-import Unison.Codebase.Editor.HandleInput.ProjectDeleteBranch (handleProjectDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
@@ -1357,7 +1357,7 @@ loop e = do
             ProjectSwitchI name -> projectSwitch name
             ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
-            ProjectDeleteBranchI name -> handleProjectDeleteBranch name
+            ProjectDeleteBranchI name -> handleDeleteBranch name
             ProjectsI -> handleProjects
             BranchesI -> handleBranches
 

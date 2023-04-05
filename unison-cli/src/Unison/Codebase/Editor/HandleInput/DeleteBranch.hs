@@ -1,6 +1,6 @@
--- | @project.delete-branch@ input handler
-module Unison.Codebase.Editor.HandleInput.ProjectDeleteBranch
-  ( handleProjectDeleteBranch,
+-- | @delete.branch@ input handler
+module Unison.Codebase.Editor.HandleInput.DeleteBranch
+  ( handleDeleteBranch,
   )
 where
 
@@ -24,8 +24,8 @@ import Witch (unsafeFrom)
 -- Currently, deleting a branch means deleting its `project_branch` row, then deleting its contents from the namespace.
 -- Its children branches, if any, are reparented to their grandparent, if any. You may delete the only branch in a
 -- project.
-handleProjectDeleteBranch :: These ProjectName ProjectBranchName -> Cli ()
-handleProjectDeleteBranch projectAndBranchTheseNames = do
+handleDeleteBranch :: These ProjectName ProjectBranchName -> Cli ()
+handleDeleteBranch projectAndBranchTheseNames = do
   projectAndBranchNames <- ProjectUtils.hydrateNames projectAndBranchTheseNames
 
   maybeCurrentBranch <- ProjectUtils.getCurrentProjectBranch
