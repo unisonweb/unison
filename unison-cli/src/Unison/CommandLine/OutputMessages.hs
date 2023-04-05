@@ -309,36 +309,6 @@ notifyNumbered = \case
                 ]
           )
           (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diff)
-  ShowDiffAfterCreatePR baseRepo headRepo ppe diff ->
-    if OBD.isEmpty diff
-      then
-        ( P.wrap $
-            "Looks like there's no difference between "
-              <> prettyReadRemoteNamespaceWith absurd baseRepo
-              <> "and"
-              <> prettyReadRemoteNamespaceWith absurd headRepo
-              <> ".",
-          mempty
-        )
-      else
-        first
-          ( \p ->
-              P.lines
-                [ P.wrap $
-                    "The changes summarized below are available for you to review,"
-                      <> "using the following command:",
-                  "",
-                  P.indentN 2 $
-                    IP.makeExampleNoBackticks
-                      IP.loadPullRequest
-                      [ prettyReadRemoteNamespaceWith absurd baseRepo,
-                        prettyReadRemoteNamespaceWith absurd headRepo
-                      ],
-                  "",
-                  p
-                ]
-          )
-          (showDiffNamespace HideNumbers ppe (absPathToBranchId Path.absoluteEmpty) (absPathToBranchId Path.absoluteEmpty) diff)
   -- todo: these numbers aren't going to work,
   --  since the content isn't necessarily here.
   -- Should we have a mode with no numbers? :P
@@ -826,12 +796,6 @@ notifyUser dir = \case
   BranchEmpty b ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyWhichBranchEmpty b) <> "is an empty namespace."
-  BranchNotEmpty path ->
-    pure . P.warnCallout $
-      P.lines
-        [ "The current namespace '" <> prettyPath' path <> "' is not empty. `pull-request.load` downloads the PR into the current namespace which would clutter it.",
-          "Please switch to an empty namespace and try again."
-        ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
