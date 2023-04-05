@@ -113,6 +113,7 @@ module U.Codebase.Sqlite.Queries
     loadProjectBranchByName,
     loadProjectBranchByNames,
     expectProjectBranch,
+    loadAllProjectBranchInfo,
     loadProjectAndBranchNames,
     insertProjectBranch,
     loadProjectBranch,
@@ -354,6 +355,7 @@ import Unison.Sqlite
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Util.Alternative as Alternative
 import qualified Unison.Util.Lens as Lens
+import qualified Unison.Util.Map as Map
 
 -- | A namespace rendered as a path, no leading '.'
 -- E.g. "base.data"
@@ -2915,6 +2917,64 @@ loadProjectBranchByNames projectName branchName =
         AND project_branch.name = ?
     |]
     (projectName, branchName)
+
+-- | Load info about all branches in a project, for display by the @branches@ command.
+--
+-- Each branch name maps to a possibly-empty collection of associated remote branches.
+loadAllProjectBranchInfo :: ProjectId -> Transaction (Map ProjectBranchName (Map URI (ProjectName, ProjectBranchName)))
+loadAllProjectBranchInfo projectId =
+  fmap postprocess $
+    queryListRow
+      [sql|
+        SELECT
+          pb.name AS local_branch_name,
+          rpb.host AS host,
+          rp.name AS remote_project_name,
+          rpb.name AS remote_branch_name
+        FROM project_branch AS pb
+        LEFT JOIN project_branch_remote_mapping AS pbrm ON pb.project_id = pbrm.local_project_id
+          AND pb.branch_id = pbrm.local_branch_id
+        LEFT JOIN remote_project AS rp ON pbrm.remote_project_id = rp.id
+        LEFT JOIN remote_project_branch AS rpb ON pbrm.remote_project_id = rpb.project_id
+          AND pbrm.remote_branch_id = rpb.branch_id
+        WHERE pb.project_id = ?
+        ORDER BY local_branch_name ASC, host ASC, remote_project_name ASC, remote_branch_name ASC
+      |]
+      (Only projectId)
+  where
+    -- Each input tuple is the local branch name, plus either:
+    --
+    --   1. One of 1+ (host, remote project, remote branch) triplets, indicating this local branch is associated with 1+
+    --      remote branches (with distinct hosts)
+    --
+    --      *or*
+    --
+    --   2. Three Nothings, indicating this local branch is associated with 0 remote branches.
+    postprocess ::
+      [(ProjectBranchName, Maybe URI, Maybe ProjectName, Maybe ProjectBranchName)] ->
+      Map ProjectBranchName (Map URI (ProjectName, ProjectBranchName))
+    postprocess =
+      foldl' f Map.empty
+      where
+        f ::
+          Map ProjectBranchName (Map URI (ProjectName, ProjectBranchName)) ->
+          (ProjectBranchName, Maybe URI, Maybe ProjectName, Maybe ProjectBranchName) ->
+          Map ProjectBranchName (Map URI (ProjectName, ProjectBranchName))
+        f !acc (localBranchName, maybeHost, maybeRemoteProjectName, maybeRemoteBranchName) =
+          Map.upsert g localBranchName acc
+          where
+            g :: Maybe (Map URI (ProjectName, ProjectBranchName)) -> Map URI (ProjectName, ProjectBranchName)
+            g maybeRemoteBranches =
+              case (maybeHost, maybeRemoteProjectName, maybeRemoteBranchName) of
+                -- One more remote (host, project name, branch name) tuple to collect, either as a singleton map
+                -- (because it's the first we've seen for this local branch), or as a map insert (because it's not).
+                (Just host, Just remoteProjectName, Just remoteBranchName) ->
+                  case maybeRemoteBranches of
+                    Nothing -> Map.singleton host (remoteProjectName, remoteBranchName)
+                    Just remoteBranches -> Map.insert host (remoteProjectName, remoteBranchName) remoteBranches
+                -- We know these three are all Nothing (this local branch has no associated remote branches)
+                -- No need to pattern match on maybeRemoteBranches; we know it's Nothing, too
+                _ -> Map.empty
 
 loadProjectAndBranchNames :: ProjectId -> ProjectBranchId -> Transaction (Maybe (ProjectName, ProjectBranchName))
 loadProjectAndBranchNames projectId branchId =

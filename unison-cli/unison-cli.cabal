@@ -43,6 +43,7 @@ library
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
       Unison.Codebase.Editor.HandleInput.AuthLogin
+      Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.CreatePullRequest
       Unison.Codebase.Editor.HandleInput.LoadPullRequest
       Unison.Codebase.Editor.HandleInput.MetadataUtils

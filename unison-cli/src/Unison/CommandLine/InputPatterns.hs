@@ -2415,6 +2415,17 @@ projects =
       parse = \_ -> Right Input.ProjectsI
     }
 
+branches :: InputPattern
+branches =
+  InputPattern
+    { patternName = "branches",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [],
+      help = P.wrap "List branches.",
+      parse = \_ -> Right Input.BranchesI
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2529,7 +2540,8 @@ validInputs =
       projectCreate,
       projectDeleteBranch,
       projectSwitch,
-      projects
+      projects,
+      branches
     ]
 
 -- | A map of all command patterns by pattern name or alias.
