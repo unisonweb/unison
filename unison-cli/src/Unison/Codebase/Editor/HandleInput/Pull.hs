@@ -10,7 +10,7 @@ module Unison.Codebase.Editor.HandleInput.Pull
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (snoc, (^.))
+import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import qualified Data.List.NonEmpty as Nel
 import Data.These
@@ -75,9 +75,9 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity descrip
   let printDiffPath =
         if Verbosity.isSilent verbosity
           then Nothing
-          else case target of
-            PullTargetLooseCode path -> Just path
-            PullTargetProject _ -> Nothing -- todo
+          else Just case target of
+            PullTargetLooseCode path -> Left path
+            PullTargetProject x -> Right (ProjectAndBranch (x ^. #project . #name) (x ^. #branch . #name))
   case pullMode of
     Input.PullWithHistory -> do
       targetBranchObject <- Cli.getBranch0At targetAbsolutePath
@@ -245,7 +245,7 @@ mergeBranchAndPropagateDefaultPatch ::
   Text ->
   Maybe Output ->
   Branch IO ->
-  Maybe Path.Path' ->
+  Maybe (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) ->
   Path.Absolute ->
   Cli ()
 mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb maybeDest0 dest =
@@ -268,7 +268,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
 
 loadPropagateDiffDefaultPatch ::
   Text ->
-  Maybe Path.Path' ->
+  Maybe (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) ->
   Path.Absolute ->
   Cli ()
 loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
@@ -279,7 +279,7 @@ loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
     when patchDidChange do
       whenJust maybeDest0 \dest0 -> do
         patched <- Cli.getBranchAt dest
-        let patchPath = snoc dest0 Cli.defaultPatchNameSegment
+        let patchPath = Path.Path' (Right (Path.Relative (Path.fromList [Cli.defaultPatchNameSegment])))
         (ppe, diff) <- diffHelper original (Branch.head patched)
         Cli.respondNumbered (ShowDiffAfterMergePropagate dest0 dest patchPath ppe diff)
 

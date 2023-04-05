@@ -13,6 +13,7 @@ module Unison.Codebase.Editor.Input
     PatchPath,
     BranchId,
     AbsBranchId,
+    LooseCodeOrProject,
     parseBranchId,
     parseShortCausalHash,
     HashOrHQSplit',
@@ -63,6 +64,8 @@ data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
 
 type BranchId = Either ShortCausalHash Path'
 
+type LooseCodeOrProject = Either Path' (Maybe ProjectName, ProjectBranchName)
+
 type AbsBranchId = Either ShortCausalHash Path.Absolute
 
 type HashOrHQSplit' = Either ShortHash Path.HQSplit'
@@ -95,8 +98,8 @@ data Input
     -- clone w/o merge, error if would clobber
     ForkLocalBranchI (Either ShortCausalHash Path') Path'
   | -- merge first causal into destination
-    MergeLocalBranchI Path' Path' Branch.MergeMode
-  | PreviewMergeLocalBranchI Path' Path'
+    MergeLocalBranchI LooseCodeOrProject LooseCodeOrProject Branch.MergeMode
+  | PreviewMergeLocalBranchI LooseCodeOrProject LooseCodeOrProject
   | DiffNamespaceI BranchId BranchId -- old new
   | PullRemoteBranchI PullSourceTarget SyncMode PullMode Verbosity
   | PushRemoteBranchI PushRemoteBranchInput

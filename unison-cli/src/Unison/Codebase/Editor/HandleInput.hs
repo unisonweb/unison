@@ -28,6 +28,7 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
+import Data.These (These (..))
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import System.Directory
@@ -50,6 +51,8 @@ import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Reference as V2 (Reference)
 import qualified U.Codebase.Reflog as Reflog
+import qualified U.Codebase.Sqlite.Project as Sqlite
+import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
 import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
@@ -60,6 +63,7 @@ import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
+import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -131,6 +135,7 @@ import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
@@ -411,21 +416,29 @@ loop e = do
                     Right path -> WhichBranchEmptyPath path
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
-              srcb <- Cli.expectBranchAtPath' src0
-              dest <- Cli.resolvePath' dest0
-              let err = Just $ MergeAlreadyUpToDate src0 dest0
-              mergeBranchAndPropagateDefaultPatch mergeMode description err srcb (Just dest0) dest
+              src0 <- _Right ProjectUtils.expectProjectAndBranchByTheseNames $ over _Right thatOrThese src0
+              dest0 <- _Right ProjectUtils.expectProjectAndBranchByTheseNames $ over _Right thatOrThese dest0
+              let srcp = looseCodeOrProjectToPath src0
+              let destp = looseCodeOrProjectToPath dest0
+              srcb <- Cli.expectBranchAtPath' srcp
+              dest <- Cli.resolvePath' destp
+              -- todo: fixme: use project and branch names
+              let destNames = projectAndBranchNames <$> dest0
+              let err = Just $ MergeAlreadyUpToDate (projectAndBranchNames <$> src0) destNames
+              mergeBranchAndPropagateDefaultPatch mergeMode description err srcb (Just destNames) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
               Cli.Env {codebase} <- ask
-              srcb <- Cli.expectBranchAtPath' src0
-              dest <- Cli.resolvePath' dest0
+              src0 <- _Right ProjectUtils.expectProjectAndBranchByTheseNames $ over _Right thatOrThese src0
+              dest0 <- _Right ProjectUtils.expectProjectAndBranchByTheseNames $ over _Right thatOrThese dest0
+              srcb <- Cli.expectBranchAtPath' $ looseCodeOrProjectToPath src0
+              dest <- Cli.resolvePath' $ looseCodeOrProjectToPath dest0
               destb <- Cli.getBranchAt dest
               merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               if merged == destb
-                then Cli.respond (PreviewMergeAlreadyUpToDate src0 dest0)
+                then Cli.respond (PreviewMergeAlreadyUpToDate (projectAndBranchNames <$> src0) (projectAndBranchNames <$> dest0))
                 else do
                   (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
-                  Cli.respondNumbered (ShowDiffAfterMergePreview dest0 dest ppe diff)
+                  Cli.respondNumbered (ShowDiffAfterMergePreview (projectAndBranchNames <$> dest0) dest ppe diff)
             DiffNamespaceI before after -> do
               absBefore <- traverseOf _Right Cli.resolvePath' before
               absAfter <- traverseOf _Right Cli.resolvePath' after
@@ -1365,8 +1378,10 @@ inputDescription input =
       dest <- p' dest0
       pure ("fork " <> src <> " " <> dest)
     MergeLocalBranchI src0 dest0 mode -> do
-      src <- p' src0
-      dest <- p' dest0
+      src0 <- _Right (ProjectUtils.expectProjectAndBranchByTheseNames . thatOrThese) src0
+      dest0 <- _Right (ProjectUtils.expectProjectAndBranchByTheseNames . thatOrThese) dest0
+      src <- p' $ looseCodeOrProjectToPath src0
+      dest <- p' $ looseCodeOrProjectToPath dest0
       let command =
             case mode of
               Branch.RegularMerge -> "merge"
@@ -3121,3 +3136,26 @@ stripUnisonFileReferences unisonFile term =
             | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
           x -> ABT.tm x
    in ABT.cata alg term
+
+looseCodeOrProjectToPath :: Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Path'
+looseCodeOrProjectToPath = \case
+  Left pth -> pth
+  Right (ProjectAndBranch prj br) ->
+    Path.absoluteToPath'
+      ( ProjectUtils.projectBranchPath
+          ( ProjectAndBranch
+              (prj ^. #projectId)
+              (br ^. #branchId)
+          )
+      )
+
+projectAndBranchNames ::
+  ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
+  ProjectAndBranch ProjectName ProjectBranchName
+projectAndBranchNames pb =
+  ProjectAndBranch (pb ^. #project . #name) (pb ^. #branch . #name)
+
+thatOrThese :: (Maybe this, that) -> These this that
+thatOrThese (mthis, that) = case mthis of
+  Just this -> These this that
+  Nothing -> That that
