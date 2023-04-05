@@ -82,7 +82,9 @@ cloneBranch remoteBranchName = do
 
   remoteProjectBranch <-
     case maybeRemoteProjectInfo of
-      Nothing -> undefined
+      Nothing ->
+        ProjectUtils.expectRemoteProjectBranchByNames
+          (ProjectAndBranch (localProjectBranch ^. #project) remoteBranchName)
       Just remoteProjectInfo ->
         ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch remoteProjectInfo remoteBranchName)
 
@@ -105,10 +107,8 @@ cloneProjectAndBranch remoteProjectAndBranch = do
   void (Cli.runEitherTransaction (assertLocalProjectBranchDoesntExist localProjectBranch))
 
   -- Get the branch of the given project.
-  remoteProjectBranch <- do
-    project <- ProjectUtils.expectRemoteProjectByName remoteProjectName
-    ProjectUtils.expectRemoteProjectBranchByName
-      (ProjectAndBranch (project ^. #projectId, project ^. #projectName) remoteBranchName)
+  remoteProjectBranch <-
+    ProjectUtils.expectRemoteProjectBranchByNames (ProjectAndBranch (localProjectBranch ^. #project) remoteBranchName)
 
   cloneInto localProjectBranch remoteProjectBranch
 

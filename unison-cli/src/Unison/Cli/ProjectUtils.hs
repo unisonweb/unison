@@ -20,6 +20,7 @@ module Unison.Cli.ProjectUtils
     expectRemoteProjectByName,
     expectRemoteProjectBranchById,
     expectRemoteProjectBranchByName,
+    expectRemoteProjectBranchByNames,
     expectRemoteProjectBranchByTheseNames,
   )
 where
@@ -163,6 +164,13 @@ expectRemoteProjectBranchByName projectAndBranch =
   where
     doesntExist =
       remoteProjectBranchDoesntExist (projectAndBranch & over #project snd)
+
+expectRemoteProjectBranchByNames ::
+  ProjectAndBranch ProjectName ProjectBranchName ->
+  Cli Share.RemoteProjectBranch
+expectRemoteProjectBranchByNames (ProjectAndBranch projectName branchName) = do
+  project <- expectRemoteProjectByName projectName
+  expectRemoteProjectBranchByName (ProjectAndBranch (project ^. #projectId, project ^. #projectName) branchName)
 
 -- Expect a remote project branch by a "these names".
 --
