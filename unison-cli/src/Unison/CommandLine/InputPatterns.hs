@@ -708,6 +708,23 @@ deleteReplacement isTerm =
         then deleteTermReplacementCommand
         else deleteTypeReplacementCommand
 
+deleteBranch :: InputPattern
+deleteBranch =
+  InputPattern
+    { patternName = "delete.branch",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectAndBranchNamesArg)],
+      help = P.wrap "Delete a project branch.",
+      parse = \case
+        [name] ->
+          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+            Left _ -> Left (showPatternHelp deleteBranch)
+            Right projectAndBranch -> Right (Input.DeleteI (DeleteTarget'ProjectBranch projectAndBranch))
+        _ -> Left (showPatternHelp deleteBranch)
+    }
+
+
 deleteTermReplacement :: InputPattern
 deleteTermReplacement = deleteReplacement True
 
@@ -871,10 +888,10 @@ deleteNamespaceParser helpText insistence =
       ["."] ->
         first fromString
           . pure
-          $ Input.DeleteI (DeleteTarget'Branch insistence Nothing)
+          $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
       [p] -> first fromString $ do
         p <- Path.parseSplit' Path.definitionNameSegment p
-        pure $ Input.DeleteI (DeleteTarget'Branch insistence (Just p))
+        pure $ Input.DeleteI (DeleteTarget'Namespace insistence (Just p))
       _ -> Left helpText
   )
 
@@ -2372,22 +2389,6 @@ projectCreate =
         _ -> Left (showPatternHelp projectCreate)
     }
 
-projectDeleteBranch :: InputPattern
-projectDeleteBranch =
-  InputPattern
-    { patternName = "project.delete-branch",
-      aliases = ["delete-branch"],
-      visibility = I.Hidden,
-      argTypes = [(Required, projectAndBranchNamesArg)],
-      help = P.wrap "Delete a project branch.",
-      parse = \case
-        [name] ->
-          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
-            Left _ -> Left (showPatternHelp projectDeleteBranch)
-            Right projectAndBranch -> Right (Input.ProjectDeleteBranchI projectAndBranch)
-        _ -> Left (showPatternHelp projectDeleteBranch)
-    }
-
 projectSwitch :: InputPattern
 projectSwitch =
   InputPattern
@@ -2430,118 +2431,118 @@ validInputs :: [InputPattern]
 validInputs =
   sortOn
     I.patternName
-    [ help,
-      helpTopics,
-      load,
-      clear,
-      add,
-      previewAdd,
-      update,
-      previewUpdate,
-      updateNoPatch,
-      delete,
-      deleteVerbose,
-      forkLocal,
-      mergeLocal,
-      squashMerge,
-      previewMergeLocal,
-      diffNamespace,
-      names True, -- names.global
-      names False, -- names
-      push,
-      pushCreate,
-      pushForce,
-      pullVerbose,
-      pullWithoutHistory,
-      pull,
-      pushExhaustive,
-      pullExhaustive,
-      createPullRequest,
-      loadPullRequest,
-      cd,
-      up,
+    [ add,
+      aliasMany,
+      aliasTerm,
+      aliasType,
+      api,
+      authLogin,
       back,
+      branches,
+      cd,
+      clear,
+      compileScheme,
+      copyPatch,
+      createAuthor,
+      createPullRequest,
+      debugClearWatchCache,
+      debugDoctor,
+      debugDumpNamespace,
+      debugDumpNamespaceSimple,
+      debugFileHashes,
+      debugNameDiff,
+      debugNumberedArgs,
+      debugTabCompletion,
+      delete,
+      deleteBranch,
       deleteNamespace,
       deleteNamespaceForce,
-      renameBranch,
       deletePatch,
-      renamePatch,
-      copyPatch,
+      deleteTerm,
+      deleteTermReplacement,
+      deleteTermVerbose,
+      deleteType,
+      deleteTypeReplacement,
+      deleteTypeVerbose,
+      deleteVerbose,
+      dependencies,
+      dependents,
+      diffNamespace,
+      diffNamespaceToPatch,
+      display,
+      displayTo,
+      docToMarkdown,
+      docs,
+      docsToHtml,
+      edit,
+      execute,
+      fetchScheme,
       find,
-      findGlobal,
       findAll,
+      findGlobal,
+      findPatch,
       findShallow,
       findVerbose,
       findVerboseAll,
-      view,
-      viewGlobal,
-      display,
-      displayTo,
-      api,
-      ui,
-      docs,
-      docToMarkdown,
-      docsToHtml,
-      findPatch,
-      viewPatch,
-      undo,
+      forkLocal,
+      gist,
+      help,
+      helpTopics,
       history,
-      edit,
-      renameTerm,
-      deleteTerm,
-      deleteTermVerbose,
-      aliasTerm,
-      renameType,
-      deleteType,
-      deleteTypeVerbose,
-      aliasType,
-      aliasMany,
-      todo,
-      patch,
-      link,
-      unlink,
-      links,
-      createAuthor,
-      replace,
-      deleteTermReplacement,
-      deleteTypeReplacement,
-      test,
-      testAll,
       ioTest,
-      execute,
-      saveExecuteResult,
-      viewReflog,
-      resetRoot,
-      quit,
-      updateBuiltins,
+      link,
+      links,
+      load,
+      loadPullRequest,
       makeStandalone,
-      runScheme,
-      compileScheme,
-      schemeLibgen,
-      fetchScheme,
       mergeBuiltins,
       mergeIOBuiltins,
-      dependents,
-      dependencies,
+      mergeLocal,
+      names False, -- names
+      names True, -- names.global
       namespaceDependencies,
-      debugNumberedArgs,
-      debugFileHashes,
-      debugDumpNamespace,
-      debugDumpNamespaceSimple,
-      debugClearWatchCache,
-      debugDoctor,
-      debugTabCompletion,
-      debugNameDiff,
-      gist,
-      authLogin,
+      patch,
+      previewAdd,
+      previewMergeLocal,
+      previewUpdate,
       printVersion,
-      diffNamespaceToPatch,
       projectClone,
       projectCreate,
-      projectDeleteBranch,
       projectSwitch,
       projects,
-      branches
+      pull,
+      pullExhaustive,
+      pullVerbose,
+      pullWithoutHistory,
+      push,
+      pushCreate,
+      pushExhaustive,
+      pushForce,
+      quit,
+      renameBranch,
+      renamePatch,
+      renameTerm,
+      renameType,
+      replace,
+      resetRoot,
+      runScheme,
+      saveExecuteResult,
+      schemeLibgen,
+      squashMerge,
+      test,
+      testAll,
+      todo,
+      ui,
+      undo,
+      unlink,
+      up,
+      update,
+      updateBuiltins,
+      updateNoPatch,
+      view,
+      viewGlobal,
+      viewPatch,
+      viewReflog
     ]
 
 -- | A map of all command patterns by pattern name or alias.
