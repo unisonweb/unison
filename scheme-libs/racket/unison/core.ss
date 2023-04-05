@@ -104,13 +104,6 @@
           [else
             (and (universal=? (car ll) (car lr))
                  (pointwise (cdr ll) (cdr lr)))])))
-    ; TODO remove
-    (display "Arguments to ==")
-    (newline)
-    (display l)
-    (newline)
-    (display r)
-    (newline)
     (cond
       [(equal? l r) #t]
       [(and (chunked-list? l) (chunked-list? r))
