@@ -95,7 +95,6 @@ data NumberedOutput
   | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterCreatePR (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
@@ -142,7 +141,6 @@ data Output
       [Type Symbol Ann]
       -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
-  | BranchNotEmpty Path'
   | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
@@ -396,7 +394,6 @@ isFailure o = case o of
   BranchEmpty {} -> True
   EmptyLooseCodePush {} -> True
   EmptyProjectBranchPush {} -> True
-  BranchNotEmpty {} -> True
   TypeAlreadyExists {} -> True
   TypeParseError {} -> True
   ParseResolutionFailures {} -> True
@@ -529,7 +526,6 @@ isNumberedFailure = \case
   ShowDiffAfterMergePreview {} -> False
   ShowDiffAfterUndo {} -> False
   ShowDiffAfterPull {} -> False
-  ShowDiffAfterCreatePR {} -> False
   ShowDiffAfterCreateAuthor {} -> False
   TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
   CantDeleteDefinitions {} -> True

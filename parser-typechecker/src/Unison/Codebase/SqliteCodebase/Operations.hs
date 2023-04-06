@@ -642,14 +642,19 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
               -- history looking for a Branch Hash we already have an index for.
               pure (V2Branch.empty, Nothing)
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
-      treeDiff <- BranchDiff.diffBranches fromBranch toBranch
+      let treeDiff = BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
-      let BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} = BranchDiff.nameChanges namePrefix treeDiff
-      termNameAddsWithCT <- do
-        for termNameAdds \(name, ref) -> do
-          refWithCT <- addReferentCT ref
-          pure $ toNamedRef (name, refWithCT)
-      Ops.buildNameLookupForBranchHash mayExistingLookupBH toBranchHash (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
+      Ops.buildNameLookupForBranchHash
+        mayExistingLookupBH
+        toBranchHash
+        ( \save -> do
+            BranchDiff.streamNameChanges namePrefix treeDiff \_prefix (BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}) -> do
+              termNameAddsWithCT <- do
+                for termNameAdds \(name, ref) -> do
+                  refWithCT <- addReferentCT ref
+                  pure $ toNamedRef (name, refWithCT)
+              save (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
+        )
   where
     toNamedRef :: (Name, ref) -> S.NamedRef ref
     toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}

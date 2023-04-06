@@ -1322,68 +1322,6 @@ pushExhaustive =
               syncMode = SyncMode.Complete
             }
 
-createPullRequest :: InputPattern
-createPullRequest =
-  InputPattern
-    "pull-request.create"
-    ["pr.create"]
-    I.Visible
-    [(Required, remoteNamespaceArg), (Required, remoteNamespaceArg), (Optional, namespaceArg)]
-    ( P.group $
-        P.lines
-          [ P.wrap $
-              makeExample createPullRequest ["base", "head"]
-                <> "will generate a request to merge the remote repo `head`"
-                <> "into the remote repo `base`.",
-            "",
-            "example: "
-              <> makeExampleNoBackticks
-                createPullRequest
-                [ "unison.public.base.main",
-                  "myself.public.prs.base.myFeature"
-                ]
-          ]
-    )
-    ( \case
-        [baseUrl, headUrl] -> do
-          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
-          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
-          pure $ Input.CreatePullRequestI baseRepo headRepo
-        _ -> Left (I.help createPullRequest)
-    )
-
-loadPullRequest :: InputPattern
-loadPullRequest =
-  InputPattern
-    "pull-request.load"
-    ["pr.load"]
-    I.Visible
-    [(Required, remoteNamespaceArg), (Required, remoteNamespaceArg), (Optional, namespaceArg)]
-    ( P.lines
-        [ P.wrap $
-            makeExample loadPullRequest ["base", "head"]
-              <> "will load a pull request for merging the remote repo `head` into the"
-              <> "remote repo `base`, staging each in the current namespace"
-              <> "(so make yourself a clean spot to work first).",
-          P.wrap $
-            makeExample loadPullRequest ["base", "head", "dest"]
-              <> "will load a pull request for merging the remote repo `head` into the"
-              <> "remote repo `base`, staging each in `dest`, which must be empty."
-        ]
-    )
-    ( \case
-        [baseUrl, headUrl] -> do
-          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
-          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
-          pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
-        [baseUrl, headUrl, dest] -> do
-          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
-          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
-          destPath <- first fromString $ Path.parsePath' dest
-          pure $ Input.LoadPullRequestI baseRepo headRepo destPath
-        _ -> Left (I.help loadPullRequest)
-    )
-
 squashMerge :: InputPattern
 squashMerge =
   InputPattern
@@ -2443,7 +2381,6 @@ validInputs =
       compileScheme,
       copyPatch,
       createAuthor,
-      createPullRequest,
       debugClearWatchCache,
       debugDoctor,
       debugDumpNamespace,
@@ -2492,7 +2429,6 @@ validInputs =
       link,
       links,
       load,
-      loadPullRequest,
       makeStandalone,
       mergeBuiltins,
       mergeIOBuiltins,
