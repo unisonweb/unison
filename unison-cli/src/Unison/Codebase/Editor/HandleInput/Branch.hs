@@ -1,6 +1,6 @@
--- | @branch.fork@ input handler
-module Unison.Codebase.Editor.HandleInput.BranchFork
-  ( handleBranchFork,
+-- | @branch@ input handler
+module Unison.Codebase.Editor.HandleInput.Branch
+  ( handleBranch,
   )
 where
 
@@ -19,9 +19,9 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Sqlite as Sqlite
 
--- | Fork a new project branch from an existing project branch or namespace.
-handleBranchFork :: These ProjectName ProjectBranchName -> Cli ()
-handleBranchFork projectAndBranchNames0 = do
+-- | Create a new project branch from an existing project branch or namespace.
+handleBranch :: These ProjectName ProjectBranchName -> Cli ()
+handleBranch projectAndBranchNames0 = do
   projectAndBranchNames@(ProjectAndBranch projectName newBranchName) <- ProjectUtils.hydrateNames projectAndBranchNames0
 
   maybeCurrentProject <- ProjectUtils.getCurrentProjectBranch

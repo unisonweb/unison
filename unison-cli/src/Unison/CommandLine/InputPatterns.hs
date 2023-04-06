@@ -2364,20 +2364,20 @@ branches =
       parse = \_ -> Right Input.BranchesI
     }
 
-branchFork :: InputPattern
-branchFork =
+branch :: InputPattern
+branch =
   InputPattern
-    { patternName = "branch.fork",
+    { patternName = "branch",
       aliases = [],
       visibility = I.Hidden,
       argTypes = [(Required, projectAndBranchNamesArg)],
-      help = P.wrap "Fork a new branch from an existing branch or namespace.",
+      help = P.wrap "Create a new branch from an existing branch or namespace.",
       parse = \case
         [name] ->
           case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
-            Left _ -> Left (showPatternHelp branchFork)
-            Right projectAndBranch -> Right (Input.BranchForkI projectAndBranch)
-        _ -> Left (showPatternHelp branchFork)
+            Left _ -> Left (showPatternHelp branch)
+            Right name -> Right (Input.BranchI name)
+        _ -> Left (showPatternHelp branch)
     }
 
 validInputs :: [InputPattern]
@@ -2391,7 +2391,7 @@ validInputs =
       api,
       authLogin,
       back,
-      branchFork,
+      branch,
       branches,
       cd,
       clear,
