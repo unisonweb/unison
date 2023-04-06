@@ -55,7 +55,7 @@
   (let ([certs (read-pem-certificates (open-input-bytes bytes))])
     (if (= 1 (length certs))
         (right bytes)
-        (exception "Wrong number of certs" "nope" certs))))
+        (exception "Wrong number of certs" (string->chunked-string "nope") certs))))
 
 (struct server-config (certs key)) ; certs = list certificate; key = privateKey
 
@@ -91,7 +91,7 @@
 
 (define (ClientConfig.default host service-identification-suffix) ; string bytes
   (if (= 0 (bytes-length service-identification-suffix))
-      (client-config host (mlist))
+      (client-config host empty-chunked-list)
       (error 'NotImplemented "service-identification-suffix not supported")))
 
 (define (ClientConfig.certificates.set certs config) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
