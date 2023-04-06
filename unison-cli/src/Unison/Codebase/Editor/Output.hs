@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.Output
   ( Output (..),
+    CreatedProjectBranchFrom (..),
     DisplayDefinitionsOutput (..),
     WhichBranchEmpty (..),
     NumberedOutput (..),
@@ -298,7 +299,7 @@ data Output
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject ProjectName ProjectBranchName
-  | CreatedProjectBranch (Maybe ProjectBranchName) ProjectBranchName -- parent, child
+  | CreatedProjectBranch CreatedProjectBranchFrom ProjectBranchName -- parent, child
   | CreatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- We didn't push anything because the remote server is already in the state we want it to be
@@ -326,6 +327,18 @@ data Output
   | UploadedEntities Int
   | -- A generic "not implemented" message, for WIP code that's nonetheless been merged into trunk
     NotImplementedYet Text
+
+-- | What did we create a project branch from?
+--
+--   * Loose code
+--   * Nothingness (we made an empty branch)
+--   * Other branch (in another project)
+--   * Parent branch (in this project)
+data CreatedProjectBranchFrom
+  = CreatedProjectBranchFrom'LooseCode Path.Absolute
+  | CreatedProjectBranchFrom'Nothingness
+  | CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch ProjectName ProjectBranchName)
+  | CreatedProjectBranchFrom'ParentBranch ProjectBranchName
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
   { isTest :: TermReference -> Bool,

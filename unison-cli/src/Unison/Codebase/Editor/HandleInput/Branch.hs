@@ -12,21 +12,30 @@ import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli (getCurrentBranch, updateAt)
+import qualified Unison.Cli.MonadUtils as Cli (getCurrentBranch, getCurrentPath, updateAt)
 import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Sqlite as Sqlite
 
+data CreatedFrom
+  = CreatedFrom'LooseCode
+  | CreatedFrom'Nothingness
+  | CreatedFrom'OtherBranch (ProjectAndBranch ProjectName ProjectBranchName)
+  | CreatedFrom'ParentBranch Sqlite.ProjectBranch
+
 -- | Create a new project branch from an existing project branch or namespace.
-handleBranch :: These ProjectName ProjectBranchName -> Cli ()
+handleBranch :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
 handleBranch projectAndBranchNames0 = do
-  projectAndBranchNames@(ProjectAndBranch projectName newBranchName) <- ProjectUtils.hydrateNames projectAndBranchNames0
+  projectAndBranchNames@(ProjectAndBranch projectName newBranchName) <-
+    case projectAndBranchNames0 of
+      ProjectAndBranch Nothing branchName -> ProjectUtils.hydrateNames (That branchName)
+      ProjectAndBranch (Just projectName) branchName -> pure (ProjectAndBranch projectName branchName)
 
-  maybeCurrentProject <- ProjectUtils.getCurrentProjectBranch
+  maybeCurrentProjectBranch <- ProjectUtils.getCurrentProjectBranch
 
-  (projectId, newBranchId) <-
+  (projectId, newBranchId, createdFrom) <-
     Cli.runEitherTransaction do
       Queries.loadProjectByName projectName >>= \case
         Nothing -> pure (Left (Output.LocalProjectBranchDoesntExist projectAndBranchNames))
@@ -42,22 +51,40 @@ handleBranch projectAndBranchNames0 = do
               -- `bar`.
               fmap Right do
                 newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
-                let parentBranch = do
-                      ProjectAndBranch currentProject currentBranch <- maybeCurrentProject
-                      guard (projectId == currentProject ^. #projectId)
-                      Just currentBranch
+                createdFrom <-
+                  case maybeCurrentProjectBranch of
+                    Nothing -> pure CreatedFrom'LooseCode
+                    Just (ProjectAndBranch currentProject currentBranch) ->
+                      pure
+                        if projectId == currentProject ^. #projectId
+                          then CreatedFrom'ParentBranch currentBranch
+                          else
+                            CreatedFrom'OtherBranch
+                              (ProjectAndBranch (currentProject ^. #name) (currentBranch ^. #name))
                 Queries.insertProjectBranch
                   Sqlite.ProjectBranch
                     { projectId,
                       branchId = newBranchId,
                       name = newBranchName,
-                      parentBranchId = view #branchId <$> parentBranch
+                      parentBranchId =
+                        case createdFrom of
+                          CreatedFrom'ParentBranch parentBranch -> Just (view #branchId parentBranch)
+                          CreatedFrom'LooseCode {} -> Nothing
+                          CreatedFrom'Nothingness -> Nothing
+                          CreatedFrom'OtherBranch {} -> Nothing
                     }
-                pure (projectId, newBranchId)
+                pure (projectId, newBranchId, createdFrom)
 
   let path = ProjectUtils.projectBranchPath (ProjectAndBranch projectId newBranchId)
   currentNamespaceObject <- Cli.getCurrentBranch
-  let description = "branch.fork " <> into @Text (These projectName newBranchName)
+  let description = "branch " <> into @Text (These projectName newBranchName)
   _ <- Cli.updateAt description path (const currentNamespaceObject)
-  Cli.respond (Output.CreatedProjectBranch Nothing newBranchName)
+  createdFrom1 <-
+    case createdFrom of
+      CreatedFrom'LooseCode -> Output.CreatedProjectBranchFrom'LooseCode <$> Cli.getCurrentPath
+      CreatedFrom'Nothingness -> pure Output.CreatedProjectBranchFrom'Nothingness
+      CreatedFrom'OtherBranch otherBranch -> pure (Output.CreatedProjectBranchFrom'OtherBranch otherBranch)
+      CreatedFrom'ParentBranch parentBranch ->
+        pure (Output.CreatedProjectBranchFrom'ParentBranch (parentBranch ^. #name))
+  Cli.respond (Output.CreatedProjectBranch createdFrom1 newBranchName)
   Cli.cd path

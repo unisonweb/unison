@@ -55,7 +55,8 @@ import qualified Unison.Cli.Share.Projects.Types as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
-  ( DisplayDefinitionsOutput (..),
+  ( CreatedProjectBranchFrom (..),
+    DisplayDefinitionsOutput (..),
     NumberedArgs,
     NumberedOutput (..),
     Output (..),
@@ -1823,13 +1824,29 @@ notifyUser dir = \case
         <> prettyProjectName projectName
         <> "with branch"
         <> prettyProjectBranchName branchName
-  CreatedProjectBranch maybeParentBranchName childBranchName ->
-    pure . P.wrap $
-      "I just created branch"
-        <> prettyProjectBranchName childBranchName
-        <> case maybeParentBranchName of
-          Nothing -> mempty
-          Just parentBranchName -> "from branch" <> prettyProjectBranchName parentBranchName
+  CreatedProjectBranch from branch ->
+    case from of
+      CreatedProjectBranchFrom'LooseCode path ->
+        pure . P.wrap $
+          "This is the message you get when you create"
+            <> prettyProjectBranchName branch
+            <> "from loose code"
+            <> prettyAbsolute path
+      CreatedProjectBranchFrom'Nothingness ->
+        pure . P.wrap $
+          "This is the message you get when you create" <> prettyProjectBranchName branch <> "from nothingness"
+      CreatedProjectBranchFrom'OtherBranch otherBranch ->
+        pure . P.wrap $
+          "This is the message you get when you create"
+            <> prettyProjectBranchName branch
+            <> "from"
+            <> prettyProjectAndBranchName otherBranch
+      CreatedProjectBranchFrom'ParentBranch parentBranch ->
+        pure . P.wrap $
+          "This is the message you get when you create"
+            <> prettyProjectBranchName branch
+            <> "from"
+            <> prettyProjectBranchName parentBranch
   CreatedRemoteProject host (ProjectAndBranch projectName _) ->
     pure . P.wrap $
       "I just created"
@@ -2233,7 +2250,8 @@ prettyProjectName =
 
 prettyProjectBranchName :: ProjectBranchName -> Pretty
 prettyProjectBranchName =
-  P.blue . P.text . into @Text
+  -- cons '/' because that's the preferred syntax for one (which should be accepted by all commands)
+  P.blue . P.text . Text.cons '/' . into @Text
 
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
 prettyProjectAndBranchName (ProjectAndBranch projectName branchName) =

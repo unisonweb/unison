@@ -44,7 +44,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectBranchName, ProjectName, ProjectAndBranch)
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
 import qualified Unison.Syntax.Name as Name (fromText, unsafeFromString)
 import qualified Unison.Util.ColorText as CT
@@ -2374,9 +2374,9 @@ branch =
       help = P.wrap "Create a new branch from an existing branch or namespace.",
       parse = \case
         [name] ->
-          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+          case tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name) of
             Left _ -> Left (showPatternHelp branch)
-            Right name -> Right (Input.BranchI name)
+            Right projectAndBranch -> Right (Input.BranchI projectAndBranch)
         _ -> Left (showPatternHelp branch)
     }
 

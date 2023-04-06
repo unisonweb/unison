@@ -44,7 +44,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Util.Pretty as P
 
@@ -218,7 +218,7 @@ data Input
   | ProjectSwitchI (These ProjectName ProjectBranchName)
   | ProjectsI
   | BranchesI
-  | BranchI (These ProjectName ProjectBranchName)
+  | BranchI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   deriving (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
