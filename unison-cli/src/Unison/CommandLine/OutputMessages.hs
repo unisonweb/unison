@@ -2250,8 +2250,7 @@ prettyProjectName =
 
 prettyProjectBranchName :: ProjectBranchName -> Pretty
 prettyProjectBranchName =
-  -- cons '/' because that's the preferred syntax for one (which should be accepted by all commands)
-  P.blue . P.text . Text.cons '/' . into @Text
+  P.blue . P.text . into @Text
 
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
 prettyProjectAndBranchName (ProjectAndBranch projectName branchName) =
