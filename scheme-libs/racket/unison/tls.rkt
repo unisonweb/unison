@@ -6,6 +6,8 @@
          (only-in racket empty?)
          compatibility/mlist
          unison/data
+         unison/data/chunked-seq
+         unison/core
          unison/tcp
          unison/pem
          x509
@@ -41,12 +43,13 @@
     tmp))
 
 (define (decodePrivateKey bytes) ; bytes -> list tlsPrivateKey
-    (list->mlist
-        (filter
-            (lambda (pem) (or
-                (equal? "PRIVATE KEY" (pem-label pem))
-                (equal? "RSA PRIVATE KEY" (pem-label pem))))
-            (pem-string->pems (bytes->string/utf-8 bytes)))))
+  (vector->chunked-list
+   (list->vector ; TODO better conversion
+    (filter
+     (lambda (pem) (or
+                    (equal? "PRIVATE KEY" (pem-label pem))
+                    (equal? "RSA PRIVATE KEY" (pem-label pem))))
+     (pem-string->pems (bytes->string/utf-8 bytes))))))
 
 (define (decodeCert.impl.v3 bytes) ; bytes -> either failure tlsSignedCert
   (let ([certs (read-pem-certificates (open-input-bytes bytes))])
@@ -96,15 +99,15 @@
 
 (define (handle-errors fn)
   (with-handlers
-      [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
-       [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exn->string e) '()))]
+      [[exn:fail:network? (lambda (e) (exception "IOFailure" (exception->string e) '()))]
+       [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exception->string e) '()))]
        [(lambda err
           (string-contains? (exn->string err) "not valid for hostname"))
-        (lambda (e) (exception "IOFailure" "NameMismatch" '()))]
+        (lambda (e) (exception "IOFailure" (string->chunked-string "NameMismatch") '()))]
        [(lambda err
           (string-contains? (exn->string err) "certificate verify failed"))
-        (lambda (e) (exception "IOFailure" "certificate verify failed" '()))]
-       [(lambda _ #t) (lambda (e) (exception "MiscFailure" (format "Unknown exception ~a" (exn->string e)) e))] ]
+        (lambda (e) (exception "IOFailure" (string->chunked-string "certificate verify failed") '()))]
+       [(lambda _ #t) (lambda (e) (exception "MiscFailure" (string->chunked-string (format "Unknown exception ~a" (exn->string e))) e))]]
     (fn)))
 
 (define (newClient.impl.v3 config socket)
@@ -128,7 +131,7 @@
                                input output
                                #:mode 'connect
                                #:context ctx
-                               #:hostname hostname
+                               #:hostname (chunked-string->string hostname)
                                #:close-original? #t
                                )])
          (right (tls config in out)))))))
