@@ -111,12 +111,13 @@ module U.Codebase.Sqlite.Queries
     -- ** project branches
     projectBranchExistsByName,
     loadProjectBranchByName,
+    loadProjectBranchByNames,
     expectProjectBranch,
     loadAllProjectBranchInfo,
     loadProjectAndBranchNames,
     insertProjectBranch,
-    markProjectBranchChild,
     loadProjectBranch,
+    deleteProjectBranch,
 
     -- ** remote projects
     loadRemoteProject,
@@ -2865,14 +2866,17 @@ loadProjectBranchSql :: Sql
 loadProjectBranchSql =
   [sql|
     SELECT
-      project_id,
-      branch_id,
-      name
+      project_branch.project_id,
+      project_branch.branch_id,
+      project_branch.name,
+      project_branch_parent.parent_branch_id
     FROM
       project_branch
+      LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
+        AND project_branch.branch_id = project_branch_parent.branch_id
     WHERE
-      project_id = ?
-      AND branch_id = ?
+      project_branch.project_id = ?
+      AND project_branch.branch_id = ?
   |]
 
 loadProjectBranchByName :: ProjectId -> ProjectBranchName -> Transaction (Maybe ProjectBranch)
@@ -2880,16 +2884,39 @@ loadProjectBranchByName projectId name =
   queryMaybeRow
     [sql|
       SELECT
-        project_id,
-        branch_id,
-        name
+        project_branch.project_id,
+        project_branch.branch_id,
+        project_branch.name,
+        project_branch_parent.parent_branch_id
       FROM
         project_branch
+        LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
+          AND project_branch.branch_id = project_branch_parent.branch_id
       WHERE
-        project_id = ?
-        AND name = ?
+        project_branch.project_id = ?
+        AND project_branch.name = ?
     |]
     (projectId, name)
+
+loadProjectBranchByNames :: ProjectName -> ProjectBranchName -> Transaction (Maybe ProjectBranch)
+loadProjectBranchByNames projectName branchName =
+  queryMaybeRow
+    [sql|
+      SELECT
+        project_branch.project_id,
+        project_branch.branch_id,
+        project_branch.name,
+        project_branch_parent.parent_branch_id
+      FROM
+        project
+        JOIN project_branch ON project.id = project_branch.project_id
+        LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
+          AND project_branch.branch_id = project_branch_parent.branch_id
+      WHERE
+        project.name = ?
+        AND project_branch.name = ?
+    |]
+    (projectName, branchName)
 
 -- | Load info about all branches in a project, for display by the @branches@ command.
 --
@@ -2965,24 +2992,60 @@ loadProjectAndBranchNames projectId branchId =
     |]
     (projectId, branchId)
 
--- | Insert a `project_branch` row.
-insertProjectBranch :: ProjectId -> ProjectBranchId -> ProjectBranchName -> Transaction ()
-insertProjectBranch pid bid bname = execute bonk (pid, bid, bname)
-  where
-    bonk =
-      [sql|
-        INSERT INTO project_branch (project_id, branch_id, name)
-          VALUES (?, ?, ?)
-      |]
-
-markProjectBranchChild :: ProjectId -> ProjectBranchId -> ProjectBranchId -> Transaction ()
-markProjectBranchChild pid parent child = execute bonk (pid, parent, child)
-  where
-    bonk =
+-- | Insert a project branch.
+insertProjectBranch :: ProjectBranch -> Transaction ()
+insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
+  execute
+    [sql|
+      INSERT INTO project_branch (project_id, branch_id, name)
+        VALUES (?, ?, ?)
+    |]
+    (projectId, branchId, branchName)
+  whenJust maybeParentBranchId \parentBranchId ->
+    execute
       [sql|
         INSERT INTO project_branch_parent (project_id, parent_branch_id, branch_id)
           VALUES (?, ?, ?)
-          |]
+      |]
+      (projectId, parentBranchId, branchId)
+
+-- | Delete a project branch.
+--
+-- Re-parenting happens in the obvious way:
+--
+--   Before:
+--
+--     main <- topic <- topic2
+--
+--  After deleting `topic`:
+--
+--    main <- topic2
+deleteProjectBranch :: ProjectId -> ProjectBranchId -> Transaction ()
+deleteProjectBranch projectId branchId = do
+  maybeParentBranchId :: Maybe ProjectBranchId <-
+    queryMaybeCol
+      [sql|
+        SELECT parent_branch_id
+        FROM project_branch_parent
+        WHERE project_id = ? AND branch_id = ?
+      |]
+      (projectId, branchId)
+  -- If the branch being deleted has a parent, then reparent its children. Otherwise, the 'on delete cascade' foreign
+  -- key from `project_branch_parent` will take care of deleting its children's parent entries.
+  whenJust maybeParentBranchId \parentBranchId ->
+    execute
+      [sql|
+        UPDATE project_branch_parent
+        SET parent_branch_id = ?
+        WHERE project_id = ? AND parent_branch_id = ?
+      |]
+      (parentBranchId, projectId, branchId)
+  execute
+    [sql|
+      DELETE FROM project_branch
+      WHERE project_id = ? AND branch_id = ?
+    |]
+    (projectId, branchId)
 
 data LoadRemoteBranchFlag
   = IncludeSelfRemote

@@ -10,6 +10,7 @@ import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
 import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..))
 import qualified U.Codebase.Sqlite.Project as Sqlite (Project)
+import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -154,7 +155,13 @@ cloneInto localProjectBranch remoteProjectBranch = do
                 pure localProjectId
               Just localProject -> pure (localProject ^. #projectId)
           localBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
-          Queries.insertProjectBranch localProjectId localBranchId (localProjectBranch ^. #branch)
+          Queries.insertProjectBranch
+            Sqlite.ProjectBranch
+              { projectId = localProjectId,
+                branchId = localBranchId,
+                name = localProjectBranch ^. #branch,
+                parentBranchId = Nothing
+              }
           Queries.insertBranchRemoteMapping
             localProjectId
             localBranchId

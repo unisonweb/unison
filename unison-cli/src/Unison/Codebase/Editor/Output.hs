@@ -298,14 +298,13 @@ data Output
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject ProjectName ProjectBranchName
-  | CreatedProjectBranch ProjectBranchName ProjectBranchName -- parent, child
+  | CreatedProjectBranch (Maybe ProjectBranchName) ProjectBranchName -- parent, child
   | CreatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- We didn't push anything because the remote server is already in the state we want it to be
     RemoteProjectBranchIsUpToDate URI (ProjectAndBranch ProjectName ProjectBranchName)
   | InvalidProjectName Text
   | InvalidProjectBranchName Text
-  | RefusedToCreateProjectBranch (ProjectAndBranch ProjectName ProjectBranchName)
   | ProjectNameAlreadyExists ProjectName
   | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
@@ -498,7 +497,6 @@ isFailure o = case o of
   CreatedRemoteProjectBranch {} -> False
   InvalidProjectName {} -> True
   InvalidProjectBranchName {} -> True
-  RefusedToCreateProjectBranch {} -> True
   ProjectNameAlreadyExists {} -> True
   ProjectNameRequiresUserSlug {} -> True
   NotOnProjectBranch {} -> True

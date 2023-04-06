@@ -6,7 +6,9 @@ module Unison.Cli.ProjectUtils
     getCurrentProjectBranch,
     expectCurrentProjectBranch,
     projectPath,
+    projectBranchesPath,
     projectBranchPath,
+    projectBranchSegment,
     projectBranchPathPrism,
 
     -- * Name hydration
@@ -219,6 +221,14 @@ projectPath :: ProjectId -> Path.Absolute
 projectPath projectId =
   review projectPathPrism projectId
 
+-- | Get the path that a project's branches are stored at. Users aren't supposed to go here.
+--
+-- >>> projectBranchesPath "ABCD"
+-- .__projects._ABCD.branches
+projectBranchesPath :: ProjectId -> Path.Absolute
+projectBranchesPath projectId =
+  snoc (projectPath projectId) "branches"
+
 -- | Get the path that a branch is stored at. Users aren't supposed to go here.
 --
 -- >>> projectBranchPath ProjectAndBranch { project = "ABCD", branch = "DEFG" }
@@ -226,6 +236,14 @@ projectPath projectId =
 projectBranchPath :: ProjectAndBranch ProjectId ProjectBranchId -> Path.Absolute
 projectBranchPath =
   review projectBranchPathPrism
+
+-- | Get the name segment that a branch is stored at.
+--
+-- >>> projectBranchSegment "DEFG"
+-- "_DEFG"
+projectBranchSegment :: ProjectBranchId -> NameSegment
+projectBranchSegment (ProjectBranchId branchId) =
+  UUIDNameSegment branchId
 
 pattern UUIDNameSegment :: UUID -> NameSegment
 pattern UUIDNameSegment uuid <-
