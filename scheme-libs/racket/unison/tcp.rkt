@@ -39,13 +39,13 @@
          (tcp-close socket))
      (right none))))
 
-(define (clientSocket.impl.v3 host port)
+(define (clientSocket.impl.v3 host port) ; string string -> socket-pair
   (handle-errors
    (lambda ()
      (let-values ([(input output) (tcp-connect host (string->number port))])
        (right (socket-pair input output))))))
 
-(define (socketSend.impl.v3 socket data)
+(define (socketSend.impl.v3 socket data) ; socket bytes -> ()
   (if (not (socket-pair? socket))
       (exception "InvalidArguments" "Cannot send on a server socket" '())
       (begin
@@ -53,7 +53,7 @@
         (flush-output (socket-pair-output socket))
         (right none)))); )
 
-(define (socketReceive.impl.v3 socket amt)
+(define (socketReceive.impl.v3 socket amt) ; socket int -> bytes
   (if (not (socket-pair? socket))
       (exception "InvalidArguments" "Cannot receive on a server socket")
       (handle-errors
@@ -70,7 +70,7 @@
                                            socket) #t)])
     (right local-port)))
 
-(define serverSocket.impl.v3
+(define serverSocket.impl.v3 ; string -> socket (or) string string -> socket
   (lambda args
     (let-values ([(hostname port)
                   (match args
