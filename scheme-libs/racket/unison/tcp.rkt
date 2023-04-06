@@ -76,14 +76,16 @@
   (lambda args
     (let-values ([(hostname port)
                   (match args
-                    [(list _ port) (values #f port)]
-                    [(list _ hostname port) (values hostname port)])])
+                    [(list _ port) (values #f (chunked-string->string port))]
+                    [(list _ hostname port) (values
+                                             (chunked-string->string hostname)
+                                             (chunked-string->string port))])])
 
       (with-handlers
           [[exn:fail:network? (lambda (e) (exception "IOFailure" (exception->string e) '()))]
            [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exception->string e) '()))]
            [(lambda _ #t) (lambda (e) (exception "MiscFailure" (string->chunked-string "Unknown exception") e))] ]
-        (let ([listener (tcp-listen (string->number (chunked-string->string port)) 4 #f (if (equal? 0 hostname) #f (chunked-string->string hostname)))])
+        (let ([listener (tcp-listen (string->number port ) 4 #f (if (equal? 0 hostname) #f hostname))])
           (right listener))))))
 
 ; NOTE: This is a no-op because racket's public TCP stack doesn't have separate operations for
