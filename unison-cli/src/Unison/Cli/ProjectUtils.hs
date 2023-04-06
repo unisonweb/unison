@@ -1,10 +1,14 @@
 -- | Project-related utilities.
 module Unison.Cli.ProjectUtils
   ( -- * Project/path helpers
+    getCurrentProject,
+    expectCurrentProject,
     getCurrentProjectBranch,
     expectCurrentProjectBranch,
     projectPath,
+    projectBranchesPath,
     projectBranchPath,
+    projectBranchSegment,
     projectBranchPathPrism,
 
     -- * Name hydration
@@ -18,6 +22,7 @@ module Unison.Cli.ProjectUtils
     expectRemoteProjectByName,
     expectRemoteProjectBranchById,
     expectRemoteProjectBranchByName,
+    expectRemoteProjectBranchByNames,
     expectRemoteProjectBranchByTheseNames,
   )
 where
@@ -43,6 +48,22 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Sqlite as Sqlite
 import Witch (unsafeFrom)
+
+-- | Get the current project that a user is on.
+getCurrentProject :: Cli (Maybe Sqlite.Project)
+getCurrentProject = do
+  path <- Cli.getCurrentPath
+  case preview projectBranchPathPrism path of
+    Nothing -> pure Nothing
+    Just (ProjectAndBranch projectId _branchId) ->
+      Cli.runTransaction do
+        project <- Queries.expectProject projectId
+        pure (Just project)
+
+-- | Like 'getCurrentProject', but fails with a message if the user is not on a project branch.
+expectCurrentProject :: Cli Sqlite.Project
+expectCurrentProject = do
+  getCurrentProject & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
 
 -- | Get the current project+branch that a user is on.
 --
@@ -146,6 +167,13 @@ expectRemoteProjectBranchByName projectAndBranch =
     doesntExist =
       remoteProjectBranchDoesntExist (projectAndBranch & over #project snd)
 
+expectRemoteProjectBranchByNames ::
+  ProjectAndBranch ProjectName ProjectBranchName ->
+  Cli Share.RemoteProjectBranch
+expectRemoteProjectBranchByNames (ProjectAndBranch projectName branchName) = do
+  project <- expectRemoteProjectByName projectName
+  expectRemoteProjectBranchByName (ProjectAndBranch (project ^. #projectId, project ^. #projectName) branchName)
+
 -- Expect a remote project branch by a "these names".
 --
 --   If both names are provided, use them.
@@ -193,6 +221,14 @@ projectPath :: ProjectId -> Path.Absolute
 projectPath projectId =
   review projectPathPrism projectId
 
+-- | Get the path that a project's branches are stored at. Users aren't supposed to go here.
+--
+-- >>> projectBranchesPath "ABCD"
+-- .__projects._ABCD.branches
+projectBranchesPath :: ProjectId -> Path.Absolute
+projectBranchesPath projectId =
+  snoc (projectPath projectId) "branches"
+
 -- | Get the path that a branch is stored at. Users aren't supposed to go here.
 --
 -- >>> projectBranchPath ProjectAndBranch { project = "ABCD", branch = "DEFG" }
@@ -200,6 +236,14 @@ projectPath projectId =
 projectBranchPath :: ProjectAndBranch ProjectId ProjectBranchId -> Path.Absolute
 projectBranchPath =
   review projectBranchPathPrism
+
+-- | Get the name segment that a branch is stored at.
+--
+-- >>> projectBranchSegment "DEFG"
+-- "_DEFG"
+projectBranchSegment :: ProjectBranchId -> NameSegment
+projectBranchSegment (ProjectBranchId branchId) =
+  UUIDNameSegment branchId
 
 pattern UUIDNameSegment :: UUID -> NameSegment
 pattern UUIDNameSegment uuid <-

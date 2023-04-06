@@ -100,13 +100,6 @@ data Input
   | DiffNamespaceI BranchId BranchId -- old new
   | PullRemoteBranchI PullSourceTarget SyncMode PullMode Verbosity
   | PushRemoteBranchI PushRemoteBranchInput
-  | CreatePullRequestI
-      (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-      (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-  | LoadPullRequestI
-      (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-      (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-      Path'
   | ResetRootI (Either ShortCausalHash Path')
   | -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
@@ -224,6 +217,7 @@ data Input
   | ProjectCreateI ProjectName
   | ProjectSwitchI (These ProjectName ProjectBranchName)
   | ProjectsI
+  | BranchesI
   deriving (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
@@ -312,6 +306,7 @@ data DeleteTarget
   = DeleteTarget'TermOrType DeleteOutput [Path.HQSplit']
   | DeleteTarget'Term DeleteOutput [Path.HQSplit']
   | DeleteTarget'Type DeleteOutput [Path.HQSplit']
-  | DeleteTarget'Branch Insistence (Maybe Path.Split')
+  | DeleteTarget'Namespace Insistence (Maybe Path.Split')
   | DeleteTarget'Patch Path.Split'
+  | DeleteTarget'ProjectBranch (These ProjectName ProjectBranchName)
   deriving stock (Eq, Show)

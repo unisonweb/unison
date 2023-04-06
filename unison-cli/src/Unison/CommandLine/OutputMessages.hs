@@ -30,6 +30,7 @@ import Data.Tuple.Extra (dupe)
 import Data.Void (absurd)
 import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
+import qualified Network.URI as URI
 import qualified Network.URI.Encode as URI
 import qualified Servant.Client as Servant
 import qualified System.Console.ANSI as ANSI
@@ -309,36 +310,6 @@ notifyNumbered = \case
                 ]
           )
           (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diff)
-  ShowDiffAfterCreatePR baseRepo headRepo ppe diff ->
-    if OBD.isEmpty diff
-      then
-        ( P.wrap $
-            "Looks like there's no difference between "
-              <> prettyReadRemoteNamespaceWith absurd baseRepo
-              <> "and"
-              <> prettyReadRemoteNamespaceWith absurd headRepo
-              <> ".",
-          mempty
-        )
-      else
-        first
-          ( \p ->
-              P.lines
-                [ P.wrap $
-                    "The changes summarized below are available for you to review,"
-                      <> "using the following command:",
-                  "",
-                  P.indentN 2 $
-                    IP.makeExampleNoBackticks
-                      IP.loadPullRequest
-                      [ prettyReadRemoteNamespaceWith absurd baseRepo,
-                        prettyReadRemoteNamespaceWith absurd headRepo
-                      ],
-                  "",
-                  p
-                ]
-          )
-          (showDiffNamespace HideNumbers ppe (absPathToBranchId Path.absoluteEmpty) (absPathToBranchId Path.absoluteEmpty) diff)
   -- todo: these numbers aren't going to work,
   --  since the content isn't necessarily here.
   -- Should we have a mode with no numbers? :P
@@ -454,6 +425,37 @@ notifyNumbered = \case
     ( P.numberedList (map (prettyProjectName . view #name) projects),
       map (Text.unpack . into @Text . view #name) projects
     )
+  ListBranches projectName branches ->
+    ( P.columnNHeader
+        ["", "Branch", "Remote branch"]
+        ( do
+            (i, (branchName, remoteBranches0)) <- zip [(1 :: Int) ..] branches
+            case uncons remoteBranches0 of
+              Nothing -> pure [P.hiBlack (P.shown i <> "."), prettyProjectBranchName branchName, ""]
+              Just (firstRemoteBranch, remoteBranches) ->
+                [ P.hiBlack (P.shown i <> "."),
+                  prettyProjectBranchName branchName,
+                  prettyRemoteBranchInfo firstRemoteBranch
+                ]
+                  : map (\branch -> ["", "", prettyRemoteBranchInfo branch]) remoteBranches
+        ),
+      map (\(branchName, _) -> Text.unpack (into @Text (These projectName branchName))) branches
+    )
+    where
+      prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
+      prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
+        -- Special-case Unison Share since we know its project branch URLs
+        if URI.uriToString id host "" == "https://api.unison-lang.org"
+          then
+            P.hiBlack . P.text $
+              "https://share.unison-lang.org/"
+                <> into @Text remoteProject
+                <> "/branches/"
+                <> into @Text remoteBranch
+          else
+            prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
+              <> " on "
+              <> P.hiBlack (P.shown host)
   where
     absPathToBranchId = Right
 
@@ -826,12 +828,6 @@ notifyUser dir = \case
   BranchEmpty b ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyWhichBranchEmpty b) <> "is an empty namespace."
-  BranchNotEmpty path ->
-    pure . P.warnCallout $
-      P.lines
-        [ "The current namespace '" <> prettyPath' path <> "' is not empty. `pull-request.load` downloads the PR into the current namespace which would clutter it.",
-          "Please switch to an empty namespace and try again."
-        ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
@@ -1827,12 +1823,13 @@ notifyUser dir = \case
         <> prettyProjectName projectName
         <> "with branch"
         <> prettyProjectBranchName branchName
-  CreatedProjectBranch parentBranchName childBranchName ->
+  CreatedProjectBranch maybeParentBranchName childBranchName ->
     pure . P.wrap $
       "I just created branch"
         <> prettyProjectBranchName childBranchName
-        <> "from branch"
-        <> prettyProjectBranchName parentBranchName
+        <> case maybeParentBranchName of
+          Nothing -> mempty
+          Just parentBranchName -> "from branch" <> prettyProjectBranchName parentBranchName
   CreatedRemoteProject host (ProjectAndBranch projectName _) ->
     pure . P.wrap $
       "I just created"
@@ -1846,12 +1843,6 @@ notifyUser dir = \case
     pure (P.wrap (prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host <> "is already up-to-date."))
   InvalidProjectName name -> pure (P.wrap (P.text name <> "is not a valid project name."))
   InvalidProjectBranchName name -> pure (P.wrap (P.text name <> "is not a valid branch name."))
-  RefusedToCreateProjectBranch projectAndBranch ->
-    pure . P.wrap $
-      "You can only create"
-        <> prettyProjectAndBranchName projectAndBranch
-        <> "from another branch in"
-        <> prettyProjectName (projectAndBranch ^. #project)
   ProjectNameAlreadyExists name ->
     pure . P.wrap $
       "Project" <> prettyProjectName name <> "already exists."

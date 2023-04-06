@@ -19,15 +19,9 @@ tls.tests = do
     serverResult = defer do serverThread portPromise toSend
     -- Client
     Either.toException !(testClient None "test.unison.cloud" portPromise)
-  check "connects to example.com over tls" do
-    socket = Socket.client (HostName "example.com") (Port "443")
-    config = ClientConfig.default (HostName "example.com") ""
-    tls = base.IO.net.Tls.newClient config socket
-    conn = base.IO.net.Tls.handshake tls
-    TlsSocket.send conn (toUtf8 "GET /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n")
-    response = TlsSocket.receive conn
-    TlsSocket.close conn
-    contains "HTTP/1.0 200 OK" (fromUtf8 response)
+  expectError "self signed wrong host" "NameMismatch" testConnectSelfSignedWrongHost
+  -- -- TODO: Enable this once scheme output correctly escapes \r
+  -- check "connects to example.com over tls" tls.example.com
   expectError "wrong host example.com fails" "NameMismatch" do
     socket = Socket.client (HostName "example.com") (Port "443")
     config = ClientConfig.default (HostName "examplez.com") ""
@@ -38,6 +32,16 @@ tls.tests = do
     socket = Socket.client (HostName "example.com") (Port "443")
     Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
     Socket.receive socket
+
+tls.example.com = do
+    socket = Socket.client (HostName "example.com") (Port "443")
+    config = ClientConfig.default (HostName "example.com") ""
+    tls = base.IO.net.Tls.newClient config socket
+    conn = base.IO.net.Tls.handshake tls
+    TlsSocket.send conn (toUtf8 "GET /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n")
+    response = TlsSocket.receive conn
+    TlsSocket.close conn
+    contains "HTTP/1.0 200 OK" (fromUtf8 response)
 
 testConnectSelfSigned = do
   portPromise = Promise.new ()

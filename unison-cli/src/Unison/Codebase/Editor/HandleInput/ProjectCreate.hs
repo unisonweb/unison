@@ -6,6 +6,7 @@ where
 
 import qualified Data.UUID.V4 as UUID
 import U.Codebase.Sqlite.DbId
+import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -55,7 +56,13 @@ projectCreate projectName = do
     Queries.projectExistsByName projectName >>= \case
       False -> do
         Queries.insertProject projectId projectName
-        Queries.insertProjectBranch projectId branchId branchName
+        Queries.insertProjectBranch
+          Sqlite.ProjectBranch
+            { projectId,
+              branchId,
+              name = branchName,
+              parentBranchId = Nothing
+            }
         pure (Right ())
       True -> pure (Left (Output.ProjectNameAlreadyExists projectName))
 

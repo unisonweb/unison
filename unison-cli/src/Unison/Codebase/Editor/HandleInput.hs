@@ -73,8 +73,8 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
-import Unison.Codebase.Editor.HandleInput.CreatePullRequest (handleCreatePullRequest)
-import Unison.Codebase.Editor.HandleInput.LoadPullRequest (handleLoadPullRequest)
+import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
+import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
@@ -439,10 +439,6 @@ loop e = do
                 (False, False) -> pure ()
               (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
               Cli.respondNumbered (ShowDiffNamespace absBefore absAfter ppe diff)
-            CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
-            LoadPullRequestI baseRepo headRepo dest0 -> do
-              description <- inputDescription input
-              handleLoadPullRequest description baseRepo headRepo dest0
             MoveBranchI src' dest' -> do
               hasConfirmed <- confirmedCommand input
               description <- inputDescription input
@@ -828,7 +824,7 @@ loop e = do
                   description
                   (BranchUtil.makeDeletePatch (Path.convert src))
                 Cli.respond Success
-              DeleteTarget'Branch insistence Nothing -> do
+              DeleteTarget'Namespace insistence Nothing -> do
                 hasConfirmed <- confirmedCommand input
                 if hasConfirmed || insistence == Force
                   then do
@@ -836,7 +832,7 @@ loop e = do
                     Cli.updateRoot Branch.empty description
                     Cli.respond DeletedEverything
                   else Cli.respond DeleteEverythingConfirmation
-              DeleteTarget'Branch insistence (Just p@(parentPath, childName)) -> do
+              DeleteTarget'Namespace insistence (Just p@(parentPath, childName)) -> do
                 branch <- Cli.expectBranchAtPath' (Path.unsplit' p)
                 description <- inputDescription input
                 absPath <- Cli.resolveSplit' p
@@ -865,6 +861,7 @@ loop e = do
                   parentBranch
                     & Branch.modifyAt (Path.singleton childName) \_ -> Branch.empty
                 afterDelete
+              DeleteTarget'ProjectBranch name -> handleDeleteBranch name
             DisplayI outputLoc names' -> do
               currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
@@ -1333,8 +1330,8 @@ loop e = do
                 Cli.runTransaction do
                   fromBranch <- Codebase.expectCausalBranchByCausalHash fromCH >>= V2Causal.value
                   toBranch <- Codebase.expectCausalBranchByCausalHash toCH >>= V2Causal.value
-                  treeDiff <- V2Branch.diffBranches fromBranch toBranch
-                  let nameChanges = V2Branch.nameChanges Nothing treeDiff
+                  let treeDiff = V2Branch.diffBranches fromBranch toBranch
+                  nameChanges <- V2Branch.allNameChanges Nothing treeDiff
                   pure (DisplayDebugNameDiff nameChanges)
               Cli.respond output
             DeprecateTermI {} -> Cli.respond NotImplemented
@@ -1356,6 +1353,7 @@ loop e = do
             ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
+            BranchesI -> handleBranches
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1431,15 +1429,16 @@ inputDescription input =
         DeleteTarget'Type DeleteOutput'Diff thing0 -> do
           thing <- traverse hqs' thing0
           pure ("delete.type.verbose " <> Text.intercalate " " thing)
-        DeleteTarget'Branch Try opath0 -> do
+        DeleteTarget'Namespace Try opath0 -> do
           opath <- ops' opath0
           pure ("delete.namespace " <> opath)
-        DeleteTarget'Branch Force opath0 -> do
+        DeleteTarget'Namespace Force opath0 -> do
           opath <- ops' opath0
           pure ("delete.namespace.force " <> opath)
         DeleteTarget'Patch path0 -> do
           path <- ps' path0
           pure ("delete.patch " <> path)
+        DeleteTarget'ProjectBranch projectAndBranch -> pure ("delete.branch " <> into @Text projectAndBranch)
     ReplaceI src target p0 -> do
       p <- opatch p0
       pure $
@@ -1508,15 +1507,6 @@ inputDescription input =
               PullTargetProject target1 -> pure (into @Text target1)
           pure (command <> " " <> source <> " " <> target)
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
-    LoadPullRequestI base head dest0 -> do
-      dest <- p' dest0
-      pure $
-        "pr.load "
-          <> printReadRemoteNamespace (into @Text) base
-          <> " "
-          <> printReadRemoteNamespace (into @Text) head
-          <> " "
-          <> dest
     RemoveTermReplacementI src p0 -> do
       p <- opatch p0
       pure ("delete.term-replacement" <> HQ.toText src <> " " <> p)
@@ -1530,13 +1520,12 @@ inputDescription input =
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     ProjectCloneI projectAndBranch -> pure ("project.clone " <> into @Text projectAndBranch)
     ProjectCreateI project -> pure ("project.create " <> into @Text project)
-    ProjectSwitchI projectAndBranch -> pure ("project.create " <> into @Text projectAndBranch)
+    ProjectSwitchI projectAndBranch -> pure ("project.switch " <> into @Text projectAndBranch)
     --
     ApiI -> wat
     AuthLoginI {} -> wat
     ClearI {} -> pure "clear"
     CreateMessage {} -> wat
-    CreatePullRequestI {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat
     DebugDumpNamespaceSimpleI {} -> wat
@@ -1568,6 +1557,7 @@ inputDescription input =
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
     ProjectsI -> wat
+    BranchesI -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
@@ -1728,7 +1718,7 @@ handleDiffNamespaceToPatch description input = do
         branch1 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId1)
         branch2 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId2)
         lift do
-          branchDiff <- V2Branch.nameBasedDiff <$> V2Branch.diffBranches branch1 branch2
+          branchDiff <- V2Branch.nameBasedDiff (V2Branch.diffBranches branch1 branch2)
           termEdits <-
             (branchDiff ^. #terms)
               & Relation.domain

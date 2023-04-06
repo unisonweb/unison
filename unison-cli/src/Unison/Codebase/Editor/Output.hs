@@ -95,7 +95,6 @@ data NumberedOutput
   | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterCreatePR (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
@@ -114,6 +113,7 @@ data NumberedOutput
       HistoryTail -- 'origin point' of this view of history.
   | ListEdits Patch PPE.PrettyPrintEnv
   | ListProjects [Sqlite.Project]
+  | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
 
 --  | ShowDiff
 
@@ -141,7 +141,6 @@ data Output
       [Type Symbol Ann]
       -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
-  | BranchNotEmpty Path'
   | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
@@ -299,14 +298,13 @@ data Output
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject ProjectName ProjectBranchName
-  | CreatedProjectBranch ProjectBranchName ProjectBranchName -- parent, child
+  | CreatedProjectBranch (Maybe ProjectBranchName) ProjectBranchName -- parent, child
   | CreatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- We didn't push anything because the remote server is already in the state we want it to be
     RemoteProjectBranchIsUpToDate URI (ProjectAndBranch ProjectName ProjectBranchName)
   | InvalidProjectName Text
   | InvalidProjectBranchName Text
-  | RefusedToCreateProjectBranch (ProjectAndBranch ProjectName ProjectBranchName)
   | ProjectNameAlreadyExists ProjectName
   | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
@@ -396,7 +394,6 @@ isFailure o = case o of
   BranchEmpty {} -> True
   EmptyLooseCodePush {} -> True
   EmptyProjectBranchPush {} -> True
-  BranchNotEmpty {} -> True
   TypeAlreadyExists {} -> True
   TypeParseError {} -> True
   ParseResolutionFailures {} -> True
@@ -500,7 +497,6 @@ isFailure o = case o of
   CreatedRemoteProjectBranch {} -> False
   InvalidProjectName {} -> True
   InvalidProjectBranchName {} -> True
-  RefusedToCreateProjectBranch {} -> True
   ProjectNameAlreadyExists {} -> True
   ProjectNameRequiresUserSlug {} -> True
   NotOnProjectBranch {} -> True
@@ -530,7 +526,6 @@ isNumberedFailure = \case
   ShowDiffAfterMergePreview {} -> False
   ShowDiffAfterUndo {} -> False
   ShowDiffAfterPull {} -> False
-  ShowDiffAfterCreatePR {} -> False
   ShowDiffAfterCreateAuthor {} -> False
   TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
   CantDeleteDefinitions {} -> True
@@ -539,3 +534,4 @@ isNumberedFailure = \case
   DeletedDespiteDependents {} -> False
   ListEdits {} -> False
   ListProjects {} -> False
+  ListBranches {} -> False
