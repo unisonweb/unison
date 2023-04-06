@@ -665,6 +665,21 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
         ct <- getDeclType ref
         pure (referent, Just $ Cv.constructorType1to2 ct)
 
+-- | Regenerate the name lookup index for the given branch hash from scratch.
+-- This shouldn't be necessary in normal operation, but it's useful to fix name lookups if
+-- they somehow get corrupt, or during local testing and debugging.
+regenerateNameLookup ::
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  BranchHash ->
+  Sqlite.Transaction ()
+regenerateNameLookup getDeclType bh = do
+  Ops.checkBranchHashNameLookupExists bh >>= \case
+    True -> do
+      bhId <- Q.expectBranchHashId bh
+      Q.deleteNameLookup bhId
+      ensureNameLookupForBranchHash getDeclType Nothing bh
+    False -> ensureNameLookupForBranchHash getDeclType Nothing bh
+
 -- | Given a transaction, return a transaction that first checks a semispace cache of the given size.
 --
 -- The transaction should probably be read-only, as we (of course) don't hit SQLite on a cache hit.
