@@ -31,7 +31,7 @@ testServerAndClient = do
 
   match setup with
     Left exn ->
-      Tests.fail "Unable to bind and listen on a socket" ""
+      Tests.fail "Unable to bind and listen on a socket" (Debug.toText exn)
     Right (socket, port) ->
       serve = do
         sock = Socket.accept socket
