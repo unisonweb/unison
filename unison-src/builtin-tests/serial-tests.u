@@ -1,0 +1,99 @@
+serial.directory =
+  FilePath "unison-src/transcripts-using-base/serialized-cases/"
+
+(<+>) : FilePath -> FilePath -> FilePath
+(<+>) = cases (FilePath l), (FilePath r) -> FilePath (l ++ r)
+
+serial.availableCases : '{IO,Exception} [Text]
+serial.availableCases _ =
+  use List map
+  p = cases (FilePath nm) -> contains ".ser" nm
+  slice = cases (FilePath nm) ->
+    Text.take (Text.size nm - 4) nm
+  caseNums = ["00", "01", "02", "03"]
+  files = map (n -> FilePath ("case-" ++ n ++ ".ser")) caseNums
+  map slice (filter p files)
+
+serial.gen : Nat -> Nat -> (Nat, Nat)
+serial.gen seed k =
+  c = 11
+  a = 0x5deece66d
+  m = shiftLeft 1 48
+  s = mod (a * seed + c) m
+  (mod (shiftRight s 15) (Nat.min 32 k), s)
+
+  
+serial.shuffle : Nat -> [a] -> [a]
+serial.shuffle =
+  pick acc seed = cases
+    l | List.size l <= 1 -> acc ++ l
+      | otherwise -> match gen seed (size l) with
+        (k, seed) -> match (take k l, drop k l) with
+          (pre, x +: post) -> pick (acc :+ x) seed (pre ++ post)
+          (pre, []) -> pick acc seed pre
+  
+  pick []
+
+serial.loadValueBytes :
+  base.Bytes ->{Exception,IO} ([(Link.Term, Code)], reflection.Value)
+serial.loadValueBytes bs = match Value.deserialize bs with
+  Left err ->
+    raiseFailure ("could not deserialize value: " ++ err) bs
+  Right sv -> match Value.load sv with
+    Left l -> raiseFailure "could not load value" ()
+    Right v -> v
+
+serial.readFile : FilePath -> base.Bytes
+serial.readFile fp =
+  h = FilePath.open fp Read
+  read acc =
+    if isEOF h
+    then
+      close h
+      acc
+    else read (acc ++ getBytes h 1024)
+  read 0xs
+
+serial.loadSelfContained : FilePath ->{IO, Exception} a
+serial.loadSelfContained path =
+  input = readFile path
+  match fromBase32 input with
+    Left msg -> raiseFailure msg input
+    Right bs ->
+    (deps, v) = loadValueBytes bs
+    _ = cache_ deps
+    match Value.load v with
+      Left l -> raiseFailure "value missing deps" l
+      Right x -> x
+
+serial.runTestCase : Text ->{Tests,IO} ()
+serial.runTestCase name =
+  sfile = directory <+> FilePath (name ++ ".ser")
+  ofile = directory <+> FilePath (name ++ ".out")
+  hfile = directory <+> FilePath (name ++ ".hash")
+
+  handle
+    p@(f, i) = loadSelfContained sfile
+    o = fromUtf8 (readFile ofile)
+    -- h = readFile hfile
+
+    if f i === o
+    then pass name
+      -- todo: check hashes
+      -- if toBase32 (crypto.hash Sha3_512 p) == h
+      --    then pass name
+      --    else fail name "hash mismatch"
+    else fail name "output mismatch"
+  with cases
+    { x } -> x
+    { raise f -> _ } -> exception ("test failure: " ++ name) f
+
+serial.tests : '{Tests,IO} ()
+serial.tests = do
+  handle
+    l =  !availableCases
+    cs = shuffle (toRepresentation !systemTimeMicroseconds) l
+    List.map runTestCase cs
+  with cases
+    {x} -> ()
+    {raise f -> k} -> exception "failed to load test cases" f
