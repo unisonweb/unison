@@ -43,7 +43,7 @@
         (right bytes)
         (exception "Wrong number of certs" "nope" certs))))
 
-(struct server-config (certs key))
+(struct server-config (certs key)) ; certs = list certificate; key = privateKey
 
 ; list of certificates
 ; and a single private key.
@@ -81,11 +81,11 @@
 (struct client-config (host certs))
 (struct tls (config input output))
 
-(define (newServer.impl.v3 config sockets) ; tlsServerConfig socket -> {io} tls
+(define (newServer.impl.v3 config socket-pair) ; tlsServerConfig socket -> {io} tls
   (handle-errors
    (lambda ()
-     (let* ([input (socket-pair-input sockets)]
-            [output (socket-pair-output sockets)]
+     (let* ([input (socket-pair-input socket-pair)]
+            [output (socket-pair-output socket-pair)]
             [certs (server-config-certs config)]
             [key (server-config-key config)]
             [tmp (make-temporary-file* #"unison" #".pem")]
@@ -104,7 +104,7 @@
                                 )])
          (right (tls config in out)))))))
 
-(define (ClientConfig.default host service-identification-suffix)
+(define (ClientConfig.default host service-identification-suffix) ; string bytes
   (if (= 0 (bytes-length service-identification-suffix))
       (client-config host (mlist))
       (error 'NotImplemented "service-identification-suffix not supported")))
@@ -145,7 +145,7 @@
      (ssl-set-verify! (tls-input tls) #t)
      (right none))))
 
-(define (send.impl.v3 tls data)
+(define (send.impl.v3 tls data) ; data = bytes
   (handle-errors
    (lambda ()
      (let* ([output (tls-output tls)])
@@ -167,7 +167,7 @@
         (bytes-append buffer (read-more (* 2 n) port))
         (subbytes buffer 0 read))))
 
-(define (receive.impl.v3 tls)
+(define (receive.impl.v3 tls) ; -> bytes
   (handle-errors
    (lambda ()
      (right (read-all 4096 (tls-input tls))))))

@@ -11,7 +11,7 @@ import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.These (These)
+import Data.These (These (..))
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
@@ -1338,8 +1338,8 @@ squashMerge =
     )
     ( \case
         [src, dest] -> first fromString $ do
-          src <- Path.parsePath' src
-          dest <- Path.parsePath' dest
+          src <- parseLooseCodeOrProject src
+          dest <- parseLooseCodeOrProject dest
           pure $ Input.MergeLocalBranchI src dest Branch.SquashMerge
         _ -> Left (I.help squashMerge)
     )
@@ -1359,15 +1359,25 @@ mergeLocal =
         ]
     )
     ( \case
-        [src] -> first fromString $ do
-          src <- Path.parsePath' src
-          pure $ Input.MergeLocalBranchI src Path.relativeEmpty' Branch.RegularMerge
+        [src] -> first fromString do
+          src <- parseLooseCodeOrProject src
+          pure $ Input.MergeLocalBranchI src (Left Path.relativeEmpty') Branch.RegularMerge
         [src, dest] -> first fromString $ do
-          src <- Path.parsePath' src
-          dest <- Path.parsePath' dest
+          src <- parseLooseCodeOrProject src
+          dest <- parseLooseCodeOrProject dest
           pure $ Input.MergeLocalBranchI src dest Branch.RegularMerge
         _ -> Left (I.help mergeLocal)
     )
+
+parseLooseCodeOrProject :: String -> Either String Input.LooseCodeOrProject
+parseLooseCodeOrProject inputString =
+  case tryInto @(These ProjectName ProjectBranchName) (Text.pack inputString) of
+    Right (That branchName) -> Right (Right (Nothing, branchName))
+    Right (These projectName branchName) -> Right (Right (Just projectName, branchName))
+    _ ->
+      case Path.parsePath' inputString of
+        Left _ -> Left ("Failed to parse " ++ inputString ++ " as a project name or namespace path")
+        Right path -> Right (Left path)
 
 diffNamespace :: InputPattern
 diffNamespace =
@@ -1416,11 +1426,11 @@ previewMergeLocal =
     )
     ( \case
         [src] -> first fromString $ do
-          src <- Path.parsePath' src
-          pure $ Input.PreviewMergeLocalBranchI src Path.relativeEmpty'
+          src <- parseLooseCodeOrProject src
+          pure $ Input.PreviewMergeLocalBranchI src (Left Path.relativeEmpty')
         [src, dest] -> first fromString $ do
-          src <- Path.parsePath' src
-          dest <- Path.parsePath' dest
+          src <- parseLooseCodeOrProject src
+          dest <- parseLooseCodeOrProject dest
           pure $ Input.PreviewMergeLocalBranchI src dest
         _ -> Left (I.help previewMergeLocal)
     )

@@ -235,7 +235,7 @@ notifyNumbered = \case
     first
       ( \p ->
           P.lines
-            [ P.wrap $ "Here's what's changed in " <> prettyPath' dest' <> "after the merge:",
+            [ P.wrap $ "Here's what's changed in " <> prettyPathOrProjectAndBranchName dest' <> "after the merge:",
               "",
               p,
               "",
@@ -260,7 +260,7 @@ notifyNumbered = \case
           P.lines
             [ P.wrap $
                 "Here's what's changed in "
-                  <> prettyPath' dest'
+                  <> prettyPathOrProjectAndBranchName dest'
                   <> "after applying the patch at "
                   <> P.group (prettyPath' patchPath' <> ":"),
               "",
@@ -268,7 +268,7 @@ notifyNumbered = \case
               "",
               tip $
                 "You can use "
-                  <> IP.makeExample IP.todo [prettyPath' patchPath', prettyPath' dest']
+                  <> IP.makeExample IP.todo [prettyPath' patchPath', prettyPathOrProjectAndBranchName dest']
                   <> "to see if this generated any work to do in this namespace"
                   <> "and "
                   <> IP.makeExample' IP.test
@@ -285,7 +285,7 @@ notifyNumbered = \case
     first
       ( \p ->
           P.lines
-            [ P.wrap $ "Here's what would change in " <> prettyPath' dest' <> "after the merge:",
+            [ P.wrap $ "Here's what would change in " <> prettyPathOrProjectAndBranchName dest' <> "after the merge:",
               "",
               p
             ]
@@ -1587,15 +1587,15 @@ notifyUser dir = \case
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPath' dest
+        prettyPathOrProjectAndBranchName dest
           <> "was already up-to-date with"
-          <> P.group (prettyPath' src <> ".")
+          <> P.group (prettyPathOrProjectAndBranchName src <> ".")
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPath' dest
+        prettyPathOrProjectAndBranchName dest
           <> "is already up-to-date with"
-          <> P.group (prettyPath' src <> ".")
+          <> P.group (prettyPathOrProjectAndBranchName src <> ".")
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
@@ -2238,6 +2238,11 @@ prettyProjectBranchName =
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
 prettyProjectAndBranchName (ProjectAndBranch projectName branchName) =
   P.blue (P.text (into @Text (These projectName branchName)))
+
+prettyPathOrProjectAndBranchName :: Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
+prettyPathOrProjectAndBranchName = \case
+  Left x -> prettyPath' x
+  Right x -> prettyProjectAndBranchName x
 
 formatMissingStuff ::
   (Show tm, Show typ) =>
