@@ -3,6 +3,7 @@
 (require racket/exn
          racket/string
          racket/file
+         (only-in racket empty?)
          compatibility/mlist
          unison/data
          unison/tcp
@@ -124,6 +125,9 @@
        [(lambda err
           (string-contains? (exn->string err) "not valid for hostname"))
         (lambda (e) (exception "IOFailure" "NameMismatch" '()))]
+       [(lambda err
+          (string-contains? (exn->string err) "certificate verify failed"))
+        (lambda (e) (exception "IOFailure" "CertificateVerifyFailed" '()))]
        [(lambda _ #t) (lambda (e) (exception "MiscFailure" (format "Unknown exception ~a" (exn->string e)) e))] ]
     (fn)))
 
@@ -133,14 +137,16 @@
      (let ([input (socket-pair-input socket)]
            [output (socket-pair-output socket)]
            [hostname (client-config-host config)]
+           ; TODO: Make the client context up in ClientConfig.default
+           ; instead of right here.
            [ctx (ssl-make-client-context)]
            [certs (client-config-certs config)])
-    ;    (ssl-set-verify! ctx #t)
        (ssl-set-verify-hostname! ctx #t)
        (ssl-set-ciphers! ctx "DEFAULT:!aNULL:!eNULL:!LOW:!EXPORT:!SSLv2")
+    ;    (ssl-set-verify! ctx #t)
     ;    (if (empty? certs)
-         ; (ssl-load-default-verify-sources! ctx)
-    ;    )
+    ;      (ssl-load-default-verify-sources! ctx)
+    ;      #f)
        (let-values ([(in out) (ports->ssl-ports
                                input output
                                #:mode 'connect
