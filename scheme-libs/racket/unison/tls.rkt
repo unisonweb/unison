@@ -7,6 +7,7 @@
          compatibility/mlist
          unison/data
          unison/tcp
+         unison/pem
          x509
          openssl)
 
@@ -40,12 +41,12 @@
     tmp))
 
 (define (decodePrivateKey bytes) ; bytes -> list tlsPrivateKey
-  (let* ([tmp (write-to-tmp-file bytes #".pem")]
-         [ctx (ssl-make-server-context)])
-    (with-handlers
-        [[exn:fail? (lambda (e) (mlist))]]
-      (ssl-load-private-key! ctx tmp)
-      (mlist tmp))))
+    (list->mlist
+        (filter
+            (lambda (pem) (or
+                (equal? "PRIVATE KEY" (pem-label pem))
+                (equal? "RSA PRIVATE KEY" (pem-label pem))))
+            (pem-string->pems (bytes->string/utf-8 bytes)))))
 
 (define (decodeCert.impl.v3 bytes) ; bytes -> either failure tlsSignedCert
   (let ([certs (read-pem-certificates (open-input-bytes bytes))])
@@ -68,9 +69,13 @@
             [output (socket-pair-output socket-pair)]
             [certs (server-config-certs config)]
             [key (server-config-key config)]
+            [key-bytes (string->bytes/utf-8 (pem->pem-string key))]
             [tmp (write-to-tmp-file (mcar certs) #".pem")])
        (let*-values ([(ctx) (ssl-make-server-context
-                             #:private-key (list 'pem key)
+                             ; TODO: Once racket can handle the in-memory PEM bytes,
+                             ; we can do away with writing them out to temporary files.
+                             ; #:private-key (list 'pem key-bytes)
+                             #:private-key (list 'pem (write-to-tmp-file key-bytes #".pem"))
                              #:certificate-chain tmp)]
                      [(in out) (ports->ssl-ports
                                 input output
