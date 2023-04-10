@@ -44,7 +44,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
 import qualified Unison.Syntax.Name as Name (fromText, unsafeFromString)
 import qualified Unison.Util.ColorText as CT
@@ -2374,6 +2374,22 @@ branches =
       parse = \_ -> Right Input.BranchesI
     }
 
+branch :: InputPattern
+branch =
+  InputPattern
+    { patternName = "branch",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectAndBranchNamesArg)],
+      help = P.wrap "Create a new branch from an existing branch or namespace.",
+      parse = \case
+        [name] ->
+          case tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name) of
+            Left _ -> Left (showPatternHelp branch)
+            Right projectAndBranch -> Right (Input.BranchI projectAndBranch)
+        _ -> Left (showPatternHelp branch)
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2385,6 +2401,7 @@ validInputs =
       api,
       authLogin,
       back,
+      branch,
       branches,
       cd,
       clear,

@@ -60,7 +60,14 @@ projectSwitch projectAndBranchNames0 = do
       fromBranchObject <-
         case maybeFromBranch of
           Nothing -> pure Branch.empty
-          Just fromBranch -> Cli.getBranchAt (ProjectUtils.projectBranchPath (ProjectAndBranch projectId (fromBranch ^. #branchId)))
+          Just fromBranch ->
+            Cli.getBranchAt (ProjectUtils.projectBranchPath (ProjectAndBranch projectId (fromBranch ^. #branchId)))
       _ <- Cli.updateAt "project.switch" path (const fromBranchObject)
-      Cli.respond (Output.CreatedProjectBranch (view #name <$> maybeFromBranch) branchName)
+      Cli.respond $
+        Output.CreatedProjectBranch
+          ( case maybeFromBranch of
+              Nothing -> Output.CreatedProjectBranchFrom'Nothingness
+              Just fromBranch -> Output.CreatedProjectBranchFrom'ParentBranch (fromBranch ^. #name)
+          )
+          projectAndBranchNames
   Cli.cd path

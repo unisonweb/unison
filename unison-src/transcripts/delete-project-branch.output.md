@@ -6,9 +6,12 @@ your working directory with each command).
 
   I just created project foo with branch main
 
-foo/main> switch /topic
+foo/main> branch /topic
 
-  I just created branch topic from branch main
+  Done. I've created the topic branch based off of main
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
 
 foo/topic> delete.branch /topic
 

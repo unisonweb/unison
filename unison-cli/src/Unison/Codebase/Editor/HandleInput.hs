@@ -77,6 +77,7 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
+import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
@@ -1367,6 +1368,7 @@ loop e = do
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
             BranchesI -> handleBranches
+            BranchI name -> handleBranch name
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1539,6 +1541,7 @@ inputDescription input =
     --
     ApiI -> wat
     AuthLoginI {} -> wat
+    BranchI {} -> wat
     ClearI {} -> pure "clear"
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
