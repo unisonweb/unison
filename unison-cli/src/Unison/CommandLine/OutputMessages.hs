@@ -1829,7 +1829,10 @@ notifyUser dir = \case
     case from of
       CreatedProjectBranchFrom'LooseCode path ->
         pure . P.wrap $
-          "Done. I've created the" <> prettyProjectAndBranchName projectAndBranch <> "branch from the namespace" <> prettyAbsolute path
+          "Done. I've created the"
+            <> prettyProjectAndBranchName projectAndBranch
+            <> "branch from the namespace"
+            <> prettyAbsolute path
       CreatedProjectBranchFrom'Nothingness ->
         pure $
           P.wrap ("Done. I've created an empty branch" <> prettyProjectAndBranchName projectAndBranch)
@@ -1839,7 +1842,9 @@ notifyUser dir = \case
               ( "Use"
                   <> IP.makeExample IP.mergeLocal [prettySlashProjectBranchName (UnsafeProjectBranchName "somebranch")]
                   <> "or"
-                  <> IP.makeExample IP.mergeLocal [prettyAbsolute (Path.Absolute (Path.fromList ["path", "to", "code"]))]
+                  <> IP.makeExample
+                    IP.mergeLocal
+                    [prettyAbsolute (Path.Absolute (Path.fromList ["path", "to", "code"]))]
                   <> "to initialize this branch."
               )
       CreatedProjectBranchFrom'OtherBranch otherProjectAndBranch ->
