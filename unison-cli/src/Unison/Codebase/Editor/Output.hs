@@ -299,7 +299,7 @@ data Output
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject ProjectName ProjectBranchName
-  | CreatedProjectBranch CreatedProjectBranchFrom ProjectBranchName -- parent, child
+  | CreatedProjectBranch CreatedProjectBranchFrom (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- We didn't push anything because the remote server is already in the state we want it to be

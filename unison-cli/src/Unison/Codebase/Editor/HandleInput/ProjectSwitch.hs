@@ -69,5 +69,5 @@ projectSwitch projectAndBranchNames0 = do
               Nothing -> Output.CreatedProjectBranchFrom'Nothingness
               Just fromBranch -> Output.CreatedProjectBranchFrom'ParentBranch (fromBranch ^. #name)
           )
-          branchName
+          projectAndBranchNames
   Cli.cd path

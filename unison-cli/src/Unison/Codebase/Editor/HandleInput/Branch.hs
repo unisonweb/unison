@@ -86,5 +86,5 @@ handleBranch projectAndBranchNames0 = do
       CreatedFrom'OtherBranch otherBranch -> pure (Output.CreatedProjectBranchFrom'OtherBranch otherBranch)
       CreatedFrom'ParentBranch parentBranch ->
         pure (Output.CreatedProjectBranchFrom'ParentBranch (parentBranch ^. #name))
-  Cli.respond (Output.CreatedProjectBranch createdFrom1 newBranchName)
+  Cli.respond (Output.CreatedProjectBranch createdFrom1 projectAndBranchNames)
   Cli.cd path

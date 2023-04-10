@@ -1824,29 +1824,44 @@ notifyUser dir = \case
         <> prettyProjectName projectName
         <> "with branch"
         <> prettyProjectBranchName branchName
-  CreatedProjectBranch from branch ->
+  CreatedProjectBranch from projectAndBranch ->
     case from of
       CreatedProjectBranchFrom'LooseCode path ->
         pure . P.wrap $
-          "This is the message you get when you create"
-            <> prettyProjectBranchName branch
-            <> "from loose code"
-            <> prettyAbsolute path
+          "Done. I've created the" <> prettyProjectAndBranchName projectAndBranch <> "branch from the namespace" <> prettyAbsolute path
       CreatedProjectBranchFrom'Nothingness ->
+        pure $
+          P.wrap ("Done. I've created an empty branch" <> prettyProjectAndBranchName projectAndBranch)
+            <> P.newline
+            <> tip
+              ( "Use"
+                  <> IP.makeExample IP.mergeLocal [wundefined]
+                  <> "or"
+                  <> IP.makeExample IP.mergeLocal [wundefined]
+                  <> "to initialize this branch"
+              )
+      CreatedProjectBranchFrom'OtherBranch otherProjectAndBranch ->
         pure . P.wrap $
-          "This is the message you get when you create" <> prettyProjectBranchName branch <> "from nothingness"
-      CreatedProjectBranchFrom'OtherBranch otherBranch ->
-        pure . P.wrap $
-          "This is the message you get when you create"
-            <> prettyProjectBranchName branch
-            <> "from"
-            <> prettyProjectAndBranchName otherBranch
+          "Done. I've created the"
+            <> prettyProjectAndBranchName projectAndBranch
+            <> "branch based off"
+            <> prettyProjectAndBranchName otherProjectAndBranch
       CreatedProjectBranchFrom'ParentBranch parentBranch ->
-        pure . P.wrap $
-          "This is the message you get when you create"
-            <> prettyProjectBranchName branch
-            <> "from"
-            <> prettyProjectBranchName parentBranch
+        pure $
+          P.wrap
+            ( "Done. I've created the"
+                <> prettyProjectBranchName (projectAndBranch ^. #branch)
+                <> "branch based off of"
+                <> prettyProjectBranchName parentBranch
+            )
+            <> P.newline
+            <> tip
+              ( "Use"
+                  <> IP.makeExample IP.mergeLocal [wundefined]
+                  <> "or"
+                  <> IP.makeExample IP.mergeLocal [wundefined]
+                  <> "to initialize this branch"
+              )
   CreatedRemoteProject host (ProjectAndBranch projectName _) ->
     pure . P.wrap $
       "I just created"
