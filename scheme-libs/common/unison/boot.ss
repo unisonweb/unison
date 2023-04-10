@@ -154,7 +154,7 @@
       [(handle [r ...] h e ...)
        (let ([p (make-prompt)])
          (prompt0-at p
-           (let ([v (let-marks (list (quote r) ...) (cons p h)
+           (let ([v (let-marks (list r ...) (cons p h)
                       (prompt0-at p e ...))])
              (h (make-pure v)))))]))
 
@@ -162,8 +162,8 @@
   (define-syntax request
     (syntax-rules ()
       [(request r t . args)
-       (let ([rq (make-request (quote r) t (list . args))])
-         (let ([current-mark (ref-mark (quote r))])
+       (let ([rq (make-request r t (list . args))])
+         (let ([current-mark (ref-mark r)])
             (if (equal? #f current-mark)
                 (raise (condition
                             (make-error)
