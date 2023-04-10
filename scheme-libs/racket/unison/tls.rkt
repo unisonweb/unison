@@ -74,6 +74,7 @@
        (let*-values ([(ctx) (ssl-make-server-context
                              ; TODO: Once racket can handle the in-memory PEM bytes,
                              ; we can do away with writing them out to temporary files.
+                             ; https://github.com/racket/racket/pull/4625
                              ; #:private-key (list 'pem key-bytes)
                              #:private-key (list 'pem (write-to-tmp-file key-bytes #".pem"))
                              #:certificate-chain tmp)]
