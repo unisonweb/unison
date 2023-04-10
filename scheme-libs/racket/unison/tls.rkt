@@ -29,7 +29,7 @@
 
 ; Native Representations:
 ;
-; tlsPrivateKey - currently the path to a tmp file containing the private key dumped out
+; tlsPrivateKey - the "pem" struct defined in pem.rkt
 ; tlsCertificate - currently the raw bytes
 
 (define (write-to-tmp-file bytes suffix)
