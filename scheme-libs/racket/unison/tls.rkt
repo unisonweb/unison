@@ -127,7 +127,7 @@
         (lambda (e) (exception "IOFailure" "NameMismatch" '()))]
        [(lambda err
           (string-contains? (exn->string err) "certificate verify failed"))
-        (lambda (e) (exception "IOFailure" "CertificateVerifyFailed" '()))]
+        (lambda (e) (exception "IOFailure" "certificate verify failed" '()))]
        [(lambda _ #t) (lambda (e) (exception "MiscFailure" (format "Unknown exception ~a" (exn->string e)) e))] ]
     (fn)))
 
@@ -143,10 +143,11 @@
            [certs (client-config-certs config)])
        (ssl-set-verify-hostname! ctx #t)
        (ssl-set-ciphers! ctx "DEFAULT:!aNULL:!eNULL:!LOW:!EXPORT:!SSLv2")
-    ;    (ssl-set-verify! ctx #t)
-    ;    (if (empty? certs)
-    ;      (ssl-load-default-verify-sources! ctx)
-    ;      #f)
+       (ssl-set-verify! ctx #t)
+       (if (empty? certs)
+         (ssl-load-default-verify-sources! ctx)
+         (let ([tmp (write-to-tmp-file (mcar certs) #".pem")])
+            (ssl-load-verify-source! ctx tmp)))
        (let-values ([(in out) (ports->ssl-ports
                                input output
                                #:mode 'connect

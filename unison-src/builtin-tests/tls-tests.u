@@ -11,18 +11,18 @@ tls.tests = do
   check "decoding an invalid cert should fail" do isLeft (decodeCert (toUtf8 "not a cert"))
   !testConnectSelfSigned
   !tlsChainTest
-  expectError "self signed with the wrong hostname should fail" "NameMismatch" testConnectSelfSignedWrongHost
-  expectError "self signed with an unknown CA should fail" "certificate has unknown CA" do
+  expectError' "self signed with the wrong hostname should fail" ["NameMismatch", "certificate verify failed"] testConnectSelfSignedWrongHost
+  expectError' "self signed with an unknown CA should fail" ["certificate has unknown CA", "certificate verify failed"] do
     portPromise = Promise.new ()
     toSend = "12345"
     -- Server
     serverResult = defer do serverThread portPromise toSend
     -- Client
     Either.toException !(testClient None "test.unison.cloud" portPromise)
-  expectError "self signed wrong host" "NameMismatch" testConnectSelfSignedWrongHost
+  expectError' "self signed wrong host" ["NameMismatch", "certificate verify failed"] testConnectSelfSignedWrongHost
   -- -- TODO: Enable this once scheme output correctly escapes \r
   -- check "connects to example.com over tls" tls.example.com
-  expectError "wrong host example.com fails" "NameMismatch" do
+  expectError' "wrong host example.com fails" ["NameMismatch", "certificate verify failed"] do
     socket = Socket.client (HostName "example.com") (Port "443")
     config = ClientConfig.default (HostName "examplez.com") ""
     tls = base.IO.net.Tls.newClient config socket
@@ -54,15 +54,23 @@ testConnectSelfSigned = do
   -- Check it
   checkEqual "self signed should connect & receive what we sent" toSend received
 
-expectError msg text fn = match catchAll fn with
+matchesOne matchers text = match matchers with
+    [] -> false
+    one +: rest -> if Text.contains one text
+        then true
+        else matchesOne rest text
+
+expectError' msg matchers fn = match catchAll fn with
   Left (Failure _ message _) ->
-    if Text.contains text message
+    if matchesOne matchers message
       then
         Tests.pass msg
       else
         Tests.fail msg ("Unexpected exception found " ++ message)
   Right _ ->
     Tests.fail msg "Expected exception, none found"
+
+expectError msg text fn = expectError' msg [text] fn
 
 testConnectSelfSignedWrongHost = do
   -- Server
