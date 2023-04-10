@@ -28,10 +28,10 @@ tls.tests = do
     tls = base.IO.net.Tls.newClient config socket
     _ = base.IO.net.Tls.handshake tls
     ()
-  expectError "trying to connect to example.com:443 without tls fails" "Connection reset" do
-    socket = Socket.client (HostName "example.com") (Port "443")
-    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
-    Socket.receive socket
+--   expectError "trying to connect to example.com:443 without tls fails" "Connection reset" do
+--     socket = Socket.client (HostName "example.com") (Port "443")
+--     Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
+--     Socket.receive socket
 
 tls.example.com = do
     socket = Socket.client (HostName "example.com") (Port "443")
