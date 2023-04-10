@@ -3,7 +3,7 @@ your working directory with each command).
 
 ```ucm
 .> project.create foo
-foo/main> switch /topic
+foo/main> branch /topic
 foo/topic> delete.branch /topic
 ```
 

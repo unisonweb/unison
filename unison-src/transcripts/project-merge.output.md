@@ -91,9 +91,12 @@ bar/main> merge foo/main
        can use `undo` or `reflog` to undo the results of this
        merge.
 
-bar/main> switch /topic
+bar/main> branch /topic
 
-  I just created branch topic from branch main
+  Done. I've created the topic branch based off of main
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
 
 ```
 ```unison

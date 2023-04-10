@@ -25,7 +25,7 @@ foo/main> add
 ```ucm
 .> project.create bar
 bar/main> merge foo/main
-bar/main> switch /topic
+bar/main> branch /topic
 ```
 
 ```unison
