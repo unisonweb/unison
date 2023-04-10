@@ -97,7 +97,7 @@
         (lambda (e) (exception "IOFailure" "NameMismatch" '()))]
        [(lambda err
           (string-contains? (exn->string err) "certificate verify failed"))
-        (lambda (e) (exception "IOFailurez" "certificate verify failed" '()))]
+        (lambda (e) (exception "IOFailure" "certificate verify failed" '()))]
        [(lambda _ #t) (lambda (e) (exception "MiscFailure" (format "Unknown exception ~a" (exn->string e)) e))] ]
     (fn)))
 
