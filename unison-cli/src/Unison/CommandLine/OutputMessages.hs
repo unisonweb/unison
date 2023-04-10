@@ -102,6 +102,7 @@ import Unison.CommandLine.InputPatterns (makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
+import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
 import Unison.Hash32 (Hash32)
@@ -131,7 +132,7 @@ import Unison.PrintError
     printNoteWithSource,
     renderCompilerBug,
   )
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectName)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -1833,12 +1834,13 @@ notifyUser dir = \case
         pure $
           P.wrap ("Done. I've created an empty branch" <> prettyProjectAndBranchName projectAndBranch)
             <> P.newline
+            <> P.newline
             <> tip
               ( "Use"
-                  <> IP.makeExample IP.mergeLocal [wundefined]
+                  <> IP.makeExample IP.mergeLocal [prettySlashProjectBranchName (UnsafeProjectBranchName "somebranch")]
                   <> "or"
-                  <> IP.makeExample IP.mergeLocal [wundefined]
-                  <> "to initialize this branch"
+                  <> IP.makeExample IP.mergeLocal [prettyAbsolute (Path.Absolute (Path.fromList ["path", "to", "code"]))]
+                  <> "to initialize this branch."
               )
       CreatedProjectBranchFrom'OtherBranch otherProjectAndBranch ->
         pure . P.wrap $
@@ -1855,12 +1857,17 @@ notifyUser dir = \case
                 <> prettyProjectBranchName parentBranch
             )
             <> P.newline
+            <> P.newline
             <> tip
               ( "Use"
-                  <> IP.makeExample IP.mergeLocal [wundefined]
-                  <> "or"
-                  <> IP.makeExample IP.mergeLocal [wundefined]
-                  <> "to initialize this branch"
+                  <> IP.makeExample
+                    IP.mergeLocal
+                    [ prettySlashProjectBranchName (projectAndBranch ^. #branch),
+                      prettySlashProjectBranchName parentBranch
+                    ]
+                  <> "to merge your work back into the"
+                  <> prettyProjectBranchName parentBranch
+                  <> "branch."
               )
   CreatedRemoteProject host (ProjectAndBranch projectName _) ->
     pure . P.wrap $
@@ -2266,6 +2273,16 @@ prettyProjectName =
 prettyProjectBranchName :: ProjectBranchName -> Pretty
 prettyProjectBranchName =
   P.blue . P.text . into @Text
+
+-- | Like 'prettyProjectBranchName', but with a leading forward slash. This is used in some outputs to
+-- encourage/advertise an unambiguous syntax for project branches, as there's an ambiguity with single-segment relative
+-- paths.
+--
+-- Not all project branches are printed such: for example, when listing all branches of a project, we probably don't
+-- need or want to prefix every one with a forward slash.
+prettySlashProjectBranchName :: ProjectBranchName -> Pretty
+prettySlashProjectBranchName =
+  P.blue . P.text . Text.cons '/' . into @Text
 
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
 prettyProjectAndBranchName (ProjectAndBranch projectName branchName) =
