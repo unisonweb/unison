@@ -190,5 +190,5 @@ text.matching.tests = do
   checkEqual "Pattern api (19)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
   checkEqual "Pattern api (20)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
   checkEqual "Pattern api (21)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
-
+  -- TODO add tests for character class pattern
   ()
