@@ -7,6 +7,7 @@
 
 (provide (prefix-out unison-FOp-crypto.
     (combine-out
+        HashAlgorithm.Md5
         HashAlgorithm.Sha1
         HashAlgorithm.Sha2_256
         HashAlgorithm.Sha2_512
@@ -89,6 +90,7 @@
 
 (define blake2b-raw (libb2-raw "blake2b"))
 
+(define HashAlgorithm.Md5 (lc-algo "EVP_md5" 128))
 (define HashAlgorithm.Sha1 (lc-algo "EVP_sha1" 160))
 (define HashAlgorithm.Sha2_256 (lc-algo "EVP_sha256" 256))
 (define HashAlgorithm.Sha2_512 (lc-algo "EVP_sha512" 512))
@@ -181,6 +183,11 @@
         (check-equal?
             (bytes->hex-string (hmacBytes (HashAlgorithm.Blake2s_256) #"key" #"message"))
             "bba8fa28708ae80d249e317318c95c859f3f77512be23910d5094d9110454d6f"))
+
+    (test-case "md5 basic"
+        (check-equal?
+        (bytes->hex-string (hashBytes (HashAlgorithm.Md5) #""))
+            "d41d8cd98f00b204e9800998ecf8427e"))
 
     (test-case "sha1 basic"
         (check-equal?
