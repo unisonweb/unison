@@ -73,7 +73,7 @@
             [certs (server-config-certs config)]
             [key (server-config-key config)]
             [key-bytes (string->bytes/utf-8 (pem->pem-string key))]
-            [tmp (write-to-tmp-file (mcar certs) #".pem")])
+            [tmp (write-to-tmp-file (chunked-list-ref certs 0) #".pem")])
        (let*-values ([(ctx) (ssl-make-server-context
                              ; TODO: Once racket can handle the in-memory PEM bytes,
                              ; we can do away with writing them out to temporary files.
@@ -100,7 +100,11 @@
 (define (handle-errors fn)
   (with-handlers
       [[exn:fail:network? (lambda (e) (exception "IOFailure" (exception->string e) '()))]
-       [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exception->string e) '()))]
+       [exn:fail:contract?
+        (lambda (e)
+          (display "YOOO")
+          (newline)
+          (exception "InvalidArguments" (exception->string e) '()))]
        [(lambda err
           (string-contains? (exn->string err) "not valid for hostname"))
         (lambda (e) (exception "IOFailure" (string->chunked-string "NameMismatch") '()))]
@@ -113,19 +117,22 @@
 (define (newClient.impl.v3 config socket)
   (handle-errors
    (lambda ()
-     (let ([input (socket-pair-input socket)]
+     (let* ([input (socket-pair-input socket)]
            [output (socket-pair-output socket)]
            [hostname (client-config-host config)]
            ; TODO: Make the client context up in ClientConfig.default
            ; instead of right here.
            [ctx (ssl-make-client-context)]
-           [certs (client-config-certs config)])
+           [certs (client-config-certs config)]
+           [_ (display "HEEEY")]
+           [___ (display certs)]
+           [__ (newline)])
        (ssl-set-verify-hostname! ctx #t)
        (ssl-set-ciphers! ctx "DEFAULT:!aNULL:!eNULL:!LOW:!EXPORT:!SSLv2")
        (ssl-set-verify! ctx #t)
-       (if (empty? certs)
+       (if (chunked-list-empty? certs)
          (ssl-load-default-verify-sources! ctx)
-         (let ([tmp (write-to-tmp-file (mcar certs) #".pem")])
+         (let ([tmp (write-to-tmp-file (chunked-list-ref certs 0) #".pem")])
             (ssl-load-verify-source! ctx tmp)))
        (let-values ([(in out) (ports->ssl-ports
                                input output
