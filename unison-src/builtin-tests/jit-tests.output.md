@@ -5,6 +5,7 @@ If you want to define more complex tests somewhere other than `tests.u`, just `l
 then reference those tests (which should be of type `'{IO,Exception,Tests} ()`, written using calls
 to `Tests.check` and `Tests.checkEqual`).
 
+TODO remove md5 alias when base is released
 ```ucm
 .> run.native tests
 
