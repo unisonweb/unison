@@ -8,6 +8,7 @@
 
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
+    Unison.Codebase.SqliteCodebase.initWithSetup,
     MigrationStrategy (..),
     BackupStrategy (..),
     CodebaseLockOption (..),
@@ -89,11 +90,22 @@ debug, debugProcessBranches :: Bool
 debug = False
 debugProcessBranches = False
 
-init :: (HasCallStack) => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
-init =
+init ::
+  (HasCallStack, MonadUnliftIO m) =>
+  Codebase.Init m Symbol Ann
+init = initWithSetup (pure ())
+
+-- | Like 'init', but allows passing in an action to be perform when a new codebase is created.
+initWithSetup ::
+  (HasCallStack, MonadUnliftIO m) =>
+  -- Action to perform when a new codebase is created.
+  -- It's run after the schema is created in the same transaction.
+  Sqlite.Transaction () ->
+  Codebase.Init m Symbol Ann
+initWithSetup onCreate =
   Codebase.Init
     { withOpenCodebase = withCodebaseOrError,
-      withCreatedCodebase = createCodebaseOrError,
+      withCreatedCodebase = createCodebaseOrError onCreate,
       codebasePath = makeCodebaseDirPath
     }
 
@@ -105,6 +117,7 @@ data CodebaseStatus
 -- | Open the codebase at the given location, or create it if one doesn't already exist.
 withOpenOrCreateCodebase ::
   (MonadUnliftIO m) =>
+  Sqlite.Transaction () ->
   Codebase.DebugName ->
   CodebasePath ->
   LocalOrRemote ->
@@ -112,8 +125,8 @@ withOpenOrCreateCodebase ::
   MigrationStrategy ->
   ((CodebaseStatus, Codebase m Symbol Ann) -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
-withOpenOrCreateCodebase debugName codebasePath localOrRemote lockOption migrationStrategy action = do
-  createCodebaseOrError debugName codebasePath lockOption (action' CreatedCodebase) >>= \case
+withOpenOrCreateCodebase onCreate debugName codebasePath localOrRemote lockOption migrationStrategy action = do
+  createCodebaseOrError onCreate debugName codebasePath lockOption (action' CreatedCodebase) >>= \case
     Left (Codebase1.CreateCodebaseAlreadyExists) -> do
       sqliteCodebase debugName codebasePath localOrRemote lockOption migrationStrategy (action' ExistingCodebase)
     Right r -> pure (Right r)
@@ -123,12 +136,13 @@ withOpenOrCreateCodebase debugName codebasePath localOrRemote lockOption migrati
 -- | Create a codebase at the given location.
 createCodebaseOrError ::
   (MonadUnliftIO m) =>
+  Sqlite.Transaction () ->
   Codebase.DebugName ->
   CodebasePath ->
   CodebaseLockOption ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.CreateCodebaseError r)
-createCodebaseOrError debugName path lockOption action = do
+createCodebaseOrError onCreate debugName path lockOption action = do
   ifM
     (doesFileExist $ makeCodebasePath path)
     (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
@@ -139,6 +153,7 @@ createCodebaseOrError debugName path lockOption action = do
         Sqlite.runTransaction conn do
           Q.createSchema
           void . Ops.saveRootBranch v2HashHandle $ Cv.causalbranch1to2 Branch.empty
+          onCreate
 
       sqliteCodebase debugName path Local lockOption DontMigrate action >>= \case
         Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
@@ -631,7 +646,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
   -- set up the cache dir
   throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
     newBranchOrErr <- throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
-      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote DoLock (MigrateAfterPrompt Codebase.Backup)
+      . withOpenOrCreateCodebase (pure ()) "push.dest" (Git.gitDirToPath pushStaging) Remote DoLock (MigrateAfterPrompt Codebase.Backup)
       $ \(codebaseStatus, destCodebase) -> do
         currentRootBranch <-
           Codebase1.runTransaction destCodebase CodebaseOps.getRootBranchExists >>= \case
