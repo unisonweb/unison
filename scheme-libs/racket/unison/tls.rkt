@@ -3,9 +3,11 @@
 (require racket/exn
          racket/string
          racket/file
+         (only-in racket empty?)
          compatibility/mlist
          unison/data
          unison/tcp
+         unison/pem
          x509
          openssl)
 
@@ -25,17 +27,26 @@
    send.impl.v3
    terminate.impl.v3)))
 
-(define (decodePrivateKey bytes) ; bytes -> list tlsPrivateKey
-  (let* ([tmp (make-temporary-file* #"unison" #".pem")]
-         [ctx (ssl-make-server-context)]
+; Native Representations:
+;
+; tlsPrivateKey - the "pem" struct defined in pem.rkt
+; tlsCertificate - currently the raw bytes
+
+(define (write-to-tmp-file bytes suffix)
+  (let* ([tmp (make-temporary-file* #"unison" suffix)]
          [of (open-output-file tmp #:exists 'replace)])
     (write-bytes bytes of)
     (flush-output of)
     (close-output-port of)
-    (with-handlers
-        [[exn:fail? (lambda (e) (mlist))]]
-      (ssl-load-private-key! ctx tmp)
-      (mlist tmp))))
+    tmp))
+
+(define (decodePrivateKey bytes) ; bytes -> list tlsPrivateKey
+    (list->mlist
+        (filter
+            (lambda (pem) (or
+                (equal? "PRIVATE KEY" (pem-label pem))
+                (equal? "RSA PRIVATE KEY" (pem-label pem))))
+            (pem-string->pems (bytes->string/utf-8 bytes)))))
 
 (define (decodeCert.impl.v3 bytes) ; bytes -> either failure tlsSignedCert
   (let ([certs (read-pem-certificates (open-input-bytes bytes))])
@@ -58,13 +69,14 @@
             [output (socket-pair-output socket-pair)]
             [certs (server-config-certs config)]
             [key (server-config-key config)]
-            [tmp (make-temporary-file* #"unison" #".pem")]
-            [of (open-output-file tmp #:exists 'replace)])
-       (write-bytes (mcar certs) of)
-       (flush-output of)
-       (close-output-port of)
+            [key-bytes (string->bytes/utf-8 (pem->pem-string key))]
+            [tmp (write-to-tmp-file (mcar certs) #".pem")])
        (let*-values ([(ctx) (ssl-make-server-context
-                             #:private-key (list 'pem key)
+                             ; TODO: Once racket can handle the in-memory PEM bytes,
+                             ; we can do away with writing them out to temporary files.
+                             ; https://github.com/racket/racket/pull/4625
+                             ; #:private-key (list 'pem key-bytes)
+                             #:private-key (list 'pem (write-to-tmp-file key-bytes #".pem"))
                              #:certificate-chain tmp)]
                      [(in out) (ports->ssl-ports
                                 input output
@@ -89,6 +101,9 @@
        [(lambda err
           (string-contains? (exn->string err) "not valid for hostname"))
         (lambda (e) (exception "IOFailure" "NameMismatch" '()))]
+       [(lambda err
+          (string-contains? (exn->string err) "certificate verify failed"))
+        (lambda (e) (exception "IOFailure" "certificate verify failed" '()))]
        [(lambda _ #t) (lambda (e) (exception "MiscFailure" (format "Unknown exception ~a" (exn->string e)) e))] ]
     (fn)))
 
@@ -98,8 +113,17 @@
      (let ([input (socket-pair-input socket)]
            [output (socket-pair-output socket)]
            [hostname (client-config-host config)]
-           [ctx (ssl-make-client-context)])
+           ; TODO: Make the client context up in ClientConfig.default
+           ; instead of right here.
+           [ctx (ssl-make-client-context)]
+           [certs (client-config-certs config)])
        (ssl-set-verify-hostname! ctx #t)
+       (ssl-set-ciphers! ctx "DEFAULT:!aNULL:!eNULL:!LOW:!EXPORT:!SSLv2")
+       (ssl-set-verify! ctx #t)
+       (if (empty? certs)
+         (ssl-load-default-verify-sources! ctx)
+         (let ([tmp (write-to-tmp-file (mcar certs) #".pem")])
+            (ssl-load-verify-source! ctx tmp)))
        (let-values ([(in out) (ports->ssl-ports
                                input output
                                #:mode 'connect

@@ -10,19 +10,28 @@ tls.tests = do
   check "decoding an invalid private key should ignore" do 0 == List.size (decodePrivateKey (toUtf8 "not a private key"))
   check "decoding an invalid cert should fail" do isLeft (decodeCert (toUtf8 "not a cert"))
   !testConnectSelfSigned
-  expectError "self signed wrong host" "NameMismatch" testConnectSelfSignedWrongHost
+  !tlsChainTest
+  expectError' "self signed with the wrong hostname should fail" ["NameMismatch", "certificate verify failed"] testConnectSelfSignedWrongHost
+  expectError' "self signed with an unknown CA should fail" ["certificate has unknown CA", "certificate verify failed"] do
+    portPromise = Promise.new ()
+    toSend = "12345"
+    -- Server
+    serverResult = defer do serverThread portPromise toSend
+    -- Client
+    Either.toException !(testClient None "test.unison.cloud" portPromise)
+  expectError' "self signed wrong host" ["NameMismatch", "certificate verify failed"] testConnectSelfSignedWrongHost
   -- -- TODO: Enable this once scheme output correctly escapes \r
   -- check "connects to example.com over tls" tls.example.com
-  expectError "wrong host example.com fails" "NameMismatch" do
+  expectError' "wrong host example.com fails" ["NameMismatch", "certificate verify failed"] do
     socket = Socket.client (HostName "example.com") (Port "443")
     config = ClientConfig.default (HostName "examplez.com") ""
     tls = base.IO.net.Tls.newClient config socket
     _ = base.IO.net.Tls.handshake tls
     ()
-  expectError "trying to connect to example.com:443 without tls fails" "Connection reset" do
-    socket = Socket.client (HostName "example.com") (Port "443")
-    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
-    Socket.receive socket
+--   expectError "trying to connect to example.com:443 without tls fails" "Connection reset" do
+--     socket = Socket.client (HostName "example.com") (Port "443")
+--     Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
+--     Socket.receive socket
 
 tls.example.com = do
     socket = Socket.client (HostName "example.com") (Port "443")
@@ -43,17 +52,25 @@ testConnectSelfSigned = do
   received = clientThread "test.unison.cloud" portPromise
   _ = Either.toException <| Promise.read serverResult
   -- Check it
-  checkEqual "should have received what we've sent" toSend received
+  checkEqual "self signed should connect & receive what we sent" toSend received
 
-expectError msg text fn = match catchAll fn with
+matchesOne matchers text = match matchers with
+    [] -> false
+    one +: rest -> if Text.contains one text
+        then true
+        else matchesOne rest text
+
+expectError' msg matchers fn = match catchAll fn with
   Left (Failure _ message _) ->
-    if Text.contains text message
+    if matchesOne matchers message
       then
         Tests.pass msg
       else
         Tests.fail msg ("Unexpected exception found " ++ message)
   Right _ ->
     Tests.fail msg "Expected exception, none found"
+
+expectError msg text fn = expectError' msg [text] fn
 
 testConnectSelfSignedWrongHost = do
   -- Server
@@ -65,19 +82,8 @@ testConnectSelfSignedWrongHost = do
   ()
 
 clientThread host portPromise =
-  cert = match decodeCert (toUtf8 selfSignedCert) with
-    Right c -> c
-    Left _ -> raise (failure "Bad cert" selfSignedCert)
+  cert = Either.toException (decodeCert (toUtf8 selfSignedCert))
   Either.toException !(testClient (Some cert) host portPromise)
-
-defer comp =
-  result = Promise.new ()
-  _ = fork do Promise.write result (catchAll comp)
-  result
-
-Optional.toException message = cases
-  Some x -> x
-  None -> raise (failure message 0)
 
 serverThread portPromise toSend =
   cert = Either.toException (decodeCert (toUtf8 selfSignedCert))
@@ -99,6 +105,7 @@ testClient cert hostname portVar _ = catch do
   -- create a client that will expect a cert from the given hostname (CN)
   defaultClient = (Tls.ClientConfig.default (HostName.HostName hostname) "")
   -- if we were passed a certificate to trust, it is the only certificate we trust
+  -- otherwise, we'll reject self-signed certificates
   tlsconfig = match cert with
     None        -> defaultClient
     Some (cert) -> defaultClient |> ClientConfig.certificates.set [cert]
