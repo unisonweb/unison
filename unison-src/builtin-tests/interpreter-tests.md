@@ -30,6 +30,8 @@ to `Tests.check` and `Tests.checkEqual`).
 .> load unison-src/builtin-tests/text-tests.u
 .> add
 
+.> alias.term ##crypto.HashAlgorithm.Md5 base.crypto.HashAlgorithm.Md5
+
 .> load unison-src/builtin-tests/tests.u
 .> add
 ```
