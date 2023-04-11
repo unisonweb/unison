@@ -150,6 +150,7 @@
 
     unison-FOp-crypto.hashBytes
     unison-FOp-crypto.hmacBytes
+    unison-FOp-crypto.HashAlgorithm.Md5
     unison-FOp-crypto.HashAlgorithm.Sha1
     unison-FOp-crypto.HashAlgorithm.Sha2_256
     unison-FOp-crypto.HashAlgorithm.Sha2_512
