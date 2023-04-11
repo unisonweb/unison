@@ -122,7 +122,7 @@ openConnection name file = do
   conn0 <- Sqlite.open file `catch` rethrowAsSqliteConnectException name file
   let conn = Connection {conn = conn0, file, name}
   execute_ conn "PRAGMA foreign_keys = ON"
-  execute_ conn "PRAGMA busy_timeout = 1000"
+  execute_ conn "PRAGMA busy_timeout = 60000"
   pure conn
 
 -- Close a connection opened with 'openConnection'.
