@@ -1,4 +1,3 @@
-
 tests : '{IO,Exception} ()
 tests = Tests.main do
   !tls.tests
@@ -6,7 +5,11 @@ tests = Tests.main do
   !hmac.tests
   !concurrency.tests
   !tcp.tests
-  check "bug is caught" do shouldFail do bug ()
+  -- TODO add test assert on message and value for both bug and todo
+  check "bug is caught" do isLeft (catchAll do bug ())
+  !list.tests
+  !text.tests
+
 
 crypto.hash.tests = do
   hash alg = hashBytes alg (toUtf8 "")

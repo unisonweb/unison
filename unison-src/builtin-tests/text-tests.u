@@ -1,0 +1,194 @@
+text.tests = do
+ !text.lit.tests
+ !text.eq.tests
+ !text.ord.tests
+ !text.ops.tests
+ !text.conversion.tests
+ !text.debug.tests
+ !text.matching.tests
+
+text.lit.tests = do
+  check "Empty Text literal" do
+    _ = ""
+    true
+  check "Text literal" do
+    _ = "foo"
+    true
+
+text.eq.tests = do
+  check "Text equality: empty" do "" Text.== ""
+  check "Text equality: non empty" do "foo" Text.== "foo"
+  check "Text inequality: empty (1)" do not ("foo" Text.== "")
+  check "Text inequality: empty (2)" do not ("" Text.== "foo")
+  check "Text inequality: non empty" do not ("foo" Text.== "bar")
+  checkEqual "Universal equality with Text: empty" "" ""
+  checkEqual "Universal equality with Text: non empty" "foo" "foo"
+  check "Universal inequality with Text: empty (1)" do "foo" !== ""
+  check "Universal inequality with Text: empty (2)" do "" !== "foo"
+  check "Universal inequality with Text: non empty" do "foo" !== "bar"
+  checkEqual "Universal equality with Text: composite" (Some ["foo", "bar"]) (Some ["foo", "bar"])
+  check "Universal inequality with Text: composite" do (Some ["foo", "bar"]) !== (Some ["foo", "baz"])
+
+text.ord.tests = do
+  check "Text ordering (1)" do "a" > ""
+  check "Text ordering (2)" do "" < "a"
+  check "Text ordering (3)" do "ba" > "b"
+  check "Text ordering (4)" do "b" > "ab"
+  check "Text ordering (5)" do "ac" > "ab"
+
+  checkEqual "Universal ordering with Text (1)" (Universal.compare "a" "") +1
+  checkEqual "Universal ordering with Text (2)" (Universal.compare "" "a") -1
+  checkEqual "Universal ordering with Text (3)" (Universal.compare "ba" "b") +1
+  checkEqual "Universal ordering with Text (4)" (Universal.compare "b" "ab") +1
+  checkEqual "Universal ordering with Text (5)" (Universal.compare "ac" "ab") +1
+
+text.ops.tests = do
+  checkEqual "Text.++" ("" ++ "ab" ++ "cd" ++ "") "abcd"
+
+  checkEqual "Text.take (1)" (Text.take 0 "abc") ""
+  checkEqual "Text.take (2)" (Text.take 2 "abc") "ab"
+  checkEqual "Text.take (3)" (Text.take 3 "abc") "abc"
+  checkEqual "Text.take (4)" (Text.take 100 "abc") "abc"
+  checkEqual "Text.take (5)" (Text.take 3 "") ""
+
+  checkEqual "Text.drop (1)" (Text.drop 0 "abc") "abc"
+  checkEqual "Text.drop (2)" (Text.drop 2 "abc") "c"
+  checkEqual "Text.drop (3)" (Text.drop 3 "abc") ""
+  checkEqual "Text.drop (4)" (Text.drop 100 "abc") ""
+  checkEqual "Text.drop (5)" (Text.drop 3 "") ""
+
+  checkEqual "Text.size (1)" (Text.size "") 0
+  checkEqual "Text.size (2)" (Text.size "abc") 3
+
+  checkEqual "Text.uncons (1)" (Text.uncons "") None
+  checkEqual "Text.uncons (2)" (Text.uncons "a") (Some (?a, ""))
+  checkEqual "Text.uncons (3)" (Text.uncons "abc") (Some (?a, "bc"))
+
+  checkEqual "Text.unsnoc (1)" (Text.unsnoc "") None
+  checkEqual "Text.unsnoc (2)" (Text.unsnoc "a") (Some ("", ?a))
+  checkEqual "Text.unsnoc (3)" (Text.unsnoc "abc") (Some ("ab", ?c))
+
+  checkEqual "Text.repeat (1)" (Text.repeat 0 "") ""
+  checkEqual "Text.repeat (2)" (Text.repeat 3 "") ""
+  checkEqual "Text.repeat (3)" (Text.repeat 0 "abc") ""
+  checkEqual "Text.repeat (3)" (Text.repeat 10 "xy-") "xy-xy-xy-xy-xy-xy-xy-xy-xy-xy-"
+
+  checkEqual "Text.reverse (1)" (Text.reverse "") ""
+  checkEqual "Text.reverse (2)" (Text.reverse "abc") "cba"
+  checkEqual -- The string is long enough to test the chunking structure
+    "Text.reverse (3)"
+    (Text.reverse (Text.repeat 256 "abc" ++ Text.repeat 256 "def" ++ Text.repeat 42 "ghi"))
+    (Text.repeat 42 "ihg" ++ Text.repeat 256 "fed" ++ Text.repeat 256 "cba")
+
+  checkEqual "Text.toUppercase (1)" (Text.toUppercase "") ""
+  checkEqual "Text.toUppercase (2)" (Text.toUppercase "abcABC123{({})}.") "ABCABC123{({})}."
+
+  checkEqual "Text.toLowercase (1)" (Text.toLowercase "") ""
+  checkEqual "Text.toLowercase (2)" (Text.toLowercase "abcABC123{({})}.") "abcabc123{({})}."
+
+text.conversion.tests = do
+  checkEqual "Nat.toText (1)" (Nat.toText 0) "0"
+  checkEqual "Nat.toText (2)" (Nat.toText 10) "10"
+  checkEqual "Nat.toText (3)" (Nat.toText 1039) "1039"
+  checkEqual "Nat.fromText (1)" (Nat.fromText "0") (Some 0)
+  checkEqual "Nat.fromText (2)" (Nat.fromText "a8f9djasdlfkj") None
+  checkEqual "Nat.fromText (3)" (Nat.fromText "3940") (Some 3940)
+  checkEqual "Nat.fromText (4)" (Nat.fromText "-3940") None
+  checkEqual "Nat.fromText (5)" (Nat.fromText "1000000000000000000000000000") None
+  checkEqual "Nat.fromText (6)" (Nat.fromText "1.5") None
+  checkEqual "Nat <-> Text roundtrip (1)" (Nat.fromText (Nat.toText 123)) (Some 123)
+
+  checkEqual "Int.toText (1)" (Int.toText +0) "0"
+  checkEqual "Int.toText (2)" (Int.toText +10) "10"
+  checkEqual "Int.toText (3)" (Int.toText -1039) "-1039"
+  checkEqual "Int.fromText (1)" (Int.fromText "+0") (Some +0)
+  checkEqual "Int.fromText (2)" (Int.fromText "a8f9djasdlfkj") None
+  checkEqual "Int.fromText (3)" (Int.fromText "3940") (Some +3940)
+  checkEqual "Int.fromText (3)" (Int.fromText "-3940") (Some -3940)
+  checkEqual "Int.fromText (4)" (Int.fromText "1000000000000000000000000000") None
+  checkEqual "Int.fromText (5)" (Int.fromText "-1000000000000000000000000000") None
+  checkEqual "Int.fromText (6)" (Int.fromText "1.5") None
+  checkEqual "Int <-> Text roundtrip (1)" (Int.fromText (Int.toText +123)) (Some +123)
+  checkEqual "Int <-> Text roundtrip (2)" (Int.fromText (Int.toText -123)) (Some -123)
+
+  checkEqual "Float.toText" (Float.toText 1.1) "1.1"
+  checkEqual "Float.fromText (1)" (Float.fromText "1.5") (Some 1.5)
+  checkEqual "Float.fromText (2)" (Float.fromText "Hello world!") None
+
+  checkEqual "Char.toText" (Char.toText ?a) "a"
+
+  checkEqual "Text.toCharList: empty" (Text.toCharList "") []
+  checkEqual "Text.toCharList non empty" (Text.toCharList "abc") [?a, ?b, ?c]
+  checkEqual "Text.fromCharList: empty" (Text.fromCharList []) ""
+  checkEqual "Text.fromCharList: non empty" (Text.fromCharList [?a, ?b, ?c]) "abc"
+
+  checkEqual "Text ut8 roundTrip" (fromUtf8 (toUtf8 "Hello, World!")) "Hello, World!"
+
+  ()
+
+text.debug.tests = do
+  checkEqual "Debug.toText (1)" (Debug.toText 3) "3"
+  checkEqual "Debug.toText (2)" (Debug.toText "hello") "\"hello\""
+
+  catchMsg p = match catchAll p with
+    Left (Failure tl msg v) -> msg
+    _ -> "Success!"
+
+  checkEqual "bug (1)" (catchMsg do bug 3) "builtin.bug"
+  checkEqual "bug (2)" (catchMsg do bug "hello") "builtin.bug"
+  checkEqual "todo (1)" (catchMsg do todo 3) "builtin.todo"
+  checkEqual "todo (2)" (catchMsg do todo "hello") "builtin.todo"
+
+  check "Debug.trace" do
+    Debug.trace "First message " 3
+    Debug.trace "Second message" "hello"
+    true
+
+  checkEqual "Debug.watch" (Debug.watch "Watch" 3) 3
+
+  ()
+
+text.matching.tests = do
+  check "String literal matching: empty" do
+    match "" with
+      "" -> true
+      _ -> false
+
+  check "String literal matching: non empty" do
+    match "example" with
+      "example" -> true
+      _ -> false
+
+  check "String literal matching: default" do
+    match "example" with
+      "" -> false
+      _ -> true
+
+  use Pattern many or run isMatch capture join replicate
+  use Text.patterns literal digit letter anyChar space punctuation notCharIn charIn charRange notCharRange eof
+
+  checkEqual "Pattern api (1)"  (run digit "1abc") (Some ([], "abc"))
+  checkEqual "Pattern api (2)"  (run (many letter) "abc11234abc") (Some ([], "11234abc"))
+  checkEqual "Pattern api (3)" (run (literal "abc") "abc") (Some ([], ""))
+  checkEqual "Pattern api (4)"  (run (many punctuation) "!!!!,,,...") (Some ([], ""))
+  checkEqual "Pattern api (5)"  (run (charIn [?0,?1]) "0") (Some ([], ""))
+  checkEqual "Pattern api (6)"  (run (notCharIn [?0,?1]) "0") None
+  checkEqual "Pattern api (7)"  (run (many (notCharIn [?0,?1])) "asjdfskdfjlskdjflskdjf011") (Some ([], "011"))
+  checkEqual "Pattern api (8)"  (run (capture (many digit)) "11234abc") (Some (["11234"], "abc"))
+  checkEqual "Pattern api (9)"  (run (join [many space, capture (many anyChar)]) "   abc123") (Some (["abc123"], ""))
+  checkEqual "Pattern api (10)" (run (join [capture digit, capture digit]) "12abc") (Some (["1", "2"], "abc"))
+  checkEqual "Pattern api (11)"  (run (capture (many (charRange ?a ?z))) "hi123") (Some (["hi"], "123"))
+  checkEqual "Pattern api (12)"  (run (capture (many (notCharRange ?, ?,))) "abc123,") (Some (["abc123"], ","))
+  checkEqual "Pattern api (13)"  (run (capture (many (notCharIn [?,,]))) "abracadabra,123") (Some (["abracadabra"], ",123"))
+  checkEqual "Pattern api (14)"  (run (capture (many (or digit letter))) "11234abc,remainder") (Some (["11234abc"], ",remainder"))
+  checkEqual "Pattern api (15)"  (run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa") (Some (["1a2ba"], " aaa"))
+  -- Regression test for: https://github.com/unisonweb/unison/issues/353)
+  -- TODO broken until replicate supports lower bound
+  --  checkEqual "Pattern api (16)"  (run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac") (Some ([""], "ac"))
+  checkEqual "Pattern api (17)"  (run (join [many letter, eof]) "aaaaabbbb") (Some ([], ""))
+  checkEqual "Pattern api (18)"  (run (join [many letter, eof]) "aaaaabbbb1") None
+  checkEqual "Pattern api (19)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
+  checkEqual "Pattern api (20)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
+  checkEqual "Pattern api (21)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
+  -- TODO add tests for character class pattern
+  ()
