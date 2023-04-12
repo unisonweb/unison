@@ -19,7 +19,30 @@ bytes.conversion.tests = do
    match catchAll '(Bytes.fromList [104, 500]) with
      Left _ -> true
      Right _ -> false
+
  checkEqual "Bytes.toList: empty" (Bytes.toList Bytes.empty) []
  checkEqual "Bytes.toList: non empty" (Bytes.toList 0xs68656c6c6f) [104, 101, 108, 108, 111]
- --  fromUtf8
- --  toUtf8
+
+ --  checkEqual "fromUtf8" (Text.fromUtf8 0xs68656c6c6f) "hello"
+ --  checkEqual "toUtf8" (Text.toUtf8 "hello") 0xs68656c6c6f
+
+ --  loremIpsum = """
+ --    In Unison, since definitions are identified by a content hash,
+ --    arbitrary computations can just be moved from one location to
+ --    another, with missing dependencies deployed on the fly.
+
+ --    The basic protocol is something like: the sender ships the bytecode
+ --    tree to the recipient, who inspects the bytecode for any hashes it's
+ --    missing. If it already has all the hashes, it can run the
+ --    computation; otherwise, it requests the ones it's missing and the
+ --    sender syncs them on the fly. They'll be cached for next time.
+
+ --    Of course, there's a lot of engineering that goes into making this
+ --    work nicely, but the basic idea is simple and robust.
+
+ --    This ability to relocate arbitrary computations subsumes the more
+ --    limited notions of code deployment, remote procedure calls, and more,
+ --    and lets us build powerful distributed computing components as
+ --    ordinary Unison libraries.
+ --  """
+ --  checkEqual "Text ut8 roundTrip" (fromUtf8 (toUtf8 loremIpsum)) loremIpsum

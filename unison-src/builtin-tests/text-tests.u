@@ -124,8 +124,6 @@ text.conversion.tests = do
 
   checkEqual "Text ut8 roundTrip" (fromUtf8 (toUtf8 "Hello, World!")) "Hello, World!"
 
-  ()
-
 text.debug.tests = do
   checkEqual "Debug.toText (1)" (Debug.toText 3) "3"
   checkEqual "Debug.toText (2)" (Debug.toText "hello") "\"hello\""
@@ -145,8 +143,6 @@ text.debug.tests = do
     true
 
   checkEqual "Debug.watch" (Debug.watch "Watch" 3) 3
-
-  ()
 
 text.matching.tests = do
   check "String literal matching: empty" do
@@ -191,4 +187,4 @@ text.matching.tests = do
   checkEqual "Pattern api (20)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
   checkEqual "Pattern api (21)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
   -- TODO add tests for character class pattern
-  ()
+
