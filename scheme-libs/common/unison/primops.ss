@@ -223,6 +223,7 @@
                  foldl
                  vector->list
                  bytes->string/utf-8
+                 string->bytes/utf-8
                  exn:fail:contract?
                  with-handlers)
            (car icar) (cdr icdr) (vector->list vector->ilist))
@@ -389,7 +390,7 @@
 
   (define (unison-FOp-IO.putBytes.impl.v3 p bs)
     (begin
-      (put-bytevector p bs)
+      (put-bytevector p (chunked-bytes->bytes bs))
       (flush-output-port p)
       (sum 1 #f)))
 
@@ -415,9 +416,9 @@
         (lambda (e) (exception "MiscFailure" (exception->string e) ()))])
       (right (string->chunked-string (bytes->string/utf-8 (chunked-bytes->bytes b))))))
 
-  ;; TODO convert directly without going through String?
+  ;; TODO should we convert directly withouti all the conversions?
   (define (unison-FOp-Text.toUtf8 s)
-    (string->bytevector (chunked-string->string s) utf-8-transcoder))
+    (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
 
   (define (unison-FOp-IO.closeFile.impl.v3 h)
     (close-input-port h))
