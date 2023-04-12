@@ -1,8 +1,19 @@
 bytes.tests = do
   !bytes.lit.tests
+  !bytes.debug.tests
+  !bytes.conversion.tests
 
 bytes.lit.tests = do
   check "bytes literal" do
-   r = 0xs68656c6c6f
-   console.printLine (Debug.toText r)
+   _ = 0xs68656c6c6f
    true
+
+bytes.debug.tests = do
+ checkEqual "Debug.toText on Bytes" (Debug.toText 0xs68656c6c6f) "0xs68656c6c6f"
+
+bytes.conversion.tests = do
+ ()
+ --  fromList
+ --  toList
+ --  fromUtf8
+ --  toUtf8
