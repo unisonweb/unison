@@ -179,6 +179,8 @@
     unison-POp-LEQI
     unison-POp-POWN
     unison-POp-VWRS
+    unison-POp-SPLL
+    ; unison-POp-SPLR
 
     unison-FOp-crypto.hashBytes
     unison-FOp-crypto.hmacBytes
@@ -350,6 +352,11 @@
         (sum 0)
         (let-values ([(t h) (chunked-list-pop-last l)])
           (sum 1 t h))))
+  (define (unison-POp-SPLL i s)
+    (if (< (chunked-list-length s) i)
+        (sum 0)
+        (let-values ([(l r) (chunked-list-split-at s i)])
+          (sum 1 l r))))
   (define (unison-POp-UCNS s)
     (if (chunked-string-empty? s)
         (sum 0)
