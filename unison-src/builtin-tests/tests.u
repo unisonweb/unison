@@ -9,6 +9,7 @@ tests = Tests.main do
   check "bug is caught" do isLeft (catchAll do bug ())
   !list.tests
   !text.tests
+  !bytes.tests
 
 
 crypto.hash.tests = do

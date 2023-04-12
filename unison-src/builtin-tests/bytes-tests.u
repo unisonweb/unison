@@ -1,0 +1,5 @@
+bytes.tests = do
+  !bytes.lit.tests
+
+bytes.lit.tests = do
+  console.printLine "Bytes tests"
