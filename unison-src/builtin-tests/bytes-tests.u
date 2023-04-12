@@ -12,51 +12,42 @@ bytes.debug.tests = do
  checkEqual "Debug.toText on Bytes" (Debug.toText 0xs68656c6c6f) "0xs68656c6c6f"
 
 bytes.conversion.tests = do
- use base Bytes.fromList Bytes.toList
- checkEqual "Bytes.fromList: empty" (Bytes.fromList []) Bytes.empty
- checkEqual "Bytes.fromList: non empty" (Bytes.fromList [104, 101, 108, 108, 111]) 0xs68656c6c6f
- check "Bytes.fromList: invalid" do
-   match catch '(Bytes.fromList [104, 500]) with
-     Left _ -> true
-     Right _ -> false
+  use base Bytes.fromList Bytes.toList
+  checkEqual "Bytes.fromList: empty" (Bytes.fromList []) Bytes.empty
+  checkEqual "Bytes.fromList: non empty" (Bytes.fromList [104, 101, 108, 108, 111]) 0xs68656c6c6f
+  check "Bytes.fromList: invalid" do
+    match catch '(Bytes.fromList [104, 500]) with
+      Left _ -> true
+      Right _ -> false
 
-  --  Failure
-  --    (typeLink Generic)
-  --    "Bytes.fromList: value out of range"
-  --    (Any [104, 500])
+  checkEqual "Bytes.toList: empty" (Bytes.toList Bytes.empty) []
+  checkEqual "Bytes.toList: non empty" (Bytes.toList 0xs68656c6c6f) [104, 101, 108, 108, 111]
 
-  --  bytes->string/utf-8: byte string is not a well-formed UTF-8 encoding
-  --    byte string: #"\374\200\200\200\200\257"
-  --    context...:
+  check "fromUtf8: invalid" do
+    match catch '(Text.fromUtf8 0xsfc80808080af) with
+      Left _ -> true
+      Right _ -> false
 
- checkEqual "Bytes.toList: empty" (Bytes.toList Bytes.empty) []
- checkEqual "Bytes.toList: non empty" (Bytes.toList 0xs68656c6c6f) [104, 101, 108, 108, 111]
+  checkEqual "fromUtf8" (Text.fromUtf8 0xs68656c6c6f) "hello"
+  --  checkEqual "toUtf8" (Text.toUtf8 "hello") 0xs68656c6c6f
 
- check "fromUtf8: invalid" do
-   match catch '(Text.fromUtf8 0xsfc80808080af) with
-     Left _ -> true
-     Right _ -> false
+  --  loremIpsum = """
+  --    In Unison, since definitions are identified by a content hash,
+  --    arbitrary computations can just be moved from one location to
+  --    another, with missing dependencies deployed on the fly.
 
- checkEqual "fromUtf8" (Text.fromUtf8 0xs68656c6c6f) "hello"
- --  checkEqual "toUtf8" (Text.toUtf8 "hello") 0xs68656c6c6f
+  --    The basic protocol is something like: the sender ships the bytecode
+  --    tree to the recipient, who inspects the bytecode for any hashes it's
+  --    missing. If it already has all the hashes, it can run the
+  --    computation; otherwise, it requests the ones it's missing and the
+  --    sender syncs them on the fly. They'll be cached for next time.
 
---  loremIpsum = """
- --    In Unison, since definitions are identified by a content hash,
- --    arbitrary computations can just be moved from one location to
- --    another, with missing dependencies deployed on the fly.
+  --    Of course, there's a lot of engineering that goes into making this
+  --    work nicely, but the basic idea is simple and robust.
 
- --    The basic protocol is something like: the sender ships the bytecode
- --    tree to the recipient, who inspects the bytecode for any hashes it's
- --    missing. If it already has all the hashes, it can run the
- --    computation; otherwise, it requests the ones it's missing and the
- --    sender syncs them on the fly. They'll be cached for next time.
-
- --    Of course, there's a lot of engineering that goes into making this
- --    work nicely, but the basic idea is simple and robust.
-
- --    This ability to relocate arbitrary computations subsumes the more
- --    limited notions of code deployment, remote procedure calls, and more,
- --    and lets us build powerful distributed computing components as
- --    ordinary Unison libraries.
- --  """
- --  checkEqual "ut8 roundTrip" (fromUtf8 (toUtf8 loremIpsum)) loremIpsum
+  --    This ability to relocate arbitrary computations subsumes the more
+  --    limited notions of code deployment, remote procedure calls, and more,
+  --    and lets us build powerful distributed computing components as
+  --    ordinary Unison libraries.
+  --   """
+  --  checkEqual "ut8 roundTrip" (fromUtf8 (toUtf8 loremIpsum)) loremIpsum

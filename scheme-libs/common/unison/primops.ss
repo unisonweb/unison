@@ -216,8 +216,16 @@
 
   (import (rnrs)
           (only (srfi :13) string-reverse)
-          (rename (only (racket base) car cdr foldl vector->list bytes->string/utf-8)
-                  (car icar) (cdr icdr) (vector->list vector->ilist))
+          (rename
+           (only (racket base)
+                 car
+                 cdr
+                 foldl
+                 vector->list
+                 bytes->string/utf-8
+                 exn:fail:contract?
+                 with-handlers)
+           (car icar) (cdr icdr) (vector->list vector->ilist))
           (unison core)
           (unison data)
           (unison data chunked-seq)
@@ -401,8 +409,11 @@
     (sum 1 (cdr (command-line))))
 
   ;; TODO should we convert directly withouti all the conversions?
-  (define (unison-FOp-Text.fromUtf8.impl.v3 s)
-    (right (string->chunked-string (bytes->string/utf-8 (chunked-bytes->bytes s)))))
+  (define (unison-FOp-Text.fromUtf8.impl.v3 b)
+    (with-handlers
+      ([exn:fail:contract? ; TODO proper typeLink
+        (lambda (e) (exception "MiscFailure" (exception->string e) ()))])
+      (right (string->chunked-string (bytes->string/utf-8 (chunked-bytes->bytes b))))))
 
   ;; TODO convert directly without going through String?
   (define (unison-FOp-Text.toUtf8 s)
