@@ -9,38 +9,13 @@ TODO remove md5 alias when base is released
 ```ucm
 .> run tests
 
-  💔💥
-  
-  The program halted with an unhandled exception:
-  
-    Failure
-      (typeLink Generic)
-      "Bytes.fromList: value out of range"
-      (Any [104, 101, 108, 108, 111, 500])
-  
-  
-  Stack trace:
-    ##raise
+  ()
 
 ```
+TODO remove once jit supports typelinks
+```ucm
+.> run threadKilledTypeLinkTest
 
+  ()
 
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  💔💥
-  
-  The program halted with an unhandled exception:
-  
-    Failure
-      (typeLink Generic)
-      "Bytes.fromList: value out of range"
-      (Any [104, 101, 108, 108, 111, 500])
-  
-  
-  Stack trace:
-    ##raise
-
+```
