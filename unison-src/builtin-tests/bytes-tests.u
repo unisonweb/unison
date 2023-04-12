@@ -4,7 +4,7 @@ bytes.tests = do
   !bytes.conversion.tests
 
 bytes.lit.tests = do
-  check "bytes literal" do
+  check "Bytes literal" do
    _ = 0xs68656c6c6f
    true
 
