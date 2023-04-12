@@ -16,17 +16,31 @@ bytes.conversion.tests = do
  checkEqual "Bytes.fromList: empty" (Bytes.fromList []) Bytes.empty
  checkEqual "Bytes.fromList: non empty" (Bytes.fromList [104, 101, 108, 108, 111]) 0xs68656c6c6f
  check "Bytes.fromList: invalid" do
-   match catchAll '(Bytes.fromList [104, 500]) with
+   match catch '(Bytes.fromList [104, 500]) with
      Left _ -> true
      Right _ -> false
+
+  --  Failure
+  --    (typeLink Generic)
+  --    "Bytes.fromList: value out of range"
+  --    (Any [104, 500])
+
+  --  bytes->string/utf-8: byte string is not a well-formed UTF-8 encoding
+  --    byte string: #"\374\200\200\200\200\257"
+  --    context...:
 
  checkEqual "Bytes.toList: empty" (Bytes.toList Bytes.empty) []
  checkEqual "Bytes.toList: non empty" (Bytes.toList 0xs68656c6c6f) [104, 101, 108, 108, 111]
 
- --  checkEqual "fromUtf8" (Text.fromUtf8 0xs68656c6c6f) "hello"
+ check "fromUtf8: invalid" do
+   match catch '(Text.fromUtf8 0xsfc80808080af) with
+     Left _ -> true
+     Right _ -> false
+
+ checkEqual "fromUtf8" (Text.fromUtf8 0xs68656c6c6f) "hello"
  --  checkEqual "toUtf8" (Text.toUtf8 "hello") 0xs68656c6c6f
 
- --  loremIpsum = """
+--  loremIpsum = """
  --    In Unison, since definitions are identified by a content hash,
  --    arbitrary computations can just be moved from one location to
  --    another, with missing dependencies deployed on the fly.
@@ -45,4 +59,4 @@ bytes.conversion.tests = do
  --    and lets us build powerful distributed computing components as
  --    ordinary Unison libraries.
  --  """
- --  checkEqual "Text ut8 roundTrip" (fromUtf8 (toUtf8 loremIpsum)) loremIpsum
+ --  checkEqual "ut8 roundTrip" (fromUtf8 (toUtf8 loremIpsum)) loremIpsum
