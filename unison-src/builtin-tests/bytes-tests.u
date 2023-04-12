@@ -2,4 +2,7 @@ bytes.tests = do
   !bytes.lit.tests
 
 bytes.lit.tests = do
-  console.printLine "Bytes tests"
+  check "bytes literal" do
+   r = 0xs68656c6c6f
+   console.printLine (Debug.toText r)
+   true

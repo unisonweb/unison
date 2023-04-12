@@ -284,7 +284,10 @@
   (define (unison-POp-MULN m n) (fx* m n))
   (define (unison-POp-MODN m n) (fxmod m n))
   (define (unison-POp-NTOT n) (string->chunked-string (number->string n)))
-  (define (unison-POp-PAKB l) (u8-list->ibytevector (vector->list (chunked-list->vector l)))) ;; TODO convert to chunked-bytes
+  (define (unison-POp-PAKB l)
+    (build-chunked-bytes
+     (chunked-list-length l)
+     (lambda (i) (chunked-list-ref l i))))
   (define (unison-POp-PAKT l)
     (build-chunked-string
      (chunked-list-length l)
