@@ -140,5 +140,3 @@ list.matching.tests = do
     _ -> (l, [])
 
   checkEqual "Complex matching" (splitAtFour [1, 2, 3, 4, 5, 6, 7])  ([1, 2, 3, 4], [5, 6, 7])
-
-  -- TODO find test that stresses SPLR, you have to have a ++ fixedLength @ to trigger it

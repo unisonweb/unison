@@ -180,7 +180,7 @@
     unison-POp-POWN
     unison-POp-VWRS
     unison-POp-SPLL
-    ; unison-POp-SPLR
+    unison-POp-SPLR
 
     unison-FOp-crypto.hashBytes
     unison-FOp-crypto.hmacBytes
@@ -357,6 +357,13 @@
         (sum 0)
         (let-values ([(l r) (chunked-list-split-at s i)])
           (sum 1 l r))))
+  (define (unison-POp-SPLR i s) ; TODO write test that stresses this
+    (let ([len (chunked-list-length s) ])
+      (if (< len i)
+          (sum 0)
+          (let-values ([(l r) (chunked-list-split-at s (- len i))])
+            (sum 1 l r)))))
+
   (define (unison-POp-UCNS s)
     (if (chunked-string-empty? s)
         (sum 0)
