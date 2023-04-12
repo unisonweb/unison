@@ -45,9 +45,7 @@
                   with-continuation-mark
                   continuation-mark-set-first
                   raise-syntax-error
-                  for/fold
-                  string-upcase
-                  string-downcase)
+                  for/fold)
             (string-copy! racket-string-copy!)
             (bytes bytevector))
     (only (srfi :28) format)
@@ -72,6 +70,14 @@
     (cond
       [(chunked-string? x)
         (format "\"~a\"" (chunked-string->string x))]
+      [(chunked-bytes? x)
+       (format
+        "0xs~a"
+        (chunked-string->string
+         (for/fold
+           ([acc empty-chunked-string])
+           ([n (in-chunked-bytes x)])
+           (chunked-string-append acc (string->chunked-string (number->string n 16))))))]
       [else (format "~a" x)]))
 
   (define (decode-value x) '())
