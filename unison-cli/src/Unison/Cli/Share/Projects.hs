@@ -112,6 +112,8 @@ data SetProjectBranchHeadResponse
   = SetProjectBranchHeadResponseNotFound
   | -- | (expected, actual)
     SetProjectBranchHeadResponseExpectedCausalHashMismatch !Hash32 !Hash32
+  | SetProjectBranchHeadResponsePublishedReleaseIsImmutable
+  | SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable
   | SetProjectBranchHeadResponseSuccess
   deriving stock (Eq, Show, Generic)
 

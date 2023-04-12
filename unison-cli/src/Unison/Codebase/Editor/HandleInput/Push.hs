@@ -455,7 +455,7 @@ deriveRemoteBranchName userHandle remoteProjectName localBranchName =
         -- I'm "arya" pushing local branch "main" to "@arya/lens", so don't call it "@arya/main"
         Just projectUserSlug
           | projectUserSlug == userHandle && localBranchName == unsafeFrom @Text "main" ->
-              localBranchName
+            localBranchName
         -- Nothing is a weird unlikely case: project doesn't begin with a user slug? server will likely reject
         _ -> prependUserSlugToProjectBranchName userHandle localBranchName
 
@@ -694,6 +694,10 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
         Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponseNotFound -> do
         Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranchNames)
+      Share.SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable -> do
+        Cli.returnEarly (Output.RemoteProjectReleaseIsDeprecated Share.hardCodedUri remoteProjectAndBranchNames)
+      Share.SetProjectBranchHeadResponsePublishedReleaseIsImmutable -> do
+        Cli.returnEarly (Output.RemoteProjectPublishedReleaseCannotBeChanged Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponseSuccess -> do
         case pushing of
           PushingLooseCode -> pure ()
