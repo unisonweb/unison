@@ -12,14 +12,14 @@ bytes.debug.tests = do
  checkEqual "Debug.toText on Bytes" (Debug.toText 0xs68656c6c6f) "0xs68656c6c6f"
 
 bytes.conversion.tests = do
- use base Bytes.fromList
+ use base Bytes.fromList Bytes.toList
  checkEqual "Bytes.fromList: empty" (Bytes.fromList []) Bytes.empty
  checkEqual "Bytes.fromList: non empty" (Bytes.fromList [104, 101, 108, 108, 111]) 0xs68656c6c6f
  check "Bytes.fromList: invalid" do
    match catchAll '(Bytes.fromList [104, 500]) with
      Left _ -> true
      Right _ -> false
-
- --  toList
+ checkEqual "Bytes.toList: empty" (Bytes.toList Bytes.empty) []
+ checkEqual "Bytes.toList: non empty" (Bytes.toList 0xs68656c6c6f) [104, 101, 108, 108, 111]
  --  fromUtf8
  --  toUtf8

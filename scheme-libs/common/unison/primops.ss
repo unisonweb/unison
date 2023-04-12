@@ -229,7 +229,11 @@
           (unison vector)
           (unison concurrent))
 
-  (define unison-POp-UPKB bytevector->u8-list)
+  (define (unison-POp-UPKB bs)
+    (build-chunked-list
+     (chunked-bytes-length bs)
+     (lambda (i) (chunked-bytes-ref bs i))))
+
   (define unison-POp-ADDI +)
   (define unison-POp-DIVI /)
   (define (unison-POp-EQLI a b)
