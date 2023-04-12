@@ -71,8 +71,7 @@
   (define (describe-value x)
     (cond
       [(chunked-string? x)
-       (chunked-string->string
-        (chunked-string-add-last (chunked-string-add-first x #\") #\"))]
+        (format "\"~a\"" (chunked-string->string x))]
       [else (format "~a" x)]))
 
   (define (decode-value x) '())
