@@ -7,9 +7,12 @@ bytes.tests = do
   !bytes.ops.tests
 
 bytes.lit.tests = do
+  check "Bytes empty literal" do
+    _ = 0xs
+    true
   check "Bytes literal" do
-   _ = 0xs68656c6c6f
-   true
+    _ = 0xs68656c6c6f
+    true
 
 bytes.debug.tests = do
  checkEqual "Debug.toText on Bytes" (Debug.toText 0xs68656c6c6f) "0xs68656c6c6f"

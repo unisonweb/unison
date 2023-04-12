@@ -8,7 +8,7 @@ text.tests = do
  !text.matching.tests
 
 text.lit.tests = do
-  check "Empty Text literal" do
+  check "Text empty literal" do
     _ = ""
     true
   check "Text literal" do
