@@ -2,6 +2,9 @@ bytes.tests = do
   !bytes.lit.tests
   !bytes.debug.tests
   !bytes.conversion.tests
+  !bytes.eq.tests
+  !bytes.ord.tests
+  !bytes.ops.tests
 
 bytes.lit.tests = do
   check "Bytes literal" do
@@ -51,3 +54,9 @@ bytes.conversion.tests = do
     ordinary Unison libraries.
    """
   checkEqual "ut8 roundTrip" (fromUtf8 (toUtf8 loremIpsum)) loremIpsum
+
+bytes.eq.tests = do ()
+
+bytes.ord.tests = do ()
+
+bytes.ops.tests = do ()
