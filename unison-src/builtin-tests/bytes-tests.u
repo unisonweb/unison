@@ -68,6 +68,12 @@ bytes.eq.tests = do
   checkEqual "Bytes equality: composite" (Some [0xs010203, 0xs040506]) (Some [0xs010203, 0xs040506])
   check "Bytes inequality: composite" do (Some [0xs010203, 0xs040506]) !== (Some [0xs010203, 0xs68656c6c6f])
 
-bytes.ord.tests = do ()
+bytes.ord.tests = do
+  checkEqual "Bytes ordering (1)" (Universal.compare 0xs01 0xs) +1
+  checkEqual "Bytes ordering (2)" (Universal.compare 0xs 0xs01) -1
+  checkEqual "Bytes ordering (3)" (Universal.compare 0xs0100 0xs01) +1
+  checkEqual "Bytes ordering (4)" (Universal.compare 0xs02 0xs0102) +1
+  checkEqual "Bytes ordering (5)" (Universal.compare 0xs0103 0xs0102) +1
+
 
 bytes.ops.tests = do ()

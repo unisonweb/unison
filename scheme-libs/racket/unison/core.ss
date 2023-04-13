@@ -89,6 +89,8 @@
       [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
       [(and (chunked-string? l) (chunked-string? r))
        (chunked-string-compare/recur l r (lambda (a b) (if (char<? a b) '< '>)))]
+      [(and (chunked-bytes? l) (chunked-bytes? r))
+       (chunked-bytes-compare/recur l r (lambda (a b) (if (< a b) '< '>)))]
       [else (raise "universal-compare: unimplemented")]))
 
   (define (chunked-string<? l r) (chunked-string=?/recur l r char<?))
