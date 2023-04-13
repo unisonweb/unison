@@ -167,6 +167,8 @@ jobs:
         run: stack --no-terminal build --fast --test unison-cli
       - name: unison-parser-typechecker tests
         run: stack --no-terminal build --fast --test unison-parser-typechecker
+      - name: unison-sqlite tests
+        run: stack --no-terminal build --fast --test unison-sqlite
       - name: unison-syntax tests
         run: stack --no-terminal build --fast --test unison-syntax
       - name: unison-util-bytes tests

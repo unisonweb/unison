@@ -51,6 +51,9 @@ cradle:
     - path: "lib/unison-sqlite/src"
       component: "unison-sqlite:lib"
 
+    - path: "lib/unison-sqlite/test"
+      component: "unison-sqlite:test:tests"
+
     - path: "lib/unison-util-base32hex/src"
       component: "unison-util-base32hex:lib"
 

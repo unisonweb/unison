@@ -122,7 +122,7 @@ parser = do
       parser
     Param param -> do
       #sql <>= (Text.Builder.char ':' <> param)
-      #params %= ((Text.Builder.run param :) .)
+      #params %= (. (Text.Builder.run param :))
       parser
     Whitespace -> do
       #sql <>= Text.Builder.char ' '

@@ -14,6 +14,18 @@ library:
     - Unison.Sqlite.Internal
     - Unison.Sqlite.Transaction
 
+tests:
+  tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_sqlite
+    dependencies:
+      - code-page
+      - easytest
+      - unison-sqlite
+    main: Main.hs
+    source-dirs: test
+
 dependencies:
   - base
   - direct-sqlite

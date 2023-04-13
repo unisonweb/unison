@@ -82,3 +82,63 @@ library
     , unliftio
     , unliftio-core
   default-language: Haskell2010
+
+test-suite tests
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs:
+      test
+  default-extensions:
+      BlockArguments
+      ConstraintKinds
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveFoldable
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      GADTs
+      GeneralizedNewtypeDeriving
+      KindSignatures
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      NumericUnderscores
+      OverloadedLabels
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
+  ghc-options: -Wall
+  build-depends:
+      base
+    , code-page
+    , direct-sqlite
+    , easytest
+    , exceptions
+    , generic-lens
+    , lens
+    , megaparsec
+    , mtl
+    , neat-interpolation
+    , pretty-simple
+    , random
+    , recover-rtti
+    , sqlite-simple
+    , template-haskell
+    , text
+    , text-builder
+    , transformers
+    , unison-prelude
+    , unison-sqlite
+    , unliftio
+    , unliftio-core
+  default-language: Haskell2010
