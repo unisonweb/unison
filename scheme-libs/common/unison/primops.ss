@@ -277,7 +277,7 @@
   (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
   (define (unison-POp-DECI n) (fx1- n))
   (define (unison-POp-DIVN m n) (fxdiv m n))
-  (define (unison-POp-DRPB n bs) (ibytevector-drop n bs))
+  (define (unison-POp-DRPB n bs) (chunked-bytes-drop bs n))
   (define (unison-POp-DRPS n l) (chunked-list-drop l n))
   (define (unison-POp-DRPT n t) (chunked-string-drop t n))
   (define (unison-POp-EQLN m n) (bool (fx=? m n)))
