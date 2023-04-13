@@ -82,11 +82,11 @@ bytes.ops.tests = do
 
   checkEqual "Bytes.++" (0xs ++ 0xs0102 ++ 0xs0304 ++ 0xs) 0xs01020304
 
-  --  checkEqual "Bytes.take (1)" (Bytes.take 0 0xs010203) 0xs
-  --  checkEqual "Bytes.take (2)" (Bytes.take 2 0xs010203) 0xs0102
-  --  checkEqual "Bytes.take (3)" (Bytes.take 3 0xs010203) 0xs010203
-  --  checkEqual "Bytes.take (4)" (Bytes.take 100 0xs010203) 0xs010203
-  --  checkEqual "Bytes.take (5)" (Bytes.take 3 0xs) 0xs
+  checkEqual "Bytes.take (1)" (Bytes.take 0 0xs010203) 0xs
+  checkEqual "Bytes.take (2)" (Bytes.take 2 0xs010203) 0xs0102
+  checkEqual "Bytes.take (3)" (Bytes.take 3 0xs010203) 0xs010203
+  checkEqual "Bytes.take (4)" (Bytes.take 100 0xs010203) 0xs010203
+  checkEqual "Bytes.take (5)" (Bytes.take 3 0xs) 0xs
 
   --  checkEqual "Bytes.drop (1)" (Bytes.drop 0 0xs010203) 0xs010203
   --  checkEqual "Bytes.drop (2)" (Bytes.drop 2 0xs010203) 0xs03

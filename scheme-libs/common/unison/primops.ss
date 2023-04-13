@@ -159,6 +159,7 @@
     unison-POp-SUBN
     unison-POp-TAKS
     unison-POp-TAKT
+    unison-POp-TAKB
     unison-POp-TRCE
     unison-POp-PRNT
     unison-POp-TTON
@@ -319,6 +320,8 @@
   (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
   (define (unison-POp-SUBN m n) (fx- m n))
   (define (unison-POp-TAKS n s) (chunked-list-take s n))
+  (define (unison-POp-TAKT n t) (chunked-string-take t n))
+  (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
 
   ;; TODO currently only runs in low-level tracing support
   (define (unison-POp-DBTX x)
@@ -331,7 +334,6 @@
   (define (unison-FOp-ThreadId.toText tid)
     (string->chunked-string (describe-value tid)))
 
-  (define (unison-POp-TAKT n t) (chunked-string-take t n))
   (define (unison-POp-TRCE s x)
     (display "trace: ")
     (display (chunked-string->string s))
