@@ -94,8 +94,8 @@ bytes.ops.tests = do
   checkEqual "Bytes.drop (4)" (Bytes.drop 100 0xs010203) 0xs
   checkEqual "Bytes.drop (5)" (Bytes.drop 3 0xs) 0xs
 
-  --  checkEqual "Bytes.size (1)" (Bytes.size 0xs) 0
-  --  checkEqual "Bytes.size (2)" (Bytes.size 0xs010203) 3
+  checkEqual "Bytes.size (1)" (Bytes.size 0xs) 0
+  checkEqual "Bytes.size (2)" (Bytes.size 0xs010203) 3
 
   --  checkEqual "Bytes.at (1)" (Bytes.at 0 0xs010203) (Some 1)
   --  checkEqual "Bytes.at (2)" (Bytes.at 2 0xs010203) (Some 3)

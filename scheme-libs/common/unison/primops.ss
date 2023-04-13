@@ -155,6 +155,7 @@
     unison-POp-SHRN
     unison-POp-SIZS
     unison-POp-SIZT
+    unison-POp-SIZB
     unison-POp-SNOC
     unison-POp-SUBN
     unison-POp-TAKS
@@ -317,6 +318,7 @@
   (define (unison-POp-SHRN n k) (fxarithmetic-shift-right n k))
   (define (unison-POp-SIZS l) (chunked-list-length l))
   (define (unison-POp-SIZT t) (chunked-string-length t))
+  (define (unison-POp-SIZB b) (chunked-bytes-length b))
   (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
   (define (unison-POp-SUBN m n) (fx- m n))
   (define (unison-POp-TAKS n s) (chunked-list-take s n))
