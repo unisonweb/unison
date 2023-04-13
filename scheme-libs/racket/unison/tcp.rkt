@@ -51,7 +51,7 @@
   (if (not (socket-pair? socket))
       (exception "InvalidArguments" "Cannot send on a server socket" '())
       (begin
-        (write-bytes data (socket-pair-output socket))
+        (write-bytes (chunked-bytes->bytes data) (socket-pair-output socket))
         (flush-output (socket-pair-output socket))
         (right none)))); )
 
@@ -63,7 +63,7 @@
          (begin
            (let* ([buffer (make-bytes amt)]
                   [read (read-bytes-avail! buffer (socket-pair-input socket))])
-             (right (subbytes buffer 0 read))))))))
+             (right (bytes->chunked-bytes (subbytes buffer 0 read)))))))))
 
 (define (socketPort.impl.v3 socket)
   (let-values ([(_ local-port __ ___) (tcp-addresses
