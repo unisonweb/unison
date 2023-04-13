@@ -421,14 +421,14 @@
   (define (unison-FOp-IO.getArgs.impl.v1)
     (sum 1 (cdr (command-line))))
 
-  ;; TODO should we convert directly withouti all the conversions?
+  ;; TODO should we convert Bytes -> Text directly without the intermediate conversions?
   (define (unison-FOp-Text.fromUtf8.impl.v3 b)
     (with-handlers
       ([exn:fail:contract? ; TODO proper typeLink
         (lambda (e) (exception "MiscFailure" (exception->string e) ()))])
       (right (string->chunked-string (bytes->string/utf-8 (chunked-bytes->bytes b))))))
 
-  ;; TODO should we convert directly withouti all the conversions?
+  ;; TODO should we convert Text -> Bytes directly without the intermediate conversions?
   (define (unison-FOp-Text.toUtf8 s)
     (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
 
