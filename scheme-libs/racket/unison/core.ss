@@ -45,9 +45,7 @@
                   with-continuation-mark
                   continuation-mark-set-first
                   raise-syntax-error
-                  for/fold
-                  string-upcase
-                  string-downcase)
+                  for/fold)
             (string-copy! racket-string-copy!)
             (bytes bytevector))
     (only (srfi :28) format)
@@ -71,8 +69,15 @@
   (define (describe-value x)
     (cond
       [(chunked-string? x)
-       (chunked-string->string
-        (chunked-string-add-last (chunked-string-add-first x #\") #\"))]
+        (format "\"~a\"" (chunked-string->string x))]
+      [(chunked-bytes? x)
+       (format
+        "0xs~a"
+        (chunked-string->string
+         (for/fold
+           ([acc empty-chunked-string])
+           ([n (in-chunked-bytes x)])
+           (chunked-string-append acc (string->chunked-string (number->string n 16))))))]
       [else (format "~a" x)]))
 
   (define (decode-value x) '())
@@ -83,14 +88,9 @@
       [(and (number? l) (number? r)) (if (< l r) '< '>)]
       [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
       [(and (chunked-string? l) (chunked-string? r))
-       (chunked-string-compare/recur ;; TODO simplify given that `equal?` applies to chunked-string
-        l
-        r
-        (lambda (a b)
-          (cond
-            [(char<? a b) '<]
-            [(char>? a b) '>]
-            [else '=])))]
+       (chunked-string-compare/recur l r (lambda (a b) (if (char<? a b) '< '>)))]
+      [(and (chunked-bytes? l) (chunked-bytes? r))
+       (chunked-bytes-compare/recur l r (lambda (a b) (if (< a b) '< '>)))]
       [else (raise "universal-compare: unimplemented")]))
 
   (define (chunked-string<? l r) (chunked-string=?/recur l r char<?))

@@ -29,6 +29,7 @@ list.ord.tests = do
   checkEqual "List ordering (3)" (Universal.compare [1, 0] [1]) +1
   checkEqual "List ordering (4)" (Universal.compare [2] [1, 2]) +1
   checkEqual "List ordering (5)" (Universal.compare [1, 3] [1, 2]) +1
+  checkEqual "List.ordering (6)" (Universal.compare [1, 2, 3] [1, 2, 3]) +0
 
 list.ops.tests = do
   checkEqual "List.cons" (1 +: (2 +: (3 +: []))) [1, 2, 3]
@@ -139,7 +140,4 @@ list.matching.tests = do
     [a] ++ x@(b +: (c +: y@([] :+ d))) ++ tail -> ([a, b, c, d], tail)
     _ -> (l, [])
 
-  -- TODO implement SPLL gets passed an int from the matcher, to know where to split
-  -- checkEqual "Complex matching" (splitAtFour [1, 2, 3, 4, 5, 6, 7])  ([1, 2, 3, 4], [5, 6, 7])
-  -- TODO find test that stresses SPLR, you have to have a ++ fixedLength @ to trigger it
-  ()
+  checkEqual "Complex matching" (splitAtFour [1, 2, 3, 4, 5, 6, 7])  ([1, 2, 3, 4], [5, 6, 7])
