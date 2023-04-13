@@ -58,7 +58,15 @@ bytes.conversion.tests = do
    """
   checkEqual "ut8 roundTrip" (fromUtf8 (toUtf8 loremIpsum)) loremIpsum
 
-bytes.eq.tests = do ()
+bytes.eq.tests = do
+  checkEqual "Bytes equality: empty" 0xs 0xs
+  checkEqual "Bytes equality: non empty" 0xs0102 0xs0102
+  check "Bytes inequality: non empty (1)" do 0xs0102 !== 0xs010203
+  check "Bytes inequality: non empty (2)" do 0xs010203 !== 0xs0102
+  check "Bytes inequality: non empty (3)" do 0xs0102 !== 0xs0103
+  check "Bytes inequality: empty" do 0xs0102 !== 0xs
+  checkEqual "Bytes equality: composite" (Some [0xs010203, 0xs040506]) (Some [0xs010203, 0xs040506])
+  check "Bytes inequality: composite" do (Some [0xs010203, 0xs040506]) !== (Some [0xs010203, 0xs68656c6c6f])
 
 bytes.ord.tests = do ()
 
