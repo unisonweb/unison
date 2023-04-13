@@ -3,7 +3,7 @@
          ffi/unsafe/define
          racket/exn
          openssl/libcrypto
-         )
+         unison/data/chunked-seq)
 
 (provide (prefix-out unison-FOp-crypto.
     (combine-out
@@ -106,14 +106,15 @@
 ; where algorithm is either an EVP_pointer for libcrypto functions,
 ; or the tag 'blake2b for libb2 function.
 (define (hashBytes kind input)
-    (let* ([bytes (/ (cdr kind) 8)]
+    (let* ([raw-input (chunked-bytes->bytes input)]
+           [bytes (/ (cdr kind) 8)]
            [output (make-bytes bytes)]
            [algo (car kind)])
         (case algo
-            ['blake2b (blake2b-raw output input #f bytes (bytes-length input) 0)]
-            [else (EVP_Digest input (bytes-length input) output #f algo #f)])
+            ['blake2b (blake2b-raw output raw-input #f bytes (bytes-length raw-input) 0)]
+            [else (EVP_Digest raw-input (bytes-length raw-input) output #f algo #f)])
 
-        output))
+        (bytes->chunked-bytes output)))
 
 ; Mutates and returns the first argument
 (define (xor one two)

@@ -1,8 +1,8 @@
 tests : '{IO,Exception} ()
 tests = Tests.main do
   --  !tls.tests
-  --  !crypto.hash.tests
-  --  !hmac.tests
+  !crypto.hash.tests
+  -- !hmac.tests
   !concurrency.tests
   --  !tcp.tests
   --  -- TODO add test assert on message and value for both bug and todo
