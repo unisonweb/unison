@@ -15,6 +15,7 @@ module Unison.Sqlite.Transaction
 
     -- *** With parameters
     execute,
+    execute2,
     executeMany,
 
     -- *** Without parameters
@@ -26,7 +27,9 @@ module Unison.Sqlite.Transaction
     queryStreamRow,
     queryStreamCol,
     queryListRow,
+    queryListRow2,
     queryListCol,
+    queryListCol2,
     queryMaybeRow,
     queryMaybeCol,
     queryOneRow,
@@ -74,6 +77,7 @@ import Unison.Sqlite.Connection (Connection (..))
 import qualified Unison.Sqlite.Connection as Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason, SqliteQueryException, pattern SqliteBusyException)
 import Unison.Sqlite.Sql
+import Unison.Sqlite.Sql2 (Sql2)
 import UnliftIO.Exception (bracketOnError_, catchAny, trySyncOrAsync, uninterruptibleMask)
 
 newtype Transaction a
@@ -201,6 +205,10 @@ execute :: (Sqlite.ToRow a) => Sql -> a -> Transaction ()
 execute s params = do
   Transaction \conn -> Connection.execute conn s params
 
+execute2 :: Sql2 -> Transaction ()
+execute2 s =
+  Transaction \conn -> Connection.execute2 conn s
+
 executeMany :: (Sqlite.ToRow a) => Sql -> [a] -> Transaction ()
 executeMany s params =
   Transaction \conn -> Connection.executeMany conn s params
@@ -246,9 +254,17 @@ queryListRow :: (Sqlite.FromRow a, Sqlite.ToRow b) => Sql -> b -> Transaction [a
 queryListRow s params =
   Transaction \conn -> Connection.queryListRow conn s params
 
+queryListRow2 :: (Sqlite.FromRow a) => Sql2 -> Transaction [a]
+queryListRow2 s =
+  Transaction \conn -> Connection.queryListRow2 conn s
+
 queryListCol :: (Sqlite.FromField a, Sqlite.ToRow b) => Sql -> b -> Transaction [a]
 queryListCol s params =
   Transaction \conn -> Connection.queryListCol conn s params
+
+queryListCol2 :: (Sqlite.FromField a) => Sql2 -> Transaction [a]
+queryListCol2 s =
+  Transaction \conn -> Connection.queryListCol2 conn s
 
 queryMaybeRow :: (Sqlite.FromRow a, Sqlite.ToRow b) => Sql -> b -> Transaction (Maybe a)
 queryMaybeRow s params =

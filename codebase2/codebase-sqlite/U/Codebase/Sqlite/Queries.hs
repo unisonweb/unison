@@ -376,11 +376,11 @@ createSchema = do
   addReflogTable
   fixScopedNameLookupTables
   addProjectTables
-  execute insertSchemaVersionSql (Only currentSchemaVersion)
+  execute2 insertSchemaVersionSql
   where
     insertSchemaVersionSql =
-      [here|
-        INSERT INTO schema_version (version) VALUES (?)
+      [sql2|
+        INSERT INTO schema_version (version) VALUES (:currentSchemaVersion)
       |]
 
 addTempEntityTables :: Transaction ()
@@ -2749,15 +2749,14 @@ appendReflog entry = execute sql entry
       |]
 
 getReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
-getReflog numEntries = queryListRow sql (Only numEntries)
-  where
-    sql =
-      [here|
-        SELECT time, from_root_causal_id, to_root_causal_id, reason
-          FROM reflog
-          ORDER BY time DESC
-          LIMIT ?
-      |]
+getReflog numEntries =
+  queryListRow2
+    [sql2|
+      SELECT time, from_root_causal_id, to_root_causal_id, reason
+      FROM reflog
+      ORDER BY time DESC
+      LIMIT :numEntries
+    |]
 
 -- | Does a project exist with this id?
 projectExists :: ProjectId -> Transaction Bool

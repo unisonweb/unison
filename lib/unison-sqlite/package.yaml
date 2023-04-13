@@ -18,6 +18,9 @@ dependencies:
   - base
   - direct-sqlite
   - exceptions
+  - generic-lens
+  - lens
+  - megaparsec
   - mtl
   - neat-interpolation
   - pretty-simple
@@ -26,6 +29,7 @@ dependencies:
   - sqlite-simple
   - template-haskell
   - text
+  - text-builder
   - transformers
   - unison-prelude
   - unliftio
@@ -40,6 +44,7 @@ default-extensions:
   - DeriveAnyClass
   - DeriveFunctor
   - DeriveFoldable
+  - DeriveGeneric
   - DeriveTraversable
   - DerivingStrategies
   - DerivingVia
@@ -54,6 +59,7 @@ default-extensions:
   - MultiParamTypeClasses
   - NamedFieldPuns
   - NumericUnderscores
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes

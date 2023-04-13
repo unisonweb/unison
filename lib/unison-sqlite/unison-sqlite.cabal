@@ -20,6 +20,7 @@ library
       Unison.Sqlite
       Unison.Sqlite.Connection
       Unison.Sqlite.Connection.Internal
+      Unison.Sqlite.Sql2
       Unison.Sqlite.Transaction
       Unison.Sqlite.Values
   other-modules:
@@ -35,6 +36,7 @@ library
       DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
+      DeriveGeneric
       DeriveTraversable
       DerivingStrategies
       DerivingVia
@@ -49,6 +51,7 @@ library
       MultiParamTypeClasses
       NamedFieldPuns
       NumericUnderscores
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -61,6 +64,9 @@ library
       base
     , direct-sqlite
     , exceptions
+    , generic-lens
+    , lens
+    , megaparsec
     , mtl
     , neat-interpolation
     , pretty-simple
@@ -69,6 +75,7 @@ library
     , sqlite-simple
     , template-haskell
     , text
+    , text-builder
     , transformers
     , unison-prelude
     , unliftio

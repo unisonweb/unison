@@ -27,6 +27,8 @@ module Unison.Sqlite
     -- * Executing queries
     Sql (..),
     sql,
+    Sql2,
+    sql2,
     Values (..),
     valuesSql,
 
@@ -34,6 +36,7 @@ module Unison.Sqlite
 
     -- *** With parameters
     execute,
+    execute2,
     executeMany,
 
     -- *** Without parameters
@@ -46,7 +49,9 @@ module Unison.Sqlite
     queryStreamRow,
     queryStreamCol,
     queryListRow,
+    queryListRow2,
     queryListCol,
+    queryListCol2,
     queryMaybeRow,
     queryMaybeCol,
     queryOneRow,
@@ -139,6 +144,7 @@ import Unison.Sqlite.Exception
   )
 import Unison.Sqlite.JournalMode (JournalMode (..), SetJournalModeException (..), trySetJournalMode)
 import Unison.Sqlite.Sql (Sql (..), sql)
+import Unison.Sqlite.Sql2 (Sql2, sql2)
 import Unison.Sqlite.Transaction
 import Unison.Sqlite.Values (Values (..), valuesSql)
 
