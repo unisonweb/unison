@@ -154,16 +154,17 @@
     (hashBytes-raw kind full)))
 
 (define (hmacBytes kind key input)
-  (case (car kind)
-    ['blake2b (bytes->chunked-bytes (hmacBlake kind (chunked-bytes->bytes key) (chunked-bytes->bytes input)))]
-    [else
-     (let* ([bytes (/ (cdr kind) 8)]
-            [raw-input (chunked-bytes->bytes input)]
-            [raw-key (chunked-bytes->bytes key)]
-            [output (make-bytes bytes)]
-            [algo (car kind)])
-       (HMAC algo raw-key (bytes-length raw-key) raw-input (bytes-length raw-input) output #f)
-       (bytes->chunked-bytes output))]))
+  (let ([key (chunked-bytes->bytes key)]
+        [input (chunked-bytes->bytes input)])
+    (bytes->chunked-bytes
+     (case (car kind)
+       ['blake2b (hmacBlake kind key input)]
+       [else
+        (let* ([bytes (/ (cdr kind) 8)]
+               [output (make-bytes bytes)]
+               [algo (car kind)])
+          (HMAC algo key (bytes-length key) input (bytes-length input) output #f)
+          output)]))))
 
 
 ; These will only be evaluated by `raco test`
