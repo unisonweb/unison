@@ -343,3 +343,97 @@ get x = match x with
 ```unison
 unique type R = { someType : SomeType }
 ```
+
+# Ability handlers
+
+## Exhaustive ability handlers are accepted
+
+```unison
+structural ability Abort where
+  abort : {Abort} a
+
+
+result : '{e, Abort} a -> {e} a
+result f = handle !f with cases
+       { x } -> x
+       { abort -> _ } -> bug "aborted"
+```
+
+```unison
+structural ability Abort where
+  abort : {Abort} a
+
+unique type T = A | B
+
+result : '{e, Abort} T -> {e} ()
+result f = handle !f with cases
+       { A } -> ()
+       { B } -> ()
+       { abort -> _ } -> bug "aborted"
+```
+
+## Non-exhaustive ability handlers are rejected
+
+```unison:error
+structural ability Abort where
+  abort : {Abort} a
+  abortWithMessage : Text -> {Abort} a
+
+
+result : '{e, Abort} a -> {e} a
+result f = handle !f with cases
+       { abort -> _ } -> bug "aborted"
+```
+
+```unison:error
+structural ability Abort where
+  abort : {Abort} a
+
+unique type T = A | B
+
+result : '{e, Abort} T -> {e} ()
+result f = handle !f with cases
+       { A } -> ()
+       { abort -> _ } -> bug "aborted"
+```
+
+```unison:error
+unique ability Give a where
+  give : a -> {Give a} Unit
+
+unique type T = A | B
+
+result : '{e, Give T} r -> {e} r
+result f = handle !f with cases
+       { x } -> x
+       { give A -> resume } -> result resume
+```
+
+## Exhaustive ability reinterpretations are accepted
+
+```unison
+structural ability Abort where
+  abort : {Abort} a
+  abortWithMessage : Text -> {Abort} a
+
+
+result : '{e, Abort} a -> {e, Abort} a
+result f = handle !f with cases
+       { x } -> x
+       { abort -> _ } -> abort
+       { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
+```
+
+## Non-exhaustive ability reinterpretations are rejected
+
+```unison:error
+structural ability Abort where
+  abort : {Abort} a
+  abortWithMessage : Text -> {Abort} a
+
+
+result : '{e, Abort} a -> {e, Abort} a
+result f = handle !f with cases
+       { x } -> x
+       { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
+```

@@ -64,6 +64,7 @@ import Data.List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
+import Data.Monoid (Ap (..))
 import qualified Data.Sequence as Seq
 import Data.Sequence.NonEmpty (NESeq)
 import qualified Data.Sequence.NonEmpty as NESeq
@@ -86,7 +87,7 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
-import Unison.PatternMatchCoverage.Class (EnumeratedConstructors (..), Pmc, traverseConstructors)
+import Unison.PatternMatchCoverage.Class (EnumeratedConstructors (..), Pmc, traverseConstructorTypes)
 import qualified Unison.PatternMatchCoverage.Class as Pmc
 import qualified Unison.PatternMatchCoverage.ListPat as ListPat
 import Unison.Prelude
@@ -791,9 +792,18 @@ getEffectDeclaration r = do
 getDataConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (Type v loc)
 getDataConstructorType = getConstructorType' Data getDataDeclaration
 
-getDataConstructors :: (Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
+getDataConstructors :: forall v loc. (Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
 getDataConstructors typ
   | Type.Ref' r <- typ, r == Type.booleanRef = pure BooleanType
+  | Type.Apps' (Type.Ref' r) (et : resultType : []) <- typ,
+    r == Type.effectRef =
+      let effects = Type.flattenEffects et
+          phi effect =
+            case theRef effect of
+              Just r -> Map.fromList . map (\(v, cr, t) -> (cr, (v, t))) . crFromDecl r . DD.toDataDecl <$> getEffectDeclaration r
+              Nothing -> pure Map.empty
+          crefs = getAp (foldMap (Ap . phi) effects)
+       in AbilityType resultType <$> crefs
   | Type.App' (Type.Ref' r) arg <- typ,
     r == Type.listRef =
       let xs =
@@ -801,12 +811,13 @@ getDataConstructors typ
               (ListPat.Nil, [])
             ]
        in pure (SequenceType xs)
-  | Just r <- theRef = do
-      decl <- getDataDeclaration r
-      pure $ ConstructorType [(v, ConstructorReference r i, ABT.vmap TypeVar.Universal t) | (i, (v, t)) <- zip [0 ..] (DD.constructors decl)]
+  | Just r <- theRef typ = ConstructorType . crFromDecl r <$> getDataDeclaration r
   | otherwise = pure OtherType
   where
-    theRef = case typ of
+    crFromDecl :: Reference -> DataDeclaration v loc -> [(v, ConstructorReference, Type v loc)]
+    crFromDecl r decl =
+      [(v, ConstructorReference r i, ABT.vmap TypeVar.Universal t) | (i, (v, t)) <- zip [0 ..] (DD.constructors decl)]
+    theRef t = case t of
       Type.Apps' (Type.Ref' r@Reference.DerivedId {}) _targs -> Just r
       Type.Ref' r@Reference.DerivedId {} -> Just r
       _ -> Nothing
@@ -1258,19 +1269,44 @@ synthesizeWanted e
       let outputType = existential' l B.Blank outputTypev
       appendContext [existential outputTypev]
       cwant <- checkCases scrutineeType outputType cases
-      ensurePatternCoverage e scrutinee scrutineeType cases
       want <- coalesceWanted cwant swant
       ctx <- getContext
-      pure $ (apply ctx outputType, want)
+      let matchType = apply ctx outputType
+      ensurePatternCoverage e matchType scrutinee scrutineeType cases
+      pure $ (matchType, want)
   where
     l = loc e
 synthesizeWanted _e = compilerCrash PatternMatchFailure
 
-getDataConstructorsAtType :: (Ord loc, Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
+getDataConstructorsAtType :: forall v loc. (Ord loc, Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
 getDataConstructorsAtType t0 = do
   dataConstructors <- getDataConstructors t0
-  res <- traverseConstructors (\v cr t -> (v,cr,) <$> fixType t) dataConstructors
-  pure res
+  case t0 of
+    Type.Apps' (Type.Ref' r) [et, _res]
+      | Type.effectRef == r ->
+          let effectMap :: Map Reference (Type v loc)
+              effectMap =
+                Map.fromList
+                  . mapMaybe
+                    ( \e -> case e of
+                        Type.Apps' (Type.Ref' r@Reference.DerivedId {}) _targs -> Just (r, e)
+                        Type.Ref' r@Reference.DerivedId {} -> Just (r, e)
+                        _ -> Nothing
+                    )
+                  . Type.flattenEffects
+                  $ et
+           in flip traverseConstructorTypes dataConstructors \_ cr t -> do
+                case Map.lookup (view reference_ cr) effectMap of
+                  Nothing -> pure t
+                  Just t0 -> do
+                    t <- ungeneralize t
+                    case t of
+                      Type.EffectfulArrows' _ xs
+                        | (Just [e], _) <- last xs -> do
+                            equate t0 e
+                            applyM t
+                      _ -> pure t
+    _ -> traverseConstructorTypes (\_ _ t -> fixType t) dataConstructors
   where
     fixType t = do
       t <- ungeneralize t
@@ -1297,14 +1333,18 @@ instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (PmcState (TypeVa
     pure result
   getConstructorVarTypes t cref@(ConstructorReference _r cid) = do
     Pmc.getConstructors t >>= \case
+      AbilityType _ m -> case Map.lookup cref m of
+        Nothing -> error $ show cref <> " not found in constructor map: " <> show m
+        Just (_, conArgs) -> pure (extractArgs conArgs)
       ConstructorType cs -> case drop (fromIntegral cid) cs of
         [] -> error $ show cref <> " not found in constructor list: " <> show cs
-        (_, _, consArgs) : _ -> case consArgs of
-          Type.Arrows' xs -> pure (init xs)
-          _ -> pure []
+        (_, _, conArgs) : _ -> pure (extractArgs conArgs)
       BooleanType -> pure []
       OtherType -> pure []
       SequenceType {} -> pure []
+    where
+      extractArgs (Type.Arrows' xs) = init xs
+      extractArgs _ = []
   fresh = do
     st@PmcState {variables} <- get
     let v = Var.freshIn variables (Var.typed Var.Pattern)
@@ -1315,29 +1355,26 @@ ensurePatternCoverage ::
   forall v loc.
   (Ord loc, Var v) =>
   Term v loc ->
+  Type v loc ->
   Term v loc ->
   Type v loc ->
   [Term.MatchCase loc (Term v loc)] ->
   MT v loc (Result v loc) ()
-ensurePatternCoverage wholeMatch _scrutinee scrutineeType cases = do
-  let matchLoc = ABT.annotation wholeMatch
+ensurePatternCoverage theMatch _theMatchType _scrutinee scrutineeType cases = do
+  let matchLoc = ABT.annotation theMatch
   scrutineeType <- applyM scrutineeType
-  case scrutineeType of
-    -- Don't check coverage on ability handlers yet
-    Type.Apps' (Type.Ref' r) _args | r == Type.effectRef -> pure ()
-    _ -> do
-      let pmcState :: PmcState (TypeVar v loc) v loc =
-            PmcState
-              { variables = ABT.freeVars wholeMatch,
-                constructorCache = mempty
-              }
-      (redundant, _inaccessible, uncovered) <- flip evalStateT pmcState do
-        checkMatch matchLoc scrutineeType cases
-      let checkUncovered = case Nel.nonEmpty uncovered of
-            Nothing -> pure ()
-            Just xs -> failWith (UncoveredPatterns matchLoc xs)
-          checkRedundant = foldr (\a b -> failWith (RedundantPattern a) *> b) (pure ()) redundant
-      checkUncovered *> checkRedundant
+  let pmcState :: PmcState (TypeVar v loc) v loc =
+        PmcState
+          { variables = ABT.freeVars theMatch,
+            constructorCache = mempty
+          }
+  (redundant, _inaccessible, uncovered) <- flip evalStateT pmcState do
+    checkMatch matchLoc scrutineeType cases
+  let checkUncovered = case Nel.nonEmpty uncovered of
+        Nothing -> pure ()
+        Just xs -> failWith (UncoveredPatterns matchLoc xs)
+      checkRedundant = foldr (\a b -> failWith (RedundantPattern a) *> b) (pure ()) redundant
+  checkUncovered *> checkRedundant
 
 checkCases ::
   (Var v) =>

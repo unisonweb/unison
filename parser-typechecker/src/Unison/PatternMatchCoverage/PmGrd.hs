@@ -23,6 +23,14 @@ data
       -- ^ Constructor
       [(v, Type vt loc)]
       -- ^ Constructor argument values and types
+  | PmEffect
+      v
+      -- ^ Variable
+      ConstructorReference
+      -- ^ Constructor
+      [(v, Type vt loc)]
+      -- ^ Constructor argument values and types
+  | PmEffectPure v (v, Type vt loc)
   | PmLit v PmLit
   | PmListHead
       v
@@ -56,6 +64,10 @@ prettyPmGrd ppe = \case
   PmCon var con convars ->
     let xs = pc con : fmap (\(trm, typ) -> sep " " ["(" <> prettyVar trm, ":", TypePrinter.pretty ppe typ <> ")"]) convars ++ ["<-", prettyVar var]
      in sep " " xs
+  PmEffect var con convars ->
+    let xs = pc con : fmap (\(trm, typ) -> sep " " ["(" <> prettyVar trm, ":", TypePrinter.pretty ppe typ <> ")"]) convars ++ ["<-", prettyVar var]
+     in sep " " xs
+  PmEffectPure v (rv, rt) -> sep " " ["pure", "(" <> prettyVar rv, ":", TypePrinter.pretty ppe rt <> ")", "<-", prettyVar v]
   PmListHead var n el _ -> sep " " ["Cons", string (show n), prettyVar el, "<-", prettyVar var]
   PmListTail var n el _ -> sep " " ["Snoc", string (show n), prettyVar el, "<-", prettyVar var]
   PmListInterval var minLen maxLen -> sep " " ["Interval", string (show (minLen, maxLen)), "<-", prettyVar var]

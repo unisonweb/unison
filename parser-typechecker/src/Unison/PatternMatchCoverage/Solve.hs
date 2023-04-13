@@ -16,6 +16,7 @@ import Data.Function
 import Data.Functor
 import Data.Functor.Compose
 import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Unison.Builtin.Decls (unitRef)
@@ -26,6 +27,7 @@ import qualified Unison.Pattern as Pattern
 import Unison.PatternMatchCoverage.Class
 import Unison.PatternMatchCoverage.Constraint (Constraint)
 import qualified Unison.PatternMatchCoverage.Constraint as C
+import Unison.PatternMatchCoverage.EffectHandler
 import Unison.PatternMatchCoverage.Fix
 import Unison.PatternMatchCoverage.GrdTree
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
@@ -78,6 +80,8 @@ uncoverAnnotate z grdtree0 = cata phi grdtree0 z
         (ncfinal, ts) <- foldlM (\(nc, ts) a -> a nc >>= \(nc', t) -> pure (nc', t : ts)) (nc1, []) ks
         pure (ncfinal, Fork (t1 :| reverse ts))
       GrdF grd k -> \nc0 -> case grd of
+        PmEffect var con convars -> handleGrd (PosEffect var (Effect con) convars) (NegEffect var (Effect con)) k nc0
+        PmEffectPure var resume -> handleGrd (PosEffect var NoEffect [resume]) (NegEffect var NoEffect) k nc0
         PmCon var con convars -> do
           handleGrd (PosCon var con convars) (NegCon var con) k nc0
         PmLit var lit -> do
@@ -190,6 +194,13 @@ generateInhabitants x nc =
           Nothing -> Pattern.Unbound ()
           Just (dc, convars) ->
             Pattern.Constructor () dc (map (\(v, _) -> generateInhabitants v nc') convars)
+        Vc'Effect pos _neg -> case pos of
+          Nothing -> Pattern.Unbound ()
+          Just (effHandler, convars) -> case effHandler of
+            NoEffect -> Pattern.EffectPure () case convars of
+              [(v, _)] -> generateInhabitants v nc'
+              _ -> error "NoEffect has the incorrect number of convars"
+            Effect cr -> Pattern.EffectBind () cr (map (\(v, _) -> generateInhabitants v nc') convars) (Pattern.Unbound ())
         Vc'Boolean pos _neg -> case pos of
           Nothing -> Pattern.Unbound ()
           Just b -> Pattern.Boolean () b
@@ -293,6 +304,9 @@ expandSolution x nc =
                                                         | Type.Ref' x <- vi_typ vi, x == unitRef -> go newFuel v nc'
                                                         | Just _ <- pos -> go newFuel v nc'
                                                         | not (Set.null neg) -> go (newFuel - 1) v nc'
+                                                      Vc'Effect pos neg
+                                                        | Just _ <- pos -> go newFuel v nc'
+                                                        | not (Set.null neg) -> go (newFuel - 1) v nc'
                                                       Vc'Boolean _pos neg
                                                         | not (Set.null neg) -> go (newFuel - 1) v nc'
                                                       Vc'ListRoot _typ _posCons _posSnoc neg
@@ -320,11 +334,16 @@ withConstructors ::
   m r
 withConstructors nil vinfo k = do
   getConstructors typ >>= \case
-    ConstructorType cs -> do
-      arg <- for cs \(v, cref, _) -> do
+    AbilityType resultType cs -> do
+      arg <- for (Map.toList cs) \(cref, _) -> do
         cvts <- getConstructorVarTypes typ cref
-        pure ((v, cref), cvts)
-      k arg (\v (_, cref) args -> [C.PosCon v cref args]) (\v (_, cref) -> C.NegCon v cref)
+        pure (Effect cref, cvts)
+      k ((NoEffect, [resultType]) : arg) (\v cref args -> [C.PosEffect v cref args]) (\v cref -> C.NegEffect v cref)
+    ConstructorType cs -> do
+      arg <- for cs \(_, cref, _) -> do
+        cvts <- getConstructorVarTypes typ cref
+        pure (cref, cvts)
+      k arg (\v cref args -> [C.PosCon v cref args]) (\v cref -> C.NegCon v cref)
     SequenceType _cs ->
       let Vc'ListRoot elemType consPos snocPos iset = case vi_con vinfo of
             Vc'ListRoot {} -> vi_con vinfo
@@ -424,6 +443,11 @@ addLiteral lit0 nabla0 = runMaybeT do
           c = C.PosCon var datacon convars
        in addConstraint c ctx
     NegCon var datacon -> addConstraint (C.NegCon var datacon) nabla0
+    PosEffect var datacon convars ->
+      let ctx = foldr (\(trm, typ) b -> declVar trm typ id b) nabla0 convars
+          c = C.PosEffect var datacon convars
+       in addConstraint c ctx
+    NegEffect var datacon -> addConstraint (C.NegEffect var datacon) nabla0
     PosLit var lit -> addConstraint (C.PosLit var lit) nabla0
     NegLit var lit -> addConstraint (C.NegLit var lit) nabla0
     PosListHead listRoot n listElem listElemType -> do
@@ -554,7 +578,7 @@ addConstraint con0 nc = do
             | otherwise =
                 -- no conflicting info, add constraint
                 (pure (), Update (Just (datacon, convars), neg))
-       in modifyConstructorC var updateConstructor nc -- runC nc (put =<< modifyConstructor var updateConstructor =<< get)
+       in modifyConstructorC var updateConstructor nc
     C.NegCon var datacon ->
       let updateConstructor pos neg
             -- contradicts positive info
@@ -563,6 +587,28 @@ addConstraint con0 nc = do
             | Set.member datacon neg = (pure (), Ignore)
             | otherwise = (pure (), Update (pos, Set.insert datacon neg))
        in modifyConstructorC var updateConstructor nc
+    C.PosEffect var datacon convars ->
+      let updateConstructor pos neg
+            | Just (datacon1, convars1) <- pos = case datacon == datacon1 of
+                True -> do
+                  -- we already have an assertion, so equate convars
+                  let varsToEquate = zipWith (\(y, _) (z, _) -> (y, z)) convars convars1
+                  (equate varsToEquate, Ignore)
+                False -> (contradiction, Ignore)
+            -- contradicts negative info
+            | True <- Set.member datacon neg = (contradiction, Ignore)
+            | otherwise =
+                -- no conflicting info, add constraint
+                (pure (), Update (Just (datacon, convars), neg))
+       in modifyEffectC var updateConstructor nc
+    C.NegEffect var datacon ->
+      let updateConstructor pos neg
+            -- contradicts positive info
+            | Just (datacon1, _) <- pos, datacon1 == datacon = (contradiction, Ignore)
+            -- we already have this negative constraint
+            | Set.member datacon neg = (pure (), Ignore)
+            | otherwise = (pure (), Update (pos, Set.insert datacon neg))
+       in modifyEffectC var updateConstructor nc
     C.Effectful var ->
       case expectCanon var nc of
         (var, vi, nc)
@@ -617,6 +663,12 @@ union v0 v1 nc@NormalizedConstraints {constraintMap} =
                   Nothing -> []
                   Just (datacon, convars) -> [C.PosCon chosenCanon datacon convars]
                 negC = foldr (\a b -> C.NegCon chosenCanon a : b) [] neg
+             in (posC, negC)
+          Vc'Effect pos neg ->
+            let posC = case pos of
+                  Nothing -> []
+                  Just (datacon, convars) -> [C.PosEffect chosenCanon datacon convars]
+                negC = foldr (\a b -> C.NegEffect chosenCanon a : b) [] neg
              in (posC, negC)
           Vc'ListRoot _typ posCons posSnoc iset ->
             let consConstraints = map (\(i, x) -> C.PosListHead chosenCanon i x) (zip [0 ..] (toList posCons))
@@ -694,6 +746,34 @@ modifyConstructorF v f nc =
   let g vc = getCompose (posAndNegConstructor (\pos neg -> Compose (f pos neg)) vc)
    in modifyVarConstraints v g nc
 
+modifyEffectC ::
+  forall vt v loc m.
+  (Pmc vt v loc m) =>
+  v ->
+  ( (Maybe (EffectHandler, [(v, Type vt loc)])) ->
+    Set EffectHandler ->
+    (C vt v loc m (), ConstraintUpdate (Maybe (EffectHandler, [(v, Type vt loc)]), Set EffectHandler))
+  ) ->
+  NormalizedConstraints vt v loc ->
+  m (Maybe (NormalizedConstraints vt v loc))
+modifyEffectC v f nc0 =
+  let (ccomp, nc1) = modifyEffectF v f nc0
+   in fmap snd <$> runC nc1 ccomp
+
+modifyEffectF ::
+  forall vt v loc f.
+  (Var v, Functor f) =>
+  v ->
+  ( (Maybe (EffectHandler, [(v, Type vt loc)])) ->
+    Set EffectHandler ->
+    f (ConstraintUpdate (Maybe (EffectHandler, [(v, Type vt loc)]), Set EffectHandler))
+  ) ->
+  NormalizedConstraints vt v loc ->
+  f (NormalizedConstraints vt v loc)
+modifyEffectF v f nc =
+  let g vc = getCompose (posAndNegEffect (\pos neg -> Compose (f pos neg)) vc)
+   in modifyVarConstraints v g nc
+
 modifyLiteralC ::
   forall vt v loc m.
   (Pmc vt v loc m) =>
@@ -764,8 +844,23 @@ posAndNegConstructor ::
   f (VarConstraints vt v loc)
 posAndNegConstructor f = \case
   Vc'Constructor pos neg -> uncurry Vc'Constructor <$> f pos neg
-  _ -> error "impossible: posAndNegConstructor called on a literal"
+  _ -> error "impossible: posAndNegConstructor called on something other than Vc'Constructor"
 {-# INLINE posAndNegConstructor #-}
+
+-- | Modify the positive and negative constraints of an effect.
+posAndNegEffect ::
+  forall f vt v loc.
+  (Functor f) =>
+  ( (Maybe (EffectHandler, [(v, Type vt loc)])) ->
+    Set EffectHandler ->
+    f (Maybe (EffectHandler, [(v, Type vt loc)]), Set EffectHandler)
+  ) ->
+  VarConstraints vt v loc ->
+  f (VarConstraints vt v loc)
+posAndNegEffect f = \case
+  Vc'Effect pos neg -> uncurry Vc'Effect <$> f pos neg
+  _ -> error "impossible: posAndNegEffect called on something other than Vc'Effect"
+{-# INLINE posAndNegEffect #-}
 
 -- | Modify the positive and negative constraints in a way that
 -- doesn't rely upon the particular literal type, but only on it being
