@@ -122,6 +122,7 @@
     unison-POp-BLDS
     unison-POp-CATS
     unison-POp-CATT
+    unison-POp-CATB
     unison-POp-CMPU
     unison-POp-COMN
     unison-POp-CONS
@@ -269,6 +270,7 @@
       (fold-right (lambda (e l) (chunked-list-add-first l e)) empty-chunked-list args-list)))
   (define (unison-POp-CATS l r) (chunked-list-append l r))
   (define (unison-POp-CATT l r) (chunked-string-append l r))
+  (define (unison-POp-CATB l r) (chunked-bytes-append l r))
   (define (unison-POp-CMPU l r) (ord (universal-compare l r)))
   (define (unison-POp-COMN n) (fxnot n))
   (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))

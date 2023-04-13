@@ -80,7 +80,7 @@ bytes.ord.tests = do
 bytes.ops.tests = do
   checkEqual "Bytes.flatten" (Bytes.flatten 0xs68656c6c6f) 0xs68656c6c6f
 
-  --  checkEqual "Bytes.++" (0xs ++ 0xs0102 ++ 0xs0304 ++ 0xs) 0xs01020304
+  checkEqual "Bytes.++" (0xs ++ 0xs0102 ++ 0xs0304 ++ 0xs) 0xs01020304
 
   --  checkEqual "Bytes.take (1)" (Bytes.take 0 0xs010203) 0xs
   --  checkEqual "Bytes.take (2)" (Bytes.take 2 0xs010203) 0xs0102
