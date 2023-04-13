@@ -41,6 +41,7 @@ text.ord.tests = do
   checkEqual "Universal ordering with Text (3)" (Universal.compare "ba" "b") +1
   checkEqual "Universal ordering with Text (4)" (Universal.compare "b" "ab") +1
   checkEqual "Universal ordering with Text (5)" (Universal.compare "ac" "ab") +1
+  checkEqual "Universal ordering with Text (6)" (Universal.compare "abc" "abc") +0
 
 text.ops.tests = do
   checkEqual "Text.++" ("" ++ "ab" ++ "cd" ++ "") "abcd"
