@@ -3,6 +3,9 @@
 module Unison.Sqlite.Sql2
   ( Sql2 (..),
     sql2,
+
+    -- * Exported for testing
+    internalParseSql,
   )
 where
 
@@ -44,7 +47,7 @@ data Sql2 = Sql2
 --
 -- @
 -- Sql2
---   { query = "SELECT foo\\nFROM bar\\nWHERE baz = :qux"
+--   { query = "SELECT foo FROM bar WHERE baz = :qux"
 --   , params = [":qux" := qux]
 --   }
 -- @
@@ -55,9 +58,9 @@ sql2 = TH.QuasiQuoter sql2QQ undefined undefined undefined
 
 sql2QQ :: String -> TH.Q TH.Exp
 sql2QQ input =
-  case runP (parser <* Megaparsec.eof) (Text.strip (Text.pack input)) of
-    Left err -> fail (Megaparsec.errorBundlePretty err)
-    Right ((), S {sql, variables}) -> do
+  case internalParseSql (Text.pack input) of
+    Left err -> fail err
+    Right (query, params0) -> do
       let params :: [TH.Q TH.Exp]
           params =
             map
@@ -66,11 +69,19 @@ sql2QQ input =
                     Nothing -> fail ("Not in scope: " ++ Text.unpack var)
                     Just name -> [|(Text.cons ':' var) Sqlite.Simple.:= $(TH.varE name)|]
               )
-              (variables [])
-      let query = Text.Builder.run sql
+              params0
       [|Sql2 query $(TH.listE params)|]
 
--- Parser state: the SQL parsed so far, and a difference list of variable names.
+-- | Parse a SQL string, and return the prettefied SQL string along with the named parameters it contains.
+--
+-- Exported only for testing.
+internalParseSql :: Text -> Either String (Text, [Text])
+internalParseSql input =
+  case runP (parser <* Megaparsec.eof) (Text.strip input) of
+    Left err -> Left (Megaparsec.errorBundlePretty err)
+    Right ((), S {sql, params}) -> Right (Text.Builder.run sql, params [])
+
+-- Parser state: the SQL parsed so far, and a difference list of parameter names.
 --
 -- For example, if we were partway through parsing the query
 --
@@ -83,15 +94,15 @@ sql2QQ input =
 --
 --   S
 --     { sql = "SELECT foo FROM bar WHERE baz = :bonk AND "
---     , variables = ["bonk"]
+--     , params = ["bonk"]
 --     }
 --
--- Why keep the SQL parsed so far: so we can make the query slightly prettier by replacing all runs of 2+ characters of
+-- Why keep the SQL parsed so far: so we can make the query slightly prettier by replacing all runs of 1+ characters of
 -- whitespace with a single space. This lets us write vertically aligned SQL queries at arbitrary indentations in
 -- Haskell quasi-quoters, but not have to look at a bunch of "\n        " in debug logs and such.
 data S = S
   { sql :: !Text.Builder,
-    variables :: [Text] -> [Text]
+    params :: [Text] -> [Text]
   }
   deriving stock (Generic)
 
@@ -106,12 +117,12 @@ runP p =
 parser :: P ()
 parser = do
   fragmentParser >>= \case
-    NonVariable fragment -> do
+    NonParam fragment -> do
       #sql <>= fragment
       parser
-    Variable var -> do
-      #sql <>= (Text.Builder.char ':' <> var)
-      #variables %= ((Text.Builder.run var :) .)
+    Param param -> do
+      #sql <>= (Text.Builder.char ':' <> param)
+      #params %= ((Text.Builder.run param :) .)
       parser
     Whitespace -> do
       #sql <>= Text.Builder.char ' '
@@ -128,39 +139,42 @@ parser = do
 --
 -- corresponds to the fragments
 --
---   [ NonVariable "SELECT"
+--   [ NonParam "SELECT"
 --   , Whitespace
---   , NonVariable "foo"
+--   , NonParam "foo"
 --   , Whitespace
---   , NonVariable "FROM"
+--   , NonParam "FROM"
 --   , Whitespace
---   , NonVariable "bar"
+--   , NonParam "bar"
 --   , Whitespace
---   , NonVariable "WHERE"
+--   , NonParam "WHERE"
 --   , Whitespace
---   , NonVariable "baz"
+--   , NonParam "baz"
 --   , Whitespace
---   , NonVariable "="
+--   , NonParam "="
 --   , Whitespace
---   , Variable "bonk"
+--   , Param "bonk"
 --   , Whitespace
---   , NonVariable "AND"
+--   , NonParam "AND"
 --   , Whitespace
---   , NonVariable "qux"
+--   , NonParam "qux"
 --   , Whitespace
---   , NonVariable "="
+--   , NonParam "="
 --   , Whitespace
---   , NonVariable "'monkey monk'"
+--   , NonParam "'monkey monk'"
 --   , EndOfInput
 --   ]
 --
--- Any sequence of consecutive NonVariable fragments in such a list is equivalent to a single NonVariable fragment with
--- the contents concatenated. How the non-variable stuff between variables is turned into 1+ NonVariable fragments is
--- just a consequence of how we parse these SQL strings: identify strings and such, but otherwise make no attempt to
+-- Any sequence of consecutive NonParam fragments in such a list is equivalent to a single NonParam fragment with the
+-- contents concatenated. How the non-parameter stuff between parameters is turned into 1+ NonParam fragments is just a
+-- consequence of how we parse these SQL strings: identify strings and such, but otherwise make no attempt to
 -- understand the structure of the query.
+--
+-- A parsed query can be reconstructed by simply concatenating all fragments together, with a colon character ':'
+-- prepended to each Param fragment.
 data Fragment
-  = NonVariable Text.Builder
-  | Variable Text.Builder
+  = NonParam Text.Builder
+  | Param Text.Builder
   | Whitespace
   | EndOfInput
 
@@ -168,12 +182,12 @@ fragmentParser :: P Fragment
 fragmentParser =
   asum
     [ Whitespace <$ Megaparsec.takeWhile1P (Just "whitepsace") Char.isSpace,
-      NonVariable <$> betwixt "string" '\'',
-      NonVariable <$> betwixt "identifier" '"',
-      NonVariable <$> betwixt "identifier" '`',
-      NonVariable <$> bracketedIdentifierP,
-      Variable <$> variableP,
-      NonVariable <$> unstructuredP,
+      NonParam <$> betwixt "string" '\'',
+      NonParam <$> betwixt "identifier" '"',
+      NonParam <$> betwixt "identifier" '`',
+      NonParam <$> bracketedIdentifierP,
+      Param <$> paramP,
+      NonParam <$> unstructuredP,
       EndOfInput <$ Megaparsec.eof
     ]
   where
@@ -203,11 +217,11 @@ fragmentParser =
               && c /= '['
       pure (Text.Builder.text xs)
 
-    variableP :: P Text.Builder
-    variableP = do
+    paramP :: P Text.Builder
+    paramP = do
       _ <- Megaparsec.char ':'
       x <- Megaparsec.satisfy (\c -> Char.isAlpha c || c == '_')
-      xs <- Megaparsec.takeWhileP (Just "variable") \c -> Char.isAlphaNum c || c == '_' || c == '\''
+      xs <- Megaparsec.takeWhileP (Just "parameter") \c -> Char.isAlphaNum c || c == '_' || c == '\''
       pure (Text.Builder.char x <> Text.Builder.text xs)
 
 -- @betwixt name c@ parses a @c@-surrounded string of arbitrary characters (naming the parser @name@), where two @c@s
