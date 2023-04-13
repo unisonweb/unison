@@ -77,4 +77,6 @@ bytes.ord.tests = do
   checkEqual "Bytes ordering (6)" (Universal.compare 0xs010203 0xs010203) +0
 
 
-bytes.ops.tests = do ()
+bytes.ops.tests = do
+  checkEqual "Bytes.flatten" (Bytes.flatten 0xs68656c6c6f) 0xs68656c6c6f
+

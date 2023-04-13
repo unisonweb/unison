@@ -169,6 +169,7 @@
     unison-POp-VWLS
     unison-POp-UCNS
     unison-POp-USNC
+    unison-POp-FLTB
 
     unison-POp-UPKB
     unison-POp-PAKB
@@ -384,6 +385,9 @@
         (sum 0)
         (let-values ([(t h) (chunked-string-pop-last s)])
           (sum 1 t h))))
+
+  ;; TODO flatten operation on Bytes is a no-op for now (and possibly ever)
+  (define (unison-POp-FLTB b) b)
 
   (define (unison-POp-XORN m n) (fxxor m n))
   (define (unison-POp-VALU c) (decode-value c))

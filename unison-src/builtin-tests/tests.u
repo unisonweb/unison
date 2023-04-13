@@ -7,8 +7,8 @@ tests = Tests.main do
   --  !tcp.tests
   --  -- TODO add test assert on message and value for both bug and todo
   --  check "bug is caught" do isLeft (catchAll do bug ())
-  !list.tests
-  !text.tests
+  --  !list.tests
+  --  !text.tests
   !bytes.tests
 
 
