@@ -177,6 +177,7 @@ module U.Codebase.Sqlite.Queries
     typeRefsForExactName,
     checkBranchHashNameLookupExists,
     trackNewBranchHashNameLookup,
+    deleteNameLookup,
     termNamesBySuffix,
     typeNamesBySuffix,
     longestMatchingTermNameForSuffixification,
@@ -1707,6 +1708,19 @@ copyScopedNameLookup fromBHId toBHId = do
         INSERT INTO scoped_type_name_lookup(root_branch_hash_id, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index)
         SELECT ?, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index
         FROM scoped_type_name_lookup
+        WHERE root_branch_hash_id = ?
+      |]
+
+-- | Delete the specified name lookup.
+-- This should only be used if you're sure it's unused, or if you're going to re-create it in
+-- the same transaction.
+deleteNameLookup :: BranchHashId -> Transaction ()
+deleteNameLookup bhId = do
+  execute sql (Only bhId)
+  where
+    sql =
+      [here|
+        DELETE FROM name_lookups
         WHERE root_branch_hash_id = ?
       |]
 
