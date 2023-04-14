@@ -30,6 +30,7 @@
     string->chunked-string)
 
   (import (rnrs)
+          (for (only (racket base) quasisyntax/loc) expand)
           (for
             (only (unison core) syntax->list)
             expand)
@@ -96,18 +97,21 @@
       ; enables applying to arbitrary numbers of arguments.
       (define (func-cases name fast args)
         (syntax-case args ()
-          [() #`(case-lambda
+          [() (quasisyntax/loc x
+                (case-lambda
                   [() (#,fast)]
-                  [r (apply (#,fast) r)])]
+                  [r (apply (#,fast) r)]))]
           [(a ... z)
-           #`(case-lambda
+           (quasisyntax/loc x
+             (case-lambda
                #,@(build-partials name #'(a ...))
                [(a ... z) (#,fast a ... z)]
-               [(a ... z . r) (apply (#,fast a ... z) r)])]))
+               [(a ... z . r) (apply (#,fast a ... z) r)]))]))
 
       (define (func-wrap name args body)
         (with-syntax ([fp (fast-path-name name)])
-          #`(let ([fp (lambda (#,@args) #,@body)])
+          #`(let ([fp #,(quasisyntax/loc x
+                          (lambda (#,@args) #,@body))])
               #,(func-cases name #'fp args))))
 
       (syntax-case x ()
@@ -117,11 +121,16 @@
 
   ; call-by-name bindings
   (define-syntax name
-    (syntax-rules ()
-      ((name ([v (f . args)] ...) body ...)
-       (let ([v (lambda r (apply f (append (list . args) r)))]
-             ...)
-         body ...))))
+    (lambda (stx)
+      (syntax-case stx ()
+        ((name ([v (f . args)] ...) body ...)
+         (with-syntax ([(lam ...)
+                        (map (lambda (body)
+                               (quasisyntax/loc stx
+                                 (lambda r #,body)))
+                             (syntax->list #'[(apply f (append (list . args) r)) ...]))])
+           #`(let ([v lam] ...)
+               body ...))))))
 
   ; Wrapper that more closely matches `handle` constructs
   ;
