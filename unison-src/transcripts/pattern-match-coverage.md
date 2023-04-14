@@ -409,6 +409,33 @@ result f = handle !f with cases
        { give A -> resume } -> result resume
 ```
 
+## Redundant handler cases are rejected
+
+```unison:error
+unique ability Give a where
+  give : a -> {Give a} Unit
+
+unique type T = A | B
+
+result : '{e, Give T} r -> {e} r
+result f = handle !f with cases
+       { x } -> x
+       { give _ -> resume } -> result resume
+       { give A -> resume } -> result resume
+```
+
+```unison:error
+unique ability Give a where
+  give : a -> {Give a} Unit
+
+unique type V =
+
+result : '{e, Give V} r -> {e} r
+result f = handle !f with cases
+       { x } -> x
+       { give _ -> resume } -> result resume
+```
+
 ## Exhaustive ability reinterpretations are accepted
 
 ```unison
