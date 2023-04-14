@@ -782,6 +782,37 @@ result f = handle !f with cases
       unique type T
 
 ```
+```unison
+structural ability Abort where
+  abort : {Abort} a
+
+unique type V =
+
+result : '{e, Abort} V -> {e} V
+result f = 
+  impl : Request {Abort} V -> V
+  impl = cases
+       { abort -> _ } -> bug "aborted"
+  handle !f with impl
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability Abort
+      result : '{e, Abort} V ->{e} V
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      unique type V
+
+```
 ## Non-exhaustive ability handlers are rejected
 
 ```unison
@@ -830,28 +861,6 @@ result f = handle !f with cases
   
   Patterns not matched:
    * { B }
-
-```
-```unison
-structural ability Abort where
-  abort : {Abort} a
-
-unique type V =
-
-result : '{e, Abort} V -> {e} V
-result f = handle !f with cases
-       { abort -> _ } -> bug "aborted"
-```
-
-```ucm
-
-  Pattern match doesn't cover all possible cases:
-        7 | result f = handle !f with cases
-        8 |        { abort -> _ } -> bug "aborted"
-    
-  
-  Patterns not matched:
-   * { _ }
 
 ```
 ```unison

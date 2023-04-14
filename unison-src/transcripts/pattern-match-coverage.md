@@ -372,6 +372,21 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
+```unison
+structural ability Abort where
+  abort : {Abort} a
+
+unique type V =
+
+result : '{e, Abort} V -> {e} V
+result f = 
+  impl : Request {Abort} V -> V
+  impl = cases
+       { abort -> _ } -> bug "aborted"
+  handle !f with impl
+```
+
+
 ## Non-exhaustive ability handlers are rejected
 
 ```unison:error
@@ -394,17 +409,6 @@ unique type T = A | B
 result : '{e, Abort} T -> {e} ()
 result f = handle !f with cases
        { A } -> ()
-       { abort -> _ } -> bug "aborted"
-```
-
-```unison:error
-structural ability Abort where
-  abort : {Abort} a
-
-unique type V =
-
-result : '{e, Abort} V -> {e} V
-result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
