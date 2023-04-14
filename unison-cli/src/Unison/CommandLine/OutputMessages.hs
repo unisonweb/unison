@@ -1847,12 +1847,12 @@ notifyUser dir = \case
                     [prettyAbsolute (Path.Absolute (Path.fromList ["path", "to", "code"]))]
                   <> "to initialize this branch."
               )
-      CreatedProjectBranchFrom'OtherBranch otherProjectAndBranch ->
+      CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch otherProject otherBranch) ->
         pure . P.wrap $
           "Done. I've created the"
             <> prettyProjectAndBranchName projectAndBranch
             <> "branch based off"
-            <> prettyProjectAndBranchName otherProjectAndBranch
+            <> prettyProjectAndBranchName (ProjectAndBranch (otherProject ^. #name) (otherBranch ^. #name))
       CreatedProjectBranchFrom'ParentBranch parentBranch ->
         pure $
           P.wrap

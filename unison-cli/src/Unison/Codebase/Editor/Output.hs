@@ -341,7 +341,7 @@ data Output
 data CreatedProjectBranchFrom
   = CreatedProjectBranchFrom'LooseCode Path.Absolute
   | CreatedProjectBranchFrom'Nothingness
-  | CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch ProjectName ProjectBranchName)
+  | CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | CreatedProjectBranchFrom'ParentBranch ProjectBranchName
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput

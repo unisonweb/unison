@@ -44,7 +44,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
 import qualified Unison.Syntax.Name as Name (fromText, unsafeFromString)
 import qualified Unison.Util.ColorText as CT
@@ -1361,7 +1361,7 @@ mergeLocal =
     ( \case
         [src] -> first fromString do
           src <- parseLooseCodeOrProject src
-          pure $ Input.MergeLocalBranchI src (Left Path.relativeEmpty') Branch.RegularMerge
+          pure $ Input.MergeLocalBranchI src (This Path.relativeEmpty') Branch.RegularMerge
         [src, dest] -> first fromString $ do
           src <- parseLooseCodeOrProject src
           dest <- parseLooseCodeOrProject dest
@@ -1371,13 +1371,14 @@ mergeLocal =
 
 parseLooseCodeOrProject :: String -> Either String Input.LooseCodeOrProject
 parseLooseCodeOrProject inputString =
-  case tryInto @(These ProjectName ProjectBranchName) (Text.pack inputString) of
-    Right (That branchName) -> Right (Right (Nothing, branchName))
-    Right (These projectName branchName) -> Right (Right (Just projectName, branchName))
-    _ ->
-      case Path.parsePath' inputString of
-        Left _ -> Left ("Failed to parse " ++ inputString ++ " as a project name or namespace path")
-        Right path -> Right (Left path)
+  case (asLooseCode, asBranch) of
+    (Right path, Left _) -> Right (This path)
+    (Left _, Right branch) -> Right (That branch)
+    (Right path, Right branch) -> Right (These path branch)
+    (Left _, Left _) -> Left ("Failed to parse " ++ inputString ++ " as a branch or namespace")
+  where
+    asLooseCode = Path.parsePath' inputString
+    asBranch = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
 
 diffNamespace :: InputPattern
 diffNamespace =
@@ -1427,7 +1428,7 @@ previewMergeLocal =
     ( \case
         [src] -> first fromString $ do
           src <- parseLooseCodeOrProject src
-          pure $ Input.PreviewMergeLocalBranchI src (Left Path.relativeEmpty')
+          pure $ Input.PreviewMergeLocalBranchI src (This Path.relativeEmpty')
         [src, dest] -> first fromString $ do
           src <- parseLooseCodeOrProject src
           dest <- parseLooseCodeOrProject dest
@@ -2374,8 +2375,8 @@ branches =
       parse = \_ -> Right Input.BranchesI
     }
 
-branch :: InputPattern
-branch =
+branchInputPattern :: InputPattern
+branchInputPattern =
   InputPattern
     { patternName = "branch",
       aliases = [],
@@ -2383,11 +2384,18 @@ branch =
       argTypes = [(Required, projectAndBranchNamesArg)],
       help = P.wrap "Create a new branch from an existing branch or namespace.",
       parse = \case
+        [source0, name] -> do
+          source <- first (\_ -> showPatternHelp branchInputPattern) (parseLooseCodeOrProject source0)
+          projectAndBranch <-
+            first
+              (\_ -> showPatternHelp branchInputPattern)
+              (tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name))
+          Right (Input.BranchI (Just source) projectAndBranch)
         [name] ->
-          case tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name) of
-            Left _ -> Left (showPatternHelp branch)
-            Right projectAndBranch -> Right (Input.BranchI projectAndBranch)
-        _ -> Left (showPatternHelp branch)
+          first (\_ -> showPatternHelp branchInputPattern) do
+            projectAndBranch <- tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name)
+            Right (Input.BranchI Nothing projectAndBranch)
+        _ -> Left (showPatternHelp branchInputPattern)
     }
 
 validInputs :: [InputPattern]
@@ -2401,7 +2409,7 @@ validInputs =
       api,
       authLogin,
       back,
-      branch,
+      branchInputPattern,
       branches,
       cd,
       clear,
