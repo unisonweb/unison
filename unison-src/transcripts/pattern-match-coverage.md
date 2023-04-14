@@ -398,6 +398,17 @@ result f = handle !f with cases
 ```
 
 ```unison:error
+structural ability Abort where
+  abort : {Abort} a
+
+unique type V =
+
+result : '{e, Abort} V -> {e} V
+result f = handle !f with cases
+       { abort -> _ } -> bug "aborted"
+```
+
+```unison:error
 unique ability Give a where
   give : a -> {Give a} Unit
 
@@ -424,18 +435,6 @@ result f = handle !f with cases
        { give A -> resume } -> result resume
 ```
 
-```unison:error
-unique ability Give a where
-  give : a -> {Give a} Unit
-
-unique type V =
-
-result : '{e, Give V} r -> {e} r
-result f = handle !f with cases
-       { x } -> x
-       { give _ -> resume } -> result resume
-```
-
 ## Exhaustive ability reinterpretations are accepted
 
 ```unison
@@ -451,6 +450,22 @@ result f = handle !f with cases
        { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
 ```
 
+```unison
+structural ability Abort a where
+  abort : {Abort a} r
+  abortWithMessage : a -> {Abort a} r
+
+unique type V =
+
+result : '{e, Abort V} a -> {e, Abort V} a
+result f = 
+  impl : Request {Abort V} r -> {Abort V} r
+  impl = cases
+       { x } -> x
+       { abort -> _ } -> abort
+  handle !f with impl
+```
+
 ## Non-exhaustive ability reinterpretations are rejected
 
 ```unison:error
@@ -463,4 +478,125 @@ result : '{e, Abort} a -> {e, Abort} a
 result f = handle !f with cases
        { x } -> x
        { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
+```
+
+## Hacky workaround for uninhabited abilities
+
+Although all of the constructors of an ability might be uninhabited,
+the typechecker requires at least one be specified so that it can
+determine that the ability should be discharged. So, the default
+pattern match coverage checking behavior of prohibiting covering any
+of the cases is problematic. Instead, the pattern match coverage
+checker will require that at least one constructor be given, even if
+they are all uninhabited.
+
+The messages here aren't the best, but I don't think uninhabited
+abilities will come up and get handlers written for them often.
+
+```unison:error
+unique ability Give a where
+  give : a -> {Give a} Unit
+  give2 : a -> {Give a} Unit
+
+unique type V =
+
+result : '{e, Give V} r -> {e} r
+result f = 
+  impl : Request {Give V} r -> {} r
+  impl = cases
+       { x } -> x
+  handle !f with impl
+```
+
+```unison
+unique ability Give a where
+  give : a -> {Give a} Unit
+  give2 : a -> {Give a} Unit
+
+unique type V =
+
+result : '{e, Give V} r -> {e} r
+result f = 
+  impl : Request {Give V} r -> {} r
+  impl = cases
+       { x } -> x
+       { give _ -> resume } -> bug "impossible"
+  handle !f with impl
+```
+
+```unison
+unique ability Give a where
+  give : a -> {Give a} Unit
+  give2 : a -> {Give a} Unit
+
+unique type V =
+
+result : '{e, Give V} r -> {e} r
+result f = 
+  impl : Request {Give V} r -> {} r
+  impl = cases
+       { x } -> x
+       { give2 _ -> resume } -> bug "impossible"
+  handle !f with impl
+```
+
+```unison:error
+unique ability Give a where
+  give : a -> {Give a} Unit
+  give2 : a -> {Give a} Unit
+
+unique type V =
+
+result : '{e, Give V} r -> {e} r
+result f = 
+  impl : Request {Give V} r -> {} r
+  impl = cases
+       { x } -> x
+       { give _ -> resume } -> bug "impossible"
+       { give2 _ -> resume } -> bug "impossible"
+  handle !f with impl
+```
+
+```unison:error
+unique ability GiveA a where
+  giveA : a -> {GiveA a} Unit
+  giveA2 : a -> {GiveA a} Unit
+
+unique ability GiveB a where
+  giveB : a -> {GiveB a} Unit
+  giveB2 : a -> {GiveB a} Unit
+
+unique type V =
+
+result : '{e, GiveA V, GiveB V} r -> {e} r
+result f = 
+  impl : Request {GiveA V, GiveB V} r -> {} r
+  impl = cases
+       { x } -> x
+       { giveA _ -> _ } -> bug "impossible"
+       { giveA2 _ -> _ } -> bug "impossible"
+       { giveB _ -> _ } -> bug "impossible"
+       { giveB2 _ -> _ } -> bug "impossible"
+  handle !f with impl
+```
+
+```unison
+unique ability GiveA a where
+  giveA : a -> {GiveA a} Unit
+  giveA2 : a -> {GiveA a} Unit
+
+unique ability GiveB a where
+  giveB : a -> {GiveB a} Unit
+  giveB2 : a -> {GiveB a} Unit
+
+unique type V =
+
+result : '{e, GiveA V, GiveB V} r -> {e} r
+result f = 
+  impl : Request {GiveA V, GiveB V} r -> {} r
+  impl = cases
+       { x } -> x
+       { giveA2 _ -> _ } -> bug "impossible"
+       { giveB _ -> _ } -> bug "impossible"
+  handle !f with impl
 ```

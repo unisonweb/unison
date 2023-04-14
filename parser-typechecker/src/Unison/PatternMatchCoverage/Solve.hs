@@ -8,6 +8,7 @@ module Unison.PatternMatchCoverage.Solve
   )
 where
 
+import Control.Lens (view)
 import Control.Monad.State
 import Control.Monad.Trans.Compose
 import Control.Monad.Trans.Maybe
@@ -20,7 +21,7 @@ import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Unison.Builtin.Decls (unitRef)
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReference, reference_)
 import Unison.Debug (DebugFlag (PatternCoverageConstraintSolver), shouldDebug)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
@@ -241,7 +242,25 @@ instantiate fuel nc x c argTyps posConstraint = do
     nc <- MaybeT (addConstraints cons nc')
     -- mark all new fields as dirty as we need to ensure they are
     -- inhabited
-    let nc' = foldr (\(v, _) b -> markDirty v b) nc newVars
+    let nc' =
+          -- HACK ALERT: Even if an ability handler constructor is
+          -- uninhabited, the type system requires at least one
+          -- constructor of the ability to be matched on to determine
+          -- that it should dischange the ability. So, we don't do the
+          -- inhabitation check if it is for an ability type that we
+          -- haven't handled in a prior case.
+          let (_xcanon, xvi, _) = expectCanon x nc
+              missingEffectBind r neg =
+                foldr
+                  ( \a b -> case a of
+                      Effect cr | view reference_ cr == r -> False
+                      _ -> b
+                  )
+                  True
+                  neg
+           in case vi_con xvi of
+                Vc'Effect (Just (Effect cr, _)) neg | missingEffectBind (view reference_ cr) neg -> nc
+                _ -> foldr (\(v, _) b -> markDirty v b) nc newVars
     -- branching factor
     let newFuel = case length newVars > 1 of
           True -> min fuel 3
@@ -387,17 +406,29 @@ inhabited ::
   m (Maybe (NormalizedConstraints vt v loc))
 inhabited fuel x nc0 =
   let (_xcanon, xvi, nc') = expectCanon x nc0
+      -- more ability handler hack stuff
+      --
+      -- We don't want to add a negative effect constraint as we want
+      -- to ensure there is at least one constructor given per
+      -- ability.
+      shouldAddNegative :: Bool
+      shouldAddNegative = case vi_con xvi of
+        Vc'Effect {} -> False
+        _ -> True
    in withConstructors (pure (Just nc')) xvi \cs posConstraint negConstraint ->
         -- one of the constructors must be inhabited, Return the
         -- first non-contradictory instantiation.
         let phi (cref, cvt) b nc = do
               instantiate fuel nc x cref cvt posConstraint >>= \case
                 Nothing -> do
-                  -- record failed instantiation attempt so we don't
-                  -- attempt to instantiate this constructor again
-                  addConstraint (negConstraint x cref) nc >>= \case
-                    Nothing -> b nc
-                    Just nc -> b nc
+                  case shouldAddNegative of
+                    True ->
+                      -- record failed instantiation attempt so we don't
+                      -- attempt to instantiate this constructor again
+                      addConstraint (negConstraint x cref) nc >>= \case
+                        Nothing -> b nc
+                        Just nc -> b nc
+                    False -> b nc
                 Just _ -> pure (Just nc)
          in foldr phi (\_ -> pure Nothing) cs nc'
 

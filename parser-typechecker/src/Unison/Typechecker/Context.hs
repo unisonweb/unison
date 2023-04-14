@@ -795,10 +795,8 @@ getDataConstructorType = getConstructorType' Data getDataDeclaration
 getDataConstructors :: forall v loc. (Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
 getDataConstructors typ
   | Type.Ref' r <- typ, r == Type.booleanRef = pure BooleanType
-  | Type.Apps' (Type.Ref' r) (et : resultType : []) <- typ,
-    r == Type.effectRef =
-      let effects = Type.flattenEffects et
-          phi effect =
+  | Type.Request' effects resultType <- typ =
+      let phi effect =
             case theRef effect of
               Just r -> Map.fromList . map (\(v, cr, t) -> (cr, (v, t))) . crFromDecl r . DD.toDataDecl <$> getEffectDeclaration r
               Nothing -> pure Map.empty
@@ -1282,30 +1280,28 @@ getDataConstructorsAtType :: forall v loc. (Ord loc, Var v) => Type v loc -> M v
 getDataConstructorsAtType t0 = do
   dataConstructors <- getDataConstructors t0
   case t0 of
-    Type.Apps' (Type.Ref' r) [et, _res]
-      | Type.effectRef == r ->
-          let effectMap :: Map Reference (Type v loc)
-              effectMap =
-                Map.fromList
-                  . mapMaybe
-                    ( \e -> case e of
-                        Type.Apps' (Type.Ref' r@Reference.DerivedId {}) _targs -> Just (r, e)
-                        Type.Ref' r@Reference.DerivedId {} -> Just (r, e)
-                        _ -> Nothing
-                    )
-                  . Type.flattenEffects
-                  $ et
-           in flip traverseConstructorTypes dataConstructors \_ cr t -> do
-                case Map.lookup (view reference_ cr) effectMap of
-                  Nothing -> pure t
-                  Just t0 -> do
-                    t <- ungeneralize t
-                    case t of
-                      Type.EffectfulArrows' _ xs
-                        | (Just [e], _) <- last xs -> do
-                            equate t0 e
-                            applyM t
-                      _ -> pure t
+    Type.Request' ets _res ->
+      let effectMap :: Map Reference (Type v loc)
+          effectMap =
+            Map.fromList
+              . mapMaybe
+                ( \e -> case e of
+                    Type.Apps' (Type.Ref' r@Reference.DerivedId {}) _targs -> Just (r, e)
+                    Type.Ref' r@Reference.DerivedId {} -> Just (r, e)
+                    _ -> Nothing
+                )
+              $ ets
+       in flip traverseConstructorTypes dataConstructors \_ cr t -> do
+            case Map.lookup (view reference_ cr) effectMap of
+              Nothing -> pure t
+              Just t0 -> do
+                t <- ungeneralize t
+                case t of
+                  Type.EffectfulArrows' _ xs
+                    | (Just [e], _) <- last xs -> do
+                        equate t0 e
+                        applyM t
+                  _ -> pure t
     _ -> traverseConstructorTypes (\_ _ t -> fixType t) dataConstructors
   where
     fixType t = do
