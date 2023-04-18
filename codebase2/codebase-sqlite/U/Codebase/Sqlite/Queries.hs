@@ -3055,13 +3055,12 @@ insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBran
 deleteProjectBranch :: ProjectId -> ProjectBranchId -> Transaction ()
 deleteProjectBranch projectId branchId = do
   maybeParentBranchId :: Maybe ProjectBranchId <-
-    queryMaybeCol
-      [sql|
+    queryMaybeCol2
+      [sql2|
         SELECT parent_branch_id
         FROM project_branch_parent
-        WHERE project_id = ? AND branch_id = ?
+        WHERE project_id = :projectId AND branch_id = :branchId
       |]
-      (projectId, branchId)
   -- If the branch being deleted has a parent, then reparent its children. Otherwise, the 'on delete cascade' foreign
   -- key from `project_branch_parent` will take care of deleting its children's parent entries.
   whenJust maybeParentBranchId \parentBranchId ->
