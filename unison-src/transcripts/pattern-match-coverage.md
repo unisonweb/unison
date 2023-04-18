@@ -386,6 +386,21 @@ result f =
   handle !f with impl
 ```
 
+```unison
+structural ability Abort where
+  abort : {Abort} a
+  
+structural ability Stream a where
+  emit : a -> {Stream a} Unit
+  
+handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
+handleMulti c =
+  impl xs = cases
+    { r } -> (Some r, xs)
+    { emit x -> resume } -> handle !resume with impl (xs :+ x)
+    { abort -> _ } -> (None, xs)
+  handle !c with impl []
+```
 
 ## Non-exhaustive ability handlers are rejected
 
@@ -422,6 +437,22 @@ result : '{e, Give T} r -> {e} r
 result f = handle !f with cases
        { x } -> x
        { give A -> resume } -> result resume
+```
+
+```unison:error
+structural ability Abort where
+  abort : {Abort} a
+  
+structural ability Stream a where
+  emit : a -> {Stream a} Unit
+  
+handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
+handleMulti c =
+  impl : [a] -> Request {Stream a, Abort} r -> (Optional r, [a])
+  impl xs = cases
+    { r } -> (Some r, xs)
+    { emit x -> resume } -> handle !resume with impl (xs :+ x)
+  handle !c with impl []
 ```
 
 ## Redundant handler cases are rejected

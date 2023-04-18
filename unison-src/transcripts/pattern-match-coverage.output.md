@@ -813,6 +813,35 @@ result f =
       unique type V
 
 ```
+```unison
+structural ability Abort where
+  abort : {Abort} a
+  
+structural ability Stream a where
+  emit : a -> {Stream a} Unit
+  
+handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
+handleMulti c =
+  impl xs = cases
+    { r } -> (Some r, xs)
+    { emit x -> resume } -> handle !resume with impl (xs :+ x)
+    { abort -> _ } -> (None, xs)
+  handle !c with impl []
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability Abort
+      structural ability Stream a
+      handleMulti : '{Abort, Stream a} r -> (Optional r, [a])
+
+```
 ## Non-exhaustive ability handlers are rejected
 
 ```unison
@@ -885,6 +914,34 @@ result f = handle !f with cases
   
   Patterns not matched:
    * {give B -> _}
+
+```
+```unison
+structural ability Abort where
+  abort : {Abort} a
+  
+structural ability Stream a where
+  emit : a -> {Stream a} Unit
+  
+handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
+handleMulti c =
+  impl : [a] -> Request {Stream a, Abort} r -> (Optional r, [a])
+  impl xs = cases
+    { r } -> (Some r, xs)
+    { emit x -> resume } -> handle !resume with impl (xs :+ x)
+  handle !c with impl []
+```
+
+```ucm
+
+  Pattern match doesn't cover all possible cases:
+       10 |   impl xs = cases
+       11 |     { r } -> (Some r, xs)
+       12 |     { emit x -> resume } -> handle !resume with impl (xs :+ x)
+    
+  
+  Patterns not matched:
+   * {abort -> _}
 
 ```
 ## Redundant handler cases are rejected
@@ -1187,7 +1244,7 @@ result f =
     
       unique ability GiveA a
       unique ability GiveB a
-      result : '{e, GiveB V, GiveA V} r ->{e} r
+      result : '{e, GiveA V, GiveB V} r ->{e} r
     
     ⍟ These names already exist. You can `update` them to your
       new definition:
