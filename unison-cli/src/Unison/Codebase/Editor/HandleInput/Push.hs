@@ -694,6 +694,10 @@ makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
         Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponseNotFound -> do
         Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranchNames)
+      Share.SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable -> do
+        Cli.returnEarly (Output.RemoteProjectReleaseIsDeprecated Share.hardCodedUri remoteProjectAndBranchNames)
+      Share.SetProjectBranchHeadResponsePublishedReleaseIsImmutable -> do
+        Cli.returnEarly (Output.RemoteProjectPublishedReleaseCannotBeChanged Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponseSuccess -> do
         case pushing of
           PushingLooseCode -> pure ()
