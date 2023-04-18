@@ -12,6 +12,7 @@ module Unison.Sqlite.Connection
 
     -- *** With parameters
     execute,
+    execute2,
     executeMany,
 
     -- *** Without parameters
@@ -23,7 +24,9 @@ module Unison.Sqlite.Connection
     queryStreamRow,
     queryStreamCol,
     queryListRow,
+    queryListRow2,
     queryListCol,
+    queryListCol2,
     queryMaybeRow,
     queryMaybeCol,
     queryOneRow,
@@ -93,6 +96,7 @@ import Unison.Prelude
 import Unison.Sqlite.Connection.Internal (Connection (..))
 import Unison.Sqlite.Exception
 import Unison.Sqlite.Sql
+import Unison.Sqlite.Sql2 (Sql2 (..))
 import UnliftIO.Exception
 
 -- | Perform an action with a connection to a SQLite database.
@@ -178,6 +182,18 @@ execute conn@(Connection _ _ conn0) s params = do
           exception = SomeSqliteExceptionReason exception,
           params = Just params,
           sql = s
+        }
+
+execute2 :: Connection -> Sql2 -> IO ()
+execute2 conn@(Connection _ _ conn0) (Sql2 s params) = do
+  logQuery (Sql s) (Just params) Nothing
+  Sqlite.executeNamed conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
+    throwSqliteQueryException
+      SqliteQueryExceptionInfo
+        { connection = conn,
+          exception = SomeSqliteExceptionReason exception,
+          params = Just params,
+          sql = Sql s
         }
 
 executeMany :: (Sqlite.ToRow a) => Connection -> Sql -> [a] -> IO ()
@@ -280,9 +296,28 @@ queryListRow conn@(Connection _ _ conn0) s params = do
   logQuery s (Just params) (Just result)
   pure result
 
+queryListRow2 :: (Sqlite.FromRow a) => Connection -> Sql2 -> IO [a]
+queryListRow2 conn@(Connection _ _ conn0) (Sql2 s params) = do
+  result <-
+    Sqlite.queryNamed conn0 (coerce s) params
+      `catch` \(exception :: Sqlite.SQLError) ->
+        throwSqliteQueryException
+          SqliteQueryExceptionInfo
+            { connection = conn,
+              exception = SomeSqliteExceptionReason exception,
+              params = Just params,
+              sql = Sql s
+            }
+  logQuery (Sql s) (Just params) (Just result)
+  pure result
+
 queryListCol :: forall a b. (Sqlite.FromField b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
 queryListCol =
   coerce @(Connection -> Sql -> a -> IO [Sqlite.Only b]) @(Connection -> Sql -> a -> IO [b]) queryListRow
+
+queryListCol2 :: forall a. (Sqlite.FromField a) => Connection -> Sql2 -> IO [a]
+queryListCol2 =
+  coerce @(Connection -> Sql2 -> IO [Sqlite.Only a]) @(Connection -> Sql2 -> IO [a]) queryListRow2
 
 queryMaybeRow :: (Sqlite.ToRow a, Sqlite.FromRow b) => Connection -> Sql -> a -> IO (Maybe b)
 queryMaybeRow conn s params =
