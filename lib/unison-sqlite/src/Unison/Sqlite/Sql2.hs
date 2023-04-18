@@ -15,6 +15,7 @@ import qualified Data.Char as Char
 import Data.Generics.Labels ()
 import qualified Data.Text as Text
 import qualified Database.SQLite.Simple as Sqlite.Simple
+import qualified Database.SQLite.Simple.ToField as Sqlite.Simple
 import qualified Language.Haskell.TH as TH
 import qualified Language.Haskell.TH.Quote as TH
 import qualified Text.Builder
@@ -26,7 +27,7 @@ import Unison.Prelude
 -- | A SQL query.
 data Sql2 = Sql2
   { query :: Text,
-    params :: [Sqlite.Simple.NamedParam]
+    params :: [Sqlite.Simple.SQLData]
   }
   deriving stock (Show)
 
@@ -36,6 +37,8 @@ data Sql2 = Sql2
 -- For example, the query
 --
 -- @
+-- let qux = 5 :: Int
+--
 -- [sql2|
 --   SELECT foo
 --   FROM bar
@@ -47,12 +50,14 @@ data Sql2 = Sql2
 --
 -- @
 -- Sql2
---   { query = "SELECT foo FROM bar WHERE baz = :qux"
---   , params = [":qux" := qux]
+--   { query = "SELECT foo FROM bar WHERE baz = ?"
+--   , params = [SQLInteger 5]
 --   }
 -- @
 --
 -- which, of course, will require a @qux@ with a 'Sqlite.Simple.ToField' instance in scope.
+--
+-- There are three valid syntaxes for interpolating a variable: @:colon@, @\@at@, and @\$dollar@.
 sql2 :: TH.QuasiQuoter
 sql2 = TH.QuasiQuoter sql2QQ undefined undefined undefined
 
@@ -67,7 +72,7 @@ sql2QQ input =
               ( \var ->
                   TH.lookupValueName (Text.unpack var) >>= \case
                     Nothing -> fail ("Not in scope: " ++ Text.unpack var)
-                    Just name -> [|(Text.cons ':' var) Sqlite.Simple.:= $(TH.varE name)|]
+                    Just name -> [|Sqlite.Simple.toField $(TH.varE name)|]
               )
               params0
       [|Sql2 query $(TH.listE params)|]
@@ -79,9 +84,9 @@ internalParseSql :: Text -> Either String (Text, [Text])
 internalParseSql input =
   case runP (parser <* Megaparsec.eof) (Text.strip input) of
     Left err -> Left (Megaparsec.errorBundlePretty err)
-    Right ((), S {sql, params}) -> Right (Text.Builder.run sql, params [])
+    Right ((), S {sql, params}) -> Right (Text.Builder.run sql, reverse params)
 
--- Parser state: the SQL parsed so far, and a difference list of parameter names.
+-- Parser state: the SQL parsed so far, and a list of parameter names (in reverse order).
 --
 -- For example, if we were partway through parsing the query
 --
@@ -93,16 +98,19 @@ internalParseSql input =
 -- then we would have the state
 --
 --   S
---     { sql = "SELECT foo FROM bar WHERE baz = :bonk AND "
+--     { sql = "SELECT foo FROM bar WHERE baz = ? AND "
 --     , params = ["bonk"]
 --     }
 --
--- Why keep the SQL parsed so far: so we can make the query slightly prettier by replacing all runs of 1+ characters of
--- whitespace with a single space. This lets us write vertically aligned SQL queries at arbitrary indentations in
--- Haskell quasi-quoters, but not have to look at a bunch of "\n        " in debug logs and such.
+-- Why keep the SQL parsed so far:
+--
+--   1. We need to replace variables with question marks.
+--   2. We can make the query slightly prettier by replacing all runs of 1+ characters of whitespace with a single
+--      space. This lets us write vertically aligned SQL queries at arbitrary indentations in Haskell quasi-quoters,
+--      but not have to look at a bunch of "\n        " in debug logs and such.
 data S = S
   { sql :: !Text.Builder,
-    params :: [Text] -> [Text]
+    params :: [Text]
   }
   deriving stock (Generic)
 
@@ -111,7 +119,7 @@ type P a =
 
 runP :: P a -> Text -> Either (Megaparsec.ParseErrorBundle Text Void) (a, S)
 runP p =
-  Megaparsec.runParser (State.runStateT p (S mempty id)) ""
+  Megaparsec.runParser (State.runStateT p (S mempty [])) ""
 
 -- Parser for a SQL query (stored in the parser state).
 parser :: P ()
@@ -121,8 +129,8 @@ parser = do
       #sql <>= fragment
       parser
     Param param -> do
-      #sql <>= (Text.Builder.char ':' <> param)
-      #params %= (. (Text.Builder.run param :))
+      #sql <>= Text.Builder.char '?'
+      #params %= (Text.Builder.run param :)
       parser
     Whitespace -> do
       #sql <>= Text.Builder.char ' '
@@ -210,16 +218,18 @@ fragmentParser =
           (Just "sql")
           \c ->
             not (Char.isSpace c)
-              && c /= ':'
               && c /= '\''
               && c /= '"'
+              && c /= ':'
+              && c /= '@'
+              && c /= '$'
               && c /= '`'
               && c /= '['
       pure (Text.Builder.text xs)
 
     paramP :: P Text.Builder
     paramP = do
-      _ <- Megaparsec.char ':'
+      _ <- Megaparsec.satisfy (\c -> c == ':' || c == '@' || c == '$')
       x <- Megaparsec.satisfy (\c -> Char.isAlpha c || c == '_')
       xs <- Megaparsec.takeWhileP (Just "parameter") \c -> Char.isAlphaNum c || c == '_' || c == '\''
       pure (Text.Builder.char x <> Text.Builder.text xs)

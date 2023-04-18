@@ -88,6 +88,7 @@ where
 import Data.Bifunctor (bimap)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
+import qualified Database.SQLite3 as Direct.Sqlite
 import Debug.Pretty.Simple (pTraceShowM)
 import Debug.RecoverRTTI (anythingToString)
 import GHC.Stack (currentCallStack)
@@ -170,6 +171,38 @@ logQuery sql params result =
           callStack
         }
 
+-- Will replace `Query` when `sql2` replaces `sql` everywhere.
+data Query2 = Query2
+  { sql :: Sql,
+    params :: [Sqlite.SQLData],
+    result :: Maybe String,
+    callStack :: [String]
+  }
+
+instance Show Query2 where
+  show Query2 {sql, params, result, callStack} =
+    concat
+      [ "Query { sql = ",
+        show sql,
+        if null params then "" else ", params = " ++ show params,
+        maybe "" (\r -> ", results = " ++ show r) result,
+        if null callStack then "" else ", callStack = " ++ show callStack,
+        " }"
+      ]
+
+-- Will replace `logQuery` when `sql2` replaces `sql` everywhere.
+logQuery2 :: Sql -> [Sqlite.SQLData] -> Maybe b -> IO ()
+logQuery2 sql params result =
+  Debug.whenDebug Debug.Sqlite do
+    callStack <- currentCallStack
+    pTraceShowM
+      Query2
+        { sql,
+          params,
+          result = anythingToString <$> result,
+          callStack
+        }
+
 -- Without results, with parameters
 
 execute :: (Sqlite.ToRow a) => Connection -> Sql -> a -> IO ()
@@ -186,15 +219,21 @@ execute conn@(Connection _ _ conn0) s params = do
 
 execute2 :: Connection -> Sql2 -> IO ()
 execute2 conn@(Connection _ _ conn0) (Sql2 s params) = do
-  logQuery (Sql s) (Just params) Nothing
-  Sqlite.executeNamed conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteQueryException
+  logQuery2 (Sql s) params Nothing
+  doExecute `catch` \(exception :: Sqlite.SQLError) ->
+    throwSqliteQueryException2
       SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
           params = Just params,
           sql = Sql s
         }
+  where
+    doExecute :: IO ()
+    doExecute =
+      Sqlite.withStatement conn0 (coerce s) \(Sqlite.Statement statement) -> do
+        zipWithM_ (Direct.Sqlite.bindSQLData statement) [1 ..] params
+        void (Direct.Sqlite.step statement)
 
 executeMany :: (Sqlite.ToRow a) => Connection -> Sql -> [a] -> IO ()
 executeMany conn@(Connection _ _ conn0) s = \case
@@ -296,20 +335,31 @@ queryListRow conn@(Connection _ _ conn0) s params = do
   logQuery s (Just params) (Just result)
   pure result
 
-queryListRow2 :: (Sqlite.FromRow a) => Connection -> Sql2 -> IO [a]
+queryListRow2 :: forall a. (Sqlite.FromRow a) => Connection -> Sql2 -> IO [a]
 queryListRow2 conn@(Connection _ _ conn0) (Sql2 s params) = do
   result <-
-    Sqlite.queryNamed conn0 (coerce s) params
+    doQuery
       `catch` \(exception :: Sqlite.SQLError) ->
-        throwSqliteQueryException
+        throwSqliteQueryException2
           SqliteQueryExceptionInfo
             { connection = conn,
               exception = SomeSqliteExceptionReason exception,
               params = Just params,
               sql = Sql s
             }
-  logQuery (Sql s) (Just params) (Just result)
+  logQuery2 (Sql s) params (Just result)
   pure result
+  where
+    doQuery :: IO [a]
+    doQuery =
+      Sqlite.withStatement conn0 (coerce s) \statement -> do
+        zipWithM_ (Direct.Sqlite.bindSQLData (coerce statement)) [1 ..] params
+        let loop :: [a] -> IO [a]
+            loop rows =
+              Sqlite.nextRow statement >>= \case
+                Nothing -> pure (reverse rows)
+                Just row -> loop (row : rows)
+        loop []
 
 queryListCol :: forall a b. (Sqlite.FromField b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
 queryListCol =
