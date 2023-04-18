@@ -126,6 +126,8 @@ setProjectBranchHead request =
     Share.API.SetProjectBranchHeadResponseMissingCausalHash hash -> bugRemoteMissingCausalHash hash
     Share.API.SetProjectBranchHeadResponseExpectedCausalHashMismatch expected actual ->
       pure (SetProjectBranchHeadResponseExpectedCausalHashMismatch expected actual)
+    Share.API.SetProjectBranchHeadResponsePublishedReleaseIsImmutable -> pure SetProjectBranchHeadResponsePublishedReleaseIsImmutable
+    Share.API.SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable -> pure SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable
     Share.API.SetProjectBranchHeadResponseSuccess -> pure SetProjectBranchHeadResponseSuccess
 
 ------------------------------------------------------------------------------------------------------------------------
