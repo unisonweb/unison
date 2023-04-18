@@ -44,9 +44,13 @@ module Unison.Sqlite.Transaction
     queryListRowCheck,
     queryListColCheck,
     queryMaybeRowCheck,
+    queryMaybeRowCheck2,
     queryMaybeColCheck,
+    queryMaybeColCheck2,
     queryOneRowCheck,
+    queryOneRowCheck2,
     queryOneColCheck,
+    queryOneColCheck2,
 
     -- *** Without parameters
     queryListRow_,
@@ -331,6 +335,14 @@ queryMaybeRowCheck ::
 queryMaybeRowCheck s params check =
   Transaction \conn -> Connection.queryMaybeRowCheck conn s params check
 
+queryMaybeRowCheck2 ::
+  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  Sql2 ->
+  (a -> Either e r) ->
+  Transaction (Maybe r)
+queryMaybeRowCheck2 s check =
+  Transaction \conn -> Connection.queryMaybeRowCheck2 conn s check
+
 queryMaybeColCheck ::
   (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
@@ -339,6 +351,14 @@ queryMaybeColCheck ::
   Transaction (Maybe r)
 queryMaybeColCheck s params check =
   Transaction \conn -> Connection.queryMaybeColCheck conn s params check
+
+queryMaybeColCheck2 ::
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  Sql2 ->
+  (a -> Either e r) ->
+  Transaction (Maybe r)
+queryMaybeColCheck2 s check =
+  Transaction \conn -> Connection.queryMaybeColCheck2 conn s check
 
 queryOneRowCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
@@ -349,6 +369,14 @@ queryOneRowCheck ::
 queryOneRowCheck s params check =
   Transaction \conn -> Connection.queryOneRowCheck conn s params check
 
+queryOneRowCheck2 ::
+  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  Sql2 ->
+  (a -> Either e r) ->
+  Transaction r
+queryOneRowCheck2 s check =
+  Transaction \conn -> Connection.queryOneRowCheck2 conn s check
+
 queryOneColCheck ::
   (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
@@ -357,6 +385,14 @@ queryOneColCheck ::
   Transaction r
 queryOneColCheck s params check =
   Transaction \conn -> Connection.queryOneColCheck conn s params check
+
+queryOneColCheck2 ::
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  Sql2 ->
+  (a -> Either e r) ->
+  Transaction r
+queryOneColCheck2 s check =
+  Transaction \conn -> Connection.queryOneColCheck2 conn s check
 
 -- With results, without parameters, without checks
 

@@ -381,7 +381,8 @@ createSchema = do
   where
     insertSchemaVersionSql =
       [sql2|
-        INSERT INTO schema_version (version) VALUES (:currentSchemaVersion)
+        INSERT INTO schema_version (version)
+        VALUES (:currentSchemaVersion)
       |]
 
 addTempEntityTables :: Transaction ()
@@ -413,9 +414,12 @@ executeFile =
     . Text.pack
 
 schemaVersion :: Transaction SchemaVersion
-schemaVersion = queryOneCol_ sql
-  where
-    sql = "SELECT version from schema_version;"
+schemaVersion =
+  queryOneCol2
+    [sql2|
+      SELECT version
+      FROM schema_version
+    |]
 
 data UnexpectedSchemaVersion = UnexpectedSchemaVersion
   { actual :: SchemaVersion,
@@ -427,8 +431,8 @@ data UnexpectedSchemaVersion = UnexpectedSchemaVersion
 -- | Expect the given schema version.
 expectSchemaVersion :: SchemaVersion -> Transaction ()
 expectSchemaVersion expected =
-  queryOneColCheck_
-    [here|
+  queryOneColCheck2
+    [sql2|
       SELECT version
       FROM schema_version
     |]
@@ -445,13 +449,13 @@ setSchemaVersion schemaVersion =
 {- ORMOLU_DISABLE -}
 {- Please don't try to format the SQL blocks —AI -}
 countObjects :: Transaction Int
-countObjects = queryOneCol_ [here| SELECT COUNT(*) FROM object |]
+countObjects = queryOneCol2 [sql2| SELECT COUNT(*) FROM object |]
 
 countCausals :: Transaction Int
-countCausals = queryOneCol_ [here| SELECT COUNT(*) FROM causal |]
+countCausals = queryOneCol2 [sql2| SELECT COUNT(*) FROM causal |]
 
 countWatches :: Transaction Int
-countWatches = queryOneCol_ [here| SELECT COUNT(*) FROM watch |]
+countWatches = queryOneCol2 [sql2| SELECT COUNT(*) FROM watch |]
 
 saveHash :: Hash32 -> Transaction HashId
 saveHash hash = do
@@ -568,14 +572,18 @@ loadTextIdSql t =
   |]
 
 expectText :: TextId -> Transaction Text
-expectText h = queryOneCol loadTextSql (Only h)
+expectText h = queryOneCol2 (loadTextSql h)
 
 expectTextCheck :: SqliteExceptionReason e => TextId -> (Text -> Either e a) -> Transaction a
-expectTextCheck h = queryOneColCheck loadTextSql (Only h)
+expectTextCheck h = queryOneColCheck2 (loadTextSql h)
 
-loadTextSql :: Sql
-loadTextSql =
-  [here| SELECT text FROM text WHERE id = ? |]
+loadTextSql :: TextId -> Sql2
+loadTextSql h =
+  [sql2| 
+    SELECT text
+    FROM text
+    WHERE id = :h
+  |]
 
 saveHashObject :: HashId -> ObjectId -> HashVersion -> Transaction ()
 saveHashObject hId oId version =
@@ -609,12 +617,14 @@ saveObject hh h t blob = do
   pure oId
 
 expectObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
-expectObject oId check = do
- result <- queryOneColCheck sql (Only oId) check
- pure result
-  where sql = [here|
-  SELECT bytes FROM object WHERE id = ?
-|]
+expectObject oId check =
+  queryOneColCheck2
+    [sql2|
+      SELECT bytes
+      FROM object
+      WHERE id = :oId
+    |]
+    check
 
 loadObjectOfType ::
   SqliteExceptionReason e =>
@@ -623,19 +633,19 @@ loadObjectOfType ::
   (ByteString -> Either e a) ->
   Transaction (Maybe a)
 loadObjectOfType oid ty =
-  queryMaybeColCheck loadObjectOfTypeSql (oid, ty)
+  queryMaybeColCheck2 (loadObjectOfTypeSql oid ty) -- (oid, ty)
 
 expectObjectOfType :: SqliteExceptionReason e => ObjectId -> ObjectType -> (ByteString -> Either e a) -> Transaction a
 expectObjectOfType oid ty =
-  queryOneColCheck loadObjectOfTypeSql (oid, ty)
+  queryOneColCheck2 (loadObjectOfTypeSql oid ty)
 
-loadObjectOfTypeSql :: Sql
-loadObjectOfTypeSql =
-  [here|
+loadObjectOfTypeSql :: ObjectId -> ObjectType -> Sql2
+loadObjectOfTypeSql oid ty =
+  [sql2|
     SELECT bytes
     FROM object
-    WHERE id = ?
-      AND type_id = ?
+    WHERE id = :oid
+      AND type_id = :ty
   |]
 
 -- | Load a decl component object.
@@ -688,10 +698,14 @@ expectPrimaryHashIdForObject oId = do
     |]
 
 expectObjectWithType :: SqliteExceptionReason e => ObjectId -> (ObjectType -> ByteString -> Either e a) -> Transaction a
-expectObjectWithType oId check = queryOneRowCheck sql (Only oId) (\(typ, bytes) -> check typ bytes)
-  where sql = [here|
-    SELECT type_id, bytes FROM object WHERE id = ?
-  |]
+expectObjectWithType oId check =
+  queryOneRowCheck2
+    [sql2|
+      SELECT type_id, bytes
+      FROM object
+      WHERE id = :oId
+    |]
+    (\(typ, bytes) -> check typ bytes)
 
 expectObjectWithHashIdAndType :: ObjectId -> Transaction (HashId, ObjectType, ByteString)
 expectObjectWithHashIdAndType oId =
@@ -928,23 +942,21 @@ tryMoveTempEntityDependents hh dependency = do
 expectCausal :: CausalHashId -> Transaction Causal.SyncCausalFormat
 expectCausal hashId = do
   valueHash <-
-    queryOneCol
-      [here|
+    queryOneCol2
+      [sql2|
         SELECT value_hash_id
         FROM causal
-        WHERE self_hash_id = ?
+        WHERE self_hash_id = :hashId
       |]
-      (Only hashId)
   parents <-
     fmap Vector.fromList do
       -- is the random ordering from the database ok? (seems so, for now)
-      queryListCol
-        [here|
+      queryListCol2
+        [sql2|
           SELECT parent_id
           FROM causal_parent
-          WHERE causal_id = ?
+          WHERE causal_id = :hashId
         |]
-        (Only hashId)
   pure Causal.SyncCausalFormat {parents, valueHash}
 
 -- | Read an entity out of main storage.
@@ -965,17 +977,17 @@ expectEntity hash = do
 -- | Read an entity out of temp storage.
 expectTempEntity :: Hash32 -> Transaction TempEntity
 expectTempEntity hash = do
-  queryOneRowCheck sql (Only hash) \(blob, typeId) ->
+  queryOneRowCheck2 sql \(blob, typeId) ->
     case typeId of
       TempEntityType.TermComponentType -> Entity.TC <$> decodeTempTermFormat blob
       TempEntityType.DeclComponentType -> Entity.DC <$> decodeTempDeclFormat blob
       TempEntityType.NamespaceType -> Entity.N <$> decodeTempNamespaceFormat blob
       TempEntityType.PatchType -> Entity.P <$> decodeTempPatchFormat blob
       TempEntityType.CausalType -> Entity.C <$> decodeTempCausalFormat blob
-  where sql = [here|
+  where sql = [sql2|
     SELECT blob, type_id
     FROM temp_entity
-    WHERE hash = ?
+    WHERE hash = :hash
   |]
 
 {- ORMOLU_ENABLE -}
@@ -1218,15 +1230,14 @@ loadCausalParents h =
 -- | Like 'loadCausalParents', but the input and outputs are hashes, not hash ids.
 loadCausalParentsByHash :: Hash32 -> Transaction [Hash32]
 loadCausalParentsByHash hash =
-  queryListCol
-    [here|
+  queryListCol2
+    [sql2|
       SELECT h2.base32
       FROM causal_parent cp
       JOIN hash h1 ON cp.causal_id = h1.id
       JOIN hash h2 ON cp.parent_id = h2.id
-      WHERE h1.base32 = ? COLLATE NOCASE
+      WHERE h1.base32 = :hash COLLATE NOCASE
     |]
-    (Only hash)
 
 expectNamespaceRootBranchHashId :: Transaction BranchHashId
 expectNamespaceRootBranchHashId = do
@@ -1235,22 +1246,22 @@ expectNamespaceRootBranchHashId = do
 
 expectNamespaceRoot :: Transaction CausalHashId
 expectNamespaceRoot =
-  queryOneCol_ loadNamespaceRootSql
+  queryOneCol2 loadNamespaceRootSql
 
 loadNamespaceRoot :: Transaction (Maybe CausalHashId)
 loadNamespaceRoot =
-  queryMaybeCol_ loadNamespaceRootSql
+  queryMaybeCol2 loadNamespaceRootSql
 
-loadNamespaceRootSql :: Sql
+loadNamespaceRootSql :: Sql2
 loadNamespaceRootSql =
-  [here|
+  [sql2|
     SELECT causal_id
     FROM namespace_root
   |]
 
 setNamespaceRoot :: CausalHashId -> Transaction ()
 setNamespaceRoot id =
-  queryOneCol_ "SELECT EXISTS (SELECT 1 FROM namespace_root)" >>= \case
+  queryOneCol2 [sql2| SELECT EXISTS (SELECT 1 FROM namespace_root) |] >>= \case
     False -> execute2 [sql2| INSERT INTO namespace_root VALUES (:id) |]
     True -> execute2 [sql2| UPDATE namespace_root SET causal_id = :id |]
 
@@ -1717,11 +1728,15 @@ namespaceHashIdByBase32Prefix prefix =
 -- Although there are plans to support this in the future, currently all such cases
 -- are the result of database inconsistencies and are unexpected.
 getCausalsWithoutBranchObjects :: Transaction [CausalHashId]
-getCausalsWithoutBranchObjects = queryListCol_ sql
-  where sql = [here|
-    SELECT self_hash_id from causal
-    WHERE value_hash_id NOT IN (SELECT hash_id FROM hash_object)
-|]
+getCausalsWithoutBranchObjects =
+  queryListCol2
+    [sql2|
+      SELECT self_hash_id from causal
+      WHERE value_hash_id NOT IN (
+        SELECT hash_id
+        FROM hash_object
+      )
+    |]
 
 {- ORMOLU_ENABLE -}
 
@@ -2294,13 +2309,12 @@ checkBranchExistsForCausalHash ch = do
 --   2. The entity does not already exist in `temp_entity`.
 insertTempEntity :: Hash32 -> TempEntity -> NEMap Hash32 Text -> Transaction ()
 insertTempEntity entityHash entity missingDependencies = do
-  execute
-    [here|
+  execute2
+    [sql2|
       INSERT INTO temp_entity (hash, blob, type_id)
-      VALUES (?, ?, ?)
+      VALUES (:entityHash, :entityBlob, :entityType)
       ON CONFLICT DO NOTHING
     |]
-    (entityHash, entityBlob, entityType)
 
   executeMany
     [here|
@@ -2320,13 +2334,12 @@ insertTempEntity entityHash entity missingDependencies = do
 -- | Delete a row from the `temp_entity` table, if it exists.
 deleteTempEntity :: Hash32 -> Transaction ()
 deleteTempEntity hash =
-  execute
-    [here|
+  execute2
+    [sql2|
       DELETE
       FROM temp_entity
-      WHERE hash = ?
+      WHERE hash = :hash
     |]
-    (Only hash)
 
 -- | "Elaborate" a set of `temp_entity` hashes.
 --
@@ -2831,28 +2844,26 @@ getReflog numEntries =
 -- | Does a project exist with this id?
 projectExists :: ProjectId -> Transaction Bool
 projectExists projectId =
-  queryOneCol
-    [sql|
+  queryOneCol2
+    [sql2|
       SELECT EXISTS (
         SELECT 1
         FROM project
-        WHERE id = ?
+        WHERE id = :projectId
       )
     |]
-    (Only projectId)
 
 -- | Does a project exist by this name?
 projectExistsByName :: ProjectName -> Transaction Bool
 projectExistsByName name =
-  queryOneCol
-    [sql|
+  queryOneCol2
+    [sql2|
       SELECT EXISTS (
         SELECT 1
         FROM project
-        WHERE name = ?
+        WHERE name = :name
       )
     |]
-    (Only name)
 
 loadProject :: ProjectId -> Transaction (Maybe Project)
 loadProject pid = queryMaybeRow2 (loadProjectSql pid)
@@ -2888,8 +2899,8 @@ loadProjectByName name =
 -- | Load all projects.
 loadAllProjects :: Transaction [Project]
 loadAllProjects =
-  queryListRow_
-    [sql|
+  queryListRow2
+    [sql2|
       SELECT id, name
       FROM project
       ORDER BY name ASC
@@ -2907,8 +2918,8 @@ insertProject uuid name =
 -- | Does a project branch exist by this name?
 projectBranchExistsByName :: ProjectId -> ProjectBranchName -> Transaction Bool
 projectBranchExistsByName projectId name =
-  queryOneCol
-    [sql|
+  queryOneCol2
+    [sql2|
       SELECT
         EXISTS (
           SELECT
@@ -2916,10 +2927,9 @@ projectBranchExistsByName projectId name =
           FROM
             project_branch
           WHERE
-            project_id = ?
-            AND name = ?)
+            project_id = :projectId
+            AND name = :name)
     |]
-    (projectId, name)
 
 loadProjectBranch :: ProjectId -> ProjectBranchId -> Transaction (Maybe ProjectBranch)
 loadProjectBranch projectId branchId =
@@ -2989,8 +2999,8 @@ loadProjectBranchByNames projectName branchName =
 loadAllProjectBranchInfo :: ProjectId -> Transaction (Map ProjectBranchName (Map URI (ProjectName, ProjectBranchName)))
 loadAllProjectBranchInfo projectId =
   fmap postprocess $
-    queryListRow
-      [sql|
+    queryListRow2
+      [sql2|
         SELECT
           pb.name AS local_branch_name,
           rpb.host AS host,
@@ -3002,10 +3012,9 @@ loadAllProjectBranchInfo projectId =
         LEFT JOIN remote_project AS rp ON pbrm.remote_project_id = rp.id
         LEFT JOIN remote_project_branch AS rpb ON pbrm.remote_project_id = rpb.project_id
           AND pbrm.remote_branch_id = rpb.branch_id
-        WHERE pb.project_id = ?
+        WHERE pb.project_id = :projectId
         ORDER BY local_branch_name ASC, host ASC, remote_project_name ASC, remote_branch_name ASC
       |]
-      (Only projectId)
   where
     -- Each input tuple is the local branch name, plus either:
     --
@@ -3059,19 +3068,17 @@ loadProjectAndBranchNames projectId branchId =
 -- | Insert a project branch.
 insertProjectBranch :: ProjectBranch -> Transaction ()
 insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
-  execute
-    [sql|
+  execute2
+    [sql2|
       INSERT INTO project_branch (project_id, branch_id, name)
-        VALUES (?, ?, ?)
+        VALUES (:projectId, :branchId, :branchName)
     |]
-    (projectId, branchId, branchName)
   whenJust maybeParentBranchId \parentBranchId ->
-    execute
-      [sql|
+    execute2
+      [sql2|
         INSERT INTO project_branch_parent (project_id, parent_branch_id, branch_id)
-          VALUES (?, ?, ?)
+          VALUES (:projectId, :parentBranchId, :branchId)
       |]
-      (projectId, parentBranchId, branchId)
 
 -- | Delete a project branch.
 --
@@ -3096,19 +3103,17 @@ deleteProjectBranch projectId branchId = do
   -- If the branch being deleted has a parent, then reparent its children. Otherwise, the 'on delete cascade' foreign
   -- key from `project_branch_parent` will take care of deleting its children's parent entries.
   whenJust maybeParentBranchId \parentBranchId ->
-    execute
-      [sql|
+    execute2
+      [sql2|
         UPDATE project_branch_parent
-        SET parent_branch_id = ?
-        WHERE project_id = ? AND parent_branch_id = ?
+        SET parent_branch_id = :parentBranchId
+        WHERE project_id = :projectId AND parent_branch_id = :branchId
       |]
-      (parentBranchId, projectId, branchId)
-  execute
-    [sql|
+  execute2
+    [sql2|
       DELETE FROM project_branch
-      WHERE project_id = ? AND branch_id = ?
+      WHERE project_id = :projectId AND branch_id = :branchId
     |]
-    (projectId, branchId)
 
 data LoadRemoteBranchFlag
   = IncludeSelfRemote
@@ -3203,7 +3208,7 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
         ORDER BY
           depth
         LIMIT 1
-        |]
+      |]
 
     whereClause :: Text
     whereClause =
@@ -3237,50 +3242,47 @@ loadRemoteProject rpid host =
 
 ensureRemoteProject :: RemoteProjectId -> URI -> ProjectName -> Transaction ()
 ensureRemoteProject rpid host name =
-  execute
-    [sql|
+  execute2
+    [sql2|
       INSERT INTO remote_project (
         id,
         host,
         name)
       VALUES (
-        ?,
-        ?,
-        ?)
+        :rpid,
+        :host,
+        :name)
       ON CONFLICT (
         id,
         host)
         -- should this update the name instead?
         DO NOTHING
-        |]
-    (rpid, host, name)
+    |]
 
 expectRemoteProjectName :: RemoteProjectId -> URI -> Transaction ProjectName
 expectRemoteProjectName projectId host =
-  queryOneCol
-    [sql|
+  queryOneCol2
+    [sql2|
       SELECT
         name
       FROM
         remote_project
       WHERE
-        id = ?
-        AND host = ?
+        id = :projectId
+        AND host = :host
     |]
-    (projectId, host)
 
 setRemoteProjectName :: RemoteProjectId -> ProjectName -> Transaction ()
 setRemoteProjectName rpid name =
-  execute
-    [sql|
+  execute2
+    [sql2|
       UPDATE
         remote_project
       SET
-        name = ?
+        name = :name
       WHERE
-        id = ?
-        |]
-    (name, rpid)
+        id = :rpid
+    |]
 
 loadRemoteBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> Transaction (Maybe RemoteProjectBranch)
 loadRemoteBranch rpid host rbid =
@@ -3301,18 +3303,18 @@ loadRemoteBranch rpid host rbid =
 
 ensureRemoteProjectBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> ProjectBranchName -> Transaction ()
 ensureRemoteProjectBranch rpid host rbid name =
-  execute
-    [sql|
+  execute2
+    [sql2|
       INSERT INTO remote_project_branch (
         project_id,
         host,
         branch_id,
         name)
       VALUES (
-        ?,
-        ?,
-        ?,
-        ?)
+        :rpid,
+        :host,
+        :rbid,
+        :name)
       ON CONFLICT (
         project_id,
         branch_id,
@@ -3320,37 +3322,34 @@ ensureRemoteProjectBranch rpid host rbid name =
         -- should this update the name instead?
         DO NOTHING
         |]
-    (rpid, host, rbid, name)
 
 expectRemoteProjectBranchName :: URI -> RemoteProjectId -> RemoteProjectBranchId -> Transaction ProjectBranchName
 expectRemoteProjectBranchName host projectId branchId =
-  queryOneCol
-    [sql|
+  queryOneCol2
+    [sql2|
       SELECT
         name
       FROM
         remote_project_branch
       WHERE
-        host = ?
-        AND project_id = ?
-        AND branch_id = ?
+        host = :host
+        AND project_id = :projectId
+        AND branch_id = :branchId
     |]
-    (host, projectId, branchId)
 
 setRemoteProjectBranchName :: RemoteProjectId -> URI -> RemoteProjectBranchId -> ProjectBranchName -> Transaction ()
 setRemoteProjectBranchName rpid host rbid name =
-  execute
-    [sql|
+  execute2
+    [sql2|
       UPDATE
         remote_project_branch
       SET
-        name = ?
+        name = :name
       WHERE
-        project_id = ?
-        AND host = ?
-        AND branch_id = ?
-        |]
-    (name, rpid, host, rbid)
+        project_id = :rpid
+        AND host = :host
+        AND branch_id = :rbid
+    |]
 
 insertBranchRemoteMapping ::
   ProjectId ->
@@ -3360,8 +3359,8 @@ insertBranchRemoteMapping ::
   RemoteProjectBranchId ->
   Transaction ()
 insertBranchRemoteMapping pid bid rpid host rbid =
-  execute
-    [sql|
+  execute2
+    [sql2|
       INSERT INTO project_branch_remote_mapping (
         local_project_id,
         local_branch_id,
@@ -3369,13 +3368,12 @@ insertBranchRemoteMapping pid bid rpid host rbid =
         remote_branch_id,
         remote_host)
       VALUES (
-        ?,
-        ?,
-        ?,
-        ?,
-        ?)
+        :pid,
+        :bid,
+        :rpid,
+        :rbid,
+        :host)
         |]
-    (pid, bid, rpid, rbid, host)
 
 ensureBranchRemoteMapping ::
   ProjectId ->
@@ -3385,8 +3383,8 @@ ensureBranchRemoteMapping ::
   RemoteProjectBranchId ->
   Transaction ()
 ensureBranchRemoteMapping pid bid rpid host rbid =
-  execute
-    [sql|
+  execute2
+    [sql2|
       INSERT INTO project_branch_remote_mapping (
         local_project_id,
         local_branch_id,
@@ -3394,18 +3392,17 @@ ensureBranchRemoteMapping pid bid rpid host rbid =
         remote_branch_id,
         remote_host)
       VALUES (
-        ?,
-        ?,
-        ?,
-        ?,
-        ?)
+        :pid,
+        :bid,
+        :rpid,
+        :rbid,
+        :host)
       ON CONFLICT (
         local_project_id,
         local_branch_id,
         remote_host)
         DO NOTHING
-        |]
-    (pid, bid, rpid, rbid, host)
+    |]
 
 -- | Convert reversed name segments into glob for searching based on suffix
 --
