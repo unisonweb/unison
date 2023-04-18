@@ -171,6 +171,38 @@ logQuery sql params result =
           callStack
         }
 
+-- Will replace `Query` when `sql2` replaces `sql` everywhere.
+data Query2 = Query2
+  { sql :: Sql,
+    params :: [Sqlite.SQLData],
+    result :: Maybe String,
+    callStack :: [String]
+  }
+
+instance Show Query2 where
+  show Query2 {sql, params, result, callStack} =
+    concat
+      [ "Query { sql = ",
+        show sql,
+        if null params then "" else ", params = " ++ show params,
+        maybe "" (\r -> ", results = " ++ show r) result,
+        if null callStack then "" else ", callStack = " ++ show callStack,
+        " }"
+      ]
+
+-- Will replace `logQuery` when `sql2` replaces `sql` everywhere.
+logQuery2 :: Sql -> [Sqlite.SQLData] -> Maybe b -> IO ()
+logQuery2 sql params result =
+  Debug.whenDebug Debug.Sqlite do
+    callStack <- currentCallStack
+    pTraceShowM
+      Query2
+        { sql,
+          params,
+          result = anythingToString <$> result,
+          callStack
+        }
+
 -- Without results, with parameters
 
 execute :: (Sqlite.ToRow a) => Connection -> Sql -> a -> IO ()
@@ -187,9 +219,9 @@ execute conn@(Connection _ _ conn0) s params = do
 
 execute2 :: Connection -> Sql2 -> IO ()
 execute2 conn@(Connection _ _ conn0) (Sql2 s params) = do
-  logQuery (Sql s) (Just params) Nothing
+  logQuery2 (Sql s) params Nothing
   doExecute `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteQueryException
+    throwSqliteQueryException2
       SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
@@ -308,14 +340,14 @@ queryListRow2 conn@(Connection _ _ conn0) (Sql2 s params) = do
   result <-
     doQuery
       `catch` \(exception :: Sqlite.SQLError) ->
-        throwSqliteQueryException
+        throwSqliteQueryException2
           SqliteQueryExceptionInfo
             { connection = conn,
               exception = SomeSqliteExceptionReason exception,
               params = Just params,
               sql = Sql s
             }
-  logQuery (Sql s) (Just params) (Just result)
+  logQuery2 (Sql s) params (Just result)
   pure result
   where
     doQuery :: IO [a]

@@ -16,6 +16,7 @@ module Unison.Sqlite.Exception
     isSqliteBusyException,
     SqliteQueryExceptionInfo (..),
     throwSqliteQueryException,
+    throwSqliteQueryException2,
     SomeSqliteExceptionReason (..),
     SqliteExceptionReason,
   )
@@ -147,6 +148,21 @@ throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, param
     SqliteQueryException
       { sql,
         params = maybe "" anythingToString params,
+        exception,
+        callStack,
+        connection,
+        threadId
+      }
+
+-- Will replace `throwSqliteQueryException` when `sql2` replaces `sql` everywhere.
+throwSqliteQueryException2 :: SqliteQueryExceptionInfo [Sqlite.SQLData] -> IO a
+throwSqliteQueryException2 SqliteQueryExceptionInfo {connection, exception, params, sql} = do
+  threadId <- myThreadId
+  callStack <- currentCallStack
+  throwIO
+    SqliteQueryException
+      { sql,
+        params = show (fromMaybe [] params),
         exception,
         callStack,
         connection,
