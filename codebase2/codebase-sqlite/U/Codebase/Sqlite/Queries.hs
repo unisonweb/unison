@@ -2771,14 +2771,12 @@ saveNamespaceStats bhId stats = do
 -- computed and saved stats for any given branch.
 loadNamespaceStatsByHashId :: BranchHashId -> Transaction (Maybe NamespaceStats)
 loadNamespaceStatsByHashId bhId = do
-  queryMaybeRow sql (Only bhId)
-  where
-    sql =
-      [here|
-        SELECT num_contained_terms, num_contained_types, num_contained_patches
-        FROM namespace_statistics
-        WHERE namespace_hash_id = ?
-      |]
+  queryMaybeRow2
+    [sql2|
+      SELECT num_contained_terms, num_contained_types, num_contained_patches
+      FROM namespace_statistics
+      WHERE namespace_hash_id = :bhId
+    |]
 
 appendReflog :: Reflog.Entry CausalHashId Text -> Transaction ()
 appendReflog entry = execute sql entry
@@ -2844,17 +2842,16 @@ loadProjectSql =
 
 loadProjectByName :: ProjectName -> Transaction (Maybe Project)
 loadProjectByName name =
-  queryMaybeRow
-    [sql|
+  queryMaybeRow2
+    [sql2|
       SELECT
         id,
         name
       FROM
         project
       WHERE
-        name = ?
+        name = :name
     |]
-    (Only name)
 
 -- | Load all projects.
 loadAllProjects :: Transaction [Project]
@@ -2919,8 +2916,8 @@ loadProjectBranchSql =
 
 loadProjectBranchByName :: ProjectId -> ProjectBranchName -> Transaction (Maybe ProjectBranch)
 loadProjectBranchByName projectId name =
-  queryMaybeRow
-    [sql|
+  queryMaybeRow2
+    [sql2|
       SELECT
         project_branch.project_id,
         project_branch.branch_id,
@@ -2931,15 +2928,14 @@ loadProjectBranchByName projectId name =
         LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
           AND project_branch.branch_id = project_branch_parent.branch_id
       WHERE
-        project_branch.project_id = ?
-        AND project_branch.name = ?
+        project_branch.project_id = :projectId
+        AND project_branch.name = :name
     |]
-    (projectId, name)
 
 loadProjectBranchByNames :: ProjectName -> ProjectBranchName -> Transaction (Maybe ProjectBranch)
 loadProjectBranchByNames projectName branchName =
-  queryMaybeRow
-    [sql|
+  queryMaybeRow2
+    [sql2|
       SELECT
         project_branch.project_id,
         project_branch.branch_id,
@@ -2951,10 +2947,9 @@ loadProjectBranchByNames projectName branchName =
         LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
           AND project_branch.branch_id = project_branch_parent.branch_id
       WHERE
-        project.name = ?
-        AND project_branch.name = ?
+        project.name = :projectName
+        AND project_branch.name = :branchName
     |]
-    (projectName, branchName)
 
 -- | Load info about all branches in a project, for display by the @branches@ command.
 --
@@ -3016,8 +3011,8 @@ loadAllProjectBranchInfo projectId =
 
 loadProjectAndBranchNames :: ProjectId -> ProjectBranchId -> Transaction (Maybe (ProjectName, ProjectBranchName))
 loadProjectAndBranchNames projectId branchId =
-  queryMaybeRow
-    [sql|
+  queryMaybeRow2
+    [sql2|
       SELECT
         project.name,
         project_branch.name
@@ -3025,10 +3020,9 @@ loadProjectAndBranchNames projectId branchId =
         project
         JOIN project_branch ON project.id = project_branch.project_id
       WHERE
-        project_branch.project_id = ?
-        AND project_branch.branch_id = ?
+        project_branch.project_id = :projectId
+        AND project_branch.branch_id = :branchId
     |]
-    (projectId, branchId)
 
 -- | Insert a project branch.
 insertProjectBranch :: ProjectBranch -> Transaction ()
@@ -3197,8 +3191,8 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
 
 loadRemoteProject :: RemoteProjectId -> URI -> Transaction (Maybe RemoteProject)
 loadRemoteProject rpid host =
-  queryMaybeRow
-    [sql|
+  queryMaybeRow2
+    [sql2|
       SELECT
         id,
         host,
@@ -3206,10 +3200,9 @@ loadRemoteProject rpid host =
       FROM
         remote_project
       WHERE
-        id = ?
-        and host = ?
+        id = :rpid
+        and host = :host
     |]
-    (rpid, host)
 
 ensureRemoteProject :: RemoteProjectId -> URI -> ProjectName -> Transaction ()
 ensureRemoteProject rpid host name =
@@ -3260,8 +3253,8 @@ setRemoteProjectName rpid name =
 
 loadRemoteBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> Transaction (Maybe RemoteProjectBranch)
 loadRemoteBranch rpid host rbid =
-  queryMaybeRow
-    [sql|
+  queryMaybeRow2
+    [sql2|
       SELECT
         project_id,
         branch_id,
@@ -3270,11 +3263,10 @@ loadRemoteBranch rpid host rbid =
       FROM
         remote_project_branch
       WHERE
-        project_id = ?
-        AND branch_id = ?
-        AND host = ?
+        project_id = :rpid
+        AND branch_id = :rbid
+        AND host = :host
     |]
-    (rpid, rbid, host)
 
 ensureRemoteProjectBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> ProjectBranchName -> Transaction ()
 ensureRemoteProjectBranch rpid host rbid name =
