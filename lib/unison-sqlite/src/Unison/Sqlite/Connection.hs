@@ -28,6 +28,7 @@ module Unison.Sqlite.Connection
     queryListCol,
     queryListCol2,
     queryMaybeRow,
+    queryMaybeRow2,
     queryMaybeCol,
     queryOneRow,
     queryOneCol,
@@ -376,6 +377,13 @@ queryMaybeRow conn s params =
     [x] -> Right (Just x)
     xs -> Left (ExpectedAtMostOneRowException (anythingToString xs))
 
+queryMaybeRow2 :: (Sqlite.FromRow a) => Connection -> Sql2 -> IO (Maybe a)
+queryMaybeRow2 conn s =
+  queryListRowCheck2 conn s \case
+    [] -> Right Nothing
+    [x] -> Right (Just x)
+    xs -> Left (ExpectedAtMostOneRowException (anythingToString xs))
+
 queryMaybeCol :: forall a b. (Sqlite.ToRow a, Sqlite.FromField b) => Connection -> Sql -> a -> IO (Maybe b)
 queryMaybeCol conn s params =
   coerce @(IO (Maybe (Sqlite.Only b))) @(IO (Maybe b)) (queryMaybeRow conn s params)
@@ -402,6 +410,15 @@ queryListRowCheck ::
 queryListRowCheck conn s params check =
   gqueryListCheck conn s params (mapLeft SomeSqliteExceptionReason . check)
 
+queryListRowCheck2 ::
+  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  Connection ->
+  Sql2 ->
+  ([a] -> Either e r) ->
+  IO r
+queryListRowCheck2 conn s check =
+  gqueryListCheck2 conn s (mapLeft SomeSqliteExceptionReason . check)
+
 gqueryListCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a) =>
   Connection ->
@@ -419,6 +436,25 @@ gqueryListCheck conn s params check = do
             exception,
             params = Just params,
             sql = s
+          }
+    Right result -> pure result
+
+gqueryListCheck2 ::
+  (Sqlite.FromRow a) =>
+  Connection ->
+  Sql2 ->
+  ([a] -> Either SomeSqliteExceptionReason r) ->
+  IO r
+gqueryListCheck2 conn s@(Sql2 sql params) check = do
+  xs <- queryListRow2 conn s
+  case check xs of
+    Left exception ->
+      throwSqliteQueryException2
+        SqliteQueryExceptionInfo
+          { connection = conn,
+            exception,
+            params = Just params,
+            sql = Sql sql
           }
     Right result -> pure result
 
