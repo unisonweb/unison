@@ -435,9 +435,12 @@ expectSchemaVersion expected =
     (\actual -> if actual /= expected then Left UnexpectedSchemaVersion {actual, expected} else Right ())
 
 setSchemaVersion :: SchemaVersion -> Transaction ()
-setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
-  where
-    sql = "UPDATE schema_version SET version = ?"
+setSchemaVersion schemaVersion =
+  execute2
+    [sql2|
+      UPDATE schema_version
+      SET version = :schemaVersion
+    |]
 
 {- ORMOLU_DISABLE -}
 {- Please don't try to format the SQL blocks —AI -}
@@ -451,11 +454,13 @@ countWatches :: Transaction Int
 countWatches = queryOneCol_ [here| SELECT COUNT(*) FROM watch |]
 
 saveHash :: Hash32 -> Transaction HashId
-saveHash hash = execute sql (Only hash) >> expectHashId hash
-  where sql = [here|
-    INSERT INTO hash (base32) VALUES (?)
-    ON CONFLICT DO NOTHING
-  |]
+saveHash hash = do
+  execute2
+    [sql2|
+      INSERT INTO hash (base32) VALUES (:hash)
+      ON CONFLICT DO NOTHING
+    |]
+  expectHashId hash
 
 saveHashes :: Traversable f => f Hash32 -> Transaction (f HashId)
 saveHashes hashes = do
@@ -560,12 +565,13 @@ loadTextSql =
   [here| SELECT text FROM text WHERE id = ? |]
 
 saveHashObject :: HashId -> ObjectId -> HashVersion -> Transaction ()
-saveHashObject hId oId version = execute sql (hId, oId, version) where
-  sql = [here|
-    INSERT INTO hash_object (hash_id, object_id, hash_version)
-    VALUES (?, ?, ?)
-    ON CONFLICT DO NOTHING
-  |]
+saveHashObject hId oId version =
+  execute2
+    [sql2|
+      INSERT INTO hash_object (hash_id, object_id, hash_version)
+      VALUES (:hId, :oId, :version)
+      ON CONFLICT DO NOTHING
+    |]
 
 saveObject ::
   HashHandle ->
@@ -574,7 +580,13 @@ saveObject ::
   ByteString ->
   Transaction ObjectId
 saveObject hh h t blob = do
-  oId <- execute sql (h, t, blob) >> expectObjectIdForPrimaryHashId h
+  execute2
+    [sql2|
+      INSERT INTO object (primary_hash_id, type_id, bytes)
+      VALUES (:h, :t, :blob)
+      ON CONFLICT DO NOTHING
+    |]
+  oId <- expectObjectIdForPrimaryHashId h
   saveHashObject h oId 2 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
   rowsModified >>= \case
     0 -> pure ()
@@ -582,12 +594,6 @@ saveObject hh h t blob = do
       hash <- expectHash32 h
       tryMoveTempEntityDependents hh hash
   pure oId
-  where
-  sql = [here|
-    INSERT INTO object (primary_hash_id, type_id, bytes)
-    VALUES (?, ?, ?)
-    ON CONFLICT DO NOTHING
-  |]
 
 expectObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectObject oId check = do
@@ -811,12 +817,11 @@ hashIdWithVersionForObject = queryListRow sql . Only where sql = [here|
 -- This function rewrites @old@'s @hash_object@ rows in place to point at the new object.
 recordObjectRehash :: ObjectId -> ObjectId -> Transaction ()
 recordObjectRehash old new =
-  execute sql (new, old)
-  where
-    sql = [here|
+  execute2
+    [sql2|
       UPDATE hash_object
-      SET object_id = ?
-      WHERE object_id = ?
+      SET object_id = :new
+      WHERE object_id = :old
     |]
 
 -- |Maybe we would generalize this to something other than NamespaceHash if we
@@ -828,21 +833,22 @@ saveCausal ::
   [CausalHashId] ->
   Transaction ()
 saveCausal hh self value parents = do
-  execute insertCausalSql (self, value)
+  execute2
+    [sql2|
+      INSERT INTO causal (self_hash_id, value_hash_id)
+      VALUES (:self, :value)
+      ON CONFLICT DO NOTHING
+    |]
   rowsModified >>= \case
     0 -> pure ()
     _ -> do
-      executeMany insertCausalParentsSql (fmap (self,) parents)
+      for_ parents \parent ->
+        execute2
+          [sql2|
+            INSERT INTO causal_parent (causal_id, parent_id)
+            VALUES (:self, :parent)
+          |]
       flushCausalDependents hh self
-  where
-    insertCausalSql = [here|
-      INSERT INTO causal (self_hash_id, value_hash_id)
-      VALUES (?, ?)
-      ON CONFLICT DO NOTHING
-    |]
-    insertCausalParentsSql = [here|
-      INSERT INTO causal_parent (causal_id, parent_id) VALUES (?, ?)
-    |]
 
 flushCausalDependents ::
   HashHandle ->
@@ -1204,11 +1210,8 @@ loadNamespaceRootSql =
 setNamespaceRoot :: CausalHashId -> Transaction ()
 setNamespaceRoot id =
   queryOneCol_ "SELECT EXISTS (SELECT 1 FROM namespace_root)" >>= \case
-    False -> execute insert (Only id)
-    True -> execute update (Only id)
-  where
-    insert = "INSERT INTO namespace_root VALUES (?)"
-    update = "UPDATE namespace_root SET causal_id = ?"
+    False -> execute2 [sql2| INSERT INTO namespace_root VALUES (:id) |]
+    True -> execute2 [sql2| UPDATE namespace_root SET causal_id = :id |]
 
 saveWatch :: WatchKind -> Reference.IdH -> ByteString -> Transaction ()
 saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)
@@ -1258,8 +1261,8 @@ loadWatchesByWatchKind k = queryListRow sql (Only k) where sql = [here|
 -- | Delete all watches that were put by 'putWatch'.
 clearWatches :: Transaction ()
 clearWatches = do
-  execute_ "DELETE FROM watch_result"
-  execute_ "DELETE FROM watch"
+  execute2 [sql2| DELETE FROM watch_result |]
+  execute2 [sql2| DELETE FROM watch |]
 
 -- * Index-building
 addToTypeIndex :: Reference' TextId HashId -> Referent.Id -> Transaction ()
@@ -1364,8 +1367,8 @@ fixupTypeIndexRow (rh :. ri) = (rh, ri)
 -- references to objects that do not have any corresponding hash_object rows.
 garbageCollectObjectsWithoutHashes :: Transaction ()
 garbageCollectObjectsWithoutHashes = do
-  execute_
-    [here|
+  execute2
+    [sql2|
       CREATE TEMPORARY TABLE object_without_hash AS
         SELECT id
         FROM object
@@ -1374,37 +1377,37 @@ garbageCollectObjectsWithoutHashes = do
           FROM hash_object
         )
     |]
-  execute_
-    [here|
+  execute2
+    [sql2|
       DELETE FROM dependents_index
       WHERE dependency_object_id IN object_without_hash
         OR dependent_object_id IN object_without_hash
     |]
-  execute_
-    [here|
+  execute2
+    [sql2|
       DELETE FROM find_type_index
       WHERE term_referent_object_id IN object_without_hash
     |]
-  execute_
-    [here|
+  execute2
+    [sql2|
       DELETE FROM find_type_mentions_index
       WHERE term_referent_object_id IN object_without_hash
     |]
-  execute_
-    [here|
+  execute2
+    [sql2|
       DELETE FROM object
       WHERE id IN object_without_hash
     |]
-  execute_
-    [here|
+  execute2
+    [sql2|
       DROP TABLE object_without_hash
     |]
 
 -- | Delete all
 garbageCollectWatchesWithoutObjects :: Transaction ()
 garbageCollectWatchesWithoutObjects = do
-  execute_
-    [here|
+  execute2
+    [sql2|
       DELETE FROM watch
       WHERE watch.hash_id NOT IN
       (SELECT hash_object.hash_id FROM hash_object)
@@ -1666,49 +1669,47 @@ getCausalsWithoutBranchObjects = queryListCol_ sql
 -- Leaves the corresponding `hash`es in the hash table alone.
 removeHashObjectsByHashingVersion :: HashVersion -> Transaction ()
 removeHashObjectsByHashingVersion hashVersion =
-  execute sql (Only hashVersion)
-  where
-    sql =
-      [here|
-    DELETE FROM hash_object
-      WHERE hash_version = ?
-|]
+  execute2
+    [sql2|
+      DELETE FROM hash_object
+      WHERE hash_version = :hashVersion
+    |]
 
 -- | Not used in typical operations, but if we ever end up in a situation where a bug
 -- has caused the name lookup index to go out of sync this can be used to get back to a clean
 -- slate.
 dropNameLookupTables :: Transaction ()
 dropNameLookupTables = do
-  execute_
-    [here|
-    DROP TABLE IF EXISTS term_name_lookup
-  |]
-  execute_
-    [here|
-    DROP TABLE IF EXISTS type_name_lookup
-  |]
+  execute2
+    [sql2|
+      DROP TABLE IF EXISTS term_name_lookup
+    |]
+  execute2
+    [sql2|
+      DROP TABLE IF EXISTS type_name_lookup
+    |]
 
 -- | Copies existing name lookup rows but replaces their branch hash id;
 -- This is a low-level operation used as part of deriving a new name lookup index
 -- from an existing one as performantly as possible.
 copyScopedNameLookup :: BranchHashId -> BranchHashId -> Transaction ()
 copyScopedNameLookup fromBHId toBHId = do
-  execute termsCopySql (toBHId, fromBHId)
-  execute typesCopySql (toBHId, fromBHId)
+  execute2 termsCopySql
+  execute2 typesCopySql
   where
     termsCopySql =
-      [here|
+      [sql2|
         INSERT INTO scoped_term_name_lookup(root_branch_hash_id, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
-        SELECT ?, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        SELECT :toBHId, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
         FROM scoped_term_name_lookup
-        WHERE root_branch_hash_id = ?
+        WHERE root_branch_hash_id = :fromBHId
       |]
     typesCopySql =
-      [here|
+      [sql2|
         INSERT INTO scoped_type_name_lookup(root_branch_hash_id, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index)
-        SELECT ?, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index
+        SELECT :toBHId, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index
         FROM scoped_type_name_lookup
-        WHERE root_branch_hash_id = ?
+        WHERE root_branch_hash_id = :fromBHId
       |]
 
 -- | Delete the specified name lookup.
@@ -1716,24 +1717,20 @@ copyScopedNameLookup fromBHId toBHId = do
 -- the same transaction.
 deleteNameLookup :: BranchHashId -> Transaction ()
 deleteNameLookup bhId = do
-  execute sql (Only bhId)
-  where
-    sql =
-      [here|
-        DELETE FROM name_lookups
-        WHERE root_branch_hash_id = ?
-      |]
+  execute2
+    [sql2|
+      DELETE FROM name_lookups
+      WHERE root_branch_hash_id = :bhId
+    |]
 
 -- | Inserts a new record into the name_lookups table
 trackNewBranchHashNameLookup :: BranchHashId -> Transaction ()
 trackNewBranchHashNameLookup bhId = do
-  execute sql (Only bhId)
-  where
-    sql =
-      [here|
-        INSERT INTO name_lookups (root_branch_hash_id)
-        VALUES (?)
-      |]
+  execute2
+    [sql2|
+      INSERT INTO name_lookups (root_branch_hash_id)
+      VALUES (:bhId)
+    |]
 
 -- | Check if we've already got an index for the desired root branch hash.
 checkBranchHashNameLookupExists :: BranchHashId -> Transaction Bool
@@ -2842,13 +2839,12 @@ loadAllProjects =
 
 -- | Insert a `project` row.
 insertProject :: ProjectId -> ProjectName -> Transaction ()
-insertProject uuid name = execute bonk (uuid, name)
-  where
-    bonk =
-      [sql|
-        INSERT INTO project (id, name)
-          VALUES (?, ?)
-      |]
+insertProject uuid name =
+  execute2
+    [sql2|
+      INSERT INTO project (id, name)
+      VALUES (:uuid, :name)
+    |]
 
 -- | Does a project branch exist by this name?
 projectBranchExistsByName :: ProjectId -> ProjectBranchName -> Transaction Bool
