@@ -30,6 +30,7 @@ module Unison.Sqlite.Connection
     queryMaybeRow,
     queryMaybeRow2,
     queryMaybeCol,
+    queryMaybeCol2,
     queryOneRow,
     queryOneCol,
     queryManyListRow,
@@ -387,6 +388,10 @@ queryMaybeRow2 conn s =
 queryMaybeCol :: forall a b. (Sqlite.ToRow a, Sqlite.FromField b) => Connection -> Sql -> a -> IO (Maybe b)
 queryMaybeCol conn s params =
   coerce @(IO (Maybe (Sqlite.Only b))) @(IO (Maybe b)) (queryMaybeRow conn s params)
+
+queryMaybeCol2 :: forall a. (Sqlite.FromField a) => Connection -> Sql2 -> IO (Maybe a)
+queryMaybeCol2 conn s =
+  coerce @(IO (Maybe (Sqlite.Only a))) @(IO (Maybe a)) (queryMaybeRow2 conn s)
 
 queryOneRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO b
 queryOneRow conn s params =

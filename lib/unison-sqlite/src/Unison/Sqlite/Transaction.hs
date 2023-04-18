@@ -33,6 +33,7 @@ module Unison.Sqlite.Transaction
     queryMaybeRow,
     queryMaybeRow2,
     queryMaybeCol,
+    queryMaybeCol2,
     queryOneRow,
     queryOneCol,
     queryManyListRow,
@@ -278,6 +279,10 @@ queryMaybeRow2 s =
 queryMaybeCol :: (Sqlite.FromField a, Sqlite.ToRow b) => Sql -> b -> Transaction (Maybe a)
 queryMaybeCol s params =
   Transaction \conn -> Connection.queryMaybeCol conn s params
+
+queryMaybeCol2 :: (Sqlite.FromField a) => Sql2 -> Transaction (Maybe a)
+queryMaybeCol2 s =
+  Transaction \conn -> Connection.queryMaybeCol2 conn s
 
 queryOneRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Sql -> a -> Transaction b
 queryOneRow s params =

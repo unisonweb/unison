@@ -55,6 +55,7 @@ module Unison.Sqlite
     queryMaybeRow,
     queryMaybeRow2,
     queryMaybeCol,
+    queryMaybeCol2,
     queryOneRow,
     queryOneCol,
     queryManyListRow,
