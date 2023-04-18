@@ -32,7 +32,7 @@ zonk = 0
 
 .> project.create foo
 
-  I just created project foo with branch main
+  I just created project foo with branch main.
 
 .> merge foo foo/main
 
@@ -74,7 +74,7 @@ foo/main> add
 ```ucm
 .> project.create bar
 
-  I just created project bar with branch main
+  I just created project bar with branch main.
 
 bar/main> merge foo/main
 
@@ -93,7 +93,7 @@ bar/main> merge foo/main
 
 bar/main> branch /topic
 
-  Done. I've created the topic branch based off of main
+  Done. I've created the topic branch based off of main.
   
   Tip: Use `merge /topic /main` to merge your work back into the
        main branch.

@@ -1820,22 +1820,29 @@ notifyUser dir = \case
     pure . P.warnCallout . P.wrap $
       P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
   CreatedProject projectName branchName ->
-    pure . P.wrap $
-      "I just created project"
-        <> prettyProjectName projectName
-        <> "with branch"
-        <> prettyProjectBranchName branchName
+    pure $
+      P.wrap
+        ( "I just created project"
+            <> prettyProjectName projectName
+            <> "with branch"
+            <> prettyProjectBranchName branchName
+        )
+        <> "."
   CreatedProjectBranch from projectAndBranch ->
     case from of
       CreatedProjectBranchFrom'LooseCode path ->
-        pure . P.wrap $
-          "Done. I've created the"
-            <> prettyProjectAndBranchName projectAndBranch
-            <> "branch from the namespace"
-            <> prettyAbsolute path
+        pure $
+          P.wrap
+            ( "Done. I've created the"
+                <> prettyProjectAndBranchName projectAndBranch
+                <> "branch from the namespace"
+                <> prettyAbsolute path
+            )
+            <> "."
       CreatedProjectBranchFrom'Nothingness ->
         pure $
           P.wrap ("Done. I've created an empty branch" <> prettyProjectAndBranchName projectAndBranch)
+            <> "."
             <> P.newline
             <> P.newline
             <> tip
@@ -1848,11 +1855,14 @@ notifyUser dir = \case
                   <> "to initialize this branch."
               )
       CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch otherProject otherBranch) ->
-        pure . P.wrap $
-          "Done. I've created the"
-            <> prettyProjectAndBranchName projectAndBranch
-            <> "branch based off"
-            <> prettyProjectAndBranchName (ProjectAndBranch (otherProject ^. #name) (otherBranch ^. #name))
+        pure $
+          P.wrap
+            ( "Done. I've created the"
+                <> prettyProjectAndBranchName projectAndBranch
+                <> "branch based off"
+                <> prettyProjectAndBranchName (ProjectAndBranch (otherProject ^. #name) (otherBranch ^. #name))
+            )
+            <> "."
       CreatedProjectBranchFrom'ParentBranch parentBranch ->
         pure $
           P.wrap
@@ -1861,6 +1871,7 @@ notifyUser dir = \case
                 <> "branch based off of"
                 <> prettyProjectBranchName parentBranch
             )
+            <> "."
             <> P.newline
             <> P.newline
             <> tip
