@@ -475,14 +475,18 @@ saveHashHash :: Hash -> Transaction HashId
 saveHashHash = saveHash . Hash32.fromHash
 
 loadHashId :: Hash32 -> Transaction (Maybe HashId)
-loadHashId hash = queryMaybeCol loadHashIdSql (Only hash)
+loadHashId hash = queryMaybeCol2 (loadHashIdSql hash)
 
 expectHashId :: Hash32 -> Transaction HashId
-expectHashId hash = queryOneCol loadHashIdSql (Only hash)
+expectHashId hash = queryOneCol2 (loadHashIdSql hash)
 
-loadHashIdSql :: Sql
-loadHashIdSql =
-  [here| SELECT id FROM hash WHERE base32 = ? COLLATE NOCASE |]
+loadHashIdSql :: Hash32 -> Sql2
+loadHashIdSql hash =
+  [sql2|
+    SELECT id
+    FROM hash
+    WHERE base32 = :hash COLLATE NOCASE
+  |]
 
 loadHashIdByHash :: Hash -> Transaction (Maybe HashId)
 loadHashIdByHash = loadHashId . Hash32.fromHash
@@ -522,8 +526,13 @@ expectHash :: HashId -> Transaction Hash
 expectHash h = Hash32.toHash <$> expectHash32 h
 
 expectHash32 :: HashId -> Transaction Hash32
-expectHash32 h = queryOneCol sql (Only h)
-  where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
+expectHash32 h =
+  queryOneCol2
+    [sql2|
+      SELECT base32
+      FROM hash
+      WHERE id = :h
+    |]
 
 expectBranchHash :: BranchHashId -> Transaction BranchHash
 expectBranchHash = coerce expectHash
@@ -545,14 +554,18 @@ saveTextSql =
   |]
 
 loadTextId :: Text -> Transaction (Maybe TextId)
-loadTextId t = queryMaybeCol loadTextIdSql (Only t)
+loadTextId t = queryMaybeCol2 (loadTextIdSql t)
 
 expectTextId :: Text -> Transaction TextId
-expectTextId t = queryOneCol loadTextIdSql (Only t)
+expectTextId t = queryOneCol2 (loadTextIdSql t)
 
-loadTextIdSql :: Sql
-loadTextIdSql =
-  [here| SELECT id FROM text WHERE text = ? |]
+loadTextIdSql :: Text -> Sql2
+loadTextIdSql t =
+  [sql2|
+    SELECT id
+    FROM text
+    WHERE text = :t
+  |]
 
 expectText :: TextId -> Transaction Text
 expectText h = queryOneCol loadTextSql (Only h)
@@ -667,9 +680,12 @@ expectTermObject oid =
 
 expectPrimaryHashIdForObject :: ObjectId -> Transaction HashId
 expectPrimaryHashIdForObject oId = do
-  queryOneCol sql (Only oId)
-  where
-    sql = "SELECT primary_hash_id FROM object WHERE id = ?"
+  queryOneCol2
+    [sql2|
+      SELECT primary_hash_id
+      FROM object
+      WHERE id = :oId
+    |]
 
 expectObjectWithType :: SqliteExceptionReason e => ObjectId -> (ObjectType -> ByteString -> Either e a) -> Transaction a
 expectObjectWithType oId check = queryOneRowCheck sql (Only oId) (\(typ, bytes) -> check typ bytes)
@@ -678,26 +694,29 @@ expectObjectWithType oId check = queryOneRowCheck sql (Only oId) (\(typ, bytes) 
   |]
 
 expectObjectWithHashIdAndType :: ObjectId -> Transaction (HashId, ObjectType, ByteString)
-expectObjectWithHashIdAndType oId = queryOneRow sql (Only oId)
-  where sql = [here|
-    SELECT primary_hash_id, type_id, bytes FROM object WHERE id = ?
-  |]
+expectObjectWithHashIdAndType oId =
+  queryOneRow2
+    [sql2|
+      SELECT primary_hash_id, type_id, bytes
+      FROM object
+      WHERE id = :oId
+    |]
 
 loadObjectIdForPrimaryHashId :: HashId -> Transaction (Maybe ObjectId)
 loadObjectIdForPrimaryHashId h =
-  queryMaybeCol loadObjectIdForPrimaryHashIdSql (Only h)
+  queryMaybeCol2 (loadObjectIdForPrimaryHashIdSql h)
 
 -- | Not all hashes have corresponding objects; e.g., hashes of term types
 expectObjectIdForPrimaryHashId :: HashId -> Transaction ObjectId
 expectObjectIdForPrimaryHashId h =
-  queryOneCol loadObjectIdForPrimaryHashIdSql (Only h)
+  queryOneCol2 (loadObjectIdForPrimaryHashIdSql h)
 
-loadObjectIdForPrimaryHashIdSql :: Sql
-loadObjectIdForPrimaryHashIdSql =
-  [here|
+loadObjectIdForPrimaryHashIdSql :: HashId -> Sql2
+loadObjectIdForPrimaryHashIdSql h =
+  [sql2|
     SELECT id
     FROM object
-    WHERE primary_hash_id = ?
+    WHERE primary_hash_id = :h
   |]
 
 loadObjectIdForPrimaryHash :: Hash -> Transaction (Maybe ObjectId)
@@ -712,14 +731,13 @@ expectObjectIdForPrimaryHash =
 
 expectObjectIdForHash32 :: Hash32 -> Transaction ObjectId
 expectObjectIdForHash32 hash = do
-  queryOneCol
-    [here|
+  queryOneCol2
+    [sql2|
       SELECT object.id
       FROM object
       JOIN hash ON object.primary_hash_id = hash.id
-      WHERE hash.base32 = ? COLLATE NOCASE
+      WHERE hash.base32 = :hash COLLATE NOCASE
     |]
-    (Only hash)
 
 expectBranchObjectIdForHash32 :: Hash32 -> Transaction BranchObjectId
 expectBranchObjectIdForHash32 =
@@ -730,29 +748,27 @@ expectPatchObjectIdForHash32 =
   fmap PatchObjectId . expectObjectIdForHash32
 
 expectBranchHashIdForHash32 :: Hash32 -> Transaction BranchHashId
-expectBranchHashIdForHash32 = queryOneCol sql . Only
-  where
-    sql =
-      [here|
-        SELECT hash.id FROM object
-        INNER JOIN hash_object ON hash_object.object_id = object.id
-        INNER JOIN hash ON hash_object.hash_id = hash.id
-        WHERE object.type_id = 2
-          AND hash.base32 = ? COLLATE NOCASE
-      |]
+expectBranchHashIdForHash32 hash =
+  queryOneCol2
+    [sql2|
+      SELECT hash.id FROM object
+      INNER JOIN hash_object ON hash_object.object_id = object.id
+      INNER JOIN hash ON hash_object.hash_id = hash.id
+      WHERE object.type_id = 2
+        AND hash.base32 = :hash COLLATE NOCASE
+    |]
 
 expectBranchHashId :: BranchHash -> Transaction BranchHashId
 expectBranchHashId = expectBranchHashIdForHash32 . Hash32.fromHash . unBranchHash
 
 expectCausalHashIdForHash32 :: Hash32 -> Transaction CausalHashId
-expectCausalHashIdForHash32 = queryOneCol sql . Only
-  where
-    sql =
-      [here|
-        SELECT self_hash_id
-        FROM causal INNER JOIN hash ON hash.id = self_hash_id
-        WHERE base32 = ? COLLATE NOCASE
-      |]
+expectCausalHashIdForHash32 hash =
+  queryOneCol2
+    [sql2|
+      SELECT self_hash_id
+      FROM causal INNER JOIN hash ON hash.id = self_hash_id
+      WHERE base32 = :hash COLLATE NOCASE
+    |]
 
 loadPatchObjectIdForPrimaryHash :: PatchHash -> Transaction (Maybe PatchObjectId)
 loadPatchObjectIdForPrimaryHash =
@@ -766,24 +782,31 @@ loadObjectIdForAnyHash h =
 
 loadObjectIdForAnyHashId :: HashId -> Transaction (Maybe ObjectId)
 loadObjectIdForAnyHashId h =
-  queryMaybeCol loadObjectIdForAnyHashIdSql (Only h)
+  queryMaybeCol2 (loadObjectIdForAnyHashIdSql h)
 
 expectObjectIdForAnyHashId :: HashId -> Transaction ObjectId
 expectObjectIdForAnyHashId h =
-  queryOneCol loadObjectIdForAnyHashIdSql (Only h)
+  queryOneCol2 (loadObjectIdForAnyHashIdSql h)
 
-loadObjectIdForAnyHashIdSql :: Sql
-loadObjectIdForAnyHashIdSql =
-  [here| SELECT object_id FROM hash_object WHERE hash_id = ? |]
+loadObjectIdForAnyHashIdSql :: HashId -> Sql2
+loadObjectIdForAnyHashIdSql h =
+  [sql2|
+    SELECT object_id
+    FROM hash_object
+    WHERE hash_id = :h
+  |]
 
 -- | Does a hash correspond to an object?
 isObjectHash :: HashId -> Transaction Bool
 isObjectHash h =
-  queryOneCol sql (Only h)
-  where
-    sql = [here|
-      SELECT EXISTS (SELECT 1 FROM object WHERE primary_hash_id = ?)
-    |]
+  queryOneCol2
+    [sql2|
+      SELECT EXISTS (
+        SELECT 1
+        FROM object
+        WHERE primary_hash_id = :h
+      )
+    |] -- sql (Only h)
 
 -- | All objects have corresponding hashes.
 expectPrimaryHashByObjectId :: ObjectId -> Transaction Hash
@@ -791,20 +814,19 @@ expectPrimaryHashByObjectId =
   fmap Hash32.toHash . expectPrimaryHash32ByObjectId
 
 expectPrimaryHash32ByObjectId :: ObjectId -> Transaction Hash32
-expectPrimaryHash32ByObjectId oId = queryOneCol sql (Only oId)
- where sql = [here|
-  SELECT hash.base32
-  FROM hash INNER JOIN object ON object.primary_hash_id = hash.id
-  WHERE object.id = ?
-|]
+expectPrimaryHash32ByObjectId oId =
+  queryOneCol2
+    [sql2|
+      SELECT hash.base32
+      FROM hash INNER JOIN object ON object.primary_hash_id = hash.id
+      WHERE object.id = :oId
+    |]
 
 expectHashIdsForObject :: ObjectId -> Transaction (NonEmpty HashId)
 expectHashIdsForObject oId = do
-  primaryHashId <- queryOneCol sql1 (Only oId)
+  primaryHashId <- queryOneCol2 [sql2| SELECT primary_hash_id FROM object WHERE id = :oId |] -- sql1 (Only oId)
   hashIds <- queryListCol2 [sql2| SELECT hash_id FROM hash_object WHERE object_id = :oId |]
   pure $ primaryHashId Nel.:| filter (/= primaryHashId) hashIds
-  where
-    sql1 = "SELECT primary_hash_id FROM object WHERE id = ?"
 
 hashIdWithVersionForObject :: ObjectId -> Transaction [(HashId, HashVersion)]
 hashIdWithVersionForObject oId =
@@ -889,17 +911,19 @@ tryMoveTempEntityDependents hh dependency = do
         False -> pure ()
 
     readyToFlush :: Hash32 -> Transaction Bool
-    readyToFlush hash = queryOneCol [here|
-      SELECT EXISTS (
-        SELECT 1
-        FROM temp_entity
-        WHERE hash = ?
-      ) AND NOT EXISTS (
-        SELECT 1
-        FROM temp_entity_missing_dependency
-        WHERE dependent = ?
-      )
-    |] (hash, hash)
+    readyToFlush hash =
+      queryOneCol2
+        [sql2|
+          SELECT EXISTS (
+            SELECT 1
+            FROM temp_entity
+            WHERE hash = :hash
+          ) AND NOT EXISTS (
+            SELECT 1
+            FROM temp_entity_missing_dependency
+            WHERE dependent = :hash
+          )
+        |]
 
 expectCausal :: CausalHashId -> Transaction Causal.SyncCausalFormat
 expectCausal hashId = do
@@ -1120,49 +1144,59 @@ syncToTempEntity = \case
 
 expectCausalValueHashId :: CausalHashId -> Transaction BranchHashId
 expectCausalValueHashId (CausalHashId id) =
-  queryOneCol loadCausalValueHashIdSql (Only id)
+  queryOneCol2 (loadCausalValueHashIdSql id) -- (Only id)
 
 expectCausalHash :: CausalHashId -> Transaction CausalHash
 expectCausalHash = coerce expectHash
 
 loadCausalValueHashId :: HashId -> Transaction (Maybe BranchHashId)
 loadCausalValueHashId id =
-  queryMaybeCol loadCausalValueHashIdSql (Only id)
+  queryMaybeCol2 (loadCausalValueHashIdSql id)
 
-loadCausalValueHashIdSql :: Sql
-loadCausalValueHashIdSql =
-  [here| SELECT value_hash_id FROM causal WHERE self_hash_id = ? |]
-
-isCausalHash :: HashId -> Transaction Bool
-isCausalHash = queryOneCol sql . Only where sql = [here|
-    SELECT EXISTS (SELECT 1 FROM causal WHERE self_hash_id = ?)
+loadCausalValueHashIdSql :: HashId -> Sql2
+loadCausalValueHashIdSql id =
+  [sql2|
+    SELECT value_hash_id
+    FROM causal
+    WHERE self_hash_id = :id
   |]
 
+isCausalHash :: HashId -> Transaction Bool
+isCausalHash hash =
+  queryOneCol2
+    [sql2|
+      SELECT EXISTS (
+        SELECT 1
+        FROM causal
+        WHERE self_hash_id = :hash
+      )
+    |]
+
 loadBranchObjectIdByCausalHashId :: CausalHashId -> Transaction (Maybe BranchObjectId)
-loadBranchObjectIdByCausalHashId id = queryMaybeCol loadBranchObjectIdByCausalHashIdSql (Only id)
+loadBranchObjectIdByCausalHashId id = queryMaybeCol2 (loadBranchObjectIdByCausalHashIdSql id)
 
 expectBranchObjectIdByCausalHashId :: CausalHashId -> Transaction BranchObjectId
-expectBranchObjectIdByCausalHashId id = queryOneCol loadBranchObjectIdByCausalHashIdSql (Only id)
+expectBranchObjectIdByCausalHashId id = queryOneCol2 (loadBranchObjectIdByCausalHashIdSql id)
 
-loadBranchObjectIdByCausalHashIdSql :: Sql
-loadBranchObjectIdByCausalHashIdSql =
-  [here|
+loadBranchObjectIdByCausalHashIdSql :: CausalHashId -> Sql2
+loadBranchObjectIdByCausalHashIdSql id =
+  [sql2|
     SELECT object_id FROM hash_object
     INNER JOIN causal ON hash_id = causal.value_hash_id
-    WHERE causal.self_hash_id = ?
+    WHERE causal.self_hash_id = :id
   |]
 
 expectBranchObjectIdByBranchHashId :: BranchHashId -> Transaction BranchObjectId
-expectBranchObjectIdByBranchHashId id = queryOneCol loadBranchObjectIdByBranchHashIdSql (Only id)
+expectBranchObjectIdByBranchHashId id = queryOneCol2 (loadBranchObjectIdByBranchHashIdSql id)
 
 loadBranchObjectIdByBranchHashId :: BranchHashId -> Transaction (Maybe BranchObjectId)
-loadBranchObjectIdByBranchHashId id = queryMaybeCol loadBranchObjectIdByBranchHashIdSql (Only id)
+loadBranchObjectIdByBranchHashId id = queryMaybeCol2 (loadBranchObjectIdByBranchHashIdSql id)
 
-loadBranchObjectIdByBranchHashIdSql :: Sql
-loadBranchObjectIdByBranchHashIdSql =
-  [here|
+loadBranchObjectIdByBranchHashIdSql :: BranchHashId -> Sql2
+loadBranchObjectIdByBranchHashIdSql id =
+  [sql2|
     SELECT object_id FROM hash_object
-    WHERE hash_id = ?
+    WHERE hash_id = :id
   |]
 
 saveCausalParents :: CausalHashId -> [CausalHashId] -> Transaction ()
@@ -1761,17 +1795,15 @@ trackNewBranchHashNameLookup bhId = do
 -- | Check if we've already got an index for the desired root branch hash.
 checkBranchHashNameLookupExists :: BranchHashId -> Transaction Bool
 checkBranchHashNameLookupExists hashId = do
-  queryOneCol sql (Only hashId)
-  where
-    sql =
-      [here|
-        SELECT EXISTS (
-          SELECT 1
-          FROM name_lookups
-          WHERE root_branch_hash_id = ?
-          LIMIT 1
-        )
-       |]
+  queryOneCol2
+    [sql2|
+      SELECT EXISTS (
+        SELECT 1
+        FROM name_lookups
+        WHERE root_branch_hash_id = :hashId
+        LIMIT 1
+      )
+    |]
 
 -- | Insert the given set of term names into the name lookup table
 insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
@@ -2226,8 +2258,8 @@ entityLocation hash =
   entityExists hash >>= \case
     True -> pure (Just EntityInMainStorage)
     False -> do
-      let sql = [here|SELECT EXISTS (SELECT 1 FROM temp_entity WHERE hash = ?)|]
-      queryOneCol sql (Only hash) <&> \case
+      let sql = [sql2| SELECT EXISTS (SELECT 1 FROM temp_entity WHERE hash = :hash) |]
+      queryOneCol2 sql <&> \case
         True -> Just EntityInTempStorage
         False -> Nothing
 
@@ -2245,15 +2277,15 @@ checkBranchExistsForCausalHash :: CausalHash -> Transaction Bool
 checkBranchExistsForCausalHash ch = do
   loadCausalHashIdByCausalHash ch >>= \case
     Nothing -> pure False
-    Just chId -> queryOneCol sql (Only chId)
-  where
-    sql =
-      [here|
-      SELECT EXISTS
-      ( SELECT 1 FROM causal c JOIN object o ON c.value_hash_id = o.primary_hash_id
-        WHERE c.self_hash_id = ?
-      )
-      |]
+    Just chId ->
+      queryOneCol2
+        [sql2|
+          SELECT EXISTS (
+            SELECT 1
+            FROM causal c JOIN object o ON c.value_hash_id = o.primary_hash_id
+            WHERE c.self_hash_id = :chId
+          )
+        |]
 
 -- | Insert a new `temp_entity` row, and its associated 1+ `temp_entity_missing_dependency` rows.
 --
@@ -2823,21 +2855,21 @@ projectExistsByName name =
     (Only name)
 
 loadProject :: ProjectId -> Transaction (Maybe Project)
-loadProject pid = queryMaybeRow loadProjectSql (Only pid)
+loadProject pid = queryMaybeRow2 (loadProjectSql pid)
 
 expectProject :: ProjectId -> Transaction Project
-expectProject pid = queryOneRow loadProjectSql (Only pid)
+expectProject pid = queryOneRow2 (loadProjectSql pid)
 
-loadProjectSql :: Sql
-loadProjectSql =
-  [sql|
+loadProjectSql :: ProjectId -> Sql2
+loadProjectSql pid =
+  [sql2|
     SELECT
       id,
       name
     FROM
       project
     WHERE
-      id = ?
+      id = :pid
   |]
 
 loadProjectByName :: ProjectName -> Transaction (Maybe Project)
@@ -2890,16 +2922,16 @@ projectBranchExistsByName projectId name =
     (projectId, name)
 
 loadProjectBranch :: ProjectId -> ProjectBranchId -> Transaction (Maybe ProjectBranch)
-loadProjectBranch pid bid =
-  queryMaybeRow loadProjectBranchSql (pid, bid)
+loadProjectBranch projectId branchId =
+  queryMaybeRow2 (loadProjectBranchSql projectId branchId)
 
 expectProjectBranch :: ProjectId -> ProjectBranchId -> Transaction ProjectBranch
 expectProjectBranch projectId branchId =
-  queryOneRow loadProjectBranchSql (projectId, branchId)
+  queryOneRow2 (loadProjectBranchSql projectId branchId)
 
-loadProjectBranchSql :: Sql
-loadProjectBranchSql =
-  [sql|
+loadProjectBranchSql :: ProjectId -> ProjectBranchId -> Sql2
+loadProjectBranchSql projectId branchId =
+  [sql2|
     SELECT
       project_branch.project_id,
       project_branch.branch_id,
@@ -2910,8 +2942,8 @@ loadProjectBranchSql =
       LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
         AND project_branch.branch_id = project_branch_parent.branch_id
     WHERE
-      project_branch.project_id = ?
-      AND project_branch.branch_id = ?
+      project_branch.project_id = :projectId
+      AND project_branch.branch_id = :branchId
   |]
 
 loadProjectBranchByName :: ProjectId -> ProjectBranchName -> Transaction (Maybe ProjectBranch)

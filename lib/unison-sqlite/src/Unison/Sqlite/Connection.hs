@@ -32,7 +32,9 @@ module Unison.Sqlite.Connection
     queryMaybeCol,
     queryMaybeCol2,
     queryOneRow,
+    queryOneRow2,
     queryOneCol,
+    queryOneCol2,
     queryManyListRow,
 
     -- **** With checks
@@ -399,9 +401,19 @@ queryOneRow conn s params =
     [x] -> Right x
     xs -> Left (ExpectedExactlyOneRowException (anythingToString xs))
 
+queryOneRow2 :: (Sqlite.FromRow a) => Connection -> Sql2 -> IO a
+queryOneRow2 conn s =
+  queryListRowCheck2 conn s \case
+    [x] -> Right x
+    xs -> Left (ExpectedExactlyOneRowException (anythingToString xs))
+
 queryOneCol :: forall a b. (Sqlite.FromField b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO b
 queryOneCol conn s params = do
   coerce @(IO (Sqlite.Only b)) @(IO b) (queryOneRow conn s params)
+
+queryOneCol2 :: forall a. (Sqlite.FromField a) => Connection -> Sql2 -> IO a
+queryOneCol2 conn s = do
+  coerce @(IO (Sqlite.Only a)) @(IO a) (queryOneRow2 conn s)
 
 -- With results, with parameters, with checks
 
