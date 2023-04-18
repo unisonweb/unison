@@ -1368,7 +1368,7 @@ loop e = do
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
             BranchesI -> handleBranches
-            BranchI maybeSource name -> handleBranch maybeSource name
+            BranchI source name -> handleBranch source name
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"

@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
+    BranchSourceI (..),
     DiffNamespaceToPatchInput (..),
     GistInput (..),
     PullSourceTarget (..),
@@ -225,8 +226,16 @@ data Input
   | ProjectSwitchI (These ProjectName ProjectBranchName)
   | ProjectsI
   | BranchesI
-  | BranchI (Maybe LooseCodeOrProject) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   deriving (Eq, Show)
+
+-- | The source of a `branch` command: what to make the new branch from.
+data BranchSourceI
+  = -- | Create a branch from the current context
+    BranchSourceI'CurrentContext
+  | -- | Create a branch from this loose-code-or-project
+    BranchSourceI'LooseCodeOrProject LooseCodeOrProject
+  deriving stock (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
   { -- The first/earlier namespace.
