@@ -233,6 +233,8 @@ data Input
 data BranchSourceI
   = -- | Create a branch from the current context
     BranchSourceI'CurrentContext
+  | -- | Create an empty branch
+    BranchSourceI'Empty
   | -- | Create a branch from this loose-code-or-project
     BranchSourceI'LooseCodeOrProject LooseCodeOrProject
   deriving stock (Eq, Show)

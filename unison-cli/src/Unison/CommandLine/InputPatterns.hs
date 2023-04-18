@@ -2398,6 +2398,22 @@ branchInputPattern =
         _ -> Left (showPatternHelp branchInputPattern)
     }
 
+branchEmptyInputPattern :: InputPattern
+branchEmptyInputPattern =
+  InputPattern
+    { patternName = "branch.empty",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectAndBranchNamesArg)],
+      help = P.wrap "Create a new empty branch.",
+      parse = \case
+        [name] ->
+          first (\_ -> showPatternHelp branchEmptyInputPattern) do
+            projectAndBranch <- tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name)
+            Right (Input.BranchI Input.BranchSourceI'Empty projectAndBranch)
+        _ -> Left (showPatternHelp branchEmptyInputPattern)
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2410,6 +2426,7 @@ validInputs =
       authLogin,
       back,
       branchInputPattern,
+      branchEmptyInputPattern,
       branches,
       cd,
       clear,

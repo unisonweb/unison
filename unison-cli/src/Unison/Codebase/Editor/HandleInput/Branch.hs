@@ -43,6 +43,7 @@ handleBranch sourceI projectAndBranchNames0 = do
         ProjectUtils.getCurrentProjectBranch >>= \case
           Nothing -> CreateFrom'LooseCode <$> Cli.getCurrentPath
           Just currentBranch -> pure (CreateFrom'Branch currentBranch)
+      Input.BranchSourceI'Empty -> pure CreateFrom'Nothingness
       Input.BranchSourceI'LooseCodeOrProject (This sourcePath) -> do
         currentPath <- Cli.getCurrentPath
         pure (CreateFrom'LooseCode (Path.resolve currentPath sourcePath))
