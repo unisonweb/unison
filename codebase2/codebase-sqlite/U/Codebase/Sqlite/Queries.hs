@@ -801,11 +801,10 @@ expectPrimaryHash32ByObjectId oId = queryOneCol sql (Only oId)
 expectHashIdsForObject :: ObjectId -> Transaction (NonEmpty HashId)
 expectHashIdsForObject oId = do
   primaryHashId <- queryOneCol sql1 (Only oId)
-  hashIds <- queryListCol sql2 (Only oId)
+  hashIds <- queryListCol2 [sql2| SELECT hash_id FROM hash_object WHERE object_id = :oId |]
   pure $ primaryHashId Nel.:| filter (/= primaryHashId) hashIds
   where
     sql1 = "SELECT primary_hash_id FROM object WHERE id = ?"
-    sql2 = "SELECT hash_id FROM hash_object WHERE object_id = ?"
 
 hashIdWithVersionForObject :: ObjectId -> Transaction [(HashId, HashVersion)]
 hashIdWithVersionForObject oId =
@@ -1174,9 +1173,13 @@ saveCausalParents child parents = executeMany sql $ (child,) <$> parents where
   |]
 
 loadCausalParents :: CausalHashId -> Transaction [CausalHashId]
-loadCausalParents h = queryListCol sql (Only h) where sql = [here|
-  SELECT parent_id FROM causal_parent WHERE causal_id = ?
-|]
+loadCausalParents h =
+  queryListCol2
+    [sql2|
+      SELECT parent_id
+      FROM causal_parent
+      WHERE causal_id = :h
+    |]
 
 -- | Like 'loadCausalParents', but the input and outputs are hashes, not hash ids.
 loadCausalParentsByHash :: Hash32 -> Transaction [Hash32]
@@ -1546,7 +1549,7 @@ getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
 -- ...then `getDependenciesBetweenTerms A B` would return the set {X Y Z}
 getDependenciesBetweenTerms :: ObjectId -> ObjectId -> Transaction (Set ObjectId)
 getDependenciesBetweenTerms oid1 oid2 =
-  queryListCol sql (oid1, oid2, oid2) <&> Set.fromList
+  queryListCol2 sql <&> Set.fromList
   where
     -- Given the example above, we'd have tables that look like this.
     --
@@ -1599,8 +1602,8 @@ getDependenciesBetweenTerms oid1 oid2 =
     --     not terms, so there is no point in searching through a type's transitive dependencies looking for our sink.
     -- (2) No need to search beyond the sink itself, since component dependencies form a DAG.
     -- (3) An explicit cast from e.g. string '1' to int 1 isn't strictly necessary.
-    sql :: Sql
-    sql = [here|
+    sql :: Sql2
+    sql = [sql2|
       WITH RECURSIVE paths(level, path_last, path_init) AS (
         SELECT
           0,
@@ -1608,7 +1611,7 @@ getDependenciesBetweenTerms oid1 oid2 =
           ''
         FROM dependents_index
           JOIN object ON dependents_index.dependency_object_id = object.id
-        WHERE dependents_index.dependent_object_id = ?
+        WHERE dependents_index.dependent_object_id = :oid1
           AND object.type_id = 0 -- Note (1)
           AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
         UNION ALL
@@ -1622,13 +1625,13 @@ getDependenciesBetweenTerms oid1 oid2 =
           JOIN object ON dependents_index.dependency_object_id = object.id
         WHERE object.type_id = 0 -- Note (1)
           AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
-          AND paths.path_last != ? -- Note (2)
+          AND paths.path_last != :oid2 -- Note (2)
         ORDER BY level DESC
       ),
       elems(path_elem, path_init) AS (
         SELECT null, path_init
         FROM paths
-        WHERE paths.path_last = ?
+        WHERE paths.path_last = :oid2
         UNION ALL
         SELECT
           substr(path_init, 0, instr(path_init, ',')),
@@ -1642,27 +1645,39 @@ getDependenciesBetweenTerms oid1 oid2 =
     |]
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
-objectIdByBase32Prefix objType prefix = queryListCol sql (objType, likeEscape '\\' prefix <> "%") where sql = [here|
-  SELECT object.id FROM object
-  INNER JOIN hash_object ON hash_object.object_id = object.id
-  INNER JOIN hash ON hash_object.hash_id = hash.id
-  WHERE object.type_id = ?
-    AND hash.base32 LIKE ? ESCAPE '\'
-|]
+objectIdByBase32Prefix objType prefix =
+  queryListCol2
+    [sql2|
+      SELECT object.id FROM object
+      INNER JOIN hash_object ON hash_object.object_id = object.id
+      INNER JOIN hash ON hash_object.hash_id = hash.id
+      WHERE object.type_id = :objType
+        AND hash.base32 LIKE :prefix2 ESCAPE '\'
+    |]
+  where
+    prefix2 = likeEscape '\\' prefix <> "%"
 
 causalHashIdByBase32Prefix :: Text -> Transaction [CausalHashId]
-causalHashIdByBase32Prefix prefix = queryListCol sql (Only $ prefix <> "%") where sql = [here|
-  SELECT self_hash_id FROM causal
-  INNER JOIN hash ON id = self_hash_id
-  WHERE base32 LIKE ? ESCAPE '\'
-|]
+causalHashIdByBase32Prefix prefix =
+  queryListCol2
+    [sql2|
+      SELECT self_hash_id FROM causal
+      INNER JOIN hash ON id = self_hash_id
+      WHERE base32 LIKE :prefix2 ESCAPE '\'
+    |]
+  where
+    prefix2 = prefix <> "%"
 
 namespaceHashIdByBase32Prefix :: Text -> Transaction [BranchHashId]
-namespaceHashIdByBase32Prefix prefix = queryListCol sql (Only $ prefix <> "%") where sql = [here|
-  SELECT value_hash_id FROM causal
-  INNER JOIN hash ON id = value_hash_id
-  WHERE base32 LIKE ? ESCAPE '\'
-|]
+namespaceHashIdByBase32Prefix prefix =
+  queryListCol2
+    [sql2|
+      SELECT value_hash_id FROM causal
+      INNER JOIN hash ON id = value_hash_id
+      WHERE base32 LIKE :prefix2 ESCAPE '\'
+    |]
+  where
+    prefix2 = prefix <> "%"
 
 -- | Finds all causals that refer to a branch for which we don't have an object stored.
 -- Although there are plans to support this in the future, currently all such cases
