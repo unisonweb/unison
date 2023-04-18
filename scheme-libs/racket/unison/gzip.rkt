@@ -42,11 +42,22 @@
       (put_short (bitwise-and #xFFFF n))
       (put_short (bitwise-and #xFFFF (>> n 16))))
 
-(let-values ([(bytes_in two crc) (deflate (open-input-bytes #"hello folks") op1)])
-      (put_long (bitwise-xor (modulo crc 4294967296)  #xffff))
-      (put_long (bitwise-xor (modulo bytes_in 4294967296)  #xffff))
-      (display crc)
-      (display "\n")
+(deflate (open-input-bytes #"hello folks") op1 )
 
-    (display (bytes->hex-string (get-output-bytes op1)))
-    )
+; const putShortMSB = (s, b) => {
+;   s.pending_buf[s.pending++] = (b >>> 8) & 0xff;
+;   s.pending_buf[s.pending++] = b & 0xff;
+; };
+; putShortMSB(s, strm.adler >>> 16);
+; putShortMSB(s, strm.adler & 0xffff);
+
+(display (bytes->hex-string (get-output-bytes op1)))
+
+; (let-values ([(bytes_in two crc) (deflate (open-input-bytes #"hello folks") op1)])
+;       (put_long (bitwise-xor (modulo crc 4294967296)  #xffff))
+;       (put_long (bitwise-xor (modulo bytes_in 4294967296)  #xffff))
+;       (display crc)
+;       (display "\n")
+
+;     (display (bytes->hex-string (get-output-bytes op1)))
+;     )
