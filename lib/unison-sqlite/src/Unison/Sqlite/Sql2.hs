@@ -56,6 +56,8 @@ data Sql2 = Sql2
 -- @
 --
 -- which, of course, will require a @qux@ with a 'Sqlite.Simple.ToField' instance in scope.
+--
+-- There are three valid syntaxes for interpolating a variable: @:colon@, @\@at@, and @\$dollar@.
 sql2 :: TH.QuasiQuoter
 sql2 = TH.QuasiQuoter sql2QQ undefined undefined undefined
 
@@ -96,7 +98,7 @@ internalParseSql input =
 -- then we would have the state
 --
 --   S
---     { sql = "SELECT foo FROM bar WHERE baz = :bonk AND "
+--     { sql = "SELECT foo FROM bar WHERE baz = ? AND "
 --     , params = ["bonk"]
 --     }
 --
@@ -216,16 +218,18 @@ fragmentParser =
           (Just "sql")
           \c ->
             not (Char.isSpace c)
-              && c /= ':'
               && c /= '\''
               && c /= '"'
+              && c /= ':'
+              && c /= '@'
+              && c /= '$'
               && c /= '`'
               && c /= '['
       pure (Text.Builder.text xs)
 
     paramP :: P Text.Builder
     paramP = do
-      _ <- Megaparsec.char ':'
+      _ <- Megaparsec.satisfy (\c -> c == ':' || c == '@' || c == '$')
       x <- Megaparsec.satisfy (\c -> Char.isAlpha c || c == '_')
       xs <- Megaparsec.takeWhileP (Just "parameter") \c -> Char.isAlphaNum c || c == '_' || c == '\''
       pure (Text.Builder.char x <> Text.Builder.text xs)
