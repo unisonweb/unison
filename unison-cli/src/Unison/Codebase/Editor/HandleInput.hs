@@ -418,8 +418,8 @@ loop e = do
                     Right path -> WhichBranchEmptyPath path
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
-              src0 <- _Right ProjectUtils.expectProjectAndBranchByTheseNames $ over _Right thatOrThese src0
-              dest0 <- _Right ProjectUtils.expectProjectAndBranchByTheseNames $ over _Right thatOrThese dest0
+              src0 <- treatAmbiguousLooseCodeOrProjectAsLooseCode src0
+              dest0 <- treatAmbiguousLooseCodeOrProjectAsLooseCode dest0
               let srcp = looseCodeOrProjectToPath src0
               let destp = looseCodeOrProjectToPath dest0
               srcb <- Cli.expectBranchAtPath' srcp
@@ -430,8 +430,8 @@ loop e = do
               mergeBranchAndPropagateDefaultPatch mergeMode description err srcb (Just destNames) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
               Cli.Env {codebase} <- ask
-              src0 <- _Right ProjectUtils.expectProjectAndBranchByTheseNames $ over _Right thatOrThese src0
-              dest0 <- _Right ProjectUtils.expectProjectAndBranchByTheseNames $ over _Right thatOrThese dest0
+              src0 <- treatAmbiguousLooseCodeOrProjectAsLooseCode src0
+              dest0 <- treatAmbiguousLooseCodeOrProjectAsLooseCode dest0
               srcb <- Cli.expectBranchAtPath' $ looseCodeOrProjectToPath src0
               dest <- Cli.resolvePath' $ looseCodeOrProjectToPath dest0
               destb <- Cli.getBranchAt dest
@@ -1368,7 +1368,7 @@ loop e = do
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
             BranchesI -> handleBranches
-            BranchI name -> handleBranch name
+            BranchI maybeSource name -> handleBranch maybeSource name
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1382,10 +1382,8 @@ inputDescription input =
       dest <- p' dest0
       pure ("fork " <> src <> " " <> dest)
     MergeLocalBranchI src0 dest0 mode -> do
-      src0 <- _Right (ProjectUtils.expectProjectAndBranchByTheseNames . thatOrThese) src0
-      dest0 <- _Right (ProjectUtils.expectProjectAndBranchByTheseNames . thatOrThese) dest0
-      src <- p' $ looseCodeOrProjectToPath src0
-      dest <- p' $ looseCodeOrProjectToPath dest0
+      src <- looseCodeOrProjectToText src0
+      dest <- looseCodeOrProjectToText dest0
       let command =
             case mode of
               Branch.RegularMerge -> "merge"
@@ -1608,6 +1606,12 @@ inputDescription input =
       pure (p <> "." <> HQ'.toTextWith NameSegment.toText hq)
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
+    looseCodeOrProjectToText :: Input.LooseCodeOrProject -> Cli Text
+    looseCodeOrProjectToText = \case
+      This path -> p' path
+      That branch -> pure (into @Text branch)
+      -- just trying to recover the syntax the user wrote
+      These path _branch -> pure (Path.toText' path)
 
 handleFindI ::
   Bool ->
@@ -2013,6 +2017,23 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
       case Name.segments name of
         "lib" Nel.:| _ : _ -> True
         _ -> False
+
+-- Temporary helper: the current `merge` logic treats ambiguous parses (like `foo`) as relative paths, not branch
+-- names, so that's what this function does.
+--
+-- Ideally, `merge` handlers would be extracted to their own module, where helpers like this one would be much easier
+-- to find.
+treatAmbiguousLooseCodeOrProjectAsLooseCode ::
+  LooseCodeOrProject ->
+  Cli (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+treatAmbiguousLooseCodeOrProjectAsLooseCode =
+  _Right (ProjectUtils.expectProjectAndBranchByTheseNames . thatOrThese) . f
+  where
+    f :: LooseCodeOrProject -> Either Path' (Maybe ProjectName, ProjectBranchName)
+    f = \case
+      This path -> Left path
+      That (ProjectAndBranch project branch) -> Right (project, branch)
+      These path _ -> Left path
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli (Set LabeledDependency)

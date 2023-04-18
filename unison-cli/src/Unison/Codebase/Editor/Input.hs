@@ -64,7 +64,11 @@ data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
 
 type BranchId = Either ShortCausalHash Path'
 
-type LooseCodeOrProject = Either Path' (Maybe ProjectName, ProjectBranchName)
+-- | A lot of commands can take either a loose code path or a project branch in the same argument slot. Usually, those
+-- have distinct syntaxes, but sometimes it's ambiguous, in which case we'd parse a `These`. The command itself can
+-- decide what to do with the ambiguity.
+type LooseCodeOrProject =
+  These Path' (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
 
 type AbsBranchId = Either ShortCausalHash Path.Absolute
 
@@ -221,7 +225,7 @@ data Input
   | ProjectSwitchI (These ProjectName ProjectBranchName)
   | ProjectsI
   | BranchesI
-  | BranchI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | BranchI (Maybe LooseCodeOrProject) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   deriving (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
