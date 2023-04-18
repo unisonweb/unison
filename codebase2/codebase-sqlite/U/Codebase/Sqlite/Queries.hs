@@ -808,9 +808,13 @@ expectHashIdsForObject oId = do
     sql2 = "SELECT hash_id FROM hash_object WHERE object_id = ?"
 
 hashIdWithVersionForObject :: ObjectId -> Transaction [(HashId, HashVersion)]
-hashIdWithVersionForObject = queryListRow sql . Only where sql = [here|
-  SELECT hash_id, hash_version FROM hash_object WHERE object_id = ?
-|]
+hashIdWithVersionForObject oId =
+  queryListRow2
+    [sql2|
+      SELECT hash_id, hash_version
+      FROM hash_object
+      WHERE object_id = :oId
+    |]
 
 -- | @recordObjectRehash old new@ records that object @old@ was rehashed and inserted as a new object, @new@.
 --
@@ -1254,9 +1258,13 @@ loadWatchKindsByReference r = queryListCol sql r where sql = [here|
   |]
 
 loadWatchesByWatchKind :: WatchKind -> Transaction [Reference.IdH]
-loadWatchesByWatchKind k = queryListRow sql (Only k) where sql = [here|
-  SELECT hash_id, component_index FROM watch WHERE watch_kind_id = ?
-|]
+loadWatchesByWatchKind k =
+  queryListRow2
+    [sql2|
+      SELECT hash_id, component_index
+      FROM watch
+      WHERE watch_kind_id = :k
+    |]
 
 -- | Delete all watches that were put by 'putWatch'.
 clearWatches :: Transaction ()
@@ -1307,17 +1315,19 @@ getTypeReferenceForReferent r =
 -- todo: error if no results
 getTypeReferencesForComponent :: ObjectId -> Transaction [(Reference' TextId HashId, Referent.Id)]
 getTypeReferencesForComponent oId =
-  queryListRow sql (Only oId) <&> map fixupTypeIndexRow where sql = [here|
-    SELECT
-      type_reference_builtin,
-      type_reference_hash_id,
-      type_reference_component_index,
-      term_referent_object_id,
-      term_referent_component_index,
-      term_referent_constructor_index
-    FROM find_type_index
-    WHERE term_referent_object_id = ?
-  |]
+  fmap (map fixupTypeIndexRow) $
+    queryListRow2
+      [sql2|
+        SELECT
+          type_reference_builtin,
+          type_reference_hash_id,
+          type_reference_component_index,
+          term_referent_object_id,
+          term_referent_component_index,
+          term_referent_constructor_index
+        FROM find_type_index
+        WHERE term_referent_object_id = :oId
+      |]
 
 addToTypeMentionsIndex :: Reference' TextId HashId -> Referent.Id -> Transaction ()
 addToTypeMentionsIndex tp tm = execute sql (tp :. tm) where sql = [here|
@@ -1347,17 +1357,19 @@ getReferentsByTypeMention r = queryListRow sql r where sql = [here|
 -- todo: error if no results
 getTypeMentionsReferencesForComponent :: ObjectId -> Transaction [(Reference' TextId HashId, Referent.Id)]
 getTypeMentionsReferencesForComponent r =
-  queryListRow sql (Only r) <&> map fixupTypeIndexRow where sql = [here|
-    SELECT
-      type_reference_builtin,
-      type_reference_hash_id,
-      type_reference_component_index,
-      term_referent_object_id,
-      term_referent_component_index,
-      term_referent_constructor_index
-    FROM find_type_mentions_index
-    WHERE term_referent_object_id IS ?
-  |]
+  fmap (map fixupTypeIndexRow) $
+    queryListRow2
+      [sql2|
+        SELECT
+          type_reference_builtin,
+          type_reference_hash_id,
+          type_reference_component_index,
+          term_referent_object_id,
+          term_referent_component_index,
+          term_referent_constructor_index
+        FROM find_type_mentions_index
+        WHERE term_referent_object_id IS :r
+      |]
 
 fixupTypeIndexRow :: Reference' TextId HashId :. Referent.Id -> (Reference' TextId HashId, Referent.Id)
 fixupTypeIndexRow (rh :. ri) = (rh, ri)
@@ -1471,16 +1483,15 @@ getDependentsForDependency selector dependency = do
 
 getDependentsForDependencyComponent :: ObjectId -> Transaction [Reference.Id]
 getDependentsForDependencyComponent dependency =
-  filter isNotSelfReference <$> queryListRow sql (Only dependency)
-  where
-    sql =
-      [here|
+  filter isNotSelfReference <$>
+    queryListRow2
+      [sql2|
         SELECT dependent_object_id, dependent_component_index
         FROM dependents_index
         WHERE dependency_builtin IS NULL
-          AND dependency_object_id IS ?
+          AND dependency_object_id IS :dependency
       |]
-
+  where
     isNotSelfReference :: Reference.Id -> Bool
     isNotSelfReference = \case
       (C.Reference.Id oid1 _pos1) -> dependency /= oid1
@@ -1857,37 +1868,38 @@ termNamesWithinNamespace bhId mayNamespace = do
   let namespaceGlob = case mayNamespace of
         Nothing -> "*"
         Just namespace -> toNamespaceGlob namespace
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, namespaceGlob)
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
+    queryListRow2
+      [sql2|
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM scoped_term_name_lookup
+        WHERE
+          root_branch_hash_id = :bhId
+          AND namespace GLOB :namespaceGlob
+      |]
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
-    sql =
-      [here|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
-        WHERE
-          root_branch_hash_id = ?
-          AND namespace GLOB ?
-        |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
 -- | Get the list of a type names in the root namespace according to the name lookup index
 typeNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef Reference.TextReference]
-typeNamesWithinNamespace bhId mayNamespace = do
-  let namespaceGlob = case mayNamespace of
+typeNamesWithinNamespace bhId mayNamespace =
+  queryListRow2
+    [sql2|
+      SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
+      FROM scoped_type_name_lookup
+      WHERE
+        root_branch_hash_id = :bhId
+        AND namespace GLOB :namespaceGlob
+    |]
+  where
+    namespaceGlob =
+      case mayNamespace of
         Nothing -> "*"
         Just namespace -> toNamespaceGlob namespace
-  results :: [NamedRef Reference.TextReference] <- queryListRow sql (bhId, namespaceGlob)
-  pure results
-  where
-    sql =
-      [here|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
-        WHERE
-          root_branch_hash_id = ?
-          AND namespace GLOB ?
-      |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -1898,10 +1910,8 @@ termNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = toNamespaceGlob namespaceRoot
   let lastSegment = NonEmpty.head suffix
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, lastSegment, namespaceGlob, toSuffixGlob suffix)
-  pure (fmap unRow <$> results)
-  where
-    unRow (a :. Only b) = (a, b)
+  let reversedNameGlob = toSuffixGlob suffix
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
     -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
     -- GLOB, but this helps improve query performance.
     -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
@@ -1909,14 +1919,18 @@ termNamesBySuffix bhId namespaceRoot suffix = do
     -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
     -- names which couldn't possibly match before we then manually filter the remaining names
     -- using the `reversed_name` glob which can't be optimized with an index.
-    sql =
-      [here|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
-        WHERE root_branch_hash_id = ?
-              AND last_name_segment IS ?
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
-        |]
+    queryListRow2
+      [sql2|
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = :bhId
+              AND last_name_segment IS :lastSegment
+              AND namespace GLOB :namespaceGlob
+              AND reversed_name GLOB :reversedNameGlob
+      |]
+  pure (fmap unRow <$> results)
+  where
+    unRow (a :. Only b) = (a, b)
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -1927,23 +1941,23 @@ typeNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "typeNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = toNamespaceGlob namespaceRoot
   let lastNameSegment = NonEmpty.head suffix
-  queryListRow sql (bhId, lastNameSegment, namespaceGlob, toSuffixGlob suffix)
-  where
-    sql =
-      -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
-      -- GLOB, but this helps improve query performance.
-      -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
-      -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
-      -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
-      -- names which couldn't possibly match before we then manually filter the remaining names
-      -- using the `reversed_name` glob which can't be optimized with an index.
-      [here|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
-        WHERE     root_branch_hash_id = ?
-              AND last_name_segment IS ?
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
-        |]
+  let reversedNameGlob = toSuffixGlob suffix
+  -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+  -- GLOB, but this helps improve query performance.
+  -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+  -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+  -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+  -- names which couldn't possibly match before we then manually filter the remaining names
+  -- using the `reversed_name` glob which can't be optimized with an index.
+  queryListRow2
+    [sql2|
+      SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
+      FROM scoped_type_name_lookup
+      WHERE     root_branch_hash_id = :bhId
+            AND last_name_segment IS :lastNameSegment
+            AND namespace GLOB :namespaceGlob
+            AND reversed_name GLOB :reversedNameGlob
+    |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -1952,16 +1966,17 @@ typeNamesBySuffix bhId namespaceRoot suffix = do
 termRefsForExactName :: BranchHashId -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termRefsForExactName bhId reversedSegments = do
   let reversedName = toReversedName reversedSegments
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, reversedName)
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
+    queryListRow2
+      [sql2|
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = :bhId
+              AND reversed_name = :reversedName
+      |]
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
-    sql =
-      [here|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
-        WHERE root_branch_hash_id = ?
-              AND reversed_name = ?
-        |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -1970,14 +1985,13 @@ termRefsForExactName bhId reversedSegments = do
 typeRefsForExactName :: BranchHashId -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
 typeRefsForExactName bhId reversedSegments = do
   let reversedName = toReversedName reversedSegments
-  queryListRow sql (bhId, reversedName)
-  where
-    sql =
-      [here|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
-        WHERE root_branch_hash_id = ?
-              AND reversed_name = ?
-        |]
+  queryListRow2
+    [sql2|
+      SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
+      FROM scoped_type_name_lookup
+      WHERE root_branch_hash_id = :bhId
+            AND reversed_name = :reversedName
+    |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
