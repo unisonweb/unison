@@ -19,7 +19,7 @@ someterm = 18
 Now, the `branch` demo:
 
 `branch` can create a branch from a different branch in the same project, from a different branch in a different
-project, or from loose code.
+project, or from loose code. It can also create an empty branch.
 
 ```ucm
 foo/main> branch topic1
@@ -44,10 +44,9 @@ bar/main> branch foo/main /topic3
 foo/main> branch .some.loose.code topic14
 foo/main> branch .some.loose.code /topic15
 .> branch .some.loose.code foo/topic16
-```
 
-`switch` can create a branch from nothingness, but this feature is going away soon.
-
-```ucm
-.some.loose.code> switch foo/empty
+foo/main> branch.empty empty1
+foo/main> branch.empty /empty2
+foo/main> branch.empty foo/empty3
+.> branch.empty foo/empty4
 ```

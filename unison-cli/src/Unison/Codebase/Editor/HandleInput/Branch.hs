@@ -29,8 +29,8 @@ data CreateFrom
   | CreateFrom'Nothingness
 
 -- | Create a new project branch from an existing project branch or namespace.
-handleBranch :: Maybe Input.LooseCodeOrProject -> ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
-handleBranch maybeSource projectAndBranchNames0 = do
+handleBranch :: Input.BranchSourceI -> ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
+handleBranch sourceI projectAndBranchNames0 = do
   projectAndBranchNames@(ProjectAndBranch projectName newBranchName) <-
     case projectAndBranchNames0 of
       ProjectAndBranch Nothing branchName -> ProjectUtils.hydrateNames (That branchName)
@@ -38,15 +38,16 @@ handleBranch maybeSource projectAndBranchNames0 = do
 
   -- Compute what we should create the branch from.
   createFrom <-
-    case maybeSource of
-      Nothing ->
+    case sourceI of
+      Input.BranchSourceI'CurrentContext ->
         ProjectUtils.getCurrentProjectBranch >>= \case
           Nothing -> CreateFrom'LooseCode <$> Cli.getCurrentPath
           Just currentBranch -> pure (CreateFrom'Branch currentBranch)
-      Just (This sourcePath) -> do
+      Input.BranchSourceI'Empty -> pure CreateFrom'Nothingness
+      Input.BranchSourceI'LooseCodeOrProject (This sourcePath) -> do
         currentPath <- Cli.getCurrentPath
         pure (CreateFrom'LooseCode (Path.resolve currentPath sourcePath))
-      Just (That sourceBranch) ->
+      Input.BranchSourceI'LooseCodeOrProject (That sourceBranch) ->
         fmap CreateFrom'Branch do
           ProjectUtils.expectProjectAndBranchByTheseNames
             case sourceBranch of
@@ -57,7 +58,7 @@ handleBranch maybeSource projectAndBranchNames0 = do
       --
       -- Future work: be smarter; for example, if there is such a relative namespace, but no such branch, maybe they
       -- really meant create a branch from that namespace.
-      Just (These _sourcePath sourceBranch) ->
+      Input.BranchSourceI'LooseCodeOrProject (These _sourcePath sourceBranch) ->
         fmap CreateFrom'Branch do
           ProjectUtils.expectProjectAndBranchByTheseNames
             case sourceBranch of
