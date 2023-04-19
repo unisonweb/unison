@@ -24,7 +24,7 @@
           [char-range (-> char? char? pattern?)]
           [not-char-range (-> char? char? pattern?)]
           [join (-> pattern? ... pattern?)]
-          [join* (-> (listof pattern?) pattern?)]
+          [join* (-> chunked-list? pattern?)]
           [choice (-> pattern? pattern? ... pattern?)]
           [capture (-> pattern? pattern?)]
           [many (-> pattern? pattern?)]
@@ -77,10 +77,13 @@
 (define (not-char-range start end)
   (make-pattern (p:char (λ (c) (not (char<=? start c end))))))
 
-(define (join . pats)
-  (join* pats))
 (define (join* pats)
-  (make-pattern (p:join (map pattern-pat pats))))
+  (make-pattern (p:join pats)))
+;; Only used in tests
+(define (join . pats)
+  (join* (for/fold ([res empty-chunked-list])
+                   ([e (in-list pats)])
+           (chunked-list-add-last res e))))
 
 (define choice
   (case-lambda
@@ -163,8 +166,8 @@
 
         [(p:join pats)
          (for/foldr ([ok ok])
-                    ([pat (in-list pats)])
-           (recur pat in-capture? ok))]
+                    ([pat (in-chunked-list pats)])
+           (recur (pattern-pat pat) in-capture? ok))]
 
         [(p:or left right)
          (define left-m (recur left in-capture? done))
