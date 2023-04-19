@@ -225,12 +225,11 @@
                  car
                  cdr
                  foldl
-                 vector->list
                  bytes->string/utf-8
                  string->bytes/utf-8
                  exn:fail:contract?
                  with-handlers)
-           (car icar) (cdr icdr) (vector->list vector->ilist))
+           (car icar) (cdr icdr))
           (unison core)
           (unison data)
           (unison data chunked-seq)
