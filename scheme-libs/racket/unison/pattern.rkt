@@ -28,7 +28,7 @@
           [choice (-> pattern? pattern? ... pattern?)]
           [capture (-> pattern? pattern?)]
           [many (-> pattern? pattern?)]
-          [replicate (-> pattern? exact-nonnegative-integer? pattern?)]))
+          [replicate (-> pattern? exact-nonnegative-integer? exact-nonnegative-integer? pattern?)]))
 
 ;; -----------------------------------------------------------------------------
 
@@ -45,7 +45,7 @@
 (struct p:or (left right) #:transparent)
 (struct p:capture (pat) #:transparent)
 (struct p:many (pat) #:transparent)
-(struct p:replicate (pat count))
+(struct p:replicate (pat min-count count))
 
 ;; -----------------------------------------------------------------------------
 
@@ -101,7 +101,7 @@
 
 (define (capture pat) (make-pattern (p:capture (pattern-pat pat))))
 (define (many pat) (make-pattern (p:many (pattern-pat pat))))
-(define (replicate pat n) (make-pattern (p:replicate (pattern-pat pat) n)))
+(define (replicate pat n m) (make-pattern (p:replicate (pattern-pat pat) n m)))
 
 ;; -----------------------------------------------------------------------------
 
@@ -213,7 +213,7 @@
                  (again cstr* captures*)
                  (ok cstr captures))))]
 
-        [(p:replicate pat count)
+        [(p:replicate pat min-count count)
          (define pat-m (recur pat in-capture? done))
          (λ (cstr captures)
            (for/fold ([cstr cstr]

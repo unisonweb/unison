@@ -83,7 +83,7 @@
   (check-equal? (pattern-match pat (cs "ababc")) (ok "c"))
   (check-equal? (pattern-match pat (cs "abababc")) (ok "c")))
 
-(let ([pat (replicate (literal (cs "ab")) 3)])
+(let ([pat (replicate (literal (cs "ab")) 3 3)])
   (check-equal? (pattern-match pat (cs "")) #f)
   (check-equal? (pattern-match pat (cs "ab")) #f)
   (check-equal? (pattern-match pat (cs "abab")) #f)
