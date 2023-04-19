@@ -178,15 +178,15 @@ text.matching.tests = do
   checkEqual "Pattern api (12)"  (run (capture (many (notCharRange ?, ?,))) "abc123,") (Some (["abc123"], ","))
   checkEqual "Pattern api (13)"  (run (capture (many (notCharIn [?,,]))) "abracadabra,123") (Some (["abracadabra"], ",123"))
   checkEqual "Pattern api (14)"  (run (capture (many (or digit letter))) "11234abc,remainder") (Some (["11234abc"], ",remainder"))
-  checkEqual "Pattern api (15)"  (run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa") (Some (["1a2ba"], " aaa"))
-  -- Regression test for: https://github.com/unisonweb/unison/issues/353)
-  -- TODO broken until replicate supports lower bound
-  --  checkEqual "Pattern api (16)"  (run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac") (Some ([""], "ac"))
-  --  TODO transient see what happens with 3 0 bounds in replicate on interpreter
-  checkEqual "Pattern api (17)"  (run (join [many letter, eof]) "aaaaabbbb") (Some ([], ""))
-  checkEqual "Pattern api (18)"  (run (join [many letter, eof]) "aaaaabbbb1") None
-  checkEqual "Pattern api (19)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
-  checkEqual "Pattern api (20)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
-  checkEqual "Pattern api (21)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
+  checkEqual "Pattern api (15)" (run (replicate 0 1 patterns.letter) "123") (Some ([], "123"))
+  checkEqual "Pattern api (16)" (run (capture (replicate 5 7 patterns.digit)) "1234567,abc") (Some (["1234567"], ",abc"))
+  checkEqual "Pattern api (17)" (run (capture (replicate 4 4 patterns.letter)) "aaaab123") (Some (["aaaa"], "b123"))
+  checkEqual "Pattern api (18)"  (run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa") (Some (["1a2ba"], " aaa"))
+  checkEqual "Pattern api (19)"  (run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac") (Some ([""], "ac"))
+  checkEqual "Pattern api (20)"  (run (join [many letter, eof]) "aaaaabbbb") (Some ([], ""))
+  checkEqual "Pattern api (21)"  (run (join [many letter, eof]) "aaaaabbbb1") None
+  checkEqual "Pattern api (22)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
+  checkEqual "Pattern api (23)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
+  checkEqual "Pattern api (24)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
   -- TODO add tests for character class pattern
 

@@ -231,7 +231,7 @@
                        ([i (in-range min-count)])
                #:break (not cstr)
                (pat-m cstr captures)))
-           (if cstr*
+           (if (and cstr* (>= count min-count))
                (replicate-rest cstr* captures*)
                (ok cstr* captures*)))])))
 
