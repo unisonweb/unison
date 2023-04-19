@@ -128,7 +128,7 @@ parser = do
     NonParam fragment -> do
       #sql <>= fragment
       parser
-    FieldParam param -> do
+    Param param -> do
       #sql <>= Text.Builder.char '?'
       #params %= (Text.Builder.run param :)
       parser
@@ -161,7 +161,7 @@ parser = do
 --   , Whitespace
 --   , NonParam "="
 --   , Whitespace
---   , FieldParam "bonk"
+--   , Param "bonk"
 --   , Whitespace
 --   , NonParam "AND"
 --   , Whitespace
@@ -172,9 +172,17 @@ parser = do
 --   , NonParam "'monkey monk'"
 --   , EndOfInput
 --   ]
+--
+-- Any sequence of consecutive NonParam fragments in such a list is equivalent to a single NonParam fragment with the
+-- contents concatenated. How the non-parameter stuff between parameters is turned into 1+ NonParam fragments is just a
+-- consequence of how we parse these SQL strings: identify strings and such, but otherwise make no attempt to
+-- understand the structure of the query.
+--
+-- A parsed query can be reconstructed by simply concatenating all fragments together, with a colon character ':'
+-- prepended to each Param fragment.
 data Fragment
   = NonParam Text.Builder
-  | FieldParam Text.Builder
+  | Param Text.Builder
   | Whitespace
   | EndOfInput
 
@@ -186,7 +194,7 @@ fragmentParser =
       NonParam <$> betwixt "identifier" '"',
       NonParam <$> betwixt "identifier" '`',
       NonParam <$> bracketedIdentifierP,
-      FieldParam <$> fieldParamP,
+      Param <$> paramP,
       NonParam <$> unstructuredP,
       EndOfInput <$ Megaparsec.eof
     ]
@@ -219,8 +227,8 @@ fragmentParser =
               && c /= '['
       pure (Text.Builder.text xs)
 
-    fieldParamP :: P Text.Builder
-    fieldParamP = do
+    paramP :: P Text.Builder
+    paramP = do
       _ <- Megaparsec.satisfy (\c -> c == ':' || c == '@' || c == '$')
       x <- Megaparsec.satisfy (\c -> Char.isAlpha c || c == '_')
       xs <- Megaparsec.takeWhileP (Just "parameter") \c -> Char.isAlphaNum c || c == '_' || c == '\''
