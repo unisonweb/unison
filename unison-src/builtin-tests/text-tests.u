@@ -182,6 +182,7 @@ text.matching.tests = do
   -- Regression test for: https://github.com/unisonweb/unison/issues/353)
   -- TODO broken until replicate supports lower bound
   --  checkEqual "Pattern api (16)"  (run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac") (Some ([""], "ac"))
+  --  TODO transient see what happens with 3 0 bounds in replicate on interpreter
   checkEqual "Pattern api (17)"  (run (join [many letter, eof]) "aaaaabbbb") (Some ([], ""))
   checkEqual "Pattern api (18)"  (run (join [many letter, eof]) "aaaaabbbb1") None
   checkEqual "Pattern api (19)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true

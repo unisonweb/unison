@@ -97,6 +97,7 @@
   (check-equal? (pattern-match pat (cs "ababab")) (ok ""))
   (check-equal? (pattern-match pat (cs "abababab")) (ok ""))
   (check-equal? (pattern-match pat (cs "ababababab")) (ok "ab")))
+;; TODO test captures for replicate, and 0-1 matching
 
 (let ([pat (join (capture (many letter)) (capture (many digit)))])
   (check-equal? (pattern-match pat (cs "")) (ok "" '("" "")))
