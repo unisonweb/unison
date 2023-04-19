@@ -6,9 +6,13 @@
 
 (define (cs v) (string->chunked-string v))
 (define (ok rest [captures '()])
-  (cons (cs rest) (map cs captures)))
+  (cons
+   (cs rest)
+   (for/fold ([res empty-chunked-list])
+             ([e (in-list captures)])
+     (chunked-list-add-last res (cs e)))))
 
-(check-equal? (pattern-match eof (cs "")) (cons (cs "") '()))
+(check-equal? (pattern-match eof (cs "")) (cons (cs "") empty-chunked-list))
 (check-equal? (pattern-match eof (cs "a")) #f)
 
 (check-equal? (pattern-match any-char (cs "")) #f)

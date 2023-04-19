@@ -251,8 +251,7 @@
   (define unison-POp-ADDI +)
   (define unison-POp-DIVI /)
   (define (unison-POp-EQLI a b)
-    (if (= a b) 1 0)
-  )
+    (if (= a b) 1 0))
   (define unison-POp-MODI mod)
   (define unison-POp-LEQI <=)
   (define unison-POp-POWN expt)
@@ -462,12 +461,7 @@
 
   (define (unison-FOp-Pattern.run p s)
     (let* ([r (pattern-match p s)])
-      (if r
-          (let* ([build (lambda (e acc) (chunked-list-add-last acc e))]
-                 [rem (icar r)]
-                 [captures (foldl build empty-chunked-list (icdr r))])
-            (sum 1 captures rem))
-          (sum 0))))
+      (if r (sum 1 (icdr r) (icar r)) (sum 0))))
 
   (define (unison-FOp-Pattern.isMatch p s) (bool (pattern-match? p s)))
   (define (unison-FOp-Pattern.many p) (many p))

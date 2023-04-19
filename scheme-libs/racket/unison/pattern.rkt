@@ -8,7 +8,7 @@
           [pattern? predicate/c]
           [pattern-match (-> pattern?
                              chunked-string?
-                             (or/c (cons/c chunked-string? (listof chunked-string?)) #f))]
+                             (or/c (cons/c chunked-string? chunked-list?) #f))]
           [pattern-match? (-> pattern? chunked-string? boolean?)]
 
           [eof pattern?]
@@ -121,7 +121,7 @@
      (set-pattern-maybe-matcher! pat matcher)
      matcher]))
 
-;; compile : (-> pat (-> chunked-string? (or/c (cons/c chunked-string? (listof chunked-string?)) #f)))
+;; compile : (-> pat (-> chunked-string? (or/c (cons/c chunked-string? (chunked-list-of chunked-string?)) #f)))
 (define (compile pat)
   (define (done cstr captures) (values cstr captures))
   (define (fail) (values #f #f))
@@ -191,7 +191,7 @@
                  (define capture-len (- (chunked-string-length cstr)
                                         (chunked-string-length cstr*)))
                  (define capture (chunked-string-take cstr capture-len))
-                 (ok cstr* (cons capture captures*))]
+                 (ok cstr* (chunked-list-add-last captures* capture))]
                 [else
                  (fail)]))])]
 
@@ -224,7 +224,5 @@
              (pat-m cstr captures)))])))
 
   (λ (cstr)
-    (define-values [cstr* captures] (pat-m cstr '()))
-    (if cstr*
-        (cons cstr* (reverse captures))
-        #f)))
+    (define-values [cstr* captures] (pat-m cstr empty-chunked-list))
+    (if cstr* (cons cstr* captures) #f)))
