@@ -215,13 +215,27 @@
 
         [(p:replicate pat min-count count)
          (define pat-m (recur pat in-capture? done))
-         (λ (cstr captures)
+         (define (replicate-min cstr captures count)
            (for/fold ([cstr cstr]
                       [captures captures]
                       #:result (ok cstr captures))
                      ([i (in-range count)])
              #:break (not cstr)
-             (pat-m cstr captures)))])))
+             (pat-m cstr captures)))
+         (define (replicate-rest cstr captures count)
+           (let again ([cstr cstr]
+                       [captures captures]
+                       [n count])
+             (define-values [cstr* captures*] (pat-m cstr captures))
+             (if (and cstr* (> n 0))
+                 (again cstr* captures* (- n 1))
+                 (ok cstr captures))))
+         (λ (cstr captures)
+           (define-values [cstr* captures*]
+             (replicate-min cstr captures min-count))
+           (if cstr*
+               (replicate-rest cstr* captures* (- count min-count))
+               (ok cstr* captures*)))])))
 
   (λ (cstr)
     (define-values [cstr* captures] (pat-m cstr empty-chunked-list))

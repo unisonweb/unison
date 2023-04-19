@@ -90,6 +90,14 @@
   (check-equal? (pattern-match pat (cs "ababab")) (ok ""))
   (check-equal? (pattern-match pat (cs "abababab")) (ok "ab")))
 
+(let ([pat (replicate (literal (cs "ab")) 2 4)])
+  (check-equal? (pattern-match pat (cs "")) #f)
+  (check-equal? (pattern-match pat (cs "ab")) #f)
+  (check-equal? (pattern-match pat (cs "abab")) (ok ""))
+  (check-equal? (pattern-match pat (cs "ababab")) (ok ""))
+  (check-equal? (pattern-match pat (cs "abababab")) (ok ""))
+  (check-equal? (pattern-match pat (cs "ababababab")) (ok "ab")))
+
 (let ([pat (join (capture (many letter)) (capture (many digit)))])
   (check-equal? (pattern-match pat (cs "")) (ok "" '("" "")))
   (check-equal? (pattern-match pat (cs "abc")) (ok "" '("abc" "")))
