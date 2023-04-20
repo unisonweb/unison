@@ -28,7 +28,9 @@
           [choice (-> pattern? pattern? ... pattern?)]
           [capture (-> pattern? pattern?)]
           [many (-> pattern? pattern?)]
-          [replicate (-> pattern? exact-nonnegative-integer? exact-nonnegative-integer? pattern?)]))
+          [replicate (-> pattern? exact-nonnegative-integer? exact-nonnegative-integer? pattern?)]
+          ;; the functions below only accept p:char patterns, i.e. character classes
+          [char-class-is? (-> pattern? char? boolean?)]))
 
 ;; -----------------------------------------------------------------------------
 
@@ -238,3 +240,10 @@
   (λ (cstr)
     (define-values [cstr* captures] (pat-m cstr empty-chunked-list))
     (if cstr* (cons cstr* captures) #f)))
+
+;; -----------------------------------------------------------------------------
+(define (char-class-is? pat c)
+  (match (pattern-pat pat)
+    [(p:char 'any) #t]
+    [(p:char predicate) (predicate c)]))
+

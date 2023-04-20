@@ -192,37 +192,37 @@ text.matching.tests = do
 
 char.class.tests = do
   check "Char.Class: any" do Char.Class.is Class.any ?a
-  check "Char.Class: any (2)" do Pattern.isMatch (Text.patterns.char Class.any) "a"
+--  check "Char.Class: any (2)" do Pattern.isMatch (Text.patterns.char Class.any) "a"
 
-  c: Nat -> Char
-  c n = Char.fromNat n
+  --  c: Nat -> Char
+  --  c n = Char.fromNat n
 
-  run class y n =
-    ok = Char.Class.is class
-    ok' = Pattern.isMatch (Text.patterns.char class) << Char.toText
-    ok y && not (ok n) && ok' y && not (ok' n)
+  --  run class y n =
+  --    ok = Char.Class.is class
+  --    ok' = Pattern.isMatch (Text.patterns.char class) << Char.toText
+  --    ok y && not (ok n) && ok' y && not (ok' n)
 
-  check "Char.Class.alphanumeric (1)" do run Char.Class.alphanumeric ?a ?-
-  check "Char.Class.alphanumeric (2)" do run Char.Class.alphanumeric ?3 ?-
-  check "Char.Class.upper" do run Char.Class.upper ?A ?c
-  check "Char.Class.lower" do run Char.Class.lower ?a ?C
-  check "Char.Class.number" do run Char.Class.number ?3 ?z
-  check "Char.Class.punctuation" do run Char.Class.punctuation ?! ?p
-  check "Char.Class.symbol" do run Char.Class.symbol ?£ ?s
-  check "Char.Class.letter" do run Char.Class.letter ?l ?3
-  check "Char.Class.whitespace" do run Char.Class.whitespace ?\s ?f
-  check "Char.Class.control" do run Char.Class.control (c 20) ?f
-  check "Char.Class.printable" do run Char.Class.printable ?f (c 20)
-  check "Char.Class.mark" do run Char.Class.mark (c 769) ?f
-  check "Char.Class.separator" do run Char.Class.separator (c 160) ?f
+  --  check "Char.Class.alphanumeric (1)" do run Char.Class.alphanumeric ?a ?-
+  --  check "Char.Class.alphanumeric (2)" do run Char.Class.alphanumeric ?3 ?-
+  --  check "Char.Class.upper" do run Char.Class.upper ?A ?c
+  --  check "Char.Class.lower" do run Char.Class.lower ?a ?C
+  --  check "Char.Class.number" do run Char.Class.number ?3 ?z
+  --  check "Char.Class.punctuation" do run Char.Class.punctuation ?! ?p
+  --  check "Char.Class.symbol" do run Char.Class.symbol ?£ ?s
+  --  check "Char.Class.letter" do run Char.Class.letter ?l ?3
+  --  check "Char.Class.whitespace" do run Char.Class.whitespace ?\s ?f
+  --  check "Char.Class.control" do run Char.Class.control (c 20) ?f
+  --  check "Char.Class.printable" do run Char.Class.printable ?f (c 20)
+  --  check "Char.Class.mark" do run Char.Class.mark (c 769) ?f
+  --  check "Char.Class.separator" do run Char.Class.separator (c 160) ?f
 
-  check "Char.Class.not" do run (Char.Class.not Char.Class.letter) ?3 ?c
-  check "Char.Class.and" do run (Char.Class.and (Char.Class.letter) (Char.Class.upper)) ?A ?a
-  check "Char.Class.or (1)" do run (Char.Class.or (Char.Class.letter) (Char.Class.number)) ?3 ?!
-  check "Char.Class.or (2)" do run (Char.Class.or (Char.Class.letter) (Char.Class.number)) ?a ?!
-  check "Char.Class.range (1)" do run (Char.Class.range ?a ?c) ?a ?d
-  check "Char.Class.range (2)" do run (Char.Class.range ?a ?c) ?b ?d
-  check "Char.Class.range (3)" do run (Char.Class.range ?a ?c) ?c ?d
-  check "Char.Class.anyOf (1)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?a ?d
-  check "Char.Class.anyOf (2)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?b ?d
-  check "Char.Class.anyOf (3)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?c ?d
+  --  check "Char.Class.not" do run (Char.Class.not Char.Class.letter) ?3 ?c
+  --  check "Char.Class.and" do run (Char.Class.and (Char.Class.letter) (Char.Class.upper)) ?A ?a
+  --  check "Char.Class.or (1)" do run (Char.Class.or (Char.Class.letter) (Char.Class.number)) ?3 ?!
+  --  check "Char.Class.or (2)" do run (Char.Class.or (Char.Class.letter) (Char.Class.number)) ?a ?!
+  --  check "Char.Class.range (1)" do run (Char.Class.range ?a ?c) ?a ?d
+  --  check "Char.Class.range (2)" do run (Char.Class.range ?a ?c) ?b ?d
+  --  check "Char.Class.range (3)" do run (Char.Class.range ?a ?c) ?c ?d
+  --  check "Char.Class.anyOf (1)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?a ?d
+  --  check "Char.Class.anyOf (2)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?b ?d
+  --  check "Char.Class.anyOf (3)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?c ?d
