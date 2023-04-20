@@ -1,4 +1,3 @@
--- pTrace
 {-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Unison.Sqlite.Connection
@@ -191,14 +190,14 @@ instance Show Query2 where
       ]
 
 -- Will replace `logQuery` when `sql2` replaces `sql` everywhere.
-logQuery2 :: Sql -> [Sqlite.SQLData] -> Maybe b -> IO ()
+logQuery2 :: Sql -> [Either Sqlite.SQLData [Sqlite.SQLData]] -> Maybe b -> IO ()
 logQuery2 sql params result =
   Debug.whenDebug Debug.Sqlite do
     callStack <- currentCallStack
     pTraceShowM
       Query2
         { sql,
-          params,
+          params = flattenParameters params,
           result = anythingToString <$> result,
           callStack
         }
@@ -225,14 +224,14 @@ execute2 conn@(Connection _ _ conn0) (Sql2 s params) = do
       SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
-          params = Just params,
+          params = Just (foldMap (either pure id) params),
           sql = Sql s
         }
   where
     doExecute :: IO ()
     doExecute =
       Sqlite.withStatement conn0 (coerce s) \(Sqlite.Statement statement) -> do
-        zipWithM_ (Direct.Sqlite.bindSQLData statement) [1 ..] params
+        bindParameters statement params
         void (Direct.Sqlite.step statement)
 
 executeMany :: (Sqlite.ToRow a) => Connection -> Sql -> [a] -> IO ()
@@ -344,7 +343,7 @@ queryListRow2 conn@(Connection _ _ conn0) (Sql2 s params) = do
           SqliteQueryExceptionInfo
             { connection = conn,
               exception = SomeSqliteExceptionReason exception,
-              params = Just params,
+              params = Just (flattenParameters params),
               sql = Sql s
             }
   logQuery2 (Sql s) params (Just result)
@@ -353,7 +352,7 @@ queryListRow2 conn@(Connection _ _ conn0) (Sql2 s params) = do
     doQuery :: IO [a]
     doQuery =
       Sqlite.withStatement conn0 (coerce s) \statement -> do
-        zipWithM_ (Direct.Sqlite.bindSQLData (coerce statement)) [1 ..] params
+        bindParameters (coerce statement) params
         let loop :: [a] -> IO [a]
             loop rows =
               Sqlite.nextRow statement >>= \case
@@ -669,6 +668,35 @@ rollbackTo conn name =
 release :: Connection -> Text -> IO ()
 release conn name =
   execute_ conn (Sql ("RELEASE " <> name))
+
+-----------------------------------------------------------------------------------------------------------------------
+-- Utils
+
+bindParameters :: Direct.Sqlite.Statement -> [Either Sqlite.SQLData [Sqlite.SQLData]] -> IO ()
+bindParameters statement =
+  loop1 1
+  where
+    loop1 :: Direct.Sqlite.ParamIndex -> [Either Sqlite.SQLData [Sqlite.SQLData]] -> IO ()
+    loop1 !i = \case
+      [] -> pure ()
+      Left p : ps -> do
+        Direct.Sqlite.bindSQLData statement i p
+        loop1 (i + 1) ps
+      Right ps : qs -> do
+        j <- loop2 i ps
+        loop1 j qs
+    loop2 :: Direct.Sqlite.ParamIndex -> [Sqlite.SQLData] -> IO Direct.Sqlite.ParamIndex
+    loop2 !i = \case
+      [] -> pure i
+      p : ps -> do
+        Direct.Sqlite.bindSQLData statement i p
+        loop2 (i + 1) ps
+
+-- On happy paths we can just bind all of the parameters in this Either form - no need to pay for flattening. But for
+-- logging or reporting exceptions, we flatten.
+flattenParameters :: [Either Sqlite.SQLData [Sqlite.SQLData]] -> [Sqlite.SQLData]
+flattenParameters =
+  foldMap (either pure id)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Exceptions

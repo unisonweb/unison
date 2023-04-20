@@ -9,7 +9,7 @@ module Unison.Sqlite.Sql2
   )
 where
 
-import Control.Lens ((%=), (<>=))
+import Control.Lens (use, (%=), (.=), (<>=))
 import qualified Control.Monad.Trans.State.Strict as State
 import qualified Data.Char as Char
 import Data.Generics.Labels ()
@@ -27,7 +27,9 @@ import Unison.Prelude
 -- | A SQL query.
 data Sql2 = Sql2
   { query :: Text,
-    params :: [Sqlite.Simple.SQLData]
+    -- Think of this as a flat [SQLData]. The Left/Right tags don't affect how we serialize this query: each SQLData
+    -- just gets bound in order. We are just choosing not to pay the memory cost of flattening.
+    params :: [Either Sqlite.Simple.SQLData [Sqlite.Simple.SQLData]]
   }
   deriving stock (Show)
 
@@ -57,7 +59,22 @@ data Sql2 = Sql2
 --
 -- which, of course, will require a @qux@ with a 'Sqlite.Simple.ToField' instance in scope.
 --
--- There are three valid syntaxes for interpolating a variable: @:colon@, @\@at@, and @\$dollar@.
+-- There are three valid syntaxes for interpolating a variable:
+--
+--   * @:colon@, or @\$dollar@, which denote a single-field variable
+--   * @\@at@, followed by 1+ bare @\@@, which denotes a multi-field variable
+--
+-- As an example of the latter, consider a variable @plonk@ with a two-field 'Sqlite.Simple.ToRow' instance. A query
+-- that interpolates @plonk@ might look like:
+--
+-- @
+-- [sql2|
+--   SELECT foo
+--   FROM bar
+--   WHERE stuff = \@plonk
+--     AND other = \@
+-- |]
+-- @
 sql2 :: TH.QuasiQuoter
 sql2 = TH.QuasiQuoter sql2QQ undefined undefined undefined
 
@@ -69,10 +86,15 @@ sql2QQ input =
       let params :: [TH.Q TH.Exp]
           params =
             map
-              ( \var ->
-                  TH.lookupValueName (Text.unpack var) >>= \case
-                    Nothing -> fail ("Not in scope: " ++ Text.unpack var)
-                    Just name -> [|Sqlite.Simple.toField $(TH.varE name)|]
+              ( \case
+                  FieldParam var ->
+                    TH.lookupValueName (Text.unpack var) >>= \case
+                      Nothing -> fail ("Not in scope: " ++ Text.unpack var)
+                      Just name -> [|Left (Sqlite.Simple.toField $(TH.varE name))|]
+                  RowParam var _count ->
+                    TH.lookupValueName (Text.unpack var) >>= \case
+                      Nothing -> fail ("Not in scope: " ++ Text.unpack var)
+                      Just name -> [|Right (Sqlite.Simple.toRow $(TH.varE name))|]
               )
               params0
       [|Sql2 query $(TH.listE params)|]
@@ -80,7 +102,7 @@ sql2QQ input =
 -- | Parse a SQL string, and return the prettefied SQL string along with the named parameters it contains.
 --
 -- Exported only for testing.
-internalParseSql :: Text -> Either String (Text, [Text])
+internalParseSql :: Text -> Either String (Text, [Param])
 internalParseSql input =
   case runP (parser <* Megaparsec.eof) (Text.strip input) of
     Left err -> Left (Megaparsec.errorBundlePretty err)
@@ -93,14 +115,19 @@ internalParseSql input =
 --   SELECT foo
 --   FROM bar
 --   WHERE baz = :bonk AND qux = 'monk'
---                         ^
 --
 -- then we would have the state
 --
 --   S
 --     { sql = "SELECT foo FROM bar WHERE baz = ? AND "
---     , params = ["bonk"]
+--     , params = [FieldParam "bonk"]
 --     }
+--
+-- There are two ways to specify parameters:
+--
+--   1. Field parameters like ":bonk", which get turned into a single SQLite parameter (via `toField`)
+--   2. Row parameters like "@whonk", followed by 1+ "@", which get turned into that many SQLite parameters (via
+--      `toRow`)
 --
 -- Why keep the SQL parsed so far:
 --
@@ -110,9 +137,13 @@ internalParseSql input =
 --      but not have to look at a bunch of "\n        " in debug logs and such.
 data S = S
   { sql :: !Text.Builder,
-    params :: [Text]
+    params :: ![Param]
   }
   deriving stock (Generic)
+
+data Param
+  = FieldParam !Text -- :foo ==> FieldParam "foo"
+  | RowParam !Text !Int -- @bar @ @ ==> RowParam "bar" 3
 
 type P a =
   State.StateT S (Megaparsec.Parsec Void Text) a
@@ -128,9 +159,26 @@ parser = do
     NonParam fragment -> do
       #sql <>= fragment
       parser
-    Param param -> do
+    AtParam param -> do
       #sql <>= Text.Builder.char '?'
-      #params %= (Text.Builder.run param :)
+      -- Either we parsed a bare "@", in which case we want to bump the int count of the latest field we walked over (
+      -- which must be a RowField, otherwise the query is invalid as it begins some string of @-params with a bare @),
+      -- or we parsed a new "@foo@ row param
+      let param1 = Text.Builder.run param
+      if Text.null param1
+        then do
+          use #params >>= \case
+            RowParam name count : ps -> #params .= (RowParam name (count + 1) : ps)
+            _ -> fail ("Invalid query: encountered unnamed-@ without a preceding named-@, like `@foo`")
+        else #params %= (RowParam param1 1 :)
+      parser
+    ColonParam param -> do
+      #sql <>= Text.Builder.char '?'
+      #params %= (FieldParam (Text.Builder.run param) :)
+      parser
+    DollarParam param -> do
+      #sql <>= Text.Builder.char '?'
+      #params %= (FieldParam (Text.Builder.run param) :)
       parser
     Whitespace -> do
       #sql <>= Text.Builder.char ' '
@@ -161,7 +209,7 @@ parser = do
 --   , Whitespace
 --   , NonParam "="
 --   , Whitespace
---   , Param "bonk"
+--   , ColonParam "bonk"
 --   , Whitespace
 --   , NonParam "AND"
 --   , Whitespace
@@ -182,7 +230,9 @@ parser = do
 -- prepended to each Param fragment.
 data Fragment
   = NonParam Text.Builder
-  | Param Text.Builder
+  | AtParam Text.Builder -- builder may be empty
+  | ColonParam Text.Builder -- builder is non-empty
+  | DollarParam Text.Builder -- builder is non-empty
   | Whitespace
   | EndOfInput
 
@@ -194,7 +244,9 @@ fragmentParser =
       NonParam <$> betwixt "identifier" '"',
       NonParam <$> betwixt "identifier" '`',
       NonParam <$> bracketedIdentifierP,
-      Param <$> paramP,
+      ColonParam <$> colonParamP,
+      AtParam <$> atParamP,
+      DollarParam <$> dollarParamP,
       NonParam <$> unstructuredP,
       EndOfInput <$ Megaparsec.eof
     ]
@@ -227,9 +279,24 @@ fragmentParser =
               && c /= '['
       pure (Text.Builder.text xs)
 
-    paramP :: P Text.Builder
-    paramP = do
-      _ <- Megaparsec.satisfy (\c -> c == ':' || c == '@' || c == '$')
+    -- Parse either "@foobar" or just "@"
+    atParamP :: P Text.Builder
+    atParamP = do
+      _ <- Megaparsec.char '@'
+      haskellVariableP <|> pure mempty
+
+    colonParamP :: P Text.Builder
+    colonParamP = do
+      _ <- Megaparsec.char ':'
+      haskellVariableP
+
+    dollarParamP :: P Text.Builder
+    dollarParamP = do
+      _ <- Megaparsec.char '$'
+      haskellVariableP
+
+    haskellVariableP :: P Text.Builder
+    haskellVariableP = do
       x <- Megaparsec.satisfy (\c -> Char.isAlpha c || c == '_')
       xs <- Megaparsec.takeWhileP (Just "parameter") \c -> Char.isAlphaNum c || c == '_' || c == '\''
       pure (Text.Builder.char x <> Text.Builder.text xs)
