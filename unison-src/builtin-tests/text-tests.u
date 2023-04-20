@@ -192,7 +192,7 @@ text.matching.tests = do
 
 char.class.tests = do
   check "Char.Class: any" do Char.Class.is Class.any ?a
---  check "Char.Class: any (2)" do Pattern.isMatch (Text.patterns.char Class.any) "a"
+  check "Char.Class: any (2)" do Pattern.isMatch (Text.patterns.char Class.any) "a"
 
   --  c: Nat -> Char
   --  c n = Char.fromNat n
