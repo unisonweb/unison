@@ -197,13 +197,13 @@ char.class.tests = do
   --  c: Nat -> Char
   --  c n = Char.fromNat n
 
-  --  run class y n =
-  --    ok = Char.Class.is class
-  --    ok' = Pattern.isMatch (Text.patterns.char class) << Char.toText
-  --    ok y && not (ok n) && ok' y && not (ok' n)
+  run class y n =
+    ok = Char.Class.is class
+    ok' = Pattern.isMatch (Text.patterns.char class) << Char.toText
+    ok y && not (ok n) && ok' y && not (ok' n)
 
-  --  check "Char.Class.alphanumeric (1)" do run Char.Class.alphanumeric ?a ?-
-  --  check "Char.Class.alphanumeric (2)" do run Char.Class.alphanumeric ?3 ?-
+  check "Char.Class.alphanumeric (1)" do run Char.Class.alphanumeric ?a ?-
+  check "Char.Class.alphanumeric (2)" do run Char.Class.alphanumeric ?3 ?-
   --  check "Char.Class.upper" do run Char.Class.upper ?A ?c
   --  check "Char.Class.lower" do run Char.Class.lower ?a ?C
   --  check "Char.Class.number" do run Char.Class.number ?3 ?z

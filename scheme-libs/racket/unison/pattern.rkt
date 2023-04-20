@@ -17,6 +17,7 @@
           [letter pattern?]
           [punctuation pattern?]
           [space pattern?]
+          [alphanumeric pattern?]
 
           [literal (-> chunked-string? pattern?)]
           [chars (-> chunked-string? pattern?)]
@@ -65,6 +66,7 @@
                (p:char (λ (c) (case c
                                 [(#\tab #\newline #\return #\page #\vtab) #t]
                                 [else (eq? (char-general-category c) 'zs)])))))
+(define alphanumeric (make-pattern (p:char (make-char-category-pred lu ll lt lm lo nd nl no))))
 
 (define (literal cstr)
   (make-pattern (p:literal cstr)))

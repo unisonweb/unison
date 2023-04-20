@@ -58,8 +58,9 @@
     unison-FOp-Text.patterns.literal
     unison-FOp-Text.patterns.eof
     unison-FOp-Text.patterns.char
-    unison-FOp-Char.Class.any
     unison-FOp-Char.Class.is
+    unison-FOp-Char.Class.any
+    unison-FOp-Char.Class.alphanumeric
 
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
@@ -489,8 +490,9 @@
   (define (unison-FOp-Text.patterns.literal s) (literal s))
   (define (unison-FOp-Text.patterns.eof) eof)
   (define (unison-FOp-Text.patterns.char cc) cc)
-  (define (unison-FOp-Char.Class.any) any-char)
   (define (unison-FOp-Char.Class.is cc c) (bool (char-class-is? cc c)))
+  (define (unison-FOp-Char.Class.any) any-char)
+  (define (unison-FOp-Char.Class.alphanumeric) alphanumeric)
 
   (define (catch-array thunk)
     (reify-exn thunk))
