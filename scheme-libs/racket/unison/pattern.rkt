@@ -18,6 +18,14 @@
           [punctuation pattern?]
           [space pattern?]
           [alphanumeric pattern?]
+          [upper pattern?]
+          [lower pattern?]
+          [number pattern?]
+          [symbol pattern?]
+          [control pattern?]
+          [printable pattern?]
+          [mark pattern?]
+          [separator pattern?]
 
           [literal (-> chunked-string? pattern?)]
           [chars (-> chunked-string? pattern?)]
@@ -67,6 +75,17 @@
                                 [(#\tab #\newline #\return #\page #\vtab) #t]
                                 [else (eq? (char-general-category c) 'zs)])))))
 (define alphanumeric (make-pattern (p:char (make-char-category-pred lu ll lt lm lo nd nl no))))
+(define upper (make-pattern (p:char (make-char-category-pred lu lt))))
+(define lower (make-pattern (p:char (make-char-category-pred ll))))
+(define number (make-pattern (p:char (make-char-category-pred nd nl no))))
+(define symbol  (make-pattern (p:char (make-char-category-pred sc sm sk so))))
+(define control (make-pattern (p:char (make-char-category-pred cc))))
+(define printable (make-pattern
+                   (p:char (λ (c) (case (char-general-category c)
+                                    [(zl zp cc cf cs co cn) #f]
+                                    [else #t])))))
+(define mark (make-pattern (p:char (make-char-category-pred mn mc me))))
+(define separator (make-pattern (p:char (make-char-category-pred zs zl zp))))
 
 (define (literal cstr)
   (make-pattern (p:literal cstr)))

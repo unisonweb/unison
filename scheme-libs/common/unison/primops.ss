@@ -61,6 +61,17 @@
     unison-FOp-Char.Class.is
     unison-FOp-Char.Class.any
     unison-FOp-Char.Class.alphanumeric
+    unison-FOp-Char.Class.upper
+    unison-FOp-Char.Class.lower
+    unison-FOp-Char.Class.number
+    unison-FOp-Char.Class.punctuation
+    unison-FOp-Char.Class.symbol
+    unison-FOp-Char.Class.letter
+    unison-FOp-Char.Class.whitespace
+    unison-FOp-Char.Class.control
+    unison-FOp-Char.Class.printable
+    unison-FOp-Char.Class.mark
+    unison-FOp-Char.Class.separator
 
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
@@ -493,6 +504,17 @@
   (define (unison-FOp-Char.Class.is cc c) (bool (char-class-is? cc c)))
   (define (unison-FOp-Char.Class.any) any-char)
   (define (unison-FOp-Char.Class.alphanumeric) alphanumeric)
+  (define (unison-FOp-Char.Class.upper) upper)
+  (define (unison-FOp-Char.Class.lower) lower)
+  (define (unison-FOp-Char.Class.number) number)
+  (define (unison-FOp-Char.Class.punctuation) punctuation)
+  (define (unison-FOp-Char.Class.symbol) symbol)
+  (define (unison-FOp-Char.Class.letter) letter)
+  (define (unison-FOp-Char.Class.whitespace) space)
+  (define (unison-FOp-Char.Class.control) control)
+  (define (unison-FOp-Char.Class.printable) printable)
+  (define (unison-FOp-Char.Class.mark) mark)
+  (define (unison-FOp-Char.Class.separator) separator)
 
   (define (catch-array thunk)
     (reify-exn thunk))
