@@ -6,6 +6,7 @@ text.tests = do
  !text.conversion.tests
  !text.debug.tests
  !text.matching.tests
+ !char.class.tests
 
 text.lit.tests = do
   check "Text empty literal" do
@@ -188,5 +189,38 @@ text.matching.tests = do
   checkEqual "Pattern api (22)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
   checkEqual "Pattern api (23)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
   checkEqual "Pattern api (24)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
-  -- TODO add tests for character class pattern
 
+
+-- TODO add tests for character class pattern
+char.class.tests = do
+  --  run class yes no =
+  --    y = Char.fromNat yes
+  --    n = Char.fromNat no
+  --    ok = Char.Class.is class
+  --    ok' = Pattern.isMatch (Text.patterns.char class)
+  --    ok y && not (ok n) && ok' y && not (ok' n)
+
+  --  check "Char.Class: any" do Char.Class.is Class.any ?a
+  --  check "Char.Class: any (2)" do Text.patterns.isMatch (Text.patterns.char Class.any) ?a
+  ()
+
+--  B "Char.Class.any" charClass,
+--  B "Char.Class.not" $ charClass --> charClass,
+--  B "Char.Class.and" $ charClass --> charClass --> charClass,
+--  B "Char.Class.or" $ charClass --> charClass --> charClass,
+--  B "Char.Class.range" $ char --> char --> charClass,
+--  B "Char.Class.anyOf" $ list char --> charClass,
+--  B "Char.Class.alphanumeric" charClass,
+--  B "Char.Class.upper" charClass,
+--  B "Char.Class.lower" charClass,
+--  B "Char.Class.whitespace" charClass,
+--  B "Char.Class.control" charClass,
+--  B "Char.Class.printable" charClass,
+--  B "Char.Class.mark" charClass,
+--  B "Char.Class.number" charClass,
+--  B "Char.Class.punctuation" charClass,
+--  B "Char.Class.symbol" charClass,
+--  B "Char.Class.separator" charClass,
+--  B "Char.Class.letter" charClass,
+--  B "Char.Class.is" $ charClass --> char --> boolean,
+--  B "Text.patterns.char" $ charClass --> pat text
