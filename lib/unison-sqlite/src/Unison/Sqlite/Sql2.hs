@@ -135,6 +135,7 @@ internalParseSql input =
 --   2. We can make the query slightly prettier by replacing all runs of 1+ characters of whitespace with a single
 --      space. This lets us write vertically aligned SQL queries at arbitrary indentations in Haskell quasi-quoters,
 --      but not have to look at a bunch of "\n        " in debug logs and such.
+--   3. We strip comments.
 data S = S
   { sql :: !Text.Builder,
     params :: ![Param]
@@ -144,6 +145,7 @@ data S = S
 data Param
   = FieldParam !Text -- :foo ==> FieldParam "foo"
   | RowParam !Text !Int -- @bar @ @ ==> RowParam "bar" 3
+  deriving stock (Eq, Show)
 
 type P a =
   State.StateT S (Megaparsec.Parsec Void Text) a
@@ -156,6 +158,7 @@ runP p =
 parser :: P ()
 parser = do
   fragmentParser >>= \case
+    Comment -> parser
     NonParam fragment -> do
       #sql <>= fragment
       parser
@@ -229,7 +232,8 @@ parser = do
 -- A parsed query can be reconstructed by simply concatenating all fragments together, with a colon character ':'
 -- prepended to each Param fragment.
 data Fragment
-  = NonParam Text.Builder
+  = Comment -- we toss these, so we don't bother remembering the contents
+  | NonParam Text.Builder
   | AtParam Text.Builder -- builder may be empty
   | ColonParam Text.Builder -- builder is non-empty
   | DollarParam Text.Builder -- builder is non-empty
@@ -239,11 +243,13 @@ data Fragment
 fragmentParser :: P Fragment
 fragmentParser =
   asum
-    [ Whitespace <$ Megaparsec.takeWhile1P (Just "whitepsace") Char.isSpace,
+    [ Whitespace <$ whitespaceP,
       NonParam <$> betwixt "string" '\'',
       NonParam <$> betwixt "identifier" '"',
       NonParam <$> betwixt "identifier" '`',
       NonParam <$> bracketedIdentifierP,
+      Comment <$ lineCommentP,
+      Comment <$ blockCommentP,
       ColonParam <$> colonParamP,
       AtParam <$> atParamP,
       DollarParam <$> dollarParamP,
@@ -263,10 +269,29 @@ fragmentParser =
       z <- char ']'
       pure (x <> Text.Builder.text ys <> z)
 
+    lineCommentP :: P ()
+    lineCommentP = do
+      _ <- Megaparsec.string "--"
+      _ <- Megaparsec.takeWhileP (Just "comment") (/= '\n')
+      -- Eat whitespace after a line comment just so we don't end up with [Whitespace, Comment, Whitespace] fragments,
+      -- which would get serialized as two consecutive spaces
+      whitespaceP
+
+    blockCommentP :: P ()
+    blockCommentP = do
+      _ <- Megaparsec.string "/*"
+      let loop = do
+            _ <- Megaparsec.takeWhileP (Just "comment") (/= '*')
+            Megaparsec.string "*/" <|> (Megaparsec.anySingle >> loop)
+      _ <- loop
+      -- See whitespace-eating comment above
+      whitespaceP
+
     unstructuredP :: P Text.Builder
     unstructuredP = do
+      x <- Megaparsec.anySingle
       xs <-
-        Megaparsec.takeWhile1P
+        Megaparsec.takeWhileP
           (Just "sql")
           \c ->
             not (Char.isSpace c)
@@ -277,7 +302,9 @@ fragmentParser =
               && c /= '$'
               && c /= '`'
               && c /= '['
-      pure (Text.Builder.text xs)
+              && c /= '-'
+              && c /= '/'
+      pure (Text.Builder.char x <> Text.Builder.text xs)
 
     -- Parse either "@foobar" or just "@"
     atParamP :: P Text.Builder
@@ -300,6 +327,10 @@ fragmentParser =
       x <- Megaparsec.satisfy (\c -> Char.isAlpha c || c == '_')
       xs <- Megaparsec.takeWhileP (Just "parameter") \c -> Char.isAlphaNum c || c == '_' || c == '\''
       pure (Text.Builder.char x <> Text.Builder.text xs)
+
+    whitespaceP :: P ()
+    whitespaceP = do
+      void (Megaparsec.takeWhile1P (Just "whitepsace") Char.isSpace)
 
 -- @betwixt name c@ parses a @c@-surrounded string of arbitrary characters (naming the parser @name@), where two @c@s
 -- in a row inside the string is the syntax for a single @c@. This is simply how escaping works in SQLite for

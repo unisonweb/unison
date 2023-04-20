@@ -232,7 +232,7 @@ execute2 conn@(Connection _ _ conn0) (Sql2 s params) = do
       SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
-          params = Just (foldMap (either pure id) params),
+          params = Just (flattenParameters params),
           sql = Sql s
         }
   where
@@ -473,7 +473,7 @@ gqueryListCheck2 conn s@(Sql2 sql params) check = do
         SqliteQueryExceptionInfo
           { connection = conn,
             exception,
-            params = Just params,
+            params = Just (flattenParameters params),
             sql = Sql sql
           }
     Right result -> pure result
