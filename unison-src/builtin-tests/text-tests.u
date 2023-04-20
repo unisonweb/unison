@@ -200,9 +200,8 @@ char.class.tests = do
   --    ok' = Pattern.isMatch (Text.patterns.char class)
   --    ok y && not (ok n) && ok' y && not (ok' n)
 
-  --  check "Char.Class: any" do Char.Class.is Class.any ?a
-  --  check "Char.Class: any (2)" do Text.patterns.isMatch (Text.patterns.char Class.any) ?a
-  ()
+  check "Char.Class: any" do Char.Class.is Class.any ?a
+  check "Char.Class: any (2)" do Pattern.isMatch (Text.patterns.char Class.any) "a"
 
 --  B "Char.Class.any" charClass,
 --  B "Char.Class.not" $ charClass --> charClass,
