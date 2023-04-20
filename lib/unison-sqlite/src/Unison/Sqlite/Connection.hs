@@ -27,18 +27,26 @@ module Unison.Sqlite.Connection
     queryListCol,
     queryListCol2,
     queryMaybeRow,
+    queryMaybeRow2,
     queryMaybeCol,
+    queryMaybeCol2,
     queryOneRow,
+    queryOneRow2,
     queryOneCol,
+    queryOneCol2,
     queryManyListRow,
 
     -- **** With checks
     queryListRowCheck,
     queryListColCheck,
     queryMaybeRowCheck,
+    queryMaybeRowCheck2,
     queryMaybeColCheck,
+    queryMaybeColCheck2,
     queryOneRowCheck,
+    queryOneRowCheck2,
     queryOneColCheck,
+    queryOneColCheck2,
 
     -- *** Without parameters
     queryListRow_,
@@ -375,9 +383,20 @@ queryMaybeRow conn s params =
     [x] -> Right (Just x)
     xs -> Left (ExpectedAtMostOneRowException (anythingToString xs))
 
+queryMaybeRow2 :: (Sqlite.FromRow a) => Connection -> Sql2 -> IO (Maybe a)
+queryMaybeRow2 conn s =
+  queryListRowCheck2 conn s \case
+    [] -> Right Nothing
+    [x] -> Right (Just x)
+    xs -> Left (ExpectedAtMostOneRowException (anythingToString xs))
+
 queryMaybeCol :: forall a b. (Sqlite.ToRow a, Sqlite.FromField b) => Connection -> Sql -> a -> IO (Maybe b)
 queryMaybeCol conn s params =
   coerce @(IO (Maybe (Sqlite.Only b))) @(IO (Maybe b)) (queryMaybeRow conn s params)
+
+queryMaybeCol2 :: forall a. (Sqlite.FromField a) => Connection -> Sql2 -> IO (Maybe a)
+queryMaybeCol2 conn s =
+  coerce @(IO (Maybe (Sqlite.Only a))) @(IO (Maybe a)) (queryMaybeRow2 conn s)
 
 queryOneRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO b
 queryOneRow conn s params =
@@ -385,9 +404,19 @@ queryOneRow conn s params =
     [x] -> Right x
     xs -> Left (ExpectedExactlyOneRowException (anythingToString xs))
 
+queryOneRow2 :: (Sqlite.FromRow a) => Connection -> Sql2 -> IO a
+queryOneRow2 conn s =
+  queryListRowCheck2 conn s \case
+    [x] -> Right x
+    xs -> Left (ExpectedExactlyOneRowException (anythingToString xs))
+
 queryOneCol :: forall a b. (Sqlite.FromField b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO b
 queryOneCol conn s params = do
   coerce @(IO (Sqlite.Only b)) @(IO b) (queryOneRow conn s params)
+
+queryOneCol2 :: forall a. (Sqlite.FromField a) => Connection -> Sql2 -> IO a
+queryOneCol2 conn s = do
+  coerce @(IO (Sqlite.Only a)) @(IO a) (queryOneRow2 conn s)
 
 -- With results, with parameters, with checks
 
@@ -400,6 +429,15 @@ queryListRowCheck ::
   IO r
 queryListRowCheck conn s params check =
   gqueryListCheck conn s params (mapLeft SomeSqliteExceptionReason . check)
+
+queryListRowCheck2 ::
+  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  Connection ->
+  Sql2 ->
+  ([a] -> Either e r) ->
+  IO r
+queryListRowCheck2 conn s check =
+  gqueryListCheck2 conn s (mapLeft SomeSqliteExceptionReason . check)
 
 gqueryListCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a) =>
@@ -418,6 +456,25 @@ gqueryListCheck conn s params check = do
             exception,
             params = Just params,
             sql = s
+          }
+    Right result -> pure result
+
+gqueryListCheck2 ::
+  (Sqlite.FromRow a) =>
+  Connection ->
+  Sql2 ->
+  ([a] -> Either SomeSqliteExceptionReason r) ->
+  IO r
+gqueryListCheck2 conn s@(Sql2 sql params) check = do
+  xs <- queryListRow2 conn s
+  case check xs of
+    Left exception ->
+      throwSqliteQueryException2
+        SqliteQueryExceptionInfo
+          { connection = conn,
+            exception,
+            params = Just params,
+            sql = Sql sql
           }
     Right result -> pure result
 
@@ -445,6 +502,18 @@ queryMaybeRowCheck conn s params check =
     [x] -> bimap SomeSqliteExceptionReason Just (check x)
     xs -> Left (SomeSqliteExceptionReason (ExpectedAtMostOneRowException (anythingToString xs)))
 
+queryMaybeRowCheck2 ::
+  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  Connection ->
+  Sql2 ->
+  (a -> Either e r) ->
+  IO (Maybe r)
+queryMaybeRowCheck2 conn s check =
+  gqueryListCheck2 conn s \case
+    [] -> pure Nothing
+    [x] -> bimap SomeSqliteExceptionReason Just (check x)
+    xs -> Left (SomeSqliteExceptionReason (ExpectedAtMostOneRowException (anythingToString xs)))
+
 queryMaybeColCheck ::
   forall a b e r.
   (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
@@ -455,6 +524,16 @@ queryMaybeColCheck ::
   IO (Maybe r)
 queryMaybeColCheck conn s params check =
   queryMaybeRowCheck conn s params (coerce @(b -> Either e r) @(Sqlite.Only b -> Either e r) check)
+
+queryMaybeColCheck2 ::
+  forall a e r.
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  Connection ->
+  Sql2 ->
+  (a -> Either e r) ->
+  IO (Maybe r)
+queryMaybeColCheck2 conn s check =
+  queryMaybeRowCheck2 conn s (coerce @(a -> Either e r) @(Sqlite.Only a -> Either e r) check)
 
 queryOneRowCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
@@ -468,6 +547,17 @@ queryOneRowCheck conn s params check =
     [x] -> mapLeft SomeSqliteExceptionReason (check x)
     xs -> Left (SomeSqliteExceptionReason (ExpectedExactlyOneRowException (anythingToString xs)))
 
+queryOneRowCheck2 ::
+  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  Connection ->
+  Sql2 ->
+  (a -> Either e r) ->
+  IO r
+queryOneRowCheck2 conn s check =
+  gqueryListCheck2 conn s \case
+    [x] -> mapLeft SomeSqliteExceptionReason (check x)
+    xs -> Left (SomeSqliteExceptionReason (ExpectedExactlyOneRowException (anythingToString xs)))
+
 queryOneColCheck ::
   forall a b e r.
   (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
@@ -478,6 +568,16 @@ queryOneColCheck ::
   IO r
 queryOneColCheck conn s params check =
   queryOneRowCheck conn s params (coerce @(b -> Either e r) @(Sqlite.Only b -> Either e r) check)
+
+queryOneColCheck2 ::
+  forall a e r.
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  Connection ->
+  Sql2 ->
+  (a -> Either e r) ->
+  IO r
+queryOneColCheck2 conn s check =
+  queryOneRowCheck2 conn s (coerce @(a -> Either e r) @(Sqlite.Only a -> Either e r) check)
 
 -- With results, without parameters, without checks
 
