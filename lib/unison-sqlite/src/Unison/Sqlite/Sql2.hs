@@ -5,6 +5,7 @@ module Unison.Sqlite.Sql2
     sql2,
 
     -- * Exported for testing
+    Param (..),
     internalParseSql,
   )
 where
