@@ -75,8 +75,8 @@
     unison-FOp-Char.Class.or
     unison-FOp-Char.Class.range
     unison-FOp-Char.Class.anyOf
-    ;; unison-FOp-Char.Class.and
-    ;; unison-FOp-Char.Class.not
+    unison-FOp-Char.Class.and
+    unison-FOp-Char.Class.not
 
 
     ; unison-FOp-Value.serialize
@@ -524,7 +524,8 @@
   (define (unison-FOp-Char.Class.range a z)
     (unison-FOp-Text.patterns.charRange a z))
   (define (unison-FOp-Char.Class.anyOf cs) (unison-FOp-Text.patterns.charIn cs))
-  ;; TODO implement and and not(define (unison-FOp-Char.Class.and))
+  (define (unison-FOp-Char.Class.and cc1 cc2) (char-class-and cc1 cc2))
+  (define (unison-FOp-Char.Class.not cc) (char-class-not cc))
 
   (define (catch-array thunk)
     (reify-exn thunk))
