@@ -30,10 +30,9 @@
     string->chunked-string)
 
   (import (rnrs)
+          (for (only (compatibility mlist) mlist->list) expand)
           (for (only (racket base) quasisyntax/loc) expand)
-          (for
-            (only (unison core) syntax->list)
-            expand)
+          (for (only (unison core) syntax->list) expand)
           (only (srfi :28) format)
           (unison core)
           (unison data)
@@ -104,14 +103,14 @@
           [(a ... z)
            (quasisyntax/loc x
              (case-lambda
-               #,@(build-partials name #'(a ...))
+               #,@(mlist->list (build-partials name #'(a ...)))
                [(a ... z) (#,fast a ... z)]
                [(a ... z . r) (apply (#,fast a ... z) r)]))]))
 
       (define (func-wrap name args body)
         (with-syntax ([fp (fast-path-name name)])
           #`(let ([fp #,(quasisyntax/loc x
-                          (lambda (#,@args) #,@body))])
+                          (lambda (#,@(mlist->list args)) #,@(mlist->list body)))])
               #,(func-cases name #'fp args))))
 
       (syntax-case x ()
