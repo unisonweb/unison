@@ -53,18 +53,26 @@ module Unison.Sqlite
     queryListCol,
     queryListCol2,
     queryMaybeRow,
+    queryMaybeRow2,
     queryMaybeCol,
+    queryMaybeCol2,
     queryOneRow,
+    queryOneRow2,
     queryOneCol,
+    queryOneCol2,
     queryManyListRow,
 
     -- **** With checks
     queryListRowCheck,
     queryListColCheck,
     queryMaybeRowCheck,
+    queryMaybeRowCheck2,
     queryMaybeColCheck,
+    queryMaybeColCheck2,
     queryOneRowCheck,
+    queryOneRowCheck2,
     queryOneColCheck,
+    queryOneColCheck2,
 
     -- *** Without parameters
     queryListRow_,

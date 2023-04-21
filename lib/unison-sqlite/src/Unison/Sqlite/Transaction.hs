@@ -31,18 +31,26 @@ module Unison.Sqlite.Transaction
     queryListCol,
     queryListCol2,
     queryMaybeRow,
+    queryMaybeRow2,
     queryMaybeCol,
+    queryMaybeCol2,
     queryOneRow,
+    queryOneRow2,
     queryOneCol,
+    queryOneCol2,
     queryManyListRow,
 
     -- **** With checks
     queryListRowCheck,
     queryListColCheck,
     queryMaybeRowCheck,
+    queryMaybeRowCheck2,
     queryMaybeColCheck,
+    queryMaybeColCheck2,
     queryOneRowCheck,
+    queryOneRowCheck2,
     queryOneColCheck,
+    queryOneColCheck2,
 
     -- *** Without parameters
     queryListRow_,
@@ -270,17 +278,33 @@ queryMaybeRow :: (Sqlite.FromRow a, Sqlite.ToRow b) => Sql -> b -> Transaction (
 queryMaybeRow s params =
   Transaction \conn -> Connection.queryMaybeRow conn s params
 
+queryMaybeRow2 :: (Sqlite.FromRow a) => Sql2 -> Transaction (Maybe a)
+queryMaybeRow2 s =
+  Transaction \conn -> Connection.queryMaybeRow2 conn s
+
 queryMaybeCol :: (Sqlite.FromField a, Sqlite.ToRow b) => Sql -> b -> Transaction (Maybe a)
 queryMaybeCol s params =
   Transaction \conn -> Connection.queryMaybeCol conn s params
+
+queryMaybeCol2 :: (Sqlite.FromField a) => Sql2 -> Transaction (Maybe a)
+queryMaybeCol2 s =
+  Transaction \conn -> Connection.queryMaybeCol2 conn s
 
 queryOneRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Sql -> a -> Transaction b
 queryOneRow s params =
   Transaction \conn -> Connection.queryOneRow conn s params
 
+queryOneRow2 :: (Sqlite.FromRow a) => Sql2 -> Transaction a
+queryOneRow2 s =
+  Transaction \conn -> Connection.queryOneRow2 conn s
+
 queryOneCol :: (Sqlite.FromField b, Sqlite.ToRow a) => Sql -> a -> Transaction b
 queryOneCol s params =
   Transaction \conn -> Connection.queryOneCol conn s params
+
+queryOneCol2 :: (Sqlite.FromField a) => Sql2 -> Transaction a
+queryOneCol2 s =
+  Transaction \conn -> Connection.queryOneCol2 conn s
 
 -- With results, with parameters, with checks
 
@@ -311,6 +335,14 @@ queryMaybeRowCheck ::
 queryMaybeRowCheck s params check =
   Transaction \conn -> Connection.queryMaybeRowCheck conn s params check
 
+queryMaybeRowCheck2 ::
+  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  Sql2 ->
+  (a -> Either e r) ->
+  Transaction (Maybe r)
+queryMaybeRowCheck2 s check =
+  Transaction \conn -> Connection.queryMaybeRowCheck2 conn s check
+
 queryMaybeColCheck ::
   (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
@@ -319,6 +351,14 @@ queryMaybeColCheck ::
   Transaction (Maybe r)
 queryMaybeColCheck s params check =
   Transaction \conn -> Connection.queryMaybeColCheck conn s params check
+
+queryMaybeColCheck2 ::
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  Sql2 ->
+  (a -> Either e r) ->
+  Transaction (Maybe r)
+queryMaybeColCheck2 s check =
+  Transaction \conn -> Connection.queryMaybeColCheck2 conn s check
 
 queryOneRowCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
@@ -329,6 +369,14 @@ queryOneRowCheck ::
 queryOneRowCheck s params check =
   Transaction \conn -> Connection.queryOneRowCheck conn s params check
 
+queryOneRowCheck2 ::
+  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  Sql2 ->
+  (a -> Either e r) ->
+  Transaction r
+queryOneRowCheck2 s check =
+  Transaction \conn -> Connection.queryOneRowCheck2 conn s check
+
 queryOneColCheck ::
   (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
@@ -337,6 +385,14 @@ queryOneColCheck ::
   Transaction r
 queryOneColCheck s params check =
   Transaction \conn -> Connection.queryOneColCheck conn s params check
+
+queryOneColCheck2 ::
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  Sql2 ->
+  (a -> Either e r) ->
+  Transaction r
+queryOneColCheck2 s check =
+  Transaction \conn -> Connection.queryOneColCheck2 conn s check
 
 -- With results, without parameters, without checks
 
