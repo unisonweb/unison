@@ -72,6 +72,10 @@
     unison-FOp-Char.Class.printable
     unison-FOp-Char.Class.mark
     unison-FOp-Char.Class.separator
+    unison-FOp-Char.Class.and
+    unison-FOp-Char.Class.or
+    unison-FOp-Char.Class.range
+    unison-FOp-Char.Class.anyOf
 
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
@@ -515,6 +519,11 @@
   (define (unison-FOp-Char.Class.printable) printable)
   (define (unison-FOp-Char.Class.mark) mark)
   (define (unison-FOp-Char.Class.separator) separator)
+  (define (unison-FOp-Char.Class.and) char-class-and)
+  (define (unison-FOp-Char.Class.or) char-class-or)
+  (define (unison-FOp-Char.Class.range) char-class-range)
+  (define (unison-FOp-Char.Class.anyOf) char-class-anyOf)
+
 
   (define (catch-array thunk)
     (reify-exn thunk))
