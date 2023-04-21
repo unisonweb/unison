@@ -322,6 +322,8 @@ data Output
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
   | RemoteProjectDoesntExist URI ProjectName
   | RemoteProjectBranchDoesntExist URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | RemoteProjectReleaseIsDeprecated URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | RemoteProjectPublishedReleaseCannotBeChanged URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- A remote project branch head wasn't in the expected state
     RemoteProjectBranchHeadMismatch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | Unauthorized Text
@@ -523,6 +525,8 @@ isFailure o = case o of
   LocalProjectBranchDoesntExist {} -> True
   RemoteProjectDoesntExist {} -> True
   RemoteProjectBranchDoesntExist {} -> True
+  RemoteProjectReleaseIsDeprecated {} -> True
+  RemoteProjectPublishedReleaseCannotBeChanged {} -> True
   RemoteProjectBranchHeadMismatch {} -> True
   Unauthorized {} -> True
   ServantClientError {} -> True

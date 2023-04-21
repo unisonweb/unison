@@ -103,6 +103,7 @@ library
       Unison.PatternMatchCoverage.Class
       Unison.PatternMatchCoverage.Constraint
       Unison.PatternMatchCoverage.Desugar
+      Unison.PatternMatchCoverage.EffectHandler
       Unison.PatternMatchCoverage.Fix
       Unison.PatternMatchCoverage.GrdTree
       Unison.PatternMatchCoverage.IntervalSet

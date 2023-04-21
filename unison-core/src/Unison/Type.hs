@@ -112,6 +112,9 @@ pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Pure' :: (Ord v) => Type v a -> Type v a
 pattern Pure' t <- (unPure -> Just t)
 
+pattern Request' :: [Type v a] -> Type v a -> Type v a
+pattern Request' ets res <- Apps' (Ref' ((== effectRef) -> True)) [(flattenEffects -> ets), res]
+
 pattern Effects' :: [ABT.Term F v a] -> ABT.Term F v a
 pattern Effects' es <- ABT.Tm' (Effects es)
 

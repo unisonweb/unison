@@ -49,6 +49,7 @@ tremulous = cases
 
 throaty = cases
   { Ab.a a -> k } -> ()
+  { _ } -> ()
   
 agitated = cases
   a | a == 2 -> ()
@@ -181,7 +182,9 @@ doc = cases
 .> view throaty
 
   throaty : Request {g, Ab} x -> ()
-  throaty = cases {a a -> k} -> ()
+  throaty = cases
+    {a a -> k} -> ()
+    { _ }      -> ()
 
 .> view agitated
 

@@ -1931,6 +1931,21 @@ notifyUser dir = \case
         <> "on"
         <> prettyURI host
         <> "has some history that I don't know about."
+  RemoteProjectPublishedReleaseCannotBeChanged host projectAndBranch ->
+    pure . P.wrap $
+      "The release"
+        <> prettyProjectAndBranchName projectAndBranch
+        <> "on"
+        <> prettyURI host
+        <> "has already been published and cannot be changed."
+        <> "Consider making a new release instead."
+  RemoteProjectReleaseIsDeprecated host projectAndBranch ->
+    pure . P.wrap $
+      "The release"
+        <> prettyProjectAndBranchName projectAndBranch
+        <> "on"
+        <> prettyURI host
+        <> "has been deprecated."
   Unauthorized message ->
     pure . P.wrap $
       P.text ("Unauthorized: " <> message)
