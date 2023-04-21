@@ -46,7 +46,7 @@
 (check-equal? (pattern-match (literal (cs "ab")) (cs "ab")) (ok ""))
 (check-equal? (pattern-match (literal (cs "ab")) (cs "abc")) (ok "c"))
 
-(let ([pat (chars (cs "abcd"))])
+(let ([pat (chars (vector->chunked-list (vector #\a #\b #\c #\d)))])
   (check-equal? (pattern-match pat (cs "a")) (ok ""))
   (check-equal? (pattern-match pat (cs "b")) (ok ""))
   (check-equal? (pattern-match pat (cs "c")) (ok ""))

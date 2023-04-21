@@ -28,8 +28,8 @@
           [separator pattern?]
 
           [literal (-> chunked-string? pattern?)]
-          [chars (-> chunked-string? pattern?)]
-          [not-chars (-> chunked-string? pattern?)]
+          [chars (-> chunked-list? pattern?)]
+          [not-chars (-> chunked-list? pattern?)]
           [char-range (-> char? char? pattern?)]
           [not-char-range (-> char? char? pattern?)]
           [join (-> pattern? ... pattern?)]
@@ -88,11 +88,10 @@
 (define (literal cstr)
   (make-pattern (p:literal cstr)))
 
-;; TODO use lists here
 (define (chars cstr)
-  (make-pattern (p:char (λ (a) (for/or ([b (in-chunked-string cstr)]) (eqv? a b))))))
+  (make-pattern (p:char (λ (a) (for/or ([b (in-chunked-list cstr)]) (eqv? a b))))))
 (define (not-chars cstr)
-  (make-pattern (p:char (λ (a) (for/and ([b (in-chunked-string cstr)]) (not (eqv? a b)))))))
+  (make-pattern (p:char (λ (a) (for/and ([b (in-chunked-list cstr)]) (not (eqv? a b)))))))
 
 (define (char-range start end)
   (make-pattern (p:char (λ (c) (char<=? start c end)))))
