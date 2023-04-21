@@ -72,10 +72,12 @@
     unison-FOp-Char.Class.printable
     unison-FOp-Char.Class.mark
     unison-FOp-Char.Class.separator
-    unison-FOp-Char.Class.and
     unison-FOp-Char.Class.or
     unison-FOp-Char.Class.range
     unison-FOp-Char.Class.anyOf
+    ;; unison-FOp-Char.Class.and
+    ;; unison-FOp-Char.Class.not
+
 
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
@@ -504,25 +506,27 @@
   (define (unison-FOp-Text.patterns.literal s) (literal s))
   (define (unison-FOp-Text.patterns.eof) eof)
   (define (unison-FOp-Text.patterns.char cc) cc)
-  (define (unison-FOp-Char.Class.is cc c) (bool (char-class-is? cc c)))
-  (define (unison-FOp-Char.Class.any) any-char)
+  (define (unison-FOp-Char.Class.is cc c)
+    (unison-FOp-Pattern.isMatch cc (unison-FOp-Char.toText c)))
+  (define (unison-FOp-Char.Class.any) (unison-FOp-Text.patterns.anyChar))
+  (define (unison-FOp-Char.Class.punctuation)
+    (unison-FOp-Text.patterns.punctuation))
+  (define (unison-FOp-Char.Class.letter) (unison-FOp-Text.patterns.letter))
   (define (unison-FOp-Char.Class.alphanumeric) alphanumeric)
   (define (unison-FOp-Char.Class.upper) upper)
   (define (unison-FOp-Char.Class.lower) lower)
   (define (unison-FOp-Char.Class.number) number)
-  (define (unison-FOp-Char.Class.punctuation) punctuation)
   (define (unison-FOp-Char.Class.symbol) symbol)
-  (define (unison-FOp-Char.Class.letter) letter)
   (define (unison-FOp-Char.Class.whitespace) space)
   (define (unison-FOp-Char.Class.control) control)
   (define (unison-FOp-Char.Class.printable) printable)
   (define (unison-FOp-Char.Class.mark) mark)
   (define (unison-FOp-Char.Class.separator) separator)
-  (define (unison-FOp-Char.Class.and) char-class-and)
-  (define (unison-FOp-Char.Class.or) char-class-or)
-  (define (unison-FOp-Char.Class.range) char-class-range)
-  (define (unison-FOp-Char.Class.anyOf) char-class-anyOf)
-
+  (define (unison-FOp-Char.Class.or p1 p2) (unison-FOp-Pattern.or p1 p2))
+  (define (unison-FOp-Char.Class.range a z)
+    (unison-FOp-Text.patterns.charRange a z))
+  (define (unison-FOp-Char.Class.anyOf cs) (unison-FOp-Text.patterns.charIn cs))
+  ;; TODO implement and and not(define (unison-FOp-Char.Class.and))
 
   (define (catch-array thunk)
     (reify-exn thunk))

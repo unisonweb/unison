@@ -37,13 +37,7 @@
           [choice (-> pattern? pattern? ... pattern?)]
           [capture (-> pattern? pattern?)]
           [many (-> pattern? pattern?)]
-          [replicate (-> pattern? exact-nonnegative-integer? exact-nonnegative-integer? pattern?)]
-          ;; the functions below only accept p:char patterns, i.e. character classes
-          [char-class-is? (-> pattern? char? boolean?)]
-          [char-class-and (-> pattern? pattern? pattern?)]
-          [char-class-or (-> pattern? pattern? pattern?)]
-          [char-class-range (-> char? char? pattern?)]
-          [char-class-anyOf (-> chunked-list? pattern?)]))
+          [replicate (-> pattern? exact-nonnegative-integer? exact-nonnegative-integer? pattern?)]))
 
 ;; -----------------------------------------------------------------------------
 
@@ -130,6 +124,12 @@
 (define (capture pat) (make-pattern (p:capture (pattern-pat pat))))
 (define (many pat) (make-pattern (p:many (pattern-pat pat))))
 (define (replicate pat n m) (make-pattern (p:replicate (pattern-pat pat) n m)))
+
+;; TODO implement not and or for char classes
+;; (define (both p1 p1)
+;;   (make-pattern
+;;    (p:char (λ (c) (and (char-class-is? p1 c) (char-class-is? p2 c))))))
+
 
 ;; -----------------------------------------------------------------------------
 
@@ -267,21 +267,3 @@
     (define-values [cstr* captures] (pat-m cstr empty-chunked-list))
     (if cstr* (cons cstr* captures) #f)))
 
-;; TODO implement all this directly with patterns
-;; -----------------------------------------------------------------------------
-(define (char-class-is? pat c)
-  (match (pattern-pat pat)
-    [(p:char 'any) #t]
-    [(p:char predicate) (predicate c)]))
-
-(define (char-class-and p1 p1)
-  (make-pattern
-   (p:char (λ (c) (and (char-class-is? p1 c) (char-class-is? p2 c))))))
-
-(define (char-class-or p1 p2)
-  (make-pattern
-   (p:char (λ (c) (or (char-class-is? p1 c) (char-class-is? p2 c))))))
-
-(define (char-class-range a z) )
-
-(define (char-class-anyOf cs))
