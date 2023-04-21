@@ -488,7 +488,6 @@
   (define (unison-FOp-Pattern.join ps)
     (join* ps))
   (define (unison-FOp-Pattern.or p1 p2) (choice p1 p2))
-  ;; TODO discrepancy between Unison and Scheme pattern lib
   (define (unison-FOp-Pattern.replicate n m p) (replicate p n m))
 
   (define (unison-FOp-Text.patterns.digit) digit)
