@@ -105,6 +105,11 @@ bytes.ops.tests = do
   checkEqual "Bytes.at (3)" (Bytes.at 1 0xs) None
   checkEqual "Bytes.at (4)" (Bytes.at 5 0xs010203) None
 
+-- Haskell and Racket produce slightly different byte output
+-- for gzip compress (in the header, racket reports the OS as "unix"
+-- while Haskell for some reason claims to be Acorn RISCOS),
+-- so we can't compare gzip.compress to the actual byte output.
+-- We'll have to settle for testing the round-trip.
 bytes.gzip.compress.tests = do
     checkEqual "gzip empty" (gzip.decompress (gzip.compress (toUtf8 ""))) (Right (toUtf8 ""))
     checkEqual "gzip hello folks" (gzip.decompress (gzip.compress (toUtf8 "hello folks"))) (Right (toUtf8 "hello folks"))
