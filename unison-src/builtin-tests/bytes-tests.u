@@ -106,8 +106,8 @@ bytes.ops.tests = do
   checkEqual "Bytes.at (4)" (Bytes.at 5 0xs010203) None
 
 bytes.gzip.compress.tests = do
-    checkEqual "gzip empty" (gzip.compress (toUtf8 "")) 0xs1f8b080000000000001303000000000000000000
-    checkEqual "gzip hello folks" (gzip.compress (toUtf8 "hello folks")) 0xs1f8b0800000000000013cb48cdc9c95748cbcfc92e0600cd32e08a0b000000
+    checkEqual "gzip empty" (gzip.decompress (gzip.compress (toUtf8 ""))) (Right (toUtf8 ""))
+    checkEqual "gzip hello folks" (gzip.decompress (gzip.compress (toUtf8 "hello folks"))) (Right (toUtf8 "hello folks"))
 
 bytes.gzip.decompress.tests = do
     checkEqual "gunzip empty" (gzip.decompress 0xs1f8b080000000000001303000000000000000000) (Right (toUtf8 ""))

@@ -1,16 +1,8 @@
-; TLS primitives! Supplied by openssl (libssl)
 #lang racket/base
-(require racket/exn
-         racket/string
-         racket/file
-         (only-in racket empty?)
-         compatibility/mlist
-         unison/data
-         unison/tcp
-         unison/pem
+(require unison/data
          file/gzip
-         x509
-         openssl
+         file/gunzip
+         unison/core
          (only-in unison/data/chunked-seq
             bytes->chunked-bytes
             chunked-bytes->bytes))
@@ -25,11 +17,14 @@
         (gzip-through-ports (open-input-bytes bytes) op1 #f 0)
         (get-output-bytes op1)))
 
+(define (gunzip-bytes bytes)
+    (let ([op1 (open-output-bytes)])
+        (gunzip-through-ports (open-input-bytes bytes) op1)
+        (get-output-bytes op1)))
+
 (define (gzip.compress bytes)
     (bytes->chunked-bytes (gzip-bytes (chunked-bytes->bytes bytes))))
 
 (define (gzip.decompress bytes)
-(right (bytes->chunked-bytes (gzip-bytes (chunked-bytes->bytes bytes)))))
-
-; 0xs1f8b80000003cb48cdc9c95748cbcfc92e60cd32e08ab000
-; 0xs1f8b800000013cb48cdc9c95748cbcfc92e60cd32e08ab000
+    (with-handlers [[exn:fail? (lambda (e) (exception "Gzip data corrupted" (exception->string e) '()))] ]
+        (right (bytes->chunked-bytes (gunzip-bytes (chunked-bytes->bytes bytes))))))
