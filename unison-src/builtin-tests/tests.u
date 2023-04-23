@@ -6,6 +6,8 @@ tests = Tests.main do
   !hmac.tests
   !concurrency.tests
   !tcp.tests
+  !gzip.compress.tests
+  !gzip.decompress.tests
   check "bug is caught" do shouldFail do bug ()
 
 crypto.hash.tests = do
