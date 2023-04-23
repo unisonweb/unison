@@ -18,12 +18,38 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm:hide
 .> load unison-src/builtin-tests/tcp-tests.u
 .> add
+```
+
+```ucm:hide
 .> load unison-src/builtin-tests/tls-chain-tests.u
 .> add
+```
+
+```ucm:hide
 .> load unison-src/builtin-tests/tls-tests.u
 .> add
 .> load unison-src/builtin-tests/bytes-tests.u
 .> add
+```
+
+```ucm:hide
+.> load unison-src/builtin-tests/list-tests.u
+.> add
+```
+
+```ucm:hide
+.> load unison-src/builtin-tests/text-tests.u
+.> add
+```
+
+```ucm:hide
+.> load unison-src/builtin-tests/bytes-tests.u
+.> add
+```
+
+TODO remove md5 alias when base is released
+```ucm:hide
+.> alias.term ##crypto.HashAlgorithm.Md5 base.crypto.HashAlgorithm.Md5
 ```
 
 ```ucm:hide
@@ -35,7 +61,7 @@ to `Tests.check` and `Tests.checkEqual`).
 .> run tests
 ```
 
-
+TODO remove once jit supports typelinks
 ```ucm:hide
 .> builtins.merge
 .> load unison-src/builtin-tests/thread-killed-typeLink-test.u

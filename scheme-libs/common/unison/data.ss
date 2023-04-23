@@ -41,9 +41,15 @@
    unit
    false
    true
+   bool
+   ord
    any
    failure
-   exception)
+   exception
+   exn:bug
+   make-exn:bug
+   exn:bug?
+   exn:bug->exception)
 
   (import (rnrs))
 
@@ -99,6 +105,14 @@
   (define false 0)
   (define true 1)
 
+  (define (bool b) (if b 1 0))
+
+  (define (ord o)
+    (cond
+      [(eq? o '<) 0]
+      [(eq? o '=) 1]
+      [(eq? o '>) 2]))
+
   ; a -> Either b a
   (define (right a) (sum 1 a))
 
@@ -123,4 +137,9 @@
 
   ; Type -> Text -> a ->{Exception} b
   (define (exception typeLink msg a)
-    (failure typeLink msg (any a))))
+    (failure typeLink msg (any a)))
+
+  ; TODO needs better pretty printing for when it isn't caught
+  (define-record-type exn:bug (fields msg a))
+  (define (exn:bug->exception b) (exception "RuntimeFailure" (exn:bug-msg b) (exn:bug-a b))))
+

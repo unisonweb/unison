@@ -4,7 +4,7 @@ shouldFail fn =
   isLeft result
 
 tcp.tests = do
-  -- -- TODO: Enable this once scheme output correctly escapes \r
+  -- TODO: Enable this once scheme output correctly escapes \r
   -- check "connects to example.com" tcp.example.com
   check "rejects invalid port" do shouldFail do Socket.client (HostName "example.com") (Port "what")
   check "no send after close" do shouldFail do
@@ -31,7 +31,7 @@ testServerAndClient = do
 
   match setup with
     Left exn ->
-      Tests.fail "Unable to bind and listen on a socket" ""
+      Tests.fail "Unable to bind and listen on a socket" (Debug.toText exn)
     Right (socket, port) ->
       serve = do
         sock = Socket.accept socket

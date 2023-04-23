@@ -284,6 +284,8 @@ data SetProjectBranchHeadResponse
   | SetProjectBranchHeadResponseMissingCausalHash !Hash32
   | -- | (expected, actual)
     SetProjectBranchHeadResponseExpectedCausalHashMismatch !Hash32 !Hash32
+  | SetProjectBranchHeadResponsePublishedReleaseIsImmutable
+  | SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable
   | SetProjectBranchHeadResponseSuccess
   deriving stock (Eq, Show, Generic)
 
@@ -311,6 +313,8 @@ instance ToJSON SetProjectBranchHeadResponse where
     SetProjectBranchHeadResponseExpectedCausalHashMismatch expected actual ->
       toSumType "expected-causal-hash-mismatch" (object ["expected" .= expected, "actual" .= actual])
     SetProjectBranchHeadResponseNotFound notFound -> toSumType "not-found" (toJSON notFound)
+    SetProjectBranchHeadResponsePublishedReleaseIsImmutable -> toSumType "published-release-is-immutable" (object [])
+    SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable -> toSumType "deprecated-release-is-immutable" (object [])
     SetProjectBranchHeadResponseSuccess -> toSumType "success" (object [])
 
 ------------------------------------------------------------------------------------------------------------------------

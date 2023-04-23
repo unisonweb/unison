@@ -35,7 +35,29 @@
     unison-FOp-IO.putBytes.impl.v3
     unison-FOp-Text.fromUtf8.impl.v3
     unison-FOp-Text.repeat
+    unison-FOp-Text.reverse
     unison-FOp-Text.toUtf8
+    unison-FOp-Text.toLowercase
+    unison-FOp-Text.toUppercase
+    unison-FOp-Pattern.run
+    unison-FOp-Pattern.isMatch
+    unison-FOp-Pattern.many
+    unison-FOp-Pattern.capture
+    unison-FOp-Pattern.join
+    unison-FOp-Pattern.or
+    unison-FOp-Pattern.replicate
+    unison-FOp-Text.patterns.digit
+    unison-FOp-Text.patterns.letter
+    unison-FOp-Text.patterns.punctuation
+    unison-FOp-Text.patterns.charIn
+    unison-FOp-Text.patterns.notCharIn
+    unison-FOp-Text.patterns.anyChar
+    unison-FOp-Text.patterns.space
+    unison-FOp-Text.patterns.charRange
+    unison-FOp-Text.patterns.notCharRange
+    unison-FOp-Text.patterns.literal
+    unison-FOp-Text.patterns.eof
+
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
     unison-FOp-IO.getArgs.impl.v1
@@ -91,11 +113,16 @@
     unison-FOp-IO.kill.impl.v3
     unison-POp-TFRC
 
+    unison-FOp-Handle.toText
+    unison-FOp-Socket.toText
+    unison-FOp-ThreadId.toText
+
     unison-POp-ADDN
     unison-POp-ANDN
     unison-POp-BLDS
     unison-POp-CATS
     unison-POp-CATT
+    unison-POp-CATB
     unison-POp-CMPU
     unison-POp-COMN
     unison-POp-CONS
@@ -107,6 +134,7 @@
     unison-POp-DRPT
     unison-POp-EQLN
     unison-POp-EQLT
+    unison-POp-LEQT
     unison-POp-EQLU
     unison-POp-EROR
     unison-POp-FTOT
@@ -127,16 +155,24 @@
     unison-POp-SHRN
     unison-POp-SIZS
     unison-POp-SIZT
+    unison-POp-SIZB
     unison-POp-SNOC
     unison-POp-SUBN
     unison-POp-TAKS
     unison-POp-TAKT
+    unison-POp-TAKB
     unison-POp-TRCE
+    unison-POp-PRNT
     unison-POp-TTON
+    unison-POp-TTOI
+    unison-POp-TTOF
     unison-POp-UPKT
     unison-POp-XORN
     unison-POp-VALU
     unison-POp-VWLS
+    unison-POp-UCNS
+    unison-POp-USNC
+    unison-POp-FLTB
 
     unison-POp-UPKB
     unison-POp-PAKB
@@ -147,9 +183,12 @@
     unison-POp-LEQI
     unison-POp-POWN
     unison-POp-VWRS
+    unison-POp-SPLL
+    unison-POp-SPLR
 
     unison-FOp-crypto.hashBytes
     unison-FOp-crypto.hmacBytes
+    unison-FOp-crypto.HashAlgorithm.Md5
     unison-FOp-crypto.HashAlgorithm.Sha1
     unison-FOp-crypto.HashAlgorithm.Sha2_256
     unison-FOp-crypto.HashAlgorithm.Sha2_512
@@ -177,14 +216,26 @@
     unison-FOp-Tls.newClient.impl.v3
     unison-FOp-Tls.receive.impl.v3
     unison-FOp-Tls.send.impl.v3
-    unison-FOp-Tls.terminate.impl.v3
-    )
+    unison-FOp-Tls.terminate.impl.v3)
 
   (import (rnrs)
-          (only (srfi :28) format)
+          (only (srfi :13) string-reverse)
+          (rename
+           (only (racket base)
+                 car
+                 cdr
+                 foldl
+                 vector->list
+                 bytes->string/utf-8
+                 string->bytes/utf-8
+                 exn:fail:contract?
+                 with-handlers)
+           (car icar) (cdr icdr) (vector->list vector->ilist))
           (unison core)
           (unison data)
+          (unison data chunked-seq)
           (unison string)
+          (unison pattern)
           (unison crypto)
           (unison data)
           (unison tls)
@@ -193,7 +244,11 @@
           (unison vector)
           (unison concurrent))
 
-  (define unison-POp-UPKB bytevector->u8-list)
+  (define (unison-POp-UPKB bs)
+    (build-chunked-list
+     (chunked-bytes-length bs)
+     (lambda (i) (chunked-bytes-ref bs i))))
+
   (define unison-POp-ADDI +)
   (define unison-POp-DIVI /)
   (define (unison-POp-EQLI a b)
@@ -212,84 +267,146 @@
   ; Core implemented primops, upon which primops-in-unison can be built.
   (define (unison-POp-ADDN m n) (fx+ m n))
   (define (unison-POp-ANDN m n) (fxand m n))
-  (define unison-POp-BLDS list)
-  (define (unison-POp-CATS l r) (append l r))
-  (define (unison-POp-CATT l r) (istring-append l r))
-  (define (unison-POp-CMPU l r) (universal-compare l r))
+  (define unison-POp-BLDS
+    (lambda args-list
+      (fold-right (lambda (e l) (chunked-list-add-first l e)) empty-chunked-list args-list)))
+  (define (unison-POp-CATS l r) (chunked-list-append l r))
+  (define (unison-POp-CATT l r) (chunked-string-append l r))
+  (define (unison-POp-CATB l r) (chunked-bytes-append l r))
+  (define (unison-POp-CMPU l r) (ord (universal-compare l r)))
   (define (unison-POp-COMN n) (fxnot n))
-  (define (unison-POp-CONS x xs) (cons x xs))
+  (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
   (define (unison-POp-DECI n) (fx1- n))
   (define (unison-POp-DIVN m n) (fxdiv m n))
-  (define (unison-POp-DRPB n bs) (ibytevector-drop n bs))
-  (define (unison-POp-DRPS n l)
-    (let ([m (max 0 (min n (length l)))]) (list-tail l m)))
-  (define (unison-POp-DRPT n t) (istring-drop n t))
-  (define (unison-POp-EQLN m n) (if (fx=? m n) 1 0))
-  (define (unison-POp-EQLT s t) (if (string=? s t) 1 0))
-  (define (unison-POp-EQLU x y) (if (universal-equal? x y) 1 0))
-  (define (unison-POp-EROR fnm x)
+  (define (unison-POp-DRPB n bs) (chunked-bytes-drop bs n))
+  (define (unison-POp-DRPS n l) (chunked-list-drop l n))
+  (define (unison-POp-DRPT n t) (chunked-string-drop t n))
+  (define (unison-POp-EQLN m n) (bool (fx=? m n)))
+  (define (unison-POp-EQLT s t) (bool (equal? s t)))
+  (define (unison-POp-LEQT s t) (bool (chunked-string<? s t)))
+  (define (unison-POp-EQLU x y) (bool (universal=? x y)))
+  (define (unison-POp-EROR fnm x) ;; TODO raise the correct failure, use display
     (let-values ([(p g) (open-string-output-port)])
-      (put-string p fnm)
+      (put-string p (chunked-string->string fnm))
       (put-string p ": ")
-      (display x p)
-      (raise (g))))
-  (define (unison-POp-FTOT f) (number->istring f))
-  (define (unison-POp-IDXB n bs) (bytevector-u8-ref bs n))
+      (display (describe-value x) p)
+      (raise (make-exn:bug fnm x))))
+  (define (unison-POp-FTOT f) (string->chunked-string (number->string f)))
+  (define (unison-POp-IDXB n bs)
+    (guard (x [else none])
+      (some (chunked-bytes-ref bs n))))
   (define (unison-POp-IDXS n l)
-    (guard (x [else (sum 0)])
-      (sum 1 (list-ref l n))))
+    (guard (x [else none])
+      (some (chunked-list-ref l n))))
   (define (unison-POp-IORN m n) (fxior m n))
-  (define (unison-POp-ITOT i) (signed-number->istring i))
-  (define (unison-POp-LEQN m n) (if (fx<=? m n) 1 0))
+  (define (unison-POp-ITOT n)
+    (string->chunked-string (number->string n)))
+  (define (unison-POp-LEQN m n) (bool (fx<=? m n)))
   (define (unison-POp-LZRO m) (- 64 (fxlength m)))
   (define (unison-POp-MULN m n) (fx* m n))
   (define (unison-POp-MODN m n) (fxmod m n))
-  (define (unison-POp-NTOT m) (number->istring m))
-  (define (unison-POp-PAKB l) (u8-list->ibytevector l))
-  (define (unison-POp-PAKT l) (list->istring l))
+  (define (unison-POp-NTOT n) (string->chunked-string (number->string n)))
+  (define (unison-POp-PAKB l)
+    (build-chunked-bytes
+     (chunked-list-length l)
+     (lambda (i) (chunked-list-ref l i))))
+  (define (unison-POp-PAKT l)
+    (build-chunked-string
+     (chunked-list-length l)
+     (lambda (i) (chunked-list-ref l i))))
   (define (unison-POp-SHLI i k) (fxarithmetic-shift-left i k))
   (define (unison-POp-SHLN n k) (fxarithmetic-shift-left n k))
   (define (unison-POp-SHRI i k) (fxarithmetic-shift-right i k))
   (define (unison-POp-SHRN n k) (fxarithmetic-shift-right n k))
-  (define (unison-POp-SIZS l) (length l))
-  (define (unison-POp-SIZT t) (string-length t))
-  (define (unison-POp-SNOC xs x) (append xs (list x)))
+  (define (unison-POp-SIZS l) (chunked-list-length l))
+  (define (unison-POp-SIZT t) (chunked-string-length t))
+  (define (unison-POp-SIZB b) (chunked-bytes-length b))
+  (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
   (define (unison-POp-SUBN m n) (fx- m n))
-  (define (unison-POp-TAKS n s) (list-head s n))
-  (define (unison-POp-TAKT n t) (istring-take n t))
+  (define (unison-POp-TAKS n s) (chunked-list-take s n))
+  (define (unison-POp-TAKT n t) (chunked-string-take t n))
+  (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
+
+  ;; TODO currently only runs in low-level tracing support
   (define (unison-POp-DBTX x)
-    (format "~a" x))
+    (sum 1 (string->chunked-string (describe-value x))))
+
+  (define (unison-FOp-Handle.toText h)
+    (string->chunked-string (describe-value h)))
+  (define (unison-FOp-Socket.toText s)
+    (string->chunked-string (describe-value s)))
+  (define (unison-FOp-ThreadId.toText tid)
+    (string->chunked-string (describe-value tid)))
+
   (define (unison-POp-TRCE s x)
-    (display s)
-    (display "\n")
-    (display x)
-    (display "\n")
+    (display "trace: ")
+    (display (chunked-string->string s))
+    (newline)
     (display (describe-value x))
-    (display "\n"))
+    (newline))
+  (define (unison-POp-PRNT s)
+    (display (chunked-string->string s))
+    (newline))
   (define (unison-POp-TTON s)
-    (let ([mn (string->number s)])
-      (if mn (sum 1 mn) (sum 0))))
-  (define (unison-POp-UPKT t) (string->list t))
+    (let ([mn (string->number (chunked-string->string s))])
+      (if (and (fixnum? mn) (>= mn 0)) (some mn) none)))
+  (define (unison-POp-TTOI s)
+    (let ([mn (string->number (chunked-string->string s))])
+      (if (fixnum? mn) (some mn) none)))
+  (define (unison-POp-TTOF s)
+    (let ([mn (string->number (chunked-string->string s))])
+      (if mn (some mn) none)))
+  (define (unison-POp-UPKT s)
+    (build-chunked-list
+     (chunked-string-length s)
+     (lambda (i) (chunked-string-ref s i))))
   (define (unison-POp-VWLS l)
-    (if (null? l)
-      (sum 0)
-      (sum 1 (car l) (cdr l))))
+    (if (chunked-list-empty? l)
+        (sum 0)
+        (let-values ([(t h) (chunked-list-pop-first l)])
+          (sum 1 h t))))
   (define (unison-POp-VWRS l)
-    (if (null? l)
-      (sum 0)
-      (let ([r (reverse l)])
-      (sum 1 (reverse (cdr l)) (car l)))))
+    (if (chunked-list-empty? l)
+        (sum 0)
+        (let-values ([(t h) (chunked-list-pop-last l)])
+          (sum 1 t h))))
+  (define (unison-POp-SPLL i s)
+    (if (< (chunked-list-length s) i)
+        (sum 0)
+        (let-values ([(l r) (chunked-list-split-at s i)])
+          (sum 1 l r))))
+  (define (unison-POp-SPLR i s) ; TODO write test that stresses this
+    (let ([len (chunked-list-length s) ])
+      (if (< len i)
+          (sum 0)
+          (let-values ([(l r) (chunked-list-split-at s (- len i))])
+            (sum 1 l r)))))
+
+  (define (unison-POp-UCNS s)
+    (if (chunked-string-empty? s)
+        (sum 0)
+        (let-values ([(t h) (chunked-string-pop-first s)])
+          (sum 1 h t))))
+
+  (define (unison-POp-USNC s)
+    (if (chunked-string-empty? s)
+        (sum 0)
+        (let-values ([(t h) (chunked-string-pop-last s)])
+          (sum 1 t h))))
+
+  ;; TODO flatten operation on Bytes is a no-op for now (and possibly ever)
+  (define (unison-POp-FLTB b) b)
 
   (define (unison-POp-XORN m n) (fxxor m n))
   (define (unison-POp-VALU c) (decode-value c))
 
   (define (unison-FOp-IO.putBytes.impl.v3 p bs)
     (begin
-      (put-bytevector p bs)
+      (put-bytevector p (chunked-bytes->bytes bs))
       (flush-output-port p)
       (sum 1 #f)))
 
-  (define (unison-FOp-Char.toText c) (istring c))
+  (define (unison-FOp-Char.toText c) (string->chunked-string (string c)))
 
   (define stdin (standard-input-port))
   (define stdout (standard-output-port))
@@ -304,11 +421,16 @@
   (define (unison-FOp-IO.getArgs.impl.v1)
     (sum 1 (cdr (command-line))))
 
-  (define (unison-FOp-Text.fromUtf8.impl.v3 s)
-    (right (bytevector->string s utf-8-transcoder)))
+  ;; TODO should we convert Bytes -> Text directly without the intermediate conversions?
+  (define (unison-FOp-Text.fromUtf8.impl.v3 b)
+    (with-handlers
+      ([exn:fail:contract? ; TODO proper typeLink
+        (lambda (e) (exception "MiscFailure" (exception->string e) ()))])
+      (right (string->chunked-string (bytes->string/utf-8 (chunked-bytes->bytes b))))))
 
+  ;; TODO should we convert Text -> Bytes directly without the intermediate conversions?
   (define (unison-FOp-Text.toUtf8 s)
-    (string->bytevector s utf-8-transcoder))
+    (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
 
   (define (unison-FOp-IO.closeFile.impl.v3 h)
     (close-input-port h))
@@ -320,7 +442,56 @@
       [(2) (open-file-output-port fn 'no-truncate)]
       [else (open-file-input/output-port fn)]))
 
-  (define (unison-FOp-Text.repeat n t) (istring-repeat n t))
+  (define (unison-FOp-Text.repeat n t)
+    (let loop ([cnt 0]
+               [acc empty-chunked-string])
+      (if (= cnt n)
+          acc
+          (loop (+ cnt 1) (chunked-string-append acc t)))))
+
+  (define (unison-FOp-Text.reverse s)
+    (chunked-string-foldMap-chunks
+     s
+     string-reverse
+     (lambda (acc c) (chunked-string-append c acc))))
+
+  (define (unison-FOp-Text.toLowercase s)
+    (chunked-string-foldMap-chunks s string-downcase chunked-string-append))
+
+  (define (unison-FOp-Text.toUppercase s)
+    (chunked-string-foldMap-chunks s string-upcase chunked-string-append))
+
+  (define (unison-FOp-Pattern.run p s)
+    (let* ([r (pattern-match p s)])
+      (if r
+          (let* ([build (lambda (e acc) (chunked-list-add-last acc e))]
+                 [rem (icar r)]
+                 [captures (foldl build empty-chunked-list (icdr r))])
+            (sum 1 captures rem))
+          (sum 0))))
+
+  (define (unison-FOp-Pattern.isMatch p s) (bool (pattern-match? p s)))
+  (define (unison-FOp-Pattern.many p) (many p))
+  (define (unison-FOp-Pattern.capture p) (capture p))
+  (define (unison-FOp-Pattern.join ps)
+    (join* (vector->ilist (chunked-list->vector ps))))
+  (define (unison-FOp-Pattern.or p1 p2) (choice p1 p2))
+  ;; TODO discrepancy between Unison and Scheme pattern lib
+  (define (unison-FOp-Pattern.replicate n m p) (replicate p m))
+
+  (define (unison-FOp-Text.patterns.digit) digit)
+  (define (unison-FOp-Text.patterns.letter) letter)
+  (define (unison-FOp-Text.patterns.punctuation) punctuation)
+  (define (unison-FOp-Text.patterns.charIn cs)
+    (chars (unison-POp-PAKT cs)))
+  (define (unison-FOp-Text.patterns.notCharIn cs)
+    (not-chars (unison-POp-PAKT cs)))
+  (define (unison-FOp-Text.patterns.anyChar) any-char)
+  (define (unison-FOp-Text.patterns.space) space)
+  (define (unison-FOp-Text.patterns.charRange a z) (char-range a z))
+  (define (unison-FOp-Text.patterns.notCharRange a z) (not-char-range a z))
+  (define (unison-FOp-Text.patterns.literal s) (literal s))
+  (define (unison-FOp-Text.patterns.eof) eof)
 
   (define (catch-array thunk)
     (reify-exn thunk))
@@ -408,4 +579,3 @@
   (define (unison-FOp-Promise.read promise) (promise-read promise))
   (define (unison-FOp-Promise.tryRead promise) (promise-try-read promise))
   (define (unison-FOp-Promise.write promise a) (promise-write promise a)))
-

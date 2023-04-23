@@ -16,7 +16,8 @@ Tests.checkEqual msg a1 a2 =
   match catch '(a1 === a2) with
     Left e -> exception msg e
     Right true -> pass msg
-    Right false -> fail msg "not equal"
+    Right false ->
+      fail msg (Debug.toText a1 ++ " is not equal to: " ++ Debug.toText a2)
 
 Tests.main : '{IO,Exception,Tests} () -> '{IO,Exception} ()
 Tests.main suite = do

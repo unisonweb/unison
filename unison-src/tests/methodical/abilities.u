@@ -50,10 +50,12 @@ structural ability C where
 f = cases
   { r } -> r
   { i -> _ } -> 5
+  { n -> _ } -> 7
 
 g = cases
   { i -> _ } -> 6
   { n -> _ } -> 7
+  { r } -> r
 
 x = 'let
   j = i

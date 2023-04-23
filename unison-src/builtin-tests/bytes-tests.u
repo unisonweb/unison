@@ -1,8 +1,112 @@
 
-gzip.compress.tests = do
+bytes.tests = do
+  !bytes.lit.tests
+  !bytes.debug.tests
+  !bytes.conversion.tests
+  !bytes.eq.tests
+  !bytes.ord.tests
+  !bytes.ops.tests
+
+bytes.lit.tests = do
+  check "Bytes empty literal" do
+    _ = 0xs
+    true
+  check "Bytes literal" do
+    _ = 0xs68656c6c6f
+    true
+
+bytes.debug.tests = do
+ checkEqual "Debug.toText on Bytes" (Debug.toText 0xs68656c6c6f) "0xs68656c6c6f"
+
+bytes.conversion.tests = do
+  use base Bytes.fromList Bytes.toList
+  checkEqual "Bytes.fromList: empty" (Bytes.fromList []) Bytes.empty
+  checkEqual "Bytes.fromList: non empty" (Bytes.fromList [104, 101, 108, 108, 111]) 0xs68656c6c6f
+  check "Bytes.fromList: invalid" do
+    match catch '(Bytes.fromList [104, 500]) with
+      Left _ -> true
+      Right _ -> false
+
+  checkEqual "Bytes.toList: empty" (Bytes.toList Bytes.empty) []
+  checkEqual "Bytes.toList: non empty" (Bytes.toList 0xs68656c6c6f) [104, 101, 108, 108, 111]
+
+  check "fromUtf8: invalid" do
+    match catch '(Text.fromUtf8 0xsfc80808080af) with
+      Left _ -> true
+      Right _ -> false
+
+  checkEqual "fromUtf8" (Text.fromUtf8 0xs68656c6c6f) "hello"
+  checkEqual "toUtf8" (Text.toUtf8 "hello") 0xs68656c6c6f
+
+  loremIpsum = """
+    In Unison, since definitions are identified by a content hash,
+    arbitrary computations can just be moved from one location to
+    another, with missing dependencies deployed on the fly.
+
+    The basic protocol is something like: the sender ships the bytecode
+    tree to the recipient, who inspects the bytecode for any hashes it's
+    missing. If it already has all the hashes, it can run the
+    computation; otherwise, it requests the ones it's missing and the
+    sender syncs them on the fly. They'll be cached for next time.
+
+    Of course, there's a lot of engineering that goes into making this
+    work nicely, but the basic idea is simple and robust.
+
+    This ability to relocate arbitrary computations subsumes the more
+    limited notions of code deployment, remote procedure calls, and more,
+    and lets us build powerful distributed computing components as
+    ordinary Unison libraries.
+   """
+  checkEqual "ut8 roundTrip" (fromUtf8 (toUtf8 loremIpsum)) loremIpsum
+
+bytes.eq.tests = do
+  checkEqual "Bytes equality: empty" 0xs 0xs
+  checkEqual "Bytes equality: non empty" 0xs0102 0xs0102
+  check "Bytes inequality: non empty (1)" do 0xs0102 !== 0xs010203
+  check "Bytes inequality: non empty (2)" do 0xs010203 !== 0xs0102
+  check "Bytes inequality: non empty (3)" do 0xs0102 !== 0xs0103
+  check "Bytes inequality: empty" do 0xs0102 !== 0xs
+  checkEqual "Bytes equality: composite" (Some [0xs010203, 0xs040506]) (Some [0xs010203, 0xs040506])
+  check "Bytes inequality: composite" do (Some [0xs010203, 0xs040506]) !== (Some [0xs010203, 0xs68656c6c6f])
+
+bytes.ord.tests = do
+  checkEqual "Bytes ordering (1)" (Universal.compare 0xs01 0xs) +1
+  checkEqual "Bytes ordering (2)" (Universal.compare 0xs 0xs01) -1
+  checkEqual "Bytes ordering (3)" (Universal.compare 0xs0100 0xs01) +1
+  checkEqual "Bytes ordering (4)" (Universal.compare 0xs02 0xs0102) +1
+  checkEqual "Bytes ordering (5)" (Universal.compare 0xs0103 0xs0102) +1
+  checkEqual "Bytes ordering (6)" (Universal.compare 0xs010203 0xs010203) +0
+
+
+bytes.ops.tests = do
+  checkEqual "Bytes.flatten" (Bytes.flatten 0xs68656c6c6f) 0xs68656c6c6f
+
+  checkEqual "Bytes.++" (0xs ++ 0xs0102 ++ 0xs0304 ++ 0xs) 0xs01020304
+
+  checkEqual "Bytes.take (1)" (Bytes.take 0 0xs010203) 0xs
+  checkEqual "Bytes.take (2)" (Bytes.take 2 0xs010203) 0xs0102
+  checkEqual "Bytes.take (3)" (Bytes.take 3 0xs010203) 0xs010203
+  checkEqual "Bytes.take (4)" (Bytes.take 100 0xs010203) 0xs010203
+  checkEqual "Bytes.take (5)" (Bytes.take 3 0xs) 0xs
+
+  checkEqual "Bytes.drop (1)" (Bytes.drop 0 0xs010203) 0xs010203
+  checkEqual "Bytes.drop (2)" (Bytes.drop 2 0xs010203) 0xs03
+  checkEqual "Bytes.drop (3)" (Bytes.drop 3 0xs010203) 0xs
+  checkEqual "Bytes.drop (4)" (Bytes.drop 100 0xs010203) 0xs
+  checkEqual "Bytes.drop (5)" (Bytes.drop 3 0xs) 0xs
+
+  checkEqual "Bytes.size (1)" (Bytes.size 0xs) 0
+  checkEqual "Bytes.size (2)" (Bytes.size 0xs010203) 3
+
+  checkEqual "Bytes.at (1)" (Bytes.at 0 0xs010203) (Some 1)
+  checkEqual "Bytes.at (2)" (Bytes.at 2 0xs010203) (Some 3)
+  checkEqual "Bytes.at (3)" (Bytes.at 1 0xs) None
+  checkEqual "Bytes.at (4)" (Bytes.at 5 0xs010203) None
+
+bytes.gzip.compress.tests = do
     checkEqual "gzip empty" (gzip.compress (toUtf8 "")) 0xs1f8b080000000000001303000000000000000000
     checkEqual "gzip hello folks" (gzip.compress (toUtf8 "hello folks")) 0xs1f8b0800000000000013cb48cdc9c95748cbcfc92e0600cd32e08a0b000000
 
-gzip.decompress.tests = do
+bytes.gzip.decompress.tests = do
     checkEqual "gunzip empty" (gzip.decompress 0xs1f8b080000000000001303000000000000000000) (Right (toUtf8 ""))
     checkEqual "gunzip hello folks" (gzip.decompress 0xs1f8b0800000000000013cb48cdc9c95748cbcfc92e0600cd32e08a0b000000) (Right (toUtf8 "hello folks"))

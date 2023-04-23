@@ -18,26 +18,35 @@ someterm = 18
 
 Now, the `branch` demo:
 
-`branch` can create a branch from a different branch in the same project.
+`branch` can create a branch from a different branch in the same project, from a different branch in a different
+project, or from loose code. It can also create an empty branch.
 
 ```ucm
-foo/main> branch topic
-```
+foo/main> branch topic1
+foo/main> branch /topic2
+foo/main> branch foo/topic3
+foo/main> branch main topic4
+foo/main> branch main /topic5
+foo/main> branch main foo/topic6
+foo/main> branch /main topic7
+foo/main> branch /main /topic8
+foo/main> branch /main foo/topic9
+foo/main> branch foo/main topic10
+foo/main> branch foo/main /topic11
+.> branch foo/main foo/topic12
 
-`branch` can create a branch from a different branch in a different project.
-
-```ucm
 foo/main> branch bar/topic
-```
+bar/main> branch foo/main topic2
+bar/main> branch foo/main /topic3
+.> branch foo/main bar/topic4
 
-`branch` can create a branch from loose code.
+.some.loose.code> branch foo/topic13
+foo/main> branch .some.loose.code topic14
+foo/main> branch .some.loose.code /topic15
+.> branch .some.loose.code foo/topic16
 
-```ucm
-.some.loose.code> branch foo/topic2
-```
-
-`switch` can create a branch from nothingness, but this feature is going away soon.
-
-```ucm
-.some.loose.code> switch foo/topic3
+foo/main> branch.empty empty1
+foo/main> branch.empty /empty2
+foo/main> branch.empty foo/empty3
+.> branch.empty foo/empty4
 ```

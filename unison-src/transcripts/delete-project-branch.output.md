@@ -4,11 +4,11 @@ your working directory with each command).
 ```ucm
 .> project.create foo
 
-  I just created project foo with branch main
+  I just created project foo with branch main.
 
 foo/main> branch /topic
 
-  Done. I've created the topic branch based off of main
+  Done. I've created the topic branch based off of main.
   
   Tip: Use `merge /topic /main` to merge your work back into the
        main branch.

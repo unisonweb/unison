@@ -5,6 +5,7 @@ module Unison.PatternMatchCoverage.Constraint
 where
 
 import Unison.ConstructorReference (ConstructorReference)
+import Unison.PatternMatchCoverage.EffectHandler
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
 import Unison.PatternMatchCoverage.PmLit
 import Unison.PatternMatchCoverage.Pretty
@@ -25,6 +26,13 @@ data Constraint vt v loc
   | -- | Negative constraint concerning data type. States that the
     -- given variable must not be the given constructor.
     NegCon v ConstructorReference
+  | -- | Positive constraint regarding data type. States that the
+    -- given variable must be the given constructor, and it also binds
+    -- variables corresponding to constructor arguments.
+    PosEffect v EffectHandler [(v, Type vt loc)]
+  | -- | Negative constraint concerning data type. States that the
+    -- given variable must not be the given constructor.
+    NegEffect v EffectHandler
   | -- | Positive constraint regarding literal
     PosLit v PmLit
   | -- | Negative constraint regarding literal
@@ -60,6 +68,10 @@ prettyConstraint ppe = \case
     let xs = pc con : fmap (\(trm, typ) -> sep " " ["(" <> prettyVar trm, ":", TypePrinter.pretty ppe typ <> ")"]) convars ++ ["<-", prettyVar var]
      in sep " " xs
   NegCon var con -> sep " " [prettyVar var, "≠", pc con]
+  PosEffect var eff effvars ->
+    let xs = pe eff : fmap (\(trm, typ) -> sep " " ["(" <> prettyVar trm, ":", TypePrinter.pretty ppe typ <> ")"]) effvars ++ ["<-", prettyVar var]
+     in sep " " xs
+  NegEffect var eff -> sep " " [prettyVar var, "≠", pe eff]
   PosLit var lit -> sep " " [prettyPmLit lit, "<-", prettyVar var]
   NegLit var lit -> sep " " [prettyVar var, "≠", prettyPmLit lit]
   PosListHead root n el -> sep " " [prettyVar el, "<-", "head", pany n, prettyVar root]
@@ -72,3 +84,4 @@ prettyConstraint ppe = \case
     pany = string . show
 
     pc = prettyConstructorReference ppe
+    pe = prettyEffectHandler ppe
