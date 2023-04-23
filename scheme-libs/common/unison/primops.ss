@@ -186,6 +186,9 @@
     unison-POp-SPLL
     unison-POp-SPLR
 
+    unison-FOp-Bytes.gzip.compress
+    unison-FOp-Bytes.gzip.decompress
+
     unison-FOp-crypto.hashBytes
     unison-FOp-crypto.hmacBytes
     unison-FOp-crypto.HashAlgorithm.Md5
@@ -242,6 +245,7 @@
           (unison tcp)
           (unison bytevector)
           (unison vector)
+          (unison gzip)
           (unison concurrent))
 
   (define (unison-POp-UPKB bs)

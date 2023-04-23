@@ -6,6 +6,8 @@ bytes.tests = do
   !bytes.eq.tests
   !bytes.ord.tests
   !bytes.ops.tests
+  !bytes.gzip.compress.tests
+  !bytes.gzip.decompress.tests
 
 bytes.lit.tests = do
   check "Bytes empty literal" do
