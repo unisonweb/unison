@@ -1266,16 +1266,17 @@ setNamespaceRoot id =
     True -> execute2 [sql2| UPDATE namespace_root SET causal_id = :id |]
 
 saveWatch :: WatchKind -> Reference.IdH -> ByteString -> Transaction ()
-saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)
-  where
-    sql = [here|
+saveWatch k r blob = do
+  execute2
+    [sql2|
       INSERT INTO watch_result (hash_id, component_index, result)
-      VALUES (?, ?, ?)
+      VALUES (@r, @, :blob)
       ON CONFLICT DO NOTHING
     |]
-    sql2 = [here|
+  execute2
+    [sql2|
       INSERT INTO watch (hash_id, component_index, watch_kind_id)
-      VALUES (?, ?, ?)
+      VALUES (@r, @, :k)
       ON CONFLICT DO NOTHING
     |]
 
