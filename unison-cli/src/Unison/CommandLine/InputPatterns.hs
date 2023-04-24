@@ -2414,6 +2414,17 @@ branchEmptyInputPattern =
         _ -> Left (showPatternHelp branchEmptyInputPattern)
     }
 
+releaseDraft :: InputPattern
+releaseDraft =
+  InputPattern
+    { patternName = "release.draft",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [],
+      help = "",
+      parse = \_ -> Left "TODO"
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2506,6 +2517,7 @@ validInputs =
       pushExhaustive,
       pushForce,
       quit,
+      releaseDraft,
       renameBranch,
       renamePatch,
       renameTerm,
