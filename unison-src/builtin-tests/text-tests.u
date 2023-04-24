@@ -225,6 +225,7 @@ char.class.tests = do
   check "Char.Class.range (1)" do run (Char.Class.range ?a ?c) ?a ?d
   check "Char.Class.range (2)" do run (Char.Class.range ?a ?c) ?b ?d
   check "Char.Class.range (3)" do run (Char.Class.range ?a ?c) ?c ?d
+  check "Char.Class.range (4)" do run (Char.Class.range ?a (Optional.getOrBug "testing non-literal chars" (List.head (Text.toCharList "c")))) ?c ?d
   check "Char.Class.anyOf (1)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?a ?d
   check "Char.Class.anyOf (2)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?b ?d
   check "Char.Class.anyOf (3)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?c ?d

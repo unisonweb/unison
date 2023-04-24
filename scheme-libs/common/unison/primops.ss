@@ -405,13 +405,13 @@
     (if (chunked-string-empty? s)
         (sum 0)
         (let-values ([(t h) (chunked-string-pop-first s)])
-          (sum 1 h t))))
+          (sum 1 (char h) t))))
 
   (define (unison-POp-USNC s)
     (if (chunked-string-empty? s)
         (sum 0)
         (let-values ([(t h) (chunked-string-pop-last s)])
-          (sum 1 t h))))
+          (sum 1 t (char h)))))
 
   ;; TODO flatten operation on Bytes is a no-op for now (and possibly ever)
   (define (unison-POp-FLTB b) b)
@@ -425,7 +425,7 @@
       (flush-output-port p)
       (sum 1 #f)))
 
-  (define (unison-FOp-Char.toText c) (string->chunked-string (string c)))
+  (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
 
   (define stdin (standard-input-port))
   (define stdout (standard-output-port))
@@ -499,8 +499,8 @@
   (define (unison-FOp-Text.patterns.notCharIn cs) (not-chars cs))
   (define (unison-FOp-Text.patterns.anyChar) any-char)
   (define (unison-FOp-Text.patterns.space) space)
-  (define (unison-FOp-Text.patterns.charRange a z) (char-range a z))
-  (define (unison-FOp-Text.patterns.notCharRange a z) (not-char-range a z))
+  (define (unison-FOp-Text.patterns.charRange a z) (char-range (integer->char a) (integer->char z)))
+  (define (unison-FOp-Text.patterns.notCharRange a z) (not-char-range (integer->char a) (integer->char z)))
   (define (unison-FOp-Text.patterns.literal s) (literal s))
   (define (unison-FOp-Text.patterns.eof) eof)
   (define (unison-FOp-Text.patterns.char cc) cc)

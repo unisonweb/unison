@@ -10,11 +10,11 @@
 
 .> compile.native.fetch
 
-  Downloaded 58503 entities.
+  Downloaded 59036 entities.
 
   ✅
   
   Successfully updated .unison.internal from
-  unison.public.internal.trunk.
+  unison.public.internal.chars.
 
 ```
