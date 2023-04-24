@@ -9,6 +9,7 @@
          unison/tcp
          unison/pem
          file/gunzip
+         file/gzip
          file/sha1
          x509
          openssl)
@@ -87,6 +88,28 @@
     (error 'zlib "adler32 checksum failed"))
   (void))
 
+(define (zlib-deflate i o)
+    (write-byte #x78 o)
+    (write-byte #x9c o)
+    ;; Include adler32 checksum in the pipeline, writing to `o`:
+    (define-values (checksum-in checksum-out) (make-pipe 4096))
+    (define uncompressed-adler #f)
+    (define checksum-thread
+        (thread
+     (lambda () (set! uncompressed-adler (adler32-through-ports i checksum-out)))))
+
+    (sync checksum-thread)
+    (close-output-port checksum-out)
+    (deflate checksum-in o)
+    ; (define adler (read-bytes-exactly 'adler-checksum 4 i))
+    (write-bytes (integer->integer-bytes uncompressed-adler 4 #f #t) o)
+    (void))
+
 (define op1 (open-output-bytes))
 (zlib-inflate (open-input-bytes (hex-string->bytes "789ccb48cdc9c95748cbcfc92e060019b10454")) op1)
 (display (get-output-bytes op1))
+(display "\n")
+
+(define op2 (open-output-bytes))
+(zlib-deflate (open-input-bytes #"hello folks") op2)
+(display (bytes->hex-string (get-output-bytes op2)))
