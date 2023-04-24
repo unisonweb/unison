@@ -26,19 +26,6 @@
                (= (bytes-length bstr) len))
     (error 'zlib "error gettings bytes" what))
   bstr)
-;; ADLER32 implementation
-;; https://www.ietf.org/rfc/rfc1950.txt
-(define (bytes-adler32 bstr)
-  (define ADLER 65521)
-  (define-values (s1 s2)
-    (for/fold ([s1 1]
-               [s2 0])
-              ([bits (in-bytes bstr)])
-      (define a (modulo (+ s1 bits) ADLER))
-      (define b (modulo (+ s2 a) ADLER))
-      (values a b)))
-  ; (s2 << 16) | s1
-  (bitwise-ior (arithmetic-shift s2 16) s1))
 
 ;; ADLER32 implementation
 ;; https://www.ietf.org/rfc/rfc1950.txt
