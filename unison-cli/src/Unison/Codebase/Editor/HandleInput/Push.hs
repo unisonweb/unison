@@ -431,7 +431,7 @@ bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = d
 -- If left unspecified (and we don't yet have a remote mapping), we derive the remote branch name from the user's
 -- handle, remote project name, and local branch name as follows:
 --
---   * If the local branch name already has a user slug prefix, then we leave it alone.
+--   * If the local branch name already has a user slug prefix or a (draft) release prefix, then we leave it alone.
 --   * Otherwise, if the remote project name's user prefix matches the user's handle (i.e. they are pushing to their own
 --     project) *and* the local branch name is "main", then we leave it alone.
 --   * Otherwise, we prepend the user's handle to the local branch name.
