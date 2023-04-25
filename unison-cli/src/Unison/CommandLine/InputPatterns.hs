@@ -2315,7 +2315,7 @@ projectClone =
       help = P.wrap "Clone a project branch from a remote server.",
       parse = \case
         [name] ->
-          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+          case tryInto @(ProjectAndBranch ProjectName (Maybe ProjectBranchName)) (Text.pack name) of
             Left _ -> Left (showPatternHelp projectClone)
             Right projectAndBranch -> Right (Input.ProjectCloneI projectAndBranch)
         _ -> Left (showPatternHelp projectClone)

@@ -221,7 +221,7 @@ data Input
   | AuthLoginI
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
-  | ProjectCloneI (These ProjectName ProjectBranchName)
+  | ProjectCloneI (ProjectAndBranch ProjectName (Maybe ProjectBranchName))
   | ProjectCreateI ProjectName
   | ProjectSwitchI (These ProjectName ProjectBranchName)
   | ProjectsI

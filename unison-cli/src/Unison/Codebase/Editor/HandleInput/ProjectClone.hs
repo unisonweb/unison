@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.HandleInput.ProjectClone
   )
 where
 
-import Control.Lens ((^.))
+import Control.Lens (over, (^.))
 import Control.Monad.Reader (ask)
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
@@ -43,12 +43,9 @@ branchClone = \case
   That branchName -> cloneBranch branchName
 
 -- | Clone a remote project or remote project branch.
-projectClone :: These ProjectName ProjectBranchName -> Cli ()
-projectClone = \case
-  These projectName branchName ->
-    cloneProjectAndBranch (ProjectAndBranch projectName branchName)
-  This projectName -> cloneProject projectName
-  That branchName -> cloneBranch branchName
+projectClone :: ProjectAndBranch ProjectName (Maybe ProjectBranchName) -> Cli ()
+projectClone projectAndBranch =
+  cloneProjectAndBranch (projectAndBranch & over #branch (fromMaybe (unsafeFrom @Text "main")))
 
 -- Clone a project, defaulting to branch "main"
 cloneProject :: ProjectName -> Cli ()
