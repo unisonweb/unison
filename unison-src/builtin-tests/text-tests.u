@@ -211,15 +211,13 @@ char.class.tests = do
   check "Char.Class.symbol" do run Char.Class.symbol ?£ ?s
   check "Char.Class.letter" do run Char.Class.letter ?l ?3
   check "Char.Class.whitespace" do run Char.Class.whitespace ?\s ?f
-  -- TODO Compiler implements Char.toNat as the identify function, which causes failures
   check "Char.Class.control" do run Char.Class.control (c 20) ?f
   check "Char.Class.printable" do run Char.Class.printable ?f (c 20)
   check "Char.Class.mark" do run Char.Class.mark (c 769) ?f
   check "Char.Class.separator" do run Char.Class.separator (c 160) ?f
 
   check "Char.Class.not" do run (Char.Class.not Char.Class.letter) ?3 ?c
-  -- TODO change to printable + whitespace example
-  check "Char.Class.and" do run (Char.Class.and (Char.Class.letter) (Char.Class.upper)) ?A ?a
+  check "Char.Class.and" do run (Char.Class.and (Char.Class.printable) (Char.Class.whitespace)) ?\s ?a
   check "Char.Class.or (1)" do run (Char.Class.or (Char.Class.letter) (Char.Class.number)) ?3 ?!
   check "Char.Class.or (2)" do run (Char.Class.or (Char.Class.letter) (Char.Class.number)) ?a ?!
   check "Char.Class.range (1)" do run (Char.Class.range ?a ?c) ?a ?d
