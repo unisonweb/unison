@@ -18,7 +18,6 @@
     universal=?
 
     fx1-
-    list-head
 
     syntax->list
     raise-syntax-error
@@ -29,11 +28,9 @@
 
     chunked-string-foldMap-chunks
 
-    freeze-string!
-    string-copy!
-
     freeze-bytevector!
     freeze-vector!
+    freeze-subvector
 
     bytevector)
 
@@ -46,7 +43,6 @@
                   continuation-mark-set-first
                   raise-syntax-error
                   for/fold)
-            (string-copy! racket-string-copy!)
             (bytes bytevector))
     (only (srfi :28) format)
     (racket exn)
@@ -55,15 +51,6 @@
     (unison chunked-seq))
 
   (define (fx1- n) (fx- n 1))
-
-  (define (list-head l n)
-    (let rec ([c l] [m n])
-      (cond
-        [(eqv? m 0) '()]
-        [(null? c) '()]
-        [else
-          (let ([sub (rec (cdr c) (- m 1))])
-            (cons (car c) sub))])))
 
   ;; TODO support for records
   (define (describe-value x)
@@ -141,12 +128,17 @@
         ([c (in-chunked-string-chunks s)])
       (f acc (string->chunked-string (m c)))))
 
-  (define freeze-string! unsafe-string->immutable-string!)
   (define freeze-bytevector! unsafe-bytes->immutable-bytes!)
 
   (define freeze-vector! unsafe-vector*->immutable-vector!)
 
-  ; racket string-copy! has the opposite argument order convention
-  ; from chez.
-  (define (string-copy! src soff dst doff len)
-    (racket-string-copy! dst doff src soff len)))
+  (define (freeze-subvector src off len)
+    (let ([dst (make-vector len)])
+      (let next ([i (fx1- len)])
+        (if (< i 0)
+          (begin
+            (freeze-vector! dst)
+            (sum 1 dst))
+          (begin
+            (vector-set! dst i (vector-ref src (+ off i)))
+            (next (fx1- i))))))))
