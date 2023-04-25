@@ -94,7 +94,7 @@
 
 (define (zlib-deflate-bytes bytes)
     (let ([op1 (open-output-bytes)])
-        (zlib-deflate (open-input-bytes bytes) op1 #f 0)
+        (zlib-deflate (open-input-bytes bytes) op1)
         (get-output-bytes op1)))
 
 (define (zlib-inflate-bytes bytes)

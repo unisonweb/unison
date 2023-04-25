@@ -8,8 +8,8 @@ bytes.tests = do
   !bytes.ops.tests
   !bytes.gzip.compress.tests
   !bytes.gzip.decompress.tests
---   !bytes.zlib.compress.tests
---   !bytes.zlib.decompress.tests
+  !bytes.zlib.compress.tests
+  !bytes.zlib.decompress.tests
 
 bytes.lit.tests = do
   check "Bytes empty literal" do
