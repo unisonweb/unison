@@ -29,6 +29,7 @@
 
 ;; ADLER32 implementation
 ;; https://www.ietf.org/rfc/rfc1950.txt
+;; Modified from racket/collects/net/git-checkout.rkt
 (define (adler32-through-ports in out)
   (define ADLER 65521)
   (define bstr (make-bytes 4096))
