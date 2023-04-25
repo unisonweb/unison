@@ -51,6 +51,7 @@ ghc-options:
   -Wall
 
 default-extensions:
+  - BangPatterns
   - BlockArguments
   - ConstraintKinds
   - DeriveAnyClass
