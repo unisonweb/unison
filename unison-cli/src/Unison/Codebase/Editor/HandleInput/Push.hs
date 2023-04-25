@@ -68,12 +68,10 @@ import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
-    ProjectBranchName,
     ProjectBranchNameKind (..),
     ProjectName,
     classifyProjectBranchName,
     prependUserSlugToProjectName,
-    projectBranchNameUserSlug,
     projectNameUserSlug,
   )
 import qualified Unison.Share.API.Hash as Share.API
