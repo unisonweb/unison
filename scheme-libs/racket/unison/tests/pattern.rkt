@@ -6,9 +6,13 @@
 
 (define (cs v) (string->chunked-string v))
 (define (ok rest [captures '()])
-  (cons (cs rest) (map cs captures)))
+  (cons
+   (cs rest)
+   (for/fold ([res empty-chunked-list])
+             ([e (in-list captures)])
+     (chunked-list-add-last res (cs e)))))
 
-(check-equal? (pattern-match eof (cs "")) (cons (cs "") '()))
+(check-equal? (pattern-match eof (cs "")) (cons (cs "") empty-chunked-list))
 (check-equal? (pattern-match eof (cs "a")) #f)
 
 (check-equal? (pattern-match any-char (cs "")) #f)
@@ -42,7 +46,7 @@
 (check-equal? (pattern-match (literal (cs "ab")) (cs "ab")) (ok ""))
 (check-equal? (pattern-match (literal (cs "ab")) (cs "abc")) (ok "c"))
 
-(let ([pat (chars (cs "abcd"))])
+(let ([pat (chars (vector->chunked-list (vector #\a #\b #\c #\d)))])
   (check-equal? (pattern-match pat (cs "a")) (ok ""))
   (check-equal? (pattern-match pat (cs "b")) (ok ""))
   (check-equal? (pattern-match pat (cs "c")) (ok ""))
@@ -79,12 +83,25 @@
   (check-equal? (pattern-match pat (cs "ababc")) (ok "c"))
   (check-equal? (pattern-match pat (cs "abababc")) (ok "c")))
 
-(let ([pat (replicate (literal (cs "ab")) 3)])
+(let ([pat (replicate (literal (cs "ab")) 3 3)])
   (check-equal? (pattern-match pat (cs "")) #f)
   (check-equal? (pattern-match pat (cs "ab")) #f)
   (check-equal? (pattern-match pat (cs "abab")) #f)
   (check-equal? (pattern-match pat (cs "ababab")) (ok ""))
   (check-equal? (pattern-match pat (cs "abababab")) (ok "ab")))
+
+(let ([pat (replicate (literal (cs "ab")) 2 4)])
+  (check-equal? (pattern-match pat (cs "")) #f)
+  (check-equal? (pattern-match pat (cs "ab")) #f)
+  (check-equal? (pattern-match pat (cs "abab")) (ok ""))
+  (check-equal? (pattern-match pat (cs "ababab")) (ok ""))
+  (check-equal? (pattern-match pat (cs "abababab")) (ok ""))
+  (check-equal? (pattern-match pat (cs "ababababab")) (ok "ab")))
+
+(let ([pat (replicate (capture (literal (cs "ab"))) 0 1)])
+  (check-equal? (pattern-match pat (cs "")) (ok ""))
+  (check-equal? (pattern-match pat (cs "ab")) (ok "" '("ab")))
+  (check-equal? (pattern-match pat (cs "abab")) (ok "ab" '("ab"))))
 
 (let ([pat (join (capture (many letter)) (capture (many digit)))])
   (check-equal? (pattern-match pat (cs "")) (ok "" '("" "")))

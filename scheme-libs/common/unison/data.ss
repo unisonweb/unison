@@ -42,6 +42,7 @@
    false
    true
    bool
+   char
    ord
    any
    failure
@@ -106,6 +107,8 @@
   (define true 1)
 
   (define (bool b) (if b 1 0))
+
+  (define (char c) (char->integer c))
 
   (define (ord o)
     (cond
