@@ -1,4 +1,4 @@
-; TLS primitives! Supplied by openssl (libssl)
+; Zlib
 #lang racket/base
 (require unison/data
          unison/core
@@ -79,7 +79,6 @@
 (define (zlib-deflate i o)
     (write-byte #x78 o)
     (write-byte #x9c o)
-    ;; Include adler32 checksum in the pipeline, writing to `o`:
     (define-values (checksum-in checksum-out) (make-pipe 4096))
     (define uncompressed-adler #f)
     (define checksum-thread
@@ -89,7 +88,6 @@
     (sync checksum-thread)
     (close-output-port checksum-out)
     (deflate checksum-in o)
-    ; (define adler (read-bytes-exactly 'adler-checksum 4 i))
     (write-bytes (integer->integer-bytes uncompressed-adler 4 #f #t) o)
     (void))
 
@@ -102,15 +100,6 @@
     (let ([op1 (open-output-bytes)])
         (zlib-inflate (open-input-bytes bytes) op1)
         (get-output-bytes op1)))
-
-; (define op1 (open-output-bytes))
-; (zlib-inflate (open-input-bytes (hex-string->bytes "789ccb48cdc9c95748cbcfc92e060019b10454")) op1)
-; (display (get-output-bytes op1))
-; (display "\n")
-
-; (define op2 (open-output-bytes))
-; (zlib-deflate (open-input-bytes #"hello folks") op2)
-; (display (bytes->hex-string (get-output-bytes op2)))
 
 (define (zlib.compress bytes)
     (bytes->chunked-bytes (zlib-deflate-bytes (chunked-bytes->bytes bytes))))
