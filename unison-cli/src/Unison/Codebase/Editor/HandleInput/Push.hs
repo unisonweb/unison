@@ -14,6 +14,7 @@ import Data.Text as Text
 import Data.These (These (..))
 import Data.Void (absurd)
 import qualified System.Console.Regions as Console.Regions
+import qualified Text.Builder
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.Operations as Operations
@@ -59,6 +60,7 @@ import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.Codebase.SyncMode (SyncMode)
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.Type (GitPushBehavior (..))
+import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import qualified Unison.Hash as Hash
 import Unison.Hash32 (Hash32)
 import qualified Unison.Hash32 as Hash32
@@ -67,8 +69,9 @@ import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectBranchName,
+    ProjectBranchNameKind (..),
     ProjectName,
-    prependUserSlugToProjectBranchName,
+    classifyProjectBranchName,
     prependUserSlugToProjectName,
     projectBranchNameUserSlug,
     projectNameUserSlug,
@@ -448,16 +451,24 @@ bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = d
 -- special-casing "main" in this way is only temporary, before we have a first-class notion of a default branch.
 deriveRemoteBranchName :: Text -> ProjectName -> ProjectBranchName -> ProjectBranchName
 deriveRemoteBranchName userHandle remoteProjectName localBranchName =
-  case projectBranchNameUserSlug localBranchName of
-    Just _ -> localBranchName -- already "@user/branch"; don't mess with it
-    Nothing ->
+  case classifyProjectBranchName localBranchName of
+    ProjectBranchNameKind'Contributor _ _ -> localBranchName
+    ProjectBranchNameKind'DraftRelease _ -> localBranchName
+    ProjectBranchNameKind'Release _ -> localBranchName
+    ProjectBranchNameKind'NothingSpecial ->
       case projectNameUserSlug remoteProjectName of
         -- I'm "arya" pushing local branch "main" to "@arya/lens", so don't call it "@arya/main"
         Just projectUserSlug
           | projectUserSlug == userHandle && localBranchName == unsafeFrom @Text "main" ->
               localBranchName
         -- Nothing is a weird unlikely case: project doesn't begin with a user slug? server will likely reject
-        _ -> prependUserSlugToProjectBranchName userHandle localBranchName
+        _ ->
+          (UnsafeProjectBranchName . Text.Builder.run . fold)
+            [ Text.Builder.char '@',
+              Text.Builder.text userHandle,
+              Text.Builder.char '/',
+              Text.Builder.text (into @Text localBranchName)
+            ]
 
 -- What are we pushing, a project branch or loose code?
 data WhatAreWePushing

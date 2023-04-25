@@ -10,7 +10,6 @@ module Unison.Project
     prependUserSlugToProjectName,
     ProjectBranchName,
     projectBranchNameUserSlug,
-    prependUserSlugToProjectBranchName,
     ProjectBranchNameKind (..),
     classifyProjectBranchName,
     ProjectAndBranch (..),
@@ -240,29 +239,6 @@ projectBranchNameUserSlug (UnsafeProjectBranchName branchName) =
   if Text.head branchName == '@'
     then Just (Text.takeWhile (/= '/') (Text.drop 1 branchName))
     else Nothing
-
--- | Prepend a user slug to a project branch name, if it doesn't already have one.
---
--- >>> prependUserSlugToProjectBranchName "arya" "topic"
--- "@arya/topic"
---
--- >>> prependUserSlugToProjectBranchName "runar" "@unison/main"
--- "@unison/main"
---
--- >>> prependUserSlugToProjectBranchName "???invalid???" "@unison/main"
--- "@unison/main"
-prependUserSlugToProjectBranchName :: Text -> ProjectBranchName -> ProjectBranchName
-prependUserSlugToProjectBranchName userSlug (UnsafeProjectBranchName branchName) =
-  if Text.head branchName == '@'
-    then UnsafeProjectBranchName branchName
-    else fromMaybe (UnsafeProjectBranchName branchName) (Megaparsec.parseMaybe projectBranchNameParser newBranchName)
-  where
-    newBranchName =
-      Text.Builder.run $
-        Text.Builder.char '@'
-          <> Text.Builder.text userSlug
-          <> Text.Builder.char '/'
-          <> Text.Builder.text branchName
 
 -- | @project/branch@ syntax for project+branch pair, with up to one
 -- side optional. Missing value means "the current one".
