@@ -225,8 +225,9 @@ data Input
   | ProjectCreateI ProjectName
   | ProjectSwitchI (These ProjectName ProjectBranchName)
   | ProjectsI
-  | BranchesI
+  | BranchCloneI (These ProjectName ProjectBranchName)
   | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | BranchesI
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

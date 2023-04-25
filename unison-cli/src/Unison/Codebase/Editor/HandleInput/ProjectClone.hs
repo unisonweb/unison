@@ -1,6 +1,7 @@
--- | @project.clone@ input handler
+-- | @clone@-related input handlers
 module Unison.Codebase.Editor.HandleInput.ProjectClone
-  ( projectClone,
+  ( branchClone,
+    projectClone,
   )
 where
 
@@ -32,6 +33,14 @@ import qualified Unison.Sqlite as Sqlite
 import Unison.Sync.Common (hash32ToCausalHash)
 import qualified Unison.Sync.Types as Share
 import Witch (unsafeFrom)
+
+-- | Clone a remote project or remote project branch.
+branchClone :: These ProjectName ProjectBranchName -> Cli ()
+branchClone = \case
+  These projectName branchName ->
+    cloneProjectAndBranch (ProjectAndBranch projectName branchName)
+  This projectName -> cloneProject projectName
+  That branchName -> cloneBranch branchName
 
 -- | Clone a remote project or remote project branch.
 projectClone :: These ProjectName ProjectBranchName -> Cli ()
