@@ -57,6 +57,27 @@
     unison-FOp-Text.patterns.notCharRange
     unison-FOp-Text.patterns.literal
     unison-FOp-Text.patterns.eof
+    unison-FOp-Text.patterns.char
+    unison-FOp-Char.Class.is
+    unison-FOp-Char.Class.any
+    unison-FOp-Char.Class.alphanumeric
+    unison-FOp-Char.Class.upper
+    unison-FOp-Char.Class.lower
+    unison-FOp-Char.Class.number
+    unison-FOp-Char.Class.punctuation
+    unison-FOp-Char.Class.symbol
+    unison-FOp-Char.Class.letter
+    unison-FOp-Char.Class.whitespace
+    unison-FOp-Char.Class.control
+    unison-FOp-Char.Class.printable
+    unison-FOp-Char.Class.mark
+    unison-FOp-Char.Class.separator
+    unison-FOp-Char.Class.or
+    unison-FOp-Char.Class.range
+    unison-FOp-Char.Class.anyOf
+    unison-FOp-Char.Class.and
+    unison-FOp-Char.Class.not
+
 
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
@@ -225,12 +246,11 @@
                  car
                  cdr
                  foldl
-                 vector->list
                  bytes->string/utf-8
                  string->bytes/utf-8
                  exn:fail:contract?
                  with-handlers)
-           (car icar) (cdr icdr) (vector->list vector->ilist))
+           (car icar) (cdr icdr))
           (unison core)
           (unison data)
           (unison data chunked-seq)
@@ -252,8 +272,7 @@
   (define unison-POp-ADDI +)
   (define unison-POp-DIVI /)
   (define (unison-POp-EQLI a b)
-    (if (= a b) 1 0)
-  )
+    (if (= a b) 1 0))
   (define unison-POp-MODI mod)
   (define unison-POp-LEQI <=)
   (define unison-POp-POWN expt)
@@ -386,13 +405,13 @@
     (if (chunked-string-empty? s)
         (sum 0)
         (let-values ([(t h) (chunked-string-pop-first s)])
-          (sum 1 h t))))
+          (sum 1 (char h) t))))
 
   (define (unison-POp-USNC s)
     (if (chunked-string-empty? s)
         (sum 0)
         (let-values ([(t h) (chunked-string-pop-last s)])
-          (sum 1 t h))))
+          (sum 1 t (char h)))))
 
   ;; TODO flatten operation on Bytes is a no-op for now (and possibly ever)
   (define (unison-POp-FLTB b) b)
@@ -406,7 +425,7 @@
       (flush-output-port p)
       (sum 1 #f)))
 
-  (define (unison-FOp-Char.toText c) (string->chunked-string (string c)))
+  (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
 
   (define stdin (standard-input-port))
   (define stdout (standard-output-port))
@@ -463,35 +482,50 @@
 
   (define (unison-FOp-Pattern.run p s)
     (let* ([r (pattern-match p s)])
-      (if r
-          (let* ([build (lambda (e acc) (chunked-list-add-last acc e))]
-                 [rem (icar r)]
-                 [captures (foldl build empty-chunked-list (icdr r))])
-            (sum 1 captures rem))
-          (sum 0))))
+      (if r (sum 1 (icdr r) (icar r)) (sum 0))))
 
   (define (unison-FOp-Pattern.isMatch p s) (bool (pattern-match? p s)))
   (define (unison-FOp-Pattern.many p) (many p))
   (define (unison-FOp-Pattern.capture p) (capture p))
   (define (unison-FOp-Pattern.join ps)
-    (join* (vector->ilist (chunked-list->vector ps))))
+    (join* ps))
   (define (unison-FOp-Pattern.or p1 p2) (choice p1 p2))
-  ;; TODO discrepancy between Unison and Scheme pattern lib
-  (define (unison-FOp-Pattern.replicate n m p) (replicate p m))
+  (define (unison-FOp-Pattern.replicate n m p) (replicate p n m))
 
   (define (unison-FOp-Text.patterns.digit) digit)
   (define (unison-FOp-Text.patterns.letter) letter)
   (define (unison-FOp-Text.patterns.punctuation) punctuation)
-  (define (unison-FOp-Text.patterns.charIn cs)
-    (chars (unison-POp-PAKT cs)))
-  (define (unison-FOp-Text.patterns.notCharIn cs)
-    (not-chars (unison-POp-PAKT cs)))
+  (define (unison-FOp-Text.patterns.charIn cs) (chars cs))
+  (define (unison-FOp-Text.patterns.notCharIn cs) (not-chars cs))
   (define (unison-FOp-Text.patterns.anyChar) any-char)
   (define (unison-FOp-Text.patterns.space) space)
-  (define (unison-FOp-Text.patterns.charRange a z) (char-range a z))
-  (define (unison-FOp-Text.patterns.notCharRange a z) (not-char-range a z))
+  (define (unison-FOp-Text.patterns.charRange a z) (char-range (integer->char a) (integer->char z)))
+  (define (unison-FOp-Text.patterns.notCharRange a z) (not-char-range (integer->char a) (integer->char z)))
   (define (unison-FOp-Text.patterns.literal s) (literal s))
   (define (unison-FOp-Text.patterns.eof) eof)
+  (define (unison-FOp-Text.patterns.char cc) cc)
+  (define (unison-FOp-Char.Class.is cc c)
+    (unison-FOp-Pattern.isMatch cc (unison-FOp-Char.toText c)))
+  (define (unison-FOp-Char.Class.any) (unison-FOp-Text.patterns.anyChar))
+  (define (unison-FOp-Char.Class.punctuation)
+    (unison-FOp-Text.patterns.punctuation))
+  (define (unison-FOp-Char.Class.letter) (unison-FOp-Text.patterns.letter))
+  (define (unison-FOp-Char.Class.alphanumeric) alphanumeric)
+  (define (unison-FOp-Char.Class.upper) upper)
+  (define (unison-FOp-Char.Class.lower) lower)
+  (define (unison-FOp-Char.Class.number) number)
+  (define (unison-FOp-Char.Class.symbol) symbol)
+  (define (unison-FOp-Char.Class.whitespace) space)
+  (define (unison-FOp-Char.Class.control) control)
+  (define (unison-FOp-Char.Class.printable) printable)
+  (define (unison-FOp-Char.Class.mark) mark)
+  (define (unison-FOp-Char.Class.separator) separator)
+  (define (unison-FOp-Char.Class.or p1 p2) (unison-FOp-Pattern.or p1 p2))
+  (define (unison-FOp-Char.Class.range a z)
+    (unison-FOp-Text.patterns.charRange a z))
+  (define (unison-FOp-Char.Class.anyOf cs) (unison-FOp-Text.patterns.charIn cs))
+  (define (unison-FOp-Char.Class.and cc1 cc2) (char-class-and cc1 cc2))
+  (define (unison-FOp-Char.Class.not cc) (char-class-not cc))
 
   (define (catch-array thunk)
     (reify-exn thunk))
