@@ -1,22 +1,12 @@
 ; TLS primitives! Supplied by openssl (libssl)
 #lang racket/base
-(require racket/exn
-         racket/string
-         racket/file
-         (only-in racket empty?)
-         compatibility/mlist
-         unison/data
-         unison/tcp
-         unison/pem
+(require unison/data
          unison/core
          (only-in unison/data/chunked-seq
             bytes->chunked-bytes
             chunked-bytes->bytes)
          file/gunzip
-         file/gzip
-         file/sha1
-         x509
-         openssl)
+         file/gzip)
 
 (provide (prefix-out unison-FOp-Bytes.
     (combine-out
