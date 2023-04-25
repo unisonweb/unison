@@ -4,7 +4,7 @@
          racket/match
          racket/tcp
          unison/data
-         unison/data/chunked-seq
+         unison/chunked-seq
          unison/core)
 
 (provide

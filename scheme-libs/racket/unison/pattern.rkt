@@ -2,7 +2,7 @@
 
 (require racket/contract
          racket/match
-         "data/chunked-seq.rkt")
+         "chunked-seq.rkt")
 
 (provide (contract-out
           [pattern? predicate/c]

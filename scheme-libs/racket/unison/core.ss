@@ -52,7 +52,7 @@
     (racket exn)
     (racket unsafe ops)
     (unison data)
-    (unison data chunked-seq))
+    (unison chunked-seq))
 
   (define (fx1- n) (fx- n 1))
 

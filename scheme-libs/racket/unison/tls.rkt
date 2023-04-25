@@ -6,7 +6,7 @@
          (only-in racket empty?)
          compatibility/mlist
          unison/data
-         unison/data/chunked-seq
+         unison/chunked-seq
          unison/core
          unison/tcp
          unison/pem

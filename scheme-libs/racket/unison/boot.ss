@@ -38,7 +38,7 @@
           (unison data)
           (unison cont)
           (unison crypto)
-          (only (unison data chunked-seq) string->chunked-string))
+          (only (unison chunked-seq) string->chunked-string))
 
   ; Computes a symbol for automatically generated partial application
   ; cases, based on number of arguments applied. The partial
