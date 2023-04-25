@@ -1,0 +1,29 @@
+min = do
+  _ = Text.uncons "a"
+  ()
+
+--------
+
+#!r6rs
+
+(import (rnrs)
+        (unison cont)
+        (unison boot)
+        (unison primops)
+        (unison builtin-generated))
+
+
+(define-unison
+  (builtin-Char.toNat x0)
+  (let ([x1 (integer->char x0)])
+    (identity x1)))
+(define-unison
+  (ref-foa3fb2u x0)
+  (let* ([x1 97]
+         [x2 (integer->char x1)]
+         [x3 (builtin-Char.toNat x2)])
+    (data (data 'Reference 1 (data 'Id (bytevector 0 47 241 83 11 67 242 16 233 180 217 202 13 215 57 122 2 198 169 37 176 244 11 203 17 152 115 250 206 243 169 54 56 235 113 254 67 235 139 36 6 123 10 70 60 187 143 28 51 13 72 54 61 54 190 226 97 233 126 39 152 244 205 2) 0)) 0)))
+
+
+
+(ref-foa3fb2u #f)
