@@ -8,11 +8,21 @@
          unison/data
          unison/tcp
          unison/pem
+         unison/core
+         (only-in unison/data/chunked-seq
+            bytes->chunked-bytes
+            chunked-bytes->bytes)
          file/gunzip
          file/gzip
          file/sha1
          x509
          openssl)
+
+(provide (prefix-out unison-FOp-Bytes.
+    (combine-out
+        zlib.compress
+        zlib.decompress)))
+
 
 (define (read-byte-only what i)
   (define c (read-byte i))
@@ -92,11 +102,28 @@
     (write-bytes (integer->integer-bytes uncompressed-adler 4 #f #t) o)
     (void))
 
-(define op1 (open-output-bytes))
-(zlib-inflate (open-input-bytes (hex-string->bytes "789ccb48cdc9c95748cbcfc92e060019b10454")) op1)
-(display (get-output-bytes op1))
-(display "\n")
+(define (zlib-deflate-bytes bytes)
+    (let ([op1 (open-output-bytes)])
+        (zlib-deflate (open-input-bytes bytes) op1 #f 0)
+        (get-output-bytes op1)))
 
-(define op2 (open-output-bytes))
-(zlib-deflate (open-input-bytes #"hello folks") op2)
-(display (bytes->hex-string (get-output-bytes op2)))
+(define (zlib-inflate-bytes bytes)
+    (let ([op1 (open-output-bytes)])
+        (zlib-inflate (open-input-bytes bytes) op1)
+        (get-output-bytes op1)))
+
+; (define op1 (open-output-bytes))
+; (zlib-inflate (open-input-bytes (hex-string->bytes "789ccb48cdc9c95748cbcfc92e060019b10454")) op1)
+; (display (get-output-bytes op1))
+; (display "\n")
+
+; (define op2 (open-output-bytes))
+; (zlib-deflate (open-input-bytes #"hello folks") op2)
+; (display (bytes->hex-string (get-output-bytes op2)))
+
+(define (zlib.compress bytes)
+    (bytes->chunked-bytes (zlib-deflate-bytes (chunked-bytes->bytes bytes))))
+
+(define (zlib.decompress bytes)
+    (with-handlers [[exn:fail? (lambda (e) (exception "Zlib data corrupted" (exception->string e) '()))] ]
+        (right (bytes->chunked-bytes (zlib-inflate-bytes (chunked-bytes->bytes bytes))))))
