@@ -8,6 +8,8 @@ bytes.tests = do
   !bytes.ops.tests
   !bytes.gzip.compress.tests
   !bytes.gzip.decompress.tests
+  !bytes.zlib.compress.tests
+  !bytes.zlib.decompress.tests
 
 bytes.lit.tests = do
   check "Bytes empty literal" do
@@ -117,3 +119,11 @@ bytes.gzip.compress.tests = do
 bytes.gzip.decompress.tests = do
     checkEqual "gunzip empty" (gzip.decompress 0xs1f8b080000000000001303000000000000000000) (Right (toUtf8 ""))
     checkEqual "gunzip hello folks" (gzip.decompress 0xs1f8b0800000000000013cb48cdc9c95748cbcfc92e0600cd32e08a0b000000) (Right (toUtf8 "hello folks"))
+
+bytes.zlib.compress.tests = do
+    checkEqual "zlib empty" (zlib.compress (toUtf8 "")) 0xs789c030000000001
+    checkEqual "zlib hello folks" (zlib.compress (toUtf8 "hello folks")) 0xs789ccb48cdc9c95748cbcfc92e060019b10454
+
+bytes.zlib.decompress.tests = do
+    checkEqual "zlib inflate empty" (zlib.decompress 0xs789c030000000001) (Right (toUtf8 ""))
+    checkEqual "zlib inflate hello folks" (zlib.decompress 0xs789ccb48cdc9c95748cbcfc92e060019b10454) (Right (toUtf8 "hello folks"))
