@@ -98,8 +98,8 @@ writeRemoteNamespace =
 
 writeRemoteNamespaceWith :: P a -> P (WriteRemoteNamespace a)
 writeRemoteNamespaceWith projectBranchParser =
-  WriteRemoteProjectBranch <$> projectBranchParser
-    <|> WriteRemoteNamespaceGit <$> writeGitRemoteNamespace
+  WriteRemoteNamespaceGit <$> writeGitRemoteNamespace
+    <|> WriteRemoteProjectBranch <$> projectBranchParser
     <|> WriteRemoteNamespaceShare <$> writeShareRemoteNamespace
 
 -- >>> P.parseMaybe writeShareRemoteNamespace "unisonweb.base._releases.M4"

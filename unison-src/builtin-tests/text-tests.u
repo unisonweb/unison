@@ -6,6 +6,7 @@ text.tests = do
  !text.conversion.tests
  !text.debug.tests
  !text.matching.tests
+ !char.class.tests
 
 text.lit.tests = do
   check "Text empty literal" do
@@ -178,14 +179,51 @@ text.matching.tests = do
   checkEqual "Pattern api (12)"  (run (capture (many (notCharRange ?, ?,))) "abc123,") (Some (["abc123"], ","))
   checkEqual "Pattern api (13)"  (run (capture (many (notCharIn [?,,]))) "abracadabra,123") (Some (["abracadabra"], ",123"))
   checkEqual "Pattern api (14)"  (run (capture (many (or digit letter))) "11234abc,remainder") (Some (["11234abc"], ",remainder"))
-  checkEqual "Pattern api (15)"  (run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa") (Some (["1a2ba"], " aaa"))
-  -- Regression test for: https://github.com/unisonweb/unison/issues/353)
-  -- TODO broken until replicate supports lower bound
-  --  checkEqual "Pattern api (16)"  (run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac") (Some ([""], "ac"))
-  checkEqual "Pattern api (17)"  (run (join [many letter, eof]) "aaaaabbbb") (Some ([], ""))
-  checkEqual "Pattern api (18)"  (run (join [many letter, eof]) "aaaaabbbb1") None
-  checkEqual "Pattern api (19)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
-  checkEqual "Pattern api (20)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
-  checkEqual "Pattern api (21)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
-  -- TODO add tests for character class pattern
+  checkEqual "Pattern api (15)" (run (replicate 0 1 patterns.letter) "123") (Some ([], "123"))
+  checkEqual "Pattern api (16)" (run (capture (replicate 5 7 patterns.digit)) "1234567,abc") (Some (["1234567"], ",abc"))
+  checkEqual "Pattern api (17)" (run (capture (replicate 4 4 patterns.letter)) "aaaab123") (Some (["aaaa"], "b123"))
+  checkEqual "Pattern api (18)"  (run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa") (Some (["1a2ba"], " aaa"))
+  checkEqual "Pattern api (19)"  (run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac") (Some ([""], "ac"))
+  checkEqual "Pattern api (20)"  (run (join [many letter, eof]) "aaaaabbbb") (Some ([], ""))
+  checkEqual "Pattern api (21)"  (run (join [many letter, eof]) "aaaaabbbb1") None
+  checkEqual "Pattern api (22)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
+  checkEqual "Pattern api (23)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
+  checkEqual "Pattern api (24)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
 
+char.class.tests = do
+  check "Char.Class: any" do Char.Class.is Class.any ?a
+  check "Char.Class: any (2)" do Pattern.isMatch (Text.patterns.char Class.any) "a"
+
+  c: Nat -> Char
+  c n = Char.fromNat n
+
+  run class y n =
+    ok = Char.Class.is class
+    ok' = Pattern.isMatch (Text.patterns.char class) << Char.toText
+    ok y && not (ok n) && ok' y && not (ok' n)
+
+  check "Char.Class.alphanumeric (1)" do run Char.Class.alphanumeric ?a ?-
+  check "Char.Class.alphanumeric (2)" do run Char.Class.alphanumeric ?3 ?-
+  check "Char.Class.upper" do run Char.Class.upper ?A ?c
+  check "Char.Class.lower" do run Char.Class.lower ?a ?C
+  check "Char.Class.number" do run Char.Class.number ?3 ?z
+  check "Char.Class.punctuation" do run Char.Class.punctuation ?! ?p
+  check "Char.Class.symbol" do run Char.Class.symbol ?£ ?s
+  check "Char.Class.letter" do run Char.Class.letter ?l ?3
+  check "Char.Class.whitespace" do run Char.Class.whitespace ?\s ?f
+  check "Char.Class.control" do run Char.Class.control (c 20) ?f
+  check "Char.Class.printable" do run Char.Class.printable ?f (c 20)
+  check "Char.Class.mark" do run Char.Class.mark (c 769) ?f
+  check "Char.Class.separator" do run Char.Class.separator (c 160) ?f
+
+  check "Char.Class.not" do run (Char.Class.not Char.Class.letter) ?3 ?c
+  check "Char.Class.and" do run (Char.Class.and (Char.Class.printable) (Char.Class.whitespace)) ?\s ?a
+  check "Char.Class.or (1)" do run (Char.Class.or (Char.Class.letter) (Char.Class.number)) ?3 ?!
+  check "Char.Class.or (2)" do run (Char.Class.or (Char.Class.letter) (Char.Class.number)) ?a ?!
+  check "Char.Class.range (1)" do run (Char.Class.range ?a ?c) ?a ?d
+  check "Char.Class.range (2)" do run (Char.Class.range ?a ?c) ?b ?d
+  check "Char.Class.range (3)" do run (Char.Class.range ?a ?c) ?c ?d
+  check "Char.Class.range (4)" do run (Char.Class.range ?a (Optional.getOrBug "testing non-literal chars" (List.head (Text.toCharList "c")))) ?c ?d
+  check "Char.Class.anyOf (1)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?a ?d
+  check "Char.Class.anyOf (2)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?b ?d
+  check "Char.Class.anyOf (3)" do run (Char.Class.anyOf [?a, ?b, ?c]) ?c ?d
