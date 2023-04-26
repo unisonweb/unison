@@ -171,3 +171,21 @@ foo/main> branch.empty foo/empty3
        initialize this branch.
 
 ```
+The `branch` command can't create branches named `releases/*` nor `releases/drafts/*`.
+
+```ucm
+foo/main> branch releases/1.2.3
+
+foo/main> switch /releases/1.2.3
+
+  foo/releases/1.2.3 does not exist.
+
+```
+```ucm
+foo/main> branch releases/drafts/1.2.3
+
+foo/main> switch /releases/drafts/1.2.3
+
+  foo/releases/drafts/1.2.3 does not exist.
+
+```
