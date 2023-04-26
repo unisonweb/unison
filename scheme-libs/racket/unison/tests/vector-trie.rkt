@@ -2,7 +2,7 @@
 
 (require racket/vector
          rackunit
-         "../../data/vector-trie.rkt")
+         "../vector-trie.rkt")
 
 (check-pred vector-trie-empty? empty-vector-trie)
 (check-equal? (vector-trie-length empty-vector-trie) 0)

@@ -42,7 +42,6 @@ import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.Process
   ( callProcess,
-    readCreateProcess,
     readCreateProcessWithExitCode,
     shell,
   )
@@ -2404,37 +2403,23 @@ typecheckAndEval ppe tm = do
     a = External
     rendered = P.toPlainUnbroken $ TP.pretty ppe tm
 
-ensureSchemeExists :: SchemeBackend -> Cli ()
-ensureSchemeExists bk =
+ensureSchemeExists :: Cli ()
+ensureSchemeExists =
   liftIO callScheme >>= \case
     True -> pure ()
     False -> Cli.returnEarly (PrintMessage msg)
   where
-    msg = case bk of
-      Racket ->
-        P.lines
-          [ "I can't seem to call racket. See",
-            "",
-            P.indentN
-              2
-              "https://download.racket-lang.org/",
-            "",
-            "for how to install Racket."
-          ]
-      Chez ->
-        P.lines
-          [ "I can't seem to call scheme. See",
-            "",
-            P.indentN
-              2
-              "https://github.com/cisco/ChezScheme/blob/main/BUILDING",
-            "",
-            "for how to install Chez Scheme."
-          ]
-
-    cmd = case bk of
-      Racket -> "racket -l- raco help"
-      Chez -> "scheme -q"
+    msg =
+      P.lines
+        [ "I can't seem to call racket. See",
+          "",
+          P.indentN
+            2
+            "https://download.racket-lang.org/",
+          "",
+          "for how to install Racket."
+        ]
+    cmd = "racket -l- raco help"
     callScheme =
       readCreateProcessWithExitCode (shell cmd) "" >>= \case
         (ExitSuccess, _, _) -> pure True
@@ -2443,28 +2428,16 @@ ensureSchemeExists bk =
 racketOpts :: FilePath -> FilePath -> [String] -> [String]
 racketOpts gendir statdir args = libs ++ args
   where
-    includes = [gendir, statdir </> "common", statdir </> "racket"]
+    includes = [gendir, statdir </> "racket"]
     libs = concatMap (\dir -> ["-S", dir]) includes
 
-chezOpts :: FilePath -> FilePath -> [String] -> [String]
-chezOpts gendir statdir args =
-  "-q" : opt ++ libs ++ ["--script"] ++ args
-  where
-    includes = [gendir, statdir </> "common", statdir </> "chez"]
-    libs = ["--libdirs", List.intercalate ":" includes]
-    opt = ["--optimize-level", "3"]
-
-data SchemeBackend = Racket | Chez
-
-runScheme :: SchemeBackend -> String -> [String] -> Cli ()
-runScheme bk file args = do
-  ensureSchemeExists bk
+runScheme :: String -> [String] -> Cli ()
+runScheme file args = do
+  ensureSchemeExists
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
-  let cmd = case bk of Racket -> "racket"; Chez -> "scheme"
-      opts = case bk of
-        Racket -> racketOpts gendir statdir (file : args)
-        Chez -> chezOpts gendir statdir (file : args)
+  let cmd = "racket"
+      opts = racketOpts gendir statdir (file : args)
   success <-
     liftIO $
       (True <$ callProcess cmd opts)
@@ -2472,16 +2445,12 @@ runScheme bk file args = do
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
-buildScheme :: SchemeBackend -> String -> String -> Cli ()
-buildScheme bk main file = do
-  ensureSchemeExists bk
+buildScheme :: String -> String -> Cli ()
+buildScheme main file = do
+  ensureSchemeExists
   statDir <- getSchemeStaticLibDir
   genDir <- getSchemeGenLibDir
-  build genDir statDir main file
-  where
-    build
-      | Racket <- bk = buildRacket
-      | Chez <- bk = buildChez
+  buildRacket genDir statDir main file
 
 buildRacket :: String -> String -> String -> String -> Cli ()
 buildRacket genDir statDir main file =
@@ -2492,37 +2461,14 @@ buildRacket genDir statDir main file =
           (True <$ callProcess "racket" opts)
           (\(_ :: IOException) -> pure False)
 
-buildChez :: String -> String -> String -> String -> Cli ()
-buildChez genDir statDir main file = do
-  let cmd = shell "scheme -q --optimize-level 3"
-  void . liftIO $ readCreateProcess cmd (build statDir genDir)
-  where
-    surround s = '"' : s ++ "\""
-    parens s = '(' : s ++ ")"
-    lns dir nms = surround . ln dir <$> nms
-    ln dir nm = dir </> "unison" </> (nm ++ ".ss")
-
-    static = ["core", "cont", "bytevector", "string", "primops", "boot"]
-    gen = ["boot-generated", "builtin-generated"]
-
-    bootf = surround $ main ++ ".boot"
-    base = "'(\"scheme\" \"petite\")"
-
-    build sd gd =
-      parens . List.intercalate " " $
-        ["make-boot-file", bootf, base]
-          ++ lns sd static
-          ++ lns gd gen
-          ++ [surround file]
-
 doRunAsScheme :: HQ.HashQualified Name -> [String] -> Cli ()
 doRunAsScheme main args = do
   fullpath <- generateSchemeFile True (HQ.toString main) main
-  runScheme Racket fullpath args
+  runScheme fullpath args
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
-  generateSchemeFile True out main >>= buildScheme Racket out
+  generateSchemeFile True out main >>= buildScheme out
 
 generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do

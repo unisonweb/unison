@@ -2,7 +2,7 @@
 
 (require rackunit
          "../pattern.rkt"
-         "../data/chunked-seq.rkt")
+         "../chunked-seq.rkt")
 
 (define (cs v) (string->chunked-string v))
 (define (ok rest [captures '()])
