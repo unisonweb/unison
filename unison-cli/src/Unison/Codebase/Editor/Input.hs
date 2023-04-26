@@ -46,10 +46,9 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Util.Pretty as P
-import Unison.Project (Semver)
 
 data Event
   = UnisonFileChanged SourceName Source

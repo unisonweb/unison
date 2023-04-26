@@ -22,7 +22,7 @@ import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName, ProjectBranchNameKind (..), classifyProjectBranchName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), ProjectName, classifyProjectBranchName)
 import qualified Unison.Sqlite as Sqlite
 
 data CreateFrom
