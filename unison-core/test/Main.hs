@@ -53,6 +53,22 @@ projectTests =
       t "@user/project/@user/branch" (These "@user/project" "@user/branch")
       t "@user/project/releases/1.2.3" (These "@user/project" "releases/1.2.3")
       t "@user/project/releases/drafts/1.2.3" (These "@user/project" "releases/drafts/1.2.3"),
+    scope "project name with optional project branch name" do
+      let t input project branch =
+            scope (Text.unpack input) $
+              expectEqual
+                (Just (ProjectAndBranch (UnsafeProjectName project) (UnsafeProjectBranchName <$> branch)))
+                (either (const Nothing) Just (tryFrom @Text @(ProjectAndBranch ProjectName (Maybe ProjectBranchName)) input))
+      t "project" "project" Nothing
+      t "project/branch" "project" (Just "branch")
+      t "project/@user/branch" "project" (Just "@user/branch")
+      t "project/releases/1.2.3" "project" (Just "releases/1.2.3")
+      t "project/releases/drafts/1.2.3" "project" (Just "releases/drafts/1.2.3")
+      t "@user/project" "@user/project" Nothing
+      t "@user/project/branch" "@user/project" (Just "branch")
+      t "@user/project/@user/branch" "@user/project" (Just "@user/branch")
+      t "@user/project/releases/1.2.3" "@user/project" (Just "releases/1.2.3")
+      t "@user/project/releases/drafts/1.2.3" "@user/project" (Just "releases/drafts/1.2.3"),
     scope "project branch name with optional project name" do
       let t input project branch =
             scope (Text.unpack input) $
