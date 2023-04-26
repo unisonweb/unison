@@ -14,6 +14,9 @@ module Unison.Project
     classifyProjectBranchName,
     ProjectAndBranch (..),
     projectAndBranchNamesParser,
+
+    -- ** Semver
+    Semver (..),
   )
 where
 
@@ -160,6 +163,21 @@ structuredProjectBranchNameParser =
 
 data Semver
   = Semver !Int !Int !Int
+  deriving stock (Eq, Show)
+
+instance From Semver Text where
+  from (Semver x y z) =
+    (Text.Builder.run . fold)
+      [ Text.Builder.decimal x,
+        Text.Builder.char '.',
+        Text.Builder.decimal y,
+        Text.Builder.char '.',
+        Text.Builder.decimal z
+      ]
+
+instance TryFrom Text Semver where
+  tryFrom =
+    maybeTryFrom (Megaparsec.parseMaybe semverParser)
 
 semverParser :: Megaparsec.Parsec Void Text Semver
 semverParser = do

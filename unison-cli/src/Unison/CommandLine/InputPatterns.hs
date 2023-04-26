@@ -44,7 +44,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName, Semver (Semver))
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
 import qualified Unison.Syntax.Name as Name (fromText, unsafeFromString)
 import qualified Unison.Util.ColorText as CT
@@ -2414,6 +2414,19 @@ branchEmptyInputPattern =
         _ -> Left (showPatternHelp branchEmptyInputPattern)
     }
 
+releaseDraft :: InputPattern
+releaseDraft =
+  InputPattern
+    { patternName = "release.draft",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [],
+      help = P.wrap "Draft a release.",
+      parse = \case
+        [tryInto @Semver . Text.pack -> Right semver] -> Right (Input.ReleaseDraftI semver)
+        _ -> Left (showPatternHelp releaseDraft)
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2506,6 +2519,7 @@ validInputs =
       pushExhaustive,
       pushForce,
       quit,
+      releaseDraft,
       renameBranch,
       renamePatch,
       renameTerm,

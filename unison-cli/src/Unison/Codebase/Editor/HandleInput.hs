@@ -90,6 +90,7 @@ import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
+import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.TermResolution
   ( resolveCon,
     resolveMainRef,
@@ -1369,6 +1370,7 @@ loop e = do
             ProjectsI -> handleProjects
             BranchesI -> handleBranches
             BranchI source name -> handleBranch source name
+            ReleaseDraftI semver -> handleReleaseDraft semver
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"

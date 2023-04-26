@@ -49,6 +49,7 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Util.Pretty as P
+import Unison.Project (Semver)
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -227,6 +228,7 @@ data Input
   | ProjectsI
   | BranchesI
   | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | ReleaseDraftI Semver
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
