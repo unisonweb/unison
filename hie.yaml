@@ -120,6 +120,9 @@ cradle:
     - path: "unison-core/src"
       component: "unison-core1:lib"
 
+    - path: "unison-core/test"
+      component: "unison-core1:test:tests"
+
     - path: "unison-hashing-v2/src"
       component: "unison-hashing-v2:lib"
 

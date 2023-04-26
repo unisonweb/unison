@@ -10,7 +10,8 @@ module Unison.Project
     prependUserSlugToProjectName,
     ProjectBranchName,
     projectBranchNameUserSlug,
-    prependUserSlugToProjectBranchName,
+    ProjectBranchNameKind (..),
+    classifyProjectBranchName,
     ProjectAndBranch (..),
     projectAndBranchNamesParser,
   )
@@ -18,6 +19,7 @@ where
 
 import qualified Data.Char as Char
 import qualified Data.Text as Text
+import qualified Data.Text.Read as Text (decimal)
 import Data.These (These (..))
 import qualified Text.Builder
 import qualified Text.Builder as Text (Builder)
@@ -35,7 +37,13 @@ instance TryFrom Text ProjectName where
 
 projectNameParser :: Megaparsec.Parsec Void Text ProjectName
 projectNameParser = do
-  userSlug <- userSlugParser <|> pure mempty
+  userSlug <-
+    asum
+      [ do
+          user <- userSlugParser
+          pure (Text.Builder.char '@' <> user <> Text.Builder.char '/'),
+        pure mempty
+      ]
   projectSlug <- projectSlugParser
   pure (UnsafeProjectName (Text.Builder.run (userSlug <> projectSlug)))
   where
@@ -92,10 +100,61 @@ instance TryFrom Text ProjectBranchName where
     maybeTryFrom (Megaparsec.parseMaybe projectBranchNameParser)
 
 projectBranchNameParser :: Megaparsec.Parsec Void Text ProjectBranchName
-projectBranchNameParser = do
-  userSlug <- userSlugParser <|> pure mempty
-  branchSlug <- branchSlugParser
-  pure (UnsafeProjectBranchName (Text.Builder.run (userSlug <> branchSlug)))
+projectBranchNameParser =
+  unstructureStructuredProjectName <$> structuredProjectBranchNameParser
+
+-- An internal type that captures the structure of a project branch name after parsing. 'classifyProjectBranchName' is
+-- how a user can recover this structure for the few cases it's relevant (e.g. during push)
+data StructuredProjectBranchName
+  = StructuredProjectBranchName'Contributor !Text.Builder !Text.Builder
+  | StructuredProjectBranchName'DraftRelease !Semver
+  | StructuredProjectBranchName'Release !Semver
+  | StructuredProjectBranchName'NothingSpecial !Text.Builder
+
+unstructureStructuredProjectName :: StructuredProjectBranchName -> ProjectBranchName
+unstructureStructuredProjectName =
+  UnsafeProjectBranchName . Text.Builder.run . \case
+    StructuredProjectBranchName'Contributor user name ->
+      Text.Builder.char '@' <> user <> Text.Builder.char '/' <> name
+    StructuredProjectBranchName'DraftRelease ver -> "releases/drafts/" <> unstructureSemver ver
+    StructuredProjectBranchName'Release ver -> "releases/" <> unstructureSemver ver
+    StructuredProjectBranchName'NothingSpecial name -> name
+  where
+    unstructureSemver :: Semver -> Text.Builder
+    unstructureSemver (Semver x y z) =
+      Text.Builder.decimal x
+        <> Text.Builder.char '.'
+        <> Text.Builder.decimal y
+        <> Text.Builder.char '.'
+        <> Text.Builder.decimal z
+
+structuredProjectBranchNameParser :: Megaparsec.Parsec Void Text StructuredProjectBranchName
+structuredProjectBranchNameParser = do
+  branch <-
+    asum
+      [ do
+          _ <- Megaparsec.string "releases/drafts/"
+          ver <- semverParser
+          pure (StructuredProjectBranchName'DraftRelease ver),
+        do
+          _ <- Megaparsec.string "releases/"
+          ver <- semverParser
+          pure (StructuredProjectBranchName'Release ver),
+        do
+          user <- userSlugParser
+          branch <- branchSlugParser
+          pure (StructuredProjectBranchName'Contributor user branch),
+        do
+          branch <- branchSlugParser
+          pure (StructuredProjectBranchName'NothingSpecial branch)
+      ]
+  -- Because our branch has a sort of /-delimited pseudo-structure, we fail on trailing forward slashes.
+  --
+  -- This (perhaps among other things) lets us successfully parse something like "releases/drafts/1.2.3" as a branch
+  -- with an optional project component in a straightforward way, which might otherwise succeed with
+  -- project="releases", branch="drafts", leftovers="/1.2.3" (as it did before this line was added).
+  Megaparsec.notFollowedBy (Megaparsec.char '/')
+  pure branch
   where
     branchSlugParser :: Megaparsec.Parsec Void Text Text.Builder
     branchSlugParser = do
@@ -106,6 +165,75 @@ projectBranchNameParser = do
         isStartChar :: Char -> Bool
         isStartChar c =
           Char.isAlpha c || c == '_'
+
+data Semver
+  = Semver !Int !Int !Int
+
+semverParser :: Megaparsec.Parsec Void Text Semver
+semverParser = do
+  x <- decimalParser
+  _ <- Megaparsec.char '.'
+  y <- decimalParser
+  _ <- Megaparsec.char '.'
+  z <- decimalParser
+  pure (Semver x y z)
+  where
+    decimalParser = do
+      digits <- Megaparsec.takeWhile1P (Just "decimal") Char.isDigit
+      pure case Text.decimal digits of
+        Right (n, _) -> n
+        Left _ -> 0 -- impossible
+
+-- | Though a branch name is just a flat string, we have logic that handles certain strings specially.
+--
+-- A branch's name indicates it is exactly one of the following:
+--
+--   * A contributor branch like "@arya/topic"
+--   * A draft release branch like "releases/drafts/1.2.3"
+--   * A release branch like "releases/1.2.3"
+--   * None of the above, like "topic"
+--
+-- Note these classifications are only tied to the branch's (mutable) name, and are not really otherwise indicative of
+-- much.
+--
+-- For instance,
+--
+--   - The existence of a local "releases/1.2.3" branch does not necessarily imply the existence of some remote release
+--     version "1.2.3".
+--   - The existence of a local "@arya/topic@ branch does not necessarily imply the existence of some remote "arya"
+--     user made some "topic" branch at some point.
+--
+-- That said, we do try to make the system mostly make sense by rejecting certain inputs (e.g. you should not be able
+-- to easily create a local branch called "releases/1.2.3" out of thin air; you should have to clone it from
+-- somewhere). But ultimately, again, branch names are best thought of as opaque, flat strings.
+data ProjectBranchNameKind
+  = ProjectBranchNameKind'Contributor !Text !ProjectBranchName
+  | ProjectBranchNameKind'DraftRelease !Semver
+  | ProjectBranchNameKind'Release !Semver
+  | ProjectBranchNameKind'NothingSpecial
+
+-- | Classify a project branch name.
+--
+-- >>> classifyProjectBranchName "@arya/topic"
+-- Contributor "arya" "topic"
+--
+-- >>> classifyProjectBranchName "releases/drafts/1.2.3"
+-- DraftRelease (Semver 1 2 3)
+--
+-- >>> classifyProjectBranchName "releases/1.2.3"
+-- Release (Semver 1 2 3)
+--
+-- >>> classifyProjectBranchName "topic"
+-- NothingSpecial
+classifyProjectBranchName :: ProjectBranchName -> ProjectBranchNameKind
+classifyProjectBranchName (UnsafeProjectBranchName branchName) =
+  case Megaparsec.parseMaybe structuredProjectBranchNameParser branchName of
+    Just (StructuredProjectBranchName'Contributor user name) ->
+      ProjectBranchNameKind'Contributor (Text.Builder.run user) (UnsafeProjectBranchName (Text.Builder.run name))
+    Just (StructuredProjectBranchName'DraftRelease ver) -> ProjectBranchNameKind'DraftRelease ver
+    Just (StructuredProjectBranchName'Release ver) -> ProjectBranchNameKind'Release ver
+    Just (StructuredProjectBranchName'NothingSpecial _name) -> ProjectBranchNameKind'NothingSpecial
+    Nothing -> error (reportBug "E800424" ("Invalid project branch name: " ++ Text.unpack branchName))
 
 -- | Get the user slug at the beginning of a project branch name, if there is one.
 --
@@ -119,29 +247,6 @@ projectBranchNameUserSlug (UnsafeProjectBranchName branchName) =
   if Text.head branchName == '@'
     then Just (Text.takeWhile (/= '/') (Text.drop 1 branchName))
     else Nothing
-
--- | Prepend a user slug to a project branch name, if it doesn't already have one.
---
--- >>> prependUserSlugToProjectBranchName "arya" "topic"
--- "@arya/topic"
---
--- >>> prependUserSlugToProjectBranchName "runar" "@unison/main"
--- "@unison/main"
---
--- >>> prependUserSlugToProjectBranchName "???invalid???" "@unison/main"
--- "@unison/main"
-prependUserSlugToProjectBranchName :: Text -> ProjectBranchName -> ProjectBranchName
-prependUserSlugToProjectBranchName userSlug (UnsafeProjectBranchName branchName) =
-  if Text.head branchName == '@'
-    then UnsafeProjectBranchName branchName
-    else fromMaybe (UnsafeProjectBranchName branchName) (Megaparsec.parseMaybe projectBranchNameParser newBranchName)
-  where
-    newBranchName =
-      Text.Builder.run $
-        Text.Builder.char '@'
-          <> Text.Builder.text userSlug
-          <> Text.Builder.char '/'
-          <> Text.Builder.text branchName
 
 -- | @project/branch@ syntax for project+branch pair, with up to one
 -- side optional. Missing value means "the current one".
@@ -210,15 +315,16 @@ branchWithOptionalProjectParser =
 
 ------------------------------------------------------------------------------------------------------------------------
 
--- Projects and branches may begin with a "user slug", which looks like "@arya/".
+-- Projects and branches may begin with a "user slug", which looks like "@arya/". This parser parses such slugs,
+-- returning just the username (e.g. "arya").
 --
 -- slug       = @ start-char char* /
 -- start-char = alpha
 -- char       = alpha | digit | -
 userSlugParser :: Megaparsec.Parsec Void Text Text.Builder.Builder
 userSlugParser = do
-  c0 <- Megaparsec.char '@'
-  c1 <- Megaparsec.satisfy Char.isAlpha
-  c2 <- Megaparsec.takeWhileP Nothing (\c -> Char.isAlpha c || Char.isDigit c || c == '-')
-  c3 <- Megaparsec.char '/'
-  pure (Text.Builder.char c0 <> Text.Builder.char c1 <> Text.Builder.text c2 <> Text.Builder.char c3)
+  _ <- Megaparsec.char '@'
+  c0 <- Megaparsec.satisfy Char.isAlpha
+  c1 <- Megaparsec.takeWhileP Nothing (\c -> Char.isAlpha c || Char.isDigit c || c == '-')
+  _ <- Megaparsec.char '/'
+  pure (Text.Builder.char c0 <> Text.Builder.text c1)
