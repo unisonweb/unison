@@ -22,7 +22,7 @@ import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName, ProjectBranchNameKind (..), classifyProjectBranchName)
 import qualified Unison.Sqlite as Sqlite
 
 data CreateFrom
@@ -37,6 +37,14 @@ handleBranch sourceI projectAndBranchNames0 = do
     case projectAndBranchNames0 of
       ProjectAndBranch Nothing branchName -> ProjectUtils.hydrateNames (That branchName)
       ProjectAndBranch (Just projectName) branchName -> pure (ProjectAndBranch projectName branchName)
+
+  -- You can only create draft release branches with `release.draft`
+  -- You can only create release branches with `branch.clone`
+  case classifyProjectBranchName newBranchName of
+    ProjectBranchNameKind'Contributor _user _name -> pure ()
+    ProjectBranchNameKind'DraftRelease _ver -> wundefined
+    ProjectBranchNameKind'Release _ver -> wundefined
+    ProjectBranchNameKind'NothingSpecial -> pure ()
 
   -- Compute what we should create the branch from.
   createFrom <-
