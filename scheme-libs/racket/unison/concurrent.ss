@@ -19,7 +19,7 @@
           (rnrs records syntactic)
           (unison data)
           (unison core)
-          (unison data chunked-seq)
+          (unison chunked-seq)
           (rename
            (only (racket base)
                  box

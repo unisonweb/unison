@@ -34,11 +34,15 @@
           (for (only (racket base) quasisyntax/loc) expand)
           (for (only (unison core) syntax->list) expand)
           (only (srfi :28) format)
+          (only (racket control) prompt0-at control0-at)
+          (rename
+           (only (racket)
+                 make-continuation-prompt-tag)
+           (make-continuation-prompt-tag make-prompt))
           (unison core)
           (unison data)
-          (unison cont)
           (unison crypto)
-          (only (unison data chunked-seq) string->chunked-string))
+          (only (unison chunked-seq) string->chunked-string))
 
   ; Computes a symbol for automatically generated partial application
   ; cases, based on number of arguments applied. The partial
