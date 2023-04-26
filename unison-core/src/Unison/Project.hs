@@ -129,24 +129,32 @@ unstructureStructuredProjectName =
         <> Text.Builder.decimal z
 
 structuredProjectBranchNameParser :: Megaparsec.Parsec Void Text StructuredProjectBranchName
-structuredProjectBranchNameParser =
-  asum
-    [ do
-        _ <- Megaparsec.string "releases/drafts/"
-        ver <- semverParser
-        pure (StructuredProjectBranchName'DraftRelease ver),
-      do
-        _ <- Megaparsec.string "releases/"
-        ver <- semverParser
-        pure (StructuredProjectBranchName'Release ver),
-      do
-        user <- userSlugParser
-        branch <- branchSlugParser
-        pure (StructuredProjectBranchName'Contributor user branch),
-      do
-        branch <- branchSlugParser
-        pure (StructuredProjectBranchName'NothingSpecial branch)
-    ]
+structuredProjectBranchNameParser = do
+  branch <-
+    asum
+      [ do
+          _ <- Megaparsec.string "releases/drafts/"
+          ver <- semverParser
+          pure (StructuredProjectBranchName'DraftRelease ver),
+        do
+          _ <- Megaparsec.string "releases/"
+          ver <- semverParser
+          pure (StructuredProjectBranchName'Release ver),
+        do
+          user <- userSlugParser
+          branch <- branchSlugParser
+          pure (StructuredProjectBranchName'Contributor user branch),
+        do
+          branch <- branchSlugParser
+          pure (StructuredProjectBranchName'NothingSpecial branch)
+      ]
+  -- Because our branch has a sort of /-delimited pseudo-structure, we fail on trailing forward slashes.
+  --
+  -- This (perhaps among other things) lets us successfully parse something like "releases/drafts/1.2.3" as a branch
+  -- with an optional project component in a straightforward way, which might otherwise succeed with
+  -- project="releases", branch="drafts", leftovers="/1.2.3" (as it did before this line was added).
+  Megaparsec.notFollowedBy (Megaparsec.char '/')
+  pure branch
   where
     branchSlugParser :: Megaparsec.Parsec Void Text Text.Builder
     branchSlugParser = do
