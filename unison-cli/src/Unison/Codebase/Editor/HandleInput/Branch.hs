@@ -42,8 +42,8 @@ handleBranch sourceI projectAndBranchNames0 = do
   -- You can only create release branches with `branch.clone`
   case classifyProjectBranchName newBranchName of
     ProjectBranchNameKind'Contributor _user _name -> pure ()
-    ProjectBranchNameKind'DraftRelease _ver -> wundefined
-    ProjectBranchNameKind'Release _ver -> wundefined
+    ProjectBranchNameKind'DraftRelease _ver -> Cli.returnEarlyWithoutOutput
+    ProjectBranchNameKind'Release _ver -> Cli.returnEarlyWithoutOutput
     ProjectBranchNameKind'NothingSpecial -> pure ()
 
   -- Compute what we should create the branch from.
