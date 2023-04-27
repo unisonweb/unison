@@ -59,7 +59,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -333,6 +333,7 @@ data Output
   | UploadedEntities Int
   | -- A generic "not implemented" message, for WIP code that's nonetheless been merged into trunk
     NotImplementedYet Text
+  | DraftingRelease ProjectBranchName Semver
 
 -- | What did we create a project branch from?
 --
@@ -535,6 +536,7 @@ isFailure o = case o of
   RemoteProjectBranchIsUpToDate {} -> False
   DownloadedEntities {} -> False
   UploadedEntities {} -> False
+  DraftingRelease {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

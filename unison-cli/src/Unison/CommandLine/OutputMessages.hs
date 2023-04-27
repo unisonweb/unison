@@ -132,7 +132,7 @@ import Unison.PrintError
     printNoteWithSource,
     renderCompilerBug,
   )
-import Unison.Project (ProjectAndBranch (..), ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectName, Semver (..))
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -1992,6 +1992,29 @@ notifyUser dir = \case
   DownloadedEntities n -> pure (P.wrap ("Downloaded" <> P.num n <> "entities."))
   UploadedEntities n -> pure (P.wrap ("Uploaded" <> P.num n <> "entities."))
   NotImplementedYet message -> pure (P.wrap ("Not implemented:" <> P.text message))
+  DraftingRelease branch ver ->
+    pure $
+      P.wrap ("😎 Great! I've created a draft release for you at " <> prettySlashProjectBranchName branch)
+        <> "."
+        <> P.newline
+        <> P.newline
+        <> P.wrap ("While preparing we suggest you create a releaseNotes Doc. It'll automatically show up on Unison Share when you publish.")
+        <> P.newline
+        <> P.newline
+        <> P.wrap
+          ( "When ready to release"
+              <> prettySemver ver
+              <> "to the world,"
+              <> IP.makeExample' IP.push
+              <> "the release to Unison Share, navigate to the release, and click \"Publish\"."
+          )
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( "if you get pulled away from drafting your release, you can always get back to it with "
+              <> IP.makeExample IP.projectSwitch [prettySlashProjectBranchName branch]
+              <> "."
+          )
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -2304,6 +2327,10 @@ prettyProjectName =
 prettyProjectBranchName :: ProjectBranchName -> Pretty
 prettyProjectBranchName =
   P.blue . P.text . into @Text
+
+prettySemver :: Semver -> Pretty
+prettySemver (Semver x y z) =
+  P.group (P.num x <> "." <> P.num y <> "." <> P.num z)
 
 -- | Like 'prettyProjectBranchName', but with a leading forward slash. This is used in some outputs to
 -- encourage/advertise an unambiguous syntax for project branches, as there's an ambiguity with single-segment relative
