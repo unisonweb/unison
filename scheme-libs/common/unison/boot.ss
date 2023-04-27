@@ -322,4 +322,59 @@
                    [(pure? scrut) pc]
                    [else (case (request-ability scrut) ac ...)]))))])))
 
+  (define (describe-list n l)
+    (let rec ([pre "["] [post "[]"] [cur l])
+      (cond
+        [(null? cur) post]
+        [else
+          (let* ([sx (describe-value-depth (- n 1) (car cur))]
+                 [sxs (rec ", " "]" (cdr cur))])
+            (string-append pre sx sxs))])))
+
+  (define (describe-ref r)
+    (cond
+      [(symbol? r) (symbol->string r)]
+      [(data? r)
+       (data-case r
+         [0 (s) (string-append "##" s)]
+         [1 (i)
+           (data-case i
+             [0 (bs ix)
+               (let* ([bd (bytevector->base32-string b32h bs)]
+                      [td (istring-take 5 bd)]
+                      [sx (if (>= 0 ix)
+                            ""
+                            (string-append "." (number->string ix)))])
+                 (string-append "#" td sx))])])]))
+
+  (define (describe-bytes bs)
+    (let* ([s (bytevector->base32-string b32h bs)]
+           [l (string-length s)]
+           [sfx (if (<= l 10) "" "...")])
+      (string-append "32x" (istring-take 10 s) sfx)))
+
+  (define (describe-value-depth n x) 
+    (if (< n 0) "..."
+      (cond
+        [(sum? x)
+         (let ([tt (number->string (sum-tag x))]
+               [vs (describe-list n (sum-fields x))])
+           (string-append "Sum " tt " " vs))]
+        [(data? x)
+         (let ([tt (number->string (data-tag x))]
+               [rt (describe-ref (data-ref x))]
+               [vs (describe-list n (data-fields x))])
+           (string-append "Data " rt " " tt " " vs))]
+        [(list? x) (describe-list n x)]
+        [(number? x) (number->string x)]
+        [(string? x) (string-append "\"" x "\"")]
+        [(bytevector? x) (describe-bytes x)]
+        [(procedure? x) (format "~a" x)]
+        [else
+          (format "describe-value: unimplemented case: ~a " x)])))
+
+  (define (describe-value x) (describe-value-depth 20 x))
+
+  (define (decode-value x) '())
+
   )

@@ -10,9 +10,6 @@
 #!r6rs
 (library (unison core)
   (export
-    describe-value
-    decode-value
-
     universal-compare
     universal-equal?
 
@@ -58,9 +55,6 @@
         [else
           (let ([sub (rec (cdr c) (- m 1))])
             (cons (car c) sub))])))
-
-  (define (describe-value x) '())
-  (define (decode-value x) '())
 
   ; 0 = LT
   ; 1 = EQ
