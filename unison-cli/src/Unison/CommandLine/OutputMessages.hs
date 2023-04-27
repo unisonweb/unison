@@ -2015,15 +2015,20 @@ notifyUser dir = \case
               <> IP.makeExample IP.projectSwitch [prettySlashProjectBranchName branch]
               <> "."
           )
-  CannotCreateReleaseBranchWithBranchCommand branch ->
+  CannotCreateReleaseBranchWithBranchCommand branch ver ->
     pure $
       P.wrap ("Branch names like" <> prettyProjectBranchName branch <> "are reserved for releases.")
-      <> P.newline
-      <> P.newline
-      <> tip ("to download an existing release, try " <> IP.makeExample IP.branchClone [prettySlashProjectBranchName branch])
-      <> P.newline
-      <> P.newline
-      <> tip ("to draft a new release, try release.draft <ver>")
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( "to download an existing release, try "
+              <> IP.makeExample IP.branchClone [prettySlashProjectBranchName branch]
+          )
+        <> "."
+        <> P.newline
+        <> P.newline
+        <> tip ("to draft a new release, try " <> IP.makeExample IP.releaseDraft [prettySemver ver])
+        <> "."
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

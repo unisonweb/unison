@@ -43,7 +43,8 @@ handleBranch sourceI projectAndBranchNames0 = do
   case classifyProjectBranchName newBranchName of
     ProjectBranchNameKind'Contributor _user _name -> pure ()
     ProjectBranchNameKind'DraftRelease _ver -> Cli.returnEarlyWithoutOutput
-    ProjectBranchNameKind'Release _ver -> Cli.returnEarlyWithoutOutput
+    ProjectBranchNameKind'Release ver ->
+      Cli.returnEarly (Output.CannotCreateReleaseBranchWithBranchCommand newBranchName ver)
     ProjectBranchNameKind'NothingSpecial -> pure ()
 
   -- Compute what we should create the branch from.

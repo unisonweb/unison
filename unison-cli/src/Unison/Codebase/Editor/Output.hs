@@ -334,6 +334,7 @@ data Output
   | -- A generic "not implemented" message, for WIP code that's nonetheless been merged into trunk
     NotImplementedYet Text
   | DraftingRelease ProjectBranchName Semver
+  | CannotCreateReleaseBranchWithBranchCommand ProjectBranchName Semver
 
 -- | What did we create a project branch from?
 --
@@ -537,6 +538,7 @@ isFailure o = case o of
   DownloadedEntities {} -> False
   UploadedEntities {} -> False
   DraftingRelease {} -> False
+  CannotCreateReleaseBranchWithBranchCommand {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
