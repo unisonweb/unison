@@ -6,13 +6,13 @@ where
 
 import Control.Lens ((^.))
 import Unison.Cli.Monad (Cli)
+import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import Unison.Codebase.Editor.HandleInput.Branch (CreateFrom (..), doCreateBranch)
+import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Prelude
 import Unison.Project (Semver)
 import Witch (unsafeFrom)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Codebase.Editor.Output as Output
 
 -- | Handle a @release.draft@ command.
 handleReleaseDraft :: Semver -> Cli ()
