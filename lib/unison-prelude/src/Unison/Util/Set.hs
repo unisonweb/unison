@@ -6,9 +6,11 @@ module Unison.Util.Set
     Unison.Util.Set.traverse,
     flatMap,
     filterM,
+    forMaybe,
   )
 where
 
+import Data.Function ((&))
 import Data.Functor ((<&>))
 import qualified Data.Maybe as Maybe
 import Data.Set (Set)
@@ -32,6 +34,13 @@ symmetricDifference a b = (a `Set.difference` b) `Set.union` (b `Set.difference`
 
 mapMaybe :: (Ord b) => (a -> Maybe b) -> Set a -> Set b
 mapMaybe f = Set.fromList . Maybe.mapMaybe f . Set.toList
+
+forMaybe :: (Ord b, Applicative f) => Set a -> (a -> f (Maybe b)) -> f (Set b)
+forMaybe xs f =
+  Prelude.traverse f (Set.toList xs) <&> \ys ->
+    ys
+      & Maybe.catMaybes
+      & Set.fromList
 
 traverse :: (Applicative f, Ord b) => (a -> f b) -> Set a -> f (Set b)
 traverse f = fmap Set.fromList . Prelude.traverse f . Set.toList

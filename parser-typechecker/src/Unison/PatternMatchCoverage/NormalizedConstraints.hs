@@ -15,20 +15,21 @@ module Unison.PatternMatchCoverage.NormalizedConstraints
 where
 
 import Data.Functor.Compose
-import Data.List (intersperse)
 import Data.Sequence (pattern Empty)
 import qualified Data.Set as Set
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.Constraint
+import Unison.PatternMatchCoverage.EffectHandler
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
 import qualified Unison.PatternMatchCoverage.IntervalSet as IntervalSet
 import qualified Unison.PatternMatchCoverage.PmLit as PmLit
+import Unison.PatternMatchCoverage.Pretty
 import Unison.PatternMatchCoverage.UFMap (UFMap)
 import qualified Unison.PatternMatchCoverage.UFMap as UFMap
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Syntax.TypePrinter as TypePrinter
-import Unison.Type (Type, booleanRef, charRef, floatRef, intRef, listRef, natRef, textRef, pattern App', pattern Ref')
+import Unison.Type (Type, booleanRef, charRef, effectRef, floatRef, intRef, listRef, natRef, textRef, pattern App', pattern Apps', pattern Ref')
 import Unison.Util.Pretty
 import Unison.Var (Var)
 
@@ -173,6 +174,7 @@ mkVarInfo v t =
     { vi_id = v,
       vi_typ = t,
       vi_con = case t of
+        Apps' (Ref' r) _ | r == effectRef -> Vc'Effect Nothing mempty
         App' (Ref' r) t
           | r == listRef -> Vc'ListRoot t Empty Empty (IntervalSet.singleton (0, maxBound))
         Ref' r
@@ -204,6 +206,9 @@ data VarConstraints vt v loc
   = Vc'Constructor
       (Maybe (ConstructorReference, [(v, Type vt loc)]))
       (Set ConstructorReference)
+  | Vc'Effect
+      (Maybe (EffectHandler, [(v, Type vt loc)]))
+      (Set EffectHandler)
   | Vc'Boolean (Maybe Bool) (Set Bool)
   | Vc'Int (Maybe Int64) (Set Int64)
   | Vc'Nat (Maybe Word64) (Set Word64)
@@ -226,16 +231,18 @@ data EffectInfo
   | IsNotEffectful
   deriving stock (Show, Eq, Ord)
 
-prettyNormalizedConstraints :: forall vt v loc. (Var v, Var vt) => NormalizedConstraints vt v loc -> Pretty ColorText
-prettyNormalizedConstraints (NormalizedConstraints {constraintMap}) = sep " " ["⟨", pconstraints, "⟩"]
+prettyNormalizedConstraints :: forall vt v loc. (Var v, Var vt) => PPE.PrettyPrintEnv -> NormalizedConstraints vt v loc -> Pretty ColorText
+prettyNormalizedConstraints ppe (NormalizedConstraints {constraintMap}) = sep " " ["⟨", pconstraints, "⟩"]
   where
     cls = UFMap.toClasses constraintMap
 
-    pconstraints = sep " " (intersperse "," $ prettyCon <$> cls)
+    pconstraints = sep ", " (prettyCon <$> cls)
     prettyCon (kcanon, ks, vi) =
       let posCon = fromMaybe [] $ case vi_con vi of
             Vc'Constructor pos _neg ->
               (\(datacon, convars) -> [PosCon kcanon datacon convars]) <$> pos
+            Vc'Effect pos _neg ->
+              (\(effectHandler, convars) -> [PosEffect kcanon effectHandler convars]) <$> pos
             Vc'Boolean pos _neg ->
               (\x -> [PosLit kcanon (PmLit.Boolean x)]) <$> pos
             Vc'Int pos _neg ->
@@ -256,6 +263,7 @@ prettyNormalizedConstraints (NormalizedConstraints {constraintMap}) = sep " " ["
           negConK s f = foldr (\a b -> f kcanon a : b) [] s
           negCon = case vi_con vi of
             Vc'Constructor _pos neg -> negConK neg NegCon
+            Vc'Effect _pos neg -> negConK neg NegEffect
             Vc'Boolean _pos neg -> negConK neg (\v a -> NegLit v (PmLit.Boolean a))
             Vc'Int _pos neg -> negConK neg (\v a -> NegLit v (PmLit.Int a))
             Vc'Nat _pos neg -> negConK neg (\v a -> NegLit v (PmLit.Nat a))
@@ -267,12 +275,13 @@ prettyNormalizedConstraints (NormalizedConstraints {constraintMap}) = sep " " ["
             IsNotEffectful -> []
             IsEffectful -> [Effectful kcanon]
        in sep " " $
-            pv kcanon
-              : fmap pv (Set.toList $ Set.delete kcanon ks)
-              ++ [":", TypePrinter.pretty PPE.empty (vi_typ vi)]
+            prettyVar kcanon
+              : fmap prettyVar (Set.toList $ Set.delete kcanon ks)
+              ++ [":", TypePrinter.pretty ppe (vi_typ vi)]
               ++ ["|"]
-              ++ [sep ", " $ fmap prettyConstraint (posCon ++ negCon ++ botCon)]
-    pv = string . show
+              ++ case posCon ++ negCon ++ botCon of
+                [] -> ["∅"]
+                _ -> [sep ", " $ fmap (prettyConstraint ppe) (posCon ++ negCon ++ botCon)]
 
-prettyDnf :: (Var v, Var vt) => Set (NormalizedConstraints vt v loc) -> Pretty ColorText
-prettyDnf xs = sep " " ("{" : intersperse "," (prettyNormalizedConstraints <$> Set.toList xs) ++ ["}"])
+prettyDnf :: (Var v, Var vt) => PPE.PrettyPrintEnv -> Set (NormalizedConstraints vt v loc) -> Pretty ColorText
+prettyDnf ppe xs = sep " " ("{" : sep ", " (prettyNormalizedConstraints ppe <$> Set.toList xs) : ["}"])

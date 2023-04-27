@@ -17,11 +17,14 @@ dependencies:
   - bytestring
   - containers
   - extra
+  - generic-lens
   - here
   - lens
-  - generic-lens
   - monad-validate
   - mtl
+  - neat-interpolation
+  - network-uri
+  - network-uri-orphans-sqlite
   - nonempty-containers
   - safe
   - text
@@ -29,6 +32,7 @@ dependencies:
   - unison-codebase
   - unison-codebase-sync
   - unison-core
+  - unison-core-orphans-sqlite
   - unison-hash
   - unison-hash-orphans-sqlite
   - unison-prelude
@@ -38,6 +42,8 @@ dependencies:
   - unison-util-serialization
   - unison-util-term
   - unliftio
+  - uuid
+  - uuid-orphans-sqlite
   - vector
 
 default-extensions:

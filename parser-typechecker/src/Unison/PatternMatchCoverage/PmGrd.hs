@@ -2,6 +2,7 @@ module Unison.PatternMatchCoverage.PmGrd where
 
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.PmLit (PmLit, prettyPmLit)
+import Unison.PatternMatchCoverage.Pretty
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import Unison.Term (Term')
@@ -22,6 +23,14 @@ data
       -- ^ Constructor
       [(v, Type vt loc)]
       -- ^ Constructor argument values and types
+  | PmEffect
+      v
+      -- ^ Variable
+      ConstructorReference
+      -- ^ Constructor
+      [(v, Type vt loc)]
+      -- ^ Constructor argument values and types
+  | PmEffectPure v (v, Type vt loc)
   | PmLit v PmLit
   | PmListHead
       v
@@ -50,15 +59,20 @@ data
     PmLet v (Term' vt v loc) (Type vt loc)
   deriving stock (Show)
 
-prettyPmGrd :: (Var vt, Var v) => PmGrd vt v loc -> Pretty ColorText
-prettyPmGrd = \case
+prettyPmGrd :: (Var vt, Var v) => PPE.PrettyPrintEnv -> PmGrd vt v loc -> Pretty ColorText
+prettyPmGrd ppe = \case
   PmCon var con convars ->
-    let xs = string (show con) : (formatConVar <$> convars) ++ ["<-", string (show var)]
-        formatConVar (v, t) = sep " " ["(", string (show v), ":", TypePrinter.pretty PPE.empty t, ")"]
+    let xs = pc con : fmap (\(trm, typ) -> sep " " ["(" <> prettyVar trm, ":", TypePrinter.pretty ppe typ <> ")"]) convars ++ ["<-", prettyVar var]
      in sep " " xs
-  PmListHead var n el _ -> sep " " ["Cons", string (show n), string (show el), "<-", string (show var)]
-  PmListTail var n el _ -> sep " " ["Snoc", string (show n), string (show el), "<-", string (show var)]
-  PmListInterval var minLen maxLen -> sep " " ["Interval", string (show (minLen, maxLen)), "<-", string (show var)]
-  PmLit var lit -> sep " " [prettyPmLit lit, "<-", string (show var)]
-  PmBang v -> "!" <> string (show v)
-  PmLet v _expr _ -> sep " " ["let", string (show v), "=", "<expr>"]
+  PmEffect var con convars ->
+    let xs = pc con : fmap (\(trm, typ) -> sep " " ["(" <> prettyVar trm, ":", TypePrinter.pretty ppe typ <> ")"]) convars ++ ["<-", prettyVar var]
+     in sep " " xs
+  PmEffectPure v (rv, rt) -> sep " " ["pure", "(" <> prettyVar rv, ":", TypePrinter.pretty ppe rt <> ")", "<-", prettyVar v]
+  PmListHead var n el _ -> sep " " ["Cons", string (show n), prettyVar el, "<-", prettyVar var]
+  PmListTail var n el _ -> sep " " ["Snoc", string (show n), prettyVar el, "<-", prettyVar var]
+  PmListInterval var minLen maxLen -> sep " " ["Interval", string (show (minLen, maxLen)), "<-", prettyVar var]
+  PmLit var lit -> sep " " [prettyPmLit lit, "<-", prettyVar var]
+  PmBang v -> "!" <> prettyVar v
+  PmLet v _expr _ -> sep " " ["let", prettyVar v, "=", "<expr>"]
+  where
+    pc = prettyConstructorReference ppe

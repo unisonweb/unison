@@ -1,0 +1,43 @@
+name: network-uri-orphans-sqlite
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+
+library:
+  when:
+    - condition: false
+      other-modules: Paths_network-uri_orphans_sqlite
+  source-dirs: src
+
+dependencies:
+  - base
+  - network-uri
+  - sqlite-simple
+
+ghc-options:
+  -Wall
+  -fno-warn-orphans
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+  - TypeApplications
+  - ViewPatterns

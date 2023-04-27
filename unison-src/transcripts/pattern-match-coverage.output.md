@@ -725,3 +725,530 @@ unique type R = { someType : SomeType }
       R.someType.set    : SomeType -> R -> R
 
 ```
+# Ability handlers
+
+## Exhaustive ability handlers are accepted
+
+```unison
+structural ability Abort where
+  abort : {Abort} a
+
+
+result : '{e, Abort} a -> {e} a
+result f = handle !f with cases
+       { x } -> x
+       { abort -> _ } -> bug "aborted"
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability Abort
+      result : '{e, Abort} a ->{e} a
+
+```
+```unison
+structural ability Abort where
+  abort : {Abort} a
+
+unique type T = A | B
+
+result : '{e, Abort} T -> {e} ()
+result f = handle !f with cases
+       { A } -> ()
+       { B } -> ()
+       { abort -> _ } -> bug "aborted"
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability Abort
+      result : '{e, Abort} T ->{e} ()
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      unique type T
+
+```
+```unison
+structural ability Abort where
+  abort : {Abort} a
+
+unique type V =
+
+result : '{e, Abort} V -> {e} V
+result f = 
+  impl : Request {Abort} V -> V
+  impl = cases
+       { abort -> _ } -> bug "aborted"
+  handle !f with impl
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability Abort
+      result : '{e, Abort} V ->{e} V
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      unique type V
+
+```
+```unison
+structural ability Abort where
+  abort : {Abort} a
+  
+structural ability Stream a where
+  emit : a -> {Stream a} Unit
+  
+handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
+handleMulti c =
+  impl xs = cases
+    { r } -> (Some r, xs)
+    { emit x -> resume } -> handle !resume with impl (xs :+ x)
+    { abort -> _ } -> (None, xs)
+  handle !c with impl []
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability Abort
+      structural ability Stream a
+      handleMulti : '{Abort, Stream a} r -> (Optional r, [a])
+
+```
+## Non-exhaustive ability handlers are rejected
+
+```unison
+structural ability Abort where
+  abort : {Abort} a
+  abortWithMessage : Text -> {Abort} a
+
+
+result : '{e, Abort} a -> {e} a
+result f = handle !f with cases
+       { abort -> _ } -> bug "aborted"
+```
+
+```ucm
+
+  Pattern match doesn't cover all possible cases:
+        7 | result f = handle !f with cases
+        8 |        { abort -> _ } -> bug "aborted"
+    
+  
+  Patterns not matched:
+  
+    * { _ }
+    * {abortWithMessage _ -> _}
+
+```
+```unison
+structural ability Abort where
+  abort : {Abort} a
+
+unique type T = A | B
+
+result : '{e, Abort} T -> {e} ()
+result f = handle !f with cases
+       { A } -> ()
+       { abort -> _ } -> bug "aborted"
+```
+
+```ucm
+
+  Pattern match doesn't cover all possible cases:
+        7 | result f = handle !f with cases
+        8 |        { A } -> ()
+        9 |        { abort -> _ } -> bug "aborted"
+    
+  
+  Patterns not matched:
+   * { B }
+
+```
+```unison
+unique ability Give a where
+  give : a -> {Give a} Unit
+
+unique type T = A | B
+
+result : '{e, Give T} r -> {e} r
+result f = handle !f with cases
+       { x } -> x
+       { give A -> resume } -> result resume
+```
+
+```ucm
+
+  Pattern match doesn't cover all possible cases:
+        7 | result f = handle !f with cases
+        8 |        { x } -> x
+        9 |        { give A -> resume } -> result resume
+    
+  
+  Patterns not matched:
+   * {give B -> _}
+
+```
+```unison
+structural ability Abort where
+  abort : {Abort} a
+  
+structural ability Stream a where
+  emit : a -> {Stream a} Unit
+  
+handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
+handleMulti c =
+  impl : [a] -> Request {Stream a, Abort} r -> (Optional r, [a])
+  impl xs = cases
+    { r } -> (Some r, xs)
+    { emit x -> resume } -> handle !resume with impl (xs :+ x)
+  handle !c with impl []
+```
+
+```ucm
+
+  Pattern match doesn't cover all possible cases:
+       10 |   impl xs = cases
+       11 |     { r } -> (Some r, xs)
+       12 |     { emit x -> resume } -> handle !resume with impl (xs :+ x)
+    
+  
+  Patterns not matched:
+   * {abort -> _}
+
+```
+## Redundant handler cases are rejected
+
+```unison
+unique ability Give a where
+  give : a -> {Give a} Unit
+
+unique type T = A | B
+
+result : '{e, Give T} r -> {e} r
+result f = handle !f with cases
+       { x } -> x
+       { give _ -> resume } -> result resume
+       { give A -> resume } -> result resume
+```
+
+```ucm
+
+  This case would be ignored because it's already covered by the preceding case(s):
+       10 |        { give A -> resume } -> result resume
+    
+
+```
+## Exhaustive ability reinterpretations are accepted
+
+```unison
+structural ability Abort where
+  abort : {Abort} a
+  abortWithMessage : Text -> {Abort} a
+
+
+result : '{e, Abort} a -> {e, Abort} a
+result f = handle !f with cases
+       { x } -> x
+       { abort -> _ } -> abort
+       { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability Abort
+      result : '{e, Abort} a ->{e, Abort} a
+
+```
+```unison
+structural ability Abort a where
+  abort : {Abort a} r
+  abortWithMessage : a -> {Abort a} r
+
+unique type V =
+
+result : '{e, Abort V} a -> {e, Abort V} a
+result f = 
+  impl : Request {Abort V} r -> {Abort V} r
+  impl = cases
+       { x } -> x
+       { abort -> _ } -> abort
+  handle !f with impl
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability Abort a
+      result : '{e, Abort V} a ->{e, Abort V} a
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      unique type V
+
+```
+## Non-exhaustive ability reinterpretations are rejected
+
+```unison
+structural ability Abort where
+  abort : {Abort} a
+  abortWithMessage : Text -> {Abort} a
+
+
+result : '{e, Abort} a -> {e, Abort} a
+result f = handle !f with cases
+       { x } -> x
+       { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
+```
+
+```ucm
+
+  Pattern match doesn't cover all possible cases:
+        7 | result f = handle !f with cases
+        8 |        { x } -> x
+        9 |        { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
+    
+  
+  Patterns not matched:
+   * {abort -> _}
+
+```
+## Hacky workaround for uninhabited abilities
+
+Although all of the constructors of an ability might be uninhabited,
+the typechecker requires at least one be specified so that it can
+determine that the ability should be discharged. So, the default
+pattern match coverage checking behavior of prohibiting covering any
+of the cases is problematic. Instead, the pattern match coverage
+checker will require that at least one constructor be given, even if
+they are all uninhabited.
+
+The messages here aren't the best, but I don't think uninhabited
+abilities will come up and get handlers written for them often.
+
+```unison
+unique ability Give a where
+  give : a -> {Give a} Unit
+  give2 : a -> {Give a} Unit
+
+unique type V =
+
+result : '{e, Give V} r -> {e} r
+result f = 
+  impl : Request {Give V} r -> {} r
+  impl = cases
+       { x } -> x
+  handle !f with impl
+```
+
+```ucm
+
+  Pattern match doesn't cover all possible cases:
+       10 |   impl = cases
+       11 |        { x } -> x
+    
+  
+  Patterns not matched:
+  
+    * {give _ -> _}
+    * {give2 _ -> _}
+
+```
+```unison
+unique ability Give a where
+  give : a -> {Give a} Unit
+  give2 : a -> {Give a} Unit
+
+unique type V =
+
+result : '{e, Give V} r -> {e} r
+result f = 
+  impl : Request {Give V} r -> {} r
+  impl = cases
+       { x } -> x
+       { give _ -> resume } -> bug "impossible"
+  handle !f with impl
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique ability Give a
+      result : '{e, Give V} r ->{e} r
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      unique type V
+
+```
+```unison
+unique ability Give a where
+  give : a -> {Give a} Unit
+  give2 : a -> {Give a} Unit
+
+unique type V =
+
+result : '{e, Give V} r -> {e} r
+result f = 
+  impl : Request {Give V} r -> {} r
+  impl = cases
+       { x } -> x
+       { give2 _ -> resume } -> bug "impossible"
+  handle !f with impl
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique ability Give a
+      result : '{e, Give V} r ->{e} r
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      unique type V
+
+```
+```unison
+unique ability Give a where
+  give : a -> {Give a} Unit
+  give2 : a -> {Give a} Unit
+
+unique type V =
+
+result : '{e, Give V} r -> {e} r
+result f = 
+  impl : Request {Give V} r -> {} r
+  impl = cases
+       { x } -> x
+       { give _ -> resume } -> bug "impossible"
+       { give2 _ -> resume } -> bug "impossible"
+  handle !f with impl
+```
+
+```ucm
+
+  This case would be ignored because it's already covered by the preceding case(s):
+       13 |        { give2 _ -> resume } -> bug "impossible"
+    
+
+```
+```unison
+unique ability GiveA a where
+  giveA : a -> {GiveA a} Unit
+  giveA2 : a -> {GiveA a} Unit
+
+unique ability GiveB a where
+  giveB : a -> {GiveB a} Unit
+  giveB2 : a -> {GiveB a} Unit
+
+unique type V =
+
+result : '{e, GiveA V, GiveB V} r -> {e} r
+result f = 
+  impl : Request {GiveA V, GiveB V} r -> {} r
+  impl = cases
+       { x } -> x
+       { giveA _ -> _ } -> bug "impossible"
+       { giveA2 _ -> _ } -> bug "impossible"
+       { giveB _ -> _ } -> bug "impossible"
+       { giveB2 _ -> _ } -> bug "impossible"
+  handle !f with impl
+```
+
+```ucm
+
+  This case would be ignored because it's already covered by the preceding case(s):
+       17 |        { giveA2 _ -> _ } -> bug "impossible"
+    
+
+```
+```unison
+unique ability GiveA a where
+  giveA : a -> {GiveA a} Unit
+  giveA2 : a -> {GiveA a} Unit
+
+unique ability GiveB a where
+  giveB : a -> {GiveB a} Unit
+  giveB2 : a -> {GiveB a} Unit
+
+unique type V =
+
+result : '{e, GiveA V, GiveB V} r -> {e} r
+result f = 
+  impl : Request {GiveA V, GiveB V} r -> {} r
+  impl = cases
+       { x } -> x
+       { giveA2 _ -> _ } -> bug "impossible"
+       { giveB _ -> _ } -> bug "impossible"
+  handle !f with impl
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique ability GiveA a
+      unique ability GiveB a
+      result : '{e, GiveA V, GiveB V} r ->{e} r
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      unique type V
+
+```

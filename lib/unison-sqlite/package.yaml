@@ -8,16 +8,31 @@ library:
       other-modules: Paths_unison_sqlite
 
   source-dirs: src
-  other-modules:
-    - Unison.Sqlite.DataVersion
-    - Unison.Sqlite.Exception
-    - Unison.Sqlite.JournalMode
-    - Unison.Sqlite.Sql
+  exposed-modules:
+    - Unison.Sqlite
+    - Unison.Sqlite.Connection
+    - Unison.Sqlite.Internal
+    - Unison.Sqlite.Transaction
+
+tests:
+  tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_sqlite
+    dependencies:
+      - code-page
+      - easytest
+      - unison-sqlite
+    main: Main.hs
+    source-dirs: test
 
 dependencies:
   - base
   - direct-sqlite
   - exceptions
+  - generic-lens
+  - lens
+  - megaparsec
   - mtl
   - neat-interpolation
   - pretty-simple
@@ -26,6 +41,7 @@ dependencies:
   - sqlite-simple
   - template-haskell
   - text
+  - text-builder
   - transformers
   - unison-prelude
   - unliftio
@@ -35,11 +51,13 @@ ghc-options:
   -Wall
 
 default-extensions:
+  - BangPatterns
   - BlockArguments
   - ConstraintKinds
   - DeriveAnyClass
   - DeriveFunctor
   - DeriveFoldable
+  - DeriveGeneric
   - DeriveTraversable
   - DerivingStrategies
   - DerivingVia
@@ -54,6 +72,7 @@ default-extensions:
   - MultiParamTypeClasses
   - NamedFieldPuns
   - NumericUnderscores
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes

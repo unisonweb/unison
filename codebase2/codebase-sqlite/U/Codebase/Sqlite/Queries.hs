@@ -22,6 +22,7 @@ module U.Codebase.Sqlite.Queries
     expectHash,
     expectHash32,
     expectBranchHash,
+    expectBranchHashId,
     loadHashIdByHash,
     expectHashIdByHash,
     saveCausalHash,
@@ -98,6 +99,42 @@ module U.Codebase.Sqlite.Queries
     loadWatchKindsByReference,
     clearWatches,
 
+    -- * projects
+    projectExists,
+    projectExistsByName,
+    loadProject,
+    loadProjectByName,
+    expectProject,
+    loadAllProjects,
+    insertProject,
+
+    -- ** project branches
+    projectBranchExistsByName,
+    loadProjectBranchByName,
+    loadProjectBranchByNames,
+    expectProjectBranch,
+    loadAllProjectBranchInfo,
+    loadProjectAndBranchNames,
+    insertProjectBranch,
+    loadProjectBranch,
+    deleteProjectBranch,
+
+    -- ** remote projects
+    loadRemoteProject,
+    ensureRemoteProject,
+    expectRemoteProjectName,
+    setRemoteProjectName,
+    loadRemoteProjectBranch,
+    loadDefaultMergeTargetForLocalProjectBranch,
+
+    -- ** remote project branches
+    loadRemoteBranch,
+    ensureRemoteProjectBranch,
+    expectRemoteProjectBranchName,
+    setRemoteProjectBranchName,
+    insertBranchRemoteMapping,
+    ensureBranchRemoteMapping,
+
     -- * indexes
 
     -- ** dependents index
@@ -108,15 +145,6 @@ module U.Codebase.Sqlite.Queries
     getDependenciesForDependent,
     getDependencyIdsForDependent,
     getDependenciesBetweenTerms,
-
-    -- ** migrations
-    currentSchemaVersion,
-    countObjects,
-    countCausals,
-    countWatches,
-    getCausalsWithoutBranchObjects,
-    removeHashObjectsByHashingVersion,
-    fixScopedNameLookupTables,
 
     -- ** type index
     addToTypeIndex,
@@ -143,8 +171,17 @@ module U.Codebase.Sqlite.Queries
     removeScopedTypeNames,
     termNamesWithinNamespace,
     typeNamesWithinNamespace,
+    termNamesForRefWithinNamespace,
+    typeNamesForRefWithinNamespace,
+    termRefsForExactName,
+    typeRefsForExactName,
     checkBranchHashNameLookupExists,
     trackNewBranchHashNameLookup,
+    deleteNameLookup,
+    termNamesBySuffix,
+    typeNamesBySuffix,
+    longestMatchingTermNameForSuffixification,
+    longestMatchingTypeNameForSuffixification,
 
     -- * Reflog
     appendReflog,
@@ -168,15 +205,30 @@ module U.Codebase.Sqlite.Queries
     -- * elaborate hashes
     elaborateHashes,
 
-    -- * db misc
+    -- * migrations
+    createSchema,
     addTempEntityTables,
-    addNamespaceStatsTables,
     addReflogTable,
+    addNamespaceStatsTables,
+    addProjectTables,
+    fixScopedNameLookupTables,
+
+    -- ** schema version
+    currentSchemaVersion,
+    expectSchemaVersion,
+    setSchemaVersion,
+
+    -- ** helpers for various migrations
+    countObjects,
+    countCausals,
+    countWatches,
+    getCausalsWithoutBranchObjects,
+    removeHashObjectsByHashingVersion,
+
+    -- * db misc
     addTypeMentionsToIndexForTerm,
     addTypeToIndexForTerm,
     c2xTerm,
-    createSchema,
-    expectSchemaVersion,
     localIdsToLookups,
     s2cDecl,
     s2cTermWithType,
@@ -185,9 +237,13 @@ module U.Codebase.Sqlite.Queries
     saveSyncEntity,
     saveTermComponent,
     schemaVersion,
-    setSchemaVersion,
     x2cTType,
     x2cTerm,
+    checkBranchExistsForCausalHash,
+
+    -- * Types
+    NamespaceText,
+    TextPathSegments,
   )
 where
 
@@ -201,9 +257,11 @@ import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
+import qualified Data.List as List
 import qualified Data.List.Extra as List
-import qualified Data.List.NonEmpty as List (NonEmpty)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.NonEmpty as NEMap
@@ -213,6 +271,9 @@ import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import GHC.Stack (callStack)
+import NeatInterpolation (trimming)
+import Network.URI (URI)
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
@@ -233,6 +294,10 @@ import U.Codebase.Sqlite.DbId
     HashVersion,
     ObjectId (..),
     PatchObjectId (..),
+    ProjectBranchId (..),
+    ProjectId (..),
+    RemoteProjectBranchId,
+    RemoteProjectId (..),
     SchemaVersion,
     TextId,
   )
@@ -249,17 +314,21 @@ import U.Codebase.Sqlite.LocalIds
     LocalTextId (..),
   )
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
-import U.Codebase.Sqlite.NamedRef (NamedRef)
+import U.Codebase.Sqlite.NamedRef (NamedRef, ReversedSegments)
 import qualified U.Codebase.Sqlite.NamedRef as NamedRef
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import U.Codebase.Sqlite.Orphans ()
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Reference as S
 import qualified U.Codebase.Sqlite.Reference as S.Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import qualified U.Codebase.Sqlite.Referent as S.Referent
+import U.Codebase.Sqlite.RemoteProject (RemoteProject (..))
+import U.Codebase.Sqlite.RemoteProjectBranch (RemoteProjectBranch)
 import U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.TempEntity (TempEntity)
@@ -275,6 +344,8 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
+import Unison.Core.Project (ProjectBranchName, ProjectName)
+import qualified Unison.Debug as Debug
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import Unison.Hash32 (Hash32)
@@ -282,26 +353,36 @@ import qualified Unison.Hash32 as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
 import Unison.Prelude
 import Unison.Sqlite
+import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Util.Alternative as Alternative
 import qualified Unison.Util.Lens as Lens
+import qualified Unison.Util.Map as Map
+
+-- | A namespace rendered as a path, no leading '.'
+-- E.g. "base.data"
+type NamespaceText = Text
+
+type TextPathSegments = [Text]
 
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 9
+currentSchemaVersion = 10
 
 createSchema :: Transaction ()
 createSchema = do
   executeFile [hereFile|unison/sql/create.sql|]
-  execute insertSchemaVersionSql (Only currentSchemaVersion)
   addTempEntityTables
   addNamespaceStatsTables
   addReflogTable
   fixScopedNameLookupTables
+  addProjectTables
+  execute2 insertSchemaVersionSql
   where
     insertSchemaVersionSql =
-      [here|
-        INSERT INTO schema_version (version) VALUES (?)
+      [sql2|
+        INSERT INTO schema_version (version)
+        VALUES (:currentSchemaVersion)
       |]
 
 addTempEntityTables :: Transaction ()
@@ -320,14 +401,25 @@ fixScopedNameLookupTables :: Transaction ()
 fixScopedNameLookupTables =
   executeFile [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|]
 
+addProjectTables :: Transaction ()
+addProjectTables =
+  executeFile [hereFile|unison/sql/005-project-tables.sql|]
+
 executeFile :: String -> Transaction ()
 executeFile =
-  traverse_ (execute_ . fromString) . filter (not . null) . List.splitOn ";"
+  traverse_ (execute_ . Sqlite.Sql)
+    . filter (not . Text.null)
+    . map Text.strip
+    . Text.split (== ';')
+    . Text.pack
 
 schemaVersion :: Transaction SchemaVersion
-schemaVersion = queryOneCol_ sql
-  where
-    sql = "SELECT version from schema_version;"
+schemaVersion =
+  queryOneCol2
+    [sql2|
+      SELECT version
+      FROM schema_version
+    |]
 
 data UnexpectedSchemaVersion = UnexpectedSchemaVersion
   { actual :: SchemaVersion,
@@ -339,35 +431,40 @@ data UnexpectedSchemaVersion = UnexpectedSchemaVersion
 -- | Expect the given schema version.
 expectSchemaVersion :: SchemaVersion -> Transaction ()
 expectSchemaVersion expected =
-  queryOneColCheck_
-    [here|
+  queryOneColCheck2
+    [sql2|
       SELECT version
       FROM schema_version
     |]
     (\actual -> if actual /= expected then Left UnexpectedSchemaVersion {actual, expected} else Right ())
 
 setSchemaVersion :: SchemaVersion -> Transaction ()
-setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
-  where
-    sql = "UPDATE schema_version SET version = ?"
+setSchemaVersion schemaVersion =
+  execute2
+    [sql2|
+      UPDATE schema_version
+      SET version = :schemaVersion
+    |]
 
 {- ORMOLU_DISABLE -}
 {- Please don't try to format the SQL blocks —AI -}
 countObjects :: Transaction Int
-countObjects = queryOneCol_ [here| SELECT COUNT(*) FROM object |]
+countObjects = queryOneCol2 [sql2| SELECT COUNT(*) FROM object |]
 
 countCausals :: Transaction Int
-countCausals = queryOneCol_ [here| SELECT COUNT(*) FROM causal |]
+countCausals = queryOneCol2 [sql2| SELECT COUNT(*) FROM causal |]
 
 countWatches :: Transaction Int
-countWatches = queryOneCol_ [here| SELECT COUNT(*) FROM watch |]
+countWatches = queryOneCol2 [sql2| SELECT COUNT(*) FROM watch |]
 
 saveHash :: Hash32 -> Transaction HashId
-saveHash hash = execute sql (Only hash) >> expectHashId hash
-  where sql = [here|
-    INSERT INTO hash (base32) VALUES (?)
-    ON CONFLICT DO NOTHING
-  |]
+saveHash hash = do
+  execute2
+    [sql2|
+      INSERT INTO hash (base32) VALUES (:hash)
+      ON CONFLICT DO NOTHING
+    |]
+  expectHashId hash
 
 saveHashes :: Traversable f => f Hash32 -> Transaction (f HashId)
 saveHashes hashes = do
@@ -382,14 +479,18 @@ saveHashHash :: Hash -> Transaction HashId
 saveHashHash = saveHash . Hash32.fromHash
 
 loadHashId :: Hash32 -> Transaction (Maybe HashId)
-loadHashId hash = queryMaybeCol loadHashIdSql (Only hash)
+loadHashId hash = queryMaybeCol2 (loadHashIdSql hash)
 
 expectHashId :: Hash32 -> Transaction HashId
-expectHashId hash = queryOneCol loadHashIdSql (Only hash)
+expectHashId hash = queryOneCol2 (loadHashIdSql hash)
 
-loadHashIdSql :: Sql
-loadHashIdSql =
-  [here| SELECT id FROM hash WHERE base32 = ? COLLATE NOCASE |]
+loadHashIdSql :: Hash32 -> Sql2
+loadHashIdSql hash =
+  [sql2|
+    SELECT id
+    FROM hash
+    WHERE base32 = :hash COLLATE NOCASE
+  |]
 
 loadHashIdByHash :: Hash -> Transaction (Maybe HashId)
 loadHashIdByHash = loadHashId . Hash32.fromHash
@@ -429,8 +530,13 @@ expectHash :: HashId -> Transaction Hash
 expectHash h = Hash32.toHash <$> expectHash32 h
 
 expectHash32 :: HashId -> Transaction Hash32
-expectHash32 h = queryOneCol sql (Only h)
-  where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
+expectHash32 h =
+  queryOneCol2
+    [sql2|
+      SELECT base32
+      FROM hash
+      WHERE id = :h
+    |]
 
 expectBranchHash :: BranchHashId -> Transaction BranchHash
 expectBranchHash = coerce expectHash
@@ -452,32 +558,41 @@ saveTextSql =
   |]
 
 loadTextId :: Text -> Transaction (Maybe TextId)
-loadTextId t = queryMaybeCol loadTextIdSql (Only t)
+loadTextId t = queryMaybeCol2 (loadTextIdSql t)
 
 expectTextId :: Text -> Transaction TextId
-expectTextId t = queryOneCol loadTextIdSql (Only t)
+expectTextId t = queryOneCol2 (loadTextIdSql t)
 
-loadTextIdSql :: Sql
-loadTextIdSql =
-  [here| SELECT id FROM text WHERE text = ? |]
+loadTextIdSql :: Text -> Sql2
+loadTextIdSql t =
+  [sql2|
+    SELECT id
+    FROM text
+    WHERE text = :t
+  |]
 
 expectText :: TextId -> Transaction Text
-expectText h = queryOneCol loadTextSql (Only h)
+expectText h = queryOneCol2 (loadTextSql h)
 
 expectTextCheck :: SqliteExceptionReason e => TextId -> (Text -> Either e a) -> Transaction a
-expectTextCheck h = queryOneColCheck loadTextSql (Only h)
+expectTextCheck h = queryOneColCheck2 (loadTextSql h)
 
-loadTextSql :: Sql
-loadTextSql =
-  [here| SELECT text FROM text WHERE id = ? |]
+loadTextSql :: TextId -> Sql2
+loadTextSql h =
+  [sql2| 
+    SELECT text
+    FROM text
+    WHERE id = :h
+  |]
 
 saveHashObject :: HashId -> ObjectId -> HashVersion -> Transaction ()
-saveHashObject hId oId version = execute sql (hId, oId, version) where
-  sql = [here|
-    INSERT INTO hash_object (hash_id, object_id, hash_version)
-    VALUES (?, ?, ?)
-    ON CONFLICT DO NOTHING
-  |]
+saveHashObject hId oId version =
+  execute2
+    [sql2|
+      INSERT INTO hash_object (hash_id, object_id, hash_version)
+      VALUES (:hId, :oId, :version)
+      ON CONFLICT DO NOTHING
+    |]
 
 saveObject ::
   HashHandle ->
@@ -486,7 +601,13 @@ saveObject ::
   ByteString ->
   Transaction ObjectId
 saveObject hh h t blob = do
-  oId <- execute sql (h, t, blob) >> expectObjectIdForPrimaryHashId h
+  execute2
+    [sql2|
+      INSERT INTO object (primary_hash_id, type_id, bytes)
+      VALUES (:h, :t, :blob)
+      ON CONFLICT DO NOTHING
+    |]
+  oId <- expectObjectIdForPrimaryHashId h
   saveHashObject h oId 2 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
   rowsModified >>= \case
     0 -> pure ()
@@ -494,20 +615,16 @@ saveObject hh h t blob = do
       hash <- expectHash32 h
       tryMoveTempEntityDependents hh hash
   pure oId
-  where
-  sql = [here|
-    INSERT INTO object (primary_hash_id, type_id, bytes)
-    VALUES (?, ?, ?)
-    ON CONFLICT DO NOTHING
-  |]
 
 expectObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
-expectObject oId check = do
- result <- queryOneColCheck sql (Only oId) check
- pure result
-  where sql = [here|
-  SELECT bytes FROM object WHERE id = ?
-|]
+expectObject oId check =
+  queryOneColCheck2
+    [sql2|
+      SELECT bytes
+      FROM object
+      WHERE id = :oId
+    |]
+    check
 
 loadObjectOfType ::
   SqliteExceptionReason e =>
@@ -516,19 +633,19 @@ loadObjectOfType ::
   (ByteString -> Either e a) ->
   Transaction (Maybe a)
 loadObjectOfType oid ty =
-  queryMaybeColCheck loadObjectOfTypeSql (oid, ty)
+  queryMaybeColCheck2 (loadObjectOfTypeSql oid ty) -- (oid, ty)
 
 expectObjectOfType :: SqliteExceptionReason e => ObjectId -> ObjectType -> (ByteString -> Either e a) -> Transaction a
 expectObjectOfType oid ty =
-  queryOneColCheck loadObjectOfTypeSql (oid, ty)
+  queryOneColCheck2 (loadObjectOfTypeSql oid ty)
 
-loadObjectOfTypeSql :: Sql
-loadObjectOfTypeSql =
-  [here|
+loadObjectOfTypeSql :: ObjectId -> ObjectType -> Sql2
+loadObjectOfTypeSql oid ty =
+  [sql2|
     SELECT bytes
     FROM object
-    WHERE id = ?
-      AND type_id = ?
+    WHERE id = :oid
+      AND type_id = :ty
   |]
 
 -- | Load a decl component object.
@@ -573,37 +690,47 @@ expectTermObject oid =
 
 expectPrimaryHashIdForObject :: ObjectId -> Transaction HashId
 expectPrimaryHashIdForObject oId = do
-  queryOneCol sql (Only oId)
-  where
-    sql = "SELECT primary_hash_id FROM object WHERE id = ?"
+  queryOneCol2
+    [sql2|
+      SELECT primary_hash_id
+      FROM object
+      WHERE id = :oId
+    |]
 
 expectObjectWithType :: SqliteExceptionReason e => ObjectId -> (ObjectType -> ByteString -> Either e a) -> Transaction a
-expectObjectWithType oId check = queryOneRowCheck sql (Only oId) (\(typ, bytes) -> check typ bytes)
-  where sql = [here|
-    SELECT type_id, bytes FROM object WHERE id = ?
-  |]
+expectObjectWithType oId check =
+  queryOneRowCheck2
+    [sql2|
+      SELECT type_id, bytes
+      FROM object
+      WHERE id = :oId
+    |]
+    (\(typ, bytes) -> check typ bytes)
 
 expectObjectWithHashIdAndType :: ObjectId -> Transaction (HashId, ObjectType, ByteString)
-expectObjectWithHashIdAndType oId = queryOneRow sql (Only oId)
-  where sql = [here|
-    SELECT primary_hash_id, type_id, bytes FROM object WHERE id = ?
-  |]
+expectObjectWithHashIdAndType oId =
+  queryOneRow2
+    [sql2|
+      SELECT primary_hash_id, type_id, bytes
+      FROM object
+      WHERE id = :oId
+    |]
 
 loadObjectIdForPrimaryHashId :: HashId -> Transaction (Maybe ObjectId)
 loadObjectIdForPrimaryHashId h =
-  queryMaybeCol loadObjectIdForPrimaryHashIdSql (Only h)
+  queryMaybeCol2 (loadObjectIdForPrimaryHashIdSql h)
 
 -- | Not all hashes have corresponding objects; e.g., hashes of term types
 expectObjectIdForPrimaryHashId :: HashId -> Transaction ObjectId
 expectObjectIdForPrimaryHashId h =
-  queryOneCol loadObjectIdForPrimaryHashIdSql (Only h)
+  queryOneCol2 (loadObjectIdForPrimaryHashIdSql h)
 
-loadObjectIdForPrimaryHashIdSql :: Sql
-loadObjectIdForPrimaryHashIdSql =
-  [here|
+loadObjectIdForPrimaryHashIdSql :: HashId -> Sql2
+loadObjectIdForPrimaryHashIdSql h =
+  [sql2|
     SELECT id
     FROM object
-    WHERE primary_hash_id = ?
+    WHERE primary_hash_id = :h
   |]
 
 loadObjectIdForPrimaryHash :: Hash -> Transaction (Maybe ObjectId)
@@ -618,14 +745,13 @@ expectObjectIdForPrimaryHash =
 
 expectObjectIdForHash32 :: Hash32 -> Transaction ObjectId
 expectObjectIdForHash32 hash = do
-  queryOneCol
-    [here|
+  queryOneCol2
+    [sql2|
       SELECT object.id
       FROM object
       JOIN hash ON object.primary_hash_id = hash.id
-      WHERE hash.base32 = ? COLLATE NOCASE
+      WHERE hash.base32 = :hash COLLATE NOCASE
     |]
-    (Only hash)
 
 expectBranchObjectIdForHash32 :: Hash32 -> Transaction BranchObjectId
 expectBranchObjectIdForHash32 =
@@ -636,26 +762,27 @@ expectPatchObjectIdForHash32 =
   fmap PatchObjectId . expectObjectIdForHash32
 
 expectBranchHashIdForHash32 :: Hash32 -> Transaction BranchHashId
-expectBranchHashIdForHash32 = queryOneCol sql . Only
-  where
-    sql =
-      [here|
-        SELECT hash.id FROM object
-        INNER JOIN hash_object ON hash_object.object_id = object.id
-        INNER JOIN hash ON hash_object.hash_id = hash.id
-        WHERE object.type_id = 2
-          AND hash.base32 = ? COLLATE NOCASE
-      |]
+expectBranchHashIdForHash32 hash =
+  queryOneCol2
+    [sql2|
+      SELECT hash.id FROM object
+      INNER JOIN hash_object ON hash_object.object_id = object.id
+      INNER JOIN hash ON hash_object.hash_id = hash.id
+      WHERE object.type_id = 2
+        AND hash.base32 = :hash COLLATE NOCASE
+    |]
+
+expectBranchHashId :: BranchHash -> Transaction BranchHashId
+expectBranchHashId = expectBranchHashIdForHash32 . Hash32.fromHash . unBranchHash
 
 expectCausalHashIdForHash32 :: Hash32 -> Transaction CausalHashId
-expectCausalHashIdForHash32 = queryOneCol sql . Only
-  where
-    sql =
-      [here|
-        SELECT self_hash_id
-        FROM causal INNER JOIN hash ON hash.id = self_hash_id
-        WHERE base32 = ? COLLATE NOCASE
-      |]
+expectCausalHashIdForHash32 hash =
+  queryOneCol2
+    [sql2|
+      SELECT self_hash_id
+      FROM causal INNER JOIN hash ON hash.id = self_hash_id
+      WHERE base32 = :hash COLLATE NOCASE
+    |]
 
 loadPatchObjectIdForPrimaryHash :: PatchHash -> Transaction (Maybe PatchObjectId)
 loadPatchObjectIdForPrimaryHash =
@@ -669,24 +796,31 @@ loadObjectIdForAnyHash h =
 
 loadObjectIdForAnyHashId :: HashId -> Transaction (Maybe ObjectId)
 loadObjectIdForAnyHashId h =
-  queryMaybeCol loadObjectIdForAnyHashIdSql (Only h)
+  queryMaybeCol2 (loadObjectIdForAnyHashIdSql h)
 
 expectObjectIdForAnyHashId :: HashId -> Transaction ObjectId
 expectObjectIdForAnyHashId h =
-  queryOneCol loadObjectIdForAnyHashIdSql (Only h)
+  queryOneCol2 (loadObjectIdForAnyHashIdSql h)
 
-loadObjectIdForAnyHashIdSql :: Sql
-loadObjectIdForAnyHashIdSql =
-  [here| SELECT object_id FROM hash_object WHERE hash_id = ? |]
+loadObjectIdForAnyHashIdSql :: HashId -> Sql2
+loadObjectIdForAnyHashIdSql h =
+  [sql2|
+    SELECT object_id
+    FROM hash_object
+    WHERE hash_id = :h
+  |]
 
 -- | Does a hash correspond to an object?
 isObjectHash :: HashId -> Transaction Bool
 isObjectHash h =
-  queryOneCol sql (Only h)
-  where
-    sql = [here|
-      SELECT EXISTS (SELECT 1 FROM object WHERE primary_hash_id = ?)
-    |]
+  queryOneCol2
+    [sql2|
+      SELECT EXISTS (
+        SELECT 1
+        FROM object
+        WHERE primary_hash_id = :h
+      )
+    |] -- sql (Only h)
 
 -- | All objects have corresponding hashes.
 expectPrimaryHashByObjectId :: ObjectId -> Transaction Hash
@@ -694,38 +828,39 @@ expectPrimaryHashByObjectId =
   fmap Hash32.toHash . expectPrimaryHash32ByObjectId
 
 expectPrimaryHash32ByObjectId :: ObjectId -> Transaction Hash32
-expectPrimaryHash32ByObjectId oId = queryOneCol sql (Only oId)
- where sql = [here|
-  SELECT hash.base32
-  FROM hash INNER JOIN object ON object.primary_hash_id = hash.id
-  WHERE object.id = ?
-|]
+expectPrimaryHash32ByObjectId oId =
+  queryOneCol2
+    [sql2|
+      SELECT hash.base32
+      FROM hash INNER JOIN object ON object.primary_hash_id = hash.id
+      WHERE object.id = :oId
+    |]
 
-expectHashIdsForObject :: ObjectId -> Transaction (List.NonEmpty HashId)
+expectHashIdsForObject :: ObjectId -> Transaction (NonEmpty HashId)
 expectHashIdsForObject oId = do
-  primaryHashId <- queryOneCol sql1 (Only oId)
-  hashIds <- queryListCol sql2 (Only oId)
+  primaryHashId <- queryOneCol2 [sql2| SELECT primary_hash_id FROM object WHERE id = :oId |] -- sql1 (Only oId)
+  hashIds <- queryListCol2 [sql2| SELECT hash_id FROM hash_object WHERE object_id = :oId |]
   pure $ primaryHashId Nel.:| filter (/= primaryHashId) hashIds
-  where
-    sql1 = "SELECT primary_hash_id FROM object WHERE id = ?"
-    sql2 = "SELECT hash_id FROM hash_object WHERE object_id = ?"
 
 hashIdWithVersionForObject :: ObjectId -> Transaction [(HashId, HashVersion)]
-hashIdWithVersionForObject = queryListRow sql . Only where sql = [here|
-  SELECT hash_id, hash_version FROM hash_object WHERE object_id = ?
-|]
+hashIdWithVersionForObject oId =
+  queryListRow2
+    [sql2|
+      SELECT hash_id, hash_version
+      FROM hash_object
+      WHERE object_id = :oId
+    |]
 
 -- | @recordObjectRehash old new@ records that object @old@ was rehashed and inserted as a new object, @new@.
 --
 -- This function rewrites @old@'s @hash_object@ rows in place to point at the new object.
 recordObjectRehash :: ObjectId -> ObjectId -> Transaction ()
 recordObjectRehash old new =
-  execute sql (new, old)
-  where
-    sql = [here|
+  execute2
+    [sql2|
       UPDATE hash_object
-      SET object_id = ?
-      WHERE object_id = ?
+      SET object_id = :new
+      WHERE object_id = :old
     |]
 
 -- |Maybe we would generalize this to something other than NamespaceHash if we
@@ -737,21 +872,22 @@ saveCausal ::
   [CausalHashId] ->
   Transaction ()
 saveCausal hh self value parents = do
-  execute insertCausalSql (self, value)
+  execute2
+    [sql2|
+      INSERT INTO causal (self_hash_id, value_hash_id)
+      VALUES (:self, :value)
+      ON CONFLICT DO NOTHING
+    |]
   rowsModified >>= \case
     0 -> pure ()
     _ -> do
-      executeMany insertCausalParentsSql (fmap (self,) parents)
+      for_ parents \parent ->
+        execute2
+          [sql2|
+            INSERT INTO causal_parent (causal_id, parent_id)
+            VALUES (:self, :parent)
+          |]
       flushCausalDependents hh self
-  where
-    insertCausalSql = [here|
-      INSERT INTO causal (self_hash_id, value_hash_id)
-      VALUES (?, ?)
-      ON CONFLICT DO NOTHING
-    |]
-    insertCausalParentsSql = [here|
-      INSERT INTO causal_parent (causal_id, parent_id) VALUES (?, ?)
-    |]
 
 flushCausalDependents ::
   HashHandle ->
@@ -789,38 +925,38 @@ tryMoveTempEntityDependents hh dependency = do
         False -> pure ()
 
     readyToFlush :: Hash32 -> Transaction Bool
-    readyToFlush hash = queryOneCol [here|
-      SELECT EXISTS (
-        SELECT 1
-        FROM temp_entity
-        WHERE hash = ?
-      ) AND NOT EXISTS (
-        SELECT 1
-        FROM temp_entity_missing_dependency
-        WHERE dependent = ?
-      )
-    |] (hash, hash)
+    readyToFlush hash =
+      queryOneCol2
+        [sql2|
+          SELECT EXISTS (
+            SELECT 1
+            FROM temp_entity
+            WHERE hash = :hash
+          ) AND NOT EXISTS (
+            SELECT 1
+            FROM temp_entity_missing_dependency
+            WHERE dependent = :hash
+          )
+        |]
 
 expectCausal :: CausalHashId -> Transaction Causal.SyncCausalFormat
 expectCausal hashId = do
   valueHash <-
-    queryOneCol
-      [here|
+    queryOneCol2
+      [sql2|
         SELECT value_hash_id
         FROM causal
-        WHERE self_hash_id = ?
+        WHERE self_hash_id = :hashId
       |]
-      (Only hashId)
   parents <-
     fmap Vector.fromList do
       -- is the random ordering from the database ok? (seems so, for now)
-      queryListCol
-        [here|
+      queryListCol2
+        [sql2|
           SELECT parent_id
           FROM causal_parent
-          WHERE causal_id = ?
+          WHERE causal_id = :hashId
         |]
-        (Only hashId)
   pure Causal.SyncCausalFormat {parents, valueHash}
 
 -- | Read an entity out of main storage.
@@ -841,17 +977,17 @@ expectEntity hash = do
 -- | Read an entity out of temp storage.
 expectTempEntity :: Hash32 -> Transaction TempEntity
 expectTempEntity hash = do
-  queryOneRowCheck sql (Only hash) \(blob, typeId) ->
+  queryOneRowCheck2 sql \(blob, typeId) ->
     case typeId of
       TempEntityType.TermComponentType -> Entity.TC <$> decodeTempTermFormat blob
       TempEntityType.DeclComponentType -> Entity.DC <$> decodeTempDeclFormat blob
       TempEntityType.NamespaceType -> Entity.N <$> decodeTempNamespaceFormat blob
       TempEntityType.PatchType -> Entity.P <$> decodeTempPatchFormat blob
       TempEntityType.CausalType -> Entity.C <$> decodeTempCausalFormat blob
-  where sql = [here|
+  where sql = [sql2|
     SELECT blob, type_id
     FROM temp_entity
-    WHERE hash = ?
+    WHERE hash = :hash
   |]
 
 {- ORMOLU_ENABLE -}
@@ -1020,49 +1156,59 @@ syncToTempEntity = \case
 
 expectCausalValueHashId :: CausalHashId -> Transaction BranchHashId
 expectCausalValueHashId (CausalHashId id) =
-  queryOneCol loadCausalValueHashIdSql (Only id)
+  queryOneCol2 (loadCausalValueHashIdSql id) -- (Only id)
 
 expectCausalHash :: CausalHashId -> Transaction CausalHash
 expectCausalHash = coerce expectHash
 
 loadCausalValueHashId :: HashId -> Transaction (Maybe BranchHashId)
 loadCausalValueHashId id =
-  queryMaybeCol loadCausalValueHashIdSql (Only id)
+  queryMaybeCol2 (loadCausalValueHashIdSql id)
 
-loadCausalValueHashIdSql :: Sql
-loadCausalValueHashIdSql =
-  [here| SELECT value_hash_id FROM causal WHERE self_hash_id = ? |]
-
-isCausalHash :: HashId -> Transaction Bool
-isCausalHash = queryOneCol sql . Only where sql = [here|
-    SELECT EXISTS (SELECT 1 FROM causal WHERE self_hash_id = ?)
+loadCausalValueHashIdSql :: HashId -> Sql2
+loadCausalValueHashIdSql id =
+  [sql2|
+    SELECT value_hash_id
+    FROM causal
+    WHERE self_hash_id = :id
   |]
 
+isCausalHash :: HashId -> Transaction Bool
+isCausalHash hash =
+  queryOneCol2
+    [sql2|
+      SELECT EXISTS (
+        SELECT 1
+        FROM causal
+        WHERE self_hash_id = :hash
+      )
+    |]
+
 loadBranchObjectIdByCausalHashId :: CausalHashId -> Transaction (Maybe BranchObjectId)
-loadBranchObjectIdByCausalHashId id = queryMaybeCol loadBranchObjectIdByCausalHashIdSql (Only id)
+loadBranchObjectIdByCausalHashId id = queryMaybeCol2 (loadBranchObjectIdByCausalHashIdSql id)
 
 expectBranchObjectIdByCausalHashId :: CausalHashId -> Transaction BranchObjectId
-expectBranchObjectIdByCausalHashId id = queryOneCol loadBranchObjectIdByCausalHashIdSql (Only id)
+expectBranchObjectIdByCausalHashId id = queryOneCol2 (loadBranchObjectIdByCausalHashIdSql id)
 
-loadBranchObjectIdByCausalHashIdSql :: Sql
-loadBranchObjectIdByCausalHashIdSql =
-  [here|
+loadBranchObjectIdByCausalHashIdSql :: CausalHashId -> Sql2
+loadBranchObjectIdByCausalHashIdSql id =
+  [sql2|
     SELECT object_id FROM hash_object
     INNER JOIN causal ON hash_id = causal.value_hash_id
-    WHERE causal.self_hash_id = ?
+    WHERE causal.self_hash_id = :id
   |]
 
 expectBranchObjectIdByBranchHashId :: BranchHashId -> Transaction BranchObjectId
-expectBranchObjectIdByBranchHashId id = queryOneCol loadBranchObjectIdByBranchHashIdSql (Only id)
+expectBranchObjectIdByBranchHashId id = queryOneCol2 (loadBranchObjectIdByBranchHashIdSql id)
 
 loadBranchObjectIdByBranchHashId :: BranchHashId -> Transaction (Maybe BranchObjectId)
-loadBranchObjectIdByBranchHashId id = queryMaybeCol loadBranchObjectIdByBranchHashIdSql (Only id)
+loadBranchObjectIdByBranchHashId id = queryMaybeCol2 (loadBranchObjectIdByBranchHashIdSql id)
 
-loadBranchObjectIdByBranchHashIdSql :: Sql
-loadBranchObjectIdByBranchHashIdSql =
-  [here|
+loadBranchObjectIdByBranchHashIdSql :: BranchHashId -> Sql2
+loadBranchObjectIdByBranchHashIdSql id =
+  [sql2|
     SELECT object_id FROM hash_object
-    WHERE hash_id = ?
+    WHERE hash_id = :id
   |]
 
 saveCausalParents :: CausalHashId -> [CausalHashId] -> Transaction ()
@@ -1073,22 +1219,25 @@ saveCausalParents child parents = executeMany sql $ (child,) <$> parents where
   |]
 
 loadCausalParents :: CausalHashId -> Transaction [CausalHashId]
-loadCausalParents h = queryListCol sql (Only h) where sql = [here|
-  SELECT parent_id FROM causal_parent WHERE causal_id = ?
-|]
+loadCausalParents h =
+  queryListCol2
+    [sql2|
+      SELECT parent_id
+      FROM causal_parent
+      WHERE causal_id = :h
+    |]
 
 -- | Like 'loadCausalParents', but the input and outputs are hashes, not hash ids.
 loadCausalParentsByHash :: Hash32 -> Transaction [Hash32]
 loadCausalParentsByHash hash =
-  queryListCol
-    [here|
+  queryListCol2
+    [sql2|
       SELECT h2.base32
       FROM causal_parent cp
       JOIN hash h1 ON cp.causal_id = h1.id
       JOIN hash h2 ON cp.parent_id = h2.id
-      WHERE h1.base32 = ? COLLATE NOCASE
+      WHERE h1.base32 = :hash COLLATE NOCASE
     |]
-    (Only hash)
 
 expectNamespaceRootBranchHashId :: Transaction BranchHashId
 expectNamespaceRootBranchHashId = do
@@ -1097,39 +1246,37 @@ expectNamespaceRootBranchHashId = do
 
 expectNamespaceRoot :: Transaction CausalHashId
 expectNamespaceRoot =
-  queryOneCol_ loadNamespaceRootSql
+  queryOneCol2 loadNamespaceRootSql
 
 loadNamespaceRoot :: Transaction (Maybe CausalHashId)
 loadNamespaceRoot =
-  queryMaybeCol_ loadNamespaceRootSql
+  queryMaybeCol2 loadNamespaceRootSql
 
-loadNamespaceRootSql :: Sql
+loadNamespaceRootSql :: Sql2
 loadNamespaceRootSql =
-  [here|
+  [sql2|
     SELECT causal_id
     FROM namespace_root
   |]
 
 setNamespaceRoot :: CausalHashId -> Transaction ()
 setNamespaceRoot id =
-  queryOneCol_ "SELECT EXISTS (SELECT 1 FROM namespace_root)" >>= \case
-    False -> execute insert (Only id)
-    True -> execute update (Only id)
-  where
-    insert = "INSERT INTO namespace_root VALUES (?)"
-    update = "UPDATE namespace_root SET causal_id = ?"
+  queryOneCol2 [sql2| SELECT EXISTS (SELECT 1 FROM namespace_root) |] >>= \case
+    False -> execute2 [sql2| INSERT INTO namespace_root VALUES (:id) |]
+    True -> execute2 [sql2| UPDATE namespace_root SET causal_id = :id |]
 
 saveWatch :: WatchKind -> Reference.IdH -> ByteString -> Transaction ()
-saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)
-  where
-    sql = [here|
+saveWatch k r blob = do
+  execute2
+    [sql2|
       INSERT INTO watch_result (hash_id, component_index, result)
-      VALUES (?, ?, ?)
+      VALUES (@r, @, :blob)
       ON CONFLICT DO NOTHING
     |]
-    sql2 = [here|
+  execute2
+    [sql2|
       INSERT INTO watch (hash_id, component_index, watch_kind_id)
-      VALUES (?, ?, ?)
+      VALUES (@r, @, :k)
       ON CONFLICT DO NOTHING
     |]
 
@@ -1160,15 +1307,19 @@ loadWatchKindsByReference r = queryListCol sql r where sql = [here|
   |]
 
 loadWatchesByWatchKind :: WatchKind -> Transaction [Reference.IdH]
-loadWatchesByWatchKind k = queryListRow sql (Only k) where sql = [here|
-  SELECT hash_id, component_index FROM watch WHERE watch_kind_id = ?
-|]
+loadWatchesByWatchKind k =
+  queryListRow2
+    [sql2|
+      SELECT hash_id, component_index
+      FROM watch
+      WHERE watch_kind_id = :k
+    |]
 
 -- | Delete all watches that were put by 'putWatch'.
 clearWatches :: Transaction ()
 clearWatches = do
-  execute_ "DELETE FROM watch_result"
-  execute_ "DELETE FROM watch"
+  execute2 [sql2| DELETE FROM watch_result |]
+  execute2 [sql2| DELETE FROM watch |]
 
 -- * Index-building
 addToTypeIndex :: Reference' TextId HashId -> Referent.Id -> Transaction ()
@@ -1213,17 +1364,19 @@ getTypeReferenceForReferent r =
 -- todo: error if no results
 getTypeReferencesForComponent :: ObjectId -> Transaction [(Reference' TextId HashId, Referent.Id)]
 getTypeReferencesForComponent oId =
-  queryListRow sql (Only oId) <&> map fixupTypeIndexRow where sql = [here|
-    SELECT
-      type_reference_builtin,
-      type_reference_hash_id,
-      type_reference_component_index,
-      term_referent_object_id,
-      term_referent_component_index,
-      term_referent_constructor_index
-    FROM find_type_index
-    WHERE term_referent_object_id = ?
-  |]
+  fmap (map fixupTypeIndexRow) $
+    queryListRow2
+      [sql2|
+        SELECT
+          type_reference_builtin,
+          type_reference_hash_id,
+          type_reference_component_index,
+          term_referent_object_id,
+          term_referent_component_index,
+          term_referent_constructor_index
+        FROM find_type_index
+        WHERE term_referent_object_id = :oId
+      |]
 
 addToTypeMentionsIndex :: Reference' TextId HashId -> Referent.Id -> Transaction ()
 addToTypeMentionsIndex tp tm = execute sql (tp :. tm) where sql = [here|
@@ -1253,17 +1406,19 @@ getReferentsByTypeMention r = queryListRow sql r where sql = [here|
 -- todo: error if no results
 getTypeMentionsReferencesForComponent :: ObjectId -> Transaction [(Reference' TextId HashId, Referent.Id)]
 getTypeMentionsReferencesForComponent r =
-  queryListRow sql (Only r) <&> map fixupTypeIndexRow where sql = [here|
-    SELECT
-      type_reference_builtin,
-      type_reference_hash_id,
-      type_reference_component_index,
-      term_referent_object_id,
-      term_referent_component_index,
-      term_referent_constructor_index
-    FROM find_type_mentions_index
-    WHERE term_referent_object_id IS ?
-  |]
+  fmap (map fixupTypeIndexRow) $
+    queryListRow2
+      [sql2|
+        SELECT
+          type_reference_builtin,
+          type_reference_hash_id,
+          type_reference_component_index,
+          term_referent_object_id,
+          term_referent_component_index,
+          term_referent_constructor_index
+        FROM find_type_mentions_index
+        WHERE term_referent_object_id IS :r
+      |]
 
 fixupTypeIndexRow :: Reference' TextId HashId :. Referent.Id -> (Reference' TextId HashId, Referent.Id)
 fixupTypeIndexRow (rh :. ri) = (rh, ri)
@@ -1273,8 +1428,8 @@ fixupTypeIndexRow (rh :. ri) = (rh, ri)
 -- references to objects that do not have any corresponding hash_object rows.
 garbageCollectObjectsWithoutHashes :: Transaction ()
 garbageCollectObjectsWithoutHashes = do
-  execute_
-    [here|
+  execute2
+    [sql2|
       CREATE TEMPORARY TABLE object_without_hash AS
         SELECT id
         FROM object
@@ -1283,37 +1438,37 @@ garbageCollectObjectsWithoutHashes = do
           FROM hash_object
         )
     |]
-  execute_
-    [here|
+  execute2
+    [sql2|
       DELETE FROM dependents_index
       WHERE dependency_object_id IN object_without_hash
         OR dependent_object_id IN object_without_hash
     |]
-  execute_
-    [here|
+  execute2
+    [sql2|
       DELETE FROM find_type_index
       WHERE term_referent_object_id IN object_without_hash
     |]
-  execute_
-    [here|
+  execute2
+    [sql2|
       DELETE FROM find_type_mentions_index
       WHERE term_referent_object_id IN object_without_hash
     |]
-  execute_
-    [here|
+  execute2
+    [sql2|
       DELETE FROM object
       WHERE id IN object_without_hash
     |]
-  execute_
-    [here|
+  execute2
+    [sql2|
       DROP TABLE object_without_hash
     |]
 
 -- | Delete all
 garbageCollectWatchesWithoutObjects :: Transaction ()
 garbageCollectWatchesWithoutObjects = do
-  execute_
-    [here|
+  execute2
+    [sql2|
       DELETE FROM watch
       WHERE watch.hash_id NOT IN
       (SELECT hash_object.hash_id FROM hash_object)
@@ -1377,16 +1532,15 @@ getDependentsForDependency selector dependency = do
 
 getDependentsForDependencyComponent :: ObjectId -> Transaction [Reference.Id]
 getDependentsForDependencyComponent dependency =
-  filter isNotSelfReference <$> queryListRow sql (Only dependency)
-  where
-    sql =
-      [here|
+  filter isNotSelfReference <$>
+    queryListRow2
+      [sql2|
         SELECT dependent_object_id, dependent_component_index
         FROM dependents_index
         WHERE dependency_builtin IS NULL
-          AND dependency_object_id IS ?
+          AND dependency_object_id IS :dependency
       |]
-
+  where
     isNotSelfReference :: Reference.Id -> Bool
     isNotSelfReference = \case
       (C.Reference.Id oid1 _pos1) -> dependency /= oid1
@@ -1441,7 +1595,7 @@ getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
 -- ...then `getDependenciesBetweenTerms A B` would return the set {X Y Z}
 getDependenciesBetweenTerms :: ObjectId -> ObjectId -> Transaction (Set ObjectId)
 getDependenciesBetweenTerms oid1 oid2 =
-  queryListCol sql (oid1, oid2, oid2) <&> Set.fromList
+  queryListCol2 sql <&> Set.fromList
   where
     -- Given the example above, we'd have tables that look like this.
     --
@@ -1494,8 +1648,8 @@ getDependenciesBetweenTerms oid1 oid2 =
     --     not terms, so there is no point in searching through a type's transitive dependencies looking for our sink.
     -- (2) No need to search beyond the sink itself, since component dependencies form a DAG.
     -- (3) An explicit cast from e.g. string '1' to int 1 isn't strictly necessary.
-    sql :: Sql
-    sql = [here|
+    sql :: Sql2
+    sql = [sql2|
       WITH RECURSIVE paths(level, path_last, path_init) AS (
         SELECT
           0,
@@ -1503,7 +1657,7 @@ getDependenciesBetweenTerms oid1 oid2 =
           ''
         FROM dependents_index
           JOIN object ON dependents_index.dependency_object_id = object.id
-        WHERE dependents_index.dependent_object_id = ?
+        WHERE dependents_index.dependent_object_id = :oid1
           AND object.type_id = 0 -- Note (1)
           AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
         UNION ALL
@@ -1517,13 +1671,13 @@ getDependenciesBetweenTerms oid1 oid2 =
           JOIN object ON dependents_index.dependency_object_id = object.id
         WHERE object.type_id = 0 -- Note (1)
           AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
-          AND paths.path_last != ? -- Note (2)
+          AND paths.path_last != :oid2 -- Note (2)
         ORDER BY level DESC
       ),
       elems(path_elem, path_init) AS (
         SELECT null, path_init
         FROM paths
-        WHERE paths.path_last = ?
+        WHERE paths.path_last = :oid2
         UNION ALL
         SELECT
           substr(path_init, 0, instr(path_init, ',')),
@@ -1537,37 +1691,53 @@ getDependenciesBetweenTerms oid1 oid2 =
     |]
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
-objectIdByBase32Prefix objType prefix = queryListCol sql (objType, likeEscape '\\' prefix <> "%") where sql = [here|
-  SELECT object.id FROM object
-  INNER JOIN hash_object ON hash_object.object_id = object.id
-  INNER JOIN hash ON hash_object.hash_id = hash.id
-  WHERE object.type_id = ?
-    AND hash.base32 LIKE ? ESCAPE '\'
-|]
+objectIdByBase32Prefix objType prefix =
+  queryListCol2
+    [sql2|
+      SELECT object.id FROM object
+      INNER JOIN hash_object ON hash_object.object_id = object.id
+      INNER JOIN hash ON hash_object.hash_id = hash.id
+      WHERE object.type_id = :objType
+        AND hash.base32 LIKE :prefix2 ESCAPE '\'
+    |]
+  where
+    prefix2 = likeEscape '\\' prefix <> "%"
 
 causalHashIdByBase32Prefix :: Text -> Transaction [CausalHashId]
-causalHashIdByBase32Prefix prefix = queryListCol sql (Only $ prefix <> "%") where sql = [here|
-  SELECT self_hash_id FROM causal
-  INNER JOIN hash ON id = self_hash_id
-  WHERE base32 LIKE ? ESCAPE '\'
-|]
+causalHashIdByBase32Prefix prefix =
+  queryListCol2
+    [sql2|
+      SELECT self_hash_id FROM causal
+      INNER JOIN hash ON id = self_hash_id
+      WHERE base32 LIKE :prefix2 ESCAPE '\'
+    |]
+  where
+    prefix2 = prefix <> "%"
 
 namespaceHashIdByBase32Prefix :: Text -> Transaction [BranchHashId]
-namespaceHashIdByBase32Prefix prefix = queryListCol sql (Only $ prefix <> "%") where sql = [here|
-  SELECT value_hash_id FROM causal
-  INNER JOIN hash ON id = value_hash_id
-  WHERE base32 LIKE ? ESCAPE '\'
-|]
+namespaceHashIdByBase32Prefix prefix =
+  queryListCol2
+    [sql2|
+      SELECT value_hash_id FROM causal
+      INNER JOIN hash ON id = value_hash_id
+      WHERE base32 LIKE :prefix2 ESCAPE '\'
+    |]
+  where
+    prefix2 = prefix <> "%"
 
 -- | Finds all causals that refer to a branch for which we don't have an object stored.
 -- Although there are plans to support this in the future, currently all such cases
 -- are the result of database inconsistencies and are unexpected.
 getCausalsWithoutBranchObjects :: Transaction [CausalHashId]
-getCausalsWithoutBranchObjects = queryListCol_ sql
-  where sql = [here|
-    SELECT self_hash_id from causal
-    WHERE value_hash_id NOT IN (SELECT hash_id FROM hash_object)
-|]
+getCausalsWithoutBranchObjects =
+  queryListCol2
+    [sql2|
+      SELECT self_hash_id from causal
+      WHERE value_hash_id NOT IN (
+        SELECT hash_id
+        FROM hash_object
+      )
+    |]
 
 {- ORMOLU_ENABLE -}
 
@@ -1575,76 +1745,81 @@ getCausalsWithoutBranchObjects = queryListCol_ sql
 -- Leaves the corresponding `hash`es in the hash table alone.
 removeHashObjectsByHashingVersion :: HashVersion -> Transaction ()
 removeHashObjectsByHashingVersion hashVersion =
-  execute sql (Only hashVersion)
-  where
-    sql =
-      [here|
-    DELETE FROM hash_object
-      WHERE hash_version = ?
-|]
+  execute2
+    [sql2|
+      DELETE FROM hash_object
+      WHERE hash_version = :hashVersion
+    |]
 
 -- | Not used in typical operations, but if we ever end up in a situation where a bug
 -- has caused the name lookup index to go out of sync this can be used to get back to a clean
 -- slate.
 dropNameLookupTables :: Transaction ()
 dropNameLookupTables = do
-  execute_
-    [here|
-    DROP TABLE IF EXISTS term_name_lookup
-  |]
-  execute_
-    [here|
-    DROP TABLE IF EXISTS type_name_lookup
-  |]
+  execute2
+    [sql2|
+      DROP TABLE IF EXISTS term_name_lookup
+    |]
+  execute2
+    [sql2|
+      DROP TABLE IF EXISTS type_name_lookup
+    |]
 
 -- | Copies existing name lookup rows but replaces their branch hash id;
 -- This is a low-level operation used as part of deriving a new name lookup index
 -- from an existing one as performantly as possible.
 copyScopedNameLookup :: BranchHashId -> BranchHashId -> Transaction ()
 copyScopedNameLookup fromBHId toBHId = do
-  execute termsCopySql (toBHId, fromBHId)
-  execute typesCopySql (toBHId, fromBHId)
+  execute2 termsCopySql
+  execute2 typesCopySql
   where
     termsCopySql =
-      [here|
+      [sql2|
         INSERT INTO scoped_term_name_lookup(root_branch_hash_id, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
-        SELECT ?, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        SELECT :toBHId, reversed_name, last_name_segment, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
         FROM scoped_term_name_lookup
-        WHERE root_branch_hash_id = ?
+        WHERE root_branch_hash_id = :fromBHId
       |]
     typesCopySql =
-      [here|
+      [sql2|
         INSERT INTO scoped_type_name_lookup(root_branch_hash_id, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index)
-        SELECT ?, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index
+        SELECT :toBHId, reversed_name, last_name_segment, namespace, reference_builtin, reference_component_hash, reference_component_index
         FROM scoped_type_name_lookup
-        WHERE root_branch_hash_id = ?
+        WHERE root_branch_hash_id = :fromBHId
       |]
+
+-- | Delete the specified name lookup.
+-- This should only be used if you're sure it's unused, or if you're going to re-create it in
+-- the same transaction.
+deleteNameLookup :: BranchHashId -> Transaction ()
+deleteNameLookup bhId = do
+  execute2
+    [sql2|
+      DELETE FROM name_lookups
+      WHERE root_branch_hash_id = :bhId
+    |]
 
 -- | Inserts a new record into the name_lookups table
 trackNewBranchHashNameLookup :: BranchHashId -> Transaction ()
 trackNewBranchHashNameLookup bhId = do
-  execute sql (Only bhId)
-  where
-    sql =
-      [here|
-        INSERT INTO name_lookups (root_branch_hash_id)
-        VALUES (?)
-      |]
+  execute2
+    [sql2|
+      INSERT INTO name_lookups (root_branch_hash_id)
+      VALUES (:bhId)
+    |]
 
 -- | Check if we've already got an index for the desired root branch hash.
 checkBranchHashNameLookupExists :: BranchHashId -> Transaction Bool
 checkBranchHashNameLookupExists hashId = do
-  queryOneCol sql (Only hashId)
-  where
-    sql =
-      [here|
-        SELECT EXISTS (
-          SELECT 1
-          FROM name_lookups
-          WHERE root_branch_hash_id = ?
-          LIMIT 1
-        )
-       |]
+  queryOneCol2
+    [sql2|
+      SELECT EXISTS (
+        SELECT 1
+        FROM name_lookups
+        WHERE root_branch_hash_id = :hashId
+        LIMIT 1
+      )
+    |]
 
 -- | Insert the given set of term names into the name lookup table
 insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
@@ -1718,7 +1893,7 @@ globEscape =
   -- We can't use Text.replace, since we'd end up replacing either "[" or "]" multiple
   -- times.
   Text.concatMap \case
-    '*' -> "*"
+    '*' -> "[*]"
     '?' -> "[?]"
     '[' -> "[[]"
     ']' -> "[]]"
@@ -1755,34 +1930,281 @@ termNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef 
 termNamesWithinNamespace bhId mayNamespace = do
   let namespaceGlob = case mayNamespace of
         Nothing -> "*"
-        Just namespace -> globEscape namespace <> ".*"
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <- queryListRow sql (bhId, namespaceGlob)
+        Just namespace -> toNamespaceGlob namespace
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
+    queryListRow2
+      [sql2|
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM scoped_term_name_lookup
+        WHERE
+          root_branch_hash_id = :bhId
+          AND namespace GLOB :namespaceGlob
+      |]
   pure (fmap unRow <$> results)
   where
     unRow (a :. Only b) = (a, b)
-    sql =
-      [here|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
-        WHERE
-          root_branch_hash_id = ?
-          AND namespace GLOB ?
-        |]
 
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
 -- | Get the list of a type names in the root namespace according to the name lookup index
 typeNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef Reference.TextReference]
-typeNamesWithinNamespace bhId mayNamespace = do
-  let namespaceGlob = case mayNamespace of
+typeNamesWithinNamespace bhId mayNamespace =
+  queryListRow2
+    [sql2|
+      SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
+      FROM scoped_type_name_lookup
+      WHERE
+        root_branch_hash_id = :bhId
+        AND namespace GLOB :namespaceGlob
+    |]
+  where
+    namespaceGlob =
+      case mayNamespace of
         Nothing -> "*"
-        Just namespace -> globEscape namespace <> ".*"
-  results :: [NamedRef Reference.TextReference] <- queryListRow sql (bhId, namespaceGlob)
-  pure results
+        Just namespace -> toNamespaceGlob namespace
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of term names within a given namespace which have the given suffix.
+termNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesBySuffix bhId namespaceRoot suffix = do
+  Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
+  let namespaceGlob = toNamespaceGlob namespaceRoot
+  let lastSegment = NonEmpty.head suffix
+  let reversedNameGlob = toSuffixGlob suffix
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
+    -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+    -- GLOB, but this helps improve query performance.
+    -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+    -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+    -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+    -- names which couldn't possibly match before we then manually filter the remaining names
+    -- using the `reversed_name` glob which can't be optimized with an index.
+    queryListRow2
+      [sql2|
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = :bhId
+              AND last_name_segment IS :lastSegment
+              AND namespace GLOB :namespaceGlob
+              AND reversed_name GLOB :reversedNameGlob
+      |]
+  pure (fmap unRow <$> results)
+  where
+    unRow (a :. Only b) = (a, b)
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of type names within a given namespace which have the given suffix.
+typeNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+typeNamesBySuffix bhId namespaceRoot suffix = do
+  Debug.debugM Debug.Server "typeNamesBySuffix" (namespaceRoot, suffix)
+  let namespaceGlob = toNamespaceGlob namespaceRoot
+  let lastNameSegment = NonEmpty.head suffix
+  let reversedNameGlob = toSuffixGlob suffix
+  -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+  -- GLOB, but this helps improve query performance.
+  -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+  -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+  -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+  -- names which couldn't possibly match before we then manually filter the remaining names
+  -- using the `reversed_name` glob which can't be optimized with an index.
+  queryListRow2
+    [sql2|
+      SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
+      FROM scoped_type_name_lookup
+      WHERE     root_branch_hash_id = :bhId
+            AND last_name_segment IS :lastNameSegment
+            AND namespace GLOB :namespaceGlob
+            AND reversed_name GLOB :reversedNameGlob
+    |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the set of refs for an exact name.
+termRefsForExactName :: BranchHashId -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termRefsForExactName bhId reversedSegments = do
+  let reversedName = toReversedName reversedSegments
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
+    queryListRow2
+      [sql2|
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = :bhId
+              AND reversed_name = :reversedName
+      |]
+  pure (fmap unRow <$> results)
+  where
+    unRow (a :. Only b) = (a, b)
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the set of refs for an exact name.
+typeRefsForExactName :: BranchHashId -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+typeRefsForExactName bhId reversedSegments = do
+  let reversedName = toReversedName reversedSegments
+  queryListRow2
+    [sql2|
+      SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
+      FROM scoped_type_name_lookup
+      WHERE root_branch_hash_id = :bhId
+            AND reversed_name = :reversedName
+    |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of term names for a given Referent within a given namespace.
+termNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Referent.TextReferent -> Maybe ReversedSegments -> Transaction [ReversedSegments]
+termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
+  let namespaceGlob = toNamespaceGlob namespaceRoot
+  let suffixGlob = case maySuffix of
+        Just suffix -> toSuffixGlob suffix
+        Nothing -> "*"
+  queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob :. Only suffixGlob) \reversedNames ->
+    for reversedNames reversedNameToReversedSegments
   where
     sql =
       [here|
+        SELECT reversed_name FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?
+              AND namespace GLOB ?
+              AND reversed_name GLOB ?
+        |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of type names for a given Reference within a given namespace.
+typeNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Reference.TextReference -> Maybe ReversedSegments -> Transaction [ReversedSegments]
+typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
+  let namespaceGlob = toNamespaceGlob namespaceRoot
+  let suffixGlob = case maySuffix of
+        Just suffix -> toSuffixGlob suffix
+        Nothing -> "*"
+  queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob :. Only suffixGlob) \reversedNames ->
+    for reversedNames reversedNameToReversedSegments
+  where
+    sql =
+      [here|
+        SELECT reversed_name FROM scoped_type_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?
+              AND namespace GLOB ?
+              AND reversed_name GLOB ?
+        |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- The goal of this query is to search the codebase for the single name which has a different
+-- hash from the provided name, but shares longest matching suffix for for that name.
+--
+-- Including this name in the pretty-printer object causes it to suffixify the name so that it
+-- is unambiguous from other names in scope.
+--
+-- Sqlite doesn't provide enough functionality to do this query in a single query, so we do
+-- it iteratively, querying for longer and longer suffixes we no longer find matches.
+-- Then we return the name with longest matching suffix.
+--
+-- This is still relatively efficient because we can use an index and LIMIT 1 to make each
+-- individual query fast, and in the common case we'll only need two or three queries to find
+-- the longest matching suffix.
+longestMatchingTermNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
+longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(lastSegment NonEmpty.:| _), ref}) = do
+  let namespaceGlob = globEscape namespaceRoot <> ".*"
+  let loop :: [Text] -> MaybeT Transaction (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))
+      loop [] = empty
+      loop (suffGlob : rest) = do
+        result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))) <-
+          lift $ queryMaybeRow sql ((bhId, lastSegment, namespaceGlob, suffGlob) :. ref)
+        case result of
+          Just namedRef ->
+            -- We want to find matches for the _longest_ possible suffix, so we keep going until we
+            -- don't find any more matches.
+            pure (unRow <$> namedRef) <|> loop rest
+          Nothing ->
+            -- If we don't find a match for a suffix, there's no way we could match on an even
+            -- longer suffix, so we bail.
+            empty
+  let suffixes =
+        revSuffix
+          & toList
+          & List.inits
+          & mapMaybe NonEmpty.nonEmpty
+          & map toSuffixGlob
+  runMaybeT $ loop suffixes
+  where
+    unRow (a :. Only b) = (a, b)
+    sql =
+      -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+      -- GLOB, but this helps improve query performance.
+      -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+      -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+      -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+      -- names which couldn't possibly match before we then manually filter the remaining names
+      -- using the `reversed_name` glob which can't be optimized with an index.
+      [here|
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = ?
+              AND last_name_segment IS ?
+              AND namespace GLOB ?
+              AND reversed_name GLOB ?
+              -- We don't need to consider names for the same definition when suffixifying, so
+              -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
+              AND NOT (referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?)
+         LIMIT 1
+      |]
+
+longestMatchingTypeNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Reference.TextReference -> Transaction (Maybe (NamedRef Reference.TextReference))
+longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(lastSegment NonEmpty.:| _), ref}) = do
+  let namespaceGlob = globEscape namespaceRoot <> ".*"
+  let loop :: [Text] -> MaybeT Transaction (NamedRef Reference.TextReference)
+      loop [] = empty
+      loop (suffGlob : rest) = do
+        result :: Maybe (NamedRef (Reference.TextReference)) <-
+          lift $ queryMaybeRow sql ((bhId, lastSegment, namespaceGlob, suffGlob) :. ref)
+        case result of
+          Just namedRef ->
+            -- We want to find matches for the _longest_ possible suffix, so we keep going until we
+            -- don't find any more matches.
+            pure namedRef <|> loop rest
+          Nothing ->
+            -- If we don't find a match for a suffix, there's no way we could match on an even
+            -- longer suffix, so we bail.
+            empty
+  let suffixes =
+        revSuffix
+          & toList
+          & List.inits
+          & mapMaybe NonEmpty.nonEmpty
+          & map toSuffixGlob
+  runMaybeT $ loop suffixes
+  where
+    sql =
+      -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+      -- GLOB, but this helps improve query performance.
+      -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+      -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+      -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+      -- names which couldn't possibly match before we then manually filter the remaining names
+      -- using the `reversed_name` glob which can't be optimized with an index.
+      [here|
         SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
-        WHERE
-          root_branch_hash_id = ?
-          AND namespace GLOB ?
+        WHERE root_branch_hash_id = ?
+              AND last_name_segment IS ?
+              AND namespace GLOB ?
+              AND reversed_name GLOB ?
+              -- We don't need to consider names for the same definition when suffixifying, so
+              -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
+              AND NOT (reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?)
+        LIMIT 1
       |]
 
 -- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
@@ -1852,8 +2274,8 @@ entityLocation hash =
   entityExists hash >>= \case
     True -> pure (Just EntityInMainStorage)
     False -> do
-      let sql = [here|SELECT EXISTS (SELECT 1 FROM temp_entity WHERE hash = ?)|]
-      queryOneCol sql (Only hash) <&> \case
+      let sql = [sql2| SELECT EXISTS (SELECT 1 FROM temp_entity WHERE hash = :hash) |]
+      queryOneCol2 sql <&> \case
         True -> Just EntityInTempStorage
         False -> Nothing
 
@@ -1866,6 +2288,21 @@ entityExists hash = do
     -- then check if is causal hash or if object exists for hash id
     Just hashId -> isCausalHash hashId ||^ isObjectHash hashId
 
+-- | Checks whether the codebase contains the actual branch value for a given causal hash.
+checkBranchExistsForCausalHash :: CausalHash -> Transaction Bool
+checkBranchExistsForCausalHash ch = do
+  loadCausalHashIdByCausalHash ch >>= \case
+    Nothing -> pure False
+    Just chId ->
+      queryOneCol2
+        [sql2|
+          SELECT EXISTS (
+            SELECT 1
+            FROM causal c JOIN object o ON c.value_hash_id = o.primary_hash_id
+            WHERE c.self_hash_id = :chId
+          )
+        |]
+
 -- | Insert a new `temp_entity` row, and its associated 1+ `temp_entity_missing_dependency` rows.
 --
 -- Preconditions:
@@ -1873,13 +2310,12 @@ entityExists hash = do
 --   2. The entity does not already exist in `temp_entity`.
 insertTempEntity :: Hash32 -> TempEntity -> NEMap Hash32 Text -> Transaction ()
 insertTempEntity entityHash entity missingDependencies = do
-  execute
-    [here|
+  execute2
+    [sql2|
       INSERT INTO temp_entity (hash, blob, type_id)
-      VALUES (?, ?, ?)
+      VALUES (:entityHash, :entityBlob, :entityType)
       ON CONFLICT DO NOTHING
     |]
-    (entityHash, entityBlob, entityType)
 
   executeMany
     [here|
@@ -1899,13 +2335,12 @@ insertTempEntity entityHash entity missingDependencies = do
 -- | Delete a row from the `temp_entity` table, if it exists.
 deleteTempEntity :: Hash32 -> Transaction ()
 deleteTempEntity hash =
-  execute
-    [here|
+  execute2
+    [sql2|
       DELETE
       FROM temp_entity
-      WHERE hash = ?
+      WHERE hash = :hash
     |]
-    (Only hash)
 
 -- | "Elaborate" a set of `temp_entity` hashes.
 --
@@ -1959,7 +2394,7 @@ elaborateHashes hashes =
 
     hashesValues :: Values (Only Hash32)
     hashesValues =
-      Values (coerce @(List.NonEmpty Hash32) @(List.NonEmpty (Only Hash32)) hashes)
+      Values (coerce @(NonEmpty Hash32) @(NonEmpty (Only Hash32)) hashes)
 
 moveTempEntityToMain ::
   HashHandle ->
@@ -2382,30 +2817,630 @@ saveNamespaceStats bhId stats = do
 -- computed and saved stats for any given branch.
 loadNamespaceStatsByHashId :: BranchHashId -> Transaction (Maybe NamespaceStats)
 loadNamespaceStatsByHashId bhId = do
-  queryMaybeRow sql (Only bhId)
-  where
-    sql =
-      [here|
-          SELECT num_contained_terms, num_contained_types, num_contained_patches
-          FROM namespace_statistics
-          WHERE namespace_hash_id = ?
-        |]
+  queryMaybeRow2
+    [sql2|
+      SELECT num_contained_terms, num_contained_types, num_contained_patches
+      FROM namespace_statistics
+      WHERE namespace_hash_id = :bhId
+    |]
 
 appendReflog :: Reflog.Entry CausalHashId Text -> Transaction ()
 appendReflog entry = execute sql entry
   where
     sql =
       [here|
-    INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason) VALUES (?, ?, ?, ?)
-    |]
+        INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason) VALUES (?, ?, ?, ?)
+      |]
 
 getReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
-getReflog numEntries = queryListRow sql (Only numEntries)
-  where
-    sql =
-      [here|
-    SELECT time, from_root_causal_id, to_root_causal_id, reason
+getReflog numEntries =
+  queryListRow2
+    [sql2|
+      SELECT time, from_root_causal_id, to_root_causal_id, reason
       FROM reflog
       ORDER BY time DESC
-      LIMIT ?
+      LIMIT :numEntries
     |]
+
+-- | Does a project exist with this id?
+projectExists :: ProjectId -> Transaction Bool
+projectExists projectId =
+  queryOneCol2
+    [sql2|
+      SELECT EXISTS (
+        SELECT 1
+        FROM project
+        WHERE id = :projectId
+      )
+    |]
+
+-- | Does a project exist by this name?
+projectExistsByName :: ProjectName -> Transaction Bool
+projectExistsByName name =
+  queryOneCol2
+    [sql2|
+      SELECT EXISTS (
+        SELECT 1
+        FROM project
+        WHERE name = :name
+      )
+    |]
+
+loadProject :: ProjectId -> Transaction (Maybe Project)
+loadProject pid = queryMaybeRow2 (loadProjectSql pid)
+
+expectProject :: ProjectId -> Transaction Project
+expectProject pid = queryOneRow2 (loadProjectSql pid)
+
+loadProjectSql :: ProjectId -> Sql2
+loadProjectSql pid =
+  [sql2|
+    SELECT
+      id,
+      name
+    FROM
+      project
+    WHERE
+      id = :pid
+  |]
+
+loadProjectByName :: ProjectName -> Transaction (Maybe Project)
+loadProjectByName name =
+  queryMaybeRow2
+    [sql2|
+      SELECT
+        id,
+        name
+      FROM
+        project
+      WHERE
+        name = :name
+    |]
+
+-- | Load all projects.
+loadAllProjects :: Transaction [Project]
+loadAllProjects =
+  queryListRow2
+    [sql2|
+      SELECT id, name
+      FROM project
+      ORDER BY name ASC
+    |]
+
+-- | Insert a `project` row.
+insertProject :: ProjectId -> ProjectName -> Transaction ()
+insertProject uuid name =
+  execute2
+    [sql2|
+      INSERT INTO project (id, name)
+      VALUES (:uuid, :name)
+    |]
+
+-- | Does a project branch exist by this name?
+projectBranchExistsByName :: ProjectId -> ProjectBranchName -> Transaction Bool
+projectBranchExistsByName projectId name =
+  queryOneCol2
+    [sql2|
+      SELECT
+        EXISTS (
+          SELECT
+            1
+          FROM
+            project_branch
+          WHERE
+            project_id = :projectId
+            AND name = :name)
+    |]
+
+loadProjectBranch :: ProjectId -> ProjectBranchId -> Transaction (Maybe ProjectBranch)
+loadProjectBranch projectId branchId =
+  queryMaybeRow2 (loadProjectBranchSql projectId branchId)
+
+expectProjectBranch :: ProjectId -> ProjectBranchId -> Transaction ProjectBranch
+expectProjectBranch projectId branchId =
+  queryOneRow2 (loadProjectBranchSql projectId branchId)
+
+loadProjectBranchSql :: ProjectId -> ProjectBranchId -> Sql2
+loadProjectBranchSql projectId branchId =
+  [sql2|
+    SELECT
+      project_branch.project_id,
+      project_branch.branch_id,
+      project_branch.name,
+      project_branch_parent.parent_branch_id
+    FROM
+      project_branch
+      LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
+        AND project_branch.branch_id = project_branch_parent.branch_id
+    WHERE
+      project_branch.project_id = :projectId
+      AND project_branch.branch_id = :branchId
+  |]
+
+loadProjectBranchByName :: ProjectId -> ProjectBranchName -> Transaction (Maybe ProjectBranch)
+loadProjectBranchByName projectId name =
+  queryMaybeRow2
+    [sql2|
+      SELECT
+        project_branch.project_id,
+        project_branch.branch_id,
+        project_branch.name,
+        project_branch_parent.parent_branch_id
+      FROM
+        project_branch
+        LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
+          AND project_branch.branch_id = project_branch_parent.branch_id
+      WHERE
+        project_branch.project_id = :projectId
+        AND project_branch.name = :name
+    |]
+
+loadProjectBranchByNames :: ProjectName -> ProjectBranchName -> Transaction (Maybe ProjectBranch)
+loadProjectBranchByNames projectName branchName =
+  queryMaybeRow2
+    [sql2|
+      SELECT
+        project_branch.project_id,
+        project_branch.branch_id,
+        project_branch.name,
+        project_branch_parent.parent_branch_id
+      FROM
+        project
+        JOIN project_branch ON project.id = project_branch.project_id
+        LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
+          AND project_branch.branch_id = project_branch_parent.branch_id
+      WHERE
+        project.name = :projectName
+        AND project_branch.name = :branchName
+    |]
+
+-- | Load info about all branches in a project, for display by the @branches@ command.
+--
+-- Each branch name maps to a possibly-empty collection of associated remote branches.
+loadAllProjectBranchInfo :: ProjectId -> Transaction (Map ProjectBranchName (Map URI (ProjectName, ProjectBranchName)))
+loadAllProjectBranchInfo projectId =
+  fmap postprocess $
+    queryListRow2
+      [sql2|
+        SELECT
+          pb.name AS local_branch_name,
+          rpb.host AS host,
+          rp.name AS remote_project_name,
+          rpb.name AS remote_branch_name
+        FROM project_branch AS pb
+        LEFT JOIN project_branch_remote_mapping AS pbrm ON pb.project_id = pbrm.local_project_id
+          AND pb.branch_id = pbrm.local_branch_id
+        LEFT JOIN remote_project AS rp ON pbrm.remote_project_id = rp.id
+        LEFT JOIN remote_project_branch AS rpb ON pbrm.remote_project_id = rpb.project_id
+          AND pbrm.remote_branch_id = rpb.branch_id
+        WHERE pb.project_id = :projectId
+        ORDER BY local_branch_name ASC, host ASC, remote_project_name ASC, remote_branch_name ASC
+      |]
+  where
+    -- Each input tuple is the local branch name, plus either:
+    --
+    --   1. One of 1+ (host, remote project, remote branch) triplets, indicating this local branch is associated with 1+
+    --      remote branches (with distinct hosts)
+    --
+    --      *or*
+    --
+    --   2. Three Nothings, indicating this local branch is associated with 0 remote branches.
+    postprocess ::
+      [(ProjectBranchName, Maybe URI, Maybe ProjectName, Maybe ProjectBranchName)] ->
+      Map ProjectBranchName (Map URI (ProjectName, ProjectBranchName))
+    postprocess =
+      foldl' f Map.empty
+      where
+        f ::
+          Map ProjectBranchName (Map URI (ProjectName, ProjectBranchName)) ->
+          (ProjectBranchName, Maybe URI, Maybe ProjectName, Maybe ProjectBranchName) ->
+          Map ProjectBranchName (Map URI (ProjectName, ProjectBranchName))
+        f !acc (localBranchName, maybeHost, maybeRemoteProjectName, maybeRemoteBranchName) =
+          Map.upsert g localBranchName acc
+          where
+            g :: Maybe (Map URI (ProjectName, ProjectBranchName)) -> Map URI (ProjectName, ProjectBranchName)
+            g maybeRemoteBranches =
+              case (maybeHost, maybeRemoteProjectName, maybeRemoteBranchName) of
+                -- One more remote (host, project name, branch name) tuple to collect, either as a singleton map
+                -- (because it's the first we've seen for this local branch), or as a map insert (because it's not).
+                (Just host, Just remoteProjectName, Just remoteBranchName) ->
+                  case maybeRemoteBranches of
+                    Nothing -> Map.singleton host (remoteProjectName, remoteBranchName)
+                    Just remoteBranches -> Map.insert host (remoteProjectName, remoteBranchName) remoteBranches
+                -- We know these three are all Nothing (this local branch has no associated remote branches)
+                -- No need to pattern match on maybeRemoteBranches; we know it's Nothing, too
+                _ -> Map.empty
+
+loadProjectAndBranchNames :: ProjectId -> ProjectBranchId -> Transaction (Maybe (ProjectName, ProjectBranchName))
+loadProjectAndBranchNames projectId branchId =
+  queryMaybeRow2
+    [sql2|
+      SELECT
+        project.name,
+        project_branch.name
+      FROM
+        project
+        JOIN project_branch ON project.id = project_branch.project_id
+      WHERE
+        project_branch.project_id = :projectId
+        AND project_branch.branch_id = :branchId
+    |]
+
+-- | Insert a project branch.
+insertProjectBranch :: ProjectBranch -> Transaction ()
+insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
+  execute2
+    [sql2|
+      INSERT INTO project_branch (project_id, branch_id, name)
+        VALUES (:projectId, :branchId, :branchName)
+    |]
+  whenJust maybeParentBranchId \parentBranchId ->
+    execute2
+      [sql2|
+        INSERT INTO project_branch_parent (project_id, parent_branch_id, branch_id)
+          VALUES (:projectId, :parentBranchId, :branchId)
+      |]
+
+-- | Delete a project branch.
+--
+-- Re-parenting happens in the obvious way:
+--
+--   Before:
+--
+--     main <- topic <- topic2
+--
+--  After deleting `topic`:
+--
+--    main <- topic2
+deleteProjectBranch :: ProjectId -> ProjectBranchId -> Transaction ()
+deleteProjectBranch projectId branchId = do
+  maybeParentBranchId :: Maybe ProjectBranchId <-
+    queryMaybeCol2
+      [sql2|
+        SELECT parent_branch_id
+        FROM project_branch_parent
+        WHERE project_id = :projectId AND branch_id = :branchId
+      |]
+  -- If the branch being deleted has a parent, then reparent its children. Otherwise, the 'on delete cascade' foreign
+  -- key from `project_branch_parent` will take care of deleting its children's parent entries.
+  whenJust maybeParentBranchId \parentBranchId ->
+    execute2
+      [sql2|
+        UPDATE project_branch_parent
+        SET parent_branch_id = :parentBranchId
+        WHERE project_id = :projectId AND parent_branch_id = :branchId
+      |]
+  execute2
+    [sql2|
+      DELETE FROM project_branch
+      WHERE project_id = :projectId AND branch_id = :branchId
+    |]
+
+data LoadRemoteBranchFlag
+  = IncludeSelfRemote
+  | ExcludeSelfRemote
+  deriving stock (Show, Eq)
+
+-- | Determine the remote mapping for a local project/branch by
+-- looking at the mapping for the given pair, then falling back to the
+-- project of the nearest ancestor.
+loadRemoteProjectBranch ::
+  ProjectId ->
+  URI ->
+  ProjectBranchId ->
+  Transaction (Maybe (RemoteProjectId, Maybe RemoteProjectBranchId))
+loadRemoteProjectBranch p u b = do
+  loadRemoteProjectBranchGen IncludeSelfRemote p u b <&> fmap fixup
+  where
+    -- If the depth is 0 then the local project/branch we provided has
+    -- a remote mapping. Otherwise we found some ancestor's remote
+    -- mapping and we only wish to retain the project portion.
+    fixup = \case
+      (project, branch, depth) -> case depth of
+        0 -> (project, Just branch)
+        _ -> (project, Nothing)
+
+-- | Load the default merge target for a local branch (i.e. The nearest
+-- ancestor's remote mapping)
+loadDefaultMergeTargetForLocalProjectBranch ::
+  ProjectId ->
+  URI ->
+  ProjectBranchId ->
+  Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId))
+loadDefaultMergeTargetForLocalProjectBranch p u b = do
+  loadRemoteProjectBranchGen ExcludeSelfRemote p u b <&> fmap fixup
+  where
+    fixup = \case
+      (project, branch, _) -> (project, branch)
+
+-- Parameterized query for finding the remote mapping for a branch and
+-- the default merge target for a branch.
+loadRemoteProjectBranchGen ::
+  LoadRemoteBranchFlag ->
+  ProjectId ->
+  URI ->
+  ProjectBranchId ->
+  Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId, Int64))
+loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
+  queryMaybeRow theSql (remoteUri, pid, bid, remoteUri)
+  where
+    theSql =
+      [sql|
+        WITH RECURSIVE t AS (
+          SELECT
+            pb.project_id,
+            pb.branch_id,
+            pbp.parent_branch_id,
+            pbrm.remote_project_id,
+            pbrm.remote_branch_id,
+            0 AS depth
+          FROM
+            project_branch AS pb
+            LEFT JOIN project_branch_parent AS pbp USING (project_id, branch_id)
+            LEFT JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = pb.project_id
+              AND pbrm.local_branch_id = pb.branch_id
+              AND pbrm.remote_host = ?
+          WHERE
+            pb.project_id = ?
+            AND pb.branch_id = ?
+          UNION ALL
+          SELECT
+            t.project_id,
+            t.parent_branch_id,
+            pbp.parent_branch_id,
+            pbrm.remote_project_id,
+            pbrm.remote_branch_id,
+            t.depth + 1
+          FROM
+            t
+          JOIN project_branch_parent AS pbp ON pbp.project_id = t.project_id
+            AND pbp.branch_id = t.parent_branch_id
+          LEFT JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = t.project_id
+          AND pbrm.local_branch_id = t.parent_branch_id
+          AND pbrm.remote_host = ?
+        )
+        SELECT
+          remote_project_id,
+          remote_branch_id,
+          depth
+        FROM
+          t
+        $whereClause
+        ORDER BY
+          depth
+        LIMIT 1
+      |]
+
+    whereClause :: Text
+    whereClause =
+      let clauses =
+            foldr
+              (\a b -> [trimming| $a AND $b |])
+              [trimming| TRUE |]
+              [ [trimming| remote_project_id IS NOT NULL |],
+                selfRemoteFilter
+              ]
+       in [trimming| WHERE $clauses |]
+
+    selfRemoteFilter = case loadRemoteBranchFlag of
+      IncludeSelfRemote -> [trimming| TRUE |]
+      ExcludeSelfRemote -> [trimming| depth > 0 |]
+
+loadRemoteProject :: RemoteProjectId -> URI -> Transaction (Maybe RemoteProject)
+loadRemoteProject rpid host =
+  queryMaybeRow2
+    [sql2|
+      SELECT
+        id,
+        host,
+        name
+      FROM
+        remote_project
+      WHERE
+        id = :rpid
+        and host = :host
+    |]
+
+ensureRemoteProject :: RemoteProjectId -> URI -> ProjectName -> Transaction ()
+ensureRemoteProject rpid host name =
+  execute2
+    [sql2|
+      INSERT INTO remote_project (
+        id,
+        host,
+        name)
+      VALUES (
+        :rpid,
+        :host,
+        :name)
+      ON CONFLICT (
+        id,
+        host)
+        -- should this update the name instead?
+        DO NOTHING
+    |]
+
+expectRemoteProjectName :: RemoteProjectId -> URI -> Transaction ProjectName
+expectRemoteProjectName projectId host =
+  queryOneCol2
+    [sql2|
+      SELECT
+        name
+      FROM
+        remote_project
+      WHERE
+        id = :projectId
+        AND host = :host
+    |]
+
+setRemoteProjectName :: RemoteProjectId -> ProjectName -> Transaction ()
+setRemoteProjectName rpid name =
+  execute2
+    [sql2|
+      UPDATE
+        remote_project
+      SET
+        name = :name
+      WHERE
+        id = :rpid
+    |]
+
+loadRemoteBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> Transaction (Maybe RemoteProjectBranch)
+loadRemoteBranch rpid host rbid =
+  queryMaybeRow2
+    [sql2|
+      SELECT
+        project_id,
+        branch_id,
+        host,
+        name
+      FROM
+        remote_project_branch
+      WHERE
+        project_id = :rpid
+        AND branch_id = :rbid
+        AND host = :host
+    |]
+
+ensureRemoteProjectBranch :: RemoteProjectId -> URI -> RemoteProjectBranchId -> ProjectBranchName -> Transaction ()
+ensureRemoteProjectBranch rpid host rbid name =
+  execute2
+    [sql2|
+      INSERT INTO remote_project_branch (
+        project_id,
+        host,
+        branch_id,
+        name)
+      VALUES (
+        :rpid,
+        :host,
+        :rbid,
+        :name)
+      ON CONFLICT (
+        project_id,
+        branch_id,
+        host)
+        -- should this update the name instead?
+        DO NOTHING
+        |]
+
+expectRemoteProjectBranchName :: URI -> RemoteProjectId -> RemoteProjectBranchId -> Transaction ProjectBranchName
+expectRemoteProjectBranchName host projectId branchId =
+  queryOneCol2
+    [sql2|
+      SELECT
+        name
+      FROM
+        remote_project_branch
+      WHERE
+        host = :host
+        AND project_id = :projectId
+        AND branch_id = :branchId
+    |]
+
+setRemoteProjectBranchName :: RemoteProjectId -> URI -> RemoteProjectBranchId -> ProjectBranchName -> Transaction ()
+setRemoteProjectBranchName rpid host rbid name =
+  execute2
+    [sql2|
+      UPDATE
+        remote_project_branch
+      SET
+        name = :name
+      WHERE
+        project_id = :rpid
+        AND host = :host
+        AND branch_id = :rbid
+    |]
+
+insertBranchRemoteMapping ::
+  ProjectId ->
+  ProjectBranchId ->
+  RemoteProjectId ->
+  URI ->
+  RemoteProjectBranchId ->
+  Transaction ()
+insertBranchRemoteMapping pid bid rpid host rbid =
+  execute2
+    [sql2|
+      INSERT INTO project_branch_remote_mapping (
+        local_project_id,
+        local_branch_id,
+        remote_project_id,
+        remote_branch_id,
+        remote_host)
+      VALUES (
+        :pid,
+        :bid,
+        :rpid,
+        :rbid,
+        :host)
+        |]
+
+ensureBranchRemoteMapping ::
+  ProjectId ->
+  ProjectBranchId ->
+  RemoteProjectId ->
+  URI ->
+  RemoteProjectBranchId ->
+  Transaction ()
+ensureBranchRemoteMapping pid bid rpid host rbid =
+  execute2
+    [sql2|
+      INSERT INTO project_branch_remote_mapping (
+        local_project_id,
+        local_branch_id,
+        remote_project_id,
+        remote_branch_id,
+        remote_host)
+      VALUES (
+        :pid,
+        :bid,
+        :rpid,
+        :rbid,
+        :host)
+      ON CONFLICT (
+        local_project_id,
+        local_branch_id,
+        remote_host)
+        DO NOTHING
+    |]
+
+-- | Convert reversed name segments into glob for searching based on suffix
+--
+-- >>> toSuffixGlob ("foo" NonEmpty.:| ["bar"])
+-- "foo.bar.*"
+toSuffixGlob :: ReversedSegments -> Text
+toSuffixGlob suffix = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
+
+-- | Convert reversed segments into the DB representation of a reversed_name.
+--
+-- >>> toReversedName (NonEmpty.fromList ["foo", "bar"])
+-- "foo.bar."
+toReversedName :: ReversedSegments -> Text
+toReversedName revSegs = Text.intercalate "." (toList revSegs) <> "."
+
+-- | Convert a namespace into the appropriate glob for searching within that namespace
+--
+-- >>> toNamespaceGlob "foo.bar"
+-- "foo.bar.*"
+toNamespaceGlob :: Text -> Text
+toNamespaceGlob namespace = globEscape namespace <> ".*"
+
+-- | Thrown if we try to get the segments of an empty name, shouldn't ever happen since empty names
+-- are invalid.
+data EmptyName = EmptyName String
+  deriving stock (Eq, Show)
+  deriving anyclass (SqliteExceptionReason)
+
+-- | Convert a reversed name into reversed segments.
+--
+-- >>> reversedNameToReversedSegments "foo.bar."
+-- Right ("foo" :| ["bar"])
+reversedNameToReversedSegments :: (HasCallStack) => Text -> Either EmptyName ReversedSegments
+reversedNameToReversedSegments txt =
+  txt
+    & Text.splitOn "."
+    -- Names have a trailing dot, so we need to drop the last empty segment
+    & List.dropEnd1
+    & NonEmpty.nonEmpty
+    & maybe (Left (EmptyName $ show callStack)) Right

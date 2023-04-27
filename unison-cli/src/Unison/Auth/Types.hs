@@ -155,7 +155,7 @@ data UserInfo = UserInfo
     name :: Maybe Text,
     handle :: Text -- The user's handle, no @ sign, e.g. "JohnSmith"
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
 
 instance ToJSON UserInfo where
   toJSON (UserInfo userId name handle) =

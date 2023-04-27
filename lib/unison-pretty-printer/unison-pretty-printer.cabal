@@ -61,6 +61,7 @@ library
     , containers
     , extra
     , mtl
+    , pretty-simple
     , process
     , terminal-size
     , text

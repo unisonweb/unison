@@ -11,10 +11,12 @@ module Unison.Share.Sync
     CheckAndSetPushError (..),
     fastForwardPush,
     FastForwardPushError (..),
+    uploadEntities,
 
     -- ** Pull
     pull,
     PullError (..),
+    downloadEntities,
   )
 where
 
@@ -38,7 +40,6 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text.Lazy
-import Data.Void (Void)
 import qualified Ki
 import qualified Network.HTTP.Client as Http.Client
 import qualified Network.HTTP.Types as HTTP
@@ -56,6 +57,7 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Debug as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
+import qualified Unison.Share.API.Hash as Share
 import Unison.Share.Sync.Types
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.API as Share (API)
@@ -102,6 +104,10 @@ checkAndSetPush unisonShareUrl path expectedHash causalHash uploadedCallback = d
     let failed :: SyncError CheckAndSetPushError -> Cli void
         failed = done . Left
 
+    let updatePathError :: Share.UpdatePathError -> Cli void
+        updatePathError err =
+          failed (SyncError (CheckAndSetPushError'UpdatePath (Share.pathRepoInfo path) err))
+
     let updatePath :: Cli Share.UpdatePathResponse
         updatePath = do
           liftIO request & onLeftM \err -> failed (TransportError err)
@@ -119,29 +125,22 @@ checkAndSetPush unisonShareUrl path expectedHash causalHash uploadedCallback = d
 
     -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it
     -- needs this causal (UpdatePathMissingDependencies).
+    dependencies <-
+      updatePath >>= \case
+        Share.UpdatePathSuccess -> done (Right ())
+        Share.UpdatePathFailure err ->
+          case err of
+            Share.UpdatePathError'MissingDependencies (Share.NeedDependencies dependencies) -> pure dependencies
+            _ -> updatePathError err
+
+    -- Upload the causal and all of its dependencies.
+    uploadEntities unisonShareUrl (Share.pathRepoInfo path) dependencies uploadedCallback & onLeftM \err ->
+      failed (CheckAndSetPushError'UploadEntities <$> err)
+
+    -- After uploading the causal and all of its dependencies, try setting the remote path again.
     updatePath >>= \case
       Share.UpdatePathSuccess -> pure (Right ())
-      Share.UpdatePathHashMismatch mismatch -> pure (Left (SyncError (CheckAndSetPushErrorHashMismatch mismatch)))
-      Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
-        -- Upload the causal and all of its dependencies.
-        uploadEntities unisonShareUrl (Share.pathRepoName path) dependencies uploadedCallback & onLeftM \err ->
-          failed $
-            err <&> \case
-              UploadEntitiesNoWritePermission -> CheckAndSetPushErrorNoWritePermission path
-
-        -- After uploading the causal and all of its dependencies, try setting the remote path again.
-        updatePath >>= \case
-          Share.UpdatePathSuccess -> pure (Right ())
-          -- Between the initial updatePath attempt and this one, someone else managed to update the path. That's ok;
-          -- we still managed to upload our causal, but the push has indeed failed overall.
-          Share.UpdatePathHashMismatch mismatch -> failed (SyncError (CheckAndSetPushErrorHashMismatch mismatch))
-          -- Unexpected, but possible: we thought we uploaded all we needed to, yet the server still won't accept our
-          -- causal. Bug in the client because we didn't upload enough? Bug in the server because we weren't told to
-          -- upload some dependency? Who knows.
-          Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) ->
-            failed (SyncError (CheckAndSetPushErrorServerMissingDependencies dependencies))
-          Share.UpdatePathNoWritePermission _ -> failed (SyncError (CheckAndSetPushErrorNoWritePermission path))
-      Share.UpdatePathNoWritePermission _ -> failed (SyncError (CheckAndSetPushErrorNoWritePermission path))
+      Share.UpdatePathFailure err -> updatePathError err
 
 -- | Perform a fast-forward push (initially of just a causal hash, but ultimately all of its dependencies that the
 -- server is missing, too) to Unison Share.
@@ -167,12 +166,14 @@ fastForwardPush unisonShareUrl path localHeadHash uploadedCallback = do
     let failed :: SyncError FastForwardPushError -> Cli void
         failed = done . Left
 
+    let fastForwardPathError :: Share.FastForwardPathError -> Cli void
+        fastForwardPathError err =
+          failed (SyncError (FastForwardPushError'FastForwardPath path err))
+
     remoteHeadHash <-
       getCausalHashByPath unisonShareUrl path >>= \case
-        Left (TransportError err) -> failed (TransportError err)
-        Left (SyncError (GetCausalHashByPathErrorNoReadPermission _)) ->
-          failed (SyncError (FastForwardPushErrorNoReadPermission path))
-        Right Nothing -> failed (SyncError (FastForwardPushErrorNoHistory path))
+        Left err -> failed (FastForwardPushError'GetCausalHash <$> err)
+        Right Nothing -> fastForwardPathError Share.FastForwardPathError'NoHistory
         Right (Just remoteHeadHash) -> pure (Share.hashJWTHash remoteHeadHash)
 
     let doLoadCausalSpineBetween = do
@@ -197,16 +198,13 @@ fastForwardPush unisonShareUrl path localHeadHash uploadedCallback = do
         -- but we don't have that API yet. So, we only upload the head causal entity (which we don't even know for sure
         -- the server doesn't have yet), and will (eventually) end up uploading the casuals in the tail that the server
         -- needs.
-        doUpload (headHash :| _tailHashes) = do
-          request & onLeftM \err ->
-            failed $
-              err <&> \case
-                UploadEntitiesNoWritePermission -> (FastForwardPushErrorNoWritePermission path)
+        doUpload (headHash :| _tailHashes) =
+          request & onLeftM \err -> failed (FastForwardPushError'UploadEntities <$> err)
           where
             request =
               uploadEntities
                 unisonShareUrl
-                (Share.pathRepoName path)
+                (Share.pathRepoInfo path)
                 (NESet.singleton (causalHashToHash32 headHash))
                 uploadedCallback
 
@@ -214,7 +212,7 @@ fastForwardPush unisonShareUrl path localHeadHash uploadedCallback = do
       Cli.runTransaction doLoadCausalSpineBetween >>= \case
         -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
         -- fast-forward push, so we don't bother trying - just report the error now.
-        Nothing -> failed (SyncError (FastForwardPushErrorNotFastForward path))
+        Nothing -> failed (SyncError (FastForwardPushError'NotFastForward path))
         -- The path from remote-to-local, excluding local, was empty. So, remote == local; there's nothing to push.
         Just [] -> succeeded
         -- drop remote hash
@@ -239,15 +237,7 @@ fastForwardPush unisonShareUrl path localHeadHash uploadedCallback = do
 
     doFastForwardPath >>= \case
       Share.FastForwardPathSuccess -> succeeded
-      Share.FastForwardPathMissingDependencies (Share.NeedDependencies dependencies) ->
-        failed (SyncError (FastForwardPushErrorServerMissingDependencies dependencies))
-      -- Weird: someone must have force-pushed no history here, or something. We observed a history at
-      -- this path but moments ago!
-      Share.FastForwardPathNoHistory -> failed (SyncError (FastForwardPushErrorNoHistory path))
-      Share.FastForwardPathNoWritePermission _ -> failed (SyncError (FastForwardPushErrorNoWritePermission path))
-      Share.FastForwardPathNotFastForward _ -> failed (SyncError (FastForwardPushErrorNotFastForward path))
-      Share.FastForwardPathInvalidParentage (Share.InvalidParentage parent child) ->
-        failed (SyncError (FastForwardPushInvalidParentage parent child))
+      Share.FastForwardPathFailure err -> fastForwardPathError err
 
 -- Return a list (in oldest-to-newest order) of hashes along the causal spine that connects the given arguments,
 -- excluding the newest hash (second argument).
@@ -383,9 +373,6 @@ dagbfs goal children =
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
 
-data DownloadEntitiesError
-  = DownloadEntitiesNoReadPermission
-
 pull ::
   -- | The Unison Share URL.
   BaseUrl ->
@@ -394,19 +381,35 @@ pull ::
   -- | Callback that's given a number of entities we just downloaded.
   (Int -> IO ()) ->
   Cli (Either (SyncError PullError) CausalHash)
-pull unisonShareUrl repoPath downloadedCallback = do
+pull unisonShareUrl repoPath downloadedCallback =
+  getCausalHashByPath unisonShareUrl repoPath >>= \case
+    Left err -> pure (Left (PullError'GetCausalHash <$> err))
+    -- There's nothing at the remote path, so there's no causal to pull.
+    Right Nothing -> pure (Left (SyncError (PullError'NoHistoryAtPath repoPath)))
+    Right (Just hashJwt) ->
+      downloadEntities unisonShareUrl (Share.pathRepoInfo repoPath) hashJwt downloadedCallback <&> \case
+        Left err -> Left (PullError'DownloadEntities <$> err)
+        Right () -> Right (hash32ToCausalHash (Share.hashJWTHash hashJwt))
+
+------------------------------------------------------------------------------------------------------------------------
+-- Download entities
+
+downloadEntities ::
+  -- | The Unison Share URL.
+  BaseUrl ->
+  -- | The repo to download from.
+  Share.RepoInfo ->
+  -- | The hash to download.
+  Share.HashJWT ->
+  -- | Callback that's given a number of entities we just downloaded.
+  (Int -> IO ()) ->
+  Cli (Either (SyncError Share.DownloadEntitiesError) ())
+downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
   Cli.Env {authHTTPClient, codebase} <- ask
 
   Cli.label \done -> do
-    let failed :: SyncError PullError -> Cli void
+    let failed :: SyncError Share.DownloadEntitiesError -> Cli void
         failed = done . Left
-
-    hashJwt <-
-      getCausalHashByPath unisonShareUrl repoPath >>= \case
-        Left err -> failed (getCausalHashByPathErrorToPullError <$> err)
-        -- There's nothing at the remote path, so there's no causal to pull.
-        Right Nothing -> failed (SyncError (PullErrorNoHistoryAtPath repoPath))
-        Right (Just hashJwt) -> pure hashJwt
 
     let hash = Share.hashJWTHash hashJwt
 
@@ -419,12 +422,11 @@ pull unisonShareUrl repoPath downloadedCallback = do
                 httpDownloadEntities
                   authHTTPClient
                   unisonShareUrl
-                  Share.DownloadEntitiesRequest {repoName, hashes = NESet.singleton hashJwt}
+                  Share.DownloadEntitiesRequest {repoInfo, hashes = NESet.singleton hashJwt}
           entities <-
             liftIO request >>= \case
               Left err -> failed (TransportError err)
-              Right (Share.DownloadEntitiesNoReadPermission _) ->
-                failed (SyncError (PullErrorNoReadPermission repoPath))
+              Right (Share.DownloadEntitiesFailure err) -> failed (SyncError err)
               Right (Share.DownloadEntitiesSuccess entities) -> pure entities
           tempEntities <- Cli.runTransaction (insertEntities entities)
           liftIO (downloadedCallback 1)
@@ -439,25 +441,17 @@ pull unisonShareUrl repoPath downloadedCallback = do
                   Codebase.withConnection codebase \conn ->
                     action (Sqlite.runTransaction conn)
               )
-              repoName
+              repoInfo
               downloadedCallback
               tempEntities
       liftIO doCompleteTempEntities & onLeftM \err ->
-        failed $
-          err <&> \case
-            DownloadEntitiesNoReadPermission -> PullErrorNoReadPermission repoPath
+        failed err
 
     -- Since we may have just inserted and then deleted many temp entities, we attempt to recover some disk space by
     -- vacuuming after each pull. If the vacuum fails due to another open transaction on this connection, that's ok,
     -- we'll try vacuuming again next pull.
     _success <- liftIO (Codebase.withConnection codebase Sqlite.vacuum)
-    pure (Right (hash32ToCausalHash hash))
-  where
-    repoName = Share.pathRepoName repoPath
-
-getCausalHashByPathErrorToPullError :: GetCausalHashByPathError -> PullError
-getCausalHashByPathErrorToPullError = \case
-  GetCausalHashByPathErrorNoReadPermission path -> PullErrorNoReadPermission path
+    pure (Right ())
 
 type WorkerCount =
   TVar Int
@@ -477,7 +471,7 @@ recordNotWorking sem =
 -- What the dispatcher is to do
 data DispatcherJob
   = DispatcherForkWorker (NESet Share.HashJWT)
-  | DispatcherReturnEarlyBecauseDownloaderFailed (SyncError DownloadEntitiesError)
+  | DispatcherReturnEarlyBecauseDownloaderFailed (SyncError Share.DownloadEntitiesError)
   | DispatcherDone
 
 -- | Finish downloading entities from Unison Share (or return the first failure to download something).
@@ -488,11 +482,11 @@ completeTempEntities ::
   AuthenticatedHttpClient ->
   BaseUrl ->
   (forall a. ((forall x. Sqlite.Transaction x -> IO x) -> IO a) -> IO a) ->
-  Share.RepoName ->
+  Share.RepoInfo ->
   (Int -> IO ()) ->
   NESet Hash32 ->
-  IO (Either (SyncError DownloadEntitiesError) ())
-completeTempEntities httpClient unisonShareUrl connect repoName downloadedCallback initialNewTempEntities = do
+  IO (Either (SyncError Share.DownloadEntitiesError) ())
+completeTempEntities httpClient unisonShareUrl connect repoInfo downloadedCallback initialNewTempEntities = do
   -- The set of hashes we still need to download
   hashesVar <- newTVarIO Set.empty
 
@@ -536,11 +530,11 @@ completeTempEntities httpClient unisonShareUrl connect repoName downloadedCallba
       TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
       TQueue (Set Share.HashJWT, Maybe (NESet Hash32)) ->
       WorkerCount ->
-      TMVar (SyncError DownloadEntitiesError) ->
-      IO (Either (SyncError DownloadEntitiesError) ())
+      TMVar (SyncError Share.DownloadEntitiesError) ->
+      IO (Either (SyncError Share.DownloadEntitiesError) ())
     dispatcher hashesVar uninsertedHashesVar entitiesQueue newTempEntitiesQueue workerCount downloaderFailedVar =
       Ki.scoped \scope ->
-        let loop :: IO (Either (SyncError DownloadEntitiesError) ())
+        let loop :: IO (Either (SyncError Share.DownloadEntitiesError) ())
             loop =
               atomically (checkIfDownloaderFailedMode <|> dispatchWorkMode <|> checkIfDoneMode) >>= \case
                 DispatcherDone -> pure (Right ())
@@ -589,15 +583,15 @@ completeTempEntities httpClient unisonShareUrl connect repoName downloadedCallba
       TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
       WorkerCount ->
       NESet Share.HashJWT ->
-      IO (Either (SyncError DownloadEntitiesError) ())
+      IO (Either (SyncError Share.DownloadEntitiesError) ())
     downloader entitiesQueue workerCount hashes = do
-      httpDownloadEntities httpClient unisonShareUrl Share.DownloadEntitiesRequest {repoName, hashes} >>= \case
+      httpDownloadEntities httpClient unisonShareUrl Share.DownloadEntitiesRequest {repoInfo, hashes} >>= \case
         Left err -> do
           atomically (recordNotWorking workerCount)
           pure (Left (TransportError err))
-        Right (Share.DownloadEntitiesNoReadPermission _) -> do
+        Right (Share.DownloadEntitiesFailure err) -> do
           atomically (recordNotWorking workerCount)
-          pure (Left (SyncError DownloadEntitiesNoReadPermission))
+          pure (Left (SyncError err))
         Right (Share.DownloadEntitiesSuccess entities) -> do
           downloadedCallback (NESet.size hashes)
           atomically do
@@ -687,18 +681,19 @@ getCausalHashByPath unisonShareUrl repoPath = do
     Right (Share.GetCausalHashByPathSuccess maybeHashJwt) -> Right maybeHashJwt
     Right (Share.GetCausalHashByPathNoReadPermission _) ->
       Left (SyncError (GetCausalHashByPathErrorNoReadPermission repoPath))
+    Right (Share.GetCausalHashByPathInvalidRepoInfo err repoInfo) ->
+      Left (SyncError (GetCausalHashByPathErrorInvalidRepoInfo err repoInfo))
+    Right Share.GetCausalHashByPathUserNotFound ->
+      Left (SyncError $ GetCausalHashByPathErrorUserNotFound (Share.pathRepoInfo repoPath))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
 
 data UploadDispatcherJob
-  = UploadDispatcherReturnFailure (SyncError UploadEntitiesError)
+  = UploadDispatcherReturnFailure (SyncError Share.UploadEntitiesError)
   | UploadDispatcherForkWorkerWhenAvailable (NESet Hash32)
   | UploadDispatcherForkWorker (NESet Hash32)
   | UploadDispatcherDone
-
-data UploadEntitiesError
-  = UploadEntitiesNoWritePermission
 
 -- | Upload a set of entities to Unison Share. If the server responds that it cannot yet store any hash(es) due to
 -- missing dependencies, send those dependencies too, and on and on, until the server stops responding that it's missing
@@ -707,11 +702,11 @@ data UploadEntitiesError
 -- Returns true on success, false on failure (because the user does not have write permission).
 uploadEntities ::
   BaseUrl ->
-  Share.RepoName ->
+  Share.RepoInfo ->
   NESet Hash32 ->
   (Int -> IO ()) ->
-  Cli (Either (SyncError UploadEntitiesError) ())
-uploadEntities unisonShareUrl repoName hashes0 uploadedCallback = do
+  Cli (Either (SyncError Share.UploadEntitiesError) ())
+uploadEntities unisonShareUrl repoInfo hashes0 uploadedCallback = do
   Cli.Env {authHTTPClient, codebase} <- ask
 
   liftIO do
@@ -744,16 +739,16 @@ uploadEntities unisonShareUrl repoName hashes0 uploadedCallback = do
       TVar (Set Hash32) ->
       TVar Int ->
       TVar (Set Int) ->
-      TMVar (SyncError UploadEntitiesError) ->
-      IO (Either (SyncError UploadEntitiesError) ())
+      TMVar (SyncError Share.UploadEntitiesError) ->
+      IO (Either (SyncError Share.UploadEntitiesError) ())
     dispatcher scope httpClient runTransaction hashesVar dedupeVar nextWorkerIdVar workersVar workerFailedVar = do
       loop
       where
-        loop :: IO (Either (SyncError UploadEntitiesError) ())
+        loop :: IO (Either (SyncError Share.UploadEntitiesError) ())
         loop =
           doJob [checkForFailureMode, dispatchWorkMode, checkIfDoneMode]
 
-        doJob :: [STM UploadDispatcherJob] -> IO (Either (SyncError UploadEntitiesError) ())
+        doJob :: [STM UploadDispatcherJob] -> IO (Either (SyncError Share.UploadEntitiesError) ())
         doJob jobs =
           atomically (asum jobs) >>= \case
             UploadDispatcherReturnFailure err -> pure (Left err)
@@ -803,7 +798,7 @@ uploadEntities unisonShareUrl repoName hashes0 uploadedCallback = do
       TVar (Set Hash32) ->
       TVar (Set Hash32) ->
       TVar (Set Int) ->
-      TMVar (SyncError UploadEntitiesError) ->
+      TMVar (SyncError Share.UploadEntitiesError) ->
       Int ->
       NESet Hash32 ->
       IO ()
@@ -816,13 +811,16 @@ uploadEntities unisonShareUrl repoName hashes0 uploadedCallback = do
               pure (hash, entity)
 
       result <-
-        httpUploadEntities httpClient unisonShareUrl Share.UploadEntitiesRequest {entities, repoName} <&> \case
+        httpUploadEntities httpClient unisonShareUrl Share.UploadEntitiesRequest {entities, repoInfo} <&> \case
           Left err -> Left (TransportError err)
-          Right (Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes)) ->
-            Right (NESet.toSet moreHashes)
-          Right (Share.UploadEntitiesNoWritePermission _) -> Left (SyncError UploadEntitiesNoWritePermission)
-          Right (Share.UploadEntitiesHashMismatchForEntity _) -> error "hash mismatch; fixme"
-          Right Share.UploadEntitiesSuccess -> Right Set.empty
+          Right response ->
+            case response of
+              Share.UploadEntitiesSuccess -> Right Set.empty
+              Share.UploadEntitiesFailure err ->
+                case err of
+                  Share.UploadEntitiesError'NeedDependencies (Share.NeedDependencies moreHashes) ->
+                    Right (NESet.toSet moreHashes)
+                  err -> Left (SyncError err)
 
       case result of
         Left err -> void (atomically (tryPutTMVar workerFailedVar err))
@@ -951,8 +949,7 @@ httpUploadEntities ::
             Servant.:<|> httpDownloadEntities
             Servant.:<|> httpUploadEntities
           ) =
-            -- FIXME remove this once the other thing lands
-            let pp :: Proxy ("sync" Servant.:> Share.API)
+            let pp :: Proxy ("ucm" Servant.:> "v1" Servant.:> "sync" Servant.:> Share.API)
                 pp = Proxy
              in Servant.hoistClient pp hoist (Servant.client pp)
      in ( go httpGetCausalHashByPath,

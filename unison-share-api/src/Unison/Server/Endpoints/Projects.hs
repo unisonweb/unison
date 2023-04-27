@@ -121,7 +121,7 @@ serve ::
   forall m.
   (MonadIO m) =>
   Codebase m Symbol Ann ->
-  Maybe ShortCausalHash ->
+  Maybe (Either ShortCausalHash CausalHash) ->
   Maybe ProjectOwner ->
   Backend m [ProjectListing]
 serve codebase mayRoot mayOwner = projects
@@ -129,15 +129,9 @@ serve codebase mayRoot mayOwner = projects
     projects :: Backend m [ProjectListing]
     projects = do
       shallowRootBranch <-
-        Backend.hoistBackend (Codebase.runTransaction codebase) do
-          case mayRoot of
-            Nothing -> lift Codebase.getShallowRootBranch
-            Just sch -> do
-              h <- Backend.expandShortCausalHash sch
-              -- TODO: can this ever be missing?
-              causal <- lift $ Codebase.expectCausalBranchByCausalHash h
-              lift $ V2Causal.value causal
-
+        Backend.hoistBackend (Codebase.runTransaction codebase) $ do
+          shallowRootCausal <- Backend.normaliseRootCausalHash mayRoot
+          lift $ V2Causal.value shallowRootCausal
       ownerEntries <- lift $ Backend.lsBranch codebase shallowRootBranch
       -- If an owner is provided, we only want projects belonging to them
       let owners =

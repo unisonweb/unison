@@ -1,64 +1,23 @@
-
-shouldFail fn = isLeft <| catchAll fn
-
 tests : '{IO,Exception} ()
 tests = Tests.main do
+  !tls.tests
   !crypto.hash.tests
   !hmac.tests
   !concurrency.tests
   !tcp.tests
   !serial.tests
-  check "bug is caught" do shouldFail do bug ()
+  -- TODO add test assert on message and value for both bug and todo
+  check "bug is caught" do isLeft (catchAll do bug ())
+  !list.tests
+  !text.tests
+  !bytes.tests
 
-tcp.tests = do
-  check "connects to example.com" do
-    socket = Socket.client (HostName "example.com") (Port "80")
-    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
-    response = Socket.receive socket
-    Socket.close socket
-    contains "HTTP/1.0 200 OK" (base.Text.fromUtf8 response)
-  check "rejects invalid port" do shouldFail do Socket.client (HostName "example.com") (Port "what")
-  check "no send after close" do shouldFail do
-    socket = Socket.client (HostName "example.com") (Port "80")
-    Socket.close socket
-    Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
-  check "no send on listener" do shouldFail do
-    match Socket.server None (Port "0") with
-        BoundServerSocket socket -> Socket.send socket (toUtf8 "what")
-
-
-  setup = catchAll do
-      socket = Socket.listen (server None (Port "0"))
-      port = match socket with
-          ListeningServerSocket sock -> Socket.port sock
-      (socket, port)
-
-  match setup with
-      Left exn ->
-        Debug.trace "Setup failed" exn
-        Tests.fail "Unable to bind and listen on a socket" ""
-      Right (socket, port) ->
-          serve = do
-              sock = Socket.accept socket
-              data = Socket.receive sock
-              Socket.send sock (toUtf8 "from server")
-              base.Text.fromUtf8 data
-
-          serveResult = !Promise.new
-          _ = fork do Promise.write serveResult (catchAll serve)
-
-          data = catchAll do
-              clientSocket = Socket.client (HostName "localhost") (Port (Nat.toText port))
-              Socket.send clientSocket (toUtf8 "from client")
-              base.Text.fromUtf8 (Socket.receive clientSocket)
-
-          checkEqual "Server received data" (Promise.read serveResult) (Right "from client")
-          checkEqual "Client received data" data (Right "from server")
 
 crypto.hash.tests = do
   hash alg = hashBytes alg (toUtf8 "")
   tag name = name ++ " hashBytes"
   [
+   ("Md5", Md5, 0xsd41d8cd98f00b204e9800998ecf8427e),
    ("Sha1", Sha1, 0xsda39a3ee5e6b4b0d3255bfef95601890afd80709),
    ("Sha2_256", Sha2_256, 0xse3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855),
    ("Sha2_512", Sha2_512, 0xscf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e),

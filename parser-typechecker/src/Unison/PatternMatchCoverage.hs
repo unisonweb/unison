@@ -62,21 +62,26 @@ checkMatch ::
   -- | (redundant locations, inaccessible locations, inhabitants of uncovered refinement type)
   m ([loc], [loc], [Pattern ()])
 checkMatch matchLocation scrutineeType cases = do
+  ppe <- getPrettyPrintEnv
   v0 <- fresh
   grdtree0 <- desugarMatch matchLocation scrutineeType v0 cases
+  doDebug (P.hang (title "desugared:") (prettyGrdTree (prettyPmGrd ppe) (\_ -> "<loc>") grdtree0)) (pure ())
   (uncovered, grdtree1) <- uncoverAnnotate (Set.singleton (NC.markDirty v0 $ NC.declVar v0 scrutineeType id NC.emptyNormalizedConstraints)) grdtree0
+  doDebug
+    ( P.sep
+        "\n"
+        [ P.hang (title "annotated:") (prettyGrdTree (NC.prettyDnf ppe) (NC.prettyDnf ppe . fst) grdtree1),
+          P.hang (title "uncovered:") (NC.prettyDnf ppe uncovered)
+        ]
+    )
+    (pure ())
   uncoveredExpanded <- concat . fmap Set.toList <$> traverse (expandSolution v0) (Set.toList uncovered)
+  doDebug (P.hang (title "uncovered expanded:") (NC.prettyDnf ppe (Set.fromList uncoveredExpanded))) (pure ())
   let sols = map (generateInhabitants v0) uncoveredExpanded
   let (_accessible, inaccessible, redundant) = classify grdtree1
-  let debugOutput =
-        P.sep
-          "\n"
-          [ P.hang "desugared:" (prettyGrdTree prettyPmGrd (\_ -> "<loc>") grdtree0),
-            P.hang "annotated:" (prettyGrdTree NC.prettyDnf (NC.prettyDnf . fst) grdtree1),
-            P.hang "uncovered:" (NC.prettyDnf uncovered),
-            P.hang "uncovered expanded:" (NC.prettyDnf (Set.fromList uncoveredExpanded))
-          ]
-      doDebug = case shouldDebug PatternCoverage of
-        True -> trace (P.toPlainUnbroken debugOutput)
-        False -> id
-  doDebug (pure (redundant, inaccessible, sols))
+  pure (redundant, inaccessible, sols)
+  where
+    title = P.bold
+    doDebug out = case shouldDebug PatternCoverage of
+      True -> trace (P.toAnsiUnbroken out)
+      False -> id

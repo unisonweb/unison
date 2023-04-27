@@ -11,10 +11,10 @@
 (library (unison core)
   (export
     universal-compare
-    universal-equal?
+    chunked-string<?
+    universal=?
 
     fx1-
-    list-head
 
     syntax->list
     raise-syntax-error
@@ -23,12 +23,12 @@
     let-marks
     ref-mark
 
-    freeze-string!
-    string-copy!
+    chunked-string-foldMap-chunks
 
     freeze-bytevector!
     freeze-vector!
-    
+    freeze-subvector
+
     bytevector)
 
   (import
@@ -38,50 +38,65 @@
                   bytes
                   with-continuation-mark
                   continuation-mark-set-first
-                  raise-syntax-error)
-            (string-copy! racket-string-copy!)
+                  raise-syntax-error
+                  for/fold)
             (bytes bytevector))
+    (only (srfi :28) format)
     (racket exn)
     (racket unsafe ops)
-    (unison data))
+    (unison data)
+    (unison chunked-seq))
 
   (define (fx1- n) (fx- n 1))
 
-  (define (list-head l n)
-    (let rec ([c l] [m n])
-      (cond
-        [(eqv? m 0) '()]
-        [(null? c) '()]
-        [else
-          (let ([sub (rec (cdr c) (- m 1))])
-            (cons (car c) sub))])))
+  ;; TODO support for records
+  (define (describe-value x)
+    (cond
+      [(chunked-string? x)
+        (format "\"~a\"" (chunked-string->string x))]
+      [(chunked-bytes? x)
+       (format
+        "0xs~a"
+        (chunked-string->string
+         (for/fold
+           ([acc empty-chunked-string])
+           ([n (in-chunked-bytes x)])
+           (chunked-string-append acc (string->chunked-string (number->string n 16))))))]
+      [else (format "~a" x)]))
 
-  ; 0 = LT
-  ; 1 = EQ
-  ; 2 = GT
   (define (universal-compare l r)
     (cond
-      [(equal? l r) 1]
-      [(and (number? l) (number? r)) (if (< l r) 0 2)]
+      [(equal? l r) '=]
+      [(and (number? l) (number? r)) (if (< l r) '< '>)]
+      [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
+      [(and (chunked-string? l) (chunked-string? r))
+       (chunked-string-compare/recur l r (lambda (a b) (if (char<? a b) '< '>)))]
+      [(and (chunked-bytes? l) (chunked-bytes? r))
+       (chunked-bytes-compare/recur l r (lambda (a b) (if (< a b) '< '>)))]
       [else (raise "universal-compare: unimplemented")]))
 
-  (define (universal-equal? l r)
+  (define (chunked-string<? l r) (chunked-string=?/recur l r char<?))
+
+  (define (universal=? l r)
     (define (pointwise ll lr)
       (let ([nl (null? ll)] [nr (null? lr)])
         (cond
           [(and nl nr) #t]
           [(or nl nr) #f]
           [else
-            (and (universal-equal? (car ll) (car lr))
+            (and (universal=? (car ll) (car lr))
                  (pointwise (cdr ll) (cdr lr)))])))
     (cond
-      [(eq? l r) 1]
+      [(equal? l r) #t]
+      [(and (chunked-list? l) (chunked-list? r))
+       (chunked-list=?/recur l r universal=?)]
       [(and (data? l) (data? r))
        (and
          (eqv? (data-tag l) (data-tag r))
-         (pointwise (data-fields l) (data-fields r)))]))
+         (pointwise (data-fields l) (data-fields r)))]
+      [else #f]))
 
-  (define exception->string exn->string)
+  (define (exception->string e) (string->chunked-string (exn->string e)))
 
   (define (syntax->list stx)
     (syntax-case stx ()
@@ -102,13 +117,23 @@
 
   (define (ref-mark k) (continuation-mark-set-first #f k))
 
-  (define freeze-string! unsafe-string->immutable-string!)
+  (define (chunked-string-foldMap-chunks s m f)
+    (for/fold
+        ([acc empty-chunked-string])
+        ([c (in-chunked-string-chunks s)])
+      (f acc (string->chunked-string (m c)))))
+
   (define freeze-bytevector! unsafe-bytes->immutable-bytes!)
 
   (define freeze-vector! unsafe-vector*->immutable-vector!)
 
-  ; racket string-copy! has the opposite argument order convention
-  ; from chez.
-  (define (string-copy! src soff dst doff len)
-    (racket-string-copy! dst doff src soff len))
-  )
+  (define (freeze-subvector src off len)
+    (let ([dst (make-vector len)])
+      (let next ([i (fx1- len)])
+        (if (< i 0)
+          (begin
+            (freeze-vector! dst)
+            (sum 1 dst))
+          (begin
+            (vector-set! dst i (vector-ref src (+ off i)))
+            (next (fx1- i))))))))

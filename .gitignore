@@ -13,6 +13,8 @@ dist-newstyle
 # GHC
 *.hie
 *.prof
+/.direnv/
+/.envrc
 
 # Mac developers
 **/.DS_Store

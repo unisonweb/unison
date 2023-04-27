@@ -23,6 +23,7 @@ dependencies:
   - transformers
   - unliftio
   - vector
+  - witch
   - witherable
 
 ghc-options:

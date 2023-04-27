@@ -76,8 +76,21 @@ desugarPattern typ v0 pat k vs = case pat of
     rest <- foldr (\(v, pat, t) b -> desugarPattern t v pat b) k tpatvars vs
     pure (Grd c rest)
   As _ rest -> desugarPattern typ v0 rest k (v0 : vs)
-  EffectPure {} -> k vs
-  EffectBind {} -> k vs
+  EffectPure _ resume -> do
+    v <- fresh
+    let rt = case typ of
+          Type.Apps' (Type.Ref' r) [_et, ret] | r == Type.effectRef -> ret
+          _ -> error "impossible: pattern EffectPure doesn't correspond to a scrutinee of type Request?"
+    Grd (PmEffectPure v0 (v, rt)) <$> desugarPattern rt v resume k vs
+  EffectBind _loc consRef pats _resume -> do
+    contyps <- getConstructorVarTypes typ consRef
+    patvars <- assignFreshPatternVars pats
+    let c = PmEffect v0 consRef convars
+        convars :: [(v, Type vt loc)]
+        convars = map (\(v, _, t) -> (v, t)) tpatvars
+        tpatvars = zipWith (\(v, p) t -> (v, p, t)) patvars contyps
+    rest <- foldr (\(v, pat, t) b -> desugarPattern t v pat b) k tpatvars vs
+    pure (Grd c rest)
   SequenceLiteral {} -> handleSequence typ v0 pat k vs
   SequenceOp {} -> handleSequence typ v0 pat k vs
 

@@ -1,0 +1,120 @@
+tls.tests = do
+  check "decoding a cert should work" do isRight (decodeCert (toUtf8 selfSignedCert))
+  check "decoding a private key should work" do 1 == List.size (decodePrivateKey (toUtf8 selfSignedKey))
+  check "decoding an invalid private key should ignore" do 0 == List.size (decodePrivateKey (toUtf8 "not a private key"))
+  check "decoding an invalid cert should fail" do isLeft (decodeCert (toUtf8 "not a cert"))
+  !testConnectSelfSigned
+  !tlsChainTest
+  expectError' "self signed with the wrong hostname should fail" ["NameMismatch", "certificate verify failed"] testConnectSelfSignedWrongHost
+  expectError' "self signed with an unknown CA should fail" ["certificate has unknown CA", "certificate verify failed"] do
+    portPromise = Promise.new ()
+    toSend = "12345"
+    -- Server
+    serverResult = defer do serverThread portPromise toSend
+    -- Client
+    Either.toException !(testClient None "test.unison.cloud" portPromise)
+  expectError' "self signed wrong host" ["NameMismatch", "certificate verify failed"] testConnectSelfSignedWrongHost
+  -- -- TODO: Enable this once scheme output correctly escapes \r
+  -- check "connects to example.com over tls" tls.example.com
+  expectError' "wrong host example.com fails" ["NameMismatch", "certificate verify failed"] do
+    socket = Socket.client (HostName "example.com") (Port "443")
+    config = ClientConfig.default (HostName "examplez.com") ""
+    tls = base.IO.net.Tls.newClient config socket
+    _ = base.IO.net.Tls.handshake tls
+    ()
+--   expectError "trying to connect to example.com:443 without tls fails" "Connection reset" do
+--     socket = Socket.client (HostName "example.com") (Port "443")
+--     Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
+--     Socket.receive socket
+
+tls.example.com = do
+    socket = Socket.client (HostName "example.com") (Port "443")
+    config = ClientConfig.default (HostName "example.com") ""
+    tls = base.IO.net.Tls.newClient config socket
+    conn = base.IO.net.Tls.handshake tls
+    TlsSocket.send conn (toUtf8 "GET /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n")
+    response = TlsSocket.receive conn
+    TlsSocket.close conn
+    contains "HTTP/1.0 200 OK" (fromUtf8 response)
+
+testConnectSelfSigned = do
+  portPromise = Promise.new ()
+  toSend = "12345"
+  -- Server
+  serverResult = defer do serverThread portPromise toSend
+  -- Client
+  received = clientThread "test.unison.cloud" portPromise
+  _ = Either.toException <| Promise.read serverResult
+  -- Check it
+  checkEqual "self signed should connect & receive what we sent" toSend received
+
+matchesOne matchers text = match matchers with
+    [] -> false
+    one +: rest -> if Text.contains one text
+        then true
+        else matchesOne rest text
+
+expectError' msg matchers fn = match catchAll fn with
+  Left (Failure _ message _) ->
+    if matchesOne matchers message
+      then
+        Tests.pass msg
+      else
+        Tests.fail msg ("Unexpected exception found " ++ message)
+  Right _ ->
+    Tests.fail msg "Expected exception, none found"
+
+expectError msg text fn = expectError' msg [text] fn
+
+testConnectSelfSignedWrongHost = do
+  -- Server
+  portPromise = Promise.new ()
+  toSend = "12345"
+  serverResult = defer do serverThread portPromise toSend
+  -- Client
+  _ = clientThread "some.other.hostname" portPromise
+  ()
+
+clientThread host portPromise =
+  cert = Either.toException (decodeCert (toUtf8 selfSignedCert))
+  Either.toException !(testClient (Some cert) host portPromise)
+
+serverThread portPromise toSend =
+  cert = Either.toException (decodeCert (toUtf8 selfSignedCert))
+  key = Optional.toException "No private key decoded" <| List.head (decodePrivateKey (toUtf8 selfSignedKey))
+  tlsconfig = Tls.ServerConfig.default [cert] key
+  sock = Socket.listen (server (Some (HostName ("127" ++ ".0.0.1"))) (Port "0"))
+  port = match sock with ListeningServerSocket sock -> Socket.port sock
+  _ = Promise.write portPromise port
+  sock' = Socket.accept sock
+  -- attach TLS to our TCP connection
+  tls = Tls.newServer tlsconfig sock'
+  tlsock = net.Tls.handshake tls
+  TlsSocket.send tlsock (toUtf8 toSend)
+  TlsSocket.close tlsock
+
+testClient : Optional SignedCert -> Text -> Promise Nat -> '{IO} Either Failure Text
+testClient cert hostname portVar _ = catch do
+  use base.IO.net
+  -- create a client that will expect a cert from the given hostname (CN)
+  defaultClient = (Tls.ClientConfig.default (HostName.HostName hostname) "")
+  -- if we were passed a certificate to trust, it is the only certificate we trust
+  -- otherwise, we'll reject self-signed certificates
+  tlsconfig = match cert with
+    None        -> defaultClient
+    Some (cert) -> defaultClient |> ClientConfig.certificates.set [cert]
+  -- create a tcp connection with the server
+  sock = clientSocket (HostName.HostName ("127" ++ ".0.0.1")) (Port.Port (Nat.toText (Promise.read portVar)))
+  -- attach the TLS client to the TCP socket
+  tls = Tls.newClient tlsconfig sock
+  -- verify that the server presents us with a certificate chain for
+  -- test.unison.cloud originating with a certificate we trust, and
+  -- that the server can use a compatible TLS version and cipher
+  tlsock = Tls.handshake tls
+  --   -- receive a message from the server
+  fromUtf8 (TlsSocket.receive tlsock)
+
+-- generated with:
+-- openssl req -newkey rsa:2048 -subj '/CN=test.unison.cloud/O=Unison/C=US' -nodes -keyout key.pem -x509 -days 3650 -out cert.pem
+selfSignedKey  = "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDtV0Lqk9i5DKJG\ne5zwDFuxHxSxhOygCuq6Jl4xonsjl4hdvXxUUiuqxGGbv4x9HSvavpHwyriGiIRQ\noIjanWiNK9Jp6VDYWOvErnTG/+Rfm1vCoUKQvn8lDrD9knSPUoTz3Cz7JS8FE/rr\nFR3IRyXa0gpXmvIwX16SeCS/Lb/Le9o1HJh9DrkxVyoFq3zlX1OE0AVV0a014IDB\nNprqLITwiVzyDPQkP8rbJF9WPI5afzW8+3+v5UanIFknOOPaJl8pf3gmqI5g8fxk\n/SSMlPgnLd1Fi7h90gBygdpJw3do3/ZA1IOvmFQ+LXE1xtqU1Ay3f3At3DiJgTxP\n8mwBYdtdAgMBAAECggEBAMo85QRF3xIvtcchZeUWYrtWpKdvgMIPC1x7fSAGN69o\nXAakg+DF8/ebRyET435o8QmAAZOQ6hOZGEYrxPGj14cTpEQjT4RKoPwDO/al7c+Z\n7mK2TqZP7L+C+UXZGgFWa3vwTVPjp2FIWTMf1zTli1geSjnECkM1wLxGK+nL7fZQ\nesHXPkJJG5AqzA84bJ/fY5OQ/dfcCxnHEv5XpHPq6VFgXg7jtcNbr1R9EBiQfreN\nU7Hd38R77jYjL1fT71HwEUQ0cwavfxTu0jZFXJxEC7CC1J65QXUguZXLf9vwgSB0\nm0gZgeJlQ905bDJrxUcqCFxdROy/SndP6qFnJSCsfwECgYEA+2cld/WCieUGstJd\njsIrJ6f/e+uuOSTnGTtnsBX6KoiHdcg3sVVVK18xI9El9V+YX9SjN37XeGFe/Wzu\ngE3M4A3Jqz7cgdNj/PaKjqQwJWNbcJnL5ku6eQvcAIpc5gAZxXVCPIbY1ZpeYcsh\nMwr3cOEpQu8UVFBbn/OeJ1r07dECgYEA8a5J3Ls5PSxXq8NDrkAxt3vUJIWLGQQJ\nbV2aGDI2XP2N+vh2WML9rlFeyyBOeRxK9TsErVOaEeOcQZV97//fzIGxCU+SXyiC\nnVMXT2U1mzOu5qPfzLO5Ga4sunxqKDman6NM2IPw2NPA7zMWNQMEIHAerwYZzjm5\nB5tFcMA8e80CgYBgF8rwkTz2LD5lN5dfK8SHAeXbnfgYC4zxzg0R9zSJ8WmlkYQI\nGk/VpisIP7c8lO+PIZ3JZohBkSZXw71d+V7n/R0qgXqTfRNo62uGnidxAws+fOq8\n+hEql2feJQThPQScvvc0X26eJsUQqC3mbripwsacuPmSSKzc9Kds741TIQKBgQCd\nXnG2CytATAliTKlbY218HmOKzHJAfcJttk9KhhekAW5cB0F4lq98vHtPJOA0OFoO\nyLlI63EdSOpMQj1Y83IUxjYy699Rmx1BuAMrral0P/kZMYfe0QAsWp/BZpXxT2EB\npeG58l/3sBqnJsrFBgu/24H/UaeoAyoaa96Rhntb2QKBgQCSEkcUnzTvoUyMFN14\n8NttxOUZiSsCmgoXk6Rk2QKyCPsJocGS4BffGt3kOMcotz/0YsvM1TBBLB7vIaAy\nE1eWLBxK4yYeS8dKXwiCZn170yaJyjoBwZC1RgqQiKa5Y22Di7KjJoMa4Da8Tk4z\nFbE5dBApbLhvNTyQ7BHZxlfmdg==\n-----END PRIVATE KEY-----"
+selfSignedCert = "-----BEGIN CERTIFICATE-----\nMIIDVTCCAj2gAwIBAgIUdMNT5sYMfDJYH48Rh8LrlN+5wwgwDQYJKoZIhvcNAQEL\nBQAwOjEaMBgGA1UEAwwRdGVzdC51bmlzb24uY2xvdWQxDzANBgNVBAoMBlVuaXNv\nbjELMAkGA1UEBhMCVVMwHhcNMjIwMTI0MjAxNzQ2WhcNMzIwMTIyMjAxNzQ2WjA6\nMRowGAYDVQQDDBF0ZXN0LnVuaXNvbi5jbG91ZDEPMA0GA1UECgwGVW5pc29uMQsw\nCQYDVQQGEwJVUzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAO1XQuqT\n2LkMokZ7nPAMW7EfFLGE7KAK6romXjGieyOXiF29fFRSK6rEYZu/jH0dK9q+kfDK\nuIaIhFCgiNqdaI0r0mnpUNhY68SudMb/5F+bW8KhQpC+fyUOsP2SdI9ShPPcLPsl\nLwUT+usVHchHJdrSClea8jBfXpJ4JL8tv8t72jUcmH0OuTFXKgWrfOVfU4TQBVXR\nrTXggME2muoshPCJXPIM9CQ/ytskX1Y8jlp/Nbz7f6/lRqcgWSc449omXyl/eCao\njmDx/GT9JIyU+Cct3UWLuH3SAHKB2knDd2jf9kDUg6+YVD4tcTXG2pTUDLd/cC3c\nOImBPE/ybAFh210CAwEAAaNTMFEwHQYDVR0OBBYEFIfwxpuqtqxfCpaJGW32jH2J\nNbnYMB8GA1UdIwQYMBaAFIfwxpuqtqxfCpaJGW32jH2JNbnYMA8GA1UdEwEB/wQF\nMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAKh7EDo5XjSd6J190WGH3V8v49J0Sh8M\nP7APe1eL8eTkW1Vh7/QCOhRpkSnyCz2OxJjjeFVAsCO3aLxlRM6wQZQKXu45iM2U\niPmv7ECS5xUn7LqRZd/JG1P6jvRPtBC1+oqA+NNDe27wzQp3rWyDG3pWZga8jJfW\nq+2xQ+s6GfzszxYZ/8MLn4zaUSymnOA+70yQ8czXkSO7MT2jJ7QDX8jxuJPZZARW\nuXeAYPRqD+b4MjdBATEtxgPTDWEi8gtfHFGUgInFhD4hOu+D3NLiE6lfR5brUqpQ\nZ4v8prCI8OjGSUx1dIJhqQHB5O0vdaxO0hkVdfqDVE93UrGBPwBRDlo=\n-----END CERTIFICATE-----"

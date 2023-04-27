@@ -19,11 +19,14 @@ library:
     - fuzzyfind
     - generic-lens
     - lens
+    - megaparsec
     - memory
     - mtl
     - rfc5051
     - safe
     - text
+    - text-builder
+    - these
     - transformers
     - unison-core
     - unison-hash
@@ -31,6 +34,24 @@ library:
     - unison-util-base32hex
     - unison-util-relation
     - vector
+    - witch
+
+tests:
+  tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_core1
+    dependencies:
+      - base
+      - code-page
+      - easytest
+      - text
+      - these
+      - unison-core
+      - unison-core1
+      - unison-prelude
+    main: Main.hs
+    source-dirs: test
 
 default-extensions:
   - ApplicativeDo

@@ -572,14 +572,15 @@ before h1 h2 =
 -- NOTE: this method requires an up-to-date name lookup index, which is
 -- currently not kept up-to-date automatically (because it's slow to do so).
 namesAtPath ::
+  BranchHash ->
   -- Include ALL names within this path
   Path ->
   -- Make names within this path relative to this path, other names will be absolute.
   Path ->
   Transaction ScopedNames
-namesAtPath namesRootPath relativeToPath = do
+namesAtPath bh namesRootPath relativeToPath = do
   let namesRoot = if namesRootPath == Path.empty then Nothing else Just $ tShow namesRootPath
-  NamesByPath {termNamesInPath, typeNamesInPath} <- Ops.rootNamesByPath namesRoot
+  NamesByPath {termNamesInPath, typeNamesInPath} <- Ops.namesByPath bh namesRoot
   let termsInPath = convertTerms termNamesInPath
   let typesInPath = convertTypes typeNamesInPath
   let rootTerms = Rel.fromList termsInPath
@@ -604,7 +605,7 @@ namesAtPath namesRootPath relativeToPath = do
         (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
     convertTerms names =
       names <&> \(S.NamedRef {reversedSegments, ref = (ref, ct)}) ->
-        let v1ref = runIdentity $ Cv.referent2to1 (const . pure . Cv.constructorType2to1 . fromMaybe (error "Required constructor type for constructor but it was null") $ ct) ref
+        let v1ref = Cv.referent2to1UsingCT (fromMaybe (error "Required constructor type for constructor but it was null") ct) ref
          in (Name.fromReverseSegments (coerce reversedSegments), v1ref)
 
     -- If the given prefix matches the given name, the prefix is stripped and it's collected
@@ -641,14 +642,19 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
               -- history looking for a Branch Hash we already have an index for.
               pure (V2Branch.empty, Nothing)
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
-      treeDiff <- BranchDiff.diffBranches fromBranch toBranch
+      let treeDiff = BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
-      let BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} = BranchDiff.nameChanges namePrefix treeDiff
-      termNameAddsWithCT <- do
-        for termNameAdds \(name, ref) -> do
-          refWithCT <- addReferentCT ref
-          pure $ toNamedRef (name, refWithCT)
-      Ops.buildNameLookupForBranchHash mayExistingLookupBH toBranchHash (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
+      Ops.buildNameLookupForBranchHash
+        mayExistingLookupBH
+        toBranchHash
+        ( \save -> do
+            BranchDiff.streamNameChanges namePrefix treeDiff \_prefix (BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}) -> do
+              termNameAddsWithCT <- do
+                for termNameAdds \(name, ref) -> do
+                  refWithCT <- addReferentCT ref
+                  pure $ toNamedRef (name, refWithCT)
+              save (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
+        )
   where
     toNamedRef :: (Name, ref) -> S.NamedRef ref
     toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
@@ -658,6 +664,21 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
       C.Referent.Con ref _conId -> do
         ct <- getDeclType ref
         pure (referent, Just $ Cv.constructorType1to2 ct)
+
+-- | Regenerate the name lookup index for the given branch hash from scratch.
+-- This shouldn't be necessary in normal operation, but it's useful to fix name lookups if
+-- they somehow get corrupt, or during local testing and debugging.
+regenerateNameLookup ::
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  BranchHash ->
+  Sqlite.Transaction ()
+regenerateNameLookup getDeclType bh = do
+  Ops.checkBranchHashNameLookupExists bh >>= \case
+    True -> do
+      bhId <- Q.expectBranchHashId bh
+      Q.deleteNameLookup bhId
+      ensureNameLookupForBranchHash getDeclType Nothing bh
+    False -> ensureNameLookupForBranchHash getDeclType Nothing bh
 
 -- | Given a transaction, return a transaction that first checks a semispace cache of the given size.
 --

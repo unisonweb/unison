@@ -1,12 +1,16 @@
 
 ```ucm
-.> pull unison.public.base.latest base
+.> pull unison.public.base.latest .base
+
+  Downloaded 11580 entities.
 
   ✅
   
-  Successfully pulled into newly created namespace base.
+  Successfully pulled into .base, which was empty.
 
 .> compile.native.fetch
+
+  Downloaded 59168 entities.
 
   ✅
   
