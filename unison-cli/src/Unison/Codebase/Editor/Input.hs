@@ -221,12 +221,13 @@ data Input
   | AuthLoginI
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
-  | ProjectCloneI (These ProjectName ProjectBranchName)
+  | ProjectCloneI (ProjectAndBranch ProjectName (Maybe ProjectBranchName))
   | ProjectCreateI ProjectName
   | ProjectSwitchI (These ProjectName ProjectBranchName)
   | ProjectsI
-  | BranchesI
+  | BranchCloneI (These ProjectName ProjectBranchName)
   | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | BranchesI
   | ReleaseDraftI Semver
   deriving (Eq, Show)
 

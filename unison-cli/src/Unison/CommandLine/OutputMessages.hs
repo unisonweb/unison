@@ -2015,6 +2015,15 @@ notifyUser dir = \case
               <> IP.makeExample IP.projectSwitch [prettySlashProjectBranchName branch]
               <> "."
           )
+  CannotCreateReleaseBranchWithBranchCommand branch ->
+    pure $
+      P.wrap ("Branch names like" <> prettyProjectBranchName branch <> "are reserved for releases.")
+      <> P.newline
+      <> P.newline
+      <> tip ("to download an existing release, try " <> IP.makeExample IP.branchClone [prettySlashProjectBranchName branch])
+      <> P.newline
+      <> P.newline
+      <> tip ("to draft a new release, try release.draft <ver>")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -2742,7 +2751,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2757,7 +2766,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

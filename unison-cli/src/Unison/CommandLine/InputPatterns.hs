@@ -2309,13 +2309,13 @@ projectClone :: InputPattern
 projectClone =
   InputPattern
     { patternName = "project.clone",
-      aliases = ["clone"],
+      aliases = [],
       visibility = I.Hidden,
       argTypes = [(Required, projectAndBranchNamesArg)],
       help = P.wrap "Clone a project branch from a remote server.",
       parse = \case
         [name] ->
-          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+          case tryInto @(ProjectAndBranch ProjectName (Maybe ProjectBranchName)) (Text.pack name) of
             Left _ -> Left (showPatternHelp projectClone)
             Right projectAndBranch -> Right (Input.ProjectCloneI projectAndBranch)
         _ -> Left (showPatternHelp projectClone)
@@ -2373,6 +2373,22 @@ branches =
       argTypes = [],
       help = P.wrap "List branches.",
       parse = \_ -> Right Input.BranchesI
+    }
+
+branchClone :: InputPattern
+branchClone =
+  InputPattern
+    { patternName = "branch.clone",
+      aliases = ["clone"],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectAndBranchNamesArg)],
+      help = P.wrap "Clone a project branch from a remote server.",
+      parse = \case
+        [name] ->
+          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+            Left _ -> Left (showPatternHelp branchClone)
+            Right projectAndBranch -> Right (Input.BranchCloneI projectAndBranch)
+        _ -> Left (showPatternHelp branchClone)
     }
 
 branchInputPattern :: InputPattern
@@ -2438,8 +2454,9 @@ validInputs =
       api,
       authLogin,
       back,
-      branchInputPattern,
+      branchClone,
       branchEmptyInputPattern,
+      branchInputPattern,
       branches,
       cd,
       clear,

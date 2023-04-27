@@ -298,6 +298,33 @@ projectAndBranchNamesParser = do
   where
     branchParser = Megaparsec.char '/' >> projectBranchNameParser
 
+-- | @project/branch@ syntax, where the branch is optional.
+instance From (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) Text where
+  from = \case
+    ProjectAndBranch project Nothing -> into @Text project
+    ProjectAndBranch project (Just branch) ->
+      Text.Builder.run $
+        Text.Builder.text (into @Text project)
+          <> Text.Builder.char '/'
+          <> Text.Builder.text (into @Text branch)
+
+instance TryFrom Text (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) where
+  tryFrom =
+    maybeTryFrom (Megaparsec.parseMaybe projectWithOptionalBranchParser)
+
+-- Valid things:
+--
+--   1. project
+--   2. project/branch
+projectWithOptionalBranchParser :: Megaparsec.Parsec Void Text (ProjectAndBranch ProjectName (Maybe ProjectBranchName))
+projectWithOptionalBranchParser = do
+  project <- projectNameParser
+  branch <-
+    optional do
+      _ <- Megaparsec.char '/'
+      projectBranchNameParser
+  pure (ProjectAndBranch project branch)
+
 -- | @project/branch@ syntax, where the project is optional. The branch can optionally be preceded by a forward slash.
 instance From (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) Text where
   from = \case

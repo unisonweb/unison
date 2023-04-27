@@ -83,7 +83,7 @@ import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, man
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
-import Unison.Codebase.Editor.HandleInput.ProjectClone (projectClone)
+import Unison.Codebase.Editor.HandleInput.ProjectClone (branchClone, projectClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
@@ -1367,8 +1367,9 @@ loop e = do
             ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
-            BranchesI -> handleBranches
+            BranchCloneI name -> branchClone name
             BranchI source name -> handleBranch source name
+            BranchesI -> handleBranches
             ReleaseDraftI semver -> handleReleaseDraft semver
 
 magicMainWatcherString :: String
@@ -1534,6 +1535,7 @@ inputDescription input =
       branchId2 <- hp' (input ^. #branchId2)
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
+    BranchCloneI projectAndBranch -> pure ("branch.clone " <> into @Text projectAndBranch)
     ProjectCloneI projectAndBranch -> pure ("project.clone " <> into @Text projectAndBranch)
     ProjectCreateI project -> pure ("project.create " <> into @Text project)
     ProjectSwitchI projectAndBranch -> pure ("project.switch " <> into @Text projectAndBranch)
