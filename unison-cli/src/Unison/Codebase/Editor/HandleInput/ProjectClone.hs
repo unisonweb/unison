@@ -1,10 +1,11 @@
--- | @project.clone@ input handler
+-- | @clone@-related input handlers
 module Unison.Codebase.Editor.HandleInput.ProjectClone
-  ( projectClone,
+  ( branchClone,
+    projectClone,
   )
 where
 
-import Control.Lens ((^.))
+import Control.Lens (over, (^.))
 import Control.Monad.Reader (ask)
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
@@ -34,12 +35,17 @@ import qualified Unison.Sync.Types as Share
 import Witch (unsafeFrom)
 
 -- | Clone a remote project or remote project branch.
-projectClone :: These ProjectName ProjectBranchName -> Cli ()
-projectClone = \case
+branchClone :: These ProjectName ProjectBranchName -> Cli ()
+branchClone = \case
   These projectName branchName ->
     cloneProjectAndBranch (ProjectAndBranch projectName branchName)
   This projectName -> cloneProject projectName
   That branchName -> cloneBranch branchName
+
+-- | Clone a remote project or remote project branch.
+projectClone :: ProjectAndBranch ProjectName (Maybe ProjectBranchName) -> Cli ()
+projectClone projectAndBranch =
+  cloneProjectAndBranch (projectAndBranch & over #branch (fromMaybe (unsafeFrom @Text "main")))
 
 -- Clone a project, defaulting to branch "main"
 cloneProject :: ProjectName -> Cli ()
