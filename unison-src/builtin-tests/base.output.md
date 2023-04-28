@@ -10,7 +10,7 @@
 
 .> compile.native.fetch
 
-  Downloaded 59168 entities.
+  Downloaded 59222 entities.
 
   ✅
   
