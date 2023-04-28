@@ -89,6 +89,7 @@ import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
+import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.TermResolution
   ( resolveCon,
     resolveMainRef,
@@ -1369,6 +1370,7 @@ loop e = do
             BranchCloneI name -> branchClone name
             BranchI source name -> handleBranch source name
             BranchesI -> handleBranches
+            ReleaseDraftI semver -> handleReleaseDraft semver
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1537,11 +1539,13 @@ inputDescription input =
     ProjectCloneI projectAndBranch -> pure ("project.clone " <> into @Text projectAndBranch)
     ProjectCreateI project -> pure ("project.create " <> into @Text project)
     ProjectSwitchI projectAndBranch -> pure ("project.switch " <> into @Text projectAndBranch)
+    ClearI {} -> pure "clear"
+    DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
     --
     ApiI -> wat
     AuthLoginI {} -> wat
     BranchI {} -> wat
-    ClearI {} -> pure "clear"
+    BranchesI -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat
@@ -1574,9 +1578,9 @@ inputDescription input =
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
     ProjectsI -> wat
-    BranchesI -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
+    ReleaseDraftI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
     ShowReflogI {} -> wat
@@ -1586,7 +1590,6 @@ inputDescription input =
     UiI -> wat
     UpI {} -> wat
     VersionI -> wat
-    DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
     hp' = either (pure . Text.pack . show) p'

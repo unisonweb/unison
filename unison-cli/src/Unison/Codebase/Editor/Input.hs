@@ -46,7 +46,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Util.Pretty as P
 
@@ -228,6 +228,7 @@ data Input
   | BranchCloneI (These ProjectName ProjectBranchName)
   | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | BranchesI
+  | ReleaseDraftI Semver
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
