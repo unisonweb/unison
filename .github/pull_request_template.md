@@ -23,7 +23,7 @@ Have you included tests (which could be a transcript) for this change, or is it 
 
 Would you recommend improving the test coverage (either as part of this PR or as a separate issue) or do you think it’s adequate?
 
-If you only tested by hand, because that's all that's practical to do for this change, say that.
+If you only tested by hand, because that's all that's practical to do for this change, mention that.
 
 ## Loose ends
 
