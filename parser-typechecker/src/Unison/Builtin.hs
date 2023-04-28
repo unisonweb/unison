@@ -847,6 +847,7 @@ ioBuiltins =
     ("TLS.ClientConfig.ciphers.set", list tlsCipher --> tlsClientConfig --> tlsClientConfig),
     ("Tls.ServerConfig.ciphers.set", list tlsCipher --> tlsServerConfig --> tlsServerConfig),
     ("Tls.ClientConfig.certificates.set", list tlsSignedCert --> tlsClientConfig --> tlsClientConfig),
+    ("Tls.ClientConfig.withAuthCert", list tlsSignedCert --> tlsPrivateKey --> tlsClientConfig --> tlsClientConfig),
     ("Tls.ServerConfig.certificates.set", list tlsSignedCert --> tlsServerConfig --> tlsServerConfig),
     ("Tls.ClientConfig.versions.set", list tlsVersion --> tlsClientConfig --> tlsClientConfig),
     ("Tls.ServerConfig.versions.set", list tlsVersion --> tlsServerConfig --> tlsServerConfig),

@@ -2559,6 +2559,14 @@ declareForeigns = do
     \( config :: TLS.ServerParams,
        socket :: SYS.Socket
        ) -> TLS.contextNew socket config
+    
+  declareForeign Tracked "Tls.ClientConfig.withAuthCert.impl" boxBoxBoxDirect . mkForeign $
+    \(cert :: X.SignedCertificate, key :: X.PrivKey, params :: ClientParams) ->
+      let chain = X.CertificateChain [cert] in
+      pure $ params
+        { clientHooks = (clientHooks params) { onCertificateRequest = const . return $ Just (chain, key) }
+        , clientShared = (clientShared params) { sharedCredentials = Credentials [(chain, key)] }
+        }
 
   declareForeign Tracked "Tls.handshake.impl.v3" boxToEF0 . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.handshake tls
