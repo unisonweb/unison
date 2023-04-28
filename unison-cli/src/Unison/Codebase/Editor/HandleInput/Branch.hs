@@ -38,11 +38,13 @@ handleBranch sourceI projectAndBranchNames0 = do
       ProjectAndBranch Nothing branchName -> ProjectUtils.hydrateNames (That branchName)
       ProjectAndBranch (Just projectName) branchName -> pure (ProjectAndBranch projectName branchName)
 
-  -- You can only create draft release branches with `release.draft`
   -- You can only create release branches with `branch.clone`
+  --
+  -- We do allow creating draft release branches with `branch`, but you'll get different output if you use
+  -- `release.draft`
   case classifyProjectBranchName newBranchName of
     ProjectBranchNameKind'Contributor _user _name -> pure ()
-    ProjectBranchNameKind'DraftRelease _ver -> Cli.returnEarlyWithoutOutput
+    ProjectBranchNameKind'DraftRelease _ver -> pure ()
     ProjectBranchNameKind'Release ver ->
       Cli.returnEarly (Output.CannotCreateReleaseBranchWithBranchCommand newBranchName ver)
     ProjectBranchNameKind'NothingSpecial -> pure ()

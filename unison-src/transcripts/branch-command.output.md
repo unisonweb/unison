@@ -171,21 +171,34 @@ foo/main> branch.empty foo/empty3
        initialize this branch.
 
 ```
+The `branch` command can create branches named `releases/drafts/*` (because why not).
+
+```ucm
+foo/main> branch releases/drafts/1.2.3
+
+  Done. I've created the releases/drafts/1.2.3 branch based off
+  of main.
+  
+  Tip: Use `merge /releases/drafts/1.2.3 /main` to merge your
+       work back into the main branch.
+
+foo/main> switch /releases/drafts/1.2.3
+
+```
 The `branch` command can't create branches named `releases/*` nor `releases/drafts/*`.
 
 ```ucm
 foo/main> branch releases/1.2.3
 
+  Branch names like releases/1.2.3 are reserved for releases.
+  
+  Tip: to download an existing release, try
+       `branch.clone /releases/1.2.3`.
+  
+  Tip: to draft a new release, try `release.draft 1.2.3`.
+
 foo/main> switch /releases/1.2.3
 
   foo/releases/1.2.3 does not exist.
-
-```
-```ucm
-foo/main> branch releases/drafts/1.2.3
-
-foo/main> switch /releases/drafts/1.2.3
-
-  foo/releases/drafts/1.2.3 does not exist.
 
 ```

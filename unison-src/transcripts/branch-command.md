@@ -51,14 +51,16 @@ foo/main> branch.empty foo/empty3
 .> branch.empty foo/empty4
 ```
 
+The `branch` command can create branches named `releases/drafts/*` (because why not).
+
+```ucm
+foo/main> branch releases/drafts/1.2.3
+foo/main> switch /releases/drafts/1.2.3
+```
+
 The `branch` command can't create branches named `releases/*` nor `releases/drafts/*`.
 
 ```ucm:error
 foo/main> branch releases/1.2.3
 foo/main> switch /releases/1.2.3
-```
-
-```ucm:error
-foo/main> branch releases/drafts/1.2.3
-foo/main> switch /releases/drafts/1.2.3
 ```
