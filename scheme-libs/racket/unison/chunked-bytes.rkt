@@ -3,7 +3,8 @@
 (require racket/contract
          racket/fixnum
          racket/list
-         (only-in unison/data right)
+         unison/core
+         (only-in unison/data left right exception)
          "chunked-seq.rkt")
 
 (provide
@@ -421,10 +422,19 @@
 ;; Unison primops
 
 (define toBase16 base16-encode)
-(define (fromBase16 bytes) (right (base16-decode bytes)))
 (define (toBase32 bytes) (base32-encode bytes))
-(define (fromBase32 bytes) (right (base32-decode bytes)))
 (define (toBase64 bytes) (base64-encode bytes))
-(define (fromBase64 bytes) (right (base64-decode bytes)))
 (define (toBase64UrlUnpadded bytes) (base64-encode bytes #:pad? #f))
-(define (fromBase64UrlUnpadded bytes) (right (base64-decode bytes #:padded? #f)))
+
+(define (fromBase16 bytes)
+    (with-handlers [[exn:fail? (lambda (e) (left (exception->string e)))] ]
+        (right (base16-decode bytes))))
+(define (fromBase32 bytes)
+    (with-handlers [[exn:fail? (lambda (e) (left (exception->string e)))] ]
+        (right (base32-decode bytes))))
+(define (fromBase64 bytes)
+    (with-handlers [[exn:fail? (lambda (e) (left (exception->string e)))] ]
+        (right (base64-decode bytes))))
+(define (fromBase64UrlUnpadded bytes)
+    (with-handlers [[exn:fail? (lambda (e) (left (exception->string e)))] ]
+        (right (base64-decode bytes #:padded? #f))))
