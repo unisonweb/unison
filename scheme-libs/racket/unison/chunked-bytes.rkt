@@ -6,7 +6,7 @@
          "chunked-seq.rkt")
 
 (provide
-    (prefix-out unison-FOp-
+    (prefix-out unison-FOp-Bytes.
     (combine-out
         toBase16
         toBase32
@@ -29,6 +29,18 @@
                               [#:padded? any/c
                                #:fail (-> string? any)]
                               any)]))
+
+;; -----------------------------------------------------------------------------
+;; Unison primops
+
+(define toBase16 base16-encode)
+(define (fromBase16 bytes) (base16-decode bytes))
+(define (toBase32 bytes) (base32-encode bytes))
+(define (fromBase32 bytes) (base32-decode bytes))
+(define (toBase64 bytes) (base64-encode bytes))
+(define (fromBase64 bytes) (base64-decode bytes))
+(define (toBase64UrlUnpadded bytes) (base64-encode bytes #:pad? #f))
+(define (fromBase64UrlUnpadded bytes) (base64-decode bytes #:padded? #f))
 
 ;; -----------------------------------------------------------------------------
 

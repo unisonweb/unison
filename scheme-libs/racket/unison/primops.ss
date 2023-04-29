@@ -267,6 +267,7 @@
           (unison core)
           (unison data)
           (unison chunked-seq)
+          (unison chunked-bytes)
           (unison pattern)
           (unison crypto)
           (unison data)
