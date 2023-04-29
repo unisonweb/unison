@@ -211,6 +211,14 @@
     unison-FOp-Bytes.gzip.decompress
     unison-FOp-Bytes.zlib.compress
     unison-FOp-Bytes.zlib.decompress
+    unison-FOp-Bytes.toBase16
+    unison-FOp-Bytes.toBase32
+    unison-FOp-Bytes.toBase64
+    unison-FOp-Bytes.toBase64UrlUnpadded
+    unison-FOp-Bytes.fromBase16
+    unison-FOp-Bytes.fromBase32
+    unison-FOp-Bytes.fromBase64
+    unison-FOp-Bytes.fromBase64UrlUnpadded
 
     unison-FOp-crypto.hashBytes
     unison-FOp-crypto.hmacBytes
