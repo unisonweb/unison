@@ -31,18 +31,6 @@
                               any)]))
 
 ;; -----------------------------------------------------------------------------
-;; Unison primops
-
-(define toBase16 base16-encode)
-(define (fromBase16 bytes) (base16-decode bytes))
-(define (toBase32 bytes) (base32-encode bytes))
-(define (fromBase32 bytes) (base32-decode bytes))
-(define (toBase64 bytes) (base64-encode bytes))
-(define (fromBase64 bytes) (base64-decode bytes))
-(define (toBase64UrlUnpadded bytes) (base64-encode bytes #:pad? #f))
-(define (fromBase64UrlUnpadded bytes) (base64-decode bytes #:padded? #f))
-
-;; -----------------------------------------------------------------------------
 
 (define ESCAPE-PROMPT-TAG (make-continuation-prompt-tag 'base64-fail))
 
@@ -427,3 +415,15 @@
              (fxior (fxlshift (fxand d3 #b11) 6) d4)]))
 
         (build-chunked-bytes out-len (λ (i) (next-output-byte)))))]))
+
+;; -----------------------------------------------------------------------------
+;; Unison primops
+
+(define toBase16 base16-encode)
+(define (fromBase16 bytes) (base16-decode bytes))
+(define (toBase32 bytes) (base32-encode bytes))
+(define (fromBase32 bytes) (base32-decode bytes))
+(define (toBase64 bytes) (base64-encode bytes))
+(define (fromBase64 bytes) (base64-decode bytes))
+(define (toBase64UrlUnpadded bytes) (base64-encode bytes #:pad? #f))
+(define (fromBase64UrlUnpadded bytes) (base64-decode bytes #:padded? #f))

@@ -9,56 +9,6 @@ TODO remove md5 alias when base is released
 ```ucm
 .> run.native tests
 
-  💔💥
-  
-  I've encountered a call to builtin.todo with the following
-  value:
-  
-    "Lit.toScheme termlink"
-  
-  
-  Stack trace:
-    todo
-    #j0ng3hvp1f
-    #gkf1m9rjl7
-    internal.compiler.anf.ANormal.toScheme
-    internal.compiler.anf.SuperNormal.toScheme
-    internal.compiler.anf.SuperGroup.toScheme
-    internal.compiler.schemeOutput
-    #o7tbrr7g31
-    internal.compiler.scheme.generateDefns
-    internal.compiler.generateScheme
-    internal.compiler.saveScheme
-    #gha9jlh8fv
+  Scheme evaluation failed.
 
 ```
-
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  💔💥
-  
-  I've encountered a call to builtin.todo with the following
-  value:
-  
-    "Lit.toScheme termlink"
-  
-  
-  Stack trace:
-    todo
-    #j0ng3hvp1f
-    #gkf1m9rjl7
-    internal.compiler.anf.ANormal.toScheme
-    internal.compiler.anf.SuperNormal.toScheme
-    internal.compiler.anf.SuperGroup.toScheme
-    internal.compiler.schemeOutput
-    #o7tbrr7g31
-    internal.compiler.scheme.generateDefns
-    internal.compiler.generateScheme
-    internal.compiler.saveScheme
-    #gha9jlh8fv
-
