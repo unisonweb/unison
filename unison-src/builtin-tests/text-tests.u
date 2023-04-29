@@ -6,6 +6,7 @@ text.tests = do
  !text.conversion.tests
  !text.debug.tests
  !text.matching.tests
+ !text.term.tests
  !char.class.tests
 
 text.lit.tests = do
@@ -145,6 +146,12 @@ text.debug.tests = do
     true
 
   checkEqual "Debug.watch" (Debug.watch "Watch" 3) 3
+
+text.term.tests = do
+  check "Link.Term.toText works for ability constructors" do
+    match catchAll '(Link.Term.toText (termLink abort)) with
+      Left f -> false
+      Right _ -> true
 
 text.matching.tests = do
   check "String literal matching: empty" do
