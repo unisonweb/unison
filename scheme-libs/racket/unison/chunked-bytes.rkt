@@ -5,20 +5,30 @@
          racket/list
          "chunked-seq.rkt")
 
-(provide (prefix-out unison-FOp-
+(provide
+    (prefix-out unison-FOp-
+    (combine-out
+        toBase16
+        toBase32
+        toBase64
+        fromBase16
+        fromBase32
+        fromBase64
+        toBase64UrlUnpadded
+        fromBase64UrlUnpadded))
     (contract-out
-          [Bytes.toBase16 (-> chunked-bytes? chunked-bytes?)]
-          [Bytes.fromBase16 (->* [chunked-bytes?] [#:fail (-> string? any)] any)]
-          [Bytes.toBase32 (->* [chunked-bytes?] [#:alphabet (or/c 'standard 'hex)] chunked-bytes?)]
-          [Bytes.fromBase32 (->* [chunked-bytes?]
+          [base16-encode (-> chunked-bytes? chunked-bytes?)]
+          [base16-decode (->* [chunked-bytes?] [#:fail (-> string? any)] any)]
+          [base32-encode (->* [chunked-bytes?] [#:alphabet (or/c 'standard 'hex)] chunked-bytes?)]
+          [base32-decode (->* [chunked-bytes?]
                               [#:alphabet (or/c 'standard 'hex)
                                #:fail (-> string? any)]
                               any)]
-          [Bytes.toBase64 (->* [chunked-bytes?] [#:pad? any/c] chunked-bytes?)]
-          [Bytes.fromBase64 (->* [chunked-bytes?]
+          [base64-encode (->* [chunked-bytes?] [#:pad? any/c] chunked-bytes?)]
+          [base64-decode (->* [chunked-bytes?]
                               [#:padded? any/c
                                #:fail (-> string? any)]
-                              any)])))
+                              any)]))
 
 ;; -----------------------------------------------------------------------------
 
@@ -49,7 +59,7 @@
       (vector-set! vec (+ (char->integer #\a) i) (+ 10 i)))
     (vector->immutable-vector vec)))
 
-(define (Bytes.toBase16 bs)
+(define (base16-encode bs)
   (define in-len (chunked-bytes-length bs))
   (cond
     [(zero? in-len)
@@ -72,7 +82,7 @@
             (set! last-byte b)
             (fxrshift b 4)]))))]))
 
-(define (Bytes.fromBase16 bs #:fail [fail (λ (msg) (error 'Bytes.fromBase16 "~a" msg))])
+(define (base16-decode bs #:fail [fail (λ (msg) (error 'base16-decode "~a" msg))])
   (define in-len (chunked-bytes-length bs))
   (cond
     [(zero? in-len)
@@ -119,7 +129,7 @@
       (vector-set! vec (+ (char->integer #\a) i) (+ 10 i)))
     (vector->immutable-vector vec)))
 
-(define (Bytes.toBase32 bs #:alphabet [alphabet 'standard])
+(define (base32-encode bs #:alphabet [alphabet 'standard])
   (define in-len (chunked-bytes-length bs))
   (cond
     [(zero? in-len)
@@ -173,9 +183,9 @@
 
      (build-chunked-bytes out-len (λ (i) (next-output-byte)))]))
 
-(define (Bytes.fromBase32 bs
+(define (base32-decode bs
                        #:alphabet [alphabet 'standard]
-                       #:fail [fail (λ (msg) (error 'Bytes.fromBase32 "~a" msg))])
+                       #:fail [fail (λ (msg) (error 'base32-decode "~a" msg))])
   (define in-len (chunked-bytes-length bs))
   (cond
     [(zero? in-len)
@@ -286,7 +296,7 @@
     (vector-set! vec (char->integer #\/) 63)
     (vector->immutable-vector vec)))
 
-(define (Bytes.toBase64 bs #:pad? [pad? #t])
+(define (base64-encode bs #:pad? [pad? #t])
   (define in-len (chunked-bytes-length bs))
   (cond
     [(zero? in-len)
@@ -336,9 +346,9 @@
 
      (build-chunked-bytes out-len (λ (i) (next-output-byte)))]))
 
-(define (Bytes.fromBase64 bs
+(define (base64-decode bs
                        #:padded? [padded? #t]
-                       #:fail [fail (λ (msg) (error 'Bytes.fromBase64 "~a" msg))])
+                       #:fail [fail (λ (msg) (error 'base64-decode "~a" msg))])
   (define in-len (chunked-bytes-length bs))
   (cond
     [(zero? in-len)
