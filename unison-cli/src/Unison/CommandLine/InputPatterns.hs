@@ -44,7 +44,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName, Semver)
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
 import qualified Unison.Syntax.Name as Name (fromText, unsafeFromString)
 import qualified Unison.Util.ColorText as CT
@@ -2309,13 +2309,13 @@ projectClone :: InputPattern
 projectClone =
   InputPattern
     { patternName = "project.clone",
-      aliases = ["clone"],
+      aliases = [],
       visibility = I.Hidden,
       argTypes = [(Required, projectAndBranchNamesArg)],
       help = P.wrap "Clone a project branch from a remote server.",
       parse = \case
         [name] ->
-          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+          case tryInto @(ProjectAndBranch ProjectName (Maybe ProjectBranchName)) (Text.pack name) of
             Left _ -> Left (showPatternHelp projectClone)
             Right projectAndBranch -> Right (Input.ProjectCloneI projectAndBranch)
         _ -> Left (showPatternHelp projectClone)
@@ -2375,6 +2375,22 @@ branches =
       parse = \_ -> Right Input.BranchesI
     }
 
+branchClone :: InputPattern
+branchClone =
+  InputPattern
+    { patternName = "branch.clone",
+      aliases = ["clone"],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectAndBranchNamesArg)],
+      help = P.wrap "Clone a project branch from a remote server.",
+      parse = \case
+        [name] ->
+          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+            Left _ -> Left (showPatternHelp branchClone)
+            Right projectAndBranch -> Right (Input.BranchCloneI projectAndBranch)
+        _ -> Left (showPatternHelp branchClone)
+    }
+
 branchInputPattern :: InputPattern
 branchInputPattern =
   InputPattern
@@ -2414,6 +2430,19 @@ branchEmptyInputPattern =
         _ -> Left (showPatternHelp branchEmptyInputPattern)
     }
 
+releaseDraft :: InputPattern
+releaseDraft =
+  InputPattern
+    { patternName = "release.draft",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [],
+      help = P.wrap "Draft a release.",
+      parse = \case
+        [tryInto @Semver . Text.pack -> Right semver] -> Right (Input.ReleaseDraftI semver)
+        _ -> Left (showPatternHelp releaseDraft)
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2425,8 +2454,9 @@ validInputs =
       api,
       authLogin,
       back,
-      branchInputPattern,
+      branchClone,
       branchEmptyInputPattern,
+      branchInputPattern,
       branches,
       cd,
       clear,
@@ -2506,6 +2536,7 @@ validInputs =
       pushExhaustive,
       pushForce,
       quit,
+      releaseDraft,
       renameBranch,
       renamePatch,
       renameTerm,

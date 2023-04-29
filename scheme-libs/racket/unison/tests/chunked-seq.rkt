@@ -3,7 +3,7 @@
 (require data/order
          racket/vector
          rackunit
-         "../../data/chunked-seq.rkt")
+         "../chunked-seq.rkt")
 
 (check-pred chunked-list-empty? empty-chunked-list)
 (check-equal? (chunked-list-length empty-chunked-list) 0)

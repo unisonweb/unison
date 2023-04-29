@@ -42,7 +42,6 @@ import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.Process
   ( callProcess,
-    readCreateProcess,
     readCreateProcessWithExitCode,
     shell,
   )
@@ -84,12 +83,13 @@ import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, man
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
-import Unison.Codebase.Editor.HandleInput.ProjectClone (projectClone)
+import Unison.Codebase.Editor.HandleInput.ProjectClone (branchClone, projectClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
+import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.TermResolution
   ( resolveCon,
     resolveMainRef,
@@ -1367,8 +1367,10 @@ loop e = do
             ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
-            BranchesI -> handleBranches
+            BranchCloneI name -> branchClone name
             BranchI source name -> handleBranch source name
+            BranchesI -> handleBranches
+            ReleaseDraftI semver -> handleReleaseDraft semver
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1533,14 +1535,17 @@ inputDescription input =
       branchId2 <- hp' (input ^. #branchId2)
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
+    BranchCloneI projectAndBranch -> pure ("branch.clone " <> into @Text projectAndBranch)
     ProjectCloneI projectAndBranch -> pure ("project.clone " <> into @Text projectAndBranch)
     ProjectCreateI project -> pure ("project.create " <> into @Text project)
     ProjectSwitchI projectAndBranch -> pure ("project.switch " <> into @Text projectAndBranch)
+    ClearI {} -> pure "clear"
+    DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
     --
     ApiI -> wat
     AuthLoginI {} -> wat
     BranchI {} -> wat
-    ClearI {} -> pure "clear"
+    BranchesI -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat
@@ -1573,9 +1578,9 @@ inputDescription input =
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
     ProjectsI -> wat
-    BranchesI -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
+    ReleaseDraftI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
     ShowReflogI {} -> wat
@@ -1585,7 +1590,6 @@ inputDescription input =
     UiI -> wat
     UpI {} -> wat
     VersionI -> wat
-    DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
     hp' = either (pure . Text.pack . show) p'
@@ -2402,37 +2406,23 @@ typecheckAndEval ppe tm = do
     a = External
     rendered = P.toPlainUnbroken $ TP.pretty ppe tm
 
-ensureSchemeExists :: SchemeBackend -> Cli ()
-ensureSchemeExists bk =
+ensureSchemeExists :: Cli ()
+ensureSchemeExists =
   liftIO callScheme >>= \case
     True -> pure ()
     False -> Cli.returnEarly (PrintMessage msg)
   where
-    msg = case bk of
-      Racket ->
-        P.lines
-          [ "I can't seem to call racket. See",
-            "",
-            P.indentN
-              2
-              "https://download.racket-lang.org/",
-            "",
-            "for how to install Racket."
-          ]
-      Chez ->
-        P.lines
-          [ "I can't seem to call scheme. See",
-            "",
-            P.indentN
-              2
-              "https://github.com/cisco/ChezScheme/blob/main/BUILDING",
-            "",
-            "for how to install Chez Scheme."
-          ]
-
-    cmd = case bk of
-      Racket -> "racket -l- raco help"
-      Chez -> "scheme -q"
+    msg =
+      P.lines
+        [ "I can't seem to call racket. See",
+          "",
+          P.indentN
+            2
+            "https://download.racket-lang.org/",
+          "",
+          "for how to install Racket."
+        ]
+    cmd = "racket -l- raco help"
     callScheme =
       readCreateProcessWithExitCode (shell cmd) "" >>= \case
         (ExitSuccess, _, _) -> pure True
@@ -2441,28 +2431,16 @@ ensureSchemeExists bk =
 racketOpts :: FilePath -> FilePath -> [String] -> [String]
 racketOpts gendir statdir args = libs ++ args
   where
-    includes = [gendir, statdir </> "common", statdir </> "racket"]
+    includes = [gendir, statdir </> "racket"]
     libs = concatMap (\dir -> ["-S", dir]) includes
 
-chezOpts :: FilePath -> FilePath -> [String] -> [String]
-chezOpts gendir statdir args =
-  "-q" : opt ++ libs ++ ["--script"] ++ args
-  where
-    includes = [gendir, statdir </> "common", statdir </> "chez"]
-    libs = ["--libdirs", List.intercalate ":" includes]
-    opt = ["--optimize-level", "3"]
-
-data SchemeBackend = Racket | Chez
-
-runScheme :: SchemeBackend -> String -> [String] -> Cli ()
-runScheme bk file args = do
-  ensureSchemeExists bk
+runScheme :: String -> [String] -> Cli ()
+runScheme file args = do
+  ensureSchemeExists
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
-  let cmd = case bk of Racket -> "racket"; Chez -> "scheme"
-      opts = case bk of
-        Racket -> racketOpts gendir statdir (file : args)
-        Chez -> chezOpts gendir statdir (file : args)
+  let cmd = "racket"
+      opts = racketOpts gendir statdir (file : args)
   success <-
     liftIO $
       (True <$ callProcess cmd opts)
@@ -2470,16 +2448,12 @@ runScheme bk file args = do
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
-buildScheme :: SchemeBackend -> String -> String -> Cli ()
-buildScheme bk main file = do
-  ensureSchemeExists bk
+buildScheme :: String -> String -> Cli ()
+buildScheme main file = do
+  ensureSchemeExists
   statDir <- getSchemeStaticLibDir
   genDir <- getSchemeGenLibDir
-  build genDir statDir main file
-  where
-    build
-      | Racket <- bk = buildRacket
-      | Chez <- bk = buildChez
+  buildRacket genDir statDir main file
 
 buildRacket :: String -> String -> String -> String -> Cli ()
 buildRacket genDir statDir main file =
@@ -2490,37 +2464,14 @@ buildRacket genDir statDir main file =
           (True <$ callProcess "racket" opts)
           (\(_ :: IOException) -> pure False)
 
-buildChez :: String -> String -> String -> String -> Cli ()
-buildChez genDir statDir main file = do
-  let cmd = shell "scheme -q --optimize-level 3"
-  void . liftIO $ readCreateProcess cmd (build statDir genDir)
-  where
-    surround s = '"' : s ++ "\""
-    parens s = '(' : s ++ ")"
-    lns dir nms = surround . ln dir <$> nms
-    ln dir nm = dir </> "unison" </> (nm ++ ".ss")
-
-    static = ["core", "cont", "bytevector", "string", "primops", "boot"]
-    gen = ["boot-generated", "builtin-generated"]
-
-    bootf = surround $ main ++ ".boot"
-    base = "'(\"scheme\" \"petite\")"
-
-    build sd gd =
-      parens . List.intercalate " " $
-        ["make-boot-file", bootf, base]
-          ++ lns sd static
-          ++ lns gd gen
-          ++ [surround file]
-
 doRunAsScheme :: HQ.HashQualified Name -> [String] -> Cli ()
 doRunAsScheme main args = do
   fullpath <- generateSchemeFile True (HQ.toString main) main
-  runScheme Racket fullpath args
+  runScheme fullpath args
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
-  generateSchemeFile True out main >>= buildScheme Racket out
+  generateSchemeFile True out main >>= buildScheme out
 
 generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do

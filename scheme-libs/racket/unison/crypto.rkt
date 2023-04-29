@@ -3,7 +3,7 @@
          ffi/unsafe/define
          racket/exn
          openssl/libcrypto
-         unison/data/chunked-seq)
+         unison/chunked-seq)
 
 (provide (prefix-out unison-FOp-crypto.
     (combine-out
