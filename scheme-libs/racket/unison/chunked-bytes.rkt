@@ -3,6 +3,7 @@
 (require racket/contract
          racket/fixnum
          racket/list
+         (only-in unison/data right)
          "chunked-seq.rkt")
 
 (provide
@@ -420,10 +421,10 @@
 ;; Unison primops
 
 (define toBase16 base16-encode)
-(define (fromBase16 bytes) (base16-decode bytes))
+(define (fromBase16 bytes) (right (base16-decode bytes)))
 (define (toBase32 bytes) (base32-encode bytes))
-(define (fromBase32 bytes) (base32-decode bytes))
+(define (fromBase32 bytes) (right (base32-decode bytes)))
 (define (toBase64 bytes) (base64-encode bytes))
-(define (fromBase64 bytes) (base64-decode bytes))
+(define (fromBase64 bytes) (right (base64-decode bytes)))
 (define (toBase64UrlUnpadded bytes) (base64-encode bytes #:pad? #f))
-(define (fromBase64UrlUnpadded bytes) (base64-decode bytes #:padded? #f))
+(define (fromBase64UrlUnpadded bytes) (right (base64-decode bytes #:padded? #f)))

@@ -10,6 +10,7 @@ bytes.tests = do
   !bytes.gzip.decompress.tests
   !bytes.zlib.compress.tests
   !bytes.zlib.decompress.tests
+  !bytes.toFromBases
 
 bytes.lit.tests = do
   check "Bytes empty literal" do
@@ -127,3 +128,23 @@ bytes.zlib.compress.tests = do
 bytes.zlib.decompress.tests = do
     checkEqual "zlib inflate empty" (zlib.decompress 0xs789c030000000001) (Right (toUtf8 ""))
     checkEqual "zlib inflate hello folks" (zlib.decompress 0xs789ccb48cdc9c95748cbcfc92e060019b10454) (Right (toUtf8 "hello folks"))
+
+rightToUtf8 data =
+    match data with
+        Left _ -> Right ""
+        Right v -> catch '(fromUtf8 v)
+
+bytes.toFromBases = do
+    checkEqual "mk" (Bytes.toBase16 (toUtf8 "")) 0xs
+    checkEqual "mk" (Bytes.fromBase16 0xs) (Right 0xs)
+    checkEqual "mk" (catch '(fromUtf8 (Bytes.toBase16 (toUtf8 "hello")))) (Right "68656c6c6f")
+    checkEqual "mk" (Bytes.fromBase16 (toUtf8 "68656c6c6f")) (Right (toUtf8 "hello"))
+
+    checkEqual "mk" (catch '(fromUtf8 (Bytes.toBase32 (toUtf8 "hello")))) (Right "NBSWY3DP")
+    checkEqual "mk" (Bytes.fromBase32 (toUtf8 "NBSWY3DP")) (Right (toUtf8 "hello"))
+
+    checkEqual "mk" (catch '(fromUtf8 (Bytes.toBase64 (toUtf8 "hello")))) (Right "aGVsbG8=")
+    checkEqual "mk" (Bytes.fromBase64 (toUtf8 "aGVsbG8=")) (Right (toUtf8 "hello"))
+
+    checkEqual "mk" (catch '(fromUtf8 (toBase64UrlUnpadded (toUtf8 "hello")))) (Right "aGVsbG8")
+    checkEqual "mk" (fromBase64UrlUnpadded (toUtf8 "aGVsbG8")) (Right (toUtf8 "hello"))
