@@ -9,13 +9,36 @@ TODO remove md5 alias when base is released
 ```ucm
 .> run tests
 
-  ()
+  💔💥
+  
+  I've encountered a call to builtin.bug with the following
+  value:
+  
+    "test suite failed"
+  
+  
+  Stack trace:
+    bug
+    #nemf56vdul
 
 ```
-TODO remove once jit supports typelinks
-```ucm
-.> run threadKilledTypeLinkTest
 
-  ()
 
-```
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  💔💥
+  
+  I've encountered a call to builtin.bug with the following
+  value:
+  
+    "test suite failed"
+  
+  
+  Stack trace:
+    bug
+    #nemf56vdul
+
