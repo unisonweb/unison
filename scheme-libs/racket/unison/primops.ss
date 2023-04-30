@@ -209,6 +209,8 @@
 
     unison-FOp-Bytes.gzip.compress
     unison-FOp-Bytes.gzip.decompress
+    unison-FOp-Bytes.zlib.compress
+    unison-FOp-Bytes.zlib.decompress
 
     unison-FOp-crypto.hashBytes
     unison-FOp-crypto.hmacBytes
@@ -263,6 +265,7 @@
           (unison tls)
           (unison tcp)
           (unison gzip)
+          (unison zlib)
           (unison concurrent))
 
   (define (unison-POp-UPKB bs)
