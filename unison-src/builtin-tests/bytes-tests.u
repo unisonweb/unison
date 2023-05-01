@@ -10,6 +10,7 @@ bytes.tests = do
   !bytes.gzip.decompress.tests
   !bytes.zlib.compress.tests
   !bytes.zlib.decompress.tests
+  !bytes.toFromBases
 
 bytes.lit.tests = do
   check "Bytes empty literal" do
@@ -127,3 +128,40 @@ bytes.zlib.compress.tests = do
 bytes.zlib.decompress.tests = do
     checkEqual "zlib inflate empty" (zlib.decompress 0xs789c030000000001) (Right (toUtf8 ""))
     checkEqual "zlib inflate hello folks" (zlib.decompress 0xs789ccb48cdc9c95748cbcfc92e060019b10454) (Right (toUtf8 "hello folks"))
+
+checkLeft : Text -> Either a b ->{Tests} ()
+checkLeft msg a1 =
+  match a1 with
+    Left _  -> Tests.pass msg
+    Right _ ->
+        Debug.trace "value" a1
+        Tests.fail msg "not Left"
+
+bytes.toFromBases = do
+    checkEqual "base16 empty" (Bytes.toBase16 (toUtf8 "")) 0xs
+    checkEqual "from base16 empty" (Bytes.fromBase16 0xs) (Right 0xs)
+    checkEqual "base16 hello" (Bytes.toBase16 (toUtf8 "hello")) (toUtf8 "68656c6c6f")
+    checkEqual "from base16 hello" (Bytes.fromBase16 (toUtf8 "68656c6c6f")) (Right (toUtf8 "hello"))
+
+    checkEqual "base32 hello" (Bytes.toBase32 (toUtf8 "hello")) (toUtf8 "NBSWY3DP")
+    checkEqual "from base32 hello" (Bytes.fromBase32 (toUtf8 "NBSWY3DP")) (Right (toUtf8 "hello"))
+
+    checkEqual "base64 hello" (Bytes.toBase64 (toUtf8 "hello")) (toUtf8 "aGVsbG8=")
+    checkEqual "from base64 hello" (Bytes.fromBase64 (toUtf8 "aGVsbG8=")) (Right (toUtf8 "hello"))
+
+    checkEqual "base64Url hello" (toBase64UrlUnpadded (toUtf8 "hello")) (toUtf8 "aGVsbG8")
+    checkEqual "from base64Url hello" (fromBase64UrlUnpadded (toUtf8 "aGVsbG8")) (Right (toUtf8 "hello"))
+
+    -- false ones
+    checkLeft "from base16 fail non-utf8" (Bytes.fromBase16 0xsaaaa)
+    checkLeft "from base32 fail non-utf8" (Bytes.fromBase32 0xsaaaa)
+    checkLeft "from base64 fail non-utf8" (Bytes.fromBase64 0xsaaaa)
+    checkLeft "from base64Url fail non-utf8" (fromBase64UrlUnpadded 0xsaaaa)
+
+    -- NOTE: the haskell implementation doesn't reject these invocations,
+    -- even though though they are invalid :(. It just returns the same
+    -- bytes that it received, confusingly.
+    -- checkLeft "from base16 fail" (Bytes.fromBase16 (toUtf8 "aaaa"))
+    -- checkLeft "from base64 fail" (Bytes.fromBase64 (toUtf8 "aaaa"))
+    -- checkLeft "from base64Url fail" (fromBase64UrlUnpadded (toUtf8 "aaaa"))
+    checkLeft "from base32 fail" (Bytes.fromBase32 (toUtf8 "aaaa"))

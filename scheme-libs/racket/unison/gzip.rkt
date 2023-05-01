@@ -3,7 +3,7 @@
          file/gzip
          file/gunzip
          unison/core
-         (only-in unison/data/chunked-seq
+         (only-in unison/chunked-seq
             bytes->chunked-bytes
             chunked-bytes->bytes))
 
