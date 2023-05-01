@@ -320,6 +320,8 @@ data Output
   | -- there's no remote branch associated with branch
     NoAssociatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
+  | LocalProjectNorProjectBranchExist ProjectName ProjectBranchName
+  | BothLocalProjectAndProjectBranchExist ProjectName ProjectBranchName
   | RemoteProjectDoesntExist URI ProjectName
   | RemoteProjectBranchDoesntExist URI (ProjectAndBranch ProjectName ProjectBranchName)
   | RemoteProjectReleaseIsDeprecated URI (ProjectAndBranch ProjectName ProjectBranchName)
@@ -525,6 +527,8 @@ isFailure o = case o of
   NoAssociatedRemoteProjectBranch {} -> True
   ProjectAndBranchNameAlreadyExists {} -> True
   LocalProjectBranchDoesntExist {} -> True
+  LocalProjectNorProjectBranchExist {} -> True
+  BothLocalProjectAndProjectBranchExist {} -> True
   RemoteProjectDoesntExist {} -> True
   RemoteProjectBranchDoesntExist {} -> True
   RemoteProjectReleaseIsDeprecated {} -> True

@@ -46,7 +46,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
+import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver, ProjectAndBranchNames)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Util.Pretty as P
 
@@ -223,7 +223,7 @@ data Input
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   | ProjectCloneI (ProjectAndBranch ProjectName (Maybe ProjectBranchName))
   | ProjectCreateI ProjectName
-  | ProjectSwitchI (These ProjectName ProjectBranchName)
+  | ProjectSwitchI ProjectAndBranchNames
   | ProjectsI
   | BranchCloneI (These ProjectName ProjectBranchName)
   | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)

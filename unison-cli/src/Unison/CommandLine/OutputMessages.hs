@@ -1918,6 +1918,20 @@ notifyUser dir = \case
   LocalProjectBranchDoesntExist projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist."
+  LocalProjectNorProjectBranchExist project branch ->
+    pure . P.wrap $
+      "Neither project"
+        <> prettyProjectName project
+        <> "nor branch"
+        <> prettySlashProjectBranchName branch
+        <> "exist."
+  BothLocalProjectAndProjectBranchExist project branch ->
+    pure . P.wrap $
+      "Project"
+        <> prettyProjectName project
+        <> "and branch"
+        <> prettySlashProjectBranchName branch
+        <> "both exist."
   RemoteProjectDoesntExist host project ->
     pure . P.wrap $
       prettyProjectName project <> "does not exist on" <> prettyURI host

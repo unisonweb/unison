@@ -22,11 +22,22 @@ someterm = 18
 
   I just created project foo with branch main.
 
+.> project.create bar
+
+  I just created project bar with branch main.
+
 foo/main> add
 
   ⍟ I've added these definitions:
   
     someterm : Nat
+
+foo/main> branch bar
+
+  Done. I've created the bar branch based off of main.
+  
+  Tip: Use `merge /bar /main` to merge your work back into the
+       main branch.
 
 foo/main> branch topic
 
@@ -36,14 +47,29 @@ foo/main> branch topic
        main branch.
 
 ```
-Now, the demo.
+Now, the demo. When unambiguous, `switch` switches to either a project or a branch in the current project. A branch in
+the current project can be preceded by a forward slash (which makes it unambiguous).
 
 ```ucm
 .> switch foo
 
 .> switch foo/topic
 
+foo/main> switch topic
+
+foo/main> switch /topic
+
 ```
+It's an error to try to switch to something ambiguous.
+
+```ucm
+foo/main> switch bar
+
+  Project bar and branch /bar both exist.
+
+```
+It's an error to try to switch to something that doesn't exist, of course.
+
 ```ucm
 .> switch foo/no-such-branch
 
@@ -54,5 +80,12 @@ Now, the demo.
 .> switch no-such-project
 
   no-such-project/main does not exist.
+
+```
+```ucm
+foo/main> switch no-such-project-or-branch
+
+  Neither project no-such-project-or-branch nor branch
+  /no-such-project-or-branch exist.
 
 ```
