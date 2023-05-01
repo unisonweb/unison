@@ -39,8 +39,9 @@ foo/main> release.draft 1.2.3
   😎 Great! I've created a draft release for you at
   /releases/drafts/1.2.3.
   
-  While preparing we suggest you create a releaseNotes Doc.
-  It'll automatically show up on Unison Share when you publish.
+  You can create a `ReleaseNotes : Doc` in this branch to give
+  an overview of the release. It'll automatically show up on
+  Unison Share when you publish.
   
   When ready to release 1.2.3 to the world, `push` the release
   to Unison Share, navigate to the release, and click "Publish".
