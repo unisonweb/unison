@@ -6,7 +6,7 @@ your working directory with each command).
 
   I just created project foo with branch main.
 
-foo/main> branch /topic
+foo/main> branch topic
 
   Done. I've created the topic branch based off of main.
   
@@ -14,6 +14,34 @@ foo/main> branch /topic
        main branch.
 
 foo/topic> delete.branch /topic
+
+```
+A branch need not be preceded by a forward slash.
+
+```ucm
+foo/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
+
+foo/topic> delete.branch topic
+
+```
+You can precede the branch name by a project name.
+
+```ucm
+foo/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
+
+  ☝️  The namespace . is empty.
+
+.> delete.branch foo/topic
 
 ```
 You can delete the only branch in a project.

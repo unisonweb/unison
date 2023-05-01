@@ -329,5 +329,5 @@ data DeleteTarget
   | DeleteTarget'Type DeleteOutput [Path.HQSplit']
   | DeleteTarget'Namespace Insistence (Maybe Path.Split')
   | DeleteTarget'Patch Path.Split'
-  | DeleteTarget'ProjectBranch (These ProjectName ProjectBranchName)
+  | DeleteTarget'ProjectBranch (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   deriving stock (Eq, Show)
