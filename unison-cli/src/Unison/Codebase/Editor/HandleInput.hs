@@ -1535,8 +1535,6 @@ inputDescription input =
       branchId2 <- hp' (input ^. #branchId2)
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
-    BranchCloneI projectAndBranch -> pure ("branch.clone " <> into @Text projectAndBranch)
-    ProjectCloneI projectAndBranch -> pure ("project.clone " <> into @Text projectAndBranch)
     ProjectCreateI project -> pure ("project.create " <> into @Text project)
     ProjectSwitchI projectAndBranch -> pure ("project.switch " <> into @Text projectAndBranch)
     ClearI {} -> pure "clear"
@@ -1544,6 +1542,7 @@ inputDescription input =
     --
     ApiI -> wat
     AuthLoginI {} -> wat
+    BranchCloneI _ -> wat
     BranchI {} -> wat
     BranchesI -> wat
     CreateMessage {} -> wat
@@ -1577,6 +1576,7 @@ inputDescription input =
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
+    ProjectCloneI _ -> wat
     ProjectsI -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat

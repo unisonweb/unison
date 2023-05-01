@@ -37,24 +37,20 @@ import Witch (unsafeFrom)
 -- | Clone a remote project or remote project branch.
 branchClone :: These ProjectName ProjectBranchName -> Cli ()
 branchClone = \case
-  These projectName branchName ->
-    cloneProjectAndBranch (ProjectAndBranch projectName branchName)
-  This projectName -> cloneProject projectName
+  These projectName branchName -> cloneProjectAndBranch "branch.clone" (ProjectAndBranch projectName branchName)
+  This projectName ->
+    cloneProjectAndBranch
+      "branch.clone"
+      ProjectAndBranch
+        { project = projectName,
+          branch = unsafeFrom @Text "main"
+        }
   That branchName -> cloneBranch branchName
 
 -- | Clone a remote project or remote project branch.
 projectClone :: ProjectAndBranch ProjectName (Maybe ProjectBranchName) -> Cli ()
 projectClone projectAndBranch =
-  cloneProjectAndBranch (projectAndBranch & over #branch (fromMaybe (unsafeFrom @Text "main")))
-
--- Clone a project, defaulting to branch "main"
-cloneProject :: ProjectName -> Cli ()
-cloneProject projectName = do
-  cloneProjectAndBranch
-    ProjectAndBranch
-      { project = projectName,
-        branch = unsafeFrom @Text "main"
-      }
+  cloneProjectAndBranch "project.clone" (projectAndBranch & over #branch (fromMaybe (unsafeFrom @Text "main")))
 
 -- Clone a branch from the remote project associated with the current project.
 cloneBranch :: ProjectBranchName -> Cli ()
@@ -95,10 +91,10 @@ cloneBranch remoteBranchName = do
       Just remoteProjectInfo ->
         ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch remoteProjectInfo remoteBranchName)
 
-  cloneInto localProjectBranch remoteProjectBranch
+  cloneInto "branch.clone" localProjectBranch remoteProjectBranch
 
-cloneProjectAndBranch :: ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
-cloneProjectAndBranch remoteProjectAndBranch = do
+cloneProjectAndBranch :: Text -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
+cloneProjectAndBranch command remoteProjectAndBranch = do
   let remoteProjectName = remoteProjectAndBranch ^. #project
   let remoteBranchName = remoteProjectAndBranch ^. #branch
   -- TODO: allow user to override these with second argument
@@ -117,12 +113,13 @@ cloneProjectAndBranch remoteProjectAndBranch = do
   remoteProjectBranch <-
     ProjectUtils.expectRemoteProjectBranchByNames (ProjectAndBranch (localProjectBranch ^. #project) remoteBranchName)
 
-  cloneInto localProjectBranch remoteProjectBranch
+  cloneInto command localProjectBranch remoteProjectBranch
 
--- `cloneInto local remote` clones `remote` into `local`, which is believed to not exist yet, but may (because it takes
--- some time to pull the remote).
-cloneInto :: ProjectAndBranch ProjectName ProjectBranchName -> Share.RemoteProjectBranch -> Cli ()
-cloneInto localProjectBranch remoteProjectBranch = do
+-- `cloneInto command local remote` clones `remote` into `local`, which is believed to not exist yet, but may (because
+-- it takes some time to pull the remote). The `command` argument is used in the reflog to indicate whether this was a
+-- `project.clone` or `branch.clone`.
+cloneInto :: Text -> ProjectAndBranch ProjectName ProjectBranchName -> Share.RemoteProjectBranch -> Cli ()
+cloneInto command localProjectBranch remoteProjectBranch = do
   let remoteProjectName = remoteProjectBranch ^. #projectName
   let remoteBranchName = remoteProjectBranch ^. #branchName
 
@@ -181,7 +178,9 @@ cloneInto localProjectBranch remoteProjectBranch = do
   let branchHead = hash32ToCausalHash (Share.API.hashJWTHash remoteBranchHeadJwt)
   theBranch <- liftIO (Codebase.expectBranchForHash codebase branchHead)
   let path = projectBranchPath localProjectAndBranch
-  Cli.stepAt "project.clone" (Path.unabsolute path, const (Branch.head theBranch))
+  Cli.stepAt
+    (command <> " " <> into @Text (These remoteProjectName remoteBranchName))
+    (Path.unabsolute path, const (Branch.head theBranch))
   Cli.cd path
 
 -- Assert that a local project+branch with this name doesn't already exist. If it does exist, we can't clone over it.
