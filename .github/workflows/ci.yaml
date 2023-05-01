@@ -39,7 +39,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          # temporarily disable non-windows builds to speed up iteration time
+          # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-20.04
           # - macOS-11.0
           # - windows-2019
