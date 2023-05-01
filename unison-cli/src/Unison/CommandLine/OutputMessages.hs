@@ -2048,8 +2048,8 @@ notifyUser dir = \case
         <> tip
           ( "if you get pulled away from drafting your release, you can always get back to it with "
               <> IP.makeExample IP.projectSwitch [prettySlashProjectBranchName branch]
-              <> "."
           )
+        <> "."
   CannotCreateReleaseBranchWithBranchCommand branch ver ->
     pure $
       P.wrap ("Branch names like" <> prettyProjectBranchName branch <> "are reserved for releases.")
