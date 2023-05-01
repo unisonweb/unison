@@ -128,7 +128,7 @@ instance Show UcmLine where
     where
       showContext = \case
         UcmContextLooseCode path -> show path
-        UcmContextProject (ProjectAndBranch project branch) -> Text.unpack (into @Text (These project branch))
+        UcmContextProject projectAndBranch -> Text.unpack (into @Text projectAndBranch)
 
 instance Show Stanza where
   show s = case s of

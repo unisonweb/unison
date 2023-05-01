@@ -186,7 +186,7 @@ loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
         Cli.returnEarly (Output.GitError err)
     ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
     ReadShare'ProjectBranch remoteBranch -> do
-      let repoInfo = Share.RepoInfo (into @Text (These (remoteBranch ^. #projectName) remoteProjectBranchName))
+      let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch (remoteBranch ^. #projectName) remoteProjectBranchName))
           causalHash = Common.hash32ToCausalHash . Share.hashJWTHash $ causalHashJwt
           causalHashJwt = remoteBranch ^. #branchHead
           remoteProjectBranchName = remoteBranch ^. #branchName

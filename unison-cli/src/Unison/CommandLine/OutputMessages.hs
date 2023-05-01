@@ -22,7 +22,6 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.These (These (..))
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Data.Tuple (swap)
@@ -441,7 +440,7 @@ notifyNumbered = \case
                 ]
                   : map (\branch -> ["", "", prettyRemoteBranchInfo branch]) remoteBranches
         ),
-      map (\(branchName, _) -> Text.unpack (into @Text (These projectName branchName))) branches
+      map (\(branchName, _) -> Text.unpack (into @Text (ProjectAndBranch projectName branchName))) branches
     )
     where
       prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
@@ -569,7 +568,7 @@ prettyURI = P.bold . P.blue . P.shown
 prettyReadRemoteNamespace :: ReadRemoteNamespace Share.RemoteProjectBranch -> Pretty
 prettyReadRemoteNamespace =
   prettyReadRemoteNamespaceWith \remoteProjectBranch ->
-    into @Text (These (remoteProjectBranch ^. #projectName) (remoteProjectBranch ^. #branchName))
+    into @Text (ProjectAndBranch (remoteProjectBranch ^. #projectName) (remoteProjectBranch ^. #branchName))
 
 prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
 prettyReadRemoteNamespaceWith printProject =
@@ -2357,8 +2356,8 @@ prettySlashProjectBranchName =
   P.blue . P.text . Text.cons '/' . into @Text
 
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
-prettyProjectAndBranchName (ProjectAndBranch projectName branchName) =
-  P.blue (P.text (into @Text (These projectName branchName)))
+prettyProjectAndBranchName names =
+  P.blue (P.text (into @Text names))
 
 prettyPathOrProjectAndBranchName :: Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
 prettyPathOrProjectAndBranchName = \case

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Main where
 
 import qualified Data.Text as Text
@@ -6,7 +8,7 @@ import EasyTest
 import System.IO.CodePage (withCP65001)
 import Unison.Core.Project
 import Unison.Prelude
-import Unison.Project ()
+import Unison.Project (ProjectAndBranchNames (..))
 
 main :: IO ()
 main =
@@ -28,17 +30,11 @@ projectTests =
       t "releases/1.2.3"
       t "releases/drafts/1.2.3",
     scope "project name, project branch name, or both" do
-      let t input expected0 =
+      let t input expected =
             scope (Text.unpack input) $
               expectEqual
-                expected
+                (Just expected)
                 (either (const Nothing) Just (tryFrom @Text @(These ProjectName ProjectBranchName) input))
-            where
-              expected =
-                case expected0 of
-                  This project -> Just (This (UnsafeProjectName project))
-                  That branch -> Just (That (UnsafeProjectBranchName branch))
-                  These project branch -> Just (These (UnsafeProjectName project) (UnsafeProjectBranchName branch))
       t "project" (This "project")
       t "@user/project" (This "@user/project")
       t "/branch" (That "branch")
@@ -53,11 +49,33 @@ projectTests =
       t "@user/project/@user/branch" (These "@user/project" "@user/branch")
       t "@user/project/releases/1.2.3" (These "@user/project" "releases/1.2.3")
       t "@user/project/releases/drafts/1.2.3" (These "@user/project" "releases/drafts/1.2.3"),
+    scope "project name, project branch name, or both, take 2" do
+      let t input expected =
+            scope (Text.unpack input) $
+              expectEqual
+                (Just expected)
+                (either (const Nothing) Just (tryFrom @Text @ProjectAndBranchNames input))
+      t "project" (ProjectAndBranchNames'Ambiguous "project" "project")
+      t "@user/project" (ProjectAndBranchNames'Ambiguous "@user/project" "@user/project")
+      t "/branch" (ProjectAndBranchNames'Unambiguous (That "branch"))
+      t "/@user/branch" (ProjectAndBranchNames'Unambiguous (That "@user/branch"))
+      t "releases/1.2.3" (ProjectAndBranchNames'Unambiguous (That "releases/1.2.3"))
+      t "/releases/1.2.3" (ProjectAndBranchNames'Unambiguous (That "releases/1.2.3"))
+      t "releases/drafts/1.2.3" (ProjectAndBranchNames'Unambiguous (That "releases/drafts/1.2.3"))
+      t "/releases/drafts/1.2.3" (ProjectAndBranchNames'Unambiguous (That "releases/drafts/1.2.3"))
+      t "project/branch" (ProjectAndBranchNames'Unambiguous (These "project" "branch"))
+      t "project/@user/branch" (ProjectAndBranchNames'Unambiguous (These "project" "@user/branch"))
+      t "project/releases/1.2.3" (ProjectAndBranchNames'Unambiguous (These "project" "releases/1.2.3"))
+      t "project/releases/drafts/1.2.3" (ProjectAndBranchNames'Unambiguous (These "project" "releases/drafts/1.2.3"))
+      t "@user/project/branch" (ProjectAndBranchNames'Unambiguous (These "@user/project" "branch"))
+      t "@user/project/@user/branch" (ProjectAndBranchNames'Unambiguous (These "@user/project" "@user/branch"))
+      t "@user/project/releases/1.2.3" (ProjectAndBranchNames'Unambiguous (These "@user/project" "releases/1.2.3"))
+      t "@user/project/releases/drafts/1.2.3" (ProjectAndBranchNames'Unambiguous (These "@user/project" "releases/drafts/1.2.3")),
     scope "project name with optional project branch name" do
       let t input project branch =
             scope (Text.unpack input) $
               expectEqual
-                (Just (ProjectAndBranch (UnsafeProjectName project) (UnsafeProjectBranchName <$> branch)))
+                (Just (ProjectAndBranch project branch))
                 (either (const Nothing) Just (tryFrom @Text @(ProjectAndBranch ProjectName (Maybe ProjectBranchName)) input))
       t "project" "project" Nothing
       t "project/branch" "project" (Just "branch")
@@ -73,7 +91,7 @@ projectTests =
       let t input project branch =
             scope (Text.unpack input) $
               expectEqual
-                (Just (ProjectAndBranch (UnsafeProjectName <$> project) (UnsafeProjectBranchName branch)))
+                (Just (ProjectAndBranch project branch))
                 (either (const Nothing) Just (tryFrom @Text @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) input))
       t "branch" Nothing "branch"
       t "@user/branch" Nothing "@user/branch"
@@ -92,3 +110,8 @@ projectTests =
       t "@user/project/releases/1.2.3" (Just "@user/project") "releases/1.2.3"
       t "@user/project/releases/drafts/1.2.3" (Just "@user/project") "releases/drafts/1.2.3"
   ]
+
+-- Evil instances for convenience/readability
+instance IsString ProjectName where fromString = UnsafeProjectName . fromString
+
+instance IsString ProjectBranchName where fromString = UnsafeProjectBranchName . fromString

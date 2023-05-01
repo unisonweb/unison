@@ -14,6 +14,8 @@ module Unison.Project
     classifyProjectBranchName,
     ProjectAndBranch (..),
     projectAndBranchNamesParser,
+    ProjectAndBranchNames (..),
+    projectAndBranchNamesParser2,
 
     -- ** Semver
     Semver (..),
@@ -266,8 +268,64 @@ projectBranchNameUserSlug (UnsafeProjectBranchName branchName) =
     then Just (Text.takeWhile (/= '/') (Text.drop 1 branchName))
     else Nothing
 
--- | @project/branch@ syntax for project+branch pair, with up to one
--- side optional. Missing value means "the current one".
+instance From (ProjectAndBranch ProjectName ProjectBranchName) Text where
+  from (ProjectAndBranch project branch) =
+    Text.Builder.run $
+      Text.Builder.text (into @Text project)
+        <> Text.Builder.char '/'
+        <> Text.Builder.text (into @Text branch)
+
+-- | Sometimes, it's convenient (to users) if we defer interpreting certain names (like "foo") as a project name or
+-- branch name, instead leaving it up to a command handler to handle the ambiguity.
+--
+-- For example, we might want "switch foo" to switch to either the project "foo", or the branch "foo", or complain if
+-- both exist.
+--
+-- This type is useful for those situtations.
+data ProjectAndBranchNames
+  = ProjectAndBranchNames'Ambiguous ProjectName ProjectBranchName
+  | ProjectAndBranchNames'Unambiguous (These ProjectName ProjectBranchName)
+  deriving stock (Eq, Show)
+
+instance TryFrom Text ProjectAndBranchNames where
+  tryFrom =
+    maybeTryFrom (Megaparsec.parseMaybe projectAndBranchNamesParser2)
+
+projectAndBranchNamesParser2 :: Megaparsec.Parsec Void Text ProjectAndBranchNames
+projectAndBranchNamesParser2 = do
+  optional (Megaparsec.char '/') >>= \case
+    Nothing ->
+      asum
+        [ -- Try parsing <project/branch>, backtracking on failure.
+          Megaparsec.try do
+            project <- projectNameParser
+            void (Megaparsec.char '/')
+            branch <- projectBranchNameParser
+            pure (ProjectAndBranchNames'Unambiguous (These project branch)),
+          -- Try parsing <project>, with the additional restriction that there is not a trailing forward slash. This is
+          -- to prevent successfully parsing branch "releases/1.2.3" as project "releases" with leftovers "/1.2.3".
+          --
+          -- If the project parser succeeds, try parsing the same string as a branch, too, and return an ambiguous or
+          -- unambiguous parse accordingly.
+          --
+          -- N.B. at the time of writing (May 2023) it's not possible to spell a project name that doesn't also parse as
+          -- a valid branch name, but there may be some day; this parser properly handles that possibility.
+          Megaparsec.try do
+            project <- projectNameParser
+            Megaparsec.notFollowedBy (Megaparsec.char '/')
+            pure case Megaparsec.parseMaybe projectBranchNameParser (into @Text project) of
+              Nothing -> ProjectAndBranchNames'Unambiguous (This project)
+              Just branch -> ProjectAndBranchNames'Ambiguous project branch,
+          -- If this isn't <project/branch> nor <project>, it's <branch>
+          unambiguousBranchParser
+        ]
+    Just _ -> unambiguousBranchParser
+  where
+    unambiguousBranchParser = do
+      branch <- projectBranchNameParser
+      pure (ProjectAndBranchNames'Unambiguous (That branch))
+
+-- TODO this should go away in favor of ProjectAndBranchNames
 instance From (These ProjectName ProjectBranchName) Text where
   from = \case
     This project1 -> into @Text project1
