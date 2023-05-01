@@ -2340,8 +2340,8 @@ projectCreate =
 projectSwitch :: InputPattern
 projectSwitch =
   InputPattern
-    { patternName = "project.switch",
-      aliases = ["switch"],
+    { patternName = "switch",
+      aliases = ["project.switch"],
       visibility = I.Hidden,
       argTypes = [(Required, projectAndBranchNamesArg)],
       help = P.wrap "Switch to a project or project branch.",

@@ -457,6 +457,35 @@ notifyNumbered = \case
             prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
               <> " on "
               <> P.hiBlack (P.shown host)
+  BothLocalProjectAndProjectBranchExist project branch ->
+    ( P.wrap
+        ( "Project"
+            <> prettyProjectName project
+            <> "and branch"
+            <> prettySlashProjectBranchName branch
+            <> "both exist. Did you mean:"
+        )
+        <> P.newline
+        <> P.newline
+        <> P.numberedList
+          [ switch [prettySlashProjectBranchName branch],
+            switch [prettyProjectAndBranchName (ProjectAndBranch project (UnsafeProjectBranchName "main"))]
+          ]
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( "use "
+              <> switch ["1"]
+              <> " or "
+              <> switch ["2"]
+              <> " to pick one of these."
+          ),
+      [ Text.unpack (Text.cons '/' (into @Text branch)),
+        Text.unpack (into @Text (ProjectAndBranch project (UnsafeProjectBranchName "main")))
+      ]
+    )
+    where
+      switch = IP.makeExample IP.projectSwitch
   where
     absPathToBranchId = Right
 
@@ -1925,13 +1954,6 @@ notifyUser dir = \case
         <> "nor branch"
         <> prettySlashProjectBranchName branch
         <> "exist."
-  BothLocalProjectAndProjectBranchExist project branch ->
-    pure . P.wrap $
-      "Project"
-        <> prettyProjectName project
-        <> "and branch"
-        <> prettySlashProjectBranchName branch
-        <> "both exist."
   RemoteProjectDoesntExist host project ->
     pure . P.wrap $
       prettyProjectName project <> "does not exist on" <> prettyURI host

@@ -115,6 +115,7 @@ data NumberedOutput
   | ListEdits Patch PPE.PrettyPrintEnv
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
+  | BothLocalProjectAndProjectBranchExist ProjectName ProjectBranchName
 
 --  | ShowDiff
 
@@ -321,7 +322,6 @@ data Output
     NoAssociatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
   | LocalProjectNorProjectBranchExist ProjectName ProjectBranchName
-  | BothLocalProjectAndProjectBranchExist ProjectName ProjectBranchName
   | RemoteProjectDoesntExist URI ProjectName
   | RemoteProjectBranchDoesntExist URI (ProjectAndBranch ProjectName ProjectBranchName)
   | RemoteProjectReleaseIsDeprecated URI (ProjectAndBranch ProjectName ProjectBranchName)
@@ -528,7 +528,6 @@ isFailure o = case o of
   ProjectAndBranchNameAlreadyExists {} -> True
   LocalProjectBranchDoesntExist {} -> True
   LocalProjectNorProjectBranchExist {} -> True
-  BothLocalProjectAndProjectBranchExist {} -> True
   RemoteProjectDoesntExist {} -> True
   RemoteProjectBranchDoesntExist {} -> True
   RemoteProjectReleaseIsDeprecated {} -> True
@@ -546,21 +545,22 @@ isFailure o = case o of
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
-  ShowDiffNamespace {} -> False
-  ShowDiffAfterDeleteDefinitions {} -> False
-  ShowDiffAfterDeleteBranch {} -> False
-  ShowDiffAfterModifyBranch {} -> False
-  ShowDiffAfterMerge {} -> False
-  ShowDiffAfterMergePropagate {} -> False
-  ShowDiffAfterMergePreview {} -> False
-  ShowDiffAfterUndo {} -> False
-  ShowDiffAfterPull {} -> False
-  ShowDiffAfterCreateAuthor {} -> False
-  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
+  BothLocalProjectAndProjectBranchExist {} -> True
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
-  History {} -> False
   DeletedDespiteDependents {} -> False
+  History {} -> False
+  ListBranches {} -> False
   ListEdits {} -> False
   ListProjects {} -> False
-  ListBranches {} -> False
+  ShowDiffAfterCreateAuthor {} -> False
+  ShowDiffAfterDeleteBranch {} -> False
+  ShowDiffAfterDeleteDefinitions {} -> False
+  ShowDiffAfterMerge {} -> False
+  ShowDiffAfterMergePreview {} -> False
+  ShowDiffAfterMergePropagate {} -> False
+  ShowDiffAfterModifyBranch {} -> False
+  ShowDiffAfterPull {} -> False
+  ShowDiffAfterUndo {} -> False
+  ShowDiffNamespace {} -> False
+  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
