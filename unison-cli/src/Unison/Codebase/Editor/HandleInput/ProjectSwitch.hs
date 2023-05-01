@@ -36,7 +36,6 @@ projectSwitch = \case
               <*> Queries.projectBranchExistsByName (currentProject ^. #projectId) branchName
         case (projectExists, branchExists) of
           (False, False) -> Cli.respond (Output.LocalProjectNorProjectBranchExist projectName branchName)
-
           (False, True) -> switchToProjectAndBranchByTheseNames (These (currentProject ^. #name) branchName)
           (True, False) -> switchToProjectAndBranchByTheseNames (This projectName)
           (True, True) -> Cli.respond (Output.BothLocalProjectAndProjectBranchExist projectName branchName)
