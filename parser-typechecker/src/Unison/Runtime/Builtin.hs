@@ -2560,7 +2560,7 @@ declareForeigns = do
        socket :: SYS.Socket
        ) -> TLS.contextNew socket config
     
-  declareForeign Tracked "Tls.ClientConfig.withAuthCert.impl" boxBoxBoxDirect . mkForeign $
+  declareForeign Tracked "Tls.ClientConfig.withAuthCert" boxBoxBoxDirect . mkForeign $
     \(cert :: X.SignedCertificate, key :: X.PrivKey, params :: ClientParams) ->
       let chain = X.CertificateChain [cert] in
       pure $ params
