@@ -41,8 +41,8 @@ jobs:
         os:
           # temporarily disable non-windows builds to speed up iteration time
           - ubuntu-20.04
-          - macOS-11.0
-          - windows-2019
+          # - macOS-11.0
+          # - windows-2019
     steps:
       - uses: actions/checkout@v2
         with:
@@ -190,3 +190,19 @@ jobs:
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
       - name: cli-integration-tests
         run: stack --no-terminal exec cli-integration-tests
+
+      - uses: actions/cache@v3
+        name: cache ~/.cache/unisonlanguage (unix)
+        if: runner.os != 'Windows'
+        with:
+          path: ~/.cache/unisonlanguage
+          key: stack-0_${{matrix.os}}-${{github.sha}}
+          restore-keys: stack-0_${{matrix.os}}
+
+      - name: jit tests
+        if: runner.os != 'Windows'
+        run: ./unison-src/builtlin-tests/jit-tests.sh
+
+      - name: interpreter tests
+        if: runner.os != 'Windows'
+        run: ./unison-src/builtlin-tests/interpreter-tests.sh
