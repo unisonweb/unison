@@ -34,27 +34,13 @@ import Unison.Sync.Common (hash32ToCausalHash)
 import qualified Unison.Sync.Types as Share
 import Witch (unsafeFrom)
 
--- | Clone a remote project or remote project branch.
-branchClone :: These ProjectName ProjectBranchName -> Cli ()
-branchClone = \case
-  These projectName branchName -> cloneProjectAndBranch "branch.clone" (ProjectAndBranch projectName branchName)
-  This projectName ->
-    cloneProjectAndBranch
-      "branch.clone"
-      ProjectAndBranch
-        { project = projectName,
-          branch = unsafeFrom @Text "main"
-        }
-  That branchName -> cloneBranch branchName
-
--- | Clone a remote project or remote project branch.
-projectClone :: ProjectAndBranch ProjectName (Maybe ProjectBranchName) -> Cli ()
-projectClone projectAndBranch =
-  cloneProjectAndBranch "project.clone" (projectAndBranch & over #branch (fromMaybe (unsafeFrom @Text "main")))
-
--- Clone a branch from the remote project associated with the current project.
-cloneBranch :: ProjectBranchName -> Cli ()
-cloneBranch remoteBranchName = do
+-- | Clone a remote branch from the remote project associated with the current branch.
+--
+-- If there is no associated remote branch, fall back on its nearest ancestor with an associated remote branch, and if
+-- there are none, finally fall back on a name comparison (e.g. trying to clone branch "foo" while in local project
+-- named "@bar/baz" will look for branch "@bar/baz/foo" on the server)
+branchClone :: ProjectBranchName -> Cli ()
+branchClone remoteBranchName = do
   -- TODO: allow user to override this with second argument
   let localBranchName = remoteBranchName
 
@@ -93,8 +79,10 @@ cloneBranch remoteBranchName = do
 
   cloneInto "branch.clone" localProjectBranch remoteProjectBranch
 
-cloneProjectAndBranch :: Text -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
-cloneProjectAndBranch command remoteProjectAndBranch = do
+-- | Clone a remote project or remote project branch.
+projectClone :: ProjectAndBranch ProjectName (Maybe ProjectBranchName) -> Cli ()
+projectClone remoteProjectAndBranch0 = do
+  let remoteProjectAndBranch = remoteProjectAndBranch0 & over #branch (fromMaybe (unsafeFrom @Text "main"))
   let remoteProjectName = remoteProjectAndBranch ^. #project
   let remoteBranchName = remoteProjectAndBranch ^. #branch
   -- TODO: allow user to override these with second argument
@@ -110,10 +98,9 @@ cloneProjectAndBranch command remoteProjectAndBranch = do
   void (Cli.runEitherTransaction (assertLocalProjectBranchDoesntExist localProjectBranch))
 
   -- Get the branch of the given project.
-  remoteProjectBranch <-
-    ProjectUtils.expectRemoteProjectBranchByNames (ProjectAndBranch (localProjectBranch ^. #project) remoteBranchName)
+  remoteProjectBranch <- ProjectUtils.expectRemoteProjectBranchByNames remoteProjectAndBranch
 
-  cloneInto command localProjectBranch remoteProjectBranch
+  cloneInto "project.clone" localProjectBranch remoteProjectBranch
 
 -- `cloneInto command local remote` clones `remote` into `local`, which is believed to not exist yet, but may (because
 -- it takes some time to pull the remote). The `command` argument is used in the reflog to indicate whether this was a
