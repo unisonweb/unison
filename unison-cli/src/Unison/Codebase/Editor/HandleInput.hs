@@ -1455,7 +1455,7 @@ inputDescription input =
         DeleteTarget'Patch path0 -> do
           path <- ps' path0
           pure ("delete.patch " <> path)
-        DeleteTarget'ProjectBranch projectAndBranch -> pure ("delete.branch " <> into @Text projectAndBranch)
+        DeleteTarget'ProjectBranch _ -> wat
     ReplaceI src target p0 -> do
       p <- opatch p0
       pure $
@@ -1536,7 +1536,6 @@ inputDescription input =
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     ProjectCreateI project -> pure ("project.create " <> into @Text project)
-    ProjectSwitchI projectAndBranch -> pure ("project.switch " <> into @Text projectAndBranch)
     ClearI {} -> pure "clear"
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
     --
@@ -1577,6 +1576,7 @@ inputDescription input =
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
     ProjectCloneI _ -> wat
+    ProjectSwitchI _ -> wat
     ProjectsI -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat

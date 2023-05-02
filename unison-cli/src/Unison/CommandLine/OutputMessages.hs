@@ -22,7 +22,6 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.These (These (..))
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Data.Tuple (swap)
@@ -441,7 +440,7 @@ notifyNumbered = \case
                 ]
                   : map (\branch -> ["", "", prettyRemoteBranchInfo branch]) remoteBranches
         ),
-      map (\(branchName, _) -> Text.unpack (into @Text (These projectName branchName))) branches
+      map (\(branchName, _) -> Text.unpack (into @Text (ProjectAndBranch projectName branchName))) branches
     )
     where
       prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
@@ -458,6 +457,35 @@ notifyNumbered = \case
             prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
               <> " on "
               <> P.hiBlack (P.shown host)
+  BothLocalProjectAndProjectBranchExist project branch ->
+    ( P.wrap
+        ( "Project"
+            <> prettyProjectName project
+            <> "and branch"
+            <> prettySlashProjectBranchName branch
+            <> "both exist. Did you mean:"
+        )
+        <> P.newline
+        <> P.newline
+        <> P.numberedList
+          [ switch [prettySlashProjectBranchName branch],
+            switch [prettyProjectAndBranchName (ProjectAndBranch project (UnsafeProjectBranchName "main"))]
+          ]
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( "use "
+              <> switch ["1"]
+              <> " or "
+              <> switch ["2"]
+              <> " to pick one of these."
+          ),
+      [ Text.unpack (Text.cons '/' (into @Text branch)),
+        Text.unpack (into @Text (ProjectAndBranch project (UnsafeProjectBranchName "main")))
+      ]
+    )
+    where
+      switch = IP.makeExample IP.projectSwitch
   where
     absPathToBranchId = Right
 
@@ -569,7 +597,7 @@ prettyURI = P.bold . P.blue . P.shown
 prettyReadRemoteNamespace :: ReadRemoteNamespace Share.RemoteProjectBranch -> Pretty
 prettyReadRemoteNamespace =
   prettyReadRemoteNamespaceWith \remoteProjectBranch ->
-    into @Text (These (remoteProjectBranch ^. #projectName) (remoteProjectBranch ^. #branchName))
+    into @Text (ProjectAndBranch (remoteProjectBranch ^. #projectName) (remoteProjectBranch ^. #branchName))
 
 prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
 prettyReadRemoteNamespaceWith printProject =
@@ -1919,6 +1947,13 @@ notifyUser dir = \case
   LocalProjectBranchDoesntExist projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist."
+  LocalProjectNorProjectBranchExist project branch ->
+    pure . P.wrap $
+      "Neither project"
+        <> prettyProjectName project
+        <> "nor branch"
+        <> prettySlashProjectBranchName branch
+        <> "exists."
   RemoteProjectDoesntExist host project ->
     pure . P.wrap $
       prettyProjectName project <> "does not exist on" <> prettyURI host
@@ -2018,8 +2053,8 @@ notifyUser dir = \case
         <> tip
           ( "if you get pulled away from drafting your release, you can always get back to it with "
               <> IP.makeExample IP.projectSwitch [prettySlashProjectBranchName branch]
-              <> "."
           )
+        <> "."
   CannotCreateReleaseBranchWithBranchCommand branch ver ->
     pure $
       P.wrap ("Branch names like" <> prettyProjectBranchName branch <> "are reserved for releases.")
@@ -2362,8 +2397,8 @@ prettySlashProjectBranchName =
   P.blue . P.text . Text.cons '/' . into @Text
 
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
-prettyProjectAndBranchName (ProjectAndBranch projectName branchName) =
-  P.blue (P.text (into @Text (These projectName branchName)))
+prettyProjectAndBranchName names =
+  P.blue (P.text (into @Text names))
 
 prettyPathOrProjectAndBranchName :: Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
 prettyPathOrProjectAndBranchName = \case

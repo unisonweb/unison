@@ -48,7 +48,7 @@ foo/main> release.draft 1.2.3
   
   Tip: if you get pulled away from drafting your release, you
        can always get back to it with
-       `project.switch /releases/drafts/1.2.3` .
+       `switch /releases/drafts/1.2.3`.
 
 ```
 It's an error to try to create a `releases/drafts/x.y.z` branch that already exists.

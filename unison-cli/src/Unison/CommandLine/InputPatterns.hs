@@ -44,7 +44,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName, Semver)
+import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames, ProjectBranchName, ProjectName, Semver)
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
 import qualified Unison.Syntax.Name as Name (fromText, unsafeFromString)
 import qualified Unison.Util.ColorText as CT
@@ -2340,14 +2340,14 @@ projectCreate =
 projectSwitch :: InputPattern
 projectSwitch =
   InputPattern
-    { patternName = "project.switch",
-      aliases = ["switch"],
+    { patternName = "switch",
+      aliases = ["project.switch"],
       visibility = I.Hidden,
       argTypes = [(Required, projectAndBranchNamesArg)],
       help = P.wrap "Switch to a project or project branch.",
       parse = \case
         [name] ->
-          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+          case tryInto @ProjectAndBranchNames (Text.pack name) of
             Left _ -> Left (showPatternHelp projectSwitch)
             Right projectAndBranch -> Right (Input.ProjectSwitchI projectAndBranch)
         _ -> Left (showPatternHelp projectSwitch)

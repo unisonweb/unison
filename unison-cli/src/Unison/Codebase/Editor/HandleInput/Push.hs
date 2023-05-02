@@ -587,7 +587,7 @@ executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
               (codeserverBaseURL Codeserver.defaultCodeserver)
               -- On the wire, the remote branch is encoded as e.g.
               --   { "repo_info": "@unison/base/@arya/topic", ... }
-              (Share.RepoInfo (into @Text (These (remoteBranch ^. #project) (remoteBranch ^. #branch))))
+              (Share.RepoInfo (into @Text (ProjectAndBranch (remoteBranch ^. #project) (remoteBranch ^. #branch))))
               (Set.NonEmpty.singleton causalHash)
               uploadedCallback
       upload & onLeftM \err0 -> do

@@ -65,7 +65,7 @@ import Unison.CommandLine.Welcome (asciiartUnison)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (ProjectAndBranchNames'Unambiguous), ProjectBranchName, ProjectName)
 import qualified Unison.Runtime.Interface as RTI
 import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
@@ -128,7 +128,7 @@ instance Show UcmLine where
     where
       showContext = \case
         UcmContextLooseCode path -> show path
-        UcmContextProject (ProjectAndBranch project branch) -> Text.unpack (into @Text (These project branch))
+        UcmContextProject projectAndBranch -> Text.unpack (into @Text projectAndBranch)
 
 instance Show Stanza where
   show s = case s of
@@ -337,9 +337,10 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                       ProjectAndBranch project branch <-
                         ProjectUtils.expectProjectAndBranchByTheseNames (These projectName branchName)
                       let projectAndBranchIds = ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)
-                      if curPath == ProjectUtils.projectBranchPath projectAndBranchIds
-                        then pure Nothing
-                        else pure (Just (ProjectSwitchI (These projectName branchName)))
+                      pure
+                        if curPath == ProjectUtils.projectBranchPath projectAndBranchIds
+                          then Nothing
+                          else Just (ProjectSwitchI (ProjectAndBranchNames'Unambiguous (These projectName branchName)))
                 case maybeSwitchCommand of
                   Just switchCommand -> do
                     atomically $ Q.undequeue cmdQueue (Just p)

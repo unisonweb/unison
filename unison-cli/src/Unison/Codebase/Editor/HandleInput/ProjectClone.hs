@@ -130,7 +130,7 @@ cloneInto command localProjectBranch remoteProjectBranch = do
       result <-
         Share.downloadEntities
           Share.hardCodedBaseUrl
-          (Share.RepoInfo (into @Text (These remoteProjectName remoteBranchName)))
+          (Share.RepoInfo (into @Text (ProjectAndBranch remoteProjectName remoteBranchName)))
           remoteBranchHeadJwt
           downloadedCallback
       numDownloaded <- liftIO getNumDownloaded
@@ -179,7 +179,7 @@ cloneInto command localProjectBranch remoteProjectBranch = do
   theBranch <- liftIO (Codebase.expectBranchForHash codebase branchHead)
   let path = projectBranchPath localProjectAndBranch
   Cli.stepAt
-    (command <> " " <> into @Text (These remoteProjectName remoteBranchName))
+    (command <> " " <> into @Text (ProjectAndBranch remoteProjectName remoteBranchName))
     (Path.unabsolute path, const (Branch.head theBranch))
   Cli.cd path
 

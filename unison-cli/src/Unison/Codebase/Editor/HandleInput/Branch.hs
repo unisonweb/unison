@@ -85,7 +85,7 @@ handleBranch sourceI projectAndBranchNames0 = do
         Nothing -> Left (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
         Just project -> Right project
 
-  doCreateBranch createFrom project newBranchName ("branch " <> into @Text (These projectName newBranchName))
+  doCreateBranch createFrom project newBranchName ("branch " <> into @Text projectAndBranchNames)
 
   Cli.respond $
     Output.CreatedProjectBranch
