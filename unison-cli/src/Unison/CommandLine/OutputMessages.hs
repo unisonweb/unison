@@ -469,7 +469,7 @@ notifyNumbered = \case
         <> P.newline
         <> P.numberedList
           [ switch [prettySlashProjectBranchName branch],
-            switch [prettyProjectAndBranchName (ProjectAndBranch project (UnsafeProjectBranchName "main"))]
+            switch [prettyProjectNameSlash project]
           ]
         <> P.newline
         <> P.newline
@@ -2377,6 +2377,11 @@ prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
 prettyProjectName :: ProjectName -> Pretty
 prettyProjectName =
   P.blue . P.text . into @Text
+
+-- | 'prettyProjectName' with a trailing slash.
+prettyProjectNameSlash :: ProjectName -> Pretty
+prettyProjectNameSlash =
+  P.blue . P.text . (`Text.snoc` '/') . into @Text
 
 prettyProjectBranchName :: ProjectBranchName -> Pretty
 prettyProjectBranchName =
