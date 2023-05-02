@@ -1953,7 +1953,7 @@ notifyUser dir = \case
         <> prettyProjectName project
         <> "nor branch"
         <> prettySlashProjectBranchName branch
-        <> "exist."
+        <> "exists."
   RemoteProjectDoesntExist host project ->
     pure . P.wrap $
       prettyProjectName project <> "does not exist on" <> prettyURI host

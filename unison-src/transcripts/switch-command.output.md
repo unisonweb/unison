@@ -91,6 +91,6 @@ It's an error to try to switch to something that doesn't exist, of course.
 foo/main> switch no-such-project-or-branch
 
   Neither project no-such-project-or-branch nor branch
-  /no-such-project-or-branch exist.
+  /no-such-project-or-branch exists.
 
 ```
