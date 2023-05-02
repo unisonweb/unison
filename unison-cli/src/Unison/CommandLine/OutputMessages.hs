@@ -460,7 +460,7 @@ notifyNumbered = \case
   BothLocalProjectAndProjectBranchExist project branch ->
     ( P.wrap
         ( "Project"
-            <> prettyProjectName project
+            <> prettyProjectNameSlash project
             <> "and branch"
             <> prettySlashProjectBranchName branch
             <> "both exist. Did you mean:"

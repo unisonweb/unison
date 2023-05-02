@@ -68,7 +68,7 @@ It's an error to try to switch to something ambiguous.
 ```ucm
 foo/main> switch bar
 
-  Project bar and branch /bar both exist. Did you mean:
+  Project bar/ and branch /bar both exist. Did you mean:
   
   1. `switch /bar`
   2. `switch bar/`
