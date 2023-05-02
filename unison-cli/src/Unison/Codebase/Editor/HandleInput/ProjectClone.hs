@@ -7,7 +7,6 @@ where
 
 import Control.Lens (over, (^.))
 import Control.Monad.Reader (ask)
-import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
 import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..))
 import qualified U.Codebase.Sqlite.Project as Sqlite (Project)
