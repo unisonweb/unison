@@ -1998,7 +1998,12 @@ notifyUser dir = \case
         <> "."
         <> P.newline
         <> P.newline
-        <> P.wrap ("While preparing we suggest you create a releaseNotes Doc. It'll automatically show up on Unison Share when you publish.")
+        <> P.wrap
+          ( "You can create a"
+              <> P.group (P.backticked "ReleaseNotes : Doc")
+              <> "in this branch to give an overview of the release."
+              <> "It'll automatically show up on Unison Share when you publish."
+          )
         <> P.newline
         <> P.newline
         <> P.wrap

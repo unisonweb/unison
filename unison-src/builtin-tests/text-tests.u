@@ -6,7 +6,8 @@ text.tests = do
  !text.conversion.tests
  !text.debug.tests
  !text.matching.tests
- -- !text.term.tests
+-- This is broken under the jit
+--  !text.term.tests
  !char.class.tests
 
 text.lit.tests = do
