@@ -45,7 +45,7 @@ handleDeleteBranch projectAndBranchNames0 = do
   let projectId = deletedBranch ^. #projectId
 
   Cli.stepAt
-    "project.delete-branch"
+    ("delete.branch " <> into @Text projectAndBranchNames)
     ( Path.unabsolute (ProjectUtils.projectBranchesPath projectId),
       \branchObject ->
         branchObject
