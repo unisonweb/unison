@@ -718,7 +718,7 @@ deleteBranch =
       help = P.wrap "Delete a project branch.",
       parse = \case
         [name] ->
-          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+          case tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name) of
             Left _ -> Left (showPatternHelp deleteBranch)
             Right projectAndBranch -> Right (Input.DeleteI (DeleteTarget'ProjectBranch projectAndBranch))
         _ -> Left (showPatternHelp deleteBranch)

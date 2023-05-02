@@ -6,7 +6,7 @@ where
 
 import Control.Lens (over, (^.))
 import qualified Data.Map.Strict as Map
-import Data.These (These)
+import Data.These (These (..))
 import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -24,9 +24,13 @@ import Witch (unsafeFrom)
 -- Currently, deleting a branch means deleting its `project_branch` row, then deleting its contents from the namespace.
 -- Its children branches, if any, are reparented to their grandparent, if any. You may delete the only branch in a
 -- project.
-handleDeleteBranch :: These ProjectName ProjectBranchName -> Cli ()
-handleDeleteBranch projectAndBranchTheseNames = do
-  projectAndBranchNames <- ProjectUtils.hydrateNames projectAndBranchTheseNames
+handleDeleteBranch :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
+handleDeleteBranch projectAndBranchNames0 = do
+  projectAndBranchNames <-
+    ProjectUtils.hydrateNames
+      case projectAndBranchNames0 of
+        ProjectAndBranch Nothing branch -> That branch
+        ProjectAndBranch (Just project) branch -> These project branch
 
   maybeCurrentBranch <- ProjectUtils.getCurrentProjectBranch
 
