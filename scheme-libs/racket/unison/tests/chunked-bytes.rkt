@@ -1,8 +1,8 @@
 #lang racket/base
 
 (require rackunit
-         "../../data/chunked-bytes.rkt"
-         "../../data/chunked-seq.rkt")
+         "../chunked-bytes.rkt"
+         "../chunked-seq.rkt")
 
 (define (unchunked proc)
   (make-keyword-procedure

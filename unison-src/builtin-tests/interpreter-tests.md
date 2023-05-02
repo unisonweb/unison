@@ -28,6 +28,8 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm:hide
 .> load unison-src/builtin-tests/tls-tests.u
 .> add
+.> load unison-src/builtin-tests/bytes-tests.u
+.> add
 ```
 
 ```ucm:hide

@@ -3,9 +3,22 @@
 (require racket/contract
          racket/fixnum
          racket/list
+         unison/core
+         (only-in unison/data left right exception)
          "chunked-seq.rkt")
 
-(provide (contract-out
+(provide
+    (prefix-out unison-FOp-Bytes.
+    (combine-out
+        toBase16
+        toBase32
+        toBase64
+        fromBase16
+        fromBase32
+        fromBase64
+        toBase64UrlUnpadded
+        fromBase64UrlUnpadded))
+    (contract-out
           [base16-encode (-> chunked-bytes? chunked-bytes?)]
           [base16-decode (->* [chunked-bytes?] [#:fail (-> string? any)] any)]
           [base32-encode (->* [chunked-bytes?] [#:alphabet (or/c 'standard 'hex)] chunked-bytes?)]
@@ -404,3 +417,24 @@
              (fxior (fxlshift (fxand d3 #b11) 6) d4)]))
 
         (build-chunked-bytes out-len (λ (i) (next-output-byte)))))]))
+
+;; -----------------------------------------------------------------------------
+;; Unison primops
+
+(define toBase16 base16-encode)
+(define (toBase32 bytes) (base32-encode bytes))
+(define (toBase64 bytes) (base64-encode bytes))
+(define (toBase64UrlUnpadded bytes) (base64-encode bytes #:pad? #f))
+
+(define (fromBase16 bytes)
+    (with-handlers [[exn:fail? (lambda (e) (left (exception->string e)))] ]
+        (right (base16-decode bytes))))
+(define (fromBase32 bytes)
+    (with-handlers [[exn:fail? (lambda (e) (left (exception->string e)))] ]
+        (right (base32-decode bytes))))
+(define (fromBase64 bytes)
+    (with-handlers [[exn:fail? (lambda (e) (left (exception->string e)))] ]
+        (right (base64-decode bytes))))
+(define (fromBase64UrlUnpadded bytes)
+    (with-handlers [[exn:fail? (lambda (e) (left (exception->string e)))] ]
+        (right (base64-decode bytes #:padded? #f))))
