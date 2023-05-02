@@ -296,26 +296,15 @@ projectAndBranchNamesParser2 = do
   optional (Megaparsec.char '/') >>= \case
     Nothing ->
       asum
-        [ -- Try parsing <project/branch>, backtracking on failure.
-          Megaparsec.try do
+        [ Megaparsec.try do
             project <- projectNameParser
-            void (Megaparsec.char '/')
-            branch <- projectBranchNameParser
-            pure (ProjectAndBranchNames'Unambiguous (These project branch)),
-          -- Try parsing <project>, with the additional restriction that there is not a trailing forward slash. This is
-          -- to prevent successfully parsing branch "releases/1.2.3" as project "releases" with leftovers "/1.2.3".
-          --
-          -- If the project parser succeeds, try parsing the same string as a branch, too, and return an ambiguous or
-          -- unambiguous parse accordingly.
-          --
-          -- N.B. at the time of writing (May 2023) it's not possible to spell a project name that doesn't also parse as
-          -- a valid branch name, but there may be some day; this parser properly handles that possibility.
-          Megaparsec.try do
-            project <- projectNameParser
-            Megaparsec.notFollowedBy (Megaparsec.char '/')
-            pure case Megaparsec.parseMaybe projectBranchNameParser (into @Text project) of
-              Nothing -> ProjectAndBranchNames'Unambiguous (This project)
-              Just branch -> ProjectAndBranchNames'Ambiguous project branch,
+            optional (Megaparsec.char '/') >>= \case
+              Nothing -> pure case Megaparsec.parseMaybe projectBranchNameParser (into @Text project) of
+                Nothing -> ProjectAndBranchNames'Unambiguous (This project)
+                Just branch -> ProjectAndBranchNames'Ambiguous project branch
+              Just _ -> do
+                branch <- projectBranchNameParser
+                pure (ProjectAndBranchNames'Unambiguous (These project branch)),
           -- If this isn't <project/branch> nor <project>, it's <branch>
           unambiguousBranchParser
         ]
