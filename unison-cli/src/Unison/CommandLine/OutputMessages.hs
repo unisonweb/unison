@@ -457,19 +457,19 @@ notifyNumbered = \case
             prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
               <> " on "
               <> P.hiBlack (P.shown host)
-  BothLocalProjectAndProjectBranchExist project branch ->
+  BothLocalProjectAndProjectBranchExist project (ProjectAndBranch currentProject branch) ->
     ( P.wrap
-        ( "Project"
-            <> prettyProjectName project
-            <> "and branch"
-            <> prettySlashProjectBranchName branch
-            <> "both exist. Did you mean:"
+        ( "I'm not sure if you wanted to switch to the branch"
+            <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
+            <> "or the project"
+            <> P.group (prettyProjectName project <> ".")
+            <> "Could you be more specific?"
         )
         <> P.newline
         <> P.newline
         <> P.numberedList
-          [ switch [prettySlashProjectBranchName branch],
-            switch [prettyProjectAndBranchName (ProjectAndBranch project (UnsafeProjectBranchName "main"))]
+          [ prettySlashProjectBranchName branch <> " (the branch " <> prettyProjectBranchName branch <> " in the current project)",
+            prettyProjectNameSlash project <> " (the project " <> prettyProjectName project <> ", with the branch left unspecified)"
           ]
         <> P.newline
         <> P.newline
@@ -2377,6 +2377,11 @@ prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
 prettyProjectName :: ProjectName -> Pretty
 prettyProjectName =
   P.blue . P.text . into @Text
+
+-- | 'prettyProjectName' with a trailing slash.
+prettyProjectNameSlash :: ProjectName -> Pretty
+prettyProjectNameSlash =
+  P.blue . P.text . (`Text.snoc` '/') . into @Text
 
 prettyProjectBranchName :: ProjectBranchName -> Pretty
 prettyProjectBranchName =

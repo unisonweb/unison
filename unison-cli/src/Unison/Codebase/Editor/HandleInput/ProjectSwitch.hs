@@ -29,6 +29,7 @@ projectSwitch = \case
     ProjectUtils.getCurrentProjectBranch >>= \case
       Nothing -> switchToProjectAndBranchByTheseNames (This projectName)
       Just (ProjectAndBranch currentProject _currentBranch) -> do
+        let currentProjectName = currentProject ^. #name
         (projectExists, branchExists) <-
           Cli.runTransaction do
             (,)
@@ -36,9 +37,13 @@ projectSwitch = \case
               <*> Queries.projectBranchExistsByName (currentProject ^. #projectId) branchName
         case (projectExists, branchExists) of
           (False, False) -> Cli.respond (Output.LocalProjectNorProjectBranchExist projectName branchName)
-          (False, True) -> switchToProjectAndBranchByTheseNames (These (currentProject ^. #name) branchName)
+          (False, True) -> switchToProjectAndBranchByTheseNames (These currentProjectName branchName)
           (True, False) -> switchToProjectAndBranchByTheseNames (This projectName)
-          (True, True) -> Cli.respondNumbered (Output.BothLocalProjectAndProjectBranchExist projectName branchName)
+          (True, True) ->
+            Cli.respondNumbered $
+              Output.BothLocalProjectAndProjectBranchExist
+                projectName
+                (ProjectAndBranch currentProjectName branchName)
   ProjectAndBranchNames'Unambiguous projectAndBranchNames0 ->
     switchToProjectAndBranchByTheseNames projectAndBranchNames0
 
