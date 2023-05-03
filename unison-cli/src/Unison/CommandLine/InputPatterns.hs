@@ -2794,32 +2794,35 @@ projectAndBranchNamesArg =
     branchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Completion
     branchToCompletion (_, branchName) =
       Completion
-        { replacement = string,
+        { replacement = '/' : stringBranchName,
           display =
             fold
-              [ Ansi.setSGRCode [Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Blue],
-                string,
+              [ Ansi.setSGRCode [Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Black],
+                "/",
+                Ansi.setSGRCode [Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Blue],
+                stringBranchName,
                 Ansi.setSGRCode [Ansi.Reset]
               ],
           isFinished = False
         }
       where
-        string = '/' : Text.unpack (into @Text branchName)
+        stringBranchName =
+          Text.unpack (into @Text branchName)
 
     projectToCompletion :: Sqlite.Project -> Completion
     projectToCompletion project =
       Completion
-        { replacement = string,
+        { replacement = stringProjectName,
           display =
             fold
               [ Ansi.setSGRCode [Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Green],
-                string,
+                stringProjectName,
                 Ansi.setSGRCode [Ansi.Reset]
               ],
           isFinished = False
         }
       where
-        string = Text.unpack (into @Text (project ^. #name))
+        stringProjectName = Text.unpack (into @Text (project ^. #name))
 
     -- Load branches matching input, throwing away the current branch.
     loadBranches ::
