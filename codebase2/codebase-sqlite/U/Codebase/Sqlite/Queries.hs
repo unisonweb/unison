@@ -106,6 +106,7 @@ module U.Codebase.Sqlite.Queries
     loadProjectByName,
     expectProject,
     loadAllProjects,
+    loadAllProjectsBeginningWith,
     insertProject,
 
     -- ** project branches
@@ -113,6 +114,7 @@ module U.Codebase.Sqlite.Queries
     loadProjectBranchByName,
     loadProjectBranchByNames,
     expectProjectBranch,
+    loadAllProjectBranchesBeginningWith,
     loadAllProjectBranchInfo,
     loadProjectAndBranchNames,
     insertProjectBranch,
@@ -344,7 +346,7 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
-import Unison.Core.Project (ProjectBranchName, ProjectName)
+import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import qualified Unison.Debug as Debug
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
@@ -2907,6 +2909,23 @@ loadAllProjects =
       ORDER BY name ASC
     |]
 
+-- | Load all projects whose name matches a prefix.
+loadAllProjectsBeginningWith :: Text -> Transaction [Project]
+loadAllProjectsBeginningWith prefix =
+  -- since we are not likely to many projects, we just get them all and filter in Haskell. This seems much simpler than
+  -- running a LIKE query, and dealing with escaping, case sensitivity, etc
+  fmap (filter matches) $
+    queryListRow2
+      [sql2|
+        SELECT id, name
+        FROM project
+        ORDER BY name ASC
+      |]
+  where
+    matches :: Project -> Bool
+    matches Project {name = UnsafeProjectName name} =
+      prefix `Text.isPrefixOf` name
+
 -- | Insert a `project` row.
 insertProject :: ProjectId -> ProjectName -> Transaction ()
 insertProject uuid name =
@@ -2993,6 +3012,24 @@ loadProjectBranchByNames projectName branchName =
         project.name = :projectName
         AND project_branch.name = :branchName
     |]
+
+-- | Load all branch id/name pairs in a project whose name matches a prefix.
+loadAllProjectBranchesBeginningWith :: ProjectId -> Text -> Transaction [(ProjectBranchId, ProjectBranchName)]
+loadAllProjectBranchesBeginningWith projectId prefix =
+  -- since a project is not likely to have many branches, we just get them all and filter in Haskell. This seems much
+  -- simpler than running a LIKE query, and dealing with escaping, case sensitivity, etc
+  fmap (filter matches) $
+    queryListRow2
+      [sql2|
+        SELECT project_branch.branch_id, project_branch.name
+        FROM project_branch
+        WHERE project_branch.project_id = :projectId
+        ORDER BY project_branch.name ASC
+      |]
+  where
+    matches :: (ProjectBranchId, ProjectBranchName) -> Bool
+    matches (_, UnsafeProjectBranchName name) =
+      prefix `Text.isPrefixOf` name
 
 -- | Load info about all branches in a project, for display by the @branches@ command.
 --

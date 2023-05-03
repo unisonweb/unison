@@ -3,6 +3,7 @@
 -}
 module Unison.CommandLine.InputPatterns where
 
+import Control.Lens (preview, (^.))
 import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
 import Data.List (intercalate)
@@ -12,8 +13,14 @@ import Data.Proxy (Proxy (..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.These (These (..))
+import qualified System.Console.ANSI as Ansi
 import System.Console.Haskeline.Completion (Completion (Completion))
+import qualified System.Console.Haskeline.Completion as Haskeline
 import qualified Text.Megaparsec as P
+import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
+import qualified U.Codebase.Sqlite.Project as Sqlite
+import qualified U.Codebase.Sqlite.Queries as Queries
+import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
@@ -45,6 +52,7 @@ import Unison.Name (Name)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames, ProjectBranchName, ProjectName, Semver)
+import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Syntax.HashQualified as HQ (fromString)
 import qualified Unison.Syntax.Name as Name (fromText, unsafeFromString)
 import qualified Unison.Util.ColorText as CT
@@ -714,7 +722,7 @@ deleteBranch =
     { patternName = "delete.branch",
       aliases = [],
       visibility = I.Hidden,
-      argTypes = [(Required, projectAndBranchNamesArg)],
+      argTypes = [(Required, projectBranchNameWithOptionalProjectNameArg)],
       help = P.wrap "Delete a project branch.",
       parse = \case
         [name] ->
@@ -2311,7 +2319,7 @@ projectClone =
     { patternName = "project.clone",
       aliases = [],
       visibility = I.Hidden,
-      argTypes = [(Required, projectAndBranchNamesArg)],
+      argTypes = [],
       help = P.wrap "Clone a project branch from a remote server.",
       parse = \case
         [name] ->
@@ -2381,7 +2389,7 @@ branchClone =
     { patternName = "branch.clone",
       aliases = ["clone"],
       visibility = I.Hidden,
-      argTypes = [(Required, projectAndBranchNamesArg)],
+      argTypes = [],
       help = P.wrap "Clone a project branch from a remote server.",
       parse = \case
         [name] ->
@@ -2397,7 +2405,7 @@ branchInputPattern =
     { patternName = "branch",
       aliases = [],
       visibility = I.Hidden,
-      argTypes = [(Required, projectAndBranchNamesArg)],
+      argTypes = [],
       help = P.wrap "Create a new branch from an existing branch or namespace.",
       parse = \case
         [source0, name] -> do
@@ -2420,7 +2428,7 @@ branchEmptyInputPattern =
     { patternName = "branch.empty",
       aliases = [],
       visibility = I.Hidden,
-      argTypes = [(Required, projectAndBranchNamesArg)],
+      argTypes = [],
       help = P.wrap "Create a new empty branch.",
       parse = \case
         [name] ->
@@ -2692,20 +2700,170 @@ remoteNamespaceArg =
       globTargets = mempty
     }
 
--- | A project name and optional branch name, separated by a colon.
+-- | A project name, branch name, or both.
 projectAndBranchNamesArg :: ArgumentType
 projectAndBranchNamesArg =
   ArgumentType
     { typeName = "project-and-branch-names",
-      suggestions = \_ _ _ _ -> pure [],
+      suggestions = \input codebase _httpClient path -> do
+        let currentBranch = preview ProjectUtils.projectBranchPathPrism path
+        (branches, projects) <-
+          Codebase.runTransaction
+            codebase
+            ((,) <$> loadBranches input currentBranch <*> loadProjects input currentBranch)
+        let branchCompletions = map branchToCompletion branches
+        let projectCompletions = map projectToCompletion projects
+        -- There's one final wibble to deal with here at the eleventh hour. You might think we can just append
+        -- branchCompletions to projectCompletions and call it a day, *however*...!
+        --
+        -- Say we have two branches "bar" and "biz". These branches are rendered (and completed) with leading forward
+        -- slashes.
+        --
+        --   > switch b<TAB>
+        --   /bar /biz
+        --
+        --   > switch ba<TAB>
+        --   > switch /bar -- the completion
+        --
+        -- Now say we repeat the above, but with a project "bongo".
+        --
+        --   > switch <TAB>
+        --   /bar /biz bongo
+        --
+        -- If the user types a prefix that's common to both a branch and a project, like "b", their input will simply
+        -- disappear. Wtf, haskeline?!
+        --
+        --   > switch b<TAB>
+        --   > switch -- the completion
+        --
+        -- Well, it makes sense: we tell haskeline that we have three completions, "/bar", "/biz", and "bongo", with
+        -- partial input "b". The longest common prefix here is the empty string "".
+        --
+        -- So, we have this final check. If there are indeed matching projects *and* matching branches, and the user
+        -- has input at least one character (i.e. they aren't just tab-completing like "switch <TAB>" to see
+        -- everything), then we pretend (for the sake of tab-completion) that there are only matching projects. This
+        -- makes the back-and-forth with the tab completer much more intuitive:
+        --
+        --   > switch <TAB>
+        --   /bar /biz bongo
+        --   > switch b<TAB>
+        --   > switch bongo -- the completion
+        --
+        -- A more optimal interface would not hide branches at all, even though their tab-completions end up prefixing
+        -- a forward-slash:
+        --
+        --   > switch <TAB>
+        --   /bar /biz bongo
+        --   > switch b<TAB>
+        --   /bar /biz bongo
+        --   > switch ba<TAB>
+        --   > switch /bar -- the completion
+        --
+        -- However, that simly doesn't seem possible with haskeline. Another sub-optimal point in the design space
+        -- would be to *not* actually tab-complete branch names with leading forward slashes, even though they are
+        -- rendered as such in the tab-completion options. For example,
+        --
+        --   > switch <TAB>
+        --   /bar /biz
+        --   > switch ba<TAB>
+        --   > switch bar -- the completion
+        --
+        -- However, this has the unfortunate disadvantage of tab-completing a possibly ambiguous thing for the user,
+        -- as in the case when there's both a branch and project with the same name:
+        --
+        --   > switch <TAB>
+        --   /bar /biz bar
+        --   > switch ba<TAB>
+        --   > switch bar -- the completion
+        --
+        --   Ambiguous! Try `switch /bar` or `switch bar/`
+        pure
+          if not (null branchCompletions) && not (null projectCompletions) && not (null input)
+            then projectCompletions
+            else branchCompletions ++ projectCompletions,
       globTargets = Set.empty
     }
+  where
+    beginsWithForwardSlash = \case
+      '/' : _ -> True
+      _ -> False
+    dropLeadingForwardSlash = \case
+      '/' : x -> x
+      x -> x
+
+    branchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Completion
+    branchToCompletion (_, branchName) =
+      Completion
+        { replacement = string,
+          display =
+            fold
+              [ Ansi.setSGRCode [Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Blue],
+                string,
+                Ansi.setSGRCode [Ansi.Reset]
+              ],
+          isFinished = False
+        }
+      where
+        string = '/' : Text.unpack (into @Text branchName)
+
+    projectToCompletion :: Sqlite.Project -> Completion
+    projectToCompletion project =
+      Completion
+        { replacement = string,
+          display =
+            fold
+              [ Ansi.setSGRCode [Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Green],
+                string,
+                Ansi.setSGRCode [Ansi.Reset]
+              ],
+          isFinished = False
+        }
+      where
+        string = Text.unpack (into @Text (project ^. #name))
+
+    -- Load branches matching input, throwing away the current branch.
+    loadBranches ::
+      String ->
+      Maybe (ProjectAndBranch ProjectId ProjectBranchId) ->
+      Sqlite.Transaction [(ProjectBranchId, ProjectBranchName)]
+    loadBranches input maybeCurrentProjectAndBranch =
+      case maybeCurrentProjectAndBranch of
+        Nothing -> pure []
+        Just (ProjectAndBranch currentProjectId currentBranchId) ->
+          fmap (filter (\(branchId, _) -> branchId /= currentBranchId)) $
+            Queries.loadAllProjectBranchesBeginningWith
+              currentProjectId
+              (Text.pack (dropLeadingForwardSlash input))
+
+    -- Load projects matching input, throwing away the current branch.
+    loadProjects :: String -> Maybe (ProjectAndBranch ProjectId ProjectBranchId) -> Sqlite.Transaction [Sqlite.Project]
+    loadProjects input maybeCurrentProjectAndBranch =
+      if beginsWithForwardSlash input
+        then pure []
+        else do
+          projects <- Queries.loadAllProjectsBeginningWith (Text.pack input)
+          pure (filt projects)
+      where
+        filt =
+          case maybeCurrentProjectAndBranch of
+            Nothing -> id
+            Just (ProjectAndBranch currentProjectId _) ->
+              filter (\project -> project ^. #projectId /= currentProjectId)
 
 -- | A project branch name.
 projectBranchNameArg :: ArgumentType
 projectBranchNameArg =
   ArgumentType
     { typeName = "project-branch-name",
+      suggestions = \_ _ _ _ -> pure [],
+      globTargets = Set.empty
+    }
+
+-- [project/]branch
+projectBranchNameWithOptionalProjectNameArg :: ArgumentType
+projectBranchNameWithOptionalProjectNameArg =
+  ArgumentType
+    { typeName = "project-branch-name-with-optional-project-name",
       suggestions = \_ _ _ _ -> pure [],
       globTargets = Set.empty
     }
