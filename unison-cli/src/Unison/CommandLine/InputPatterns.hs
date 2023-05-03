@@ -2379,17 +2379,21 @@ branchClone :: InputPattern
 branchClone =
   InputPattern
     { patternName = "branch.clone",
-      aliases = ["clone"],
+      aliases = [],
       visibility = I.Hidden,
-      argTypes = [(Required, projectAndBranchNamesArg)],
+      argTypes = [(Required, projectBranchNameArg)],
       help = P.wrap "Clone a project branch from a remote server.",
       parse = \case
-        [name] ->
-          case tryInto @(These ProjectName ProjectBranchName) (Text.pack name) of
+        [branchString] ->
+          case tryInto @ProjectBranchName (Text.pack (dropLeadingForwardSlash branchString)) of
             Left _ -> Left (showPatternHelp branchClone)
-            Right projectAndBranch -> Right (Input.BranchCloneI projectAndBranch)
+            Right branch -> Right (Input.BranchCloneI branch)
         _ -> Left (showPatternHelp branchClone)
     }
+  where
+    dropLeadingForwardSlash = \case
+      '/' : xs -> xs
+      xs -> xs
 
 branchInputPattern :: InputPattern
 branchInputPattern =
