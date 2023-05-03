@@ -68,10 +68,11 @@ It's an error to try to switch to something ambiguous.
 ```ucm
 foo/main> switch bar
 
-  Project bar/ and branch /bar both exist. Did you mean:
+  I'm not sure if you wanted to switch to the branch foo/bar or
+  the project bar. Could you be more specific?
   
-  1. `switch /bar`
-  2. `switch bar/`
+  1. /bar (the branch bar in the current project)
+  2. bar/ (the project bar, with the branch left unspecified)
   
   Tip: use `switch 1` or `switch 2` to pick one of these.
 
