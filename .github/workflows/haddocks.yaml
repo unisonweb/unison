@@ -8,7 +8,7 @@ defaults:
 on:
   push:
     branches:
-      - trunk
+      - haddocks-src
 
 jobs:
   build:
@@ -17,6 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
+          ref: 'haddocks-src'
           path: unison
 
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
