@@ -34,6 +34,18 @@ import Unison.Sync.Common (hash32ToCausalHash)
 import qualified Unison.Sync.Types as Share
 import Witch (unsafeFrom)
 
+data LocalProjectKey
+  = LocalProjectKey'Name ProjectName
+  | LocalProjectKey'Project Sqlite.Project
+
+data RemoteNames
+  = RemoteNames'Ambiguous ProjectName (ProjectAndBranch RemoteProjectKey ProjectBranchName)
+  | RemoteNames'Unambiguous (ProjectAndBranch RemoteProjectKey ProjectBranchName)
+
+data RemoteProjectKey
+  = RemoteProjectKey'Id Sqlite.RemoteProjectId
+  | RemoteProjectKey'Name ProjectName
+
 -- | Clone a remote branch.
 --
 -- There are three ways to call this command unambiguously:
@@ -93,21 +105,9 @@ import Witch (unsafeFrom)
 --
 --   foo/main> branch.empty basey
 --   foo/basey> pull @unison/base/main
-handleClone :: ProjectAndBranchNames -> Cli ()
-handleClone names =
-  handleClone2 names names
-
-data LocalProjectKey
-  = LocalProjectKey'Name ProjectName
-  | LocalProjectKey'Project Sqlite.Project
-
-data RemoteNames
-  = RemoteNames'Ambiguous ProjectName (ProjectAndBranch RemoteProjectKey ProjectBranchName)
-  | RemoteNames'Unambiguous (ProjectAndBranch RemoteProjectKey ProjectBranchName)
-
-data RemoteProjectKey
-  = RemoteProjectKey'Id Sqlite.RemoteProjectId
-  | RemoteProjectKey'Name ProjectName
+handleClone :: ProjectAndBranchNames -> Maybe ProjectAndBranchNames -> Cli ()
+handleClone remoteNames localNames =
+  handleClone2 (fromMaybe remoteNames localNames) remoteNames
 
 handleClone2 :: ProjectAndBranchNames -> ProjectAndBranchNames -> Cli ()
 handleClone2 localNames0 remoteNames0 = do

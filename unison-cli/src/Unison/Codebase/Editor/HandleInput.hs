@@ -1368,7 +1368,7 @@ loop e = do
             ProjectsI -> handleProjects
             BranchI source name -> handleBranch source name
             BranchesI -> handleBranches
-            CloneI name -> handleClone name
+            CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
 
 magicMainWatcherString :: String

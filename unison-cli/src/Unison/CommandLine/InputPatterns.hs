@@ -2414,12 +2414,16 @@ clone =
       visibility = I.Hidden,
       argTypes = [],
       help = P.wrap "Clone a project branch from a remote server.",
-      parse = \case
-        [name] ->
-          case tryInto @ProjectAndBranchNames (Text.pack name) of
-            Left _ -> Left (showPatternHelp clone)
-            Right projectAndBranch -> Right (Input.CloneI projectAndBranch)
-        _ -> Left (showPatternHelp clone)
+      parse =
+        maybe (Left (showPatternHelp clone)) Right . \case
+          [remoteNamesString] -> do
+            remoteNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack remoteNamesString))
+            Just (Input.CloneI remoteNames Nothing)
+          [remoteNamesString, localNamesString] -> do
+            remoteNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack remoteNamesString))
+            localNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack localNamesString))
+            Just (Input.CloneI remoteNames (Just localNames))
+          _ -> Nothing
     }
 
 releaseDraft :: InputPattern
