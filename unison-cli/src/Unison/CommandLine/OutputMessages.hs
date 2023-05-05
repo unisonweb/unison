@@ -451,7 +451,7 @@ notifyNumbered = \case
             P.hiBlack . P.text $
               "https://share.unison-lang.org/"
                 <> into @Text remoteProject
-                <> "/branches/"
+                <> "/code/"
                 <> into @Text remoteBranch
           else
             prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
