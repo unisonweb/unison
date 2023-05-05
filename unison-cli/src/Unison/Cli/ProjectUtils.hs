@@ -21,7 +21,9 @@ module Unison.Cli.ProjectUtils
     -- * Loading remote project info
     expectRemoteProjectByName,
     expectRemoteProjectBranchById,
+    loadRemoteProjectBranchByName,
     expectRemoteProjectBranchByName,
+    loadRemoteProjectBranchByNames,
     expectRemoteProjectBranchByNames,
     expectRemoteProjectBranchByTheseNames,
   )
@@ -155,6 +157,15 @@ expectRemoteProjectBranchById projectAndBranch = do
     projectAndBranchIds = projectAndBranch & over #project fst & over #branch fst
     projectAndBranchNames = projectAndBranch & over #project snd & over #branch snd
 
+loadRemoteProjectBranchByName ::
+  ProjectAndBranch RemoteProjectId ProjectBranchName ->
+  Cli (Maybe Share.RemoteProjectBranch)
+loadRemoteProjectBranchByName projectAndBranch =
+  Share.getProjectBranchByName projectAndBranch <&> \case
+    Share.GetProjectBranchResponseBranchNotFound -> Nothing
+    Share.GetProjectBranchResponseProjectNotFound -> Nothing
+    Share.GetProjectBranchResponseSuccess branch -> Just branch
+
 expectRemoteProjectBranchByName ::
   ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   Cli Share.RemoteProjectBranch
@@ -166,6 +177,14 @@ expectRemoteProjectBranchByName projectAndBranch =
   where
     doesntExist =
       remoteProjectBranchDoesntExist (projectAndBranch & over #project snd)
+
+loadRemoteProjectBranchByNames ::
+  ProjectAndBranch ProjectName ProjectBranchName ->
+  Cli (Maybe Share.RemoteProjectBranch)
+loadRemoteProjectBranchByNames (ProjectAndBranch projectName branchName) =
+ runMaybeT do
+  project <- MaybeT (Share.getProjectByName projectName)
+  MaybeT (loadRemoteProjectBranchByName (ProjectAndBranch (project ^. #projectId) branchName))
 
 expectRemoteProjectBranchByNames ::
   ProjectAndBranch ProjectName ProjectBranchName ->

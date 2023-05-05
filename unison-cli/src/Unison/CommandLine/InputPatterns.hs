@@ -2305,22 +2305,6 @@ diffNamespaceToPatch =
         _ -> Left (showPatternHelp diffNamespaceToPatch)
     }
 
-projectClone :: InputPattern
-projectClone =
-  InputPattern
-    { patternName = "project.clone",
-      aliases = [],
-      visibility = I.Hidden,
-      argTypes = [(Required, projectAndBranchNamesArg)],
-      help = P.wrap "Clone a project branch from a remote server.",
-      parse = \case
-        [name] ->
-          case tryInto @(ProjectAndBranch ProjectName (Maybe ProjectBranchName)) (Text.pack name) of
-            Left _ -> Left (showPatternHelp projectClone)
-            Right projectAndBranch -> Right (Input.ProjectCloneI projectAndBranch)
-        _ -> Left (showPatternHelp projectClone)
-    }
-
 projectCreate :: InputPattern
 projectCreate =
   InputPattern
@@ -2375,26 +2359,6 @@ branches =
       parse = \_ -> Right Input.BranchesI
     }
 
-branchClone :: InputPattern
-branchClone =
-  InputPattern
-    { patternName = "branch.clone",
-      aliases = [],
-      visibility = I.Hidden,
-      argTypes = [(Required, projectBranchNameArg)],
-      help = P.wrap "Clone a project branch from a remote server.",
-      parse = \case
-        [branchString] ->
-          case tryInto @ProjectBranchName (Text.pack (dropLeadingForwardSlash branchString)) of
-            Left _ -> Left (showPatternHelp branchClone)
-            Right branch -> Right (Input.BranchCloneI branch)
-        _ -> Left (showPatternHelp branchClone)
-    }
-  where
-    dropLeadingForwardSlash = \case
-      '/' : xs -> xs
-      xs -> xs
-
 branchInputPattern :: InputPattern
 branchInputPattern =
   InputPattern
@@ -2434,6 +2398,22 @@ branchEmptyInputPattern =
         _ -> Left (showPatternHelp branchEmptyInputPattern)
     }
 
+clone :: InputPattern
+clone =
+  InputPattern
+    { patternName = "clone",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [],
+      help = P.wrap "Clone a project branch from a remote server.",
+      parse = \case
+        [name] ->
+          case tryInto @ProjectAndBranchNames (Text.pack name) of
+            Left _ -> Left (showPatternHelp clone)
+            Right projectAndBranch -> Right (Input.CloneI projectAndBranch)
+        _ -> Left (showPatternHelp clone)
+    }
+
 releaseDraft :: InputPattern
 releaseDraft =
   InputPattern
@@ -2458,12 +2438,12 @@ validInputs =
       api,
       authLogin,
       back,
-      branchClone,
       branchEmptyInputPattern,
       branchInputPattern,
       branches,
       cd,
       clear,
+      clone,
       compileScheme,
       copyPatch,
       createAuthor,
@@ -2527,7 +2507,6 @@ validInputs =
       previewMergeLocal,
       previewUpdate,
       printVersion,
-      projectClone,
       projectCreate,
       projectSwitch,
       projects,

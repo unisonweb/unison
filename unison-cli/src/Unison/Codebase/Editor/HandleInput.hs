@@ -83,7 +83,7 @@ import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, man
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
-import Unison.Codebase.Editor.HandleInput.ProjectClone (branchClone, projectClone)
+import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
@@ -1364,12 +1364,11 @@ loop e = do
               description <- inputDescription input
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
             ProjectSwitchI name -> projectSwitch name
-            ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
-            BranchCloneI name -> branchClone name
             BranchI source name -> handleBranch source name
             BranchesI -> handleBranches
+            CloneI name -> handleClone name
             ReleaseDraftI semver -> handleReleaseDraft semver
 
 magicMainWatcherString :: String
@@ -1541,9 +1540,9 @@ inputDescription input =
     --
     ApiI -> wat
     AuthLoginI {} -> wat
-    BranchCloneI _ -> wat
     BranchI {} -> wat
     BranchesI -> wat
+    CloneI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat
@@ -1575,7 +1574,6 @@ inputDescription input =
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
-    ProjectCloneI _ -> wat
     ProjectSwitchI _ -> wat
     ProjectsI -> wat
     PushRemoteBranchI {} -> wat

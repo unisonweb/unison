@@ -2062,7 +2062,7 @@ notifyUser dir = \case
         <> P.newline
         <> tip
           ( "to download an existing release, try "
-              <> IP.makeExample IP.branchClone [prettySlashProjectBranchName branch]
+              <> IP.makeExample IP.clone [prettySlashProjectBranchName branch]
           )
         <> "."
         <> P.newline
