@@ -87,6 +87,7 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.HashQualified
+import qualified Unison.HashQualified as HQ
 import Unison.Name as Name (Name, segments)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
@@ -164,6 +165,24 @@ data Service
 instance Show BaseUrl where
   show url = urlHost url <> ":" <> show (urlPort url) <> "/" <> (URI.encode . unpack . urlToken $ url)
 
+-- | Create a Service URL, either for the UI or the API
+--
+-- Examples:
+--
+-- >>> urlFor Api { urlHost = "https://localhost", urlToken = "asdf", urlPort = Port 1234 }
+-- "https://localhost:1234/asdf/api"
+--
+-- >>> urlFor
+-- >>>   UI
+-- >>>     (Path.absoluteEmpty)
+-- >>>     (Just (TermReference (NameOnly (Name (NameSegment "base.data.List.map")))))
+-- "https://localhost:1234/asdf/ui/latest/terms/base/data/List/map"
+--
+-- >>> urlFor
+-- >>>   UI
+-- >>>     (Path.Absolute (Path.fromText "base.data"))
+-- >>>     (Just (TermReference (NameOnly (Name (NameSegment "List.map")))))
+-- "https://localhost:1234/asdf/ui/latest/namespaces/;/terms/base/data/List/map"
 urlFor :: Service -> BaseUrl -> String
 urlFor service baseUrl =
   case service of
