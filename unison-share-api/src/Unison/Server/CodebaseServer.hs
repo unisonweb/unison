@@ -87,7 +87,6 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.HashQualified
-import qualified Unison.HashQualified as HQ
 import Unison.Name as Name (Name, segments)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
@@ -169,20 +168,20 @@ instance Show BaseUrl where
 --
 -- Examples:
 --
--- >>> urlFor Api { urlHost = "https://localhost", urlToken = "asdf", urlPort = Port 1234 }
+-- >>> urlFor Api (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
 -- "https://localhost:1234/asdf/api"
 --
--- >>> urlFor
--- >>>   UI
--- >>>     (Path.absoluteEmpty)
--- >>>     (Just (TermReference (NameOnly (Name (NameSegment "base.data.List.map")))))
--- "https://localhost:1234/asdf/ui/latest/terms/base/data/List/map"
+-- >>> import qualified Unison.Syntax.Name as Name
+-- >>> let service = UI (Path.absoluteEmpty) (Just (TermReference (NameOnly (Name.unsafeFromText "base.data.List.map"))))
+-- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> urlFor service baseUrl
+-- "https://localhost:1234/asdf/ui/latest/;/terms/base/data/List/map"
 --
--- >>> urlFor
--- >>>   UI
--- >>>     (Path.Absolute (Path.fromText "base.data"))
--- >>>     (Just (TermReference (NameOnly (Name (NameSegment "List.map")))))
--- "https://localhost:1234/asdf/ui/latest/namespaces/;/terms/base/data/List/map"
+-- >>> import qualified Unison.Syntax.Name as Name
+-- >>> let service = UI (Path.Absolute (Path.fromText "base.data")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> urlFor service baseUrl
+-- "https://localhost:1234/asdf/ui/latest/namespaces/base/data/;/terms/List/map"
 urlFor :: Service -> BaseUrl -> String
 urlFor service baseUrl =
   case service of
