@@ -296,27 +296,29 @@ projectAndBranchNamesParser2 = do
   optional (Megaparsec.char '/') >>= \case
     Nothing ->
       asum
-        [ -- Try parsing <project/branch>, backtracking on failure.
-          Megaparsec.try do
+        [ Megaparsec.try do
             project <- projectNameParser
-            void (Megaparsec.char '/')
-            branch <- projectBranchNameParser
-            pure (ProjectAndBranchNames'Unambiguous (These project branch)),
-          -- Try parsing <project>, with the additional restriction that there is not a trailing forward slash. This is
-          -- to prevent successfully parsing branch "releases/1.2.3" as project "releases" with leftovers "/1.2.3".
-          --
-          -- If the project parser succeeds, try parsing the same string as a branch, too, and return an ambiguous or
-          -- unambiguous parse accordingly.
-          --
-          -- N.B. at the time of writing (May 2023) it's not possible to spell a project name that doesn't also parse as
-          -- a valid branch name, but there may be some day; this parser properly handles that possibility.
-          Megaparsec.try do
-            project <- projectNameParser
-            Megaparsec.notFollowedBy (Megaparsec.char '/')
-            pure case Megaparsec.parseMaybe projectBranchNameParser (into @Text project) of
-              Nothing -> ProjectAndBranchNames'Unambiguous (This project)
-              Just branch -> ProjectAndBranchNames'Ambiguous project branch,
-          -- If this isn't <project/branch> nor <project>, it's <branch>
+            optional (Megaparsec.char '/') >>= \case
+              Nothing -> pure case Megaparsec.parseMaybe projectBranchNameParser (into @Text project) of
+                Nothing -> ProjectAndBranchNames'Unambiguous (This project)
+                Just branch -> ProjectAndBranchNames'Ambiguous project branch
+              Just _ -> do
+                optional (Megaparsec.lookAhead Megaparsec.anySingle) >>= \case
+                  Nothing -> pure (ProjectAndBranchNames'Unambiguous (This project))
+                  Just nextChar
+                    -- This project looks like "<name>/<digit>" so far... we want to fail here, and pick back up at
+                    -- `unambiguousBranchParser` below, because a string like "releases/1.2.3" is a valid branch, and
+                    -- we don't want to succeed with project name "releases" and leftovers "1.2.3"
+                    --
+                    -- Technically it's pointless to fall back on `unambiguousBranchParser` if the project name is not
+                    -- exactly "releases", but oh well.
+                    | Char.isDigit nextChar -> empty
+                    -- If the character after "<name>/" is the valid start of a branch, then parse a branch.
+                    | Char.isAlpha nextChar || nextChar == '@' || nextChar == '_' -> do
+                        branch <- projectBranchNameParser
+                        pure (ProjectAndBranchNames'Unambiguous (These project branch))
+                    -- Otherwise, some invalid start-of-branch character follows, like a close paren or something.
+                    | otherwise -> pure (ProjectAndBranchNames'Unambiguous (This project)),
           unambiguousBranchParser
         ]
     Just _ -> unambiguousBranchParser

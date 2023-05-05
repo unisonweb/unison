@@ -19,13 +19,15 @@ foo/main> branch topic
 ```
 
 Now, the demo. When unambiguous, `switch` switches to either a project or a branch in the current project. A branch in
-the current project can be preceded by a forward slash (which makes it unambiguous).
+the current project can be preceded by a forward slash (which makes it unambiguous). A project can be followed by a
+forward slash (which makes it unambiguous).
 
 ```ucm
 .> switch foo
 .> switch foo/topic
 foo/main> switch topic
 foo/main> switch /topic
+foo/main> switch bar/
 ```
 
 It's an error to try to switch to something ambiguous.

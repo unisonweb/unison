@@ -115,7 +115,7 @@ data NumberedOutput
   | ListEdits Patch PPE.PrettyPrintEnv
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
-  | BothLocalProjectAndProjectBranchExist ProjectName ProjectBranchName
+  | BothLocalProjectAndProjectBranchExist ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
 
 --  | ShowDiff
 

@@ -451,25 +451,25 @@ notifyNumbered = \case
             P.hiBlack . P.text $
               "https://share.unison-lang.org/"
                 <> into @Text remoteProject
-                <> "/branches/"
+                <> "/code/"
                 <> into @Text remoteBranch
           else
             prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
               <> " on "
               <> P.hiBlack (P.shown host)
-  BothLocalProjectAndProjectBranchExist project branch ->
+  BothLocalProjectAndProjectBranchExist project (ProjectAndBranch currentProject branch) ->
     ( P.wrap
-        ( "Project"
-            <> prettyProjectName project
-            <> "and branch"
-            <> prettySlashProjectBranchName branch
-            <> "both exist. Did you mean:"
+        ( "I'm not sure if you wanted to switch to the branch"
+            <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
+            <> "or the project"
+            <> P.group (prettyProjectName project <> ".")
+            <> "Could you be more specific?"
         )
         <> P.newline
         <> P.newline
         <> P.numberedList
-          [ switch [prettySlashProjectBranchName branch],
-            switch [prettyProjectAndBranchName (ProjectAndBranch project (UnsafeProjectBranchName "main"))]
+          [ prettySlashProjectBranchName branch <> " (the branch " <> prettyProjectBranchName branch <> " in the current project)",
+            prettyProjectNameSlash project <> " (the project " <> prettyProjectName project <> ", with the branch left unspecified)"
           ]
         <> P.newline
         <> P.newline
@@ -2376,7 +2376,12 @@ prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
 
 prettyProjectName :: ProjectName -> Pretty
 prettyProjectName =
-  P.blue . P.text . into @Text
+  P.green . P.text . into @Text
+
+-- | 'prettyProjectName' with a trailing slash.
+prettyProjectNameSlash :: ProjectName -> Pretty
+prettyProjectNameSlash =
+  P.blue . P.text . (`Text.snoc` '/') . into @Text
 
 prettyProjectBranchName :: ProjectBranchName -> Pretty
 prettyProjectBranchName =
@@ -2393,12 +2398,12 @@ prettySemver (Semver x y z) =
 -- Not all project branches are printed such: for example, when listing all branches of a project, we probably don't
 -- need or want to prefix every one with a forward slash.
 prettySlashProjectBranchName :: ProjectBranchName -> Pretty
-prettySlashProjectBranchName =
-  P.blue . P.text . Text.cons '/' . into @Text
+prettySlashProjectBranchName branch =
+  P.group (P.hiBlack "/" <> prettyProjectBranchName branch)
 
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
-prettyProjectAndBranchName names =
-  P.blue (P.text (into @Text names))
+prettyProjectAndBranchName (ProjectAndBranch project branch) =
+  P.group (prettyProjectName project <> P.hiBlack "/" <> prettyProjectBranchName branch)
 
 prettyPathOrProjectAndBranchName :: Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
 prettyPathOrProjectAndBranchName = \case
