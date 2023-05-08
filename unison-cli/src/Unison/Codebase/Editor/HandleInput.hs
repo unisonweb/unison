@@ -8,7 +8,6 @@ where
 
 -- TODO: Don't import backend
 
-import Control.Concurrent.STM (atomically)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Exception (catch)
 import Control.Lens
@@ -213,7 +212,6 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -902,14 +900,13 @@ loop e = do
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               #numberedArgs .= fmap entryToHQString entries
-              getRoot <- atomically . STM.readTMVar <$> use #root
+              currentBranch <- Cli.getCurrentBranch
               let buildPPE = do
                     schLength <- Codebase.runTransaction codebase Codebase.branchHashLength
-                    rootBranch <- getRoot
                     pure $
                       Backend.basicSuffixifiedNames
                         schLength
-                        rootBranch
+                        currentBranch
                         (Backend.AllNames (Path.unabsolute pathArgAbs))
               Cli.respond $ ListShallow buildPPE entries
               where

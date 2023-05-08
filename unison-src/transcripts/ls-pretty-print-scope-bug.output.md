@@ -101,7 +101,7 @@ namespace rooted at `.c`.
 .c> ls
 
   1. d/  (1 term)
-  2. foo (b.Foo)
+  2. foo (#uj8oalgadr)
   3. g/  (1 term, 1 type)
 
 ```
