@@ -115,7 +115,7 @@ data NumberedOutput
   | ListEdits Patch PPE.PrettyPrintEnv
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
-  | BothLocalProjectAndProjectBranchExist ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
+  | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
 
 --  | ShowDiff
 
@@ -337,6 +337,8 @@ data Output
     NotImplementedYet Text
   | DraftingRelease ProjectBranchName Semver
   | CannotCreateReleaseBranchWithBranchCommand ProjectBranchName Semver
+  | -- | The `local` in two-argument `clone remote local` is ambiguous
+    AmbiguousCloneLocal ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
 
 -- | What did we create a project branch from?
 --
@@ -397,6 +399,7 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  AmbiguousCloneLocal {} -> True
   NoLastRunResult {} -> True
   SaveTermNameConflict {} -> True
   RunResult {} -> False
@@ -545,7 +548,7 @@ isFailure o = case o of
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
-  BothLocalProjectAndProjectBranchExist {} -> True
+  AmbiguousSwitch {} -> True
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
   DeletedDespiteDependents {} -> False

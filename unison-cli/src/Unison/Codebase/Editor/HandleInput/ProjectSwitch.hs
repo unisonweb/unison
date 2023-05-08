@@ -41,7 +41,7 @@ projectSwitch = \case
           (True, False) -> switchToProjectAndBranchByTheseNames (This projectName)
           (True, True) ->
             Cli.respondNumbered $
-              Output.BothLocalProjectAndProjectBranchExist
+              Output.AmbiguousSwitch
                 projectName
                 (ProjectAndBranch currentProjectName branchName)
   ProjectAndBranchNames'Unambiguous projectAndBranchNames0 ->
