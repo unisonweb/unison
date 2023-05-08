@@ -14,6 +14,7 @@ import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import Prelude hiding (take)
 
+-- | Like Unison.HashQualified, but doesn't support a HashOnly variant
 data HashQualified n = NameOnly n | HashQualified n ShortHash
   deriving stock (Eq, Functor, Generic, Foldable, Ord, Show, Traversable)
 
