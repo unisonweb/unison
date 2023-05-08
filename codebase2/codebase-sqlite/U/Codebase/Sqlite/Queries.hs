@@ -581,7 +581,7 @@ expectTextCheck h = queryOneColCheck2 (loadTextSql h)
 
 loadTextSql :: TextId -> Sql2
 loadTextSql h =
-  [sql2| 
+  [sql2|
     SELECT text
     FROM text
     WHERE id = :h
@@ -2128,9 +2128,8 @@ longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
           lift $ queryMaybeRow sql ((bhId, lastSegment, namespaceGlob, suffGlob) :. ref)
         case result of
           Just namedRef ->
-            -- We want to find matches for the _longest_ possible suffix, so we keep going until we
-            -- don't find any more matches.
-            pure (unRow <$> namedRef) <|> loop rest
+            -- Try to find a longer suffix, falling back to the shorter match we've found.
+            loop rest <|> pure (unRow <$> namedRef)
           Nothing ->
             -- If we don't find a match for a suffix, there's no way we could match on an even
             -- longer suffix, so we bail.
@@ -2174,9 +2173,8 @@ longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
           lift $ queryMaybeRow sql ((bhId, lastSegment, namespaceGlob, suffGlob) :. ref)
         case result of
           Just namedRef ->
-            -- We want to find matches for the _longest_ possible suffix, so we keep going until we
-            -- don't find any more matches.
-            pure namedRef <|> loop rest
+            -- Try to find a longer suffix, falling back to the shorter match we've found.
+            loop rest <|> pure namedRef
           Nothing ->
             -- If we don't find a match for a suffix, there's no way we could match on an even
             -- longer suffix, so we bail.
