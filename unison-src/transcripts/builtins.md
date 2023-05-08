@@ -243,6 +243,8 @@ test> Text.tests.patterns =
     run (capture (many (notCharIn [?,,]))) "abracadabra,123" == Some (["abracadabra"], ",123"),
     run (capture (many (or digit letter))) "11234abc,remainder" == Some (["11234abc"], ",remainder"),
     run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa" == Some (["1a2ba"], " aaa"),
+    run (captureAs "foo" (many (or digit letter))) "11234abc,remainder" == Some (["foo"], ",remainder"),
+    run (join [(captureAs "foo" (many digit)), captureAs "bar" (many letter)]) "11234abc,remainder" == Some (["foo", "bar"], ",remainder"),
     -- Regression test for: https://github.com/unisonweb/unison/issues/3530
     run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac" == Some ([""], "ac"),
     isMatch (join [many letter, eof]) "aaaaabbbb" == true,

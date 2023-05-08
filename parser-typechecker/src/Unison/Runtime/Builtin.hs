@@ -2942,6 +2942,8 @@ declareForeigns = do
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many p
   declareForeign Untracked "Pattern.capture" boxDirect . mkForeign $
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Capture p
+  declareForeign Untracked "Pattern.captureAs" boxBoxDirect . mkForeign $
+    \(t, (TPat.CP p _)) -> evaluate . TPat.cpattern $ TPat.CaptureAs t p
   declareForeign Untracked "Pattern.join" boxDirect . mkForeign $ \ps ->
     evaluate . TPat.cpattern . TPat.Join $ map (\(TPat.CP p _) -> p) ps
   declareForeign Untracked "Pattern.or" boxBoxDirect . mkForeign $
