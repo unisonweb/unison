@@ -1,5 +1,6 @@
 module Unison.PrettyPrintEnvDecl.Sqlite where
 
+import Data.Bifunctor (bimap, first)
 import U.Codebase.HashTags (BranchHash)
 import U.Codebase.Sqlite.NamedRef (NamedRef (..))
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -30,6 +31,7 @@ ppedForReferences rootHash perspective refs = do
   (termNames, typeNames) <-
     refs & foldMapM \ref ->
       namesForReference ref
+        <&> makeNamesRelativeToPerspective
 
   -- Ideally we'd only suffixify the name we're actually going to use, but due to name biasing
   -- we won't know that until we actually call the pretty-printer, so
@@ -49,7 +51,8 @@ ppedForReferences rootHash perspective refs = do
     pure result
   let allTermNamesToConsider = termNames <> longestTermSuffixMatches
   let allTypeNamesToConsider = typeNames <> longestTypeSuffixMatches
-  pure . PPED.fromNamesDecl hashLen . NamesWithHistory.fromCurrentNames $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
+  let names = PPED.fromNamesDecl hashLen . NamesWithHistory.fromCurrentNames $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
+  pure names
   where
     pathText :: Text
     pathText = Path.toText perspective
@@ -61,3 +64,9 @@ ppedForReferences rootHash perspective refs = do
       LD.TypeReference ref -> do
         typeNames <- fmap (Name.fromReverseSegments . coerce) <$> Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 ref) Nothing
         pure ([], (,ref) <$> typeNames)
+    makeNamesRelativeToPerspective :: ([(Name, Referent)], [(Name, Reference)]) -> ([(Name, Referent)], [(Name, Reference)])
+    makeNamesRelativeToPerspective names =
+      let revPerspective = reverse $ Path.toList perspective
+          unPrefix n = fromMaybe n $ Name.stripReversedPrefix n revPerspective
+       in names
+            & bimap (fmap (first unPrefix)) (fmap (first unPrefix))
