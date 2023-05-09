@@ -219,6 +219,11 @@ jobs:
         run: |
           ./unison-src/builtin-tests/jit-tests.sh
           cat ./unison-src/builtin-tests/jit-tests.output.md
+          CHANGE=$(git diff unison-src/builtin-tests/jit-tests.output.md)
+          if [ -n "$CHANGE" ]; then
+            echo "The jit-tests output has changed"
+            exit 1
+          fi
 
       - name: interpreter tests
         if: runner.os == 'Linux'
