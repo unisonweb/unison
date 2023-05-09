@@ -121,17 +121,9 @@ unstructureStructuredProjectName =
   UnsafeProjectBranchName . Text.Builder.run . \case
     StructuredProjectBranchName'Contributor user name ->
       Text.Builder.char '@' <> user <> Text.Builder.char '/' <> name
-    StructuredProjectBranchName'DraftRelease ver -> "releases/drafts/" <> unstructureSemver ver
-    StructuredProjectBranchName'Release ver -> "releases/" <> unstructureSemver ver
+    StructuredProjectBranchName'DraftRelease ver -> "releases/drafts/" <> from ver
+    StructuredProjectBranchName'Release ver -> "releases/" <> from ver
     StructuredProjectBranchName'NothingSpecial name -> name
-  where
-    unstructureSemver :: Semver -> Text.Builder
-    unstructureSemver (Semver x y z) =
-      Text.Builder.decimal x
-        <> Text.Builder.char '.'
-        <> Text.Builder.decimal y
-        <> Text.Builder.char '.'
-        <> Text.Builder.decimal z
 
 structuredProjectBranchNameParser :: Megaparsec.Parsec Void Text StructuredProjectBranchName
 structuredProjectBranchNameParser = do
@@ -172,18 +164,24 @@ structuredProjectBranchNameParser = do
           Char.isAlpha c || c == '_'
 
 data Semver
-  = Semver !Int !Int !Int
+  = Semver !Int !Int !Int !(Maybe Text)
   deriving stock (Eq, Show)
 
-instance From Semver Text where
-  from (Semver x y z) =
-    (Text.Builder.run . fold)
+instance From Semver Text.Builder where
+  from (Semver x y z mayPreRelease) =
+    fold $
       [ Text.Builder.decimal x,
         Text.Builder.char '.',
         Text.Builder.decimal y,
         Text.Builder.char '.',
         Text.Builder.decimal z
       ]
+        <> case mayPreRelease of
+          Nothing -> mempty
+          Just preRelease -> [Text.Builder.text "-" <> Text.Builder.text preRelease]
+
+instance From Semver Text where
+  from = Text.Builder.run . from @Semver @Text.Builder
 
 instance TryFrom Text Semver where
   tryFrom =
@@ -196,13 +194,18 @@ semverParser = do
   y <- decimalParser
   _ <- Megaparsec.char '.'
   z <- decimalParser
-  pure (Semver x y z)
+  mayPreRelease <- optional $ do
+    _ <- Megaparsec.char '-'
+    prereleaseParser
+  pure (Semver x y z mayPreRelease)
   where
     decimalParser = do
       digits <- Megaparsec.takeWhile1P (Just "decimal") Char.isDigit
       pure case Text.decimal digits of
         Right (n, _) -> n
         Left _ -> 0 -- impossible
+    prereleaseParser = do
+      Megaparsec.takeWhile1P (Just "prerelease") (\c -> Char.isAlpha c || Char.isDigit c || c == '-')
 
 -- | Though a branch name is just a flat string, we have logic that handles certain strings specially.
 --
@@ -315,8 +318,8 @@ projectAndBranchNamesParser2 = do
                     | Char.isDigit nextChar -> empty
                     -- If the character after "<name>/" is the valid start of a branch, then parse a branch.
                     | Char.isAlpha nextChar || nextChar == '@' || nextChar == '_' -> do
-                        branch <- projectBranchNameParser
-                        pure (ProjectAndBranchNames'Unambiguous (These project branch))
+                      branch <- projectBranchNameParser
+                      pure (ProjectAndBranchNames'Unambiguous (These project branch))
                     -- Otherwise, some invalid start-of-branch character follows, like a close paren or something.
                     | otherwise -> pure (ProjectAndBranchNames'Unambiguous (This project)),
           unambiguousBranchParser
