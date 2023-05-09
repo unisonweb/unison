@@ -337,8 +337,10 @@ data Output
     NotImplementedYet Text
   | DraftingRelease ProjectBranchName Semver
   | CannotCreateReleaseBranchWithBranchCommand ProjectBranchName Semver
-  | -- | The `local` in two-argument `clone remote local` is ambiguous
+  | -- | The `local` in a `clone remote local` is ambiguous
     AmbiguousCloneLocal ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- | The `remote` in a `clone remote local` is ambiguous
+    AmbiguousCloneRemote (ProjectAndBranch ProjectName ProjectBranchName) (ProjectAndBranch ProjectName ProjectBranchName)
 
 -- | What did we create a project branch from?
 --
@@ -400,6 +402,7 @@ type SourceFileContents = Text
 isFailure :: Output -> Bool
 isFailure o = case o of
   AmbiguousCloneLocal {} -> True
+  AmbiguousCloneRemote {} -> True
   NoLastRunResult {} -> True
   SaveTermNameConflict {} -> True
   RunResult {} -> False

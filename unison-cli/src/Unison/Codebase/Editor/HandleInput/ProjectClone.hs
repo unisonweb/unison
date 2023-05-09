@@ -4,7 +4,7 @@ module Unison.Codebase.Editor.HandleInput.ProjectClone
   )
 where
 
-import Control.Lens ((^.))
+import Control.Lens (traverseOf, (^.))
 import Control.Monad.Reader (ask)
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
@@ -225,9 +225,16 @@ handleClone2 localNames0 remoteNames0 = do
   -- branch name.
   (remoteProjectBranch, localNames2) <-
     case remoteNames of
+      -- For now: complain about ambiguous remote names
       -- Planned feature: instead of failing right away, actually check whether the project and branch exist, and if
       -- only one does, succeed.
-      RemoteNames'Ambiguous projectName branchInfo -> wundefined
+      RemoteNames'Ambiguous remoteProjectName remoteBranchInfo0 -> do
+        remoteBranchInfo <-
+          remoteBranchInfo0 & traverseOf #project \case
+            RemoteProjectKey'Id remoteProjectId ->
+              Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
+            RemoteProjectKey'Name remoteProjectName -> pure remoteProjectName
+        Cli.returnEarly (Output.AmbiguousCloneRemote remoteProjectName remoteBranchInfo)
       RemoteNames'Unambiguous (ProjectAndBranch remoteProjectKey remoteBranchName) -> do
         remoteProjectBranch <-
           case remoteProjectKey of

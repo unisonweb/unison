@@ -2069,10 +2069,33 @@ notifyUser dir = \case
         <> P.newline
         <> tip ("to draft a new release, try " <> IP.makeExample IP.releaseDraft [prettySemver ver])
         <> "."
-  AmbiguousCloneLocal project (ProjectAndBranch currentProject branch) ->
+  AmbiguousCloneLocal project branch -> do
     pure $
       P.wrap
         ( "I'm not sure if you wanted to clone into to the branch"
+            <> prettyProjectAndBranchName branch
+            <> "or the branch"
+            <> P.group (prettyProjectAndBranchName project <> ".")
+            <> "Could you be more specific?"
+        )
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( prettySlashProjectBranchName (branch ^. #branch)
+              <> "refers to the branch"
+              <> P.group (prettyProjectAndBranchName branch <> ".")
+          )
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( prettyProjectNameSlash (project ^. #project)
+              <> "refers to the branch"
+              <> P.group (prettyProjectAndBranchName project <> ".")
+          )
+  AmbiguousCloneRemote project (ProjectAndBranch currentProject branch) ->
+    pure $
+      P.wrap
+        ( "I'm not sure if you wanted to clone the branch"
             <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
             <> "or the project"
             <> P.group (prettyProjectName project <> ".")
