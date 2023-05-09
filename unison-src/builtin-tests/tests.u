@@ -1,6 +1,5 @@
 tests : '{IO,Exception} ()
 tests = Tests.main do
-  check "failure please" do false
   !tls.tests
   !crypto.hash.tests
   !hmac.tests
