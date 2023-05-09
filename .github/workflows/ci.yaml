@@ -198,7 +198,7 @@ jobs:
           distribution: 'full'
           variant: 'CS'
           version: '8.7'
-      - run: raco pkg install --batch x509-lib
+      - run: raco pkg install --deps search-auto --batch x509-lib
         if: runner.os == 'Linux'
       - run: sudo apt-get -y install libb2-dev
         if: runner.os == 'Linux'
