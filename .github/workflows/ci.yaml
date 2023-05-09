@@ -201,8 +201,12 @@ jobs:
 
       - name: jit tests
         if: runner.os != 'Windows'
-        run: ./unison-src/builtin-tests/jit-tests.sh
+        run: |
+          ./unison-src/builtin-tests/jit-tests.sh
+          cat ./unison-src/builtin-tests/jit-tests.output.md
 
       - name: interpreter tests
         if: runner.os != 'Windows'
-        run: ./unison-src/builtin-tests/interpreter-tests.sh
+        run: |
+          ./unison-src/builtin-tests/interpreter-tests.sh
+          cat ./unison-src/builtin-tests/interpreter-tests.output.md
