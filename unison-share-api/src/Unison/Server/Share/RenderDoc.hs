@@ -23,6 +23,7 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
@@ -36,7 +37,6 @@ import Unison.Server.Types
   )
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
-import Unison.NameSegment (NameSegment)
 
 renderDoc ::
   Set NameSegment ->
