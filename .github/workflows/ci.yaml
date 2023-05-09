@@ -191,22 +191,34 @@ jobs:
       # - name: cli-integration-tests
       #   run: stack --no-terminal exec cli-integration-tests
 
+      - uses: Bogdanp/setup-racket@v1.10
+        if: runner.os == 'Linux'
+        with:
+          architecture: 'x64'
+          distribution: 'full'
+          variant: 'CS'
+          version: '8.7'
+      - run: raco pkg install x509-lib
+        if: runner.os == 'Linux'
+      - run: sudo apt-get -y install libb2-dev
+        if: runner.os == 'Linux'
+
       - uses: actions/cache@v3
         name: cache ~/.cache/unisonlanguage (unix)
-        if: runner.os != 'Windows'
+        if: runner.os == 'Linux'
         with:
           path: ~/.cache/unisonlanguage
           key: stack-0_${{matrix.os}}-${{github.sha}}
           restore-keys: stack-0_${{matrix.os}}
 
       - name: jit tests
-        if: runner.os != 'Windows'
+        if: runner.os == 'Linux'
         run: |
           ./unison-src/builtin-tests/jit-tests.sh
           cat ./unison-src/builtin-tests/jit-tests.output.md
 
       - name: interpreter tests
-        if: runner.os != 'Windows'
+        if: runner.os == 'Linux'
         run: |
           ./unison-src/builtin-tests/interpreter-tests.sh
           cat ./unison-src/builtin-tests/interpreter-tests.output.md
