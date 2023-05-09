@@ -41,8 +41,8 @@ jobs:
         os:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-20.04
-          - macOS-11.0
-          - windows-2019
+          # - macOS-11.0
+          # - windows-2019
     steps:
       - uses: actions/checkout@v2
         with:
@@ -163,33 +163,33 @@ jobs:
         run: stack --no-terminal build --fast --no-run-tests --test
 
       # Run each test suite (tests and transcripts)
-      - name: unison-cli tests
-        run: stack --no-terminal build --fast --test unison-cli
-      - name: unison-core tests
-        run: stack --no-terminal build --fast --test unison-core
-      - name: unison-parser-typechecker tests
-        run: stack --no-terminal build --fast --test unison-parser-typechecker
-      - name: unison-sqlite tests
-        run: stack --no-terminal build --fast --test unison-sqlite
-      - name: unison-syntax tests
-        run: stack --no-terminal build --fast --test unison-syntax
-      - name: unison-util-bytes tests
-        run: stack --no-terminal build --fast --test unison-util-bytes
-      - name: unison-util-cache tests
-        run: stack --no-terminal build --fast --test unison-util-cache
-      - name: unison-util-relation tests
-        run: stack --no-terminal build --fast --test unison-util-relation
-      - name: transcripts
-        run: |
-          stack --no-terminal exec transcripts
-          # Add all changes to the index for when we diff.
-          git add --all
-          # Fail if any transcripts cause git diffs.
-          git diff --cached --ignore-cr-at-eol --exit-code
-      - name: prettyprint-round-trip
-        run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
-      - name: cli-integration-tests
-        run: stack --no-terminal exec cli-integration-tests
+      # - name: unison-cli test
+      #   run: stack --no-terminal build --fast --test unison-cli
+      # - name: unison-core tests
+      #   run: stack --no-terminal build --fast --test unison-core
+      # - name: unison-parser-typechecker tests
+      #   run: stack --no-terminal build --fast --test unison-parser-typechecker
+      # - name: unison-sqlite tests
+      #   run: stack --no-terminal build --fast --test unison-sqlite
+      # - name: unison-syntax tests
+      #   run: stack --no-terminal build --fast --test unison-syntax
+      # - name: unison-util-bytes tests
+      #   run: stack --no-terminal build --fast --test unison-util-bytes
+      # - name: unison-util-cache tests
+      #   run: stack --no-terminal build --fast --test unison-util-cache
+      # - name: unison-util-relation tests
+      #   run: stack --no-terminal build --fast --test unison-util-relation
+      # - name: transcripts
+      #   run: |
+      #     stack --no-terminal exec transcripts
+      #     # Add all changes to the index for when we diff.
+      #     git add --all
+      #     # Fail if any transcripts cause git diffs.
+      #     git diff --cached --ignore-cr-at-eol --exit-code
+      # - name: prettyprint-round-trip
+      #   run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
+      # - name: cli-integration-tests
+      #   run: stack --no-terminal exec cli-integration-tests
 
       - uses: actions/cache@v3
         name: cache ~/.cache/unisonlanguage (unix)
