@@ -11,10 +11,6 @@
 module Unison.Server.Share.RenderDoc where
 
 import Control.Monad.Except
-import Data.Aeson
-import Data.OpenApi (ToSchema)
-import Servant (Capture, QueryParam, (:>))
-import Servant.Docs (DocCapture (..), ToCapture (..), ToSample (..))
 import Servant.OpenApi ()
 import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash)
@@ -30,10 +26,7 @@ import Unison.Server.Backend
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Doc (Doc)
 import Unison.Server.Types
-  ( APIGet,
-    UnisonHash,
-    mayDefaultWidth,
-    v2CausalBranchToUnisonHash,
+  ( mayDefaultWidth,
   )
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
@@ -49,7 +42,7 @@ renderDoc ::
 renderDoc docNames runtime codebase namespacePath mayRoot mayWidth =
   let width = mayDefaultWidth mayWidth
    in do
-        (rootCausal, namespaceCausal, shallowBranch) <-
+        (rootCausal, shallowBranch) <-
           Backend.hoistBackend (Codebase.runTransaction codebase) do
             rootCausalHash <-
               case mayRoot of
@@ -59,7 +52,7 @@ renderDoc docNames runtime codebase namespacePath mayRoot mayWidth =
             -- lift (Backend.resolveCausalHashV2 rootCausalHash)
             namespaceCausal <- lift $ Codebase.getShallowCausalAtPath namespacePath (Just rootCausalHash)
             shallowBranch <- lift $ V2Causal.value namespaceCausal
-            pure (rootCausalHash, namespaceCausal, shallowBranch)
+            pure (rootCausalHash, shallowBranch)
         (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) namespacePath
         renderedDoc <-
           Backend.findDocInBranchAndRender
