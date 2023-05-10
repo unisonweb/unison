@@ -1,3 +1,13 @@
+nested : Doc2
+nested =
+  {{ ```` raw
+  ```unison
+  r = "boopydoo"
+  ```
+  ```` }}
+
+---- Anything below this line is ignored by Unison.
+
 nested = {{
 
 ````raw
