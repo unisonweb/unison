@@ -38,7 +38,7 @@ The `view` and `display` commands also benefit from this:
 ```ucm
 .> view List.drop
 
-  builtin builtin.List.drop : builtin.Nat -> [a] -> [a]
+  builtin builtin.List.drop : Nat -> [a] -> [a]
 
 .> display bar.a
 
