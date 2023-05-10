@@ -14,6 +14,7 @@ import U.Codebase.HashTags (CausalHash (..))
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Path (Path)
+import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified as HQ
@@ -84,18 +85,23 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
 
   let drDeps = definitionResultsDependencies dr
   termAndTypePPED <- ppedBuilder drDeps
-  let fqnTermAndTypePPE = PPED.unsuffixifiedPPE termAndTypePPED
+  let fqnTermAndTypePPED =
+        termAndTypePPED
+          -- Names on share are pretty-printed relative to the perspective or project root,
+          -- but the UI wants the 'termNames' and 'typeNames' to be relative to root
+          -- namespace, so we add the root namespace prefix back for this pretty-printer.
+          & \pped -> pped {PPED.unsuffixifiedPPE = PPE.mapNames (fmap (Path.prefixName (Path.Absolute namesRoot))) (PPED.unsuffixifiedPPE pped)}
   typeDefinitions <-
     ifor (typesToSyntax suffixifyBindings width termAndTypePPED types) \ref tp -> do
-      let hqTypeName = PPE.typeNameOrHashOnly fqnTermAndTypePPE ref
+      let hqTypeName = PPE.typeNameOrHashOnly (PPED.unsuffixifiedPPE fqnTermAndTypePPED) ref
       docs <- maybe (pure []) docResults (HQ.toName hqTypeName)
-      mkTypeDefinition codebase termAndTypePPED namesRoot shallowRoot width ref docs tp
+      mkTypeDefinition codebase fqnTermAndTypePPED namesRoot shallowRoot width ref docs tp
   termDefinitions <-
     ifor (termsToSyntax suffixifyBindings width termAndTypePPED terms) \reference trm -> do
       let referent = Referent.Ref reference
-      let hqTermName = PPE.termNameOrHashOnly fqnTermAndTypePPE referent
+      let hqTermName = PPE.termNameOrHashOnly (PPED.unsuffixifiedPPE fqnTermAndTypePPED) referent
       docs <- maybe (pure []) docResults (HQ.toName hqTermName)
-      mkTermDefinition codebase termAndTypePPED namesRoot shallowRoot width reference docs trm
+      mkTermDefinition codebase fqnTermAndTypePPED namesRoot shallowRoot width reference docs trm
   let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
       renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
       renderedMisses = fmap HQ.toText misses

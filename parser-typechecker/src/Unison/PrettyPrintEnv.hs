@@ -19,9 +19,11 @@ module Unison.PrettyPrintEnv
     addFallback,
     union,
     empty,
+    mapNames,
   )
 where
 
+import Data.Bifunctor (second)
 import Data.Ord (Down (Down))
 import Data.Semigroup (Max (Max))
 import Unison.ConstructorReference (ConstructorReference)
@@ -173,3 +175,14 @@ prioritizeBias targets =
         )
       & fromMaybe 0
       & Down -- Sort large common prefixes highest
+
+-- | Allows mapping over the names which will be returned by the pretty-printer.
+--
+-- The FQNs which are used for biasing are unaffected.
+-- Generally you shouldn't need this, but there are special cases where it's useful.
+mapNames :: (HQ'.HashQualified Name -> HQ'.HashQualified Name) -> PrettyPrintEnv -> PrettyPrintEnv
+mapNames f ppe =
+  PrettyPrintEnv
+    { termNames = fmap (second f) . termNames ppe,
+      typeNames = fmap (second f) . typeNames ppe
+    }
