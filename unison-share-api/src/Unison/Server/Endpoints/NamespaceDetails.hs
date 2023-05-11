@@ -12,6 +12,7 @@ module Unison.Server.Endpoints.NamespaceDetails where
 import Control.Monad.Except
 import Data.Aeson
 import Data.OpenApi (ToSchema)
+import qualified Data.Set as Set
 import Servant (Capture, QueryParam, (:>))
 import Servant.Docs (DocCapture (..), ToCapture (..), ToSample (..))
 import Servant.OpenApi ()
@@ -96,7 +97,8 @@ namespaceDetails runtime codebase namespacePath mayRoot mayWidth =
         namespaceDetails <- do
           (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) namespacePath
           readme <-
-            Backend.findShallowReadmeInBranchAndRender
+            Backend.findDocInBranchAndRender
+              readmeNames
               width
               runtime
               codebase
@@ -106,3 +108,5 @@ namespaceDetails runtime codebase namespacePath mayRoot mayWidth =
           pure $ NamespaceDetails namespacePath causalHash readme
 
         pure $ namespaceDetails
+  where
+    readmeNames = Set.fromList ["README", "Readme", "ReadMe", "readme"]
