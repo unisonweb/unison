@@ -182,9 +182,9 @@ loadRemoteProjectBranchByNames ::
   ProjectAndBranch ProjectName ProjectBranchName ->
   Cli (Maybe Share.RemoteProjectBranch)
 loadRemoteProjectBranchByNames (ProjectAndBranch projectName branchName) =
- runMaybeT do
-  project <- MaybeT (Share.getProjectByName projectName)
-  MaybeT (loadRemoteProjectBranchByName (ProjectAndBranch (project ^. #projectId) branchName))
+  runMaybeT do
+    project <- MaybeT (Share.getProjectByName projectName)
+    MaybeT (loadRemoteProjectBranchByName (ProjectAndBranch (project ^. #projectId) branchName))
 
 expectRemoteProjectBranchByNames ::
   ProjectAndBranch ProjectName ProjectBranchName ->
