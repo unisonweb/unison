@@ -40,6 +40,7 @@ import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
+import qualified Unison.CommandLine.OutputMessages as OutputMessages
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import qualified Unison.CommandLine.Welcome as Welcome
 import Unison.Parser.Ann (Ann)
@@ -86,7 +87,8 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
             lift (Codebase.runTransaction codebase (Queries.loadProjectAndBranchNames projectId branchId)) <&> \case
               -- If the project branch has been deleted from sqlite, just show a borked prompt
               Nothing -> P.red "???"
-              Just (projectName, branchName) -> P.purple (P.text (into @Text (ProjectAndBranch projectName branchName)))
+              Just (projectName, branchName) ->
+                OutputMessages.prettyProjectAndBranchName (ProjectAndBranch projectName branchName)
       line <- Line.getInputLine (P.toANSI 80 (promptString <> fromString prompt))
       case line of
         Nothing -> pure QuitI
