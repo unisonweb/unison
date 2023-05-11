@@ -133,6 +133,7 @@ dependencies:
   - vector
   - wai
   - warp
+  - word8
   - x509
   - x509-store
   - x509-system

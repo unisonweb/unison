@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -170,12 +170,14 @@ library
       Unison.Util.EnumContainers
       Unison.Util.Exception
       Unison.Util.Logger
+      Unison.Util.Pattern
+      Unison.Util.Pattern.Bytes
+      Unison.Util.Pattern.Text
       Unison.Util.PinBoard
       Unison.Util.Pretty.MegaParsec
       Unison.Util.RefPromise
       Unison.Util.Star3
       Unison.Util.Text
-      Unison.Util.Text.Pattern
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
   hs-source-dirs:
@@ -323,6 +325,7 @@ library
     , vector
     , wai
     , warp
+    , word8
     , x509
     , x509-store
     , x509-system
@@ -515,6 +518,7 @@ test-suite parser-typechecker-tests
     , vector
     , wai
     , warp
+    , word8
     , x509
     , x509-store
     , x509-system

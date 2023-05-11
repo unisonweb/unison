@@ -37,7 +37,8 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Type as Ty
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Text (Text)
-import Unison.Util.Text.Pattern (CPattern, CharPattern)
+import Unison.Util.Text.Pattern as TPat
+import Unison.Util.Bytes.Pattern as BPat
 import Unsafe.Coerce
 
 data Foreign where
@@ -248,14 +249,17 @@ data Failure a = Failure Reference Text a
 
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
 
-instance BuiltinForeign CPattern where
+instance BuiltinForeign TPat.CPattern where
   foreignRef = Tagged Ty.patternRef
 
-instance BuiltinForeign CharPattern where
+instance BuiltinForeign BPat.CBytesPattern where
+  foreignRef = Tagged Ty.patternRef
+
+instance BuiltinForeign TPat.CharPattern where
   foreignRef = Tagged Ty.charClassRef
 
 wrapBuiltin :: forall f. (BuiltinForeign f) => f -> Foreign
-wrapBuiltin x = Wrap r x
+wrapBuiltin = Wrap r 
   where
     Tagged r = foreignRef :: Tagged f Reference
 
