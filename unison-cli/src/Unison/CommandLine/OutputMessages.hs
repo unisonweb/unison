@@ -2069,13 +2069,14 @@ notifyUser dir = \case
         <> P.newline
         <> tip ("to draft a new release, try " <> IP.makeExample IP.releaseDraft [prettySemver ver])
         <> "."
-  AmbiguousCloneLocal project branch -> do
+  AmbiguousCloneLocal (ProjectAndBranch pp mpb) branch -> do
     pure $
       P.wrap
-        ( "I'm not sure if you wanted to clone into to the branch"
+        ( "I'm not sure if you wanted to clone as the branch"
             <> prettyProjectAndBranchName branch
-            <> "or the branch"
-            <> P.group (prettyProjectAndBranchName project <> ".")
+            <> case mpb of
+              Nothing -> "or as a branch in the project" <> P.group (prettyProjectName pp <> ".")
+              Just pb -> "or as the branch" <> P.group (prettyProjectAndBranchName (ProjectAndBranch pp pb) <> ".")
             <> "Could you be more specific?"
         )
         <> P.newline
@@ -2088,9 +2089,11 @@ notifyUser dir = \case
         <> P.newline
         <> P.newline
         <> tip
-          ( prettyProjectNameSlash (project ^. #project)
-              <> "refers to the branch"
-              <> P.group (prettyProjectAndBranchName project <> ".")
+          ( prettyProjectNameSlash pp
+              <> "refers to"
+              <> case mpb of
+                Nothing -> "a branch in the project" <> P.group (prettyProjectName pp <> ".")
+                Just pb -> "the branch" <> P.group (prettyProjectAndBranchName (ProjectAndBranch pp pb) <> ".")
           )
   AmbiguousCloneRemote project (ProjectAndBranch currentProject branch) ->
     pure $
@@ -2110,7 +2113,7 @@ notifyUser dir = \case
           )
         <> P.newline
         <> P.newline
-        <> tip (prettyProjectNameSlash project <> "refers to the project " <> P.group (prettyProjectName project <> "."))
+        <> tip (prettyProjectNameSlash project <> "refers to the project" <> P.group (prettyProjectName project <> "."))
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

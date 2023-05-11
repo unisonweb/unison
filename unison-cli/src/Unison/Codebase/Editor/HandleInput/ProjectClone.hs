@@ -203,9 +203,13 @@ handleClone2 localNames0 remoteNames0 = do
               case maybeCurrentProjectBranch of
                 Nothing -> f (ProjectAndBranchNames'Unambiguous (This localProjectName))
                 Just (ProjectAndBranch currentProject _) -> do
+                  let maybeRemoteBranchName =
+                        case remoteNames of
+                          RemoteNames'Ambiguous _ _ -> Nothing
+                          RemoteNames'Unambiguous (ProjectAndBranch _ remoteBranchName) -> Just remoteBranchName
                   Cli.returnEarly $
                     Output.AmbiguousCloneLocal
-                      localProjectName
+                      (ProjectAndBranch localProjectName maybeRemoteBranchName)
                       (ProjectAndBranch (currentProject ^. #name) localBranchName)
             ProjectAndBranchNames'Unambiguous (This localProjectName) ->
               case remoteNames of
