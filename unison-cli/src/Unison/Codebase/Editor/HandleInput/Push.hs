@@ -260,11 +260,11 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
             Share.TransportError err -> ShareErrorTransport err
       maybeNumUploaded <- checkAndSetPush (Share.API.hashJWTHash <$> maybeHashJwt)
       whenJust maybeNumUploaded (Cli.respond . Output.UploadedEntities)
-      Cli.respond (ViewOnShare remote)
+      Cli.respond (ViewOnShare (Left remote))
     PushBehavior.RequireEmpty -> do
       maybeNumUploaded <- checkAndSetPush Nothing
       whenJust maybeNumUploaded (Cli.respond . Output.UploadedEntities)
-      Cli.respond (ViewOnShare remote)
+      Cli.respond (ViewOnShare (Left remote))
     PushBehavior.RequireNonEmpty -> do
       let push :: Cli (Either (Share.SyncError Share.FastForwardPushError) (), Int)
           push =
@@ -281,7 +281,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
         (Left err, _) -> pushError ShareErrorFastForwardPush err
         (Right (), numUploaded) -> do
           Cli.respond (UploadedEntities numUploaded)
-          Cli.respond (ViewOnShare remote)
+          Cli.respond (ViewOnShare (Left remote))
   where
     pathToSegments :: Path -> [Text]
     pathToSegments =
