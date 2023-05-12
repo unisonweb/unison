@@ -1,0 +1,5 @@
+tests.interpreter.only : '{IO,Exception} ()
+tests.interpreter.only = Tests.main do
+  check "example interpreter-only test" do true
+  !text.interpreter.only
+  !concurrency.interpreter.only
