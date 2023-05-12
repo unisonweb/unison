@@ -83,7 +83,7 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
       promptString <-
         case preview projectBranchPathPrism currentPath of
           Nothing -> pure ((P.green . P.shown) currentPath)
-          Just (ProjectAndBranch projectId branchId) -> do
+          Just (ProjectAndBranch projectId branchId, _restPath) -> do
             lift (Codebase.runTransaction codebase (Queries.loadProjectAndBranchNames projectId branchId)) <&> \case
               -- If the project branch has been deleted from sqlite, just show a borked prompt
               Nothing -> P.red "???"

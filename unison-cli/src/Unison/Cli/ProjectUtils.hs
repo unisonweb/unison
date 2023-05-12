@@ -55,7 +55,7 @@ getCurrentProject = do
   path <- Cli.getCurrentPath
   case preview projectBranchPathPrism path of
     Nothing -> pure Nothing
-    Just (ProjectAndBranch projectId _branchId) ->
+    Just (ProjectAndBranch projectId _branchId, _restPath) ->
       Cli.runTransaction do
         project <- Queries.expectProject projectId
         pure (Just project)
@@ -76,7 +76,7 @@ getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
   case preview projectBranchPathPrism path of
     Nothing -> pure Nothing
-    Just (ProjectAndBranch projectId branchId) ->
+    Just (ProjectAndBranch projectId branchId, _restPath) ->
       Cli.runTransaction do
         project <- Queries.expectProject projectId
         branch <- Queries.expectProjectBranch projectId branchId
@@ -234,8 +234,8 @@ projectBranchesPath projectId =
 -- >>> projectBranchPath ProjectAndBranch { project = "ABCD", branch = "DEFG" }
 -- .__projects._ABCD.branches._DEFG
 projectBranchPath :: ProjectAndBranch ProjectId ProjectBranchId -> Path.Absolute
-projectBranchPath =
-  review projectBranchPathPrism
+projectBranchPath projectAndBranch =
+  review projectBranchPathPrism (projectAndBranch, Path.empty)
 
 -- | Get the name segment that a branch is stored at.
 --
@@ -291,23 +291,25 @@ projectPathPrism =
 -- @
 -- (XX-XX, YY-YY)
 -- @
-projectBranchPathPrism :: Prism' Path.Absolute (ProjectAndBranch ProjectId ProjectBranchId)
+projectBranchPathPrism :: Prism' Path.Absolute (ProjectAndBranch ProjectId ProjectBranchId, Path.Path)
 projectBranchPathPrism =
   prism' toPath toIds
   where
-    toPath :: ProjectAndBranch ProjectId ProjectBranchId -> Path.Absolute
-    toPath ProjectAndBranch {project = projectId, branch = branchId} =
+    toPath :: (ProjectAndBranch ProjectId ProjectBranchId, Path.Path) -> Path.Absolute
+    toPath (ProjectAndBranch {project = projectId, branch = branchId}, restPath) =
       Path.Absolute $
         Path.fromList
-          [ "__projects",
-            UUIDNameSegment (unProjectId projectId),
-            "branches",
-            UUIDNameSegment (unProjectBranchId branchId)
-          ]
+          ( [ "__projects",
+              UUIDNameSegment (unProjectId projectId),
+              "branches",
+              UUIDNameSegment (unProjectBranchId branchId)
+            ]
+              ++ Path.toList restPath
+          )
 
-    toIds :: Path.Absolute -> Maybe (ProjectAndBranch ProjectId ProjectBranchId)
+    toIds :: Path.Absolute -> Maybe (ProjectAndBranch ProjectId ProjectBranchId, Path.Path)
     toIds path =
       case Path.toList (Path.unabsolute path) of
-        ["__projects", UUIDNameSegment projectId, "branches", UUIDNameSegment branchId] ->
-          Just ProjectAndBranch {project = ProjectId projectId, branch = ProjectBranchId branchId}
+        "__projects" : UUIDNameSegment projectId : "branches" : UUIDNameSegment branchId : restPath ->
+          Just (ProjectAndBranch {project = ProjectId projectId, branch = ProjectBranchId branchId}, Path.fromList restPath)
         _ -> Nothing
