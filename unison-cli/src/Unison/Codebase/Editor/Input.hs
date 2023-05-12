@@ -214,7 +214,7 @@ data Input
   | DebugNameDiffI ShortCausalHash ShortCausalHash
   | QuitI
   | ApiI
-  | UiI
+  | UiI Path'
   | DocToMarkdownI Name
   | DocsToHtmlI Path' FilePath
   | GistI GistInput

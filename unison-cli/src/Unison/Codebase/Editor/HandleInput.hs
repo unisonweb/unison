@@ -8,10 +8,10 @@ where
 
 -- TODO: Don't import backend
 
-import Control.Concurrent.STM (atomically)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Exception (catch)
 import Control.Lens
+import qualified Control.Lens as Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
@@ -45,10 +45,13 @@ import System.Process
     readCreateProcessWithExitCode,
     shell,
   )
-import qualified U.Codebase.Branch.Diff as V2Branch
+import qualified U.Codebase.Branch.Diff as V2Branch.Diff
+import qualified U.Codebase.Branch.Type as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Reference as V2 (Reference)
+import qualified U.Codebase.Referent as V2 (Referent)
+import qualified U.Codebase.Referent as V2.Referent
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Project as Sqlite
 import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
@@ -137,6 +140,7 @@ import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
+import qualified Unison.ConstructorType as ConstructorType
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
@@ -213,7 +217,6 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -356,7 +359,7 @@ loop e = do
                     P.lines
                       [ "The API information is as follows:",
                         P.newline,
-                        P.indentN 2 (P.hiBlue ("UI: " <> fromString (Server.urlFor Server.UI baseUrl))),
+                        P.indentN 2 (P.hiBlue ("UI: " <> fromString (Server.urlFor (Server.UI Path.absoluteEmpty Nothing) baseUrl))),
                         P.newline,
                         P.indentN 2 (P.hiBlue ("API: " <> fromString (Server.urlFor Server.Api baseUrl)))
                       ]
@@ -535,11 +538,73 @@ loop e = do
               Cli.updateRoot prev description
               (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
               Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
-            UiI -> do
-              Cli.Env {serverBaseUrl} <- ask
+            UiI path' -> do
+              Cli.Env {serverBaseUrl, codebase} <- ask
               whenJust serverBaseUrl \url -> do
-                _success <- liftIO (openBrowser (Server.urlFor Server.UI url))
+                (perspective, definitionRef) <-
+                  getUIUrlParts codebase
+
+                _success <- liftIO (openBrowser (Server.urlFor (Server.UI perspective definitionRef) url))
                 pure ()
+              where
+                getUIUrlParts :: Codebase m Symbol Ann -> Cli (Path.Absolute, Maybe (Server.DefinitionReference))
+                getUIUrlParts codebase = do
+                  currentPath <- Cli.getCurrentPath
+                  let absPath = Path.resolve currentPath path'
+
+                  case Lens.unsnoc absPath of
+                    Just (abs, nameSeg) -> do
+                      namespaceBranch <-
+                        Cli.runTransaction
+                          (Codebase.getShallowBranchAtPath (Path.unabsolute abs) Nothing)
+
+                      let terms = maybe Set.empty Map.keysSet (Map.lookup nameSeg (V2Branch.terms namespaceBranch))
+                      let types = maybe Set.empty Map.keysSet (Map.lookup nameSeg (V2Branch.types namespaceBranch))
+
+                      -- Only safe to force in toTypeReference and toTermReference
+                      case (Set.lookupMin terms, Set.lookupMin types) of
+                        (Just te, _) -> do
+                          let name = Path.unsafeToName $ Path.fromPath' path'
+                          defRef <- Cli.runTransaction (toTermReference codebase name te)
+
+                          if Path.isAbsolute path'
+                            then pure (Path.absoluteEmpty, Just defRef)
+                            else pure (currentPath, Just defRef)
+                        (Nothing, Just ty) ->
+                          let name = Path.unsafeToName $ Path.fromPath' path'
+                              defRef = toTypeReference name ty
+                           in if Path.isAbsolute path'
+                                then pure (Path.absoluteEmpty, Just defRef)
+                                else pure (currentPath, Just defRef)
+                        -- Catch all that uses the absPath to build the perspective.
+                        -- Also catches the case where a namespace arg was given.
+                        (Nothing, Nothing) ->
+                          pure (absPath, Nothing)
+                    Nothing ->
+                      pure (absPath, Nothing)
+
+                toTypeReference :: Name -> V2.Reference -> Server.DefinitionReference
+                toTypeReference name reference =
+                  Server.TypeReference $
+                    HQ.fromNamedReference name (Conversions.reference2to1 reference)
+
+                toTermReference :: Codebase m Symbol Ann -> Name -> V2.Referent -> Sqlite.Transaction Server.DefinitionReference
+                toTermReference codebase name referent = do
+                  case referent of
+                    V2.Referent.Ref reference ->
+                      pure $
+                        Server.TermReference $
+                          HQ.fromNamedReference name (Conversions.reference2to1 reference)
+                    V2.Referent.Con _ _ -> do
+                      v1Referent <- Conversions.referent2to1 (Codebase.getDeclType codebase) referent
+                      let hq = HQ.fromNamedReferent name v1Referent
+
+                      pure case v1Referent of
+                        Referent.Con _ ConstructorType.Data ->
+                          Server.DataConstructorReference hq
+                        Referent.Con _ ConstructorType.Effect ->
+                          Server.AbilityConstructorReference hq
+                        Referent.Ref _ -> error "Impossible! *twirls mustache*"
             DocToMarkdownI docName -> do
               basicPrettyPrintNames <- getBasicPrettyPrintNames
               hqLength <- Cli.runTransaction Codebase.hashLength
@@ -902,14 +967,13 @@ loop e = do
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               #numberedArgs .= fmap entryToHQString entries
-              getRoot <- atomically . STM.readTMVar <$> use #root
+              currentBranch <- Cli.getCurrentBranch
               let buildPPE = do
                     schLength <- Codebase.runTransaction codebase Codebase.branchHashLength
-                    rootBranch <- getRoot
                     pure $
                       Backend.basicSuffixifiedNames
                         schLength
-                        rootBranch
+                        currentBranch
                         (Backend.AllNames (Path.unabsolute pathArgAbs))
               Cli.respond $ ListShallow buildPPE entries
               where
@@ -1344,8 +1408,8 @@ loop e = do
                 Cli.runTransaction do
                   fromBranch <- Codebase.expectCausalBranchByCausalHash fromCH >>= V2Causal.value
                   toBranch <- Codebase.expectCausalBranchByCausalHash toCH >>= V2Causal.value
-                  let treeDiff = V2Branch.diffBranches fromBranch toBranch
-                  nameChanges <- V2Branch.allNameChanges Nothing treeDiff
+                  let treeDiff = V2Branch.Diff.diffBranches fromBranch toBranch
+                  nameChanges <- V2Branch.Diff.allNameChanges Nothing treeDiff
                   pure (DisplayDebugNameDiff nameChanges)
               Cli.respond output
             DeprecateTermI {} -> Cli.respond NotImplemented
@@ -1585,7 +1649,7 @@ inputDescription input =
     SwitchBranchI {} -> wat
     TestI {} -> wat
     TodoI {} -> wat
-    UiI -> wat
+    UiI {} -> wat
     UpI {} -> wat
     VersionI -> wat
   where
@@ -1742,7 +1806,7 @@ handleDiffNamespaceToPatch description input = do
         branch1 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId1)
         branch2 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId2)
         lift do
-          branchDiff <- V2Branch.nameBasedDiff (V2Branch.diffBranches branch1 branch2)
+          branchDiff <- V2Branch.Diff.nameBasedDiff (V2Branch.Diff.diffBranches branch1 branch2)
           termEdits <-
             (branchDiff ^. #terms)
               & Relation.domain

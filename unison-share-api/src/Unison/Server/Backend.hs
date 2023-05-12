@@ -32,7 +32,7 @@ module Unison.Server.Backend
     displayType,
     docsInBranchToHtmlFiles,
     expandShortCausalHash,
-    findShallowReadmeInBranchAndRender,
+    findDocInBranchAndRender,
     formatSuffixedType,
     getCurrentParseNames,
     getCurrentPrettyNames,
@@ -440,14 +440,15 @@ lsAtPath codebase mayRootBranch absPath = do
   b <- Codebase.runTransaction codebase (Codebase.getShallowBranchAtPath (Path.unabsolute absPath) mayRootBranch)
   lsBranch codebase b
 
-findShallowReadmeInBranchAndRender ::
+findDocInBranchAndRender ::
+  Set NameSegment ->
   Width ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
   V2Branch.Branch m ->
   Backend IO (Maybe Doc.Doc)
-findShallowReadmeInBranchAndRender _width runtime codebase ppe namespaceBranch =
+findDocInBranchAndRender names _width runtime codebase ppe namespaceBranch =
   let renderReadme :: PPED.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
       renderReadme ppe docReference = do
         doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc ppe
@@ -455,7 +456,7 @@ findShallowReadmeInBranchAndRender _width runtime codebase ppe namespaceBranch =
 
       -- choose the first term (among conflicted terms) matching any of these names, in this order.
       -- we might later want to return all of them to let the front end decide
-      toCheck = NameSegment <$> ["README", "Readme", "ReadMe", "readme"]
+      toCheck = Set.toList names
       readme :: Maybe Reference
       readme = listToMaybe $ do
         name <- toCheck

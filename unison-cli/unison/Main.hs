@@ -275,7 +275,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                             [ "I've started the Codebase API server at",
                               P.string $ Server.urlFor Server.Api baseUrl,
                               "and the Codebase UI at",
-                              P.string $ Server.urlFor Server.UI baseUrl
+                              P.string $ Server.urlFor (Server.UI Path.absoluteEmpty Nothing) baseUrl
                             ]
                         PT.putPrettyLn $
                           P.string "Running the codebase manager headless with "

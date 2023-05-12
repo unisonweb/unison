@@ -326,10 +326,10 @@ pushProjectBranchToProjectBranch localProjectAndBranch maybeRemoteProjectAndBran
 
   uploadPlan <-
     case maybeRemoteProjectAndBranchNames of
-      Nothing -> bazinga50 localProjectAndBranch localBranchHead Nothing
+      Nothing -> pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBranchHead Nothing
       Just (This remoteProjectName) ->
-        bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch (Just remoteProjectName) Nothing)
-      Just (That remoteBranchName) -> bazinga50 localProjectAndBranch localBranchHead (Just remoteBranchName)
+        pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch localBranchHead (ProjectAndBranch (Just remoteProjectName) Nothing)
+      Just (That remoteBranchName) -> pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBranchHead (Just remoteBranchName)
       Just (These remoteProjectName remoteBranchName) ->
         pushToProjectBranch0
           (PushingProjectBranch localProjectAndBranch)
@@ -339,8 +339,8 @@ pushProjectBranchToProjectBranch localProjectAndBranch maybeRemoteProjectAndBran
   executeUploadPlan uploadPlan
 
 -- "push" or "push /foo", remote mapping unknown
-bazinga50 :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Hash32 -> Maybe ProjectBranchName -> Cli UploadPlan
-bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
+pushProjectBranchToProjectBranch'InferredProject :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Hash32 -> Maybe ProjectBranchName -> Cli UploadPlan
+pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBranchHead maybeRemoteBranchName = do
   let loadRemoteProjectInfo ::
         Sqlite.Transaction
           ( Maybe
@@ -362,7 +362,7 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
             pure (Just (remoteProjectId, remoteProjectName, maybeRemoteBranchInfo))
 
   Cli.runTransaction loadRemoteProjectInfo >>= \case
-    Nothing -> bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch Nothing maybeRemoteBranchName)
+    Nothing -> pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch localBranchHead (ProjectAndBranch Nothing maybeRemoteBranchName)
     Just (remoteProjectId, remoteProjectName, maybeRemoteBranchInfo) ->
       case maybeRemoteBranchName of
         Nothing -> do
@@ -409,12 +409,12 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
     localBranchId = localProjectAndBranch ^. #branch . #branchId
 
 -- "push", "push foo", or "push /foo" ignoring remote mapping (if any)
-bazinga10 ::
+pushProjectBranchToProjectBranch'IgnoreRemoteMapping ::
   ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
   Hash32 ->
   ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
   Cli UploadPlan
-bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = do
+pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = do
   myUserHandle <- view #handle <$> AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   let localProjectName = localProjectAndBranch ^. #project . #name
   let localBranchName = localProjectAndBranch ^. #branch . #name
