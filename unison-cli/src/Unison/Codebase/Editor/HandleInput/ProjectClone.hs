@@ -48,11 +48,7 @@ data RemoteProjectKey
 
 -- | Clone a remote branch.
 handleClone :: ProjectAndBranchNames -> Maybe ProjectAndBranchNames -> Cli ()
-handleClone remoteNames localNames =
-  handleClone2 (fromMaybe remoteNames localNames) remoteNames
-
-handleClone2 :: ProjectAndBranchNames -> ProjectAndBranchNames -> Cli ()
-handleClone2 localNames0 remoteNames0 = do
+handleClone remoteNames0 maybeLocalNames0 = do
   maybeCurrentProjectBranch <- ProjectUtils.getCurrentProjectBranch
 
   -- First, do a quick processing of the remote names that doesn't require hitting the network.
@@ -164,7 +160,19 @@ handleClone2 localNames0 remoteNames0 = do
               knownBranch (LocalProjectKey'Project currentProject) localBranchName
             ProjectAndBranchNames'Unambiguous (These localProjectName localBranchName) -> do
               knownBranch (LocalProjectKey'Name localProjectName) localBranchName
-    f localNames0
+    f case maybeLocalNames0 of
+      -- If the local names were not provided, we mostly just copy over the remote names (i.e. `clone X` is the same as
+      -- `clone X X`), with one important distinction - if the remote names were parsed as ambiguous
+      -- (e.g. `clone foo`), but were resolved to something unambiguous (e.g. when outside of a project, `clone foo`
+      -- means `clone foo/`), then we use the unambiguous resolved thing instead.
+      Nothing ->
+        case (remoteNames0, maybeCurrentProjectBranch) of
+          (ProjectAndBranchNames'Ambiguous remoteProjectName _, Nothing) ->
+            ProjectAndBranchNames'Unambiguous (This remoteProjectName)
+          (ProjectAndBranchNames'Ambiguous (projectNameUserSlug -> Nothing) remoteBranchName, Just _) ->
+            ProjectAndBranchNames'Unambiguous (That remoteBranchName)
+          _ -> remoteNames0
+      Just localNames0 -> localNames0
 
   -- Now we're ready to actually fetch the remote project branch (or, in the case of ambiguous input, two project
   -- branches). We can then (if necessary) resolve the local branch name, in the case that it depends on the remote
