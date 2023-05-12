@@ -225,7 +225,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
-  ensureAuthenticatedWithCodeserver codeserver
+  _ <- ensureAuthenticatedWithCodeserver codeserver
 
   localCausalHash <-
     Cli.runTransaction (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))) & onNothingM do
@@ -260,11 +260,11 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
             Share.TransportError err -> ShareErrorTransport err
       maybeNumUploaded <- checkAndSetPush (Share.API.hashJWTHash <$> maybeHashJwt)
       whenJust maybeNumUploaded (Cli.respond . Output.UploadedEntities)
-      Cli.respond (ViewOnShare remote)
+      Cli.respond (ViewOnShare (Left remote))
     PushBehavior.RequireEmpty -> do
       maybeNumUploaded <- checkAndSetPush Nothing
       whenJust maybeNumUploaded (Cli.respond . Output.UploadedEntities)
-      Cli.respond (ViewOnShare remote)
+      Cli.respond (ViewOnShare (Left remote))
     PushBehavior.RequireNonEmpty -> do
       let push :: Cli (Either (Share.SyncError Share.FastForwardPushError) (), Int)
           push =
@@ -281,7 +281,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
         (Left err, _) -> pushError ShareErrorFastForwardPush err
         (Right (), numUploaded) -> do
           Cli.respond (UploadedEntities numUploaded)
-          Cli.respond (ViewOnShare remote)
+          Cli.respond (ViewOnShare (Left remote))
   where
     pathToSegments :: Path -> [Text]
     pathToSegments =
@@ -296,6 +296,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
 -- Push a local namespace ("loose code") to a remote project branch.
 pushLooseCodeToProjectBranch :: Path.Absolute -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
 pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
+  _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   localBranchHead <-
     Cli.runEitherTransaction do
       loadCausalHashToPush localPath <&> \case
@@ -312,6 +313,7 @@ pushProjectBranchToProjectBranch ::
   Maybe (These ProjectName ProjectBranchName) ->
   Cli ()
 pushProjectBranchToProjectBranch localProjectAndBranch maybeRemoteProjectAndBranchNames = do
+  _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   let localProjectAndBranchIds = localProjectAndBranch & over #project (view #projectId) & over #branch (view #branchId)
   let localProjectAndBranchNames = localProjectAndBranch & over #project (view #name) & over #branch (view #name)
 
@@ -597,6 +599,8 @@ executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
       liftIO getNumUploaded
   Cli.respond (Output.UploadedEntities numUploaded)
   afterUploadAction
+  let ProjectAndBranch projectName branchName = remoteBranch
+  Cli.respond (ViewOnShare (Right (Share.hardCodedUri, projectName, branchName)))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- After upload actions
