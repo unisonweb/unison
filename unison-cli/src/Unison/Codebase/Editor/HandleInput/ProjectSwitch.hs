@@ -28,7 +28,7 @@ projectSwitch = \case
   ProjectAndBranchNames'Ambiguous projectName branchName ->
     ProjectUtils.getCurrentProjectBranch >>= \case
       Nothing -> switchToProjectAndBranchByTheseNames (This projectName)
-      Just (ProjectAndBranch currentProject _currentBranch) -> do
+      Just (ProjectAndBranch currentProject _currentBranch, _restPath) -> do
         let currentProjectName = currentProject ^. #name
         (projectExists, branchExists) <-
           Cli.runTransaction do

@@ -121,7 +121,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
             WriteRemoteNamespaceGit namespace -> pushLooseCodeToGitLooseCode localPath namespace pushBehavior syncMode
             WriteRemoteNamespaceShare namespace -> pushLooseCodeToShareLooseCode localPath namespace pushBehavior
             WriteRemoteProjectBranch v -> absurd v
-        Just localProjectAndBranch -> pushProjectBranchToProjectBranch localProjectAndBranch Nothing
+        Just (localProjectAndBranch, _restPath) -> pushProjectBranchToProjectBranch localProjectAndBranch Nothing
     -- push <implicit> to .some.path (git)
     PushSourceTarget1 (WriteRemoteNamespaceGit namespace) -> do
       localPath <- Cli.getCurrentPath
@@ -137,7 +137,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
           localPath <- Cli.getCurrentPath
           remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
           pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
-        Just localProjectAndBranch ->
+        Just (localProjectAndBranch, _restPath) ->
           pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch0)
     -- push .some.path to .some.path (git)
     PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceGit namespace) -> do

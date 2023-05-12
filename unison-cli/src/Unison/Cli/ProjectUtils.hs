@@ -71,19 +71,19 @@ expectCurrentProject = do
 -- is, it only returns Just if the user's current namespace is the root of a branch, and no deeper.
 --
 -- This should be fine: we don't want users to be able to cd around willy-nilly within projects (right?...)
-getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))
 getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
   case preview projectBranchPathPrism path of
     Nothing -> pure Nothing
-    Just (ProjectAndBranch projectId branchId, _restPath) ->
+    Just (ProjectAndBranch projectId branchId, restPath) ->
       Cli.runTransaction do
         project <- Queries.expectProject projectId
         branch <- Queries.expectProjectBranch projectId branchId
-        pure (Just (ProjectAndBranch project branch))
+        pure (Just (ProjectAndBranch project branch, restPath))
 
 -- | Like 'getCurrentProjectBranch', but fails with a message if the user is not on a project branch.
-expectCurrentProjectBranch :: Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+expectCurrentProjectBranch :: Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path)
 expectCurrentProjectBranch =
   getCurrentProjectBranch & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
 
@@ -97,7 +97,7 @@ hydrateNames :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch Pro
 hydrateNames = \case
   This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
-    ProjectAndBranch project _branch <- expectCurrentProjectBranch
+    (ProjectAndBranch project _branch, _restPath) <- expectCurrentProjectBranch
     pure (ProjectAndBranch (project ^. #name) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
@@ -120,7 +120,7 @@ expectProjectAndBranchByTheseNames ::
 expectProjectAndBranchByTheseNames = \case
   This projectName -> expectProjectAndBranchByTheseNames (These projectName (unsafeFrom @Text "main"))
   That branchName -> do
-    ProjectAndBranch project _branch <- expectCurrentProjectBranch
+    (ProjectAndBranch project _branch, _restPath) <- expectCurrentProjectBranch
     branch <-
       Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName) & onNothingM do
         Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
@@ -190,7 +190,7 @@ expectRemoteProjectBranchByTheseNames = \case
     let remoteBranchName = unsafeFrom @Text "main"
     expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
   That branchName -> do
-    ProjectAndBranch localProject localBranch <- expectCurrentProjectBranch
+    (ProjectAndBranch localProject localBranch, _restPath) <- expectCurrentProjectBranch
     let localProjectId = localProject ^. #projectId
     let localBranchId = localBranch ^. #branchId
     Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
