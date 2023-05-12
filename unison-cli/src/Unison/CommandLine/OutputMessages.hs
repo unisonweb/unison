@@ -442,21 +442,6 @@ notifyNumbered = \case
         ),
       map (\(branchName, _) -> Text.unpack (into @Text (ProjectAndBranch projectName branchName))) branches
     )
-    where
-      prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
-      prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
-        -- Special-case Unison Share since we know its project branch URLs
-        if URI.uriToString id host "" == "https://api.unison-lang.org"
-          then
-            P.hiBlack . P.text $
-              "https://share.unison-lang.org/"
-                <> into @Text remoteProject
-                <> "/code/"
-                <> into @Text remoteBranch
-          else
-            prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
-              <> " on "
-              <> P.hiBlack (P.shown host)
   BothLocalProjectAndProjectBranchExist project (ProjectAndBranch currentProject branch) ->
     ( P.wrap
         ( "I'm not sure if you wanted to switch to the branch"
@@ -1810,9 +1795,11 @@ notifyUser dir = \case
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
   ShareError shareError -> pure (prettyShareError shareError)
-  ViewOnShare repoPath ->
+  ViewOnShare shareRef ->
     pure $
-      "View it on Unison Share: " <> prettyShareLink repoPath
+      "View it on Unison Share: " <> case shareRef of
+        Left repoPath -> prettyShareLink repoPath
+        Right branchInfo -> prettyRemoteBranchInfo branchInfo
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
@@ -3738,3 +3725,18 @@ prettyHumanReadableTime now time =
 
     dir True = " from now"
     dir False = " ago"
+
+prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
+prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
+  -- Special-case Unison Share since we know its project branch URLs
+  if URI.uriToString id host "" == "https://api.unison-lang.org"
+    then
+      P.hiBlack . P.text $
+        "https://share.unison-lang.org/"
+          <> into @Text remoteProject
+          <> "/code/"
+          <> into @Text remoteBranch
+    else
+      prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
+        <> " on "
+        <> P.hiBlack (P.shown host)
