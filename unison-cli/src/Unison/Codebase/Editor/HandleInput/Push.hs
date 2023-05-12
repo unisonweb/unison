@@ -597,6 +597,8 @@ executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
       liftIO getNumUploaded
   Cli.respond (Output.UploadedEntities numUploaded)
   afterUploadAction
+  let ProjectAndBranch projectName branchName = remoteBranch
+  Cli.respond (ViewOnShare (Right (Share.hardCodedUri, projectName, branchName)))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- After upload actions
