@@ -225,7 +225,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
-  ensureAuthenticatedWithCodeserver codeserver
+  _ <- ensureAuthenticatedWithCodeserver codeserver
 
   localCausalHash <-
     Cli.runTransaction (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))) & onNothingM do
@@ -296,6 +296,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
 -- Push a local namespace ("loose code") to a remote project branch.
 pushLooseCodeToProjectBranch :: Path.Absolute -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
 pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
+  _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   localBranchHead <-
     Cli.runEitherTransaction do
       loadCausalHashToPush localPath <&> \case
@@ -312,6 +313,7 @@ pushProjectBranchToProjectBranch ::
   Maybe (These ProjectName ProjectBranchName) ->
   Cli ()
 pushProjectBranchToProjectBranch localProjectAndBranch maybeRemoteProjectAndBranchNames = do
+  _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   let localProjectAndBranchIds = localProjectAndBranch & over #project (view #projectId) & over #branch (view #branchId)
   let localProjectAndBranchNames = localProjectAndBranch & over #project (view #name) & over #branch (view #name)
 
