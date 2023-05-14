@@ -4,7 +4,7 @@ module Unison.Codebase.Editor.HandleInput.ProjectClone
   )
 where
 
-import Control.Lens (traverseOf, (^.))
+import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
@@ -38,10 +38,6 @@ data LocalProjectKey
   = LocalProjectKey'Name ProjectName
   | LocalProjectKey'Project Sqlite.Project
 
-data RemoteNames
-  = RemoteNames'Ambiguous ProjectName (ProjectAndBranch RemoteProjectKey ProjectBranchName)
-  | RemoteNames'Unambiguous (ProjectAndBranch RemoteProjectKey ProjectBranchName)
-
 data RemoteProjectKey
   = RemoteProjectKey'Id Sqlite.RemoteProjectId
   | RemoteProjectKey'Name ProjectName
@@ -50,164 +46,191 @@ data RemoteProjectKey
 handleClone :: ProjectAndBranchNames -> Maybe ProjectAndBranchNames -> Cli ()
 handleClone remoteNames0 maybeLocalNames0 = do
   maybeCurrentProjectBranch <- ProjectUtils.getCurrentProjectBranch
+  resolvedRemoteNames <- resolveRemoteNames maybeCurrentProjectBranch remoteNames0
+  localNames1 <- resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames0
+  cloneInto localNames1 (resolvedRemoteNames ^. #branch)
 
-  -- First, do a quick processing of the remote names that doesn't require hitting the network.
-  --
-  --   <project>/           ==>   abort if <project> doesn't have a user slug
-  --
-  --   /<branch>            ==>   abort if not in a project
-  --
-  --   <project>/<branch>   ==>   abort if <project> doesn't have a user slug
-  --
-  --   <thing>              ==>   if we're not in a project, then treat as if it was <thing>/
-  --
-  --                              otherwise, if <thing> doesn't have a user slug, treat it as /<thing>
-  --
-  --                              otherwise, leave it ambiguous for now. this isn't necessarily an error - we will hit
-  --                              the server, and if <thing>/ xor /<thing> was valid (e.g. cloning the "@runar/topic"
-  --                              project-or-branch, where the "@runar/topic" branch does exist in the project in
-  --                              question, and the "@runar/topic" project does not exist), we'll do that
-  --
-  -- We emerge from this step with either an ambiguous project-or-branch or an unambiguous project-and-branch (the
-  -- branch name being locally defaulted to "main" because we don't yet have an API for asking Share for the default
-  -- branch of a project).
-  remoteNames <- do
-    let assertProjectNameHasUserSlug projectName =
-          void $
-            projectNameUserSlug projectName
-              & onNothing (Cli.returnEarly (Output.ProjectNameRequiresUserSlug projectName))
-    let -- Return the remote project id associated with the given project branch
-        projectBranchRemoteProjectKey :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Sqlite.Transaction RemoteProjectKey
-        projectBranchRemoteProjectKey (ProjectAndBranch currentProject currentBranch) = do
-          Queries.loadRemoteProjectBranch currentProjectId Share.hardCodedUri currentBranchId <&> \case
-            Nothing -> RemoteProjectKey'Name (currentProject ^. #name)
-            Just (remoteProjectId, _) -> RemoteProjectKey'Id remoteProjectId
-          where
-            currentProjectId = currentProject ^. #projectId
-            currentBranchId = currentBranch ^. #branchId
-    let f = \case
-          ProjectAndBranchNames'Ambiguous remoteProjectName remoteBranchName ->
-            case maybeCurrentProjectBranch of
-              Nothing -> f (ProjectAndBranchNames'Unambiguous (This remoteProjectName))
-              Just currentProjectBranch ->
-                case projectNameUserSlug remoteProjectName of
-                  Nothing -> f (ProjectAndBranchNames'Unambiguous (That remoteBranchName))
-                  Just _ -> do
-                    branchProjectKey <- Cli.runTransaction (projectBranchRemoteProjectKey currentProjectBranch)
-                    pure (RemoteNames'Ambiguous remoteProjectName (ProjectAndBranch branchProjectKey remoteBranchName))
-          ProjectAndBranchNames'Unambiguous (This remoteProjectName) -> do
-            assertProjectNameHasUserSlug remoteProjectName
-            let remoteProjectKey = RemoteProjectKey'Name remoteProjectName
-            let remoteBranchName = unsafeFrom @Text "main"
-            pure (RemoteNames'Unambiguous (ProjectAndBranch remoteProjectKey remoteBranchName))
-          ProjectAndBranchNames'Unambiguous (That remoteBranchName) -> do
-            currentProjectBranch <- maybeCurrentProjectBranch & onNothing (Cli.returnEarly Output.NotOnProjectBranch)
-            remoteProjectKey <- Cli.runTransaction (projectBranchRemoteProjectKey currentProjectBranch)
-            pure (RemoteNames'Unambiguous (ProjectAndBranch remoteProjectKey remoteBranchName))
-          ProjectAndBranchNames'Unambiguous (These remoteProjectName remoteBranchName) -> do
-            assertProjectNameHasUserSlug remoteProjectName
-            let remoteProjectKey = RemoteProjectKey'Name remoteProjectName
-            pure (RemoteNames'Unambiguous (ProjectAndBranch remoteProjectKey remoteBranchName))
-    f remoteNames0
+data ResolvedRemoteNames = ResolvedRemoteNames
+  { branch :: Share.RemoteProjectBranch,
+    from :: ResolvedRemoteNamesFrom
+  }
+  deriving stock (Generic)
 
-  -- Next, try to resolve the local names to an actual local project (which may not exist yet), aborting on nonsense
-  -- inputs:
-  --
-  --   <project>/           ==>   if we already know the remote branch name is <branch>, abort if <project>/<branch>
-  --                              already exists
-  --
-  --   /<branch>            ==>   abort if not in a project
-  --
-  --                              abort if <branch> already exists in this project
-  --
-  --   <project>/<branch>   ==>   abort if <project>/<branch> already exists
-  --
-  --   <thing>              ==>   if we're not in a project, then treat as if it was <thing>/
-  --
-  --                              otherwise, <thing> is ambiguous, as we don't know if the user wants to clone into
-  --                              <thing>/<branch> (where <branch> is determined by the name of the remote branch we
-  --                              are cloning), or /<thing>
-  --
-  -- Thus, we emerge from this section definitely knowing the local project, and maybe knowing the local branch name
-  -- (because it may depend on a network hit to Share that we haven't done yet - trying to get local checks out of the
-  -- way first).
-  localNames1 <- do
-    let knownBranch project branch = do
-          void (Cli.runEitherTransaction (assertLocalProjectBranchDoesntExist (ProjectAndBranch project branch)))
-          pure (ProjectAndBranch project (Just branch))
-    let f names =
-          case names of
-            ProjectAndBranchNames'Ambiguous localProjectName localBranchName ->
-              case maybeCurrentProjectBranch of
-                Nothing -> f (ProjectAndBranchNames'Unambiguous (This localProjectName))
-                Just (ProjectAndBranch currentProject _) -> do
-                  let maybeRemoteBranchName =
-                        case remoteNames of
-                          RemoteNames'Ambiguous _ _ -> Nothing
-                          RemoteNames'Unambiguous (ProjectAndBranch _ remoteBranchName) -> Just remoteBranchName
-                  Cli.returnEarly $
-                    Output.AmbiguousCloneLocal
-                      (ProjectAndBranch localProjectName maybeRemoteBranchName)
-                      (ProjectAndBranch (currentProject ^. #name) localBranchName)
-            ProjectAndBranchNames'Unambiguous (This localProjectName) ->
-              case remoteNames of
-                RemoteNames'Ambiguous _ _ -> pure (ProjectAndBranch (LocalProjectKey'Name localProjectName) Nothing)
-                RemoteNames'Unambiguous (ProjectAndBranch _ remoteBranchName) ->
-                  knownBranch (LocalProjectKey'Name localProjectName) remoteBranchName
-            ProjectAndBranchNames'Unambiguous (That localBranchName) -> do
-              ProjectAndBranch currentProject _ <-
-                maybeCurrentProjectBranch & onNothing (Cli.returnEarly Output.NotOnProjectBranch)
-              knownBranch (LocalProjectKey'Project currentProject) localBranchName
-            ProjectAndBranchNames'Unambiguous (These localProjectName localBranchName) -> do
-              knownBranch (LocalProjectKey'Name localProjectName) localBranchName
-    f case maybeLocalNames0 of
-      -- If the local names were not provided, we mostly just copy over the remote names (i.e. `clone X` is the same as
-      -- `clone X X`), with one important distinction - if the remote names were parsed as ambiguous
-      -- (e.g. `clone foo`), but were resolved to something unambiguous (e.g. when outside of a project, `clone foo`
-      -- means `clone foo/`), then we use the unambiguous resolved thing instead.
-      Nothing ->
-        case (remoteNames0, maybeCurrentProjectBranch) of
-          (ProjectAndBranchNames'Ambiguous remoteProjectName _, Nothing) ->
-            ProjectAndBranchNames'Unambiguous (This remoteProjectName)
-          (ProjectAndBranchNames'Ambiguous (projectNameUserSlug -> Nothing) remoteBranchName, Just _) ->
-            ProjectAndBranchNames'Unambiguous (That remoteBranchName)
-          _ -> remoteNames0
-      Just localNames0 -> localNames0
+data ResolvedRemoteNamesFrom
+  = ResolvedRemoteNamesFrom'Branch
+  | ResolvedRemoteNamesFrom'Project
+  | ResolvedRemoteNamesFrom'ProjectAndBranch
 
-  -- Now we're ready to actually fetch the remote project branch (or, in the case of ambiguous input, two project
-  -- branches). We can then (if necessary) resolve the local branch name, in the case that it depends on the remote
-  -- branch name.
-  (remoteProjectBranch, localNames2) <-
-    case remoteNames of
-      -- For now: complain about ambiguous remote names
-      -- Planned feature: instead of failing right away, actually check whether the project and branch exist, and if
-      -- only one does, succeed.
-      RemoteNames'Ambiguous remoteProjectName remoteBranchInfo0 -> do
-        remoteBranchInfo <-
-          remoteBranchInfo0 & traverseOf #project \case
-            RemoteProjectKey'Id remoteProjectId ->
-              Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
-            RemoteProjectKey'Name remoteProjectName -> pure remoteProjectName
-        Cli.returnEarly (Output.AmbiguousCloneRemote remoteProjectName remoteBranchInfo)
-      RemoteNames'Unambiguous (ProjectAndBranch remoteProjectKey remoteBranchName) -> do
-        remoteProjectBranch <-
-          case remoteProjectKey of
-            RemoteProjectKey'Id remoteProjectId -> do
-              remoteProjectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
-              ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
-            RemoteProjectKey'Name remoteProjectName ->
-              ProjectUtils.expectRemoteProjectBranchByNames (ProjectAndBranch remoteProjectName remoteBranchName)
-        localNames2 <-
-          case localNames1 of
-            ProjectAndBranch localProjectKey (Just localBranchName) ->
-              pure (ProjectAndBranch localProjectKey localBranchName)
-            ProjectAndBranch localProjectKey Nothing -> do
-              let localProjectBranch = ProjectAndBranch localProjectKey remoteBranchName
-              void (Cli.runEitherTransaction (assertLocalProjectBranchDoesntExist localProjectBranch))
-              pure localProjectBranch
-        pure (remoteProjectBranch, localNames2)
+-- Resolve remote names to an actual remote branch.
+--
+--   <project>/           ==>   abort if <project> doesn't have a user slug
+--
+--   /<branch>            ==>   abort if not in a project
+--
+--   <project>/<branch>   ==>   abort if <project> doesn't have a user slug
+--
+--   <thing>              ==>   if we're not in a project, then treat as if it was <thing>/
+--
+--                              otherwise, if <thing> doesn't have a user slug, treat it as /<thing>
+--
+--                              otherwise, hit the server, and if <thing>/ xor /<thing> was valid (e.g. cloning the
+--                              "@runar/topic" project-or-branch, where the "@runar/topic" branch does exist in the
+--                              project in question, and the "@runar/topic" project does not exist), we'll do that,
+--                              otherwise abort
+resolveRemoteNames ::
+  Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) ->
+  ProjectAndBranchNames ->
+  Cli ResolvedRemoteNames
+resolveRemoteNames maybeCurrentProjectBranch = \case
+  ProjectAndBranchNames'Ambiguous remoteProjectName remoteBranchName ->
+    case maybeCurrentProjectBranch of
+      Nothing -> resolveP remoteProjectName
+      Just currentProjectBranch ->
+        case projectNameUserSlug remoteProjectName of
+          Nothing -> resolveB remoteBranchName
+          Just _ -> do
+            branchProjectKey <- Cli.runTransaction (projectBranchRemoteProjectKey currentProjectBranch)
+            -- Fetching these in parallel would be an improvement
+            maybeRemoteProject <- Share.getProjectByName remoteProjectName
+            maybeRemoteBranch <-
+              runMaybeT do
+                remoteProjectId <-
+                  case branchProjectKey of
+                    RemoteProjectKey'Id remoteProjectId -> pure remoteProjectId
+                    RemoteProjectKey'Name remoteBranchProjectName -> do
+                      remoteBranchProject <- MaybeT (Share.getProjectByName remoteBranchProjectName)
+                      pure (remoteBranchProject ^. #projectId)
+                MaybeT do
+                  Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) <&> \case
+                    Share.GetProjectBranchResponseBranchNotFound -> Nothing
+                    Share.GetProjectBranchResponseProjectNotFound -> Nothing
+                    Share.GetProjectBranchResponseSuccess remoteBranch -> Just remoteBranch
+            case (maybeRemoteProject, maybeRemoteBranch) of
+              (Just remoteProject, Nothing) -> do
+                let remoteProjectId = remoteProject ^. #projectId
+                let remoteProjectName = remoteProject ^. #projectName
+                let remoteBranchName = unsafeFrom @Text "main"
+                remoteBranch <-
+                  ProjectUtils.expectRemoteProjectBranchByName
+                    (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
+                pure
+                  ResolvedRemoteNames
+                    { branch = remoteBranch,
+                      from = ResolvedRemoteNamesFrom'Project
+                    }
+              (Nothing, Just remoteBranch) ->
+                pure
+                  ResolvedRemoteNames
+                    { branch = remoteBranch,
+                      from = ResolvedRemoteNamesFrom'Branch
+                    }
+              -- Treat neither existing and both existing uniformly as "ambiguous input"
+              -- Alternatively, if neither exist, we could instead say "although your input was ambiguous, disambuating
+              -- wouldn't help, because we did enough work to know neither thing exists"
+              _ -> do
+                branchProjectName <-
+                  case branchProjectKey of
+                    RemoteProjectKey'Id remoteProjectId ->
+                      Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
+                    RemoteProjectKey'Name remoteProjectName -> pure remoteProjectName
+                Cli.returnEarly $
+                  Output.AmbiguousCloneRemote
+                    remoteProjectName
+                    (ProjectAndBranch branchProjectName remoteBranchName)
+  ProjectAndBranchNames'Unambiguous (This p) -> resolveP p
+  ProjectAndBranchNames'Unambiguous (That b) -> resolveB b
+  ProjectAndBranchNames'Unambiguous (These p b) -> resolvePB p b
+  where
+    resolveB branchName = do
+      currentProjectBranch <- maybeCurrentProjectBranch & onNothing (Cli.returnEarly Output.NotOnProjectBranch)
+      projectKey <- Cli.runTransaction (projectBranchRemoteProjectKey currentProjectBranch)
+      branch <- expectB projectKey branchName
+      pure ResolvedRemoteNames {branch, from = ResolvedRemoteNamesFrom'Branch}
 
-  cloneInto localNames2 remoteProjectBranch
+    resolveP projectName = do
+      assertProjectNameHasUserSlug projectName
+      branch <- expectB (RemoteProjectKey'Name projectName) (unsafeFrom @Text "main")
+      pure ResolvedRemoteNames {branch, from = ResolvedRemoteNamesFrom'Project}
+
+    resolvePB projectName branchName = do
+      assertProjectNameHasUserSlug projectName
+      branch <- expectB (RemoteProjectKey'Name projectName) branchName
+      pure ResolvedRemoteNames {branch, from = ResolvedRemoteNamesFrom'ProjectAndBranch}
+
+    expectB remoteProjectKey remoteBranchName =
+      case remoteProjectKey of
+        RemoteProjectKey'Id remoteProjectId -> do
+          remoteProjectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
+          ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
+        RemoteProjectKey'Name remoteProjectName ->
+          ProjectUtils.expectRemoteProjectBranchByNames (ProjectAndBranch remoteProjectName remoteBranchName)
+
+-- Resolve the local names to an actual local project (which may not exist yet), aborting on nonsense
+-- inputs:
+--
+--   <project>/           ==>   if we already know the remote branch name is <branch>, abort if <project>/<branch>
+--                              already exists
+--
+--   /<branch>            ==>   abort if not in a project
+--
+--                              abort if <branch> already exists in this project
+--
+--   <project>/<branch>   ==>   abort if <project>/<branch> already exists
+--
+--   <thing>              ==>   if we're not in a project, then treat as if it was <thing>/
+--
+--                              otherwise, <thing> is ambiguous, as we don't know if the user wants to clone into
+--                              <thing>/<branch> (where <branch> is determined by the name of the remote branch we
+--                              are cloning), or /<thing>
+--
+-- The resolved remote names are used to fill in missing local names (i.e. a one-argument clone). For example, if
+-- `clone @foo/bar` resulted in treating `@foo/bar` as a contributor branch of the current project, then it is as if
+-- the user typed `clone /@foo/bar` instead, which is equivalent to the two-arg `clone /@foo/bar /@foo/bar`.
+resolveLocalNames ::
+  Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) ->
+  ResolvedRemoteNames ->
+  Maybe ProjectAndBranchNames ->
+  Cli (ProjectAndBranch LocalProjectKey ProjectBranchName)
+resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames =
+  resolve case maybeLocalNames of
+    Nothing ->
+      ProjectAndBranchNames'Unambiguous case resolvedRemoteNames ^. #from of
+        ResolvedRemoteNamesFrom'Branch -> That remoteBranchName
+        ResolvedRemoteNamesFrom'Project -> This remoteProjectName
+        ResolvedRemoteNamesFrom'ProjectAndBranch -> These remoteProjectName remoteBranchName
+    Just localNames -> localNames
+  where
+    remoteBranchName = resolvedRemoteNames ^. #branch ^. #branchName
+    remoteProjectName = resolvedRemoteNames ^. #branch ^. #projectName
+
+    resolve names =
+      case names of
+        ProjectAndBranchNames'Ambiguous localProjectName localBranchName ->
+          case maybeCurrentProjectBranch of
+            Nothing -> resolveP localProjectName
+            Just (ProjectAndBranch currentProject _) -> do
+              Cli.returnEarly $
+                Output.AmbiguousCloneLocal
+                  (ProjectAndBranch localProjectName remoteBranchName)
+                  (ProjectAndBranch (currentProject ^. #name) localBranchName)
+        ProjectAndBranchNames'Unambiguous (This localProjectName) -> resolveP localProjectName
+        ProjectAndBranchNames'Unambiguous (That localBranchName) -> resolveB localBranchName
+        ProjectAndBranchNames'Unambiguous (These localProjectName localBranchName) -> resolvePB localProjectName localBranchName
+
+    resolveP localProjectName =
+      go (LocalProjectKey'Name localProjectName) remoteBranchName
+
+    resolveB localBranchName = do
+      ProjectAndBranch currentProject _ <-
+        maybeCurrentProjectBranch & onNothing (Cli.returnEarly Output.NotOnProjectBranch)
+      go (LocalProjectKey'Project currentProject) localBranchName
+
+    resolvePB localProjectName localBranchName =
+      go (LocalProjectKey'Name localProjectName) localBranchName
+
+    go project branch = do
+      void (Cli.runEitherTransaction (assertLocalProjectBranchDoesntExist (ProjectAndBranch project branch)))
+      pure (ProjectAndBranch project branch)
 
 -- `cloneInto command local remote` clones `remote` into `local`, which is believed to not exist yet, but may (because
 -- it takes some time to pull the remote).
@@ -275,6 +298,21 @@ cloneInto localProjectBranch remoteProjectBranch = do
     ("clone " <> into @Text (ProjectAndBranch remoteProjectName remoteBranchName))
     (Path.unabsolute path, const (Branch.head theBranch))
   Cli.cd path
+
+-- Return the remote project id associated with the given project branch
+projectBranchRemoteProjectKey ::
+  ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
+  Sqlite.Transaction RemoteProjectKey
+projectBranchRemoteProjectKey (ProjectAndBranch project branch) = do
+  Queries.loadRemoteProjectBranch (project ^. #projectId) Share.hardCodedUri (branch ^. #branchId) <&> \case
+    Nothing -> RemoteProjectKey'Name (project ^. #name)
+    Just (remoteProjectId, _) -> RemoteProjectKey'Id remoteProjectId
+
+assertProjectNameHasUserSlug :: ProjectName -> Cli ()
+assertProjectNameHasUserSlug projectName =
+  void $
+    projectNameUserSlug projectName
+      & onNothing (Cli.returnEarly (Output.ProjectNameRequiresUserSlug projectName))
 
 -- Assert that a local project+branch with this name doesn't already exist. If it does exist, we can't clone over it.
 assertLocalProjectBranchDoesntExist ::

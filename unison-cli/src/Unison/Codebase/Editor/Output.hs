@@ -339,7 +339,7 @@ data Output
   | CannotCreateReleaseBranchWithBranchCommand ProjectBranchName Semver
   | -- | The `local` in a `clone remote local` is ambiguous
     AmbiguousCloneLocal
-      (ProjectAndBranch ProjectName (Maybe ProjectBranchName))
+      (ProjectAndBranch ProjectName ProjectBranchName)
       -- ^ Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
   | -- | The `remote` in a `clone remote local` is ambiguous
