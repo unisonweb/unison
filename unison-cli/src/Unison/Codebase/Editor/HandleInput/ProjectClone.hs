@@ -4,7 +4,7 @@ module Unison.Codebase.Editor.HandleInput.ProjectClone
   )
 where
 
-import Control.Lens ((^.))
+import Control.Lens (over, (^.), _2)
 import Control.Monad.Reader (ask)
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
@@ -238,6 +238,7 @@ cloneInto :: ProjectAndBranch LocalProjectKey ProjectBranchName -> Share.RemoteP
 cloneInto localProjectBranch remoteProjectBranch = do
   let remoteProjectName = remoteProjectBranch ^. #projectName
   let remoteBranchName = remoteProjectBranch ^. #branchName
+  let remoteProjectBranchNames = ProjectAndBranch remoteProjectName remoteBranchName
 
   -- Pull the remote branch's contents
   let remoteBranchHeadJwt = remoteProjectBranch ^. #branchHead
@@ -246,7 +247,7 @@ cloneInto localProjectBranch remoteProjectBranch = do
       result <-
         Share.downloadEntities
           Share.hardCodedBaseUrl
-          (Share.RepoInfo (into @Text (ProjectAndBranch remoteProjectName remoteBranchName)))
+          (Share.RepoInfo (into @Text remoteProjectBranchNames))
           remoteBranchHeadJwt
           downloadedCallback
       numDownloaded <- liftIO getNumDownloaded
@@ -266,13 +267,13 @@ cloneInto localProjectBranch remoteProjectBranch = do
         Left err -> pure (Left err)
         Right maybeLocalProject -> do
           -- Create the local project (if necessary), and create the local branch
-          localProjectId <-
+          (localProjectId, localProjectName) <-
             case maybeLocalProject of
               Left localProjectName -> do
                 localProjectId <- Sqlite.unsafeIO (ProjectId <$> UUID.nextRandom)
                 Queries.insertProject localProjectId localProjectName
-                pure localProjectId
-              Right localProject -> pure (localProject ^. #projectId)
+                pure (localProjectId, localProjectName)
+              Right localProject -> pure (localProject ^. #projectId, localProject ^. #name)
           localBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
           Queries.insertProjectBranch
             Sqlite.ProjectBranch
@@ -287,15 +288,23 @@ cloneInto localProjectBranch remoteProjectBranch = do
             (remoteProjectBranch ^. #projectId)
             Share.hardCodedUri
             (remoteProjectBranch ^. #branchId)
-          pure (Right (ProjectAndBranch localProjectId localBranchId))
+          pure (Right (ProjectAndBranch (localProjectId, localProjectName) localBranchId))
+
+  Cli.respond $
+    Output.ClonedProjectBranch
+      remoteProjectBranchNames
+      ( ProjectAndBranch
+          (localProjectAndBranch ^. #project . _2)
+          (localProjectBranch ^. #branch)
+      )
 
   -- Manipulate the root namespace and cd
   Cli.Env {codebase} <- ask
   let branchHead = hash32ToCausalHash (Share.API.hashJWTHash remoteBranchHeadJwt)
   theBranch <- liftIO (Codebase.expectBranchForHash codebase branchHead)
-  let path = projectBranchPath localProjectAndBranch
+  let path = projectBranchPath (over #project fst localProjectAndBranch)
   Cli.stepAt
-    ("clone " <> into @Text (ProjectAndBranch remoteProjectName remoteBranchName))
+    ("clone " <> into @Text remoteProjectBranchNames)
     (Path.unabsolute path, const (Branch.head theBranch))
   Cli.cd path
 

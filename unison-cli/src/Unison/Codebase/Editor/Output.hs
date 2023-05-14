@@ -344,6 +344,9 @@ data Output
       (ProjectAndBranch ProjectName ProjectBranchName)
   | -- | The `remote` in a `clone remote local` is ambiguous
     AmbiguousCloneRemote ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
+  | ClonedProjectBranch
+      (ProjectAndBranch ProjectName ProjectBranchName)
+      (ProjectAndBranch ProjectName ProjectBranchName)
 
 -- | What did we create a project branch from?
 --
@@ -406,6 +409,7 @@ isFailure :: Output -> Bool
 isFailure o = case o of
   AmbiguousCloneLocal {} -> True
   AmbiguousCloneRemote {} -> True
+  ClonedProjectBranch {} -> False
   NoLastRunResult {} -> True
   SaveTermNameConflict {} -> True
   RunResult {} -> False

@@ -2099,6 +2099,12 @@ notifyUser dir = \case
         <> P.newline
         <> P.newline
         <> tip (prettyProjectNameSlash project <> "refers to the project" <> P.group (prettyProjectName project <> "."))
+  ClonedProjectBranch remote local ->
+    pure . P.wrap $
+      "Cloned"
+        <> if remote == local
+          then P.group (prettyProjectAndBranchName remote <> ".")
+          else prettyProjectAndBranchName remote <> "as" <> P.group (prettyProjectAndBranchName local <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
