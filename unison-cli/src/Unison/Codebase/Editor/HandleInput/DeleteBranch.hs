@@ -59,7 +59,7 @@ handleDeleteBranch projectAndBranchNames0 = do
   --   1. cd to parent branch, if it exists
   --   2. cd to "main", if it exists
   --   3. cd to loose code path `.`
-  whenJust maybeCurrentBranch \(ProjectAndBranch _currentProject currentBranch) ->
+  whenJust maybeCurrentBranch \(ProjectAndBranch _currentProject currentBranch, _restPath) ->
     when (deletedBranch == currentBranch) do
       newPath <-
         case deletedBranch ^. #parentBranchId of
