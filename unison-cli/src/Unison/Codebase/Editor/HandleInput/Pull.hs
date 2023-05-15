@@ -119,7 +119,7 @@ resolveImplicitSource :: Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
 resolveImplicitSource =
   ProjectUtils.getCurrentProjectBranch >>= \case
     Nothing -> RemoteRepo.writeNamespaceToRead <$> resolveConfiguredUrl PushPull.Pull Path.currentPath
-    Just (ProjectAndBranch localProject localBranch) -> do
+    Just (ProjectAndBranch localProject localBranch, _restPath) -> do
       (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
         Cli.runEitherTransaction do
           let localProjectId = localProject ^. #projectId
@@ -159,7 +159,7 @@ resolveImplicitTarget :: Cli (PullTarget (ProjectAndBranch Sqlite.Project Sqlite
 resolveImplicitTarget =
   ProjectUtils.getCurrentProjectBranch <&> \case
     Nothing -> PullTargetLooseCode Path.currentPath
-    Just projectAndBranch -> PullTargetProject projectAndBranch
+    Just (projectAndBranch, _restPath) -> PullTargetProject projectAndBranch
 
 resolveExplicitTarget ::
   PullTarget (These ProjectName ProjectBranchName) ->

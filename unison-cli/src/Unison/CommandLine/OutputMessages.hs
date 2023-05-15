@@ -50,6 +50,7 @@ import qualified U.Util.Base32Hex as Base32Hex
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
 import qualified Unison.Builtin.Decls as DD
+import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import qualified Unison.Cli.Share.Projects.Types as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
@@ -911,7 +912,7 @@ notifyUser dir = \case
       prettyProjectAndBranchName projectAndBranch <> "is empty. There is nothing to push."
   CreatedNewBranch path ->
     pure $
-      "☝️  The namespace " <> P.blue (P.shown path) <> " is empty."
+      "☝️  The namespace " <> prettyAbsoluteStripProject path <> " is empty."
   -- RenameOutput rootPath oldName newName r -> do
   --   nameChange "rename" "renamed" oldName newName r
   -- AliasOutput rootPath existingName newName r -> do
@@ -3740,3 +3741,12 @@ prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
       prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
         <> " on "
         <> P.hiBlack (P.shown host)
+
+stripProjectBranchInfo :: Path.Absolute -> Maybe Path.Path
+stripProjectBranchInfo = fmap snd . preview projectBranchPathPrism
+
+prettyAbsoluteStripProject :: Path.Absolute -> Pretty
+prettyAbsoluteStripProject path =
+  P.blue case stripProjectBranchInfo path of
+    Just p -> P.shown p
+    Nothing -> P.shown path

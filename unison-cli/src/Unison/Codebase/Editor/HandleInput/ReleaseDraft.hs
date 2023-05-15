@@ -17,7 +17,7 @@ import Witch (unsafeFrom)
 -- | Handle a @release.draft@ command.
 handleReleaseDraft :: Semver -> Cli ()
 handleReleaseDraft ver = do
-  currentProjectAndBranch <- ProjectUtils.expectCurrentProjectBranch
+  currentProjectAndBranch <- fst <$> ProjectUtils.expectCurrentProjectBranch
 
   let branchName = unsafeFrom @Text ("releases/drafts/" <> into @Text ver)
 

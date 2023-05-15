@@ -55,7 +55,7 @@ getCurrentProject = do
   path <- Cli.getCurrentPath
   case preview projectBranchPathPrism path of
     Nothing -> pure Nothing
-    Just (ProjectAndBranch projectId _branchId) ->
+    Just (ProjectAndBranch projectId _branchId, _restPath) ->
       Cli.runTransaction do
         project <- Queries.expectProject projectId
         pure (Just project)
@@ -65,25 +65,20 @@ expectCurrentProject :: Cli Sqlite.Project
 expectCurrentProject = do
   getCurrentProject & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
 
--- | Get the current project+branch that a user is on.
---
--- Note that if a user has (somehow) cd'd into a namespace *within* a branch, this function will return Nothing; that
--- is, it only returns Just if the user's current namespace is the root of a branch, and no deeper.
---
--- This should be fine: we don't want users to be able to cd around willy-nilly within projects (right?...)
-getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+-- | Get the current project+branch+branch path that a user is on.
+getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))
 getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
   case preview projectBranchPathPrism path of
     Nothing -> pure Nothing
-    Just (ProjectAndBranch projectId branchId) ->
+    Just (ProjectAndBranch projectId branchId, restPath) ->
       Cli.runTransaction do
         project <- Queries.expectProject projectId
         branch <- Queries.expectProjectBranch projectId branchId
-        pure (Just (ProjectAndBranch project branch))
+        pure (Just (ProjectAndBranch project branch, restPath))
 
 -- | Like 'getCurrentProjectBranch', but fails with a message if the user is not on a project branch.
-expectCurrentProjectBranch :: Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+expectCurrentProjectBranch :: Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path)
 expectCurrentProjectBranch =
   getCurrentProjectBranch & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
 
@@ -97,7 +92,7 @@ hydrateNames :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch Pro
 hydrateNames = \case
   This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
-    ProjectAndBranch project _branch <- expectCurrentProjectBranch
+    (ProjectAndBranch project _branch, _restPath) <- expectCurrentProjectBranch
     pure (ProjectAndBranch (project ^. #name) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
@@ -120,7 +115,7 @@ expectProjectAndBranchByTheseNames ::
 expectProjectAndBranchByTheseNames = \case
   This projectName -> expectProjectAndBranchByTheseNames (These projectName (unsafeFrom @Text "main"))
   That branchName -> do
-    ProjectAndBranch project _branch <- expectCurrentProjectBranch
+    (ProjectAndBranch project _branch, _restPath) <- expectCurrentProjectBranch
     branch <-
       Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName) & onNothingM do
         Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
@@ -190,7 +185,7 @@ expectRemoteProjectBranchByTheseNames = \case
     let remoteBranchName = unsafeFrom @Text "main"
     expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
   That branchName -> do
-    ProjectAndBranch localProject localBranch <- expectCurrentProjectBranch
+    (ProjectAndBranch localProject localBranch, _restPath) <- expectCurrentProjectBranch
     let localProjectId = localProject ^. #projectId
     let localBranchId = localBranch ^. #branchId
     Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
@@ -234,8 +229,8 @@ projectBranchesPath projectId =
 -- >>> projectBranchPath ProjectAndBranch { project = "ABCD", branch = "DEFG" }
 -- .__projects._ABCD.branches._DEFG
 projectBranchPath :: ProjectAndBranch ProjectId ProjectBranchId -> Path.Absolute
-projectBranchPath =
-  review projectBranchPathPrism
+projectBranchPath projectAndBranch =
+  review projectBranchPathPrism (projectAndBranch, Path.empty)
 
 -- | Get the name segment that a branch is stored at.
 --
@@ -283,31 +278,33 @@ projectPathPrism =
 -- | The prism between paths like
 --
 -- @
--- .__projects._XX_XX.branches._YY_YY
+-- .__projects._XX_XX.branches._YY_YY.foo.bar
 -- @
 --
--- and the @(project id, branch id)@ pair
+-- and the @(project id, branch id, path)@ triple
 --
 -- @
--- (XX-XX, YY-YY)
+-- (XX-XX, YY-YY, foo.bar)
 -- @
-projectBranchPathPrism :: Prism' Path.Absolute (ProjectAndBranch ProjectId ProjectBranchId)
+projectBranchPathPrism :: Prism' Path.Absolute (ProjectAndBranch ProjectId ProjectBranchId, Path.Path)
 projectBranchPathPrism =
   prism' toPath toIds
   where
-    toPath :: ProjectAndBranch ProjectId ProjectBranchId -> Path.Absolute
-    toPath ProjectAndBranch {project = projectId, branch = branchId} =
+    toPath :: (ProjectAndBranch ProjectId ProjectBranchId, Path.Path) -> Path.Absolute
+    toPath (ProjectAndBranch {project = projectId, branch = branchId}, restPath) =
       Path.Absolute $
         Path.fromList
-          [ "__projects",
-            UUIDNameSegment (unProjectId projectId),
-            "branches",
-            UUIDNameSegment (unProjectBranchId branchId)
-          ]
+          ( [ "__projects",
+              UUIDNameSegment (unProjectId projectId),
+              "branches",
+              UUIDNameSegment (unProjectBranchId branchId)
+            ]
+              ++ Path.toList restPath
+          )
 
-    toIds :: Path.Absolute -> Maybe (ProjectAndBranch ProjectId ProjectBranchId)
+    toIds :: Path.Absolute -> Maybe (ProjectAndBranch ProjectId ProjectBranchId, Path.Path)
     toIds path =
       case Path.toList (Path.unabsolute path) of
-        ["__projects", UUIDNameSegment projectId, "branches", UUIDNameSegment branchId] ->
-          Just ProjectAndBranch {project = ProjectId projectId, branch = ProjectBranchId branchId}
+        "__projects" : UUIDNameSegment projectId : "branches" : UUIDNameSegment branchId : restPath ->
+          Just (ProjectAndBranch {project = ProjectId projectId, branch = ProjectBranchId branchId}, Path.fromList restPath)
         _ -> Nothing
