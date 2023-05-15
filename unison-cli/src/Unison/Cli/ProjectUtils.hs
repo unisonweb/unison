@@ -65,12 +65,7 @@ expectCurrentProject :: Cli Sqlite.Project
 expectCurrentProject = do
   getCurrentProject & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
 
--- | Get the current project+branch that a user is on.
---
--- Note that if a user has (somehow) cd'd into a namespace *within* a branch, this function will return Nothing; that
--- is, it only returns Just if the user's current namespace is the root of a branch, and no deeper.
---
--- This should be fine: we don't want users to be able to cd around willy-nilly within projects (right?...)
+-- | Get the current project+branch+branch path that a user is on.
 getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))
 getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
@@ -283,13 +278,13 @@ projectPathPrism =
 -- | The prism between paths like
 --
 -- @
--- .__projects._XX_XX.branches._YY_YY
+-- .__projects._XX_XX.branches._YY_YY.foo.bar
 -- @
 --
--- and the @(project id, branch id)@ pair
+-- and the @(project id, branch id, path)@ triple
 --
 -- @
--- (XX-XX, YY-YY)
+-- (XX-XX, YY-YY, foo.bar)
 -- @
 projectBranchPathPrism :: Prism' Path.Absolute (ProjectAndBranch ProjectId ProjectBranchId, Path.Path)
 projectBranchPathPrism =
