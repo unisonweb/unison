@@ -269,6 +269,7 @@ namesForBranch root scope =
     (path, includeAllNames) = case scope of
       AllNames path -> (path, True)
       Within path -> (path, False)
+      WithinStrict path -> (path, False)
     root0 = Branch.head root
     currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
     absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
@@ -689,18 +690,26 @@ data NameScoping
     AllNames Path
   | -- | Filter returned names to only include names within this path.
     Within Path
+  | -- | Like `Within`, but does not include a fallback
+    WithinStrict Path
 
 toAllNames :: NameScoping -> NameScoping
 toAllNames (AllNames p) = AllNames p
 toAllNames (Within p) = AllNames p
+toAllNames (WithinStrict p) = AllNames p
 
 getCurrentPrettyNames :: Int -> NameScoping -> Branch m -> PPED.PrettyPrintEnvDecl
 getCurrentPrettyNames hashLen scope root =
-  let primary = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
-      backup = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
-   in PPED.PrettyPrintEnvDecl
+  case scope of
+    WithinStrict _ -> primary
+    _ ->
+      PPED.PrettyPrintEnvDecl
         (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE backup)
         (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE backup)
+      where
+        backup = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
+  where
+    primary = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
 
 getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
 getCurrentParseNames scope root =

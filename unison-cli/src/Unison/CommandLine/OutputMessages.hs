@@ -1672,28 +1672,28 @@ notifyUser dir = \case
             Just name -> prettyName name,
           prettyShortHash (SH.take hqLength (Reference.toShortHash reference))
         )
-
-  -- this definition is identical to the previous one, apart from the word
-  -- "Dependencies", but undecided about whether or how to refactor
-  ListDependencies hqLength ld names missing ->
+  ListDependencies hq [] [] ->
+    pure $ P.syntaxToColor $ prettyHashQualified hq <> " doesn't have any dependencies."
+  ListDependencies _hq types terms ->
     pure $
-      if names == mempty && missing == mempty
-        then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependencies."
-        else
-          "Dependencies of "
-            <> c (prettyLabeledDependency hqLength ld)
-            <> ":\n\n"
-            <> (P.indentN 2 (P.numberedColumn2Header num pairs))
+      P.lines . join $
+        [ [ P.bold "Types:",
+            "",
+            P.indentN 2 $ P.numbered (numFrom 0) $ c . prettyHashQualified <$> types
+          ],
+          if null terms
+            then []
+            else
+              [ "",
+                P.bold "Terms:",
+                "",
+                P.indentN 2 $ P.numbered (numFrom $ length types) $ c . prettyHashQualified <$> terms
+              ],
+          [""],
+          [tip ("Use " <> IP.makeExample IP.view ["1"] <> " to view one of these definitions.")]
+        ]
     where
-      num n = P.hiBlack $ P.shown n <> "."
-      header = (P.hiBlack "Reference", P.hiBlack "Name")
-      pairs =
-        header
-          : ( fmap (first c . second c) $
-                [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
-                  ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
-            )
-      p = prettyShortHash . SH.take hqLength
+      numFrom k n = P.hiBlack $ P.shown (k + n) <> "."
       c = P.syntaxToColor
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
   ListNamespaceDependencies ppe path' externalDependencies -> do

@@ -272,7 +272,7 @@ data Output
     NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash ShortCausalHash
-  | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
+  | ListDependencies (HQ.HashQualified Name) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | -- | List dependents of a type or term.
     ListDependents Int LabeledDependency [(Reference, Maybe Name)]
   | -- | List all direct dependencies which don't have any names in the current branch

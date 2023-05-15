@@ -9,12 +9,9 @@ import U.Codebase.Branch
 import qualified U.Codebase.Causal as Causal
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
-import Unison.NameSegment (NameSegment (..))
+import Unison.Name (libSegment)
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
-
-libSegment :: NameSegment
-libSegment = NameSegment "lib"
 
 -- | Infers path to use for loading names.
 -- Currently this means finding the closest parent with a "lib" child.
