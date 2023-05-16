@@ -50,6 +50,7 @@ import qualified U.Util.Base32Hex as Base32Hex
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
 import qualified Unison.Builtin.Decls as DD
+import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import qualified Unison.Cli.Share.Projects.Types as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
@@ -442,21 +443,6 @@ notifyNumbered = \case
         ),
       map (\(branchName, _) -> Text.unpack (into @Text (ProjectAndBranch projectName branchName))) branches
     )
-    where
-      prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
-      prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
-        -- Special-case Unison Share since we know its project branch URLs
-        if URI.uriToString id host "" == "https://api.unison-lang.org"
-          then
-            P.hiBlack . P.text $
-              "https://share.unison-lang.org/"
-                <> into @Text remoteProject
-                <> "/code/"
-                <> into @Text remoteBranch
-          else
-            prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
-              <> " on "
-              <> P.hiBlack (P.shown host)
   BothLocalProjectAndProjectBranchExist project (ProjectAndBranch currentProject branch) ->
     ( P.wrap
         ( "I'm not sure if you wanted to switch to the branch"
@@ -926,7 +912,7 @@ notifyUser dir = \case
       prettyProjectAndBranchName projectAndBranch <> "is empty. There is nothing to push."
   CreatedNewBranch path ->
     pure $
-      "☝️  The namespace " <> P.blue (P.shown path) <> " is empty."
+      "☝️  The namespace " <> prettyAbsoluteStripProject path <> " is empty."
   -- RenameOutput rootPath oldName newName r -> do
   --   nameChange "rename" "renamed" oldName newName r
   -- AliasOutput rootPath existingName newName r -> do
@@ -1810,9 +1796,11 @@ notifyUser dir = \case
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
   ShareError shareError -> pure (prettyShareError shareError)
-  ViewOnShare repoPath ->
+  ViewOnShare shareRef ->
     pure $
-      "View it on Unison Share: " <> prettyShareLink repoPath
+      "View it on Unison Share: " <> case shareRef of
+        Left repoPath -> prettyShareLink repoPath
+        Right branchInfo -> prettyRemoteBranchInfo branchInfo
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
@@ -3738,3 +3726,27 @@ prettyHumanReadableTime now time =
 
     dir True = " from now"
     dir False = " ago"
+
+prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
+prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
+  -- Special-case Unison Share since we know its project branch URLs
+  if URI.uriToString id host "" == "https://api.unison-lang.org"
+    then
+      P.hiBlack . P.text $
+        "https://share.unison-lang.org/"
+          <> into @Text remoteProject
+          <> "/code/"
+          <> into @Text remoteBranch
+    else
+      prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
+        <> " on "
+        <> P.hiBlack (P.shown host)
+
+stripProjectBranchInfo :: Path.Absolute -> Maybe Path.Path
+stripProjectBranchInfo = fmap snd . preview projectBranchPathPrism
+
+prettyAbsoluteStripProject :: Path.Absolute -> Pretty
+prettyAbsoluteStripProject path =
+  P.blue case stripProjectBranchInfo path of
+    Just p -> P.shown p
+    Nothing -> P.shown path

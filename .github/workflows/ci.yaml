@@ -39,7 +39,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          # temporarily disable non-windows builds to speed up iteration time
+          # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-20.04
           - macOS-11.0
           - windows-2019
@@ -163,7 +163,7 @@ jobs:
         run: stack --no-terminal build --fast --no-run-tests --test
 
       # Run each test suite (tests and transcripts)
-      - name: unison-cli tests
+      - name: unison-cli test
         run: stack --no-terminal build --fast --test unison-cli
       - name: unison-core tests
         run: stack --no-terminal build --fast --test unison-core
@@ -190,3 +190,45 @@ jobs:
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
       - name: cli-integration-tests
         run: stack --no-terminal exec cli-integration-tests
+
+      - uses: Bogdanp/setup-racket@v1.10
+        if: runner.os == 'Linux'
+        with:
+          architecture: 'x64'
+          distribution: 'full'
+          variant: 'CS'
+          version: '8.7'
+      - run: raco pkg install --deps search-auto --batch x509-lib
+        if: runner.os == 'Linux'
+      - run: sudo apt-get -y install libb2-dev
+        if: runner.os == 'Linux'
+
+      - uses: actions/cache@v3
+        name: cache ~/.cache/unisonlanguage (unix)
+        if: runner.os == 'Linux'
+        with:
+          path: ~/.cache/unisonlanguage
+          key: stack-0_${{matrix.os}}-${{github.sha}}
+          restore-keys: stack-0_${{matrix.os}}
+
+      - name: jit tests
+        if: runner.os == 'Linux'
+        run: |
+          ./unison-src/builtin-tests/jit-tests.sh
+          cat ./unison-src/builtin-tests/jit-tests.output.md
+          CHANGE=$(git diff unison-src/builtin-tests/jit-tests.output.md)
+          if [ -n "$CHANGE" ]; then
+            echo "The jit-tests output has changed"
+            exit 1
+          fi
+
+      - name: interpreter tests
+        if: runner.os == 'Linux'
+        run: |
+          ./unison-src/builtin-tests/interpreter-tests.sh
+          cat ./unison-src/builtin-tests/interpreter-tests.output.md
+          CHANGE=$(git diff unison-src/builtin-tests/interpreter-tests.output.md)
+          if [ -n "$CHANGE" ]; then
+            echo "The interpreter-tests output has changed"
+            exit 1
+          fi

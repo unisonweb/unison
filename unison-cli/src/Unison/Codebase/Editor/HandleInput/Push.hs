@@ -121,7 +121,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
             WriteRemoteNamespaceGit namespace -> pushLooseCodeToGitLooseCode localPath namespace pushBehavior syncMode
             WriteRemoteNamespaceShare namespace -> pushLooseCodeToShareLooseCode localPath namespace pushBehavior
             WriteRemoteProjectBranch v -> absurd v
-        Just localProjectAndBranch -> pushProjectBranchToProjectBranch localProjectAndBranch Nothing
+        Just (localProjectAndBranch, _restPath) -> pushProjectBranchToProjectBranch localProjectAndBranch Nothing
     -- push <implicit> to .some.path (git)
     PushSourceTarget1 (WriteRemoteNamespaceGit namespace) -> do
       localPath <- Cli.getCurrentPath
@@ -137,7 +137,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
           localPath <- Cli.getCurrentPath
           remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
           pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
-        Just localProjectAndBranch ->
+        Just (localProjectAndBranch, _restPath) ->
           pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch0)
     -- push .some.path to .some.path (git)
     PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceGit namespace) -> do
@@ -225,7 +225,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
-  ensureAuthenticatedWithCodeserver codeserver
+  _ <- ensureAuthenticatedWithCodeserver codeserver
 
   localCausalHash <-
     Cli.runTransaction (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))) & onNothingM do
@@ -260,11 +260,11 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
             Share.TransportError err -> ShareErrorTransport err
       maybeNumUploaded <- checkAndSetPush (Share.API.hashJWTHash <$> maybeHashJwt)
       whenJust maybeNumUploaded (Cli.respond . Output.UploadedEntities)
-      Cli.respond (ViewOnShare remote)
+      Cli.respond (ViewOnShare (Left remote))
     PushBehavior.RequireEmpty -> do
       maybeNumUploaded <- checkAndSetPush Nothing
       whenJust maybeNumUploaded (Cli.respond . Output.UploadedEntities)
-      Cli.respond (ViewOnShare remote)
+      Cli.respond (ViewOnShare (Left remote))
     PushBehavior.RequireNonEmpty -> do
       let push :: Cli (Either (Share.SyncError Share.FastForwardPushError) (), Int)
           push =
@@ -281,7 +281,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
         (Left err, _) -> pushError ShareErrorFastForwardPush err
         (Right (), numUploaded) -> do
           Cli.respond (UploadedEntities numUploaded)
-          Cli.respond (ViewOnShare remote)
+          Cli.respond (ViewOnShare (Left remote))
   where
     pathToSegments :: Path -> [Text]
     pathToSegments =
@@ -296,6 +296,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
 -- Push a local namespace ("loose code") to a remote project branch.
 pushLooseCodeToProjectBranch :: Path.Absolute -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
 pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
+  _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   localBranchHead <-
     Cli.runEitherTransaction do
       loadCausalHashToPush localPath <&> \case
@@ -312,6 +313,7 @@ pushProjectBranchToProjectBranch ::
   Maybe (These ProjectName ProjectBranchName) ->
   Cli ()
 pushProjectBranchToProjectBranch localProjectAndBranch maybeRemoteProjectAndBranchNames = do
+  _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   let localProjectAndBranchIds = localProjectAndBranch & over #project (view #projectId) & over #branch (view #branchId)
   let localProjectAndBranchNames = localProjectAndBranch & over #project (view #name) & over #branch (view #name)
 
@@ -326,10 +328,10 @@ pushProjectBranchToProjectBranch localProjectAndBranch maybeRemoteProjectAndBran
 
   uploadPlan <-
     case maybeRemoteProjectAndBranchNames of
-      Nothing -> bazinga50 localProjectAndBranch localBranchHead Nothing
+      Nothing -> pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBranchHead Nothing
       Just (This remoteProjectName) ->
-        bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch (Just remoteProjectName) Nothing)
-      Just (That remoteBranchName) -> bazinga50 localProjectAndBranch localBranchHead (Just remoteBranchName)
+        pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch localBranchHead (ProjectAndBranch (Just remoteProjectName) Nothing)
+      Just (That remoteBranchName) -> pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBranchHead (Just remoteBranchName)
       Just (These remoteProjectName remoteBranchName) ->
         pushToProjectBranch0
           (PushingProjectBranch localProjectAndBranch)
@@ -339,8 +341,8 @@ pushProjectBranchToProjectBranch localProjectAndBranch maybeRemoteProjectAndBran
   executeUploadPlan uploadPlan
 
 -- "push" or "push /foo", remote mapping unknown
-bazinga50 :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Hash32 -> Maybe ProjectBranchName -> Cli UploadPlan
-bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
+pushProjectBranchToProjectBranch'InferredProject :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Hash32 -> Maybe ProjectBranchName -> Cli UploadPlan
+pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBranchHead maybeRemoteBranchName = do
   let loadRemoteProjectInfo ::
         Sqlite.Transaction
           ( Maybe
@@ -362,7 +364,7 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
             pure (Just (remoteProjectId, remoteProjectName, maybeRemoteBranchInfo))
 
   Cli.runTransaction loadRemoteProjectInfo >>= \case
-    Nothing -> bazinga10 localProjectAndBranch localBranchHead (ProjectAndBranch Nothing maybeRemoteBranchName)
+    Nothing -> pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch localBranchHead (ProjectAndBranch Nothing maybeRemoteBranchName)
     Just (remoteProjectId, remoteProjectName, maybeRemoteBranchInfo) ->
       case maybeRemoteBranchName of
         Nothing -> do
@@ -409,12 +411,12 @@ bazinga50 localProjectAndBranch localBranchHead maybeRemoteBranchName = do
     localBranchId = localProjectAndBranch ^. #branch . #branchId
 
 -- "push", "push foo", or "push /foo" ignoring remote mapping (if any)
-bazinga10 ::
+pushProjectBranchToProjectBranch'IgnoreRemoteMapping ::
   ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
   Hash32 ->
   ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
   Cli UploadPlan
-bazinga10 localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = do
+pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = do
   myUserHandle <- view #handle <$> AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   let localProjectName = localProjectAndBranch ^. #project . #name
   let localBranchName = localProjectAndBranch ^. #branch . #name
@@ -597,6 +599,8 @@ executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
       liftIO getNumUploaded
   Cli.respond (Output.UploadedEntities numUploaded)
   afterUploadAction
+  let ProjectAndBranch projectName branchName = remoteBranch
+  Cli.respond (ViewOnShare (Right (Share.hardCodedUri, projectName, branchName)))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- After upload actions

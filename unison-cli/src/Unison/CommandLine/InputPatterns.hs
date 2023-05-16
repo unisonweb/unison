@@ -2716,7 +2716,7 @@ projectAndBranchNamesArg =
   ArgumentType
     { typeName = "project-and-branch-names",
       suggestions = \input codebase _httpClient path -> do
-        let currentBranch = preview ProjectUtils.projectBranchPathPrism path
+        let currentBranch = fst <$> preview ProjectUtils.projectBranchPathPrism path
         (branches, projects) <-
           Codebase.runTransaction
             codebase

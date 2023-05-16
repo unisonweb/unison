@@ -240,7 +240,7 @@ data Output
     BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
   | ShareError ShareError
-  | ViewOnShare WriteShareRemoteNamespace
+  | ViewOnShare (Either WriteShareRemoteNamespace (URI, ProjectName, ProjectBranchName))
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
