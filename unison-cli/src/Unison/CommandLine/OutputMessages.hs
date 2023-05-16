@@ -1649,7 +1649,7 @@ notifyUser dir = \case
               "",
               "Paste that output into http://bit-booster.com/graph.html"
             ]
-  ListDependents hqLength ld results ->
+  ListDependents hqLength lds results ->
     pure $
       if null results
         then prettyLd <> " doesn't have any named dependents."
@@ -1657,12 +1657,10 @@ notifyUser dir = \case
           P.lines
             [ "Dependents of " <> prettyLd <> ":",
               "",
-              P.indentN 2 (P.numberedColumn2Header num pairs),
-              "",
-              tip $ "Try " <> IP.makeExample IP.view ["1"] <> " to see the source of any numbered item in the above list."
+              P.indentN 2 (P.numberedColumn2Header num pairs)
             ]
     where
-      prettyLd = P.syntaxToColor (prettyLabeledDependency hqLength ld)
+      prettyLd = P.syntaxToColor (intercalateMap ", " (prettyLabeledDependency hqLength) lds)
       num n = P.hiBlack $ P.shown n <> "."
       header = (P.hiBlack "Name", P.hiBlack "Reference")
       pairs = header : map pair (List.sortOn (fmap (Name.convert :: Name -> HQ.HashQualified Name) . snd) results)
@@ -1673,27 +1671,37 @@ notifyUser dir = \case
             Just name -> prettyName name,
           prettyShortHash (SH.take hqLength (Reference.toShortHash reference))
         )
-  ListDependencies hq [] [] ->
-    pure $ P.syntaxToColor $ prettyHashQualified hq <> " doesn't have any dependencies."
-  ListDependencies _hq types terms ->
+  ListDependencies hqLength lds [] [] ->
+    pure $ P.syntaxToColor $ prettyLd <> " has no dependencies."
+    where
+      prettyLd = intercalateMap ", " (prettyLabeledDependency hqLength) lds
+  ListDependencies hqLength lds types terms ->
     pure $
-      P.lines . join $
-        [ [ P.bold "Types:",
+      typesOut
+        <> termsOut
+        <> "\n\n"
+        <> tip ("Use " <> IP.makeExample IP.view ["1"] <> " to view one of these definitions.")
+    where
+      typesOut =
+        P.lines $
+          [ "Dependencies of: " <> prettyLd,
+            "",
+            P.indentN 2 $ P.bold "Types:",
             "",
             P.indentN 2 $ P.numbered (numFrom 0) $ c . prettyHashQualified <$> types
-          ],
-          if null terms
-            then []
-            else
+          ]
+      termsOut =
+        if null terms
+          then mempty
+          else
+            P.lines
               [ "",
-                P.bold "Terms:",
+                "",
+                P.indentN 2 $ P.bold "Terms:",
                 "",
                 P.indentN 2 $ P.numbered (numFrom $ length types) $ c . prettyHashQualified <$> terms
-              ],
-          [""],
-          [tip ("Use " <> IP.makeExample IP.view ["1"] <> " to view one of these definitions.")]
-        ]
-    where
+              ]
+      prettyLd = P.syntaxToColor (intercalateMap ", " (prettyLabeledDependency hqLength) lds)
       numFrom k n = P.hiBlack $ P.shown (k + n) <> "."
       c = P.syntaxToColor
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
