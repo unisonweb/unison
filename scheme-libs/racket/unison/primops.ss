@@ -243,8 +243,10 @@
     unison-FOp-Tls.ClientConfig.default
     unison-FOp-Tls.ClientConfig.certificates.set
     unison-FOp-Tls.decodeCert.impl.v3
+    unison-FOp-Tls.encodeCert
     unison-FOp-Tls.newServer.impl.v3
     unison-FOp-Tls.decodePrivateKey
+    unison-FOp-Tls.encodePrivateKey
     unison-FOp-Tls.ServerConfig.default
     unison-FOp-Tls.handshake.impl.v3
     unison-FOp-Tls.newClient.impl.v3

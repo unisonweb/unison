@@ -20,8 +20,11 @@
    ClientConfig.default
    ClientConfig.certificates.set
    ServerConfig.default
+   ServerConfig.certificates.set
    decodeCert.impl.v3
+   encodeCert
    decodePrivateKey
+   encodePrivateKey
    handshake.impl.v3
    newServer.impl.v3
    newClient.impl.v3
@@ -42,6 +45,9 @@
     (close-output-port of)
     tmp))
 
+(define (encodePrivateKey privateKey)
+    (bytes->chunked-bytes (string->bytes/utf-8 (pem->pem-string privateKey))))
+
 (define (decodePrivateKey bytes) ; bytes -> list tlsPrivateKey
   (vector->chunked-list
    (list->vector ; TODO better conversion
@@ -56,6 +62,9 @@
     (if (= 1 (length certs))
         (right bytes)
         (exception "Wrong number of certs" (string->chunked-string "nope") certs)))) ; TODO passing certs is wrong, should either be converted to chunked-list or removed
+
+; We don't actually "decode" certificates, we just validate them
+(define (encodeCert bytes) bytes)
 
 (struct server-config (certs key)) ; certs = list certificate; key = privateKey
 
@@ -93,6 +102,9 @@
   (if (= 0 (chunked-bytes-length service-identification-suffix))
       (client-config host empty-chunked-list)
       (error 'NotImplemented "service-identification-suffix not supported")))
+
+(define (ServerConfig.certificates.set certs config)
+  (server-config certs (server-config-key config)))
 
 (define (ClientConfig.certificates.set certs config) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
   (client-config (client-config-host config) certs))
