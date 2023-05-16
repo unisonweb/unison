@@ -10,3 +10,7 @@ TODO remove md5 alias when base is released
 .> run.native tests
 
 ```
+```ucm
+.> run.native tests.jit.only
+
+```
