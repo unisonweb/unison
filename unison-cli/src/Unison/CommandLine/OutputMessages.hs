@@ -1657,7 +1657,9 @@ notifyUser dir = \case
           P.lines
             [ "Dependents of " <> prettyLd <> ":",
               "",
-              P.indentN 2 (P.numberedColumn2Header num pairs)
+              P.indentN 2 (P.numberedColumn2Header num pairs),
+              "",
+              tip ("Use " <> IP.makeExample IP.view ["1"] <> " to view the source of any numbered item in the above list.")
             ]
     where
       prettyLd = P.syntaxToColor (intercalateMap ", " (prettyLabeledDependency hqLength) lds)
