@@ -33,6 +33,8 @@
     unison-FOp-IO.closeFile.impl.v3
     unison-FOp-IO.openFile.impl.v3
     unison-FOp-IO.putBytes.impl.v3
+    unison-FOp-IO.getFileSize.impl.v3
+    unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-Text.fromUtf8.impl.v3
     unison-FOp-Text.repeat
     unison-FOp-Text.reverse
