@@ -27,6 +27,31 @@ tls.tests = do
 --     Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
 --     Socket.receive socket
 
+tls.cert.codec = do
+    match (decodeCert (toUtf8 selfSignedCert)) with
+        Right cert ->
+            bytes = encodeCert cert
+            match decodeCert bytes with
+                Right cert2 -> checkEqual "roundtrip" (encodeCert cert2) bytes
+                Left what -> Tests.fail "Nope" (Debug.toText what)
+
+            -- match catch '(fromUtf8 bytes) with
+            --     Right text -> checkEqual "encode a decoded cert" selfSignedCert text
+            --     _ -> Tests.fail "Encoded cert not utf8" (Debug.toText bytes)
+        _ -> Tests.fail "Unable to decode cert" selfSignedCert
+
+
+-- lol the haskell impl for encodePrivateKey doesn't produce the correct type,
+-- and also doesn't really encode it? what
+tls.private.codec = do
+    match (decodePrivateKey (toUtf8 selfSignedKey)) with
+        key +: [] ->
+            bytes = (encodePrivateKey key)
+            match catch '(fromUtf8 bytes) with
+                Right text -> checkEqual "encode a decoded key" selfSignedKey text
+                _ -> Tests.fail "Encoded private key not utf8" (Debug.toText bytes)
+        _ -> Tests.fail "No private key decoded" selfSignedKey
+
 tls.example.com = do
     socket = Socket.client (HostName "example.com") (Port "443")
     config = ClientConfig.default (HostName "example.com") ""

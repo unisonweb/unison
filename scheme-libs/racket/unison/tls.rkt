@@ -20,8 +20,10 @@
    ClientConfig.default
    ClientConfig.certificates.set
    ServerConfig.default
+   ServerConfig.certificates.set
    decodeCert.impl.v3
    decodePrivateKey
+   encodePrivateKey
    handshake.impl.v3
    newServer.impl.v3
    newClient.impl.v3
@@ -41,6 +43,9 @@
     (flush-output of)
     (close-output-port of)
     tmp))
+
+(define (encodePrivateKey privateKey)
+    (bytes->chunked-bytes (string->bytes/utf-8 (pem->pem-string privateKey))))
 
 (define (decodePrivateKey bytes) ; bytes -> list tlsPrivateKey
   (vector->chunked-list
@@ -93,6 +98,9 @@
   (if (= 0 (chunked-bytes-length service-identification-suffix))
       (client-config host empty-chunked-list)
       (error 'NotImplemented "service-identification-suffix not supported")))
+
+(define (ServerConfig.certificates.set certs config)
+  (server-config certs (server-config-key config)))
 
 (define (ClientConfig.certificates.set certs config) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
   (client-config (client-config-host config) certs))
