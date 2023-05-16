@@ -23,6 +23,7 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleInput.Pull as HandleInput.Pull
 import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName, projectNameUserSlug)
@@ -78,14 +79,14 @@ data ResolvedRemoteNamesFrom
 --                              project in question, and the "@runar/topic" project does not exist), we'll do that,
 --                              otherwise abort
 resolveRemoteNames ::
-  Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) ->
+  Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path) ->
   ProjectAndBranchNames ->
   Cli ResolvedRemoteNames
 resolveRemoteNames maybeCurrentProjectBranch = \case
   ProjectAndBranchNames'Ambiguous remoteProjectName remoteBranchName ->
     case maybeCurrentProjectBranch of
       Nothing -> resolveP remoteProjectName
-      Just currentProjectBranch ->
+      Just (currentProjectBranch, _path) ->
         case projectNameUserSlug remoteProjectName of
           Nothing -> resolveB remoteBranchName
           Just _ -> do
@@ -142,7 +143,7 @@ resolveRemoteNames maybeCurrentProjectBranch = \case
   ProjectAndBranchNames'Unambiguous (These p b) -> resolvePB p b
   where
     resolveB branchName = do
-      currentProjectBranch <- maybeCurrentProjectBranch & onNothing (Cli.returnEarly Output.NotOnProjectBranch)
+      (currentProjectBranch, _path) <- maybeCurrentProjectBranch & onNothing (Cli.returnEarly Output.NotOnProjectBranch)
       projectKey <- Cli.runTransaction (projectBranchRemoteProjectKey currentProjectBranch)
       branch <- expectB projectKey branchName
       pure ResolvedRemoteNames {branch, from = ResolvedRemoteNamesFrom'Branch}
@@ -187,7 +188,7 @@ resolveRemoteNames maybeCurrentProjectBranch = \case
 -- `clone @foo/bar` resulted in treating `@foo/bar` as a contributor branch of the current project, then it is as if
 -- the user typed `clone /@foo/bar` instead, which is equivalent to the two-arg `clone /@foo/bar /@foo/bar`.
 resolveLocalNames ::
-  Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) ->
+  Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path) ->
   ResolvedRemoteNames ->
   Maybe ProjectAndBranchNames ->
   Cli (ProjectAndBranch LocalProjectKey ProjectBranchName)
@@ -208,7 +209,7 @@ resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames 
         ProjectAndBranchNames'Ambiguous localProjectName localBranchName ->
           case maybeCurrentProjectBranch of
             Nothing -> resolveP localProjectName
-            Just (ProjectAndBranch currentProject _) -> do
+            Just (ProjectAndBranch currentProject _, _path) -> do
               Cli.returnEarly $
                 Output.AmbiguousCloneLocal
                   (ProjectAndBranch localProjectName remoteBranchName)
@@ -221,7 +222,7 @@ resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames 
       go (LocalProjectKey'Name localProjectName) remoteBranchName
 
     resolveB localBranchName = do
-      ProjectAndBranch currentProject _ <-
+      (ProjectAndBranch currentProject _, _path) <-
         maybeCurrentProjectBranch & onNothing (Cli.returnEarly Output.NotOnProjectBranch)
       go (LocalProjectKey'Project currentProject) localBranchName
 
