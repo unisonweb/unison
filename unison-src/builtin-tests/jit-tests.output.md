@@ -13,6 +13,4 @@ TODO remove md5 alias when base is released
 ```ucm
 .> run.native tests.jit.only
 
-  Scheme evaluation failed.
-
 ```
