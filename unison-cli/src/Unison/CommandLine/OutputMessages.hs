@@ -1523,6 +1523,7 @@ notifyUser dir = \case
     pure $
       "I could't find a type with hash "
         <> (prettyShortHash sh)
+  AboutToPropagatePatch -> pure "Propagating changes from patch..."
   NothingToPatch _patchPath dest ->
     pure $
       P.callout "😶" . P.wrap $
@@ -1596,6 +1597,7 @@ notifyUser dir = \case
           <> prettyPullTarget dest
           <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
+  AboutToMerge -> pure "Merging..."
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
@@ -2057,6 +2059,7 @@ notifyUser dir = \case
         <> P.newline
         <> tip ("to draft a new release, try " <> IP.makeExample IP.releaseDraft [prettySemver ver])
         <> "."
+  CalculatingDiff -> pure (P.wrap "Calculating diff...")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

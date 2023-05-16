@@ -247,6 +247,7 @@ data Output
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
+  | AboutToPropagatePatch
   | -- todo: tell the user to run `todo` on the same patch they just used
     NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
@@ -260,6 +261,7 @@ data Output
   | PullSuccessful
       (ReadRemoteNamespace Share.RemoteProjectBranch)
       (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+  | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
     MergeOverEmpty (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | MergeAlreadyUpToDate
@@ -337,6 +339,7 @@ data Output
     NotImplementedYet Text
   | DraftingRelease ProjectBranchName Semver
   | CannotCreateReleaseBranchWithBranchCommand ProjectBranchName Semver
+  | CalculatingDiff
 
 -- | What did we create a project branch from?
 --
@@ -472,6 +475,7 @@ isFailure o = case o of
   MetadataAmbiguous {} -> True
   PatchNeedsToBeConflictFree {} -> True
   PatchInvolvesExternalDependents {} -> True
+  AboutToPropagatePatch {} -> False
   NothingToPatch {} -> False
   WarnIncomingRootBranch {} -> False
   StartOfCurrentPathHistory -> True
@@ -481,6 +485,7 @@ isFailure o = case o of
   NoBranchWithHash {} -> True
   PullAlreadyUpToDate {} -> False
   PullSuccessful {} -> False
+  AboutToMerge {} -> False
   MergeOverEmpty {} -> False
   MergeAlreadyUpToDate {} -> False
   PreviewMergeAlreadyUpToDate {} -> False
@@ -542,6 +547,7 @@ isFailure o = case o of
   UploadedEntities {} -> False
   DraftingRelease {} -> False
   CannotCreateReleaseBranchWithBranchCommand {} -> True
+  CalculatingDiff {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
