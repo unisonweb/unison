@@ -43,7 +43,7 @@ branchClone remoteBranchName = do
   -- TODO: allow user to override this with second argument
   let localBranchName = remoteBranchName
 
-  ProjectAndBranch currentProject currentBranch <- ProjectUtils.expectCurrentProjectBranch
+  (ProjectAndBranch currentProject currentBranch, _restPath) <- ProjectUtils.expectCurrentProjectBranch
   let localProjectBranch = ProjectAndBranch (currentProject ^. #name) localBranchName
 
   -- The current branch or one of its ancestors may be associated with a remote project already. If that's true,
