@@ -108,6 +108,7 @@ module U.Codebase.Sqlite.Queries
     loadAllProjects,
     loadAllProjectsBeginningWith,
     insertProject,
+    deleteProject,
 
     -- ** project branches
     projectBranchExistsByName,
@@ -3117,6 +3118,29 @@ insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBran
         INSERT INTO project_branch_parent (project_id, parent_branch_id, branch_id)
           VALUES (:projectId, :parentBranchId, :branchId)
       |]
+
+deleteProject :: ProjectId -> Transaction ()
+deleteProject projectId = do
+  execute2
+    [sql2|
+      DELETE FROM project_branch_remote_mapping
+      WHERE local_project_id = :projectId
+    |]
+  execute2
+    [sql2|
+      DELETE FROM project_branch_parent
+      WHERE project_id = :projectId
+    |]
+  execute2
+    [sql2|
+      DELETE FROM project_branch
+      WHERE project_id = :projectId
+    |]
+  execute2
+    [sql2|
+      DELETE FROM project
+      WHERE id = :projectId
+    |]
 
 -- | Delete a project branch.
 --

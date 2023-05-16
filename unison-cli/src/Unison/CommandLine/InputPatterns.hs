@@ -722,6 +722,21 @@ deleteReplacement isTerm =
         then deleteTermReplacementCommand
         else deleteTypeReplacementCommand
 
+deleteProject :: InputPattern
+deleteProject =
+  InputPattern
+    { patternName = "delete.project",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectNameArg)],
+      help = P.wrap "Delete a project.",
+      parse = \case
+        [name]
+          | Right project <- tryInto @ProjectName (Text.pack name) ->
+              Right (Input.DeleteI (DeleteTarget'Project project))
+        _ -> Left (showPatternHelp deleteProject)
+    }
+
 deleteBranch :: InputPattern
 deleteBranch =
   InputPattern
@@ -2491,6 +2506,7 @@ validInputs =
       debugTabCompletion,
       delete,
       deleteBranch,
+      deleteProject,
       deleteNamespace,
       deleteNamespaceForce,
       deletePatch,

@@ -320,6 +320,7 @@ data Output
     NoAssociatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- there's no remote branch associated with branch
     NoAssociatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | LocalProjectDoesntExist ProjectName
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
   | LocalProjectNorProjectBranchExist ProjectName ProjectBranchName
   | RemoteProjectDoesntExist URI ProjectName
@@ -526,6 +527,7 @@ isFailure o = case o of
   NoAssociatedRemoteProject {} -> True
   NoAssociatedRemoteProjectBranch {} -> True
   ProjectAndBranchNameAlreadyExists {} -> True
+  LocalProjectDoesntExist {} -> True
   LocalProjectBranchDoesntExist {} -> True
   LocalProjectNorProjectBranchExist {} -> True
   RemoteProjectDoesntExist {} -> True

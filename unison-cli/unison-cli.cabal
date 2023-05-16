@@ -46,6 +46,7 @@ library
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.DeleteBranch
+      Unison.Codebase.Editor.HandleInput.DeleteProject
       Unison.Codebase.Editor.HandleInput.MetadataUtils
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
