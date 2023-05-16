@@ -1,0 +1,48 @@
+
+io.tests = Tests.main do
+    !test_getFileSize
+    !test_getFileSize_err 
+    !test_getFileTimestamp
+    !test_getFileTimestamp_err
+
+testFile = do
+    fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
+    () = if FilePath.exists fp
+        then
+            removeFile fp
+        else
+            ()
+    fp
+
+writeFile fp txt =
+    fh = open fp Write
+    putText fh txt
+    close fh
+
+test_getFileSize = do
+    fp = !testFile
+    _ = writeFile fp "What"
+    fs = (getFileSize fp)
+    checkEqual "Get file size should work" fs 4
+    removeFile fp
+
+test_getFileSize_err = do
+    expectError' "File size of missing file" ["does not exist", "cannot get size"] '(getFileSize !testFile)
+
+test_getFileTimestamp = do
+    time = secondsSinceEpoch !now
+    fp = !testFile
+    _ = writeFile fp "What"
+    ts = match getFileTimestamp fp with EpochTime nat -> Nat.toInt nat
+    after = secondsSinceEpoch !now
+    use Int - +
+    -- allow slip of up to a second
+    if ts < (time - +1) then
+        Tests.fail "File timestamp is too early" ((Int.toText ts) ++ " vs " ++ (Int.toText after))
+    else if ts > (after + +1) then
+        Tests.fail "File timestamp is too late" ((Int.toText ts) ++ " vs " ++ (Int.toText after))
+    else
+        Tests.pass "File timestamp is reasonable"
+    
+test_getFileTimestamp_err = do
+    expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(getFileTimestamp !testFile)
