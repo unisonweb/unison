@@ -22,6 +22,7 @@
    ServerConfig.default
    ServerConfig.certificates.set
    decodeCert.impl.v3
+   encodeCert
    decodePrivateKey
    encodePrivateKey
    handshake.impl.v3
@@ -61,6 +62,9 @@
     (if (= 1 (length certs))
         (right bytes)
         (exception "Wrong number of certs" (string->chunked-string "nope") certs)))) ; TODO passing certs is wrong, should either be converted to chunked-list or removed
+
+; We don't actually "decode" certificates, we just validate them
+(define (encodeCert bytes) bytes)
 
 (struct server-config (certs key)) ; certs = list certificate; key = privateKey
 

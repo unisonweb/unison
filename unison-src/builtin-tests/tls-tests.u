@@ -27,30 +27,37 @@ tls.tests = do
 --     Socket.send socket (toUtf8 "GET /index.html HTTP/1.0\r\n\r\n")
 --     Socket.receive socket
 
+reencode.cert bytes =
+    match (decodeCert bytes) with
+        Right cert -> encodeCert cert
+        _ ->
+            Tests.fail "Unable to decode certificate" (fromUtf8' bytes)
+            bug "failed decoding"
+
+fromUtf8' bytes = match catch '(fromUtf8 bytes) with
+    Right text -> text
+    Left _ -> "the bytes aren't utf8-encoded?"
+
+reencode.priv bytes =
+    match (decodePrivateKey bytes) with
+        key +: [] -> encodePrivateKey key
+        _ ->
+            Tests.fail "Unable to decode private key" (fromUtf8' bytes)
+            bug "failed decoding"
+
 tls.cert.codec = do
-    match (decodeCert (toUtf8 selfSignedCert)) with
-        Right cert ->
-            bytes = encodeCert cert
-            match decodeCert bytes with
-                Right cert2 -> checkEqual "roundtrip" (encodeCert cert2) bytes
-                Left what -> Tests.fail "Nope" (Debug.toText what)
-
-            -- match catch '(fromUtf8 bytes) with
-            --     Right text -> checkEqual "encode a decoded cert" selfSignedCert text
-            --     _ -> Tests.fail "Encoded cert not utf8" (Debug.toText bytes)
-        _ -> Tests.fail "Unable to decode cert" selfSignedCert
-
+    bytes = (toUtf8 selfSignedCert)
+    once = reencode.cert bytes
+    twice = reencode.cert once
+    checkEqual "encode a decoded certificate" once twice
 
 -- lol the haskell impl for encodePrivateKey doesn't produce the correct type,
 -- and also doesn't really encode it? what
 tls.private.codec = do
-    match (decodePrivateKey (toUtf8 selfSignedKey)) with
-        key +: [] ->
-            bytes = (encodePrivateKey key)
-            match catch '(fromUtf8 bytes) with
-                Right text -> checkEqual "encode a decoded key" selfSignedKey text
-                _ -> Tests.fail "Encoded private key not utf8" (Debug.toText bytes)
-        _ -> Tests.fail "No private key decoded" selfSignedKey
+    bytes = (toUtf8 selfSignedKey)
+    once = reencode.priv bytes
+    twice = reencode.priv once
+    checkEqual "encode a decoded private key" once twice
 
 tls.example.com = do
     socket = Socket.client (HostName "example.com") (Port "443")
