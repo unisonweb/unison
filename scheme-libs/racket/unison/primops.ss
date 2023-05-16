@@ -35,6 +35,9 @@
     unison-FOp-IO.putBytes.impl.v3
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
+    unison-FOp-IO.fileExists.impl.v3
+    unison-FOp-IO.removeFile.impl.v3
+    unison-FOp-IO.getTempDirectory.impl.v3
     unison-FOp-Text.fromUtf8.impl.v3
     unison-FOp-Text.repeat
     unison-FOp-Text.reverse
@@ -79,6 +82,12 @@
     unison-FOp-Char.Class.anyOf
     unison-FOp-Char.Class.and
     unison-FOp-Char.Class.not
+    unison-FOp-Clock.internals.nsec.v1
+    unison-FOp-Clock.internals.sec.v1
+    unison-FOp-Clock.internals.threadCPUTime.v1
+    unison-FOp-Clock.internals.processCPUTime.v1
+    unison-FOp-Clock.internals.realtime.v1
+    unison-FOp-Clock.internals.monotonic.v1
 
 
     ; unison-FOp-Value.serialize
@@ -181,6 +190,7 @@
     unison-POp-SIZB
     unison-POp-SNOC
     unison-POp-SUBN
+    unison-POp-SUBI
     unison-POp-TAKS
     unison-POp-TAKT
     unison-POp-TAKB
@@ -273,6 +283,7 @@
           (unison pattern)
           (unison crypto)
           (unison data)
+          (unison io)
           (unison tls)
           (unison tcp)
           (unison gzip)
@@ -289,7 +300,7 @@
   (define (unison-POp-EQLI a b)
     (if (= a b) 1 0))
   (define unison-POp-MODI mod)
-  (define unison-POp-LEQI <=)
+  (define (unison-POp-LEQI a b) (bool (<= a b)))
   (define unison-POp-POWN expt)
 
   (define (reify-exn thunk)
@@ -357,6 +368,7 @@
   (define (unison-POp-SIZB b) (chunked-bytes-length b))
   (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
   (define (unison-POp-SUBN m n) (fx- m n))
+  (define (unison-POp-SUBI m n) (- m n))
   (define (unison-POp-TAKS n s) (chunked-list-take s n))
   (define (unison-POp-TAKT n t) (chunked-string-take t n))
   (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
@@ -467,14 +479,17 @@
     (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
 
   (define (unison-FOp-IO.closeFile.impl.v3 h)
-    (close-input-port h))
+    (if (input-port? h)
+        (close-input-port h)
+        (close-output-port h))
+    (right none))
 
   (define (unison-FOp-IO.openFile.impl.v3 fn mode)
-    (case mode
-      [(0) (open-file-input-port fn)]
-      [(1) (open-file-output-port fn)]
-      [(2) (open-file-output-port fn 'no-truncate)]
-      [else (open-file-input/output-port fn)]))
+    (right (case mode
+      [(0) (open-file-input-port (chunked-string->string fn))]
+      [(1) (open-file-output-port (chunked-string->string fn))]
+      [(2) (open-file-output-port (chunked-string->string fn) 'no-truncate)]
+      [else (open-file-input/output-port (chunked-string->string fn))])))
 
   (define (unison-FOp-Text.repeat n t)
     (let loop ([cnt 0]

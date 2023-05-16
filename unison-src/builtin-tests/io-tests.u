@@ -27,7 +27,7 @@ test_getFileSize = do
     removeFile fp
 
 test_getFileSize_err = do
-    expectError' "File size of missing file" ["does not exist"] '(getFileSize !testFile) 
+    expectError' "File size of missing file" ["does not exist", "cannot get size"] '(getFileSize !testFile)
 
 test_getFileTimestamp = do
     time = secondsSinceEpoch !now
@@ -45,4 +45,4 @@ test_getFileTimestamp = do
         Tests.pass "File timestamp is reasonable"
     
 test_getFileTimestamp_err = do
-    expectError' "File timestamp of missing file" ["does not exist"] '(getFileSize !testFile) 
+    expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(getFileTimestamp !testFile)
