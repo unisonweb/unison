@@ -1523,7 +1523,7 @@ notifyUser dir = \case
     pure $
       "I could't find a type with hash "
         <> (prettyShortHash sh)
-  AboutToPropagatePatch -> pure "Propagating changes from patch..."
+  AboutToPropagatePatch -> pure "Applying changes from patch..."
   NothingToPatch _patchPath dest ->
     pure $
       P.callout "😶" . P.wrap $
