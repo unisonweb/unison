@@ -362,10 +362,6 @@ import qualified Unison.Util.Alternative as Alternative
 import qualified Unison.Util.Lens as Lens
 import qualified Unison.Util.Map as Map
 
--- | A namespace rendered as a path, no leading '.'
--- E.g. "base.data"
-type NamespaceText = Text
-
 type TextPathSegments = [Text]
 
 -- * main squeeze
@@ -382,6 +378,7 @@ createSchema = do
   fixScopedNameLookupTables
   addProjectTables
   execute2 insertSchemaVersionSql
+  addNameLookupMounts
   where
     insertSchemaVersionSql =
       [sql2|
@@ -408,6 +405,10 @@ fixScopedNameLookupTables =
 addProjectTables :: Transaction ()
 addProjectTables =
   executeFile [hereFile|unison/sql/005-project-tables.sql|]
+
+addNameLookupMounts :: Transaction ()
+addNameLookupMounts =
+  executeFile [hereFile|unison/sql/006-add-name-lookup-mounts.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =
@@ -1930,7 +1931,7 @@ likeEscape escapeChar pat =
       | otherwise -> Text.singleton c
 
 -- | Get the list of a term names in the root namespace according to the name lookup index
-termNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesWithinNamespace :: BranchHashId -> Maybe NamespaceText -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termNamesWithinNamespace bhId mayNamespace = do
   let namespaceGlob = case mayNamespace of
         Nothing -> "*"

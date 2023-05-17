@@ -111,6 +111,8 @@ import Control.Lens hiding (children)
 import qualified Control.Monad.Extra as Monad
 import Data.Bitraversable (Bitraversable (bitraverse))
 import qualified Data.Foldable as Foldable
+import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.List.NonEmpty.Extra as NonEmpty
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
 import qualified Data.Set as Set
@@ -146,6 +148,7 @@ import U.Codebase.Sqlite.LocalIds
     WatchLocalIds,
   )
 import qualified U.Codebase.Sqlite.LocalizeObject as LocalizeObject
+import qualified U.Codebase.Sqlite.NameLookups as NameLookups
 import qualified U.Codebase.Sqlite.NameLookups as S
 import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
@@ -1159,25 +1162,57 @@ typeNamesForRefWithinNamespace bh namespace ref maySuffix = do
   bhId <- Q.expectBranchHashId bh
   Q.typeNamesForRefWithinNamespace bhId namespace (c2sTextReference ref) maySuffix
 
-termNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
-termNamesBySuffix bh namespace suffix = do
+namesBySuffix ::
+  (Db.BranchHashId -> NameLookups.PathSegments -> S.ReversedName -> Transaction [S.NamedRef ref]) ->
+  BranchHash ->
+  NameLookups.PathSegments ->
+  S.ReversedName ->
+  Transaction [S.NamedRef ref]
+namesBySuffix query bh namespace suffix = do
   bhId <- Q.expectBranchHashId bh
-  Q.termNamesBySuffix bhId namespace suffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+  (perspectiveBranchHashId, namespacePrefix, relativePath) <- NameLookups.nameLookupForPerspective bhId namespace
+  -- let reversedRelativePath = nameSuffix NonEmpty.:| reverse relativePath
+  query perspectiveBranchHashId relativePath suffix <&> fmap (prefixNamedRef namespacePrefix)
 
-typeNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
+termNamesBySuffix :: BranchHash -> NameLookups.PathSegments -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesBySuffix bh namespace suffix = do
+  namesBySuffix Q.termNamesBySuffix bh namespace suffix
+    <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+
+typeNamesBySuffix :: BranchHash -> NameLookups.PathSegments -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
 typeNamesBySuffix bh namespace suffix = do
+  namesBySuffix Q.typeNamesBySuffix bh namespace suffix
+    <&> fmap (fmap s2cTextReference)
+
+-- | Helper for findings refs by name within the correct mounted indexes.
+refsForExactName ::
+  (Db.BranchHashId -> S.ReversedName -> Transaction [S.NamedRef ref]) ->
+  BranchHash ->
+  S.ReversedName ->
+  Transaction [S.NamedRef ref]
+refsForExactName query bh (nameSuffix NonEmpty.:| reversedNamespace) = do
   bhId <- Q.expectBranchHashId bh
-  Q.typeNamesBySuffix bhId namespace suffix <&> fmap (fmap s2cTextReference)
+  let namespace = reverse reversedNamespace
+  (perspectiveBranchHashId, namespacePrefix, relativePath) <- NameLookups.nameLookupForPerspective bhId namespace
+  let reversedRelativePath = nameSuffix NonEmpty.:| reverse relativePath
+  namedRefs <- query perspectiveBranchHashId reversedRelativePath
+  pure $
+    namedRefs
+      <&> prefixNamedRef namespacePrefix
+
+-- | Requalifies a NamedRef to some namespace prefix.
+prefixNamedRef :: NameLookups.PathSegments -> S.NamedRef ref -> S.NamedRef ref
+prefixNamedRef prefix S.NamedRef {reversedSegments, ref} =
+  S.NamedRef {reversedSegments = NonEmpty.appendl reversedSegments (reverse prefix), ref}
 
 termRefsForExactName :: BranchHash -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
 termRefsForExactName bh reversedName = do
-  bhId <- Q.expectBranchHashId bh
-  Q.termRefsForExactName bhId reversedName <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+  refsForExactName Q.termRefsForExactName bh reversedName
+    <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
 typeRefsForExactName :: BranchHash -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
 typeRefsForExactName bh reversedName = do
-  bhId <- Q.expectBranchHashId bh
-  Q.typeRefsForExactName bhId reversedName <&> fmap (fmap s2cTextReference)
+  refsForExactName Q.typeRefsForExactName bh reversedName <&> fmap (fmap s2cTextReference)
 
 -- | Get the name within the provided namespace that has the longest matching suffix
 -- with the provided name, but a different ref.
