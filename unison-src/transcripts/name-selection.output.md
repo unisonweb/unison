@@ -1457,6 +1457,8 @@ d = c + 10
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 ```
 At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized. 
 The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope, 

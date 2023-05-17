@@ -120,9 +120,13 @@ b = 2
 
   Nothing changed as a result of the merge.
 
+  Applying changes from patch...
+
 .> merge y z
 
   Nothing changed as a result of the merge.
+
+  Applying changes from patch...
 
 .> history z
 

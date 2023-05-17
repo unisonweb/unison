@@ -66,6 +66,8 @@ If we merge that back into `builtin`, we get that same chain of history:
 
   Nothing changed as a result of the merge.
 
+  Applying changes from patch...
+
 .> history builtin
 
   Note: The most recent namespace hash is immediately below this
@@ -252,6 +254,8 @@ Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob bot
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .> history trunk
 
   Note: The most recent namespace hash is immediately below this
@@ -279,6 +283,8 @@ Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob bot
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .> history trunk
 
@@ -357,6 +363,8 @@ This time, we'll first squash Alice and Bob's changes together before squashing 
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .> squash bob trunk
 
   Here's what's changed in trunk after the merge:
@@ -374,6 +382,8 @@ This time, we'll first squash Alice and Bob's changes together before squashing 
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .> history trunk
 
@@ -412,6 +422,8 @@ Another thing we can do is `squash` into an empty namespace. This effectively ma
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .> history nohistoryalice
 
@@ -479,6 +491,8 @@ This checks to see that squashing correctly preserves deletions:
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .delete> history builtin
 
