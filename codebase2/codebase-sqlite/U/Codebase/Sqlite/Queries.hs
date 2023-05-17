@@ -1930,12 +1930,13 @@ likeEscape escapeChar pat =
       | c == escapeChar -> Text.pack [escapeChar, escapeChar]
       | otherwise -> Text.singleton c
 
--- | Get the list of a term names in the root namespace according to the name lookup index
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of a term names in the provided name lookup and relative namespace.
+-- Includes dependencies, but not transitive dependencies.
 termNamesWithinNamespace :: BranchHashId -> PathSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
-termNamesWithinNamespace bhId mayNamespace = do
-  let namespaceGlob = case mayNamespace of
-        PathSegments [] -> "*"
-        namespace -> toNamespaceGlob namespace
+termNamesWithinNamespace bhId namespace = do
   results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
     queryListRow2
       [sql2|
@@ -1944,17 +1945,31 @@ termNamesWithinNamespace bhId mayNamespace = do
         WHERE
           root_branch_hash_id = :bhId
           AND namespace GLOB :namespaceGlob
+
+        UNION ALL
+
+        SELECT (reversed_name || mount.reversed_mount_path) AS reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM name_lookup_mounts mount
+          INNER JOIN scoped_term_name_lookup ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+        WHERE
+          mount.parent_root_branch_hash_id = :bhId
+          -- We have a pre-condition that the namespace must not be within any of the mounts,
+          -- so this is sufficient to determine whether the entire sub-index is within the
+          -- required namespace prefix.
+          AND mount.mount_path GLOB :namespaceGlob
       |]
   pure (fmap unRow <$> results)
   where
+    namespaceGlob = toNamespaceGlob namespace
     unRow (a :. Only b) = (a, b)
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
--- | Get the list of a type names in the root namespace according to the name lookup index
+-- Get the list of a type names in the provided name lookup and relative namespace.
+-- Includes dependencies, but not transitive dependencies.
 typeNamesWithinNamespace :: BranchHashId -> PathSegments -> Transaction [NamedRef Reference.TextReference]
-typeNamesWithinNamespace bhId mayNamespace =
+typeNamesWithinNamespace bhId namespace =
   queryListRow2
     [sql2|
       SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
@@ -1962,12 +1977,21 @@ typeNamesWithinNamespace bhId mayNamespace =
       WHERE
         root_branch_hash_id = :bhId
         AND namespace GLOB :namespaceGlob
+
+      UNION ALL
+
+      SELECT (reversed_name || mount.reversed_mount_path) AS reversed_name, reference_builtin, reference_component_hash, reference_component_index
+      FROM name_lookup_mounts mount
+        INNER JOIN scoped_type_name_lookup ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+      WHERE
+        mount.parent_root_branch_hash_id = :bhId
+        -- We have a pre-condition that the namespace must not be within any of the mounts,
+        -- so this is sufficient to determine whether the entire sub-index is within the
+        -- required namespace prefix.
+        AND mount.mount_path GLOB :namespaceGlob
     |]
   where
-    namespaceGlob =
-      case mayNamespace of
-        PathSegments [] -> "*"
-        namespace -> toNamespaceGlob namespace
+    namespaceGlob = toNamespaceGlob namespace
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -3487,7 +3511,9 @@ toReversedName revSegs = Text.intercalate "." (into @[Text] revSegs) <> "."
 -- >>> toNamespaceGlob "foo.bar"
 -- "foo.bar.*"
 toNamespaceGlob :: PathSegments -> Text
-toNamespaceGlob namespace = globEscape (pathSegmentsToText namespace) <> ".*"
+toNamespaceGlob = \case
+  PathSegments [] -> "*"
+  namespace -> globEscape (pathSegmentsToText namespace) <> ".*"
 
 -- | Thrown if we try to get the segments of an empty name, shouldn't ever happen since empty names
 -- are invalid.
