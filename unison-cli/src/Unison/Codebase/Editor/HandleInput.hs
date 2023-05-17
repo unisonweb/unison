@@ -82,6 +82,7 @@ import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
+import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
@@ -941,6 +942,7 @@ loop e = do
                     & Branch.modifyAt (Path.singleton childName) \_ -> Branch.empty
                 afterDelete
               DeleteTarget'ProjectBranch name -> handleDeleteBranch name
+              DeleteTarget'Project name -> handleDeleteProject name
             DisplayI outputLoc names' -> do
               currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
@@ -1520,6 +1522,7 @@ inputDescription input =
           path <- ps' path0
           pure ("delete.patch " <> path)
         DeleteTarget'ProjectBranch _ -> wat
+        DeleteTarget'Project _ -> wat
     ReplaceI src target p0 -> do
       p <- opatch p0
       pure $

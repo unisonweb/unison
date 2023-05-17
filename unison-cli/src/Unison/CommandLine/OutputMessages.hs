@@ -1932,6 +1932,9 @@ notifyUser dir = \case
   NoAssociatedRemoteProjectBranch host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "isn't associated with any branch on" <> prettyURI host
+  LocalProjectDoesntExist project ->
+    pure . P.wrap $
+      prettyProjectName project <> "does not exist."
   LocalProjectBranchDoesntExist projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist."
