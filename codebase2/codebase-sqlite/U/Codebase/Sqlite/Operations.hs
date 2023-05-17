@@ -148,6 +148,7 @@ import U.Codebase.Sqlite.LocalIds
     WatchLocalIds,
   )
 import qualified U.Codebase.Sqlite.LocalizeObject as LocalizeObject
+import U.Codebase.Sqlite.NameLookups (PathSegments)
 import qualified U.Codebase.Sqlite.NameLookups as NameLookups
 import qualified U.Codebase.Sqlite.NameLookups as S
 import qualified U.Codebase.Sqlite.NamedRef as S
@@ -1129,7 +1130,7 @@ data NamesByPath = NamesByPath
 namesByPath ::
   BranchHash ->
   -- | A relative namespace string, e.g. Just "base.List"
-  Maybe Text ->
+  PathSegments ->
   Transaction NamesByPath
 namesByPath bh path = do
   bhId <- Q.expectBranchHashId bh
@@ -1148,7 +1149,7 @@ namesByPath bh path = do
 -- is only true on Share.
 --
 -- Get the list of a names for a given Referent.
-termNamesForRefWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Referent -> Maybe S.ReversedName -> Transaction [S.ReversedName]
+termNamesForRefWithinNamespace :: BranchHash -> PathSegments -> C.Referent -> Maybe S.ReversedName -> Transaction [S.ReversedName]
 termNamesForRefWithinNamespace bh namespace ref maySuffix = do
   bhId <- Q.expectBranchHashId bh
   Q.termNamesForRefWithinNamespace bhId namespace (c2sTextReferent ref) maySuffix
@@ -1157,7 +1158,7 @@ termNamesForRefWithinNamespace bh namespace ref maySuffix = do
 -- is only true on Share.
 --
 -- Get the list of a names for a given Reference, with an optional required suffix.
-typeNamesForRefWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Reference -> Maybe S.ReversedName -> Transaction [S.ReversedName]
+typeNamesForRefWithinNamespace :: BranchHash -> PathSegments -> C.Reference -> Maybe S.ReversedName -> Transaction [S.ReversedName]
 typeNamesForRefWithinNamespace bh namespace ref maySuffix = do
   bhId <- Q.expectBranchHashId bh
   Q.typeNamesForRefWithinNamespace bhId namespace (c2sTextReference ref) maySuffix
@@ -1190,20 +1191,20 @@ refsForExactName ::
   BranchHash ->
   S.ReversedName ->
   Transaction [S.NamedRef ref]
-refsForExactName query bh (nameSuffix NonEmpty.:| reversedNamespace) = do
+refsForExactName query bh (S.ReversedName (nameSuffix NonEmpty.:| reversedNamespace)) = do
   bhId <- Q.expectBranchHashId bh
   let namespace = reverse reversedNamespace
-  (perspectiveBranchHashId, namespacePrefix, relativePath) <- NameLookups.nameLookupForPerspective bhId namespace
+  (perspectiveBranchHashId, namespacePrefix, S.PathSegments relativePath) <- NameLookups.nameLookupForPerspective bhId (S.PathSegments namespace)
   let reversedRelativePath = nameSuffix NonEmpty.:| reverse relativePath
-  namedRefs <- query perspectiveBranchHashId reversedRelativePath
+  namedRefs <- query perspectiveBranchHashId (S.ReversedName reversedRelativePath)
   pure $
     namedRefs
       <&> prefixNamedRef namespacePrefix
 
 -- | Requalifies a NamedRef to some namespace prefix.
 prefixNamedRef :: NameLookups.PathSegments -> S.NamedRef ref -> S.NamedRef ref
-prefixNamedRef prefix S.NamedRef {reversedSegments, ref} =
-  S.NamedRef {reversedSegments = NonEmpty.appendl reversedSegments (reverse prefix), ref}
+prefixNamedRef (S.PathSegments prefix) S.NamedRef {reversedSegments = S.ReversedName reversedSegments, ref} =
+  S.NamedRef {reversedSegments = S.ReversedName $ NonEmpty.appendl reversedSegments (reverse prefix), ref}
 
 termRefsForExactName :: BranchHash -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
 termRefsForExactName bh reversedName = do

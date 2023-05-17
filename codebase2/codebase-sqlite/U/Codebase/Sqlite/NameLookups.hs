@@ -8,6 +8,7 @@ module U.Codebase.Sqlite.NameLookups
     NamespaceText,
     reversedNameToNamespaceText,
     nameLookupForPerspective,
+    pathSegmentsToText,
   )
 where
 
@@ -46,6 +47,12 @@ instance From [Text] PathSegments
 -- | A namespace rendered as a path, no leading '.'
 -- E.g. "base.data"
 type NamespaceText = Text
+
+-- |
+-- >>> pathSegmentsToText (PathSegments ["base", "data", "List"])
+-- "base.data.List"
+pathSegmentsToText :: PathSegments -> Text
+pathSegmentsToText (PathSegments txt) = Text.intercalate "." txt
 
 -- |
 -- >>> reversedSegmentsToNamespaceText (["List", "data", "base"])

@@ -1931,11 +1931,11 @@ likeEscape escapeChar pat =
       | otherwise -> Text.singleton c
 
 -- | Get the list of a term names in the root namespace according to the name lookup index
-termNamesWithinNamespace :: BranchHashId -> Maybe NamespaceText -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesWithinNamespace :: BranchHashId -> PathSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termNamesWithinNamespace bhId mayNamespace = do
   let namespaceGlob = case mayNamespace of
-        Nothing -> "*"
-        Just namespace -> toNamespaceGlob namespace
+        PathSegments [] -> "*"
+        namespace -> toNamespaceGlob namespace
   results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
     queryListRow2
       [sql2|
@@ -1953,7 +1953,7 @@ termNamesWithinNamespace bhId mayNamespace = do
 -- is only true on Share.
 --
 -- | Get the list of a type names in the root namespace according to the name lookup index
-typeNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef Reference.TextReference]
+typeNamesWithinNamespace :: BranchHashId -> PathSegments -> Transaction [NamedRef Reference.TextReference]
 typeNamesWithinNamespace bhId mayNamespace =
   queryListRow2
     [sql2|
@@ -1966,14 +1966,14 @@ typeNamesWithinNamespace bhId mayNamespace =
   where
     namespaceGlob =
       case mayNamespace of
-        Nothing -> "*"
-        Just namespace -> toNamespaceGlob namespace
+        PathSegments [] -> "*"
+        namespace -> toNamespaceGlob namespace
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
 -- Get the list of term names within a given namespace which have the given suffix.
-termNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesBySuffix :: BranchHashId -> PathSegments -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = toNamespaceGlob namespaceRoot
@@ -2004,7 +2004,7 @@ termNamesBySuffix bhId namespaceRoot suffix = do
 -- is only true on Share.
 --
 -- Get the list of type names within a given namespace which have the given suffix.
-typeNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedName -> Transaction [NamedRef Reference.TextReference]
+typeNamesBySuffix :: BranchHashId -> PathSegments -> ReversedName -> Transaction [NamedRef Reference.TextReference]
 typeNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "typeNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = toNamespaceGlob namespaceRoot
@@ -2065,7 +2065,7 @@ typeRefsForExactName bhId reversedSegments = do
 -- is only true on Share.
 --
 -- Get the list of term names for a given Referent within a given namespace.
-termNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Referent.TextReferent -> Maybe ReversedName -> Transaction [ReversedName]
+termNamesForRefWithinNamespace :: BranchHashId -> PathSegments -> Referent.TextReferent -> Maybe ReversedName -> Transaction [ReversedName]
 termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let namespaceGlob = toNamespaceGlob namespaceRoot
   let suffixGlob = case maySuffix of
@@ -2087,7 +2087,7 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
 -- is only true on Share.
 --
 -- Get the list of type names for a given Reference within a given namespace.
-typeNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Reference.TextReference -> Maybe ReversedName -> Transaction [ReversedName]
+typeNamesForRefWithinNamespace :: BranchHashId -> PathSegments -> Reference.TextReference -> Maybe ReversedName -> Transaction [ReversedName]
 typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let namespaceGlob = toNamespaceGlob namespaceRoot
   let suffixGlob = case maySuffix of
@@ -3486,8 +3486,8 @@ toReversedName revSegs = Text.intercalate "." (into @[Text] revSegs) <> "."
 --
 -- >>> toNamespaceGlob "foo.bar"
 -- "foo.bar.*"
-toNamespaceGlob :: Text -> Text
-toNamespaceGlob namespace = globEscape namespace <> ".*"
+toNamespaceGlob :: PathSegments -> Text
+toNamespaceGlob namespace = globEscape (pathSegmentsToText namespace) <> ".*"
 
 -- | Thrown if we try to get the segments of an empty name, shouldn't ever happen since empty names
 -- are invalid.
