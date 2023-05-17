@@ -443,7 +443,7 @@ notifyNumbered = \case
         ),
       map (\(branchName, _) -> Text.unpack (into @Text (ProjectAndBranch projectName branchName))) branches
     )
-  BothLocalProjectAndProjectBranchExist project (ProjectAndBranch currentProject branch) ->
+  AmbiguousSwitch project (ProjectAndBranch currentProject branch) ->
     ( P.wrap
         ( "I'm not sure if you wanted to switch to the branch"
             <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
@@ -2053,13 +2053,62 @@ notifyUser dir = \case
         <> P.newline
         <> tip
           ( "to download an existing release, try "
-              <> IP.makeExample IP.branchClone [prettySlashProjectBranchName branch]
+              <> IP.makeExample IP.clone [prettySlashProjectBranchName branch]
           )
         <> "."
         <> P.newline
         <> P.newline
         <> tip ("to draft a new release, try " <> IP.makeExample IP.releaseDraft [prettySemver ver])
         <> "."
+  AmbiguousCloneLocal project branch -> do
+    pure $
+      P.wrap
+        ( "I'm not sure if you wanted to clone as the branch"
+            <> prettyProjectAndBranchName branch
+            <> "or as the branch"
+            <> P.group (prettyProjectAndBranchName project <> ".")
+            <> "Could you be more specific?"
+        )
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( prettySlashProjectBranchName (branch ^. #branch)
+              <> "refers to the branch"
+              <> P.group (prettyProjectAndBranchName branch <> ".")
+          )
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( prettyProjectNameSlash (project ^. #project)
+              <> "refers to"
+              <> "the branch"
+              <> P.group (prettyProjectAndBranchName project <> ".")
+          )
+  AmbiguousCloneRemote project (ProjectAndBranch currentProject branch) ->
+    pure $
+      P.wrap
+        ( "I'm not sure if you wanted to clone the branch"
+            <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
+            <> "or the project"
+            <> P.group (prettyProjectName project <> ".")
+            <> "Could you be more specific?"
+        )
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( prettySlashProjectBranchName branch
+              <> "refers to the branch"
+              <> P.group (prettyProjectAndBranchName (ProjectAndBranch currentProject branch) <> ".")
+          )
+        <> P.newline
+        <> P.newline
+        <> tip (prettyProjectNameSlash project <> "refers to the project" <> P.group (prettyProjectName project <> "."))
+  ClonedProjectBranch remote local ->
+    pure . P.wrap $
+      "Cloned"
+        <> if remote == local
+          then P.group (prettyProjectAndBranchName remote <> ".")
+          else prettyProjectAndBranchName remote <> "as" <> P.group (prettyProjectAndBranchName local <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -2371,8 +2420,8 @@ prettyProjectName =
 
 -- | 'prettyProjectName' with a trailing slash.
 prettyProjectNameSlash :: ProjectName -> Pretty
-prettyProjectNameSlash =
-  P.blue . P.text . (`Text.snoc` '/') . into @Text
+prettyProjectNameSlash project =
+  P.group (prettyProjectName project <> P.hiBlack "/")
 
 prettyProjectBranchName :: ProjectBranchName -> Pretty
 prettyProjectBranchName =
