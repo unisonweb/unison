@@ -10,7 +10,7 @@ where
 import Control.Lens
 import qualified Data.Set as Set
 import U.Codebase.HashTags (BranchHash)
-import U.Codebase.Sqlite.NameLookups (ReversedName (..))
+import U.Codebase.Sqlite.NameLookups (PathSegments (PathSegments), ReversedName (..))
 import qualified U.Codebase.Sqlite.NamedRef as NamedRef
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified Unison.Builtin as Builtin
@@ -59,18 +59,18 @@ scopedNameSearch codebase rootHash path =
           matchesNamedRef = HQ'.matchesNamedReferent
         }
 
-    pathText :: Text
-    pathText = Path.toText path
+    pathSegments :: PathSegments
+    pathSegments = coerce $ Path.toList path
     lookupNamesForTypes :: Reference -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
     lookupNamesForTypes ref = do
-      names <- Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 ref) Nothing
+      names <- Ops.typeNamesForRefWithinNamespace rootHash pathSegments (Cv.reference1to2 ref) Nothing
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Reference.toShortHash ref))
         & Set.fromList
         & pure
     lookupNamesForTerms :: Referent -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
     lookupNamesForTerms ref = do
-      names <- Ops.termNamesForRefWithinNamespace rootHash pathText (Cv.referent1to2 ref) Nothing
+      names <- Ops.termNamesForRefWithinNamespace rootHash pathSegments (Cv.referent1to2 ref) Nothing
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Referent.toShortHash ref))
         & Set.fromList
@@ -106,7 +106,7 @@ scopedNameSearch codebase rootHash path =
           namedRefs <-
             case searchStrat of
               ExactMatch -> Ops.termRefsForExactName rootHash (coerce $ Name.reverseSegments fqn)
-              SuffixMatch -> Ops.termNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
+              SuffixMatch -> Ops.termNamesBySuffix rootHash pathSegments (coerce $ Name.reverseSegments name)
           namedRefs
             & fmap
               ( \(NamedRef.ref -> (ref, mayCT)) ->
@@ -118,7 +118,7 @@ scopedNameSearch codebase rootHash path =
           let fqn = Path.prefixName (Path.Absolute path) name
           termRefs <- termReferentsByShortHash codebase sh
           Set.forMaybe termRefs \termRef -> do
-            matches <- Ops.termNamesForRefWithinNamespace rootHash pathText (Cv.referent1to2 termRef) (Just . coerce $ Name.reverseSegments name)
+            matches <- Ops.termNamesForRefWithinNamespace rootHash pathSegments (Cv.referent1to2 termRef) (Just . coerce $ Name.reverseSegments name)
             -- Return a valid ref if at least one match was found. Require that it be an exact
             -- match if specified.
             if any (\n -> coerce (Name.reverseSegments fqn) == n || searchStrat /= ExactMatch) matches
@@ -135,7 +135,7 @@ scopedNameSearch codebase rootHash path =
           namedRefs <-
             case searchStrat of
               ExactMatch -> Ops.typeRefsForExactName rootHash (coerce $ Name.reverseSegments fqn)
-              SuffixMatch -> Ops.typeNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
+              SuffixMatch -> Ops.typeNamesBySuffix rootHash pathSegments (coerce $ Name.reverseSegments name)
           namedRefs
             & fmap (Cv.reference2to1 . NamedRef.ref)
             & Set.fromList
@@ -144,7 +144,7 @@ scopedNameSearch codebase rootHash path =
           let fqn = Path.prefixName (Path.Absolute path) name
           typeRefs <- typeReferencesByShortHash sh
           Set.forMaybe typeRefs \typeRef -> do
-            matches <- Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 typeRef) (Just . coerce $ Name.reverseSegments name)
+            matches <- Ops.typeNamesForRefWithinNamespace rootHash pathSegments (Cv.reference1to2 typeRef) (Just . coerce $ Name.reverseSegments name)
             -- Return a valid ref if at least one match was found. Require that it be an exact
             -- match if specified.
             if any (\n -> coerce (Name.reverseSegments fqn) == n || searchStrat /= ExactMatch) matches

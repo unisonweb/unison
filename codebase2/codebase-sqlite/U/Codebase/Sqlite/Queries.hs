@@ -2121,9 +2121,9 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
 -- This is still relatively efficient because we can use an index and LIMIT 1 to make each
 -- individual query fast, and in the common case we'll only need two or three queries to find
 -- the longest matching suffix.
-longestMatchingTermNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
+longestMatchingTermNameForSuffixification :: BranchHashId -> PathSegments -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
 longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(ReversedName (lastSegment NonEmpty.:| _)), ref}) = do
-  let namespaceGlob = globEscape namespaceRoot <> ".*"
+  let namespaceGlob = toNamespaceGlob namespaceRoot <> ".*"
   let loop :: [Text] -> MaybeT Transaction (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))
       loop [] = empty
       loop (suffGlob : rest) = do
@@ -2167,9 +2167,9 @@ longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
          LIMIT 1
       |]
 
-longestMatchingTypeNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Reference.TextReference -> Transaction (Maybe (NamedRef Reference.TextReference))
+longestMatchingTypeNameForSuffixification :: BranchHashId -> PathSegments -> NamedRef Reference.TextReference -> Transaction (Maybe (NamedRef Reference.TextReference))
 longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(ReversedName (lastSegment NonEmpty.:| _)), ref}) = do
-  let namespaceGlob = globEscape namespaceRoot <> ".*"
+  let namespaceGlob = toNamespaceGlob namespaceRoot <> ".*"
   let loop :: [Text] -> MaybeT Transaction (NamedRef Reference.TextReference)
       loop [] = empty
       loop (suffGlob : rest) = do

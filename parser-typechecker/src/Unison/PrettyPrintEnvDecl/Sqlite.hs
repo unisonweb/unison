@@ -1,7 +1,7 @@
 module Unison.PrettyPrintEnvDecl.Sqlite where
 
 import U.Codebase.HashTags (BranchHash)
-import U.Codebase.Sqlite.NameLookups (ReversedName (..))
+import U.Codebase.Sqlite.NameLookups (PathSegments (PathSegments), ReversedName (..))
 import U.Codebase.Sqlite.NamedRef (NamedRef (..))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified Unison.Codebase as Codebase
@@ -37,14 +37,14 @@ ppedForReferences rootHash perspective refs = do
   -- we add suffixifications for every name we have for each reference.
   longestTermSuffixMatches <- forMaybe termNames \(name, ref) -> do
     result <-
-      Ops.longestMatchingTermNameForSuffixification rootHash pathText (NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = Cv.referent1to2 ref})
+      Ops.longestMatchingTermNameForSuffixification rootHash pathSegments (NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = Cv.referent1to2 ref})
         <&> fmap \(NamedRef {reversedSegments, ref = (ref, mayCt)}) ->
           let ct = fromMaybe (error "ppedForReferences: Required constructor type for constructor but it was null") mayCt
            in (Name.fromReverseSegments (coerce reversedSegments), Cv.referent2to1UsingCT ct ref)
     pure result
   longestTypeSuffixMatches <- forMaybe typeNames \(name, ref) -> do
     result <-
-      Ops.longestMatchingTypeNameForSuffixification rootHash pathText (NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = Cv.reference1to2 ref})
+      Ops.longestMatchingTypeNameForSuffixification rootHash pathSegments (NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = Cv.reference1to2 ref})
         <&> fmap \(NamedRef {reversedSegments, ref}) ->
           (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
     pure result
@@ -52,13 +52,13 @@ ppedForReferences rootHash perspective refs = do
   let allTypeNamesToConsider = typeNames <> longestTypeSuffixMatches
   pure . PPED.fromNamesDecl hashLen . NamesWithHistory.fromCurrentNames $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
   where
-    pathText :: Text
-    pathText = Path.toText perspective
+    pathSegments :: PathSegments
+    pathSegments = coerce $ Path.toList perspective
     namesForReference :: LabeledDependency -> Sqlite.Transaction ([(Name, Referent)], [(Name, Reference)])
     namesForReference = \case
       LD.TermReferent ref -> do
-        termNames <- fmap (Name.fromReverseSegments . coerce) <$> Ops.termNamesForRefWithinNamespace rootHash pathText (Cv.referent1to2 ref) Nothing
+        termNames <- fmap (Name.fromReverseSegments . coerce) <$> Ops.termNamesForRefWithinNamespace rootHash pathSegments (Cv.referent1to2 ref) Nothing
         pure ((,ref) <$> termNames, [])
       LD.TypeReference ref -> do
-        typeNames <- fmap (Name.fromReverseSegments . coerce) <$> Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 ref) Nothing
+        typeNames <- fmap (Name.fromReverseSegments . coerce) <$> Ops.typeNamesForRefWithinNamespace rootHash pathSegments (Cv.reference1to2 ref) Nothing
         pure ([], (,ref) <$> typeNames)

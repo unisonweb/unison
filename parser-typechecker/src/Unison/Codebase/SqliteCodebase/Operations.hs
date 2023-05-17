@@ -21,7 +21,7 @@ import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash), PatchHash)
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
-import U.Codebase.Sqlite.NameLookups (ReversedName (..))
+import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (NamesByPath (..))
@@ -580,7 +580,7 @@ namesAtPath ::
   Path ->
   Transaction ScopedNames
 namesAtPath bh namesRootPath relativeToPath = do
-  let namesRoot = if namesRootPath == Path.empty then Nothing else Just $ tShow namesRootPath
+  let namesRoot = PathSegments (coerce @_ @[Text] $ Path.toList namesRootPath)
   NamesByPath {termNamesInPath, typeNamesInPath} <- Ops.namesByPath bh namesRoot
   let termsInPath = convertTerms termNamesInPath
   let typesInPath = convertTypes typeNamesInPath
