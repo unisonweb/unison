@@ -17,11 +17,7 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectName)
 
--- | Delete a project branch.
---
--- Currently, deleting a branch means deleting its `project_branch` row, then deleting its contents from the namespace.
--- Its children branches, if any, are reparented to their grandparent, if any. You may delete the only branch in a
--- project.
+-- | Delete a project
 handleDeleteProject :: ProjectName -> Cli ()
 handleDeleteProject projectName = do
   maybeCurrentBranch <- ProjectUtils.getCurrentProjectBranch
