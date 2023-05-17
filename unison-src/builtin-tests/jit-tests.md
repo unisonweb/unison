@@ -13,6 +13,7 @@ then reference those tests (which should be of type `'{IO,Exception,Tests} ()`, 
 to `Tests.check` and `Tests.checkEqual`).
 
 ```ucm:hide
+.> alias.type #ggh649864d ThreadKilledFailure
 .> load unison-src/builtin-tests/concurrency-tests.u
 .> add
 ```
@@ -49,6 +50,11 @@ to `Tests.check` and `Tests.checkEqual`).
 .> add
 ```
 
+```ucm:hide
+.> load unison-src/builtin-tests/io-tests.u
+.> add
+```
+
 TODO remove md5 alias when base is released
 ```ucm:hide
 .> alias.term ##crypto.HashAlgorithm.Md5 base.crypto.HashAlgorithm.Md5
@@ -59,6 +65,15 @@ TODO remove md5 alias when base is released
 .> add
 ```
 
+```ucm:hide
+.> load unison-src/builtin-tests/tests-jit-only.u
+.> add
+```
+
 ```ucm
 .> run.native tests
+```
+
+```ucm
+.> run.native tests.jit.only
 ```

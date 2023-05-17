@@ -12,9 +12,8 @@ TODO remove md5 alias when base is released
   ()
 
 ```
-TODO remove once jit supports typelinks
 ```ucm
-.> run threadKilledTypeLinkTest
+.> run tests.interpreter.only
 
   ()
 
