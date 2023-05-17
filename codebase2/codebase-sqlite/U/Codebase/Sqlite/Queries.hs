@@ -214,6 +214,7 @@ module U.Codebase.Sqlite.Queries
     addReflogTable,
     addNamespaceStatsTables,
     addProjectTables,
+    addMostRecentBranchTable,
     fixScopedNameLookupTables,
 
     -- ** schema version
@@ -370,7 +371,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 10
+currentSchemaVersion = 11
 
 createSchema :: Transaction ()
 createSchema = do
@@ -380,6 +381,7 @@ createSchema = do
   addReflogTable
   fixScopedNameLookupTables
   addProjectTables
+  addMostRecentBranchTable
   execute2 insertSchemaVersionSql
   where
     insertSchemaVersionSql =
@@ -407,6 +409,10 @@ fixScopedNameLookupTables =
 addProjectTables :: Transaction ()
 addProjectTables =
   executeFile [hereFile|unison/sql/005-project-tables.sql|]
+
+addMostRecentBranchTable :: Transaction ()
+addMostRecentBranchTable =
+  executeFile [hereFile|unison/sql/006-most-recent-branch-table.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =
