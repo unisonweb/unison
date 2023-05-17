@@ -1948,9 +1948,9 @@ termNamesWithinNamespace bhId namespace = do
 
         UNION ALL
 
-        SELECT (reversed_name || mount.reversed_mount_path) AS reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
         FROM name_lookup_mounts mount
-          INNER JOIN scoped_term_name_lookup ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+          INNER JOIN scoped_term_name_lookup names ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
         WHERE
           mount.parent_root_branch_hash_id = :bhId
           -- We have a pre-condition that the namespace must not be within any of the mounts,
@@ -1980,9 +1980,9 @@ typeNamesWithinNamespace bhId namespace =
 
       UNION ALL
 
-      SELECT (reversed_name || mount.reversed_mount_path) AS reversed_name, reference_builtin, reference_component_hash, reference_component_index
+      SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, reference_builtin, reference_component_hash, reference_component_index
       FROM name_lookup_mounts mount
-        INNER JOIN scoped_type_name_lookup ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+        INNER JOIN scoped_type_name_lookup names ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
       WHERE
         mount.parent_root_branch_hash_id = :bhId
         -- We have a pre-condition that the namespace must not be within any of the mounts,
@@ -2019,6 +2019,14 @@ termNamesBySuffix bhId namespaceRoot suffix = do
               AND last_name_segment IS :lastSegment
               AND namespace GLOB :namespaceGlob
               AND reversed_name GLOB :reversedNameGlob
+        UNION ALL
+        SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM name_lookup_mounts mount
+          INNER JOIN scoped_term_name_lookup names ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+        WHERE mount.parent_root_branch_hash_id = :bhId
+              AND mount.mount_path GLOB :namespaceGlob
+              AND last_name_segment IS :lastSegment
+              AND reversed_name GLOB :reversedNameGlob
       |]
   pure (fmap unRow <$> results)
   where
@@ -2048,6 +2056,14 @@ typeNamesBySuffix bhId namespaceRoot suffix = do
       WHERE     root_branch_hash_id = :bhId
             AND last_name_segment IS :lastNameSegment
             AND namespace GLOB :namespaceGlob
+            AND reversed_name GLOB :reversedNameGlob
+      UNION ALL
+      SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, reference_builtin, reference_component_hash, reference_component_index
+      FROM name_lookup_mounts mount
+        INNER JOIN scoped_type_name_lookup names ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+      WHERE mount.parent_root_branch_hash_id = :bhId
+            AND mount.mount_path GLOB :namespaceGlob
+            AND last_name_segment IS :lastNameSegment
             AND reversed_name GLOB :reversedNameGlob
     |]
 
