@@ -1,14 +1,11 @@
 module U.Codebase.Sqlite.NamedRef where
 
-import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NEL
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
+import U.Codebase.Sqlite.NameLookups (ReversedName)
 import Unison.Prelude
 import Unison.Sqlite
-
--- | E.g. ("map" :| ["List", "base"])
-type ReversedSegments = NonEmpty Text
 
 data ConstructorType
   = DataConstructor
@@ -26,7 +23,7 @@ instance FromField (ConstructorType) where
       1 -> pure EffectConstructor
       _ -> fail "Invalid ConstructorType"
 
-data NamedRef ref = NamedRef {reversedSegments :: ReversedSegments, ref :: ref}
+data NamedRef ref = NamedRef {reversedSegments :: ReversedName, ref :: ref}
   deriving stock (Show, Functor, Foldable, Traversable)
 
 instance (ToRow ref) => ToRow (NamedRef ref) where
@@ -35,7 +32,7 @@ instance (ToRow ref) => ToRow (NamedRef ref) where
     where
       reversedName =
         segments
-          & toList
+          & into @[Text]
           & Text.intercalate "."
           & (<> ".") -- Add trailing dot, see notes on scoped_term_name_lookup schema
 
@@ -47,6 +44,7 @@ instance (FromRow ref) => FromRow (NamedRef ref) where
           & Text.init -- Drop trailing dot, see notes on scoped_term_name_lookup schema
           & Text.splitOn "."
           & NonEmpty.fromList
+          & into @ReversedName
     ref <- fromRow
     pure (NamedRef {reversedSegments, ref})
 
@@ -61,6 +59,6 @@ namedRefToScopedRow :: (ToRow ref) => NamedRef ref -> [SQLData]
 namedRefToScopedRow (NamedRef {reversedSegments = revSegments, ref}) =
   toRow $ (SQLText reversedName, SQLText namespace, SQLText lastNameSegment) :. ref
   where
-    reversedName = (Text.intercalate "." . toList $ revSegments) <> "."
-    namespace = (Text.intercalate "." . reverse . NEL.tail $ revSegments) <> "."
-    lastNameSegment = NEL.head revSegments
+    reversedName = (Text.intercalate "." . into @[Text] $ revSegments) <> "."
+    namespace = (Text.intercalate "." . reverse . NEL.tail . from $ revSegments) <> "."
+    lastNameSegment = NEL.head . from $ revSegments

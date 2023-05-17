@@ -45,6 +45,7 @@ dependencies:
   - uuid
   - uuid-orphans-sqlite
   - vector
+  - witch
 
 default-extensions:
   - ApplicativeDo

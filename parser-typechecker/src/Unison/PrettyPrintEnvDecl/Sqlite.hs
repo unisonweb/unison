@@ -1,6 +1,7 @@
 module Unison.PrettyPrintEnvDecl.Sqlite where
 
 import U.Codebase.HashTags (BranchHash)
+import U.Codebase.Sqlite.NameLookups (ReversedName (..))
 import U.Codebase.Sqlite.NamedRef (NamedRef (..))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified Unison.Codebase as Codebase

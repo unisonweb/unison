@@ -317,7 +317,8 @@ import U.Codebase.Sqlite.LocalIds
     LocalTextId (..),
   )
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
-import U.Codebase.Sqlite.NamedRef (NamedRef, ReversedSegments)
+import U.Codebase.Sqlite.NameLookups
+import U.Codebase.Sqlite.NamedRef (NamedRef)
 import qualified U.Codebase.Sqlite.NamedRef as NamedRef
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
@@ -582,7 +583,7 @@ expectTextCheck h = queryOneColCheck2 (loadTextSql h)
 
 loadTextSql :: TextId -> Sql2
 loadTextSql h =
-  [sql2| 
+  [sql2|
     SELECT text
     FROM text
     WHERE id = :h
@@ -1971,11 +1972,11 @@ typeNamesWithinNamespace bhId mayNamespace =
 -- is only true on Share.
 --
 -- Get the list of term names within a given namespace which have the given suffix.
-termNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = toNamespaceGlob namespaceRoot
-  let lastSegment = NonEmpty.head suffix
+  let lastSegment = NonEmpty.head . into @(NonEmpty Text) $ suffix
   let reversedNameGlob = toSuffixGlob suffix
   results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
     -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
@@ -2002,11 +2003,11 @@ termNamesBySuffix bhId namespaceRoot suffix = do
 -- is only true on Share.
 --
 -- Get the list of type names within a given namespace which have the given suffix.
-typeNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+typeNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedName -> Transaction [NamedRef Reference.TextReference]
 typeNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "typeNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = toNamespaceGlob namespaceRoot
-  let lastNameSegment = NonEmpty.head suffix
+  let lastNameSegment = NonEmpty.head . into @(NonEmpty Text) $ suffix
   let reversedNameGlob = toSuffixGlob suffix
   -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
   -- GLOB, but this helps improve query performance.
@@ -2029,7 +2030,7 @@ typeNamesBySuffix bhId namespaceRoot suffix = do
 -- is only true on Share.
 --
 -- Get the set of refs for an exact name.
-termRefsForExactName :: BranchHashId -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termRefsForExactName :: BranchHashId -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termRefsForExactName bhId reversedSegments = do
   let reversedName = toReversedName reversedSegments
   results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
@@ -2048,7 +2049,7 @@ termRefsForExactName bhId reversedSegments = do
 -- is only true on Share.
 --
 -- Get the set of refs for an exact name.
-typeRefsForExactName :: BranchHashId -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+typeRefsForExactName :: BranchHashId -> ReversedName -> Transaction [NamedRef Reference.TextReference]
 typeRefsForExactName bhId reversedSegments = do
   let reversedName = toReversedName reversedSegments
   queryListRow2
@@ -2063,7 +2064,7 @@ typeRefsForExactName bhId reversedSegments = do
 -- is only true on Share.
 --
 -- Get the list of term names for a given Referent within a given namespace.
-termNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Referent.TextReferent -> Maybe ReversedSegments -> Transaction [ReversedSegments]
+termNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Referent.TextReferent -> Maybe ReversedName -> Transaction [ReversedName]
 termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let namespaceGlob = toNamespaceGlob namespaceRoot
   let suffixGlob = case maySuffix of
@@ -2085,7 +2086,7 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
 -- is only true on Share.
 --
 -- Get the list of type names for a given Reference within a given namespace.
-typeNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Reference.TextReference -> Maybe ReversedSegments -> Transaction [ReversedSegments]
+typeNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Reference.TextReference -> Maybe ReversedName -> Transaction [ReversedName]
 typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let namespaceGlob = toNamespaceGlob namespaceRoot
   let suffixGlob = case maySuffix of
@@ -2120,7 +2121,7 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
 -- individual query fast, and in the common case we'll only need two or three queries to find
 -- the longest matching suffix.
 longestMatchingTermNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
-longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(lastSegment NonEmpty.:| _), ref}) = do
+longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(ReversedName (lastSegment NonEmpty.:| _)), ref}) = do
   let namespaceGlob = globEscape namespaceRoot <> ".*"
   let loop :: [Text] -> MaybeT Transaction (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))
       loop [] = empty
@@ -2138,10 +2139,10 @@ longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
             empty
   let suffixes =
         revSuffix
-          & toList
+          & into @[Text]
           & List.inits
           & mapMaybe NonEmpty.nonEmpty
-          & map toSuffixGlob
+          & map (toSuffixGlob . into @ReversedName)
   runMaybeT $ loop suffixes
   where
     unRow (a :. Only b) = (a, b)
@@ -2166,7 +2167,7 @@ longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
       |]
 
 longestMatchingTypeNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Reference.TextReference -> Transaction (Maybe (NamedRef Reference.TextReference))
-longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(lastSegment NonEmpty.:| _), ref}) = do
+longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(ReversedName (lastSegment NonEmpty.:| _)), ref}) = do
   let namespaceGlob = globEscape namespaceRoot <> ".*"
   let loop :: [Text] -> MaybeT Transaction (NamedRef Reference.TextReference)
       loop [] = empty
@@ -2184,10 +2185,10 @@ longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
             empty
   let suffixes =
         revSuffix
-          & toList
+          & into @[Text]
           & List.inits
           & mapMaybe NonEmpty.nonEmpty
-          & map toSuffixGlob
+          & map (toSuffixGlob . into @ReversedName)
   runMaybeT $ loop suffixes
   where
     sql =
@@ -3470,15 +3471,15 @@ ensureBranchRemoteMapping pid bid rpid host rbid =
 --
 -- >>> toSuffixGlob ("foo" NonEmpty.:| ["bar"])
 -- "foo.bar.*"
-toSuffixGlob :: ReversedSegments -> Text
-toSuffixGlob suffix = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
+toSuffixGlob :: ReversedName -> Text
+toSuffixGlob suffix = globEscape (Text.intercalate "." (into @[Text] suffix)) <> ".*"
 
 -- | Convert reversed segments into the DB representation of a reversed_name.
 --
 -- >>> toReversedName (NonEmpty.fromList ["foo", "bar"])
 -- "foo.bar."
-toReversedName :: ReversedSegments -> Text
-toReversedName revSegs = Text.intercalate "." (toList revSegs) <> "."
+toReversedName :: ReversedName -> Text
+toReversedName revSegs = Text.intercalate "." (into @[Text] revSegs) <> "."
 
 -- | Convert a namespace into the appropriate glob for searching within that namespace
 --
@@ -3497,11 +3498,11 @@ data EmptyName = EmptyName String
 --
 -- >>> reversedNameToReversedSegments "foo.bar."
 -- Right ("foo" :| ["bar"])
-reversedNameToReversedSegments :: (HasCallStack) => Text -> Either EmptyName ReversedSegments
+reversedNameToReversedSegments :: (HasCallStack) => Text -> Either EmptyName ReversedName
 reversedNameToReversedSegments txt =
   txt
     & Text.splitOn "."
     -- Names have a trailing dot, so we need to drop the last empty segment
     & List.dropEnd1
     & NonEmpty.nonEmpty
-    & maybe (Left (EmptyName $ show callStack)) Right
+    & maybe (Left (EmptyName $ show callStack)) (Right . into @ReversedName)

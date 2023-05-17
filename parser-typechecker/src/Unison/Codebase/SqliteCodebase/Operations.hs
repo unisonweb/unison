@@ -21,6 +21,7 @@ import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash), PatchHash)
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
+import U.Codebase.Sqlite.NameLookups (ReversedName (..))
 import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (NamesByPath (..))

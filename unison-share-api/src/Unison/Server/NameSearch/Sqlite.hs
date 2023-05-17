@@ -10,6 +10,7 @@ where
 import Control.Lens
 import qualified Data.Set as Set
 import U.Codebase.HashTags (BranchHash)
+import U.Codebase.Sqlite.NameLookups (ReversedName (..))
 import qualified U.Codebase.Sqlite.NamedRef as NamedRef
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified Unison.Builtin as Builtin
@@ -150,7 +151,7 @@ scopedNameSearch codebase rootHash path =
               then pure (Just typeRef)
               else pure Nothing
 
-    reversedSegmentsToName :: NamedRef.ReversedSegments -> Name
+    reversedSegmentsToName :: ReversedName -> Name
     reversedSegmentsToName = Name.fromReverseSegments . coerce
 
 -- | Look up types in the codebase by short hash, and include builtins.

@@ -146,6 +146,7 @@ import U.Codebase.Sqlite.LocalIds
     WatchLocalIds,
   )
 import qualified U.Codebase.Sqlite.LocalizeObject as LocalizeObject
+import qualified U.Codebase.Sqlite.NameLookups as S
 import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import qualified U.Codebase.Sqlite.Patch.Diff as S
@@ -1144,7 +1145,7 @@ namesByPath bh path = do
 -- is only true on Share.
 --
 -- Get the list of a names for a given Referent.
-termNamesForRefWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Referent -> Maybe S.ReversedSegments -> Transaction [S.ReversedSegments]
+termNamesForRefWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Referent -> Maybe S.ReversedName -> Transaction [S.ReversedName]
 termNamesForRefWithinNamespace bh namespace ref maySuffix = do
   bhId <- Q.expectBranchHashId bh
   Q.termNamesForRefWithinNamespace bhId namespace (c2sTextReferent ref) maySuffix
@@ -1153,27 +1154,27 @@ termNamesForRefWithinNamespace bh namespace ref maySuffix = do
 -- is only true on Share.
 --
 -- Get the list of a names for a given Reference, with an optional required suffix.
-typeNamesForRefWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Reference -> Maybe S.ReversedSegments -> Transaction [S.ReversedSegments]
+typeNamesForRefWithinNamespace :: BranchHash -> Q.NamespaceText -> C.Reference -> Maybe S.ReversedName -> Transaction [S.ReversedName]
 typeNamesForRefWithinNamespace bh namespace ref maySuffix = do
   bhId <- Q.expectBranchHashId bh
   Q.typeNamesForRefWithinNamespace bhId namespace (c2sTextReference ref) maySuffix
 
-termNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
 termNamesBySuffix bh namespace suffix = do
   bhId <- Q.expectBranchHashId bh
   Q.termNamesBySuffix bhId namespace suffix <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
-typeNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeNamesBySuffix :: BranchHash -> Q.NamespaceText -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
 typeNamesBySuffix bh namespace suffix = do
   bhId <- Q.expectBranchHashId bh
   Q.typeNamesBySuffix bhId namespace suffix <&> fmap (fmap s2cTextReference)
 
-termRefsForExactName :: BranchHash -> S.ReversedSegments -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termRefsForExactName :: BranchHash -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
 termRefsForExactName bh reversedName = do
   bhId <- Q.expectBranchHashId bh
   Q.termRefsForExactName bhId reversedName <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
-typeRefsForExactName :: BranchHash -> S.ReversedSegments -> Transaction [S.NamedRef C.Reference]
+typeRefsForExactName :: BranchHash -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
 typeRefsForExactName bh reversedName = do
   bhId <- Q.expectBranchHashId bh
   Q.typeRefsForExactName bhId reversedName <&> fmap (fmap s2cTextReference)
