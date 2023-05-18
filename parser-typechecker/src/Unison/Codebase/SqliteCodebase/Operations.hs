@@ -649,12 +649,6 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
       let treeDiff = ignoreLibDiffs $ BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
-      depMounts <- Projects.inferDependencyMounts toBranch <&> fmap (first (coerce @_ @PathSegments . Path.toList))
-      -- Ensure all of our dependencies have name lookups too.
-      for_ depMounts \(_path, depBranchHash) -> do
-        -- TODO: see if we can find a way to infer a good fromHash for dependencies
-        ensureNameLookupForBranchHash getDeclType Nothing depBranchHash
-      Ops.associateNameLookupMounts toBranchHash depMounts
       Ops.buildNameLookupForBranchHash
         mayExistingLookupBH
         toBranchHash
@@ -666,6 +660,12 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
                   pure $ toNamedRef (name, refWithCT)
               save (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
         )
+      depMounts <- Projects.inferDependencyMounts toBranch <&> fmap (first (coerce @_ @PathSegments . Path.toList))
+      -- Ensure all of our dependencies have name lookups too.
+      for_ depMounts \(_path, depBranchHash) -> do
+        -- TODO: see if we can find a way to infer a good fromHash for dependencies
+        ensureNameLookupForBranchHash getDeclType Nothing depBranchHash
+      Ops.associateNameLookupMounts toBranchHash depMounts
   where
     -- Ignore changes to the lib namespace, since those will be handled by name lookup
     -- mounts.
