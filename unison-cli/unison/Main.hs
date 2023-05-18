@@ -27,7 +27,6 @@ import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
-import Data.Bifunctor
 import qualified Data.ByteString.Lazy as BL
 import Data.Configurator.Types (Config)
 import Data.Either.Validation (Validation (..))

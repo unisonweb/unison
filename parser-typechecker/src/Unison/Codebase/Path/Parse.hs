@@ -18,7 +18,6 @@ where
 
 import Control.Lens (over, _1)
 import qualified Control.Lens as Lens
-import Data.Bifunctor (first)
 import Data.List.Extra (stripPrefix)
 import qualified Data.Text as Text
 import Unison.Codebase.Path

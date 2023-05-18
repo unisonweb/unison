@@ -23,7 +23,7 @@ import Data.Foldable (foldlM)
 import qualified Data.Map.Strict as Map
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
-import Unison.Prelude
+import Unison.Prelude hiding (bimap)
 
 bimap :: (Ord a') => (a -> a') -> (b -> b') -> Map a b -> Map a' b'
 bimap fa fb = Map.fromList . map (B.bimap fa fb) . Map.toList

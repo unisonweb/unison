@@ -3,7 +3,6 @@
 module Unison.Codebase.Editor.DisplayObject where
 
 import Data.Bifoldable
-import Data.Bifunctor
 import Data.Bitraversable
 import Unison.Prelude
 import Unison.ShortHash

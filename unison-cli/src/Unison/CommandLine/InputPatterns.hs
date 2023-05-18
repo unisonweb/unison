@@ -5,7 +5,6 @@ module Unison.CommandLine.InputPatterns where
 
 import Control.Lens (preview, (^.))
 import qualified Control.Lens.Cons as Cons
-import Data.Bifunctor (Bifunctor (bimap), first)
 import Data.List (intercalate)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map

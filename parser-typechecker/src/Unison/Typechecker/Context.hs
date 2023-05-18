@@ -53,10 +53,6 @@ import Control.Monad.State
     put,
     runStateT,
   )
-import Data.Bifunctor
-  ( first,
-    second,
-  )
 import qualified Data.Foldable as Foldable
 import Data.Function (on)
 import Data.Functor.Compose

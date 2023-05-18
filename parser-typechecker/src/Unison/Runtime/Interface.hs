@@ -21,7 +21,6 @@ where
 
 import Control.Concurrent.STM as STM
 import Control.Monad
-import Data.Bifunctor (bimap, first)
 import Data.Binary.Get (runGetOrFail)
 -- import Data.Bits (shiftL)
 import qualified Data.ByteString.Lazy as BL

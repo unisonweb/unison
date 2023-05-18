@@ -9,7 +9,6 @@ import Control.Lens hiding (at)
 import Control.Monad.State
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.Trans.Writer.CPS
-import Data.Bifunctor (first, second)
 import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Foldable as Foldable
 import Data.List (stripPrefix)
