@@ -8,6 +8,7 @@
 module Unison.Codebase.SqliteCodebase.Operations where
 
 import qualified Control.Comonad.Cofree as Cofree
+import Data.Bifunctor (first)
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
 import Data.Functor.Compose (Compose (..))
@@ -649,9 +650,11 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
       let treeDiff = ignoreLibDiffs $ BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
+      depMounts <- Projects.inferDependencyMounts toBranch <&> fmap (first (coerce @_ @PathSegments . Path.toList))
       Ops.buildNameLookupForBranchHash
         mayExistingLookupBH
         toBranchHash
+        depMounts
         ( \save -> do
             BranchDiff.streamNameChanges namePrefix treeDiff \_prefix (BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}) -> do
               termNameAddsWithCT <- do

@@ -36,6 +36,7 @@ backfillNameLookupMounts getDeclType = do
     mounts <- inferDependencyMounts branch
     for_ mounts \(_path, mountBH) -> do
       CodebaseOps.ensureNameLookupForBranchHash getDeclType Nothing mountBH
+    Ops.associateNameLookupMounts bhId (mounts & map first)
 
 -- | As part of adding name lookup mounts for dependencies we no longer want dependencies to
 -- be included in the name lookup, they just bloat the index.

@@ -185,7 +185,7 @@ module U.Codebase.Sqlite.Queries
     typeNamesBySuffix,
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
-    insertNameLookupMounts,
+    associateNameLookupMounts,
 
     -- * Reflog
     appendReflog,
@@ -2322,15 +2322,19 @@ longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
   runMaybeT $ loop suffixes
 
 -- | Associate name lookup indexes for dependencies to specific mounting points within another name lookup.
-insertNameLookupMounts :: BranchHashId -> [(PathSegments, BranchHashId)] -> Transaction ()
-insertNameLookupMounts rootBranchHashId mounts = do
-  for_ mounts \(mountPath, mountedBranchHashId) -> do
-    let mountPathText = pathSegmentsToText mountPath <> "."
-    let reversedMountPathText = pathSegmentsToText (PathSegments . reverse . coerce $ mountPath) <> "."
-    execute2
-      [sql2|
+associateNameLookupMounts :: BranchHashId -> [(PathSegments, BranchHashId)] -> Transaction ()
+associateNameLookupMounts rootBranchHashId mounts = do
+  let mountArgs =
+        mounts <&> \(mountPath, mountedBranchHashId) ->
+          let mountPathText = pathSegmentsToText mountPath <> "."
+              reversedMountPathText = pathSegmentsToText (PathSegments . reverse . coerce $ mountPath) <> "."
+           in (rootBranchHashId, mountedBranchHashId, mountPathText, reversedMountPathText)
+  executeMany sql mountArgs
+  where
+    sql =
+      [here|
         INSERT INTO name_lookup_mounts (parent_root_branch_hash_id, mounted_branch_hash_id, mount_path, reversed_mount_path)
-        VALUES (:rootBranchHashId, :mountedBranchHashId, :mountPathText, :reversedMountPathText)
+        VALUES (?, ?, ?, ?)
       |]
 
 -- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
