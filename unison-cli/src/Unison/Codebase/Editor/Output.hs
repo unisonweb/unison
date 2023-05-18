@@ -115,7 +115,7 @@ data NumberedOutput
   | ListEdits Patch PPE.PrettyPrintEnv
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
-  | BothLocalProjectAndProjectBranchExist ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
+  | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
 
 --  | ShowDiff
 
@@ -247,6 +247,7 @@ data Output
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
+  | AboutToPropagatePatch
   | -- todo: tell the user to run `todo` on the same patch they just used
     NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
@@ -260,6 +261,7 @@ data Output
   | PullSuccessful
       (ReadRemoteNamespace Share.RemoteProjectBranch)
       (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+  | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
     MergeOverEmpty (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | MergeAlreadyUpToDate
@@ -320,6 +322,7 @@ data Output
     NoAssociatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- there's no remote branch associated with branch
     NoAssociatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | LocalProjectDoesntExist ProjectName
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
   | LocalProjectNorProjectBranchExist ProjectName ProjectBranchName
   | RemoteProjectDoesntExist URI ProjectName
@@ -337,6 +340,17 @@ data Output
     NotImplementedYet Text
   | DraftingRelease ProjectBranchName Semver
   | CannotCreateReleaseBranchWithBranchCommand ProjectBranchName Semver
+  | CalculatingDiff
+  | -- | The `local` in a `clone remote local` is ambiguous
+    AmbiguousCloneLocal
+      (ProjectAndBranch ProjectName ProjectBranchName)
+      -- ^ Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
+      (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- | The `remote` in a `clone remote local` is ambiguous
+    AmbiguousCloneRemote ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
+  | ClonedProjectBranch
+      (ProjectAndBranch ProjectName ProjectBranchName)
+      (ProjectAndBranch ProjectName ProjectBranchName)
 
 -- | What did we create a project branch from?
 --
@@ -397,6 +411,9 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  AmbiguousCloneLocal {} -> True
+  AmbiguousCloneRemote {} -> True
+  ClonedProjectBranch {} -> False
   NoLastRunResult {} -> True
   SaveTermNameConflict {} -> True
   RunResult {} -> False
@@ -472,6 +489,7 @@ isFailure o = case o of
   MetadataAmbiguous {} -> True
   PatchNeedsToBeConflictFree {} -> True
   PatchInvolvesExternalDependents {} -> True
+  AboutToPropagatePatch {} -> False
   NothingToPatch {} -> False
   WarnIncomingRootBranch {} -> False
   StartOfCurrentPathHistory -> True
@@ -481,6 +499,7 @@ isFailure o = case o of
   NoBranchWithHash {} -> True
   PullAlreadyUpToDate {} -> False
   PullSuccessful {} -> False
+  AboutToMerge {} -> False
   MergeOverEmpty {} -> False
   MergeAlreadyUpToDate {} -> False
   PreviewMergeAlreadyUpToDate {} -> False
@@ -526,6 +545,7 @@ isFailure o = case o of
   NoAssociatedRemoteProject {} -> True
   NoAssociatedRemoteProjectBranch {} -> True
   ProjectAndBranchNameAlreadyExists {} -> True
+  LocalProjectDoesntExist {} -> True
   LocalProjectBranchDoesntExist {} -> True
   LocalProjectNorProjectBranchExist {} -> True
   RemoteProjectDoesntExist {} -> True
@@ -542,10 +562,11 @@ isFailure o = case o of
   UploadedEntities {} -> False
   DraftingRelease {} -> False
   CannotCreateReleaseBranchWithBranchCommand {} -> True
+  CalculatingDiff {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
-  BothLocalProjectAndProjectBranchExist {} -> True
+  AmbiguousSwitch {} -> True
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
   DeletedDespiteDependents {} -> False

@@ -4,7 +4,6 @@ module U.Codebase.Referent where
 
 import Control.Lens (Prism, Traversal)
 import Data.Bifoldable (Bifoldable (..))
-import Data.Bifunctor (Bifunctor (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Generics.Sum (_Ctor)
 import U.Codebase.Decl (ConstructorId)

@@ -12,7 +12,6 @@ module U.Codebase.Sqlite.Sync22 where
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.Validate (ValidateT, runValidateT)
 import qualified Control.Monad.Validate as Validate
-import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Get (runGetS)
 import Data.Bytes.Put (runPutS)

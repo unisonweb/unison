@@ -2586,7 +2586,7 @@ declareForeigns = do
     \(bytes :: Bytes.Bytes) -> pure $ X.readKeyFileFromMemory $ L.toStrict $ Bytes.toLazyByteString bytes
 
   declareForeign Tracked "Tls.encodePrivateKey" boxDirect . mkForeign $
-    \(privateKey :: X.PrivKey) -> pure $ Util.Text.pack $ show privateKey
+    \(privateKey :: X.PrivKey) -> pure $ Util.Text.toUtf8 $ Util.Text.pack $ show privateKey
 
   declareForeign Tracked "Tls.receive.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> do

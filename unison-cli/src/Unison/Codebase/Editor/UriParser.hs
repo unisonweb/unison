@@ -9,7 +9,6 @@ module Unison.Codebase.Editor.UriParser
   )
 where
 
-import Data.Bifunctor (first)
 import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Sequence as Seq
 import qualified Data.Text as Text

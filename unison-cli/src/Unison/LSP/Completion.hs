@@ -10,7 +10,6 @@ import Control.Lens hiding (List, (:<))
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
-import Data.Bifunctor (second)
 import Data.List.Extra (nubOrdOn)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map

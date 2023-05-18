@@ -42,6 +42,7 @@ import Control.Monad.IO.Class as X (MonadIO (liftIO))
 import Control.Monad.Trans as X (MonadTrans (lift))
 import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT, withExceptT)
 import Control.Monad.Trans.Maybe as X (MaybeT (MaybeT, runMaybeT))
+import Data.Bifunctor as X (Bifunctor (..))
 import Data.ByteString as X (ByteString)
 import Data.Coerce as X (Coercible, coerce)
 import Data.Either as X

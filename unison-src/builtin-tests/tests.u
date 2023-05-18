@@ -1,5 +1,6 @@
 tests : '{IO,Exception} ()
 tests = Tests.main do
+  !io.tests
   !tls.tests
   !crypto.hash.tests
   !hmac.tests

@@ -20,6 +20,7 @@ Test that tab completion works as expected.
    delete.namespace
    delete.namespace.force
    delete.patch
+   delete.project
    delete.term
    delete.term-replacement
    delete.term.verbose

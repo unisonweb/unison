@@ -84,7 +84,6 @@ where
 import Control.Lens hiding (children, cons, transform, uncons)
 import Control.Monad.State (State)
 import qualified Control.Monad.State as State
-import Data.Bifunctor (second)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import qualified Data.Semialign as Align

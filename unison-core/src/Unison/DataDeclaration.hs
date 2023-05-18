@@ -37,7 +37,6 @@ where
 
 import Control.Lens (Iso', Lens', imap, iso, lens, over, _3)
 import Control.Monad.State (evalState)
-import Data.Bifunctor (bimap, first, second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT

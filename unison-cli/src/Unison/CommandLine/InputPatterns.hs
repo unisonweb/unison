@@ -5,7 +5,6 @@ module Unison.CommandLine.InputPatterns where
 
 import Control.Lens (preview, (^.))
 import qualified Control.Lens.Cons as Cons
-import Data.Bifunctor (Bifunctor (bimap), first)
 import Data.List (intercalate)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
@@ -721,6 +720,21 @@ deleteReplacement isTerm =
       if isTerm
         then deleteTermReplacementCommand
         else deleteTypeReplacementCommand
+
+deleteProject :: InputPattern
+deleteProject =
+  InputPattern
+    { patternName = "delete.project",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectNameArg)],
+      help = P.wrap "Delete a project.",
+      parse = \case
+        [name]
+          | Right project <- tryInto @ProjectName (Text.pack name) ->
+              Right (Input.DeleteI (DeleteTarget'Project project))
+        _ -> Left (showPatternHelp deleteProject)
+    }
 
 deleteBranch :: InputPattern
 deleteBranch =
@@ -2319,22 +2333,6 @@ diffNamespaceToPatch =
         _ -> Left (showPatternHelp diffNamespaceToPatch)
     }
 
-projectClone :: InputPattern
-projectClone =
-  InputPattern
-    { patternName = "project.clone",
-      aliases = [],
-      visibility = I.Hidden,
-      argTypes = [],
-      help = P.wrap "Clone a project branch from a remote server.",
-      parse = \case
-        [name] ->
-          case tryInto @(ProjectAndBranch ProjectName (Maybe ProjectBranchName)) (Text.pack name) of
-            Left _ -> Left (showPatternHelp projectClone)
-            Right projectAndBranch -> Right (Input.ProjectCloneI projectAndBranch)
-        _ -> Left (showPatternHelp projectClone)
-    }
-
 projectCreate :: InputPattern
 projectCreate =
   InputPattern
@@ -2389,26 +2387,6 @@ branches =
       parse = \_ -> Right Input.BranchesI
     }
 
-branchClone :: InputPattern
-branchClone =
-  InputPattern
-    { patternName = "branch.clone",
-      aliases = [],
-      visibility = I.Hidden,
-      argTypes = [],
-      help = P.wrap "Clone a project branch from a remote server.",
-      parse = \case
-        [branchString] ->
-          case tryInto @ProjectBranchName (Text.pack (dropLeadingForwardSlash branchString)) of
-            Left _ -> Left (showPatternHelp branchClone)
-            Right branch -> Right (Input.BranchCloneI branch)
-        _ -> Left (showPatternHelp branchClone)
-    }
-  where
-    dropLeadingForwardSlash = \case
-      '/' : xs -> xs
-      xs -> xs
-
 branchInputPattern :: InputPattern
 branchInputPattern =
   InputPattern
@@ -2448,6 +2426,26 @@ branchEmptyInputPattern =
         _ -> Left (showPatternHelp branchEmptyInputPattern)
     }
 
+clone :: InputPattern
+clone =
+  InputPattern
+    { patternName = "clone",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [],
+      help = P.wrap "Clone a project branch from a remote server.",
+      parse =
+        maybe (Left (showPatternHelp clone)) Right . \case
+          [remoteNamesString] -> do
+            remoteNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack remoteNamesString))
+            Just (Input.CloneI remoteNames Nothing)
+          [remoteNamesString, localNamesString] -> do
+            remoteNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack remoteNamesString))
+            localNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack localNamesString))
+            Just (Input.CloneI remoteNames (Just localNames))
+          _ -> Nothing
+    }
+
 releaseDraft :: InputPattern
 releaseDraft =
   InputPattern
@@ -2472,12 +2470,12 @@ validInputs =
       api,
       authLogin,
       back,
-      branchClone,
       branchEmptyInputPattern,
       branchInputPattern,
       branches,
       cd,
       clear,
+      clone,
       compileScheme,
       copyPatch,
       createAuthor,
@@ -2491,6 +2489,7 @@ validInputs =
       debugTabCompletion,
       delete,
       deleteBranch,
+      deleteProject,
       deleteNamespace,
       deleteNamespaceForce,
       deletePatch,
@@ -2541,7 +2540,6 @@ validInputs =
       previewMergeLocal,
       previewUpdate,
       printVersion,
-      projectClone,
       projectCreate,
       projectSwitch,
       projects,

@@ -8,7 +8,6 @@ module Unison.Hashing.V2.DataDeclaration
 where
 
 import Control.Lens (over, _3)
-import Data.Bifunctor (first, second)
 import qualified Data.Map as Map
 import qualified Unison.ABT as ABT
 import Unison.Hash (Hash)

@@ -17,7 +17,6 @@ import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Writer (WriterT (..))
-import Data.Bifunctor (first, second)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
@@ -82,11 +81,12 @@ import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
+import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
-import Unison.Codebase.Editor.HandleInput.ProjectClone (branchClone, projectClone)
+import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
@@ -942,6 +942,7 @@ loop e = do
                     & Branch.modifyAt (Path.singleton childName) \_ -> Branch.empty
                 afterDelete
               DeleteTarget'ProjectBranch name -> handleDeleteBranch name
+              DeleteTarget'Project name -> handleDeleteProject name
             DisplayI outputLoc names' -> do
               currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
@@ -1396,12 +1397,11 @@ loop e = do
               description <- inputDescription input
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
             ProjectSwitchI name -> projectSwitch name
-            ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
-            BranchCloneI name -> branchClone name
             BranchI source name -> handleBranch source name
             BranchesI -> handleBranches
+            CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
 
 magicMainWatcherString :: String
@@ -1488,6 +1488,7 @@ inputDescription input =
           path <- ps' path0
           pure ("delete.patch " <> path)
         DeleteTarget'ProjectBranch _ -> wat
+        DeleteTarget'Project _ -> wat
     ReplaceI src target p0 -> do
       p <- opatch p0
       pure $
@@ -1573,9 +1574,9 @@ inputDescription input =
     --
     ApiI -> wat
     AuthLoginI {} -> wat
-    BranchCloneI _ -> wat
     BranchI {} -> wat
     BranchesI -> wat
+    CloneI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat
@@ -1607,7 +1608,6 @@ inputDescription input =
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
-    ProjectCloneI _ -> wat
     ProjectSwitchI _ -> wat
     ProjectsI -> wat
     PushRemoteBranchI {} -> wat
