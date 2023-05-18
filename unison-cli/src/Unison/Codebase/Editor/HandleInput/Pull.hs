@@ -85,7 +85,8 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity descrip
         then do
           void $ Cli.updateAtM description targetAbsolutePath (const $ pure remoteBranchObject)
           Cli.respond $ MergeOverEmpty target
-        else
+        else do
+          Cli.respond AboutToMerge
           mergeBranchAndPropagateDefaultPatch
             Branch.RegularMerge
             description
@@ -272,12 +273,14 @@ loadPropagateDiffDefaultPatch ::
   Path.Absolute ->
   Cli ()
 loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
+  Cli.respond Output.AboutToPropagatePatch
   Cli.time "loadPropagateDiffDefaultPatch" do
     original <- Cli.getBranch0At dest
     patch <- liftIO $ Branch.getPatch Cli.defaultPatchNameSegment original
     patchDidChange <- propagatePatch inputDescription patch dest
     when patchDidChange do
       whenJust maybeDest0 \dest0 -> do
+        Cli.respond Output.CalculatingDiff
         patched <- Cli.getBranchAt dest
         let patchPath = Path.Path' (Right (Path.Relative (Path.fromList [Cli.defaultPatchNameSegment])))
         (ppe, diff) <- diffHelper original (Branch.head patched)

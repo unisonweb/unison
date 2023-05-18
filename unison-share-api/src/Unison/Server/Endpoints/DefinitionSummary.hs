@@ -17,7 +17,6 @@ module Unison.Server.Endpoints.DefinitionSummary
 where
 
 import Data.Aeson
-import Data.Bifunctor (bimap)
 import Data.OpenApi (ToSchema)
 import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)

@@ -23,7 +23,6 @@ module Unison.Builtin
   )
 where
 
-import Data.Bifunctor (first, second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text

@@ -6,7 +6,6 @@ module Unison.FileParsers where
 import Control.Lens (view, _3)
 import Control.Monad.State (evalStateT)
 import Control.Monad.Writer (tell)
-import Data.Bifunctor (first)
 import qualified Data.Foldable as Foldable
 import Data.List (partition)
 import qualified Data.List.NonEmpty as List.NonEmpty

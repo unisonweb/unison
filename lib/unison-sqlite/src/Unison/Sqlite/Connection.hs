@@ -92,7 +92,6 @@ module Unison.Sqlite.Connection
   )
 where
 
-import Data.Bifunctor (bimap)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
 import qualified Database.SQLite3 as Direct.Sqlite

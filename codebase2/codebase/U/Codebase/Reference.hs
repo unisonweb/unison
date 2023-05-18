@@ -1,6 +1,6 @@
 module U.Codebase.Reference where
 
-import Control.Lens (Bifunctor (..), Lens, Prism, Traversal, lens, prism)
+import Control.Lens (Lens, Prism, Traversal, lens, prism)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import U.Codebase.ShortHash (ShortHash)

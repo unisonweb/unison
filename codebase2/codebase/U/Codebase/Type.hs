@@ -1,7 +1,6 @@
 module U.Codebase.Type where
 
 import qualified Control.Monad.Writer.Strict as Writer
-import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import U.Codebase.Kind (Kind)

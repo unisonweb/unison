@@ -103,6 +103,8 @@ structural type MyType = MyType Int
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
   I tried to auto-apply the patch, but couldn't because it
   contained contradictory entries.
 
