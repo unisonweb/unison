@@ -58,6 +58,7 @@ module Unison.ABT
     find,
     find',
     FindAction (..),
+    containsExpression,
 
     -- * Optics
     baseFunctor_,
@@ -93,7 +94,7 @@ module Unison.ABT
 where
 
 import Control.Lens (Lens', lens, use, (%%~), (.=))
-import Control.Monad.State (MonadState)
+import Control.Monad.State (MonadState, evalState, get, put)
 import qualified Data.Foldable as Foldable
 import Data.List hiding (cycle, find)
 import qualified Data.Map as Map
@@ -480,6 +481,49 @@ reannotateUp g t = case out t of
     let body' = reannotateUp g <$> body
         ann = g t <> foldMap (snd . annotation) body'
      in tm' (annotation t, ann) body'
+
+containsExpression :: forall f v a. (Var v, forall a. (Eq a) => Eq (f a), Traversable f) => Term f v a -> Term f v a -> Bool
+containsExpression query tm =
+  root (Map.fromList [(v, Nothing) | v <- toList (freeVars query)]) query tm
+  where
+    root :: Map v (Maybe (ABT f v (Term f v a))) -> Term f v a -> Term f v a -> Bool
+    root env0 q tm =
+      evalState (go (out q) (out tm)) env0 || case out tm of
+        Abs v tm ->
+          let v2 = freshInBoth q tm v
+              tm' = rename v v2 tm
+           in root env0 q tm'
+        Cycle tm -> root env0 q tm
+        Var v -> case out q of
+          Var v2 -> v == v2
+          _ -> False
+        Tm f -> any (root env0 q) (toList f)
+      where
+        go ::
+          (MonadState (Map v (Maybe (ABT f v (Term f v a)))) m) =>
+          ABT f v (Term f v a) ->
+          ABT f v (Term f v a) ->
+          m Bool
+        go (Var v) tm = do
+          env <- get
+          case Map.lookup v env of
+            Just Nothing -> put (Map.insert v (Just tm) env) *> pure True
+            Just (Just b) -> go b tm
+            Nothing -> pure False
+        go (Tm fq) (Tm tm) =
+          let fqs = void fq
+              tms = void tm
+           in if fqs == tms
+                then all id <$> (for (toList fq `zip` toList tm) $ \(fq, tm) -> go (out fq) (out tm))
+                else pure False
+        go (Cycle q) (Cycle tm) = go (out q) (out tm)
+        go (Abs v1 body1) (Abs v2 body2) =
+          if v1 == v2
+            then go (out body1) (out body2)
+            else
+              let v3 = freshInBoth body1 body2 v1
+               in go (out $ rename v1 v3 body1) (out $ rename v2 v3 body2)
+        go _ _ = pure False
 
 -- Find all subterms that match a predicate.  Prune the search for speed.
 -- (Some patterns of pruning can cut the complexity of the search.)
