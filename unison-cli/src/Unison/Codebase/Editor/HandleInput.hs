@@ -1758,8 +1758,9 @@ handleDependencies hq = do
     pure (types, terms)
   let types = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ fst <$> results)
   let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
-  #numberedArgs .= map (Text.unpack . Reference.toText . snd) types <> 
-                   map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+  #numberedArgs
+    .= map (Text.unpack . Reference.toText . snd) types
+    <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
   Cli.respond $ ListDependencies ppe lds (fst <$> types) (fst <$> terms)
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
@@ -1783,19 +1784,19 @@ handleDependents hq = do
             Referent.Con (ConstructorReference r _cid) _ct ->
               Codebase.dependents Queries.ExcludeOwnComponent r
        in Cli.runTransaction (LD.fold tp tm ld)
-    let -- True is type names, False is term names 
+    let -- True is type names, False is term names
         results :: [(Bool, HQ.HashQualified Name, Reference)]
         results = do
           r <- Set.toList dependents
-          Just (isTerm,hq) <- [(True,) <$> PPE.terms fqppe (Referent.Ref r), (False,) <$> PPE.types fqppe r]
+          Just (isTerm, hq) <- [(True,) <$> PPE.terms fqppe (Referent.Ref r), (False,) <$> PPE.types fqppe r]
           fullName <- [HQ'.toName hq]
           guard (not (Name.beginsWithSegment fullName Name.libSegment))
           Just shortName <- pure $ PPE.terms ppe (Referent.Ref r) <|> PPE.types ppe r
           pure (isTerm, HQ'.toHQ shortName, r)
     pure results
   let sort = nubOrdOn snd . Name.sortByText (HQ.toText . fst)
-  let types = sort [(n,r) | (False,n,r) <- join results]
-  let terms = sort [(n,r) | (True,n,r) <- join results]
+  let types = sort [(n, r) | (False, n, r) <- join results]
+  let terms = sort [(n, r) | (True, n, r) <- join results]
   #numberedArgs .= map (Text.unpack . Reference.toText . view _2) (types <> terms)
   Cli.respond (ListDependents ppe lds (fst <$> types) (fst <$> terms))
 
