@@ -1,7 +1,6 @@
 module Unison.Typechecker.Components (minimize, minimize') where
 
 import Control.Arrow ((&&&))
-import Data.Bifunctor (first)
 import Data.Function (on)
 import Data.List (groupBy, sortBy)
 import Data.List.NonEmpty (NonEmpty)

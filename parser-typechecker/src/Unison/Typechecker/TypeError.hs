@@ -2,7 +2,6 @@
 
 module Unison.Typechecker.TypeError where
 
-import Data.Bifunctor (second)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Unison.ABT as ABT
 import Unison.Pattern (Pattern)

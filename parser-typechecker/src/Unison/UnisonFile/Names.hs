@@ -1,6 +1,5 @@
 module Unison.UnisonFile.Names where
 
-import Data.Bifunctor (second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT

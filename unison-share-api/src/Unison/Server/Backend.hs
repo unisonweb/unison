@@ -93,7 +93,6 @@ import Control.Lens hiding ((??))
 import qualified Control.Lens.Cons as Cons
 import Control.Monad.Except
 import Control.Monad.Reader
-import Data.Bifunctor (Bifunctor (..), first)
 import Data.Containers.ListUtils (nubOrdOn)
 import qualified Data.List as List
 import qualified Data.Map as Map
