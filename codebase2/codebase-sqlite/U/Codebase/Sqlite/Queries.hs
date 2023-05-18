@@ -185,6 +185,7 @@ module U.Codebase.Sqlite.Queries
     typeNamesBySuffix,
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
+    insertNameLookupMounts,
 
     -- * Reflog
     appendReflog,
@@ -215,6 +216,7 @@ module U.Codebase.Sqlite.Queries
     addNamespaceStatsTables,
     addProjectTables,
     fixScopedNameLookupTables,
+    addNameLookupMountTables,
 
     -- ** schema version
     currentSchemaVersion,
@@ -378,7 +380,7 @@ createSchema = do
   fixScopedNameLookupTables
   addProjectTables
   execute2 insertSchemaVersionSql
-  addNameLookupMounts
+  addNameLookupMountTables
   where
     insertSchemaVersionSql =
       [sql2|
@@ -406,8 +408,8 @@ addProjectTables :: Transaction ()
 addProjectTables =
   executeFile [hereFile|unison/sql/005-project-tables.sql|]
 
-addNameLookupMounts :: Transaction ()
-addNameLookupMounts =
+addNameLookupMountTables :: Transaction ()
+addNameLookupMountTables =
   executeFile [hereFile|unison/sql/006-add-name-lookup-mounts.sql|]
 
 executeFile :: String -> Transaction ()
@@ -2318,6 +2320,18 @@ longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
           & mapMaybe NonEmpty.nonEmpty
           & map (toSuffixGlob . into @ReversedName)
   runMaybeT $ loop suffixes
+
+-- | Associate name lookup indexes for dependencies to specific mounting points within another name lookup.
+insertNameLookupMounts :: BranchHashId -> [(PathSegments, BranchHashId)] -> Transaction ()
+insertNameLookupMounts rootBranchHashId mounts = do
+  for_ mounts \(mountPath, mountedBranchHashId) -> do
+    let mountPathText = pathSegmentsToText mountPath <> "."
+    let reversedMountPathText = pathSegmentsToText (PathSegments . reverse . coerce $ mountPath) <> "."
+    execute2
+      [sql2|
+        INSERT INTO name_lookup_mounts (parent_root_branch_hash_id, mounted_branch_hash_id, mount_path, reversed_mount_path)
+        VALUES (:rootBranchHashId, :mountedBranchHashId, :mountPathText, :reversedMountPathText)
+      |]
 
 -- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool

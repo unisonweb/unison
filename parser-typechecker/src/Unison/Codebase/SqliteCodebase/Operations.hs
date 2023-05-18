@@ -7,8 +7,10 @@
 -- are unified with non-sqlite operations in the Codebase interface, like 'appendReflog'.
 module Unison.Codebase.SqliteCodebase.Operations where
 
+import qualified Control.Comonad.Cofree as Cofree
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
+import Data.Functor.Compose (Compose (..))
 import qualified Data.List as List
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import qualified Data.Map as Map
@@ -16,8 +18,10 @@ import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified U.Codebase.Branch as V2Branch
+import U.Codebase.Branch.Diff (TreeDiff (TreeDiff))
 import qualified U.Codebase.Branch.Diff as BranchDiff
 import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash), PatchHash)
+import qualified U.Codebase.Projects as Projects
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
@@ -643,7 +647,7 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
               -- history looking for a Branch Hash we already have an index for.
               pure (V2Branch.empty, Nothing)
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
-      let treeDiff = BranchDiff.diffBranches fromBranch toBranch
+      let treeDiff = ignoreLibDiffs $ BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
       Ops.buildNameLookupForBranchHash
         mayExistingLookupBH
@@ -657,6 +661,13 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
               save (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
         )
   where
+    -- Ignore changes to the lib namespace, since those will be handled by name lookup
+    -- mounts.
+    ignoreLibDiffs :: (Functor m) => TreeDiff m -> TreeDiff m
+    ignoreLibDiffs (TreeDiff cfr) =
+      cfr
+        & Cofree.hoistCofree (\(Compose diff) -> Compose (Map.delete Projects.libSegment diff))
+        & TreeDiff
     toNamedRef :: (Name, ref) -> S.NamedRef ref
     toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
     addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)

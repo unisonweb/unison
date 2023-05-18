@@ -11,6 +11,7 @@ module U.Codebase.Sqlite.Operations
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
     expectBranchByBranchHash,
+    expectBranchByBranchHashId,
     expectNamespaceStatsByHash,
     expectNamespaceStatsByHashId,
 
