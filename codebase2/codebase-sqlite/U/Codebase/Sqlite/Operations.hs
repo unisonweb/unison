@@ -1091,7 +1091,6 @@ buildNameLookupForBranchHash ::
   -- If Just, the name lookup must exist or an error will be thrown.
   Maybe BranchHash ->
   BranchHash ->
-  [(PathSegments, BranchHash)] ->
   ( ( -- (add terms, remove terms)
       ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
       --  (add types, remove types)
@@ -1101,9 +1100,8 @@ buildNameLookupForBranchHash ::
     Transaction ()
   ) ->
   Transaction ()
-buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash dependencyMounts callback = do
+buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash callback = do
   newBranchHashId <- Q.expectBranchHashId newBranchHash
-  associateNameLookupMounts newBranchHashId dependencyMounts
   Q.trackNewBranchHashNameLookup newBranchHashId
   case mayExistingBranchIndex of
     Nothing -> pure ()
@@ -1117,8 +1115,9 @@ buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash dependencyMoun
     Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
     Q.insertScopedTypeNames newBranchHashId (fmap c2sTextReference <$> newTypeNames)
 
-associateNameLookupMounts :: Db.BranchHashId -> [(PathSegments, BranchHash)] -> Transaction ()
-associateNameLookupMounts rootBhId dependencyMounts = do
+associateNameLookupMounts :: BranchHash -> [(PathSegments, BranchHash)] -> Transaction ()
+associateNameLookupMounts rootBh dependencyMounts = do
+  rootBhId <- Q.expectBranchHashId rootBh
   depMounts <- for dependencyMounts \(path, branchHash) -> do
     branchHashId <- Q.expectBranchHashId branchHash
     pure (path, branchHashId)
