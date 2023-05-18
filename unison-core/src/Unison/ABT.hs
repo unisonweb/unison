@@ -511,11 +511,9 @@ containsExpression query tm =
             Just (Just b) -> go b tm
             Nothing -> pure False
         go (Tm fq) (Tm tm) =
-          let fqs = void fq
-              tms = void tm
-           in if fqs == tms
-                then all id <$> (for (toList fq `zip` toList tm) $ \(fq, tm) -> go (out fq) (out tm))
-                else pure False
+          if void fq == void tm
+            then all id <$> (for (toList fq `zip` toList tm) $ \(fq, tm) -> go (out fq) (out tm))
+            else pure False
         go (Cycle q) (Cycle tm) = go (out q) (out tm)
         go (Abs v1 body1) (Abs v2 body2) =
           if v1 == v2
