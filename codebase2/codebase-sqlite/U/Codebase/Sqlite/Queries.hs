@@ -368,7 +368,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 10
+currentSchemaVersion = 11
 
 createSchema :: Transaction ()
 createSchema = do
