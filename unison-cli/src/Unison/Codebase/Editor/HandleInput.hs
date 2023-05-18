@@ -1728,7 +1728,7 @@ handleDependencies hq = do
   Cli.Env {codebase} <- ask
   -- todo: add flag to handle transitive efficiently
   lds <- resolveHQToLabeledDependencies hq
-  hqLength <- Cli.runTransaction Codebase.hashLength
+  ppe <- PPE.suffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.WithinStrict
   when (null lds) do
     Cli.returnEarly (LabeledReferenceNotFound hq)
   results <- for (toList lds) \ld -> do
@@ -1753,23 +1753,24 @@ handleDependencies hq = do
                   Just tp -> Type.labeledDependencies tp
             tm _ = pure mempty
          in LD.fold tp tm ld
-    ppe <- PPE.suffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.WithinStrict
     let types = [(PPE.typeName ppe r, r) | LabeledDependency.TypeReference r <- toList dependencies]
     let terms = [(PPE.termName ppe r, r) | LabeledDependency.TermReferent r <- toList dependencies]
     pure (types, terms)
-  let types = List.sortOn fst . nubOrdOn snd . join $ fst <$> results
-  let terms = List.sortOn fst . nubOrdOn snd . join $ snd <$> results
-  #numberedArgs .= map (Text.unpack . Reference.toText . snd) types <> map (HQ.toString . fst) terms
-  Cli.respond $ ListDependencies hqLength lds (fst <$> types) (fst <$> terms)
+  let types = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ fst <$> results)
+  let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
+  #numberedArgs .= map (Text.unpack . Reference.toText . snd) types <> 
+                   map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+  Cli.respond $ ListDependencies ppe lds (fst <$> types) (fst <$> terms)
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
 handleDependents hq = do
-  hqLength <- Cli.runTransaction Codebase.hashLength
   -- todo: add flag to handle transitive efficiently
   lds <- resolveHQToLabeledDependencies hq
   -- Use an unsuffixified PPE here, so we display full names (relative to the current path),
   -- rather than the shortest possible unambiguous name.
-  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.WithinStrict
+  pped <- currentPrettyPrintEnvDecl Backend.WithinStrict
+  let fqppe = PPE.unsuffixifiedPPE pped
+  let ppe = PPE.suffixifiedPPE pped
   when (null lds) do
     Cli.returnEarly (LabeledReferenceNotFound hq)
 
@@ -1782,28 +1783,21 @@ handleDependents hq = do
             Referent.Con (ConstructorReference r _cid) _ct ->
               Codebase.dependents Queries.ExcludeOwnComponent r
        in Cli.runTransaction (LD.fold tp tm ld)
-    let results :: [(Reference, Maybe Name)]
-        results =
-          -- Currently we only retain dependents that are named in the current namespace
-          [p | Just p <- map f (Set.toList dependents)]
-          where
-            f :: Reference -> Maybe (Reference, Maybe Name)
-            f reference =
-              asum
-                [ g =<< PPE.terms ppe (Referent.Ref reference),
-                  g =<< PPE.types ppe reference
-                ]
-              where
-                g :: HQ'.HashQualified Name -> Maybe (Reference, Maybe Name)
-                g hqName = case HQ'.toName hqName of
-                  name
-                    | Name.beginsWithSegment name Name.libSegment -> Nothing
-                    | otherwise -> Just (reference, Just (HQ'.toName hqName))
+    let -- True is type names, False is term names 
+        results :: [(Bool, HQ.HashQualified Name, Reference)]
+        results = do
+          r <- Set.toList dependents
+          Just (isTerm,hq) <- [(True,) <$> PPE.terms fqppe (Referent.Ref r), (False,) <$> PPE.types fqppe r]
+          fullName <- [HQ'.toName hq]
+          guard (not (Name.beginsWithSegment fullName Name.libSegment))
+          Just shortName <- pure $ PPE.terms ppe (Referent.Ref r) <|> PPE.types ppe r
+          pure (isTerm, HQ'.toHQ shortName, r)
     pure results
-
-  let sorted = nubOrdOn fst $ List.sortOn snd (join results)
-  #numberedArgs .= map (Text.unpack . Reference.toText . fst) sorted
-  Cli.respond (ListDependents hqLength lds sorted)
+  let sort = nubOrdOn snd . Name.sortByText (HQ.toText . fst)
+  let types = sort [(n,r) | (False,n,r) <- join results]
+  let terms = sort [(n,r) | (True,n,r) <- join results]
+  #numberedArgs .= map (Text.unpack . Reference.toText . view _2) (types <> terms)
+  Cli.respond (ListDependents ppe lds (fst <$> types) (fst <$> terms))
 
 handleDiffNamespaceToPatch :: Text -> DiffNamespaceToPatchInput -> Cli ()
 handleDiffNamespaceToPatch description input = do
