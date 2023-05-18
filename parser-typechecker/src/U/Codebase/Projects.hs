@@ -9,7 +9,6 @@ import Control.Lens (ifoldMap)
 import qualified Control.Lens.Cons as Cons
 import Control.Monad.Reader
 import Control.Monad.Writer.Strict (WriterT, execWriterT, tell)
-import Data.Bifunctor (first)
 import qualified Data.Map as Map
 import Data.Monoid (Last (..))
 import U.Codebase.Branch

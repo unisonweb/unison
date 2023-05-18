@@ -8,7 +8,6 @@
 module Unison.Codebase.SqliteCodebase.Operations where
 
 import qualified Control.Comonad.Cofree as Cofree
-import Data.Bifunctor (first)
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
 import Data.Functor.Compose (Compose (..))

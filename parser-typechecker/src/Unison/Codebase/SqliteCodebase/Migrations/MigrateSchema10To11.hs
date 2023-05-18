@@ -5,10 +5,13 @@ module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema10To11 (migrateSch
 
 import U.Codebase.Projects (inferDependencyMounts)
 import qualified U.Codebase.Reference as C.Reference
+import U.Codebase.Sqlite.NameLookups (PathSegments (PathSegments))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Queries
+import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Operations as CodebaseOps
 import qualified Unison.ConstructorType as CT
+import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import Prelude hiding (log)
@@ -36,7 +39,7 @@ backfillNameLookupMounts getDeclType = do
     mounts <- inferDependencyMounts branch
     for_ mounts \(_path, mountBH) -> do
       CodebaseOps.ensureNameLookupForBranchHash getDeclType Nothing mountBH
-    Ops.associateNameLookupMounts bhId (mounts & map first)
+    Ops.associateNameLookupMounts bhId (mounts & map (first (coerce . Path.toList)))
 
 -- | As part of adding name lookup mounts for dependencies we no longer want dependencies to
 -- be included in the name lookup, they just bloat the index.
