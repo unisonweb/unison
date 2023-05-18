@@ -1951,7 +1951,7 @@ termNamesWithinNamespace bhId namespace = do
 
         SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
         FROM name_lookup_mounts mount
-          INNER JOIN scoped_term_name_lookup names ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+          INNER JOIN scoped_term_name_lookup names ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_root_branch_hash_id
         WHERE
           mount.parent_root_branch_hash_id = :bhId
           -- We have a pre-condition that the namespace must not be within any of the mounts,
@@ -1983,7 +1983,7 @@ typeNamesWithinNamespace bhId namespace =
 
       SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, reference_builtin, reference_component_hash, reference_component_index
       FROM name_lookup_mounts mount
-        INNER JOIN scoped_type_name_lookup names ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+        INNER JOIN scoped_type_name_lookup names ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_root_branch_hash_id
       WHERE
         mount.parent_root_branch_hash_id = :bhId
         -- We have a pre-condition that the namespace must not be within any of the mounts,
@@ -2023,7 +2023,7 @@ termNamesBySuffix bhId namespaceRoot suffix = do
         UNION ALL
         SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
         FROM name_lookup_mounts mount
-          INNER JOIN scoped_term_name_lookup names ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+          INNER JOIN scoped_term_name_lookup names ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_root_branch_hash_id
         WHERE mount.parent_root_branch_hash_id = :bhId
               AND mount.mount_path GLOB :namespaceGlob
               AND last_name_segment IS :lastSegment
@@ -2061,7 +2061,7 @@ typeNamesBySuffix bhId namespaceRoot suffix = do
       UNION ALL
       SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, reference_builtin, reference_component_hash, reference_component_index
       FROM name_lookup_mounts mount
-        INNER JOIN scoped_type_name_lookup names ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+        INNER JOIN scoped_type_name_lookup names ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_root_branch_hash_id
       WHERE mount.parent_root_branch_hash_id = :bhId
             AND mount.mount_path GLOB :namespaceGlob
             AND last_name_segment IS :lastNameSegment
@@ -2134,7 +2134,7 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
         UNION ALL
         SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name
         FROM name_lookup_mounts mount
-          INNER JOIN scoped_term_name_lookup names ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+          INNER JOIN scoped_term_name_lookup names ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_root_branch_hash_id
         WHERE mount.parent_root_branch_hash_id = ?
               AND mount.mount_path GLOB ?
               AND referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?
@@ -2165,7 +2165,7 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
         UNION ALL
         SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name
         FROM name_lookup_mounts mount
-          INNER JOIN scoped_type_name_lookup names ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+          INNER JOIN scoped_type_name_lookup names ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_root_branch_hash_id
         WHERE mount.parent_root_branch_hash_id = ?
               AND mount.mount_path GLOB ?
               AND reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?
@@ -2218,7 +2218,7 @@ longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
               UNION ALL
               SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, names.referent_builtin, names.referent_component_hash, names.referent_component_index, names.referent_constructor_index, names.referent_constructor_type
               FROM name_lookup_mounts mount
-                INNER JOIN scoped_term_name_lookup names ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+                INNER JOIN scoped_term_name_lookup names ON scoped_term_name_lookup.root_branch_hash_id = mount.mounted_root_branch_hash_id
               WHERE mount.parent_root_branch_hash_id = :bhId
                     AND mount.mount_path GLOB :namespaceGlob
                     AND last_name_segment IS :lastSegment
@@ -2293,7 +2293,7 @@ longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
               UNION ALL
               SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, names.reference_builtin, names.reference_component_hash, names.reference_component_index
               FROM type_name_lookup_mounts mount
-                INNER JOIN scoped_type_name_lookup names ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_branch_hash_id
+                INNER JOIN scoped_type_name_lookup names ON scoped_type_name_lookup.root_branch_hash_id = mount.mounted_root_branch_hash_id
               WHERE mount.parent_root_branch_hash_id = :bhId
                     AND mount.mount_path GLOB :namespaceGlob
                     AND last_name_segment IS :lastSegment
@@ -2332,7 +2332,7 @@ associateNameLookupMounts rootBranchHashId mounts = do
   where
     sql =
       [here|
-        INSERT INTO name_lookup_mounts (parent_root_branch_hash_id, mounted_branch_hash_id, mount_path, reversed_mount_path)
+        INSERT INTO name_lookup_mounts (parent_root_branch_hash_id, mounted_root_branch_hash_id, mount_path, reversed_mount_path)
         VALUES (?, ?, ?, ?)
       |]
 
