@@ -43,6 +43,7 @@ module Unison.Sqlite.Transaction
     -- **** With checks
     queryListRowCheck,
     queryListColCheck,
+    queryListColCheck2,
     queryMaybeRowCheck,
     queryMaybeRowCheck2,
     queryMaybeColCheck,
@@ -325,6 +326,14 @@ queryListColCheck ::
   Transaction r
 queryListColCheck s params check =
   Transaction \conn -> Connection.queryListColCheck conn s params check
+
+queryListColCheck2 ::
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  Sql2 ->
+  ([a] -> Either e r) ->
+  Transaction r
+queryListColCheck2 s check =
+  Transaction \conn -> Connection.queryListColCheck2 conn s check
 
 queryMaybeRowCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>

@@ -39,6 +39,7 @@ module Unison.Sqlite.Connection
     -- **** With checks
     queryListRowCheck,
     queryListColCheck,
+    queryListColCheck2,
     queryMaybeRowCheck,
     queryMaybeRowCheck2,
     queryMaybeColCheck,
@@ -487,6 +488,16 @@ queryListColCheck ::
   IO r
 queryListColCheck conn s params check =
   queryListRowCheck conn s params (coerce @([b] -> Either e r) @([Sqlite.Only b] -> Either e r) check)
+
+queryListColCheck2 ::
+  forall a e r.
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  Connection ->
+  Sql2 ->
+  ([a] -> Either e r) ->
+  IO r
+queryListColCheck2 conn s check =
+  queryListRowCheck2 conn s (coerce @([a] -> Either e r) @([Sqlite.Only a] -> Either e r) check)
 
 queryMaybeRowCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
