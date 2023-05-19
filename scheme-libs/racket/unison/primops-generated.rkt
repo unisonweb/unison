@@ -299,6 +299,7 @@
          ,@defs)
       runtime-namespace)))
 
+; TODO: check dependencies and indicate problems.
 (define (unison-POp-CACH dfns0)
   (let ([udefs (chunked-list->list dfns0)])
     (cond
