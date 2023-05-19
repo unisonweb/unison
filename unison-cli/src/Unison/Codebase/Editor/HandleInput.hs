@@ -1784,7 +1784,7 @@ handleDependents hq = do
             Referent.Con (ConstructorReference r _cid) _ct ->
               Codebase.dependents Queries.ExcludeOwnComponent r
        in Cli.runTransaction (LD.fold tp tm ld)
-    let -- True is type names, False is term names
+    let -- True is term names, False is type names
         results :: [(Bool, HQ.HashQualified Name, Reference)]
         results = do
           r <- Set.toList dependents
