@@ -121,6 +121,8 @@ module U.Codebase.Sqlite.Queries
     insertProjectBranch,
     loadProjectBranch,
     deleteProjectBranch,
+    setMostRecentBranch,
+    loadMostRecentBranch,
 
     -- ** remote projects
     loadRemoteProject,
@@ -214,6 +216,7 @@ module U.Codebase.Sqlite.Queries
     addReflogTable,
     addNamespaceStatsTables,
     addProjectTables,
+    addMostRecentBranchTable,
     fixScopedNameLookupTables,
 
     -- ** schema version
@@ -369,7 +372,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 10
+currentSchemaVersion = 11
 
 createSchema :: Transaction ()
 createSchema = do
@@ -379,6 +382,7 @@ createSchema = do
   addReflogTable
   fixScopedNameLookupTables
   addProjectTables
+  addMostRecentBranchTable
   execute2 insertSchemaVersionSql
   where
     insertSchemaVersionSql =
@@ -406,6 +410,10 @@ fixScopedNameLookupTables =
 addProjectTables :: Transaction ()
 addProjectTables =
   executeFile [hereFile|unison/sql/005-project-tables.sql|]
+
+addMostRecentBranchTable :: Transaction ()
+addMostRecentBranchTable =
+  executeFile [hereFile|unison/sql/006-most-recent-branch-table.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =
@@ -3504,3 +3512,31 @@ reversedNameToReversedSegments txt =
     & List.dropEnd1
     & NonEmpty.nonEmpty
     & maybe (Left (EmptyName $ show callStack)) Right
+
+setMostRecentBranch :: ProjectId -> ProjectBranchId -> Transaction ()
+setMostRecentBranch projectId branchId =
+  execute2
+    [sql2|
+      INSERT INTO most_recent_branch (
+        project_id,
+        branch_id)
+      VALUES (
+        :projectId,
+        :branchId)
+      ON CONFLICT
+        DO UPDATE SET
+          project_id = excluded.project_id,
+          branch_id = excluded.branch_id
+  |]
+
+loadMostRecentBranch :: ProjectId -> Transaction (Maybe ProjectBranchId)
+loadMostRecentBranch projectId =
+  queryMaybeCol2
+    [sql2|
+      SELECT
+        branch_id
+      FROM
+        most_recent_branch
+      WHERE
+        project_id = :projectId
+    |]
