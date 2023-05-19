@@ -24,15 +24,19 @@
 #!r6rs
 (library (unison primops)
   (export
-    ; unison-FOp-Bytes.decodeNat16be
-    ; unison-FOp-Bytes.decodeNat32be
-    ; unison-FOp-Bytes.decodeNat64be
+    unison-FOp-internal.dataTag
+    unison-FOp-Bytes.decodeNat16be
+    unison-FOp-Bytes.decodeNat32be
+    unison-FOp-Bytes.decodeNat64be
+    unison-FOp-Bytes.fromBase32
     unison-FOp-Char.toText
     ; unison-FOp-Code.dependencies
     ; unison-FOp-Code.serialize
     unison-FOp-IO.closeFile.impl.v3
     unison-FOp-IO.openFile.impl.v3
+    unison-FOp-IO.isFileEOF.impl.v3
     unison-FOp-IO.putBytes.impl.v3
+    unison-FOp-IO.getBytes.impl.v3
     unison-FOp-Text.fromUtf8.impl.v3
     unison-FOp-Text.repeat
     unison-FOp-Text.reverse
@@ -83,6 +87,9 @@
     unison-FOp-IO.stdHandle
     unison-FOp-IO.getArgs.impl.v1
 
+    unison-FOp-IO.directoryContents.impl.v3
+    unison-FOp-IO.systemTimeMicroseconds.v1
+
     unison-FOp-ImmutableArray.copyTo!
     unison-FOp-ImmutableArray.read
 
@@ -102,6 +109,13 @@
 
     unison-FOp-ImmutableByteArray.copyTo!
     unison-FOp-ImmutableByteArray.read8
+    unison-FOp-ImmutableByteArray.read16be
+    unison-FOp-ImmutableByteArray.read24be
+    unison-FOp-ImmutableByteArray.read32be
+    unison-FOp-ImmutableByteArray.read40be
+    unison-FOp-ImmutableByteArray.read48be
+    unison-FOp-ImmutableByteArray.read56be
+    unison-FOp-ImmutableByteArray.read64be
 
     unison-FOp-MutableByteArray.freeze!
     unison-FOp-MutableByteArray.write8
@@ -242,15 +256,17 @@
   (import (rnrs)
           (only (srfi :13) string-reverse)
           (rename
-           (only (racket base)
+           (only (racket)
                  car
                  cdr
                  foldl
                  bytes->string/utf-8
                  string->bytes/utf-8
                  exn:fail:contract?
-                 with-handlers)
+                 with-handlers
+                 sequence-ref)
            (car icar) (cdr icdr))
+          (unison bytevector)
           (unison core)
           (unison data)
           (unison chunked-seq)
@@ -416,11 +432,88 @@
   (define (unison-POp-XORN m n) (fxxor m n))
   (define (unison-POp-VALU c) (decode-value c))
 
+  (define (unison-FOp-ImmutableByteArray.read16be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u16-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read24be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u24-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read32be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u32-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read40be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u40-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read48be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u48-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read56be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u56-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read64be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u64-ref bs n 'big)))))
+
+  (define unison-FOp-internal.dataTag data-tag)
+
+  (define (unison-FOp-IO.getBytes.impl.v3 p n)
+    (reify-exn
+      (lambda ()
+        (right
+          (bytes->chunked-bytes
+            (get-bytevector-n p n))))))
+
   (define (unison-FOp-IO.putBytes.impl.v3 p bs)
     (begin
       (put-bytevector p (chunked-bytes->bytes bs))
       (flush-output-port p)
       (sum 1 #f)))
+
+  (define (unison-FOp-Bytes.decodeNat16be bs)
+    (if (< (chunked-bytes-length bs) 2)
+      (sum 0)
+      (let ([ck (sequence-ref (in-chunked-bytes-chunks bs) 0)])
+        (sum 1
+             (bytevector-u16-ref ck 0 'big)
+             (chunked-bytes-drop bs 2)))))
+
+  (define (unison-FOp-Bytes.decodeNat32be bs)
+    (if (< (chunked-bytes-length bs) 4)
+        (sum 0)
+        (let ([ck (sequence-ref (in-chunked-bytes-chunks bs) 0)])
+          (sum 1
+               (bytevector-u32-ref ck 0 'big)
+               (chunked-bytes-drop bs 4)))))
+
+  (define (unison-FOp-Bytes.decodeNat64be bs)
+    (if (< (chunked-bytes-length bs) 8)
+      (sum 0)
+      (let ([ck (sequence-ref (in-chunked-bytes-chunks bs) 0)])
+        (sum 1
+             (bytevector-u64-ref ck 0 'big)
+             (chunked-bytes-drop bs 8)))))
+
+  (define (unison-FOp-Bytes.fromBase32 bs)
+    (guard (e [else (sum 0 (exception->string e))])
+      (sum 1
+        (bytes->chunked-bytes
+          (base32-string->ibytevector b32d
+            (bytevector->string/utf-8
+              (chunked-bytes->bytes bs)))))))
+
 
   (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
 
@@ -437,6 +530,13 @@
   (define (unison-FOp-IO.getArgs.impl.v1)
     (sum 1 (cdr (command-line))))
 
+  (define (unison-FOp-IO.directoryContents.impl.v3 path)
+    (reify-exn
+      (lambda ()
+        (sum 1 (directory-contents path)))))
+
+  (define unison-FOp-IO.systemTimeMicroseconds.v1 current-microseconds)
+
   ;; TODO should we convert Bytes -> Text directly without the intermediate conversions?
   (define (unison-FOp-Text.fromUtf8.impl.v3 b)
     (with-handlers
@@ -449,14 +549,20 @@
     (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
 
   (define (unison-FOp-IO.closeFile.impl.v3 h)
-    (close-input-port h))
+    (close-input-port h)
+    (sum 1))
 
-  (define (unison-FOp-IO.openFile.impl.v3 fn mode)
-    (case mode
-      [(0) (open-file-input-port fn)]
-      [(1) (open-file-output-port fn)]
-      [(2) (open-file-output-port fn 'no-truncate)]
-      [else (open-file-input/output-port fn)]))
+  (define (unison-FOp-IO.openFile.impl.v3 fn0 mode)
+    (let ([fn (chunked-string->string fn0)])
+      (sum 1
+           (case mode
+             [(0) (open-file-input-port fn)]
+             [(1) (open-file-output-port fn)]
+             [(2) (open-file-output-port fn 'no-truncate)]
+             [else (open-file-input/output-port fn)]))))
+
+  (define (unison-FOp-IO.isFileEOF.impl.v3 p)
+    (right (if (port-eof? p) 1 0)))
 
   (define (unison-FOp-Text.repeat n t)
     (let loop ([cnt 0]
