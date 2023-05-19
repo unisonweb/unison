@@ -55,7 +55,6 @@ library
       Unison.Type
       Unison.Type.Names
       Unison.Util.Components
-      Unison.Util.List
       Unison.Var
       Unison.WatchKind
   hs-source-dirs:

@@ -81,3 +81,22 @@ quenchRuns r w = reverse . go False r w []
         if h == r
           then go True r w ((if inRun then w else r) : acc) tl
           else go False r w (h : acc) tl
+
+-- | Finds the longest shared path prefix of two paths.
+-- Returns (shared prefix, path to first location from shared prefix, path to second location from shared prefix)
+--
+-- >>> splitOnLongestCommonPrefix ["a", "b", "x"] ["a", "b", "c"]
+-- (["a","b"],["x"],["c"])
+--
+-- >>> splitOnLongestCommonPrefix [] ["a", "b", "c"]
+-- ([],[],["a","b","c"])
+splitOnLongestCommonPrefix :: Eq a => [a] -> [a] -> ([a], [a], [a])
+splitOnLongestCommonPrefix as bs =
+  case (as, bs) of
+    ([], _) -> ([], as, bs)
+    (_, []) -> ([], as, bs)
+    (x : xs, y : ys)
+      | x == y ->
+        let (prefix, ra, rb) = splitOnLongestCommonPrefix xs ys
+         in (x : prefix, ra, rb)
+      | otherwise -> ([], as, bs)

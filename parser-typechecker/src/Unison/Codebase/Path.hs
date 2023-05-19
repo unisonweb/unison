@@ -95,6 +95,7 @@ import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude hiding (empty, toList)
 import qualified Unison.Syntax.Name as Name (toString, unsafeFromText)
+import qualified Unison.Util.List as List
 import Unison.Util.Monoid (intercalateMap)
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
@@ -201,14 +202,8 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 -- (,,a.b.c)
 longestPathPrefix :: Path -> Path -> (Path, Path, Path)
 longestPathPrefix a b =
-  case (Lens.uncons a, Lens.uncons b) of
-    (Nothing, _) -> (empty, a, b)
-    (_, Nothing) -> (empty, a, b)
-    (Just (x, xs), Just (y, ys))
-      | x == y ->
-          let (prefix, ra, rb) = longestPathPrefix xs ys
-           in (x :< prefix, ra, rb)
-      | otherwise -> (empty, a, b)
+  List.splitOnLongestCommonPrefix (toList a) (toList b)
+    & \(a, b, c) -> (fromList a, fromList b, fromList c)
 
 toSplit' :: Path' -> Maybe (Path', NameSegment)
 toSplit' = Lens.unsnoc

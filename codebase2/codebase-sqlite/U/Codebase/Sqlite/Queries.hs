@@ -186,6 +186,7 @@ module U.Codebase.Sqlite.Queries
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
     associateNameLookupMounts,
+    listNameLookupMounts,
 
     -- * Reflog
     appendReflog,
@@ -2335,6 +2336,21 @@ associateNameLookupMounts rootBranchHashId mounts = do
         INSERT INTO name_lookup_mounts (parent_root_branch_hash_id, mounted_root_branch_hash_id, mount_path, reversed_mount_path)
         VALUES (?, ?, ?, ?)
       |]
+
+-- | Fetch the name lookup mounts for a given name lookup index.
+listNameLookupMounts :: BranchHashId -> Transaction [(PathSegments, BranchHashId)]
+listNameLookupMounts rootBranchHashId =
+  do
+    queryListRow2
+      [sql2|
+        SELECT mount_path, mounted_root_branch_hash_id
+        FROM name_lookup_mounts
+        WHERE parent_root_branch_hash_id = :rootBranchHashId
+      |]
+    <&> fmap
+      \(mountPathText, mountedRootBranchHashId) ->
+        let mountPath = textToPathSegments (Text.init mountPathText)
+         in (mountPath, mountedRootBranchHashId)
 
 -- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool
