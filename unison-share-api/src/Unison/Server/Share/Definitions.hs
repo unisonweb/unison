@@ -57,7 +57,7 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
   result <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- resolveCausalHashV2 (Just rootHash)
     shallowBranch <- V2Causal.value shallowRoot
-    Backend.relocateToProjectRoot perspective perspectiveQuery shallowBranch >>= \case
+    Backend.relocateToNameRoot perspective perspectiveQuery shallowBranch >>= \case
       Left err -> pure $ Left err
       Right (namesRoot, locatedQuery) -> pure $ Right (shallowRoot, namesRoot, locatedQuery)
   (shallowRoot, namesRoot, query) <- either throwError pure result

@@ -25,15 +25,18 @@ libSegment :: NameSegment
 libSegment = NameSegment "lib"
 
 -- | Infers path to use for loading names.
--- Currently this means finding the closest parent with a "lib" child.
+--
+-- A name root is either a project root or a dependency root.
+-- E.g. @.myproject.some.namespace -> .myproject@ (where .myproject.lib exists) or @.myproject.lib.base.List -> .myproject.lib.base@
 inferNamesRoot :: Path -> Branch Sqlite.Transaction -> Sqlite.Transaction (Maybe Path)
-inferNamesRoot p _b | Just match <- specialCases p = pure $ Just match
+inferNamesRoot p b
+  | Just match <- findBaseProject p = pure $ Just match
+  | Just depRoot <- findDepRoot p = pure $ Just depRoot
+  | otherwise = getLast <$> execWriterT (runReaderT (go p b) Path.empty)
   where
-    specialCases :: Path -> Maybe Path
-    specialCases ("public" Cons.:< "base" Cons.:< release Cons.:< _rest) = Just (Path.fromList ["public", "base", release])
-    specialCases _ = Nothing
-inferNamesRoot p b = getLast <$> execWriterT (runReaderT (go p b) Path.empty)
-  where
+    findBaseProject :: Path -> Maybe Path
+    findBaseProject ("public" Cons.:< "base" Cons.:< release Cons.:< _rest) = Just (Path.fromList ["public", "base", release])
+    findBaseProject _ = Nothing
     go :: Path -> Branch Sqlite.Transaction -> ReaderT Path (WriterT (Last Path) Sqlite.Transaction) ()
     go p b = do
       childMap <- lift . lift $ nonEmptyChildren b
@@ -46,6 +49,31 @@ inferNamesRoot p b = getLast <$> execWriterT (runReaderT (go p b) Path.empty)
             Just childCausal -> do
               childBranch <- lift . lift $ Causal.value childCausal
               local (Cons.|> nextChild) (go pathRemainder childBranch)
+
+-- | If the provided path is within a lib dir (or a transitive lib) find the dependency
+-- we're in.
+--
+-- E.g. @.myproject.lib.base.List -> .myproject.lib.base@
+-- E.g. @.myproject.lib.distributed.lib.base.List -> .myproject.lib.distributed.lib.base@
+--
+-- >>> findDepRoot (Path.fromList ["myproject", "lib", "base", "List"])
+-- Just myproject.lib.base
+--
+-- >>> findDepRoot (Path.fromList ["myproject", "lib", "distributed", "lib", "base", "List"])
+-- Just myproject.lib.distributed.lib.base
+--
+-- Just lib isn't inside a dependency.
+-- >>> findDepRoot (Path.fromList ["myproject", "lib"])
+-- Nothing
+findDepRoot :: Path -> Maybe Path
+findDepRoot (lib Cons.:< depRoot Cons.:< rest)
+  | lib == libSegment =
+    -- Keep looking to see if the full path is actually in a transitive dependency, otherwise
+    -- fallback to this spot
+    ((Path.fromList [lib, depRoot] <>) <$> findDepRoot rest)
+      <|> Just (Path.fromList [lib, depRoot])
+findDepRoot (other Cons.:< rest) = (other Cons.:<) <$> findDepRoot rest
+findDepRoot _ = Nothing
 
 -- | Find all dependency mounts within a branch and the path to those mounts.
 -- For a typical project this will return something like:
@@ -61,13 +89,13 @@ inferDependencyMounts Branch {children} =
       case segment of
         seg
           | seg == libSegment -> do
-              Branch {children = deps} <- Causal.value child
-              deps
-                & ( ifoldMap \depName depBranch ->
-                      [(Path.fromList [seg, depName], Causal.valueHash depBranch)]
-                  )
-                & pure
+            Branch {children = deps} <- Causal.value child
+            deps
+              & ( ifoldMap \depName depBranch ->
+                    [(Path.fromList [seg, depName], Causal.valueHash depBranch)]
+                )
+              & pure
           | otherwise -> do
-              childBranch <- Causal.value child
-              inferDependencyMounts childBranch
-                <&> map (first (Path.cons seg))
+            childBranch <- Causal.value child
+            inferDependencyMounts childBranch
+              <&> map (first (Path.cons seg))

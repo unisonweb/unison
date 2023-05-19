@@ -82,7 +82,7 @@ module Unison.Server.Backend
     definitionResultsDependencies,
     termEntryTag,
     evalDocRef,
-    relocateToProjectRoot,
+    relocateToNameRoot,
     mkTermDefinition,
     mkTypeDefinition,
   )
@@ -868,7 +868,7 @@ prettyDefinitionsForHQName ::
 prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings rt codebase perspectiveQuery = do
   result <- liftIO . Codebase.runTransaction codebase $ do
     shallowBranch <- V2Causal.value shallowRoot
-    relocateToProjectRoot perspective perspectiveQuery shallowBranch >>= \case
+    relocateToNameRoot perspective perspectiveQuery shallowBranch >>= \case
       Left err -> pure $ Left err
       Right (namesRoot, locatedQuery) -> pure $ Right (shallowRoot, namesRoot, locatedQuery)
   (shallowRoot, namesRoot, query) <- either throwError pure result
@@ -984,10 +984,13 @@ mkTermDefinition codebase termPPED namesRoot rootCausal width r docs tm = do
           (formatSuffixedType termPPED width typeSig)
           docs
 
--- | Given an arbitrary query and perspective, find the project root the query belongs in,
--- then return that root and the query relocated to that project root.
-relocateToProjectRoot :: Path -> HQ.HashQualified Name -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction (Either BackendError (Path, HQ.HashQualified Name))
-relocateToProjectRoot perspective query rootBranch = do
+-- | Given an arbitrary query and perspective, find the name root the query belongs in,
+-- then return that root and the query relocated to that root.
+--
+-- A name root is either a project root or a dependency root.
+-- E.g. @.myproject.some.namespace -> .myproject@ or @.myproject.lib.base.List -> .myproject.lib.base@
+relocateToNameRoot :: Path -> HQ.HashQualified Name -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction (Either BackendError (Path, HQ.HashQualified Name))
+relocateToNameRoot perspective query rootBranch = do
   let queryLocation = HQ.toName query & maybe perspective \name -> perspective <> Path.fromName name
   -- Names should be found from the project root of the queried name
   (Projects.inferNamesRoot queryLocation rootBranch) >>= \case
