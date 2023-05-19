@@ -16,11 +16,12 @@ serial.availableCases _ =
 
 serial.gen : Nat -> Nat -> (Nat, Nat)
 serial.gen seed k =
-  c = 11
-  a = 0x5deece66d
-  m = shiftLeft 1 48
+  c = 1
+  a = 22695477
+  m = shiftLeft 1 32
   s = mod (a * seed + c) m
-  (mod (shiftRight s 15) (Nat.min 32 k), s)
+  mask = shiftLeft 1 (Nat.min 14 k)
+  (mod (shiftRight s 15) mask, s)
 
   
 serial.shuffle : Nat -> [a] -> [a]
@@ -92,7 +93,9 @@ serial.tests : '{Tests,IO} ()
 serial.tests = do
   handle
     l =  !availableCases
-    cs = shuffle (toRepresentation !systemTimeMicroseconds) l
+    m = shiftLeft 1 32
+    seed = mod (toRepresentation !systemTimeMicroseconds) m
+    cs = shuffle seed l
     List.map runTestCase cs
   with cases
     {x} -> ()
