@@ -2293,7 +2293,7 @@ longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
                     AND NOT (reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @)
               UNION ALL
               SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, names.reference_builtin, names.reference_component_hash, names.reference_component_index
-              FROM type_name_lookup_mounts mount
+              FROM name_lookup_mounts mount
                 INNER JOIN scoped_type_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
               WHERE mount.parent_root_branch_hash_id = :bhId
                     AND mount.mount_path GLOB :namespaceGlob

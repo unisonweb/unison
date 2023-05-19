@@ -36,7 +36,7 @@ backfillNameLookupMounts ::
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   Sqlite.Transaction ()
 backfillNameLookupMounts getDeclType = do
-  branchHashesWithNameLookups <- fmap (coerce . Hash32.toHash) <$> Sqlite.queryListCol_ "SELECT hash.base32 FROM FROM name_lookups nl JOIN hash ON nl.root_branch_hash_id = hash.id"
+  branchHashesWithNameLookups <- fmap (coerce . Hash32.toHash) <$> Sqlite.queryListCol_ "SELECT hash.base32 FROM name_lookups nl JOIN hash ON nl.root_branch_hash_id = hash.id"
   for_ branchHashesWithNameLookups \bh -> do
     branch <- Ops.expectBranchByBranchHash bh
     mounts <- inferDependencyMounts branch
