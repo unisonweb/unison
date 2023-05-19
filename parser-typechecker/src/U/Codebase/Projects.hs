@@ -16,13 +16,10 @@ import qualified U.Codebase.Causal as Causal
 import U.Codebase.HashTags (BranchHash (..))
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
-import Unison.NameSegment (NameSegment (..))
+import Unison.Name (libSegment)
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import Unison.Util.Monoid (ifoldMapM)
-
-libSegment :: NameSegment
-libSegment = NameSegment "lib"
 
 -- | Infers path to use for loading names.
 --
@@ -68,10 +65,10 @@ inferNamesRoot p b
 findDepRoot :: Path -> Maybe Path
 findDepRoot (lib Cons.:< depRoot Cons.:< rest)
   | lib == libSegment =
-    -- Keep looking to see if the full path is actually in a transitive dependency, otherwise
-    -- fallback to this spot
-    ((Path.fromList [lib, depRoot] <>) <$> findDepRoot rest)
-      <|> Just (Path.fromList [lib, depRoot])
+      -- Keep looking to see if the full path is actually in a transitive dependency, otherwise
+      -- fallback to this spot
+      ((Path.fromList [lib, depRoot] <>) <$> findDepRoot rest)
+        <|> Just (Path.fromList [lib, depRoot])
 findDepRoot (other Cons.:< rest) = (other Cons.:<) <$> findDepRoot rest
 findDepRoot _ = Nothing
 
@@ -89,13 +86,13 @@ inferDependencyMounts Branch {children} =
       case segment of
         seg
           | seg == libSegment -> do
-            Branch {children = deps} <- Causal.value child
-            deps
-              & ( ifoldMap \depName depBranch ->
-                    [(Path.fromList [seg, depName], Causal.valueHash depBranch)]
-                )
-              & pure
+              Branch {children = deps} <- Causal.value child
+              deps
+                & ( ifoldMap \depName depBranch ->
+                      [(Path.fromList [seg, depName], Causal.valueHash depBranch)]
+                  )
+                & pure
           | otherwise -> do
-            childBranch <- Causal.value child
-            inferDependencyMounts childBranch
-              <&> map (first (Path.cons seg))
+              childBranch <- Causal.value child
+              inferDependencyMounts childBranch
+                <&> map (first (Path.cons seg))

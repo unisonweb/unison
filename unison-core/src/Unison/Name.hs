@@ -32,6 +32,7 @@ module Unison.Name
     unqualified,
 
     -- * To organize later
+    libSegment,
     sortNames,
     sortNamed,
     sortByText,
@@ -315,11 +316,13 @@ searchByRankedSuffix suffix rel = case searchBySuffix suffix rel of
             | r <- toList rs,
               ns <- [filter ok (toList (R.lookupRan r rel))]
           ]
-      lib = NameSegment "lib"
-      libCount = length . filter (== lib) . toList . reverseSegments
+      libCount = length . filter (== libSegment) . toList . reverseSegments
       minLibs [] = 0
       minLibs ns = minimum (map libCount ns)
       ok name = compareSuffix suffix name == EQ
+
+libSegment :: NameSegment
+libSegment = NameSegment "lib"
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as =

@@ -20,6 +20,8 @@ import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUn
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals, prettyPrintIntegrityErrors)
 import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema10To11 (migrateSchema10To11)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12 (migrateSchema11To12)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchema3To4)
@@ -29,7 +31,6 @@ import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7 (migrateSchem
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8 (migrateSchema7To8)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema8To9 (migrateSchema8To9)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema9To10 (migrateSchema9To10)
-import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema10To11 (migrateSchema10To11)
 import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
 import Unison.Codebase.SqliteCodebase.Paths (backupCodebasePath)
 import Unison.Codebase.Type (LocalOrRemote (..))
@@ -63,7 +64,8 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       (8, migrateSchema7To8),
       (9, migrateSchema8To9),
       (10, migrateSchema9To10),
-      (11, migrateSchema10To11 getDeclType)
+      (11, migrateSchema10To11),
+      (12, migrateSchema11To12 getDeclType)
     ]
 
 data CodebaseVersionStatus
@@ -187,7 +189,7 @@ backupCodebaseIfNecessary backupStrategy localOrRemote conn currentSchemaVersion
     (Backup, Local)
       | (currentSchemaVersion >= highestKnownSchemaVersion) -> pure ()
       | otherwise -> do
-          backupPath <- getPOSIXTime <&> (\t -> root </> backupCodebasePath currentSchemaVersion t)
-          Sqlite.vacuumInto conn backupPath
-          putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
-          putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
+        backupPath <- getPOSIXTime <&> (\t -> root </> backupCodebasePath currentSchemaVersion t)
+        Sqlite.vacuumInto conn backupPath
+        putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
+        putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."

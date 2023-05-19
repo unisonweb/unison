@@ -143,7 +143,6 @@ import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Share.Sync as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
-import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share
@@ -154,7 +153,6 @@ import Unison.Syntax.NamePrinter
   ( SyntaxText,
     prettyHashQualified,
     prettyHashQualified',
-    prettyLabeledDependency,
     prettyName,
     prettyNamedReference,
     prettyNamedReferent,
@@ -1650,53 +1648,10 @@ notifyUser dir = \case
               "",
               "Paste that output into http://bit-booster.com/graph.html"
             ]
-  ListDependents hqLength ld results ->
-    pure $
-      if null results
-        then prettyLd <> " doesn't have any named dependents."
-        else
-          P.lines
-            [ "Dependents of " <> prettyLd <> ":",
-              "",
-              P.indentN 2 (P.numberedColumn2Header num pairs),
-              "",
-              tip $ "Try " <> IP.makeExample IP.view ["1"] <> " to see the source of any numbered item in the above list."
-            ]
-    where
-      prettyLd = P.syntaxToColor (prettyLabeledDependency hqLength ld)
-      num n = P.hiBlack $ P.shown n <> "."
-      header = (P.hiBlack "Name", P.hiBlack "Reference")
-      pairs = header : map pair (List.sortOn (fmap (Name.convert :: Name -> HQ.HashQualified Name) . snd) results)
-      pair :: (Reference, Maybe Name) -> (Pretty, Pretty)
-      pair (reference, maybeName) =
-        ( case maybeName of
-            Nothing -> ""
-            Just name -> prettyName name,
-          prettyShortHash (SH.take hqLength (Reference.toShortHash reference))
-        )
-
-  -- this definition is identical to the previous one, apart from the word
-  -- "Dependencies", but undecided about whether or how to refactor
-  ListDependencies hqLength ld names missing ->
-    pure $
-      if names == mempty && missing == mempty
-        then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependencies."
-        else
-          "Dependencies of "
-            <> c (prettyLabeledDependency hqLength ld)
-            <> ":\n\n"
-            <> (P.indentN 2 (P.numberedColumn2Header num pairs))
-    where
-      num n = P.hiBlack $ P.shown n <> "."
-      header = (P.hiBlack "Reference", P.hiBlack "Name")
-      pairs =
-        header
-          : ( fmap (first c . second c) $
-                [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
-                  ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
-            )
-      p = prettyShortHash . SH.take hqLength
-      c = P.syntaxToColor
+  ListDependents ppe lds types terms ->
+    pure $ listDependentsOrDependencies ppe "Dependents" "dependents" lds types terms
+  ListDependencies ppe lds types terms ->
+    pure $ listDependentsOrDependencies ppe "Dependencies" "dependencies" lds types terms
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
   ListNamespaceDependencies ppe path' externalDependencies -> do
     let spacer = ("", "")
@@ -3804,3 +3759,48 @@ prettyAbsoluteStripProject path =
   P.blue case stripProjectBranchInfo path of
     Just p -> P.shown p
     Nothing -> P.shown path
+
+prettyLabeledDependencies :: PPE.PrettyPrintEnv -> Set LabeledDependency -> Pretty
+prettyLabeledDependencies ppe lds =
+  P.syntaxToColor (P.sep ", " (ld <$> toList lds))
+  where
+    ld = \case
+      LD.TermReferent r -> prettyHashQualified (PPE.termNameOrHashOnly ppe r)
+      LD.TypeReference r -> "type " <> prettyHashQualified (PPE.typeNameOrHashOnly ppe r)
+
+listDependentsOrDependencies ::
+  PPE.PrettyPrintEnv ->
+  Text ->
+  Text ->
+  Set LabeledDependency ->
+  [HQ.HashQualified Name] ->
+  [HQ.HashQualified Name] ->
+  P.Pretty P.ColorText
+listDependentsOrDependencies ppe labelStart label lds types terms =
+  if null (types <> terms)
+    then prettyLabeledDependencies ppe lds <> " has no " <> P.text label <> "."
+    else P.sepNonEmpty "\n\n" [hdr, typesOut, termsOut, tip msg]
+  where
+    msg = "Try " <> IP.makeExample IP.view args <> " to see the source of any numbered item in the above list."
+    args = [P.shown (length (types <> terms))]
+    hdr = P.text labelStart <> " of: " <> prettyLabeledDependencies ppe lds
+    typesOut =
+      if null types
+        then mempty
+        else
+          P.lines $
+            [ P.indentN 2 $ P.bold "Types:",
+              "",
+              P.indentN 2 $ P.numbered (numFrom 0) $ c . prettyHashQualified <$> types
+            ]
+    termsOut =
+      if null terms
+        then mempty
+        else
+          P.lines
+            [ P.indentN 2 $ P.bold "Terms:",
+              "",
+              P.indentN 2 $ P.numbered (numFrom $ length types) $ c . prettyHashQualified <$> terms
+            ]
+    numFrom k n = P.hiBlack $ P.shown (k + n) <> "."
+    c = P.syntaxToColor

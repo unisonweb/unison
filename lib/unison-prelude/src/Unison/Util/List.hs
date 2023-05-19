@@ -90,13 +90,13 @@ quenchRuns r w = reverse . go False r w []
 --
 -- >>> splitOnLongestCommonPrefix [] ["a", "b", "c"]
 -- ([],[],["a","b","c"])
-splitOnLongestCommonPrefix :: Eq a => [a] -> [a] -> ([a], [a], [a])
+splitOnLongestCommonPrefix :: (Eq a) => [a] -> [a] -> ([a], [a], [a])
 splitOnLongestCommonPrefix as bs =
   case (as, bs) of
     ([], _) -> ([], as, bs)
     (_, []) -> ([], as, bs)
     (x : xs, y : ys)
       | x == y ->
-        let (prefix, ra, rb) = splitOnLongestCommonPrefix xs ys
-         in (x : prefix, ra, rb)
+          let (prefix, ra, rb) = splitOnLongestCommonPrefix xs ys
+           in (x : prefix, ra, rb)
       | otherwise -> ([], as, bs)
