@@ -33,11 +33,7 @@ packages:
 - lib/unison-util-rope
 - lib/unison-pretty-printer
 
-resolver: lts-20.0
-# Possibly short-term override: downgrade from 9.2.5 to 9.2.4
-# This is because as of Nov 29 2022 there is no HLS release compatible with 9.2.5
-compiler: ghc-9.2.4
-compiler-check: match-exact
+resolver: lts-20.21
 
 extra-deps:
 - github: unisonweb/configurator
@@ -50,8 +46,8 @@ extra-deps:
 # If changing the haskeline dependency, please ensure color renders properly in a
 # Windows terminal.
 # https://github.com/judah/haskeline/pull/126
-- github: judah/haskeline
-  commit: 3b26f1e6c279e9bb5cd052c34c852aa8f8cfa17e
+- github: unisonweb/haskeline
+  commit: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
 
 # these packages aren't in lts-20.0 at all
 - co-log-core-0.3.1.0
