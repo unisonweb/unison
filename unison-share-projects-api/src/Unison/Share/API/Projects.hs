@@ -38,6 +38,7 @@ module Unison.Share.API.Projects
 where
 
 import Data.Aeson
+import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import Data.Aeson.Types
 import Data.Monoid (Endo (..))
@@ -47,7 +48,6 @@ import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
 import Unison.Prelude
 import Unison.Share.API.Hash (HashJWT)
-import qualified Data.Aeson.Key as Aeson.Key
 
 type ProjectsAPI =
   GetProjectAPI
