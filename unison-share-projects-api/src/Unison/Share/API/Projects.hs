@@ -38,8 +38,8 @@ module Unison.Share.API.Projects
 where
 
 import Data.Aeson
+import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import Data.Aeson.Types
-import qualified Data.HashMap.Strict as HashMap
 import Data.Monoid (Endo (..))
 import qualified Data.Text as Text
 import Servant.API
@@ -47,6 +47,7 @@ import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
 import Unison.Prelude
 import Unison.Share.API.Hash (HashJWT)
+import qualified Data.Aeson.Key as Aeson.Key
 
 type ProjectsAPI =
   GetProjectAPI
@@ -440,14 +441,14 @@ instance FromJSON Unauthorized where
 -- using this combinator.
 objectWithMaybes :: [Pair] -> [Endo Object] -> Value
 objectWithMaybes nonMaybeFields maybeFields =
-  Object (appEndo (fold maybeFields) (HashMap.fromList nonMaybeFields))
+  Object (appEndo (fold maybeFields) (Aeson.KeyMap.fromList nonMaybeFields))
 
 -- | Like ('.='), but omits the key/value pair if the value is Nothing.
 (.=?) :: (ToJSON a) => Text -> Maybe a -> Endo Object
 k .=? mv =
   case mv of
     Nothing -> mempty
-    Just v -> Endo (HashMap.insert k (toJSON v))
+    Just v -> Endo (Aeson.KeyMap.insert (Aeson.Key.fromText k) (toJSON v))
 
 toSumType :: Text -> Value -> Value
 toSumType typ payload =
