@@ -237,6 +237,12 @@
     unison-FOp-Bytes.encodeNat32le
     unison-FOp-Bytes.encodeNat64be
     unison-FOp-Bytes.encodeNat64le
+    unison-FOp-Bytes.decodeNat16be
+    unison-FOp-Bytes.decodeNat16le
+    unison-FOp-Bytes.decodeNat32be
+    unison-FOp-Bytes.decodeNat32le
+    unison-FOp-Bytes.decodeNat64be
+    unison-FOp-Bytes.decodeNat64le
 
     unison-FOp-crypto.hashBytes
     unison-FOp-crypto.hmacBytes
