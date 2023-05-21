@@ -231,6 +231,12 @@
     unison-FOp-Bytes.fromBase32
     unison-FOp-Bytes.fromBase64
     unison-FOp-Bytes.fromBase64UrlUnpadded
+    unison-FOp-Bytes.encodeNat16be
+    unison-FOp-Bytes.encodeNat16le
+    unison-FOp-Bytes.encodeNat32be
+    unison-FOp-Bytes.encodeNat32le
+    unison-FOp-Bytes.encodeNat64be
+    unison-FOp-Bytes.encodeNat64le
 
     unison-FOp-crypto.hashBytes
     unison-FOp-crypto.hmacBytes
@@ -282,6 +288,7 @@
           (unison data)
           (unison chunked-seq)
           (unison chunked-bytes)
+          (unison bytes-nat)
           (unison pattern)
           (unison crypto)
           (unison data)

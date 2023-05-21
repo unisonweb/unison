@@ -11,6 +11,7 @@ bytes.tests = do
   !bytes.zlib.compress.tests
   !bytes.zlib.decompress.tests
   !bytes.toFromBases
+  !bytes.encodeNats
 
 bytes.lit.tests = do
   check "Bytes empty literal" do
@@ -165,3 +166,18 @@ bytes.toFromBases = do
     -- checkLeft "from base64 fail" (Bytes.fromBase64 (toUtf8 "aaaa"))
     -- checkLeft "from base64Url fail" (fromBase64UrlUnpadded (toUtf8 "aaaa"))
     checkLeft "from base32 fail" (Bytes.fromBase32 (toUtf8 "aaaa"))
+
+
+bytes.encodeNats = do
+    checkEqual "encodeNat16be 1" (base.Bytes.encodeNat16be 1) 0xs0001
+    checkEqual "encodeNat16be 10000" (base.Bytes.encodeNat16be 10000) 0xs2710
+    checkEqual "encodeNat16le 1" (base.Bytes.encodeNat16le 1) 0xs0100
+    checkEqual "encodeNat16le 10000" (base.Bytes.encodeNat16le 10000) 0xs1027
+    checkEqual "encodeNat32be 1" (base.Bytes.encodeNat32be 1) 0xs00000001
+    checkEqual "encodeNat32be 1000000000" (base.Bytes.encodeNat32be 1000000000) 0xs3b9aca00
+    checkEqual "encodeNat32le 1" (base.Bytes.encodeNat32le 1) 0xs01000000
+    checkEqual "encodeNat32le 1000000000" (base.Bytes.encodeNat32le 1000000000) 0xs00ca9a3b
+    checkEqual "encodeNat64be 1" (base.Bytes.encodeNat64be 1) 0xs0000000000000001
+    checkEqual "encodeNat64be 10000000000000000" (base.Bytes.encodeNat64be 10000000000000000) 0xs002386f26fc10000
+    checkEqual "encodeNat64le 1" (base.Bytes.encodeNat64le 1) 0xs0100000000000000
+    checkEqual "encodeNat64le 10000000000000000" (base.Bytes.encodeNat64le 10000000000000000) 0xs0000c16ff2862300
