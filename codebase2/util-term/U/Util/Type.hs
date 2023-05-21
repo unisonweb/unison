@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-forall-identifier #-}
 
 module U.Util.Type where
 
