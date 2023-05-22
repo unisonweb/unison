@@ -149,6 +149,29 @@
     unison-FOp-Socket.toText
     unison-FOp-ThreadId.toText
 
+    unison-POp-ABSF
+    unison-POp-ACOS
+    unison-POp-ACSH
+    unison-POp-ADDF
+    unison-POp-ASIN
+    unison-POp-ASNH
+    unison-POp-ATAN
+    unison-POp-ATN2
+    unison-POp-ATNH
+    unison-POp-CEIL
+    unison-POp-COSF
+    unison-POp-COSH
+    unison-POp-DIVF
+    unison-POp-DIVI
+    unison-POp-EQLF
+    unison-POp-EQLI
+    unison-POp-SUBF
+    unison-POp-LEQF
+    unison-POp-SINF
+    unison-POp-SINH
+    unison-POp-TRNF
+    unison-POp-ITOF
+
     unison-POp-ADDN
     unison-POp-ANDN
     unison-POp-BLDS
@@ -292,6 +315,7 @@
            (car icar) (cdr icdr))
           (unison core)
           (unison data)
+          (unison math)
           (unison chunked-seq)
           (unison chunked-bytes)
           (unison bytes-nat)
