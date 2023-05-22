@@ -1,0 +1,30 @@
+
+closeEnough a1 a2 =
+    (Float.abs (a1 - a2)) < 0.00001
+
+Tests.checkCloseEnough : Text -> Float -> Float ->{Tests} ()
+Tests.checkCloseEnough msg a1 a2 =
+  if closeEnough a1 a2 then
+    Tests.pass msg
+  else
+    Tests.fail msg "not close enough"
+
+math.tests = do
+    checkCloseEnough "sin 0" (sin 0.0) 0.0
+    checkCloseEnough "sin pi/2" (sin (pi / 2.0)) 1.0
+    checkCloseEnough "cos 0" (cos 0.0) 1.0
+    checkCloseEnough "cos pi" (cos pi) -1.0
+    checkCloseEnough "cosh pi" (cosh pi) 11.591953275521519
+    checkCloseEnough "sinh pi/2" (sinh (pi / 2.0)) 2.3012989023072947
+    checkCloseEnough "addf" (1.2 + 3.4) 4.6
+    checkCloseEnough "asin 1.0" (asin 1.0) 1.5707963267948966
+    checkCloseEnough "asinh 1.0" (asinh 1.0) 0.881373587019543
+    checkCloseEnough "atan 1.0" (atan 1.0) 0.7853981633974483
+    checkCloseEnough "atan2 1.0 2.0" (atan2 1.0 2.0) 0.46364760900080615
+    checkCloseEnough "atanh 0.5" (atanh 0.5) 0.5493061443340549
+    checkCloseEnough "ceiling 0.1" (ceiling 0.1) 1.0
+    checkCloseEnough "ceiling 0.9" (ceiling 0.9) 1.0
+    checkCloseEnough "divf" (1.2 / 3.4) 0.35294117647058826
+    checkEqual "divi" (10 / 4) 2
+    checkEqual "eqlf" (1.1 == 1.1) true
+    checkEqual "eqlf" (1.1 == 1.2) false
