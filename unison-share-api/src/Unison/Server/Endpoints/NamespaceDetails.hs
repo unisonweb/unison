@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -69,7 +70,12 @@ data NamespaceDetails = NamespaceDetails
   deriving (Generic, Show)
 
 instance ToJSON NamespaceDetails where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON NamespaceDetails {..} =
+    object
+      [ "fqn" .= fqn,
+        "hash" .= hash,
+        "readme" .= readme
+      ]
 
 deriving instance ToSchema NamespaceDetails
 

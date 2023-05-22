@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Unison.Server.Endpoints.Projects where
 
@@ -66,7 +67,7 @@ instance ToParam (QueryParam "owner" ProjectOwner) where
       Normal
 
 instance ToJSON ProjectOwner where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (ProjectOwner owner) = toJSON owner
 
 deriving anyclass instance ToParamSchema ProjectOwner
 
@@ -93,7 +94,12 @@ data ProjectListing = ProjectListing
   deriving anyclass (ToSchema)
 
 instance ToJSON ProjectListing where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (ProjectListing {..}) =
+    object
+      [ "owner" .= owner,
+        "name" .= name,
+        "hash" .= hash
+      ]
 
 backendListEntryToProjectListing ::
   ProjectOwner ->
