@@ -169,10 +169,10 @@ bytes.toFromBases = do
     checkLeft "from base32 fail" (Bytes.fromBase32 (toUtf8 "aaaa"))
 
 bytes.decodeNats = do
-    checkEqual "decodeNat16be 1" (base.Bytes.decodeNat16be 0xs0001) (Some (1, 0xs))
-    checkEqual "decodeNat16be 10000" (base.Bytes.decodeNat16be 0xs2710) (Some (10000, 0xs))
-    checkEqual "decodeNat16le 1" (base.Bytes.decodeNat16le 0xs0100) (Some (1, 0xs))
-    checkEqual "decodeNat16le 10000" (base.Bytes.decodeNat16le 0xs1027) (Some (10000, 0xs))
+    checkEqual "decodeNat16be 1" (base.Bytes.decodeNat16be 0xs0001aa) (Some (1, 0xsaa))
+    checkEqual "decodeNat16be 10000" (base.Bytes.decodeNat16be 0xs2710bb) (Some (10000, 0xsbb))
+    checkEqual "decodeNat16le 1" (base.Bytes.decodeNat16le 0xs0100cc) (Some (1, 0xscc))
+    checkEqual "decodeNat16le 10000" (base.Bytes.decodeNat16le 0xs1027dd) (Some (10000, 0xsdd))
     checkEqual "decodeNat32be 1" (base.Bytes.decodeNat32be 0xs00000001) (Some (1, 0xs))
     checkEqual "decodeNat32be 1000000000" (base.Bytes.decodeNat32be 0xs3b9aca00) (Some (1000000000, 0xs))
     checkEqual "decodeNat32le 1" (base.Bytes.decodeNat32le 0xs01000000) (Some (1, 0xs))
@@ -181,6 +181,24 @@ bytes.decodeNats = do
     checkEqual "decodeNat64be 10000000000000000" (base.Bytes.decodeNat64be 0xs002386f26fc10000) (Some (10000000000000000, 0xs))
     checkEqual "decodeNat64le 1" (base.Bytes.decodeNat64le 0xs0100000000000000) (Some (1, 0xs))
     checkEqual "decodeNat64le 10000000000000000" (base.Bytes.decodeNat64le 0xs0000c16ff2862300) (Some (10000000000000000, 0xs))
+
+-- someFirst x = match x with
+--     Some (nat, _) -> nat
+--     _ -> 0
+
+-- bytes.decodeNats = do
+--     checkEqual "decodeNat16be 1" (someFirst (base.Bytes.decodeNat16be 0xs0001)) 1
+--     checkEqual "decodeNat16be 10000" (someFirst (base.Bytes.decodeNat16be 0xs2710)) 10000
+--     checkEqual "decodeNat16le 1" (someFirst (base.Bytes.decodeNat16le 0xs0100)) 1
+--     checkEqual "decodeNat16le 10000" (someFirst (base.Bytes.decodeNat16le 0xs1027)) 10000
+--     checkEqual "decodeNat32be 1" (someFirst (base.Bytes.decodeNat32be 0xs00000001)) 1
+--     checkEqual "decodeNat32be 1000000000" (someFirst (base.Bytes.decodeNat32be 0xs3b9aca00)) 1000000000
+--     checkEqual "decodeNat32le 1" (someFirst (base.Bytes.decodeNat32le 0xs01000000)) 1
+--     checkEqual "decodeNat32le 1000000000" (someFirst (base.Bytes.decodeNat32le 0xs00ca9a3b)) 1000000000
+--     checkEqual "decodeNat64be 1" (someFirst (base.Bytes.decodeNat64be 0xs0000000000000001)) 1
+--     checkEqual "decodeNat64be 10000000000000000" (someFirst (base.Bytes.decodeNat64be 0xs002386f26fc10000)) 10000000000000000
+--     checkEqual "decodeNat64le 1" (someFirst (base.Bytes.decodeNat64le 0xs0100000000000000)) 1
+--     checkEqual "decodeNat64le 10000000000000000" (someFirst (base.Bytes.decodeNat64le 0xs0000c16ff2862300)) 10000000000000000
 
 bytes.encodeNats = do
     checkEqual "encodeNat16be 1" (base.Bytes.encodeNat16be 1) 0xs0001
