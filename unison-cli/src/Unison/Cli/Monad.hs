@@ -179,6 +179,7 @@ data LoopState = LoopState
     -- change event for that path (we skip file changes if the file has
     -- just been modified programmatically)
     latestFile :: Maybe (FilePath, Bool),
+    latestParsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     -- The previous user input. Used to request confirmation of
     -- questionable user commands.
@@ -214,6 +215,7 @@ loopState0 lastSavedRootHash b p = do
       lastSavedRootHash = lastSavedRootHash,
       currentPathStack = pure p,
       latestFile = Nothing,
+      latestParsedFile = Nothing,
       latestTypecheckedFile = Nothing,
       lastInput = Nothing,
       numberedArgs = [],

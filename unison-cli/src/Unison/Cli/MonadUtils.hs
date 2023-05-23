@@ -68,6 +68,7 @@ module Unison.Cli.MonadUtils
 
     -- * Latest touched Unison file
     getLatestFile,
+    getLatestParsedFile,
     expectLatestFile,
     getLatestTypecheckedFile,
     expectLatestTypecheckedFile,
@@ -106,7 +107,7 @@ import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.UnisonFile (TypecheckedUnisonFile)
+import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import qualified Unison.Util.Set as Set
 import UnliftIO.STM
 
@@ -483,6 +484,11 @@ expectLatestFile = do
 getLatestTypecheckedFile :: Cli (Maybe (TypecheckedUnisonFile Symbol Ann))
 getLatestTypecheckedFile = do
   use #latestTypecheckedFile
+
+-- | Get the latest typechecked unison file.
+getLatestParsedFile :: Cli (Maybe (UnisonFile Symbol Ann))
+getLatestParsedFile = do
+  use #latestParsedFile
 
 -- | Get the latest typechecked unison file, or return early if there isn't one.
 expectLatestTypecheckedFile :: Cli (TypecheckedUnisonFile Symbol Ann)

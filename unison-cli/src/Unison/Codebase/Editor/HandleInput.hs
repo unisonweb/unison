@@ -244,6 +244,7 @@ loop e = do
         State.modify' \loopState ->
           loopState
             & #latestFile .~ Just (Text.unpack sourceName, False)
+            & #latestParsedFile .~ Nothing
             & #latestTypecheckedFile .~ Nothing
         MaybeT (WriterT (Identity (r, notes))) <- typecheck ambient parseNames sourceName lexed
         result <- r & onNothing (Cli.returnEarly (ParseErrors text [err | Result.Parsing err <- toList notes]))
