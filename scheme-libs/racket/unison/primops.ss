@@ -149,6 +149,29 @@
     unison-FOp-Socket.toText
     unison-FOp-ThreadId.toText
 
+    unison-POp-ABSF
+    unison-POp-ACOS
+    unison-POp-ACSH
+    unison-POp-ADDF
+    unison-POp-ASIN
+    unison-POp-ASNH
+    unison-POp-ATAN
+    unison-POp-ATN2
+    unison-POp-ATNH
+    unison-POp-CEIL
+    unison-POp-COSF
+    unison-POp-COSH
+    unison-POp-DIVF
+    unison-POp-DIVI
+    unison-POp-EQLF
+    unison-POp-EQLI
+    unison-POp-SUBF
+    unison-POp-LEQF
+    unison-POp-SINF
+    unison-POp-SINH
+    unison-POp-TRNF
+    unison-POp-ITOF
+
     unison-POp-ADDN
     unison-POp-ANDN
     unison-POp-BLDS
@@ -231,6 +254,18 @@
     unison-FOp-Bytes.fromBase32
     unison-FOp-Bytes.fromBase64
     unison-FOp-Bytes.fromBase64UrlUnpadded
+    unison-FOp-Bytes.encodeNat16be
+    unison-FOp-Bytes.encodeNat16le
+    unison-FOp-Bytes.encodeNat32be
+    unison-FOp-Bytes.encodeNat32le
+    unison-FOp-Bytes.encodeNat64be
+    unison-FOp-Bytes.encodeNat64le
+    unison-FOp-Bytes.decodeNat16be
+    unison-FOp-Bytes.decodeNat16le
+    unison-FOp-Bytes.decodeNat32be
+    unison-FOp-Bytes.decodeNat32le
+    unison-FOp-Bytes.decodeNat64be
+    unison-FOp-Bytes.decodeNat64le
 
     unison-FOp-crypto.hashBytes
     unison-FOp-crypto.hmacBytes
@@ -280,8 +315,10 @@
            (car icar) (cdr icdr))
           (unison core)
           (unison data)
+          (unison math)
           (unison chunked-seq)
           (unison chunked-bytes)
+          (unison bytes-nat)
           (unison pattern)
           (unison crypto)
           (unison data)
