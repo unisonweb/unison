@@ -38,7 +38,7 @@ import Unison.Prelude hiding (fold)
 import Unison.Reference (Reference, TermReference, TermReferenceId)
 import qualified Unison.Reference as R
 import qualified Unison.Reference as Reference
-import Unison.GReferent (Referent' (..), reference_, toReference')
+import Unison.ReferentG (Referent' (..), reference_, toReference')
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 

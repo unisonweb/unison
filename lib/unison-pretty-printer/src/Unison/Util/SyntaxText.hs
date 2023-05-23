@@ -4,7 +4,7 @@ import Unison.HashQualified (HashQualified)
 import Unison.Name (Name)
 import Unison.Pattern (SeqOp)
 import Unison.Prelude
-import Unison.GReferent (Referent')
+import Unison.ReferentG (Referent')
 import Unison.Util.AnnotatedText (AnnotatedText (..), annotate, segment)
 
 type SyntaxText' r = AnnotatedText (Element r)

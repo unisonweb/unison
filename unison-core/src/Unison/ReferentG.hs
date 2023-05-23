@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.GReferent
+module Unison.ReferentG
   ( Referent' (..),
 
     -- * Basic queries
     isConstructor,
-    Unison.GReferent.fold,
+    Unison.ReferentG.fold,
 
     -- * Lenses
     reference_,
