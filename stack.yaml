@@ -40,6 +40,12 @@ packages:
 - yaks/easytest
 
 resolver: nightly-2023-05-20
+allow-newer: true
+# NanoID-3.3.0 disallows base 4.17 from ghc 9.4
+# base32-0.2.2.0 disallows base 4.17, text 2.x
+# fuzzyfind-3.0.1 disallows criterion 1.6, text 2.x
+# recover-rtti-0.4.2 disallows aeson 2.1.x, base 4.17, ghc-heap 9.4, primitive 0.8, vector 0.13
+# shellmet-0.0.4.1 disallows base 4.17
 
 extra-deps:
 # This custom build supports defining blocks for deeper keys without explicitly nesting blocks
