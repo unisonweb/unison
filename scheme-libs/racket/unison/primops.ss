@@ -153,6 +153,7 @@
     unison-FOp-ThreadId.toText
 
     unison-POp-ADDN
+    unison-POp-ADDF
     unison-POp-ANDN
     unison-POp-BLDS
     unison-POp-CATS
@@ -298,6 +299,7 @@
 
   ; Core implemented primops, upon which primops-in-unison can be built.
   (define (unison-POp-ADDN m n) (fx+ m n))
+  (define (unison-POp-ADDF m n) (+ m n))
   (define (unison-POp-ANDN m n) (fxand m n))
   (define unison-POp-BLDS
     (lambda args-list
