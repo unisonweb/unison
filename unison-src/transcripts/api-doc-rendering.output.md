@@ -159,7 +159,10 @@ GET /api/getDefinition?names=term
             "signature": [
                 {
                     "annotation": {
-                        "contents": "##Nat",
+                        "contents": [
+                            "builtin.Nat",
+                            "##Nat"
+                        ],
                         "tag": "TypeReference"
                     },
                     "segment": "Nat"
@@ -186,7 +189,10 @@ GET /api/getDefinition?names=term
                     },
                     {
                         "annotation": {
-                            "contents": "##Nat",
+                            "contents": [
+                                "builtin.Nat",
+                                "##Nat"
+                            ],
                             "tag": "TypeReference"
                         },
                         "segment": "Nat"
@@ -268,7 +274,10 @@ GET /api/getDefinition?names=term
                                                             "contents": [
                                                                 {
                                                                     "annotation": {
-                                                                        "contents": "#k5gpql9cbdfau6lf1aja24joc3sfctvjor8esu8bemn0in3l148otb0t3vebgqrt6qml302h62bbfeftg65gec1v8ouin5m6v2969d8",
+                                                                        "contents": [
+                                                                            "otherTerm",
+                                                                            "#k5gpql9cbdfau6lf1aja24joc3sfctvjor8esu8bemn0in3l148otb0t3vebgqrt6qml302h62bbfeftg65gec1v8ouin5m6v2969d8"
+                                                                        ],
                                                                         "tag": "TermReference"
                                                                     },
                                                                     "segment": "otherTerm"
@@ -296,7 +305,10 @@ GET /api/getDefinition?names=term
                                                             "contents": [
                                                                 {
                                                                     "annotation": {
-                                                                        "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
+                                                                        "contents": [
+                                                                            "Maybe",
+                                                                            "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg"
+                                                                        ],
                                                                         "tag": "TypeReference"
                                                                     },
                                                                     "segment": "Maybe"
@@ -335,7 +347,10 @@ GET /api/getDefinition?names=term
                                                                                 [
                                                                                     {
                                                                                         "annotation": {
-                                                                                            "contents": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
+                                                                                            "contents": [
+                                                                                                "term",
+                                                                                                "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8"
+                                                                                            ],
                                                                                             "tag": "TermReference"
                                                                                         },
                                                                                         "segment": "term"
@@ -352,7 +367,10 @@ GET /api/getDefinition?names=term
                                                                                     },
                                                                                     {
                                                                                         "annotation": {
-                                                                                            "contents": "##Nat",
+                                                                                            "contents": [
+                                                                                                "builtin.Nat",
+                                                                                                "##Nat"
+                                                                                            ],
                                                                                             "tag": "TypeReference"
                                                                                         },
                                                                                         "segment": "Nat"
@@ -378,7 +396,10 @@ GET /api/getDefinition?names=term
                                                                                     },
                                                                                     {
                                                                                         "annotation": {
-                                                                                            "contents": "##Nat",
+                                                                                            "contents": [
+                                                                                                "builtin.Nat",
+                                                                                                "##Nat"
+                                                                                            ],
                                                                                             "tag": "TypeReference"
                                                                                         },
                                                                                         "segment": "Nat"
@@ -446,7 +467,10 @@ GET /api/getDefinition?names=term
                                                                 [
                                                                     {
                                                                         "annotation": {
-                                                                            "contents": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
+                                                                            "contents": [
+                                                                                "term",
+                                                                                "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8"
+                                                                            ],
                                                                             "tag": "TermReference"
                                                                         },
                                                                         "segment": "term"
@@ -463,7 +487,10 @@ GET /api/getDefinition?names=term
                                                                     },
                                                                     {
                                                                         "annotation": {
-                                                                            "contents": "##Nat",
+                                                                            "contents": [
+                                                                                "builtin.Nat",
+                                                                                "##Nat"
+                                                                            ],
                                                                             "tag": "TypeReference"
                                                                         },
                                                                         "segment": "Nat"
@@ -580,7 +607,10 @@ GET /api/getDefinition?names=term
                                                                 },
                                                                 {
                                                                     "annotation": {
-                                                                        "contents": "##Nat.+",
+                                                                        "contents": [
+                                                                            "builtin.Nat.+",
+                                                                            "##Nat.+"
+                                                                        ],
                                                                         "tag": "TermReference"
                                                                     },
                                                                     "segment": "Nat.+"
