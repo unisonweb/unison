@@ -34,6 +34,13 @@ packages:
   original:
     hackage: fsnotify-0.3.0.1
 - completed:
+    hackage: network-3.1.2.7@sha256:9752628bc626e0cad8c53039bea0dc0417f39ca6663232e4d9ac4e35a8925f7d,4911
+    pantry-tree:
+      sha256: aa95093a413ed8306699098159047580e0dc0bda4a862a0264a370b993319b24
+      size: 3971
+  original:
+    hackage: network-3.1.2.7
+- completed:
     hackage: NanoID-3.3.0@sha256:027d369d5ec841e982c68cbc78ea87c4e91b9ffe66908ab7f0be62eb465f6ae2,1648
     pantry-tree:
       sha256: 80ff9b1b12cb0ad102c7e5b935d6f3781f37f9375756c6df5b900f776e608724
