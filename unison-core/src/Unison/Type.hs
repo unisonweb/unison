@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# OPTIONS_GHC -Wno-forall-identifier #-}
 
 module Unison.Type where
 

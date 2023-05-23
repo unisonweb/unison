@@ -39,15 +39,12 @@ packages:
 - unison-syntax
 - yaks/easytest
 
-resolver: lts-20.21
+resolver: lts-20.22
 
 extra-deps:
+# wrong version in snapshot
 - github: unisonweb/configurator
   commit: e47e9e9fe1f576f8c835183b9def52d73c01327a
-- github: awkward-squad/ki
-  commit: 563e96238dfe392dccf68d93953c8f30fd53bec8
-  subdirs:
-    - ki
 # This custom Haskeline alters ANSI rendering on Windows.
 # If changing the haskeline dependency, please ensure color renders properly in a
 # Windows terminal.
@@ -55,7 +52,7 @@ extra-deps:
 - github: unisonweb/haskeline
   commit: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
 
-# not in lts-20.21
+# not in stackage
 - fuzzyfind-3.0.1
 - guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
 - lock-file-0.7.0.0@sha256:3ad84b5e454145e1d928063b56abb96db24a99a21b493989520e58fa0ab37b00,4484

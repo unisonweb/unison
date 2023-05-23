@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-forall-identifier #-}
+
 module Unison.Hashing.V2.Type
   ( Type,
     TypeF (..),
