@@ -34,6 +34,27 @@ packages:
   original:
     hackage: fsnotify-0.3.0.1
 - completed:
+    hackage: NanoID-3.3.0@sha256:027d369d5ec841e982c68cbc78ea87c4e91b9ffe66908ab7f0be62eb465f6ae2,1648
+    pantry-tree:
+      sha256: 80ff9b1b12cb0ad102c7e5b935d6f3781f37f9375756c6df5b900f776e608724
+      size: 364
+  original:
+    hackage: NanoID-3.3.0
+- completed:
+    hackage: shellmet-0.0.4.1@sha256:6d1dd3ce296b00a589e439d20a4466515cdf3e6156a0a147156804ee544ee9d1,3239
+    pantry-tree:
+      sha256: 5f5b89ad4dd21b03ee7518f745d50d881e0ae99ad6d8d5b9006ce798dd5d968f
+      size: 371
+  original:
+    hackage: shellmet-0.0.4.1
+- completed:
+    hackage: base32-0.2.2.0@sha256:61a5c1f457b619700ce600a43ce5e695cddd31f09aac540df23258bf9027ee9d,2563
+    pantry-tree:
+      sha256: 7f684f2fa28ad83e70c1c5d22c4f7487e5b7dcc340aac1aad833fa5b32d17640
+      size: 1936
+  original:
+    hackage: base32-0.2.2.0
+- completed:
     hackage: fuzzyfind-3.0.1@sha256:78f89c1d79adf0a15fa2e57c693d42b4765ccfbbe380d0c9d7da6bff9f124f85,1823
     pantry-tree:
       sha256: 46f001ec2725d3172161c993bc8fbcf0514e3ba736f868fe2c2655e1ff49dad1
@@ -68,27 +89,6 @@ packages:
       size: 2488
   original:
     hackage: recover-rtti-0.4.2@sha256:c179a303921126d8d782264e14f386c96e54a270df74be002e4c4ec3c8c7aebd,4529
-- completed:
-    hackage: shellmet-0.0.4.1@sha256:6d1dd3ce296b00a589e439d20a4466515cdf3e6156a0a147156804ee544ee9d1,3239
-    pantry-tree:
-      sha256: 5f5b89ad4dd21b03ee7518f745d50d881e0ae99ad6d8d5b9006ce798dd5d968f
-      size: 371
-  original:
-    hackage: shellmet-0.0.4.1
-- completed:
-    hackage: NanoID-3.3.0@sha256:027d369d5ec841e982c68cbc78ea87c4e91b9ffe66908ab7f0be62eb465f6ae2,1648
-    pantry-tree:
-      sha256: 80ff9b1b12cb0ad102c7e5b935d6f3781f37f9375756c6df5b900f776e608724
-      size: 364
-  original:
-    hackage: NanoID-3.3.0
-- completed:
-    hackage: base32-0.2.2.0@sha256:61a5c1f457b619700ce600a43ce5e695cddd31f09aac540df23258bf9027ee9d,2563
-    pantry-tree:
-      sha256: 7f684f2fa28ad83e70c1c5d22c4f7487e5b7dcc340aac1aad833fa5b32d17640
-      size: 1936
-  original:
-    hackage: base32-0.2.2.0
 snapshots:
 - completed:
     sha256: 359dfcca6f69bb32f4f41eb951df23e1087fda7147c91cf8320813cdcc14e4dc

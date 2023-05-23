@@ -40,11 +40,12 @@ packages:
 - yaks/easytest
 
 resolver: nightly-2023-05-20
-allow-newer: true
 
 extra-deps:
+# This custom build supports defining blocks for deeper keys without explicitly nesting blocks
 - github: unisonweb/configurator
   commit: e47e9e9fe1f576f8c835183b9def52d73c01327a
+
 # This custom Haskeline alters ANSI rendering on Windows.
 # If changing the haskeline dependency, please ensure color renders properly in a
 # Windows terminal.
@@ -52,17 +53,20 @@ extra-deps:
 - github: unisonweb/haskeline
   commit: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
 
-# not in lts-20.21
-- fsnotify-0.3.0.1
+# snapshot version is too new
+- fsnotify-0.3.0.1 # vs 0.4.1.0
+
+# in lts-20 but not in snapshot
+- NanoID-3.3.0
+- shellmet-0.0.4.1
+- base32-0.2.2.0
+
+# not in stackage
 - fuzzyfind-3.0.1
 - guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
 - lock-file-0.7.0.0@sha256:3ad84b5e454145e1d928063b56abb96db24a99a21b493989520e58fa0ab37b00,4484
 - monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
 - recover-rtti-0.4.2@sha256:c179a303921126d8d782264e14f386c96e54a270df74be002e4c4ec3c8c7aebd,4529
-# not in nightly-2023-05-20
-- shellmet-0.0.4.1
-- NanoID-3.3.0
-- base32-0.2.2.0
 
 ghc-options:
  # All packages
