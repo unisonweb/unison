@@ -111,11 +111,22 @@ data FoundType = FoundType
   }
   deriving (Generic, Show)
 
-instance ToJSON FoundType
+instance ToJSON FoundType where
+  toJSON (FoundType {bestFoundTypeName, typeDef, namedType}) =
+    object
+      [ "bestFoundTypeName" .= bestFoundTypeName,
+        "typeDef" .= typeDef,
+        "namedType" .= namedType
+      ]
 
 deriving instance ToSchema FoundType
 
-instance ToJSON FoundTerm
+instance ToJSON FoundTerm where
+  toJSON (FoundTerm {bestFoundTermName, namedTerm}) =
+    object
+      [ "bestFoundTermName" .= bestFoundTermName,
+        "namedTerm" .= namedTerm
+      ]
 
 deriving instance ToSchema FoundTerm
 
@@ -124,7 +135,10 @@ data FoundResult
   | FoundTypeResult FoundType
   deriving (Generic, Show)
 
-instance ToJSON FoundResult
+instance ToJSON FoundResult where
+  toJSON = \case
+    FoundTermResult ft -> object ["tag" .= String "FoundTermResult", "contents" .= ft]
+    FoundTypeResult ft -> object ["tag" .= String "FoundTypeResult", "contents" .= ft]
 
 deriving instance ToSchema FoundResult
 
