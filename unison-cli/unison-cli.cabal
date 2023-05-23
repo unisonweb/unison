@@ -31,6 +31,7 @@ library
       Unison.Auth.Tokens
       Unison.Auth.Types
       Unison.Auth.UserInfo
+      Unison.Cli.Machine
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
