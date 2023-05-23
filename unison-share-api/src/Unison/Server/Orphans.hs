@@ -23,6 +23,7 @@ import Unison.Codebase.ShortCausalHash
   )
 import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.ConstructorType (ConstructorType)
+import qualified Unison.ConstructorType as CT
 import Unison.Hash (Hash (..))
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
@@ -149,7 +150,10 @@ deriving via Hash instance Binary CausalHash
 deriving via Text instance ToHttpApiData ShortCausalHash
 
 instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = \case
+    BuiltinObject b -> object ["tag" Aeson..= String "BuiltinObject", "contents" Aeson..= b]
+    MissingObject sh -> object ["tag" Aeson..= String "MissingObject", "contents" Aeson..= sh]
+    UserObject a -> object ["tag" Aeson..= String "UserObject", "contents" Aeson..= a]
 
 deriving instance (ToSchema b, ToSchema a) => ToSchema (DisplayObject b a)
 
@@ -222,7 +226,9 @@ deriving via Int instance ToHttpApiData Width
 deriving anyclass instance ToParamSchema Width
 
 instance ToJSON ConstructorType where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = \case
+    CT.Data -> String "Data"
+    CT.Effect -> String "Effect"
 
 instance FromHttpApiData Path.Relative where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
