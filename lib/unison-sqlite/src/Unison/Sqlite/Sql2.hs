@@ -85,33 +85,33 @@ sql2QQ input =
     Left err -> fail err
     Right lumps -> do
       boingo <-
-       for lumps \case
-        Left (s, params) -> do
-          params1 <- traverse ff params
-          s1 <- TH.lift s
-          pure (s1, TH.ListE params1)
-        Right lump2 -> gg lump2
+        for lumps \case
+          Left (s, params) -> do
+            params1 <- traverse ff params
+            s1 <- TH.lift s
+            pure (s1, TH.ListE params1)
+          Right lump2 -> gg lump2
       let (boingo1, boingo2) = unzip boingo
-      [| Sql2 (fold $(pure (TH.ListE boingo1))) (fold $(pure (TH.ListE boingo2))) |]
+      [|Sql2 (fold $(pure (TH.ListE boingo1))) (fold $(pure (TH.ListE boingo2)))|]
   where
     ff :: Param -> TH.Q TH.Exp
     ff = \case
       FieldParam var ->
         TH.lookupValueName (Text.unpack var) >>= \case
           Nothing -> fail ("Not in scope: " ++ Text.unpack var)
-          Just name -> [| Left (Sqlite.Simple.toField $(TH.varE name)) |]
+          Just name -> [|Left (Sqlite.Simple.toField $(TH.varE name))|]
       RowParam var _count ->
         TH.lookupValueName (Text.unpack var) >>= \case
           Nothing -> fail ("Not in scope: " ++ Text.unpack var)
-          Just name -> [| Right (Sqlite.Simple.toRow $(TH.varE name)) |]
+          Just name -> [|Right (Sqlite.Simple.toRow $(TH.varE name))|]
 
     gg :: Text -> TH.Q (TH.Exp, TH.Exp)
     gg var =
       TH.lookupValueName (Text.unpack var) >>= \case
         Nothing -> fail ("Not in scope: " ++ Text.unpack var)
         Just name -> do
-          honk <- [| query $(TH.varE name) |]
-          plonk <- [| params $(TH.varE name) |]
+          honk <- [|query $(TH.varE name)|]
+          plonk <- [|params $(TH.varE name)|]
           pure (honk, plonk)
 
 -- | Parse a SQL string, and return the list of lumps, where each Left is a prettefied SQL string along with the named
@@ -216,6 +216,7 @@ parser = do
                   pure (RowParam name count' : params)
                 _ -> fail ("Invalid query: encountered unnamed-@ without a preceding named-@, like `@foo`")
               else \params -> pure (RowParam param1 1 : params)
+    BracketParam param -> inner param
     ColonParam param -> field param
     DollarParam param -> field param
     Whitespace -> outer (Text.Builder.char ' ') pure
@@ -231,6 +232,11 @@ parser = do
         lumps -> do
           params <- g []
           State.put (OuterLump s params : lumps)
+      parser
+
+    inner :: Text.Builder -> P ()
+    inner param = do
+      State.modify' (InnerLump (Text.Builder.run param) :)
       parser
 
     field :: Text.Builder -> P ()
@@ -286,6 +292,7 @@ data Fragment
   = Comment -- we toss these, so we don't bother remembering the contents
   | NonParam Text.Builder
   | AtParam Text.Builder -- builder may be empty
+  | BracketParam Text.Builder -- builder is non-empty
   | ColonParam Text.Builder -- builder is non-empty
   | DollarParam Text.Builder -- builder is non-empty
   | Whitespace
@@ -298,28 +305,16 @@ fragmentParser =
       NonParam <$> betwixt "string" '\'',
       NonParam <$> betwixt "identifier" '"',
       NonParam <$> betwixt "identifier" '`',
-      NonParam <$> bracketedIdentifierP,
       Comment <$ lineCommentP,
       Comment <$ blockCommentP,
       ColonParam <$> colonParamP,
       AtParam <$> atParamP,
+      BracketParam <$> bracketParamP,
       DollarParam <$> dollarParamP,
       NonParam <$> unstructuredP,
       EndOfInput <$ Megaparsec.eof
     ]
   where
-    -- It's not clear if there is *no* syntax for escaping a literal ] character from an identifier between brackets
-    -- that looks like [this], but the documentation here doesn't mention any, and (brief) experimentation at the
-    -- sqlite3 repl didn't reveal any.
-    --
-    -- So this parser is simple: left bracket, stuff, right bracket.
-    bracketedIdentifierP :: P Text.Builder
-    bracketedIdentifierP = do
-      x <- char '['
-      ys <- Megaparsec.takeWhile1P (Just "identifier") (/= ']')
-      z <- char ']'
-      pure (x <> Text.Builder.text ys <> z)
-
     lineCommentP :: P ()
     lineCommentP = do
       _ <- Megaparsec.string "--"
@@ -362,6 +357,15 @@ fragmentParser =
     atParamP = do
       _ <- Megaparsec.char '@'
       haskellVariableP <|> pure mempty
+
+    -- Although [this] is an identifier in SQLite (like "this"), no one uses that syntax, so we repurpose it for
+    -- query interpolation.
+    bracketParamP :: P Text.Builder
+    bracketParamP = do
+      _ <- char '['
+      param <- haskellVariableP
+      _ <- char ']'
+      pure param
 
     colonParamP :: P Text.Builder
     colonParamP = do
