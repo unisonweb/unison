@@ -277,7 +277,6 @@ import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import GHC.Stack (callStack)
-import NeatInterpolation (trimming)
 import Network.URI (URI)
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
