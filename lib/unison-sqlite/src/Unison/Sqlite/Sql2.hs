@@ -28,9 +28,7 @@ import Unison.Prelude
 -- | A SQL query.
 data Sql2 = Sql2
   { query :: Text,
-    -- Think of this as a flat [SQLData]. The Left/Right tags don't affect how we serialize this query: each SQLData
-    -- just gets bound in order. We are just choosing not to pay the memory cost of flattening.
-    params :: [Either Sqlite.Simple.SQLData [Sqlite.Simple.SQLData]]
+    params :: [Sqlite.Simple.SQLData]
   }
   deriving stock (Show)
 
@@ -92,18 +90,22 @@ sql2QQ input =
             pure (s1, TH.ListE params1)
           Right lump2 -> gg lump2
       let (boingo1, boingo2) = unzip boingo
-      [|Sql2 (fold $(pure (TH.ListE boingo1))) (fold $(pure (TH.ListE boingo2)))|]
+      [|
+        Sql2
+          (fold $(pure (TH.ListE boingo1)))
+          (fold (fold $(pure (TH.ListE boingo2))))
+        |]
   where
     ff :: Param -> TH.Q TH.Exp
     ff = \case
       FieldParam var ->
         TH.lookupValueName (Text.unpack var) >>= \case
           Nothing -> fail ("Not in scope: " ++ Text.unpack var)
-          Just name -> [|Left (Sqlite.Simple.toField $(TH.varE name))|]
+          Just name -> [|[Sqlite.Simple.toField $(TH.varE name)]|]
       RowParam var _count ->
         TH.lookupValueName (Text.unpack var) >>= \case
           Nothing -> fail ("Not in scope: " ++ Text.unpack var)
-          Just name -> [|Right (Sqlite.Simple.toRow $(TH.varE name))|]
+          Just name -> [|Sqlite.Simple.toRow $(TH.varE name)|]
 
     gg :: Text -> TH.Q (TH.Exp, TH.Exp)
     gg var =
