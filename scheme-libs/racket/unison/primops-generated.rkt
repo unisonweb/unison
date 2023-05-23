@@ -279,7 +279,7 @@
     [0 (tx)
      (parameterize ([current-namespace runtime-namespace])
        (dynamic-require
-         'unison/builtin-generated
+         'unison/simple-wrappers
          (string->symbol (string-append "builtin-" tx))))]
     [1 (bs i)
      (let* ([sym (group-ref-sym gr)]
@@ -295,6 +295,7 @@
          (require unison/primops)
          (require unison/primops-generated)
          (require unison/builtin-generated)
+         (require unison/simple-wrappers)
          (provide ,@names)
          ,@defs)
       runtime-namespace)))

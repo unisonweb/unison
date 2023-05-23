@@ -2360,12 +2360,17 @@ doGenerateSchemeBoot force mppe = do
   ppe <- maybe basicPPE pure mppe
   dir <- getSchemeGenLibDir
   let bootf = dir </> "unison" </> "boot-generated.ss"
+      swrapf = dir </> "unison" </> "simple-wrappers.ss"
       binf = dir </> "unison" </> "builtin-generated.ss"
+      cwrapf = dir </> "unison" </> "compund-wrappers.ss"
       dirTm = Term.text a (Text.pack dir)
   liftIO $ createDirectoryIfMissing True dir
   saveBase <- Term.ref a <$> resolveTermRef sbName
+  saveWrap <- Term.ref a <$> resolveTermRef swName
   gen ppe saveBase bootf dirTm bootName
+  gen ppe saveWrap swrapf dirTm simpleWrapName
   gen ppe saveBase binf dirTm builtinName
+  gen ppe saveWrap cwrapf dirTm compoundWrapName
   where
     a = External
     hq nm
@@ -2373,8 +2378,13 @@ doGenerateSchemeBoot force mppe = do
       | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
 
     sbName = hq ".unison.internal.compiler.scheme.saveBaseFile"
+    swName = hq ".unison.internal.compiler.scheme.saveWrapperFile"
     bootName = hq ".unison.internal.compiler.scheme.bootSpec"
     builtinName = hq ".unison.internal.compiler.scheme.builtinSpec"
+    simpleWrapName =
+      hq ".unison.internal.compiler.scheme.simpleWrapperSpec"
+    compoundWrapName =
+      hq ".unison.internal.compiler.scheme.compoundWrapperSpec"
 
     gen ppe save file dir nm =
       liftIO (doesFileExist file) >>= \b -> when (not b || force) do
