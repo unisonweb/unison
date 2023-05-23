@@ -17,10 +17,8 @@ GET /api/getDefinition?names=x
             "signature": [
                 {
                     "annotation": {
-                        "contents": [
-                            "builtin.Nat",
-                            "##Nat"
-                        ],
+                        "contents": "##Nat",
+                        "fqn": "builtin.Nat",
                         "tag": "TypeReference"
                     },
                     "segment": "Nat"
@@ -47,10 +45,8 @@ GET /api/getDefinition?names=x
                     },
                     {
                         "annotation": {
-                            "contents": [
-                                "builtin.Nat",
-                                "##Nat"
-                            ],
+                            "contents": "##Nat",
+                            "fqn": "builtin.Nat",
                             "tag": "TypeReference"
                         },
                         "segment": "Nat"
@@ -118,10 +114,8 @@ GET /api/getDefinition?names=x&relativeTo=nested
             "signature": [
                 {
                     "annotation": {
-                        "contents": [
-                            ".builtin.Nat",
-                            "##Nat"
-                        ],
+                        "contents": "##Nat",
+                        "fqn": ".builtin.Nat",
                         "tag": "TypeReference"
                     },
                     "segment": "Nat"
@@ -148,10 +142,8 @@ GET /api/getDefinition?names=x&relativeTo=nested
                     },
                     {
                         "annotation": {
-                            "contents": [
-                                ".builtin.Nat",
-                                "##Nat"
-                            ],
+                            "contents": "##Nat",
+                            "fqn": ".builtin.Nat",
                             "tag": "TypeReference"
                         },
                         "segment": "Nat"
@@ -219,10 +211,8 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
             "signature": [
                 {
                     "annotation": {
-                        "contents": [
-                            ".builtin.Nat",
-                            "##Nat"
-                        ],
+                        "contents": "##Nat",
+                        "fqn": ".builtin.Nat",
                         "tag": "TypeReference"
                     },
                     "segment": "Nat"
@@ -249,10 +239,8 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
                     },
                     {
                         "annotation": {
-                            "contents": [
-                                ".builtin.Nat",
-                                "##Nat"
-                            ],
+                            "contents": "##Nat",
+                            "fqn": ".builtin.Nat",
                             "tag": "TypeReference"
                         },
                         "segment": "Nat"
@@ -320,10 +308,8 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
             "signature": [
                 {
                     "annotation": {
-                        "contents": [
-                            ".builtin.Nat",
-                            "##Nat"
-                        ],
+                        "contents": "##Nat",
+                        "fqn": ".builtin.Nat",
                         "tag": "TypeReference"
                     },
                     "segment": "Nat"
@@ -350,10 +336,8 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
                     },
                     {
                         "annotation": {
-                            "contents": [
-                                ".builtin.Nat",
-                                "##Nat"
-                            ],
+                            "contents": "##Nat",
+                            "fqn": ".builtin.Nat",
                             "tag": "TypeReference"
                         },
                         "segment": "Nat"
@@ -418,10 +402,8 @@ GET /api/getDefinition?names=thing&relativeTo=doctest
             "signature": [
                 {
                     "annotation": {
-                        "contents": [
-                            ".builtin.Text",
-                            "##Text"
-                        ],
+                        "contents": "##Text",
+                        "fqn": ".builtin.Text",
                         "tag": "TypeReference"
                     },
                     "segment": "Text"
@@ -448,10 +430,8 @@ GET /api/getDefinition?names=thing&relativeTo=doctest
                     },
                     {
                         "annotation": {
-                            "contents": [
-                                ".builtin.Text",
-                                "##Text"
-                            ],
+                            "contents": "##Text",
+                            "fqn": ".builtin.Text",
                             "tag": "TypeReference"
                         },
                         "segment": "Text"
@@ -542,10 +522,8 @@ GET /api/getDefinition?names=thing.doc&relativeTo=doctest
             "signature": [
                 {
                     "annotation": {
-                        "contents": [
-                            ".builtin.Doc2",
-                            "#ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0"
-                        ],
+                        "contents": "#ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0",
+                        "fqn": ".builtin.Doc2",
                         "tag": "TypeReference"
                     },
                     "segment": "Doc2"
@@ -572,10 +550,8 @@ GET /api/getDefinition?names=thing.doc&relativeTo=doctest
                     },
                     {
                         "annotation": {
-                            "contents": [
-                                ".builtin.Doc2",
-                                "#ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0"
-                            ],
+                            "contents": "#ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0",
+                            "fqn": ".builtin.Doc2",
                             "tag": "TypeReference"
                         },
                         "segment": "Doc2"

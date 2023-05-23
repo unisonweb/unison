@@ -31,10 +31,8 @@ GET /api/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu57
         "contents": [
             {
                 "annotation": {
-                    "contents": [
-                        "Nat",
-                        "##Nat"
-                    ],
+                    "contents": "##Nat",
+                    "fqn": "Nat",
                     "tag": "TypeReference"
                 },
                 "segment": "Nat"
@@ -53,10 +51,8 @@ GET /api/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu57
         "contents": [
             {
                 "annotation": {
-                    "contents": [
-                        "Nat",
-                        "##Nat"
-                    ],
+                    "contents": "##Nat",
+                    "fqn": "Nat",
                     "tag": "TypeReference"
                 },
                 "segment": "Nat"
@@ -75,10 +71,8 @@ GET /api/definitions/terms/by-hash/@icfnhas71n8q5rm7rmpe51hh7bltsr7rb4lv7qadc4cb
         "contents": [
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Doc2",
-                        "#ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0"
-                    ],
+                    "contents": "#ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0",
+                    "fqn": "builtin.Doc2",
                     "tag": "TypeReference"
                 },
                 "segment": "Doc2"
@@ -103,10 +97,8 @@ GET /api/definitions/terms/by-hash/@u17p9803hdibisou6rlr1sjbccdossgh7vtkd03ovlvn
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Test.Result",
-                        "#aql7qk3iud6vs4cvu43aimopoosgk0fnipibdkc3so13adencmibgfn0u5c01r0adei55nkl3ttsjhl8gbj7tr4gnpj63g64ftbq6s0"
-                    ],
+                    "contents": "#aql7qk3iud6vs4cvu43aimopoosgk0fnipibdkc3so13adencmibgfn0u5c01r0adei55nkl3ttsjhl8gbj7tr4gnpj63g64ftbq6s0",
+                    "fqn": "builtin.Test.Result",
                     "tag": "TypeReference"
                 },
                 "segment": "Result"
@@ -131,10 +123,8 @@ GET /api/definitions/terms/by-hash/@6ee6j48hk3eovokflkgbmpbfr3oqj4hedqn8ocg3i4i0
         "contents": [
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -155,10 +145,8 @@ GET /api/definitions/terms/by-hash/@6ee6j48hk3eovokflkgbmpbfr3oqj4hedqn8ocg3i4i0
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -177,10 +165,8 @@ GET /api/definitions/terms/by-hash/@altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v
         "contents": [
             {
                 "annotation": {
-                    "contents": [
-                        "Nat",
-                        "##Nat"
-                    ],
+                    "contents": "##Nat",
+                    "fqn": "Nat",
                     "tag": "TypeReference"
                 },
                 "segment": "Nat"
@@ -201,10 +187,8 @@ GET /api/definitions/terms/by-hash/@altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v
             },
             {
                 "annotation": {
-                    "contents": [
-                        "Thing",
-                        "#altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0"
-                    ],
+                    "contents": "#altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0",
+                    "fqn": "Thing",
                     "tag": "TypeReference"
                 },
                 "segment": "Thing"
@@ -223,10 +207,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
         "contents": [
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -247,10 +229,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -271,10 +251,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -295,10 +273,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -319,10 +295,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -343,10 +317,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -367,10 +339,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -391,10 +361,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -415,10 +383,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -437,10 +403,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
         "contents": [
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -461,10 +425,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -485,10 +447,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -509,10 +469,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -533,10 +491,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -557,10 +513,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -581,10 +535,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -605,10 +557,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -629,10 +579,8 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Text",
-                        "##Text"
-                    ],
+                    "contents": "##Text",
+                    "fqn": "builtin.Text",
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
@@ -651,10 +599,8 @@ GET /api/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summary?name=putBytesIm
         "contents": [
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.io2.Handle",
-                        "##Handle"
-                    ],
+                    "contents": "##Handle",
+                    "fqn": "builtin.io2.Handle",
                     "tag": "TypeReference"
                 },
                 "segment": "Handle"
@@ -675,10 +621,8 @@ GET /api/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summary?name=putBytesIm
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Bytes",
-                        "##Bytes"
-                    ],
+                    "contents": "##Bytes",
+                    "fqn": "builtin.Bytes",
                     "tag": "TypeReference"
                 },
                 "segment": "Bytes"
@@ -701,10 +645,8 @@ GET /api/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summary?name=putBytesIm
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.io2.IO",
-                        "##IO"
-                    ],
+                    "contents": "##IO",
+                    "fqn": "builtin.io2.IO",
                     "tag": "TypeReference"
                 },
                 "segment": "IO"
@@ -721,10 +663,8 @@ GET /api/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summary?name=putBytesIm
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.Either",
-                        "#0o7mf021foma9acqdaibmlh1jidlijq08uf7f5se9tssttqs546pfunjpk6s31mqoq8s2o1natede8hkk6he45l95fibglidikt44v8"
-                    ],
+                    "contents": "#0o7mf021foma9acqdaibmlh1jidlijq08uf7f5se9tssttqs546pfunjpk6s31mqoq8s2o1natede8hkk6he45l95fibglidikt44v8",
+                    "fqn": "builtin.Either",
                     "tag": "TypeReference"
                 },
                 "segment": "Either"
@@ -735,10 +675,8 @@ GET /api/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summary?name=putBytesIm
             },
             {
                 "annotation": {
-                    "contents": [
-                        "builtin.io2.Failure",
-                        "#r29dja8j9dmjjp45trccchaata8eo1h6d6haar1eai74pq1jt4m7u3ldhlq79f7phfo57eq4bau39vqotl2h63k7ff1m5sj5o9ajuf8"
-                    ],
+                    "contents": "#r29dja8j9dmjjp45trccchaata8eo1h6d6haar1eai74pq1jt4m7u3ldhlq79f7phfo57eq4bau39vqotl2h63k7ff1m5sj5o9ajuf8",
+                    "fqn": "builtin.io2.Failure",
                     "tag": "TypeReference"
                 },
                 "segment": "Failure"
