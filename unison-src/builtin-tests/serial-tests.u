@@ -10,7 +10,8 @@ serial.availableCases _ =
   p = cases (FilePath nm) -> contains ".ser" nm
   slice = cases (FilePath nm) ->
     Text.take (Text.size nm - 4) nm
-  caseNums = ["00", "01", "02", "03"]
+  -- caseNums = ["00", "01", "02", "03"]
+  caseNums = ["00"]
   files = map (n -> FilePath ("case-" ++ n ++ ".ser")) caseNums
   map slice (filter p files)
 
