@@ -178,6 +178,8 @@ module U.Codebase.Sqlite.Queries
     typeNamesWithinNamespace,
     termNamesForRefWithinNamespace,
     typeNamesForRefWithinNamespace,
+    recursiveTermNameSearch,
+    recursiveTypeNameSearch,
     termRefsForExactName,
     typeRefsForExactName,
     checkBranchHashNameLookupExists,
@@ -2180,6 +2182,80 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
               AND reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?
               AND reversed_name GLOB ?
         |]
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Searches all dependencies transitively looking for the provided referent.
+-- Prefer 'termNamesForRefWithinNamespace' in most cases.
+-- This is slower and only necessary when resolving the name of references when you don't know which
+-- dependency it may exist in.
+--
+-- Searching transitive dependencies is exponential so we want to replace this with a more
+-- efficient approach as soon as possible.
+--
+-- Note: this returns the first name it finds by searching in order of:
+-- Names in the current namespace, then names in the current namespace's dependencies, then
+-- through the current namespace's dependencies' dependencies, etc.
+recursiveTermNameSearch :: BranchHashId -> Referent.TextReferent -> Transaction [ReversedName]
+recursiveTermNameSearch bhId ref = do
+  queryListColCheck2
+    [sql2|
+        -- Recursive table containing all transitive deps
+        WITH RECURSIVE
+          all_in_scope_roots(root_branch_hash_id, reversed_mount_path) AS (
+            -- Include the primary root
+            SELECT :bhId, ""
+            UNION ALL
+            SELECT mount.mounted_root_branch_hash_id, rec.reversed_mount_path || mount.reversed_mount_path
+            FROM name_lookup_mounts mount
+              INNER JOIN all_in_scope_roots rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
+          )
+        SELECT (reversed_name || reversed_mount_path) AS reversed_name
+          FROM all_in_scope_roots
+            INNER JOIN scoped_term_name_lookup
+            ON scoped_term_name_lookup.root_branch_hash_id = all_in_scope_roots.root_branch_hash_id
+        WHERE referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
+        LIMIT 1
+        |]
+    (\reversedNames -> for reversedNames reversedNameToReversedSegments)
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Searches all dependencies transitively looking for the provided referent.
+-- Prefer 'typeNamesForRefWithinNamespace' in most cases.
+-- This is slower and only necessary when resolving the name of references when you don't know which
+-- dependency it may exist in.
+--
+-- Searching transitive dependencies is exponential so we want to replace this with a more
+-- efficient approach as soon as possible.
+--
+-- Note: this returns the first name it finds by searching in order of:
+-- Names in the current namespace, then names in the current namespace's dependencies, then
+-- through the current namespace's dependencies' dependencies, etc.
+recursiveTypeNameSearch :: BranchHashId -> Reference.TextReference -> Transaction [ReversedName]
+recursiveTypeNameSearch bhId ref = do
+  queryListColCheck2
+    [sql2|
+        -- Recursive table containing all transitive deps
+        WITH RECURSIVE
+          all_in_scope_roots(root_branch_hash_id, reversed_mount_path) AS (
+            -- Include the primary root
+            SELECT :bhId, ""
+            UNION ALL
+            SELECT mount.mounted_root_branch_hash_id, rec.reversed_mount_path || mount.reversed_mount_path
+            FROM name_lookup_mounts mount
+              INNER JOIN all_in_scope_roots rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
+          )
+        SELECT (reversed_name || reversed_mount_path) AS reversed_name
+          FROM all_in_scope_roots
+            INNER JOIN scoped_type_name_lookup
+            ON scoped_type_name_lookup.root_branch_hash_id = all_in_scope_roots.root_branch_hash_id
+        WHERE reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
+        LIMIT 1
+        |]
+    (\reversedNames -> for reversedNames reversedNameToReversedSegments)
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
