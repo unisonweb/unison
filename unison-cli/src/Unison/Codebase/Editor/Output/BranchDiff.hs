@@ -13,7 +13,7 @@ import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Patch as P
 import Unison.DataDeclaration (DeclOrBuiltin)
 import qualified Unison.HashQualified as HQ
-import Unison.HashQualified' (HashQualified)
+import Unison.HashQualified2 (HashQualified)
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.Names (Names)

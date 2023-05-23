@@ -48,7 +48,7 @@ import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
 import qualified Unison.Symbol as Symbol
-import qualified Unison.Syntax.HashQualified' as HQ' (toText)
+import qualified Unison.Syntax.HashQualified2 as HQ' (toText)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter

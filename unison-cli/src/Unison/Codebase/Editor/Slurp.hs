@@ -21,7 +21,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-import qualified Unison.Referent' as Referent
+import qualified Unison.GReferent as Referent
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Name as Name (toText, unsafeFromVar)
 import qualified Unison.UnisonFile as UF

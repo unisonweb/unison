@@ -11,7 +11,7 @@ module Unison.Syntax.HashQualified2
 where
 
 import qualified Data.Text as Text
-import qualified Unison.HashQualified2' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.Name (Name, Parse)
 import qualified Unison.Name as Name
 import Unison.Prelude hiding (fromString)

@@ -16,7 +16,7 @@ import qualified Data.Text as Text
 -- https://www.stackage.org/haddock/lts-13.9/regex-tdfa-1.2.3.1/Text-Regex-TDFA.html
 import qualified Text.Regex.TDFA as RE
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.Names (Names)

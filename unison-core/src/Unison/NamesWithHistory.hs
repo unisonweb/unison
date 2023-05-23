@@ -9,7 +9,7 @@ import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.ConstructorType as CT
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.Names (Names (..))
