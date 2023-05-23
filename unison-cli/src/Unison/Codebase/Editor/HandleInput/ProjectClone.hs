@@ -1,14 +1,15 @@
--- | @project.clone@ input handler
+-- | @clone@-related input handlers
 module Unison.Codebase.Editor.HandleInput.ProjectClone
-  ( projectClone,
+  ( handleClone,
   )
 where
 
-import Control.Lens ((^.))
+import Control.Lens (over, (^.), _2)
 import Control.Monad.Reader (ask)
 import Data.These (These (..))
 import qualified Data.UUID.V4 as UUID
 import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..))
+import qualified U.Codebase.Sqlite.DbId as Sqlite
 import qualified U.Codebase.Sqlite.Project as Sqlite (Project)
 import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
 import qualified U.Codebase.Sqlite.Queries as Queries
@@ -22,9 +23,10 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleInput.Pull as HandleInput.Pull
 import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName, projectNameUserSlug)
+import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName, projectNameUserSlug)
 import qualified Unison.Share.API.Hash as Share.API
 import qualified Unison.Share.Sync as Share (downloadEntities)
 import qualified Unison.Share.Sync.Types as Share
@@ -33,92 +35,211 @@ import Unison.Sync.Common (hash32ToCausalHash)
 import qualified Unison.Sync.Types as Share
 import Witch (unsafeFrom)
 
--- | Clone a remote project or remote project branch.
-projectClone :: These ProjectName ProjectBranchName -> Cli ()
-projectClone = \case
-  These projectName branchName ->
-    cloneProjectAndBranch (ProjectAndBranch projectName branchName)
-  This projectName -> cloneProject projectName
-  That branchName -> cloneBranch branchName
+data LocalProjectKey
+  = LocalProjectKey'Name ProjectName
+  | LocalProjectKey'Project Sqlite.Project
 
--- Clone a project, defaulting to branch "main"
-cloneProject :: ProjectName -> Cli ()
-cloneProject projectName = do
-  cloneProjectAndBranch
-    ProjectAndBranch
-      { project = projectName,
-        branch = unsafeFrom @Text "main"
-      }
+data RemoteProjectKey
+  = RemoteProjectKey'Id Sqlite.RemoteProjectId
+  | RemoteProjectKey'Name ProjectName
 
--- Clone a branch from the remote project associated with the current project.
-cloneBranch :: ProjectBranchName -> Cli ()
-cloneBranch remoteBranchName = do
-  -- TODO: allow user to override this with second argument
-  let localBranchName = remoteBranchName
+-- | Clone a remote branch.
+handleClone :: ProjectAndBranchNames -> Maybe ProjectAndBranchNames -> Cli ()
+handleClone remoteNames0 maybeLocalNames0 = do
+  maybeCurrentProjectBranch <- ProjectUtils.getCurrentProjectBranch
+  resolvedRemoteNames <- resolveRemoteNames maybeCurrentProjectBranch remoteNames0
+  localNames1 <- resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames0
+  cloneInto localNames1 (resolvedRemoteNames ^. #branch)
 
-  ProjectAndBranch currentProject currentBranch <- ProjectUtils.expectCurrentProjectBranch
-  let localProjectBranch = ProjectAndBranch (currentProject ^. #name) localBranchName
+data ResolvedRemoteNames = ResolvedRemoteNames
+  { branch :: Share.RemoteProjectBranch,
+    from :: ResolvedRemoteNamesFrom
+  }
+  deriving stock (Generic)
 
-  -- The current branch or one of its ancestors may be associated with a remote project already. If that's true,
-  -- then try cloning from *that* project. Otherwise, fall back on cloning the remote project whose *name* matches
-  -- the local project.
-  maybeRemoteProjectInfo <-
-    Cli.runEitherTransaction do
-      Queries.projectBranchExistsByName (currentProject ^. #projectId) localBranchName >>= \case
-        -- We can't clone into local `foo` if local `foo` already exists.
-        True -> pure (Left (Output.ProjectAndBranchNameAlreadyExists localProjectBranch))
-        -- The current branch or one of its ancestors may be associated with a remote project already. If that's true,
-        -- then try cloning from *that* project.
-        False -> do
-          let currentProjectId = currentProject ^. #projectId
-          let currentBranchId = currentBranch ^. #branchId
-          Queries.loadRemoteProjectBranch currentProjectId Share.hardCodedUri currentBranchId >>= \case
-            -- Neither the current branch nor any of its ancestors are associated with a remote project. Fall back on
-            -- cloning the remote project whose *name* matches the local project.
-            Nothing -> pure (Right Nothing)
-            -- The current branch (or one of its ancestors) is associated with a remote project. Try cloning from that.
-            Just (remoteProjectId, _maybeRemoteBranchId) -> do
-              remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
-              pure (Right (Just (remoteProjectId, remoteProjectName)))
+data ResolvedRemoteNamesFrom
+  = ResolvedRemoteNamesFrom'Branch
+  | ResolvedRemoteNamesFrom'Project
+  | ResolvedRemoteNamesFrom'ProjectAndBranch
 
-  remoteProjectBranch <-
-    case maybeRemoteProjectInfo of
-      Nothing ->
-        ProjectUtils.expectRemoteProjectBranchByNames
-          (ProjectAndBranch (localProjectBranch ^. #project) remoteBranchName)
-      Just remoteProjectInfo ->
-        ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch remoteProjectInfo remoteBranchName)
+-- Resolve remote names to an actual remote branch.
+--
+--   <project>/           ==>   abort if <project> doesn't have a user slug
+--
+--   /<branch>            ==>   abort if not in a project
+--
+--   <project>/<branch>   ==>   abort if <project> doesn't have a user slug
+--
+--   <thing>              ==>   if we're not in a project, then treat as if it was <thing>/
+--
+--                              otherwise, if <thing> doesn't have a user slug, treat it as /<thing>
+--
+--                              otherwise, hit the server, and if <thing>/ xor /<thing> was valid (e.g. cloning the
+--                              "@runar/topic" project-or-branch, where the "@runar/topic" branch does exist in the
+--                              project in question, and the "@runar/topic" project does not exist), we'll do that,
+--                              otherwise abort
+resolveRemoteNames ::
+  Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path) ->
+  ProjectAndBranchNames ->
+  Cli ResolvedRemoteNames
+resolveRemoteNames maybeCurrentProjectBranch = \case
+  ProjectAndBranchNames'Ambiguous remoteProjectName remoteBranchName ->
+    case maybeCurrentProjectBranch of
+      Nothing -> resolveP remoteProjectName
+      Just (currentProjectBranch, _path) ->
+        case projectNameUserSlug remoteProjectName of
+          Nothing -> resolveB remoteBranchName
+          Just _ -> do
+            branchProjectKey <- Cli.runTransaction (projectBranchRemoteProjectKey currentProjectBranch)
+            -- Fetching these in parallel would be an improvement
+            maybeRemoteProject <- Share.getProjectByName remoteProjectName
+            maybeRemoteBranch <-
+              runMaybeT do
+                remoteProjectId <-
+                  case branchProjectKey of
+                    RemoteProjectKey'Id remoteProjectId -> pure remoteProjectId
+                    RemoteProjectKey'Name remoteBranchProjectName -> do
+                      remoteBranchProject <- MaybeT (Share.getProjectByName remoteBranchProjectName)
+                      pure (remoteBranchProject ^. #projectId)
+                MaybeT do
+                  Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) <&> \case
+                    Share.GetProjectBranchResponseBranchNotFound -> Nothing
+                    Share.GetProjectBranchResponseProjectNotFound -> Nothing
+                    Share.GetProjectBranchResponseSuccess remoteBranch -> Just remoteBranch
+            case (maybeRemoteProject, maybeRemoteBranch) of
+              (Just remoteProject, Nothing) -> do
+                let remoteProjectId = remoteProject ^. #projectId
+                let remoteProjectName = remoteProject ^. #projectName
+                let remoteBranchName = unsafeFrom @Text "main"
+                remoteBranch <-
+                  ProjectUtils.expectRemoteProjectBranchByName
+                    (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
+                pure
+                  ResolvedRemoteNames
+                    { branch = remoteBranch,
+                      from = ResolvedRemoteNamesFrom'Project
+                    }
+              (Nothing, Just remoteBranch) ->
+                pure
+                  ResolvedRemoteNames
+                    { branch = remoteBranch,
+                      from = ResolvedRemoteNamesFrom'Branch
+                    }
+              -- Treat neither existing and both existing uniformly as "ambiguous input"
+              -- Alternatively, if neither exist, we could instead say "although your input was ambiguous, disambuating
+              -- wouldn't help, because we did enough work to know neither thing exists"
+              _ -> do
+                branchProjectName <-
+                  case branchProjectKey of
+                    RemoteProjectKey'Id remoteProjectId ->
+                      Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
+                    RemoteProjectKey'Name remoteProjectName -> pure remoteProjectName
+                Cli.returnEarly $
+                  Output.AmbiguousCloneRemote
+                    remoteProjectName
+                    (ProjectAndBranch branchProjectName remoteBranchName)
+  ProjectAndBranchNames'Unambiguous (This p) -> resolveP p
+  ProjectAndBranchNames'Unambiguous (That b) -> resolveB b
+  ProjectAndBranchNames'Unambiguous (These p b) -> resolvePB p b
+  where
+    resolveB branchName = do
+      (currentProjectBranch, _path) <- maybeCurrentProjectBranch & onNothing (Cli.returnEarly Output.NotOnProjectBranch)
+      projectKey <- Cli.runTransaction (projectBranchRemoteProjectKey currentProjectBranch)
+      branch <- expectB projectKey branchName
+      pure ResolvedRemoteNames {branch, from = ResolvedRemoteNamesFrom'Branch}
 
-  cloneInto localProjectBranch remoteProjectBranch
+    resolveP projectName = do
+      assertProjectNameHasUserSlug projectName
+      branch <- expectB (RemoteProjectKey'Name projectName) (unsafeFrom @Text "main")
+      pure ResolvedRemoteNames {branch, from = ResolvedRemoteNamesFrom'Project}
 
-cloneProjectAndBranch :: ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
-cloneProjectAndBranch remoteProjectAndBranch = do
-  let remoteProjectName = remoteProjectAndBranch ^. #project
-  let remoteBranchName = remoteProjectAndBranch ^. #branch
-  -- TODO: allow user to override these with second argument
-  let localProjectName = remoteProjectName
-  let localBranchName = remoteBranchName
-  let localProjectBranch = ProjectAndBranch localProjectName localBranchName
+    resolvePB projectName branchName = do
+      assertProjectNameHasUserSlug projectName
+      branch <- expectB (RemoteProjectKey'Name projectName) branchName
+      pure ResolvedRemoteNames {branch, from = ResolvedRemoteNamesFrom'ProjectAndBranch}
 
-  -- Assert that this project name has a user slug
-  projectNameUserSlug remoteProjectName & onNothing do
-    Cli.returnEarly (Output.ProjectNameRequiresUserSlug remoteProjectName)
+    expectB remoteProjectKey remoteBranchName =
+      case remoteProjectKey of
+        RemoteProjectKey'Id remoteProjectId -> do
+          remoteProjectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
+          ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
+        RemoteProjectKey'Name remoteProjectName ->
+          ProjectUtils.expectRemoteProjectBranchByNames (ProjectAndBranch remoteProjectName remoteBranchName)
 
-  -- Quick local check before hitting share
-  void (Cli.runEitherTransaction (assertLocalProjectBranchDoesntExist localProjectBranch))
+-- Resolve the local names to an actual local project (which may not exist yet), aborting on nonsense
+-- inputs:
+--
+--   <project>/           ==>   if we already know the remote branch name is <branch>, abort if <project>/<branch>
+--                              already exists
+--
+--   /<branch>            ==>   abort if not in a project
+--
+--                              abort if <branch> already exists in this project
+--
+--   <project>/<branch>   ==>   abort if <project>/<branch> already exists
+--
+--   <thing>              ==>   if we're not in a project, then treat as if it was <thing>/
+--
+--                              otherwise, <thing> is ambiguous, as we don't know if the user wants to clone into
+--                              <thing>/<branch> (where <branch> is determined by the name of the remote branch we
+--                              are cloning), or /<thing>
+--
+-- The resolved remote names are used to fill in missing local names (i.e. a one-argument clone). For example, if
+-- `clone @foo/bar` resulted in treating `@foo/bar` as a contributor branch of the current project, then it is as if
+-- the user typed `clone /@foo/bar` instead, which is equivalent to the two-arg `clone /@foo/bar /@foo/bar`.
+resolveLocalNames ::
+  Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path) ->
+  ResolvedRemoteNames ->
+  Maybe ProjectAndBranchNames ->
+  Cli (ProjectAndBranch LocalProjectKey ProjectBranchName)
+resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames =
+  resolve case maybeLocalNames of
+    Nothing ->
+      ProjectAndBranchNames'Unambiguous case resolvedRemoteNames ^. #from of
+        ResolvedRemoteNamesFrom'Branch -> That remoteBranchName
+        ResolvedRemoteNamesFrom'Project -> This remoteProjectName
+        ResolvedRemoteNamesFrom'ProjectAndBranch -> These remoteProjectName remoteBranchName
+    Just localNames -> localNames
+  where
+    remoteBranchName = resolvedRemoteNames ^. #branch ^. #branchName
+    remoteProjectName = resolvedRemoteNames ^. #branch ^. #projectName
 
-  -- Get the branch of the given project.
-  remoteProjectBranch <-
-    ProjectUtils.expectRemoteProjectBranchByNames (ProjectAndBranch (localProjectBranch ^. #project) remoteBranchName)
+    resolve names =
+      case names of
+        ProjectAndBranchNames'Ambiguous localProjectName localBranchName ->
+          case maybeCurrentProjectBranch of
+            Nothing -> resolveP localProjectName
+            Just (ProjectAndBranch currentProject _, _path) -> do
+              Cli.returnEarly $
+                Output.AmbiguousCloneLocal
+                  (ProjectAndBranch localProjectName remoteBranchName)
+                  (ProjectAndBranch (currentProject ^. #name) localBranchName)
+        ProjectAndBranchNames'Unambiguous (This localProjectName) -> resolveP localProjectName
+        ProjectAndBranchNames'Unambiguous (That localBranchName) -> resolveB localBranchName
+        ProjectAndBranchNames'Unambiguous (These localProjectName localBranchName) -> resolvePB localProjectName localBranchName
 
-  cloneInto localProjectBranch remoteProjectBranch
+    resolveP localProjectName =
+      go (LocalProjectKey'Name localProjectName) remoteBranchName
 
--- `cloneInto local remote` clones `remote` into `local`, which is believed to not exist yet, but may (because it takes
--- some time to pull the remote).
-cloneInto :: ProjectAndBranch ProjectName ProjectBranchName -> Share.RemoteProjectBranch -> Cli ()
+    resolveB localBranchName = do
+      (ProjectAndBranch currentProject _, _path) <-
+        maybeCurrentProjectBranch & onNothing (Cli.returnEarly Output.NotOnProjectBranch)
+      go (LocalProjectKey'Project currentProject) localBranchName
+
+    resolvePB localProjectName localBranchName =
+      go (LocalProjectKey'Name localProjectName) localBranchName
+
+    go project branch = do
+      void (Cli.runEitherTransaction (assertLocalProjectBranchDoesntExist (ProjectAndBranch project branch)))
+      pure (ProjectAndBranch project branch)
+
+-- `cloneInto command local remote` clones `remote` into `local`, which is believed to not exist yet, but may (because
+-- it takes some time to pull the remote).
+cloneInto :: ProjectAndBranch LocalProjectKey ProjectBranchName -> Share.RemoteProjectBranch -> Cli ()
 cloneInto localProjectBranch remoteProjectBranch = do
   let remoteProjectName = remoteProjectBranch ^. #projectName
   let remoteBranchName = remoteProjectBranch ^. #branchName
+  let remoteProjectBranchNames = ProjectAndBranch remoteProjectName remoteBranchName
 
   -- Pull the remote branch's contents
   let remoteBranchHeadJwt = remoteProjectBranch ^. #branchHead
@@ -127,7 +248,7 @@ cloneInto localProjectBranch remoteProjectBranch = do
       result <-
         Share.downloadEntities
           Share.hardCodedBaseUrl
-          (Share.RepoInfo (into @Text (These remoteProjectName remoteBranchName)))
+          (Share.RepoInfo (into @Text remoteProjectBranchNames))
           remoteBranchHeadJwt
           downloadedCallback
       numDownloaded <- liftIO getNumDownloaded
@@ -147,13 +268,13 @@ cloneInto localProjectBranch remoteProjectBranch = do
         Left err -> pure (Left err)
         Right maybeLocalProject -> do
           -- Create the local project (if necessary), and create the local branch
-          localProjectId <-
+          (localProjectId, localProjectName) <-
             case maybeLocalProject of
-              Nothing -> do
+              Left localProjectName -> do
                 localProjectId <- Sqlite.unsafeIO (ProjectId <$> UUID.nextRandom)
-                Queries.insertProject localProjectId (localProjectBranch ^. #project)
-                pure localProjectId
-              Just localProject -> pure (localProject ^. #projectId)
+                Queries.insertProject localProjectId localProjectName
+                pure (localProjectId, localProjectName)
+              Right localProject -> pure (localProject ^. #projectId, localProject ^. #name)
           localBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
           Queries.insertProjectBranch
             Sqlite.ProjectBranch
@@ -168,24 +289,53 @@ cloneInto localProjectBranch remoteProjectBranch = do
             (remoteProjectBranch ^. #projectId)
             Share.hardCodedUri
             (remoteProjectBranch ^. #branchId)
-          pure (Right (ProjectAndBranch localProjectId localBranchId))
+          pure (Right (ProjectAndBranch (localProjectId, localProjectName) localBranchId))
+
+  Cli.respond $
+    Output.ClonedProjectBranch
+      remoteProjectBranchNames
+      ( ProjectAndBranch
+          (localProjectAndBranch ^. #project . _2)
+          (localProjectBranch ^. #branch)
+      )
 
   -- Manipulate the root namespace and cd
   Cli.Env {codebase} <- ask
   let branchHead = hash32ToCausalHash (Share.API.hashJWTHash remoteBranchHeadJwt)
   theBranch <- liftIO (Codebase.expectBranchForHash codebase branchHead)
-  let path = projectBranchPath localProjectAndBranch
-  Cli.stepAt "project.clone" (Path.unabsolute path, const (Branch.head theBranch))
+  let path = projectBranchPath (over #project fst localProjectAndBranch)
+  Cli.stepAt
+    ("clone " <> into @Text remoteProjectBranchNames)
+    (Path.unabsolute path, const (Branch.head theBranch))
   Cli.cd path
+
+-- Return the remote project id associated with the given project branch
+projectBranchRemoteProjectKey ::
+  ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
+  Sqlite.Transaction RemoteProjectKey
+projectBranchRemoteProjectKey (ProjectAndBranch project branch) = do
+  Queries.loadRemoteProjectBranch (project ^. #projectId) Share.hardCodedUri (branch ^. #branchId) <&> \case
+    Nothing -> RemoteProjectKey'Name (project ^. #name)
+    Just (remoteProjectId, _) -> RemoteProjectKey'Id remoteProjectId
+
+assertProjectNameHasUserSlug :: ProjectName -> Cli ()
+assertProjectNameHasUserSlug projectName =
+  void $
+    projectNameUserSlug projectName
+      & onNothing (Cli.returnEarly (Output.ProjectNameRequiresUserSlug projectName))
 
 -- Assert that a local project+branch with this name doesn't already exist. If it does exist, we can't clone over it.
 assertLocalProjectBranchDoesntExist ::
-  ProjectAndBranch ProjectName ProjectBranchName ->
-  Sqlite.Transaction (Either Output.Output (Maybe Sqlite.Project))
-assertLocalProjectBranchDoesntExist projectBranch =
-  Queries.loadProjectByName (projectBranch ^. #project) >>= \case
-    Nothing -> pure (Right Nothing)
-    Just project ->
-      Queries.projectBranchExistsByName (project ^. #projectId) (projectBranch ^. #branch) <&> \case
-        False -> Right (Just project)
-        True -> Left (Output.ProjectAndBranchNameAlreadyExists projectBranch)
+  ProjectAndBranch LocalProjectKey ProjectBranchName ->
+  Sqlite.Transaction (Either Output.Output (Either ProjectName Sqlite.Project))
+assertLocalProjectBranchDoesntExist = \case
+  ProjectAndBranch (LocalProjectKey'Name projectName) branchName ->
+    Queries.loadProjectByName projectName >>= \case
+      Nothing -> pure (Right (Left projectName))
+      Just project -> go project branchName
+  ProjectAndBranch (LocalProjectKey'Project project) branchName -> go project branchName
+  where
+    go project branchName =
+      Queries.projectBranchExistsByName (project ^. #projectId) branchName <&> \case
+        False -> Right (Right project)
+        True -> Left (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) branchName))

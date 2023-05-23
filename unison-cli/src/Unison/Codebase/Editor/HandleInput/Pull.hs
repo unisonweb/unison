@@ -85,7 +85,8 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity descrip
         then do
           void $ Cli.updateAtM description targetAbsolutePath (const $ pure remoteBranchObject)
           Cli.respond $ MergeOverEmpty target
-        else
+        else do
+          Cli.respond AboutToMerge
           mergeBranchAndPropagateDefaultPatch
             Branch.RegularMerge
             description
@@ -119,7 +120,7 @@ resolveImplicitSource :: Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
 resolveImplicitSource =
   ProjectUtils.getCurrentProjectBranch >>= \case
     Nothing -> RemoteRepo.writeNamespaceToRead <$> resolveConfiguredUrl PushPull.Pull Path.currentPath
-    Just (ProjectAndBranch localProject localBranch) -> do
+    Just (ProjectAndBranch localProject localBranch, _restPath) -> do
       (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
         Cli.runEitherTransaction do
           let localProjectId = localProject ^. #projectId
@@ -159,7 +160,7 @@ resolveImplicitTarget :: Cli (PullTarget (ProjectAndBranch Sqlite.Project Sqlite
 resolveImplicitTarget =
   ProjectUtils.getCurrentProjectBranch <&> \case
     Nothing -> PullTargetLooseCode Path.currentPath
-    Just projectAndBranch -> PullTargetProject projectAndBranch
+    Just (projectAndBranch, _restPath) -> PullTargetProject projectAndBranch
 
 resolveExplicitTarget ::
   PullTarget (These ProjectName ProjectBranchName) ->
@@ -186,7 +187,7 @@ loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
         Cli.returnEarly (Output.GitError err)
     ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
     ReadShare'ProjectBranch remoteBranch -> do
-      let repoInfo = Share.RepoInfo (into @Text (These (remoteBranch ^. #projectName) remoteProjectBranchName))
+      let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch (remoteBranch ^. #projectName) remoteProjectBranchName))
           causalHash = Common.hash32ToCausalHash . Share.hashJWTHash $ causalHashJwt
           causalHashJwt = remoteBranch ^. #branchHead
           remoteProjectBranchName = remoteBranch ^. #branchName
@@ -272,12 +273,14 @@ loadPropagateDiffDefaultPatch ::
   Path.Absolute ->
   Cli ()
 loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
+  Cli.respond Output.AboutToPropagatePatch
   Cli.time "loadPropagateDiffDefaultPatch" do
     original <- Cli.getBranch0At dest
     patch <- liftIO $ Branch.getPatch Cli.defaultPatchNameSegment original
     patchDidChange <- propagatePatch inputDescription patch dest
     when patchDidChange do
       whenJust maybeDest0 \dest0 -> do
+        Cli.respond Output.CalculatingDiff
         patched <- Cli.getBranchAt dest
         let patchPath = Path.Path' (Right (Path.Relative (Path.fromList [Cli.defaultPatchNameSegment])))
         (ppe, diff) <- diffHelper original (Branch.head patched)

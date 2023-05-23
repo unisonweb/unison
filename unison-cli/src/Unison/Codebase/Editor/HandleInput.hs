@@ -8,16 +8,15 @@ where
 
 -- TODO: Don't import backend
 
-import Control.Concurrent.STM (atomically)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Exception (catch)
 import Control.Lens
+import qualified Control.Lens as Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Writer (WriterT (..))
-import Data.Bifunctor (first, second)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
@@ -45,10 +44,13 @@ import System.Process
     readCreateProcessWithExitCode,
     shell,
   )
-import qualified U.Codebase.Branch.Diff as V2Branch
+import qualified U.Codebase.Branch.Diff as V2Branch.Diff
+import qualified U.Codebase.Branch.Type as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Reference as V2 (Reference)
+import qualified U.Codebase.Referent as V2 (Referent)
+import qualified U.Codebase.Referent as V2.Referent
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Project as Sqlite
 import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
@@ -79,16 +81,18 @@ import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
+import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
-import Unison.Codebase.Editor.HandleInput.ProjectClone (projectClone)
+import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
+import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.TermResolution
   ( resolveCon,
     resolveMainRef,
@@ -136,6 +140,7 @@ import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
+import qualified Unison.ConstructorType as ConstructorType
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
@@ -145,6 +150,7 @@ import qualified Unison.HashQualified' as HashQualified
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
+import qualified Unison.LabeledDependency as LabeledDependency
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
@@ -199,7 +205,7 @@ import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Find as Find
-import Unison.Util.List (uniqueBy)
+import Unison.Util.List (nubOrdOn, uniqueBy)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Pretty as Pretty
@@ -212,7 +218,6 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -355,7 +360,7 @@ loop e = do
                     P.lines
                       [ "The API information is as follows:",
                         P.newline,
-                        P.indentN 2 (P.hiBlue ("UI: " <> fromString (Server.urlFor Server.UI baseUrl))),
+                        P.indentN 2 (P.hiBlue ("UI: " <> fromString (Server.urlFor (Server.UI Path.absoluteEmpty Nothing) baseUrl))),
                         P.newline,
                         P.indentN 2 (P.hiBlue ("API: " <> fromString (Server.urlFor Server.Api baseUrl)))
                       ]
@@ -534,11 +539,73 @@ loop e = do
               Cli.updateRoot prev description
               (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
               Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
-            UiI -> do
-              Cli.Env {serverBaseUrl} <- ask
+            UiI path' -> do
+              Cli.Env {serverBaseUrl, codebase} <- ask
               whenJust serverBaseUrl \url -> do
-                _success <- liftIO (openBrowser (Server.urlFor Server.UI url))
+                (perspective, definitionRef) <-
+                  getUIUrlParts codebase
+
+                _success <- liftIO (openBrowser (Server.urlFor (Server.UI perspective definitionRef) url))
                 pure ()
+              where
+                getUIUrlParts :: Codebase m Symbol Ann -> Cli (Path.Absolute, Maybe (Server.DefinitionReference))
+                getUIUrlParts codebase = do
+                  currentPath <- Cli.getCurrentPath
+                  let absPath = Path.resolve currentPath path'
+
+                  case Lens.unsnoc absPath of
+                    Just (abs, nameSeg) -> do
+                      namespaceBranch <-
+                        Cli.runTransaction
+                          (Codebase.getShallowBranchAtPath (Path.unabsolute abs) Nothing)
+
+                      let terms = maybe Set.empty Map.keysSet (Map.lookup nameSeg (V2Branch.terms namespaceBranch))
+                      let types = maybe Set.empty Map.keysSet (Map.lookup nameSeg (V2Branch.types namespaceBranch))
+
+                      -- Only safe to force in toTypeReference and toTermReference
+                      case (Set.lookupMin terms, Set.lookupMin types) of
+                        (Just te, _) -> do
+                          let name = Path.unsafeToName $ Path.fromPath' path'
+                          defRef <- Cli.runTransaction (toTermReference codebase name te)
+
+                          if Path.isAbsolute path'
+                            then pure (Path.absoluteEmpty, Just defRef)
+                            else pure (currentPath, Just defRef)
+                        (Nothing, Just ty) ->
+                          let name = Path.unsafeToName $ Path.fromPath' path'
+                              defRef = toTypeReference name ty
+                           in if Path.isAbsolute path'
+                                then pure (Path.absoluteEmpty, Just defRef)
+                                else pure (currentPath, Just defRef)
+                        -- Catch all that uses the absPath to build the perspective.
+                        -- Also catches the case where a namespace arg was given.
+                        (Nothing, Nothing) ->
+                          pure (absPath, Nothing)
+                    Nothing ->
+                      pure (absPath, Nothing)
+
+                toTypeReference :: Name -> V2.Reference -> Server.DefinitionReference
+                toTypeReference name reference =
+                  Server.TypeReference $
+                    HQ.fromNamedReference name (Conversions.reference2to1 reference)
+
+                toTermReference :: Codebase m Symbol Ann -> Name -> V2.Referent -> Sqlite.Transaction Server.DefinitionReference
+                toTermReference codebase name referent = do
+                  case referent of
+                    V2.Referent.Ref reference ->
+                      pure $
+                        Server.TermReference $
+                          HQ.fromNamedReference name (Conversions.reference2to1 reference)
+                    V2.Referent.Con _ _ -> do
+                      v1Referent <- Conversions.referent2to1 (Codebase.getDeclType codebase) referent
+                      let hq = HQ.fromNamedReferent name v1Referent
+
+                      pure case v1Referent of
+                        Referent.Con _ ConstructorType.Data ->
+                          Server.DataConstructorReference hq
+                        Referent.Con _ ConstructorType.Effect ->
+                          Server.AbilityConstructorReference hq
+                        Referent.Ref _ -> error "Impossible! *twirls mustache*"
             DocToMarkdownI docName -> do
               basicPrettyPrintNames <- getBasicPrettyPrintNames
               hqLength <- Cli.runTransaction Codebase.hashLength
@@ -875,6 +942,7 @@ loop e = do
                     & Branch.modifyAt (Path.singleton childName) \_ -> Branch.empty
                 afterDelete
               DeleteTarget'ProjectBranch name -> handleDeleteBranch name
+              DeleteTarget'Project name -> handleDeleteProject name
             DisplayI outputLoc names' -> do
               currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
@@ -901,14 +969,13 @@ loop e = do
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               #numberedArgs .= fmap entryToHQString entries
-              getRoot <- atomically . STM.readTMVar <$> use #root
+              currentBranch <- Cli.getCurrentBranch
               let buildPPE = do
                     schLength <- Codebase.runTransaction codebase Codebase.branchHashLength
-                    rootBranch <- getRoot
                     pure $
                       Backend.basicSuffixifiedNames
                         schLength
-                        rootBranch
+                        currentBranch
                         (Backend.AllNames (Path.unabsolute pathArgAbs))
               Cli.respond $ ListShallow buildPPE entries
               where
@@ -1206,40 +1273,7 @@ loop e = do
                 >>= doPullRemoteBranch sourceTarget sMode pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
-            ListDependenciesI hq -> do
-              Cli.Env {codebase} <- ask
-              hqLength <- Cli.runTransaction Codebase.hashLength
-              -- todo: add flag to handle transitive efficiently
-              lds <- resolveHQToLabeledDependencies hq
-              when (null lds) do
-                Cli.returnEarly (LabeledReferenceNotFound hq)
-              rootBranch <- Cli.getRootBranch
-              for_ lds \ld -> do
-                dependencies :: Set Reference <-
-                  Cli.runTransaction do
-                    let tp r@(Reference.DerivedId i) =
-                          Codebase.getTypeDeclaration codebase i <&> \case
-                            Nothing -> error $ "What happened to " ++ show i ++ "?"
-                            Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
-                        tp _ = pure mempty
-                        tm (Referent.Ref r@(Reference.DerivedId i)) =
-                          Codebase.getTerm codebase i <&> \case
-                            Nothing -> error $ "What happened to " ++ show i ++ "?"
-                            Just tm -> Set.delete r $ Term.dependencies tm
-                        tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
-                          Codebase.getTypeDeclaration codebase i <&> \case
-                            Nothing -> error $ "What happened to " ++ show i ++ "?"
-                            Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
-                              Nothing -> error $ "What happened to " ++ show con ++ "?"
-                              Just tp -> Type.dependencies tp
-                        tm _ = pure mempty
-                     in LD.fold tp tm ld
-                (missing, names0) <- liftIO (Branch.findHistoricalRefs' dependencies rootBranch)
-                let types = R.toList $ Names.types names0
-                let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
-                let names = types <> terms
-                #numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
-                Cli.respond $ ListDependencies hqLength ld names missing
+            ListDependenciesI hq -> handleDependencies hq
             NamespaceDependenciesI namespacePath' -> do
               Cli.Env {codebase} <- ask
               path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
@@ -1343,8 +1377,8 @@ loop e = do
                 Cli.runTransaction do
                   fromBranch <- Codebase.expectCausalBranchByCausalHash fromCH >>= V2Causal.value
                   toBranch <- Codebase.expectCausalBranchByCausalHash toCH >>= V2Causal.value
-                  let treeDiff = V2Branch.diffBranches fromBranch toBranch
-                  nameChanges <- V2Branch.allNameChanges Nothing treeDiff
+                  let treeDiff = V2Branch.Diff.diffBranches fromBranch toBranch
+                  nameChanges <- V2Branch.Diff.allNameChanges Nothing treeDiff
                   pure (DisplayDebugNameDiff nameChanges)
               Cli.respond output
             DeprecateTermI {} -> Cli.respond NotImplemented
@@ -1363,11 +1397,12 @@ loop e = do
               description <- inputDescription input
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
             ProjectSwitchI name -> projectSwitch name
-            ProjectCloneI name -> projectClone name
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
-            BranchesI -> handleBranches
             BranchI source name -> handleBranch source name
+            BranchesI -> handleBranches
+            CloneI remoteNames localNames -> handleClone remoteNames localNames
+            ReleaseDraftI semver -> handleReleaseDraft semver
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1452,7 +1487,8 @@ inputDescription input =
         DeleteTarget'Patch path0 -> do
           path <- ps' path0
           pure ("delete.patch " <> path)
-        DeleteTarget'ProjectBranch projectAndBranch -> pure ("delete.branch " <> into @Text projectAndBranch)
+        DeleteTarget'ProjectBranch _ -> wat
+        DeleteTarget'Project _ -> wat
     ReplaceI src target p0 -> do
       p <- opatch p0
       pure $
@@ -1532,14 +1568,15 @@ inputDescription input =
       branchId2 <- hp' (input ^. #branchId2)
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
-    ProjectCloneI projectAndBranch -> pure ("project.clone " <> into @Text projectAndBranch)
     ProjectCreateI project -> pure ("project.create " <> into @Text project)
-    ProjectSwitchI projectAndBranch -> pure ("project.switch " <> into @Text projectAndBranch)
+    ClearI {} -> pure "clear"
+    DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
     --
     ApiI -> wat
     AuthLoginI {} -> wat
     BranchI {} -> wat
-    ClearI {} -> pure "clear"
+    BranchesI -> wat
+    CloneI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat
@@ -1571,20 +1608,20 @@ inputDescription input =
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
+    ProjectSwitchI _ -> wat
     ProjectsI -> wat
-    BranchesI -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
+    ReleaseDraftI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
     ShowReflogI {} -> wat
     SwitchBranchI {} -> wat
     TestI {} -> wat
     TodoI {} -> wat
-    UiI -> wat
+    UiI {} -> wat
     UpI {} -> wat
     VersionI -> wat
-    DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
     hp' = either (pure . Text.pack . show) p'
@@ -1686,16 +1723,59 @@ handleFindI isVerbose fscope ws input = do
       respondResults =<< getResults (getNames FindLocalAndDeps)
     _ -> respondResults results
 
-handleDependents :: HQ.HashQualified Name -> Cli ()
-handleDependents hq = do
-  hqLength <- Cli.runTransaction Codebase.hashLength
+handleDependencies :: HQ.HashQualified Name -> Cli ()
+handleDependencies hq = do
+  Cli.Env {codebase} <- ask
   -- todo: add flag to handle transitive efficiently
   lds <- resolveHQToLabeledDependencies hq
+  ppe <- PPE.suffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.WithinStrict
+  when (null lds) do
+    Cli.returnEarly (LabeledReferenceNotFound hq)
+  results <- for (toList lds) \ld -> do
+    dependencies :: Set LabeledDependency <-
+      Cli.runTransaction do
+        let tp r@(Reference.DerivedId i) =
+              Codebase.getTypeDeclaration codebase i <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just decl ->
+                  Set.map LabeledDependency.TypeReference . Set.delete r . DD.dependencies $
+                    DD.asDataDecl decl
+            tp _ = pure mempty
+            tm r@(Referent.Ref (Reference.DerivedId i)) =
+              Codebase.getTerm codebase i <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just tm -> Set.delete (LabeledDependency.TermReferent r) (Term.labeledDependencies tm)
+            tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
+              Codebase.getTypeDeclaration codebase i <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
+                  Nothing -> error $ "What happened to " ++ show con ++ "?"
+                  Just tp -> Type.labeledDependencies tp
+            tm _ = pure mempty
+         in LD.fold tp tm ld
+    let types = [(PPE.typeName ppe r, r) | LabeledDependency.TypeReference r <- toList dependencies]
+    let terms = [(PPE.termName ppe r, r) | LabeledDependency.TermReferent r <- toList dependencies]
+    pure (types, terms)
+  let types = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ fst <$> results)
+  let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
+  #numberedArgs
+    .= map (Text.unpack . Reference.toText . snd) types
+    <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+  Cli.respond $ ListDependencies ppe lds (fst <$> types) (fst <$> terms)
 
+handleDependents :: HQ.HashQualified Name -> Cli ()
+handleDependents hq = do
+  -- todo: add flag to handle transitive efficiently
+  lds <- resolveHQToLabeledDependencies hq
+  -- Use an unsuffixified PPE here, so we display full names (relative to the current path),
+  -- rather than the shortest possible unambiguous name.
+  pped <- currentPrettyPrintEnvDecl Backend.WithinStrict
+  let fqppe = PPE.unsuffixifiedPPE pped
+  let ppe = PPE.suffixifiedPPE pped
   when (null lds) do
     Cli.returnEarly (LabeledReferenceNotFound hq)
 
-  for_ lds \ld -> do
+  results <- for (toList lds) \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
       let tp r = Codebase.dependents Queries.ExcludeOwnComponent r
@@ -1704,27 +1784,21 @@ handleDependents hq = do
             Referent.Con (ConstructorReference r _cid) _ct ->
               Codebase.dependents Queries.ExcludeOwnComponent r
        in Cli.runTransaction (LD.fold tp tm ld)
-    -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
-    -- unambiguous name.
-    ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
-    let results :: [(Reference, Maybe Name)]
-        results =
-          -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
-          -- take a flag to control whether we want to show all dependents
-          mapMaybe f (Set.toList dependents)
-          where
-            f :: Reference -> Maybe (Reference, Maybe Name)
-            f reference =
-              asum
-                [ g <$> PPE.terms ppe (Referent.Ref reference),
-                  g <$> PPE.types ppe reference
-                ]
-              where
-                g :: HQ'.HashQualified Name -> (Reference, Maybe Name)
-                g hqName =
-                  (reference, Just (HQ'.toName hqName))
-    #numberedArgs .= map (Text.unpack . Reference.toText . fst) results
-    Cli.respond (ListDependents hqLength ld results)
+    let -- True is term names, False is type names
+        results :: [(Bool, HQ.HashQualified Name, Reference)]
+        results = do
+          r <- Set.toList dependents
+          Just (isTerm, hq) <- [(True,) <$> PPE.terms fqppe (Referent.Ref r), (False,) <$> PPE.types fqppe r]
+          fullName <- [HQ'.toName hq]
+          guard (not (Name.beginsWithSegment fullName Name.libSegment))
+          Just shortName <- pure $ PPE.terms ppe (Referent.Ref r) <|> PPE.types ppe r
+          pure (isTerm, HQ'.toHQ shortName, r)
+    pure results
+  let sort = nubOrdOn snd . Name.sortByText (HQ.toText . fst)
+  let types = sort [(n, r) | (False, n, r) <- join results]
+  let terms = sort [(n, r) | (True, n, r) <- join results]
+  #numberedArgs .= map (Text.unpack . Reference.toText . view _2) (types <> terms)
+  Cli.respond (ListDependents ppe lds (fst <$> types) (fst <$> terms))
 
 handleDiffNamespaceToPatch :: Text -> DiffNamespaceToPatchInput -> Cli ()
 handleDiffNamespaceToPatch description input = do
@@ -1739,7 +1813,7 @@ handleDiffNamespaceToPatch description input = do
         branch1 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId1)
         branch2 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId2)
         lift do
-          branchDiff <- V2Branch.nameBasedDiff (V2Branch.diffBranches branch1 branch2)
+          branchDiff <- V2Branch.Diff.nameBasedDiff (V2Branch.Diff.diffBranches branch1 branch2)
           termEdits <-
             (branchDiff ^. #terms)
               & Relation.domain

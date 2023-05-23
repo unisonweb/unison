@@ -25,9 +25,10 @@ import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import qualified Unison.Builtin.Decls as Rf
+import qualified Unison.ConstructorReference as CR
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference (Builtin), toShortHash)
-import Unison.Referent (pattern Ref)
+import Unison.Referent (pattern Con, pattern Ref)
 import Unison.Runtime.ANF as ANF
   ( CompileExn (..),
     Mem (..),
@@ -329,8 +330,10 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 LKUP i)
       pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim1 TLTT i) = do
   clink <- peekOff bstk i
-  let Ref link = unwrapForeign $ marshalToForeign clink
-  let sh = Util.Text.fromText . SH.toText $ toShortHash link
+  let shortHash = case unwrapForeign $ marshalToForeign clink of
+        Ref r -> toShortHash r
+        Con r _ -> CR.toShortHash r
+  let sh = Util.Text.fromText . SH.toText $ shortHash
   bstk <- bump bstk
   pokeBi bstk sh
   pure (denv, ustk, bstk, k)

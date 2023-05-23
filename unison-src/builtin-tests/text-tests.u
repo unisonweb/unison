@@ -8,6 +8,9 @@ text.tests = do
  !text.matching.tests
  !char.class.tests
 
+text.interpreter.only = do
+ !text.term.tests
+
 text.lit.tests = do
   check "Text empty literal" do
     _ = ""
@@ -145,6 +148,12 @@ text.debug.tests = do
     true
 
   checkEqual "Debug.watch" (Debug.watch "Watch" 3) 3
+
+text.term.tests = do
+  check "Link.Term.toText works for ability constructors" do
+    match catchAll '(Link.Term.toText (termLink abort)) with
+      Left f -> false
+      Right _ -> true
 
 text.matching.tests = do
   check "String literal matching: empty" do

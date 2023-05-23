@@ -101,6 +101,8 @@ foo = 2
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 ```
 A delete should remove both versions of the term.
 
@@ -175,6 +177,8 @@ structural type Foo = Foo
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 ```
 ```ucm

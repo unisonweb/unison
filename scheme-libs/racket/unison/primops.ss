@@ -37,6 +37,11 @@
     unison-FOp-IO.isFileEOF.impl.v3
     unison-FOp-IO.putBytes.impl.v3
     unison-FOp-IO.getBytes.impl.v3
+    unison-FOp-IO.getFileSize.impl.v3
+    unison-FOp-IO.getFileTimestamp.impl.v3
+    unison-FOp-IO.fileExists.impl.v3
+    unison-FOp-IO.removeFile.impl.v3
+    unison-FOp-IO.getTempDirectory.impl.v3
     unison-FOp-Text.fromUtf8.impl.v3
     unison-FOp-Text.repeat
     unison-FOp-Text.reverse
@@ -81,6 +86,12 @@
     unison-FOp-Char.Class.anyOf
     unison-FOp-Char.Class.and
     unison-FOp-Char.Class.not
+    unison-FOp-Clock.internals.nsec.v1
+    unison-FOp-Clock.internals.sec.v1
+    unison-FOp-Clock.internals.threadCPUTime.v1
+    unison-FOp-Clock.internals.processCPUTime.v1
+    unison-FOp-Clock.internals.realtime.v1
+    unison-FOp-Clock.internals.monotonic.v1
 
 
     ; unison-FOp-Value.serialize
@@ -152,6 +163,29 @@
     unison-FOp-Socket.toText
     unison-FOp-ThreadId.toText
 
+    unison-POp-ABSF
+    unison-POp-ACOS
+    unison-POp-ACSH
+    unison-POp-ADDF
+    unison-POp-ASIN
+    unison-POp-ASNH
+    unison-POp-ATAN
+    unison-POp-ATN2
+    unison-POp-ATNH
+    unison-POp-CEIL
+    unison-POp-COSF
+    unison-POp-COSH
+    unison-POp-DIVF
+    unison-POp-DIVI
+    unison-POp-EQLF
+    unison-POp-EQLI
+    unison-POp-SUBF
+    unison-POp-LEQF
+    unison-POp-SINF
+    unison-POp-SINH
+    unison-POp-TRNF
+    unison-POp-ITOF
+
     unison-POp-ADDN
     unison-POp-ADDF
     unison-POp-ANDN
@@ -194,6 +228,7 @@
     unison-POp-SIZB
     unison-POp-SNOC
     unison-POp-SUBN
+    unison-POp-SUBI
     unison-POp-TAKS
     unison-POp-TAKT
     unison-POp-TAKB
@@ -222,6 +257,31 @@
     unison-POp-SPLL
     unison-POp-SPLR
 
+    unison-FOp-Bytes.gzip.compress
+    unison-FOp-Bytes.gzip.decompress
+    unison-FOp-Bytes.zlib.compress
+    unison-FOp-Bytes.zlib.decompress
+    unison-FOp-Bytes.toBase16
+    unison-FOp-Bytes.toBase32
+    unison-FOp-Bytes.toBase64
+    unison-FOp-Bytes.toBase64UrlUnpadded
+    unison-FOp-Bytes.fromBase16
+    unison-FOp-Bytes.fromBase32
+    unison-FOp-Bytes.fromBase64
+    unison-FOp-Bytes.fromBase64UrlUnpadded
+    unison-FOp-Bytes.encodeNat16be
+    unison-FOp-Bytes.encodeNat16le
+    unison-FOp-Bytes.encodeNat32be
+    unison-FOp-Bytes.encodeNat32le
+    unison-FOp-Bytes.encodeNat64be
+    unison-FOp-Bytes.encodeNat64le
+    unison-FOp-Bytes.decodeNat16be
+    unison-FOp-Bytes.decodeNat16le
+    unison-FOp-Bytes.decodeNat32be
+    unison-FOp-Bytes.decodeNat32le
+    unison-FOp-Bytes.decodeNat64be
+    unison-FOp-Bytes.decodeNat64le
+
     unison-FOp-crypto.hashBytes
     unison-FOp-crypto.hmacBytes
     unison-FOp-crypto.HashAlgorithm.Md5
@@ -245,8 +305,10 @@
     unison-FOp-Tls.ClientConfig.default
     unison-FOp-Tls.ClientConfig.certificates.set
     unison-FOp-Tls.decodeCert.impl.v3
+    unison-FOp-Tls.encodeCert
     unison-FOp-Tls.newServer.impl.v3
     unison-FOp-Tls.decodePrivateKey
+    unison-FOp-Tls.encodePrivateKey
     unison-FOp-Tls.ServerConfig.default
     unison-FOp-Tls.handshake.impl.v3
     unison-FOp-Tls.newClient.impl.v3
@@ -270,12 +332,18 @@
           (unison bytevector)
           (unison core)
           (unison data)
+          (unison math)
           (unison chunked-seq)
+          (unison chunked-bytes)
+          (unison bytes-nat)
           (unison pattern)
           (unison crypto)
           (unison data)
+          (unison io)
           (unison tls)
           (unison tcp)
+          (unison gzip)
+          (unison zlib)
           (unison concurrent))
 
   (define (unison-POp-UPKB bs)
@@ -288,7 +356,7 @@
   (define (unison-POp-EQLI a b)
     (if (= a b) 1 0))
   (define unison-POp-MODI mod)
-  (define unison-POp-LEQI <=)
+  (define (unison-POp-LEQI a b) (bool (<= a b)))
   (define unison-POp-POWN expt)
 
   (define (reify-exn thunk)
@@ -357,6 +425,7 @@
   (define (unison-POp-SIZB b) (chunked-bytes-length b))
   (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
   (define (unison-POp-SUBN m n) (fx- m n))
+  (define (unison-POp-SUBI m n) (- m n))
   (define (unison-POp-TAKS n s) (chunked-list-take s n))
   (define (unison-POp-TAKT n t) (chunked-string-take t n))
   (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
@@ -550,21 +619,21 @@
   (define (unison-FOp-Text.toUtf8 s)
     (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
 
-  (define (unison-FOp-IO.closeFile.impl.v3 h)
-    (close-input-port h)
-    (sum 1))
-
-  (define (unison-FOp-IO.openFile.impl.v3 fn0 mode)
-    (let ([fn (chunked-string->string fn0)])
-      (sum 1
-           (case mode
-             [(0) (open-file-input-port fn)]
-             [(1) (open-file-output-port fn)]
-             [(2) (open-file-output-port fn 'no-truncate)]
-             [else (open-file-input/output-port fn)]))))
-
   (define (unison-FOp-IO.isFileEOF.impl.v3 p)
     (right (if (port-eof? p) 1 0)))
+
+  (define (unison-FOp-IO.closeFile.impl.v3 h)
+    (if (input-port? h)
+        (close-input-port h)
+        (close-output-port h))
+    (right none))
+
+  (define (unison-FOp-IO.openFile.impl.v3 fn mode)
+    (right (case mode
+      [(0) (open-file-input-port (chunked-string->string fn))]
+      [(1) (open-file-output-port (chunked-string->string fn))]
+      [(2) (open-file-output-port (chunked-string->string fn) 'no-truncate)]
+      [else (open-file-input/output-port (chunked-string->string fn))])))
 
   (define (unison-FOp-Text.repeat n t)
     (let loop ([cnt 0]

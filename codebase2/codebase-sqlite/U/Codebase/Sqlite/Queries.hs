@@ -106,18 +106,23 @@ module U.Codebase.Sqlite.Queries
     loadProjectByName,
     expectProject,
     loadAllProjects,
+    loadAllProjectsBeginningWith,
     insertProject,
+    deleteProject,
 
     -- ** project branches
     projectBranchExistsByName,
     loadProjectBranchByName,
     loadProjectBranchByNames,
     expectProjectBranch,
+    loadAllProjectBranchesBeginningWith,
     loadAllProjectBranchInfo,
     loadProjectAndBranchNames,
     insertProjectBranch,
     loadProjectBranch,
     deleteProjectBranch,
+    setMostRecentBranch,
+    loadMostRecentBranch,
 
     -- ** remote projects
     loadRemoteProject,
@@ -211,6 +216,7 @@ module U.Codebase.Sqlite.Queries
     addReflogTable,
     addNamespaceStatsTables,
     addProjectTables,
+    addMostRecentBranchTable,
     fixScopedNameLookupTables,
 
     -- ** schema version
@@ -253,7 +259,6 @@ import Control.Monad.Extra ((||^))
 import Control.Monad.State (MonadState, evalStateT)
 import Control.Monad.Writer (MonadWriter, runWriterT)
 import qualified Control.Monad.Writer as Writer
-import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
@@ -344,7 +349,7 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
-import Unison.Core.Project (ProjectBranchName, ProjectName)
+import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import qualified Unison.Debug as Debug
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
@@ -367,7 +372,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 10
+currentSchemaVersion = 11
 
 createSchema :: Transaction ()
 createSchema = do
@@ -377,6 +382,7 @@ createSchema = do
   addReflogTable
   fixScopedNameLookupTables
   addProjectTables
+  addMostRecentBranchTable
   execute2 insertSchemaVersionSql
   where
     insertSchemaVersionSql =
@@ -404,6 +410,10 @@ fixScopedNameLookupTables =
 addProjectTables :: Transaction ()
 addProjectTables =
   executeFile [hereFile|unison/sql/005-project-tables.sql|]
+
+addMostRecentBranchTable :: Transaction ()
+addMostRecentBranchTable =
+  executeFile [hereFile|unison/sql/006-most-recent-branch-table.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =
@@ -2907,6 +2917,23 @@ loadAllProjects =
       ORDER BY name ASC
     |]
 
+-- | Load all projects whose name matches a prefix.
+loadAllProjectsBeginningWith :: Text -> Transaction [Project]
+loadAllProjectsBeginningWith prefix =
+  -- since we are not likely to many projects, we just get them all and filter in Haskell. This seems much simpler than
+  -- running a LIKE query, and dealing with escaping, case sensitivity, etc
+  fmap (filter matches) $
+    queryListRow2
+      [sql2|
+        SELECT id, name
+        FROM project
+        ORDER BY name ASC
+      |]
+  where
+    matches :: Project -> Bool
+    matches Project {name = UnsafeProjectName name} =
+      prefix `Text.isPrefixOf` name
+
 -- | Insert a `project` row.
 insertProject :: ProjectId -> ProjectName -> Transaction ()
 insertProject uuid name =
@@ -2994,6 +3021,24 @@ loadProjectBranchByNames projectName branchName =
         AND project_branch.name = :branchName
     |]
 
+-- | Load all branch id/name pairs in a project whose name matches a prefix.
+loadAllProjectBranchesBeginningWith :: ProjectId -> Text -> Transaction [(ProjectBranchId, ProjectBranchName)]
+loadAllProjectBranchesBeginningWith projectId prefix =
+  -- since a project is not likely to have many branches, we just get them all and filter in Haskell. This seems much
+  -- simpler than running a LIKE query, and dealing with escaping, case sensitivity, etc
+  fmap (filter matches) $
+    queryListRow2
+      [sql2|
+        SELECT project_branch.branch_id, project_branch.name
+        FROM project_branch
+        WHERE project_branch.project_id = :projectId
+        ORDER BY project_branch.name ASC
+      |]
+  where
+    matches :: (ProjectBranchId, ProjectBranchName) -> Bool
+    matches (_, UnsafeProjectBranchName name) =
+      prefix `Text.isPrefixOf` name
+
 -- | Load info about all branches in a project, for display by the @branches@ command.
 --
 -- Each branch name maps to a possibly-empty collection of associated remote branches.
@@ -3080,6 +3125,29 @@ insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBran
         INSERT INTO project_branch_parent (project_id, parent_branch_id, branch_id)
           VALUES (:projectId, :parentBranchId, :branchId)
       |]
+
+deleteProject :: ProjectId -> Transaction ()
+deleteProject projectId = do
+  execute2
+    [sql2|
+      DELETE FROM project_branch_remote_mapping
+      WHERE local_project_id = :projectId
+    |]
+  execute2
+    [sql2|
+      DELETE FROM project_branch_parent
+      WHERE project_id = :projectId
+    |]
+  execute2
+    [sql2|
+      DELETE FROM project_branch
+      WHERE project_id = :projectId
+    |]
+  execute2
+    [sql2|
+      DELETE FROM project
+      WHERE id = :projectId
+    |]
 
 -- | Delete a project branch.
 --
@@ -3444,3 +3512,31 @@ reversedNameToReversedSegments txt =
     & List.dropEnd1
     & NonEmpty.nonEmpty
     & maybe (Left (EmptyName $ show callStack)) Right
+
+setMostRecentBranch :: ProjectId -> ProjectBranchId -> Transaction ()
+setMostRecentBranch projectId branchId =
+  execute2
+    [sql2|
+      INSERT INTO most_recent_branch (
+        project_id,
+        branch_id)
+      VALUES (
+        :projectId,
+        :branchId)
+      ON CONFLICT
+        DO UPDATE SET
+          project_id = excluded.project_id,
+          branch_id = excluded.branch_id
+  |]
+
+loadMostRecentBranch :: ProjectId -> Transaction (Maybe ProjectBranchId)
+loadMostRecentBranch projectId =
+  queryMaybeCol2
+    [sql2|
+      SELECT
+        branch_id
+      FROM
+        most_recent_branch
+      WHERE
+        project_id = :projectId
+    |]

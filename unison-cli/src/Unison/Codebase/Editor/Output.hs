@@ -59,7 +59,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -115,6 +115,7 @@ data NumberedOutput
   | ListEdits Patch PPE.PrettyPrintEnv
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
+  | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
 
 --  | ShowDiff
 
@@ -239,13 +240,14 @@ data Output
     BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
   | ShareError ShareError
-  | ViewOnShare WriteShareRemoteNamespace
+  | ViewOnShare (Either WriteShareRemoteNamespace (URI, ProjectName, ProjectBranchName))
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
+  | AboutToPropagatePatch
   | -- todo: tell the user to run `todo` on the same patch they just used
     NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
@@ -259,6 +261,7 @@ data Output
   | PullSuccessful
       (ReadRemoteNamespace Share.RemoteProjectBranch)
       (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+  | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
     MergeOverEmpty (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | MergeAlreadyUpToDate
@@ -271,9 +274,9 @@ data Output
     NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash ShortCausalHash
-  | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
+  | ListDependencies PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | -- | List dependents of a type or term.
-    ListDependents Int LabeledDependency [(Reference, Maybe Name)]
+    ListDependents PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | -- | List all direct dependencies which don't have any names in the current branch
     ListNamespaceDependencies
       PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
@@ -319,7 +322,9 @@ data Output
     NoAssociatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- there's no remote branch associated with branch
     NoAssociatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | LocalProjectDoesntExist ProjectName
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
+  | LocalProjectNorProjectBranchExist ProjectName ProjectBranchName
   | RemoteProjectDoesntExist URI ProjectName
   | RemoteProjectBranchDoesntExist URI (ProjectAndBranch ProjectName ProjectBranchName)
   | RemoteProjectReleaseIsDeprecated URI (ProjectAndBranch ProjectName ProjectBranchName)
@@ -333,6 +338,19 @@ data Output
   | UploadedEntities Int
   | -- A generic "not implemented" message, for WIP code that's nonetheless been merged into trunk
     NotImplementedYet Text
+  | DraftingRelease ProjectBranchName Semver
+  | CannotCreateReleaseBranchWithBranchCommand ProjectBranchName Semver
+  | CalculatingDiff
+  | -- | The `local` in a `clone remote local` is ambiguous
+    AmbiguousCloneLocal
+      (ProjectAndBranch ProjectName ProjectBranchName)
+      -- ^ Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
+      (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- | The `remote` in a `clone remote local` is ambiguous
+    AmbiguousCloneRemote ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
+  | ClonedProjectBranch
+      (ProjectAndBranch ProjectName ProjectBranchName)
+      (ProjectAndBranch ProjectName ProjectBranchName)
 
 -- | What did we create a project branch from?
 --
@@ -393,6 +411,9 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  AmbiguousCloneLocal {} -> True
+  AmbiguousCloneRemote {} -> True
+  ClonedProjectBranch {} -> False
   NoLastRunResult {} -> True
   SaveTermNameConflict {} -> True
   RunResult {} -> False
@@ -468,6 +489,7 @@ isFailure o = case o of
   MetadataAmbiguous {} -> True
   PatchNeedsToBeConflictFree {} -> True
   PatchInvolvesExternalDependents {} -> True
+  AboutToPropagatePatch {} -> False
   NothingToPatch {} -> False
   WarnIncomingRootBranch {} -> False
   StartOfCurrentPathHistory -> True
@@ -477,6 +499,7 @@ isFailure o = case o of
   NoBranchWithHash {} -> True
   PullAlreadyUpToDate {} -> False
   PullSuccessful {} -> False
+  AboutToMerge {} -> False
   MergeOverEmpty {} -> False
   MergeAlreadyUpToDate {} -> False
   PreviewMergeAlreadyUpToDate {} -> False
@@ -522,7 +545,9 @@ isFailure o = case o of
   NoAssociatedRemoteProject {} -> True
   NoAssociatedRemoteProjectBranch {} -> True
   ProjectAndBranchNameAlreadyExists {} -> True
+  LocalProjectDoesntExist {} -> True
   LocalProjectBranchDoesntExist {} -> True
+  LocalProjectNorProjectBranchExist {} -> True
   RemoteProjectDoesntExist {} -> True
   RemoteProjectBranchDoesntExist {} -> True
   RemoteProjectReleaseIsDeprecated {} -> True
@@ -535,24 +560,28 @@ isFailure o = case o of
   RemoteProjectBranchIsUpToDate {} -> False
   DownloadedEntities {} -> False
   UploadedEntities {} -> False
+  DraftingRelease {} -> False
+  CannotCreateReleaseBranchWithBranchCommand {} -> True
+  CalculatingDiff {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
-  ShowDiffNamespace {} -> False
-  ShowDiffAfterDeleteDefinitions {} -> False
-  ShowDiffAfterDeleteBranch {} -> False
-  ShowDiffAfterModifyBranch {} -> False
-  ShowDiffAfterMerge {} -> False
-  ShowDiffAfterMergePropagate {} -> False
-  ShowDiffAfterMergePreview {} -> False
-  ShowDiffAfterUndo {} -> False
-  ShowDiffAfterPull {} -> False
-  ShowDiffAfterCreateAuthor {} -> False
-  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
+  AmbiguousSwitch {} -> True
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
-  History {} -> False
   DeletedDespiteDependents {} -> False
+  History {} -> False
+  ListBranches {} -> False
   ListEdits {} -> False
   ListProjects {} -> False
-  ListBranches {} -> False
+  ShowDiffAfterCreateAuthor {} -> False
+  ShowDiffAfterDeleteBranch {} -> False
+  ShowDiffAfterDeleteDefinitions {} -> False
+  ShowDiffAfterMerge {} -> False
+  ShowDiffAfterMergePreview {} -> False
+  ShowDiffAfterMergePropagate {} -> False
+  ShowDiffAfterModifyBranch {} -> False
+  ShowDiffAfterPull {} -> False
+  ShowDiffAfterUndo {} -> False
+  ShowDiffNamespace {} -> False
+  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)

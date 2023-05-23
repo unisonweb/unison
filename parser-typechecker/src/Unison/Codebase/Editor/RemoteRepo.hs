@@ -3,7 +3,6 @@ module Unison.Codebase.Editor.RemoteRepo where
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
 import qualified Data.Text as Text
-import Data.These (These (..))
 import Data.Void (absurd)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
@@ -98,7 +97,7 @@ printWriteRemoteNamespace = \case
     printWriteGitRepo repo <> maybePrintPath path
   WriteRemoteNamespaceShare (WriteShareRemoteNamespace {server, repo, path}) ->
     displayShareCodeserver server repo path
-  WriteRemoteProjectBranch (ProjectAndBranch project branch) -> into @Text (These project branch)
+  WriteRemoteProjectBranch projectAndBranch -> into @Text projectAndBranch
 
 maybePrintPath :: Path -> Text
 maybePrintPath path =

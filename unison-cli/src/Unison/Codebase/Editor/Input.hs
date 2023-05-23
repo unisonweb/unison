@@ -46,7 +46,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchName, ProjectName, Semver)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Util.Pretty as P
 
@@ -214,19 +214,20 @@ data Input
   | DebugNameDiffI ShortCausalHash ShortCausalHash
   | QuitI
   | ApiI
-  | UiI
+  | UiI Path'
   | DocToMarkdownI Name
   | DocsToHtmlI Path' FilePath
   | GistI GistInput
   | AuthLoginI
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
-  | ProjectCloneI (These ProjectName ProjectBranchName)
   | ProjectCreateI ProjectName
-  | ProjectSwitchI (These ProjectName ProjectBranchName)
+  | ProjectSwitchI ProjectAndBranchNames
   | ProjectsI
-  | BranchesI
   | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | BranchesI
+  | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
+  | ReleaseDraftI Semver
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
@@ -327,5 +328,6 @@ data DeleteTarget
   | DeleteTarget'Type DeleteOutput [Path.HQSplit']
   | DeleteTarget'Namespace Insistence (Maybe Path.Split')
   | DeleteTarget'Patch Path.Split'
-  | DeleteTarget'ProjectBranch (These ProjectName ProjectBranchName)
+  | DeleteTarget'ProjectBranch (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | DeleteTarget'Project ProjectName
   deriving stock (Eq, Show)

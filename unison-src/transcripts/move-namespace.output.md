@@ -70,7 +70,7 @@ Should be able to move the namespace, including its types, terms, and sub-namesp
 
   1. T       (type)
   2. T/      (2 terms)
-  3. termInA (Nat)
+  3. termInA (##Nat)
 
 .happy> history b
 

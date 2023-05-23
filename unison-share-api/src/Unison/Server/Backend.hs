@@ -32,7 +32,7 @@ module Unison.Server.Backend
     displayType,
     docsInBranchToHtmlFiles,
     expandShortCausalHash,
-    findShallowReadmeInBranchAndRender,
+    findDocInBranchAndRender,
     formatSuffixedType,
     getCurrentParseNames,
     getCurrentPrettyNames,
@@ -93,7 +93,6 @@ import Control.Lens hiding ((??))
 import qualified Control.Lens.Cons as Cons
 import Control.Monad.Except
 import Control.Monad.Reader
-import Data.Bifunctor (Bifunctor (..), first)
 import Data.Containers.ListUtils (nubOrdOn)
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -269,6 +268,7 @@ namesForBranch root scope =
     (path, includeAllNames) = case scope of
       AllNames path -> (path, True)
       Within path -> (path, False)
+      WithinStrict path -> (path, False)
     root0 = Branch.head root
     currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
     absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
@@ -440,14 +440,15 @@ lsAtPath codebase mayRootBranch absPath = do
   b <- Codebase.runTransaction codebase (Codebase.getShallowBranchAtPath (Path.unabsolute absPath) mayRootBranch)
   lsBranch codebase b
 
-findShallowReadmeInBranchAndRender ::
+findDocInBranchAndRender ::
+  Set NameSegment ->
   Width ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
   V2Branch.Branch m ->
   Backend IO (Maybe Doc.Doc)
-findShallowReadmeInBranchAndRender _width runtime codebase ppe namespaceBranch =
+findDocInBranchAndRender names _width runtime codebase ppe namespaceBranch =
   let renderReadme :: PPED.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
       renderReadme ppe docReference = do
         doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc ppe
@@ -455,7 +456,7 @@ findShallowReadmeInBranchAndRender _width runtime codebase ppe namespaceBranch =
 
       -- choose the first term (among conflicted terms) matching any of these names, in this order.
       -- we might later want to return all of them to let the front end decide
-      toCheck = NameSegment <$> ["README", "Readme", "ReadMe", "readme"]
+      toCheck = Set.toList names
       readme :: Maybe Reference
       readme = listToMaybe $ do
         name <- toCheck
@@ -688,18 +689,26 @@ data NameScoping
     AllNames Path
   | -- | Filter returned names to only include names within this path.
     Within Path
+  | -- | Like `Within`, but does not include a fallback
+    WithinStrict Path
 
 toAllNames :: NameScoping -> NameScoping
 toAllNames (AllNames p) = AllNames p
 toAllNames (Within p) = AllNames p
+toAllNames (WithinStrict p) = AllNames p
 
 getCurrentPrettyNames :: Int -> NameScoping -> Branch m -> PPED.PrettyPrintEnvDecl
 getCurrentPrettyNames hashLen scope root =
-  let primary = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
-      backup = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
-   in PPED.PrettyPrintEnvDecl
+  case scope of
+    WithinStrict _ -> primary
+    _ ->
+      PPED.PrettyPrintEnvDecl
         (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE backup)
         (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE backup)
+      where
+        backup = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
+  where
+    primary = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
 
 getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
 getCurrentParseNames scope root =

@@ -27,7 +27,6 @@ import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
-import Data.Bifunctor
 import qualified Data.ByteString.Lazy as BL
 import Data.Configurator.Types (Config)
 import Data.Either.Validation (Validation (..))
@@ -275,7 +274,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                             [ "I've started the Codebase API server at",
                               P.string $ Server.urlFor Server.Api baseUrl,
                               "and the Codebase UI at",
-                              P.string $ Server.urlFor Server.UI baseUrl
+                              P.string $ Server.urlFor (Server.UI Path.absoluteEmpty Nothing) baseUrl
                             ]
                         PT.putPrettyLn $
                           P.string "Running the codebase manager headless with "

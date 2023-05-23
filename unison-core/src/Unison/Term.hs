@@ -6,7 +6,6 @@ module Unison.Term where
 import Control.Lens (Lens', Prism', lens)
 import Control.Monad.State (evalState)
 import qualified Control.Monad.Writer.Strict as Writer
-import Data.Bifunctor (second)
 import Data.Generics.Sum (_Ctor)
 import qualified Data.Map as Map
 import qualified Data.Sequence as Sequence

@@ -3,7 +3,6 @@
 module Unison.UnisonFile.Type where
 
 import Control.Lens
-import Data.Bifunctor (first)
 import qualified Unison.ABT as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.Prelude

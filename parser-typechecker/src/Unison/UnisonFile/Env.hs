@@ -5,7 +5,6 @@
 
 module Unison.UnisonFile.Env (Env (..), datas) where
 
-import Data.Bifunctor (first)
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.Names (Names)
 import Unison.Prelude

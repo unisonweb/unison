@@ -47,6 +47,8 @@ zonk = 0
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 ```
 ```unison
 bonk = 2
@@ -90,6 +92,8 @@ bar/main> merge foo/main
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 bar/main> branch /topic
 
@@ -135,6 +139,8 @@ bar/topic> merge /main
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
   ☝️  The namespace .bar is empty.
 
 .bar> merge foo/main
@@ -151,5 +157,7 @@ bar/topic> merge /main
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 ```

@@ -63,6 +63,7 @@ projectCreate projectName = do
               name = branchName,
               parentBranchId = Nothing
             }
+        Queries.setMostRecentBranch projectId branchId
         pure (Right ())
       True -> pure (Left (Output.ProjectNameAlreadyExists projectName))
 

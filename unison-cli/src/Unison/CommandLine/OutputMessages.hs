@@ -9,7 +9,6 @@ import Control.Lens hiding (at)
 import Control.Monad.State
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.Trans.Writer.CPS
-import Data.Bifunctor (first, second)
 import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Foldable as Foldable
 import Data.List (stripPrefix)
@@ -22,7 +21,6 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.These (These (..))
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Data.Tuple (swap)
@@ -51,6 +49,7 @@ import qualified U.Util.Base32Hex as Base32Hex
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
 import qualified Unison.Builtin.Decls as DD
+import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import qualified Unison.Cli.Share.Projects.Types as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
@@ -132,7 +131,7 @@ import Unison.PrintError
     printNoteWithSource,
     renderCompilerBug,
   )
-import Unison.Project (ProjectAndBranch (..), ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectName, Semver (..))
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -144,7 +143,6 @@ import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Share.Sync as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
-import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share
@@ -155,7 +153,6 @@ import Unison.Syntax.NamePrinter
   ( SyntaxText,
     prettyHashQualified,
     prettyHashQualified',
-    prettyLabeledDependency,
     prettyName,
     prettyNamedReference,
     prettyNamedReferent,
@@ -441,23 +438,37 @@ notifyNumbered = \case
                 ]
                   : map (\branch -> ["", "", prettyRemoteBranchInfo branch]) remoteBranches
         ),
-      map (\(branchName, _) -> Text.unpack (into @Text (These projectName branchName))) branches
+      map (\(branchName, _) -> Text.unpack (into @Text (ProjectAndBranch projectName branchName))) branches
+    )
+  AmbiguousSwitch project (ProjectAndBranch currentProject branch) ->
+    ( P.wrap
+        ( "I'm not sure if you wanted to switch to the branch"
+            <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
+            <> "or the project"
+            <> P.group (prettyProjectName project <> ".")
+            <> "Could you be more specific?"
+        )
+        <> P.newline
+        <> P.newline
+        <> P.numberedList
+          [ prettySlashProjectBranchName branch <> " (the branch " <> prettyProjectBranchName branch <> " in the current project)",
+            prettyProjectNameSlash project <> " (the project " <> prettyProjectName project <> ", with the branch left unspecified)"
+          ]
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( "use "
+              <> switch ["1"]
+              <> " or "
+              <> switch ["2"]
+              <> " to pick one of these."
+          ),
+      [ Text.unpack (Text.cons '/' (into @Text branch)),
+        Text.unpack (into @Text (ProjectAndBranch project (UnsafeProjectBranchName "main")))
+      ]
     )
     where
-      prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
-      prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
-        -- Special-case Unison Share since we know its project branch URLs
-        if URI.uriToString id host "" == "https://api.unison-lang.org"
-          then
-            P.hiBlack . P.text $
-              "https://share.unison-lang.org/"
-                <> into @Text remoteProject
-                <> "/branches/"
-                <> into @Text remoteBranch
-          else
-            prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
-              <> " on "
-              <> P.hiBlack (P.shown host)
+      switch = IP.makeExample IP.projectSwitch
   where
     absPathToBranchId = Right
 
@@ -569,7 +580,7 @@ prettyURI = P.bold . P.blue . P.shown
 prettyReadRemoteNamespace :: ReadRemoteNamespace Share.RemoteProjectBranch -> Pretty
 prettyReadRemoteNamespace =
   prettyReadRemoteNamespaceWith \remoteProjectBranch ->
-    into @Text (These (remoteProjectBranch ^. #projectName) (remoteProjectBranch ^. #branchName))
+    into @Text (ProjectAndBranch (remoteProjectBranch ^. #projectName) (remoteProjectBranch ^. #branchName))
 
 prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
 prettyReadRemoteNamespaceWith printProject =
@@ -898,7 +909,7 @@ notifyUser dir = \case
       prettyProjectAndBranchName projectAndBranch <> "is empty. There is nothing to push."
   CreatedNewBranch path ->
     pure $
-      "☝️  The namespace " <> P.blue (P.shown path) <> " is empty."
+      "☝️  The namespace " <> prettyAbsoluteStripProject path <> " is empty."
   -- RenameOutput rootPath oldName newName r -> do
   --   nameChange "rename" "renamed" oldName newName r
   -- AliasOutput rootPath existingName newName r -> do
@@ -1509,6 +1520,7 @@ notifyUser dir = \case
     pure $
       "I could't find a type with hash "
         <> (prettyShortHash sh)
+  AboutToPropagatePatch -> pure "Applying changes from patch..."
   NothingToPatch _patchPath dest ->
     pure $
       P.callout "😶" . P.wrap $
@@ -1582,6 +1594,7 @@ notifyUser dir = \case
           <> prettyPullTarget dest
           <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
+  AboutToMerge -> pure "Merging..."
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
@@ -1635,53 +1648,10 @@ notifyUser dir = \case
               "",
               "Paste that output into http://bit-booster.com/graph.html"
             ]
-  ListDependents hqLength ld results ->
-    pure $
-      if null results
-        then prettyLd <> " doesn't have any named dependents."
-        else
-          P.lines
-            [ "Dependents of " <> prettyLd <> ":",
-              "",
-              P.indentN 2 (P.numberedColumn2Header num pairs),
-              "",
-              tip $ "Try " <> IP.makeExample IP.view ["1"] <> " to see the source of any numbered item in the above list."
-            ]
-    where
-      prettyLd = P.syntaxToColor (prettyLabeledDependency hqLength ld)
-      num n = P.hiBlack $ P.shown n <> "."
-      header = (P.hiBlack "Name", P.hiBlack "Reference")
-      pairs = header : map pair (List.sortOn (fmap (Name.convert :: Name -> HQ.HashQualified Name) . snd) results)
-      pair :: (Reference, Maybe Name) -> (Pretty, Pretty)
-      pair (reference, maybeName) =
-        ( case maybeName of
-            Nothing -> ""
-            Just name -> prettyName name,
-          prettyShortHash (SH.take hqLength (Reference.toShortHash reference))
-        )
-
-  -- this definition is identical to the previous one, apart from the word
-  -- "Dependencies", but undecided about whether or how to refactor
-  ListDependencies hqLength ld names missing ->
-    pure $
-      if names == mempty && missing == mempty
-        then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependencies."
-        else
-          "Dependencies of "
-            <> c (prettyLabeledDependency hqLength ld)
-            <> ":\n\n"
-            <> (P.indentN 2 (P.numberedColumn2Header num pairs))
-    where
-      num n = P.hiBlack $ P.shown n <> "."
-      header = (P.hiBlack "Reference", P.hiBlack "Name")
-      pairs =
-        header
-          : ( fmap (first c . second c) $
-                [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
-                  ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
-            )
-      p = prettyShortHash . SH.take hqLength
-      c = P.syntaxToColor
+  ListDependents ppe lds types terms ->
+    pure $ listDependentsOrDependencies ppe "Dependents" "dependents" lds types terms
+  ListDependencies ppe lds types terms ->
+    pure $ listDependentsOrDependencies ppe "Dependencies" "dependencies" lds types terms
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
   ListNamespaceDependencies ppe path' externalDependencies -> do
     let spacer = ("", "")
@@ -1782,9 +1752,11 @@ notifyUser dir = \case
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
   ShareError shareError -> pure (prettyShareError shareError)
-  ViewOnShare repoPath ->
+  ViewOnShare shareRef ->
     pure $
-      "View it on Unison Share: " <> prettyShareLink repoPath
+      "View it on Unison Share: " <> case shareRef of
+        Left repoPath -> prettyShareLink repoPath
+        Right branchInfo -> prettyRemoteBranchInfo branchInfo
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
@@ -1916,9 +1888,19 @@ notifyUser dir = \case
   NoAssociatedRemoteProjectBranch host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "isn't associated with any branch on" <> prettyURI host
+  LocalProjectDoesntExist project ->
+    pure . P.wrap $
+      prettyProjectName project <> "does not exist."
   LocalProjectBranchDoesntExist projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist."
+  LocalProjectNorProjectBranchExist project branch ->
+    pure . P.wrap $
+      "Neither project"
+        <> prettyProjectName project
+        <> "nor branch"
+        <> prettySlashProjectBranchName branch
+        <> "exists."
   RemoteProjectDoesntExist host project ->
     pure . P.wrap $
       prettyProjectName project <> "does not exist on" <> prettyURI host
@@ -1992,6 +1974,98 @@ notifyUser dir = \case
   DownloadedEntities n -> pure (P.wrap ("Downloaded" <> P.num n <> "entities."))
   UploadedEntities n -> pure (P.wrap ("Uploaded" <> P.num n <> "entities."))
   NotImplementedYet message -> pure (P.wrap ("Not implemented:" <> P.text message))
+  DraftingRelease branch ver ->
+    pure $
+      P.wrap ("😎 Great! I've created a draft release for you at " <> prettySlashProjectBranchName branch)
+        <> "."
+        <> P.newline
+        <> P.newline
+        <> P.wrap
+          ( "You can create a"
+              <> P.group (P.backticked "ReleaseNotes : Doc")
+              <> "in this branch to give an overview of the release."
+              <> "It'll automatically show up on Unison Share when you publish."
+          )
+        <> P.newline
+        <> P.newline
+        <> P.wrap
+          ( "When ready to release"
+              <> prettySemver ver
+              <> "to the world,"
+              <> IP.makeExample' IP.push
+              <> "the release to Unison Share, navigate to the release, and click \"Publish\"."
+          )
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( "if you get pulled away from drafting your release, you can always get back to it with "
+              <> IP.makeExample IP.projectSwitch [prettySlashProjectBranchName branch]
+          )
+        <> "."
+  CannotCreateReleaseBranchWithBranchCommand branch ver ->
+    pure $
+      P.wrap ("Branch names like" <> prettyProjectBranchName branch <> "are reserved for releases.")
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( "to download an existing release, try "
+              <> IP.makeExample IP.clone [prettySlashProjectBranchName branch]
+          )
+        <> "."
+        <> P.newline
+        <> P.newline
+        <> tip ("to draft a new release, try " <> IP.makeExample IP.releaseDraft [prettySemver ver])
+        <> "."
+  CalculatingDiff -> pure (P.wrap "Calculating diff...")
+  AmbiguousCloneLocal project branch -> do
+    pure $
+      P.wrap
+        ( "I'm not sure if you wanted to clone as the branch"
+            <> prettyProjectAndBranchName branch
+            <> "or as the branch"
+            <> P.group (prettyProjectAndBranchName project <> ".")
+            <> "Could you be more specific?"
+        )
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( prettySlashProjectBranchName (branch ^. #branch)
+              <> "refers to the branch"
+              <> P.group (prettyProjectAndBranchName branch <> ".")
+          )
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( prettyProjectNameSlash (project ^. #project)
+              <> "refers to"
+              <> "the branch"
+              <> P.group (prettyProjectAndBranchName project <> ".")
+          )
+  AmbiguousCloneRemote project (ProjectAndBranch currentProject branch) ->
+    pure $
+      P.wrap
+        ( "I'm not sure if you wanted to clone the branch"
+            <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
+            <> "or the project"
+            <> P.group (prettyProjectName project <> ".")
+            <> "Could you be more specific?"
+        )
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( prettySlashProjectBranchName branch
+              <> "refers to the branch"
+              <> P.group (prettyProjectAndBranchName (ProjectAndBranch currentProject branch) <> ".")
+          )
+        <> P.newline
+        <> P.newline
+        <> tip (prettyProjectNameSlash project <> "refers to the project" <> P.group (prettyProjectName project <> "."))
+  ClonedProjectBranch remote local ->
+    pure . P.wrap $
+      "Cloned"
+        <> if remote == local
+          then P.group (prettyProjectAndBranchName remote <> ".")
+          else prettyProjectAndBranchName remote <> "as" <> P.group (prettyProjectAndBranchName local <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -2299,11 +2373,20 @@ prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
 
 prettyProjectName :: ProjectName -> Pretty
 prettyProjectName =
-  P.blue . P.text . into @Text
+  P.green . P.text . into @Text
+
+-- | 'prettyProjectName' with a trailing slash.
+prettyProjectNameSlash :: ProjectName -> Pretty
+prettyProjectNameSlash project =
+  P.group (prettyProjectName project <> P.hiBlack "/")
 
 prettyProjectBranchName :: ProjectBranchName -> Pretty
 prettyProjectBranchName =
   P.blue . P.text . into @Text
+
+prettySemver :: Semver -> Pretty
+prettySemver (Semver x y z) =
+  P.group (P.num x <> "." <> P.num y <> "." <> P.num z)
 
 -- | Like 'prettyProjectBranchName', but with a leading forward slash. This is used in some outputs to
 -- encourage/advertise an unambiguous syntax for project branches, as there's an ambiguity with single-segment relative
@@ -2312,12 +2395,12 @@ prettyProjectBranchName =
 -- Not all project branches are printed such: for example, when listing all branches of a project, we probably don't
 -- need or want to prefix every one with a forward slash.
 prettySlashProjectBranchName :: ProjectBranchName -> Pretty
-prettySlashProjectBranchName =
-  P.blue . P.text . Text.cons '/' . into @Text
+prettySlashProjectBranchName branch =
+  P.group (P.hiBlack "/" <> prettyProjectBranchName branch)
 
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
-prettyProjectAndBranchName (ProjectAndBranch projectName branchName) =
-  P.blue (P.text (into @Text (These projectName branchName)))
+prettyProjectAndBranchName (ProjectAndBranch project branch) =
+  P.group (prettyProjectName project <> P.hiBlack "/" <> prettyProjectBranchName branch)
 
 prettyPathOrProjectAndBranchName :: Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
 prettyPathOrProjectAndBranchName = \case
@@ -3652,3 +3735,72 @@ prettyHumanReadableTime now time =
 
     dir True = " from now"
     dir False = " ago"
+
+prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
+prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
+  -- Special-case Unison Share since we know its project branch URLs
+  if URI.uriToString id host "" == "https://api.unison-lang.org"
+    then
+      P.hiBlack . P.text $
+        "https://share.unison-lang.org/"
+          <> into @Text remoteProject
+          <> "/code/"
+          <> into @Text remoteBranch
+    else
+      prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
+        <> " on "
+        <> P.hiBlack (P.shown host)
+
+stripProjectBranchInfo :: Path.Absolute -> Maybe Path.Path
+stripProjectBranchInfo = fmap snd . preview projectBranchPathPrism
+
+prettyAbsoluteStripProject :: Path.Absolute -> Pretty
+prettyAbsoluteStripProject path =
+  P.blue case stripProjectBranchInfo path of
+    Just p -> P.shown p
+    Nothing -> P.shown path
+
+prettyLabeledDependencies :: PPE.PrettyPrintEnv -> Set LabeledDependency -> Pretty
+prettyLabeledDependencies ppe lds =
+  P.syntaxToColor (P.sep ", " (ld <$> toList lds))
+  where
+    ld = \case
+      LD.TermReferent r -> prettyHashQualified (PPE.termNameOrHashOnly ppe r)
+      LD.TypeReference r -> "type " <> prettyHashQualified (PPE.typeNameOrHashOnly ppe r)
+
+listDependentsOrDependencies ::
+  PPE.PrettyPrintEnv ->
+  Text ->
+  Text ->
+  Set LabeledDependency ->
+  [HQ.HashQualified Name] ->
+  [HQ.HashQualified Name] ->
+  P.Pretty P.ColorText
+listDependentsOrDependencies ppe labelStart label lds types terms =
+  if null (types <> terms)
+    then prettyLabeledDependencies ppe lds <> " has no " <> P.text label <> "."
+    else P.sepNonEmpty "\n\n" [hdr, typesOut, termsOut, tip msg]
+  where
+    msg = "Try " <> IP.makeExample IP.view args <> " to see the source of any numbered item in the above list."
+    args = [P.shown (length (types <> terms))]
+    hdr = P.text labelStart <> " of: " <> prettyLabeledDependencies ppe lds
+    typesOut =
+      if null types
+        then mempty
+        else
+          P.lines $
+            [ P.indentN 2 $ P.bold "Types:",
+              "",
+              P.indentN 2 $ P.numbered (numFrom 0) $ c . prettyHashQualified <$> types
+            ]
+    termsOut =
+      if null terms
+        then mempty
+        else
+          P.lines
+            [ P.indentN 2 $ P.bold "Terms:",
+              "",
+              P.indentN 2 $ P.numbered (numFrom $ length types) $ c . prettyHashQualified <$> terms
+            ]
+    numFrom k n = P.hiBlack $ P.shown (k + n) <> "."
+    c = P.syntaxToColor

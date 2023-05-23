@@ -13,7 +13,6 @@ import Data.Configurator.Types (Config)
 import Data.IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.IO as Text.Lazy
-import Data.These (These (..))
 import qualified Ki
 import qualified System.Console.Haskeline as Line
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
@@ -41,6 +40,7 @@ import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
+import qualified Unison.CommandLine.OutputMessages as OutputMessages
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import qualified Unison.CommandLine.Welcome as Welcome
 import Unison.Parser.Ann (Ann)
@@ -83,11 +83,23 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
       promptString <-
         case preview projectBranchPathPrism currentPath of
           Nothing -> pure ((P.green . P.shown) currentPath)
-          Just (ProjectAndBranch projectId branchId) -> do
+          Just (ProjectAndBranch projectId branchId, restPath) -> do
             lift (Codebase.runTransaction codebase (Queries.loadProjectAndBranchNames projectId branchId)) <&> \case
               -- If the project branch has been deleted from sqlite, just show a borked prompt
               Nothing -> P.red "???"
-              Just (projectName, branchName) -> P.purple (P.text (into @Text (These projectName branchName)))
+              Just (projectName, branchName) ->
+                P.sep
+                  " "
+                  ( catMaybes
+                      [ Just
+                          ( OutputMessages.prettyProjectAndBranchName
+                              (ProjectAndBranch projectName branchName)
+                          ),
+                        case restPath of
+                          Path.Empty -> Nothing
+                          _ -> (Just . P.green . P.shown) restPath
+                      ]
+                  )
       line <- Line.getInputLine (P.toANSI 80 (promptString <> fromString prompt))
       case line of
         Nothing -> pure QuitI

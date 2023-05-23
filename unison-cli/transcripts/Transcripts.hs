@@ -5,7 +5,6 @@
 -}
 module Main (main) where
 
-import Data.Bifunctor (second)
 import Data.List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
