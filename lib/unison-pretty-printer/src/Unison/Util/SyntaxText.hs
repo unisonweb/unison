@@ -18,8 +18,8 @@ data Element r
   | BooleanLiteral
   | Blank
   | Var
-  | TypeReference r
-  | TermReference (Referent' r)
+  | TypeReference (HashQualified Name) r
+  | TermReference (HashQualified Name) (Referent' r)
   | Op SeqOp
   | AbilityBraces
   | -- let|handle|in|where|match|with|cases|->|if|then|else|and|or

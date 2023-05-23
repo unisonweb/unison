@@ -27,6 +27,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
+import qualified Unison.Syntax.HashQualified as HQ
 import qualified Unison.Syntax.HashQualified as HashQualified (toText)
 import qualified Unison.Syntax.Name as Name (unsafeFromText)
 import Unison.Util.AnnotatedText
@@ -77,8 +78,8 @@ convertElement = \case
   SyntaxText.BooleanLiteral -> BooleanLiteral
   SyntaxText.Blank -> Blank
   SyntaxText.Var -> Var
-  SyntaxText.TermReference r -> TermReference $ Referent.toText r
-  SyntaxText.TypeReference r -> TypeReference $ Reference.toText r
+  SyntaxText.TermReference fqn r -> TermReference (HQ.toText fqn) $ Referent.toText r
+  SyntaxText.TypeReference fqn r -> TypeReference (HQ.toText fqn) $ Reference.toText r
   SyntaxText.Op s -> Op s
   SyntaxText.AbilityBraces -> AbilityBraces
   SyntaxText.ControlKeyword -> ControlKeyword
@@ -113,10 +114,10 @@ data Element
   | BooleanLiteral
   | Blank
   | Var
-  | TypeReference UnisonHash
+  | TypeReference HashQualifiedName UnisonHash
   | DataConstructorReference UnisonHash
   | AbilityConstructorReference UnisonHash
-  | TermReference UnisonHash
+  | TermReference HashQualifiedName UnisonHash
   | Op SeqOp
   | -- | Constructor Are these even used?
     -- | Request
@@ -163,8 +164,8 @@ reference :: SyntaxSegment -> Maybe UnisonHash
 reference (Segment _ el) =
   let reference' el' =
         case el' of
-          TermReference r -> Just r
-          TypeReference r -> Just r
+          TermReference _ r -> Just r
+          TypeReference _ r -> Just r
           HashQualifier r -> Just r
           _ -> Nothing
    in el >>= reference'
@@ -208,9 +209,9 @@ segmentToHtml (Segment segmentText element) =
 
       ref =
         case el of
-          TypeReference h ->
+          TypeReference _ h ->
             Just (h, "type")
-          TermReference h ->
+          TermReference _ h ->
             Just (h, "term")
           AbilityConstructorReference h ->
             Just (h, "ability-constructor")

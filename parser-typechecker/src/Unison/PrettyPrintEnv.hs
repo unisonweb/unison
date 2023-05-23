@@ -6,10 +6,14 @@ module Unison.PrettyPrintEnv
     patternName,
     terms,
     types,
+    fqnTerms,
+    fqnTypes,
     allTermNames,
     allTypeNames,
     termName,
     typeName,
+    fqnTermName,
+    fqnTypeName,
     termNameOrHashOnly,
     typeNameOrHashOnly,
     biasTo,
@@ -56,6 +60,12 @@ terms ppe = fmap snd . listToMaybe . termNames ppe
 
 types :: PrettyPrintEnv -> Reference -> Maybe (HQ'.HashQualified Name)
 types ppe = fmap snd . listToMaybe . typeNames ppe
+
+fqnTerms :: PrettyPrintEnv -> Referent -> Maybe (HQ'.HashQualified Name)
+fqnTerms ppe = fmap fst . listToMaybe . termNames ppe
+
+fqnTypes :: PrettyPrintEnv -> Reference -> Maybe (HQ'.HashQualified Name)
+fqnTypes ppe = fmap fst . listToMaybe . typeNames ppe
 
 termNameOrHashOnly :: PrettyPrintEnv -> Referent -> HQ.HashQualified Name
 termNameOrHashOnly ppe r = maybe (HQ.fromReferent r) HQ'.toHQ $ terms ppe r
@@ -119,6 +129,18 @@ termName env r =
 typeName :: PrettyPrintEnv -> Reference -> HashQualified Name
 typeName env r =
   case types env r of
+    Nothing -> HQ.take todoHashLength (HQ.fromReference r)
+    Just name -> HQ'.toHQ name
+
+fqnTermName :: PrettyPrintEnv -> Referent -> HashQualified Name
+fqnTermName env r =
+  case fqnTerms env r of
+    Nothing -> HQ.take todoHashLength (HQ.fromReferent r)
+    Just name -> HQ'.toHQ name
+
+fqnTypeName :: PrettyPrintEnv -> Reference -> HashQualified Name
+fqnTypeName env r =
+  case fqnTypes env r of
     Nothing -> HQ.take todoHashLength (HQ.fromReference r)
     Just name -> HQ'.toHQ name
 

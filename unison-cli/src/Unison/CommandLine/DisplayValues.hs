@@ -75,16 +75,16 @@ displayTerm' elideUnit pped terms typeOf eval types = \case
   tm@(Term.Apps' (Term.Constructor' (ConstructorReference typ _)) _)
     | typ == DD.docRef -> displayDoc pped terms typeOf eval types tm
     | typ == DD.doc2Ref -> do
-        -- Pretty.get (doc.formatConsole tm)
-        let tm' =
-              Term.app
-                ()
-                (Term.ref () DD.prettyGetRef)
-                (Term.app () (Term.ref () DD.doc2FormatConsoleRef) tm)
-        tm <- eval tm'
-        case tm of
-          Nothing -> pure $ errMsg tm'
-          Just tm -> displayTerm pped terms typeOf eval types tm
+      -- Pretty.get (doc.formatConsole tm)
+      let tm' =
+            Term.app
+              ()
+              (Term.ref () DD.prettyGetRef)
+              (Term.app () (Term.ref () DD.doc2FormatConsoleRef) tm)
+      tm <- eval tm'
+      case tm of
+        Nothing -> pure $ errMsg tm'
+        Just tm -> displayTerm pped terms typeOf eval types tm
     | typ == DD.prettyAnnotatedRef -> displayPretty pped terms typeOf eval types tm
   tm@(Term.Constructor' (ConstructorReference typ _))
     | typ == DD.prettyAnnotatedRef -> displayPretty pped terms typeOf eval types tm
@@ -342,13 +342,15 @@ displayDoc pped terms typeOf evaluated types = go
 termName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 termName ppe r =
   P.syntaxToColor $
-    NP.styleHashQualified'' (NP.fmt $ S.TermReference r) name
+    NP.styleHashQualified'' (NP.fmt $ S.TermReference fqn r) name
   where
     name = PPE.termName ppe r
+    fqn = PPE.fqnTermName ppe r
 
 typeName :: PPE.PrettyPrintEnv -> Reference -> Pretty
 typeName ppe r =
   P.syntaxToColor $
-    NP.styleHashQualified'' (NP.fmt $ S.TypeReference r) name
+    NP.styleHashQualified'' (NP.fmt $ S.TypeReference fqn r) name
   where
     name = PPE.typeName ppe r
+    fqn = PPE.fqnTypeName ppe r

@@ -86,7 +86,7 @@ prettyPattern ::
   Pretty SyntaxText
 prettyPattern env ctorType namespace ref =
   styleHashQualified''
-    (fmt (S.TermReference conRef))
+    (fmt (S.TermReference fqn conRef))
     ( let strip =
             case HQ.toName namespace of
               Nothing -> id
@@ -94,6 +94,7 @@ prettyPattern env ctorType namespace ref =
        in strip (PPE.termName env conRef)
     )
   where
+    fqn = PPE.fqnTermName env conRef
     conRef = Referent.Con ref ctorType
 
 prettyDataDecl ::
@@ -127,7 +128,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
               <> fmt S.DelimiterChar " }"
     field (fname, typ) =
       P.group $
-        styleHashQualified'' (fmt (S.TypeReference r)) fname
+        styleHashQualified'' (fmt (S.TypeReference fname r)) fname
           <> fmt S.TypeAscriptionColon " :"
             `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
     header = prettyDataHeader name dd <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")

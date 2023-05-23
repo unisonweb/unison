@@ -178,8 +178,8 @@ defaultColors = \case
   ST.BooleanLiteral -> Nothing
   ST.Blank -> Nothing
   ST.Var -> Nothing
-  ST.TypeReference _ -> Nothing
-  ST.TermReference _ -> Nothing
+  ST.TypeReference {} -> Nothing
+  ST.TermReference {} -> Nothing
   ST.Op _ -> Nothing
   ST.Unit -> Nothing
   ST.AbilityBraces -> Just HiBlack

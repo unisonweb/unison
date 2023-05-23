@@ -23,6 +23,7 @@ import Unison.HashQualified (HashQualified)
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import Unison.PrettyPrintEnv.FQN (Imports, elideFQN)
 import Unison.PrettyPrintEnv.MonadPretty (MonadPretty, getPPE, runPretty, willCapture)
@@ -101,7 +102,8 @@ prettyRaw im p tp = go im p tp
       -- Would be nice to use a different SyntaxHighlights color if the reference is an ability.
       Ref' r -> do
         n <- getPPE
-        pure $ styleHashQualified'' (fmt $ S.TypeReference r) $ elideFQN im (PrettyPrintEnv.typeName n r)
+        let fqn = PrettyPrintEnv.fqnTypeName n r
+        pure $ styleHashQualified'' (fmt $ S.TypeReference fqn r) $ elideFQN im (PrettyPrintEnv.typeName n r)
       Cycle' _ _ -> pure $ fromString "bug: TypeParser does not currently emit Cycle"
       Abs' _ -> pure $ fromString "bug: TypeParser does not currently emit Abs"
       Ann' _ _ -> pure $ fromString "bug: TypeParser does not currently emit Ann"
@@ -133,7 +135,7 @@ prettyRaw im p tp = go im p tp
           case fst of
             Var' v
               | Var.name v == "()" ->
-                  PP.parenthesizeIf (p >= 10) <$> arrows True True rest
+                PP.parenthesizeIf (p >= 10) <$> arrows True True rest
             _ ->
               PP.parenthesizeIf (p >= 0)
                 <$> ((<>) <$> go im 0 fst <*> arrows False False rest)
@@ -207,7 +209,7 @@ prettySignaturesST ppe ts =
   PP.align . runPretty ppe $ traverse (\(r, hq, typ) -> (name r hq,) <$> sig typ) ts
   where
     name r hq =
-      styleHashQualified'' (fmt $ S.TermReference r) hq
+      styleHashQualified'' (fmt $ S.TermReference (PPE.fqnTermName ppe r) r) hq
     sig typ = do
       t <- pretty0 Map.empty (-1) typ
       let col = fmt S.TypeAscriptionColon ": "
