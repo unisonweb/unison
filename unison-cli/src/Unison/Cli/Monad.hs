@@ -28,6 +28,10 @@ module Unison.Cli.Monad
     returnEarlyWithoutOutput,
     haltRepl,
 
+    -- * modal ucm
+    mkCliMachine,
+    call,
+
     -- * Changing the current directory
     cd,
     popd,
@@ -68,6 +72,7 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
+import Unison.Cli.Machine (Machine (..), MachineResult)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
@@ -142,7 +147,7 @@ data ReturnType a
   = Success a
   | Continue
   | HaltRepl
-  deriving stock (Eq, Show)
+  | forall s o. Call (o -> IO (ReturnType a, LoopState)) (Machine IO s o) s
 
 -- | The command-line app monad environment.
 --
@@ -231,6 +236,8 @@ runCli env s0 (Cli action) =
 feed :: (a -> LoopState -> IO (ReturnType b, LoopState)) -> (ReturnType a, LoopState) -> IO (ReturnType b, LoopState)
 feed k = \case
   (Success x, s) -> k x s
+  (Call callK machine initialState, s) ->
+    pure (Call (feed k <=< callK) machine initialState, s)
   (Continue, s) -> pure (Continue, s)
   (HaltRepl, s) -> pure (HaltRepl, s)
 
@@ -264,6 +271,14 @@ returnEarlyWithoutOutput =
 -- | Stop processing inputs from the user.
 haltRepl :: Cli a
 haltRepl = short HaltRepl
+
+-- | Call out to a @Machine@, returning its result
+--
+-- Useful for implementing different modes of input (e.g. prompts,
+-- wizards, etc)
+call :: Machine IO s o -> s -> Cli o
+call machine initialState = Cli \_env k s ->
+  pure (Call (\o -> k o s) machine initialState, s)
 
 -- | Wrap a continuation with 'Cli'.
 --
@@ -415,3 +430,23 @@ runTransaction action = do
 runEitherTransaction :: Sqlite.Transaction (Either Output a) -> Cli a
 runEitherTransaction action =
   runTransaction action & onLeftM returnEarly
+
+-- | Make a @Machine@ with a transition function running @Cli@
+mkCliMachine ::
+  forall input output.
+  -- | @Cli@ reader environment
+  Env ->
+  -- | How to parse input
+  (LoopState -> IO input) ->
+  -- | @Cli@ transition function
+  (input -> Cli output) ->
+  -- | Map the @Cli@ result to a @MachineResult@
+  (LoopState -> ReturnType output -> MachineResult LoopState IO output) ->
+  Machine IO LoopState output
+mkCliMachine env parseInput transition handleResult =
+  Machine
+    { parseInput = parseInput,
+      transition = \state input -> do
+        (retType, state) <- runCli env state (transition input)
+        pure (handleResult state retType)
+    }
