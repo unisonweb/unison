@@ -25,10 +25,6 @@
 (library (unison primops)
   (export
     unison-FOp-internal.dataTag
-    unison-FOp-Bytes.decodeNat16be
-    unison-FOp-Bytes.decodeNat32be
-    unison-FOp-Bytes.decodeNat64be
-    unison-FOp-Bytes.fromBase32
     unison-FOp-Char.toText
     ; unison-FOp-Code.dependencies
     ; unison-FOp-Code.serialize
@@ -187,7 +183,6 @@
     unison-POp-ITOF
 
     unison-POp-ADDN
-    unison-POp-ADDF
     unison-POp-ANDN
     unison-POp-BLDS
     unison-POp-CATS
@@ -248,8 +243,6 @@
     unison-POp-UPKB
     unison-POp-PAKB
     unison-POp-ADDI
-    unison-POp-DIVI
-    unison-POp-EQLI
     unison-POp-MODI
     unison-POp-LEQI
     unison-POp-POWN
@@ -352,9 +345,6 @@
      (lambda (i) (chunked-bytes-ref bs i))))
 
   (define unison-POp-ADDI +)
-  (define unison-POp-DIVI /)
-  (define (unison-POp-EQLI a b)
-    (if (= a b) 1 0))
   (define unison-POp-MODI mod)
   (define (unison-POp-LEQI a b) (bool (<= a b)))
   (define unison-POp-POWN expt)
@@ -367,7 +357,6 @@
 
   ; Core implemented primops, upon which primops-in-unison can be built.
   (define (unison-POp-ADDN m n) (fx+ m n))
-  (define (unison-POp-ADDF m n) (+ m n))
   (define (unison-POp-ANDN m n) (fxand m n))
   (define unison-POp-BLDS
     (lambda args-list
@@ -552,39 +541,6 @@
       (put-bytevector p (chunked-bytes->bytes bs))
       (flush-output-port p)
       (sum 1 #f)))
-
-  (define (unison-FOp-Bytes.decodeNat16be bs)
-    (if (< (chunked-bytes-length bs) 2)
-      (sum 0)
-      (let ([ck (sequence-ref (in-chunked-bytes-chunks bs) 0)])
-        (sum 1
-             (bytevector-u16-ref ck 0 'big)
-             (chunked-bytes-drop bs 2)))))
-
-  (define (unison-FOp-Bytes.decodeNat32be bs)
-    (if (< (chunked-bytes-length bs) 4)
-        (sum 0)
-        (let ([ck (sequence-ref (in-chunked-bytes-chunks bs) 0)])
-          (sum 1
-               (bytevector-u32-ref ck 0 'big)
-               (chunked-bytes-drop bs 4)))))
-
-  (define (unison-FOp-Bytes.decodeNat64be bs)
-    (if (< (chunked-bytes-length bs) 8)
-      (sum 0)
-      (let ([ck (sequence-ref (in-chunked-bytes-chunks bs) 0)])
-        (sum 1
-             (bytevector-u64-ref ck 0 'big)
-             (chunked-bytes-drop bs 8)))))
-
-  (define (unison-FOp-Bytes.fromBase32 bs)
-    (guard (e [else (sum 0 (exception->string e))])
-      (sum 1
-        (bytes->chunked-bytes
-          (base32-string->ibytevector b32d
-            (bytevector->string/utf-8
-              (chunked-bytes->bytes bs)))))))
-
 
   (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
 
