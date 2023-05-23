@@ -81,12 +81,7 @@
                    "decode-syntax: unimplemented case: ~a"
                    dfn))]))])))
 
-(define decode-syntax0 (make-syntax-decoder))
-
-(define (decode-syntax v)
-  (let ([stx (decode-syntax0 v)])
-    (display (format "~a\n\n" stx))
-    stx))
+(define decode-syntax (make-syntax-decoder))
 
 (define-syntax make-ref-decoder
   (lambda (stx)
