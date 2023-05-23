@@ -16,15 +16,10 @@ test =
             let sql = "   foo :a\n   'foo''foo' :b\n   \"foo\"\"foo\" $c\n   `foo``foo`   \n[foo] $d  "
             let expected =
                   Right
-                    [ Left
-                        ( "foo ? 'foo''foo' ? \"foo\"\"foo\" ? `foo``foo` ",
-                          [ FieldParam "a",
-                            FieldParam "b",
-                            FieldParam "c"
-                          ]
-                        ),
-                      Right "foo",
-                      Left (" ?", [FieldParam "d"])
+                    [ Left ("foo ? 'foo''foo' ? \"foo\"\"foo\" ", [FieldParam "a", FieldParam "b"]),
+                      Right "c",
+                      Left (" `foo``foo` [foo] ", []),
+                      Right "d"
                     ]
             let actual = internalParseSql sql
             expectEqual expected actual,

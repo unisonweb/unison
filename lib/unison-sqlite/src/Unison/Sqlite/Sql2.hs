@@ -68,10 +68,11 @@ params__ (Sql2 _ x) = x
 --
 -- There are three valid syntaxes for interpolating a variable:
 --
---   * @:colon@, or @\$dollar@, which denote a single-field variable
+--   * @:colon@, which denotes a single-field variable
 --   * @\@at@, followed by 1+ bare @\@@, which denotes a multi-field variable
+--   * @\$dollar@, which denotes an entire 'Sql2' fragment
 --
--- As an example of the latter, consider a variable @plonk@ with a two-field 'Sqlite.Simple.ToRow' instance. A query
+-- As an example of the second, consider a variable @plonk@ with a two-field 'Sqlite.Simple.ToRow' instance. A query
 -- that interpolates @plonk@ might look like:
 --
 -- @
@@ -83,12 +84,10 @@ params__ (Sql2 _ x) = x
 -- |]
 -- @
 --
--- A 'Sql2' can also be interpolated into another with @[bracket]@ syntax, where the bracketed thing is a Haskell
--- variable of type 'Sql2. For example,
+-- As an example of the third,
 --
 -- @
--- let foo = [sql2| bar |]
--- in [sql2| [foo] baz |]
+-- let foo = [sql2| bar |] in [sql2| $foo baz |]
 -- @
 --
 -- is equivalent to
@@ -192,14 +191,14 @@ internalParseSql input =
 --
 -- Example:
 --
---   [sql| one [two] :three [four] |]
---        ^    ^    ^       ^     ^
---        |    |    |       |     |
---        |    |    |       |     ` OuterLump " " []
---        |    |    |       |
---        |    |    |       ` InnerLump "four"
---        |    |    |
---        |    |    ` OuterLump " ? " ["three"]
+--   [sql| one $two :three $four |]
+--        ^    ^   ^       ^    ^
+--        |    |   |       |    |
+--        |    |   |       |    ` OuterLump " " []
+--        |    |   |       |
+--        |    |   |       ` InnerLump "four"
+--        |    |   |
+--        |    |   ` OuterLump " ? " ["three"]
 --        |    |
 --        |    ` InnerLump "two"
 --        |
@@ -207,7 +206,7 @@ internalParseSql input =
 --
 data Lump
   = OuterLump !Text.Builder ![Param]
-  | InnerLump !Text -- [foo] ==> InnerLump "foo"
+  | InnerLump !Text -- \$foo ==> InnerLump "foo"
 
 data Param
   = FieldParam !Text -- :foo ==> FieldParam "foo"
@@ -241,9 +240,8 @@ parser = do
                   pure (RowParam name count' : params)
                 _ -> fail ("Invalid query: encountered unnamed-@ without a preceding named-@, like `@foo`")
               else \params -> pure (RowParam param1 1 : params)
-    BracketParam param -> inner param
     ColonParam param -> field param
-    DollarParam param -> field param
+    DollarParam param -> inner param
     Whitespace -> outer (Text.Builder.char ' ') pure
     EndOfInput -> pure ()
   where
@@ -317,7 +315,6 @@ data Fragment
   = Comment -- we toss these, so we don't bother remembering the contents
   | NonParam Text.Builder
   | AtParam Text.Builder -- builder may be empty
-  | BracketParam Text.Builder -- builder is non-empty
   | ColonParam Text.Builder -- builder is non-empty
   | DollarParam Text.Builder -- builder is non-empty
   | Whitespace
@@ -330,16 +327,28 @@ fragmentParser =
       NonParam <$> betwixt "string" '\'',
       NonParam <$> betwixt "identifier" '"',
       NonParam <$> betwixt "identifier" '`',
+      NonParam <$> bracketedIdentifierP,
       Comment <$ lineCommentP,
       Comment <$ blockCommentP,
       ColonParam <$> colonParamP,
       AtParam <$> atParamP,
-      BracketParam <$> bracketParamP,
       DollarParam <$> dollarParamP,
       NonParam <$> unstructuredP,
       EndOfInput <$ Megaparsec.eof
     ]
   where
+    -- It's not clear if there is *no* syntax for escaping a literal ] character from an identifier between brackets
+    -- that looks like [this], but the documentation here doesn't mention any, and (brief) experimentation at the
+    -- sqlite3 repl didn't reveal any.
+    --
+    -- So this parser is simple: left bracket, stuff, right bracket.
+    bracketedIdentifierP :: P Text.Builder
+    bracketedIdentifierP = do
+      x <- char '['
+      ys <- Megaparsec.takeWhile1P (Just "identifier") (/= ']')
+      z <- char ']'
+      pure (x <> Text.Builder.text ys <> z)
+
     lineCommentP :: P ()
     lineCommentP = do
       _ <- Megaparsec.string "--"
@@ -382,15 +391,6 @@ fragmentParser =
     atParamP = do
       _ <- Megaparsec.char '@'
       haskellVariableP <|> pure mempty
-
-    -- Although [this] is an identifier in SQLite (like "this"), no one uses that syntax, so we repurpose it for
-    -- query interpolation.
-    bracketParamP :: P Text.Builder
-    bracketParamP = do
-      _ <- char '['
-      param <- haskellVariableP
-      _ <- char ']'
-      pure param
 
     colonParamP :: P Text.Builder
     colonParamP = do

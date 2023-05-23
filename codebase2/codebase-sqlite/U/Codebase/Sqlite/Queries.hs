@@ -3272,7 +3272,7 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
           depth
         FROM
           t
-        [whereClause]
+        $whereClause
         ORDER BY
           depth
         LIMIT 1
@@ -3282,12 +3282,12 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
     whereClause =
       let clauses =
             foldr
-              (\a b -> [sql2| [a] AND [b] |])
+              (\a b -> [sql2| $a AND $b |])
               [sql2| TRUE |]
               [ [sql2| remote_project_id IS NOT NULL |],
                 selfRemoteFilter
               ]
-       in [sql2| WHERE [clauses] |]
+       in [sql2| WHERE $clauses |]
 
     selfRemoteFilter = case loadRemoteBranchFlag of
       IncludeSelfRemote -> [sql2| TRUE |]
