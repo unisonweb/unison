@@ -168,11 +168,11 @@ instance ToJSON Element where
     BooleanLiteral -> object ["tag" .= String "BooleanLiteral"]
     Blank -> object ["tag" .= String "Blank"]
     Var -> object ["tag" .= String "Var"]
-    TypeReference r -> object ["tag" .= String "TypeReference", "contents" .= r]
+    TypeReference fqn r -> object ["tag" .= String "TypeReference", "fqn" .= fqn, "contents" .= r]
     DataConstructorReference r ->
       object ["tag" .= String "DataConstructorReference", "contents" .= r]
     AbilityConstructorReference r -> object ["tag" .= String "AbilityConstructorReference", "contents" .= r]
-    TermReference r -> object ["tag" .= String "TermReference", "contents" .= r]
+    TermReference fqn r -> object ["tag" .= String "TermReference", "fqn" .= fqn, "contents" .= r]
     Op s -> object ["tag" .= String "Op", "contents" .= s]
     AbilityBraces -> object ["tag" .= String "AbilityBraces"]
     ControlKeyword -> object ["tag" .= String "ControlKeyword"]
@@ -205,10 +205,10 @@ instance FromJSON Element where
       "BooleanLiteral" -> pure BooleanLiteral
       "Blank" -> pure Blank
       "Var" -> pure Var
-      "TypeReference" -> TypeReference <$> obj .: "contents"
+      "TypeReference" -> TypeReference <$> obj .: "fqn" <*> obj .: "contents"
       "DataConstructorReference" -> DataConstructorReference <$> obj .: "contents"
       "AbilityConstructorReference" -> AbilityConstructorReference <$> obj .: "contents"
-      "TermReference" -> TermReference <$> obj .: "contents"
+      "TermReference" -> TermReference <$> obj .: "fqn" <*> obj .: "contents"
       "Op" -> Op <$> obj .: "contents"
       "AbilityBraces" -> pure AbilityBraces
       "ControlKeyword" -> pure ControlKeyword
