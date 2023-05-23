@@ -3230,10 +3230,10 @@ loadRemoteProjectBranchGen ::
   ProjectBranchId ->
   Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId, Int64))
 loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
-  queryMaybeRow theSql (remoteUri, pid, bid, remoteUri)
+  queryMaybeRow2 theSql
   where
     theSql =
-      [sql|
+      [sql2|
         WITH RECURSIVE t AS (
           SELECT
             pb.project_id,
@@ -3247,10 +3247,10 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
             LEFT JOIN project_branch_parent AS pbp USING (project_id, branch_id)
             LEFT JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = pb.project_id
               AND pbrm.local_branch_id = pb.branch_id
-              AND pbrm.remote_host = ?
+              AND pbrm.remote_host = :remoteUri
           WHERE
-            pb.project_id = ?
-            AND pb.branch_id = ?
+            pb.project_id = :pid
+            AND pb.branch_id = :bid
           UNION ALL
           SELECT
             t.project_id,
@@ -3265,7 +3265,7 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
             AND pbp.branch_id = t.parent_branch_id
           LEFT JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = t.project_id
           AND pbrm.local_branch_id = t.parent_branch_id
-          AND pbrm.remote_host = ?
+          AND pbrm.remote_host = :remoteUri
         )
         SELECT
           remote_project_id,
@@ -3273,26 +3273,26 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
           depth
         FROM
           t
-        $whereClause
+        [whereClause]
         ORDER BY
           depth
         LIMIT 1
       |]
 
-    whereClause :: Text
+    whereClause :: Sql2
     whereClause =
       let clauses =
             foldr
-              (\a b -> [trimming| $a AND $b |])
-              [trimming| TRUE |]
-              [ [trimming| remote_project_id IS NOT NULL |],
+              (\a b -> [sql2| [a] AND [b] |])
+              [sql2| TRUE |]
+              [ [sql2| remote_project_id IS NOT NULL |],
                 selfRemoteFilter
               ]
-       in [trimming| WHERE $clauses |]
+       in [sql2| WHERE [clauses] |]
 
     selfRemoteFilter = case loadRemoteBranchFlag of
-      IncludeSelfRemote -> [trimming| TRUE |]
-      ExcludeSelfRemote -> [trimming| depth > 0 |]
+      IncludeSelfRemote -> [sql2| TRUE |]
+      ExcludeSelfRemote -> [sql2| depth > 0 |]
 
 loadRemoteProject :: RemoteProjectId -> URI -> Transaction (Maybe RemoteProject)
 loadRemoteProject rpid host =

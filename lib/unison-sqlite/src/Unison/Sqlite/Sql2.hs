@@ -32,6 +32,14 @@ data Sql2 = Sql2
   }
   deriving stock (Show)
 
+-- Template haskell, don't ask.
+
+query__ :: Sql2 -> Text
+query__ (Sql2 x _) = x
+
+params__ :: Sql2 -> [Sqlite.Simple.SQLData]
+params__ (Sql2 _ x) = x
+
 -- | A quasi-quoter for producing a 'Sql2' from a SQL query string, using the Haskell variables in scope for each named
 -- parameter.
 --
@@ -74,6 +82,20 @@ data Sql2 = Sql2
 --     AND other = \@
 -- |]
 -- @
+--
+-- A 'Sql2' can also be interpolated into another with @[bracket]@ syntax, where the bracketed thing is a Haskell
+-- variable of type 'Sql2. For example,
+--
+-- @
+-- let foo = [sql2| bar |]
+-- in [sql2| [foo] baz |]
+-- @
+--
+-- is equivalent to
+--
+-- @
+-- [sql2| bar baz |]
+-- @
 sql2 :: TH.QuasiQuoter
 sql2 = TH.QuasiQuoter sql2QQ undefined undefined undefined
 
@@ -82,39 +104,40 @@ sql2QQ input =
   case internalParseSql (Text.pack input) of
     Left err -> fail err
     Right lumps -> do
-      boingo <-
-        for lumps \case
-          Left (s, params) -> do
-            params1 <- traverse ff params
-            s1 <- TH.lift s
-            pure (s1, TH.ListE params1)
-          Right lump2 -> gg lump2
-      let (boingo1, boingo2) = unzip boingo
+      (sqlPieces, paramsPieces) <- unzip <$> for lumps (either outerLump innerLump)
       [|
         Sql2
-          (fold $(pure (TH.ListE boingo1)))
-          (fold (fold $(pure (TH.ListE boingo2))))
+          (fold $(pure (TH.ListE sqlPieces)))
+          (fold $(pure (TH.ListE paramsPieces)))
         |]
   where
-    ff :: Param -> TH.Q TH.Exp
-    ff = \case
-      FieldParam var ->
-        TH.lookupValueName (Text.unpack var) >>= \case
-          Nothing -> fail ("Not in scope: " ++ Text.unpack var)
-          Just name -> [|[Sqlite.Simple.toField $(TH.varE name)]|]
-      RowParam var _count ->
-        TH.lookupValueName (Text.unpack var) >>= \case
-          Nothing -> fail ("Not in scope: " ++ Text.unpack var)
-          Just name -> [|Sqlite.Simple.toRow $(TH.varE name)|]
+    -- Take an outer lump like
+    --
+    --   ("foo ? ? ?", [FieldParam "bar", RowParam "qux" 2])
+    --
+    -- and resolve each parameter (field or row) to its corresponding list of SQLData, ultimately returning a pair like
+    --
+    --   ("foo ? ? ?", fold [[SQLInteger 5], [SQLInteger 6, SQLInteger 7]]) :: (Text, [SQLData])
+    outerLump :: (Text, [Param]) -> TH.Q (TH.Exp, TH.Exp)
+    outerLump (s, params) =
+      (,) <$> TH.lift s <*> [|fold $(TH.ListE <$> for params paramToSqlData)|]
+      where
+        paramToSqlData :: Param -> TH.Q TH.Exp
+        paramToSqlData = \case
+          FieldParam var ->
+            TH.lookupValueName (Text.unpack var) >>= \case
+              Nothing -> fail ("Not in scope: " ++ Text.unpack var)
+              Just name -> [|[Sqlite.Simple.toField $(TH.varE name)]|]
+          RowParam var _count ->
+            TH.lookupValueName (Text.unpack var) >>= \case
+              Nothing -> fail ("Not in scope: " ++ Text.unpack var)
+              Just name -> [|Sqlite.Simple.toRow $(TH.varE name)|]
 
-    gg :: Text -> TH.Q (TH.Exp, TH.Exp)
-    gg var =
+    innerLump :: Text -> TH.Q (TH.Exp, TH.Exp)
+    innerLump var =
       TH.lookupValueName (Text.unpack var) >>= \case
         Nothing -> fail ("Not in scope: " ++ Text.unpack var)
-        Just name -> do
-          honk <- [|query $(TH.varE name)|]
-          plonk <- [|params $(TH.varE name)|]
-          pure (honk, plonk)
+        Just name -> (,) <$> [|query__ $(TH.varE name)|] <*> [|params__ $(TH.varE name)|]
 
 -- | Parse a SQL string, and return the list of lumps, where each Left is a prettefied SQL string along with the named
 -- parameters it contains, and each Right is the name of a query to be interpolated.
@@ -132,7 +155,7 @@ internalParseSql input =
 
 -- Parser state.
 --
--- A simple query (without *query* interpolation) is a single "outer lump", which contains:
+-- A simple query (without query interpolation) is a single "outer lump", which contains:
 --
 --   * The SQL parsed so far
 --   * A list of parameter names in reverse order
