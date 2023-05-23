@@ -132,7 +132,7 @@ jobs:
 
   build_macos:
     name: "build_macos"
-    runs-on: macos-11
+    runs-on: macos-12
     env:
       UNISON_BASE_PATH: "${{inputs.share_base_path}}"
     steps:
@@ -151,11 +151,11 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-0_macOS-11.0-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          key: stack-0_macOS-12-${{hashFiles('stack.yaml')}}-${{github.sha}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: |
-            stack-0_macOS-11.0-${{hashFiles('stack.yaml')}}
-            stack-0_macOS-11.0
+            stack-0_macOS-12-${{hashFiles('stack.yaml')}}
+            stack-0_macOS-12
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
       - uses: actions/cache@v3
@@ -169,8 +169,8 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-work-3_macOS-11.0-${{github.sha}}
-          restore-keys: stack-work-3_macOS-11.0
+          key: stack-work-3_macOS-12-${{github.sha}}
+          restore-keys: stack-work-3_macOS-12
 
       - name: install stack (macOS)
         working-directory: ${{ github.workspace }}
