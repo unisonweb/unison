@@ -485,6 +485,20 @@ viewByPrefix =
         . traverse parseHashQualifiedName
     )
 
+sfind :: InputPattern
+sfind =
+  InputPattern "sfind" ["find.structured"] I.Visible [(Required, definitionQueryArg)] msg parse
+  where
+    parse q = pure $ Input.StructuredFindI Input.FindLocal q
+    msg = makeExample sfind ["p"] <> " finds definitions containing the pattern `p` in the current namespace."
+
+sfindReplace :: InputPattern
+sfindReplace =
+  InputPattern "sfind.replace" ["rewrite"] I.Visible [(Required, definitionQueryArg)] msg parse
+  where
+    parse q = pure $ Input.StructuredFindReplaceI q
+    msg = makeExample sfindReplace ["r"] <> " rewrites definitions in the current file."
+
 find :: InputPattern
 find = find' "find" Input.FindLocal
 
@@ -2572,6 +2586,8 @@ validInputs =
       findShallow,
       findVerbose,
       findVerboseAll,
+      sfind,
+      sfindReplace,
       forkLocal,
       gist,
       help,

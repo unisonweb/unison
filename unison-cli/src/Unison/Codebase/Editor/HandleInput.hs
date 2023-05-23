@@ -993,6 +993,8 @@ loop e = do
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
+            StructuredFindI fscope ws -> undefined fscope ws -- handleStructuredFindI fscope ws input
+            StructuredFindReplaceI ws -> undefined ws -- handleStructuredFindReplaceI ws input
             ResolveTypeNameI path' -> do
               description <- inputDescription input
               path <- Cli.resolveSplit' path'
@@ -1595,6 +1597,8 @@ inputDescription input =
     FindI {} -> wat
     FindPatchI {} -> wat
     FindShallowI {} -> wat
+    StructuredFindI {} -> wat
+    StructuredFindReplaceI {} -> wat
     GistI {} -> wat
     HistoryI {} -> wat
     LinksI {} -> wat

@@ -45,11 +45,15 @@ unitRef = lookupDeclRef "Unit"
 pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
-
 testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
 failureRef, ioFailureRef, tlsFailureRef, arrayFailureRef :: Reference
 exceptionRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
-isPropagatedRef, isTestRef :: Reference
+isPropagatedRef, isTestRef, termSearchRef, termRewriteRef :: Reference
+
+termSearchRef = lookupDeclRef "TermSearch"
+
+termRewriteRef = lookupDeclRef "TermRewrite"
+
 isPropagatedRef = lookupDeclRef "IsPropagated"
 
 isTestRef = lookupDeclRef "IsTest"
@@ -103,7 +107,7 @@ constructorId ref name = do
 
 noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId, bufferModeNoBufferingId, bufferModeLineBufferingId, bufferModeBlockBufferingId, bufferModeSizedBlockBufferingId :: ConstructorId
-seqViewEmpty, seqViewElem :: ConstructorId
+seqViewEmpty, seqViewElem, termSearchId, termRewriteId :: ConstructorId
 noneId = Maybe.fromJust $ constructorId optionalRef "Optional.None"
 someId = Maybe.fromJust $ constructorId optionalRef "Optional.Some"
 
@@ -134,6 +138,10 @@ linkTypeId = Maybe.fromJust $ constructorId linkRef "Link.Type"
 eitherRightId = Maybe.fromJust $ constructorId eitherRef "Either.Right"
 
 eitherLeftId = Maybe.fromJust $ constructorId eitherRef "Either.Left"
+
+termRewriteId = Maybe.fromJust $ constructorId termRewriteRef "TermRewrite.TermRewrite"
+
+termSearchId = Maybe.fromJust $ constructorId termSearchRef "TermSearch.TermRewrite"
 
 seqViewEmpty = Maybe.fromJust $ constructorId seqViewRef "SeqView.VEmpty"
 
@@ -186,7 +194,9 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.ArithmeticFailure", arithmeticFailure),
           (v "io2.MiscFailure", miscFailure),
           (v "io2.STMFailure", stmFailure),
-          (v "io2.ThreadKilledFailure", threadKilledFailure)
+          (v "io2.ThreadKilledFailure", threadKilledFailure),
+          (v "TermRewrite", termRewrite),
+          (v "TermSearch", termSearch)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
@@ -250,6 +260,33 @@ builtinDataDecls = rs1 ++ rs
               (var "b" `arr` Type.apps' (var "Either") [var "a", var "b"])
           )
         ]
+    termSearch = 
+      DataDeclaration
+        (Unique "fb017a9545bd5ca6f8b97372595dab4391ba930c2682bd5045e2897b1969db72")
+        ()
+        [v "a"]
+        [ ( (),
+            v "TermSearch.TermSearch",
+            Type.foralls
+              ()
+              [v "a"]
+              (var "a" `arr` Type.apps' (var "TermSearch.TermSearch") [var "a"])
+          )
+        ]
+    termRewrite = 
+      DataDeclaration
+        (Unique "ae88cbb2ddeccb49ad6fe1f349591582bc644db96ebf242b4c9c94a0a2497bc2")
+        ()
+        [v "a", v "b"]
+        [ ( (),
+            v "TermRewrite.TermRewrite",
+            Type.foralls
+              ()
+              [v "a", v "b"]
+              (var "a" `arr` (var "b" `arr` Type.apps' (var "TermSearch.Rewrite") [var "a", var "b"]))
+          )
+        ]
+
     isTest =
       DataDeclaration
         (Unique "e6dca08b40458b03ca1660cfbdaecaa7279b42d18257898b5fd1c34596aac36f")
