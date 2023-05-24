@@ -48,7 +48,7 @@ import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.InputPattern as Input
 import Unison.DataDeclaration (Decl)
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
@@ -64,7 +64,7 @@ import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
-import Unison.Server.SearchResult' (SearchResult')
+import Unison.Server.SearchResult2 (SearchResult')
 import qualified Unison.Share.Sync.Types as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Symbol (Symbol)

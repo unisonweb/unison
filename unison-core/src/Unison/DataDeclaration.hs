@@ -53,7 +53,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
-import qualified Unison.Referent' as Referent'
+import qualified Unison.ReferentG as Referent'
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)

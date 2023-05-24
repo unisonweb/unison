@@ -21,7 +21,7 @@ import Language.LSP.Types.Lens
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.LSP.FileAnalysis
 import qualified Unison.LSP.Queries as LSPQ
 import Unison.LSP.Types
@@ -40,7 +40,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
-import qualified Unison.Syntax.HashQualified' as HQ' (toText)
+import qualified Unison.Syntax.HashQualified2 as HQ' (toText)
 import qualified Unison.Syntax.Name as Name (fromText, toText)
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Util.Monoid as Monoid

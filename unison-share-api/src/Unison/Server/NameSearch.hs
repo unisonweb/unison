@@ -4,7 +4,7 @@ import Control.Lens
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (Reference)

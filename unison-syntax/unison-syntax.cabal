@@ -20,7 +20,7 @@ library
       Unison.Lexer.Pos
       Unison.Parser.Ann
       Unison.Syntax.HashQualified
-      Unison.Syntax.HashQualified'
+      Unison.Syntax.HashQualified2
       Unison.Syntax.Lexer
       Unison.Syntax.Name
       Unison.Syntax.Parser

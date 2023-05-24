@@ -88,7 +88,7 @@ import Data.Sequence (Seq ((:<|), (:|>)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
 import qualified GHC.Exts as GHC
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.Name (Convert (..), Name, Parse)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (NameSegment))

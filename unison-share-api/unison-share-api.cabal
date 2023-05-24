@@ -36,7 +36,7 @@ library
       Unison.Server.Orphans
       Unison.Server.QueryResult
       Unison.Server.SearchResult
-      Unison.Server.SearchResult'
+      Unison.Server.SearchResult2
       Unison.Server.Share.Definitions
       Unison.Server.Share.RenderDoc
       Unison.Server.Syntax
