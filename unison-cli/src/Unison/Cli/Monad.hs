@@ -31,6 +31,7 @@ module Unison.Cli.Monad
     -- * modal ucm
     mkCliMachine,
     call,
+    callMaybe,
 
     -- * Changing the current directory
     cd,
@@ -279,6 +280,13 @@ haltRepl = short HaltRepl
 call :: Machine IO s o -> s -> Cli o
 call machine initialState = Cli \_env k s ->
   pure (Call (\o -> k o s) machine initialState, s)
+
+-- | treat Nothing as eof
+callMaybe :: Machine IO s (Maybe o) -> s -> Cli o
+callMaybe machine initialState = do
+  call machine initialState >>= \case
+    Nothing -> haltRepl
+    Just x -> pure x
 
 -- | Wrap a continuation with 'Cli'.
 --

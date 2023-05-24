@@ -52,19 +52,12 @@ promptBool prompt = handleCtrlC do
       'n' -> pure (Just False)
       _ -> promptBool prompt
 
-lineMachine :: Machine IO () ()
-lineMachine = Machine (\() -> runInputT defaultSettings (parseLine (pure "> "))) \() mstr -> do
-  case mstr of
-    Nothing -> pure (Return () ())
-    Just str -> do
-      putStrLn str
-      case str of
-        "ask" -> pure (Call (\b -> print b >> pure (Continue ())) boolMachine ())
-        _ -> pure (Continue ())
-
-boolMachine :: Machine IO () Bool
-boolMachine = Machine (\() -> runInputT defaultSettings (promptBool "BoolMachine > ")) \() mbool -> do
-  case mbool of
-    Nothing -> pure (Return () False)
-    Just bool -> do
-      pure (Return () bool)
+confirmationMachine :: Machine IO () (Maybe Bool)
+confirmationMachine =
+  Machine
+    (\() -> runInputT defaultSettings (promptBool ""))
+    \() mbool -> do
+      case mbool of
+        Nothing -> pure (Return () Nothing)
+        Just bool -> do
+          pure (Return () (Just bool))
