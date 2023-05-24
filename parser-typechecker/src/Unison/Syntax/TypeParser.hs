@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-forall-identifier #-}
 
 module Unison.Syntax.TypeParser where
 
