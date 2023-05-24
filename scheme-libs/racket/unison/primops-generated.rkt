@@ -150,7 +150,6 @@
 (define runtime-namespace
   (let ([ns (variable-reference->namespace (#%variable-reference))])
     (namespace-require ''#%kernel ns)
-    (namespace-require 'unison/builtin-generated ns)
     ns))
 
 (define runtime-module-map (make-hash))
