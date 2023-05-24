@@ -32,6 +32,7 @@ import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.Doc as Doc
 import qualified Unison.Server.NameSearch.Sqlite as SqliteNameSearch
 import Unison.Server.Types
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.HashQualified as HQ (toText)
 import Unison.Util.Pretty (Width)
@@ -57,6 +58,7 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
   result <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- resolveCausalHashV2 (Just rootHash)
     shallowBranch <- V2Causal.value shallowRoot
+    perspectiveQuery <- addNameIfHashOnly perspectiveQuery
     Backend.relocateToNameRoot perspective perspectiveQuery shallowBranch >>= \case
       Left err -> pure $ Left err
       Right (namesRoot, locatedQuery) -> pure $ Right (shallowRoot, namesRoot, locatedQuery)
@@ -104,6 +106,14 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
+
+addNameIfHashOnly :: HQ.HashQualified Name -> Sqlite.Transaction (HQ.HashQualified Name)
+addNameIfHashOnly hq = case HQ.toName hq of
+  Nothing -> do
+    let hash = HQ.toHash hq
+    name <- Sqlite.getNameForHash hash
+    pure $ HQ.fromMaybeHash hash name
+  Just _ -> pure hq
 
 renderDocRefs ::
   PPEDBuilder ->

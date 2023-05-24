@@ -2197,9 +2197,9 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
 -- Note: this returns the first name it finds by searching in order of:
 -- Names in the current namespace, then names in the current namespace's dependencies, then
 -- through the current namespace's dependencies' dependencies, etc.
-recursiveTermNameSearch :: BranchHashId -> Referent.TextReferent -> Transaction [ReversedName]
+recursiveTermNameSearch :: BranchHashId -> Referent.TextReferent -> Transaction (Maybe ReversedName)
 recursiveTermNameSearch bhId ref = do
-  queryListColCheck2
+  queryMaybeColCheck2
     [sql2|
         -- Recursive table containing all transitive deps
         WITH RECURSIVE
@@ -2218,7 +2218,7 @@ recursiveTermNameSearch bhId ref = do
         WHERE referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
         LIMIT 1
         |]
-    (\reversedNames -> for reversedNames reversedNameToReversedSegments)
+    (\reversedName -> reversedNameToReversedSegments reversedName)
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -2234,9 +2234,9 @@ recursiveTermNameSearch bhId ref = do
 -- Note: this returns the first name it finds by searching in order of:
 -- Names in the current namespace, then names in the current namespace's dependencies, then
 -- through the current namespace's dependencies' dependencies, etc.
-recursiveTypeNameSearch :: BranchHashId -> Reference.TextReference -> Transaction [ReversedName]
+recursiveTypeNameSearch :: BranchHashId -> Reference.TextReference -> Transaction (Maybe ReversedName)
 recursiveTypeNameSearch bhId ref = do
-  queryListColCheck2
+  queryMaybeColCheck2
     [sql2|
         -- Recursive table containing all transitive deps
         WITH RECURSIVE
@@ -2255,7 +2255,7 @@ recursiveTypeNameSearch bhId ref = do
         WHERE reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
         LIMIT 1
         |]
-    (\reversedNames -> for reversedNames reversedNameToReversedSegments)
+    (\reversedName -> reversedNameToReversedSegments reversedName)
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.

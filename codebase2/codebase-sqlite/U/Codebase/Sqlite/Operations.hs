@@ -76,6 +76,8 @@ module U.Codebase.Sqlite.Operations
     typeNamesBySuffix,
     termRefsForExactName,
     typeRefsForExactName,
+    recursiveTermNameSearch,
+    recursiveTypeNameSearch,
     checkBranchHashNameLookupExists,
     buildNameLookupForBranchHash,
     associateNameLookupMounts,
@@ -1282,6 +1284,38 @@ longestMatchingTypeNameForSuffixification bh namespace namedRef = do
   (perspectiveBranchHashId, namespacePrefix, relativePath) <- nameLookupForPerspective bhId namespace
   Q.longestMatchingTypeNameForSuffixification perspectiveBranchHashId relativePath (c2sTextReference <$> namedRef)
     <&> fmap (prefixNamedRef namespacePrefix >>> fmap s2cTextReference)
+
+-- | Searches all dependencies transitively looking for the provided referent.
+-- Prefer 'termNamesForRefWithinNamespace' in most cases.
+-- This is slower and only necessary when resolving the name of refs when you don't know which
+-- dependency it may exist in.
+--
+-- Searching transitive dependencies is exponential so we want to replace this with a more
+-- efficient approach as soon as possible.
+--
+-- Note: this returns the first name it finds by searching in order of:
+-- Names in the current namespace, then names in the current namespace's dependencies, then
+-- through the current namespace's dependencies' dependencies, etc.
+recursiveTermNameSearch :: BranchHash -> C.Referent -> Transaction (Maybe S.ReversedName)
+recursiveTermNameSearch bh r = do
+  bhId <- Q.expectBranchHashId bh
+  Q.recursiveTermNameSearch bhId (c2sTextReferent r)
+
+-- | Searches all dependencies transitively looking for the provided ref.
+-- Prefer 'typeNamesForRefWithinNamespace' in most cases.
+-- This is slower and only necessary when resolving the name of references when you don't know which
+-- dependency it may exist in.
+--
+-- Searching transitive dependencies is exponential so we want to replace this with a more
+-- efficient approach as soon as possible.
+--
+-- Note: this returns the first name it finds by searching in order of:
+-- Names in the current namespace, then names in the current namespace's dependencies, then
+-- through the current namespace's dependencies' dependencies, etc.
+recursiveTypeNameSearch :: BranchHash -> C.Reference -> Transaction (Maybe S.ReversedName)
+recursiveTypeNameSearch bh r = do
+  bhId <- Q.expectBranchHashId bh
+  Q.recursiveTypeNameSearch bhId (c2sTextReference r)
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them
 -- then return them.

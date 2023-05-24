@@ -998,39 +998,30 @@ mkTermDefinition codebase termPPED namesRoot rootCausal width r docs tm = do
 --
 -- A name root is either a project root or a dependency root.
 -- E.g. @.myproject.some.namespace -> .myproject@ or @.myproject.lib.base.List -> .myproject.lib.base@
-relocateToNameRoot :: Path -> HQ.HashQualified Name -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction (Either BackendError (Path, HQ'.HashQualified Name))
+relocateToNameRoot :: Path -> HQ.HashQualified Name -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction (Either BackendError (Path, HQ.HashQualified Name))
 relocateToNameRoot perspective query rootBranch = do
-  qualifiedQuery <- addNameIfMissing perspective query
-  let queryLocation = perspective <> Path.fromName (HQ'.toName qualifiedQuery)
+  let queryLocation = HQ.toName query & maybe perspective \name -> perspective <> Path.fromName name
   -- Names should be found from the project root of the queried name
   (Projects.inferNamesRoot queryLocation rootBranch) >>= \case
     Nothing -> do
-      pure $ Right (perspective, qualifiedQuery)
+      pure $ Right (perspective, query)
     Just projectRoot ->
       case Path.longestPathPrefix perspective projectRoot of
         -- The perspective is equal to the project root
         (_sharedPrefix, Path.Empty, Path.Empty) -> do
-          pure $ Right (perspective, qualifiedQuery)
+          pure $ Right (perspective, query)
         -- The perspective is _outside_ of the project containing the query
         (_sharedPrefix, Path.Empty, remainder) -> do
           -- Since the project root is lower down we need to strip the part of the prefix
           -- which is now redundant.
-          pure . Right $ (projectRoot, qualifiedQuery <&> \n -> fromMaybe n $ Path.unprefixName (Path.Absolute remainder) n)
+          pure . Right $ (projectRoot, query <&> \n -> fromMaybe n $ Path.unprefixName (Path.Absolute remainder) n)
         -- The namesRoot is _inside_ of the project containing the query
         (_sharedPrefix, remainder, Path.Empty) -> do
           -- Since the project is higher up, we need to prefix the query
           -- with the remainder of the path
-          pure . Right $ (projectRoot, qualifiedQuery <&> Path.prefixName (Path.Absolute remainder))
+          pure . Right $ (projectRoot, query <&> Path.prefixName (Path.Absolute remainder))
         -- The namesRoot and project root are disjoint, this shouldn't ever happen.
         (_, _, _) -> pure $ Left (DisjointProjectAndPerspective perspective projectRoot)
-
-addNameIfMissing :: Path -> HQ.HashQualified Name -> Sqlite.Transaction (HQ'.HashQualified Name)
-addNameIfMissing perspective hqName = do
-  case hqName of
-    HQ.NameOnly na -> pure $ HQ'.NameOnly na
-    HQ.HashQualified na sh -> pure $ HQ'.HashQualified na sh
-    HQ.HashOnly sh -> do
-      _
 
 -- | Evaluate the doc at the given reference and return its evaluated-but-not-rendered form.
 evalDocRef ::
