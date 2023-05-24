@@ -243,6 +243,7 @@
     unison-POp-UPKB
     unison-POp-PAKB
     unison-POp-ADDI
+    unison-POp-MULI
     unison-POp-MODI
     unison-POp-LEQI
     unison-POp-POWN
@@ -345,6 +346,7 @@
      (lambda (i) (chunked-bytes-ref bs i))))
 
   (define unison-POp-ADDI +)
+  (define unison-POp-MULI *)
   (define unison-POp-MODI mod)
   (define (unison-POp-LEQI a b) (bool (<= a b)))
   (define unison-POp-POWN expt)
