@@ -144,7 +144,7 @@ matchCases1 :: (Var v) => L.Token () -> P v (NonEmpty (Int, Term.MatchCase Ann (
 matchCases1 start = do
   cases <-
     (sepBy semi matchCase)
-      <&> \cases -> [(n, c) | (n, cs) <- cases, c <- cs]
+      <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c <- cs]
   case cases of
     [] -> P.customFailure (EmptyMatch start)
     (c : cs) -> pure (c NonEmpty.:| cs)
