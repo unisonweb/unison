@@ -1,4 +1,3 @@
-
 module Unison.Syntax.TypeParser where
 
 import Control.Monad.Reader (asks)

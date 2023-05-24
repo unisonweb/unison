@@ -1,4 +1,3 @@
-
 module Unison.Hashing.V2.Type
   ( Type,
     TypeF (..),
