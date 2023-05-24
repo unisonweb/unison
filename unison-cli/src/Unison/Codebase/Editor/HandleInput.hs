@@ -244,11 +244,11 @@ loop e = do
         State.modify' \loopState ->
           loopState
             & #latestFile .~ Just (Text.unpack sourceName, False)
-            & #latestParsedFile .~ Nothing
             & #latestTypecheckedFile .~ Nothing
         MaybeT (WriterT (Identity (r, notes))) <- typecheck ambient parseNames sourceName lexed
         result <- r & onNothing (Cli.returnEarly (ParseErrors text [err | Result.Parsing err <- toList notes]))
         result & onLeft \uf -> do
+          State.modify' (& #latestTypecheckedFile .~ Just (Left uf))
           ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames uf)
           ppe <- suffixifiedPPE ns
           let tes = [err | Result.TypeError err <- toList notes]
@@ -279,7 +279,7 @@ loop e = do
             go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
         when (not (null e')) do
           Cli.respond $ Evaluated text ppe bindings e'
-        #latestTypecheckedFile .= Just unisonFile
+        #latestTypecheckedFile .= Just (Right unisonFile)
 
   case e of
     Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
@@ -2141,7 +2141,7 @@ doDisplay outputLoc names tm = do
   loopState <- State.get
 
   ppe <- prettyPrintEnvDecl names
-  let (tms, typs) = maybe mempty UF.indexByReference (loopState ^. #latestTypecheckedFile)
+  (tms, typs) <- maybe mempty UF.indexByReference <$> Cli.getLatestTypecheckedFile
   let loc = case outputLoc of
         ConsoleLocation -> Nothing
         FileLocation path -> Just path
@@ -2754,8 +2754,7 @@ docsI srcLoc prettyPrintNames src =
 
     fileByName :: Cli ()
     fileByName = do
-      loopState <- State.get
-      let ns = maybe mempty UF.typecheckedToNames (loopState ^. #latestTypecheckedFile)
+      ns <- maybe mempty UF.typecheckedToNames <$> Cli.getLatestTypecheckedFile
       fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
       case NamesWithHistory.lookupHQTerm dotDoc fnames of
         s | Set.size s == 1 -> do

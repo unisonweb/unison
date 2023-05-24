@@ -108,6 +108,7 @@ import Unison.Referent (Referent)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
+import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Set as Set
 import UnliftIO.STM
 
@@ -483,12 +484,19 @@ expectLatestFile = do
 -- | Get the latest typechecked unison file.
 getLatestTypecheckedFile :: Cli (Maybe (TypecheckedUnisonFile Symbol Ann))
 getLatestTypecheckedFile = do
-  use #latestTypecheckedFile
+  oe <- use #latestTypecheckedFile
+  pure $ case oe of
+    Just (Right tf) -> Just tf
+    _ -> Nothing
 
--- | Get the latest typechecked unison file.
+-- | Get the latest parsed unison file.
 getLatestParsedFile :: Cli (Maybe (UnisonFile Symbol Ann))
 getLatestParsedFile = do
-  use #latestParsedFile
+  oe <- use #latestTypecheckedFile
+  pure $ case oe of
+    Just (Left uf) -> Just uf
+    Just (Right tf) -> Just $ UF.discardTypes tf
+    _ -> Nothing
 
 -- | Get the latest typechecked unison file, or return early if there isn't one.
 expectLatestTypecheckedFile :: Cli (TypecheckedUnisonFile Symbol Ann)
