@@ -51,7 +51,6 @@ extra-deps:
 # This custom build supports defining blocks for deeper keys without explicitly nesting blocks
 - github: unisonweb/configurator
   commit: e47e9e9fe1f576f8c835183b9def52d73c01327a
-
 # This custom Haskeline alters ANSI rendering on Windows.
 # If changing the haskeline dependency, please ensure color renders properly in a
 # Windows terminal.

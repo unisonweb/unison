@@ -5,7 +5,6 @@ module Unison.CommandLine.InputPatterns where
 
 import Control.Lens (preview, (^.))
 import qualified Control.Lens.Cons as Cons
-import Data.Bifunctor (Bifunctor (bimap), first)
 import Data.List (intercalate)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
@@ -1197,19 +1196,22 @@ push =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap
-            "The `push` command merges a local namespace into a remote namespace.",
+            "The `push` command merges a local project or namespace into a remote project or namespace.",
           "",
           P.wrapColumn2
-            [ ( "`push remote local`",
-                "merges the contents of the local namespace `local`"
-                  <> "into the remote namespace `remote`."
+            [ ( "`push <remote> <local>`",
+                "publishes the contents of a local namespace or branch"
+                  <> "into a remote namespace or branch."
               ),
-              ( "`push remote`",
-                "publishes the current namespace into the remote namespace `remote`"
+              ( "`push <remote>`",
+                "publishes the current namespace or branch into a remote namespace or branch"
               ),
               ( "`push`",
-                "publishes the current namespace into the remote namespace configured in your `.unisonConfig`"
-                  <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace."
+                "publishes the current namespace or branch. Remote mappings for namespaces are configured in"
+                  <> "your `.unisonConfig` at the key `RemoteMappings.<namespace>` where `<namespace>` is the "
+                  <> "current namespace. Remote mappings for branches default to the branch that you cloned from"
+                  <> "or pushed to initially. Otherwise, it is pushed to"
+                  <> P.group "@<user handle>/<local project name>"
               )
             ],
           "",
@@ -1383,8 +1385,24 @@ mergeLocal =
       (Optional, namespaceArg)
     ]
     ( P.column2
-        [ ("`merge src`", "merges `src` namespace into the current namespace"),
-          ("`merge src dest`", "merges `src` namespace into the `dest` namespace")
+        [ ( "`merge foo/bar baz/qux`",
+            "merges the `foo/bar` branch into the `baz/qux` branch"
+          ),
+          ( "`merge /topic /main`",
+            "merges the branch `topic` of the current project into the `main` branch of the current project"
+          ),
+          ( "`merge foo/topic /main`",
+            "merges the branch `topic` of the project `foo` into the `main` branch of the current project"
+          ),
+          ( "`merge /topic foo/main`",
+            "merges the branch `topic` of the current project into the `main` branch of the project 'foo`"
+          ),
+          ( "`merge .src`",
+            "merges `.src` namespace into the current namespace"
+          ),
+          ( "`merge .src .dest`",
+            "merges `.src` namespace into the `dest` namespace"
+          )
         ]
     )
     ( \case
@@ -2341,7 +2359,10 @@ projectCreate =
       aliases = ["create"],
       visibility = I.Hidden,
       argTypes = [(Required, projectNameArg)],
-      help = P.wrap "Create a project.",
+      help =
+        P.wrapColumn2
+          [ ("`project.create foo`", "creates the project foo and switches you to foo/main")
+          ],
       parse = \case
         [name] ->
           case tryInto @ProjectName (Text.pack name) of
@@ -2357,7 +2378,12 @@ projectSwitch =
       aliases = ["project.switch"],
       visibility = I.Hidden,
       argTypes = [(Required, projectAndBranchNamesArg)],
-      help = P.wrap "Switch to a project or project branch.",
+      help =
+        P.wrapColumn2
+          [ ("`project.switch foo/bar`", "switches to the branch `bar` in the project `foo`"),
+            ("`project.switch foo/`", "switches to the last branch you visited in the project `foo`"),
+            ("`project.switch /bar`", "switches to the branch `bar` in the current project")
+          ],
       parse = \case
         [name] ->
           case tryInto @ProjectAndBranchNames (Text.pack name) of
@@ -2395,7 +2421,12 @@ branchInputPattern =
       aliases = [],
       visibility = I.Hidden,
       argTypes = [],
-      help = P.wrap "Create a new branch from an existing branch or namespace.",
+      help =
+        P.wrapColumn2
+          [ ("`branch foo`", "forks the current project branch to a new branch `foo`"),
+            ("`branch /bar foo`", "forks the branch `bar` of the current project to a new branch `foo`"),
+            ("`branch .bar foo`", "forks the path `.bar` of the current project to a new branch `foo`")
+          ],
       parse = \case
         [source0, name] -> do
           source <- first (\_ -> showPatternHelp branchInputPattern) (parseLooseCodeOrProject source0)
@@ -2434,7 +2465,28 @@ clone =
       aliases = [],
       visibility = I.Hidden,
       argTypes = [],
-      help = P.wrap "Clone a project branch from a remote server.",
+      help =
+        P.wrapColumn2
+          [ ( "`clone @unison/json/topic json/my-topic`",
+              "creates `json/my-topic` from the remote branch `@unison/json/topic`"
+            ),
+            ( "`clone @unison/base base/`",
+              "creates `base/main` from the remote branch `@unison/base/main`"
+            ),
+            ( "`clone @unison/base /main2`",
+              "creates the branch `main2` in the current project from the remote branch `@unison/base/main`"
+            ),
+            ( "`clone /main /main2`",
+              "creates the branch `main2` in the current project from the remote branch `main` of the current project's associated remote"
+                <> "(see"
+                <> P.group (makeExample helpTopics ["remotes"] <> ")")
+            ),
+            ( "`clone /main my-fork/`",
+              "creates `my-fork/main` from the branch `main` of the current project's associated remote"
+                <> "(see"
+                <> P.group (makeExample helpTopics ["remotes"] <> ")")
+            )
+          ],
       parse =
         maybe (Left (showPatternHelp clone)) Right . \case
           [remoteNamesString] -> do

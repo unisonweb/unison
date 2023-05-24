@@ -13,6 +13,7 @@ import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName)
+import Witch (unsafeFrom)
 
 -- | Switch to an existing project or project branch, with a flexible syntax that does not require prefixing branch
 -- names with forward slashes (though doing so makes the command unambiguous).
@@ -49,8 +50,29 @@ projectSwitch = \case
 
 switchToProjectAndBranchByTheseNames :: These ProjectName ProjectBranchName -> Cli ()
 switchToProjectAndBranchByTheseNames projectAndBranchNames0 = do
-  projectAndBranchNames@(ProjectAndBranch projectName branchName) <- ProjectUtils.hydrateNames projectAndBranchNames0
-  branch <-
-    Cli.runTransaction (Queries.loadProjectBranchByNames projectName branchName) & onNothingM do
-      Cli.returnEarly (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
+  branch <- case projectAndBranchNames0 of
+    This projectName -> Cli.runEitherTransaction do
+      Queries.loadProjectByName projectName >>= \case
+        Nothing -> pure (Left (Output.LocalProjectDoesntExist projectName))
+        Just project ->
+          Queries.loadMostRecentBranch (project ^. #projectId) >>= \case
+            Nothing ->
+              let branchName = unsafeFrom @Text "main"
+               in Queries.loadProjectBranchByName (project ^. #projectId) branchName >>= \case
+                    Nothing -> pure (Left (Output.LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName)))
+                    Just branch -> Right <$> setMostRecentBranch branch
+            Just branchId ->
+              Queries.loadProjectBranch (project ^. #projectId) branchId >>= \case
+                Nothing -> error "impossible"
+                Just branch -> pure (Right branch)
+    _ -> do
+      projectAndBranchNames@(ProjectAndBranch projectName branchName) <- ProjectUtils.hydrateNames projectAndBranchNames0
+      Cli.runEitherTransaction do
+        Queries.loadProjectBranchByNames projectName branchName >>= \case
+          Nothing -> pure (Left (Output.LocalProjectBranchDoesntExist projectAndBranchNames))
+          Just branch -> Right <$> setMostRecentBranch branch
   Cli.cd (ProjectUtils.projectBranchPath (ProjectAndBranch (branch ^. #projectId) (branch ^. #branchId)))
+  where
+    setMostRecentBranch branch = do
+      Queries.setMostRecentBranch (branch ^. #projectId) (branch ^. #branchId)
+      pure branch

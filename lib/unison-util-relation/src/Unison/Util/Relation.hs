@@ -115,7 +115,7 @@ import qualified Data.Map.Internal as Map
 import Data.Ord (comparing)
 import qualified Data.Set as S
 import qualified Data.Set as Set
-import Unison.Prelude hiding (empty, toList)
+import Unison.Prelude hiding (bimap, empty, toList)
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
 import Prelude hiding (filter, map, null)

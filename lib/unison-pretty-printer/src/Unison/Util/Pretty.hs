@@ -147,7 +147,6 @@ module Unison.Util.Pretty
   )
 where
 
-import Data.Bifunctor (second)
 import Data.Char (isSpace)
 import Data.List (intersperse)
 import qualified Data.List as List

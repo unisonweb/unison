@@ -21,7 +21,6 @@ where
 
 import Control.Concurrent.STM as STM
 import Control.Monad
-import Data.Bifunctor (bimap, first)
 import Data.Binary.Get (runGetOrFail)
 -- import Data.Bits (shiftL)
 import qualified Data.ByteString.Lazy as BL
@@ -370,12 +369,8 @@ evalInContext ppe ctx activeThreads w = do
       prettyError (BU tr nm c) = either id (bugMsg ppe tr nm) $ decom c
 
       debugText fancy c = case decom c of
-        Right dv -> SimpleTrace . fmt $ pretty ppe dv
+        Right dv -> SimpleTrace . (debugTextFormat fancy) $ pretty ppe dv
         Left _ -> MsgTrace ("Couldn't decompile value") (show c)
-        where
-          fmt
-            | fancy = toANSI 50
-            | otherwise = toPlain 50
 
   result <-
     traverse (const $ readIORef r)
@@ -611,9 +606,15 @@ getStoredCache =
     <*> getMap getReference getNat
     <*> getMap getReference (fromList <$> getList getReference)
 
+debugTextFormat :: Bool -> Pretty ColorText -> String
+debugTextFormat fancy =
+  render 50
+  where
+    render = if fancy then toANSI else toPlain
+
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
-  CCache builtinForeigns False uglyTrace
+  CCache builtinForeigns False debugText
     <$> newTVarIO (cs <> combs)
     <*> newTVarIO (crs <> builtinTermBackref)
     <*> newTVarIO (trs <> builtinTypeBackref)
@@ -624,7 +625,10 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
     <*> newTVarIO (rty <> builtinTypeNumbering)
     <*> newTVarIO (sbs <> baseSandboxInfo)
   where
-    uglyTrace _ c = SimpleTrace $ show c
+    decom = decompile (backReferenceTm crs Map.empty)
+    debugText fancy c = case decom c of
+      Right dv -> SimpleTrace . (debugTextFormat fancy) $ pretty PPE.empty dv
+      Left _ -> MsgTrace ("Couldn't decompile value") (show c)
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     combs =

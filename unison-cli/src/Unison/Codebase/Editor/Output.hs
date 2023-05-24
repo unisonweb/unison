@@ -274,9 +274,9 @@ data Output
     NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash ShortCausalHash
-  | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
+  | ListDependencies PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | -- | List dependents of a type or term.
-    ListDependents Int LabeledDependency [(Reference, Maybe Name)]
+    ListDependents PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | -- | List all direct dependencies which don't have any names in the current branch
     ListNamespaceDependencies
       PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.

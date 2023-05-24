@@ -34,7 +34,6 @@ module Unison.UnisonFile
 where
 
 import Control.Lens
-import Data.Bifunctor (first, second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT

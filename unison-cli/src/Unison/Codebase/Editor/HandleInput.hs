@@ -17,7 +17,6 @@ import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Writer (WriterT (..))
-import Data.Bifunctor (first, second)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
@@ -151,6 +150,7 @@ import qualified Unison.HashQualified2 as HashQualified
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
+import qualified Unison.LabeledDependency as LabeledDependency
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
@@ -205,7 +205,7 @@ import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Find as Find
-import Unison.Util.List (uniqueBy)
+import Unison.Util.List (nubOrdOn, uniqueBy)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Pretty as Pretty
@@ -1273,40 +1273,7 @@ loop e = do
                 >>= doPullRemoteBranch sourceTarget sMode pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
-            ListDependenciesI hq -> do
-              Cli.Env {codebase} <- ask
-              hqLength <- Cli.runTransaction Codebase.hashLength
-              -- todo: add flag to handle transitive efficiently
-              lds <- resolveHQToLabeledDependencies hq
-              when (null lds) do
-                Cli.returnEarly (LabeledReferenceNotFound hq)
-              rootBranch <- Cli.getRootBranch
-              for_ lds \ld -> do
-                dependencies :: Set Reference <-
-                  Cli.runTransaction do
-                    let tp r@(Reference.DerivedId i) =
-                          Codebase.getTypeDeclaration codebase i <&> \case
-                            Nothing -> error $ "What happened to " ++ show i ++ "?"
-                            Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
-                        tp _ = pure mempty
-                        tm (Referent.Ref r@(Reference.DerivedId i)) =
-                          Codebase.getTerm codebase i <&> \case
-                            Nothing -> error $ "What happened to " ++ show i ++ "?"
-                            Just tm -> Set.delete r $ Term.dependencies tm
-                        tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
-                          Codebase.getTypeDeclaration codebase i <&> \case
-                            Nothing -> error $ "What happened to " ++ show i ++ "?"
-                            Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
-                              Nothing -> error $ "What happened to " ++ show con ++ "?"
-                              Just tp -> Type.dependencies tp
-                        tm _ = pure mempty
-                     in LD.fold tp tm ld
-                (missing, names0) <- liftIO (Branch.findHistoricalRefs' dependencies rootBranch)
-                let types = R.toList $ Names.types names0
-                let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
-                let names = types <> terms
-                #numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
-                Cli.respond $ ListDependencies hqLength ld names missing
+            ListDependenciesI hq -> handleDependencies hq
             NamespaceDependenciesI namespacePath' -> do
               Cli.Env {codebase} <- ask
               path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
@@ -1756,16 +1723,59 @@ handleFindI isVerbose fscope ws input = do
       respondResults =<< getResults (getNames FindLocalAndDeps)
     _ -> respondResults results
 
-handleDependents :: HQ.HashQualified Name -> Cli ()
-handleDependents hq = do
-  hqLength <- Cli.runTransaction Codebase.hashLength
+handleDependencies :: HQ.HashQualified Name -> Cli ()
+handleDependencies hq = do
+  Cli.Env {codebase} <- ask
   -- todo: add flag to handle transitive efficiently
   lds <- resolveHQToLabeledDependencies hq
+  ppe <- PPE.suffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.WithinStrict
+  when (null lds) do
+    Cli.returnEarly (LabeledReferenceNotFound hq)
+  results <- for (toList lds) \ld -> do
+    dependencies :: Set LabeledDependency <-
+      Cli.runTransaction do
+        let tp r@(Reference.DerivedId i) =
+              Codebase.getTypeDeclaration codebase i <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just decl ->
+                  Set.map LabeledDependency.TypeReference . Set.delete r . DD.dependencies $
+                    DD.asDataDecl decl
+            tp _ = pure mempty
+            tm r@(Referent.Ref (Reference.DerivedId i)) =
+              Codebase.getTerm codebase i <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just tm -> Set.delete (LabeledDependency.TermReferent r) (Term.labeledDependencies tm)
+            tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
+              Codebase.getTypeDeclaration codebase i <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
+                  Nothing -> error $ "What happened to " ++ show con ++ "?"
+                  Just tp -> Type.labeledDependencies tp
+            tm _ = pure mempty
+         in LD.fold tp tm ld
+    let types = [(PPE.typeName ppe r, r) | LabeledDependency.TypeReference r <- toList dependencies]
+    let terms = [(PPE.termName ppe r, r) | LabeledDependency.TermReferent r <- toList dependencies]
+    pure (types, terms)
+  let types = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ fst <$> results)
+  let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
+  #numberedArgs
+    .= map (Text.unpack . Reference.toText . snd) types
+    <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+  Cli.respond $ ListDependencies ppe lds (fst <$> types) (fst <$> terms)
 
+handleDependents :: HQ.HashQualified Name -> Cli ()
+handleDependents hq = do
+  -- todo: add flag to handle transitive efficiently
+  lds <- resolveHQToLabeledDependencies hq
+  -- Use an unsuffixified PPE here, so we display full names (relative to the current path),
+  -- rather than the shortest possible unambiguous name.
+  pped <- currentPrettyPrintEnvDecl Backend.WithinStrict
+  let fqppe = PPE.unsuffixifiedPPE pped
+  let ppe = PPE.suffixifiedPPE pped
   when (null lds) do
     Cli.returnEarly (LabeledReferenceNotFound hq)
 
-  for_ lds \ld -> do
+  results <- for (toList lds) \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
       let tp r = Codebase.dependents Queries.ExcludeOwnComponent r
@@ -1774,27 +1784,21 @@ handleDependents hq = do
             Referent.Con (ConstructorReference r _cid) _ct ->
               Codebase.dependents Queries.ExcludeOwnComponent r
        in Cli.runTransaction (LD.fold tp tm ld)
-    -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
-    -- unambiguous name.
-    ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
-    let results :: [(Reference, Maybe Name)]
-        results =
-          -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
-          -- take a flag to control whether we want to show all dependents
-          mapMaybe f (Set.toList dependents)
-          where
-            f :: Reference -> Maybe (Reference, Maybe Name)
-            f reference =
-              asum
-                [ g <$> PPE.terms ppe (Referent.Ref reference),
-                  g <$> PPE.types ppe reference
-                ]
-              where
-                g :: HQ'.HashQualified Name -> (Reference, Maybe Name)
-                g hqName =
-                  (reference, Just (HQ'.toName hqName))
-    #numberedArgs .= map (Text.unpack . Reference.toText . fst) results
-    Cli.respond (ListDependents hqLength ld results)
+    let -- True is term names, False is type names
+        results :: [(Bool, HQ.HashQualified Name, Reference)]
+        results = do
+          r <- Set.toList dependents
+          Just (isTerm, hq) <- [(True,) <$> PPE.terms fqppe (Referent.Ref r), (False,) <$> PPE.types fqppe r]
+          fullName <- [HQ'.toName hq]
+          guard (not (Name.beginsWithSegment fullName Name.libSegment))
+          Just shortName <- pure $ PPE.terms ppe (Referent.Ref r) <|> PPE.types ppe r
+          pure (isTerm, HQ'.toHQ shortName, r)
+    pure results
+  let sort = nubOrdOn snd . Name.sortByText (HQ.toText . fst)
+  let types = sort [(n, r) | (False, n, r) <- join results]
+  let terms = sort [(n, r) | (True, n, r) <- join results]
+  #numberedArgs .= map (Text.unpack . Reference.toText . view _2) (types <> terms)
+  Cli.respond (ListDependents ppe lds (fst <$> types) (fst <$> terms))
 
 handleDiffNamespaceToPatch :: Text -> DiffNamespaceToPatchInput -> Cli ()
 handleDiffNamespaceToPatch description input = do

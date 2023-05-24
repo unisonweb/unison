@@ -16,28 +16,26 @@ test =
             let sql = "   foo :a\n   'foo''foo' :b\n   \"foo\"\"foo\" $c\n   `foo``foo`   \n[foo] $d  "
             let expected =
                   Right
-                    ( "foo ? 'foo''foo' ? \"foo\"\"foo\" ? `foo``foo` [foo] ?",
-                      [ FieldParam "a",
-                        FieldParam "b",
-                        FieldParam "c",
-                        FieldParam "d"
-                      ]
-                    )
+                    [ Left ("foo ? 'foo''foo' ? \"foo\"\"foo\" ", [FieldParam "a", FieldParam "b"]),
+                      Right "c",
+                      Left (" `foo``foo` [foo] ", []),
+                      Right "d"
+                    ]
             let actual = internalParseSql sql
             expectEqual expected actual,
           scope "parses @param syntax" do
             let sql = "@foo @bar @"
-            let expected = Right ("? ? ?", [RowParam "foo" 1, RowParam "bar" 2])
+            let expected = Right [Left ("? ? ?", [RowParam "foo" 1, RowParam "bar" 2])]
             let actual = internalParseSql sql
             expectEqual expected actual,
           scope "strips line comments" do
             let sql = "foo -- bar \n baz"
-            let expected = Right ("foo baz", [])
+            let expected = Right [Left ("foo baz", [])]
             let actual = internalParseSql sql
             expectEqual expected actual,
           scope "strips block comments" do
             let sql = "foo /* bar baz \n */ qux"
-            let expected = Right ("foo qux", [])
+            let expected = Right [Left ("foo qux", [])]
             let actual = internalParseSql sql
             expectEqual expected actual
         ]

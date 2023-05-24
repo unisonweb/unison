@@ -2,7 +2,6 @@
 
 module Unison.PrettyPrintEnv.Names (fromNames, fromSuffixNames) where
 
-import Data.Bifunctor (second)
 import qualified Data.Set as Set
 import qualified Unison.HashQualified2 as HQ'
 import Unison.Name (Name)

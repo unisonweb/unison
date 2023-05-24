@@ -5,7 +5,6 @@ module Unison.LSP.FileAnalysis where
 import Control.Lens
 import Control.Monad.Reader
 import qualified Crypto.Random as Random
-import Data.Bifunctor (second)
 import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Data.IntervalMap.Lazy as IM

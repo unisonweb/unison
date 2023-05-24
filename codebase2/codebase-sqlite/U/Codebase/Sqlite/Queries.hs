@@ -121,6 +121,8 @@ module U.Codebase.Sqlite.Queries
     insertProjectBranch,
     loadProjectBranch,
     deleteProjectBranch,
+    setMostRecentBranch,
+    loadMostRecentBranch,
 
     -- ** remote projects
     loadRemoteProject,
@@ -214,6 +216,7 @@ module U.Codebase.Sqlite.Queries
     addReflogTable,
     addNamespaceStatsTables,
     addProjectTables,
+    addMostRecentBranchTable,
     fixScopedNameLookupTables,
 
     -- ** schema version
@@ -256,7 +259,6 @@ import Control.Monad.Extra ((||^))
 import Control.Monad.State (MonadState, evalStateT)
 import Control.Monad.Writer (MonadWriter, runWriterT)
 import qualified Control.Monad.Writer as Writer
-import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
@@ -275,7 +277,6 @@ import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import GHC.Stack (callStack)
-import NeatInterpolation (trimming)
 import Network.URI (URI)
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
@@ -370,7 +371,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 10
+currentSchemaVersion = 11
 
 createSchema :: Transaction ()
 createSchema = do
@@ -380,6 +381,7 @@ createSchema = do
   addReflogTable
   fixScopedNameLookupTables
   addProjectTables
+  addMostRecentBranchTable
   execute2 insertSchemaVersionSql
   where
     insertSchemaVersionSql =
@@ -407,6 +409,10 @@ fixScopedNameLookupTables =
 addProjectTables :: Transaction ()
 addProjectTables =
   executeFile [hereFile|unison/sql/005-project-tables.sql|]
+
+addMostRecentBranchTable :: Transaction ()
+addMostRecentBranchTable =
+  executeFile [hereFile|unison/sql/006-most-recent-branch-table.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =
@@ -3223,10 +3229,10 @@ loadRemoteProjectBranchGen ::
   ProjectBranchId ->
   Transaction (Maybe (RemoteProjectId, RemoteProjectBranchId, Int64))
 loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
-  queryMaybeRow theSql (remoteUri, pid, bid, remoteUri)
+  queryMaybeRow2 theSql
   where
     theSql =
-      [sql|
+      [sql2|
         WITH RECURSIVE t AS (
           SELECT
             pb.project_id,
@@ -3240,10 +3246,10 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
             LEFT JOIN project_branch_parent AS pbp USING (project_id, branch_id)
             LEFT JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = pb.project_id
               AND pbrm.local_branch_id = pb.branch_id
-              AND pbrm.remote_host = ?
+              AND pbrm.remote_host = :remoteUri
           WHERE
-            pb.project_id = ?
-            AND pb.branch_id = ?
+            pb.project_id = :pid
+            AND pb.branch_id = :bid
           UNION ALL
           SELECT
             t.project_id,
@@ -3258,7 +3264,7 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
             AND pbp.branch_id = t.parent_branch_id
           LEFT JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = t.project_id
           AND pbrm.local_branch_id = t.parent_branch_id
-          AND pbrm.remote_host = ?
+          AND pbrm.remote_host = :remoteUri
         )
         SELECT
           remote_project_id,
@@ -3272,20 +3278,20 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
         LIMIT 1
       |]
 
-    whereClause :: Text
+    whereClause :: Sql2
     whereClause =
       let clauses =
             foldr
-              (\a b -> [trimming| $a AND $b |])
-              [trimming| TRUE |]
-              [ [trimming| remote_project_id IS NOT NULL |],
+              (\a b -> [sql2| $a AND $b |])
+              [sql2| TRUE |]
+              [ [sql2| remote_project_id IS NOT NULL |],
                 selfRemoteFilter
               ]
-       in [trimming| WHERE $clauses |]
+       in [sql2| WHERE $clauses |]
 
     selfRemoteFilter = case loadRemoteBranchFlag of
-      IncludeSelfRemote -> [trimming| TRUE |]
-      ExcludeSelfRemote -> [trimming| depth > 0 |]
+      IncludeSelfRemote -> [sql2| TRUE |]
+      ExcludeSelfRemote -> [sql2| depth > 0 |]
 
 loadRemoteProject :: RemoteProjectId -> URI -> Transaction (Maybe RemoteProject)
 loadRemoteProject rpid host =
@@ -3484,7 +3490,11 @@ toReversedName revSegs = Text.intercalate "." (toList revSegs) <> "."
 --
 -- >>> toNamespaceGlob "foo.bar"
 -- "foo.bar.*"
+--
+-- >>> toNamespaceGlob ""
+-- "*"
 toNamespaceGlob :: Text -> Text
+toNamespaceGlob "" = "*"
 toNamespaceGlob namespace = globEscape namespace <> ".*"
 
 -- | Thrown if we try to get the segments of an empty name, shouldn't ever happen since empty names
@@ -3505,3 +3515,31 @@ reversedNameToReversedSegments txt =
     & List.dropEnd1
     & NonEmpty.nonEmpty
     & maybe (Left (EmptyName $ show callStack)) Right
+
+setMostRecentBranch :: ProjectId -> ProjectBranchId -> Transaction ()
+setMostRecentBranch projectId branchId =
+  execute2
+    [sql2|
+      INSERT INTO most_recent_branch (
+        project_id,
+        branch_id)
+      VALUES (
+        :projectId,
+        :branchId)
+      ON CONFLICT
+        DO UPDATE SET
+          project_id = excluded.project_id,
+          branch_id = excluded.branch_id
+  |]
+
+loadMostRecentBranch :: ProjectId -> Transaction (Maybe ProjectBranchId)
+loadMostRecentBranch projectId =
+  queryMaybeCol2
+    [sql2|
+      SELECT
+        branch_id
+      FROM
+        most_recent_branch
+      WHERE
+        project_id = :projectId
+    |]

@@ -132,6 +132,7 @@ doCreateBranch createFrom project newBranchName description = do
                         | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
                       _ -> Nothing
                 }
+            Queries.setMostRecentBranch projectId newBranchId
             pure newBranchId
 
   let newBranchPath = ProjectUtils.projectBranchPath (ProjectAndBranch projectId newBranchId)

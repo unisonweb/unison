@@ -4,7 +4,6 @@
 
 module Unison.Test.DataDeclaration where
 
-import Data.Bifunctor (second)
 import Data.Map ((!))
 import qualified Data.Map as Map
 import EasyTest

@@ -18,7 +18,6 @@ where
 
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad
-import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.Char as Char
 import Data.Either.Extra ()
 import Data.IORef
