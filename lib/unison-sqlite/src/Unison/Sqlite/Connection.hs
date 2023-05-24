@@ -197,14 +197,14 @@ instance Show Query2 where
       ]
 
 -- Will replace `logQuery` when `sql2` replaces `sql` everywhere.
-logQuery2 :: Sql -> [Either Sqlite.SQLData [Sqlite.SQLData]] -> Maybe b -> IO ()
+logQuery2 :: Sql -> [Sqlite.SQLData] -> Maybe b -> IO ()
 logQuery2 sql params result =
   Debug.whenDebug Debug.Sqlite do
     callStack <- currentCallStack
     pTraceShowM
       Query2
         { sql,
-          params = flattenParameters params,
+          params,
           result = anythingToString <$> result,
           callStack
         }
@@ -231,7 +231,7 @@ execute2 conn@(Connection _ _ conn0) (Sql2 s params) = do
       SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
-          params = Just (flattenParameters params),
+          params = Just params,
           sql = Sql s
         }
   where
@@ -350,7 +350,7 @@ queryListRow2 conn@(Connection _ _ conn0) (Sql2 s params) = do
           SqliteQueryExceptionInfo
             { connection = conn,
               exception = SomeSqliteExceptionReason exception,
-              params = Just (flattenParameters params),
+              params = Just params,
               sql = Sql s
             }
   logQuery2 (Sql s) params (Just result)
@@ -472,7 +472,7 @@ gqueryListCheck2 conn s@(Sql2 sql params) check = do
         SqliteQueryExceptionInfo
           { connection = conn,
             exception,
-            params = Just (flattenParameters params),
+            params = Just params,
             sql = Sql sql
           }
     Right result -> pure result
@@ -771,31 +771,16 @@ release conn name =
 -----------------------------------------------------------------------------------------------------------------------
 -- Utils
 
-bindParameters :: Direct.Sqlite.Statement -> [Either Sqlite.SQLData [Sqlite.SQLData]] -> IO ()
+bindParameters :: Direct.Sqlite.Statement -> [Sqlite.SQLData] -> IO ()
 bindParameters statement =
-  loop1 1
+  loop 1
   where
-    loop1 :: Direct.Sqlite.ParamIndex -> [Either Sqlite.SQLData [Sqlite.SQLData]] -> IO ()
-    loop1 !i = \case
+    loop :: Direct.Sqlite.ParamIndex -> [Sqlite.SQLData] -> IO ()
+    loop !i = \case
       [] -> pure ()
-      Left p : ps -> do
-        Direct.Sqlite.bindSQLData statement i p
-        loop1 (i + 1) ps
-      Right ps : qs -> do
-        j <- loop2 i ps
-        loop1 j qs
-    loop2 :: Direct.Sqlite.ParamIndex -> [Sqlite.SQLData] -> IO Direct.Sqlite.ParamIndex
-    loop2 !i = \case
-      [] -> pure i
       p : ps -> do
         Direct.Sqlite.bindSQLData statement i p
-        loop2 (i + 1) ps
-
--- On happy paths we can just bind all of the parameters in this Either form - no need to pay for flattening. But for
--- logging or reporting exceptions, we flatten.
-flattenParameters :: [Either Sqlite.SQLData [Sqlite.SQLData]] -> [Sqlite.SQLData]
-flattenParameters =
-  foldMap (either pure id)
+        loop (i + 1) ps
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Exceptions
