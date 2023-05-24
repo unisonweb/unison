@@ -1838,19 +1838,11 @@ checkBranchHashNameLookupExists hashId = do
 
 -- | Insert the given set of term names into the name lookup table
 insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
-insertScopedTermNames bhId names = do
-  executeMany sql (namedRefToRow <$> names)
-  where
-    namedRefToRow :: NamedRef (S.Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Only BranchHashId :. [SQLData])
-    namedRefToRow namedRef =
-      namedRef
-        & fmap refToRow
-        & NamedRef.namedRefToScopedRow
-        & \nr -> (Only bhId :. nr)
-    refToRow :: (Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))
-    refToRow (ref, ct) = ref :. Only ct
-    sql =
-      [here|
+insertScopedTermNames bhId = do
+  traverse_ \name0 -> do
+    let name = NamedRef.ScopedRow (refToRow <$> name0)
+    execute2
+      [sql2|
         INSERT INTO scoped_term_name_lookup (
           root_branch_hash_id,
           reversed_name,
@@ -1862,52 +1854,59 @@ insertScopedTermNames bhId names = do
           referent_constructor_index,
           referent_constructor_type
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (:bhId, @name, @, @, @, @, @, @, @)
       |]
+  where
+    refToRow :: (Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))
+    refToRow (ref, ct) = ref :. Only ct
 
 -- | Insert the given set of type names into the name lookup table
-insertScopedTypeNames :: BranchHashId -> [NamedRef (Reference.TextReference)] -> Transaction ()
-insertScopedTypeNames bhId names =
-  executeMany sql ((Only bhId :.) . NamedRef.namedRefToScopedRow <$> names)
-  where
-    sql =
-      [here|
-      INSERT INTO scoped_type_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, reference_builtin, reference_component_hash, reference_component_index)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        |]
+insertScopedTypeNames :: BranchHashId -> [NamedRef Reference.TextReference] -> Transaction ()
+insertScopedTypeNames bhId =
+  traverse_ \name0 -> do
+    let name = NamedRef.ScopedRow name0
+    execute2
+      [sql2|
+        INSERT INTO scoped_type_name_lookup (
+          root_branch_hash_id,
+          reversed_name,
+          namespace,
+          last_name_segment,
+          reference_builtin,
+          reference_component_hash,
+          reference_component_index
+        )
+        VALUES (:bhId, @name, @, @, @, @, @)
+      |]
 
 -- | Remove the given set of term names into the name lookup table
 removeScopedTermNames :: BranchHashId -> [NamedRef Referent.TextReferent] -> Transaction ()
 removeScopedTermNames bhId names = do
-  executeMany sql ((Only bhId :.) <$> names)
-  where
-    sql =
-      [here|
-      DELETE FROM scoped_term_name_lookup
-        WHERE
-        root_branch_hash_id IS ?
-        AND reversed_name IS ?
-        AND referent_builtin IS ?
-        AND referent_component_hash IS ?
-        AND referent_component_index IS ?
-        AND referent_constructor_index IS ?
-        |]
+  for_ names \name ->
+    execute2
+      [sql2|
+        DELETE FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id IS :bhId
+          AND reversed_name IS @name
+          AND referent_builtin IS @
+          AND referent_component_hash IS @
+          AND referent_component_index IS @
+          AND referent_constructor_index IS @
+      |]
 
 -- | Remove the given set of term names into the name lookup table
-removeScopedTypeNames :: BranchHashId -> [NamedRef (Reference.TextReference)] -> Transaction ()
+removeScopedTypeNames :: BranchHashId -> [NamedRef Reference.TextReference] -> Transaction ()
 removeScopedTypeNames bhId names = do
-  executeMany sql ((Only bhId :.) <$> names)
-  where
-    sql =
-      [here|
-      DELETE FROM scoped_type_name_lookup
-        WHERE
-        root_branch_hash_id IS ?
-        AND reversed_name IS ?
-        AND reference_builtin IS ?
-        AND reference_component_hash IS ?
-        AND reference_component_index IS ?
-        |]
+  for_ names \name ->
+    execute2
+      [sql2|
+        DELETE FROM scoped_type_name_lookup
+        WHERE root_branch_hash_id IS :bhId
+          AND reversed_name IS @name
+          AND reference_builtin IS @
+          AND reference_component_hash IS @
+          AND reference_component_index IS @
+      |]
 
 -- | We need to escape any special characters for globbing.
 --

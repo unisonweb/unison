@@ -55,12 +55,15 @@ instance (FromRow ref) => FromRow (NamedRef ref) where
 -- Specifically, the scoped format adds the 'lastNameSegment' as well as adding a trailing '.' to the db format
 -- of both the namespace and reversed_name.
 --
--- Converts a NamedRef to SQLData of the form:
+-- This type has a ToRow instance of the form:
 -- [reversedName, namespace, lastNameSegment] <> ref fields...
-namedRefToScopedRow :: (ToRow ref) => NamedRef ref -> [SQLData]
-namedRefToScopedRow (NamedRef {reversedSegments = revSegments, ref}) =
-  toRow $ (SQLText reversedName, SQLText namespace, SQLText lastNameSegment) :. ref
-  where
-    reversedName = (Text.intercalate "." . toList $ revSegments) <> "."
-    namespace = (Text.intercalate "." . reverse . NEL.tail $ revSegments) <> "."
-    lastNameSegment = NEL.head revSegments
+newtype ScopedRow ref
+  = ScopedRow (NamedRef ref)
+
+instance ToRow ref => ToRow (ScopedRow ref) where
+  toRow (ScopedRow (NamedRef {reversedSegments = revSegments, ref})) =
+    SQLText reversedName : SQLText namespace : SQLText lastNameSegment : toRow ref
+    where
+      reversedName = (Text.intercalate "." . toList $ revSegments) <> "."
+      namespace = (Text.intercalate "." . reverse . NEL.tail $ revSegments) <> "."
+      lastNameSegment = NEL.head revSegments
