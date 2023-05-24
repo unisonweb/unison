@@ -25,6 +25,7 @@ import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as AuthN
 import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.Machine (Machine)
+import Unison.Cli.Machine qualified as Machine
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.Pretty (prettyProjectAndBranchName)
 import Unison.Cli.ProjectUtils (projectBranchPathPrism)
@@ -241,32 +242,42 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
 
   mask \restore -> do
     -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
-    let loop0 :: Cli.LoopState -> IO ()
-        loop0 s0 = do
-          let step = do
-                input <- awaitInput s0
-                (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
-                let sNext = case input of
-                      Left _ -> resultState
-                      Right inp -> resultState & #lastInput ?~ inp
-                pure (result, sNext)
-          UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step)) >>= \case
-            -- SIGINT
-            Left () -> do
-              hPutStrLn stderr "\nAborted."
-              loop0 s0
-            -- Exception during command execution
-            Right (Left e) -> do
-              Text.Lazy.hPutStrLn stderr ("Encountered exception:\n" <> pShow e)
-              loop0 s0
-            Right (Right (result, s1)) -> do
-              when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
-              case result of
-                Cli.Success () -> loop0 s1
-                Cli.Continue -> loop0 s1
-                Cli.HaltRepl -> pure ()
+    let machine :: Machine IO Cli.LoopState ()
+        machine =
+          let toMachineResult loopState returnType =
+                case returnType of
+                  Cli.Success () -> Machine.Continue loopState
+                  Cli.Continue -> Machine.Continue loopState
+                  Cli.HaltRepl -> Machine.Return loopState ()
+                  Cli.Call k machine initialMachineState ->
+                    let k' o = do
+                          (retType, state) <- k o
+                          pure (toMachineResult state retType)
+                     in Machine.Call k' machine initialMachineState
+              transition s0 input = do
+                let step = do
+                      (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                      let sNext = case input of
+                            Left _ -> resultState
+                            Right inp -> resultState & #lastInput ?~ inp
+                      pure (result, sNext)
+                UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step)) >>= \case
+                  -- SIGINT
+                  Left () -> do
+                    hPutStrLn stderr "\nAborted."
+                    pure (Machine.Continue s0)
+                  -- Exception during command execution
+                  Right (Left e) -> do
+                    Text.Lazy.hPutStrLn stderr ("Encountered exception:\n" <> pShow e)
+                    pure (Machine.Continue s0)
+                  Right (Right (result, s1)) -> do
+                    when
+                      ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute))
+                      (atomically . notifyPathChange $ s1 ^. #currentPath)
+                    pure (toMachineResult s1 result)
+           in Machine.Machine awaitInput transition
 
-    withInterruptHandler onInterrupt (loop0 initialState `finally` cleanup)
+    withInterruptHandler onInterrupt (Machine.runMachine machine initialState `finally` cleanup)
 
 -- | Installs a posix interrupt handler for catching SIGINT.
 -- This replaces GHC's default sigint handler which throws a UserInterrupt async exception
