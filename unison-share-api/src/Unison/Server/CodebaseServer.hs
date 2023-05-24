@@ -396,6 +396,7 @@ serveIndex path = do
                   <> " Set the "
                   <> ucmUIVar
                   <> " environment variable to the directory where the UI is installed."
+                  <> " If you're running a dev build of ucm, run `./dev-ui-install.sh`."
           }
 
 serveUI :: FilePath -> Server WebUI
