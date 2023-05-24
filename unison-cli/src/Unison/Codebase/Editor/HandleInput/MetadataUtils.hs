@@ -128,7 +128,7 @@ resolveMetadata name = do
 
   let ppe :: PPE.PrettyPrintEnv
       ppe =
-        Backend.basicSuffixifiedNames schLength root' (Backend.Within $ Path.unabsolute currentPath')
+        Backend.basicSuffixifiedNames schLength root' (Path.unabsolute currentPath')
 
   terms <- getHQTerms name
   ref <-

@@ -62,7 +62,7 @@ import qualified Unison.Builtin.Terms as Builtin
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
+import Unison.Cli.NamesUtils (basicNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import qualified Unison.Cli.ProjectUtils as ProjectUtils
 import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
@@ -240,7 +240,7 @@ loop e = do
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
         rootBranch <- Cli.getRootBranch
         currentPath <- Cli.getCurrentPath
-        let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
+        let parseNames = Backend.getCurrentParseNames (Path.unabsolute currentPath) rootBranch
         State.modify' \loopState ->
           loopState
             & #latestFile .~ Just (Text.unpack sourceName, False)
@@ -764,7 +764,7 @@ loop e = do
                   else do
                     currentBranch <- Cli.getCurrentBranch0
                     let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
-                    let pped = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
+                    let pped = Backend.getCurrentPrettyNames hqLength currentPath' root
                     pure (currentNames, pped)
 
               let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
@@ -926,12 +926,12 @@ loop e = do
                   case (null endangerments, insistence) of
                     (True, _) -> pure (Cli.respond Success)
                     (False, Force) -> do
-                      ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                      ppeDecl <- currentPrettyPrintEnvDecl
                       pure do
                         Cli.respond Success
                         Cli.respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                     (False, Try) -> do
-                      ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                      ppeDecl <- currentPrettyPrintEnvDecl
                       Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
                       Cli.returnEarlyWithoutOutput
                 parentPathAbs <- Cli.resolvePath' parentPath
@@ -976,7 +976,7 @@ loop e = do
                       Backend.basicSuffixifiedNames
                         schLength
                         currentBranch
-                        (Backend.AllNames (Path.unabsolute pathArgAbs))
+                        (Path.unabsolute pathArgAbs)
               Cli.respond $ ListShallow buildPPE entries
               where
                 entryToHQString :: ShallowListEntry v Ann -> String
@@ -1282,7 +1282,7 @@ loop e = do
                 Just b -> do
                   externalDependencies <-
                     Cli.runTransaction (NamespaceDependencies.namespaceDependencies codebase (Branch.head b))
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
                   Cli.respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> do
               numArgs <- use #numberedArgs
@@ -2338,10 +2338,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Just (Nothing, result)
+              Just (Nothing, result)
           _ -> Nothing
           where
             result = SR.termSearchResult names0 name ref
@@ -2357,10 +2357,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Just (Nothing, result)
+              Just (Nothing, result)
           _ -> Nothing
           where
             result = SR.typeSearchResult names0 name ref
@@ -2464,9 +2464,9 @@ typecheckAndEval ppe tm = do
     -- Type checking succeeded
     Result.Result _ (Just ty)
       | Typechecker.fitsScheme ty mty ->
-          () <$ evalUnisonTerm False ppe False tm
+        () <$ evalUnisonTerm False ppe False tm
       | otherwise ->
-          Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
+        Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
     Result.Result notes Nothing -> do
       currentPath <- Cli.getCurrentPath
       let tes = [err | Result.TypeError err <- toList notes]

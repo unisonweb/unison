@@ -14,7 +14,7 @@ import Data.Maybe (catMaybes, fromJust)
 import Data.Set (fromList, toList)
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
-import Unison.Cli.NamesUtils (basicParseNames, basicPrettyPrintNamesA)
+import Unison.Cli.NamesUtils (basicNames)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.Output (Output (..))
 import Unison.Codebase.Path (hqSplitFromName')
@@ -68,7 +68,7 @@ lookupTermRefWithType ::
   HQ.HashQualified Name ->
   Cli [(Reference, Type Symbol Ann)]
 lookupTermRefWithType codebase name = do
-  nms <- basicParseNames
+  nms <- basicNames
   liftIO
     . Codebase.runTransaction codebase
     . fmap catMaybes
@@ -81,7 +81,7 @@ lookupTermRefWithType codebase name = do
 
 resolveTerm :: HQ.HashQualified Name -> Cli Referent
 resolveTerm name =
-  basicParseNames >>= \nms ->
+  basicNames >>= \nms ->
     case lookupTerm name nms of
       [] -> Cli.returnEarly (TermNotFound $ fromJust parsed)
         where
@@ -91,7 +91,7 @@ resolveTerm name =
 
 resolveCon :: HQ.HashQualified Name -> Cli ConstructorReference
 resolveCon name =
-  basicParseNames >>= \nms ->
+  basicNames >>= \nms ->
     case lookupCon name nms of
       ([], _) -> Cli.returnEarly (TermNotFound $ fromJust parsed)
         where
@@ -101,7 +101,7 @@ resolveCon name =
 
 resolveTermRef :: HQ.HashQualified Name -> Cli Reference
 resolveTermRef name =
-  basicParseNames >>= \nms ->
+  basicNames >>= \nms ->
     case lookupTermRefs name nms of
       ([], _) -> Cli.returnEarly (TermNotFound $ fromJust parsed)
         where
@@ -114,7 +114,7 @@ resolveMainRef main = do
   Cli.Env {codebase, runtime} <- ask
   let mainType = Runtime.mainType runtime
       smain = HQ.toString main
-  parseNames <- basicPrettyPrintNamesA
+  parseNames <- basicNames
   k <- Cli.runTransaction Codebase.hashLength
   let ppe = fromSuffixNames k (addHistory parseNames)
   lookupTermRefWithType codebase main >>= \case

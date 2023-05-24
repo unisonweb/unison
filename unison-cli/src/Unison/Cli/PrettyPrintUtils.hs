@@ -10,7 +10,6 @@ import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Prelude
@@ -23,9 +22,9 @@ prettyPrintEnvDecl ns =
   Cli.runTransaction Codebase.hashLength <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli PPE.PrettyPrintEnvDecl
-currentPrettyPrintEnvDecl scoping = do
+currentPrettyPrintEnvDecl :: Cli PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl = do
   root' <- Cli.getRootBranch
   currentPath <- Cli.getCurrentPath
   hqLen <- Cli.runTransaction Codebase.hashLength
-  pure $ Backend.getCurrentPrettyNames hqLen (scoping (Path.unabsolute currentPath)) root'
+  pure $ Backend.getCurrentPrettyNames hqLen ((Path.unabsolute currentPath)) root'

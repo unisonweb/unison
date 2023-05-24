@@ -31,7 +31,7 @@ ucmWorker ppeVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = 
   let loop :: (Branch IO, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
         Debug.debugM Debug.LSP "LSP path: " currentPath
-        let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) currentRoot
+        let parseNames = Backend.getCurrentParseNames (Path.unabsolute currentPath) currentRoot
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
         let ppe = PPE.fromNamesDecl hl parseNames
         atomically $ do
