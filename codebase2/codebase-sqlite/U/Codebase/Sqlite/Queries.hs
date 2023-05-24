@@ -477,12 +477,14 @@ saveHash hash = do
 
 saveHashes :: Traversable f => f Hash32 -> Transaction (f HashId)
 saveHashes hashes = do
-  executeMany sql (coerce @[Hash32] @[Only Hash32] (Foldable.toList hashes))
+  for_ hashes \hash ->
+    execute2
+      [sql2|
+        INSERT INTO hash (base32)
+        VALUES (:hash)
+        ON CONFLICT DO NOTHING
+      |]
   traverse expectHashId hashes
-  where sql = [here|
-    INSERT INTO hash (base32) VALUES (?)
-    ON CONFLICT DO NOTHING
-  |]
 
 saveHashHash :: Hash -> Transaction HashId
 saveHashHash = saveHash . Hash32.fromHash
@@ -551,20 +553,18 @@ expectBranchHash :: BranchHashId -> Transaction BranchHash
 expectBranchHash = coerce expectHash
 
 saveText :: Text -> Transaction TextId
-saveText t = execute saveTextSql (Only t) >> expectTextId t
+saveText t = do
+  execute2
+    [sql2|
+      INSERT INTO text (text)
+      VALUES (:t)
+      ON CONFLICT DO NOTHING
+    |]
+  expectTextId t
 
 saveTexts :: Traversable f => f Text -> Transaction (f TextId)
-saveTexts texts = do
-  executeMany saveTextSql (coerce @[Text] @[Only Text] (Foldable.toList texts))
-  traverse expectTextId texts
-
-saveTextSql :: Sql
-saveTextSql =
-  [here|
-    INSERT INTO text (text)
-    VALUES (?)
-    ON CONFLICT DO NOTHING
-  |]
+saveTexts =
+  traverse saveText
 
 loadTextId :: Text -> Transaction (Maybe TextId)
 loadTextId t = queryMaybeCol2 (loadTextIdSql t)
@@ -1221,11 +1221,14 @@ loadBranchObjectIdByBranchHashIdSql id =
   |]
 
 saveCausalParents :: CausalHashId -> [CausalHashId] -> Transaction ()
-saveCausalParents child parents = executeMany sql $ (child,) <$> parents where
-  sql = [here|
-    INSERT INTO causal_parent (causal_id, parent_id) VALUES (?, ?)
-    ON CONFLICT DO NOTHING
-  |]
+saveCausalParents child =
+  traverse_ \parent ->
+    execute2
+      [sql2|
+        INSERT INTO causal_parent (causal_id, parent_id)
+        VALUES (:child, :parent)
+        ON CONFLICT DO NOTHING
+      |]
 
 loadCausalParents :: CausalHashId -> Transaction [CausalHashId]
 loadCausalParents h =
@@ -1484,17 +1487,20 @@ garbageCollectWatchesWithoutObjects = do
     |]
 
 addToDependentsIndex :: [Reference.Reference] -> Reference.Id -> Transaction ()
-addToDependentsIndex dependencies dependent = executeMany sql (map (:. dependent) dependencies)
-  where sql = [here|
-    INSERT INTO dependents_index (
-      dependency_builtin,
-      dependency_object_id,
-      dependency_component_index,
-      dependent_object_id,
-      dependent_component_index
-    ) VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT DO NOTHING
-  |]
+addToDependentsIndex dependencies dependent =
+  for_ dependencies \dependency ->
+    execute2
+      [sql2|
+        INSERT INTO dependents_index (
+          dependency_builtin,
+          dependency_object_id,
+          dependency_component_index,
+          dependent_object_id,
+          dependent_component_index
+        )
+        VALUES (@dependency, @, @, @dependent, @)
+        ON CONFLICT DO NOTHING
+      |]
 
 -- | Which dependents should be returned?
 --
@@ -1845,9 +1851,19 @@ insertScopedTermNames bhId names = do
     refToRow (ref, ct) = ref :. Only ct
     sql =
       [here|
-      INSERT INTO scoped_term_name_lookup (root_branch_hash_id, reversed_name, namespace, last_name_segment, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
+        INSERT INTO scoped_term_name_lookup (
+          root_branch_hash_id,
+          reversed_name,
+          namespace,
+          last_name_segment,
+          referent_builtin,
+          referent_component_hash,
+          referent_component_index,
+          referent_constructor_index,
+          referent_constructor_type
+        )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        |]
+      |]
 
 -- | Insert the given set of type names into the name lookup table
 insertScopedTypeNames :: BranchHashId -> [NamedRef (Reference.TextReference)] -> Transaction ()
@@ -2326,12 +2342,12 @@ insertTempEntity entityHash entity missingDependencies = do
       ON CONFLICT DO NOTHING
     |]
 
-  executeMany
-    [here|
-      INSERT INTO temp_entity_missing_dependency (dependent, dependency, dependencyJwt)
-      VALUES (?, ?, ?)
-    |]
-    (map (\(depHash, depHashJwt) -> (entityHash, depHash, depHashJwt)) ((Foldable.toList . NEMap.toList) missingDependencies))
+  for_ (NEMap.toList missingDependencies) \(depHash, depHashJwt) ->
+    execute2
+      [sql2|
+        INSERT INTO temp_entity_missing_dependency (dependent, dependency, dependencyJwt)
+        VALUES (:entityHash, :depHash, :depHashJwt)
+      |]
   where
     entityBlob :: ByteString
     entityBlob =
