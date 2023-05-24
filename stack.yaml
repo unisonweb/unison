@@ -42,7 +42,10 @@ packages:
 resolver: lts-20.22
 
 extra-deps:
-# wrong version in snapshot
+# version in snapshot is too new
+- network-3.1.2.7 # 3.1.3.0 doesn't seem to build in Windows
+
+# broken version in snapshot
 - github: unisonweb/configurator
   commit: e47e9e9fe1f576f8c835183b9def52d73c01327a
 # This custom Haskeline alters ANSI rendering on Windows.

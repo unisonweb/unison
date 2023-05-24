@@ -5,6 +5,13 @@
 
 packages:
 - completed:
+    hackage: network-3.1.2.7@sha256:9752628bc626e0cad8c53039bea0dc0417f39ca6663232e4d9ac4e35a8925f7d,4911
+    pantry-tree:
+      sha256: aa95093a413ed8306699098159047580e0dc0bda4a862a0264a370b993319b24
+      size: 3971
+  original:
+    hackage: network-3.1.2.7
+- completed:
     name: configurator
     pantry-tree:
       sha256: 90547cd983fd15ebdc803e057d3ef8735fe93a75e29a00f8a74eadc13ee0f6e9
