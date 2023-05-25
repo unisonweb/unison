@@ -140,6 +140,9 @@ jobs:
         if: runner.os == 'macOS'
         run: rm -rf ~/.stack/setup-exe-cache
 
+      - run: stack install stack-clean-old
+      - run: stack-clean-old list
+
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
       - name: build dependencies
