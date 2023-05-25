@@ -69,7 +69,9 @@ module Unison.Cli.MonadUtils
     -- * Latest touched Unison file
     getLatestFile,
     getLatestParsedFile,
+    getTermFromLatestParsedFile,
     expectLatestFile,
+    expectLatestParsedFile,
     getLatestTypecheckedFile,
     expectLatestTypecheckedFile,
   )
@@ -99,7 +101,9 @@ import Unison.Codebase.Path (Path, Path' (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import qualified Unison.Codebase.ShortCausalHash as SCH
+import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
+import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
@@ -107,9 +111,12 @@ import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Name as Name (toText)
+import qualified Unison.Term as Term
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Set as Set
+import qualified Unison.Var as Var
 import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -497,6 +504,18 @@ getLatestParsedFile = do
     Just (Left uf) -> Just uf
     Just (Right tf) -> Just $ UF.discardTypes tf
     _ -> Nothing
+
+expectLatestParsedFile :: Cli (UnisonFile Symbol Ann)
+expectLatestParsedFile =
+  getLatestParsedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
+
+getTermFromLatestParsedFile :: HQ.HashQualified Name.Name -> Cli (Maybe (Term.Term Symbol Ann))
+getTermFromLatestParsedFile (HQ.NameOnly n) = do
+  uf <- expectLatestParsedFile
+  pure $ case UF.typecheckingTerm uf of
+    Term.LetRecNamed' bs _ -> lookup (Var.named (Name.toText n)) bs
+    _ -> Nothing
+getTermFromLatestParsedFile _ = pure Nothing
 
 -- | Get the latest typechecked unison file, or return early if there isn't one.
 expectLatestTypecheckedFile :: Cli (TypecheckedUnisonFile Symbol Ann)

@@ -489,14 +489,16 @@ sfind :: InputPattern
 sfind =
   InputPattern "sfind" ["find.structured"] I.Visible [(Required, definitionQueryArg)] msg parse
   where
-    parse q = pure $ Input.StructuredFindI Input.FindLocal q
+    parse [q] = Input.StructuredFindI Input.FindLocal <$> parseHashQualifiedName q
+    parse _ = Left "expected exactly one argument"
     msg = makeExample sfind ["p"] <> " finds definitions containing the pattern `p` in the current namespace."
 
 sfindReplace :: InputPattern
 sfindReplace =
   InputPattern "sfind.replace" ["rewrite"] I.Visible [(Required, definitionQueryArg)] msg parse
   where
-    parse q = pure $ Input.StructuredFindReplaceI q
+    parse [q] = Input.StructuredFindReplaceI <$> parseHashQualifiedName q
+    parse _ = Left "expected exactly one argument"
     msg = makeExample sfindReplace ["r"] <> " rewrites definitions in the current file."
 
 find :: InputPattern

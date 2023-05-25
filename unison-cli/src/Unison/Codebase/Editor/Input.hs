@@ -192,8 +192,8 @@ data Input
     FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
   | FindPatchI
-  | StructuredFindI FindScope [String] -- sfind findScope query
-  | StructuredFindReplaceI [String] -- sfind.replace findScope rewriteQuery
+  | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
+  | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace findScope rewriteQuery
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.
     ShowDefinitionI OutputLocation ShowDefinitionScope [HQ.HashQualified Name]
   | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]

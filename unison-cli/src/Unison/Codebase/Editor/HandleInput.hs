@@ -995,7 +995,7 @@ loop e = do
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI fscope ws -> undefined fscope ws -- handleStructuredFindI fscope ws input
-            StructuredFindReplaceI ws -> undefined ws -- handleStructuredFindReplaceI ws input
+            StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws input
             ResolveTypeNameI path' -> do
               description <- inputDescription input
               path <- Cli.resolveSplit' path'
@@ -1653,6 +1653,9 @@ inputDescription input =
       That branch -> pure (into @Text branch)
       -- just trying to recover the syntax the user wrote
       These path _branch -> pure (Path.toText' path)
+
+handleStructuredFindReplaceI :: HQ.HashQualified Name -> Input -> Cli ()
+handleStructuredFindReplaceI rule i = undefined rule i 
 
 handleFindI ::
   Bool ->
