@@ -30,7 +30,7 @@ jobs:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     needs: ormolu
-    defaults: 
+    defaults:
       run:
         working-directory: unison
         shell: bash
@@ -104,7 +104,7 @@ jobs:
           key: stack-work-3_${{matrix.os}}-${{github.sha}}
           restore-keys: stack-work-3_${{matrix.os}}
 
-      # Install stack by downloading the binary from GitHub. 
+      # Install stack by downloading the binary from GitHub.
       # The installation process differs by OS.
       - name: install stack (Linux)
         if: runner.os == 'Linux'
@@ -204,12 +204,12 @@ jobs:
         if: runner.os == 'Linux'
 
       - uses: actions/cache@v3
-        name: cache ~/.cache/unisonlanguage (unix)
+        name: cache base.md codebase (unix)
         if: runner.os == 'Linux'
         with:
-          path: ~/.cache/unisonlanguage
-          key: stack-0_${{matrix.os}}-${{github.sha}}
-          restore-keys: stack-0_${{matrix.os}}
+          path: ~/.cache/unisonlanguage/base.unison
+          key: base.unison_${{hashfiles('unison-src/builtin-tests/base.md')}}-${{github.sha}}
+          restore-keys: base.unison_${{hashfiles('unison-src/builtin-tests/base.md')}}
 
       - name: jit tests
         if: runner.os == 'Linux'
