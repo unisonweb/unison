@@ -1,16 +1,7 @@
 #lang racket/base
-(require racket/exn
-         racket/string
-         racket/file
-         (only-in racket empty?)
-         compatibility/mlist
-         unison/data
+(require unison/data
          unison/chunked-seq
-         unison/core
-         unison/tcp
-         unison/pem
-         x509
-         openssl)
+         unison/core)
 
 (provide
  (prefix-out
@@ -29,6 +20,7 @@
    getFileTimestamp.impl.v3
    getTempDirectory.impl.v3
    removeFile.impl.v3
+   renameFile.impl.v3
    getFileSize.impl.v3)))
 
 (define (getFileSize.impl.v3 path)
@@ -46,6 +38,10 @@
 
 (define (removeFile.impl.v3 path)
     (delete-file (chunked-string->string path))
+    (right none))
+
+(define (renameFile.impl.v3 path newPath)
+    (rename-file-or-directory (chunked-string->string path) (chunked-string->string newPath))
     (right none))
 
 (define (getTempDirectory.impl.v3)

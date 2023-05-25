@@ -323,6 +323,7 @@
           (unison crypto)
           (unison data)
           (unison io)
+          (unison io-handles)
           (unison tls)
           (unison tcp)
           (unison gzip)
@@ -484,12 +485,6 @@
 
   (define (unison-POp-XORN m n) (fxxor m n))
   (define (unison-POp-VALU c) (decode-value c))
-
-  (define (unison-FOp-IO.putBytes.impl.v3 p bs)
-    (begin
-      (put-bytevector p (chunked-bytes->bytes bs))
-      (flush-output-port p)
-      (sum 1 #f)))
 
   (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
 
