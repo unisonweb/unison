@@ -2382,43 +2382,30 @@ deleteTempEntity hash =
 --
 -- ... then `elaborateHashes {A}` would return the singleton set {C} (because we take the set of transitive
 -- dependencies {A,B,C} and subtract the set we already have, {A,B}).
-elaborateHashes :: Nel.NonEmpty Hash32 -> Transaction [Text]
-elaborateHashes hashes =
-  queryListCol query hashesValues
-  where
-    query :: Sql
-    query =
-      fold
-        [ [sql|
-            WITH RECURSIVE
-            new_temp_entity_dependents (hash) AS (
-          |],
-          valuesSql hashesValues,
-          [sql|
-            ),
-            elaborated_dependency (hash, hashJwt) AS (
-              SELECT temd.dependency, temd.dependencyJwt
-              FROM new_temp_entity_dependents AS new
-                JOIN temp_entity_missing_dependency AS temd
-                  ON temd.dependent = new.hash
+elaborateHashes :: NonEmpty Hash32 -> Transaction [Text]
+elaborateHashes (coerce @_ @(NonEmpty (Only Hash32)) -> hashes) =
+  queryListCol2
+    [sql2|
+      WITH RECURSIVE
+        new_temp_entity_dependents (hash) AS (VALUES :hashes),
+        elaborated_dependency (hash, hashJwt) AS (
+          SELECT temd.dependency, temd.dependencyJwt
+          FROM new_temp_entity_dependents AS new
+            JOIN temp_entity_missing_dependency AS temd
+              ON temd.dependent = new.hash
 
-              UNION
-              SELECT temd.dependency, temd.dependencyJwt
-              FROM temp_entity_missing_dependency AS temd
-                JOIN elaborated_dependency AS ed
-                  ON temd.dependent = ed.hash
-            )
-            SELECT hashJwt FROM elaborated_dependency
-            WHERE NOT EXISTS (
-              SELECT 1 FROM temp_entity
-              WHERE temp_entity.hash = elaborated_dependency.hash
-            )
-          |]
-        ]
-
-    hashesValues :: Values (Only Hash32)
-    hashesValues =
-      Values (coerce @(NonEmpty Hash32) @(NonEmpty (Only Hash32)) hashes)
+          UNION
+          SELECT temd.dependency, temd.dependencyJwt
+          FROM temp_entity_missing_dependency AS temd
+            JOIN elaborated_dependency AS ed
+              ON temd.dependent = ed.hash
+        )
+      SELECT hashJwt FROM elaborated_dependency
+      WHERE NOT EXISTS (
+        SELECT 1 FROM temp_entity
+        WHERE temp_entity.hash = elaborated_dependency.hash
+      )
+    |]
 
 moveTempEntityToMain ::
   HashHandle ->
