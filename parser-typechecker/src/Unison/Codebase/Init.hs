@@ -11,6 +11,7 @@ module Unison.Codebase.Init
     SpecifiedCodebase (..),
     MigrationStrategy (..),
     BackupStrategy (..),
+    VacuumStrategy (..),
     Pretty,
     createCodebase,
     initCodebaseAndExit,
@@ -57,11 +58,19 @@ data BackupStrategy
     NoBackup
   deriving stock (Show, Eq, Ord)
 
+data VacuumStrategy
+  = -- Vacuum after migrating. Takes a bit longer but keeps the codebase clean and maybe reduces size.
+    Vacuum
+  | -- Don't vacuum after migrating. Vacuuming is time consuming on large codebases,
+    -- so we don't want to do it during server migrations.
+    NoVacuum
+  deriving stock (Show, Eq, Ord)
+
 data MigrationStrategy
   = -- | Perform a migration immediately if one is required.
-    MigrateAutomatically BackupStrategy
+    MigrateAutomatically BackupStrategy VacuumStrategy
   | -- | Prompt the user that a migration is about to occur, continue after acknownledgment
-    MigrateAfterPrompt BackupStrategy
+    MigrateAfterPrompt BackupStrategy VacuumStrategy
   | -- | Triggers an 'OpenCodebaseRequiresMigration' error instead of migrating
     DontMigrate
   deriving stock (Show, Eq, Ord)
