@@ -22,11 +22,11 @@ import Data.Functor.Compose (Compose (..))
 import Data.Functor.Identity (Identity (Identity, runIdentity))
 import Data.Functor.Sum (Sum (..))
 import Data.Map (Map)
-import qualified Data.Map.Lazy as LazyMap
-import qualified Data.Map.Strict as Map
+import Data.Map.Lazy qualified as LazyMap
+import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 
 -- | A union-find structure. Used by
 -- 'Unison.PatternMatchCoverage.NormalizedConstraints.NormalizedConstraints'

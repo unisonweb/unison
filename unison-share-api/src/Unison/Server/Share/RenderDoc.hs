@@ -12,18 +12,18 @@ module Unison.Server.Share.RenderDoc where
 
 import Control.Monad.Except
 import Servant.OpenApi ()
-import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Rt
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
-import qualified Unison.Server.Backend as Backend
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Doc (Doc)
 import Unison.Server.Types
   ( mayDefaultWidth,

@@ -6,7 +6,7 @@ where
 import Control.Monad
 import Data.String (fromString)
 import EasyTest
-import qualified Unison.Util.Pretty as Pretty
+import Unison.Util.Pretty qualified as Pretty
 
 test :: Test ()
 test =

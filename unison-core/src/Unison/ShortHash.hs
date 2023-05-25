@@ -4,7 +4,7 @@
 
 module Unison.ShortHash where
 
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Unison.Prelude
 
 -- Arya created this type to be able to query the Codebase for anonymous definitions.  The parsing functions can't fail,

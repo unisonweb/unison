@@ -13,41 +13,41 @@ import Control.Monad
 import Data.Aeson (ToJSON)
 import Data.Foldable
 import Data.Functor
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.OpenApi (ToSchema)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Word
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Builtin.Decls as Decls
+import Unison.ABT qualified as ABT
+import Unison.Builtin.Decls qualified as DD
+import Unison.Builtin.Decls qualified as Decls
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
-import qualified Unison.Codebase.Editor.DisplayObject as DO
-import qualified Unison.ConstructorReference as ConstructorReference
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.LabeledDependency as LD
+import Unison.Codebase.Editor.DisplayObject qualified as DO
+import Unison.ConstructorReference qualified as ConstructorReference
+import Unison.DataDeclaration qualified as DD
+import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Runtime.IOSource as DD
+import Unison.Referent qualified as Referent
+import Unison.Runtime.IOSource qualified as DD
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
-import qualified Unison.Server.Syntax as Syntax
-import qualified Unison.ShortHash as SH
-import qualified Unison.Syntax.DeclPrinter as DeclPrinter
-import qualified Unison.Syntax.NamePrinter as NP
-import qualified Unison.Syntax.TermPrinter as TermPrinter
-import qualified Unison.Syntax.TypePrinter as TypePrinter
+import Unison.Server.Syntax qualified as Syntax
+import Unison.ShortHash qualified as SH
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.NamePrinter qualified as NP
+import Unison.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Util.List as List
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.SyntaxText as S
+import Unison.Type qualified as Type
+import Unison.Util.List qualified as List
+import Unison.Util.Pretty qualified as P
+import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
 
 type Nat = Word64

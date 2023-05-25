@@ -1,8 +1,8 @@
 module Unison.Util.TQueue where
 
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Data.Sequence (Seq ((:<|)), (|>))
-import qualified Data.Sequence as S
+import Data.Sequence qualified as S
 import Unison.Prelude
 import UnliftIO.STM hiding (TQueue)
 

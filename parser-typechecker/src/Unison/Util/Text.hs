@@ -7,12 +7,12 @@ module Unison.Util.Text where
 import Data.Foldable (toList)
 import Data.List (foldl', unfoldr)
 import Data.String (IsString (..))
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Internal as T
-import qualified Data.Text.Unsafe as T (Iter (..), iter)
-import qualified Unison.Util.Bytes as B
-import qualified Unison.Util.Rope as R
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Text.Internal qualified as T
+import Data.Text.Unsafe qualified as T (Iter (..), iter)
+import Unison.Util.Bytes qualified as B
+import Unison.Util.Rope qualified as R
 import Prelude hiding (drop, replicate, take)
 
 -- Text type represented as a `Rope` of chunks

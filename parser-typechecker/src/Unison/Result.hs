@@ -2,19 +2,19 @@ module Unison.Result where
 
 import Control.Error.Util (note)
 import Control.Monad.Except (ExceptT (..))
-import qualified Control.Monad.Fail as Fail
-import qualified Control.Monad.Morph as Morph
+import Control.Monad.Fail qualified as Fail
+import Control.Monad.Morph qualified as Morph
 import Control.Monad.Writer
   ( MonadWriter (..),
     WriterT (..),
     runWriterT,
   )
 import Unison.Name (Name)
-import qualified Unison.Names.ResolutionResult as Names
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-import qualified Unison.Syntax.Parser as Parser
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
-import qualified Unison.Typechecker.Context as Context
+import Unison.Typechecker.Context qualified as Context
 
 type Result notes = ResultT notes Identity
 

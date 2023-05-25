@@ -92,13 +92,13 @@ module Unison.Sqlite.Connection
   )
 where
 
-import qualified Database.SQLite.Simple as Sqlite
-import qualified Database.SQLite.Simple.FromField as Sqlite
-import qualified Database.SQLite3 as Direct.Sqlite
+import Database.SQLite.Simple qualified as Sqlite
+import Database.SQLite.Simple.FromField qualified as Sqlite
+import Database.SQLite3 qualified as Direct.Sqlite
 import Debug.Pretty.Simple (pTraceShowM)
 import Debug.RecoverRTTI (anythingToString)
 import GHC.Stack (currentCallStack)
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.Prelude
 import Unison.Sqlite.Connection.Internal (Connection (..))
 import Unison.Sqlite.Exception

@@ -7,23 +7,23 @@ module Unison.Codebase.SqliteCodebase.Branch.Dependencies where
 
 import Data.Foldable (toList)
 import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Monoid.Generic (GenericMonoid (..), GenericSemigroup (..))
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import U.Codebase.HashTags (CausalHash, PatchHash)
 import Unison.Codebase.Branch.Type as Branch
-import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Hash (Hash)
 import Unison.NameSegment (NameSegment)
 import Unison.Reference (Reference, pattern Derived)
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Star3 as Star3
+import Unison.Referent qualified as Referent
+import Unison.Util.Relation qualified as R
+import Unison.Util.Star3 qualified as Star3
 
 type Branches m = [(CausalHash, m (Branch m))]
 
