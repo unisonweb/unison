@@ -83,7 +83,9 @@ jobs:
         name: cache ~/.stack (Windows)
         if: runner.os == 'Windows'
         with:
-          path: "C:\\Users\\runneradmin\\AppData\\Roaming\\stack"
+          path: |
+            C:\Users\runneradmin\AppData\Roaming\stack
+            C:\Users\runneradmin\AppData\Local\Programs\stack
           key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: |
