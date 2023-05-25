@@ -1,6 +1,6 @@
 module Unison.Server.NameSearch.FromNames where
 
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.NamesWithHistory (NamesWithHistory)
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Reference (Reference)

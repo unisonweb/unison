@@ -41,7 +41,7 @@ import Unison.Codebase.Editor.DisplayObject
   )
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import qualified Unison.NameSegment as NameSegment

@@ -5,13 +5,6 @@
 
 packages:
 - completed:
-    hackage: network-3.1.2.7@sha256:9752628bc626e0cad8c53039bea0dc0417f39ca6663232e4d9ac4e35a8925f7d,4911
-    pantry-tree:
-      sha256: aa95093a413ed8306699098159047580e0dc0bda4a862a0264a370b993319b24
-      size: 3971
-  original:
-    hackage: network-3.1.2.7
-- completed:
     name: configurator
     pantry-tree:
       sha256: 90547cd983fd15ebdc803e057d3ef8735fe93a75e29a00f8a74eadc13ee0f6e9
@@ -33,6 +26,41 @@ packages:
     version: 0.8.0.0
   original:
     url: https://github.com/unisonweb/haskeline/archive/9275eea7982dabbf47be2ba078ced669ae7ef3d5.tar.gz
+- completed:
+    hackage: fsnotify-0.3.0.1@sha256:fbec8cddd3f991d5b905df16895c67717b0f580e1ef33de34d93de814af1a08a,2988
+    pantry-tree:
+      sha256: 37a2111006e61b752f3d4690dc81d76a4cedf3415dc486779addb2a033f5de58
+      size: 1130
+  original:
+    hackage: fsnotify-0.3.0.1
+- completed:
+    hackage: network-3.1.2.7@sha256:9752628bc626e0cad8c53039bea0dc0417f39ca6663232e4d9ac4e35a8925f7d,4911
+    pantry-tree:
+      sha256: aa95093a413ed8306699098159047580e0dc0bda4a862a0264a370b993319b24
+      size: 3971
+  original:
+    hackage: network-3.1.2.7
+- completed:
+    hackage: NanoID-3.3.0@sha256:027d369d5ec841e982c68cbc78ea87c4e91b9ffe66908ab7f0be62eb465f6ae2,1648
+    pantry-tree:
+      sha256: 80ff9b1b12cb0ad102c7e5b935d6f3781f37f9375756c6df5b900f776e608724
+      size: 364
+  original:
+    hackage: NanoID-3.3.0
+- completed:
+    hackage: shellmet-0.0.4.1@sha256:6d1dd3ce296b00a589e439d20a4466515cdf3e6156a0a147156804ee544ee9d1,3239
+    pantry-tree:
+      sha256: 5f5b89ad4dd21b03ee7518f745d50d881e0ae99ad6d8d5b9006ce798dd5d968f
+      size: 371
+  original:
+    hackage: shellmet-0.0.4.1
+- completed:
+    hackage: base32-0.2.2.0@sha256:61a5c1f457b619700ce600a43ce5e695cddd31f09aac540df23258bf9027ee9d,2563
+    pantry-tree:
+      sha256: 7f684f2fa28ad83e70c1c5d22c4f7487e5b7dcc340aac1aad833fa5b32d17640
+      size: 1936
+  original:
+    hackage: base32-0.2.2.0
 - completed:
     hackage: fuzzyfind-3.0.1@sha256:78f89c1d79adf0a15fa2e57c693d42b4765ccfbbe380d0c9d7da6bff9f124f85,1823
     pantry-tree:
@@ -70,7 +98,7 @@ packages:
     hackage: recover-rtti-0.4.2@sha256:c179a303921126d8d782264e14f386c96e54a270df74be002e4c4ec3c8c7aebd,4529
 snapshots:
 - completed:
-    sha256: dcf4fc28f12d805480ddbe8eb8c370e11db12f0461d0110a4240af27ac88d725
-    size: 650255
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/22.yaml
-  original: lts-20.22
+    sha256: 359dfcca6f69bb32f4f41eb951df23e1087fda7147c91cf8320813cdcc14e4dc
+    size: 632121
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2023/5/20.yaml
+  original: nightly-2023-05-20

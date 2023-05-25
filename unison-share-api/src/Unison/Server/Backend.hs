@@ -137,7 +137,7 @@ import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
@@ -167,7 +167,7 @@ import Unison.Server.NameSearch.FromNames (makeNameSearch)
 import Unison.Server.NameSearch.Sqlite (termReferentsByShortHash, typeReferencesByShortHash)
 import Unison.Server.QueryResult
 import qualified Unison.Server.SearchResult as SR
-import qualified Unison.Server.SearchResult' as SR'
+import qualified Unison.Server.SearchResult2 as SR'
 import qualified Unison.Server.Syntax as Syntax
 import Unison.Server.Types
 import Unison.ShortHash
@@ -176,7 +176,7 @@ import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.HashQualified as HQ (toText)
-import qualified Unison.Syntax.HashQualified' as HQ' (toText)
+import qualified Unison.Syntax.HashQualified2 as HQ' (toText)
 import Unison.Syntax.Name as Name (toText, unsafeFromText)
 import qualified Unison.Syntax.NamePrinter as NP
 import qualified Unison.Syntax.TermPrinter as TermPrinter

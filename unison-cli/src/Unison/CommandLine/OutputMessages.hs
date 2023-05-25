@@ -107,7 +107,7 @@ import qualified Unison.Hash as Hash
 import Unison.Hash32 (Hash32)
 import qualified Unison.Hash32 as Hash32
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import qualified Unison.Name as Name
@@ -136,11 +136,11 @@ import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-import qualified Unison.Referent' as Referent
+import qualified Unison.ReferentG as Referent
 import qualified Unison.Result as Result
 import Unison.Server.Backend (ShallowListEntry (..), TypeEntry (..))
 import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.SearchResult' as SR'
+import qualified Unison.Server.SearchResult2 as SR'
 import qualified Unison.Share.Sync as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import qualified Unison.ShortHash as ShortHash

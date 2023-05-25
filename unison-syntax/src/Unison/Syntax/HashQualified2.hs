@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Syntax-related combinators for HashQualified' (to/from string types).
-module Unison.Syntax.HashQualified'
+module Unison.Syntax.HashQualified2
   ( fromString,
     fromText,
     unsafeFromText,
@@ -11,7 +11,7 @@ module Unison.Syntax.HashQualified'
 where
 
 import qualified Data.Text as Text
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.Name (Name, Parse)
 import qualified Unison.Name as Name
 import Unison.Prelude hiding (fromString)

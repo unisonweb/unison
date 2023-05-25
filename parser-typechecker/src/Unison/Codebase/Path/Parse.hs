@@ -21,7 +21,7 @@ import qualified Control.Lens as Lens
 import Data.List.Extra (stripPrefix)
 import qualified Data.Text as Text
 import Unison.Codebase.Path
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude hiding (empty, toList)

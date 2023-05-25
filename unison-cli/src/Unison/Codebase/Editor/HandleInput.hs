@@ -145,8 +145,8 @@ import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName, ProjectNam
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
-import qualified Unison.HashQualified' as HashQualified
+import qualified Unison.HashQualified2 as HQ'
+import qualified Unison.HashQualified2 as HashQualified
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
@@ -184,7 +184,7 @@ import qualified Unison.Server.NameSearch.FromNames as NameSearch
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
-import qualified Unison.Server.SearchResult' as SR'
+import qualified Unison.Server.SearchResult2 as SR'
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite

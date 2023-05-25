@@ -9,7 +9,7 @@ import Data.Text
 import EasyTest
 import Unison.Codebase.Path
 import Unison.Codebase.Path.Parse
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified2 as HQ'
 import Unison.NameSegment
 import qualified Unison.ShortHash as SH
 

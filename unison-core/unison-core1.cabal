@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -33,7 +33,7 @@ library
       Unison.DataDeclaration.Names
       Unison.Hashable
       Unison.HashQualified
-      Unison.HashQualified'
+      Unison.HashQualified2
       Unison.Kind
       Unison.LabeledDependency
       Unison.Name
@@ -47,7 +47,7 @@ library
       Unison.Project
       Unison.Reference
       Unison.Referent
-      Unison.Referent'
+      Unison.ReferentG
       Unison.Settings
       Unison.ShortHash
       Unison.Symbol

@@ -31,8 +31,8 @@ import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import Unison.HashQualified' (HashQualified (HashQualified, NameOnly))
-import qualified Unison.HashQualified' as HQ'
+import Unison.HashQualified2 (HashQualified (HashQualified, NameOnly))
+import qualified Unison.HashQualified2 as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import qualified Unison.Names as Names

@@ -130,6 +130,6 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
 
     5 | > match fromUtf8.impl (drop 1 greek_bytes) with
           ⧩
-          "Cannot decode byte '\\x91': Data.Text.Internal.Encoding.decodeUtf8: Invalid UTF-8 stream"
+          "Cannot decode byte '\\x91': Data.Text.Encoding: Invalid UTF-8 stream"
 
 ```
