@@ -115,6 +115,4 @@ INSERT INTO scoped_type_name_lookup (root_branch_hash_id, reversed_name, last_na
 
 -- Remove the old tables
 DROP TABLE scoped_term_name_lookup_old;
-DROP TABLE scoped_type_name_lookup_old
-
--- Semicolons intentionally omitted
+DROP TABLE scoped_type_name_lookup_old;
