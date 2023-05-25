@@ -153,7 +153,9 @@ jobs:
         run: stack install stack-clean-old
       - name: check initial stackage cache size
         run: |
+          echo global .stack
           stack exec -- stack-clean-old list -G || true
+          echo project .stack-work
           stack exec -- stack-clean-old list -P || true
 
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
@@ -271,5 +273,7 @@ jobs:
 
       - name: check final stackage cache size
         run: |
+          echo global .stack
           stack exec -- stack-clean-old list -G || true
+          echo project .stack-work
           stack exec -- stack-clean-old list -P || true
