@@ -69,7 +69,7 @@ jobs:
         if: runner.os != 'Windows'
         with:
           path: ~/.stack
-          key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
+          key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: |
             stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
@@ -84,7 +84,7 @@ jobs:
         if: runner.os == 'Windows'
         with:
           path: "C:\\Users\\runneradmin\\AppData\\Roaming\\stack"
-          key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
+          key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: |
             stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
