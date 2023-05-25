@@ -191,17 +191,29 @@ jobs:
       - name: cli-integration-tests
         run: stack --no-terminal exec cli-integration-tests
 
+      - name: Cache Racket dependencies
+        uses: actions/cache@v2
+        if: runner.os == 'Linux'
+        with:
+          path: |
+            ~/.cache/racket
+            ~/.local/share/racket
+          key: ${{ runner.os }}-racket-8.7
+
       - uses: Bogdanp/setup-racket@v1.10
         if: runner.os == 'Linux'
         with:
           architecture: 'x64'
           distribution: 'full'
           variant: 'CS'
-          version: '8.7'
+          version: '8.7' # match with cache key above
       - run: raco pkg install --deps search-auto --batch x509-lib
         if: runner.os == 'Linux'
-      - run: sudo apt-get -y install libb2-dev
+      - uses: awalsh128/cache-apt-pkgs-action@latest
         if: runner.os == 'Linux'
+        with:
+          packages: libb2-dev
+          version: 1.0 # cache key version afaik
 
       - uses: actions/cache@v3
         name: cache base.md codebase (unix)
