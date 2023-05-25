@@ -211,6 +211,11 @@ jobs:
           key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-${{github.sha}}
           restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}
 
+      - name: set up `base` codebase
+        if: runner.os == 'Linux'
+        run: |
+          ./unison-src/builtin-tests/setup-base-codebase.sh
+
       - name: jit tests
         if: runner.os == 'Linux'
         run: |
