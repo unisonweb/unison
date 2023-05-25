@@ -37,7 +37,6 @@ import qualified Unison.ConstructorType as CT
 import Unison.Hash (Hash)
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sqlite.Connection as Sqlite.Connection
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as Pretty
