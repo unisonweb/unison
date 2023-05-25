@@ -178,92 +178,95 @@ jobs:
         run: stack --no-terminal build --fast --no-run-tests --test
 
       # Run each test suite (tests and transcripts)
-      - name: unison-cli test
-        run: stack --no-terminal build --fast --test unison-cli
-      - name: unison-core tests
-        run: stack --no-terminal build --fast --test unison-core
-      - name: unison-parser-typechecker tests
-        run: stack --no-terminal build --fast --test unison-parser-typechecker
-      - name: unison-sqlite tests
-        run: stack --no-terminal build --fast --test unison-sqlite
-      - name: unison-syntax tests
-        run: stack --no-terminal build --fast --test unison-syntax
-      - name: unison-util-bytes tests
-        run: stack --no-terminal build --fast --test unison-util-bytes
-      - name: unison-util-cache tests
-        run: stack --no-terminal build --fast --test unison-util-cache
-      - name: unison-util-relation tests
-        run: stack --no-terminal build --fast --test unison-util-relation
-      - name: transcripts
-        run: |
-          stack --no-terminal exec transcripts
-          # Add all changes to the index for when we diff.
-          git add --all
-          # Fail if any transcripts cause git diffs.
-          git diff --cached --ignore-cr-at-eol --exit-code
-      - name: prettyprint-round-trip
-        run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
-      - name: cli-integration-tests
-        run: stack --no-terminal exec cli-integration-tests
+      - name: test
+        steps:
+        - name: unison-cli test
+          run: stack --no-terminal build --fast --test unison-cli
+        - name: unison-core tests
+          run: stack --no-terminal build --fast --test unison-core
+        - name: unison-parser-typechecker tests
+          run: stack --no-terminal build --fast --test unison-parser-typechecker
+        - name: unison-sqlite tests
+          run: stack --no-terminal build --fast --test unison-sqlite
+        - name: unison-syntax tests
+          run: stack --no-terminal build --fast --test unison-syntax
+        - name: unison-util-bytes tests
+          run: stack --no-terminal build --fast --test unison-util-bytes
+        - name: unison-util-cache tests
+          run: stack --no-terminal build --fast --test unison-util-cache
+        - name: unison-util-relation tests
+          run: stack --no-terminal build --fast --test unison-util-relation
+        - name: transcripts
+          run: |
+            stack --no-terminal exec transcripts
+            # Add all changes to the index for when we diff.
+            git add --all
+            # Fail if any transcripts cause git diffs.
+            git diff --cached --ignore-cr-at-eol --exit-code
+        - name: prettyprint-round-trip
+          run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
+        - name: cli-integration-tests
+          run: stack --no-terminal exec cli-integration-tests
+        - name: runtime tests
+          steps:
+            - name: Cache Racket dependencies
+              uses: actions/cache@v2
+              if: runner.os == 'Linux'
+              with:
+                path: |
+                  ~/.cache/racket
+                  ~/.local/share/racket
+                key: ${{ runner.os }}-racket-8.7
 
-      - name: Cache Racket dependencies
-        uses: actions/cache@v2
-        if: runner.os == 'Linux'
-        with:
-          path: |
-            ~/.cache/racket
-            ~/.local/share/racket
-          key: ${{ runner.os }}-racket-8.7
+            - uses: Bogdanp/setup-racket@v1.10
+              if: runner.os == 'Linux'
+              with:
+                architecture: 'x64'
+                distribution: 'full'
+                variant: 'CS'
+                version: '8.7' # match with cache key above
+            - run: raco pkg install --auto --skip-installed --batch x509-lib
+              if: runner.os == 'Linux'
+            - uses: awalsh128/cache-apt-pkgs-action@latest
+              if: runner.os == 'Linux'
+              with:
+                packages: libb2-dev
+                version: 1.0 # cache key version afaik
 
-      - uses: Bogdanp/setup-racket@v1.10
-        if: runner.os == 'Linux'
-        with:
-          architecture: 'x64'
-          distribution: 'full'
-          variant: 'CS'
-          version: '8.7' # match with cache key above
-      - run: raco pkg install --auto --skip-installed --batch x509-lib
-        if: runner.os == 'Linux'
-      - uses: awalsh128/cache-apt-pkgs-action@latest
-        if: runner.os == 'Linux'
-        with:
-          packages: libb2-dev
-          version: 1.0 # cache key version afaik
+            - uses: actions/cache@v3
+              name: cache base.md codebase (unix)
+              if: runner.os == 'Linux'
+              with:
+                path: ~/.cache/unisonlanguage/base.unison
+                key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-${{github.sha}}
+                restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}
 
-      - uses: actions/cache@v3
-        name: cache base.md codebase (unix)
-        if: runner.os == 'Linux'
-        with:
-          path: ~/.cache/unisonlanguage/base.unison
-          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-${{github.sha}}
-          restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}
+            - name: set up `base` codebase
+              if: runner.os == 'Linux'
+              run: |
+                ./unison-src/builtin-tests/setup-base-codebase.sh
 
-      - name: set up `base` codebase
-        if: runner.os == 'Linux'
-        run: |
-          ./unison-src/builtin-tests/setup-base-codebase.sh
+            - name: jit tests
+              if: runner.os == 'Linux'
+              run: |
+                ./unison-src/builtin-tests/jit-tests.sh
+                cat ./unison-src/builtin-tests/jit-tests.output.md
+                CHANGE=$(git diff unison-src/builtin-tests/jit-tests.output.md)
+                if [ -n "$CHANGE" ]; then
+                  echo "The jit-tests output has changed"
+                  exit 1
+                fi
 
-      - name: jit tests
-        if: runner.os == 'Linux'
-        run: |
-          ./unison-src/builtin-tests/jit-tests.sh
-          cat ./unison-src/builtin-tests/jit-tests.output.md
-          CHANGE=$(git diff unison-src/builtin-tests/jit-tests.output.md)
-          if [ -n "$CHANGE" ]; then
-            echo "The jit-tests output has changed"
-            exit 1
-          fi
-
-      - name: interpreter tests
-        if: runner.os == 'Linux'
-        run: |
-          ./unison-src/builtin-tests/interpreter-tests.sh
-          cat ./unison-src/builtin-tests/interpreter-tests.output.md
-          CHANGE=$(git diff unison-src/builtin-tests/interpreter-tests.output.md)
-          if [ -n "$CHANGE" ]; then
-            echo "The interpreter-tests output has changed"
-            exit 1
-          fi
+            - name: interpreter tests
+              if: runner.os == 'Linux'
+              run: |
+                ./unison-src/builtin-tests/interpreter-tests.sh
+                cat ./unison-src/builtin-tests/interpreter-tests.output.md
+                CHANGE=$(git diff unison-src/builtin-tests/interpreter-tests.output.md)
+                if [ -n "$CHANGE" ]; then
+                  echo "The interpreter-tests output has changed"
+                  exit 1
+                fi
 
       - name: check final stackage cache size
         run: |
