@@ -509,6 +509,9 @@ expectLatestParsedFile :: Cli (UnisonFile Symbol Ann)
 expectLatestParsedFile =
   getLatestParsedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
 
+-- | Returns a parsed term (potentially with free variables) from the latest file.
+-- This term will refer to other terms in the file by vars, not by hash.
+-- Used to implement rewriting and other refactorings on the current file.
 getTermFromLatestParsedFile :: HQ.HashQualified Name.Name -> Cli (Maybe (Term.Term Symbol Ann))
 getTermFromLatestParsedFile (HQ.NameOnly n) = do
   uf <- expectLatestParsedFile

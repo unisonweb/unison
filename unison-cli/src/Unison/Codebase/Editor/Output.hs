@@ -313,6 +313,7 @@ data Output
     RemoteProjectBranchIsUpToDate URI (ProjectAndBranch ProjectName ProjectBranchName)
   | InvalidProjectName Text
   | InvalidProjectBranchName Text
+  | InvalidStructuredFindReplace (HQ.HashQualified Name)
   | ProjectNameAlreadyExists ProjectName
   | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)

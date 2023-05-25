@@ -1655,7 +1655,28 @@ inputDescription input =
       These path _branch -> pure (Path.toText' path)
 
 handleStructuredFindReplaceI :: HQ.HashQualified Name -> Input -> Cli ()
-handleStructuredFindReplaceI rule i = undefined rule i 
+handleStructuredFindReplaceI rule i = do
+  root <- Cli.getRootBranch
+  currentBranch <- Cli.getCurrentBranch0
+  hqLength <- Cli.runTransaction Codebase.hashLength
+  let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+  let ppe = Backend.getCurrentPrettyNames hqLength (Backend.WithinStrict currentPath') root
+  ot <- Cli.getTermFromLatestParsedFile rule
+  ot <- case ot of
+    Just tm -> pure ot
+    Nothing -> do 
+      case NamesWithHistory.lookupHQTerm rule currentNames of
+        s | Set.size s == 1, Just (Referent.Ref (Reference.DerivedId r)) -> 
+          Cli.runTransaction (Codebase.getTerm codebase r)
+        s -> Cli.returnEarly (TermAmbiguous rule s)
+  tm <- maybe (Cli.returnEarly (TermAmbiguous rule mempty)) pure ot
+  (lhs,rhs) <- case tm of
+    Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs,rhs]) -> (lhs,rhs) 
+    _ -> Cli.returnEarly (InvalidStructuredFindReplace rule) 
+  uf <- Cli.expectLatestParsedFile
+  dest <- Cli.expectLatestFile
+  #latestFile ?= (Just dest, True)
+  respond $ OutputFile ppe dest (UF.rewrite lhs rhs uf)
 
 handleFindI ::
   Bool ->
