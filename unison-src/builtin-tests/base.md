@@ -5,6 +5,6 @@ Thus, make sure the contents of this file define the contents of the cache
 (e.g. don't pull `latest`.)
 
 ```ucm
-.> pull unison.public.base.releases.v1_1_1 .base
+.> pull unison.public.base.latest .base
 .> compile.native.fetch
 ```
