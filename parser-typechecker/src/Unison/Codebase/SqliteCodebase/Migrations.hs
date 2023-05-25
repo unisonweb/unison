@@ -175,7 +175,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
           region <- readMVar regionVar
           -- Vacuum once now that any migrations have taken place.
           Region.setConsoleRegion region ("✅ All good, cleaning up..." :: Text)
-          _success <- Sqlite.Connection.vacuum conn
+          -- _success <- Sqlite.Connection.vacuum conn
           Region.setConsoleRegion region ("🏁 Migrations complete 🏁" :: Text)
 
 -- | If we need to make a backup,  then copy the sqlite database to a new file with a unique name based on current time.
