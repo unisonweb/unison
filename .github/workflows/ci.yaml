@@ -149,7 +149,8 @@ jobs:
         if: runner.os == 'macOS'
         run: rm -rf ~/.stack/setup-exe-cache
 
-      - run: stack install stack-clean-old
+      - name: install stack-clean-old (to scan or clean up old stackage caches)
+        run: stack install stack-clean-old
       - name: check initial stackage cache size
         run: |
           stack exec -- stack-clean-old list -G || true
