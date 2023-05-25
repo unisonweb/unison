@@ -9,16 +9,24 @@ import Control.Lens hiding ((??))
 import Control.Monad.Except
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
+import qualified U.Codebase.Sqlite.Operations as Ops
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Path (Path)
+import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
+import qualified Unison.Codebase.SqliteCodebase.Conversions as CV
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified as HQ
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -58,7 +66,7 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
   result <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- resolveCausalHashV2 (Just rootHash)
     shallowBranch <- V2Causal.value shallowRoot
-    perspectiveQuery <- addNameIfHashOnly perspectiveQuery
+    perspectiveQuery <- addNameIfHashOnly codebase perspective perspectiveQuery shallowRoot
     Backend.relocateToNameRoot perspective perspectiveQuery shallowBranch >>= \case
       Left err -> pure $ Left err
       Right (namesRoot, locatedQuery) -> pure $ Right (shallowRoot, namesRoot, locatedQuery)
@@ -107,13 +115,33 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
       renderedDisplayTypes
       renderedMisses
 
-addNameIfHashOnly :: HQ.HashQualified Name -> Sqlite.Transaction (HQ.HashQualified Name)
-addNameIfHashOnly hq = case HQ.toName hq of
-  Nothing -> do
-    let hash = HQ.toHash hq
-    name <- Sqlite.getNameForHash hash
-    pure $ HQ.fromMaybeHash hash name
-  Just _ -> pure hq
+-- | A _hopefully_ temporary solution for the following problem:
+--
+-- When rendering definitions by-hash, we don't know which of the project's dependencies we
+-- may be in, so we don't know which mount to use when rendering it.
+-- So, first we do a breadth-first recursive search to find some name for that definition,
+-- then we can use that name to find the mount and render just as we would if provided a name
+-- up front.
+addNameIfHashOnly :: Codebase m v a -> Path -> HQ.HashQualified Name -> V2Branch.CausalBranch Sqlite.Transaction -> Sqlite.Transaction (HQ.HashQualified Name)
+addNameIfHashOnly codebase perspective hqQuery rootCausal = case hqQuery of
+  HQ.HashOnly sh -> do
+    let rootBranchHash = V2Causal.valueHash rootCausal
+    let pathSegments = coerce $ Path.toList perspective
+    let findTerm = do
+          termRefs <- lift $ termReferentsByShortHash codebase sh
+          termRefs
+            & altMap \ref -> do
+              MaybeT $ Ops.recursiveTermNameSearch pathSegments rootBranchHash (CV.referent1to2 ref)
+    let findType = do
+          typeRefs <- lift $ typeReferencesByShortHash sh
+          typeRefs
+            & altMap \ref -> do
+              MaybeT $ Ops.recursiveTypeNameSearch pathSegments rootBranchHash (Cv.reference1to2 ref)
+    mayReversedName <- runMaybeT $ findTerm <|> findType
+    case mayReversedName of
+      Nothing -> pure hqQuery
+      Just (ReversedName reversedName) -> pure $ HQ.NameOnly (Name.fromReverseSegments $ coerce reversedName)
+  _ -> pure hqQuery
 
 renderDocRefs ::
   PPEDBuilder ->

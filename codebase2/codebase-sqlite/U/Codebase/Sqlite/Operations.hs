@@ -1285,7 +1285,8 @@ longestMatchingTypeNameForSuffixification bh namespace namedRef = do
   Q.longestMatchingTypeNameForSuffixification perspectiveBranchHashId relativePath (c2sTextReference <$> namedRef)
     <&> fmap (prefixNamedRef namespacePrefix >>> fmap s2cTextReference)
 
--- | Searches all dependencies transitively looking for the provided referent.
+-- | Searches all dependencies transitively looking for the provided ref within the
+-- provided namespace.
 -- Prefer 'termNamesForRefWithinNamespace' in most cases.
 -- This is slower and only necessary when resolving the name of refs when you don't know which
 -- dependency it may exist in.
@@ -1296,12 +1297,15 @@ longestMatchingTypeNameForSuffixification bh namespace namedRef = do
 -- Note: this returns the first name it finds by searching in order of:
 -- Names in the current namespace, then names in the current namespace's dependencies, then
 -- through the current namespace's dependencies' dependencies, etc.
-recursiveTermNameSearch :: BranchHash -> C.Referent -> Transaction (Maybe S.ReversedName)
-recursiveTermNameSearch bh r = do
+recursiveTermNameSearch :: PathSegments -> BranchHash -> C.Referent -> Transaction (Maybe S.ReversedName)
+recursiveTermNameSearch namespace bh r = do
   bhId <- Q.expectBranchHashId bh
-  Q.recursiveTermNameSearch bhId (c2sTextReferent r)
+  (perspectiveBranchHashId, namespacePrefix, _relativePath) <- nameLookupForPerspective bhId namespace
+  Q.recursiveTermNameSearch perspectiveBranchHashId (c2sTextReferent r)
+    <&> fmap \reversedName -> prefixReversedName namespacePrefix reversedName
 
--- | Searches all dependencies transitively looking for the provided ref.
+-- | Searches all dependencies transitively looking for the provided ref within the provided
+-- namespace.
 -- Prefer 'typeNamesForRefWithinNamespace' in most cases.
 -- This is slower and only necessary when resolving the name of references when you don't know which
 -- dependency it may exist in.
@@ -1312,10 +1316,12 @@ recursiveTermNameSearch bh r = do
 -- Note: this returns the first name it finds by searching in order of:
 -- Names in the current namespace, then names in the current namespace's dependencies, then
 -- through the current namespace's dependencies' dependencies, etc.
-recursiveTypeNameSearch :: BranchHash -> C.Reference -> Transaction (Maybe S.ReversedName)
-recursiveTypeNameSearch bh r = do
+recursiveTypeNameSearch :: PathSegments -> BranchHash -> C.Reference -> Transaction (Maybe S.ReversedName)
+recursiveTypeNameSearch namespace bh r = do
   bhId <- Q.expectBranchHashId bh
-  Q.recursiveTypeNameSearch bhId (c2sTextReference r)
+  (perspectiveBranchHashId, namespacePrefix, _relativePath) <- nameLookupForPerspective bhId namespace
+  Q.recursiveTypeNameSearch perspectiveBranchHashId (c2sTextReference r)
+    <&> fmap \reversedName -> prefixReversedName namespacePrefix reversedName
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them
 -- then return them.
