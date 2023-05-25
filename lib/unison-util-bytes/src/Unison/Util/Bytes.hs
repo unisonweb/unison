@@ -1,9 +1,13 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use second" #-}
+
 
 module Unison.Util.Bytes
   ( Bytes (..),
     Chunk,
+    appendUnbalanced,
     fromByteString,
     toByteString,
     fromWord8s,
@@ -20,6 +24,7 @@ module Unison.Util.Bytes
     byteStringToChunk,
     chunkToByteString,
     fromChunks,
+    chunkToBytes,
     chunks,
     byteStringChunks,
     toArray,
@@ -27,8 +32,10 @@ module Unison.Util.Bytes
     toLazyByteString,
     flatten,
     at,
+    uncons,
     take,
     drop,
+    dropWhileMax,
     size,
     empty,
     encodeNat16be,
@@ -49,8 +56,10 @@ module Unison.Util.Bytes
     zlibDecompress,
     gzipCompress,
     gzipDecompress,
+    unconsChunk,
   )
 where
+
 
 import Basement.Block.Mutable (Block (Block))
 import qualified Codec.Compression.GZip as GZip
@@ -106,6 +115,10 @@ null = R.null . underlying
 empty :: Bytes
 empty = mempty
 
+appendUnbalanced :: Bytes -> Bytes -> Bytes
+appendUnbalanced (Bytes t1) (Bytes t2) = Bytes (R.two t1 t2)
+
+
 isAscii :: Bytes -> Bool
 isAscii b = all (V.all (<= 0x7F)) (chunks b)
 
@@ -127,6 +140,9 @@ chunkFromByteString = byteStringToChunk
 
 chunkToByteString :: Chunk -> B.ByteString
 chunkToByteString = BSV.vectorToByteString . toStorable
+
+chunkToBytes :: Chunk -> Bytes
+chunkToBytes c = Bytes $ R.singleton c
 
 fromStorable :: SV.Vector Word8 -> V.Vector Word8
 fromStorable sv =
@@ -166,6 +182,9 @@ fromLazyByteString b = fromChunks (byteStringToChunk <$> LB.toChunks b)
 size :: Bytes -> Int
 size = R.size . underlying
 
+unconsChunk :: Bytes -> Maybe (Chunk, Bytes)
+unconsChunk (Bytes r) = (\(a, b) -> (a, Bytes b)) <$> R.uncons r
+
 chunkSize :: Chunk -> Int
 chunkSize = V.length
 
@@ -187,6 +206,10 @@ snoc (Bytes bs) b = Bytes (R.snoc bs b)
 flatten :: Bytes -> Bytes
 flatten b = snoc mempty (V.concat (chunks b))
 
+uncons :: Bytes -> Maybe (Word8, Bytes)
+uncons t | size t == 0 = Nothing
+uncons t = (,drop 1 t) <$> at 0 t
+
 take :: Int -> Bytes -> Bytes
 take n (Bytes bs) = Bytes (R.take n bs)
 
@@ -205,6 +228,36 @@ dropBlock nBytes (Bytes chunks) = go mempty chunks
       | V.length acc >= nBytes, (hd, hd2) <- V.splitAt nBytes acc = Just (hd, Bytes (hd2 `R.cons` chunks))
       | Just (head, tail) <- R.uncons chunks = go (acc <> head) tail
       | otherwise = Nothing
+
+-- Drop with both a maximum size and a predicate. Yields actual number of
+-- dropped characters.
+--
+-- Unavailable from text package.
+dropBytesWhileMax :: (Word8 -> Bool) -> Int -> Chunk -> (Int, Chunk)
+dropBytesWhileMax p n bs@(V.Vector off len arr) = loop 0 0
+  where
+    loop !i !j
+      | j >= len = (i, mempty)
+      | i < n, p c = loop (i + 1) (j + d)
+      | otherwise = (i, V.Vector (off + j) (len - j) arr)
+      where
+        c = V.unsafeIndex bs j
+        d = 1 + fromEnum (c >= 0x80)
+{-# INLINE [1] dropBytesWhileMax #-}
+
+dropWhileMax :: (Word8 -> Bool) -> Int -> Bytes -> (Int, Bytes)
+dropWhileMax p = go 0
+  where
+    go !total !d t
+      | d <= 0 = (total, t)
+      | Just (chunk, t) <- unconsChunk t =
+          case dropBytesWhileMax p d chunk of
+            (i, rest)
+              | V.null rest, i < d -> go (total + i) (d - i) t
+              | V.null rest -> (total + i, t)
+              | otherwise -> (total + i, chunkToBytes rest <> t)
+      | otherwise = (total, empty)
+{-# INLINE dropWhileMax #-}
 
 decodeNat64be :: Bytes -> Maybe (Word64, Bytes)
 decodeNat64be bs = case dropBlock 8 bs of

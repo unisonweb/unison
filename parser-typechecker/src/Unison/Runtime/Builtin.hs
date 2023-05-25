@@ -171,6 +171,7 @@ import Unison.Util.RefPromise
 import Unison.Util.Text (Text)
 import qualified Unison.Util.Text as Util.Text
 import qualified Unison.Util.Text.Pattern as TPat
+import qualified Unison.Util.Bytes.Pattern as BPat
 import Unison.Var
 
 type Failure = F.Failure Closure
@@ -2908,6 +2909,17 @@ declareForeigns = do
       PA.fillByteArray arr 0 sz init
       pure arr
 
+  declareForeign Untracked "Bytes.patterns.literal" boxDirect . mkForeign $
+    \bs -> evaluate . BPat.cpattern $ BPat.Literal bs
+
+  declareForeign Untracked "Bytes.patterns.byteRange" boxBoxDirect . mkForeign $
+    \(beg,end) -> evaluate . BPat.cpattern $ BPat.Byte $ BPat.ByteRange beg end
+
+  declareForeign Untracked "Bytes.patterns.byteRange" boxBoxDirect . mkForeign $
+    \(beg,end) -> evaluate . BPat.cpattern $ BPat.Byte $ BPat.ByteRange beg end
+
+
+
   declareForeign Untracked "Text.patterns.literal" boxDirect . mkForeign $
     \txt -> evaluate . TPat.cpattern $ TPat.Literal txt
   declareForeign Untracked "Text.patterns.digit" direct . mkForeign $
@@ -2941,6 +2953,8 @@ declareForeigns = do
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many p
   declareForeign Untracked "Pattern.capture" boxDirect . mkForeign $
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Capture p
+  declareForeign Untracked "Pattern.captureAs" boxBoxDirect . mkForeign $
+    \(t, (TPat.CP p _)) -> evaluate . TPat.cpattern $ TPat.CaptureAs t p
   declareForeign Untracked "Pattern.join" boxDirect . mkForeign $ \ps ->
     evaluate . TPat.cpattern . TPat.Join $ map (\(TPat.CP p _) -> p) ps
   declareForeign Untracked "Pattern.or" boxBoxDirect . mkForeign $
