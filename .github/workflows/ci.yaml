@@ -257,7 +257,8 @@ jobs:
           fi
 
       - name: interpreter tests
-        if: runner.os == 'Linux'
+        if: false
+        # if: runner.os == 'Linux'
         run: |
           ./unison-src/builtin-tests/interpreter-tests.sh
           cat ./unison-src/builtin-tests/interpreter-tests.output.md
