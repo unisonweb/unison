@@ -3492,7 +3492,11 @@ toReversedName revSegs = Text.intercalate "." (toList revSegs) <> "."
 --
 -- >>> toNamespaceGlob "foo.bar"
 -- "foo.bar.*"
+--
+-- >>> toNamespaceGlob ""
+-- "*"
 toNamespaceGlob :: Text -> Text
+toNamespaceGlob "" = "*"
 toNamespaceGlob namespace = globEscape namespace <> ".*"
 
 -- | Thrown if we try to get the segments of an empty name, shouldn't ever happen since empty names

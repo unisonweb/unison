@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Unison.PatternMatchCoverage.Solve
   ( uncoverAnnotate,

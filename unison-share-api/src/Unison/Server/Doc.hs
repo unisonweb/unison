@@ -359,7 +359,9 @@ evalDoc terms typeOf eval types tm =
          in goSignatures rs <&> \s -> ESignature s
       -- SignatureInline Doc2.Term
       DD.Doc2SpecialFormSignatureInline (DD.Doc2Term (Term.Referent' r)) ->
-        goSignatures [r] <&> \[s] -> ESignatureInline s
+        goSignatures [r] <&> \case
+          [s] -> ESignatureInline s
+          _ -> error "impossible error: evalDoc: expected exactly one signature"
       -- Eval Doc2.Term
       DD.Doc2SpecialFormEval (DD.Doc2Term tm) -> do
         result <- eval tm

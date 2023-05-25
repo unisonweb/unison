@@ -17,8 +17,7 @@ import Control.Lens (folding, ix, (^?))
 import qualified Crypto.JWT as Jose
 import Data.Aeson
 import qualified Data.Aeson as Aeson
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map.Strict as Map
+import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Servant.Auth.JWT as Servant.Auth
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
@@ -101,8 +100,7 @@ decodeHashJWTClaims (HashJWT text) =
               & JWT.claims
               & JWT.unregisteredClaims
               & JWT.unClaimsMap
-              & Map.toList
-              & HashMap.fromList
+              & Aeson.KeyMap.fromMapText
               & Aeson.Object
        in case Aeson.fromJSON object of
             Aeson.Error err -> error ("bad JWT: " ++ err)
