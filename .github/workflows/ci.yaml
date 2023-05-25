@@ -65,10 +65,10 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          key: stack-0_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: |
-            stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
+            stack-0_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}
             stack-0_${{matrix.os}}
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
@@ -83,10 +83,10 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          key: stack-0_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: |
-            stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
+            stack-0_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}
             stack-0_${{matrix.os}}
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
@@ -208,8 +208,8 @@ jobs:
         if: runner.os == 'Linux'
         with:
           path: ~/.cache/unisonlanguage/base.unison
-          key: base.unison_${{hashfiles('unison-src/builtin-tests/base.md')}}-${{github.sha}}
-          restore-keys: base.unison_${{hashfiles('unison-src/builtin-tests/base.md')}}
+          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-${{github.sha}}
+          restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}
 
       - name: jit tests
         if: runner.os == 'Linux'
