@@ -53,23 +53,30 @@ jobs:
       # purge one manually.
 
 
+      - id: stackage-resolver
+        name: record stackage resolver
+        # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#environment-files
+        # looks for `resolver: nightly-yyyy-mm-dd` or `resolver: lts-xx.yy` in `stack.yaml` and splits it into
+        # `nightly` or `lts-xx`.  the whole resolver string is put into resolver_long as a backup cache key
+        # ${{ steps.stackage-resolver.outputs.resolver_short }}
+        # ${{ steps.stackage-resolver.outputs.resolver_long }}
+        run: |
+          grep resolver stack.yaml | awk '{ x="resolver_short="; if (split($2,a,"-") > 2) print x a[1]; else {split($2,b,"."); print x b[1]}}' >> "$GITHUB_OUTPUT"
+          grep resolver stack.yaml | awk '{print "resolver_long="$2}' >> "$GITHUB_OUTPUT"
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
       - uses: actions/cache@v3
         name: cache ~/.stack (unix)
         if: runner.os != 'Windows'
         with:
           path: ~/.stack
-          # Main cache key: commit hash. This should always result in a cache miss...
-          # So when loading a cache we'll always fall back to the restore-keys,
-          # which should load the most recent cache via a prefix search on the most
-          # recent branch cache.
-          # Then it will save a new cache at this commit sha, which should be used by
-          # the next build on this branch.
-          key: stack-0_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
+          key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: |
-            stack-0_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}
-            stack-0_${{matrix.os}}
+            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
+            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-
+            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-
+            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
+            stack-1_${{matrix.os}}-
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
       - uses: actions/cache@v3
@@ -77,17 +84,14 @@ jobs:
         if: runner.os == 'Windows'
         with:
           path: "C:\\Users\\runneradmin\\AppData\\Roaming\\stack"
-          # Main cache key: commit hash. This should always result in a cache miss...
-          # So when loading a cache we'll always fall back to the restore-keys,
-          # which should load the most recent cache via a prefix search on the most
-          # recent branch cache.
-          # Then it will save a new cache at this commit sha, which should be used by
-          # the next build on this branch.
-          key: stack-0_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
+          key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: |
-            stack-0_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}
-            stack-0_${{matrix.os}}
+            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
+            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-
+            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-
+            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
+            stack-1_${{matrix.os}}-
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
       - uses: actions/cache@v3
@@ -101,8 +105,13 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-work-3_${{matrix.os}}-${{github.sha}}
-          restore-keys: stack-work-3_${{matrix.os}}
+          key: stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
+          restore-keys: |
+            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
+            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-
+            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-
+            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
+            stack-work-4_${{matrix.os}}-
 
       # Install stack by downloading the binary from GitHub.
       # The installation process differs by OS.
@@ -141,7 +150,7 @@ jobs:
         run: rm -rf ~/.stack/setup-exe-cache
 
       - run: stack install stack-clean-old
-      - run: stack-clean-old list
+      - run: stack exec -- stack-clean-old list
 
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
