@@ -150,7 +150,10 @@ jobs:
         run: rm -rf ~/.stack/setup-exe-cache
 
       - run: stack install stack-clean-old
-      - run: stack exec -- stack-clean-old list
+      - name: check initial stackage cache size
+        run: |
+          stack exec -- stack-clean-old list -G
+          stack exec -- stack-clean-old list -P
 
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
@@ -261,3 +264,8 @@ jobs:
             echo "The interpreter-tests output has changed"
             exit 1
           fi
+
+      - name: check final stackage cache size
+        run: |
+          stack exec -- stack-clean-old list -G
+          stack exec -- stack-clean-old list -P
