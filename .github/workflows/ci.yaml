@@ -150,7 +150,11 @@ jobs:
         run: rm -rf ~/.stack/setup-exe-cache
 
       - name: install stack-clean-old (to scan or clean up old stackage caches)
-        run: stack install stack-clean-old
+        run: |
+          if ! stack exec -- which stack-clean-old; then
+            stack install stack-clean-old
+          fi
+
       - name: check initial stackage cache size
         run: |
           echo global .stack
@@ -240,7 +244,7 @@ jobs:
         with:
           path: ~/.cache/unisonlanguage/base.unison
           key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-${{github.sha}}
-          restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}
+          restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-
 
       - name: set up `base` codebase
         if: runner.os == 'Linux'
