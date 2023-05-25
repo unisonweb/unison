@@ -2,7 +2,7 @@
 ```ucm
 .> pull unison.public.base.latest .base
 
-  Downloaded 11580 entities.
+  Downloaded 11980 entities.
 
   ✅
   
@@ -10,7 +10,7 @@
 
 .> compile.native.fetch
 
-  Downloaded 59222 entities.
+  Downloaded 65491 entities.
 
   ✅
   
