@@ -136,7 +136,7 @@ testClient cert hostname portVar _ = catch do
     None        -> defaultClient
     Some (cert) -> defaultClient |> ClientConfig.certificates.set [cert]
   -- create a tcp connection with the server
-  sock = clientSocket (HostName.HostName ("127" ++ ".0.0.1")) (Port.Port (Nat.toText (Promise.read portVar)))
+  sock = Socket.client (HostName.HostName ("127" ++ ".0.0.1")) (Port.Port (Nat.toText (Promise.read portVar)))
   -- attach the TLS client to the TCP socket
   tls = Tls.newClient tlsconfig sock
   -- verify that the server presents us with a certificate chain for

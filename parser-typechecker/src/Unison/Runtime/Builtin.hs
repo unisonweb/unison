@@ -1416,8 +1416,7 @@ outIoFailUnit stack1 stack2 stack3 extra fail result =
     mapFromList
       [ failureCase stack1 stack2 stack3 extra fail,
         ( 1,
-          ([BX],)
-            . TAbss [stack3]
+          ([],)
             . TLetD extra BX (TCon Ty.unitRef 0 [])
             $ right extra
         )
