@@ -210,7 +210,7 @@ jobs:
           distribution: 'full'
           variant: 'CS'
           version: '8.7' # match with cache key above
-      - run: raco pkg install --deps search-auto --batch x509-lib
+      - run: raco pkg install --auto --skip-installed --batch x509-lib
         if: runner.os == 'Linux'
       - uses: awalsh128/cache-apt-pkgs-action@latest
         if: runner.os == 'Linux'
