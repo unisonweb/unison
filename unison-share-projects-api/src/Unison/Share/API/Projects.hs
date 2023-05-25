@@ -38,11 +38,11 @@ module Unison.Share.API.Projects
 where
 
 import Data.Aeson
-import qualified Data.Aeson.Key as Aeson.Key
-import qualified Data.Aeson.KeyMap as Aeson.KeyMap
+import Data.Aeson.Key qualified as Aeson.Key
+import Data.Aeson.KeyMap qualified as Aeson.KeyMap
 import Data.Aeson.Types
 import Data.Monoid (Endo (..))
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Servant.API
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()

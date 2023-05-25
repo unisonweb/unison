@@ -1,7 +1,7 @@
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema9To10 (migrateSchema9To10) where
 
-import qualified U.Codebase.Sqlite.Queries as Queries
-import qualified Unison.Sqlite as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Sqlite qualified as Sqlite
 
 migrateSchema9To10 :: Sqlite.Transaction ()
 migrateSchema9To10 = do

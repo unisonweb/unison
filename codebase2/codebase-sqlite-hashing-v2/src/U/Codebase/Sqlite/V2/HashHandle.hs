@@ -3,10 +3,10 @@ module U.Codebase.Sqlite.V2.HashHandle
   )
 where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import U.Codebase.Sqlite.HashHandle
 import U.Util.Type (removeAllEffectVars)
-import qualified Unison.Hashing.V2 as H2
+import Unison.Hashing.V2 qualified as H2
 import Unison.Hashing.V2.Convert2 (h2ToV2Reference, v2ToH2Type, v2ToH2TypeD)
 
 v2HashHandle :: HashHandle

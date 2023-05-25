@@ -36,18 +36,18 @@ where
 
 import Control.Exception (throwIO)
 import Data.Bytes.Get (runGetS)
-import qualified Data.Bytes.Get as Get
-import qualified U.Codebase.Reference as C.Reference
-import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
-import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import Data.Bytes.Get qualified as Get
+import U.Codebase.Reference qualified as C.Reference
+import U.Codebase.Sqlite.Branch.Format qualified as NamespaceFormat
+import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds)
-import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
+import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.Symbol (Symbol)
-import qualified U.Codebase.Sqlite.TempEntity as TempEntity
-import qualified U.Codebase.Sqlite.Term.Format as TermFormat
+import U.Codebase.Sqlite.TempEntity qualified as TempEntity
+import U.Codebase.Sqlite.Term.Format qualified as TermFormat
 import U.Util.Serialization (Get)
-import qualified U.Util.Serialization as Serialization (lengthFramedArray)
+import U.Util.Serialization qualified as Serialization (lengthFramedArray)
 import Unison.Prelude
 import Unison.Sqlite
 

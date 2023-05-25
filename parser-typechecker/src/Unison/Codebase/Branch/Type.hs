@@ -19,11 +19,11 @@ import Data.Map (Map)
 import Data.Set (Set)
 import U.Codebase.HashTags (CausalHash, PatchHash)
 import Unison.Codebase.Causal.Type (Causal)
-import qualified Unison.Codebase.Causal.Type as Causal
-import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Causal.Type qualified as Causal
+import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Reference (Reference)

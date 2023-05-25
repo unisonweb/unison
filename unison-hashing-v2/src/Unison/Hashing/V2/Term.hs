@@ -8,21 +8,21 @@ module Unison.Hashing.V2.Term
   )
 where
 
-import qualified Data.Sequence as Sequence
-import qualified Data.Text as Text
-import qualified Data.Zip as Zip
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as B
+import Data.Sequence qualified as Sequence
+import Data.Text qualified as Text
+import Data.Zip qualified as Zip
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as B
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
-import qualified Unison.Hashing.V2.ABT as ABT
+import Unison.Hash qualified as Hash
+import Unison.Hashing.V2.ABT qualified as ABT
 import Unison.Hashing.V2.Pattern (Pattern)
 import Unison.Hashing.V2.Reference (Reference (..), ReferenceId (..), pattern ReferenceDerived)
-import qualified Unison.Hashing.V2.Reference.Util as ReferenceUtil
+import Unison.Hashing.V2.Reference.Util qualified as ReferenceUtil
 import Unison.Hashing.V2.Referent (Referent)
 import Unison.Hashing.V2.Tokenizable (Hashable1, accumulateToken)
-import qualified Unison.Hashing.V2.Tokenizable as Hashable
+import Unison.Hashing.V2.Tokenizable qualified as Hashable
 import Unison.Hashing.V2.Type (Type)
 import Unison.Prelude
 import Unison.Var (Var)

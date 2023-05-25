@@ -6,7 +6,7 @@ where
 
 import Control.Exception (finally)
 import Data.Aeson (encode, object, (.=))
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.Function
 import Data.String (IsString)
 import GHC.Stats

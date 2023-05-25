@@ -1,11 +1,11 @@
 module Unison.Util.Pretty.MegaParsec where
 
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Proxy
 import Data.Void
-import qualified Text.Megaparsec as Parser
+import Text.Megaparsec qualified as Parser
 import Unison.Prelude
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 
 prettyPrintParseError :: String -> Parser.ParseErrorBundle Text Void -> P.Pretty P.ColorText
 prettyPrintParseError input errBundle =

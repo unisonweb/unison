@@ -28,20 +28,20 @@ import Control.Concurrent as SYS
     threadDelay,
   )
 import Control.Concurrent.MVar as SYS
-import qualified Control.Concurrent.STM as STM
+import Control.Concurrent.STM qualified as STM
 import Control.DeepSeq (NFData)
 import Control.Exception (evaluate)
-import qualified Control.Exception.Safe as Exception
+import Control.Exception.Safe qualified as Exception
 import Control.Monad.Catch (MonadCatch)
-import qualified Control.Monad.Primitive as PA
+import Control.Monad.Primitive qualified as PA
 import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
-import qualified Crypto.Hash as Hash
-import qualified Crypto.MAC.HMAC as HMAC
+import Crypto.Hash qualified as Hash
+import Crypto.MAC.HMAC qualified as HMAC
 import Data.Bits (shiftL, shiftR, (.|.))
-import qualified Data.ByteArray as BA
+import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
-import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy qualified as L
 import Data.Default (def)
 import Data.Digest.Murmur64 (asWord64, hash64)
 import Data.IORef as SYS
@@ -50,20 +50,20 @@ import Data.IORef as SYS
     readIORef,
     writeIORef,
   )
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
 import Data.Set (insert)
-import qualified Data.Set as Set
-import qualified Data.Text
-import qualified Data.Text.IO as Text.IO
+import Data.Set qualified as Set
+import Data.Text qualified
+import Data.Text.IO qualified as Text.IO
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime,
     utcTimeToPOSIXSeconds,
   )
-import qualified Data.X509 as X
-import qualified Data.X509.CertificateStore as X
-import qualified Data.X509.Memory as X
-import qualified GHC.Conc as STM
+import Data.X509 qualified as X
+import Data.X509.CertificateStore qualified as X
+import Data.X509.Memory qualified as X
+import GHC.Conc qualified as STM
 import GHC.IO (IO (IO))
 import Network.Simple.TCP as SYS
   ( HostPreference (..),
@@ -132,30 +132,30 @@ import System.Process as SYS
     waitForProcess,
     withCreateProcess,
   )
-import qualified System.X509 as X
+import System.X509 qualified as X
 import Unison.ABT.Normalized hiding (TTm)
-import qualified Unison.Builtin as Ty (builtinTypes)
-import qualified Unison.Builtin.Decls as Ty
+import Unison.Builtin qualified as Ty (builtinTypes)
+import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Serialize as ANF
-import qualified Unison.Runtime.Array as PA
+import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
   ( Foreign (Wrap),
     HashAlgorithm (..),
     pattern Failure,
   )
-import qualified Unison.Runtime.Foreign as F
+import Unison.Runtime.Foreign qualified as F
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.Stack (Closure)
-import qualified Unison.Runtime.Stack as Closure
+import Unison.Runtime.Stack qualified as Closure
 import Unison.Symbol
 import Unison.Type (charRef)
-import qualified Unison.Type as Ty
-import qualified Unison.Util.Bytes as Bytes
+import Unison.Type qualified as Ty
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
 import Unison.Util.RefPromise
   ( Promise,
@@ -169,8 +169,8 @@ import Unison.Util.RefPromise
     writePromise,
   )
 import Unison.Util.Text (Text)
-import qualified Unison.Util.Text as Util.Text
-import qualified Unison.Util.Text.Pattern as TPat
+import Unison.Util.Text qualified as Util.Text
+import Unison.Util.Text.Pattern qualified as TPat
 import Unison.Var
 
 type Failure = F.Failure Closure

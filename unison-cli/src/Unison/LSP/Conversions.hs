@@ -1,13 +1,13 @@
 module Unison.LSP.Conversions where
 
-import qualified Data.IntervalMap.Interval as Interval
+import Data.IntervalMap.Interval qualified as Interval
 import Language.LSP.Types
 import Unison.LSP.Orphans ()
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parser.Ann as Ann
+import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
-import qualified Unison.Syntax.Lexer as Lex
-import qualified Unison.Util.Range as Range
+import Unison.Syntax.Lexer qualified as Lex
+import Unison.Util.Range qualified as Range
 
 rangeToInterval :: Range -> Interval.Interval Position
 rangeToInterval (Range start end) =

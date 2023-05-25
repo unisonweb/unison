@@ -31,8 +31,8 @@ module Unison.Util.EnumContainers
 where
 
 import Data.Bifunctor
-import qualified Data.IntMap.Strict as IM
-import qualified Data.IntSet as IS
+import Data.IntMap.Strict qualified as IM
+import Data.IntSet qualified as IS
 import Data.Word (Word16, Word64)
 import Prelude hiding (lookup)
 

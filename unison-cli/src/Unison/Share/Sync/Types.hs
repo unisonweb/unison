@@ -9,9 +9,9 @@ module Unison.Share.Sync.Types
   )
 where
 
-import qualified Servant.Client as Servant
+import Servant.Client qualified as Servant
 import Unison.Prelude
-import qualified Unison.Sync.Types as Share
+import Unison.Sync.Types qualified as Share
 
 -- | Error used by the client when pushing code to Unison Share.
 data CheckAndSetPushError

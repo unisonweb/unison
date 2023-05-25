@@ -8,44 +8,44 @@ module Unison.LSP.Completion where
 import Control.Comonad.Cofree
 import Control.Lens hiding (List, (:<))
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.List.Extra (nubOrdOn)
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.Codebase.Path qualified as Path
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.LSP.FileAnalysis
-import qualified Unison.LSP.Queries as LSPQ
+import Unison.LSP.Queries qualified as LSPQ
 import Unison.LSP.Types
-import qualified Unison.LSP.VFS as VFS
+import Unison.LSP.VFS qualified as VFS
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Runtime.IOSource as IOSource
-import qualified Unison.Syntax.DeclPrinter as DeclPrinter
-import qualified Unison.Syntax.HashQualified' as HQ' (toText)
-import qualified Unison.Syntax.Name as Name (fromText, toText)
-import qualified Unison.Syntax.TypePrinter as TypePrinter
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Util.Relation as Relation
-import qualified UnliftIO
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Runtime.IOSource qualified as IOSource
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.HashQualified' qualified as HQ' (toText)
+import Unison.Syntax.Name qualified as Name (fromText, toText)
+import Unison.Syntax.TypePrinter qualified as TypePrinter
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Relation qualified as Relation
+import UnliftIO qualified
 
 completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
 completionHandler m respond =

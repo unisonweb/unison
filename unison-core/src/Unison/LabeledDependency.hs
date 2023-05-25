@@ -17,13 +17,13 @@ module Unison.LabeledDependency
   )
 where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorType (ConstructorType (Data, Effect))
 import Unison.Prelude hiding (fold)
 import Unison.Reference (Id, Reference (DerivedId))
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 
 -- | A Union Type which contains either Type References or Term Referents.
 data LabeledDependency

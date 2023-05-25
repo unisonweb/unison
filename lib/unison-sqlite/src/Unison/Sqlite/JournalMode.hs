@@ -5,8 +5,8 @@ module Unison.Sqlite.JournalMode
   )
 where
 
-import qualified Data.Text as Text
-import qualified Database.SQLite.Simple as Sqlite
+import Data.Text qualified as Text
+import Database.SQLite.Simple qualified as Sqlite
 import Unison.Prelude
 import Unison.Sqlite.Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason)

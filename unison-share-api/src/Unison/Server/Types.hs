@@ -6,20 +6,20 @@ module Unison.Server.Types where
 -- Types common to endpoints --
 import Control.Lens hiding ((.=))
 import Data.Aeson
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
-import qualified Data.ByteString.Lazy as LZ
-import qualified Data.Map as Map
+import Data.ByteString.Lazy qualified as LZ
+import Data.Map qualified as Map
 import Data.OpenApi
   ( OpenApiType (..),
     ToParamSchema (..),
     ToSchema (..),
   )
-import qualified Data.OpenApi.Lens as OpenApi
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as Text.Lazy
-import qualified Data.Text.Lazy.Encoding as Text
+import Data.OpenApi.Lens qualified as OpenApi
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as Text.Lazy
+import Data.Text.Lazy.Encoding qualified as Text
 import Servant.API
   ( Capture,
     FromHttpApiData (..),
@@ -31,26 +31,26 @@ import Servant.API
     addHeader,
   )
 import Servant.Docs (DocCapture (..), DocQueryParam (..), ParamKind (..), ToParam)
-import qualified Servant.Docs as Docs
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import Servant.Docs qualified as Docs
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
   )
-import qualified Unison.Hash as Hash
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.Hash qualified as Hash
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
 import Unison.ShortHash (ShortHash)
-import qualified Unison.Syntax.HashQualified as HQ (fromText)
+import Unison.Syntax.HashQualified qualified as HQ (fromText)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
