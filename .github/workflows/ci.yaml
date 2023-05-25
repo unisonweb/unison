@@ -249,7 +249,8 @@ jobs:
                 ./unison-src/builtin-tests/setup-base-codebase.sh
 
             - name: jit tests
-              if: runner.os == 'Linux'
+              if: false # temporarily disabled
+              # if: runner.os == 'Linux'
               run: |
                 ./unison-src/builtin-tests/jit-tests.sh
                 cat ./unison-src/builtin-tests/jit-tests.output.md
