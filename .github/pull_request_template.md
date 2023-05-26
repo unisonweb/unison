@@ -1,5 +1,7 @@
 **Choose your PR title well:** Your pull request title is what's used to create release notes, so please make it descriptive of the change itself, which may be different from the initial motivation to make the change.
 
+Note: CI will check that all code has been formatted with Ormolu. See [development.markdown](https://github.com/unisonweb/unison/blob/trunk/development.markdown) for details of how to set this up.
+
 ## Overview
 
 What does this change accomplish and why? i.e. How does it change the user experience?
