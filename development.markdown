@@ -22,6 +22,7 @@ We use 0.5.0.1 of Ormolu and CI will fail if your code isn't properly formatted.
 
 ```
 ghcup install 9.2.7 # if not already installed
+brew install cabal-install # if not already installed
 cabal unpack ormolu-0.5.0.1
 cd ormolu-0.5.0.1
 cabal install -w ghc-9.2.7
