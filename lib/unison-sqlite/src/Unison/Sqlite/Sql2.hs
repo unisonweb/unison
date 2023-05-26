@@ -2,7 +2,7 @@
 
 module Unison.Sqlite.Sql2
   ( Sql2 (..),
-    sql2,
+    sql,
 
     -- * Exported for testing
     Param (..),
@@ -51,7 +51,7 @@ params__ (Sql2 _ x) = x
 -- @
 -- let qux = 5 :: Int
 --
--- [sql2|
+-- [sql|
 --   SELECT foo
 --   FROM bar
 --   WHERE baz = :qux
@@ -80,7 +80,7 @@ params__ (Sql2 _ x) = x
 -- query that interpolates @plonk@ might look like:
 --
 -- @
--- [sql2|
+-- [sql|
 --   SELECT foo
 --   FROM bar
 --   WHERE stuff = \@plonk
@@ -91,19 +91,19 @@ params__ (Sql2 _ x) = x
 -- As an example of @$dollar@ syntax,
 --
 -- @
--- let foo = [sql2| bar |] in [sql2| $foo baz |]
+-- let foo = [sql| bar |] in [sql| $foo baz |]
 -- @
 --
 -- splices @foo@ into the second fragment, and is equivalent to
 --
 -- @
--- [sql2| bar baz |]
+-- [sql| bar baz |]
 -- @
 --
 -- As an example of @VALUES :colon@ syntax, the query
 --
 -- @
--- [sql2| VALUES :foo |]
+-- [sql| VALUES :foo |]
 -- @
 --
 -- will require a non-empty list "foo" to be in scope, whose elements have `ToRow` instances, and will expand to
@@ -114,11 +114,11 @@ params__ (Sql2 _ x) = x
 -- @
 --
 -- depending on how many elements "foo" has, and how wide its rows are.
-sql2 :: TH.QuasiQuoter
-sql2 = TH.QuasiQuoter sql2QQ undefined undefined undefined
+sql :: TH.QuasiQuoter
+sql = TH.QuasiQuoter sqlQQ undefined undefined undefined
 
-sql2QQ :: String -> TH.Q TH.Exp
-sql2QQ input =
+sqlQQ :: String -> TH.Q TH.Exp
+sqlQQ input =
   case internalParseSql (Text.pack input) of
     Left err -> fail err
     Right lumps -> do

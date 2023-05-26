@@ -27,14 +27,14 @@ addStatsToAllNamespaces :: Sqlite.Transaction ()
 addStatsToAllNamespaces = do
   totalToMigrate <-
     Sqlite.queryOneCol
-      [Sqlite.sql2|
+      [Sqlite.sql|
         SELECT COUNT(*)
           FROM object
           WHERE type_id = 2
       |]
   allBranchObjIds <-
     Sqlite.queryListCol
-      [Sqlite.sql2|
+      [Sqlite.sql|
         SELECT id
           FROM object
           WHERE type_id = 2

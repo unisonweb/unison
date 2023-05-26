@@ -26,7 +26,7 @@ module Unison.Sqlite
 
     -- * Executing queries
     Sql2,
-    sql2,
+    sql,
 
     -- ** Without results
     execute,
@@ -113,7 +113,7 @@ import Unison.Sqlite.Exception
     isCantOpenException,
   )
 import Unison.Sqlite.JournalMode (JournalMode (..), SetJournalModeException (..), trySetJournalMode)
-import Unison.Sqlite.Sql2 (Sql2, sql2)
+import Unison.Sqlite.Sql2 (Sql2, sql)
 import Unison.Sqlite.Transaction
 
 -- $query-naming-convention

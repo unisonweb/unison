@@ -68,7 +68,8 @@ import Unison.Debug qualified as Debug
 import Unison.Prelude
 import Unison.Sqlite.Connection.Internal (Connection (..))
 import Unison.Sqlite.Exception
-import Unison.Sqlite.Sql2 (Sql2 (..), sql2)
+import Unison.Sqlite.Sql2 (Sql2 (..))
+import Unison.Sqlite.Sql2 qualified as Sql
 import UnliftIO.Exception
 
 -- | Perform an action with a connection to a SQLite database.
@@ -97,8 +98,8 @@ openConnection ::
 openConnection name file = do
   conn0 <- Sqlite.open file `catch` rethrowAsSqliteConnectException name file
   let conn = Connection {conn = conn0, file, name}
-  execute conn [sql2| PRAGMA foreign_keys = ON |]
-  execute conn [sql2| PRAGMA busy_timeout = 60000 |]
+  execute conn [Sql.sql| PRAGMA foreign_keys = ON |]
+  execute conn [Sql.sql| PRAGMA busy_timeout = 60000 |]
   pure conn
 
 -- Close a connection opened with 'openConnection'.
@@ -349,7 +350,7 @@ rowsModified (Connection _ _ conn) =
 -- transactions.
 vacuum :: Connection -> IO Bool
 vacuum conn =
-  try (execute conn [sql2| VACUUM |]) >>= \case
+  try (execute conn [Sql.sql| VACUUM |]) >>= \case
     Left SqliteBusyException -> pure False
     Left exception -> throwIO exception
     Right () -> pure True
@@ -357,29 +358,29 @@ vacuum conn =
 -- | @VACUUM INTO@
 vacuumInto :: Connection -> FilePath -> IO ()
 vacuumInto conn file =
-  execute conn [sql2| VACUUM INTO :file |]
+  execute conn [Sql.sql| VACUUM INTO :file |]
 
 -- Low-level
 
 -- | @BEGIN@
 begin :: Connection -> IO ()
 begin conn =
-  execute conn [sql2| BEGIN |]
+  execute conn [Sql.sql| BEGIN |]
 
 -- | @BEGIN IMMEDIATE@
 beginImmediate :: Connection -> IO ()
 beginImmediate conn =
-  execute conn [sql2| BEGIN IMMEDIATE |]
+  execute conn [Sql.sql| BEGIN IMMEDIATE |]
 
 -- | @COMMIT@
 commit :: Connection -> IO ()
 commit conn =
-  execute conn [sql2| COMMIT |]
+  execute conn [Sql.sql| COMMIT |]
 
 -- | @ROLLBACK@
 rollback :: Connection -> IO ()
 rollback conn =
-  execute conn [sql2| ROLLBACK |]
+  execute conn [Sql.sql| ROLLBACK |]
 
 -- | Perform an action within a named savepoint. The action is provided a rollback action.
 withSavepoint :: (MonadUnliftIO m) => Connection -> Text -> (m () -> m a) -> m a

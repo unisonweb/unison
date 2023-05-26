@@ -94,7 +94,7 @@ migrateSchema3To4 = do
     causalCount :: Sqlite.Transaction Int
     causalCount = do
       Sqlite.queryOneCol
-        [Sqlite.sql2|
+        [Sqlite.sql|
           SELECT count(*) FROM causal;
         |]
 
@@ -138,7 +138,7 @@ dropUnreachableCausalsAndBranches reachableCausals reachableBranchObjs = do
   where
     deleteUnreachableHashObjects =
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
         DELETE FROM hash_object AS ho
           WHERE
             NOT EXISTS (SELECT 1 FROM reachable_branch_objects AS ro WHERE ho.object_id = ro.object_id)
@@ -147,7 +147,7 @@ dropUnreachableCausalsAndBranches reachableCausals reachableBranchObjs = do
       |]
     deleteUnreachableBranchObjects =
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
         DELETE FROM object AS o
           WHERE
             o.type_id = 2 -- Filter for only branches
@@ -155,13 +155,13 @@ dropUnreachableCausalsAndBranches reachableCausals reachableBranchObjs = do
       |]
     deleteUnreachableCausals =
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
         DELETE FROM causal AS c
           WHERE NOT EXISTS (SELECT 1 FROM reachable_causals AS rc WHERE c.self_hash_id = rc.self_hash_id)
       |]
     deleteUnreachableCausalParents =
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
         DELETE FROM causal_parent AS cp
           WHERE
             -- We only need to check the children, because if it's impossible for a parent to be
@@ -170,25 +170,25 @@ dropUnreachableCausalsAndBranches reachableCausals reachableBranchObjs = do
       |]
     insertReachableCausalSql h =
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
           INSERT INTO reachable_causals (self_hash_id) VALUES (:h)
             ON CONFLICT DO NOTHING
         |]
     insertReachableBranchObjectSql o =
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
           INSERT INTO reachable_branch_objects (object_id) VALUES (:o)
             ON CONFLICT DO NOTHING
         |]
     createReachabilityTables = do
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
            CREATE TEMP TABLE IF NOT EXISTS reachable_branch_objects (
             object_id INTEGER PRIMARY KEY NOT NULL
            )
           |]
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
            CREATE TEMP TABLE IF NOT EXISTS reachable_causals (
             self_hash_id INTEGER PRIMARY KEY NOT NULL
            )
@@ -280,7 +280,7 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
     updateCausalValueHash :: DB.BranchHashId -> DB.BranchHashId -> Sqlite.Transaction ()
     updateCausalValueHash correctNamespaceHashId possiblyIncorrectNamespaceHashId =
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
           UPDATE causal
             SET value_hash_id = :correctNamespaceHashId
             WHERE value_hash_id = :possiblyIncorrectNamespaceHashId
@@ -295,7 +295,7 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
     getCanonicalObjectForHash namespaceHashId =
       liftT $
         Sqlite.queryMaybeCol
-          [Sqlite.sql2|
+          [Sqlite.sql|
             SELECT id
               FROM object
               WHERE primary_hash_id = :namespaceHashId
@@ -303,7 +303,7 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
 
     updateHashIdForObject hashId objId =
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
           UPDATE object
             SET primary_hash_id = :hashId
             WHERE id = :objId
@@ -316,7 +316,7 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
       let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch branch
       let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full localBranchIds localBranch
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
           UPDATE object
           SET bytes = :bytes
           WHERE id = :objId
@@ -324,14 +324,14 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
 
     deleteHashObjectsByObjectId objId =
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
           DELETE FROM hash_object
             WHERE object_id = :objId
         |]
 
     deleteObjectById objId =
       Sqlite.execute
-        [Sqlite.sql2|
+        [Sqlite.sql|
           DELETE FROM object
             WHERE id = :objId
         |]

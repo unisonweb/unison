@@ -7,7 +7,7 @@ module Unison.Sqlite.DataVersion
 where
 
 import Unison.Prelude
-import Unison.Sqlite.Sql2 (sql2)
+import Unison.Sqlite.Sql2 (sql)
 import Unison.Sqlite.Transaction
 
 newtype DataVersion
@@ -17,4 +17,4 @@ newtype DataVersion
 
 getDataVersion :: Transaction DataVersion
 getDataVersion =
-  coerce @(Transaction Int64) (queryOneCol [sql2| PRAGMA data_version |])
+  coerce @(Transaction Int64) (queryOneCol [sql| PRAGMA data_version |])

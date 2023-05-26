@@ -85,7 +85,7 @@ integrityCheckAllHashObjects = do
       pure NoIntegrityErrors
   where
     objectsWithoutHashObjectsSQL =
-      [Sqlite.sql2|
+      [Sqlite.sql|
         SELECT o.id
         FROM object AS o
         WHERE NOT EXISTS (
@@ -120,14 +120,14 @@ integrityCheckAllCausals = do
   where
     causalsWithMissingBranchObjects :: Sqlite.Sql2
     causalsWithMissingBranchObjects =
-      [Sqlite.sql2|
+      [Sqlite.sql|
         SELECT c.self_hash_id, c.value_hash_id
           FROM causal c
           WHERE NOT EXISTS (SELECT 1 from object o WHERE o.primary_hash_id = c.value_hash_id);
       |]
     causalsWithMatchingValueHashAndSelfHash :: Sqlite.Sql2
     causalsWithMatchingValueHashAndSelfHash =
-      [Sqlite.sql2|
+      [Sqlite.sql|
         SELECT self_hash_id
           FROM causal
           WHERE self_hash_id = value_hash_id
@@ -141,14 +141,14 @@ integrityCheckAllBranches = do
   where
     allBranchObjectIdsSql :: Sqlite.Sql2
     allBranchObjectIdsSql =
-      [Sqlite.sql2|
+      [Sqlite.sql|
         SELECT id FROM object WHERE type_id = 2;
       |]
 
     doesCausalExistForCausalHashId :: DB.CausalHashId -> Sqlite.Transaction Bool
     doesCausalExistForCausalHashId hashId =
       Sqlite.queryOneCol
-        [Sqlite.sql2|
+        [Sqlite.sql|
           SELECT EXISTS (SELECT 1 FROM causal WHERE self_hash_id = :hashId)
         |]
 
