@@ -18,7 +18,16 @@ On startup, Unison prints a url for the codebase UI. If you did step 3 above, th
 
 ## Autoformatting your code with Ormolu
 
-We use 0.5.3.0 of Ormolu and CI will fail if your code isn't properly formatted. You can add the following to `.git/hooks/pre-commit` to make sure all your commits get formatted (this assumes you've got [`rg`](https://github.com/BurntSushi/ripgrep) installed and on your path):
+We use 0.5.0.1 of Ormolu and CI will fail if your code isn't properly formatted. 
+
+```
+ghcup install 9.2.7 # if not already installed
+cabal unpack ormolu-0.5.0.1
+cd ormolu-0.5.0.1
+cabal install -w ghc-9.2.7
+```
+
+You can then add the following to `.git/hooks/pre-commit` to make sure all your commits get formatted (this assumes you've got [`rg`](https://github.com/BurntSushi/ripgrep) installed and on your path):
 
 ```
 #!/bin/bash
