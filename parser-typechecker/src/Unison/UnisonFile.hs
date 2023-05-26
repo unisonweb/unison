@@ -34,28 +34,28 @@ module Unison.UnisonFile
 where
 
 import Control.Lens
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin.Decls as DD
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
+import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.DataDeclaration qualified as DD
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.TypeLookup as TL
+import Unison.Type qualified as Type
+import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), pattern TypecheckedUnisonFile, pattern UnisonFile)
-import qualified Unison.Util.List as List
+import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind, pattern TestWatch)
 

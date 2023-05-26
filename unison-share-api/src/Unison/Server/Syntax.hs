@@ -11,31 +11,31 @@
 module Unison.Server.Syntax where
 
 import Data.Aeson (FromJSON, ToJSON (..))
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.Extra
-import qualified Data.List.NonEmpty as List.NonEmpty
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.OpenApi (ToSchema (..))
 import Data.Proxy (Proxy (..))
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Lucid
-import qualified Lucid as L
+import Lucid qualified as L
 import Unison.Name (Name)
-import qualified Unison.Name as Name
-import qualified Unison.NameSegment as NameSegment
+import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Pattern (SeqOp (..))
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Syntax.HashQualified as HashQualified (toText)
-import qualified Unison.Syntax.Name as Name (unsafeFromText)
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Syntax.HashQualified qualified as HashQualified (toText)
+import Unison.Syntax.Name qualified as Name (unsafeFromText)
 import Unison.Util.AnnotatedText
   ( AnnotatedText (..),
     Segment (..),
     annotate,
     segment,
   )
-import qualified Unison.Util.SyntaxText as SyntaxText
+import Unison.Util.SyntaxText qualified as SyntaxText
 
 type SyntaxText = AnnotatedText Element
 

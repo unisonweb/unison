@@ -46,6 +46,7 @@ default-extensions:
   - FlexibleInstances
   - FunctionalDependencies
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns

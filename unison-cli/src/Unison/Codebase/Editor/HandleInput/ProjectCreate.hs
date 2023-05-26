@@ -4,18 +4,18 @@ module Unison.Codebase.Editor.HandleInput.ProjectCreate
   )
 where
 
-import qualified Data.UUID.V4 as UUID
+import Data.UUID.V4 qualified as UUID
 import U.Codebase.Sqlite.DbId
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
-import qualified U.Codebase.Sqlite.Queries as Queries
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli (stepAt)
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli (stepAt)
 import Unison.Cli.ProjectUtils (projectBranchPath)
 import Unison.Codebase.Branch (Branch0)
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Editor.Output as Output
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectName)
 import Witch (unsafeFrom)

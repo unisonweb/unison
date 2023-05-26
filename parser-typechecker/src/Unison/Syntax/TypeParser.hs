@@ -1,18 +1,18 @@
 module Unison.Syntax.TypeParser where
 
 import Control.Monad.Reader (asks)
-import qualified Data.Set as Set
-import qualified Text.Megaparsec as P
-import qualified Unison.Builtin.Decls as DD
-import qualified Unison.HashQualified as HQ
-import qualified Unison.NamesWithHistory as Names
+import Data.Set qualified as Set
+import Text.Megaparsec qualified as P
+import Unison.Builtin.Decls qualified as DD
+import Unison.HashQualified qualified as HQ
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Name as Name (toVar)
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.Parser
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Var (Var)
 
 -- A parsed type is annotated with its starting and ending position in the

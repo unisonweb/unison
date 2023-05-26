@@ -9,7 +9,7 @@ where
 
 import Control.Monad.Fix (MonadFix)
 import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.ListPat (ListPat)
 import Unison.PrettyPrintEnv (PrettyPrintEnv)

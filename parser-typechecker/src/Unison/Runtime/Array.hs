@@ -37,7 +37,7 @@ import Data.Primitive.Array as EPA hiding
     readArray,
     writeArray,
   )
-import qualified Data.Primitive.Array as PA
+import Data.Primitive.Array qualified as PA
 import Data.Primitive.ByteArray as EPA hiding
   ( copyByteArray,
     copyMutableByteArray,
@@ -46,13 +46,13 @@ import Data.Primitive.ByteArray as EPA hiding
     readByteArray,
     writeByteArray,
   )
-import qualified Data.Primitive.ByteArray as PA
+import Data.Primitive.ByteArray qualified as PA
 import Data.Primitive.PrimArray as EPA hiding
   ( indexPrimArray,
     readPrimArray,
     writePrimArray,
   )
-import qualified Data.Primitive.PrimArray as PA
+import Data.Primitive.PrimArray qualified as PA
 import Data.Primitive.Types
 
 #ifdef ARRAY_CHECK

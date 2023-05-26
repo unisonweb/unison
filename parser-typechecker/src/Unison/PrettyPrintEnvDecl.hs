@@ -10,7 +10,7 @@ where
 
 import Unison.Name (Name)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 
 -- A pair of PrettyPrintEnvs:
 --   - suffixifiedPPE uses the shortest unique suffix

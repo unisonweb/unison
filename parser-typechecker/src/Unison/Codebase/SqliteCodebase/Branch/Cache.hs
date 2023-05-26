@@ -1,11 +1,11 @@
 module Unison.Codebase.SqliteCodebase.Branch.Cache where
 
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import System.Mem.Weak
-import qualified U.Codebase.HashTags as V2
-import qualified Unison.Codebase.Branch as V1.Branch
+import U.Codebase.HashTags qualified as V2
+import Unison.Codebase.Branch qualified as V1.Branch
 import Unison.Prelude
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import UnliftIO.STM
 
 -- | A cache of 'V1.Branch.Branch' by 'V2.CausalHash'es.

@@ -3,11 +3,11 @@ module Unison.Hashing.V2.Reference.Util
   )
 where
 
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Unison.ABT (Var)
-import qualified Unison.Hashing.V2.ABT as ABT
+import Unison.Hashing.V2.ABT qualified as ABT
 import Unison.Hashing.V2.Reference (ReferenceId (..))
-import qualified Unison.Hashing.V2.Reference as Reference
+import Unison.Hashing.V2.Reference qualified as Reference
 import Unison.Hashing.V2.Tokenizable (Hashable1)
 import Unison.Prelude
 

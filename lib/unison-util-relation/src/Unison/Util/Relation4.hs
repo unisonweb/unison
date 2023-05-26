@@ -4,14 +4,14 @@ module Unison.Util.Relation4 where
 
 import Data.Function (on)
 import Data.List.Extra (nubOrd)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Semigroup (Sum (Sum, getSum))
 import Unison.Prelude hiding (empty, toList)
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 import Unison.Util.Relation3 (Relation3 (Relation3))
-import qualified Unison.Util.Relation3 as R3
+import Unison.Util.Relation3 qualified as R3
 import Prelude
 
 data Relation4 a b c d = Relation4

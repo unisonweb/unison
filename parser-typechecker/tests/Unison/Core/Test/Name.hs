@@ -1,12 +1,12 @@
 module Unison.Core.Test.Name where
 
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List.NonEmpty as List.NonEmpty
-import qualified Data.Set as Set
+import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.Set qualified as Set
 import EasyTest
 import Unison.Name as Name
-import qualified Unison.Syntax.Name as Name (unsafeFromText)
-import qualified Unison.Util.Relation as R
+import Unison.Syntax.Name qualified as Name (unsafeFromText)
+import Unison.Util.Relation qualified as R
 
 test :: Test ()
 test =

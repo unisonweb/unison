@@ -32,20 +32,20 @@ import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.Proxy
 import Network.URI (URI)
-import qualified Network.URI as URI
+import Network.URI qualified as URI
 import Servant.API ((:<|>) (..), (:>))
 import Servant.Client
 import U.Codebase.Sqlite.DbId (RemoteProjectBranchId (..), RemoteProjectId (..))
-import qualified U.Codebase.Sqlite.Queries as Queries
-import qualified Unison.Auth.HTTPClient as Auth
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Auth.HTTPClient qualified as Auth
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
+import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.Share.Projects.Types (RemoteProject (..), RemoteProjectBranch (..))
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
-import qualified Unison.Share.API.Projects as Share.API
+import Unison.Share.API.Projects qualified as Share.API
 import Unison.Share.Codeserver (defaultCodeserver)
 import Unison.Share.Types (codeserverBaseURL)
 

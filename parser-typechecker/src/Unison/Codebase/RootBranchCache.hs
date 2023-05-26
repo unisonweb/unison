@@ -12,7 +12,7 @@ import Control.Monad (join)
 import Control.Monad.IO.Class
 import Data.Coerce (coerce)
 import Unison.Codebase.Branch.Type (Branch)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import UnliftIO (MonadUnliftIO, mask, onException)
 import UnliftIO.STM
   ( STM,

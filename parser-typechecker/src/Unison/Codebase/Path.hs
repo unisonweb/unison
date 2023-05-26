@@ -79,22 +79,22 @@ module Unison.Codebase.Path
 where
 
 import Control.Lens hiding (cons, snoc, unsnoc, pattern Empty)
-import qualified Control.Lens as Lens
-import qualified Data.Foldable as Foldable
+import Control.Lens qualified as Lens
+import Data.Foldable qualified as Foldable
 import Data.List.Extra (dropPrefix)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as List.NonEmpty
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Sequence (Seq ((:<|), (:|>)))
-import qualified Data.Sequence as Seq
-import qualified Data.Text as Text
-import qualified GHC.Exts as GHC
-import qualified Unison.HashQualified' as HQ'
+import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
+import GHC.Exts qualified as GHC
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Convert (..), Name, Parse)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty, toList)
-import qualified Unison.Syntax.Name as Name (toString, unsafeFromText)
+import Unison.Syntax.Name qualified as Name (toString, unsafeFromText)
 import Unison.Util.Monoid (intercalateMap)
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]

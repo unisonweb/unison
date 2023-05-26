@@ -22,16 +22,16 @@ where
 
 import System.Exit (exitFailure)
 import Unison.Codebase (Codebase, CodebasePath)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.FileCodebase as FCC
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.FileCodebase qualified as FCC
 import Unison.Codebase.Init.CreateCodebaseError
 import Unison.Codebase.Init.OpenCodebaseError
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.PrettyTerminal as PT
+import Unison.PrettyTerminal qualified as PT
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Pretty as P
-import qualified UnliftIO
+import Unison.Util.Pretty qualified as P
+import UnliftIO qualified
 import UnliftIO.Directory (canonicalizePath)
 
 -- CodebaseInitOptions is used to help pass around a Home directory that isn't the

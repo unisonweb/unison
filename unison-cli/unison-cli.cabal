@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -125,6 +125,7 @@ library
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
@@ -252,6 +253,7 @@ executable cli-integration-tests
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
@@ -379,6 +381,7 @@ executable transcripts
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
@@ -510,6 +513,7 @@ executable unison
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
@@ -647,6 +651,7 @@ test-suite cli-tests
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses

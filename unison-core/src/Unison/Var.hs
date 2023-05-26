@@ -33,11 +33,11 @@ where
 
 import Data.Char (isLower, toLower)
 import Data.Text (pack)
-import qualified Data.Text as Text
-import qualified Unison.ABT as ABT
-import qualified Unison.NameSegment as Name
+import Data.Text qualified as Text
+import Unison.ABT qualified as ABT
+import Unison.NameSegment qualified as Name
 import Unison.Prelude
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Util.Monoid (intercalateMap)
 import Unison.WatchKind (WatchKind, pattern TestWatch)
 

@@ -4,10 +4,10 @@ module Unison.Codebase.Editor.HandleInput.Projects
   )
 where
 
-import qualified U.Codebase.Sqlite.Queries as Queries
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Cli.Monad qualified as Cli
+import Unison.Codebase.Editor.Output qualified as Output
 
 handleProjects :: Cli ()
 handleProjects = do
