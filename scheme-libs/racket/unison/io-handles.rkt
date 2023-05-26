@@ -35,19 +35,27 @@
    putBytes.impl.v3
    getBytes.impl.v3
    getLine.impl.v1
+
 ;    setEcho.impl.v1
+;    getEcho.impl.v1
+
 ;    setBuffering.impl.v3
 ;    getBuffering.impl.v3
-;    handlePosition.impl.v3
-;    seekHandle.impl.v3
+
+;    handlePosition.impl.v3 ; hTell
+    ; (port-position port)
+
+;    seekHandle.impl.v3 ; hSeek
+    ; set-port-position!
 ;    isSeekable.impl.v3
+    ; port-has-set-port-position!?
+    ; https://docs.racket-lang.org/r6rs/r6rs-lib-std/r6rs-lib-Z-H-9.html#node_idx_658
+
 ;    getChar.impl.v1
 ;    ready.impl.v1
-;    getEcho.impl.v1
+
 ;    isFileOpen.impl.v3
 ;    isFileEOF.impl.v3
-;    closeFile.impl.v3
-;    openFile.impl.v3
    )))
 
   (define (putBytes.impl.v3 p bs)
