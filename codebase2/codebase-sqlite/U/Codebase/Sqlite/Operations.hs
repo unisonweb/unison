@@ -1118,6 +1118,9 @@ buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash callback = do
     Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
     Q.insertScopedTypeNames newBranchHashId (fmap c2sTextReference <$> newTypeNames)
 
+-- | Register a set of dependencies with a root hash at the provided locations.
+--
+-- E.g. associateNameLookupMounts #roothash [(["lib", "base"], #basehash)]
 associateNameLookupMounts :: BranchHash -> [(PathSegments, BranchHash)] -> Transaction ()
 associateNameLookupMounts rootBh dependencyMounts = do
   rootBhId <- Q.expectBranchHashId rootBh
@@ -1128,11 +1131,11 @@ associateNameLookupMounts rootBh dependencyMounts = do
 
 -- | Determine which nameLookup is the closest parent of the provided perspective.
 --
--- Returns (rootBranchId of the closest index, namespace that index is mounted at, location of the perspective within the mounted namespace)
+-- Returns (rootBranchId of the closest parent index, namespace that index is mounted at, location of the perspective within the mounted namespace)
 --
 -- E.g.
 -- If your namespace is "lib.distributed.lib.base.data.List", you'd get back
--- (rootBranchId of the lib.base name lookup, "lib.distributed.lib.base", "data.List")
+-- (rootBranchId of the lib.distributed.lib.base name lookup, "lib.distributed.lib.base", "data.List")
 --
 -- Or if your namespace is "subnamespace.user", you'd get back
 -- (the rootBranchId you provided, "", "subnamespace.user")

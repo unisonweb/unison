@@ -2122,25 +2122,23 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let suffixGlob = case maySuffix of
         Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
-  queryListColCheck sql (Only bhId :. ref :. (namespaceGlob, suffixGlob, bhId, namespaceGlob) :. ref :. (Only suffixGlob)) \reversedNames ->
-    for reversedNames reversedNameToReversedSegments
-  where
-    sql =
-      [here|
+  queryListColCheck2
+    [sql2|
         SELECT reversed_name FROM scoped_term_name_lookup
-        WHERE root_branch_hash_id = ?
-              AND referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
+        WHERE root_branch_hash_id = :bhId
+              AND referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
+              AND namespace GLOB :namespaceGlob
+              AND reversed_name GLOB :suffixGlob
         UNION ALL
         SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name
         FROM name_lookup_mounts mount
           INNER JOIN scoped_term_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
-        WHERE mount.parent_root_branch_hash_id = ?
-              AND mount.mount_path GLOB ?
-              AND referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?
-              AND reversed_name GLOB ?
+        WHERE mount.parent_root_branch_hash_id = :bhId
+              AND mount.mount_path GLOB :namespaceGlob
+              AND referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
+              AND reversed_name GLOB :suffixGlob
         |]
+    \reversedNames -> for reversedNames reversedNameToReversedSegments
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -2153,25 +2151,23 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let suffixGlob = case maySuffix of
         Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
-  queryListColCheck sql (Only bhId :. ref :. (namespaceGlob, suffixGlob, bhId, namespaceGlob) :. ref :. (Only suffixGlob)) \reversedNames ->
-    for reversedNames reversedNameToReversedSegments
-  where
-    sql =
-      [here|
+  queryListColCheck2
+    [sql2|
         SELECT reversed_name FROM scoped_type_name_lookup
-        WHERE root_branch_hash_id = ?
-              AND reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
+        WHERE root_branch_hash_id = :bhId
+              AND reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
+              AND namespace GLOB :namespaceGlob
+              AND reversed_name GLOB :suffixGlob
         UNION ALL
         SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name
         FROM name_lookup_mounts mount
           INNER JOIN scoped_type_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
-        WHERE mount.parent_root_branch_hash_id = ?
-              AND mount.mount_path GLOB ?
-              AND reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?
-              AND reversed_name GLOB ?
+        WHERE mount.parent_root_branch_hash_id = :bhId
+              AND mount.mount_path GLOB :namespaceGlob
+              AND reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
+              AND reversed_name GLOB :suffixGlob
         |]
+    \reversedNames -> for reversedNames reversedNameToReversedSegments
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
