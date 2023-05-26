@@ -3,15 +3,15 @@
 module Unison.Test.Term where
 
 import Data.Map ((!))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Text.Encoding (encodeUtf8)
 import EasyTest
-import qualified Unison.Hash as Hash
-import qualified Unison.Reference as R
+import Unison.Hash qualified as Hash
+import Unison.Reference qualified as R
 import Unison.Symbol (Symbol)
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Var as Var
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.Var qualified as Var
 
 test :: Test ()
 test =

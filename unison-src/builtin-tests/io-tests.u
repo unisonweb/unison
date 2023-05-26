@@ -33,7 +33,7 @@ test_getFileTimestamp = do
     time = secondsSinceEpoch !now
     fp = !testFile
     _ = writeFile fp "What"
-    ts = match FilePath.getTimestamp.deprecated.v2 fp with EpochTime nat -> Nat.toInt nat
+    ts = match FilePath.getTimestamp fp with Instant i _ -> i
     after = secondsSinceEpoch !now
     use Int - +
     -- allow slip of up to a second
@@ -45,4 +45,4 @@ test_getFileTimestamp = do
         Tests.pass "File timestamp is reasonable"
     
 test_getFileTimestamp_err = do
-    expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(FilePath.getTimestamp.deprecated.v2 !testFile)
+    expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(FilePath.getTimestamp !testFile)

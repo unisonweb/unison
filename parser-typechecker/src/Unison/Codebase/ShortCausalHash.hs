@@ -7,10 +7,10 @@ module Unison.Codebase.ShortCausalHash
   )
 where
 
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified U.Util.Base32Hex as Base32Hex
-import qualified Unison.Hash as Hash
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import U.Util.Base32Hex qualified as Base32Hex
+import Unison.Hash qualified as Hash
 import Unison.Prelude
 
 -- | Causal Hash Prefix

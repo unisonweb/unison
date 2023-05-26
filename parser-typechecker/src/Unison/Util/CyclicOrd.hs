@@ -4,12 +4,12 @@
 
 module Unison.Util.CyclicOrd where
 
-import qualified Data.Sequence as S
+import Data.Sequence qualified as S
 import Data.Vector (Vector)
-import qualified Data.Vector as V
+import Data.Vector qualified as V
 import Unison.Prelude
 import Unison.Util.CycleTable (CycleTable)
-import qualified Unison.Util.CycleTable as CT
+import Unison.Util.CycleTable qualified as CT
 
 -- Same idea as `CyclicEq`, but for ordering.
 class CyclicOrd a where

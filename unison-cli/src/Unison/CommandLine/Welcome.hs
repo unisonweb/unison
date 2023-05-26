@@ -5,17 +5,17 @@ module Unison.CommandLine.Welcome where
 import Data.Sequence (singleton)
 import System.Random (randomRIO)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..))
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.SyncMode as SyncMode
-import qualified Unison.Codebase.Verbosity as Verbosity
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SyncMode qualified as SyncMode
+import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Prelude
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 import Prelude hiding (readFile, writeFile)
 
 data Welcome = Welcome

@@ -31,6 +31,7 @@ default-extensions:
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
   - LambdaCase
+  - ImportQualifiedPost
   - MultiParamTypeClasses
   - NamedFieldPuns
   - OverloadedStrings

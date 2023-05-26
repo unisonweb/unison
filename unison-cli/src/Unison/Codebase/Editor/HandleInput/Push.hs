@@ -8,32 +8,32 @@ where
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import Control.Lens (over, view, (.~), (^.), _1, _2)
 import Control.Monad.Reader (ask)
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Set.NonEmpty as Set.NonEmpty
+import Data.List.NonEmpty qualified as Nel
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text as Text
 import Data.These (These (..))
 import Data.Void (absurd)
-import qualified System.Console.Regions as Console.Regions
-import qualified Text.Builder
+import System.Console.Regions qualified as Console.Regions
+import Text.Builder qualified
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId
-import qualified U.Codebase.Sqlite.Operations as Operations
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Project as Sqlite (Project)
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite (ProjectBranch)
-import qualified U.Codebase.Sqlite.Queries as Queries
+import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
-import qualified Unison.Cli.Share.Projects as Share
-import qualified Unison.Cli.UnisonConfigUtils as UnisonConfigUtils
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.Share.Projects qualified as Share
+import Unison.Cli.UnisonConfigUtils qualified as UnisonConfigUtils
 import Unison.Codebase (PushGitBranchOpts (..))
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..))
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.AuthLogin (ensureAuthenticatedWithCodeserver)
-import qualified Unison.Codebase.Editor.HandleInput.AuthLogin as AuthLogin
+import Unison.Codebase.Editor.HandleInput.AuthLogin qualified as AuthLogin
 import Unison.Codebase.Editor.Input
   ( GistInput (..),
     PushRemoteBranchInput (..),
@@ -41,7 +41,7 @@ import Unison.Codebase.Editor.Input
     PushSourceTarget (..),
   )
 import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Push))
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
@@ -53,17 +53,17 @@ import Unison.Codebase.Editor.RemoteRepo
     writeToReadGit,
   )
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
-import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.ShortCausalHash as SCH
+import Unison.Codebase.PushBehavior qualified as PushBehavior
+import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SyncMode (SyncMode)
-import qualified Unison.Codebase.SyncMode as SyncMode
+import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Type (GitPushBehavior (..))
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
-import qualified Unison.Hash32 as Hash32
+import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project
@@ -74,14 +74,14 @@ import Unison.Project
     prependUserSlugToProjectName,
     projectNameUserSlug,
   )
-import qualified Unison.Share.API.Hash as Share.API
-import qualified Unison.Share.API.Projects as Share.API
-import qualified Unison.Share.Codeserver as Codeserver
-import qualified Unison.Share.Sync as Share
-import qualified Unison.Share.Sync.Types as Share
+import Unison.Share.API.Hash qualified as Share.API
+import Unison.Share.API.Projects qualified as Share.API
+import Unison.Share.Codeserver qualified as Codeserver
+import Unison.Share.Sync qualified as Share
+import Unison.Share.Sync.Types qualified as Share
 import Unison.Share.Types (codeserverBaseURL)
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sync.Types as Share
+import Unison.Sqlite qualified as Sqlite
+import Unison.Sync.Types qualified as Share
 import Witch (unsafeFrom)
 
 -- | Handle a @gist@ command.

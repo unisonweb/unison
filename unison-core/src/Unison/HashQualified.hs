@@ -1,17 +1,17 @@
 module Unison.HashQualified where
 
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Unison.ConstructorReference (ConstructorReference)
-import qualified Unison.ConstructorReference as ConstructorReference
+import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.Name (Convert, Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.Prelude hiding (fromString)
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 import Prelude hiding (take)
 
 data HashQualified n

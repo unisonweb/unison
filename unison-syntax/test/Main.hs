@@ -2,7 +2,7 @@ module Main (main) where
 
 import EasyTest
 import System.IO.CodePage (withCP65001)
-import qualified Unison.ShortHash as ShortHash
+import Unison.ShortHash qualified as ShortHash
 import Unison.Syntax.Lexer
 
 main :: IO ()

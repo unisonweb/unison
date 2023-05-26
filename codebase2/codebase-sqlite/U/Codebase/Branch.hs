@@ -7,8 +7,8 @@ module U.Codebase.Branch
 where
 
 import U.Codebase.Branch.Type as X
-import qualified U.Codebase.Causal as Causal
-import qualified U.Codebase.Sqlite.Operations as Ops
+import U.Codebase.Causal qualified as Causal
+import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Sqlite (Transaction)

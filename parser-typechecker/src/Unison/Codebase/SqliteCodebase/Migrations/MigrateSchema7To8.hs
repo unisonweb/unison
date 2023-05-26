@@ -3,8 +3,8 @@
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8 (migrateSchema7To8) where
 
 import Data.String.Here.Uninterpolated (here)
-import qualified U.Codebase.Sqlite.Queries as Q
-import qualified Unison.Sqlite as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Q
+import Unison.Sqlite qualified as Sqlite
 
 -- | Adds a table for tracking namespace statistics
 -- Adds stats for all existing namespaces, even though missing stats are computed on-demand if missing.

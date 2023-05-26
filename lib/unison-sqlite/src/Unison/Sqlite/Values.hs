@@ -4,10 +4,10 @@ module Unison.Sqlite.Values
   )
 where
 
-import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.List.NonEmpty as List.NonEmpty
-import qualified Data.Text as Text
-import qualified Database.SQLite.Simple as Sqlite.Simple
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.Text qualified as Text
+import Database.SQLite.Simple qualified as Sqlite.Simple
 import Unison.Prelude
 import Unison.Sqlite.Sql (Sql (..))
 

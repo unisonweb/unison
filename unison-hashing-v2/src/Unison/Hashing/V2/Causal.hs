@@ -3,10 +3,10 @@ module Unison.Hashing.V2.Causal
   )
 where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.Hash (Hash)
 import Unison.Hashing.ContentAddressable (ContentAddressable (..))
-import qualified Unison.Hashing.V2.Tokenizable as H
+import Unison.Hashing.V2.Tokenizable qualified as H
 import Unison.Prelude
 
 data Causal = Causal {branchHash :: Hash, parents :: Set Hash}

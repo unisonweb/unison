@@ -8,31 +8,31 @@ module Unison.Server.NameSearch.Sqlite
 where
 
 import Control.Lens
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import U.Codebase.HashTags (BranchHash)
-import qualified U.Codebase.Sqlite.NamedRef as NamedRef
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified Unison.Builtin as Builtin
+import U.Codebase.Sqlite.NamedRef qualified as NamedRef
+import U.Codebase.Sqlite.Operations qualified as Ops
+import Unison.Builtin qualified as Builtin
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.HashQualified' as HQ'
-import qualified Unison.LabeledDependency as LD
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.HashQualified' qualified as HQ'
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Server.NameSearch (NameSearch (..), Search (..))
-import qualified Unison.Server.SearchResult as SR
-import qualified Unison.ShortHash as SH
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Util.Set as Set
+import Unison.Server.SearchResult qualified as SR
+import Unison.ShortHash qualified as SH
+import Unison.Sqlite qualified as Sqlite
+import Unison.Util.Set qualified as Set
 
 data SearchStrategy
   = ExactMatch

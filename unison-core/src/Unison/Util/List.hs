@@ -1,9 +1,9 @@
 module Unison.Util.List where
 
-import qualified Data.List as List
-import qualified Data.List.Extra as List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.List qualified as List
+import Data.List.Extra qualified as List
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Prelude
 
 multimap :: (Foldable f) => (Ord k) => f (k, v) -> Map k [v]

@@ -27,20 +27,20 @@ module Unison.Referent
   )
 where
 
-import qualified Data.Char as Char
-import qualified Data.Text as Text
+import Data.Char qualified as Char
+import Data.Text qualified as Text
 import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
-import qualified Unison.ConstructorReference as ConstructorReference
+import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType (ConstructorType)
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude hiding (fold)
 import Unison.Reference (Reference, TermReference, TermReferenceId)
-import qualified Unison.Reference as R
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as R
+import Unison.Reference qualified as Reference
 import Unison.Referent' (Referent' (..), reference_, toReference')
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 
 -- | Specifies a term.
 --

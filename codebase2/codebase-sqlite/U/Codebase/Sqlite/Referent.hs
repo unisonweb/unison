@@ -6,11 +6,11 @@
 module U.Codebase.Sqlite.Referent where
 
 import Control.Applicative (liftA3)
-import qualified U.Codebase.Reference as Reference
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Id', Referent')
-import qualified U.Codebase.Referent as Referent
+import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
-import qualified U.Codebase.Sqlite.Reference as Sqlite
+import U.Codebase.Sqlite.Reference qualified as Sqlite
 import Unison.Sqlite (FromRow (..), Only (..), SQLData (..), ToField (toField), ToRow (..), field)
 
 type Referent = Referent' Sqlite.Reference Sqlite.Reference

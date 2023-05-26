@@ -2,8 +2,8 @@
 
 module Unison.Runtime.Vector where
 
-import qualified Data.MemoCombinators as Memo
-import qualified Data.Vector.Unboxed as UV
+import Data.MemoCombinators qualified as Memo
+import Data.Vector.Unboxed qualified as UV
 import Unison.Prelude
 
 -- A `Vec a` denotes a `Nat -> Maybe a`

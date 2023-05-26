@@ -13,25 +13,25 @@ where
 
 import Control.Comonad.Cofree
 import Control.Lens (ifoldMap)
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Data.Functor.Compose (Compose (..))
-import qualified Data.Map as Map
-import qualified Data.Semialign as Align
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Semialign qualified as Align
+import Data.Set qualified as Set
 import Data.These
 import U.Codebase.Branch
-import qualified U.Codebase.Branch.Type as Branch
-import qualified U.Codebase.Causal as Causal
+import U.Codebase.Branch.Type qualified as Branch
+import U.Codebase.Causal qualified as Causal
 import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
-import qualified U.Codebase.Referent as Referent
+import U.Codebase.Referent qualified as Referent
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Util.Monoid (foldMapM, ifoldMapM)
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as Relation
+import Unison.Util.Relation qualified as Relation
 
 data Diff a = Diff
   { adds :: Set a,

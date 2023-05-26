@@ -3,13 +3,13 @@
 module Unison.Util.Relation3 where
 
 import Data.Function (on)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Semigroup (Sum (Sum, getSum))
 import Data.Tuple.Extra (uncurry3)
 import Unison.Prelude hiding (empty, toList)
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 
 data Relation3 a b c = Relation3
   { d1 :: Map a (Relation b c),

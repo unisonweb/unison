@@ -24,7 +24,7 @@ where
 
 import Control.Concurrent (ThreadId, myThreadId)
 import Data.Typeable (cast)
-import qualified Database.SQLite.Simple as Sqlite
+import Database.SQLite.Simple qualified as Sqlite
 import Debug.RecoverRTTI (anythingToString)
 import GHC.Stack (currentCallStack)
 import Unison.Prelude

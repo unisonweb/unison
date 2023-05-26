@@ -51,11 +51,11 @@ import Control.Exception (throwIO)
 import Control.Lens (lens, (.=))
 import Control.Monad.Reader (MonadReader (..))
 import Control.Monad.State.Strict (MonadState)
-import qualified Control.Monad.State.Strict as State
-import qualified Data.Configurator.Types as Configurator
+import Control.Monad.State.Strict qualified as State
+import Data.Configurator.Types qualified as Configurator
 import Data.Generics.Labels ()
-import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.List.NonEmpty as List.NonEmpty
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
@@ -67,23 +67,23 @@ import U.Codebase.HashTags (CausalHash)
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.Server.CodebaseServer as Server
-import qualified Unison.Sqlite as Sqlite
+import Unison.Server.CodebaseServer qualified as Server
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Parser as Parser
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Unison.UnisonFile as UF
+import Unison.UnisonFile qualified as UF
 import UnliftIO.STM
 import Unsafe.Coerce (unsafeCoerce)
 

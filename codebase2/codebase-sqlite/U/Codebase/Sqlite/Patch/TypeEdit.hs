@@ -4,8 +4,8 @@ import Control.Lens
 import Data.Bifoldable (Bifoldable (bifoldMap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import U.Codebase.Reference (Reference')
-import qualified U.Codebase.Reference as Reference
-import qualified U.Codebase.Sqlite.DbId as Db
+import U.Codebase.Reference qualified as Reference
+import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalTextId)
 
 type LocalTypeEdit = TypeEdit' LocalTextId LocalDefnId
