@@ -712,6 +712,7 @@ notifyUser dir = \case
               <> "to push the changes."
         ]
   DisplayDefinitions output -> displayDefinitions output
+  OutputFile ppe dest uf -> displayOutputFile ppe dest uf
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
@@ -892,6 +893,19 @@ notifyUser dir = \case
         "The file "
           <> P.blue (P.shown name)
           <> " does not exist or is not a valid source file."
+  InvalidStructuredFindReplace _sym -> 
+    pure . P.callout "😶" $
+      P.lines [
+        P.wrap $ "The argument to " <> makeExample' IP.sfindReplace
+            <> "should be a pair or a function that immediately returns a pair, for instance"
+            <> IP.makeExample IP.sfindReplace ["rule1"] <> ", where `rule1`"
+            <> "is in the scratch file or codebase and looks like:",
+        "",
+        "    rule1 x = (x + 1, Nat.increment x)",
+        "",
+        P.wrap $ "`x` will stand in for any expression when this rewrite is applied."
+              <> "so the above rule will match " <> P.backticked "(42+10+11) + 1"
+      ]
   SourceLoadFailed name ->
     pure . P.callout "😶" $
       P.wrap $
@@ -2423,6 +2437,9 @@ formatMissingStuff terms types =
              <> "\n\n"
              <> P.column2 [(P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types]
        )
+
+displayOutputFile :: PPE.PrettyPrintEnv -> FilePath -> UF.UnisonFile v a -> IO Pretty
+displayOutputFile ppe to uf = pure $ undefined ppe to uf 
 
 displayDefinitions' ::
   (Var v) =>

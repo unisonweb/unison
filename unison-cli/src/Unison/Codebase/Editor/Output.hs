@@ -352,6 +352,7 @@ data Output
   | ClonedProjectBranch
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
+  | OutputFile PPE.PrettyPrintEnv FilePath (UF.UnisonFile Symbol Ann)
 
 -- | What did we create a project branch from?
 --
@@ -540,6 +541,7 @@ isFailure o = case o of
   CreatedRemoteProjectBranch {} -> False
   InvalidProjectName {} -> True
   InvalidProjectBranchName {} -> True
+  InvalidStructuredFindReplace {} -> True
   ProjectNameAlreadyExists {} -> True
   ProjectNameRequiresUserSlug {} -> True
   NotOnProjectBranch {} -> True
@@ -564,6 +566,7 @@ isFailure o = case o of
   DraftingRelease {} -> False
   CannotCreateReleaseBranchWithBranchCommand {} -> True
   CalculatingDiff {} -> False
+  OutputFile {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

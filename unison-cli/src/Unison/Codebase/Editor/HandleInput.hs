@@ -994,8 +994,8 @@ loop e = do
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
-            StructuredFindI fscope ws -> undefined fscope ws -- handleStructuredFindI fscope ws input
-            StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws input
+            StructuredFindI fscope ws -> error "todo" fscope ws -- handleStructuredFindI fscope ws input
+            StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
             ResolveTypeNameI path' -> do
               description <- inputDescription input
               path <- Cli.resolveSplit' path'
@@ -1654,29 +1654,31 @@ inputDescription input =
       -- just trying to recover the syntax the user wrote
       These path _branch -> pure (Path.toText' path)
 
-handleStructuredFindReplaceI :: HQ.HashQualified Name -> Input -> Cli ()
-handleStructuredFindReplaceI rule i = do
+handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
+handleStructuredFindReplaceI rule = do
+  Cli.Env {codebase} <- ask
   root <- Cli.getRootBranch
   currentBranch <- Cli.getCurrentBranch0
+  currentPath' <- Cli.getCurrentPath
   hqLength <- Cli.runTransaction Codebase.hashLength
   let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
-  let ppe = Backend.getCurrentPrettyNames hqLength (Backend.WithinStrict currentPath') root
+  let ppe = Backend.getCurrentPrettyNames hqLength (Backend.WithinStrict (Path.unabsolute currentPath')) root
   ot <- Cli.getTermFromLatestParsedFile rule
   ot <- case ot of
-    Just tm -> pure ot
+    Just _ -> pure ot
     Nothing -> do 
       case NamesWithHistory.lookupHQTerm rule currentNames of
-        s | Set.size s == 1, Just (Referent.Ref (Reference.DerivedId r)) -> 
+        s | Set.size s == 1, Referent.Ref (Reference.DerivedId r) <- Set.findMin s -> 
           Cli.runTransaction (Codebase.getTerm codebase r)
         s -> Cli.returnEarly (TermAmbiguous rule s)
   tm <- maybe (Cli.returnEarly (TermAmbiguous rule mempty)) pure ot
   (lhs,rhs) <- case tm of
-    Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs,rhs]) -> (lhs,rhs) 
+    Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs,rhs]) -> pure (lhs,rhs) 
     _ -> Cli.returnEarly (InvalidStructuredFindReplace rule) 
   uf <- Cli.expectLatestParsedFile
-  dest <- Cli.expectLatestFile
-  #latestFile ?= (Just dest, True)
-  respond $ OutputFile ppe dest (UF.rewrite lhs rhs uf)
+  (dest,_) <- Cli.expectLatestFile
+  #latestFile ?= (dest, True)
+  Cli.respond $ OutputFile (PPE.unsuffixifiedPPE ppe) dest (UF.rewrite lhs rhs uf)
 
 handleFindI ::
   Bool ->

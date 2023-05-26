@@ -30,6 +30,7 @@ module Unison.UnisonFile
     termSignatureExternalLabeledDependencies,
     topLevelComponents,
     typecheckedUnisonFile,
+    Unison.UnisonFile.rewrite
   )
 where
 
@@ -95,6 +96,13 @@ effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 
 hashTerms :: TypecheckedUnisonFile v a -> Map v (Reference, Maybe WatchKind, Term v a, Type v a)
 hashTerms = fmap (over _1 Reference.DerivedId) . hashTermsId
+
+rewrite :: (Var v, Eq a) => Term v a -> Term v a -> UnisonFile v a -> UnisonFile v a 
+rewrite lhs rhs (UnisonFileId datas effects terms watches) = 
+  UnisonFileId datas effects (terms' terms) watches' 
+  where
+    terms' tms = [ (v, tm') | (v,tm) <- tms, tm' <- maybe [tm] pure (ABT.rewriteExpression lhs rhs tm) ]
+    watches' = terms' <$> watches 
 
 typecheckedUnisonFile ::
   forall v a.
