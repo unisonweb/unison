@@ -33,8 +33,8 @@ module Unison.Sqlite
     valuesSql,
 
     -- ** Without results
-
     execute2,
+    executeStatements,
 
     -- ** With results
     -- $query-naming-convention
@@ -96,10 +96,10 @@ module Unison.Sqlite
   )
 where
 
-import qualified Database.SQLite.Simple as Sqlite.Simple
-import qualified Database.SQLite.Simple.FromField as Sqlite.Simple
-import qualified Database.SQLite.Simple.FromRow as Sqlite.Simple
-import qualified Database.SQLite.Simple.ToField as Sqlite.Simple
+import Database.SQLite.Simple qualified as Sqlite.Simple
+import Database.SQLite.Simple.FromField qualified as Sqlite.Simple
+import Database.SQLite.Simple.FromRow qualified as Sqlite.Simple
+import Database.SQLite.Simple.ToField qualified as Sqlite.Simple
 import Unison.Sqlite.Connection
   ( Connection,
     ExpectedAtMostOneRowException (..),

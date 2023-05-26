@@ -254,42 +254,42 @@ module U.Codebase.Sqlite.Queries
 where
 
 import Control.Lens (Lens')
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Control.Monad.Extra ((||^))
 import Control.Monad.State (MonadState, evalStateT)
 import Control.Monad.Writer (MonadWriter, runWriterT)
-import qualified Control.Monad.Writer as Writer
+import Control.Monad.Writer qualified as Writer
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
-import qualified Data.Foldable as Foldable
-import qualified Data.List as List
-import qualified Data.List.Extra as List
+import Data.Foldable qualified as Foldable
+import Data.List qualified as List
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as Nel
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
 import Data.Map.NonEmpty (NEMap)
-import qualified Data.Map.NonEmpty as NEMap
-import qualified Data.Maybe as Maybe
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Data.Map.NonEmpty qualified as NEMap
+import Data.Maybe qualified as Maybe
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
-import qualified Data.Text as Text
-import qualified Data.Vector as Vector
+import Data.Text qualified as Text
+import Data.Vector qualified as Vector
 import GHC.Stack (callStack)
 import Network.URI (URI)
 import U.Codebase.Branch.Type (NamespaceStats (..))
-import qualified U.Codebase.Decl as C
-import qualified U.Codebase.Decl as C.Decl
+import U.Codebase.Decl qualified as C
+import U.Codebase.Decl qualified as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
-import qualified U.Codebase.Reference as C
-import qualified U.Codebase.Reference as C.Reference
-import qualified U.Codebase.Referent as C.Referent
-import qualified U.Codebase.Reflog as Reflog
-import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
-import qualified U.Codebase.Sqlite.Causal as Causal
-import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal
+import U.Codebase.Reference qualified as C
+import U.Codebase.Reference qualified as C.Reference
+import U.Codebase.Referent qualified as C.Referent
+import U.Codebase.Reflog qualified as Reflog
+import U.Codebase.Sqlite.Branch.Format qualified as NamespaceFormat
+import U.Codebase.Sqlite.Causal qualified as Causal
+import U.Codebase.Sqlite.Causal qualified as Sqlite.Causal
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
@@ -305,11 +305,11 @@ import U.Codebase.Sqlite.DbId
     SchemaVersion,
     TextId,
   )
-import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
-import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
+import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
+import U.Codebase.Sqlite.Decl.Format qualified as S.Decl
 import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.Entity (SyncEntity)
-import qualified U.Codebase.Sqlite.Entity as Entity
+import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.HashHandle (HashHandle (..))
 import U.Codebase.Sqlite.LocalIds
   ( LocalDefnId (..),
@@ -317,50 +317,49 @@ import U.Codebase.Sqlite.LocalIds
     LocalIds' (..),
     LocalTextId (..),
   )
-import qualified U.Codebase.Sqlite.LocalIds as LocalIds
+import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.NamedRef (NamedRef, ReversedSegments)
-import qualified U.Codebase.Sqlite.NamedRef as NamedRef
+import U.Codebase.Sqlite.NamedRef qualified as NamedRef
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
-import qualified U.Codebase.Sqlite.ObjectType as ObjectType
+import U.Codebase.Sqlite.ObjectType qualified as ObjectType
 import U.Codebase.Sqlite.Orphans ()
-import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
+import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
-import qualified U.Codebase.Sqlite.Reference as Reference
-import qualified U.Codebase.Sqlite.Reference as S
-import qualified U.Codebase.Sqlite.Reference as S.Reference
-import qualified U.Codebase.Sqlite.Referent as Referent
-import qualified U.Codebase.Sqlite.Referent as S.Referent
+import U.Codebase.Sqlite.Reference qualified as Reference
+import U.Codebase.Sqlite.Reference qualified as S
+import U.Codebase.Sqlite.Reference qualified as S.Reference
+import U.Codebase.Sqlite.Referent qualified as Referent
+import U.Codebase.Sqlite.Referent qualified as S.Referent
 import U.Codebase.Sqlite.RemoteProject (RemoteProject (..))
 import U.Codebase.Sqlite.RemoteProjectBranch (RemoteProjectBranch)
 import U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.TempEntity (TempEntity)
-import qualified U.Codebase.Sqlite.TempEntity as TempEntity
+import U.Codebase.Sqlite.TempEntity qualified as TempEntity
 import U.Codebase.Sqlite.TempEntityType (TempEntityType)
-import qualified U.Codebase.Sqlite.TempEntityType as TempEntityType
-import qualified U.Codebase.Sqlite.Term.Format as S.Term
-import qualified U.Codebase.Sqlite.Term.Format as TermFormat
-import qualified U.Codebase.Term as C
-import qualified U.Codebase.Term as C.Term
-import qualified U.Codebase.Type as C.Type
+import U.Codebase.Sqlite.TempEntityType qualified as TempEntityType
+import U.Codebase.Sqlite.Term.Format qualified as S.Term
+import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Term qualified as C
+import U.Codebase.Term qualified as C.Term
+import U.Codebase.Type qualified as C.Type
 import U.Codebase.WatchKind (WatchKind)
-import qualified U.Core.ABT as ABT
-import qualified U.Util.Serialization as S
-import qualified U.Util.Term as TermUtil
+import U.Core.ABT qualified as ABT
+import U.Util.Serialization qualified as S
+import U.Util.Term qualified as TermUtil
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
-import qualified Unison.Hash32 as Hash32
+import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
 import Unison.Prelude
 import Unison.Sqlite
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Util.Alternative as Alternative
-import qualified Unison.Util.Lens as Lens
-import qualified Unison.Util.Map as Map
+import Unison.Util.Alternative qualified as Alternative
+import Unison.Util.Lens qualified as Lens
+import Unison.Util.Map qualified as Map
 
 -- | A namespace rendered as a path, no leading '.'
 -- E.g. "base.data"
@@ -375,7 +374,7 @@ currentSchemaVersion = 11
 
 createSchema :: Transaction ()
 createSchema = do
-  executeFile [hereFile|unison/sql/create.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/create.sql|])
   addTempEntityTables
   addNamespaceStatsTables
   addReflogTable
@@ -392,35 +391,27 @@ createSchema = do
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
-  executeFile [hereFile|unison/sql/001-temp-entity-tables.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/001-temp-entity-tables.sql|])
 
 addNamespaceStatsTables :: Transaction ()
 addNamespaceStatsTables =
-  executeFile [hereFile|unison/sql/003-namespace-statistics.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/003-namespace-statistics.sql|])
 
 addReflogTable :: Transaction ()
 addReflogTable =
-  executeFile [hereFile|unison/sql/002-reflog-table.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/002-reflog-table.sql|])
 
 fixScopedNameLookupTables :: Transaction ()
 fixScopedNameLookupTables =
-  executeFile [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|])
 
 addProjectTables :: Transaction ()
 addProjectTables =
-  executeFile [hereFile|unison/sql/005-project-tables.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/005-project-tables.sql|])
 
 addMostRecentBranchTable :: Transaction ()
 addMostRecentBranchTable =
-  executeFile [hereFile|unison/sql/006-most-recent-branch-table.sql|]
-
-executeFile :: String -> Transaction ()
-executeFile =
-  traverse_ (execute_ . Sqlite.Sql)
-    . filter (not . Text.null)
-    . map Text.strip
-    . Text.split (== ';')
-    . Text.pack
+  executeStatements (Text.pack [hereFile|unison/sql/006-most-recent-branch-table.sql|])
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -918,13 +909,12 @@ tryMoveTempEntityDependents ::
   Transaction ()
 tryMoveTempEntityDependents hh dependency = do
   dependents <-
-    queryListCol
-      [here|
+    queryListCol2
+      [sql2|
         DELETE FROM temp_entity_missing_dependency
-        WHERE dependency = ?
+        WHERE dependency = :dependency
         RETURNING dependent
       |]
-      (Only dependency)
   traverse_ flushIfReadyToFlush dependents
   where
     flushIfReadyToFlush :: Hash32 -> Transaction ()
@@ -1298,25 +1288,30 @@ loadWatch ::
   Reference.IdH ->
   (ByteString -> Either e a) ->
   Transaction (Maybe a)
-loadWatch k r check = queryMaybeColCheck sql (Only k :. r) check where sql = [here|
-    SELECT result FROM watch_result
-    INNER JOIN watch
-      ON watch_result.hash_id = watch.hash_id
-      AND watch_result.component_index = watch.component_index
-    WHERE watch.watch_kind_id = ?
-      AND watch.hash_id = ?
-      AND watch.component_index = ?
-  |]
+loadWatch k r check =
+  queryMaybeColCheck2
+    [sql2|
+      SELECT result FROM watch_result
+      INNER JOIN watch
+        ON watch_result.hash_id = watch.hash_id
+        AND watch_result.component_index = watch.component_index
+      WHERE watch.watch_kind_id = :k
+        AND watch.hash_id = @r
+        AND watch.component_index = @
+    |]
+    check
 
 loadWatchKindsByReference :: Reference.IdH -> Transaction [WatchKind]
-loadWatchKindsByReference r = queryListCol sql r where sql = [here|
-    SELECT watch_kind_id FROM watch_result
-    INNER JOIN watch
-      ON watch_result.hash_id = watch.hash_id
-      AND watch_result.component_index = watch.component_index
-    WHERE watch.hash_id = ?
-      AND watch.component_index = ?
-  |]
+loadWatchKindsByReference r =
+  queryListCol2
+    [sql2|
+      SELECT watch_kind_id FROM watch_result
+      INNER JOIN watch
+        ON watch_result.hash_id = watch.hash_id
+        AND watch_result.component_index = watch.component_index
+      WHERE watch.hash_id = @r
+        AND watch.component_index = @
+    |]
 
 loadWatchesByWatchKind :: WatchKind -> Transaction [Reference.IdH]
 loadWatchesByWatchKind k =
@@ -1335,43 +1330,47 @@ clearWatches = do
 
 -- * Index-building
 addToTypeIndex :: Reference' TextId HashId -> Referent.Id -> Transaction ()
-addToTypeIndex tp tm = execute sql (tp :. tm) where sql = [here|
-  INSERT INTO find_type_index (
-    type_reference_builtin,
-    type_reference_hash_id,
-    type_reference_component_index,
-    term_referent_object_id,
-    term_referent_component_index,
-    term_referent_constructor_index
-  ) VALUES (?, ?, ?, ?, ?, ?)
-  ON CONFLICT DO NOTHING
-|]
+addToTypeIndex tp tm =
+  execute2
+    [sql2|
+      INSERT INTO find_type_index (
+        type_reference_builtin,
+        type_reference_hash_id,
+        type_reference_component_index,
+        term_referent_object_id,
+        term_referent_component_index,
+        term_referent_constructor_index
+      ) VALUES (@tp, @, @, @tm, @, @)
+      ON CONFLICT DO NOTHING
+    |]
 
 getReferentsByType :: Reference' TextId HashId -> Transaction [Referent.Id]
-getReferentsByType r = queryListRow sql r where sql = [here|
-  SELECT
-    term_referent_object_id,
-    term_referent_component_index,
-    term_referent_constructor_index
-  FROM find_type_index
-  WHERE type_reference_builtin IS ?
-    AND type_reference_hash_id IS ?
-    AND type_reference_component_index IS ?
-|]
+getReferentsByType r =
+  queryListRow2
+    [sql2|
+      SELECT
+        term_referent_object_id,
+        term_referent_component_index,
+        term_referent_constructor_index
+      FROM find_type_index
+      WHERE type_reference_builtin IS @r
+        AND type_reference_hash_id IS @
+        AND type_reference_component_index IS @
+    |]
 
 getTypeReferenceForReferent :: Referent.Id -> Transaction (Reference' TextId HashId)
 getTypeReferenceForReferent r =
-  queryOneRow sql r
-  where sql = [here|
-  SELECT
-    type_reference_builtin,
-    type_reference_hash_id,
-    type_reference_component_index
-  FROM find_type_index
-  WHERE term_referent_object_id = ?
-    AND term_referent_component_index = ?
-    AND term_referent_constructor_index IS ?
-|]
+  queryOneRow2
+    [sql2|
+      SELECT
+        type_reference_builtin,
+        type_reference_hash_id,
+        type_reference_component_index
+      FROM find_type_index
+      WHERE term_referent_object_id = @r
+        AND term_referent_component_index = @
+        AND term_referent_constructor_index IS @
+    |]
 
 -- todo: error if no results
 getTypeReferencesForComponent :: ObjectId -> Transaction [(Reference' TextId HashId, Referent.Id)]
@@ -1391,29 +1390,33 @@ getTypeReferencesForComponent oId =
       |]
 
 addToTypeMentionsIndex :: Reference' TextId HashId -> Referent.Id -> Transaction ()
-addToTypeMentionsIndex tp tm = execute sql (tp :. tm) where sql = [here|
-  INSERT INTO find_type_mentions_index (
-    type_reference_builtin,
-    type_reference_hash_id,
-    type_reference_component_index,
-    term_referent_object_id,
-    term_referent_component_index,
-    term_referent_constructor_index
-  ) VALUES (?, ?, ?, ?, ?, ?)
-  ON CONFLICT DO NOTHING
-|]
+addToTypeMentionsIndex tp tm =
+  execute2
+    [sql2|
+      INSERT INTO find_type_mentions_index (
+        type_reference_builtin,
+        type_reference_hash_id,
+        type_reference_component_index,
+        term_referent_object_id,
+        term_referent_component_index,
+        term_referent_constructor_index
+      ) VALUES (@tp, @, @, @tm, @, @)
+      ON CONFLICT DO NOTHING
+    |]
 
 getReferentsByTypeMention :: Reference' TextId HashId -> Transaction [Referent.Id]
-getReferentsByTypeMention r = queryListRow sql r where sql = [here|
-  SELECT
-    term_referent_object_id,
-    term_referent_component_index,
-    term_referent_constructor_index
-  FROM find_type_mentions_index
-  WHERE type_reference_builtin IS ?
-    AND type_reference_hash_id IS ?
-    AND type_reference_component_index IS ?
-|]
+getReferentsByTypeMention r =
+  queryListRow2
+    [sql2|
+      SELECT
+        term_referent_object_id,
+        term_referent_component_index,
+        term_referent_constructor_index
+      FROM find_type_mentions_index
+      WHERE type_reference_builtin IS @r
+        AND type_reference_hash_id IS @
+        AND type_reference_component_index IS @
+    |]
 
 -- todo: error if no results
 getTypeMentionsReferencesForComponent :: ObjectId -> Transaction [(Reference' TextId HashId, Referent.Id)]
@@ -1517,22 +1520,21 @@ data DependentsSelector
 -- | Get dependents of a dependency.
 getDependentsForDependency :: DependentsSelector -> Reference.Reference -> Transaction (Set Reference.Id)
 getDependentsForDependency selector dependency = do
-  dependents <- queryListRow sql dependency
+  dependents <-
+    queryListRow2
+      [sql2|
+        SELECT dependent_object_id, dependent_component_index
+        FROM dependents_index
+        WHERE dependency_builtin IS @dependency
+          AND dependency_object_id IS @
+          AND dependency_component_index IS @
+      |]
   pure . Set.fromList $
     case selector of
       IncludeAllDependents -> dependents
       ExcludeSelf -> filter isNotSelfReference dependents
       ExcludeOwnComponent -> filter isNotReferenceFromOwnComponent dependents
   where
-    sql =
-      [here|
-        SELECT dependent_object_id, dependent_component_index
-        FROM dependents_index
-        WHERE dependency_builtin IS ?
-          AND dependency_object_id IS ?
-          AND dependency_component_index IS ?
-      |]
-
     isNotReferenceFromOwnComponent :: Reference.Id -> Bool
     isNotReferenceFromOwnComponent =
       case dependency of
@@ -1563,16 +1565,15 @@ getDependentsForDependencyComponent dependency =
 -- | Get non-self dependencies of a user-defined dependent.
 getDependenciesForDependent :: Reference.Id -> Transaction [Reference.Reference]
 getDependenciesForDependent dependent@(C.Reference.Id oid0 _) =
-  filter isNotSelfReference <$> queryListRow sql dependent
-  where
-    sql =
-      [here|
+  fmap (filter isNotSelfReference) $
+    queryListRow2
+      [sql2|
         SELECT dependency_builtin, dependency_object_id, dependency_component_index
         FROM dependents_index
-        WHERE dependent_object_id IS ?
-          AND dependent_component_index IS ?
+        WHERE dependent_object_id IS @dependent
+          AND dependent_component_index IS @
       |]
-
+  where
     isNotSelfReference :: Reference.Reference -> Bool
     isNotSelfReference = \case
       ReferenceBuiltin _ -> True
@@ -1581,17 +1582,16 @@ getDependenciesForDependent dependent@(C.Reference.Id oid0 _) =
 -- | Get non-self, user-defined dependencies of a user-defined dependent.
 getDependencyIdsForDependent :: Reference.Id -> Transaction [Reference.Id]
 getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
-  filter isNotSelfReference <$> queryListRow sql dependent
-  where
-    sql =
-      [here|
+  fmap (filter isNotSelfReference) $
+    queryListRow2
+      [sql2|
         SELECT dependency_object_id, dependency_component_index
         FROM dependents_index
         WHERE dependency_builtin IS NULL
-          AND dependent_object_id = ?
-          AND dependent_component_index = ?
+          AND dependent_object_id = @dependent
+          AND dependent_component_index = @
       |]
-
+  where
     isNotSelfReference :: Reference.Id -> Bool
     isNotSelfReference (C.Reference.Id oid1 _) =
       oid0 /= oid1
@@ -2142,12 +2142,11 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
 -- the longest matching suffix.
 longestMatchingTermNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
 longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(lastSegment NonEmpty.:| _), ref}) = do
-  let namespaceGlob = globEscape namespaceRoot <> ".*"
   let loop :: [Text] -> MaybeT Transaction (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))
       loop [] = empty
       loop (suffGlob : rest) = do
         result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))) <-
-          lift $ queryMaybeRow sql ((bhId, lastSegment, namespaceGlob, suffGlob) :. ref)
+          lift $ queryMaybeRow2 (theSql suffGlob)
         case result of
           Just namedRef ->
             -- We want to find matches for the _longest_ possible suffix, so we keep going until we
@@ -2166,7 +2165,7 @@ longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
   runMaybeT $ loop suffixes
   where
     unRow (a :. Only b) = (a, b)
-    sql =
+    theSql suffGlob =
       -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
       -- GLOB, but this helps improve query performance.
       -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
@@ -2174,26 +2173,26 @@ longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
       -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
       -- names which couldn't possibly match before we then manually filter the remaining names
       -- using the `reversed_name` glob which can't be optimized with an index.
-      [here|
+      [sql2|
         SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
-        WHERE root_branch_hash_id = ?
-              AND last_name_segment IS ?
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
+        WHERE root_branch_hash_id = :bhId
+              AND last_name_segment IS :lastSegment
+              AND namespace GLOB :namespaceGlob
+              AND reversed_name GLOB :suffGlob
               -- We don't need to consider names for the same definition when suffixifying, so
               -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
-              AND NOT (referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?)
+              AND NOT (referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @)
          LIMIT 1
       |]
+    namespaceGlob = globEscape namespaceRoot <> ".*"
 
 longestMatchingTypeNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Reference.TextReference -> Transaction (Maybe (NamedRef Reference.TextReference))
 longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(lastSegment NonEmpty.:| _), ref}) = do
-  let namespaceGlob = globEscape namespaceRoot <> ".*"
   let loop :: [Text] -> MaybeT Transaction (NamedRef Reference.TextReference)
       loop [] = empty
       loop (suffGlob : rest) = do
         result :: Maybe (NamedRef (Reference.TextReference)) <-
-          lift $ queryMaybeRow sql ((bhId, lastSegment, namespaceGlob, suffGlob) :. ref)
+          lift $ queryMaybeRow2 (theSql suffGlob)
         case result of
           Just namedRef ->
             -- We want to find matches for the _longest_ possible suffix, so we keep going until we
@@ -2211,7 +2210,7 @@ longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
           & map toSuffixGlob
   runMaybeT $ loop suffixes
   where
-    sql =
+    theSql suffGlob =
       -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
       -- GLOB, but this helps improve query performance.
       -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
@@ -2219,23 +2218,31 @@ longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
       -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
       -- names which couldn't possibly match before we then manually filter the remaining names
       -- using the `reversed_name` glob which can't be optimized with an index.
-      [here|
+      [sql2|
         SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
-        WHERE root_branch_hash_id = ?
-              AND last_name_segment IS ?
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
+        WHERE root_branch_hash_id = :bhId
+              AND last_name_segment IS :lastSegment
+              AND namespace GLOB :namespaceGlob
+              AND reversed_name GLOB :suffGlob
               -- We don't need to consider names for the same definition when suffixifying, so
               -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
-              AND NOT (reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?)
+              AND NOT (reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @)
         LIMIT 1
       |]
+    namespaceGlob = globEscape namespaceRoot <> ".*"
 
 -- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool
-before chId1 chId2 = queryOneCol sql (chId2, chId1)
+before x y =
+  queryOneCol2
+    [sql2|
+      SELECT EXISTS (
+        $selectAncestorsOfY
+        WHERE ancestor.id = :x
+      )
+    |]
   where
-    sql = fromString $ "SELECT EXISTS (" ++ ancestorSql ++ " WHERE ancestor.id = ?)"
+    selectAncestorsOfY = ancestorSql2 y
 
 lca :: CausalHashId -> CausalHashId -> Transaction (Maybe CausalHashId)
 lca x y =
@@ -2275,6 +2282,22 @@ ancestorSql =
         SELECT self_hash_id
           FROM causal
           WHERE self_hash_id = ?
+        UNION ALL
+        SELECT parent_id
+          FROM causal_parent
+          JOIN ancestor ON ancestor.id = causal_id
+      )
+    SELECT * FROM ancestor
+  |]
+
+ancestorSql2 :: CausalHashId -> Sql2
+ancestorSql2 h =
+  [sql2|
+    WITH RECURSIVE
+      ancestor(id) AS (
+        SELECT self_hash_id
+          FROM causal
+          WHERE self_hash_id = :h
         UNION ALL
         SELECT parent_id
           FROM causal_parent
@@ -2816,13 +2839,16 @@ lookup_ stateLens writerLens mk t = do
 -- | Save statistics about a given branch.
 saveNamespaceStats :: BranchHashId -> NamespaceStats -> Transaction ()
 saveNamespaceStats bhId stats = do
-  execute sql (Only bhId :. stats)
-  where
-    sql =
-      [here|
-        INSERT INTO namespace_statistics (namespace_hash_id, num_contained_terms, num_contained_types, num_contained_patches)
-          VALUES (?, ?, ?, ?)
-      |]
+  execute2
+    [sql2|
+      INSERT INTO namespace_statistics (
+        namespace_hash_id,
+        num_contained_terms,
+        num_contained_types,
+        num_contained_patches
+      )
+      VALUES (:bhId, @stats, @, @)
+    |]
 
 -- | Looks up statistics for a given branch, there's no guarantee that we have
 -- computed and saved stats for any given branch.
@@ -2836,12 +2862,12 @@ loadNamespaceStatsByHashId bhId = do
     |]
 
 appendReflog :: Reflog.Entry CausalHashId Text -> Transaction ()
-appendReflog entry = execute sql entry
-  where
-    sql =
-      [here|
-        INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason) VALUES (?, ?, ?, ?)
-      |]
+appendReflog entry =
+  execute2
+    [sql2|
+      INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason)
+      VALUES (@entry, @, @, @)
+    |]
 
 getReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
 getReflog numEntries =

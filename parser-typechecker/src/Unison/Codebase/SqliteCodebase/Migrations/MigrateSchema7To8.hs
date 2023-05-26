@@ -2,9 +2,8 @@
 
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8 (migrateSchema7To8) where
 
-import Data.String.Here.Uninterpolated (here)
-import qualified U.Codebase.Sqlite.Queries as Q
-import qualified Unison.Sqlite as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Q
+import Unison.Sqlite qualified as Sqlite
 
 -- | Adds a table for tracking namespace statistics
 -- Adds stats for all existing namespaces, even though missing stats are computed on-demand if missing.
@@ -18,15 +17,15 @@ migrateSchema7To8 = do
 createScopedNameLookupTables :: Sqlite.Transaction ()
 createScopedNameLookupTables = do
   -- This table allows us to look up which causal hashes have a name lookup.
-  Sqlite.execute_
-    [here|
+  Sqlite.execute2
+    [Sqlite.sql2|
       CREATE TABLE name_lookups (
         root_branch_hash_id INTEGER PRIMARY KEY REFERENCES hash(id) ON DELETE CASCADE
       )
     |]
 
-  Sqlite.execute_
-    [here|
+  Sqlite.execute2
+    [Sqlite.sql2|
       CREATE TABLE scoped_term_name_lookup (
         root_branch_hash_id INTEGER NOT NULL REFERENCES hash(id) ON DELETE CASCADE,
 
@@ -69,24 +68,24 @@ createScopedNameLookupTables = do
   -- over both namespace and reversed_name, but we can EXACT match on last_name_segment and
   -- then glob search on the namespace prefix, and have SQLite do the final glob search on
   -- reversed_name over rows with a matching last segment without using an index and should be plenty fast.
-  Sqlite.execute_
-    [here|
+  Sqlite.execute2
+    [Sqlite.sql2|
       CREATE INDEX scoped_term_names_by_namespace_and_last_name_segment ON scoped_term_name_lookup(root_branch_hash_id, last_name_segment, namespace)
     |]
   -- This index allows us to find all names with a given ref within a specific namespace
-  Sqlite.execute_
-    [here|
+  Sqlite.execute2
+    [Sqlite.sql2|
       CREATE INDEX scoped_term_name_by_referent_lookup ON scoped_term_name_lookup(root_branch_hash_id, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, namespace)
     |]
 
   -- Allows fetching ALL names within a specific namespace prefix. We currently use this to
   -- pretty-print on share, but will be replaced with a more precise set of queries soon.
-  Sqlite.execute_
-    [here|
+  Sqlite.execute2
+    [Sqlite.sql2|
       CREATE INDEX scoped_term_names_by_namespace ON scoped_term_name_lookup(root_branch_hash_id, namespace)
     |]
-  Sqlite.execute_
-    [here|
+  Sqlite.execute2
+    [Sqlite.sql2|
       CREATE TABLE scoped_type_name_lookup (
         root_branch_hash_id INTEGER NOT NULL REFERENCES hash(id),
         -- The name of the term: E.g. List.base
@@ -116,20 +115,20 @@ createScopedNameLookupTables = do
   -- over both namespace and reversed_name, but we can EXACT match on last_name_segment and
   -- then glob search on the namespace prefix, and have SQLite do the final glob search on
   -- reversed_name over rows with a matching last segment without using an index and should be plenty fast.
-  Sqlite.execute_
-    [here|
+  Sqlite.execute2
+    [Sqlite.sql2|
       CREATE INDEX scoped_type_names_by_namespace_and_last_name_segment ON scoped_type_name_lookup(root_branch_hash_id, last_name_segment, namespace)
     |]
 
   -- This index allows us to find all names with a given ref within a specific namespace.
-  Sqlite.execute_
-    [here|
+  Sqlite.execute2
+    [Sqlite.sql2|
       CREATE INDEX scoped_type_name_by_reference_lookup ON scoped_type_name_lookup(root_branch_hash_id, reference_builtin, reference_component_hash, reference_component_index, namespace)
     |]
 
   -- Allows fetching ALL names within a specific namespace prefix. We currently use this to
   -- pretty-print on share, but will be replaced with a more precise set of queries soon.
-  Sqlite.execute_
-    [here|
+  Sqlite.execute2
+    [Sqlite.sql2|
       CREATE INDEX scoped_type_names_by_namespace ON scoped_type_name_lookup(root_branch_hash_id, namespace)
     |]

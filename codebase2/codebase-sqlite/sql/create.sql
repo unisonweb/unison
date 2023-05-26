@@ -325,13 +325,4 @@ CREATE INDEX scoped_type_name_by_reference_lookup ON scoped_type_name_lookup(roo
 
 -- Allows fetching ALL names within a specific namespace prefix. We currently use this to
 -- pretty-print on share, but will be replaced with a more precise set of queries soon.
-CREATE INDEX scoped_type_names_by_namespace ON scoped_type_name_lookup(root_branch_hash_id, namespace)
-
--- Semicolon intentionally omitted, for the same reason
--- semicolons in comments will blow up codebase initialization.
--- (oops, almost used a semicolon at the end of that last phrase!)
--- Sqlite doesn't let us submit multiple statements in the same
--- command, so we are using Haskell code to segment the statements
--- by splitting on semicolons.  It doesn't know to ignore comments,
--- though I guess that wouldn't be hard to implement.  Should have
--- done it from the start.
+CREATE INDEX scoped_type_names_by_namespace ON scoped_type_name_lookup(root_branch_hash_id, namespace);

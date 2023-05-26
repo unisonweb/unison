@@ -40,10 +40,10 @@ import Control.Concurrent.MVar
 import Data.Foldable (find, foldlM)
 import Data.Functor.Compose
 import Data.Hashable (Hashable, hash)
-import qualified Data.IntMap as IntMap
+import Data.IntMap qualified as IntMap
 import Data.IntMap.Strict (IntMap)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import Data.Tuple (swap)
 import System.Mem.Weak (Weak, deRefWeak, mkWeakPtr)
 import Unison.Prelude

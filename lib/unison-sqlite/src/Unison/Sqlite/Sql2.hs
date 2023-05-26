@@ -11,8 +11,8 @@ module Unison.Sqlite.Sql2
   )
 where
 
-import qualified Control.Monad.Trans.State.Strict as State
-import qualified Data.Char as Char
+import Control.Monad.Trans.State.Strict qualified as State
+import Data.Char qualified as Char
 import Data.Generics.Labels ()
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
@@ -125,8 +125,8 @@ sql2QQ input =
       (sqlPieces, paramsPieces) <- unzip <$> for lumps unlump
       [|
         Sql2
-          (fold $(pure (TH.ListE sqlPieces)))
-          (fold $(pure (TH.ListE paramsPieces)))
+          (mconcat $(pure (TH.ListE sqlPieces)))
+          (mconcat $(pure (TH.ListE paramsPieces)))
         |]
   where
     unlump :: ParsedLump -> TH.Q (TH.Exp, TH.Exp)
@@ -143,10 +143,10 @@ sql2QQ input =
     -- and resolve each parameter (field or row) to its corresponding list of SQLData, ultimately returning a pair like
     --
     --   "foo ? ? ?"
-    --   fold [[SQLInteger 5], [SQLInteger 6, SQLInteger 7]])
+    --   mconcat [[SQLInteger 5], [SQLInteger 6, SQLInteger 7]])
     outerLump :: Text -> [Param] -> TH.Q (TH.Exp, TH.Exp)
     outerLump s params =
-      (,) <$> TH.lift s <*> [|fold $(TH.ListE <$> for params paramToSqlData)|]
+      (,) <$> TH.lift s <*> [|mconcat $(TH.ListE <$> for params paramToSqlData)|]
       where
         paramToSqlData :: Param -> TH.Q TH.Exp
         paramToSqlData = \case

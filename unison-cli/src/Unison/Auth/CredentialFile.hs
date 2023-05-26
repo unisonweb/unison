@@ -2,11 +2,11 @@
 
 module Unison.Auth.CredentialFile (atomicallyModifyCredentialsFile) where
 
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import System.FilePath (takeDirectory, (</>))
 import System.IO.LockFile
 import Unison.Auth.Types
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.Prelude
 import UnliftIO.Directory
 

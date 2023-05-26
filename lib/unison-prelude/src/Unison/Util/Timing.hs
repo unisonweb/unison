@@ -9,7 +9,7 @@ import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
 import System.CPUTime (getCPUTime)
 import System.IO.Unsafe (unsafePerformIO)
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import UnliftIO (MonadIO, liftIO)
 
 time :: (MonadIO m) => String -> m a -> m a

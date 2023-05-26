@@ -6,7 +6,7 @@ where
 import Unison.Hashing.V2.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Tokenizable (Tokenizable)
-import qualified Unison.Hashing.V2.Tokenizable as H
+import Unison.Hashing.V2.Tokenizable qualified as H
 
 data Referent
   = ReferentRef Reference

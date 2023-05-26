@@ -21,9 +21,9 @@ module Unison.Hash
 where
 
 import Data.ByteString.Short (ShortByteString)
-import qualified Data.ByteString.Short as B.Short
+import Data.ByteString.Short qualified as B.Short
 import U.Util.Base32Hex (Base32Hex)
-import qualified U.Util.Base32Hex as Base32Hex
+import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Prelude
 
 -- | A hash.

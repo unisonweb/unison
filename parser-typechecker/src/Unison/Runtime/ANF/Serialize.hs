@@ -6,7 +6,7 @@ module Unison.Runtime.ANF.Serialize where
 
 import Control.Monad
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy qualified as L
 import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Put
 import Data.Bytes.Serial
@@ -14,7 +14,7 @@ import Data.Bytes.VarInt
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup)
-import qualified Data.Sequence as Seq
+import Data.Sequence qualified as Seq
 import Data.Serialize.Put (runPutLazy)
 import Data.Text (Text)
 import Data.Word (Word16, Word32, Word64)
@@ -24,8 +24,8 @@ import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.Exception
 import Unison.Runtime.Serialize
-import qualified Unison.Util.EnumContainers as EC
-import qualified Unison.Util.Text as Util.Text
+import Unison.Util.EnumContainers qualified as EC
+import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Type (ANFBlank), Var (..))
 import Prelude hiding (getChar, putChar)
 

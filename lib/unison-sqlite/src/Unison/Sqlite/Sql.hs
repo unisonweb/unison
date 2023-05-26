@@ -7,8 +7,8 @@ module Unison.Sqlite.Sql
 where
 
 import Language.Haskell.TH.Quote (QuasiQuoter (quoteExp))
-import qualified Language.Haskell.TH.Syntax as TH
-import qualified NeatInterpolation
+import Language.Haskell.TH.Syntax qualified as TH
+import NeatInterpolation qualified
 import Unison.Prelude
 
 -- | A SQL snippet.

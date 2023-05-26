@@ -7,9 +7,9 @@ import EasyTest
 import System.Environment (getArgs)
 import System.IO
 import System.IO.CodePage (withCP65001)
-import qualified Unison.Test.ColorText as ColorText
-import qualified Unison.Test.Range as Range
-import qualified Unison.Test.Util.Pretty as Pretty
+import Unison.Test.ColorText qualified as ColorText
+import Unison.Test.Range qualified as Range
+import Unison.Test.Util.Pretty qualified as Pretty
 
 test :: Test ()
 test =

@@ -6,14 +6,14 @@ where
 
 import Control.Lens (view, (^.))
 import Data.Function (on)
-import qualified U.Codebase.Sqlite.Queries as Queries
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Editor.Output as Output
-import qualified Unison.Codebase.Path as Path
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectName)
 

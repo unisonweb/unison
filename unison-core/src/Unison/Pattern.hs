@@ -6,18 +6,18 @@
 module Unison.Pattern where
 
 import Data.List (intercalate)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Type as Type
+import Unison.Referent qualified as Referent
+import Unison.Type qualified as Type
 
 data Pattern loc
   = Unbound loc

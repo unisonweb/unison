@@ -16,8 +16,8 @@ where
 import Control.Applicative (empty)
 import Control.Monad (when)
 import Data.Set (Set)
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Debug.Pretty.Simple (pTrace, pTraceM, pTraceShowId, pTraceShowM)
 import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO.Environment (lookupEnv)

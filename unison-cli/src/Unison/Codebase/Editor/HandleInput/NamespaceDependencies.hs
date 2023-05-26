@@ -4,27 +4,27 @@ module Unison.Codebase.Editor.HandleInput.NamespaceDependencies
 where
 
 import Control.Monad.Trans.Maybe
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.DataDeclaration as DD
+import Unison.Codebase.Branch qualified as Branch
+import Unison.DataDeclaration qualified as DD
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Sqlite as Sqlite
+import Unison.Referent qualified as Referent
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Term as Term
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Relation3 as Relation3
-import qualified Unison.Util.Relation4 as Relation4
+import Unison.Term qualified as Term
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Relation3 qualified as Relation3
+import Unison.Util.Relation4 qualified as Relation4
 
 -- | Check the dependencies of all types, terms, and metadata in the current namespace,
 -- returns a map of dependencies which do not have a name within the current namespace,
