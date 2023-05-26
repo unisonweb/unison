@@ -40,6 +40,7 @@ module Unison.Sqlite
     executeMany,
 
     -- *** Without parameters
+    executeStatements,
     execute_,
 
     -- ** With results

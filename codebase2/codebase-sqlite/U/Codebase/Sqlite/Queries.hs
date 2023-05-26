@@ -357,7 +357,6 @@ import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
 import Unison.Prelude
 import Unison.Sqlite
-import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Alternative qualified as Alternative
 import Unison.Util.Lens qualified as Lens
 import Unison.Util.Map qualified as Map
@@ -375,7 +374,7 @@ currentSchemaVersion = 11
 
 createSchema :: Transaction ()
 createSchema = do
-  executeFile [hereFile|unison/sql/create.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/create.sql|])
   addTempEntityTables
   addNamespaceStatsTables
   addReflogTable
@@ -392,35 +391,27 @@ createSchema = do
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
-  executeFile [hereFile|unison/sql/001-temp-entity-tables.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/001-temp-entity-tables.sql|])
 
 addNamespaceStatsTables :: Transaction ()
 addNamespaceStatsTables =
-  executeFile [hereFile|unison/sql/003-namespace-statistics.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/003-namespace-statistics.sql|])
 
 addReflogTable :: Transaction ()
 addReflogTable =
-  executeFile [hereFile|unison/sql/002-reflog-table.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/002-reflog-table.sql|])
 
 fixScopedNameLookupTables :: Transaction ()
 fixScopedNameLookupTables =
-  executeFile [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|])
 
 addProjectTables :: Transaction ()
 addProjectTables =
-  executeFile [hereFile|unison/sql/005-project-tables.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/005-project-tables.sql|])
 
 addMostRecentBranchTable :: Transaction ()
 addMostRecentBranchTable =
-  executeFile [hereFile|unison/sql/006-most-recent-branch-table.sql|]
-
-executeFile :: String -> Transaction ()
-executeFile =
-  traverse_ (execute_ . Sqlite.Sql)
-    . filter (not . Text.null)
-    . map Text.strip
-    . Text.split (== ';')
-    . Text.pack
+  executeStatements (Text.pack [hereFile|unison/sql/006-most-recent-branch-table.sql|])
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =

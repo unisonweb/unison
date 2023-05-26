@@ -19,6 +19,7 @@ module Unison.Sqlite.Transaction
     executeMany,
 
     -- *** Without parameters
+    executeStatements,
     execute_,
 
     -- ** With results
@@ -222,6 +223,10 @@ executeMany s params =
   Transaction \conn -> Connection.executeMany conn s params
 
 -- Without results, without parameters
+
+executeStatements :: Text -> Transaction ()
+executeStatements s =
+  Transaction \conn -> Connection.executeStatements conn s
 
 execute_ :: Sql -> Transaction ()
 execute_ s =

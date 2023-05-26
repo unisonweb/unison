@@ -15,6 +15,7 @@ module Unison.Sqlite.Connection
     executeMany,
 
     -- *** Without parameters
+    executeStatements,
     execute_,
 
     -- ** With results
@@ -292,6 +293,21 @@ execute_ conn@(Connection _ _ conn0) s = do
           exception = SomeSqliteExceptionReason exception,
           params = Nothing,
           sql = s
+        }
+
+-- | Execute one or more semicolon-delimited statements.
+--
+-- This function does not support parameters, and is mostly useful for executing DDL and migrations.
+executeStatements :: Connection -> Text -> IO ()
+executeStatements conn@(Connection _ _ (Sqlite.Connection database)) s = do
+  logQuery (Sql s) Nothing Nothing
+  Direct.Sqlite.exec database (coerce s) `catch` \(exception :: Sqlite.SQLError) ->
+    throwSqliteQueryException
+      SqliteQueryExceptionInfo
+        { connection = conn,
+          exception = SomeSqliteExceptionReason exception,
+          params = Nothing,
+          sql = Sql s
         }
 
 -- With results, with parameters, without checks
