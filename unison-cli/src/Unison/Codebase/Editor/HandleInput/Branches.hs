@@ -5,13 +5,13 @@ module Unison.Codebase.Editor.HandleInput.Branches
 where
 
 import Control.Lens (mapped, over, (^.), _2)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Network.URI (URI)
-import qualified U.Codebase.Sqlite.Queries as Queries
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Prelude
 import Unison.Project (ProjectBranchName, ProjectName)
 

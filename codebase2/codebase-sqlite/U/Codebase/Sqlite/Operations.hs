@@ -112,7 +112,7 @@ module U.Codebase.Sqlite.Operations
 where
 
 import Control.Lens hiding (children)
-import qualified Control.Monad.Extra as Monad
+import Control.Monad.Extra qualified as Monad
 import Data.Bitraversable (Bitraversable (bitraverse))
 import qualified Data.Foldable as Foldable
 import qualified Data.List.NonEmpty as NonEmpty
@@ -123,28 +123,28 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3, (***))
 import U.Codebase.Branch.Type (NamespaceStats (..))
-import qualified U.Codebase.Branch.Type as C.Branch
-import qualified U.Codebase.Causal as C
+import U.Codebase.Branch.Type qualified as C.Branch
+import U.Codebase.Causal qualified as C
 import U.Codebase.Decl (ConstructorId)
-import qualified U.Codebase.Decl as C
-import qualified U.Codebase.Decl as C.Decl
+import U.Codebase.Decl qualified as C
+import U.Codebase.Decl qualified as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
-import qualified U.Codebase.Reference as C
-import qualified U.Codebase.Reference as C.Reference
-import qualified U.Codebase.Referent as C
-import qualified U.Codebase.Referent as C.Referent
-import qualified U.Codebase.Reflog as Reflog
+import U.Codebase.Reference qualified as C
+import U.Codebase.Reference qualified as C.Reference
+import U.Codebase.Referent qualified as C
+import U.Codebase.Referent qualified as C.Referent
+import U.Codebase.Reflog qualified as Reflog
 import U.Codebase.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
-import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
-import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
-import qualified U.Codebase.Sqlite.Branch.Diff as S.BranchDiff
-import qualified U.Codebase.Sqlite.Branch.Format as S
-import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
-import qualified U.Codebase.Sqlite.Branch.Full as S
-import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
-import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
-import qualified U.Codebase.Sqlite.DbId as Db
-import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
+import U.Codebase.Sqlite.Branch.Diff qualified as S.Branch
+import U.Codebase.Sqlite.Branch.Diff qualified as S.Branch.Diff
+import U.Codebase.Sqlite.Branch.Diff qualified as S.BranchDiff
+import U.Codebase.Sqlite.Branch.Format qualified as S
+import U.Codebase.Sqlite.Branch.Format qualified as S.BranchFormat
+import U.Codebase.Sqlite.Branch.Full qualified as S
+import U.Codebase.Sqlite.Branch.Full qualified as S.Branch.Full
+import U.Codebase.Sqlite.Branch.Full qualified as S.MetadataSet
+import U.Codebase.Sqlite.DbId qualified as Db
+import U.Codebase.Sqlite.Decl.Format qualified as S.Decl
 import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.HashHandle (HashHandle (..))
 import U.Codebase.Sqlite.LocalIds
@@ -172,20 +172,20 @@ import qualified U.Codebase.Sqlite.Referent as S
 import qualified U.Codebase.Sqlite.Referent as S.Referent
 import qualified U.Codebase.Sqlite.Serialization as S
 import U.Codebase.Sqlite.Symbol (Symbol)
-import qualified U.Codebase.Sqlite.Term.Format as S.Term
-import qualified U.Codebase.Term as C
-import qualified U.Codebase.Term as C.Term
-import qualified U.Codebase.TermEdit as C
-import qualified U.Codebase.TermEdit as C.TermEdit
-import qualified U.Codebase.TypeEdit as C
-import qualified U.Codebase.TypeEdit as C.TypeEdit
+import U.Codebase.Sqlite.Term.Format qualified as S.Term
+import U.Codebase.Term qualified as C
+import U.Codebase.Term qualified as C.Term
+import U.Codebase.TermEdit qualified as C
+import U.Codebase.TermEdit qualified as C.TermEdit
+import U.Codebase.TypeEdit qualified as C
+import U.Codebase.TypeEdit qualified as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)
-import qualified U.Util.Base32Hex as Base32Hex
-import qualified U.Util.Serialization as S
-import qualified Unison.Hash as H
-import qualified Unison.Hash32 as Hash32
+import U.Util.Base32Hex qualified as Base32Hex
+import U.Util.Serialization qualified as S
+import Unison.Hash qualified as H
+import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite
 import qualified Unison.Util.List as List

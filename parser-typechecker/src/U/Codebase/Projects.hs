@@ -9,13 +9,13 @@ import Control.Lens (ifoldMap)
 import qualified Control.Lens.Cons as Cons
 import Control.Monad.Reader
 import Control.Monad.Writer.Strict (WriterT, execWriterT, tell)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Monoid (Last (..))
 import U.Codebase.Branch
 import qualified U.Codebase.Causal as Causal
 import U.Codebase.HashTags (BranchHash (..))
 import Unison.Codebase.Path
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Name (libSegment)
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite

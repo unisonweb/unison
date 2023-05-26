@@ -8,25 +8,25 @@ where
 
 -- TODO: Don't import backend
 
-import qualified Control.Error.Util as ErrorUtil
+import Control.Error.Util qualified as ErrorUtil
 import Control.Exception (catch)
 import Control.Lens
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
-import qualified Control.Monad.State as State
+import Control.Monad.State qualified as State
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Writer (WriterT (..))
-import qualified Data.Foldable as Foldable
-import qualified Data.List as List
+import Data.Foldable qualified as Foldable
+import Data.List qualified as List
 import Data.List.Extra (nubOrd)
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Data.List.NonEmpty qualified as Nel
+import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NESet
-import qualified Data.Text as Text
+import Data.Set.NonEmpty qualified as NESet
+import Data.Text qualified as Text
 import Data.These (These (..))
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
@@ -44,38 +44,38 @@ import System.Process
     readCreateProcessWithExitCode,
     shell,
   )
-import qualified U.Codebase.Branch.Diff as V2Branch.Diff
-import qualified U.Codebase.Branch.Type as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.Branch.Diff qualified as V2Branch.Diff
+import U.Codebase.Branch.Type qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
-import qualified U.Codebase.Reference as V2 (Reference)
-import qualified U.Codebase.Referent as V2 (Referent)
-import qualified U.Codebase.Referent as V2.Referent
-import qualified U.Codebase.Reflog as Reflog
-import qualified U.Codebase.Sqlite.Project as Sqlite
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
-import qualified U.Codebase.Sqlite.Queries as Queries
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin as Builtin
-import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Builtin.Terms as Builtin
+import U.Codebase.Reference qualified as V2 (Reference)
+import U.Codebase.Referent qualified as V2 (Referent)
+import U.Codebase.Referent qualified as V2.Referent
+import U.Codebase.Reflog qualified as Reflog
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.ABT qualified as ABT
+import Unison.Builtin qualified as Builtin
+import Unison.Builtin.Decls qualified as DD
+import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Merge as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.BranchUtil as BranchUtil
-import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Merge qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
-import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
+import Unison.Codebase.Editor.AuthorInfo qualified as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
@@ -84,7 +84,7 @@ import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
-import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
+import Unison.Codebase.Editor.HandleInput.NamespaceDependencies qualified as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
@@ -100,124 +100,124 @@ import Unison.Codebase.Editor.HandleInput.TermResolution
   )
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
 import Unison.Codebase.Editor.Input
-import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Output as Output
-import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Editor.Output.DumpNamespace qualified as Output.DN
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadRemoteNamespace (..),
     ReadShareLooseCode (..),
     ShareUserHandle (..),
     printReadRemoteNamespace,
   )
-import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
-import qualified Unison.Codebase.Editor.Slurp as Slurp
-import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
-import qualified Unison.Codebase.Editor.TodoOutput as TO
-import qualified Unison.Codebase.IntegrityCheck as IntegrityCheck (integrityCheckFullCodebase)
-import qualified Unison.Codebase.MainTerm as MainTerm
-import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
+import Unison.Codebase.Editor.Slurp qualified as Slurp
+import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
+import Unison.Codebase.Editor.TodoOutput qualified as TO
+import Unison.Codebase.IntegrityCheck qualified as IntegrityCheck (integrityCheckFullCodebase)
+import Unison.Codebase.MainTerm qualified as MainTerm
+import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch (..))
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
-import qualified Unison.Codebase.Path as HQSplit'
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
-import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Conversions
-import qualified Unison.Codebase.SyncMode as SyncMode
+import Unison.Codebase.Path qualified as HQSplit'
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
+import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
-import qualified Unison.Codebase.TermEdit as TermEdit
-import qualified Unison.Codebase.TermEdit.Typing as TermEdit
+import Unison.Codebase.TermEdit qualified as TermEdit
+import Unison.Codebase.TermEdit.Typing qualified as TermEdit
 import Unison.Codebase.TypeEdit (TypeEdit)
-import qualified Unison.Codebase.TypeEdit as TypeEdit
-import qualified Unison.Codebase.Verbosity as Verbosity
-import qualified Unison.CommandLine.Completion as Completion
-import qualified Unison.CommandLine.DisplayValues as DisplayValues
-import qualified Unison.CommandLine.FuzzySelect as Fuzzy
-import qualified Unison.CommandLine.InputPattern as InputPattern
-import qualified Unison.CommandLine.InputPatterns as IP
-import qualified Unison.CommandLine.InputPatterns as InputPatterns
+import Unison.Codebase.TypeEdit qualified as TypeEdit
+import Unison.Codebase.Verbosity qualified as Verbosity
+import Unison.CommandLine.Completion qualified as Completion
+import Unison.CommandLine.DisplayValues qualified as DisplayValues
+import Unison.CommandLine.FuzzySelect qualified as Fuzzy
+import Unison.CommandLine.InputPattern qualified as InputPattern
+import Unison.CommandLine.InputPatterns qualified as IP
+import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as ConstructorType
+import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Hash as Hash
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
-import qualified Unison.HashQualified' as HashQualified
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.DataDeclaration qualified as DD
+import Unison.Hash qualified as Hash
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualified' qualified as HashQualified
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
-import qualified Unison.LabeledDependency as LabeledDependency
+import Unison.LabeledDependency qualified as LD
+import Unison.LabeledDependency qualified as LabeledDependency
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
-import qualified Unison.Parser.Ann as Ann
-import qualified Unison.Parsers as Parsers
+import Unison.Parser.Ann qualified as Ann
+import Unison.Parsers qualified as Parsers
 import Unison.Position (Position (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo, empty)
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.PrettyPrintEnvDecl.Names as PPED
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference (..), TermReference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Result as Result
-import qualified Unison.Runtime.IOSource as IOSource
+import Unison.Referent qualified as Referent
+import Unison.Result qualified as Result
+import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Server.Backend (ShallowListEntry (..))
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.CodebaseServer as Server
-import qualified Unison.Server.Doc.Markdown.Render as Md
-import qualified Unison.Server.Doc.Markdown.Types as Md
-import qualified Unison.Server.NameSearch.FromNames as NameSearch
+import Unison.Server.Backend qualified as Backend
+import Unison.Server.CodebaseServer qualified as Server
+import Unison.Server.Doc.Markdown.Render qualified as Md
+import Unison.Server.Doc.Markdown.Types qualified as Md
+import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
-import qualified Unison.Server.SearchResult as SR
-import qualified Unison.Server.SearchResult' as SR'
-import qualified Unison.Share.Codeserver as Codeserver
-import qualified Unison.ShortHash as SH
-import qualified Unison.Sqlite as Sqlite
+import Unison.Server.SearchResult qualified as SR
+import Unison.Server.SearchResult' qualified as SR'
+import Unison.Share.Codeserver qualified as Codeserver
+import Unison.ShortHash qualified as SH
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toText, unsafeFromString)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Name as Name (toString, toText, toVar, unsafeFromString, unsafeFromVar)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Syntax.TermPrinter as TP
+import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, unsafeFromString)
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromString, unsafeFromVar)
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TermPrinter qualified as TP
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Type.Names as Type
-import qualified Unison.Typechecker as Typechecker
-import qualified Unison.Typechecker.TypeLookup as TypeLookup
+import Unison.Type qualified as Type
+import Unison.Type.Names qualified as Type
+import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
-import qualified Unison.Util.Find as Find
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Find qualified as Find
 import Unison.Util.List (nubOrdOn, uniqueBy)
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Relation4 as R4
-import qualified Unison.Util.Set as Set
-import qualified Unison.Util.Star3 as Star3
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Pretty qualified as P
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Relation qualified as R
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Relation4 qualified as R4
+import Unison.Util.Set qualified as Set
+import Unison.Util.Star3 qualified as Star3
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
-import qualified Unison.WatchKind as WK
+import Unison.Var qualified as Var
+import Unison.WatchKind qualified as WK
 import Web.Browser (openBrowser)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -2434,12 +2434,17 @@ doGenerateSchemeBoot force mppe = do
   ppe <- maybe basicPPE pure mppe
   dir <- getSchemeGenLibDir
   let bootf = dir </> "unison" </> "boot-generated.ss"
+      swrapf = dir </> "unison" </> "simple-wrappers.ss"
       binf = dir </> "unison" </> "builtin-generated.ss"
+      cwrapf = dir </> "unison" </> "compund-wrappers.ss"
       dirTm = Term.text a (Text.pack dir)
   liftIO $ createDirectoryIfMissing True dir
   saveBase <- Term.ref a <$> resolveTermRef sbName
+  saveWrap <- Term.ref a <$> resolveTermRef swName
   gen ppe saveBase bootf dirTm bootName
+  gen ppe saveWrap swrapf dirTm simpleWrapName
   gen ppe saveBase binf dirTm builtinName
+  gen ppe saveWrap cwrapf dirTm compoundWrapName
   where
     a = External
     hq nm
@@ -2447,8 +2452,13 @@ doGenerateSchemeBoot force mppe = do
       | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
 
     sbName = hq ".unison.internal.compiler.scheme.saveBaseFile"
+    swName = hq ".unison.internal.compiler.scheme.saveWrapperFile"
     bootName = hq ".unison.internal.compiler.scheme.bootSpec"
     builtinName = hq ".unison.internal.compiler.scheme.builtinSpec"
+    simpleWrapName =
+      hq ".unison.internal.compiler.scheme.simpleWrapperSpec"
+    compoundWrapName =
+      hq ".unison.internal.compiler.scheme.compoundWrapperSpec"
 
     gen ppe save file dir nm =
       liftIO (doesFileExist file) >>= \b -> when (not b || force) do

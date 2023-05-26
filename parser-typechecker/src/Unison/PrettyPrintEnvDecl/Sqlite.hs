@@ -3,24 +3,24 @@ module Unison.PrettyPrintEnvDecl.Sqlite where
 import U.Codebase.HashTags (BranchHash)
 import U.Codebase.Sqlite.NameLookups (PathSegments (PathSegments), ReversedName (..))
 import U.Codebase.Sqlite.NamedRef (NamedRef (..))
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified Unison.Codebase as Codebase
+import U.Codebase.Sqlite.Operations qualified as Ops
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.Names as Names
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.PrettyPrintEnvDecl.Names as PPED
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Monoid (foldMapM)
 
 -- | Given a set of references, return a PPE which contains names for only those references.

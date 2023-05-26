@@ -3,12 +3,12 @@
 module Unison.Codebase.Editor.VersionParser where
 
 import Data.Text (Text)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Void (Void)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Unison.Codebase.Editor.RemoteRepo
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 
 -- | Parse git version strings into valid unison namespaces.
 --

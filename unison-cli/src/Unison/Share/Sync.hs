@@ -24,45 +24,45 @@ import Control.Concurrent.STM
 import Control.Monad.Except
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
-import qualified Control.Monad.Trans.Reader as Reader
-import qualified Data.Foldable as Foldable (find)
+import Control.Monad.Trans.Reader qualified as Reader
+import Data.Foldable qualified as Foldable (find)
 import Data.List.NonEmpty (pattern (:|))
-import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.List.NonEmpty as List.NonEmpty
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.Map qualified as Map
 import Data.Map.NonEmpty (NEMap)
-import qualified Data.Map.NonEmpty as NEMap
+import Data.Map.NonEmpty qualified as NEMap
 import Data.Proxy
 import Data.Sequence.NonEmpty (NESeq ((:<||)))
-import qualified Data.Sequence.NonEmpty as NESeq (fromList, nonEmptySeq, (><|))
-import qualified Data.Set as Set
+import Data.Sequence.NonEmpty qualified as NESeq (fromList, nonEmptySeq, (><|))
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NESet
-import qualified Data.Text.Lazy as Text.Lazy
-import qualified Data.Text.Lazy.Encoding as Text.Lazy
-import qualified Ki
-import qualified Network.HTTP.Client as Http.Client
-import qualified Network.HTTP.Types as HTTP
-import qualified Servant.API as Servant ((:<|>) (..), (:>))
+import Data.Set.NonEmpty qualified as NESet
+import Data.Text.Lazy qualified as Text.Lazy
+import Data.Text.Lazy.Encoding qualified as Text.Lazy
+import Ki qualified
+import Network.HTTP.Client qualified as Http.Client
+import Network.HTTP.Types qualified as HTTP
+import Servant.API qualified as Servant ((:<|>) (..), (:>))
 import Servant.Client (BaseUrl)
-import qualified Servant.Client as Servant
+import Servant.Client qualified as Servant
 import U.Codebase.HashTags (CausalHash)
-import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
-import qualified Unison.Auth.HTTPClient as Auth
+import Unison.Auth.HTTPClient qualified as Auth
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Debug as Debug
+import Unison.Cli.Monad qualified as Cli
+import Unison.Codebase qualified as Codebase
+import Unison.Debug qualified as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
-import qualified Unison.Share.API.Hash as Share
+import Unison.Share.API.Hash qualified as Share
 import Unison.Share.Sync.Types
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sync.API as Share (API)
+import Unison.Sqlite qualified as Sqlite
+import Unison.Sync.API qualified as Share (API)
 import Unison.Sync.Common (causalHashToHash32, entityToTempEntity, expectEntity, hash32ToCausalHash)
-import qualified Unison.Sync.Types as Share
+import Unison.Sync.Types qualified as Share
 import Unison.Util.Monoid (foldMapM)
 
 ------------------------------------------------------------------------------------------------------------------------

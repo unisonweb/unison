@@ -8,9 +8,9 @@ import Data.Bitraversable (Bitraversable (..))
 import Data.Generics.Sum (_Ctor)
 import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Reference (Reference, Reference')
-import qualified U.Codebase.Reference as Reference
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.ShortHash (ShortHash)
-import qualified U.Codebase.ShortHash as SH
+import U.Codebase.ShortHash qualified as SH
 import Unison.Hash (Hash)
 import Unison.Prelude
 

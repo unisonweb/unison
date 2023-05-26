@@ -20,23 +20,23 @@ module Unison.Codebase.Editor.Git
   )
 where
 
-import qualified Control.Exception
+import Control.Exception qualified
 import Control.Monad.Except (MonadError, throwError)
-import qualified Data.ByteString.Base16 as ByteString
-import qualified Data.Char as Char
-import qualified Data.Text as Text
+import Data.ByteString.Base16 qualified as ByteString
+import Data.Char qualified as Char
+import Data.Text qualified as Text
 import Shellmet (($?), ($^), ($|))
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath ((</>))
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo (..))
 import Unison.Codebase.GitError (GitProtocolError)
-import qualified Unison.Codebase.GitError as GitError
-import qualified Unison.Debug as Debug
+import Unison.Codebase.GitError qualified as GitError
+import Unison.Debug qualified as Debug
 import Unison.Prelude
-import qualified UnliftIO
+import UnliftIO qualified
 import UnliftIO.Directory (XdgDirectory (XdgCache), doesDirectoryExist, findExecutable, getXdgDirectory)
 import UnliftIO.IO (hFlush, stdout)
-import qualified UnliftIO.Process as UnliftIO
+import UnliftIO.Process qualified as UnliftIO
 
 debugGit :: Bool
 debugGit = Debug.shouldDebug Debug.Git

@@ -1,10 +1,10 @@
 module Unison.Server.Doc.Markdown.Types where
 
 import Control.Lens (imap)
-import qualified Data.Char as Char
-import qualified Data.Char as Text
-import qualified Data.Text as Text
-import qualified Unison.Debug as Debug
+import Data.Char qualified as Char
+import Data.Char qualified as Text
+import Data.Text qualified as Text
+import Unison.Debug qualified as Debug
 import Unison.Prelude
 
 -- | Custom type for converting Docs into Markdown.

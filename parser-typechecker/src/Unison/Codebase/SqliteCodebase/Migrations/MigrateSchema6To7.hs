@@ -7,13 +7,13 @@ module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7 (migrateSchem
 import Control.Monad.Except
 import Control.Monad.State
 import Data.String.Here.Uninterpolated (here)
-import qualified U.Codebase.Sqlite.DbId as DB
-import qualified U.Codebase.Sqlite.DbId as Db
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Queries as Q
-import qualified U.Codebase.Sync as Sync
-import qualified Unison.Debug as Debug
-import qualified Unison.Sqlite as Sqlite
+import U.Codebase.Sqlite.DbId qualified as DB
+import U.Codebase.Sqlite.DbId qualified as Db
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Queries qualified as Q
+import U.Codebase.Sync qualified as Sync
+import Unison.Debug qualified as Debug
+import Unison.Sqlite qualified as Sqlite
 
 -- | Adds a table for tracking namespace statistics
 -- Adds stats for all existing namespaces, even though missing stats are computed on-demand if missing.

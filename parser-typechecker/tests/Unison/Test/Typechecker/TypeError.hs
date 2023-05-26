@@ -7,13 +7,13 @@ import Data.Maybe (isJust)
 import EasyTest
 import Unison.Parser.Ann (Ann)
 import Unison.Result (pattern Result)
-import qualified Unison.Result as Result
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Test.Common as Common
-import qualified Unison.Typechecker.Context as C
+import Unison.Test.Common qualified as Common
+import Unison.Typechecker.Context qualified as C
 import Unison.Typechecker.Extractor (ErrorExtractor)
-import qualified Unison.Typechecker.Extractor as Ex
-import qualified Unison.Typechecker.TypeError as Err
+import Unison.Typechecker.Extractor qualified as Ex
+import Unison.Typechecker.TypeError qualified as Err
 
 test :: Test ()
 test =

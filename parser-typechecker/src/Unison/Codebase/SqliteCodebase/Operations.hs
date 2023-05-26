@@ -13,7 +13,7 @@ import Data.Either.Extra ()
 import Data.Functor.Compose (Compose (..))
 import qualified Data.List as List
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -29,49 +29,49 @@ import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (NamesByPath (..))
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
-import qualified Unison.Builtin as Builtins
+import Unison.Builtin qualified as Builtins
 import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (BranchCache)
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
-import qualified Unison.DataDeclaration as Decl
+import Unison.DataDeclaration qualified as Decl
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Names (Names (Names))
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.Names.Scoped (ScopedNames (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
-import qualified Unison.ShortHash as ShortHash
+import Unison.ShortHash qualified as SH
+import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sqlite.Transaction as Sqlite
+import Unison.Sqlite qualified as Sqlite
+import Unison.Sqlite.Transaction qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Util.Cache as Cache
-import qualified Unison.Util.Relation as Rel
-import qualified Unison.Util.Set as Set
-import qualified Unison.WatchKind as UF
+import Unison.Type qualified as Type
+import Unison.Util.Cache qualified as Cache
+import Unison.Util.Relation qualified as Rel
+import Unison.Util.Set qualified as Set
+import Unison.WatchKind qualified as UF
 import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------

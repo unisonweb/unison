@@ -25,18 +25,18 @@ where
 import Data.Ord (Down (Down))
 import Data.Semigroup (Max (Max))
 import Unison.ConstructorReference (ConstructorReference)
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.HashQualified (HashQualified)
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.Prelude hiding (empty)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 
 data PrettyPrintEnv = PrettyPrintEnv
   { -- names for terms, constructors, and requests; e.g. [(original name, relativized and/or suffixified pretty name)]

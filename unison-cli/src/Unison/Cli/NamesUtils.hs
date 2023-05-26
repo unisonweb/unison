@@ -12,26 +12,26 @@ module Unison.Cli.NamesUtils
 where
 
 import Control.Lens
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.MonadUtils as Cli
-import qualified Unison.Codebase.Branch.Names as Branch
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.HashQualified as HQ
+import Unison.Codebase.Path qualified as Path
+import Unison.HashQualified qualified as HQ
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.Names (Names)
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Prelude
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Syntax.Name as Name (toString, unsafeFromString)
+import Unison.Server.Backend qualified as Backend
+import Unison.Syntax.Name qualified as Name (toString, unsafeFromString)
 import Unison.UnisonFile (TypecheckedUnisonFile)
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.Var (Var)
 
 basicParseNames :: Cli Names

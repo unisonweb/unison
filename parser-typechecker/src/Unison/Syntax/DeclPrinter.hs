@@ -1,39 +1,39 @@
 module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclHeader, prettyDeclOrBuiltinHeader) where
 
 import Data.List (isPrefixOf)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration
   ( DataDeclaration,
     EffectDeclaration,
     toDataDecl,
   )
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.HashQualified as HQ
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.DataDeclaration qualified as DD
+import Unison.HashQualified qualified as HQ
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.Reference (Reference (DerivedId))
-import qualified Unison.Referent as Referent
-import qualified Unison.Result as Result
-import qualified Unison.Syntax.HashQualified as HQ (toString, toVar, unsafeFromString)
+import Unison.Referent qualified as Referent
+import Unison.Result qualified as Result
+import Unison.Syntax.HashQualified qualified as HQ (toString, toVar, unsafeFromString)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.TypePrinter (runPretty)
-import qualified Unison.Syntax.TypePrinter as TypePrinter
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker as Typechecker
+import Unison.Syntax.TypePrinter qualified as TypePrinter
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
-import qualified Unison.Typechecker.TypeLookup as TypeLookup
+import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.Util.Pretty (Pretty)
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.SyntaxText as S
+import Unison.Util.Pretty qualified as P
+import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type SyntaxText = S.SyntaxText' Reference
 

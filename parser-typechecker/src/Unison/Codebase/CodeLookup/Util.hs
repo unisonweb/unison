@@ -2,13 +2,13 @@
 
 module Unison.Codebase.CodeLookup.Util where
 
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Unison.Codebase.CodeLookup
-import qualified Unison.DataDeclaration as DataDeclaration
+import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Term as Term
-import qualified Unison.UnisonFile as UF
+import Unison.Reference qualified as Reference
+import Unison.Term qualified as Term
+import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile)
 import Unison.Var (Var)
 

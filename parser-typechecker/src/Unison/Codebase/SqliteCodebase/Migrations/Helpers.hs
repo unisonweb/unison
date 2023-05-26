@@ -1,6 +1,6 @@
 module Unison.Codebase.SqliteCodebase.Migrations.Helpers where
 
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 
 abortMigration :: String -> Sqlite.Transaction a
 abortMigration msg = do

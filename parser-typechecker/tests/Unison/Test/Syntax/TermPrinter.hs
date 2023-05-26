@@ -2,23 +2,23 @@
 
 module Unison.Test.Syntax.TermPrinter (test) where
 
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import EasyTest
 import Unison.ABT (annotation)
-import qualified Unison.Builtin
+import Unison.Builtin qualified
 import Unison.Parser.Ann (Ann (..))
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Names as PPE
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Symbol (Symbol, symbol)
-import qualified Unison.Syntax.HashQualified as HQ (unsafeFromVar)
+import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.TermPrinter
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Test.Common (t, tm)
-import qualified Unison.Test.Common as Common
-import qualified Unison.Type as Type
-import qualified Unison.Util.ColorText as CT
-import qualified Unison.Util.Pretty as PP
+import Unison.Test.Common qualified as Common
+import Unison.Type qualified as Type
+import Unison.Util.ColorText qualified as CT
+import Unison.Util.Pretty qualified as PP
 
 getNames :: PPE.PrettyPrintEnv
 getNames = PPE.fromNames Common.hqLength Unison.Builtin.names

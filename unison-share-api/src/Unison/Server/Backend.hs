@@ -90,114 +90,114 @@ where
 
 import Control.Error.Util (hush)
 import Control.Lens hiding ((??))
-import qualified Control.Lens.Cons as Cons
+import Control.Lens.Cons qualified as Cons
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Containers.ListUtils (nubOrdOn)
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as TextE
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as TextE
 import Data.Text.Lazy (toStrict)
 import Data.Tuple.Extra (dupe)
-import qualified Data.Yaml as Yaml
-import qualified Lucid
+import Data.Yaml qualified as Yaml
+import Lucid qualified
 import System.Directory
 import System.FilePath
-import qualified Text.FuzzyFind as FZF
+import Text.FuzzyFind qualified as FZF
 import U.Codebase.Branch (NamespaceStats (..))
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (BranchHash, CausalHash (..))
 import U.Codebase.Projects as Projects
-import qualified U.Codebase.Referent as V2Referent
-import qualified U.Codebase.Sqlite.Operations as Operations
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin as B
-import qualified Unison.Builtin.Decls as Decls
+import U.Codebase.Referent qualified as V2Referent
+import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Operations qualified as Ops
+import Unison.ABT qualified as ABT
+import Unison.Builtin qualified as B
+import Unison.Builtin.Decls qualified as Decls
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.DisplayObject
-import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
+import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Rt
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.ShortCausalHash
   ( ShortCausalHash,
   )
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorReference as ConstructorReference
-import qualified Unison.ConstructorType as CT
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
-import qualified Unison.Hashing.V2.Convert as Hashing
-import qualified Unison.LabeledDependency as LD
+import Unison.ConstructorReference qualified as ConstructorReference
+import Unison.ConstructorType qualified as CT
+import Unison.DataDeclaration qualified as DD
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
+import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
-import qualified Unison.Names as Names
-import qualified Unison.Names.Scoped as ScopedNames
+import Unison.Names qualified as Names
+import Unison.Names.Scoped qualified as ScopedNames
 import Unison.NamesWithHistory (NamesWithHistory (..))
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Util as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.PrettyPrintEnvDecl.Names as PPED
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Util qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference, TermReference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Runtime.IOSource as DD
-import qualified Unison.Server.Doc as Doc
-import qualified Unison.Server.Doc.AsHtml as DocHtml
+import Unison.Referent qualified as Referent
+import Unison.Runtime.IOSource qualified as DD
+import Unison.Server.Doc qualified as Doc
+import Unison.Server.Doc.AsHtml qualified as DocHtml
 import Unison.Server.NameSearch (NameSearch (..), Search (..), applySearch)
 import Unison.Server.NameSearch.FromNames (makeNameSearch)
 import Unison.Server.NameSearch.Sqlite (termReferentsByShortHash, typeReferencesByShortHash)
 import Unison.Server.QueryResult
-import qualified Unison.Server.SearchResult as SR
-import qualified Unison.Server.SearchResult' as SR'
-import qualified Unison.Server.Syntax as Syntax
+import Unison.Server.SearchResult qualified as SR
+import Unison.Server.SearchResult' qualified as SR'
+import Unison.Server.Syntax qualified as Syntax
 import Unison.Server.Types
 import Unison.ShortHash
-import qualified Unison.ShortHash as SH
-import qualified Unison.Sqlite as Sqlite
+import Unison.ShortHash qualified as SH
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.DeclPrinter as DeclPrinter
-import qualified Unison.Syntax.HashQualified as HQ (toText)
-import qualified Unison.Syntax.HashQualified' as HQ' (toText)
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.HashQualified qualified as HQ (toText)
+import Unison.Syntax.HashQualified' qualified as HQ' (toText)
 import Unison.Syntax.Name as Name (toText, unsafeFromText)
-import qualified Unison.Syntax.NamePrinter as NP
-import qualified Unison.Syntax.TermPrinter as TermPrinter
-import qualified Unison.Syntax.TypePrinter as TypePrinter
+import Unison.Syntax.NamePrinter qualified as NP
+import Unison.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker as Typechecker
+import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
 import Unison.Util.AnnotatedText (AnnotatedText)
 import Unison.Util.List (uniqueBy)
-import qualified Unison.Util.Map as Map
+import Unison.Util.Map qualified as Map
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Util.Monoid as Monoid
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (Width)
-import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Set as Set
-import qualified Unison.Util.SyntaxText as UST
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Relation qualified as R
+import Unison.Util.Set qualified as Set
+import Unison.Util.SyntaxText qualified as UST
 import Unison.Var (Var)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
 type SyntaxText = UST.SyntaxText' Reference
 

@@ -13,23 +13,23 @@ import Control.Lens ((.~))
 import Control.Monad.Reader
 import Control.Monad.Trans.Except
 import Data.Aeson ()
-import qualified Data.ByteString as Strict
+import Data.ByteString qualified as Strict
 import Data.ByteString.Char8 (unpack)
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.ByteString.Lazy.UTF8 as BLU
+import Data.ByteString.Char8 qualified as C8
+import Data.ByteString.Lazy qualified as Lazy
+import Data.ByteString.Lazy.UTF8 qualified as BLU
 import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Data.OpenApi (Info (..), License (..), OpenApi, URL (..))
-import qualified Data.OpenApi.Lens as OpenApi
+import Data.OpenApi.Lens qualified as OpenApi
 import Data.Proxy (Proxy (..))
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import GHC.Generics ()
 import Network.HTTP.Media ((//), (/:))
 import Network.HTTP.Types (HeaderName)
 import Network.HTTP.Types.Status (ok200)
 import Network.URI.Encode as UriEncode
-import qualified Network.URI.Encode as URI
+import Network.URI.Encode qualified as URI
 import Network.Wai (Middleware, responseLBS)
 import Network.Wai.Handler.Warp
   ( Port,
@@ -81,14 +81,14 @@ import Servant.Server.StaticFiles (serveDirectoryWebApp)
 import System.Directory (canonicalizePath, doesFileExist)
 import System.Environment (getExecutablePath)
 import System.FilePath ((</>))
-import qualified System.FilePath as FilePath
+import System.FilePath qualified as FilePath
 import System.Random.MWC (createSystemRandom)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Rt
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Rt
 import Unison.HashQualified
 import Unison.Name as Name (Name, segments)
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend (Backend, BackendEnv, runBackend)
@@ -98,12 +98,12 @@ import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
     serveDefinitions,
   )
-import qualified Unison.Server.Endpoints.NamespaceDetails as NamespaceDetails
-import qualified Unison.Server.Endpoints.NamespaceListing as NamespaceListing
-import qualified Unison.Server.Endpoints.Projects as Projects
+import Unison.Server.Endpoints.NamespaceDetails qualified as NamespaceDetails
+import Unison.Server.Endpoints.NamespaceListing qualified as NamespaceListing
+import Unison.Server.Endpoints.Projects qualified as Projects
 import Unison.Server.Errors (backendError)
 import Unison.Server.Types (mungeString, setCacheControl)
-import qualified Unison.ShortHash as ShortHash
+import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
 
 -- HTML content type
@@ -396,6 +396,7 @@ serveIndex path = do
                   <> " Set the "
                   <> ucmUIVar
                   <> " environment variable to the directory where the UI is installed."
+                  <> " If you're running a dev build of ucm, run `./dev-ui-install.sh`."
           }
 
 serveUI :: FilePath -> Server WebUI

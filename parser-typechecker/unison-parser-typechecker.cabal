@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -197,6 +197,7 @@ library
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -293,7 +294,7 @@ library
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these
@@ -384,6 +385,7 @@ test-suite parser-typechecker-tests
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -484,7 +486,7 @@ test-suite parser-typechecker-tests
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these

@@ -15,7 +15,7 @@ import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
@@ -29,20 +29,20 @@ import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.PrettyPrintEnvDecl.Sqlite as PPESqlite
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Sqlite qualified as PPESqlite
 import Unison.Reference (TermReference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.Server.Backend hiding (renderDocRefs)
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.Doc as Doc
-import qualified Unison.Server.NameSearch.Sqlite as SqliteNameSearch
+import Unison.Server.Backend qualified as Backend
+import Unison.Server.Doc qualified as Doc
+import Unison.Server.NameSearch.Sqlite qualified as SqliteNameSearch
 import Unison.Server.Types
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.HashQualified as HQ (toText)
+import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Util.Pretty (Width)
 
 -- | Renders a definition for the given name or hash alongside its documentation.

@@ -4,10 +4,10 @@ import Data.Char
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PrettyPrintEnv
 import Unison.Symbol
-import qualified Unison.Syntax.TermPrinter as TermPrinter
-import qualified Unison.Term as Term
+import Unison.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Term qualified as Term
 import Unison.Util.Pretty
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 import Unison.Var
 
 prettyVar :: (Var v) => v -> Pretty ColorText

@@ -17,7 +17,6 @@
     control
     define-unison
     handle
-    identity
     name
     data
     data-case
@@ -27,16 +26,27 @@
     sum
     sum-case
     unison-force
-    string->chunked-string)
+    string->chunked-string
+
+    identity
+
+    describe-value
+    decode-value
+
+    unison-tuple->list)
 
   (import (rnrs)
           (for (only (compatibility mlist) mlist->list) expand)
           (for (only (racket base) quasisyntax/loc) expand)
+          (for (racket set) expand)
           (for (only (unison core) syntax->list) expand)
           (only (srfi :28) format)
           (only (racket control) prompt0-at control0-at)
           (rename
            (only (racket)
+                 identity
+                 syntax?
+                 define-for-syntax
                  make-continuation-prompt-tag)
            (make-continuation-prompt-tag make-prompt))
           (unison core)
@@ -168,7 +178,7 @@
       [(handle [r ...] h e ...)
        (let ([p (make-prompt)])
          (prompt0-at p
-           (let ([v (let-marks (list (quote r) ...) (cons p h)
+           (let ([v (let-marks (list r ...) (cons p h)
                       (prompt0-at p e ...))])
              (h (make-pure v)))))]))
 
@@ -198,85 +208,167 @@
        (let ([p (car (ref-mark r))])
          (control0-at p k (control0-at p _k e ...)))]))
 
-  (define (identity x) x)
-  
   ; forces something that is expected to be a thunk, defined with
   ; e.g. `name` above. In some cases, we might have a normal value,
   ; so just do nothing in that case.
   (define (unison-force x)
     (if (procedure? x) (x) x))
 
+  ; If #t, causes sum-case and data-case to insert else cases if
+  ; they don't have one. The inserted case will report the covered
+  ; cases and which tag was being matched.
+  (define-for-syntax debug-cases #t)
+
+  (define-for-syntax (tag? s)
+    (and (syntax? s) (fixnum? (syntax->datum s))))
+
+  (define-for-syntax (tags? s)
+    (for-all tag? (syntax->list s)))
+
+  (define-for-syntax (identifiers? s)
+    (for-all identifier? (syntax->list s)))
+
+  (define-for-syntax (process-cases mac-name stx scstx tgstx flstx cs)
+    (define (raiser msg sub)
+      (raise-syntax-error #f msg stx sub))
+
+    (define (raise-else sub)
+      (raiser
+        (string-append "else clause must be final in " mac-name)
+        sub))
+
+    (define (raise-tags sub)
+      (raiser
+        (string-append "non-tags used in " mac-name " branch")
+        sub))
+
+    (define (raise-vars sub)
+      (raiser
+        (string-append "non-variables used in " mac-name " binding")
+        sub))
+
+    (define (has-else? c)
+      (syntax-case c (else)
+        [(else . x) #t]
+        [_ #f]))
+
+    (define (syntax->tags ts)
+      (list->set (map syntax->datum (syntax->list ts))))
+
+    (define (process-case head tail)
+      (with-syntax ([fields flstx] [scrut scstx])
+        (syntax-case head (else)
+          [(else e ...)
+           (if (null? tail)
+             (values (set) head) ; case is already in the right form
+             (raise-else head))]
+          [((t ...) () e ...)
+           (cond
+             [(not (tags? #'(t ...))) (raise-tags head)]
+             [else
+               (values
+                 (syntax->tags #'(t ...))
+                 #'((t ...) e ...))])]
+          [(t () e ...)
+           (cond
+             [(not (tag? #'t)) (raise-tags head)]
+             [else
+               (values
+                 (set (syntax->datum #'t))
+                 #'((t) e ...))])]
+          [((t ...) (v ...) e ...)
+           (cond
+             [(not (tags? #'(t ...))) (raise-tags head)]
+             [(not (identifiers? #'(v ...))) (raise-vars head)]
+             [else
+               (values
+                 (syntax->tags #'(t ...))
+                 #'((t ...)
+                    (let-values
+                      ([(v ...) (apply values (fields scrut))])
+                      e ...)))])]
+          [(t (v ...) e ...)
+           (cond
+             [(not (tag? #'t)) (raise-tags head)]
+             [(not (identifiers? #'(v ...))) (raise-vars head)]
+             [else
+               (values
+                 (set (syntax->datum #'t))
+                 #'((t)
+                    (let-values
+                      ([(v ...) (apply values (fields scrut))])
+                      e ...)))])]
+          [((t ...) v e ...)
+           (cond
+             [(not (tags? #'(t ...))) (raise-tags head)]
+             [(not (identifier? #'v)) (raise-vars head)]
+             [else
+               (values
+                 (syntax->tags #'(t ...))
+                 #'((t ...) (let ([v (fields scrut)]) e ...)))])]
+          [(t v e ...)
+           (cond
+             [(not (tag? #'t)) (raise-tags head)]
+             [(not (identifier? #'v)) (raise-vars head)]
+             [else
+               (values
+                 (set (syntax->datum #'t))
+                 #'((t) (let ([v (fields scrut)]) e ...)))])])))
+
+    (define (build-else sts)
+      (with-syntax ([tag tgstx])
+        #`(else
+            (let* ([ts (list #,@sts)]
+                   [tg (tag #,scstx)]
+                   [fmst "~a: non-exhaustive match:\n~a\n~a"]
+                   [cst (format "      tag: ~v" tg)]
+                   [tst (format "  covered: ~v" ts)]
+                   [msg (format fmst #,mac-name cst tst)])
+              (raise msg)))))
+
+    (let rec ([el (not debug-cases)]
+              [tags (list->set '())]
+              [acc '()]
+              [cur cs])
+      (cond
+        [(null? cur)
+         (let ([acc (if el acc (cons (build-else (set->list tags)) acc))])
+           (reverse acc))]
+        [else
+          (let ([head (car cur)] [tail (cdr cur)])
+            (let-values ([(ts pc) (process-case head tail)])
+              (rec
+                (or el (has-else? head))
+                (set-union tags ts)
+                (cons pc acc)
+                tail)))])))
+
   (define-syntax sum-case
     (lambda (stx)
-      (define (make-case scrut-stx)
-        (lambda (cur)
-          (with-syntax ([scrut scrut-stx])
-            (syntax-case cur (else)
-              [(else e ...) #'(else e ...)]
-              [((t ...) () e ...) #'((t ...) e ...)]
-              [(t () e ...) #'((t) e ...)]
-              [((t ...) (v ...) e ...)
-               #'((t ...)
-                  (let-values
-                    ([(v ...) (apply values (sum-fields scrut))])
-                    e ...))]
-              [(t (v ...) e ...)
-               #'((t)
-                  (let-values
-                    ([(v ...) (apply values (sum-fields scrut))])
-                    e ...))]
-              [((t ...) v e ...)
-               (identifier? #'v)
-               #'((t ...)
-                  (let ([v (sum-fields scrut)])
-                    e ...))]
-              [(t v e ...)
-               (identifier? #'v)
-               #'((t)
-                  (let ([v (sum-fields scrut)])
-                    e ...))]))))
-
       (syntax-case stx ()
         [(sum-case scrut c ...)
-         (with-syntax
-           ([(tc ...)
-             (map (make-case #'scrut) (syntax->list #'(c ...)))])
+         (with-syntax ([(tc ...)
+                        (process-cases
+                          "sum-case"
+                          stx
+                          #'scrut
+                          #'sum-tag
+                          #'sum-fields
+                          (syntax->list #'(c ...)))])
            #'(case (sum-tag scrut) tc ...))])))
 
   (define-syntax data-case
     (lambda (stx)
-      (define (make-case scrut-stx)
-        (lambda (cur)
-          (with-syntax ([scrut scrut-stx])
-            (syntax-case cur (else)
-              [(else e ...) #'(else e ...)]
-              [((t ...) () e ...) #'((t ...) e ...)]
-              [(t () e ...) #'((t) e ...)]
-              [((t ...) (v ...) e ...)
-               #'((t ...)
-                  (let-values
-                    ([(v ...) (apply values (data-fields scrut))])
-                    e ...))]
-              [(t (v ...) e ...)
-               #'((t)
-                  (let-values
-                    ([(v ...) (apply values (data-fields scrut))])
-                    e ...))]
-              [((t ...) v e ...)
-               (identifier? #'v)
-               #'((t ...)
-                  (let ([v (data-fields scrut)])
-                    e ...))]
-              [(t v e ...)
-               (identifier? #'v)
-               #'((t)
-                  (let ([v (data-fields scrut)])
-                    e ...))]))))
       (syntax-case stx ()
         [(data-case scrut c ...)
-         (with-syntax
-           ([(tc ...)
-             (map (make-case #'scrut) (syntax->list #'(c ...)))])
+         (with-syntax ([(tc ...)
+                        (process-cases
+                          "data-case"
+                          stx
+                          #'scrut
+                          #'data-tag
+                          #'data-fields
+                          (syntax->list #'(c ...)))])
            #'(case (data-tag scrut) tc ...))])))
 
   (define-syntax request-case
@@ -335,5 +427,60 @@
                #'(cond
                    [(pure? scrut) pc]
                    [else (case (request-ability scrut) ac ...)]))))])))
+
+  ; (define (describe-list n l)
+  ;   (let rec ([pre "["] [post "[]"] [cur l])
+  ;     (cond
+  ;       [(null? cur) post]
+  ;       [else
+  ;         (let* ([sx (describe-value-depth (- n 1) (car cur))]
+  ;                [sxs (rec ", " "]" (cdr cur))])
+  ;           (string-append pre sx sxs))])))
+  ;
+  ; (define (describe-ref r)
+  ;   (cond
+  ;     [(symbol? r) (symbol->string r)]
+  ;     [(data? r)
+  ;      (data-case r
+  ;        [0 (s) (string-append "##" s)]
+  ;        [1 (i)
+  ;          (data-case i
+  ;            [0 (bs ix)
+  ;              (let* ([bd (bytevector->base32-string b32h bs)]
+  ;                     [td (istring-take 5 bd)]
+  ;                     [sx (if (>= 0 ix)
+  ;                           ""
+  ;                           (string-append "." (number->string ix)))])
+  ;                (string-append "#" td sx))])])]))
+  ;
+  ; (define (describe-bytes bs)
+  ;   (let* ([s (bytevector->base32-string b32h bs)]
+  ;          [l (string-length s)]
+  ;          [sfx (if (<= l 10) "" "...")])
+  ;     (string-append "32x" (istring-take 10 s) sfx)))
+  ;
+  ; (define (describe-value-depth n x) 
+  ;   (if (< n 0) "..."
+  ;     (cond
+  ;       [(sum? x)
+  ;        (let ([tt (number->string (sum-tag x))]
+  ;              [vs (describe-list n (sum-fields x))])
+  ;          (string-append "Sum " tt " " vs))]
+  ;       [(data? x)
+  ;        (let ([tt (number->string (data-tag x))]
+  ;              [rt (describe-ref (data-ref x))]
+  ;              [vs (describe-list n (data-fields x))])
+  ;          (string-append "Data " rt " " tt " " vs))]
+  ;       [(list? x) (describe-list n x)]
+  ;       [(number? x) (number->string x)]
+  ;       [(string? x) (string-append "\"" x "\"")]
+  ;       [(bytevector? x) (describe-bytes x)]
+  ;       [(procedure? x) (format "~a" x)]
+  ;       [else
+  ;         (format "describe-value: unimplemented case: ~a " x)])))
+  ;
+  ; (define (describe-value x) (describe-value-depth 20 x))
+  ;
+  (define (decode-value x) '())
 
   )

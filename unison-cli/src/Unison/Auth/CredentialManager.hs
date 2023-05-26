@@ -12,7 +12,7 @@ import Unison.Auth.CredentialFile
 import Unison.Auth.Types
 import Unison.Prelude
 import Unison.Share.Types (CodeserverId)
-import qualified UnliftIO
+import UnliftIO qualified
 
 -- | A 'CredentialManager' knows how to load, save, and cache credentials.
 -- It's thread-safe and safe for use across multiple UCM clients.

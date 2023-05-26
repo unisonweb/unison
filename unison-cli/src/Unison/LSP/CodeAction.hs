@@ -5,10 +5,10 @@
 module Unison.LSP.CodeAction where
 
 import Control.Lens hiding (List)
-import qualified Data.IntervalMap as IM
+import Data.IntervalMap qualified as IM
 import Language.LSP.Types
 import Language.LSP.Types.Lens
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.LSP.Conversions
 import Unison.LSP.FileAnalysis
 import Unison.LSP.Types

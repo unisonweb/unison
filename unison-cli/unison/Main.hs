@@ -27,65 +27,65 @@ import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.Configurator.Types (Config)
 import Data.Either.Validation (Validation (..))
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.IO as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.IO qualified as Text
 import GHC.Conc (setUncaughtExceptionHandler)
-import qualified GHC.Conc
-import qualified Ki
-import qualified Language.Haskell.TH as TH
-import qualified Language.Haskell.TH.Syntax as TH
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.TLS as HTTP
+import GHC.Conc qualified
+import Ki qualified
+import Language.Haskell.TH qualified as TH
+import Language.Haskell.TH.Syntax qualified as TH
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client.TLS qualified as HTTP
 import Stats (recordRtsStats)
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName, lookupEnv, withArgs)
-import qualified System.Exit as Exit
-import qualified System.FilePath as FP
+import System.Exit qualified as Exit
+import System.FilePath qualified as FP
 import System.IO (stderr)
 import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
-import qualified System.IO.Temp as Temp
-import qualified System.Path as Path
+import System.IO.Temp qualified as Temp
+import System.Path qualified as Path
 import Text.Megaparsec (runParser)
 import Text.Pretty.Simple (pHPrint)
 import Unison.Codebase (Codebase, CodebasePath)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode)
 import Unison.Codebase.Editor.UriParser (parseReadShareLooseCode)
-import qualified Unison.Codebase.Editor.VersionParser as VP
+import Unison.Codebase.Editor.VersionParser qualified as VP
 import Unison.Codebase.Execute (execute)
 import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResult (..), SpecifiedCodebase (..))
-import qualified Unison.Codebase.Init as CodebaseInit
+import Unison.Codebase.Init qualified as CodebaseInit
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Rt
-import qualified Unison.Codebase.SqliteCodebase as SC
-import qualified Unison.Codebase.TranscriptParser as TR
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Rt
+import Unison.Codebase.SqliteCodebase qualified as SC
+import Unison.Codebase.TranscriptParser qualified as TR
 import Unison.CommandLine (plural', watchConfig)
-import qualified Unison.CommandLine.Main as CommandLine
-import qualified Unison.CommandLine.Types as CommandLine
+import Unison.CommandLine.Main qualified as CommandLine
+import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
-import qualified Unison.CommandLine.Welcome as Welcome
-import qualified Unison.LSP as LSP
+import Unison.CommandLine.Welcome qualified as Welcome
+import Unison.LSP qualified as LSP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyTerminal as PT
+import Unison.PrettyTerminal qualified as PT
 import Unison.Runtime.Exception (RuntimeExn (..))
-import qualified Unison.Runtime.Interface as RTI
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.CodebaseServer as Server
+import Unison.Runtime.Interface qualified as RTI
+import Unison.Server.Backend qualified as Backend
+import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Pretty as P
-import qualified UnliftIO
+import Unison.Util.Pretty qualified as P
+import UnliftIO qualified
 import UnliftIO.Directory (getHomeDirectory)
-import qualified Version
+import Version qualified
 
 main :: IO ()
 main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do

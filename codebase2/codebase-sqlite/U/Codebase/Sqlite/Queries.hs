@@ -259,42 +259,42 @@ module U.Codebase.Sqlite.Queries
 where
 
 import Control.Lens (Lens')
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Control.Monad.Extra ((||^))
 import Control.Monad.State (MonadState, evalStateT)
 import Control.Monad.Writer (MonadWriter, runWriterT)
-import qualified Control.Monad.Writer as Writer
+import Control.Monad.Writer qualified as Writer
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
-import qualified Data.Foldable as Foldable
-import qualified Data.List as List
-import qualified Data.List.Extra as List
+import Data.Foldable qualified as Foldable
+import Data.List qualified as List
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as Nel
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
 import Data.Map.NonEmpty (NEMap)
-import qualified Data.Map.NonEmpty as NEMap
-import qualified Data.Maybe as Maybe
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Data.Map.NonEmpty qualified as NEMap
+import Data.Maybe qualified as Maybe
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
-import qualified Data.Text as Text
-import qualified Data.Vector as Vector
+import Data.Text qualified as Text
+import Data.Vector qualified as Vector
 import GHC.Stack (callStack)
 import Network.URI (URI)
 import U.Codebase.Branch.Type (NamespaceStats (..))
-import qualified U.Codebase.Decl as C
-import qualified U.Codebase.Decl as C.Decl
+import U.Codebase.Decl qualified as C
+import U.Codebase.Decl qualified as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
-import qualified U.Codebase.Reference as C
-import qualified U.Codebase.Reference as C.Reference
-import qualified U.Codebase.Referent as C.Referent
-import qualified U.Codebase.Reflog as Reflog
-import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
-import qualified U.Codebase.Sqlite.Causal as Causal
-import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal
+import U.Codebase.Reference qualified as C
+import U.Codebase.Reference qualified as C.Reference
+import U.Codebase.Referent qualified as C.Referent
+import U.Codebase.Reflog qualified as Reflog
+import U.Codebase.Sqlite.Branch.Format qualified as NamespaceFormat
+import U.Codebase.Sqlite.Causal qualified as Causal
+import U.Codebase.Sqlite.Causal qualified as Sqlite.Causal
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
@@ -310,11 +310,11 @@ import U.Codebase.Sqlite.DbId
     SchemaVersion,
     TextId,
   )
-import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
-import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
+import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
+import U.Codebase.Sqlite.Decl.Format qualified as S.Decl
 import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.Entity (SyncEntity)
-import qualified U.Codebase.Sqlite.Entity as Entity
+import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.HashHandle (HashHandle (..))
 import U.Codebase.Sqlite.LocalIds
   ( LocalDefnId (..),
@@ -327,46 +327,45 @@ import U.Codebase.Sqlite.NameLookups
 import U.Codebase.Sqlite.NamedRef (NamedRef)
 import qualified U.Codebase.Sqlite.NamedRef as NamedRef
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
-import qualified U.Codebase.Sqlite.ObjectType as ObjectType
+import U.Codebase.Sqlite.ObjectType qualified as ObjectType
 import U.Codebase.Sqlite.Orphans ()
-import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
+import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
-import qualified U.Codebase.Sqlite.Reference as Reference
-import qualified U.Codebase.Sqlite.Reference as S
-import qualified U.Codebase.Sqlite.Reference as S.Reference
-import qualified U.Codebase.Sqlite.Referent as Referent
-import qualified U.Codebase.Sqlite.Referent as S.Referent
+import U.Codebase.Sqlite.Reference qualified as Reference
+import U.Codebase.Sqlite.Reference qualified as S
+import U.Codebase.Sqlite.Reference qualified as S.Reference
+import U.Codebase.Sqlite.Referent qualified as Referent
+import U.Codebase.Sqlite.Referent qualified as S.Referent
 import U.Codebase.Sqlite.RemoteProject (RemoteProject (..))
 import U.Codebase.Sqlite.RemoteProjectBranch (RemoteProjectBranch)
 import U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.TempEntity (TempEntity)
-import qualified U.Codebase.Sqlite.TempEntity as TempEntity
+import U.Codebase.Sqlite.TempEntity qualified as TempEntity
 import U.Codebase.Sqlite.TempEntityType (TempEntityType)
-import qualified U.Codebase.Sqlite.TempEntityType as TempEntityType
-import qualified U.Codebase.Sqlite.Term.Format as S.Term
-import qualified U.Codebase.Sqlite.Term.Format as TermFormat
-import qualified U.Codebase.Term as C
-import qualified U.Codebase.Term as C.Term
-import qualified U.Codebase.Type as C.Type
+import U.Codebase.Sqlite.TempEntityType qualified as TempEntityType
+import U.Codebase.Sqlite.Term.Format qualified as S.Term
+import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Term qualified as C
+import U.Codebase.Term qualified as C.Term
+import U.Codebase.Type qualified as C.Type
 import U.Codebase.WatchKind (WatchKind)
-import qualified U.Core.ABT as ABT
-import qualified U.Util.Serialization as S
-import qualified U.Util.Term as TermUtil
+import U.Core.ABT qualified as ABT
+import U.Util.Serialization qualified as S
+import U.Util.Term qualified as TermUtil
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
-import qualified Unison.Hash32 as Hash32
+import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
 import Unison.Prelude
 import Unison.Sqlite
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Util.Alternative as Alternative
-import qualified Unison.Util.Lens as Lens
-import qualified Unison.Util.Map as Map
+import Unison.Util.Alternative qualified as Alternative
+import Unison.Util.Lens qualified as Lens
+import Unison.Util.Map qualified as Map
 
 type TextPathSegments = [Text]
 
@@ -377,7 +376,7 @@ currentSchemaVersion = 12
 
 createSchema :: Transaction ()
 createSchema = do
-  executeFile [hereFile|unison/sql/create.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/create.sql|])
   addTempEntityTables
   addNamespaceStatsTables
   addReflogTable
@@ -395,39 +394,31 @@ createSchema = do
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
-  executeFile [hereFile|unison/sql/001-temp-entity-tables.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/001-temp-entity-tables.sql|])
 
 addNamespaceStatsTables :: Transaction ()
 addNamespaceStatsTables =
-  executeFile [hereFile|unison/sql/003-namespace-statistics.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/003-namespace-statistics.sql|])
 
 addReflogTable :: Transaction ()
 addReflogTable =
-  executeFile [hereFile|unison/sql/002-reflog-table.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/002-reflog-table.sql|])
 
 fixScopedNameLookupTables :: Transaction ()
 fixScopedNameLookupTables =
-  executeFile [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|])
 
 addProjectTables :: Transaction ()
 addProjectTables =
-  executeFile [hereFile|unison/sql/005-project-tables.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/005-project-tables.sql|])
 
 addMostRecentBranchTable :: Transaction ()
 addMostRecentBranchTable =
-  executeFile [hereFile|unison/sql/006-most-recent-branch-table.sql|]
+  executeStatements (Text.pack [hereFile|unison/sql/006-most-recent-branch-table.sql|])
 
 addNameLookupMountTables :: Transaction ()
 addNameLookupMountTables =
-  executeFile [hereFile|unison/sql/007-add-name-lookup-mounts.sql|]
-
-executeFile :: String -> Transaction ()
-executeFile =
-  traverse_ (execute_ . Sqlite.Sql)
-    . filter (not . Text.null)
-    . map Text.strip
-    . Text.split (== ';')
-    . Text.pack
+  executeStatements (Text.pack [hereFile|unison/sql/007-add-name-lookup-mounts.sql|])
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
