@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.Sqlite.Sql2
-  ( Sql2 (..),
+module Unison.Sqlite.Sql
+  ( Sql (..),
     sql,
 
     -- * Exported for testing
@@ -29,7 +29,7 @@ import qualified Text.Megaparsec.Char as Megaparsec
 import Unison.Prelude
 
 -- | A SQL query.
-data Sql2 = Sql2
+data Sql = Sql
   { query :: Text,
     params :: [Sqlite.Simple.SQLData]
   }
@@ -37,13 +37,13 @@ data Sql2 = Sql2
 
 -- Template haskell, don't ask.
 
-query__ :: Sql2 -> Text
-query__ (Sql2 x _) = x
+query__ :: Sql -> Text
+query__ (Sql x _) = x
 
-params__ :: Sql2 -> [Sqlite.Simple.SQLData]
-params__ (Sql2 _ x) = x
+params__ :: Sql -> [Sqlite.Simple.SQLData]
+params__ (Sql _ x) = x
 
--- | A quasi-quoter for producing a 'Sql2' from a SQL query string, using the Haskell variables in scope for each named
+-- | A quasi-quoter for producing a 'Sql' from a SQL query string, using the Haskell variables in scope for each named
 -- parameter.
 --
 -- For example, the query
@@ -61,7 +61,7 @@ params__ (Sql2 _ x) = x
 -- would produce a value like
 --
 -- @
--- Sql2
+-- Sql
 --   { query = "SELECT foo FROM bar WHERE baz = ?"
 --   , params = [SQLInteger 5]
 --   }
@@ -73,7 +73,7 @@ params__ (Sql2 _ x) = x
 --
 --   * @:colon@, which denotes a single-field variable
 --   * @\@at@, followed by 1+ bare @\@@, which denotes a multi-field variable
---   * @\$dollar@, which denotes an entire 'Sql2' fragment
+--   * @\$dollar@, which denotes an entire 'Sql' fragment
 --   * @VALUES :colon@, which denotes an entire @VALUES@ literal (1+ tuples)
 --
 -- As an example of the @\@at@ syntax, consider a variable @plonk@ with a two-field 'Sqlite.Simple.ToRow' instance. A
@@ -124,7 +124,7 @@ sqlQQ input =
     Right lumps -> do
       (sqlPieces, paramsPieces) <- unzip <$> for lumps unlump
       [|
-        Sql2
+        Sql
           (mconcat $(pure (TH.ListE sqlPieces)))
           (mconcat $(pure (TH.ListE paramsPieces)))
         |]

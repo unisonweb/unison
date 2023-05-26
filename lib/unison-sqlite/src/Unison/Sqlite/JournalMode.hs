@@ -10,7 +10,7 @@ import Database.SQLite.Simple qualified as Sqlite
 import Unison.Prelude
 import Unison.Sqlite.Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason)
-import Unison.Sqlite.Sql2 (Sql2 (..))
+import Unison.Sqlite.Sql (Sql (..))
 
 -- | https://www.sqlite.org/pragma.html#pragma_journal_mode
 data JournalMode
@@ -49,7 +49,7 @@ trySetJournalMode :: (MonadIO m) => Connection -> JournalMode -> m ()
 trySetJournalMode conn mode0 = liftIO do
   queryOneRowCheck
     conn
-    (Sql2 ("PRAGMA journal_mode = " <> journalModeToText mode0) [])
+    (Sql ("PRAGMA journal_mode = " <> journalModeToText mode0) [])
     \(Sqlite.Only mode1s) ->
       let mode1 = unsafeJournalModeFromText mode1s
        in if mode0 /= mode1

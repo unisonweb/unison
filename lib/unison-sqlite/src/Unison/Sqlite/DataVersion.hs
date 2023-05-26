@@ -7,7 +7,7 @@ module Unison.Sqlite.DataVersion
 where
 
 import Unison.Prelude
-import Unison.Sqlite.Sql2 (sql)
+import Unison.Sqlite.Sql (sql)
 import Unison.Sqlite.Transaction
 
 newtype DataVersion

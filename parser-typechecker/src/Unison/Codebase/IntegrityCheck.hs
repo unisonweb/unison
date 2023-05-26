@@ -118,14 +118,14 @@ integrityCheckAllCausals = do
         pure (IntegrityErrorDetected (NESet.singleton $ DetectedCausalsWithCausalHashAsBranchHash $ NESet.fromList badCausalHashes))
   pure (branchObjIntegrity <> differingBranchHashIntegrity)
   where
-    causalsWithMissingBranchObjects :: Sqlite.Sql2
+    causalsWithMissingBranchObjects :: Sqlite.Sql
     causalsWithMissingBranchObjects =
       [Sqlite.sql|
         SELECT c.self_hash_id, c.value_hash_id
           FROM causal c
           WHERE NOT EXISTS (SELECT 1 from object o WHERE o.primary_hash_id = c.value_hash_id);
       |]
-    causalsWithMatchingValueHashAndSelfHash :: Sqlite.Sql2
+    causalsWithMatchingValueHashAndSelfHash :: Sqlite.Sql
     causalsWithMatchingValueHashAndSelfHash =
       [Sqlite.sql|
         SELECT self_hash_id
@@ -139,7 +139,7 @@ integrityCheckAllBranches = do
   branchObjIds <- Sqlite.queryListCol allBranchObjectIdsSql
   flip foldMapM branchObjIds integrityCheckBranch
   where
-    allBranchObjectIdsSql :: Sqlite.Sql2
+    allBranchObjectIdsSql :: Sqlite.Sql
     allBranchObjectIdsSql =
       [Sqlite.sql|
         SELECT id FROM object WHERE type_id = 2;

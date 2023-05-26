@@ -486,7 +486,7 @@ loadHashId hash = queryMaybeCol (loadHashIdSql hash)
 expectHashId :: Hash32 -> Transaction HashId
 expectHashId hash = queryOneCol (loadHashIdSql hash)
 
-loadHashIdSql :: Hash32 -> Sql2
+loadHashIdSql :: Hash32 -> Sql
 loadHashIdSql hash =
   [sql|
     SELECT id
@@ -563,7 +563,7 @@ loadTextId t = queryMaybeCol (loadTextIdSql t)
 expectTextId :: Text -> Transaction TextId
 expectTextId t = queryOneCol (loadTextIdSql t)
 
-loadTextIdSql :: Text -> Sql2
+loadTextIdSql :: Text -> Sql
 loadTextIdSql t =
   [sql|
     SELECT id
@@ -577,7 +577,7 @@ expectText h = queryOneCol (loadTextSql h)
 expectTextCheck :: SqliteExceptionReason e => TextId -> (Text -> Either e a) -> Transaction a
 expectTextCheck h = queryOneColCheck (loadTextSql h)
 
-loadTextSql :: TextId -> Sql2
+loadTextSql :: TextId -> Sql
 loadTextSql h =
   [sql|
     SELECT text
@@ -639,7 +639,7 @@ expectObjectOfType :: SqliteExceptionReason e => ObjectId -> ObjectType -> (Byte
 expectObjectOfType oid ty =
   queryOneColCheck (loadObjectOfTypeSql oid ty)
 
-loadObjectOfTypeSql :: ObjectId -> ObjectType -> Sql2
+loadObjectOfTypeSql :: ObjectId -> ObjectType -> Sql
 loadObjectOfTypeSql oid ty =
   [sql|
     SELECT bytes
@@ -725,7 +725,7 @@ expectObjectIdForPrimaryHashId :: HashId -> Transaction ObjectId
 expectObjectIdForPrimaryHashId h =
   queryOneCol (loadObjectIdForPrimaryHashIdSql h)
 
-loadObjectIdForPrimaryHashIdSql :: HashId -> Sql2
+loadObjectIdForPrimaryHashIdSql :: HashId -> Sql
 loadObjectIdForPrimaryHashIdSql h =
   [sql|
     SELECT id
@@ -802,7 +802,7 @@ expectObjectIdForAnyHashId :: HashId -> Transaction ObjectId
 expectObjectIdForAnyHashId h =
   queryOneCol (loadObjectIdForAnyHashIdSql h)
 
-loadObjectIdForAnyHashIdSql :: HashId -> Sql2
+loadObjectIdForAnyHashIdSql :: HashId -> Sql
 loadObjectIdForAnyHashIdSql h =
   [sql|
     SELECT object_id
@@ -1165,7 +1165,7 @@ loadCausalValueHashId :: HashId -> Transaction (Maybe BranchHashId)
 loadCausalValueHashId id =
   queryMaybeCol (loadCausalValueHashIdSql id)
 
-loadCausalValueHashIdSql :: HashId -> Sql2
+loadCausalValueHashIdSql :: HashId -> Sql
 loadCausalValueHashIdSql id =
   [sql|
     SELECT value_hash_id
@@ -1190,7 +1190,7 @@ loadBranchObjectIdByCausalHashId id = queryMaybeCol (loadBranchObjectIdByCausalH
 expectBranchObjectIdByCausalHashId :: CausalHashId -> Transaction BranchObjectId
 expectBranchObjectIdByCausalHashId id = queryOneCol (loadBranchObjectIdByCausalHashIdSql id)
 
-loadBranchObjectIdByCausalHashIdSql :: CausalHashId -> Sql2
+loadBranchObjectIdByCausalHashIdSql :: CausalHashId -> Sql
 loadBranchObjectIdByCausalHashIdSql id =
   [sql|
     SELECT object_id FROM hash_object
@@ -1204,7 +1204,7 @@ expectBranchObjectIdByBranchHashId id = queryOneCol (loadBranchObjectIdByBranchH
 loadBranchObjectIdByBranchHashId :: BranchHashId -> Transaction (Maybe BranchObjectId)
 loadBranchObjectIdByBranchHashId id = queryMaybeCol (loadBranchObjectIdByBranchHashIdSql id)
 
-loadBranchObjectIdByBranchHashIdSql :: BranchHashId -> Sql2
+loadBranchObjectIdByBranchHashIdSql :: BranchHashId -> Sql
 loadBranchObjectIdByBranchHashIdSql id =
   [sql|
     SELECT object_id FROM hash_object
@@ -1255,7 +1255,7 @@ loadNamespaceRoot :: Transaction (Maybe CausalHashId)
 loadNamespaceRoot =
   queryMaybeCol loadNamespaceRootSql
 
-loadNamespaceRootSql :: Sql2
+loadNamespaceRootSql :: Sql
 loadNamespaceRootSql =
   [sql|
     SELECT causal_id
@@ -1664,7 +1664,7 @@ getDependenciesBetweenTerms oid1 oid2 =
     --     not terms, so there is no point in searching through a type's transitive dependencies looking for our sink.
     -- (2) No need to search beyond the sink itself, since component dependencies form a DAG.
     -- (3) An explicit cast from e.g. string '1' to int 1 isn't strictly necessary.
-    theSql :: Sql2
+    theSql :: Sql
     theSql = [sql|
       WITH RECURSIVE paths(level, path_last, path_init) AS (
         SELECT
@@ -2269,7 +2269,7 @@ lca x y =
                   Nothing -> pure Nothing
       loop2 (Set.singleton x) (Set.singleton y)
 
-ancestorSql :: CausalHashId -> Sql2
+ancestorSql :: CausalHashId -> Sql
 ancestorSql h =
   [sql|
     WITH RECURSIVE
@@ -2888,7 +2888,7 @@ loadProject pid = queryMaybeRow (loadProjectSql pid)
 expectProject :: ProjectId -> Transaction Project
 expectProject pid = queryOneRow (loadProjectSql pid)
 
-loadProjectSql :: ProjectId -> Sql2
+loadProjectSql :: ProjectId -> Sql
 loadProjectSql pid =
   [sql|
     SELECT
@@ -2973,7 +2973,7 @@ expectProjectBranch :: ProjectId -> ProjectBranchId -> Transaction ProjectBranch
 expectProjectBranch projectId branchId =
   queryOneRow (loadProjectBranchSql projectId branchId)
 
-loadProjectBranchSql :: ProjectId -> ProjectBranchId -> Sql2
+loadProjectBranchSql :: ProjectId -> ProjectBranchId -> Sql
 loadProjectBranchSql projectId branchId =
   [sql|
     SELECT
@@ -3285,7 +3285,7 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
         LIMIT 1
       |]
 
-    whereClause :: Sql2
+    whereClause :: Sql
     whereClause =
       let clauses =
             foldr

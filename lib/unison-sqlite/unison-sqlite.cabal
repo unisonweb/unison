@@ -26,7 +26,7 @@ library
       Unison.Sqlite.DataVersion
       Unison.Sqlite.Exception
       Unison.Sqlite.JournalMode
-      Unison.Sqlite.Sql2
+      Unison.Sqlite.Sql
   hs-source-dirs:
       src
   default-extensions:

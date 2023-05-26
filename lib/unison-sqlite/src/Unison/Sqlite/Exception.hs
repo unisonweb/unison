@@ -27,7 +27,7 @@ import Database.SQLite.Simple qualified as Sqlite
 import GHC.Stack (currentCallStack)
 import Unison.Prelude
 import Unison.Sqlite.Connection.Internal (Connection)
-import Unison.Sqlite.Sql2 (Sql2 (..))
+import Unison.Sqlite.Sql (Sql (..))
 import UnliftIO.Exception
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -133,12 +133,12 @@ isSqliteBusyException SqliteQueryException {exception = SomeSqliteExceptionReaso
 
 data SqliteQueryExceptionInfo = SqliteQueryExceptionInfo
   { connection :: Connection,
-    sql :: Sql2,
+    sql :: Sql,
     exception :: SomeSqliteExceptionReason
   }
 
 throwSqliteQueryException :: SqliteQueryExceptionInfo -> IO a
-throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, sql = Sql2 sql params} = do
+throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, sql = Sql sql params} = do
   threadId <- myThreadId
   callStack <- currentCallStack
   throwIO

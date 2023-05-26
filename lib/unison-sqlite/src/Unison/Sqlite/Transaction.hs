@@ -49,7 +49,7 @@ import Unison.Prelude
 import Unison.Sqlite.Connection (Connection (..))
 import Unison.Sqlite.Connection qualified as Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason, SqliteQueryException, pattern SqliteBusyException)
-import Unison.Sqlite.Sql2 (Sql2)
+import Unison.Sqlite.Sql (Sql)
 import UnliftIO.Exception (bracketOnError_, catchAny, trySyncOrAsync, uninterruptibleMask)
 
 newtype Transaction a
@@ -173,7 +173,7 @@ unsafeIO action =
 
 -- Without results
 
-execute :: Sql2 -> Transaction ()
+execute :: Sql -> Transaction ()
 execute s =
   Transaction \conn -> Connection.execute conn s
 
@@ -185,7 +185,7 @@ executeStatements s =
 
 queryStreamRow ::
   (Sqlite.FromRow a) =>
-  Sql2 ->
+  Sql ->
   (Transaction (Maybe a) -> Transaction r) ->
   Transaction r
 queryStreamRow sql callback =
@@ -196,36 +196,36 @@ queryStreamRow sql callback =
 queryStreamCol ::
   forall a r.
   (Sqlite.FromField a) =>
-  Sql2 ->
+  Sql ->
   (Transaction (Maybe a) -> Transaction r) ->
   Transaction r
 queryStreamCol =
   coerce
-    @(Sql2 -> (Transaction (Maybe (Sqlite.Only a)) -> Transaction r) -> Transaction r)
-    @(Sql2 -> (Transaction (Maybe a) -> Transaction r) -> Transaction r)
+    @(Sql -> (Transaction (Maybe (Sqlite.Only a)) -> Transaction r) -> Transaction r)
+    @(Sql -> (Transaction (Maybe a) -> Transaction r) -> Transaction r)
     queryStreamRow
 
-queryListRow :: (Sqlite.FromRow a) => Sql2 -> Transaction [a]
+queryListRow :: (Sqlite.FromRow a) => Sql -> Transaction [a]
 queryListRow s =
   Transaction \conn -> Connection.queryListRow conn s
 
-queryListCol :: (Sqlite.FromField a) => Sql2 -> Transaction [a]
+queryListCol :: (Sqlite.FromField a) => Sql -> Transaction [a]
 queryListCol s =
   Transaction \conn -> Connection.queryListCol conn s
 
-queryMaybeRow :: (Sqlite.FromRow a) => Sql2 -> Transaction (Maybe a)
+queryMaybeRow :: (Sqlite.FromRow a) => Sql -> Transaction (Maybe a)
 queryMaybeRow s =
   Transaction \conn -> Connection.queryMaybeRow conn s
 
-queryMaybeCol :: (Sqlite.FromField a) => Sql2 -> Transaction (Maybe a)
+queryMaybeCol :: (Sqlite.FromField a) => Sql -> Transaction (Maybe a)
 queryMaybeCol s =
   Transaction \conn -> Connection.queryMaybeCol conn s
 
-queryOneRow :: (Sqlite.FromRow a) => Sql2 -> Transaction a
+queryOneRow :: (Sqlite.FromRow a) => Sql -> Transaction a
 queryOneRow s =
   Transaction \conn -> Connection.queryOneRow conn s
 
-queryOneCol :: (Sqlite.FromField a) => Sql2 -> Transaction a
+queryOneCol :: (Sqlite.FromField a) => Sql -> Transaction a
 queryOneCol s =
   Transaction \conn -> Connection.queryOneCol conn s
 
@@ -233,7 +233,7 @@ queryOneCol s =
 
 queryListRowCheck ::
   (Sqlite.FromRow a, SqliteExceptionReason e) =>
-  Sql2 ->
+  Sql ->
   ([a] -> Either e r) ->
   Transaction r
 queryListRowCheck sql check =
@@ -241,7 +241,7 @@ queryListRowCheck sql check =
 
 queryListColCheck ::
   (Sqlite.FromField a, SqliteExceptionReason e) =>
-  Sql2 ->
+  Sql ->
   ([a] -> Either e r) ->
   Transaction r
 queryListColCheck sql check =
@@ -249,7 +249,7 @@ queryListColCheck sql check =
 
 queryMaybeRowCheck ::
   (Sqlite.FromRow a, SqliteExceptionReason e) =>
-  Sql2 ->
+  Sql ->
   (a -> Either e r) ->
   Transaction (Maybe r)
 queryMaybeRowCheck s check =
@@ -257,7 +257,7 @@ queryMaybeRowCheck s check =
 
 queryMaybeColCheck ::
   (Sqlite.FromField a, SqliteExceptionReason e) =>
-  Sql2 ->
+  Sql ->
   (a -> Either e r) ->
   Transaction (Maybe r)
 queryMaybeColCheck s check =
@@ -265,7 +265,7 @@ queryMaybeColCheck s check =
 
 queryOneRowCheck ::
   (Sqlite.FromRow a, SqliteExceptionReason e) =>
-  Sql2 ->
+  Sql ->
   (a -> Either e r) ->
   Transaction r
 queryOneRowCheck s check =
@@ -273,7 +273,7 @@ queryOneRowCheck s check =
 
 queryOneColCheck ::
   (Sqlite.FromField a, SqliteExceptionReason e) =>
-  Sql2 ->
+  Sql ->
   (a -> Either e r) ->
   Transaction r
 queryOneColCheck s check =
