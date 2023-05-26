@@ -25,12 +25,8 @@ module Unison.Sqlite
     unsafeIO,
 
     -- * Executing queries
-    Sql (..),
-    sql,
     Sql2,
     sql2,
-    Values (..),
-    valuesSql,
 
     -- ** Without results
     execute2,
@@ -47,11 +43,10 @@ module Unison.Sqlite
     queryMaybeCol2,
     queryOneRow2,
     queryOneCol2,
-    queryManyListRow,
 
     -- *** With checks
-    queryListRowCheck,
-    queryListColCheck,
+    queryListRowCheck2,
+    queryListColCheck2,
     queryMaybeRowCheck2,
     queryMaybeColCheck2,
     queryOneRowCheck2,
@@ -118,10 +113,8 @@ import Unison.Sqlite.Exception
     isCantOpenException,
   )
 import Unison.Sqlite.JournalMode (JournalMode (..), SetJournalModeException (..), trySetJournalMode)
-import Unison.Sqlite.Sql (Sql (..), sql)
 import Unison.Sqlite.Sql2 (Sql2, sql2)
 import Unison.Sqlite.Transaction
-import Unison.Sqlite.Values (Values (..), valuesSql)
 
 -- $query-naming-convention
 --

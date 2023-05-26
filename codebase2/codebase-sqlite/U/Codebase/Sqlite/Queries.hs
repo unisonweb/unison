@@ -273,7 +273,7 @@ import Data.Map.NonEmpty qualified as NEMap
 import Data.Maybe qualified as Maybe
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
-import Data.String.Here.Uninterpolated (here, hereFile)
+import Data.String.Here.Uninterpolated (hereFile)
 import Data.Text qualified as Text
 import Data.Vector qualified as Vector
 import GHC.Stack (callStack)
@@ -2090,17 +2090,15 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let suffixGlob = case maySuffix of
         Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
-  queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob :. Only suffixGlob) \reversedNames ->
-    for reversedNames reversedNameToReversedSegments
-  where
-    sql =
-      [here|
-        SELECT reversed_name FROM scoped_term_name_lookup
-        WHERE root_branch_hash_id = ?
-              AND referent_builtin IS ? AND referent_component_hash IS ? AND referent_component_index IS ? AND referent_constructor_index IS ?
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
-        |]
+  queryListColCheck2
+    [sql2|
+      SELECT reversed_name FROM scoped_term_name_lookup
+      WHERE root_branch_hash_id = :bhId
+            AND referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
+            AND namespace GLOB :namespaceGlob
+            AND reversed_name GLOB :suffixGlob
+    |]
+    \reversedNames -> for reversedNames reversedNameToReversedSegments
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -2112,17 +2110,15 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let suffixGlob = case maySuffix of
         Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
-  queryListColCheck sql (Only bhId :. ref :. Only namespaceGlob :. Only suffixGlob) \reversedNames ->
-    for reversedNames reversedNameToReversedSegments
-  where
-    sql =
-      [here|
-        SELECT reversed_name FROM scoped_type_name_lookup
-        WHERE root_branch_hash_id = ?
-              AND reference_builtin IS ? AND reference_component_hash IS ? AND reference_component_index IS ?
-              AND namespace GLOB ?
-              AND reversed_name GLOB ?
-        |]
+  queryListColCheck2
+    [sql2|
+      SELECT reversed_name FROM scoped_type_name_lookup
+      WHERE root_branch_hash_id = :bhId
+            AND reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
+            AND namespace GLOB :namespaceGlob
+            AND reversed_name GLOB :suffixGlob
+    |]
+    \reversedNames -> for reversedNames reversedNameToReversedSegments
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -2242,12 +2238,12 @@ before x y =
       )
     |]
   where
-    selectAncestorsOfY = ancestorSql2 y
+    selectAncestorsOfY = ancestorSql y
 
 lca :: CausalHashId -> CausalHashId -> Transaction (Maybe CausalHashId)
 lca x y =
-  queryStreamCol sql (Only x) \nextX ->
-    queryStreamCol sql (Only y) \nextY -> do
+  queryStreamCol (ancestorSql x) \nextX ->
+    queryStreamCol (ancestorSql y) \nextY -> do
       let getNext = (,) <$> nextX <*> nextY
           loop2 seenX seenY =
             getNext >>= \case
@@ -2271,27 +2267,9 @@ lca x y =
                   Just v -> loop1 getNext matches v
                   Nothing -> pure Nothing
       loop2 (Set.singleton x) (Set.singleton y)
-  where
-    sql = fromString ancestorSql
 
-ancestorSql :: String
-ancestorSql =
-  [here|
-    WITH RECURSIVE
-      ancestor(id) AS (
-        SELECT self_hash_id
-          FROM causal
-          WHERE self_hash_id = ?
-        UNION ALL
-        SELECT parent_id
-          FROM causal_parent
-          JOIN ancestor ON ancestor.id = causal_id
-      )
-    SELECT * FROM ancestor
-  |]
-
-ancestorSql2 :: CausalHashId -> Sql2
-ancestorSql2 h =
+ancestorSql :: CausalHashId -> Sql2
+ancestorSql h =
   [sql2|
     WITH RECURSIVE
       ancestor(id) AS (

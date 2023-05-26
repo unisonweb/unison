@@ -24,11 +24,10 @@ module Unison.Sqlite.Transaction
     queryMaybeCol2,
     queryOneRow2,
     queryOneCol2,
-    queryManyListRow,
 
     -- *** With checks
-    queryListRowCheck,
-    queryListColCheck,
+    queryListRowCheck2,
+    queryListColCheck2,
     queryMaybeRowCheck2,
     queryMaybeColCheck2,
     queryOneRowCheck2,
@@ -50,7 +49,6 @@ import Unison.Prelude
 import Unison.Sqlite.Connection (Connection (..))
 import Unison.Sqlite.Connection qualified as Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason, SqliteQueryException, pattern SqliteBusyException)
-import Unison.Sqlite.Sql
 import Unison.Sqlite.Sql2 (Sql2)
 import UnliftIO.Exception (bracketOnError_, catchAny, trySyncOrAsync, uninterruptibleMask)
 
@@ -186,27 +184,25 @@ executeStatements s =
 -- With results, without checks
 
 queryStreamRow ::
-  (Sqlite.FromRow a, Sqlite.ToRow b) =>
-  Sql ->
-  b ->
+  (Sqlite.FromRow a) =>
+  Sql2 ->
   (Transaction (Maybe a) -> Transaction r) ->
   Transaction r
-queryStreamRow s params callback =
+queryStreamRow sql callback =
   Transaction \conn ->
-    Connection.queryStreamRow conn s params \next ->
+    Connection.queryStreamRow conn sql \next ->
       unsafeUnTransaction (callback (unsafeIO next)) conn
 
 queryStreamCol ::
-  forall a b r.
-  (Sqlite.FromField a, Sqlite.ToRow b) =>
-  Sql ->
-  b ->
+  forall a r.
+  (Sqlite.FromField a) =>
+  Sql2 ->
   (Transaction (Maybe a) -> Transaction r) ->
   Transaction r
 queryStreamCol =
   coerce
-    @(Sql -> b -> (Transaction (Maybe (Sqlite.Only a)) -> Transaction r) -> Transaction r)
-    @(Sql -> b -> (Transaction (Maybe a) -> Transaction r) -> Transaction r)
+    @(Sql2 -> (Transaction (Maybe (Sqlite.Only a)) -> Transaction r) -> Transaction r)
+    @(Sql2 -> (Transaction (Maybe a) -> Transaction r) -> Transaction r)
     queryStreamRow
 
 queryListRow2 :: (Sqlite.FromRow a) => Sql2 -> Transaction [a]
@@ -233,30 +229,23 @@ queryOneCol2 :: (Sqlite.FromField a) => Sql2 -> Transaction a
 queryOneCol2 s =
   Transaction \conn -> Connection.queryOneCol2 conn s
 
--- | Run a query many times using a prepared statement.
-queryManyListRow :: (Sqlite.FromRow r, Sqlite.ToRow q) => Sql -> [q] -> Transaction [[r]]
-queryManyListRow s params =
-  Transaction \conn -> Connection.queryManyListRow conn s params
-
 -- With results, with parameters, with checks
 
-queryListRowCheck ::
-  (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
-  Sql ->
-  a ->
-  ([b] -> Either e r) ->
+queryListRowCheck2 ::
+  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  Sql2 ->
+  ([a] -> Either e r) ->
   Transaction r
-queryListRowCheck s params check =
-  Transaction \conn -> Connection.queryListRowCheck conn s params check
+queryListRowCheck2 sql check =
+  Transaction \conn -> Connection.queryListRowCheck2 conn sql check
 
-queryListColCheck ::
-  (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
-  Sql ->
-  a ->
-  ([b] -> Either e r) ->
+queryListColCheck2 ::
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  Sql2 ->
+  ([a] -> Either e r) ->
   Transaction r
-queryListColCheck s params check =
-  Transaction \conn -> Connection.queryListColCheck conn s params check
+queryListColCheck2 sql check =
+  Transaction \conn -> Connection.queryListColCheck2 conn sql check
 
 queryMaybeRowCheck2 ::
   (Sqlite.FromRow a, SqliteExceptionReason e) =>

@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Unison.Sqlite.Connection
@@ -20,11 +21,10 @@ module Unison.Sqlite.Connection
     queryMaybeCol2,
     queryOneRow2,
     queryOneCol2,
-    queryManyListRow,
 
     -- *** With checks
-    queryListRowCheck,
-    queryListColCheck,
+    queryListRowCheck2,
+    queryListColCheck2,
     queryMaybeRowCheck2,
     queryMaybeColCheck2,
     queryOneRowCheck2,
@@ -68,8 +68,7 @@ import Unison.Debug qualified as Debug
 import Unison.Prelude
 import Unison.Sqlite.Connection.Internal (Connection (..))
 import Unison.Sqlite.Exception
-import Unison.Sqlite.Sql
-import Unison.Sqlite.Sql2 (Sql2 (..))
+import Unison.Sqlite.Sql2 (Sql2 (..), sql2)
 import UnliftIO.Exception
 
 -- | Perform an action with a connection to a SQLite database.
@@ -98,8 +97,8 @@ openConnection ::
 openConnection name file = do
   conn0 <- Sqlite.open file `catch` rethrowAsSqliteConnectException name file
   let conn = Connection {conn = conn0, file, name}
-  execute_ conn "PRAGMA foreign_keys = ON"
-  execute_ conn "PRAGMA busy_timeout = 60000"
+  execute2 conn [sql2| PRAGMA foreign_keys = ON |]
+  execute2 conn [sql2| PRAGMA busy_timeout = 60000 |]
   pure conn
 
 -- Close a connection opened with 'openConnection'.
@@ -114,8 +113,8 @@ closeConnection (Connection _ _ conn) =
 -- An internal type, for making prettier debug logs
 
 data Query = Query
-  { sql :: Sql,
-    params :: Maybe String,
+  { sql :: Text,
+    params :: [Sqlite.SQLData],
     result :: Maybe String,
     callStack :: [String]
   }
@@ -125,80 +124,35 @@ instance Show Query where
     concat
       [ "Query { sql = ",
         show sql,
-        maybe "" (\p -> ", params = " ++ show p) params,
-        maybe "" (\r -> ", results = " ++ show r) result,
-        if null callStack then "" else ", callStack = " ++ show callStack,
-        " }"
-      ]
-
-logQuery :: Sql -> Maybe a -> Maybe b -> IO ()
-logQuery sql params result =
-  Debug.whenDebug Debug.Sqlite do
-    callStack <- currentCallStack
-    pTraceShowM
-      Query
-        { sql,
-          params = anythingToString <$> params,
-          result = anythingToString <$> result,
-          callStack
-        }
-
--- Will replace `Query` when `sql2` replaces `sql` everywhere.
-data Query2 = Query2
-  { sql :: Sql,
-    params :: [Sqlite.SQLData],
-    result :: Maybe String,
-    callStack :: [String]
-  }
-
-instance Show Query2 where
-  show Query2 {sql, params, result, callStack} =
-    concat
-      [ "Query { sql = ",
-        show sql,
         if null params then "" else ", params = " ++ show params,
         maybe "" (\r -> ", results = " ++ show r) result,
         if null callStack then "" else ", callStack = " ++ show callStack,
         " }"
       ]
 
--- Will replace `logQuery` when `sql2` replaces `sql` everywhere.
-logQuery2 :: Sql -> [Sqlite.SQLData] -> Maybe b -> IO ()
-logQuery2 sql params result =
+logQuery :: Sql2 -> Maybe a -> IO ()
+logQuery (Sql2 sql params) result =
   Debug.whenDebug Debug.Sqlite do
     callStack <- currentCallStack
     pTraceShowM
-      Query2
+      Query
         { sql,
           params,
           result = anythingToString <$> result,
           callStack
         }
 
--- Without results, with parameters
+-- Without results
 
-execute :: (Sqlite.ToRow a) => Connection -> Sql -> a -> IO ()
-execute conn@(Connection _ _ conn0) s params = do
-  logQuery s (Just params) Nothing
-  Sqlite.execute conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
+execute2 :: Connection -> Sql2 -> IO ()
+execute2 conn@(Connection _ _ conn0) sql@(Sql2 s params) = do
+  logQuery sql Nothing
+  doExecute `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
-          params = Just params,
-          sql = s
-        }
-
-execute2 :: Connection -> Sql2 -> IO ()
-execute2 conn@(Connection _ _ conn0) (Sql2 s params) = do
-  logQuery2 (Sql s) params Nothing
-  doExecute `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteQueryException2
-      SqliteQueryExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          params = Just params,
-          sql = Sql s
+          sql
         }
   where
     doExecute :: IO ()
@@ -207,46 +161,30 @@ execute2 conn@(Connection _ _ conn0) (Sql2 s params) = do
         bindParameters statement params
         void (Direct.Sqlite.step statement)
 
--- Without results, without parameters
-
-execute_ :: Connection -> Sql -> IO ()
-execute_ conn@(Connection _ _ conn0) s = do
-  logQuery s Nothing Nothing
-  Sqlite.execute_ conn0 (coerce s) `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteQueryException
-      SqliteQueryExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          params = Nothing,
-          sql = s
-        }
-
 -- | Execute one or more semicolon-delimited statements.
 --
 -- This function does not support parameters, and is mostly useful for executing DDL and migrations.
 executeStatements :: Connection -> Text -> IO ()
-executeStatements conn@(Connection _ _ (Sqlite.Connection database)) s = do
-  logQuery (Sql s) Nothing Nothing
-  Direct.Sqlite.exec database (coerce s) `catch` \(exception :: Sqlite.SQLError) ->
+executeStatements conn@(Connection _ _ (Sqlite.Connection database)) sql = do
+  logQuery (Sql2 sql []) Nothing
+  Direct.Sqlite.exec database sql `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
-          params = Nothing,
-          sql = Sql s
+          sql = Sql2 sql []
         }
 
 -- With results, without checks
 
-queryStreamRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Connection -> Sql -> a -> (IO (Maybe b) -> IO r) -> IO r
-queryStreamRow conn@(Connection _ _ conn0) s params callback =
+queryStreamRow :: Sqlite.FromRow a => Connection -> Sql2 -> (IO (Maybe a) -> IO r) -> IO r
+queryStreamRow conn@(Connection _ _ conn0) sql@(Sql2 s params) callback =
   run `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
-          params = Just params,
-          sql = s
+          sql
         }
   where
     run =
@@ -255,47 +193,30 @@ queryStreamRow conn@(Connection _ _ conn0) s params callback =
         callback (Sqlite.nextRow statement)
 
 queryStreamCol ::
-  forall a b r.
-  (Sqlite.FromField b, Sqlite.ToRow a) =>
+  forall a r.
+  (Sqlite.FromField a) =>
   Connection ->
-  Sql ->
-  a ->
-  (IO (Maybe b) -> IO r) ->
+  Sql2 ->
+  (IO (Maybe a) -> IO r) ->
   IO r
 queryStreamCol =
   coerce
-    @(Connection -> Sql -> a -> (IO (Maybe (Sqlite.Only b)) -> IO r) -> IO r)
-    @(Connection -> Sql -> a -> (IO (Maybe b) -> IO r) -> IO r)
+    @(Connection -> Sql2 -> (IO (Maybe (Sqlite.Only a)) -> IO r) -> IO r)
+    @(Connection -> Sql2 -> (IO (Maybe a) -> IO r) -> IO r)
     queryStreamRow
 
-queryListRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
-queryListRow conn@(Connection _ _ conn0) s params = do
+queryListRow2 :: forall a. (Sqlite.FromRow a) => Connection -> Sql2 -> IO [a]
+queryListRow2 conn@(Connection _ _ conn0) sql@(Sql2 s params) = do
   result <-
-    Sqlite.query conn0 (coerce s) params
+    doQuery
       `catch` \(exception :: Sqlite.SQLError) ->
         throwSqliteQueryException
           SqliteQueryExceptionInfo
             { connection = conn,
               exception = SomeSqliteExceptionReason exception,
-              params = Just params,
-              sql = s
+              sql
             }
-  logQuery s (Just params) (Just result)
-  pure result
-
-queryListRow2 :: forall a. (Sqlite.FromRow a) => Connection -> Sql2 -> IO [a]
-queryListRow2 conn@(Connection _ _ conn0) (Sql2 s params) = do
-  result <-
-    doQuery
-      `catch` \(exception :: Sqlite.SQLError) ->
-        throwSqliteQueryException2
-          SqliteQueryExceptionInfo
-            { connection = conn,
-              exception = SomeSqliteExceptionReason exception,
-              params = Just params,
-              sql = Sql s
-            }
-  logQuery2 (Sql s) params (Just result)
+  logQuery sql (Just result)
   pure result
   where
     doQuery :: IO [a]
@@ -334,42 +255,7 @@ queryOneCol2 :: forall a. (Sqlite.FromField a) => Connection -> Sql2 -> IO a
 queryOneCol2 conn s = do
   coerce @(IO (Sqlite.Only a)) @(IO a) (queryOneRow2 conn s)
 
--- | Run a query many times using a prepared statement.
-queryManyListRow :: forall q r. (Sqlite.ToRow q, Sqlite.FromRow r) => Connection -> Sql -> [q] -> IO [[r]]
-queryManyListRow conn@(Connection _ _ conn0) s params = case params of
-  [] -> pure []
-  _ -> handle handler do
-    logQuery s (Just params) Nothing
-    Sqlite.withStatement conn0 (coerce s) \stmt -> do
-      for params \p ->
-        Sqlite.withBind stmt p $ exhaustQuery stmt
-  where
-    handler :: Sqlite.SQLError -> IO a
-    handler exception =
-      throwSqliteQueryException
-        SqliteQueryExceptionInfo
-          { connection = conn,
-            exception = SomeSqliteExceptionReason exception,
-            params = Just params,
-            sql = s
-          }
-    exhaustQuery :: Sqlite.Statement -> IO [r]
-    exhaustQuery stmt = do
-      Sqlite.nextRow stmt >>= \case
-        Just a -> (a :) <$> exhaustQuery stmt
-        Nothing -> pure []
-
 -- With results, with checks
-
-queryListRowCheck ::
-  (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
-  Connection ->
-  Sql ->
-  a ->
-  ([b] -> Either e r) ->
-  IO r
-queryListRowCheck conn s params check =
-  gqueryListCheck conn s params (mapLeft SomeSqliteExceptionReason . check)
 
 queryListRowCheck2 ::
   (Sqlite.FromRow a, SqliteExceptionReason e) =>
@@ -380,55 +266,33 @@ queryListRowCheck2 ::
 queryListRowCheck2 conn s check =
   gqueryListCheck2 conn s (mapLeft SomeSqliteExceptionReason . check)
 
-gqueryListCheck ::
-  (Sqlite.FromRow b, Sqlite.ToRow a) =>
-  Connection ->
-  Sql ->
-  a ->
-  ([b] -> Either SomeSqliteExceptionReason r) ->
-  IO r
-gqueryListCheck conn s params check = do
-  xs <- queryListRow conn s params
-  case check xs of
-    Left exception ->
-      throwSqliteQueryException
-        SqliteQueryExceptionInfo
-          { connection = conn,
-            exception,
-            params = Just params,
-            sql = s
-          }
-    Right result -> pure result
-
 gqueryListCheck2 ::
   (Sqlite.FromRow a) =>
   Connection ->
   Sql2 ->
   ([a] -> Either SomeSqliteExceptionReason r) ->
   IO r
-gqueryListCheck2 conn s@(Sql2 sql params) check = do
-  xs <- queryListRow2 conn s
+gqueryListCheck2 conn sql check = do
+  xs <- queryListRow2 conn sql
   case check xs of
     Left exception ->
-      throwSqliteQueryException2
+      throwSqliteQueryException
         SqliteQueryExceptionInfo
           { connection = conn,
             exception,
-            params = Just params,
-            sql = Sql sql
+            sql
           }
     Right result -> pure result
 
-queryListColCheck ::
-  forall a b e r.
-  (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
+queryListColCheck2 ::
+  forall a e r.
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
   Connection ->
-  Sql ->
-  a ->
-  ([b] -> Either e r) ->
+  Sql2 ->
+  ([a] -> Either e r) ->
   IO r
-queryListColCheck conn s params check =
-  queryListRowCheck conn s params (coerce @([b] -> Either e r) @([Sqlite.Only b] -> Either e r) check)
+queryListColCheck2 conn s check =
+  queryListRowCheck2 conn s (coerce @([a] -> Either e r) @([Sqlite.Only a] -> Either e r) check)
 
 queryMaybeRowCheck2 ::
   (Sqlite.FromRow a, SqliteExceptionReason e) =>
@@ -485,7 +349,7 @@ rowsModified (Connection _ _ conn) =
 -- transactions.
 vacuum :: Connection -> IO Bool
 vacuum conn =
-  try (execute_ conn "VACUUM") >>= \case
+  try (execute2 conn [sql2| VACUUM |]) >>= \case
     Left SqliteBusyException -> pure False
     Left exception -> throwIO exception
     Right () -> pure True
@@ -493,29 +357,29 @@ vacuum conn =
 -- | @VACUUM INTO@
 vacuumInto :: Connection -> FilePath -> IO ()
 vacuumInto conn file =
-  execute conn "VACUUM INTO ?" (Sqlite.Only file)
+  execute2 conn [sql2| VACUUM INTO :file |]
 
 -- Low-level
 
 -- | @BEGIN@
 begin :: Connection -> IO ()
 begin conn =
-  execute_ conn "BEGIN"
+  execute2 conn [sql2| BEGIN |]
 
 -- | @BEGIN IMMEDIATE@
 beginImmediate :: Connection -> IO ()
 beginImmediate conn =
-  execute_ conn "BEGIN IMMEDIATE"
+  execute2 conn [sql2| BEGIN IMMEDIATE |]
 
 -- | @COMMIT@
 commit :: Connection -> IO ()
 commit conn =
-  execute_ conn "COMMIT"
+  execute2 conn [sql2| COMMIT |]
 
 -- | @ROLLBACK@
 rollback :: Connection -> IO ()
 rollback conn =
-  execute_ conn "ROLLBACK"
+  execute2 conn [sql2| ROLLBACK |]
 
 -- | Perform an action within a named savepoint. The action is provided a rollback action.
 withSavepoint :: (MonadUnliftIO m) => Connection -> Text -> (m () -> m a) -> m a
@@ -541,17 +405,17 @@ withSavepointIO conn name action = do
 -- | @SAVEPOINT@
 savepoint :: Connection -> Text -> IO ()
 savepoint conn name =
-  execute_ conn (Sql ("SAVEPOINT " <> name))
+  execute2 conn (Sql2 ("SAVEPOINT " <> name) [])
 
 -- | @ROLLBACK TO@
 rollbackTo :: Connection -> Text -> IO ()
 rollbackTo conn name =
-  execute_ conn (Sql ("ROLLBACK TO " <> name))
+  execute2 conn (Sql2 ("ROLLBACK TO " <> name) [])
 
 -- | @RELEASE@
 release :: Connection -> Text -> IO ()
 release conn name =
-  execute_ conn (Sql ("RELEASE " <> name))
+  execute2 conn (Sql2 ("RELEASE " <> name) [])
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Utils

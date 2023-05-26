@@ -16,7 +16,6 @@ module Unison.Sqlite.Exception
     isSqliteBusyException,
     SqliteQueryExceptionInfo (..),
     throwSqliteQueryException,
-    throwSqliteQueryException2,
     SomeSqliteExceptionReason (..),
     SqliteExceptionReason,
   )
@@ -25,11 +24,10 @@ where
 import Control.Concurrent (ThreadId, myThreadId)
 import Data.Typeable (cast)
 import Database.SQLite.Simple qualified as Sqlite
-import Debug.RecoverRTTI (anythingToString)
 import GHC.Stack (currentCallStack)
 import Unison.Prelude
 import Unison.Sqlite.Connection.Internal (Connection)
-import Unison.Sqlite.Sql
+import Unison.Sqlite.Sql2 (Sql2 (..))
 import UnliftIO.Exception
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -109,8 +107,8 @@ rethrowAsSqliteConnectException name file exception = do
 -- When actions are run on an untrusted codebase, e.g. one downloaded from a remote server, it is sufficient to catch
 -- just one exception type, @SqliteQueryException@.
 data SqliteQueryException = SqliteQueryException
-  { sql :: Sql,
-    params :: String,
+  { sql :: Text,
+    params :: [Sqlite.SQLData],
     -- | The inner exception. It is intentionally not 'SomeException', so that calling code cannot accidentally
     -- 'throwIO' domain-specific exception types, but must instead use a @*Check@ query variant.
     exception :: SomeSqliteExceptionReason,
@@ -133,36 +131,20 @@ isSqliteBusyException SqliteQueryException {exception = SomeSqliteExceptionReaso
     Just (Sqlite.SQLError Sqlite.ErrorBusy _ _) -> True
     _ -> False
 
-data SqliteQueryExceptionInfo params = SqliteQueryExceptionInfo
+data SqliteQueryExceptionInfo = SqliteQueryExceptionInfo
   { connection :: Connection,
-    sql :: Sql,
-    params :: Maybe params,
+    sql :: Sql2,
     exception :: SomeSqliteExceptionReason
   }
 
-throwSqliteQueryException :: SqliteQueryExceptionInfo params -> IO a
-throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, params, sql} = do
+throwSqliteQueryException :: SqliteQueryExceptionInfo -> IO a
+throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, sql = Sql2 sql params} = do
   threadId <- myThreadId
   callStack <- currentCallStack
   throwIO
     SqliteQueryException
       { sql,
-        params = maybe "" anythingToString params,
-        exception,
-        callStack,
-        connection,
-        threadId
-      }
-
--- Will replace `throwSqliteQueryException` when `sql2` replaces `sql` everywhere.
-throwSqliteQueryException2 :: SqliteQueryExceptionInfo [Sqlite.SQLData] -> IO a
-throwSqliteQueryException2 SqliteQueryExceptionInfo {connection, exception, params, sql} = do
-  threadId <- myThreadId
-  callStack <- currentCallStack
-  throwIO
-    SqliteQueryException
-      { sql,
-        params = show (fromMaybe [] params),
+        params,
         exception,
         callStack,
         connection,
