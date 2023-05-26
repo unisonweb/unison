@@ -7,27 +7,27 @@
 -- are unified with non-sqlite operations in the Codebase interface, like 'appendReflog'.
 module Unison.Codebase.SqliteCodebase.Operations where
 
-import qualified Control.Comonad.Cofree as Cofree
+import Control.Comonad.Cofree qualified as Cofree
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
 import Data.Functor.Compose (Compose (..))
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified U.Codebase.Branch as V2Branch
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Branch.Diff (TreeDiff (TreeDiff))
-import qualified U.Codebase.Branch.Diff as BranchDiff
+import U.Codebase.Branch.Diff qualified as BranchDiff
 import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash), PatchHash)
-import qualified U.Codebase.Projects as Projects
-import qualified U.Codebase.Reference as C.Reference
-import qualified U.Codebase.Referent as C.Referent
+import U.Codebase.Projects qualified as Projects
+import U.Codebase.Reference qualified as C.Reference
+import U.Codebase.Referent qualified as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
 import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
-import qualified U.Codebase.Sqlite.NamedRef as S
-import qualified U.Codebase.Sqlite.ObjectType as OT
+import U.Codebase.Sqlite.NamedRef qualified as S
+import U.Codebase.Sqlite.ObjectType qualified as OT
 import U.Codebase.Sqlite.Operations (NamesByPath (..))
 import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Q

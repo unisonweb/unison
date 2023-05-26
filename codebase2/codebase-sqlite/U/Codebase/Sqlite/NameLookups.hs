@@ -13,7 +13,7 @@ module U.Codebase.Sqlite.NameLookups
 where
 
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Unison.Prelude
 
 newtype ReversedName = ReversedName (NonEmpty Text)

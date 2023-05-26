@@ -7,25 +7,25 @@ module Unison.Server.Share.Definitions (definitionForHQName) where
 
 import Control.Lens hiding ((??))
 import Control.Monad.Except
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
-import qualified U.Codebase.Sqlite.Operations as Ops
+import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Rt
-import qualified Unison.Codebase.SqliteCodebase.Conversions as CV
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.Debug as Debug
-import qualified Unison.HashQualified as HQ
-import qualified Unison.LabeledDependency as LD
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Rt
+import Unison.Codebase.SqliteCodebase.Conversions qualified as CV
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.Debug qualified as Debug
+import Unison.HashQualified qualified as HQ
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -40,7 +40,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.Doc qualified as Doc
 import Unison.Server.NameSearch.Sqlite qualified as SqliteNameSearch
 import Unison.Server.Types
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Util.Pretty (Width)

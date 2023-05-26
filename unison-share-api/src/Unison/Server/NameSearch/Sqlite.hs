@@ -11,9 +11,9 @@ import Control.Lens
 import Data.Set qualified as Set
 import U.Codebase.HashTags (BranchHash)
 import U.Codebase.Sqlite.NameLookups (PathSegments (PathSegments), ReversedName (..))
-import qualified U.Codebase.Sqlite.NamedRef as NamedRef
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified Unison.Builtin as Builtin
+import U.Codebase.Sqlite.NamedRef qualified as NamedRef
+import U.Codebase.Sqlite.Operations qualified as Ops
+import Unison.Builtin qualified as Builtin
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path

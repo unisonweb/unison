@@ -322,10 +322,10 @@ import U.Codebase.Sqlite.LocalIds
     LocalIds' (..),
     LocalTextId (..),
   )
-import qualified U.Codebase.Sqlite.LocalIds as LocalIds
+import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.NameLookups
 import U.Codebase.Sqlite.NamedRef (NamedRef)
-import qualified U.Codebase.Sqlite.NamedRef as NamedRef
+import U.Codebase.Sqlite.NamedRef qualified as NamedRef
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import U.Codebase.Sqlite.ObjectType qualified as ObjectType
 import U.Codebase.Sqlite.Orphans ()

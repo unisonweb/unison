@@ -5,18 +5,18 @@ module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12 (migrateSch
 
 import U.Codebase.HashTags (BranchHash (..))
 import U.Codebase.Projects (inferDependencyMounts)
-import qualified U.Codebase.Reference as C.Reference
+import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Sqlite.NameLookups (PathSegments (PathSegments))
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Queries as Queries
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.SqliteCodebase.Operations as CodebaseOps
-import qualified Unison.ConstructorType as CT
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
+import Unison.ConstructorType qualified as CT
 import Unison.Hash (Hash (..))
-import qualified Unison.Hash32 as Hash32
+import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Prelude hiding (log)
 
 migrateSchema11To12 ::

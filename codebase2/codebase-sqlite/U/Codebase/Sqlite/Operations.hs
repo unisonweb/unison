@@ -114,13 +114,13 @@ where
 import Control.Lens hiding (children)
 import Control.Monad.Extra qualified as Monad
 import Data.Bitraversable (Bitraversable (bitraverse))
-import qualified Data.Foldable as Foldable
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.List.NonEmpty.Extra as NonEmpty
-import qualified Data.Map as Map
-import qualified Data.Map.Merge.Lazy as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Foldable qualified as Foldable
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.NonEmpty.Extra qualified as NonEmpty
+import Data.Map qualified as Map
+import Data.Map.Merge.Lazy qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Tuple.Extra (uncurry3, (***))
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import U.Codebase.Branch.Type qualified as C.Branch
@@ -151,26 +151,26 @@ import U.Codebase.Sqlite.LocalIds
   ( LocalIds,
     WatchLocalIds,
   )
-import qualified U.Codebase.Sqlite.LocalizeObject as LocalizeObject
+import U.Codebase.Sqlite.LocalizeObject qualified as LocalizeObject
 import U.Codebase.Sqlite.NameLookups (PathSegments)
-import qualified U.Codebase.Sqlite.NameLookups as NameLookups
-import qualified U.Codebase.Sqlite.NameLookups as S
-import qualified U.Codebase.Sqlite.NamedRef as S
-import qualified U.Codebase.Sqlite.ObjectType as ObjectType
-import qualified U.Codebase.Sqlite.Patch.Diff as S
-import qualified U.Codebase.Sqlite.Patch.Format as S
-import qualified U.Codebase.Sqlite.Patch.Format as S.Patch.Format
-import qualified U.Codebase.Sqlite.Patch.Full as S (LocalPatch, Patch, Patch' (..))
-import qualified U.Codebase.Sqlite.Patch.TermEdit as S
-import qualified U.Codebase.Sqlite.Patch.TermEdit as S.TermEdit
-import qualified U.Codebase.Sqlite.Patch.TypeEdit as S
-import qualified U.Codebase.Sqlite.Patch.TypeEdit as S.TypeEdit
-import qualified U.Codebase.Sqlite.Queries as Q
-import qualified U.Codebase.Sqlite.Reference as S
-import qualified U.Codebase.Sqlite.Reference as S.Reference
-import qualified U.Codebase.Sqlite.Referent as S
-import qualified U.Codebase.Sqlite.Referent as S.Referent
-import qualified U.Codebase.Sqlite.Serialization as S
+import U.Codebase.Sqlite.NameLookups qualified as NameLookups
+import U.Codebase.Sqlite.NameLookups qualified as S
+import U.Codebase.Sqlite.NamedRef qualified as S
+import U.Codebase.Sqlite.ObjectType qualified as ObjectType
+import U.Codebase.Sqlite.Patch.Diff qualified as S
+import U.Codebase.Sqlite.Patch.Format qualified as S
+import U.Codebase.Sqlite.Patch.Format qualified as S.Patch.Format
+import U.Codebase.Sqlite.Patch.Full qualified as S (LocalPatch, Patch, Patch' (..))
+import U.Codebase.Sqlite.Patch.TermEdit qualified as S
+import U.Codebase.Sqlite.Patch.TermEdit qualified as S.TermEdit
+import U.Codebase.Sqlite.Patch.TypeEdit qualified as S
+import U.Codebase.Sqlite.Patch.TypeEdit qualified as S.TypeEdit
+import U.Codebase.Sqlite.Queries qualified as Q
+import U.Codebase.Sqlite.Reference qualified as S
+import U.Codebase.Sqlite.Reference qualified as S.Reference
+import U.Codebase.Sqlite.Referent qualified as S
+import U.Codebase.Sqlite.Referent qualified as S.Referent
+import U.Codebase.Sqlite.Serialization qualified as S
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.Term.Format qualified as S.Term
 import U.Codebase.Term qualified as C
@@ -188,9 +188,9 @@ import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite
-import qualified Unison.Util.List as List
-import qualified Unison.Util.Map as Map
-import qualified Unison.Util.Set as Set
+import Unison.Util.List qualified as List
+import Unison.Util.Map qualified as Map
+import Unison.Util.Set qualified as Set
 
 -- * Error handling
 
