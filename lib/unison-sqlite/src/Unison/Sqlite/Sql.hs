@@ -14,18 +14,18 @@ where
 import Control.Monad.Trans.State.Strict qualified as State
 import Data.Char qualified as Char
 import Data.Generics.Labels ()
-import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.List.NonEmpty as List.NonEmpty
-import qualified Data.Text as Text
-import qualified Database.SQLite.Simple as Sqlite.Simple
-import qualified Database.SQLite.Simple.ToField as Sqlite.Simple
-import qualified Language.Haskell.TH as TH
-import qualified Language.Haskell.TH.Quote as TH
-import qualified Language.Haskell.TH.Syntax as TH
-import qualified Text.Builder
-import qualified Text.Builder as Text (Builder)
-import qualified Text.Megaparsec as Megaparsec
-import qualified Text.Megaparsec.Char as Megaparsec
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.Text qualified as Text
+import Database.SQLite.Simple qualified as Sqlite.Simple
+import Database.SQLite.Simple.ToField qualified as Sqlite.Simple
+import Language.Haskell.TH qualified as TH
+import Language.Haskell.TH.Quote qualified as TH
+import Language.Haskell.TH.Syntax qualified as TH
+import Text.Builder qualified
+import Text.Builder qualified as Text (Builder)
+import Text.Megaparsec qualified as Megaparsec
+import Text.Megaparsec.Char qualified as Megaparsec
 import Unison.Prelude
 
 -- | A SQL query.
