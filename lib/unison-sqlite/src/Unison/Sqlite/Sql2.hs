@@ -10,7 +10,6 @@ module Unison.Sqlite.Sql2
   )
 where
 
-import Control.Lens (use, (%=), (.=), (<>=))
 import qualified Control.Monad.Trans.State.Strict as State
 import qualified Data.Char as Char
 import Data.Generics.Labels ()
@@ -19,6 +18,7 @@ import qualified Database.SQLite.Simple as Sqlite.Simple
 import qualified Database.SQLite.Simple.ToField as Sqlite.Simple
 import qualified Language.Haskell.TH as TH
 import qualified Language.Haskell.TH.Quote as TH
+import qualified Language.Haskell.TH.Syntax as TH
 import qualified Text.Builder
 import qualified Text.Builder as Text (Builder)
 import qualified Text.Megaparsec as Megaparsec
@@ -28,11 +28,17 @@ import Unison.Prelude
 -- | A SQL query.
 data Sql2 = Sql2
   { query :: Text,
-    -- Think of this as a flat [SQLData]. The Left/Right tags don't affect how we serialize this query: each SQLData
-    -- just gets bound in order. We are just choosing not to pay the memory cost of flattening.
-    params :: [Either Sqlite.Simple.SQLData [Sqlite.Simple.SQLData]]
+    params :: [Sqlite.Simple.SQLData]
   }
   deriving stock (Show)
+
+-- Template haskell, don't ask.
+
+query__ :: Sql2 -> Text
+query__ (Sql2 x _) = x
+
+params__ :: Sql2 -> [Sqlite.Simple.SQLData]
+params__ (Sql2 _ x) = x
 
 -- | A quasi-quoter for producing a 'Sql2' from a SQL query string, using the Haskell variables in scope for each named
 -- parameter.
@@ -62,10 +68,11 @@ data Sql2 = Sql2
 --
 -- There are three valid syntaxes for interpolating a variable:
 --
---   * @:colon@, or @\$dollar@, which denote a single-field variable
+--   * @:colon@, which denotes a single-field variable
 --   * @\@at@, followed by 1+ bare @\@@, which denotes a multi-field variable
+--   * @\$dollar@, which denotes an entire 'Sql2' fragment
 --
--- As an example of the latter, consider a variable @plonk@ with a two-field 'Sqlite.Simple.ToRow' instance. A query
+-- As an example of the second, consider a variable @plonk@ with a two-field 'Sqlite.Simple.ToRow' instance. A query
 -- that interpolates @plonk@ might look like:
 --
 -- @
@@ -76,6 +83,18 @@ data Sql2 = Sql2
 --     AND other = \@
 -- |]
 -- @
+--
+-- As an example of the third,
+--
+-- @
+-- let foo = [sql2| bar |] in [sql2| $foo baz |]
+-- @
+--
+-- is equivalent to
+--
+-- @
+-- [sql2| bar baz |]
+-- @
 sql2 :: TH.QuasiQuoter
 sql2 = TH.QuasiQuoter sql2QQ undefined undefined undefined
 
@@ -83,33 +102,62 @@ sql2QQ :: String -> TH.Q TH.Exp
 sql2QQ input =
   case internalParseSql (Text.pack input) of
     Left err -> fail err
-    Right (query, params0) -> do
-      let params :: [TH.Q TH.Exp]
-          params =
-            map
-              ( \case
-                  FieldParam var ->
-                    TH.lookupValueName (Text.unpack var) >>= \case
-                      Nothing -> fail ("Not in scope: " ++ Text.unpack var)
-                      Just name -> [|Left (Sqlite.Simple.toField $(TH.varE name))|]
-                  RowParam var _count ->
-                    TH.lookupValueName (Text.unpack var) >>= \case
-                      Nothing -> fail ("Not in scope: " ++ Text.unpack var)
-                      Just name -> [|Right (Sqlite.Simple.toRow $(TH.varE name))|]
-              )
-              params0
-      [|Sql2 query $(TH.listE params)|]
+    Right lumps -> do
+      (sqlPieces, paramsPieces) <- unzip <$> for lumps (either outerLump innerLump)
+      [|
+        Sql2
+          (fold $(pure (TH.ListE sqlPieces)))
+          (fold $(pure (TH.ListE paramsPieces)))
+        |]
+  where
+    -- Take an outer lump like
+    --
+    --   ("foo ? ? ?", [FieldParam "bar", RowParam "qux" 2])
+    --
+    -- and resolve each parameter (field or row) to its corresponding list of SQLData, ultimately returning a pair like
+    --
+    --   ("foo ? ? ?", fold [[SQLInteger 5], [SQLInteger 6, SQLInteger 7]]) :: (Text, [SQLData])
+    outerLump :: (Text, [Param]) -> TH.Q (TH.Exp, TH.Exp)
+    outerLump (s, params) =
+      (,) <$> TH.lift s <*> [|fold $(TH.ListE <$> for params paramToSqlData)|]
+      where
+        paramToSqlData :: Param -> TH.Q TH.Exp
+        paramToSqlData = \case
+          FieldParam var ->
+            TH.lookupValueName (Text.unpack var) >>= \case
+              Nothing -> fail ("Not in scope: " ++ Text.unpack var)
+              Just name -> [|[Sqlite.Simple.toField $(TH.varE name)]|]
+          RowParam var _count ->
+            TH.lookupValueName (Text.unpack var) >>= \case
+              Nothing -> fail ("Not in scope: " ++ Text.unpack var)
+              Just name -> [|Sqlite.Simple.toRow $(TH.varE name)|]
 
--- | Parse a SQL string, and return the prettefied SQL string along with the named parameters it contains.
+    innerLump :: Text -> TH.Q (TH.Exp, TH.Exp)
+    innerLump var =
+      TH.lookupValueName (Text.unpack var) >>= \case
+        Nothing -> fail ("Not in scope: " ++ Text.unpack var)
+        Just name -> (,) <$> [|query__ $(TH.varE name)|] <*> [|params__ $(TH.varE name)|]
+
+-- | Parse a SQL string, and return the list of lumps, where each Left is a prettefied SQL string along with the named
+-- parameters it contains, and each Right is the name of a query to be interpolated.
 --
 -- Exported only for testing.
-internalParseSql :: Text -> Either String (Text, [Param])
+internalParseSql :: Text -> Either String [Either (Text, [Param]) Text]
 internalParseSql input =
   case runP (parser <* Megaparsec.eof) (Text.strip input) of
     Left err -> Left (Megaparsec.errorBundlePretty err)
-    Right ((), S {sql, params}) -> Right (Text.Builder.run sql, reverse params)
+    Right ((), lumps) -> Right (map unlump (reverse lumps))
+  where
+    unlump = \case
+      OuterLump sql params -> Left (Text.Builder.run sql, reverse params)
+      InnerLump query -> Right query
 
--- Parser state: the SQL parsed so far, and a list of parameter names (in reverse order).
+-- Parser state.
+--
+-- A simple query (without query interpolation) is a single "outer lump", which contains:
+--
+--   * The SQL parsed so far
+--   * A list of parameter names in reverse order
 --
 -- For example, if we were partway through parsing the query
 --
@@ -117,12 +165,11 @@ internalParseSql input =
 --   FROM bar
 --   WHERE baz = :bonk AND qux = 'monk'
 --
--- then we would have the state
+-- then we would have an outer lump that looks like
 --
---   S
---     { sql = "SELECT foo FROM bar WHERE baz = ? AND "
---     , params = [FieldParam "bonk"]
---     }
+--   OuterLump
+--     "SELECT foo FROM bar WHERE baz = ? AND "
+--     [FieldParam "bonk"]
 --
 -- There are two ways to specify parameters:
 --
@@ -137,11 +184,29 @@ internalParseSql input =
 --      space. This lets us write vertically aligned SQL queries at arbitrary indentations in Haskell quasi-quoters,
 --      but not have to look at a bunch of "\n        " in debug logs and such.
 --   3. We strip comments.
-data S = S
-  { sql :: !Text.Builder,
-    params :: ![Param]
-  }
-  deriving stock (Generic)
+--
+-- More generally, the full parser state tracks a list of alternating "outer" and "inner" lumps (in reverse order),
+-- where an inner lump is simply a single Haskell variable name, and denotes a sql query to be interpolated into the
+-- query.
+--
+-- Example:
+--
+--   [sql| one $two :three $four |]
+--        ^    ^   ^       ^    ^
+--        |    |   |       |    |
+--        |    |   |       |    ` OuterLump " " []
+--        |    |   |       |
+--        |    |   |       ` InnerLump "four"
+--        |    |   |
+--        |    |   ` OuterLump " ? " ["three"]
+--        |    |
+--        |    ` InnerLump "two"
+--        |
+--        ` OuterLump " one " []
+--
+data Lump
+  = OuterLump !Text.Builder ![Param]
+  | InnerLump !Text -- \$foo ==> InnerLump "foo"
 
 data Param
   = FieldParam !Text -- :foo ==> FieldParam "foo"
@@ -149,45 +214,59 @@ data Param
   deriving stock (Eq, Show)
 
 type P a =
-  State.StateT S (Megaparsec.Parsec Void Text) a
+  State.StateT [Lump] (Megaparsec.Parsec Void Text) a
 
-runP :: P a -> Text -> Either (Megaparsec.ParseErrorBundle Text Void) (a, S)
+runP :: P a -> Text -> Either (Megaparsec.ParseErrorBundle Text Void) (a, [Lump])
 runP p =
-  Megaparsec.runParser (State.runStateT p (S mempty [])) ""
+  Megaparsec.runParser (State.runStateT p []) ""
 
 -- Parser for a SQL query (stored in the parser state).
 parser :: P ()
 parser = do
   fragmentParser >>= \case
     Comment -> parser
-    NonParam fragment -> do
-      #sql <>= fragment
-      parser
-    AtParam param -> do
-      #sql <>= Text.Builder.char '?'
-      -- Either we parsed a bare "@", in which case we want to bump the int count of the latest field we walked over (
-      -- which must be a RowField, otherwise the query is invalid as it begins some string of @-params with a bare @),
-      -- or we parsed a new "@foo@ row param
-      let param1 = Text.Builder.run param
-      if Text.null param1
-        then do
-          use #params >>= \case
-            RowParam name count : ps -> #params .= (RowParam name (count + 1) : ps)
-            _ -> fail ("Invalid query: encountered unnamed-@ without a preceding named-@, like `@foo`")
-        else #params %= (RowParam param1 1 :)
-      parser
-    ColonParam param -> do
-      #sql <>= Text.Builder.char '?'
-      #params %= (FieldParam (Text.Builder.run param) :)
-      parser
-    DollarParam param -> do
-      #sql <>= Text.Builder.char '?'
-      #params %= (FieldParam (Text.Builder.run param) :)
-      parser
-    Whitespace -> do
-      #sql <>= Text.Builder.char ' '
-      parser
+    NonParam fragment -> outer fragment pure
+    AtParam param ->
+      outer
+        qmark
+        -- Either we parsed a bare "@", in which case we want to bump the int count of the latest field we walked over
+        -- (which must be a RowField, otherwise the query is invalid as it begins some string of @-params with a bare
+        -- @), or we parsed a new "@foo@ row param
+        let param1 = Text.Builder.run param
+         in if Text.null param1
+              then \case
+                RowParam name count : params -> do
+                  let !count' = count + 1
+                  pure (RowParam name count' : params)
+                _ -> fail ("Invalid query: encountered unnamed-@ without a preceding named-@, like `@foo`")
+              else \params -> pure (RowParam param1 1 : params)
+    ColonParam param -> field param
+    DollarParam param -> inner param
+    Whitespace -> outer (Text.Builder.char ' ') pure
     EndOfInput -> pure ()
+  where
+    outer :: Text.Builder -> ([Param] -> P [Param]) -> P ()
+    outer s g = do
+      State.get >>= \case
+        OuterLump sql params : lumps -> do
+          let !sql' = sql <> s
+          params' <- g params
+          State.put (OuterLump sql' params' : lumps)
+        lumps -> do
+          params <- g []
+          State.put (OuterLump s params : lumps)
+      parser
+
+    inner :: Text.Builder -> P ()
+    inner param = do
+      State.modify' (InnerLump (Text.Builder.run param) :)
+      parser
+
+    field :: Text.Builder -> P ()
+    field param =
+      outer qmark \params -> pure (FieldParam (Text.Builder.run param) : params)
+
+    qmark = Text.Builder.char '?'
 
 -- A single fragment, where a list of fragments (always ending in EndOfFile) makes a whole query.
 --
