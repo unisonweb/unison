@@ -17,12 +17,12 @@ import Control.Monad.State
     modify,
   )
 import Control.Monad.Writer
-import qualified Data.Map as Map
-import qualified Data.Sequence.NonEmpty as NESeq (toSeq)
-import qualified Data.Text as Text
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as B
-import qualified Unison.Name as Name
+import Data.Map qualified as Map
+import Data.Sequence.NonEmpty qualified as NESeq (toSeq)
+import Data.Text qualified as Text
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as B
+import Unison.Name qualified as Name
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Referent (Referent)
@@ -32,17 +32,17 @@ import Unison.Result
     runResultT,
     pattern Result,
   )
-import qualified Unison.Result as Result
-import qualified Unison.Syntax.Name as Name (toText, unsafeFromText)
+import Unison.Result qualified as Result
+import Unison.Syntax.Name qualified as Name (toText, unsafeFromText)
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Typechecker.Context as Context
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.Typechecker.TypeVar as TypeVar
+import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Util.List (uniqueBy)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type Name = Text
 

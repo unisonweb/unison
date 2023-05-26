@@ -6,41 +6,41 @@ module Unison.FileParsers where
 import Control.Lens (view, _3)
 import Control.Monad.State (evalStateT)
 import Control.Monad.Writer (tell)
-import qualified Data.Foldable as Foldable
+import Data.Foldable qualified as Foldable
 import Data.List (partition)
-import qualified Data.List.NonEmpty as List.NonEmpty
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.Text (unpack)
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as Blank
-import qualified Unison.Builtin as Builtin
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as Blank
+import Unison.Builtin qualified as Builtin
+import Unison.Name qualified as Name
+import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parsers as Parsers
+import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv.Names as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (Reference)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), Result, ResultT, pattern Result)
-import qualified Unison.Result as Result
-import qualified Unison.Syntax.Name as Name (toText, unsafeFromVar)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker as Typechecker
-import qualified Unison.Typechecker.Context as Context
+import Unison.Result qualified as Result
+import Unison.Syntax.Name qualified as Name (toText, unsafeFromVar)
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.Extractor (RedundantTypeAnnotation)
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
-import qualified Unison.Util.List as List
-import qualified Unison.Util.Relation as Rel
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.List qualified as List
+import Unison.Util.Relation qualified as Rel
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type Term v = Term.Term v Ann
 

@@ -1,17 +1,17 @@
 module U.Codebase.Projects where
 
-import qualified Control.Lens.Cons as Cons
+import Control.Lens.Cons qualified as Cons
 import Control.Monad.Reader
 import Control.Monad.Writer.Strict (WriterT, execWriterT, tell)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Monoid (Last (..))
 import U.Codebase.Branch
-import qualified U.Codebase.Causal as Causal
+import U.Codebase.Causal qualified as Causal
 import Unison.Codebase.Path
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Name (libSegment)
 import Unison.Prelude
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 
 -- | Infers path to use for loading names.
 -- Currently this means finding the closest parent with a "lib" child.

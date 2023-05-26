@@ -5,9 +5,9 @@ module Unison.Runtime.Serialize where
 import Control.Applicative (liftA2)
 import Control.Monad (replicateM)
 import Data.Bits (Bits)
-import qualified Data.ByteString as B
+import Data.ByteString qualified as B
 import Data.Bytes.Get hiding (getBytes)
-import qualified Data.Bytes.Get as Ser
+import Data.Bytes.Get qualified as Ser
 import Data.Bytes.Put
 import Data.Bytes.Serial
 import Data.Bytes.Signed (Unsigned)
@@ -15,16 +15,16 @@ import Data.Bytes.VarInt
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.Map.Strict as Map (Map, fromList, toList)
-import qualified Data.Primitive as PA
+import Data.Primitive qualified as PA
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import qualified Data.Vector.Primitive as BA
+import Data.Vector.Primitive qualified as BA
 import Data.Word (Word64, Word8)
 import GHC.Exts as IL (IsList (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Reference (Id (..), Reference (..), pattern Derived)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Exception
@@ -34,7 +34,7 @@ import Unison.Runtime.MCode
     UPrim1 (..),
     UPrim2 (..),
   )
-import qualified Unison.Util.Bytes as Bytes
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
 
 unknownTag :: (MonadGet m) => String -> Word8 -> m a

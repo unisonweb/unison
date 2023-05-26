@@ -1,9 +1,9 @@
 module U.Codebase.Sqlite.Symbol where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Word (Word64)
-import qualified U.Core.ABT.Var as ABT
+import U.Core.ABT.Var qualified as ABT
 
 data Symbol = Symbol !Word64 !Text deriving (Eq, Ord, Show)
 

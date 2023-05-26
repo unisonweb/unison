@@ -5,25 +5,25 @@
 
 module Unison.LSP.VFS where
 
-import qualified Colog.Core as Colog
+import Colog.Core qualified as Colog
 import Control.Lens
 import Control.Monad.Reader
 import Control.Monad.State
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
-import qualified Data.Text as Text
-import qualified Data.Text.Utf16.Rope as Rope
+import Data.Text qualified as Text
+import Data.Text.Utf16.Rope qualified as Rope
 import Data.Tuple (swap)
-import qualified Language.LSP.Logging as LSP
+import Language.LSP.Logging qualified as LSP
 import Language.LSP.Types
 import Language.LSP.Types.Lens (HasCharacter (character), HasParams (params), HasTextDocument (textDocument), HasUri (uri))
-import qualified Language.LSP.Types.Lens as LSP
+import Language.LSP.Types.Lens qualified as LSP
 import Language.LSP.VFS as VFS hiding (character)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.Prelude
-import qualified Unison.Syntax.Lexer as Lexer
+import Unison.Syntax.Lexer qualified as Lexer
 import UnliftIO
 
 -- | Some VFS combinators require Monad State, this provides it in a transactionally safe

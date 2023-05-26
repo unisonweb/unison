@@ -6,62 +6,62 @@ import Control.Lens ((%~))
 import Control.Lens.Tuple (_1, _2, _3)
 import Data.List (find, intersperse)
 import Data.List.Extra (nubOrd)
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as Nel
+import Data.Map qualified as Map
 import Data.Proxy
 import Data.Sequence (Seq (..))
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NES
-import qualified Data.Text as Text
-import qualified Text.Megaparsec as P
-import qualified Unison.ABT as ABT
+import Data.Set.NonEmpty qualified as NES
+import Data.Text qualified as Text
+import Text.Megaparsec qualified as P
+import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef, pattern TupleType')
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
 import Unison.Kind (Kind)
-import qualified Unison.Kind as Kind
+import Unison.Kind qualified as Kind
 import Unison.Name (Name)
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.Name qualified as Name
+import Unison.Names qualified as Names
+import Unison.Names.ResolutionResult qualified as Names
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
 import Unison.Pattern (Pattern)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.Reference as R
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.Reference qualified as R
 import Unison.Referent (Referent, pattern Ref)
 import Unison.Result (Note (..))
-import qualified Unison.Result as Result
-import qualified Unison.Settings as Settings
+import Unison.Result qualified as Result
+import Unison.Settings qualified as Settings
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.HashQualified as HQ (toString)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Name as Name (toText)
+import Unison.Syntax.HashQualified qualified as HQ (toString)
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified0)
 import Unison.Syntax.Parser (Annotated, ann)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Syntax.TermPrinter as TermPrinter
-import qualified Unison.Term as Term
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Context as C
+import Unison.Type qualified as Type
+import Unison.Typechecker.Context qualified as C
 import Unison.Typechecker.TypeError
-import qualified Unison.Typechecker.TypeVar as TypeVar
-import qualified Unison.UnisonFile.Error as UF
+import Unison.Typechecker.TypeVar qualified as TypeVar
+import Unison.UnisonFile.Error qualified as UF
 import Unison.Util.AnnotatedText (AnnotatedText)
-import qualified Unison.Util.AnnotatedText as AT
+import Unison.Util.AnnotatedText qualified as AT
 import Unison.Util.ColorText (Color)
-import qualified Unison.Util.ColorText as Color
+import Unison.Util.ColorText qualified as Color
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty (ColorText, Pretty)
-import qualified Unison.Util.Pretty as Pr
+import Unison.Util.Pretty qualified as Pr
 import Unison.Util.Range (Range (..), startingLine)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type Env = PPE.PrettyPrintEnv
 

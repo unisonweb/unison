@@ -16,13 +16,13 @@ module Unison.Util.Map
 where
 
 import Control.Lens hiding (bimap)
-import qualified Control.Monad as Monad
-import qualified Data.Bifunctor as B
-import qualified Data.Bitraversable as B
+import Control.Monad qualified as Monad
+import Data.Bifunctor qualified as B
+import Data.Bitraversable qualified as B
 import Data.Foldable (foldlM)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Vector (Vector)
-import qualified Data.Vector as Vector
+import Data.Vector qualified as Vector
 import Unison.Prelude hiding (bimap)
 
 bimap :: (Ord a') => (a -> a') -> (b -> b') -> Map a b -> Map a' b'

@@ -4,9 +4,9 @@ module Unison.Test.Typechecker where
 
 import EasyTest
 import Unison.Symbol (Symbol (..))
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker as Typechecker
-import qualified Unison.Var as Var
+import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
+import Unison.Var qualified as Var
 
 test :: Test ()
 test =

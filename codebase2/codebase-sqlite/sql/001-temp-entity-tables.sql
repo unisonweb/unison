@@ -60,4 +60,4 @@ create table if not exists temp_entity_missing_dependency (
   unique (dependent, dependency)
 );
 create index if not exists temp_entity_missing_dependency_ix_dependent on temp_entity_missing_dependency (dependent);
-create index if not exists temp_entity_missing_dependency_ix_dependency on temp_entity_missing_dependency (dependency)
+create index if not exists temp_entity_missing_dependency_ix_dependency on temp_entity_missing_dependency (dependency);

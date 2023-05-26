@@ -2,21 +2,21 @@
 
 module Unison.Server.SearchResult' where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
-import qualified Unison.Codebase.Editor.DisplayObject as DT
+import Unison.Codebase.Editor.DisplayObject qualified as DT
 import Unison.DataDeclaration (Decl)
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.DataDeclaration qualified as DD
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 
 data SearchResult' v a
   = Tm' (TermResult' v a)

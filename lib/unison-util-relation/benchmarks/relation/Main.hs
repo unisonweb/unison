@@ -1,13 +1,13 @@
 module Main where
 
 import Control.Monad
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import System.IO.CodePage (withCP65001)
 import System.Random
 import Test.Tasty.Bench
 import Unison.Prelude
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 
 main :: IO ()
 main =

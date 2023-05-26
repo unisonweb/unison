@@ -6,7 +6,7 @@ module Unison.LSP.CancelRequest where
 
 import Control.Lens
 import Control.Monad.Reader
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Language.LSP.Types
 import Language.LSP.Types.Lens as LSP
 import Unison.LSP.Types

@@ -19,6 +19,7 @@ module Unison.Sqlite.Transaction
     executeMany,
 
     -- *** Without parameters
+    executeStatements,
     execute_,
 
     -- ** With results
@@ -76,13 +77,13 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Exception (Exception (fromException), onException, throwIO)
 import Control.Monad.Trans.Reader (ReaderT (..))
-import qualified Data.Text as Text
-import qualified Database.SQLite.Simple as Sqlite
-import qualified Database.SQLite.Simple.FromField as Sqlite
-import qualified System.Random as Random
+import Data.Text qualified as Text
+import Database.SQLite.Simple qualified as Sqlite
+import Database.SQLite.Simple.FromField qualified as Sqlite
+import System.Random qualified as Random
 import Unison.Prelude
 import Unison.Sqlite.Connection (Connection (..))
-import qualified Unison.Sqlite.Connection as Connection
+import Unison.Sqlite.Connection qualified as Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason, SqliteQueryException, pattern SqliteBusyException)
 import Unison.Sqlite.Sql
 import Unison.Sqlite.Sql2 (Sql2)
@@ -222,6 +223,10 @@ executeMany s params =
   Transaction \conn -> Connection.executeMany conn s params
 
 -- Without results, without parameters
+
+executeStatements :: Text -> Transaction ()
+executeStatements s =
+  Transaction \conn -> Connection.executeStatements conn s
 
 execute_ :: Sql -> Transaction ()
 execute_ s =

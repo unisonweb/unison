@@ -15,53 +15,53 @@ where
 
 import Control.Lens (unsnoc, (^.))
 import Control.Monad.State (evalState)
-import qualified Control.Monad.State as State
+import Control.Monad.State qualified as State
 import Data.Char (isPrint)
 import Data.List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Text (unpack)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Vector ()
-import qualified Text.Show.Unicode as U
+import Text.Show.Unicode qualified as U
 import Unison.ABT (annotation, reannotateUp, pattern AbsN')
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as Blank
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as Blank
 import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
-import qualified Unison.Builtin.Decls as DD
+import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorReference as ConstructorReference
-import qualified Unison.ConstructorType as CT
-import qualified Unison.HashQualified as HQ
+import Unison.ConstructorReference qualified as ConstructorReference
+import Unison.ConstructorType qualified as CT
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import qualified Unison.Name as Name
-import qualified Unison.NameSegment as NameSegment
+import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
 import Unison.PrettyPrintEnv.FQN (Imports, Prefix, Suffix, elideFQN)
 import Unison.PrettyPrintEnv.MonadPretty
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Syntax.HashQualified as HQ (unsafeFromVar)
+import Unison.Referent qualified as Referent
+import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.Lexer (showEscapeChar, symbolyId)
-import qualified Unison.Syntax.Name as Name (toString, toText, unsafeFromText)
+import Unison.Syntax.Name qualified as Name (toString, toText, unsafeFromText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
-import qualified Unison.Syntax.TypePrinter as TypePrinter
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
-import qualified Unison.Type as Type
-import qualified Unison.Util.Bytes as Bytes
+import Unison.Type qualified as Type
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (foldMapM, intercalateMap, intercalateMapM)
 import Unison.Util.Pretty (ColorText, Pretty, Width)
-import qualified Unison.Util.Pretty as PP
-import qualified Unison.Util.SyntaxText as S
+import Unison.Util.Pretty qualified as PP
+import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type SyntaxText = S.SyntaxText' Reference
 
@@ -276,9 +276,11 @@ pretty0
                 ]
             else
               PP.spaced
-                [ fmt S.ControlKeyword "handle" `PP.hang` pb
+                [ fmt S.ControlKeyword "handle"
+                    `PP.hang` pb
                     <> PP.softbreak
-                    <> fmt S.ControlKeyword "with" `PP.hang` ph
+                    <> fmt S.ControlKeyword "with"
+                    `PP.hang` ph
                 ]
         where
           pblock tm =

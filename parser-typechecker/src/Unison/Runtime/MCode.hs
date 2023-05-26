@@ -41,7 +41,7 @@ import Data.Bifunctor (bimap, first)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
 import Data.List (partition)
-import qualified Data.Map.Strict as M
+import Data.Map.Strict qualified as M
 import Data.Primitive.PrimArray
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
@@ -72,7 +72,7 @@ import Unison.Runtime.ANF
     pattern TShift,
     pattern TVar,
   )
-import qualified Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import Unison.Var (Var)

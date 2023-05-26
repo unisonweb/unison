@@ -44,13 +44,13 @@ where
 import Control.Lens (Prism')
 import Data.Char (isDigit)
 import Data.Generics.Sum (_Ctor)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Unison.Hash as H
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Unison.Hash qualified as H
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 
 -- | Either a builtin or a user defined (hashed) top-level declaration.
 --

@@ -22,18 +22,18 @@ writeFile fp txt =
 test_getFileSize = do
     fp = !testFile
     _ = writeFile fp "What"
-    fs = (getFileSize fp)
+    fs = (FilePath.getSize fp)
     checkEqual "Get file size should work" fs 4
     removeFile fp
 
 test_getFileSize_err = do
-    expectError' "File size of missing file" ["does not exist", "cannot get size"] '(getFileSize !testFile)
+    expectError' "File size of missing file" ["does not exist", "cannot get size"] '(FilePath.getSize !testFile)
 
 test_getFileTimestamp = do
     time = secondsSinceEpoch !now
     fp = !testFile
     _ = writeFile fp "What"
-    ts = match getFileTimestamp fp with EpochTime nat -> Nat.toInt nat
+    ts = match FilePath.getTimestamp fp with Instant i _ -> i
     after = secondsSinceEpoch !now
     use Int - +
     -- allow slip of up to a second
@@ -45,4 +45,4 @@ test_getFileTimestamp = do
         Tests.pass "File timestamp is reasonable"
     
 test_getFileTimestamp_err = do
-    expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(getFileTimestamp !testFile)
+    expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(FilePath.getTimestamp !testFile)
