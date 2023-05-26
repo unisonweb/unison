@@ -276,9 +276,11 @@ pretty0
                 ]
             else
               PP.spaced
-                [ fmt S.ControlKeyword "handle" `PP.hang` pb
+                [ fmt S.ControlKeyword "handle"
+                    `PP.hang` pb
                     <> PP.softbreak
-                    <> fmt S.ControlKeyword "with" `PP.hang` ph
+                    <> fmt S.ControlKeyword "with"
+                    `PP.hang` ph
                 ]
         where
           pblock tm =
