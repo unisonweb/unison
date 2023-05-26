@@ -7,7 +7,7 @@ import Data.Array (bounds, listArray, (!))
 import Data.Char (ord)
 import System.Console.Haskeline
 import Unison.Cli.Machine
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 
 enumInput :: String -> InputT IO (Maybe Int)
 enumInput prompt = handleCtrlC do
