@@ -16,11 +16,13 @@ module Unison.Server.Endpoints.DefinitionSummary
   )
 where
 
+import Control.Monad.Reader
 import Data.Aeson
 import Data.OpenApi (ToSchema)
 import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -32,6 +34,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl.Sqlite qualified as PPESqlite
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -47,6 +50,7 @@ import Unison.Server.Types
   )
 import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
+import Unison.Type qualified as Type
 import Unison.Util.Pretty (Width)
 
 type TermSummaryAPI =
@@ -103,7 +107,14 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
     Nothing ->
       throwError (Backend.MissingSignatureForTerm termReference)
     Just typeSig -> do
-      (_localNames, ppe) <- Backend.scopedNamesForBranchHash codebase (Just root) relativeToPath
+      ppe <-
+        asks Backend.useNamesIndex >>= \case
+          True -> do
+            let deps = Type.labeledDependencies typeSig
+            liftIO . Codebase.runTransaction codebase $ PPESqlite.ppedForReferences (V2Causal.valueHash root) (fromMaybe Path.Empty relativeTo) deps
+          False -> do
+            (_localNames, ppe) <- Backend.scopedNamesForBranchHash codebase (Just root) relativeToPath
+            pure ppe
       let formattedTermSig = Backend.formatSuffixedType ppe width typeSig
       let summary = mkSummary termReference formattedTermSig
       tag <- lift $ Backend.getTermTag codebase v2Referent sig
