@@ -58,11 +58,6 @@ to `Tests.check` and `Tests.checkEqual`).
 .> add
 ```
 
-TODO remove md5 alias when base is released
-```ucm:hide
-.> alias.term ##crypto.HashAlgorithm.Md5 base.crypto.HashAlgorithm.Md5
-```
-
 ```ucm:hide
 .> load unison-src/builtin-tests/tests.u
 .> add

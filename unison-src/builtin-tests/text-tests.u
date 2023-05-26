@@ -204,7 +204,7 @@ char.class.tests = do
   check "Char.Class: any (2)" do Pattern.isMatch (Text.patterns.char Class.any) "a"
 
   c: Nat -> Char
-  c n = Char.fromNat n
+  c n = Char.fromNat.impl n
 
   run class y n =
     ok = Char.Class.is class
