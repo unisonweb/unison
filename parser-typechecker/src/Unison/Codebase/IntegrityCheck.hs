@@ -77,7 +77,7 @@ instance Monoid IntegrityResult where
 
 integrityCheckAllHashObjects :: Sqlite.Transaction IntegrityResult
 integrityCheckAllHashObjects = do
-  Sqlite.queryListCol2 @DB.ObjectId objectsWithoutHashObjectsSQL >>= \case
+  Sqlite.queryListCol @DB.ObjectId objectsWithoutHashObjectsSQL >>= \case
     (o : os) -> do
       let badObjects = NESet.fromList (o NEList.:| os)
       pure $ IntegrityErrorDetected (NESet.singleton $ DetectedObjectsWithoutCorrespondingHashObjects badObjects)
@@ -99,7 +99,7 @@ integrityCheckAllHashObjects = do
 integrityCheckAllCausals :: Sqlite.Transaction IntegrityResult
 integrityCheckAllCausals = do
   branchObjIntegrity <-
-    Sqlite.queryListRow2 @(DB.CausalHashId, DB.BranchHashId) causalsWithMissingBranchObjects >>= \case
+    Sqlite.queryListRow @(DB.CausalHashId, DB.BranchHashId) causalsWithMissingBranchObjects >>= \case
       [] -> pure NoIntegrityErrors
       (c : cs) -> do
         badCausals <- for (c NEList.:| cs) $ \(causalHashId, branchHashId) -> do
@@ -111,7 +111,7 @@ integrityCheckAllCausals = do
         pure $ IntegrityErrorDetected (NESet.singleton $ DetectedCausalsWithoutCorrespondingBranchObjects $ NESet.fromList badCausals)
 
   differingBranchHashIntegrity <-
-    Sqlite.queryListCol2 @DB.HashId causalsWithMatchingValueHashAndSelfHash >>= \case
+    Sqlite.queryListCol @DB.HashId causalsWithMatchingValueHashAndSelfHash >>= \case
       [] -> pure NoIntegrityErrors
       (c : cs) -> do
         badCausalHashes <- for (c NEList.:| cs) Q.expectHash
@@ -136,7 +136,7 @@ integrityCheckAllCausals = do
 -- | Performs a bevy of checks on branch objects and their relation to causals.
 integrityCheckAllBranches :: Sqlite.Transaction IntegrityResult
 integrityCheckAllBranches = do
-  branchObjIds <- Sqlite.queryListCol2 allBranchObjectIdsSql
+  branchObjIds <- Sqlite.queryListCol allBranchObjectIdsSql
   flip foldMapM branchObjIds integrityCheckBranch
   where
     allBranchObjectIdsSql :: Sqlite.Sql2
@@ -147,7 +147,7 @@ integrityCheckAllBranches = do
 
     doesCausalExistForCausalHashId :: DB.CausalHashId -> Sqlite.Transaction Bool
     doesCausalExistForCausalHashId hashId =
-      Sqlite.queryOneCol2
+      Sqlite.queryOneCol
         [Sqlite.sql2|
           SELECT EXISTS (SELECT 1 FROM causal WHERE self_hash_id = :hashId)
         |]

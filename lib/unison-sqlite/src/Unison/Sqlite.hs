@@ -29,7 +29,7 @@ module Unison.Sqlite
     sql2,
 
     -- ** Without results
-    execute2,
+    execute,
     executeStatements,
 
     -- ** With results
@@ -37,20 +37,20 @@ module Unison.Sqlite
 
     queryStreamRow,
     queryStreamCol,
-    queryListRow2,
-    queryListCol2,
-    queryMaybeRow2,
-    queryMaybeCol2,
-    queryOneRow2,
-    queryOneCol2,
+    queryListRow,
+    queryListCol,
+    queryMaybeRow,
+    queryMaybeCol,
+    queryOneRow,
+    queryOneCol,
 
     -- *** With checks
-    queryListRowCheck2,
-    queryListColCheck2,
-    queryMaybeRowCheck2,
-    queryMaybeColCheck2,
-    queryOneRowCheck2,
-    queryOneColCheck2,
+    queryListRowCheck,
+    queryListColCheck,
+    queryMaybeRowCheck,
+    queryMaybeColCheck,
+    queryOneRowCheck,
+    queryOneColCheck,
 
     -- * Rows modified
     rowsModified,

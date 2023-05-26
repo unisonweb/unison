@@ -47,7 +47,7 @@ journalModeToText = \case
 
 trySetJournalMode :: (MonadIO m) => Connection -> JournalMode -> m ()
 trySetJournalMode conn mode0 = liftIO do
-  queryOneRowCheck2
+  queryOneRowCheck
     conn
     (Sql2 ("PRAGMA journal_mode = " <> journalModeToText mode0) [])
     \(Sqlite.Only mode1s) ->

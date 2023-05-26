@@ -26,14 +26,14 @@ migrateSchema6To7 = do
 addStatsToAllNamespaces :: Sqlite.Transaction ()
 addStatsToAllNamespaces = do
   totalToMigrate <-
-    Sqlite.queryOneCol2
+    Sqlite.queryOneCol
       [Sqlite.sql2|
         SELECT COUNT(*)
           FROM object
           WHERE type_id = 2
       |]
   allBranchObjIds <-
-    Sqlite.queryListCol2
+    Sqlite.queryListCol
       [Sqlite.sql2|
         SELECT id
           FROM object

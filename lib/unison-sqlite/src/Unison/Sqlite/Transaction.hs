@@ -12,26 +12,26 @@ module Unison.Sqlite.Transaction
     -- * Executing queries
 
     -- ** Without results
-    execute2,
+    execute,
     executeStatements,
 
     -- ** With results
     queryStreamRow,
     queryStreamCol,
-    queryListRow2,
-    queryListCol2,
-    queryMaybeRow2,
-    queryMaybeCol2,
-    queryOneRow2,
-    queryOneCol2,
+    queryListRow,
+    queryListCol,
+    queryMaybeRow,
+    queryMaybeCol,
+    queryOneRow,
+    queryOneCol,
 
     -- *** With checks
-    queryListRowCheck2,
-    queryListColCheck2,
-    queryMaybeRowCheck2,
-    queryMaybeColCheck2,
-    queryOneRowCheck2,
-    queryOneColCheck2,
+    queryListRowCheck,
+    queryListColCheck,
+    queryMaybeRowCheck,
+    queryMaybeColCheck,
+    queryOneRowCheck,
+    queryOneColCheck,
 
     -- * Rows modified
     rowsModified,
@@ -173,9 +173,9 @@ unsafeIO action =
 
 -- Without results
 
-execute2 :: Sql2 -> Transaction ()
-execute2 s =
-  Transaction \conn -> Connection.execute2 conn s
+execute :: Sql2 -> Transaction ()
+execute s =
+  Transaction \conn -> Connection.execute conn s
 
 executeStatements :: Text -> Transaction ()
 executeStatements s =
@@ -205,79 +205,79 @@ queryStreamCol =
     @(Sql2 -> (Transaction (Maybe a) -> Transaction r) -> Transaction r)
     queryStreamRow
 
-queryListRow2 :: (Sqlite.FromRow a) => Sql2 -> Transaction [a]
-queryListRow2 s =
-  Transaction \conn -> Connection.queryListRow2 conn s
+queryListRow :: (Sqlite.FromRow a) => Sql2 -> Transaction [a]
+queryListRow s =
+  Transaction \conn -> Connection.queryListRow conn s
 
-queryListCol2 :: (Sqlite.FromField a) => Sql2 -> Transaction [a]
-queryListCol2 s =
-  Transaction \conn -> Connection.queryListCol2 conn s
+queryListCol :: (Sqlite.FromField a) => Sql2 -> Transaction [a]
+queryListCol s =
+  Transaction \conn -> Connection.queryListCol conn s
 
-queryMaybeRow2 :: (Sqlite.FromRow a) => Sql2 -> Transaction (Maybe a)
-queryMaybeRow2 s =
-  Transaction \conn -> Connection.queryMaybeRow2 conn s
+queryMaybeRow :: (Sqlite.FromRow a) => Sql2 -> Transaction (Maybe a)
+queryMaybeRow s =
+  Transaction \conn -> Connection.queryMaybeRow conn s
 
-queryMaybeCol2 :: (Sqlite.FromField a) => Sql2 -> Transaction (Maybe a)
-queryMaybeCol2 s =
-  Transaction \conn -> Connection.queryMaybeCol2 conn s
+queryMaybeCol :: (Sqlite.FromField a) => Sql2 -> Transaction (Maybe a)
+queryMaybeCol s =
+  Transaction \conn -> Connection.queryMaybeCol conn s
 
-queryOneRow2 :: (Sqlite.FromRow a) => Sql2 -> Transaction a
-queryOneRow2 s =
-  Transaction \conn -> Connection.queryOneRow2 conn s
+queryOneRow :: (Sqlite.FromRow a) => Sql2 -> Transaction a
+queryOneRow s =
+  Transaction \conn -> Connection.queryOneRow conn s
 
-queryOneCol2 :: (Sqlite.FromField a) => Sql2 -> Transaction a
-queryOneCol2 s =
-  Transaction \conn -> Connection.queryOneCol2 conn s
+queryOneCol :: (Sqlite.FromField a) => Sql2 -> Transaction a
+queryOneCol s =
+  Transaction \conn -> Connection.queryOneCol conn s
 
 -- With results, with parameters, with checks
 
-queryListRowCheck2 ::
+queryListRowCheck ::
   (Sqlite.FromRow a, SqliteExceptionReason e) =>
   Sql2 ->
   ([a] -> Either e r) ->
   Transaction r
-queryListRowCheck2 sql check =
-  Transaction \conn -> Connection.queryListRowCheck2 conn sql check
+queryListRowCheck sql check =
+  Transaction \conn -> Connection.queryListRowCheck conn sql check
 
-queryListColCheck2 ::
+queryListColCheck ::
   (Sqlite.FromField a, SqliteExceptionReason e) =>
   Sql2 ->
   ([a] -> Either e r) ->
   Transaction r
-queryListColCheck2 sql check =
-  Transaction \conn -> Connection.queryListColCheck2 conn sql check
+queryListColCheck sql check =
+  Transaction \conn -> Connection.queryListColCheck conn sql check
 
-queryMaybeRowCheck2 ::
+queryMaybeRowCheck ::
   (Sqlite.FromRow a, SqliteExceptionReason e) =>
   Sql2 ->
   (a -> Either e r) ->
   Transaction (Maybe r)
-queryMaybeRowCheck2 s check =
-  Transaction \conn -> Connection.queryMaybeRowCheck2 conn s check
+queryMaybeRowCheck s check =
+  Transaction \conn -> Connection.queryMaybeRowCheck conn s check
 
-queryMaybeColCheck2 ::
+queryMaybeColCheck ::
   (Sqlite.FromField a, SqliteExceptionReason e) =>
   Sql2 ->
   (a -> Either e r) ->
   Transaction (Maybe r)
-queryMaybeColCheck2 s check =
-  Transaction \conn -> Connection.queryMaybeColCheck2 conn s check
+queryMaybeColCheck s check =
+  Transaction \conn -> Connection.queryMaybeColCheck conn s check
 
-queryOneRowCheck2 ::
+queryOneRowCheck ::
   (Sqlite.FromRow a, SqliteExceptionReason e) =>
   Sql2 ->
   (a -> Either e r) ->
   Transaction r
-queryOneRowCheck2 s check =
-  Transaction \conn -> Connection.queryOneRowCheck2 conn s check
+queryOneRowCheck s check =
+  Transaction \conn -> Connection.queryOneRowCheck conn s check
 
-queryOneColCheck2 ::
+queryOneColCheck ::
   (Sqlite.FromField a, SqliteExceptionReason e) =>
   Sql2 ->
   (a -> Either e r) ->
   Transaction r
-queryOneColCheck2 s check =
-  Transaction \conn -> Connection.queryOneColCheck2 conn s check
+queryOneColCheck s check =
+  Transaction \conn -> Connection.queryOneColCheck conn s check
 
 -- Rows modified
 

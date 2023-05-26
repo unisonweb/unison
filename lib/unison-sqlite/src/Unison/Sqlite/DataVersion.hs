@@ -17,4 +17,4 @@ newtype DataVersion
 
 getDataVersion :: Transaction DataVersion
 getDataVersion =
-  coerce @(Transaction Int64) (queryOneCol2 [sql2| PRAGMA data_version |])
+  coerce @(Transaction Int64) (queryOneCol [sql2| PRAGMA data_version |])
