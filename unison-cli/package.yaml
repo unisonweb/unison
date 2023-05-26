@@ -15,6 +15,7 @@ dependencies:
   - aeson >= 2.0.0.0
   - aeson-pretty
   - ansi-terminal
+  - array
   - async
   - base
   - bytes

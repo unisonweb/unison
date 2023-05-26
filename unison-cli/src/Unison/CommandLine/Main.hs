@@ -250,8 +250,8 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
                   Cli.Continue -> Machine.Continue loopState
                   Cli.HaltRepl -> Machine.Return loopState ()
                   Cli.Call k machine initialMachineState ->
-                    let k' o = do
-                          (retType, state) <- k o
+                    let k' o s = do
+                          (retType, state) <- k o s
                           pure (toMachineResult state retType)
                      in Machine.Call k' machine initialMachineState
               transition s0 input = do
@@ -277,7 +277,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
                     pure (toMachineResult s1 result)
            in Machine.Machine awaitInput transition
 
-    withInterruptHandler onInterrupt (Machine.runMachine machine initialState `finally` cleanup)
+    withInterruptHandler onInterrupt ((fst <$> Machine.runMachine machine initialState) `finally` cleanup)
 
 -- | Installs a posix interrupt handler for catching SIGINT.
 -- This replaces GHC's default sigint handler which throws a UserInterrupt async exception
