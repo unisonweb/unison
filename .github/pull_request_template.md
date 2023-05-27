@@ -4,7 +4,9 @@ Note: CI will check that all code has been formatted with Ormolu. See [developme
 
 ## Overview
 
-What does this change accomplish and why? i.e. How does it change the user experience?
+What does this change accomplish and why?
+i.e. How does it change the user experience?
+i.e. What was the old behavior/API and what is the new behavior/API?
 
 Feel free to include "before and after" examples if appropriate. (You can copy/paste screenshots directly into this editor.)
 
