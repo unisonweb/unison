@@ -67,7 +67,7 @@ showPatternHelp i =
               then " (or " <> intercalate ", " (I.aliases i) <> ")"
               else ""
           ),
-      P.wrap $ I.help i
+      I.help i
     ]
 
 patternName :: InputPattern -> P.Pretty P.ColorText
@@ -88,8 +88,8 @@ makeExampleEOS p args =
   P.group $
     backtick (intercalateMap " " id (P.nonEmpty $ fromString (I.patternName p) : args)) <> "."
 
-helpFor :: InputPattern -> Either (P.Pretty CT.ColorText) Input
-helpFor p = I.parse help [I.patternName p]
+helpFor :: InputPattern -> P.Pretty CT.ColorText
+helpFor p = I.help p
 
 mergeBuiltins :: InputPattern
 mergeBuiltins =
@@ -499,7 +499,21 @@ sfindReplace =
   where
     parse [q] = Input.StructuredFindReplaceI <$> parseHashQualifiedName q
     parse _ = Left "expected exactly one argument"
-    msg = makeExample sfindReplace ["r"] <> " rewrites definitions in the current file."
+    msg :: P.Pretty CT.ColorText
+    msg = 
+      P.lines [
+        makeExample sfindReplace ["rule1"] <> " rewrites definitions in the current file.",
+        "",
+        P.wrap
+          $ "The argument `rule1` must refer to a pair or a function that immediately returns a pair." 
+          <> "The rule can be in the scratch file or the codebase. An example:",
+        "",
+        "    rule1 x = (x + 1, Nat.increment x)",
+        "",
+        P.wrap $ "Here, `x` will stand in for any expression when this rewrite is applied,"
+              <> "so this rule will match " 
+              <> P.backticked' "(42+10+11) + 1" "."
+      ]
 
 find :: InputPattern
 find = find' "find" Input.FindLocal

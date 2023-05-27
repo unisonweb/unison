@@ -352,7 +352,7 @@ data Output
   | ClonedProjectBranch
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
-  | OutputFile PPE.PrettyPrintEnv FilePath (UF.UnisonFile Symbol Ann)
+  | OutputFile PPE.PrettyPrintEnvDecl FilePath (UF.UnisonFile Symbol Ann)
 
 -- | What did we create a project branch from?
 --

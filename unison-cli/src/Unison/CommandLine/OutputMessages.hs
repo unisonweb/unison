@@ -894,18 +894,7 @@ notifyUser dir = \case
           <> P.blue (P.shown name)
           <> " does not exist or is not a valid source file."
   InvalidStructuredFindReplace _sym -> 
-    pure . P.callout "😶" $
-      P.lines [
-        P.wrap $ "The argument to " <> makeExample' IP.sfindReplace
-            <> "should be a pair or a function that immediately returns a pair, for instance"
-            <> IP.makeExample IP.sfindReplace ["rule1"] <> ", where `rule1`"
-            <> "is in the scratch file or codebase and looks like:",
-        "",
-        "    rule1 x = (x + 1, Nat.increment x)",
-        "",
-        P.wrap $ "`x` will stand in for any expression when this rewrite is applied."
-              <> "so the above rule will match " <> P.backticked "(42+10+11) + 1"
-      ]
+    pure . P.callout "😶" $ IP.helpFor IP.sfindReplace
   SourceLoadFailed name ->
     pure . P.callout "😶" $
       P.wrap $
@@ -2438,8 +2427,44 @@ formatMissingStuff terms types =
              <> P.column2 [(P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types]
        )
 
-displayOutputFile :: PPE.PrettyPrintEnv -> FilePath -> UF.UnisonFile v a -> IO Pretty
-displayOutputFile ppe to uf = pure $ undefined ppe to uf 
+displayOutputFile :: Var v => PPED.PrettyPrintEnvDecl -> FilePath -> UF.UnisonFile v a -> IO Pretty
+displayOutputFile ppe fp uf = do
+  fp <- prependToFile (prettyUnisonFile ppe uf <> foldLine) fp
+  pure $ P.callout "☝️" . P.wrap $ "I added definitions to the top of " <> fromString fp
+
+foldLine :: IsString s => P.Pretty s
+foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
+
+prettyUnisonFile :: forall v a . Var v => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
+prettyUnisonFile ppe (UF.UnisonFileId datas effects terms watches) = 
+  P.syntaxToColor $ P.sep "\n\n" (prettyWatches <> prettyDatas <> prettyEffects <> prettyTerms)
+  where
+    ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
+    dppe = PPE.PrettyPrintEnv (const []) typeName
+    typeName r = (\r -> (r,r)) <$> toList (Map.lookup r typesByRef)
+    typesByRef :: Map Reference (HQ'.HashQualified Name)
+    typesByRef = Map.fromList [ (rd r, hq'v n) | (n, (r,_)) <- Map.toList effects ] <> 
+                 Map.fromList [ (rd r, hq'v n) | (n, (r,_)) <- Map.toList datas ]
+    prettyWatches :: [P.Pretty SyntaxText]
+    prettyWatches = [ go wk v tm | (wk :: WK.WatchKind, tms) <- Map.toList watches, (v,tm) <- tms ]
+      where 
+        pb = TermPrinter.prettyBindingWithoutTypeSignature
+        go :: WK.WatchKind -> v -> Term v a -> P.Pretty SyntaxText
+        go wk v tm = case wk of
+          WK.TestWatch -> "test> " <> pb (PPED.suffixifiedPPE ppe) (hqv v) tm
+          wk -> P.string wk <> "> " <> pb (PPED.suffixifiedPPE ppe) (hqv v) tm
+    prettyEffects = map go (Map.toList effects)
+      where go (n, (r,et)) = DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et)
+    prettyDatas = map go (Map.toList datas)
+      where go (n, (r,dt)) = DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Right dt)
+    prettyTerms = map go terms
+      where go (n, tm) = TermPrinter.prettyBinding (PPED.suffixifiedPPE ppe) (hqv n) tm
+    rd = Reference.DerivedId
+    hqv v = HQ.unsafeFromVar v
+    hq'v v = case hqv v of 
+      HQ.NameOnly n -> HQ'.NameOnly n
+      HQ.HashQualified n h -> HQ'.HashQualified n h
+      _ -> error "impossible"
 
 displayDefinitions' ::
   (Var v) =>
@@ -2491,18 +2516,9 @@ displayRendered outputLoc pp =
   maybe (pure pp) scratchAndDisplay outputLoc
   where
     scratchAndDisplay path = do
-      path' <- canonicalizePath path
-      prependToFile pp path'
+      path' <- prependToFile pp path
       pure (message pp path')
       where
-        prependToFile pp path = do
-          existingContents <- do
-            exists <- doesFileExist path
-            if exists
-              then readUtf8 path
-              else pure ""
-          writeUtf8 path . Text.pack . P.toPlain 80 $
-            P.lines [pp, "", P.text existingContents]
         message pp path =
           P.callout "☝️" $
             P.lines
@@ -2510,6 +2526,19 @@ displayRendered outputLoc pp =
                 "",
                 P.indentN 2 pp
               ]
+
+-- Prepends the rendered Pretty to the file, returning the canonicalized FilePath
+prependToFile :: Pretty -> FilePath -> IO FilePath
+prependToFile pp path0 = do
+  path <- canonicalizePath path0
+  existingContents <- do
+    exists <- doesFileExist path
+    if exists
+      then readUtf8 path
+      else pure ""
+  writeUtf8 path . Text.pack . P.toPlain 80 $
+    P.lines [pp, "", P.text existingContents]
+  pure path
 
 displayDefinitions :: DisplayDefinitionsOutput -> IO Pretty
 displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv = ppe, terms, types} =
@@ -2533,9 +2562,7 @@ displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv 
           writeUtf8 path . Text.pack . P.toPlain 80 $
             P.lines
               [ code,
-                "",
-                "---- " <> "Anything below this line is ignored by Unison.",
-                "",
+                foldLine,
                 P.text existingContents
               ]
         message code path =

@@ -189,7 +189,7 @@ import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toText, unsafeFromString)
+import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toVar, toText, unsafeFromString)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Name as Name (toString, toText, toVar, unsafeFromString, unsafeFromVar)
 import qualified Unison.Syntax.Parser as Parser
@@ -1678,7 +1678,7 @@ handleStructuredFindReplaceI rule = do
   uf <- Cli.expectLatestParsedFile
   (dest,_) <- Cli.expectLatestFile
   #latestFile ?= (dest, True)
-  Cli.respond $ OutputFile (PPE.unsuffixifiedPPE ppe) dest (UF.rewrite lhs rhs uf)
+  Cli.respond $ OutputFile ppe dest (UF.rewrite (Set.singleton (HQ.toVar rule)) lhs rhs uf)
 
 handleFindI ::
   Bool ->
