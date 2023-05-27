@@ -2446,13 +2446,13 @@ prettyUnisonFile ppe (UF.UnisonFileId datas effects terms watches) =
     typesByRef = Map.fromList [ (rd r, hq'v n) | (n, (r,_)) <- Map.toList effects ] <> 
                  Map.fromList [ (rd r, hq'v n) | (n, (r,_)) <- Map.toList datas ]
     prettyWatches :: [P.Pretty SyntaxText]
-    prettyWatches = [ go wk v tm | (wk :: WK.WatchKind, tms) <- Map.toList watches, (v,tm) <- tms ]
+    prettyWatches = [ go wk v tm | (wk, tms) <- Map.toList watches, (v,tm) <- tms ]
       where 
         pb = TermPrinter.prettyBindingWithoutTypeSignature
         go :: WK.WatchKind -> v -> Term v a -> P.Pretty SyntaxText
         go wk v tm = case wk of
-          WK.TestWatch -> "test> " <> pb (PPED.suffixifiedPPE ppe) (hqv v) tm
-          wk -> P.string wk <> "> " <> pb (PPED.suffixifiedPPE ppe) (hqv v) tm
+          WK.RegularWatch -> "> " <> pb (PPED.suffixifiedPPE ppe) (hqv v) tm
+          w -> P.string w <> "> " <> pb (PPED.suffixifiedPPE ppe) (hqv v) tm
     prettyEffects = map go (Map.toList effects)
       where go (n, (r,et)) = DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et)
     prettyDatas = map go (Map.toList datas)
@@ -2536,8 +2536,7 @@ prependToFile pp path0 = do
     if exists
       then readUtf8 path
       else pure ""
-  writeUtf8 path . Text.pack . P.toPlain 80 $
-    P.lines [pp, "", P.text existingContents]
+  writeUtf8 path . Text.pack . P.toPlain 80 $ pp <> P.text existingContents
   pure path
 
 displayDefinitions :: DisplayDefinitionsOutput -> IO Pretty
