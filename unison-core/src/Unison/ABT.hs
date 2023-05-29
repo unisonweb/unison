@@ -489,7 +489,7 @@ reannotateUp g t = case out t of
 
 rewriteExpression ::
   forall f v a.
-  (Var v, forall a. (Eq a) => Eq (f a), Traversable f) =>
+  (Var v, Show v, forall a. (Eq a) => Eq (f a), forall a . (Show a) => Show (f a), Traversable f) =>
   Term f v a ->
   Term f v a ->
   Term f v a ->
@@ -503,7 +503,9 @@ rewriteExpression query replacement tm =
     rewriteHere tm =
       case runState (go query tm) env0 of
         (False, _) -> descend tm
-        (True, subs) -> descend (substs [(k, v) | (k, Just v) <- Map.toList subs] replacement)
+        (True, subs) -> 
+          let tm' = substs [(k, v) | (k, Just v) <- Map.toList subs] replacement
+           in descend tm' <|> Just tm'
       where
         descend :: Term f v a -> Maybe (Term f v a)
         descend tm0 = case out tm0 of
@@ -517,7 +519,7 @@ rewriteExpression query replacement tm =
           Tm f ->
             let ps = (\t -> (t, rewriteHere t)) <$> f
              in if all (isNothing . snd) (toList ps)
-                  then Nothing
+                  then Nothing 
                   else Just $ tm' (annotation tm0) (uncurry fromMaybe <$> ps)
         go ::
           (MonadState (Map v (Maybe (Term f v a))) m) =>

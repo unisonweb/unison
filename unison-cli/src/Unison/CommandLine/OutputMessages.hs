@@ -127,6 +127,7 @@ import Unison.PrettyTerminal
   )
 import Unison.PrintError
   ( prettyParseError,
+    prettyVar,
     prettyResolutionFailures,
     printNoteWithSource,
     renderCompilerBug,
@@ -2432,7 +2433,7 @@ displayOutputRewrittenFile _ppe _fp ([], _uf) =
   pure $ P.callout "😶️" . P.wrap $ "No matches found in the file."
 displayOutputRewrittenFile ppe fp (vs, uf) = do
   fp <- prependToFile (prettyUnisonFile ppe uf <> foldLine) fp
-  let msg = P.sep ", " (P.underline . P.shown <$> vs)
+  let msg = P.sep ", " (P.underline . prettyVar <$> vs)
   pure $ P.callout "☝️" . P.lines $ 
     [ P.wrap $ "I found and replaced matches in these definitions: " <> msg,
       "",
