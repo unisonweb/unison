@@ -352,7 +352,8 @@ data Output
   | ClonedProjectBranch
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
-  | OutputFile PPE.PrettyPrintEnvDecl FilePath (UF.UnisonFile Symbol Ann)
+  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath ([Symbol], UF.UnisonFile Symbol Ann) 
+                                                     --   ^ is symbols that were rewritten
 
 -- | What did we create a project branch from?
 --
@@ -566,7 +567,7 @@ isFailure o = case o of
   DraftingRelease {} -> False
   CannotCreateReleaseBranchWithBranchCommand {} -> True
   CalculatingDiff {} -> False
-  OutputFile {} -> False
+  OutputRewrittenFile {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

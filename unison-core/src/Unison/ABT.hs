@@ -495,26 +495,27 @@ rewriteExpression ::
   Term f v a ->
   Maybe (Term f v a)
 rewriteExpression query replacement tm =
-  root (Map.fromList [(v, Nothing) | v <- toList (freeVars query)]) query tm
+  rewriteHere tm
   where
-    root :: Map v (Maybe (Term f v a)) -> Term f v a -> Term f v a -> Maybe (Term f v a)
-    root env0 q tm =
-      case runState (go q tm) env0 of
+    env0 = Map.fromList [(v, Nothing) | v <- toList (freeVars query)]
+    vs0 = Map.keysSet env0
+    rewriteHere :: Term f v a -> Maybe (Term f v a)
+    rewriteHere tm =
+      case runState (go query tm) env0 of
         (False, _) -> descend tm
         (True, subs) -> descend (substs [(k, v) | (k, Just v) <- Map.toList subs] replacement)
       where
-        vs0 = Map.keysSet env0
         descend :: Term f v a -> Maybe (Term f v a)
         descend tm0 = case out tm0 of
           Abs v tm
-            | Map.notMember v env0 -> abs' (annotation tm0) v <$> root env0 q tm
-            | otherwise -> abs' (annotation tm0) v' <$> root env0 q (rename v v' tm)
+            | Map.notMember v env0 -> abs' (annotation tm0) v <$> rewriteHere tm
+            | otherwise -> abs' (annotation tm0) v' <$> rewriteHere (rename v v' tm)
             where
               v' = freshIn (vs0 <> freeVars tm) v
-          Cycle tm -> cycle' (annotation tm0) <$> root env0 q tm
+          Cycle tm -> cycle' (annotation tm0) <$> rewriteHere tm
           Var _v -> Nothing
           Tm f ->
-            let ps = (\t -> (t, root env0 q t)) <$> f
+            let ps = (\t -> (t, rewriteHere t)) <$> f
              in if all (isNothing . snd) (toList ps)
                   then Nothing
                   else Just $ tm' (annotation tm0) (uncurry fromMaybe <$> ps)
@@ -523,12 +524,12 @@ rewriteExpression query replacement tm =
           Term f v a ->
           Term f v a ->
           m Bool
-        go (Var' v) tm = do
+        go tm0@(Var' v) tm = do
           env <- get
           case Map.lookup v env of
             Just Nothing -> put (Map.insert v (Just tm) env) *> pure True
             Just (Just b) -> go b tm
-            Nothing -> pure False
+            Nothing -> pure $ tm0 == tm
         go (Tm' fq) (Tm' tm) =
           if void fq == void tm
             then all id <$> (for (toList fq `zip` toList tm) $ \(fq, tm) -> go fq tm)
@@ -538,38 +539,36 @@ rewriteExpression query replacement tm =
           if v1 == v2
             then go body1 body2
             else
-              let v3 = freshInBoth body1 body2 v1
+              let v3 = freshIn vs0 $ freshInBoth body1 body2 v1
                in go (rename v1 v3 body1) (rename v2 v3 body2)
         go _ _ = pure False
 
 containsExpression :: forall f v a. (Var v, forall a. (Eq a) => Eq (f a), Traversable f) => Term f v a -> Term f v a -> Bool
-containsExpression query tm =
-  root (Map.fromList [(v, Nothing) | v <- toList (freeVars query)]) query tm
+containsExpression query tm = matchesHere tm
   where
-    root :: Map v (Maybe (ABT f v (Term f v a))) -> Term f v a -> Term f v a -> Bool
-    root env0 q tm =
-      evalState (go (out q) (out tm)) env0 || case out tm of
+    env0 = Map.fromList [(v, Nothing) | v <- toList (freeVars query)]
+    vs0 = Map.keysSet env0
+    matchesHere :: Term f v a -> Bool
+    matchesHere tm =
+      evalState (go (out query) (out tm)) env0 || case out tm of
         Abs v tm
-          | Map.notMember v env0 -> root env0 q tm
-          | otherwise -> root env0 q (rename v (freshIn (vs0 <> freeVars tm) v) tm)
-        Cycle tm -> root env0 q tm
-        Var v -> case out q of
-          Var v2 -> v == v2
-          _ -> False
-        Tm f -> any (root env0 q) (toList f)
+          | Map.notMember v env0 -> matchesHere tm
+          | otherwise -> matchesHere (rename v (freshIn (vs0 <> freeVars tm) v) tm)
+        Cycle tm -> matchesHere tm
+        Var _v -> False
+        Tm f -> any matchesHere (toList f)
       where
-        vs0 = Map.keysSet env0
         go ::
           (MonadState (Map v (Maybe (ABT f v (Term f v a)))) m) =>
           ABT f v (Term f v a) ->
           ABT f v (Term f v a) ->
           m Bool
-        go (Var v) tm = do
+        go tm0@(Var v) tm = do
           env <- get
           case Map.lookup v env of
             Just Nothing -> put (Map.insert v (Just tm) env) *> pure True
             Just (Just b) -> go b tm
-            Nothing -> pure False
+            Nothing -> pure (tm0 == tm)
         go (Tm fq) (Tm tm) =
           if void fq == void tm
             then all id <$> (for (toList fq `zip` toList tm) $ \(fq, tm) -> go (out fq) (out tm))
@@ -579,7 +578,7 @@ containsExpression query tm =
           if v1 == v2
             then go (out body1) (out body2)
             else
-              let v3 = freshInBoth body1 body2 v1
+              let v3 = freshIn vs0 $ freshInBoth body1 body2 v1
                in go (out $ rename v1 v3 body1) (out $ rename v2 v3 body2)
         go _ _ = pure False
 

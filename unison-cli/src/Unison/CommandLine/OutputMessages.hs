@@ -712,7 +712,7 @@ notifyUser dir = \case
               <> "to push the changes."
         ]
   DisplayDefinitions output -> displayDefinitions output
-  OutputFile ppe dest uf -> displayOutputFile ppe dest uf
+  OutputRewrittenFile ppe dest uf -> displayOutputRewrittenFile ppe dest uf
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
@@ -2427,10 +2427,17 @@ formatMissingStuff terms types =
              <> P.column2 [(P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types]
        )
 
-displayOutputFile :: Var v => PPED.PrettyPrintEnvDecl -> FilePath -> UF.UnisonFile v a -> IO Pretty
-displayOutputFile ppe fp uf = do
+displayOutputRewrittenFile :: Var v => PPED.PrettyPrintEnvDecl -> FilePath -> ([v], UF.UnisonFile v a) -> IO Pretty
+displayOutputRewrittenFile _ppe _fp ([], _uf) =
+  pure $ P.callout "😶️" . P.wrap $ "No matches found in the file."
+displayOutputRewrittenFile ppe fp (vs, uf) = do
   fp <- prependToFile (prettyUnisonFile ppe uf <> foldLine) fp
-  pure $ P.callout "☝️" . P.wrap $ "I added definitions to the top of " <> fromString fp
+  let msg = P.sep ", " (P.underline . P.shown <$> vs)
+  pure $ P.callout "☝️" . P.lines $ 
+    [ P.wrap $ "I found and replaced matches in these definitions: " <> msg,
+      "",
+      "The rewritten file has been added to the top of " <> fromString fp
+    ]
 
 foldLine :: IsString s => P.Pretty s
 foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"

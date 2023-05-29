@@ -1674,11 +1674,12 @@ handleStructuredFindReplaceI rule = do
   tm <- maybe (Cli.returnEarly (TermAmbiguous rule mempty)) pure ot
   (lhs,rhs) <- case tm of
     Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs,rhs]) -> pure (lhs,rhs) 
+    Term.Ann' (Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs,rhs])) _typ -> pure (lhs,rhs) 
     _ -> Cli.returnEarly (InvalidStructuredFindReplace rule) 
   uf <- Cli.expectLatestParsedFile
   (dest,_) <- Cli.expectLatestFile
   #latestFile ?= (dest, True)
-  Cli.respond $ OutputFile ppe dest (UF.rewrite (Set.singleton (HQ.toVar rule)) lhs rhs uf)
+  Cli.respond $ OutputRewrittenFile ppe dest (UF.rewrite (Set.singleton (HQ.toVar rule)) lhs rhs uf)
 
 handleFindI ::
   Bool ->
