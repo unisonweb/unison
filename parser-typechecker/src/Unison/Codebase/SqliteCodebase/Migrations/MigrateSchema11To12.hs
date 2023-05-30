@@ -3,6 +3,7 @@
 
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12 (migrateSchema11To12) where
 
+import Control.Lens (ifor_)
 import U.Codebase.HashTags (BranchHash (..))
 import U.Codebase.Projects (inferDependencyMounts)
 import U.Codebase.Reference qualified as C.Reference
@@ -12,6 +13,7 @@ import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.ConstructorType qualified as CT
+import Unison.Debug qualified as Debug
 import Unison.Hash (Hash (..))
 import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment (..))
@@ -25,6 +27,7 @@ migrateSchema11To12 ::
   Sqlite.Transaction ()
 migrateSchema11To12 getDeclType = do
   Queries.expectSchemaVersion 11
+  Debug.debugLogM Debug.Migration "Adding name lookup mount tables"
   Queries.addNameLookupMountTables
   backfillNameLookupMounts getDeclType
   removeLibFromNameLookups
@@ -37,17 +40,21 @@ backfillNameLookupMounts ::
   Sqlite.Transaction ()
 backfillNameLookupMounts getDeclType = do
   branchHashesWithNameLookups <- fmap (coerce . Hash32.toHash) <$> Sqlite.queryListCol_ "SELECT hash.base32 FROM name_lookups nl JOIN hash ON nl.root_branch_hash_id = hash.id"
-  for_ branchHashesWithNameLookups \bh -> do
+  ifor_ branchHashesWithNameLookups \i bh -> do
+    Debug.debugLogM Debug.Migration $ "Backfilling " <> show i <> " of " <> show (length branchHashesWithNameLookups) <> " name lookup mount points"
     branch <- Ops.expectBranchByBranchHash bh
     mounts <- inferDependencyMounts branch
+    Debug.debugLogM Debug.Migration $ "Found " <> show (length mounts) <> " mounts"
     for_ mounts \(_path, mountBH) -> do
       CodebaseOps.ensureNameLookupForBranchHash getDeclType Nothing mountBH
+    Debug.debugLogM Debug.Migration $ "Associating new mounts"
     Ops.associateNameLookupMounts bh (mounts & map (first (coerce . Path.toList)))
 
 -- | As part of adding name lookup mounts for dependencies we no longer want dependencies to
 -- be included in the name lookup, they just bloat the index.
 removeLibFromNameLookups :: Sqlite.Transaction ()
 removeLibFromNameLookups = do
+  Debug.debugLogM Debug.Migration $ "Cleaning up names for old transitive dependencies"
   Sqlite.execute2
     [Sqlite.sql2|
     DELETE FROM scoped_term_name_lookup
