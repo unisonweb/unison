@@ -3,14 +3,14 @@ module U.Codebase.Sqlite.Patch.Diff where
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Map (Map)
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
-import qualified U.Codebase.Sqlite.DbId as Db
+import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
 import U.Codebase.Sqlite.Patch.TermEdit (TermEdit')
 import U.Codebase.Sqlite.Patch.TypeEdit (TypeEdit')
-import qualified Unison.Util.Map as Map
+import Unison.Util.Map qualified as Map
 
 type PatchDiff = PatchDiff' Db.TextId Db.HashId Db.ObjectId
 

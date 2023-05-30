@@ -1,12 +1,12 @@
 module Unison.Server.NameSearch.FromNames where
 
-import qualified Unison.HashQualified' as HQ'
+import Unison.HashQualified' qualified as HQ'
 import Unison.NamesWithHistory (NamesWithHistory)
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Server.NameSearch
-import qualified Unison.Server.SearchResult as SR
+import Unison.Server.SearchResult qualified as SR
 
 -- | Make a type search, given a short hash length and names to search in.
 makeTypeSearch :: (Applicative m) => Int -> NamesWithHistory -> Search m Reference

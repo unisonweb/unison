@@ -52,21 +52,21 @@ module Unison.Name
 where
 
 import Control.Lens (mapped, over, _1, _2)
-import qualified Data.List as List
-import qualified Data.List.Extra as List
+import Data.List qualified as List
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as List.NonEmpty
-import qualified Data.Map as Map
-import qualified Data.RFC5051 as RFC5051
-import qualified Data.Set as Set
+import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.Map qualified as Map
+import Data.RFC5051 qualified as RFC5051
+import Data.Set qualified as Set
 import Unison.Name.Internal
 import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
-import qualified Unison.Util.List as List
-import qualified Unison.Util.Relation as R
+import Unison.Util.List qualified as List
+import Unison.Util.Relation qualified as R
 
 -- | @compareSuffix x y@ compares the suffix of @y@ (in reverse segment order) that is as long as @x@ to @x@ (in reverse
 -- segment order).

@@ -5,22 +5,22 @@ module Unison.Test.ANF where
 
 import Control.Monad.Reader (ReaderT (..))
 import Control.Monad.State (evalState)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Word (Word64)
 import EasyTest
-import qualified Unison.ABT as ABT
+import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized (Term (TAbs))
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.Pattern as P
+import Unison.Pattern qualified as P
 import Unison.Reference (Reference (Builtin))
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.MCode (RefNums (..), emitCombs)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Test.Common (tm)
 import Unison.Type as Ty
 import Unison.Util.EnumContainers as EC
-import qualified Unison.Util.Text as Util.Text
+import Unison.Util.Text qualified as Util.Text
 import Unison.Var as Var
 
 -- testSNF s = ok

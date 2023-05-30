@@ -38,25 +38,25 @@ module Unison.Syntax.Lexer
 where
 
 import Control.Lens.TH (makePrisms)
-import qualified Control.Monad.State as S
+import Control.Monad.State qualified as S
 import Data.Char
 import Data.List
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.List.NonEmpty qualified as Nel
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import GHC.Exts (sortWith)
-import qualified Text.Megaparsec as P
+import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char (char)
-import qualified Text.Megaparsec.Char as CP
-import qualified Text.Megaparsec.Char.Lexer as LP
-import qualified Text.Megaparsec.Error as EP
-import qualified Text.Megaparsec.Internal as PI
+import Text.Megaparsec.Char qualified as CP
+import Text.Megaparsec.Char.Lexer qualified as LP
+import Text.Megaparsec.Error qualified as EP
+import Text.Megaparsec.Internal qualified as PI
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
-import qualified Unison.Util.Bytes as Bytes
+import Unison.ShortHash qualified as SH
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
 
 type BlockName = String

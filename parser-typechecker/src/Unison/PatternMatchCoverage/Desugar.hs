@@ -4,17 +4,17 @@ module Unison.PatternMatchCoverage.Desugar
 where
 
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified U.Core.ABT as ABT
+import U.Core.ABT qualified as ABT
 import Unison.Pattern
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage.Class
 import Unison.PatternMatchCoverage.Fix
 import Unison.PatternMatchCoverage.GrdTree
 import Unison.PatternMatchCoverage.PmGrd
-import qualified Unison.PatternMatchCoverage.PmLit as PmLit
+import Unison.PatternMatchCoverage.PmLit qualified as PmLit
 import Unison.Term (MatchCase (..), Term', app, var)
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 
 -- | Desugar a match into a 'GrdTree'
 desugarMatch ::

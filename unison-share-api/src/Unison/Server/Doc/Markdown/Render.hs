@@ -3,14 +3,14 @@ module Unison.Server.Doc.Markdown.Render (toMarkdown) where
 
 import Control.Monad.Reader
 import Data.Foldable
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Prelude
 import Unison.Server.Doc
-import qualified Unison.Server.Doc as Doc
-import qualified Unison.Server.Doc.Markdown.Types as Md
+import Unison.Server.Doc qualified as Doc
+import Unison.Server.Doc.Markdown.Types qualified as Md
 import Unison.Server.Syntax (SyntaxText)
-import qualified Unison.Server.Syntax as Syntax
+import Unison.Server.Syntax qualified as Syntax
 import Unison.Util.Monoid (foldMapM)
 
 data EmbeddedSource

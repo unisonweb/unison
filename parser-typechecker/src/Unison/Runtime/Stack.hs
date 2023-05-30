@@ -47,7 +47,7 @@ where
 import Control.Monad (when)
 import Control.Monad.Primitive
 import Data.Foldable as F (for_)
-import qualified Data.Kind as Kind
+import Data.Kind qualified as Kind
 import Data.Sequence (Seq)
 import Data.Word
 import GHC.Exts as L (IsList (..))
@@ -57,7 +57,7 @@ import Unison.Runtime.ANF as ANF (Mem (..))
 import Unison.Runtime.Array
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
-import qualified Unison.Type as Ty
+import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 import Prelude hiding (words)
 

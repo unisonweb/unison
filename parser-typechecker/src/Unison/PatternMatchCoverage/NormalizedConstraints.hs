@@ -16,19 +16,19 @@ where
 
 import Data.Functor.Compose
 import Data.Sequence (pattern Empty)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.Constraint
 import Unison.PatternMatchCoverage.EffectHandler
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
-import qualified Unison.PatternMatchCoverage.IntervalSet as IntervalSet
-import qualified Unison.PatternMatchCoverage.PmLit as PmLit
+import Unison.PatternMatchCoverage.IntervalSet qualified as IntervalSet
+import Unison.PatternMatchCoverage.PmLit qualified as PmLit
 import Unison.PatternMatchCoverage.Pretty
 import Unison.PatternMatchCoverage.UFMap (UFMap)
-import qualified Unison.PatternMatchCoverage.UFMap as UFMap
+import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Syntax.TypePrinter as TypePrinter
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Type (Type, booleanRef, charRef, effectRef, floatRef, intRef, listRef, natRef, textRef, pattern App', pattern Apps', pattern Ref')
 import Unison.Util.Pretty
 import Unison.Var (Var)

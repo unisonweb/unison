@@ -1,14 +1,14 @@
 module Unison.Test.UriParser where
 
 import Data.Text (Text)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.These (These (..))
 import Data.Void (Void)
 import EasyTest
-import qualified Text.Megaparsec as P
+import Text.Megaparsec qualified as P
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo (..), ReadRemoteNamespace (..), ShareCodeserver (..), ShareUserHandle (..), WriteGitRemoteNamespace (..), WriteGitRepo (..), WriteRemoteNamespace (..), WriteShareRemoteNamespace (..), pattern ReadGitRemoteNamespace, pattern ReadShareLooseCode)
-import qualified Unison.Codebase.Editor.UriParser as UriParser
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Editor.UriParser qualified as UriParser
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.NameSegment (NameSegment (..))

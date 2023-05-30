@@ -1,21 +1,21 @@
 module Unison.LSP.UCMWorker where
 
 import Control.Monad.Reader
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Debug as Debug
+import Unison.Codebase.Path qualified as Path
+import Unison.Debug qualified as Debug
 import Unison.LSP.Completion
 import Unison.LSP.Types
-import qualified Unison.LSP.VFS as VFS
+import Unison.LSP.VFS qualified as VFS
 import Unison.NamesWithHistory (NamesWithHistory)
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.PrettyPrintEnvDecl
-import qualified Unison.PrettyPrintEnvDecl.Names as PPE
-import qualified Unison.Server.Backend as Backend
+import Unison.PrettyPrintEnvDecl.Names qualified as PPE
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch (NameSearch)
-import qualified Unison.Server.NameSearch.FromNames as NameSearch
-import qualified Unison.Sqlite as Sqlite
+import Unison.Server.NameSearch.FromNames qualified as NameSearch
+import Unison.Sqlite qualified as Sqlite
 import UnliftIO.STM
 
 -- | Watches for state changes in UCM and updates cached LSP state accordingly

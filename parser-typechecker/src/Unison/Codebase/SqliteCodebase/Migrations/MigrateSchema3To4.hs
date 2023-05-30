@@ -7,25 +7,25 @@ import Control.Lens
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Generics.Product
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Semigroup
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
 import Data.String.Here.Uninterpolated (here)
-import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
-import qualified U.Codebase.Sqlite.Branch.Full as DBBranch
-import qualified U.Codebase.Sqlite.DbId as DB
-import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Queries as Q
-import qualified U.Codebase.Sqlite.Serialization as S
-import qualified U.Codebase.Sync as Sync
-import qualified U.Util.Serialization as S
+import U.Codebase.Sqlite.Branch.Format qualified as S.BranchFormat
+import U.Codebase.Sqlite.Branch.Full qualified as DBBranch
+import U.Codebase.Sqlite.DbId qualified as DB
+import U.Codebase.Sqlite.LocalizeObject qualified as S.LocalizeObject
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Queries qualified as Q
+import U.Codebase.Sqlite.Serialization qualified as S
+import U.Codebase.Sync qualified as Sync
+import U.Util.Serialization qualified as S
 import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
-import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Helpers
-import qualified Unison.Debug as Debug
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers qualified as Helpers
+import Unison.Debug qualified as Debug
 import Unison.Prelude
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Prelude hiding (log)
 
 data MigrationState = MigrationState

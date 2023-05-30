@@ -6,13 +6,13 @@ module Unison.Hashing.V2.Convert2
   )
 where
 
-import qualified U.Codebase.Kind as V2
-import qualified U.Codebase.Reference as V2
-import qualified U.Codebase.Term as V2 (TypeRef)
-import qualified U.Codebase.Type as V2.Type
-import qualified U.Core.ABT as ABT
+import U.Codebase.Kind qualified as V2
+import U.Codebase.Reference qualified as V2
+import U.Codebase.Term qualified as V2 (TypeRef)
+import U.Codebase.Type qualified as V2.Type
+import U.Core.ABT qualified as ABT
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2 as H2
+import Unison.Hashing.V2 qualified as H2
 import Unison.Prelude
 
 convertId :: Hash -> V2.Id' (Maybe Hash) -> H2.ReferenceId

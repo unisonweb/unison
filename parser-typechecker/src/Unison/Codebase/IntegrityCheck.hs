@@ -14,28 +14,28 @@ module Unison.Codebase.IntegrityCheck
 where
 
 import Control.Lens
-import qualified Data.List.NonEmpty as NEList
-import qualified Data.Set as Set
+import Data.List.NonEmpty qualified as NEList
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NESet
+import Data.Set.NonEmpty qualified as NESet
 import Data.String.Here.Uninterpolated (here)
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.IO as TL
+import Data.Text.Lazy qualified as TL
+import Data.Text.Lazy.IO qualified as TL
 import Data.Void
 import Text.Pretty.Simple
 import U.Codebase.HashTags (BranchHash (..))
-import qualified U.Codebase.Sqlite.Branch.Full as DBBranch
-import qualified U.Codebase.Sqlite.DbId as DB
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Queries as Q
-import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Helpers
-import qualified Unison.Debug as Debug
+import U.Codebase.Sqlite.Branch.Full qualified as DBBranch
+import U.Codebase.Sqlite.DbId qualified as DB
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Queries qualified as Q
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers qualified as Helpers
+import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Prelude
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 import Prelude hiding (log)
 
 debugLog :: TL.Text -> Sqlite.Transaction ()

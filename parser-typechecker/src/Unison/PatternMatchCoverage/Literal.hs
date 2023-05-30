@@ -8,9 +8,9 @@ import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.EffectHandler
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
 import Unison.PatternMatchCoverage.PmLit (PmLit, prettyPmLit)
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Syntax.TermPrinter as TermPrinter
-import qualified Unison.Syntax.TypePrinter as TypePrinter
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term')
 import Unison.Type (Type)
 import Unison.Typechecker.TypeVar (TypeVar, lowerTerm)

@@ -1,8 +1,8 @@
 module Unison.Parsers where
 
-import qualified Data.Text as Text
-import qualified Unison.Builtin as Builtin
-import qualified Unison.NamesWithHistory as Names
+import Data.Text qualified as Text
+import Unison.Builtin qualified as Builtin
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrintError
@@ -10,14 +10,14 @@ import Unison.PrintError
     prettyParseError,
   )
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.FileParser as FileParser
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Syntax.TermParser as TermParser
-import qualified Unison.Syntax.TypeParser as TypeParser
+import Unison.Syntax.FileParser qualified as FileParser
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TermParser qualified as TermParser
+import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile (UnisonFile)
-import qualified Unison.Util.Pretty as Pr
+import Unison.Util.Pretty qualified as Pr
 import Unison.Var (Var)
 
 unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a

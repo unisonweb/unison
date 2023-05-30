@@ -1,6 +1,6 @@
 module Unison.Util.TransitiveClosure where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.Prelude
 
 transitiveClosure ::

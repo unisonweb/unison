@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Unison.PatternMatchCoverage.Solve
   ( uncoverAnnotate,
@@ -17,32 +18,32 @@ import Data.Function
 import Data.Functor
 import Data.Functor.Compose
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Unison.Builtin.Decls (unitRef)
 import Unison.ConstructorReference (ConstructorReference, reference_)
 import Unison.Debug (DebugFlag (PatternCoverageConstraintSolver), shouldDebug)
 import Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage.Class
 import Unison.PatternMatchCoverage.Constraint (Constraint)
-import qualified Unison.PatternMatchCoverage.Constraint as C
+import Unison.PatternMatchCoverage.Constraint qualified as C
 import Unison.PatternMatchCoverage.EffectHandler
 import Unison.PatternMatchCoverage.Fix
 import Unison.PatternMatchCoverage.GrdTree
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
-import qualified Unison.PatternMatchCoverage.IntervalSet as IntervalSet
+import Unison.PatternMatchCoverage.IntervalSet qualified as IntervalSet
 import Unison.PatternMatchCoverage.Literal
 import Unison.PatternMatchCoverage.NormalizedConstraints
 import Unison.PatternMatchCoverage.PmGrd
 import Unison.PatternMatchCoverage.PmLit (PmLit)
-import qualified Unison.PatternMatchCoverage.PmLit as PmLit
-import qualified Unison.PatternMatchCoverage.UFMap as UFMap
+import Unison.PatternMatchCoverage.PmLit qualified as PmLit
+import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Util.Pretty as P
+import Unison.Type qualified as Type
+import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
 
 -- | top-down traversal of the 'GrdTree' that produces:

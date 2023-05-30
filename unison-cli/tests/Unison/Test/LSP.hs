@@ -3,34 +3,34 @@
 
 module Unison.Test.LSP (test) where
 
-import qualified Crypto.Random as Random
+import Crypto.Random qualified as Random
 import Data.List.Extra (firstJust)
 import Data.String.Here.Uninterpolated (here)
 import Data.Text
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import EasyTest
-import qualified System.IO.Temp as Temp
-import qualified Unison.ABT as ABT
+import System.IO.Temp qualified as Temp
+import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef)
-import qualified Unison.Cli.TypeCheck as Typecheck
+import Unison.Cli.TypeCheck qualified as Typecheck
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase.Init as Codebase.Init
-import qualified Unison.Codebase.SqliteCodebase as SC
+import Unison.Codebase.Init qualified as Codebase.Init
+import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.LSP.Queries as LSPQ
-import qualified Unison.Lexer.Pos as Lexer
+import Unison.LSP.Queries qualified as LSPQ
+import Unison.Lexer.Pos qualified as Lexer
 import Unison.Parser.Ann (Ann (..))
-import qualified Unison.Parser.Ann as Ann
-import qualified Unison.Pattern as Pattern
+import Unison.Parser.Ann qualified as Ann
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Result as Result
+import Unison.Reference qualified as Reference
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.UnisonFile as UF
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (foldMapM)
 
 test :: Test ()

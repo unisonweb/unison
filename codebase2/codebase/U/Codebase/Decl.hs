@@ -2,7 +2,7 @@ module U.Codebase.Decl where
 
 import U.Codebase.Reference (Reference')
 import U.Codebase.Type (TypeR)
-import qualified U.Codebase.Type as Type
+import U.Codebase.Type qualified as Type
 import Unison.Hash (Hash)
 import Unison.Prelude
 

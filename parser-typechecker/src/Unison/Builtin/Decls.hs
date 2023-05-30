@@ -2,29 +2,29 @@ module Unison.Builtin.Decls where
 
 import Control.Lens (over, _3)
 import Data.List (elemIndex, find)
-import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
+import Data.Map qualified as Map
+import Data.Maybe qualified as Maybe
 import Data.Sequence (Seq)
 import Data.Text (Text, unpack)
-import qualified Unison.ABT as ABT
+import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration (..), Modifier (Structural, Unique))
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Convert (hashDataDecls)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term, Term2)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 lookupDeclRef :: Text -> Reference
 lookupDeclRef str

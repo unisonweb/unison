@@ -29,26 +29,26 @@ module Unison.Codebase.Editor.Input
   )
 where
 
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.These (These)
 import U.Codebase.HashTags (CausalHash)
-import qualified Unison.Codebase.Branch.Merge as Branch
+import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Path (Path')
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SCH
+import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Verbosity
-import qualified Unison.HashQualified as HQ
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchName, ProjectName, Semver)
 import Unison.ShortHash (ShortHash)
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 
 data Event
   = UnisonFileChanged SourceName Source

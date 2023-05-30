@@ -13,9 +13,9 @@ module Unison.Codebase.Causal.Type
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import U.Codebase.HashTags (CausalHash)
 import Unison.Hash (HashFor (..))
 import Unison.Prelude

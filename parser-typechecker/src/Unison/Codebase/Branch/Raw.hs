@@ -1,9 +1,9 @@
 module Unison.Codebase.Branch.Raw where
 
 import Data.Map (Map)
-import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.NameSegment (NameSegment)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
