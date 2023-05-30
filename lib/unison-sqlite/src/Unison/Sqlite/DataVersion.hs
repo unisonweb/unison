@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Unison.Sqlite.DataVersion
   ( DataVersion (..),
     getDataVersion,
@@ -5,6 +7,7 @@ module Unison.Sqlite.DataVersion
 where
 
 import Unison.Prelude
+import Unison.Sqlite.Sql (sql)
 import Unison.Sqlite.Transaction
 
 newtype DataVersion
@@ -14,4 +17,4 @@ newtype DataVersion
 
 getDataVersion :: Transaction DataVersion
 getDataVersion =
-  coerce @(Transaction Int64) (queryOneCol_ "PRAGMA data_version")
+  coerce @(Transaction Int64) (queryOneCol [sql| PRAGMA data_version |])

@@ -25,71 +25,31 @@ module Unison.Sqlite
     unsafeIO,
 
     -- * Executing queries
-    Sql (..),
+    Sql,
     sql,
-    Sql2,
-    sql2,
-    Values (..),
-    valuesSql,
 
     -- ** Without results
-
-    -- *** With parameters
     execute,
-    execute2,
-    executeMany,
-
-    -- *** Without parameters
     executeStatements,
-    execute_,
 
     -- ** With results
     -- $query-naming-convention
-
-    -- *** With parameters
     queryStreamRow,
     queryStreamCol,
     queryListRow,
-    queryListRow2,
     queryListCol,
-    queryListCol2,
     queryMaybeRow,
-    queryMaybeRow2,
     queryMaybeCol,
-    queryMaybeCol2,
     queryOneRow,
-    queryOneRow2,
     queryOneCol,
-    queryOneCol2,
-    queryManyListRow,
 
-    -- **** With checks
+    -- *** With checks
     queryListRowCheck,
     queryListColCheck,
     queryMaybeRowCheck,
-    queryMaybeRowCheck2,
     queryMaybeColCheck,
-    queryMaybeColCheck2,
     queryOneRowCheck,
-    queryOneRowCheck2,
     queryOneColCheck,
-    queryOneColCheck2,
-
-    -- *** Without parameters
-    queryListRow_,
-    queryListCol_,
-    queryMaybeRow_,
-    queryMaybeCol_,
-    queryOneRow_,
-    queryOneCol_,
-
-    -- **** With checks
-    queryListRowCheck_,
-    queryListColCheck_,
-    queryMaybeRowCheck_,
-    queryMaybeColCheck_,
-    queryOneRowCheck_,
-    queryOneColCheck_,
 
     -- * Rows modified
     rowsModified,
@@ -152,10 +112,8 @@ import Unison.Sqlite.Exception
     isCantOpenException,
   )
 import Unison.Sqlite.JournalMode (JournalMode (..), SetJournalModeException (..), trySetJournalMode)
-import Unison.Sqlite.Sql (Sql (..), sql)
-import Unison.Sqlite.Sql2 (Sql2, sql2)
+import Unison.Sqlite.Sql (Sql, sql)
 import Unison.Sqlite.Transaction
-import Unison.Sqlite.Values (Values (..), valuesSql)
 
 -- $query-naming-convention
 --
@@ -175,12 +133,8 @@ import Unison.Sqlite.Values (Values (..), valuesSql)
 --      function name includes the string @__Check__@.
 --      Example: @queryMaybeCol__Check__@.
 --
---   4. /Parameter count/. The query may contain /zero/ or /one or more/ parameters. In the former case, the function
---      name includes the string @__\___@.
---      Example: @queryListRow__\___@.
---
 -- All together, the full anatomy of a query function is:
 --
 -- @
--- query(List|Maybe|One)(Row|Col)[Check][_]
+-- query(List|Maybe|One)(Row|Col)[Check]
 -- @
