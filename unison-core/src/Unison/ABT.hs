@@ -494,9 +494,16 @@ rewriteExpression ::
   Term f v a ->
   Term f v a ->
   Maybe (Term f v a)
-rewriteExpression query replacement tm =
+rewriteExpression query0 replacement0 tm =
   rewriteHere tm
   where
+    used = Set.fromList (allVars tm)
+    varChanges = 
+      fst $ foldl go (Map.empty, used) (freeVars query0 <> freeVars replacement0)
+      where go (m, u) v = let v' = freshIn u v in (Map.insert v v' m, Set.insert v' u)
+    -- rename free vars to avoid possible capture of things in `tm`
+    query = renames varChanges query0
+    replacement = renames varChanges replacement0
     env0 = Map.fromList [(v, Nothing) | v <- toList (freeVars query)]
     vs0 = Map.keysSet env0
     rewriteHere :: Term f v a -> Maybe (Term f v a)
@@ -509,11 +516,7 @@ rewriteExpression query replacement tm =
       where
         descend :: Term f v a -> Maybe (Term f v a)
         descend tm0 = case out tm0 of
-          Abs v tm
-            | Map.notMember v env0 -> abs' (annotation tm0) v <$> rewriteHere tm
-            | otherwise -> abs' (annotation tm0) v' <$> rewriteHere (rename v v' tm)
-            where
-              v' = freshIn (vs0 <> freeVars tm) v
+          Abs v tm -> abs' (annotation tm0) v <$> rewriteHere tm
           Cycle tm -> cycle' (annotation tm0) <$> rewriteHere tm
           Var _v -> Nothing
           Tm f ->
