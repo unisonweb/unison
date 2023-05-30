@@ -120,6 +120,7 @@ import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
+import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import Unison.PrettyTerminal
   ( clearCurrentLine,
@@ -169,6 +170,7 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
+import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.List as List
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Monoid as Monoid
@@ -2428,12 +2430,12 @@ formatMissingStuff terms types =
              <> P.column2 [(P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types]
        )
 
-displayOutputRewrittenFile :: Var v => PPED.PrettyPrintEnvDecl -> FilePath -> ([v], UF.UnisonFile v a) -> IO Pretty
+displayOutputRewrittenFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> ([v], UF.UnisonFile v a) -> IO Pretty
 displayOutputRewrittenFile _ppe _fp ([], _uf) =
   pure $ P.callout "😶️" . P.wrap $ "No matches found in the file."
 displayOutputRewrittenFile ppe fp (vs, uf) = do
   fp <- prependToFile (prettyUnisonFile ppe uf <> foldLine) fp
-  let msg = P.sep ", " (P.underline . prettyVar <$> vs)
+  let msg = P.sep " " (P.blue . prettyVar <$> vs)
   pure $ P.callout "☝️" . P.lines $ 
     [ P.wrap $ "I found and replaced matches in these definitions: " <> msg,
       "",
@@ -2443,36 +2445,33 @@ displayOutputRewrittenFile ppe fp (vs, uf) = do
 foldLine :: IsString s => P.Pretty s
 foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
 
-prettyUnisonFile :: forall v a . Var v => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
-prettyUnisonFile ppe (UF.UnisonFileId datas effects terms watches) = 
-  P.syntaxToColor $ P.sep "\n\n" (prettyWatches <> prettyDatas <> prettyEffects <> prettyTerms)
+prettyUnisonFile :: forall v a . (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
+prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) = 
+  P.sep "\n\n" (map snd . sortOn fst $ pretty <$> things) 
   where
-    ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
-    dppe = PPE.PrettyPrintEnv (const []) typeName
-    typeName r = (\r -> (r,r)) <$> toList (Map.lookup r typesByRef)
-    typesByRef :: Map Reference (HQ'.HashQualified Name)
-    typesByRef = Map.fromList [ (rd r, hq'v n) | (n, (r,_)) <- Map.toList effects ] <> 
-                 Map.fromList [ (rd r, hq'v n) | (n, (r,_)) <- Map.toList datas ]
-    prettyWatches :: [P.Pretty SyntaxText]
-    prettyWatches = [ go wk v tm | (wk, tms) <- Map.toList watches, (v,tm) <- tms ]
-      where 
-        pb = TermPrinter.prettyBindingWithoutTypeSignature
-        go :: WK.WatchKind -> v -> Term v a -> P.Pretty SyntaxText
+    things = map Left (map Left (Map.toList effects) <> map Right (Map.toList datas))
+          <> map (Right . (Nothing,)) terms
+          <> (Map.toList watches >>= \(wk,tms) -> map (\a -> Right (Just wk, a)) tms)
+    pretty (Left (Left (n, (r,et)))) = 
+      (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et))
+    pretty (Left (Right (n, (r,dt)))) = 
+      (DD.annotation dt, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Right dt))
+    pretty (Right (Nothing, (n,tm))) = 
+      (ABT.annotation tm, pb (hqv n) tm)
+    pretty (Right (Just wk, (n,tm))) = 
+      (ABT.annotation tm, go wk n tm)
+      where
         go wk v tm = case wk of
-          WK.RegularWatch -> "> " <> pb (PPED.suffixifiedPPE ppe) (hqv v) tm
-          w -> P.string w <> "> " <> pb (PPED.suffixifiedPPE ppe) (hqv v) tm
-    prettyEffects = map go (Map.toList effects)
-      where go (n, (r,et)) = DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et)
-    prettyDatas = map go (Map.toList datas)
-      where go (n, (r,dt)) = DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Right dt)
-    prettyTerms = map go terms
-      where go (n, tm) = TermPrinter.prettyBinding (PPED.suffixifiedPPE ppe) (hqv n) tm
+          WK.RegularWatch | Var.UnnamedWatch _ _ <- Var.typeOf v -> TermPrinter.pretty sppe tm
+          WK.RegularWatch -> "> " <> pb (hqv v) tm
+          w -> P.string w <> "> " <> pb (hqv v) tm
+    st = P.syntaxToColor
+    sppe = PPED.suffixifiedPPE ppe
+    pb v tm = st $ TermPrinter.prettyBinding sppe v tm 
+    ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
+    dppe = PPE.fromNames 8 (Names.NamesWithHistory (UF.toNames uf) mempty)
     rd = Reference.DerivedId
     hqv v = HQ.unsafeFromVar v
-    hq'v v = case hqv v of 
-      HQ.NameOnly n -> HQ'.NameOnly n
-      HQ.HashQualified n h -> HQ'.HashQualified n h
-      _ -> error "impossible"
 
 displayDefinitions' ::
   (Var v) =>
