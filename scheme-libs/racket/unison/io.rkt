@@ -20,7 +20,6 @@
    getFileTimestamp.impl.v3
    getTempDirectory.impl.v3
    removeFile.impl.v3
-   renameFile.impl.v3
    getFileSize.impl.v3)))
 
 (define (getFileSize.impl.v3 path)
@@ -38,10 +37,6 @@
 
 (define (removeFile.impl.v3 path)
     (delete-file (chunked-string->string path))
-    (right none))
-
-(define (renameFile.impl.v3 path newPath)
-    (rename-file-or-directory (chunked-string->string path) (chunked-string->string newPath))
     (right none))
 
 (define (getTempDirectory.impl.v3)
