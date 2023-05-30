@@ -65,7 +65,7 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       (9, migrateSchema8To9),
       (10, migrateSchema9To10),
       (11, migrateSchema10To11),
-      (12, migrateSchema11To12 getDeclType)
+      (12, migrateSchema11To12)
     ]
 
 data CodebaseVersionStatus
