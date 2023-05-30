@@ -33,6 +33,8 @@
     unison-FOp-IO.isFileEOF.impl.v3
     unison-FOp-IO.putBytes.impl.v3
     unison-FOp-IO.getBytes.impl.v3
+    builtin-IO.seekHandle.impl.v3
+    builtin-IO.getLine.impl.v1
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
