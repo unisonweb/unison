@@ -34,7 +34,6 @@ module Unison.Sqlite
 
     -- ** With results
     -- $query-naming-convention
-
     queryStreamRow,
     queryStreamCol,
     queryListRow,
