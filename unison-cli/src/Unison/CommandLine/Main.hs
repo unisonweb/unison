@@ -25,6 +25,7 @@ import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as AuthN
 import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.Pretty (prettyProjectAndBranchName)
 import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -40,7 +41,6 @@ import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
-import Unison.CommandLine.OutputMessages qualified as OutputMessages
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Parser.Ann (Ann)
@@ -91,10 +91,7 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
                 P.sep
                   " "
                   ( catMaybes
-                      [ Just
-                          ( OutputMessages.prettyProjectAndBranchName
-                              (ProjectAndBranch projectName branchName)
-                          ),
+                      [ Just (prettyProjectAndBranchName (ProjectAndBranch projectName branchName)),
                         case restPath of
                           Path.Empty -> Nothing
                           _ -> (Just . P.green . P.shown) restPath
