@@ -2463,7 +2463,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
       where
         go wk v tm = case wk of
           WK.RegularWatch | Var.UnnamedWatch _ _ <- Var.typeOf v -> 
-            "> " <> P.indentAfterNewline 2 (TermPrinter.pretty sppe tm)
+            "> " <> P.indentNAfterNewline 2 (TermPrinter.pretty sppe tm)
           WK.RegularWatch -> "> " <> pb (hqv v) tm
           w -> P.string w <> "> " <> pb (hqv v) tm
     st = P.syntaxToColor
