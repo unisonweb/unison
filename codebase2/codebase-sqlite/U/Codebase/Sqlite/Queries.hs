@@ -169,7 +169,6 @@ module U.Codebase.Sqlite.Queries
 
     -- * Name Lookup
     copyScopedNameLookup,
-    dropNameLookupTables,
     insertScopedTermNames,
     insertScopedTypeNames,
     removeScopedTermNames,
@@ -1756,20 +1755,6 @@ removeHashObjectsByHashingVersion hashVersion =
     [sql2|
       DELETE FROM hash_object
       WHERE hash_version = :hashVersion
-    |]
-
--- | Not used in typical operations, but if we ever end up in a situation where a bug
--- has caused the name lookup index to go out of sync this can be used to get back to a clean
--- slate.
-dropNameLookupTables :: Transaction ()
-dropNameLookupTables = do
-  execute2
-    [sql2|
-      DROP TABLE IF EXISTS term_name_lookup
-    |]
-  execute2
-    [sql2|
-      DROP TABLE IF EXISTS type_name_lookup
     |]
 
 -- | Copies existing name lookup rows but replaces their branch hash id;

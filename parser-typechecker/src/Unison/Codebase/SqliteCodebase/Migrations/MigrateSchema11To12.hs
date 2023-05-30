@@ -27,6 +27,7 @@ migrateSchema11To12 ::
   Sqlite.Transaction ()
 migrateSchema11To12 getDeclType = do
   Queries.expectSchemaVersion 11
+  dropOldNameLookupTables
   Debug.debugLogM Debug.Migration "Adding name lookup mount tables"
   Queries.addNameLookupMountTables
   backfillNameLookupMounts getDeclType
@@ -41,7 +42,7 @@ backfillNameLookupMounts ::
 backfillNameLookupMounts getDeclType = do
   branchHashesWithNameLookups <- fmap (coerce . Hash32.toHash) <$> Sqlite.queryListCol_ "SELECT hash.base32 FROM name_lookups nl JOIN hash ON nl.root_branch_hash_id = hash.id"
   ifor_ branchHashesWithNameLookups \i bh -> do
-    Debug.debugLogM Debug.Migration $ "Backfilling " <> show i <> " of " <> show (length branchHashesWithNameLookups) <> " name lookup mount points"
+    Debug.debugLogM Debug.Migration $ "Backfilling mounts for " <> show i <> " of " <> show (length branchHashesWithNameLookups) <> " name lookups"
     branch <- Ops.expectBranchByBranchHash bh
     mounts <- inferDependencyMounts branch
     Debug.debugLogM Debug.Migration $ "Found " <> show (length mounts) <> " mounts"
@@ -64,4 +65,18 @@ removeLibFromNameLookups = do
     [Sqlite.sql2|
     DELETE FROM scoped_type_name_lookup
       WHERE namespace GLOB 'lib.*' OR namespace GLOB '*.lib.*'
+    |]
+
+-- | These are old name lookups from before we switched to a branch-hash keyed
+-- approach. It can be dropped now to reclaim space.
+dropOldNameLookupTables :: Sqlite.Transaction ()
+dropOldNameLookupTables = do
+  Debug.debugLogM Debug.Migration "Dropping old name lookup tables"
+  Sqlite.execute2
+    [Sqlite.sql2|
+      DROP TABLE IF EXISTS term_name_lookup
+    |]
+  Sqlite.execute2
+    [Sqlite.sql2|
+      DROP TABLE IF EXISTS type_name_lookup
     |]
