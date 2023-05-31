@@ -5,19 +5,19 @@ module Unison.Codebase.SqliteCodebase.Migrations where
 import Control.Concurrent.MVar
 import Control.Concurrent.STM (TVar)
 import Control.Monad.Reader
-import qualified Data.Map as Map
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import qualified System.Console.Regions as Region
+import System.Console.Regions qualified as Region
 import System.FilePath ((</>))
 import Text.Printf (printf)
-import qualified U.Codebase.Reference as C.Reference
+import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Sqlite.DbId (SchemaVersion (..))
-import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Codebase (CodebasePath)
-import Unison.Codebase.Init (BackupStrategy (..))
+import Unison.Codebase.Init (BackupStrategy (..), VacuumStrategy (..))
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUnknownSchemaVersion))
-import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase
+import Unison.Codebase.Init.OpenCodebaseError qualified as Codebase
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals, prettyPrintIntegrityErrors)
 import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema10To11 (migrateSchema10To11)
@@ -30,18 +30,18 @@ import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7 (migrateSchem
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8 (migrateSchema7To8)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema8To9 (migrateSchema8To9)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema9To10 (migrateSchema9To10)
-import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
+import Unison.Codebase.SqliteCodebase.Operations qualified as Ops2
 import Unison.Codebase.SqliteCodebase.Paths (backupCodebasePath)
 import Unison.Codebase.Type (LocalOrRemote (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.Hash (Hash)
 import Unison.Prelude
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sqlite.Connection as Sqlite.Connection
+import Unison.Sqlite qualified as Sqlite
+import Unison.Sqlite.Connection qualified as Sqlite.Connection
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Pretty as Pretty
-import qualified UnliftIO
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Pretty qualified as Pretty
+import UnliftIO qualified
 
 -- | Mapping from schema version to the migration required to get there.
 -- E.g. The migration at index 2 must be run on a codebase at version 1.
@@ -99,9 +99,10 @@ ensureCodebaseIsUpToDate ::
   TVar (Map Hash Ops2.DeclBufferEntry) ->
   Bool ->
   BackupStrategy ->
+  VacuumStrategy ->
   Sqlite.Connection ->
   m (Either Codebase.OpenCodebaseError ())
-ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy conn =
+ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy vacuumStrategy conn =
   (liftIO . UnliftIO.try) do
     regionVar <- newEmptyMVar
     let finalizeRegion :: IO ()
@@ -175,7 +176,9 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
           region <- readMVar regionVar
           -- Vacuum once now that any migrations have taken place.
           Region.setConsoleRegion region ("✅ All good, cleaning up..." :: Text)
-          _success <- Sqlite.Connection.vacuum conn
+          case vacuumStrategy of
+            Vacuum -> void $ Sqlite.Connection.vacuum conn
+            NoVacuum -> pure ()
           Region.setConsoleRegion region ("🏁 Migrations complete 🏁" :: Text)
 
 -- | If we need to make a backup,  then copy the sqlite database to a new file with a unique name based on current time.

@@ -9,17 +9,17 @@ import Control.Concurrent
     killThread,
     threadDelay,
   )
-import qualified Control.Concurrent.STM as STM
-import qualified Data.Map as Map
+import Control.Concurrent.STM qualified as STM
+import Data.Map qualified as Map
 import Data.Time.Clock
   ( UTCTime,
     diffUTCTime,
   )
 import System.FSNotify (Event (Added, Modified))
-import qualified System.FSNotify as FSNotify
+import System.FSNotify qualified as FSNotify
 import Unison.Prelude
 import Unison.Util.TQueue (TQueue)
-import qualified Unison.Util.TQueue as TQueue
+import Unison.Util.TQueue qualified as TQueue
 import UnliftIO.Exception (catch)
 import UnliftIO.IORef
   ( newIORef,

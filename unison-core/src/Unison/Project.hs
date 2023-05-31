@@ -22,14 +22,14 @@ module Unison.Project
   )
 where
 
-import qualified Data.Char as Char
-import qualified Data.Text as Text
-import qualified Data.Text.Read as Text (decimal)
+import Data.Char qualified as Char
+import Data.Text qualified as Text
+import Data.Text.Read qualified as Text (decimal)
 import Data.These (These (..))
-import qualified Text.Builder
-import qualified Text.Builder as Text (Builder)
-import qualified Text.Megaparsec as Megaparsec
-import qualified Text.Megaparsec.Char as Megaparsec
+import Text.Builder qualified
+import Text.Builder qualified as Text (Builder)
+import Text.Megaparsec qualified as Megaparsec
+import Text.Megaparsec.Char qualified as Megaparsec
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.Prelude
 import Witch

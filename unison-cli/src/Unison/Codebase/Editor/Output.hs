@@ -16,67 +16,67 @@ module Unison.Codebase.Editor.Output
 where
 
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Time (UTCTime)
 import Network.URI (URI)
-import qualified Servant.Client as Servant (ClientError)
-import qualified System.Console.Haskeline as Completion
+import Servant.Client qualified as Servant (ClientError)
+import System.Console.Haskeline qualified as Completion
 import U.Codebase.Branch.Diff (NameChanges)
 import U.Codebase.HashTags (CausalHash)
-import qualified U.Codebase.Sqlite.Project as Sqlite
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Auth.Types (CredentialFailure)
-import qualified Unison.Cli.Share.Projects.Types as Share
+import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 import Unison.Codebase.Editor.Output.PushPull (PushPull)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
-import qualified Unison.Codebase.Editor.SlurpResult as SR
-import qualified Unison.Codebase.Editor.TodoOutput as TO
+import Unison.Codebase.Editor.SlurpResult qualified as SR
+import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path')
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
-import qualified Unison.Codebase.Runtime as Runtime
+import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SCH
+import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.Type (GitError)
-import qualified Unison.CommandLine.InputPattern as Input
+import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration (Decl)
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.NamesWithHistory as Names
+import Unison.Names.ResolutionResult qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
 import Unison.Reference (Reference, TermReference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResult' (SearchResult')
-import qualified Unison.Share.Sync.Types as Sync
+import Unison.Share.Sync.Types qualified as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Symbol (Symbol)
-import qualified Unison.Sync.Types as Share (DownloadEntitiesError, UploadEntitiesError)
-import qualified Unison.Syntax.Parser as Parser
+import Unison.Sync.Types qualified as Share (DownloadEntitiesError, UploadEntitiesError)
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Unison.Typechecker.Context as Context
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.Pretty as P
+import Unison.Typechecker.Context qualified as Context
+import Unison.UnisonFile qualified as UF
+import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
 type ListDetailed = Bool
 

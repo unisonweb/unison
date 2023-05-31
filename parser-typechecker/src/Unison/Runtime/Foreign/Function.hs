@@ -16,18 +16,18 @@ import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM (TVar)
 import Control.Exception (evaluate)
 import Data.Atomics (Ticket)
-import qualified Data.Char as Char
+import Data.Char qualified as Char
 import Data.Foldable (toList)
 import Data.IORef (IORef)
 import Data.Primitive.Array as PA
 import Data.Primitive.ByteArray as PA
-import qualified Data.Sequence as Sq
+import Data.Sequence qualified as Sq
 import Data.Time.Clock.POSIX (POSIXTime)
 import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Network.Socket (Socket)
 import System.IO (BufferMode (..), Handle, IOMode, SeekMode)
-import qualified Unison.Builtin.Decls as Ty
+import Unison.Builtin.Decls qualified as Ty
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (Mem (..), SuperGroup, Value, internalBug)
 import Unison.Runtime.Exception

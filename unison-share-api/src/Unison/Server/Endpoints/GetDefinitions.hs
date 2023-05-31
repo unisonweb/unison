@@ -20,17 +20,17 @@ import Servant.Docs
   )
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Rt
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.ShortCausalHash
   ( ShortCausalHash,
   )
-import qualified Unison.HashQualified as HQ
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.Server.Backend as Backend
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Types
   ( APIGet,
     DefinitionDisplayResults,

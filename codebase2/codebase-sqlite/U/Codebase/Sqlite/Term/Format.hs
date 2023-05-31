@@ -8,11 +8,11 @@ import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalIds', LocalTextId, WatchLocalIds)
-import qualified U.Codebase.Sqlite.Reference as Sqlite
+import U.Codebase.Sqlite.Reference qualified as Sqlite
 import U.Codebase.Sqlite.Symbol (Symbol)
-import qualified U.Codebase.Term as Term
-import qualified U.Codebase.Type as Type
-import qualified U.Core.ABT as ABT
+import U.Codebase.Term qualified as Term
+import U.Codebase.Type qualified as Type
+import U.Core.ABT qualified as ABT
 
 -- |
 -- * Builtin terms are represented as local text ids.

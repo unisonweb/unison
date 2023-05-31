@@ -30,14 +30,14 @@ where
 
 import Control.Lens
 import Control.Monad.Trans.State.Strict (StateT)
-import qualified Control.Monad.Trans.State.Strict as State
+import Control.Monad.Trans.State.Strict qualified as State
 import Data.Bitraversable (bitraverse)
 import Data.Generics.Product.Typed (HasType (typed))
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)
-import qualified U.Codebase.Sqlite.Branch.Format as Branch
+import U.Codebase.Sqlite.Branch.Format qualified as Branch
 import U.Codebase.Sqlite.Branch.Full (Branch' (..), DbBranch, LocalBranch)
-import qualified U.Codebase.Sqlite.Branch.Full as Branch
+import U.Codebase.Sqlite.Branch.Full qualified as Branch
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, HashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds
   ( LocalBranchChildId (..),
@@ -47,15 +47,15 @@ import U.Codebase.Sqlite.LocalIds
     LocalTextId (..),
   )
 import U.Codebase.Sqlite.Patch.Format (PatchLocalIds)
-import qualified U.Codebase.Sqlite.Patch.Format as Patch
+import U.Codebase.Sqlite.Patch.Format qualified as Patch
 import U.Codebase.Sqlite.Patch.Full (LocalPatch, Patch, Patch' (..))
 import U.Codebase.Sqlite.Patch.TermEdit (LocalTermEdit, TermEdit)
 import U.Codebase.Sqlite.Patch.TypeEdit (LocalTypeEdit, TypeEdit)
 import U.Codebase.Sqlite.Reference (LocalReference, LocalReferenceH, Reference, ReferenceH)
 import U.Codebase.Sqlite.Referent (LocalReferent, LocalReferentH, Referent, ReferentH)
 import Unison.Prelude
-import qualified Unison.Util.Map as Map
-import qualified Unison.Util.Set as Set
+import Unison.Util.Map qualified as Map
+import Unison.Util.Set qualified as Set
 
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- High-level localization

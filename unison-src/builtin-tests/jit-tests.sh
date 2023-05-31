@@ -6,6 +6,7 @@ ucm=$(stack exec -- which unison)
 base_codebase=${XDG_CACHE_HOME:-"$HOME/.cache"}/unisonlanguage/base.unison
 
 if [ ! -d $base_codebase ]; then
+    echo !!!! Creating a codebase in $base_codebase
     $ucm transcript -S $base_codebase unison-src/builtin-tests/base.md
 fi
 
@@ -16,4 +17,3 @@ mkdir -p $dir
 cp -r scheme-libs/* $dir/
 
 time $ucm transcript.fork -c $base_codebase unison-src/builtin-tests/jit-tests.md
-

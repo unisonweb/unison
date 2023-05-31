@@ -3,48 +3,48 @@
 module Unison.Syntax.TermParser where
 
 import Control.Monad.Reader (asks, local)
-import qualified Data.Char as Char
+import Data.Char qualified as Char
 import Data.Foldable (foldrM)
-import qualified Data.List as List
-import qualified Data.List.Extra as List.Extra
+import Data.List qualified as List
+import Data.List.Extra qualified as List.Extra
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Maybe as Maybe
-import qualified Data.Sequence as Sequence
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Tuple.Extra as TupleE
-import qualified Text.Megaparsec as P
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin.Decls as DD
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Maybe qualified as Maybe
+import Data.Sequence qualified as Sequence
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.Tuple.Extra qualified as TupleE
+import Text.Megaparsec qualified as P
+import Unison.ABT qualified as ABT
+import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
-import qualified Unison.HashQualified as HQ
+import Unison.ConstructorType qualified as CT
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
+import Unison.Name qualified as Name
+import Unison.Names qualified as Names
 import Unison.NamesWithHistory (NamesWithHistory)
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Name as Name (toText, toVar, unsafeFromVar)
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeFromVar)
 import Unison.Syntax.Parser hiding (seq)
-import qualified Unison.Syntax.Parser as Parser (seq, uniqueName)
-import qualified Unison.Syntax.TypeParser as TypeParser
+import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
+import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term (IsTop, Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Components as Components
-import qualified Unison.Util.Bytes as Bytes
+import Unison.Type qualified as Type
+import Unison.Typechecker.Components qualified as Components
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.List (intercalateMapWith, quenchRuns)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import Prelude hiding (and, or, seq)
 
 watch :: (Show a) => String -> a -> a
@@ -144,7 +144,7 @@ matchCases1 :: (Var v) => L.Token () -> P v (NonEmpty (Int, Term.MatchCase Ann (
 matchCases1 start = do
   cases <-
     (sepBy semi matchCase)
-      <&> \cases -> [(n, c) | (n, cs) <- cases, c <- cs]
+      <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c <- cs]
   case cases of
     [] -> P.customFailure (EmptyMatch start)
     (c : cs) -> pure (c NonEmpty.:| cs)

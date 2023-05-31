@@ -2,21 +2,21 @@
 
 module Unison.Codebase.Editor.TodoOutput where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (UserObject))
 import Unison.Codebase.Patch (Patch)
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.DataDeclaration (Decl)
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Names (Names)
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Util.Relation as R
+import Unison.Type qualified as Type
+import Unison.Util.Relation qualified as R
 
 type Score = Int
 

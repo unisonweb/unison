@@ -11,11 +11,11 @@ module U.Codebase.Sqlite.Branch.Format
 where
 
 import Data.Vector (Vector)
-import qualified Data.Vector as Vector
+import Data.Vector qualified as Vector
 import U.Codebase.Sqlite.Branch.Diff (Diff, LocalDiff)
-import qualified U.Codebase.Sqlite.Branch.Diff as Branch.Diff
+import U.Codebase.Sqlite.Branch.Diff qualified as Branch.Diff
 import U.Codebase.Sqlite.Branch.Full (DbBranch, LocalBranch)
-import qualified U.Codebase.Sqlite.Branch.Full as Branch.Full
+import U.Codebase.Sqlite.Branch.Full qualified as Branch.Full
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds
   ( LocalBranchChildId (..),

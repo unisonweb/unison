@@ -2,7 +2,7 @@
 
 module Main where
 
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.These (These (..))
 import EasyTest
 import System.IO.CodePage (withCP65001)

@@ -4,59 +4,59 @@
 module Unison.CommandLine.InputPatterns where
 
 import Control.Lens (preview, (^.))
-import qualified Control.Lens.Cons as Cons
+import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.These (These (..))
-import qualified System.Console.ANSI as Ansi
+import System.Console.ANSI qualified as Ansi
 import System.Console.Haskeline.Completion (Completion (Completion))
-import qualified System.Console.Haskeline.Completion as Haskeline
-import qualified Text.Megaparsec as P
+import System.Console.Haskeline.Completion qualified as Haskeline
+import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
-import qualified U.Codebase.Sqlite.Project as Sqlite
-import qualified U.Codebase.Sqlite.Queries as Queries
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Merge as Branch
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input)
-import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
-import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
+import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
 import Unison.Codebase.Editor.RemoteRepo (WriteGitRepo, WriteRemoteNamespace)
-import qualified Unison.Codebase.Editor.SlurpResult as SR
+import Unison.Codebase.Editor.SlurpResult qualified as SR
 import Unison.Codebase.Editor.UriParser (parseReadRemoteNamespace)
-import qualified Unison.Codebase.Editor.UriParser as UriParser
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
-import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.SyncMode as SyncMode
+import Unison.Codebase.Editor.UriParser qualified as UriParser
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.PushBehavior qualified as PushBehavior
+import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
-import qualified Unison.Codebase.Verbosity as Verbosity
+import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.Completion
-import qualified Unison.CommandLine.Globbing as Globbing
+import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern
   ( ArgumentType (..),
     InputPattern (InputPattern),
     IsOptional (..),
   )
-import qualified Unison.CommandLine.InputPattern as I
-import qualified Unison.HashQualified as HQ
+import Unison.CommandLine.InputPattern qualified as I
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames, ProjectBranchName, ProjectName, Semver)
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Syntax.HashQualified as HQ (fromString)
-import qualified Unison.Syntax.Name as Name (fromText, unsafeFromString)
-import qualified Unison.Util.ColorText as CT
+import Unison.Sqlite qualified as Sqlite
+import Unison.Syntax.HashQualified qualified as HQ (fromString)
+import Unison.Syntax.Name qualified as Name (fromText, unsafeFromString)
+import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =

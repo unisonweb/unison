@@ -11,6 +11,7 @@ module Unison.Codebase.Init
     SpecifiedCodebase (..),
     MigrationStrategy (..),
     BackupStrategy (..),
+    VacuumStrategy (..),
     Pretty,
     createCodebase,
     initCodebaseAndExit,
@@ -22,16 +23,16 @@ where
 
 import System.Exit (exitFailure)
 import Unison.Codebase (Codebase, CodebasePath)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.FileCodebase as FCC
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.FileCodebase qualified as FCC
 import Unison.Codebase.Init.CreateCodebaseError
 import Unison.Codebase.Init.OpenCodebaseError
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.PrettyTerminal as PT
+import Unison.PrettyTerminal qualified as PT
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Pretty as P
-import qualified UnliftIO
+import Unison.Util.Pretty qualified as P
+import UnliftIO qualified
 import UnliftIO.Directory (canonicalizePath)
 
 -- CodebaseInitOptions is used to help pass around a Home directory that isn't the
@@ -57,11 +58,19 @@ data BackupStrategy
     NoBackup
   deriving stock (Show, Eq, Ord)
 
+data VacuumStrategy
+  = -- Vacuum after migrating. Takes a bit longer but keeps the codebase clean and maybe reduces size.
+    Vacuum
+  | -- Don't vacuum after migrating. Vacuuming is time consuming on large codebases,
+    -- so we don't want to do it during server migrations.
+    NoVacuum
+  deriving stock (Show, Eq, Ord)
+
 data MigrationStrategy
   = -- | Perform a migration immediately if one is required.
-    MigrateAutomatically BackupStrategy
+    MigrateAutomatically BackupStrategy VacuumStrategy
   | -- | Prompt the user that a migration is about to occur, continue after acknownledgment
-    MigrateAfterPrompt BackupStrategy
+    MigrateAfterPrompt BackupStrategy VacuumStrategy
   | -- | Triggers an 'OpenCodebaseRequiresMigration' error instead of migrating
     DontMigrate
   deriving stock (Show, Eq, Ord)

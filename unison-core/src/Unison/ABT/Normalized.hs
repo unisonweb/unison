@@ -26,9 +26,9 @@ import Data.Foldable (toList)
 -- import Data.Bitraversable
 
 import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.ABT (Var (..))
 
 -- ABTs with support for 'normalized' structure where only variables

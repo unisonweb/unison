@@ -8,18 +8,18 @@ module Unison.Hashing.V2.DataDeclaration
 where
 
 import Control.Lens (over, _3)
-import qualified Data.Map as Map
-import qualified Unison.ABT as ABT
+import Data.Map qualified as Map
+import Unison.ABT qualified as ABT
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.ABT as ABT
+import Unison.Hashing.V2.ABT qualified as ABT
 import Unison.Hashing.V2.Reference (Reference (..), ReferenceId)
-import qualified Unison.Hashing.V2.Reference.Util as Reference.Util
+import Unison.Hashing.V2.Reference.Util qualified as Reference.Util
 import Unison.Hashing.V2.Tokenizable (Hashable1)
-import qualified Unison.Hashing.V2.Tokenizable as Hashable
+import Unison.Hashing.V2.Tokenizable qualified as Hashable
 import Unison.Hashing.V2.Type (Type, TypeF)
-import qualified Unison.Hashing.V2.Type as Type
-import qualified Unison.Name as Name
-import qualified Unison.Names.ResolutionResult as Names
+import Unison.Hashing.V2.Type qualified as Type
+import Unison.Name qualified as Name
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
 import Unison.Var (Var)
 import Prelude hiding (cycle)

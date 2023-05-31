@@ -11,7 +11,7 @@ module Unison.PatternMatchCoverage.GrdTree
 where
 
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List.NonEmpty as NEL
+import Data.List.NonEmpty qualified as NEL
 import Data.ListLike (ListLike)
 import Unison.PatternMatchCoverage.Fix
 import Unison.Prelude

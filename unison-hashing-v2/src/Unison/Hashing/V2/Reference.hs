@@ -6,11 +6,11 @@ module Unison.Hashing.V2.Reference
   )
 where
 
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Hashing.V2.Tokenizable (Tokenizable)
-import qualified Unison.Hashing.V2.Tokenizable as Hashable
+import Unison.Hashing.V2.Tokenizable qualified as Hashable
 import Unison.Prelude
 
 -- | Either a builtin or a user defined (hashed) top-level declaration.

@@ -97,10 +97,10 @@ where
 
 import Control.Lens (Lens', lens, use, (%%~), (.=))
 import Control.Monad.State (MonadState, evalState, get, put, runState)
-import qualified Data.Foldable as Foldable
+import Data.Foldable qualified as Foldable
 import Data.List hiding (cycle, find)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import U.Core.ABT
   ( ABT (..),
     Term (..),
@@ -125,10 +125,10 @@ import U.Core.ABT
     pattern Tm',
     pattern Var',
   )
-import qualified U.Core.ABT
+import U.Core.ABT qualified
 import U.Core.ABT.Var (Var (freshIn))
 import Unison.Prelude
-import qualified Unison.Util.Components as Components
+import Unison.Util.Components qualified as Components
 import Prelude hiding (abs, cycle)
 
 abt_ :: Lens' (Term f v a) (ABT f v (Term f v a))

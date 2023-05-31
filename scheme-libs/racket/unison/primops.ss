@@ -24,15 +24,17 @@
 #!r6rs
 (library (unison primops)
   (export
-    ; unison-FOp-Bytes.decodeNat16be
-    ; unison-FOp-Bytes.decodeNat32be
-    ; unison-FOp-Bytes.decodeNat64be
+    unison-FOp-internal.dataTag
     unison-FOp-Char.toText
     ; unison-FOp-Code.dependencies
     ; unison-FOp-Code.serialize
     unison-FOp-IO.closeFile.impl.v3
     unison-FOp-IO.openFile.impl.v3
+    unison-FOp-IO.isFileEOF.impl.v3
     unison-FOp-IO.putBytes.impl.v3
+    unison-FOp-IO.getBytes.impl.v3
+    builtin-IO.seekHandle.impl.v3
+    builtin-IO.getLine.impl.v1
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
@@ -94,6 +96,9 @@
     unison-FOp-IO.stdHandle
     unison-FOp-IO.getArgs.impl.v1
 
+    unison-FOp-IO.directoryContents.impl.v3
+    unison-FOp-IO.systemTimeMicroseconds.v1
+
     unison-FOp-ImmutableArray.copyTo!
     unison-FOp-ImmutableArray.read
 
@@ -113,6 +118,13 @@
 
     unison-FOp-ImmutableByteArray.copyTo!
     unison-FOp-ImmutableByteArray.read8
+    unison-FOp-ImmutableByteArray.read16be
+    unison-FOp-ImmutableByteArray.read24be
+    unison-FOp-ImmutableByteArray.read32be
+    unison-FOp-ImmutableByteArray.read40be
+    unison-FOp-ImmutableByteArray.read48be
+    unison-FOp-ImmutableByteArray.read56be
+    unison-FOp-ImmutableByteArray.read64be
 
     unison-FOp-MutableByteArray.freeze!
     unison-FOp-MutableByteArray.write8
@@ -233,8 +245,7 @@
     unison-POp-UPKB
     unison-POp-PAKB
     unison-POp-ADDI
-    unison-POp-DIVI
-    unison-POp-EQLI
+    unison-POp-MULI
     unison-POp-MODI
     unison-POp-LEQI
     unison-POp-POWN
@@ -304,15 +315,17 @@
   (import (rnrs)
           (only (srfi :13) string-reverse)
           (rename
-           (only (racket base)
+           (only (racket)
                  car
                  cdr
                  foldl
                  bytes->string/utf-8
                  string->bytes/utf-8
                  exn:fail:contract?
-                 with-handlers)
+                 with-handlers
+                 sequence-ref)
            (car icar) (cdr icdr))
+          (unison bytevector)
           (unison core)
           (unison data)
           (unison math)
@@ -323,6 +336,7 @@
           (unison crypto)
           (unison data)
           (unison io)
+          (unison io-handles)
           (unison tls)
           (unison tcp)
           (unison gzip)
@@ -335,9 +349,7 @@
      (lambda (i) (chunked-bytes-ref bs i))))
 
   (define unison-POp-ADDI +)
-  (define unison-POp-DIVI /)
-  (define (unison-POp-EQLI a b)
-    (if (= a b) 1 0))
+  (define unison-POp-MULI *)
   (define unison-POp-MODI mod)
   (define (unison-POp-LEQI a b) (bool (<= a b)))
   (define unison-POp-POWN expt)
@@ -485,6 +497,50 @@
   (define (unison-POp-XORN m n) (fxxor m n))
   (define (unison-POp-VALU c) (decode-value c))
 
+  (define (unison-FOp-ImmutableByteArray.read16be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u16-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read24be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u24-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read32be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u32-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read40be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u40-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read48be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u48-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read56be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u56-ref bs n 'big)))))
+
+  (define (unison-FOp-ImmutableByteArray.read64be bs n)
+    (reify-exn
+      (lambda ()
+        (sum 1 (bytevector-u64-ref bs n 'big)))))
+
+  (define unison-FOp-internal.dataTag data-tag)
+
+  (define (unison-FOp-IO.getBytes.impl.v3 p n)
+    (reify-exn
+      (lambda ()
+        (right
+          (bytes->chunked-bytes
+            (get-bytevector-n p n))))))
+
   (define (unison-FOp-IO.putBytes.impl.v3 p bs)
     (begin
       (put-bytevector p (chunked-bytes->bytes bs))
@@ -506,6 +562,13 @@
   (define (unison-FOp-IO.getArgs.impl.v1)
     (sum 1 (cdr (command-line))))
 
+  (define (unison-FOp-IO.directoryContents.impl.v3 path)
+    (reify-exn
+      (lambda ()
+        (sum 1 (directory-contents path)))))
+
+  (define unison-FOp-IO.systemTimeMicroseconds.v1 current-microseconds)
+
   ;; TODO should we convert Bytes -> Text directly without the intermediate conversions?
   (define (unison-FOp-Text.fromUtf8.impl.v3 b)
     (with-handlers
@@ -516,6 +579,9 @@
   ;; TODO should we convert Text -> Bytes directly without the intermediate conversions?
   (define (unison-FOp-Text.toUtf8 s)
     (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
+
+  (define (unison-FOp-IO.isFileEOF.impl.v3 p)
+    (right (if (port-eof? p) 1 0)))
 
   (define (unison-FOp-IO.closeFile.impl.v3 h)
     (if (input-port? h)
