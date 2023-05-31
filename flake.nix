@@ -26,6 +26,7 @@
               exports.ghc
               pkg-config
               zlib
+              glibcLocales
             ] ++ nativePackages;
             # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
             shellHook = ''
