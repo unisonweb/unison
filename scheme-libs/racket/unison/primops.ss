@@ -100,6 +100,7 @@
     unison-FOp-ImmutableArray.copyTo!
     unison-FOp-ImmutableArray.read
 
+    unison-FOp-MutableArray.copyTo!
     unison-FOp-MutableArray.freeze!
     unison-FOp-MutableArray.freeze
     unison-FOp-MutableArray.read
@@ -124,8 +125,18 @@
     unison-FOp-ImmutableByteArray.read56be
     unison-FOp-ImmutableByteArray.read64be
 
+    unison-FOp-MutableByteArray.copyTo!
     unison-FOp-MutableByteArray.freeze!
     unison-FOp-MutableByteArray.write8
+    unison-FOp-MutableByteArray.write16be
+    unison-FOp-MutableByteArray.write32be
+    unison-FOp-MutableByteArray.write64be
+    unison-FOp-MutableByteArray.read8
+    unison-FOp-MutableByteArray.read16be
+    unison-FOp-MutableByteArray.read24be
+    unison-FOp-MutableByteArray.read32be
+    unison-FOp-MutableByteArray.read40be
+    unison-FOp-MutableByteArray.read64be
 
     unison-FOp-Scope.bytearray
     unison-FOp-Scope.bytearrayOf
@@ -321,7 +332,9 @@
                  string->bytes/utf-8
                  exn:fail:contract?
                  with-handlers
-                 sequence-ref)
+                 sequence-ref
+                 vector-copy!
+                 bytes-copy!)
            (car icar) (cdr icdr))
           (unison bytevector)
           (unison core)
@@ -670,12 +683,14 @@
   (define (unison-FOp-ImmutableArray.copyTo! dst doff src soff n)
     (catch-array
       (lambda ()
-        (let next ([i (fx1- n)])
-          (if (< i 0)
-            (sum 1 #f)
-            (begin
-              (vector-set! dst (+ doff i) (vector-ref src (+ soff i)))
-              (next (fx1- i))))))))
+        (vector-copy! dst doff src soff n)
+        (sum 1))))
+
+  (define (unison-FOp-MutableArray.copyTo! dst doff src soff l)
+    (catch-array
+      (lambda ()
+        (vector-copy! dst doff src soff l)
+        (sum 1))))
 
   (define unison-FOp-MutableArray.freeze! freeze-vector!)
 
@@ -695,13 +710,19 @@
   (define (unison-FOp-ImmutableByteArray.copyTo! dst doff src soff n)
     (catch-array
       (lambda ()
-        (bytevector-copy! src soff dst doff n)
-        (sum 1 #f))))
+        (bytes-copy! dst doff src soff n)
+        (sum 1))))
 
   (define (unison-FOp-ImmutableByteArray.read8 arr i)
     (catch-array
       (lambda ()
         (sum 1 (bytevector-u8-ref arr i)))))
+
+  (define (unison-FOp-MutableByteArray.copyTo! dst doff src soff l)
+    (catch-array
+      (lambda ()
+        (bytes-copy! dst doff src soff l)
+        (sum 1))))
 
   (define unison-FOp-MutableByteArray.freeze! freeze-bytevector!)
 
@@ -710,6 +731,54 @@
       (lambda ()
         (bytevector-u8-set! arr i b)
         (sum 1))))
+
+  (define (unison-FOp-MutableByteArray.write16be arr i b)
+    (catch-array
+      (lambda ()
+        (bytevector-u16-set! arr i b 'big)
+        (sum 1))))
+
+  (define (unison-FOp-MutableByteArray.write32be arr i b)
+    (catch-array
+      (lambda ()
+        (bytevector-u32-set! arr i b 'big)
+        (sum 1))))
+
+  (define (unison-FOp-MutableByteArray.write64be arr i b)
+    (catch-array
+      (lambda ()
+        (bytevector-u64-set! arr i b 'big)
+        (sum 1))))
+
+  (define (unison-FOp-MutableByteArray.read8 arr i)
+    (catch-array
+      (lambda ()
+        (sum 1 (bytevector-u8-ref arr i)))))
+
+  (define (unison-FOp-MutableByteArray.read16be arr i)
+    (catch-array
+      (lambda ()
+        (sum 1 (bytevector-u16-ref arr i 'big)))))
+
+  (define (unison-FOp-MutableByteArray.read24be arr i)
+    (catch-array
+      (lambda ()
+        (sum 1 (bytevector-u24-ref arr i 'big)))))
+
+  (define (unison-FOp-MutableByteArray.read32be arr i)
+    (catch-array
+      (lambda ()
+        (sum 1 (bytevector-u32-ref arr i 'big)))))
+
+  (define (unison-FOp-MutableByteArray.read40be arr i)
+    (catch-array
+      (lambda ()
+        (sum 1 (bytevector-u40-ref arr i 'big)))))
+
+  (define (unison-FOp-MutableByteArray.read64be arr i)
+    (catch-array
+      (lambda ()
+        (sum 1 (bytevector-u64-ref arr i 'big)))))
 
   (define (unison-FOp-Scope.bytearray n) (make-bytevector n))
   (define (unison-FOp-IO.bytearray n) (make-bytevector n))

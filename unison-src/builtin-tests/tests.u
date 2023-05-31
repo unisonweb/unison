@@ -13,6 +13,7 @@ tests = Tests.main do
   !list.tests
   !text.tests
   !bytes.tests
+  !array.tests
 
 
 crypto.hash.tests = do
