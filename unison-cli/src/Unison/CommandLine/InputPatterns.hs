@@ -12,13 +12,13 @@ import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
-import System.Console.ANSI qualified as Ansi
 import System.Console.Haskeline.Completion (Completion (Completion))
 import System.Console.Haskeline.Completion qualified as Haskeline
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Cli.Pretty (prettyProjectNameSlash, prettySlashProjectBranchName)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
@@ -40,11 +40,7 @@ import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.Completion
 import Unison.CommandLine.Globbing qualified as Globbing
-import Unison.CommandLine.InputPattern
-  ( ArgumentType (..),
-    InputPattern (InputPattern),
-    IsOptional (..),
-  )
+import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..))
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -2856,14 +2852,7 @@ projectAndBranchNamesArg =
     branchToCompletion (_, branchName) =
       Completion
         { replacement = '/' : stringBranchName,
-          display =
-            fold
-              [ Ansi.setSGRCode [Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Black],
-                "/",
-                Ansi.setSGRCode [Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Blue],
-                stringBranchName,
-                Ansi.setSGRCode [Ansi.Reset]
-              ],
+          display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName),
           isFinished = False
         }
       where
@@ -2874,12 +2863,7 @@ projectAndBranchNamesArg =
     projectToCompletion project =
       Completion
         { replacement = stringProjectName,
-          display =
-            fold
-              [ Ansi.setSGRCode [Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Green],
-                stringProjectName,
-                Ansi.setSGRCode [Ansi.Reset]
-              ],
+          display = P.toAnsiUnbroken (prettyProjectNameSlash (project ^. #name)),
           isFinished = False
         }
       where
