@@ -45,11 +45,11 @@ unitRef = lookupDeclRef "Unit"
 pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
+
 testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
 failureRef, ioFailureRef, tlsFailureRef, arrayFailureRef :: Reference
 exceptionRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
 isPropagatedRef, isTestRef :: Reference
-
 isPropagatedRef = lookupDeclRef "IsPropagated"
 
 isTestRef = lookupDeclRef "IsTest"

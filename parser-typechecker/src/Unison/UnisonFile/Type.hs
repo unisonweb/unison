@@ -15,8 +15,8 @@ import qualified Unison.Type as Type
 import Unison.WatchKind (WatchKind)
 
 data UnisonFile v a = UnisonFileId
-  { dataDeclarationsId :: Map v (TermReferenceId, DataDeclaration v a),
-    effectDeclarationsId :: Map v (TermReferenceId, EffectDeclaration v a),
+  { dataDeclarationsId :: Map v (TypeReferenceId, DataDeclaration v a),
+    effectDeclarationsId :: Map v (TypeReferenceId, EffectDeclaration v a),
     terms :: [(v, Term v a)],
     watches :: Map WatchKind [(v, Term v a)]
   }

@@ -119,8 +119,8 @@ import qualified Unison.NamesWithHistory as Names
 import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
+import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import Unison.PrettyTerminal
   ( clearCurrentLine,
@@ -128,8 +128,8 @@ import Unison.PrettyTerminal
   )
 import Unison.PrintError
   ( prettyParseError,
-    prettyVar,
     prettyResolutionFailures,
+    prettyVar,
     printNoteWithSource,
     renderCompilerBug,
   )
@@ -896,7 +896,7 @@ notifyUser dir = \case
         "The file "
           <> P.blue (P.shown name)
           <> " does not exist or is not a valid source file."
-  InvalidStructuredFindReplace _sym -> 
+  InvalidStructuredFindReplace _sym ->
     pure . P.callout "😶" $ IP.helpFor IP.sfindReplace
   SourceLoadFailed name ->
     pure . P.callout "😶" $
@@ -2436,39 +2436,42 @@ displayOutputRewrittenFile _ppe _fp ([], _uf) =
 displayOutputRewrittenFile ppe fp (vs, uf) = do
   fp <- prependToFile (prettyUnisonFile ppe uf <> foldLine) fp
   let msg = P.sep " " (P.blue . prettyVar <$> vs)
-  pure $ P.callout "☝️" . P.lines $ 
-    [ P.wrap $ "I found and replaced matches in these definitions: " <> msg,
-      "",
-      "The rewritten file has been added to the top of " <> fromString fp
-    ]
+  pure $
+    P.callout "☝️" . P.lines $
+      [ P.wrap $ "I found and replaced matches in these definitions: " <> msg,
+        "",
+        "The rewritten file has been added to the top of " <> fromString fp
+      ]
 
 foldLine :: IsString s => P.Pretty s
 foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
 
-prettyUnisonFile :: forall v a . (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
-prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) = 
-  P.sep "\n\n" (map snd . sortOn fst $ pretty <$> things) 
+prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
+prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
+  P.sep "\n\n" (map snd . sortOn fst $ pretty <$> things)
   where
-    things = map Left (map Left (Map.toList effects) <> map Right (Map.toList datas))
-          <> map (Right . (Nothing,)) terms
-          <> (Map.toList watches >>= \(wk,tms) -> map (\a -> Right (Just wk, a)) tms)
-    pretty (Left (Left (n, (r,et)))) = 
+    things =
+      map Left (map Left (Map.toList effects) <> map Right (Map.toList datas))
+        <> map (Right . (Nothing,)) terms
+        <> (Map.toList watches >>= \(wk, tms) -> map (\a -> Right (Just wk, a)) tms)
+    pretty (Left (Left (n, (r, et)))) =
       (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et))
-    pretty (Left (Right (n, (r,dt)))) = 
+    pretty (Left (Right (n, (r, dt)))) =
       (DD.annotation dt, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Right dt))
-    pretty (Right (Nothing, (n,tm))) = 
+    pretty (Right (Nothing, (n, tm))) =
       (ABT.annotation tm, pb (hqv n) tm)
-    pretty (Right (Just wk, (n,tm))) = 
+    pretty (Right (Just wk, (n, tm))) =
       (ABT.annotation tm, go wk n tm)
       where
         go wk v tm = case wk of
-          WK.RegularWatch | Var.UnnamedWatch _ _ <- Var.typeOf v -> 
-            "> " <> P.indentNAfterNewline 2 (TermPrinter.pretty sppe tm)
+          WK.RegularWatch
+            | Var.UnnamedWatch _ _ <- Var.typeOf v ->
+                "> " <> P.indentNAfterNewline 2 (TermPrinter.pretty sppe tm)
           WK.RegularWatch -> "> " <> pb (hqv v) tm
           w -> P.string w <> "> " <> pb (hqv v) tm
     st = P.syntaxToColor
     sppe = PPED.suffixifiedPPE ppe
-    pb v tm = st $ TermPrinter.prettyBinding sppe v tm 
+    pb v tm = st $ TermPrinter.prettyBinding sppe v tm
     ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
     dppe = PPE.fromNames 8 (Names.NamesWithHistory (UF.toNames uf) mempty)
     rd = Reference.DerivedId
@@ -2849,7 +2852,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2864,7 +2867,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

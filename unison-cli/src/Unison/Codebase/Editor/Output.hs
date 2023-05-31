@@ -352,8 +352,9 @@ data Output
   | ClonedProjectBranch
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
-  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath ([Symbol], UF.UnisonFile Symbol Ann) 
-                                                     --   ^ is symbols that were rewritten
+  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath ([Symbol], UF.UnisonFile Symbol Ann)
+
+--   ^ is symbols that were rewritten
 
 -- | What did we create a project branch from?
 --

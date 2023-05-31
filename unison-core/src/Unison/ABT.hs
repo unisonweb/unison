@@ -489,7 +489,7 @@ reannotateUp g t = case out t of
 
 rewriteExpression ::
   forall f v a.
-  (Var v, Show v, forall a. (Eq a) => Eq (f a), forall a . (Show a) => Show (f a), Traversable f) =>
+  (Var v, Show v, forall a. (Eq a) => Eq (f a), forall a. (Show a) => Show (f a), Traversable f) =>
   Term f v a ->
   Term f v a ->
   Term f v a ->
@@ -498,9 +498,10 @@ rewriteExpression query0 replacement0 tm =
   rewriteHere tm
   where
     used = Set.fromList (allVars tm)
-    varChanges = 
+    varChanges =
       fst $ foldl go (Map.empty, used) (freeVars query0 <> freeVars replacement0)
-      where go (m, u) v = let v' = freshIn u v in (Map.insert v v' m, Set.insert v' u)
+      where
+        go (m, u) v = let v' = freshIn u v in (Map.insert v v' m, Set.insert v' u)
     -- rename free vars to avoid possible capture of things in `tm`
     query = renames varChanges query0
     replacement = renames varChanges replacement0
@@ -510,7 +511,7 @@ rewriteExpression query0 replacement0 tm =
     rewriteHere tm =
       case runState (go query tm) env0 of
         (False, _) -> descend tm
-        (True, subs) -> 
+        (True, subs) ->
           let tm' = substs [(k, v) | (k, Just v) <- Map.toList subs] replacement
            in descend tm' <|> Just tm'
       where
@@ -522,7 +523,7 @@ rewriteExpression query0 replacement0 tm =
           Tm f ->
             let ps = (\t -> (t, rewriteHere t)) <$> f
              in if all (isNothing . snd) (toList ps)
-                  then Nothing 
+                  then Nothing
                   else Just $ tm' (annotation tm0) (uncurry fromMaybe <$> ps)
         go ::
           (MonadState (Map v (Maybe (Term f v a))) m) =>

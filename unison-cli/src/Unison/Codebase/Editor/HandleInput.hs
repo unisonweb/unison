@@ -189,7 +189,7 @@ import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toVar, toText, unsafeFromString)
+import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toText, toVar, unsafeFromString)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Name as Name (toString, toText, toVar, unsafeFromString, unsafeFromVar)
 import qualified Unison.Syntax.Parser as Parser
@@ -1666,18 +1666,20 @@ handleStructuredFindReplaceI rule = do
   ot <- Cli.getTermFromLatestParsedFile rule
   ot <- case ot of
     Just _ -> pure ot
-    Nothing -> do 
+    Nothing -> do
       case NamesWithHistory.lookupHQTerm rule currentNames of
-        s | Set.size s == 1, Referent.Ref (Reference.DerivedId r) <- Set.findMin s -> 
-          Cli.runTransaction (Codebase.getTerm codebase r)
+        s
+          | Set.size s == 1,
+            Referent.Ref (Reference.DerivedId r) <- Set.findMin s ->
+              Cli.runTransaction (Codebase.getTerm codebase r)
         s -> Cli.returnEarly (TermAmbiguous rule s)
   tm <- maybe (Cli.returnEarly (TermAmbiguous rule mempty)) pure ot
-  (lhs,rhs) <- case tm of
-    Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs,rhs]) -> pure (lhs,rhs) 
-    Term.Ann' (Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs,rhs])) _typ -> pure (lhs,rhs) 
-    _ -> Cli.returnEarly (InvalidStructuredFindReplace rule) 
+  (lhs, rhs) <- case tm of
+    Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs, rhs]) -> pure (lhs, rhs)
+    Term.Ann' (Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs, rhs])) _typ -> pure (lhs, rhs)
+    _ -> Cli.returnEarly (InvalidStructuredFindReplace rule)
   uf <- Cli.expectLatestParsedFile
-  (dest,_) <- Cli.expectLatestFile
+  (dest, _) <- Cli.expectLatestFile
   #latestFile ?= (dest, True)
   Cli.respond $ OutputRewrittenFile ppe dest (UF.rewrite (Set.singleton (HQ.toVar rule)) lhs rhs uf)
 
