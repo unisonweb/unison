@@ -3267,11 +3267,12 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
             t.depth + 1
           FROM
             t
-          JOIN project_branch_parent AS pbp ON pbp.project_id = t.project_id
+          LEFT JOIN project_branch_parent AS pbp ON pbp.project_id = t.project_id
             AND pbp.branch_id = t.parent_branch_id
           LEFT JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = t.project_id
           AND pbrm.local_branch_id = t.parent_branch_id
           AND pbrm.remote_host = :remoteUri
+          WHERE t.parent_branch_id IS NOT NULL
         )
         SELECT
           remote_project_id,
