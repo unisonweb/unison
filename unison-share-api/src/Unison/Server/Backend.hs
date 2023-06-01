@@ -136,6 +136,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration qualified as DD
+import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Hashing.V2.Convert qualified as Hashing
@@ -1041,14 +1042,18 @@ evalDocRef rt codebase r = do
       let codeLookup = Codebase.toCodeLookup codebase
       let cache r = fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase r)
       r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache evalPPE rt tm
-      case r of
-        Just tmr ->
-          Codebase.runTransaction codebase do
-            Codebase.putWatch
-              WK.RegularWatch
-              (Hashing.hashClosedTerm tm)
-              (Term.amap (const mempty) tmr)
-        Nothing -> pure ()
+      -- Only cache watches when we're not in readonly mode
+      Env.lookupEnv "UNISON_READONLY" >>= \case
+        Just (_:_) -> pure ()
+        _ -> do
+          case r of
+            Just tmr ->
+              Codebase.runTransaction codebase do
+                Codebase.putWatch
+                  WK.RegularWatch
+                  (Hashing.hashClosedTerm tm)
+                  (Term.amap (const mempty) tmr)
+            Nothing -> pure ()
       pure $ r <&> Term.amap (const mempty)
 
     decls (Reference.DerivedId r) =
