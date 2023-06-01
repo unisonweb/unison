@@ -352,6 +352,7 @@ data Output
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
   | RenamedProject ProjectName ProjectName
+  | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
 
 -- | What did we create a project branch from?
 --

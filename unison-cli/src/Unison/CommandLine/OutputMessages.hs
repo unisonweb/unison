@@ -2071,6 +2071,13 @@ notifyUser dir = \case
       if oldName == newName
         then prettyProjectName oldName <> "is already named" <> P.group (prettyProjectName oldName <> "!") <> "😄"
         else "Ok, I renamed" <> prettyProjectName oldName <> "to" <> P.group (prettyProjectName newName <> ".")
+  RenamedProjectBranch projectName oldBranchName newBranchName ->
+    let oldProjectAndBranchName = prettyProjectAndBranchName (ProjectAndBranch projectName oldBranchName)
+        newProjectAndBranchName = prettyProjectAndBranchName (ProjectAndBranch projectName newBranchName)
+     in pure . P.wrap $
+          if oldBranchName == newBranchName
+            then oldProjectAndBranchName <> "is already named" <> P.group (newProjectAndBranchName <> "!") <> "😄"
+            else "Ok, I renamed" <> oldProjectAndBranchName <> "to" <> P.group (newProjectAndBranchName <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

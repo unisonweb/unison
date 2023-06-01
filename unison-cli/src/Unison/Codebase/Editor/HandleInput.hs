@@ -89,6 +89,7 @@ import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
+import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
@@ -1402,6 +1403,7 @@ loop e = do
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
             BranchI source name -> handleBranch source name
+            BranchRenameI name -> handleBranchRename name
             BranchesI -> handleBranches
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
@@ -1577,6 +1579,7 @@ inputDescription input =
     ApiI -> wat
     AuthLoginI {} -> wat
     BranchI {} -> wat
+    BranchRenameI {} -> wat
     BranchesI -> wat
     CloneI {} -> wat
     CreateMessage {} -> wat
