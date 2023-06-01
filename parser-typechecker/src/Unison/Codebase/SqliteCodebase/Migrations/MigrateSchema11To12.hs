@@ -24,12 +24,12 @@ migrateSchema11To12 = do
 dropOldNameLookupTables :: Sqlite.Transaction ()
 dropOldNameLookupTables = do
   Debug.debugLogM Debug.Migration "Dropping old name lookup tables"
-  Sqlite.execute2
-    [Sqlite.sql2|
+  Sqlite.execute
+    [Sqlite.sql|
       DROP TABLE IF EXISTS term_name_lookup
     |]
-  Sqlite.execute2
-    [Sqlite.sql2|
+  Sqlite.execute
+    [Sqlite.sql|
       DROP TABLE IF EXISTS type_name_lookup
     |]
 
@@ -40,15 +40,15 @@ deleteAllNameLookups :: Sqlite.Transaction ()
 deleteAllNameLookups = do
   Debug.debugLogM Debug.Migration "Deleting all name lookups"
   -- Bare deletes are optimized into table truncations by sqlite
-  Sqlite.execute2
-    [Sqlite.sql2|
+  Sqlite.execute
+    [Sqlite.sql|
       DELETE FROM scoped_term_name_lookup
     |]
-  Sqlite.execute2
-    [Sqlite.sql2|
+  Sqlite.execute
+    [Sqlite.sql|
       DELETE FROM scoped_type_name_lookup
     |]
-  Sqlite.execute2
-    [Sqlite.sql2|
+  Sqlite.execute
+    [Sqlite.sql|
       DELETE FROM name_lookups
     |]

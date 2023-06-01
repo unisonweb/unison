@@ -1400,7 +1400,7 @@ loop e = do
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
             BranchI source name -> handleBranch source name
-            BranchesI -> handleBranches
+            BranchesI name -> handleBranches name
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
 
@@ -1575,7 +1575,7 @@ inputDescription input =
     ApiI -> wat
     AuthLoginI {} -> wat
     BranchI {} -> wat
-    BranchesI -> wat
+    BranchesI {} -> wat
     CloneI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat

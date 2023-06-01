@@ -15,7 +15,7 @@ import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Sqlite.DbId (SchemaVersion (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Codebase (CodebasePath)
-import Unison.Codebase.Init (BackupStrategy (..))
+import Unison.Codebase.Init (BackupStrategy (..), VacuumStrategy (..))
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUnknownSchemaVersion))
 import Unison.Codebase.Init.OpenCodebaseError qualified as Codebase
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals, prettyPrintIntegrityErrors)
@@ -101,9 +101,10 @@ ensureCodebaseIsUpToDate ::
   TVar (Map Hash Ops2.DeclBufferEntry) ->
   Bool ->
   BackupStrategy ->
+  VacuumStrategy ->
   Sqlite.Connection ->
   m (Either Codebase.OpenCodebaseError ())
-ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy conn =
+ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy vacuumStrategy conn =
   (liftIO . UnliftIO.try) do
     regionVar <- newEmptyMVar
     let finalizeRegion :: IO ()
@@ -177,7 +178,9 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
           region <- readMVar regionVar
           -- Vacuum once now that any migrations have taken place.
           Region.setConsoleRegion region ("✅ All good, cleaning up..." :: Text)
-          _success <- Sqlite.Connection.vacuum conn
+          case vacuumStrategy of
+            Vacuum -> void $ Sqlite.Connection.vacuum conn
+            NoVacuum -> pure ()
           Region.setConsoleRegion region ("🏁 Migrations complete 🏁" :: Text)
 
 -- | If we need to make a backup,  then copy the sqlite database to a new file with a unique name based on current time.
