@@ -18,15 +18,13 @@ data CharPattern
 
 
 instance Compile Text CharPattern where
-  compilePattern p !err !success = go
+  compilePred p !err !success = go
     where
       ok = charPatternPred p
       go acc bs = case Text.uncons bs of
         Nothing -> err acc bs
         Just (b, bs) -> if ok b then success acc bs else err acc bs
-  compileSize = Text.size
-  compileTake = Text.take
-  compileDrop = Text.drop
+
 
 charInPred, charNotInPred :: [Char] -> Char -> Bool
 charInPred [] = const False

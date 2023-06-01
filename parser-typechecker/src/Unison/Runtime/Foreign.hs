@@ -37,8 +37,9 @@ import Unison.Symbol (Symbol)
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Text (Text)
-import Unison.Util.Text.Pattern as TPat
-import Unison.Util.Bytes.Pattern as BPat
+import Unison.Util.Pattern as Pat
+import Unison.Util.Pattern.Text as TPat
+import Unison.Util.Pattern.Bytes as BPat
 import Unsafe.Coerce
 
 data Foreign where
@@ -105,13 +106,13 @@ barrCmp :: ByteArray -> ByteArray -> Ordering
 barrCmp l r = compare l r
 {-# NOINLINE barrCmp #-}
 
-cpatEq :: CPattern -> CPattern -> Bool
-cpatEq l r = l == r
-{-# NOINLINE cpatEq #-}
+-- cpatEq :: Compile t pt => Pat.CPattern t pt -> Pat.CPattern t pt-> Bool
+-- cpatEq l r = l == r
+-- {-# NOINLINE cpatEq #-}
 
-cpatCmp :: CPattern -> CPattern -> Ordering
-cpatCmp l r = compare l r
-{-# NOINLINE cpatCmp #-}
+-- cpatCmp :: Compile t pt => Pat.CPattern t pt -> Pat.CPattern t pt -> Ordering
+-- cpatCmp l r = compare l r
+-- {-# NOINLINE cpatCmp #-}
 
 charClassEq :: CharPattern -> CharPattern -> Bool
 charClassEq l r = l == r
@@ -153,7 +154,7 @@ ref2eq r
   | r == Ty.marrayRef = Just $ promote marrEq
   | r == Ty.mbytearrayRef = Just $ promote mbarrEq
   | r == Ty.ibytearrayRef = Just $ promote barrEq
-  | r == Ty.patternRef = Just $ promote cpatEq
+--  | r == Ty.patternRef = Just $ promote cpatEq
   | r == Ty.charClassRef = Just $ promote charClassEq
   | otherwise = Nothing
 
@@ -165,7 +166,7 @@ ref2cmp r
   | r == Ty.bytesRef = Just $ promote bytesCmp
   | r == Ty.threadIdRef = Just $ promote tidCmp
   | r == Ty.ibytearrayRef = Just $ promote barrCmp
-  | r == Ty.patternRef = Just $ promote cpatCmp
+--  | r == Ty.patternRef = Just $ promote cpatCmp
   | r == Ty.charClassRef = Just $ promote charClassCmp
   | otherwise = Nothing
 
@@ -249,10 +250,10 @@ data Failure a = Failure Reference Text a
 
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
 
-instance BuiltinForeign TPat.CPattern where
+instance BuiltinForeign (Pat.CPattern Text CharPattern) where
   foreignRef = Tagged Ty.patternRef
 
-instance BuiltinForeign BPat.CBytesPattern where
+instance BuiltinForeign (Pat.CPattern Bytes BytePattern) where
   foreignRef = Tagged Ty.patternRef
 
 instance BuiltinForeign TPat.CharPattern where

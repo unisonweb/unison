@@ -2,6 +2,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Unison.Util.Pattern where
+import qualified Unison.Util.Text as Text
+import qualified Unison.Util.Bytes as Bytes
 
 data Pattern t pt
   = Join [Pattern t pt] -- sequencing of patterns
@@ -15,13 +17,26 @@ data Pattern t pt
   | Predicate pt -- succeed if input starts with a char matching the given pattern, advance by 1 char
   deriving (Show, Eq, Ord)
 
-type Compiled r = (Stack r -> r -> r) -> (Stack r -> r -> r) -> Stack r -> r -> r
 
-class Compile t pt where
-  compilePattern :: pt -> Compiled t
+class (Ord t, Ord pt) => Compile t pt where
+  compilePred :: pt -> Compiled t r
+
+
+class Ord t => StringLike t where
   compileSize :: t -> Int
   compileTake :: Int -> t -> t
   compileDrop :: Int -> t -> t
+
+instance StringLike Text.Text where
+  compileSize = Text.size
+  compileTake = Text.take
+  compileDrop = Text.drop
+
+instance StringLike Bytes.Bytes where
+  compileSize = Bytes.size
+  compileTake = Bytes.take
+  compileDrop = Bytes.drop
+
 
 data CharClass
   = AlphaNum -- alphabetic or numeric characters
@@ -48,16 +63,18 @@ data CharClass
 --
 data CPattern t pt = CP (Pattern t pt) (t -> Maybe ([t], t))
 
-instance Eq (CPattern t pt) where
+instance (Eq pt, Eq t) =>  Eq (CPattern t pt) where
   CP p _ == CP q _ = p == q
 
-instance Ord (CPattern t pt) where
+instance (Ord t, Ord pt) => Ord (CPattern t pt) where
   CP p _ `compare` CP q _ = compare p q
 
-cpattern :: Pattern t pt -> CPattern t pt
+cpattern :: (Compile t pt, StringLike t) => Pattern t pt -> CPattern t pt
 cpattern p = CP p (run p)
 
-run :: Pattern t pt -> t -> Maybe ([t], t)
+type Compiled t r = (Stack t -> t -> r) -> (Stack t -> t -> r) -> Stack t -> t -> r
+
+run :: (Compile t pt, StringLike t) => Pattern t pt -> t -> Maybe ([t], t)
 run p =
   let cp = compile p (\_ _ -> Nothing) (\acc rem -> Just (s acc, rem))
       s = reverse . capturesToList . stackCaptures
@@ -97,7 +114,7 @@ emptyCaptures = id
 capturesToList :: Captures t -> [t]
 capturesToList c = c []
 
-compile :: Compile t pt => Pattern t pt -> Compiled t
+compile :: (Compile t pt, StringLike t) => Pattern t pt -> Compiled t r
 compile Eof !err !success = go
   where
     go acc t
@@ -109,17 +126,18 @@ compile (Literal txt) !err !success = go
         | compileTake (compileSize txt) t == txt = success acc (compileDrop (compileSize txt) t)
         | otherwise = err acc t
 
-compile (Predicate p) !err !success = compilePattern p err success
-compile (CaptureAs t p) !err !success = go
-  where
-    err' _ _ acc0 t0 = err acc0 t0
-    success' _ rem acc0 _ = success (pushCapture t acc0) rem
-    compiled = compile p err' success'
-    go acc t = compiled acc t acc t
+compile (Predicate p) !err !success = compilePred p err success
+
+compile (CaptureAs t p) !err !success = undefined go
+    where
+      err' _ _  = err
+      success' _ rem acc0 _ = success (pushCapture t acc0) rem
+      compiled = compile p err' success'
+      go acc t = compiled acc t acc t
 
 compile (Capture c) !err !success = go
   where
-    err' _ _ acc0 t0 = err acc0 t0
+    err' _ _= err 
     success' _ rem acc0 t0 = success (pushCapture (compileTake (compileSize t0 - compileSize rem) t0) acc0) rem
     compiled = compile c err' success'
     go acc t = compiled acc t acc t
@@ -152,7 +170,7 @@ compile (Replicate m n p) !err !success =
     go2 n = try "Replicate" (compile p) success (go2 (n - 1))
 
 -- runs c and if it fails, restores state to what it was before
-try :: String -> Compiled r -> Compiled r
+try :: String -> Compiled t r -> Compiled t r
 try msg c err success stk rem =
   c err' success' (Mark id rem stk) rem
   where

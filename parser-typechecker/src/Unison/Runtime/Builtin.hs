@@ -170,8 +170,9 @@ import Unison.Util.RefPromise
   )
 import Unison.Util.Text (Text)
 import qualified Unison.Util.Text as Util.Text
-import qualified Unison.Util.Text.Pattern as TPat
-import qualified Unison.Util.Bytes.Pattern as BPat
+import qualified Unison.Util.Pattern as Pat
+import qualified Unison.Util.Pattern.Text as TPat
+import qualified Unison.Util.Pattern.Bytes as BPat
 import Unison.Var
 
 type Failure = F.Failure Closure
@@ -2910,65 +2911,65 @@ declareForeigns = do
       pure arr
 
   declareForeign Untracked "Bytes.patterns.literal" boxDirect . mkForeign $
-    \bs -> evaluate . BPat.cpattern $ BPat.Literal bs
+    \bs -> evaluate . Pat.cpattern $ Pat.Literal bs
 
   declareForeign Untracked "Bytes.patterns.byteRange" boxBoxDirect . mkForeign $
-    \(beg,end) -> evaluate . BPat.cpattern $ BPat.Byte $ BPat.ByteRange beg end
+    \(beg,end) -> evaluate . Pat.cpattern $ Pat.Predicate $ BPat.ByteRange beg end
 
   declareForeign Untracked "Bytes.patterns.byteRange" boxBoxDirect . mkForeign $
-    \(beg,end) -> evaluate . BPat.cpattern $ BPat.Byte $ BPat.ByteRange beg end
+    \(beg,end) -> evaluate . Pat.cpattern $ Pat.Predicate $ BPat.ByteRange beg end
 
 
 
   declareForeign Untracked "Text.patterns.literal" boxDirect . mkForeign $
-    \txt -> evaluate . TPat.cpattern $ TPat.Literal txt
+    \txt -> evaluate . Pat.cpattern $ Pat.Literal txt
   declareForeign Untracked "Text.patterns.digit" direct . mkForeign $
-    let v = TPat.cpattern (TPat.Char (TPat.CharRange '0' '9')) in \() -> pure v
+    let v = Pat.cpattern (Pat.Predicate (TPat.CharRange '0' '9')) in \() -> pure v
   declareForeign Untracked "Text.patterns.letter" direct . mkForeign $
-    let v = TPat.cpattern (TPat.Char (TPat.CharClass TPat.Letter)) in \() -> pure v
+    let v = Pat.cpattern (Pat.Predicate (TPat.CharClass Pat.Letter)) in \() -> pure v
   declareForeign Untracked "Text.patterns.space" direct . mkForeign $
-    let v = TPat.cpattern (TPat.Char (TPat.CharClass TPat.Whitespace)) in \() -> pure v
+    let v = Pat.cpattern (Pat.Predicate (TPat.CharClass Pat.Whitespace)) in \() -> pure v
   declareForeign Untracked "Text.patterns.punctuation" direct . mkForeign $
-    let v = TPat.cpattern (TPat.Char (TPat.CharClass TPat.Punctuation)) in \() -> pure v
+    let v = Pat.cpattern (Pat.Predicate (TPat.CharClass Pat.Punctuation)) in \() -> pure v
   declareForeign Untracked "Text.patterns.anyChar" direct . mkForeign $
-    let v = TPat.cpattern (TPat.Char TPat.Any) in \() -> pure v
+    let v = Pat.cpattern (Pat.Predicate TPat.Any) in \() -> pure v
   declareForeign Untracked "Text.patterns.eof" direct . mkForeign $
-    let v = TPat.cpattern TPat.Eof in \() -> pure v
+    let v = Pat.cpattern Pat.Eof in \() -> pure v
   let ccd = wordWordDirect Ty.charRef Ty.charRef
   declareForeign Untracked "Text.patterns.charRange" ccd . mkForeign $
-    \(beg, end) -> evaluate . TPat.cpattern . TPat.Char $ TPat.CharRange beg end
+    \(beg, end) -> evaluate . Pat.cpattern . Pat.Predicate $ TPat.CharRange beg end
   declareForeign Untracked "Text.patterns.notCharRange" ccd . mkForeign $
-    \(beg, end) -> evaluate . TPat.cpattern . TPat.Char . TPat.Not $ TPat.CharRange beg end
+    \(beg, end) -> evaluate . Pat.cpattern . Pat.Predicate . TPat.Not $ TPat.CharRange beg end
   declareForeign Untracked "Text.patterns.charIn" boxDirect . mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       Closure.DataU1 _ _ i -> pure (toEnum i)
       _ -> die "Text.patterns.charIn: non-character closure"
-    evaluate . TPat.cpattern . TPat.Char $ TPat.CharSet cs
+    evaluate . Pat.cpattern . Pat.Predicate $ TPat.CharSet cs
   declareForeign Untracked "Text.patterns.notCharIn" boxDirect . mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       Closure.DataU1 _ _ i -> pure (toEnum i)
       _ -> die "Text.patterns.notCharIn: non-character closure"
-    evaluate . TPat.cpattern . TPat.Char . TPat.Not $ TPat.CharSet cs
+    evaluate . Pat.cpattern . Pat.Predicate . TPat.Not $ TPat.CharSet cs
   declareForeign Untracked "Pattern.many" boxDirect . mkForeign $
-    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many p
+    \(Pat.CP p _) -> evaluate . Pat.cpattern $ Pat.Many p
   declareForeign Untracked "Pattern.capture" boxDirect . mkForeign $
-    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Capture p
+    \(Pat.CP p _) -> evaluate . Pat.cpattern $ Pat.Capture p
   declareForeign Untracked "Pattern.captureAs" boxBoxDirect . mkForeign $
-    \(t, (TPat.CP p _)) -> evaluate . TPat.cpattern $ TPat.CaptureAs t p
+    \(t, (Pat.CP p _)) -> evaluate . Pat.cpattern $ Pat.CaptureAs t p
   declareForeign Untracked "Pattern.join" boxDirect . mkForeign $ \ps ->
-    evaluate . TPat.cpattern . TPat.Join $ map (\(TPat.CP p _) -> p) ps
+    evaluate . Pat.cpattern . Pat.Join $ map (\(Pat.CP p _) -> p) ps
   declareForeign Untracked "Pattern.or" boxBoxDirect . mkForeign $
-    \(TPat.CP l _, TPat.CP r _) -> evaluate . TPat.cpattern $ TPat.Or l r
+    \(Pat.CP l _, Pat.CP r _) -> evaluate . Pat.cpattern $ Pat.Or l r
   declareForeign Untracked "Pattern.replicate" natNatBoxToBox . mkForeign $
-    \(m0 :: Word64, n0 :: Word64, TPat.CP p _) ->
+    \(m0 :: Word64, n0 :: Word64, Pat.CP p _) ->
       let m = fromIntegral m0; n = fromIntegral n0
-       in evaluate . TPat.cpattern $ TPat.Replicate m n p
+       in evaluate . Pat.cpattern $ Pat.Replicate m n p
 
   declareForeign Untracked "Pattern.run" boxBoxToMaybeTup . mkForeign $
-    \(TPat.CP _ matcher, input :: Text) -> pure $ matcher input
+    \(Pat.CP _ matcher, input :: Text) -> pure $ matcher input
 
   declareForeign Untracked "Pattern.isMatch" boxBoxToBool . mkForeign $
-    \(TPat.CP _ matcher, input :: Text) -> pure . isJust $ matcher input
+    \(Pat.CP _ matcher, input :: Text) -> pure . isJust $ matcher input
 
   declareForeign Untracked "Char.Class.any" direct . mkForeign $ \() -> pure TPat.Any
   declareForeign Untracked "Char.Class.not" boxDirect . mkForeign $ pure . TPat.Not
@@ -2980,21 +2981,21 @@ declareForeigns = do
       Closure.DataU1 _ _ i -> pure (toEnum i)
       _ -> die "Text.patterns.charIn: non-character closure"
     evaluate $ TPat.CharSet cs
-  declareForeign Untracked "Char.Class.alphanumeric" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.AlphaNum)
-  declareForeign Untracked "Char.Class.upper" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Upper)
-  declareForeign Untracked "Char.Class.lower" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Lower)
-  declareForeign Untracked "Char.Class.whitespace" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Whitespace)
-  declareForeign Untracked "Char.Class.control" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Control)
-  declareForeign Untracked "Char.Class.printable" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Printable)
-  declareForeign Untracked "Char.Class.mark" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.MarkChar)
-  declareForeign Untracked "Char.Class.number" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Number)
-  declareForeign Untracked "Char.Class.punctuation" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Punctuation)
-  declareForeign Untracked "Char.Class.symbol" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Symbol)
-  declareForeign Untracked "Char.Class.separator" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Separator)
-  declareForeign Untracked "Char.Class.letter" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Letter)
+  declareForeign Untracked "Char.Class.alphanumeric" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.AlphaNum)
+  declareForeign Untracked "Char.Class.upper" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.Upper)
+  declareForeign Untracked "Char.Class.lower" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.Lower)
+  declareForeign Untracked "Char.Class.whitespace" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.Whitespace)
+  declareForeign Untracked "Char.Class.control" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.Control)
+  declareForeign Untracked "Char.Class.printable" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.Printable)
+  declareForeign Untracked "Char.Class.mark" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.MarkChar)
+  declareForeign Untracked "Char.Class.number" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.Number)
+  declareForeign Untracked "Char.Class.punctuation" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.Punctuation)
+  declareForeign Untracked "Char.Class.symbol" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.Symbol)
+  declareForeign Untracked "Char.Class.separator" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.Separator)
+  declareForeign Untracked "Char.Class.letter" direct . mkForeign $ \() -> pure (TPat.CharClass Pat.Letter)
   declareForeign Untracked "Char.Class.is" (boxWordToBool charRef) . mkForeign $ \(cl, c) -> evaluate $ TPat.charPatternPred cl c
   declareForeign Untracked "Text.patterns.char" boxDirect . mkForeign $ \c ->
-    let v = TPat.cpattern (TPat.Char c) in pure v
+    let v = Pat.cpattern (Pat.Predicate c) in pure v
 
 type RW = PA.PrimState IO
 

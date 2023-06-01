@@ -29,15 +29,13 @@ data BytePattern
     deriving (Eq, Ord, Show)
 
 instance Pat.Compile Bytes.Bytes BytePattern where
-  compilePattern p !err success = go
+  compilePred p !err success = go
     where
       ok = bytePatternPred p
       go acc bs = case Bytes.uncons bs of
         Nothing -> err acc bs
         Just (b, bs) -> if ok b then success acc bs else err acc bs
-  compileSize = Bytes.size
-  compileTake = Bytes.take
-  compileDrop = Bytes.drop
+
 
 byteInPred, byteNotInPred :: [Word8] -> Word8 -> Bool
 byteInPred [] = const False
