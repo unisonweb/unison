@@ -2066,6 +2066,11 @@ notifyUser dir = \case
         <> if remote == local
           then P.group (prettyProjectAndBranchName remote <> ".")
           else prettyProjectAndBranchName remote <> "as" <> P.group (prettyProjectAndBranchName local <> ".")
+  RenamedProject oldName newName ->
+    pure . P.wrap $
+      if oldName == newName
+        then "Ok, I didn't rename" <> P.group (prettyProjectName oldName <> ".")
+        else "Ok, I renamed" <> prettyProjectName oldName <> "to" <> P.group (prettyProjectName newName <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

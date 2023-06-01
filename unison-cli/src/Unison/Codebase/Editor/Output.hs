@@ -351,6 +351,7 @@ data Output
   | ClonedProjectBranch
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
+  | RenamedProject ProjectName ProjectName
 
 -- | What did we create a project branch from?
 --
@@ -563,6 +564,7 @@ isFailure o = case o of
   DraftingRelease {} -> False
   CannotCreateReleaseBranchWithBranchCommand {} -> True
   CalculatingDiff {} -> False
+  RenamedProject {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
