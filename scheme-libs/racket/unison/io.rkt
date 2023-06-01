@@ -1,16 +1,7 @@
 #lang racket/base
-(require racket/exn
-         racket/string
-         racket/file
-         (only-in racket empty?)
-         compatibility/mlist
-         unison/data
+(require unison/data
          unison/chunked-seq
-         unison/core
-         unison/tcp
-         unison/pem
-         x509
-         openssl)
+         unison/core)
 
 (provide
  (prefix-out

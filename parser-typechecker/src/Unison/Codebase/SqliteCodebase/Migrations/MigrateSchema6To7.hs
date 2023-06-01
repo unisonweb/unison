@@ -6,7 +6,6 @@ module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7 (migrateSchem
 
 import Control.Monad.Except
 import Control.Monad.State
-import Data.String.Here.Uninterpolated (here)
 import U.Codebase.Sqlite.DbId qualified as DB
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Operations qualified as Ops
@@ -27,19 +26,19 @@ migrateSchema6To7 = do
 addStatsToAllNamespaces :: Sqlite.Transaction ()
 addStatsToAllNamespaces = do
   totalToMigrate <-
-    Sqlite.queryOneCol_
-      [here|
-    SELECT COUNT(*)
-      FROM object
-      WHERE type_id = 2
-    |]
+    Sqlite.queryOneCol
+      [Sqlite.sql|
+        SELECT COUNT(*)
+          FROM object
+          WHERE type_id = 2
+      |]
   allBranchObjIds <-
-    Sqlite.queryListCol_
-      [here|
-    SELECT id
-      FROM object
-      WHERE type_id = 2
-    |]
+    Sqlite.queryListCol
+      [Sqlite.sql|
+        SELECT id
+          FROM object
+          WHERE type_id = 2
+      |]
   _ <- flip runStateT 0 $ Sync.sync migrationSync (migrationProgress totalToMigrate) allBranchObjIds
   pure ()
 

@@ -21,14 +21,14 @@ On startup, Unison prints a url for the codebase UI. If you did step 3 above, th
 We use 0.5.0.1 of Ormolu and CI will fail if your code isn't properly formatted. 
 
 ```
-ghcup install 9.2.7 # if not already installed
-brew install cabal-install # if not already installed
+ghcup install ghc 9.2.7 # if not already installed
+ghcup install cabal # if not already installed
 cabal unpack ormolu-0.5.0.1
 cd ormolu-0.5.0.1
 cabal install -w ghc-9.2.7
 ```
 
-You can then add the following to `.git/hooks/pre-commit` to make sure all your commits get formatted (this assumes you've got [`rg`](https://github.com/BurntSushi/ripgrep) installed and on your path):
+You can then add the following to `.git/hooks/pre-commit` to make sure all your commits get formatted:
 
 ```
 #!/bin/bash
@@ -36,7 +36,7 @@ You can then add the following to `.git/hooks/pre-commit` to make sure all your 
 set -e
 
 if [[ -z "${SKIP_FORMATTING}" ]]; then
-    git diff --cached --name-only | rg '.hs$' | xargs -n1 ormolu  --ghc-opt '-XBangPatterns' --ghc-opt '-XCPP' --ghc-opt '-XPatternSynonyms' -i
+    ormolu -i $(git diff --cached --name-only | grep '\.hs$')
     git add $(git diff --cached --name-only)
 fi
 ```
@@ -44,7 +44,7 @@ fi
 If you've got an existing PR that somehow hasn't been formatted correctly, you can install the correct version of Ormolu locally, then do:
 
 ```
-ormolu --mode inplace $(find . -name '*.hs')
+ormolu -i $(git ls-files | grep '\.hs$')
 ```
 
 Also note that you can always wrap a comment around some code you don't want Ormolu to touch, using:
@@ -110,6 +110,10 @@ its location on the command line.
     `cabal v2-install --project-file=contrib/cabal.project unison`
 
 * The install directory can be modified with the option `--installdir: ...`
+
+* Take in account that if you want to load the project in haskell-language-server using cabal instead stack you will need:
+  * Copy or link `./contrib/cabal.project` to `./cabal.project`
+  * Delete or rename the existing `./hie.yaml`. The default behaviour without `hie.yaml` works with cabal.
 
 ## Building on Windows
 

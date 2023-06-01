@@ -4,6 +4,9 @@ io.tests = Tests.main do
     !test_getFileSize_err 
     !test_getFileTimestamp
     !test_getFileTimestamp_err
+    !io.test.seek.absolute
+    !io.test.seek.relative
+    !io.test.getLine
 
 testFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
@@ -46,3 +49,43 @@ test_getFileTimestamp = do
     
 test_getFileTimestamp_err = do
     expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(FilePath.getTimestamp !testFile)
+
+seekFile = do
+    fp = !testFile
+    _ = writeFile fp "0123456789"
+    open fp Read
+
+io.test.seek.absolute = do
+    h = !seekFile
+    seek h AbsoluteSeek +4
+    seek h AbsoluteSeek +2
+    got = getText h
+    checkEqual "AbsoluteSeek" got "23456789"
+
+io.test.seek.relative = do
+    h = !seekFile
+    seek h AbsoluteSeek +2
+    seek h RelativeSeek +2
+    got = getText h
+    checkEqual "RelativeSeek" got "456789"
+    seek h RelativeSeek -2
+    got2 = getText h
+    checkEqual "RelativeSeek" got2 "89"
+
+io.test.seek.fromEnd = do
+    h = !seekFile
+    seek h SeekFromEnd -6
+    seek h SeekFromEnd -4
+    got = getText h
+    checkEqual "SeekFromEnd" got "6789"
+
+io.test.getLine = do
+    fp = !testFile
+    _ = writeFile fp "one\ntwo\nthree"
+    h = open fp Read
+    one = Handle.getLine h
+    two = Handle.getLine h
+    three = Handle.getLine h
+    checkEqual "getLine 1" one "one"
+    checkEqual "getLine 2" two "two"
+    checkEqual "getLine 3" three "three"

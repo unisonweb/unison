@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -76,7 +77,13 @@ data TermSummary = TermSummary
   deriving (Generic, Show)
 
 instance ToJSON TermSummary where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (TermSummary {..}) =
+    object
+      [ "displayName" .= displayName,
+        "hash" .= hash,
+        "summary" .= summary,
+        "tag" .= tag
+      ]
 
 deriving instance ToSchema TermSummary
 
@@ -143,7 +150,13 @@ data TypeSummary = TypeSummary
   deriving (Generic, Show)
 
 instance ToJSON TypeSummary where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (TypeSummary {..}) =
+    object
+      [ "displayName" .= displayName,
+        "hash" .= hash,
+        "summary" .= summary,
+        "tag" .= tag
+      ]
 
 deriving instance ToSchema TypeSummary
 
