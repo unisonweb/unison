@@ -37,6 +37,7 @@ library
       FlexibleInstances
       FunctionalDependencies
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -87,6 +88,7 @@ test-suite util-bytes-tests
       FlexibleInstances
       FunctionalDependencies
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns

@@ -11,76 +11,76 @@ module Unison.Codebase.SqliteCodebase
     Unison.Codebase.SqliteCodebase.initWithSetup,
     MigrationStrategy (..),
     BackupStrategy (..),
+    VacuumStrategy (..),
     CodebaseLockOption (..),
     copyCodebase,
   )
 where
 
-import qualified Control.Monad.Except as Except
-import qualified Control.Monad.Extra as Monad
-import Data.Bifunctor (Bifunctor (bimap))
-import qualified Data.Char as Char
+import Control.Monad.Except qualified as Except
+import Control.Monad.Extra qualified as Monad
+import Data.Char qualified as Char
 import Data.Either.Extra ()
 import Data.IORef
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Time (getCurrentTime)
-import qualified System.Console.ANSI as ANSI
+import System.Console.ANSI qualified as ANSI
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
-import qualified System.FilePath as FilePath
-import qualified System.FilePath.Posix as FilePath.Posix
+import System.FilePath qualified as FilePath
+import System.FilePath.Posix qualified as FilePath.Posix
 import U.Codebase.HashTags (CausalHash, PatchHash (..))
-import qualified U.Codebase.Reflog as Reflog
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Queries as Q
-import qualified U.Codebase.Sqlite.Sync22 as Sync22
+import U.Codebase.Reflog qualified as Reflog
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Queries qualified as Q
+import U.Codebase.Sqlite.Sync22 qualified as Sync22
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
-import qualified U.Codebase.Sync as Sync
+import U.Codebase.Sync qualified as Sync
 import Unison.Codebase (Codebase, CodebasePath)
-import qualified Unison.Codebase as Codebase1
+import Unison.Codebase qualified as Codebase1
 import Unison.Codebase.Branch (Branch (..))
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
-import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Editor.Git qualified as Git
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadGitRepo,
     WriteGitRepo (..),
     writeToReadGit,
   )
-import qualified Unison.Codebase.GitError as GitError
-import Unison.Codebase.Init (BackupStrategy (..), CodebaseLockOption (..), MigrationStrategy (..))
-import qualified Unison.Codebase.Init as Codebase
-import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
+import Unison.Codebase.GitError qualified as GitError
+import Unison.Codebase.Init (BackupStrategy (..), CodebaseLockOption (..), MigrationStrategy (..), VacuumStrategy (..))
+import Unison.Codebase.Init qualified as Codebase
+import Unison.Codebase.Init.CreateCodebaseError qualified as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
-import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
+import Unison.Codebase.Init.OpenCodebaseError qualified as Codebase1
 import Unison.Codebase.RootBranchCache
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
-import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
-import qualified Unison.Codebase.SqliteCodebase.Migrations as Migrations
-import qualified Unison.Codebase.SqliteCodebase.Operations as CodebaseOps
+import Unison.Codebase.SqliteCodebase.Branch.Dependencies qualified as BD
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.Codebase.SqliteCodebase.GitError qualified as GitError
+import Unison.Codebase.SqliteCodebase.Migrations qualified as Migrations
+import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Paths
-import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
+import Unison.Codebase.SqliteCodebase.SyncEphemeral qualified as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type (LocalOrRemote (..), PushGitBranchOpts (..))
-import qualified Unison.Codebase.Type as C
+import Unison.Codebase.Type qualified as C
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Util.Timing (time)
-import qualified Unison.WatchKind as UF
+import Unison.WatchKind qualified as UF
 import UnliftIO (UnliftIO (..), finally, throwIO, try)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.Exception (catch)
@@ -228,12 +228,12 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
       Migrations.CodebaseRequiresMigration fromSv toSv ->
         case migrationStrategy of
           DontMigrate -> pure $ Left (OpenCodebaseRequiresMigration fromSv toSv)
-          MigrateAfterPrompt backupStrategy -> do
+          MigrateAfterPrompt backupStrategy vacuumStrategy -> do
             let shouldPrompt = True
-            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy conn
-          MigrateAutomatically backupStrategy -> do
+            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy vacuumStrategy conn
+          MigrateAutomatically backupStrategy vacuumStrategy -> do
             let shouldPrompt = False
-            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy conn
+            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy vacuumStrategy conn
 
   case result of
     Left err -> pure $ Left err
@@ -596,7 +596,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior act
           then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
           else throwIO exception
 
-      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote DoLock (MigrateAfterPrompt Codebase.Backup) \codebase -> do
+      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote DoLock (MigrateAfterPrompt Codebase.Backup Codebase.Vacuum) \codebase -> do
         -- try to load the requested branch from it
         branch <- time "Git fetch (sch)" $ case sch of
           -- no sub-branch was specified, so use the root.
@@ -646,7 +646,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
   -- set up the cache dir
   throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
     newBranchOrErr <- throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
-      . withOpenOrCreateCodebase (pure ()) "push.dest" (Git.gitDirToPath pushStaging) Remote DoLock (MigrateAfterPrompt Codebase.Backup)
+      . withOpenOrCreateCodebase (pure ()) "push.dest" (Git.gitDirToPath pushStaging) Remote DoLock (MigrateAfterPrompt Codebase.Backup Codebase.Vacuum)
       $ \(codebaseStatus, destCodebase) -> do
         currentRootBranch <-
           Codebase1.runTransaction destCodebase CodebaseOps.getRootBranchExists >>= \case

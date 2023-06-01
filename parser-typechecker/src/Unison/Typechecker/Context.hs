@@ -41,7 +41,7 @@ module Unison.Typechecker.Context
 where
 
 import Control.Lens (over, view, _2)
-import qualified Control.Monad.Fail as MonadFail
+import Control.Monad.Fail qualified as MonadFail
 import Control.Monad.Fix (MonadFix (..))
 import Control.Monad.State
   ( MonadState,
@@ -53,26 +53,22 @@ import Control.Monad.State
     put,
     runStateT,
   )
-import Data.Bifunctor
-  ( first,
-    second,
-  )
-import qualified Data.Foldable as Foldable
+import Data.Foldable qualified as Foldable
 import Data.Function (on)
 import Data.Functor.Compose
 import Data.List
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as Nel
+import Data.Map qualified as Map
 import Data.Monoid (Ap (..))
-import qualified Data.Sequence as Seq
+import Data.Sequence qualified as Seq
 import Data.Sequence.NonEmpty (NESeq)
-import qualified Data.Sequence.NonEmpty as NESeq
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as B
-import qualified Unison.Builtin.Decls as DDB
+import Data.Sequence.NonEmpty qualified as NESeq
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as B
+import Unison.Builtin.Decls qualified as DDB
 import Unison.ConstructorReference
   ( ConstructorReference,
     GConstructorReference (..),
@@ -82,28 +78,28 @@ import Unison.DataDeclaration
   ( DataDeclaration,
     EffectDeclaration,
   )
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
 import Unison.PatternMatchCoverage.Class (EnumeratedConstructors (..), Pmc, traverseConstructorTypes)
-import qualified Unison.PatternMatchCoverage.Class as Pmc
-import qualified Unison.PatternMatchCoverage.ListPat as ListPat
+import Unison.PatternMatchCoverage.Class qualified as Pmc
+import Unison.PatternMatchCoverage.ListPat qualified as ListPat
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Syntax.TypePrinter as TP
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
+import Unison.Syntax.TypePrinter qualified as TP
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
 import Unison.Typechecker.Components (minimize')
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.Typechecker.TypeVar as TypeVar
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 

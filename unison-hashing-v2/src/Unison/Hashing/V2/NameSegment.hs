@@ -3,7 +3,7 @@ module Unison.Hashing.V2.NameSegment
   )
 where
 
-import qualified Unison.Hashing.V2.Tokenizable as H
+import Unison.Hashing.V2.Tokenizable qualified as H
 import Unison.Prelude
 
 -- | A name segment.

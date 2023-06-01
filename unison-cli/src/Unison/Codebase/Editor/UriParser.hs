@@ -9,15 +9,14 @@ module Unison.Codebase.Editor.UriParser
   )
 where
 
-import Data.Bifunctor (first)
 import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Sequence as Seq
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.These (These)
 import Data.Void
-import qualified Text.Megaparsec as P
-import qualified Text.Megaparsec.Char as C
-import qualified U.Util.Base32Hex as Base32Hex
+import Text.Megaparsec qualified as P
+import Text.Megaparsec.Char qualified as C
+import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadGitRepo (..),
@@ -31,14 +30,14 @@ import Unison.Codebase.Editor.RemoteRepo
     WriteShareRemoteNamespace (..),
   )
 import Unison.Codebase.Path (Path (..))
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectBranchName, ProjectName, projectAndBranchNamesParser)
-import qualified Unison.Syntax.Lexer
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.Pretty.MegaParsec as P
+import Unison.Syntax.Lexer qualified
+import Unison.Util.Pretty qualified as P
+import Unison.Util.Pretty.MegaParsec qualified as P
 
 type P = P.Parsec Void Text.Text
 

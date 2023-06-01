@@ -12,48 +12,48 @@ where
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
-import qualified Data.List.NonEmpty as Nel
+import Data.List.NonEmpty qualified as Nel
 import Data.These
-import qualified System.Console.Regions as Console.Regions
-import qualified U.Codebase.Sqlite.Project as Sqlite (Project)
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite (ProjectBranch)
-import qualified U.Codebase.Sqlite.Queries as Queries
+import System.Console.Regions qualified as Console.Regions
+import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
-import qualified Unison.Cli.Share.Projects as Share
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.Share.Projects qualified as Share
 import Unison.Cli.UnisonConfigUtils (resolveConfiguredUrl)
 import Unison.Codebase (Preprocessing (..))
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Merge as Branch
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.HandleInput.AuthLogin (ensureAuthenticatedWithCodeserver)
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.Input
-import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Output as Output
-import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
-import qualified Unison.Codebase.Editor.Propagate as Propagate
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
+import Unison.Codebase.Editor.Propagate qualified as Propagate
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..), ShareUserHandle (..))
-import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
+import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Patch (Patch (..))
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SyncMode (SyncMode)
-import qualified Unison.Codebase.SyncMode as SyncMode
-import qualified Unison.Codebase.Verbosity as Verbosity
+import Unison.Codebase.SyncMode qualified as SyncMode
+import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
-import qualified Unison.Share.API.Hash as Share
-import qualified Unison.Share.Codeserver as Codeserver
-import qualified Unison.Share.Sync as Share
-import qualified Unison.Share.Sync.Types as Share
+import Unison.Share.API.Hash qualified as Share
+import Unison.Share.Codeserver qualified as Codeserver
+import Unison.Share.Sync qualified as Share
+import Unison.Share.Sync.Types qualified as Share
 import Unison.Share.Types (codeserverBaseURL)
-import qualified Unison.Sync.Common as Common
-import qualified Unison.Sync.Types as Share
+import Unison.Sync.Common qualified as Common
+import Unison.Sync.Types qualified as Share
 
 doPullRemoteBranch ::
   PullSourceTarget ->
@@ -85,7 +85,8 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity descrip
         then do
           void $ Cli.updateAtM description targetAbsolutePath (const $ pure remoteBranchObject)
           Cli.respond $ MergeOverEmpty target
-        else
+        else do
+          Cli.respond AboutToMerge
           mergeBranchAndPropagateDefaultPatch
             Branch.RegularMerge
             description
@@ -119,7 +120,7 @@ resolveImplicitSource :: Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
 resolveImplicitSource =
   ProjectUtils.getCurrentProjectBranch >>= \case
     Nothing -> RemoteRepo.writeNamespaceToRead <$> resolveConfiguredUrl PushPull.Pull Path.currentPath
-    Just (ProjectAndBranch localProject localBranch) -> do
+    Just (ProjectAndBranch localProject localBranch, _restPath) -> do
       (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
         Cli.runEitherTransaction do
           let localProjectId = localProject ^. #projectId
@@ -159,7 +160,7 @@ resolveImplicitTarget :: Cli (PullTarget (ProjectAndBranch Sqlite.Project Sqlite
 resolveImplicitTarget =
   ProjectUtils.getCurrentProjectBranch <&> \case
     Nothing -> PullTargetLooseCode Path.currentPath
-    Just projectAndBranch -> PullTargetProject projectAndBranch
+    Just (projectAndBranch, _restPath) -> PullTargetProject projectAndBranch
 
 resolveExplicitTarget ::
   PullTarget (These ProjectName ProjectBranchName) ->
@@ -272,12 +273,14 @@ loadPropagateDiffDefaultPatch ::
   Path.Absolute ->
   Cli ()
 loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
+  Cli.respond Output.AboutToPropagatePatch
   Cli.time "loadPropagateDiffDefaultPatch" do
     original <- Cli.getBranch0At dest
     patch <- liftIO $ Branch.getPatch Cli.defaultPatchNameSegment original
     patchDidChange <- propagatePatch inputDescription patch dest
     when patchDidChange do
       whenJust maybeDest0 \dest0 -> do
+        Cli.respond Output.CalculatingDiff
         patched <- Cli.getBranchAt dest
         let patchPath = Path.Path' (Right (Path.Relative (Path.fromList [Cli.defaultPatchNameSegment])))
         (ppe, diff) <- diffHelper original (Branch.head patched)

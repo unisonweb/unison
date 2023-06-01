@@ -37,28 +37,27 @@ where
 
 import Control.Lens (Iso', Lens', imap, iso, lens, over, _3)
 import Control.Monad.State (evalState)
-import Data.Bifunctor (bimap, first, second)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import qualified Unison.LabeledDependency as LD
-import qualified Unison.Name as Name
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.Pattern as Pattern
+import Unison.LabeledDependency qualified as LD
+import Unison.Name qualified as Name
+import Unison.Names.ResolutionResult qualified as Names
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Referent' as Referent'
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Referent' qualified as Referent'
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import Prelude hiding (cycle)
 
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)

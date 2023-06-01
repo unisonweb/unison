@@ -42,12 +42,13 @@ import Control.Monad.IO.Class as X (MonadIO (liftIO))
 import Control.Monad.Trans as X (MonadTrans (lift))
 import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT, withExceptT)
 import Control.Monad.Trans.Maybe as X (MaybeT (MaybeT, runMaybeT))
+import Data.Bifunctor as X (Bifunctor (..))
 import Data.ByteString as X (ByteString)
 import Data.Coerce as X (Coercible, coerce)
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
 import Data.Either.Extra (eitherToMaybe, maybeToEither)
-import Data.Foldable as X (asum, fold, foldl', for_, toList, traverse_)
+import Data.Foldable as X (fold, foldl', for_, toList, traverse_)
 import Data.Function as X ((&))
 import Data.Functor as X
 import Data.Functor.Identity as X
@@ -59,22 +60,22 @@ import Data.Sequence as X (Seq)
 import Data.Set as X (Set)
 import Data.String as X (IsString, fromString)
 import Data.Text as X (Text)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Text.Encoding as X (decodeUtf8, encodeUtf8)
-import qualified Data.Text.IO as Text
+import Data.Text.IO qualified as Text
 import Data.Traversable as X (for)
 import Data.Typeable as X (Typeable)
 import Data.Void as X (Void)
 import Data.Word as X
 import Debug.Trace as X
 import GHC.Generics as X (Generic, Generic1)
-import qualified GHC.IO.Handle as Handle
+import GHC.IO.Handle qualified as Handle
 import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
-import qualified System.IO as IO
+import System.IO qualified as IO
 import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
-import qualified UnliftIO
+import UnliftIO qualified
 import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromException), into, tryInto)
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
 

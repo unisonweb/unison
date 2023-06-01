@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -38,6 +38,7 @@ library
       Unison.Server.SearchResult
       Unison.Server.SearchResult'
       Unison.Server.Share.Definitions
+      Unison.Server.Share.RenderDoc
       Unison.Server.Syntax
       Unison.Server.Types
       Unison.Sync.API
@@ -61,6 +62,7 @@ library
       GADTs
       GeneralizedNewtypeDeriving
       KindSignatures
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -77,7 +79,7 @@ library
   ghc-options: -Wall
   build-depends:
       NanoID
-    , aeson
+    , aeson >=2.0.0.0
     , async
     , base
     , binary

@@ -3,16 +3,15 @@
 module Unison.UnisonFile.Type where
 
 import Control.Lens
-import Data.Bifunctor (first)
-import qualified Unison.ABT as ABT
+import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.Prelude
 import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.WatchKind (WatchKind)
 
 data UnisonFile v a = UnisonFileId

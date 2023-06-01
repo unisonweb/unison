@@ -86,6 +86,8 @@ y = "hello"
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .master> view y
 
   y : Text
@@ -267,6 +269,8 @@ At this point, `master` and `feature2` both have some changes the other doesn't 
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 ```
 Notice that `x` is deleted in the merged branch (it was deleted in `feature2` and untouched by `master`):

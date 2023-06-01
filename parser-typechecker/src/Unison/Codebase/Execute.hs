@@ -11,18 +11,18 @@ module Unison.Codebase.Execute where
 
 import Control.Exception (finally)
 import Control.Monad.Except
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.MainTerm (getMainTerm)
-import qualified Unison.Codebase.MainTerm as MainTerm
+import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.Names as Names
+import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 
 execute ::
   Codebase.Codebase IO Symbol Ann ->

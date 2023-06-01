@@ -1,12 +1,12 @@
 module U.Codebase.Reference where
 
-import Control.Lens (Bifunctor (..), Lens, Prism, Traversal, lens, prism)
+import Control.Lens (Lens, Prism, Traversal, lens, prism)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import U.Codebase.ShortHash (ShortHash)
-import qualified U.Codebase.ShortHash as SH
+import U.Codebase.ShortHash qualified as SH
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Prelude
 
 -- | This is the canonical representation of Reference

@@ -27,12 +27,12 @@ module Unison.Codebase.Causal
   )
 where
 
-import qualified Control.Lens as Lens
-import qualified Control.Monad.Extra as Monad (anyM)
-import qualified Control.Monad.Reader as Reader
-import qualified Control.Monad.State as State
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Control.Lens qualified as Lens
+import Control.Monad.Extra qualified as Monad (anyM)
+import Control.Monad.Reader qualified as Reader
+import Control.Monad.State qualified as State
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Causal.Type
   ( Causal
@@ -52,8 +52,8 @@ import Unison.Codebase.Causal.Type
     pattern One,
   )
 import Unison.Hash (HashFor (HashFor))
-import qualified Unison.Hashing.V2 as Hashing (ContentAddressable)
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Hashing.V2 qualified as Hashing (ContentAddressable)
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Prelude
 import Prelude hiding (head, read, tail)
 

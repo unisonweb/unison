@@ -88,7 +88,7 @@ It's an error to try to switch to something that doesn't exist, of course.
 ```ucm
 .> switch no-such-project
 
-  no-such-project/main does not exist.
+  no-such-project does not exist.
 
 ```
 ```ucm

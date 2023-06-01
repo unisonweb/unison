@@ -147,21 +147,20 @@ module Unison.Util.Pretty
   )
 where
 
-import Data.Bifunctor (second)
 import Data.Char (isSpace)
 import Data.List (intersperse)
-import qualified Data.List as List
-import qualified Data.ListLike as LL
-import qualified Data.Sequence as Seq
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as Text.Lazy
+import Data.List qualified as List
+import Data.ListLike qualified as LL
+import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as Text.Lazy
 import Text.Pretty.Simple (pShow)
 import Unison.Prelude
 import Unison.Util.AnnotatedText (annotateMaybe)
-import qualified Unison.Util.AnnotatedText as AT
-import qualified Unison.Util.ColorText as CT
+import Unison.Util.AnnotatedText qualified as AT
+import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.SyntaxText as ST
+import Unison.Util.SyntaxText qualified as ST
 import Prelude hiding (lines, map)
 
 newtype Width = Width {widthToInt :: Int}

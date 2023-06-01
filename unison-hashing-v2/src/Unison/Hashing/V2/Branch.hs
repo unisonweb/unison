@@ -10,7 +10,7 @@ import Unison.Hashing.V2.NameSegment (NameSegment)
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Referent (Referent)
 import Unison.Hashing.V2.Tokenizable (Tokenizable)
-import qualified Unison.Hashing.V2.Tokenizable as H
+import Unison.Hashing.V2.Tokenizable qualified as H
 import Unison.Prelude
 
 type MetadataValue = Reference

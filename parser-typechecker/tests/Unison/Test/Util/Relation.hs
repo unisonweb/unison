@@ -1,10 +1,10 @@
 module Unison.Test.Util.Relation where
 
 import Control.Monad
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import EasyTest
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 
 test :: Test ()
 test =

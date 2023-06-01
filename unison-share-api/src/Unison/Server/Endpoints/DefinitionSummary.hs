@@ -17,28 +17,27 @@ module Unison.Server.Endpoints.DefinitionSummary
 where
 
 import Data.Aeson
-import Data.Bifunctor (bimap)
 import Data.OpenApi (ToSchema)
 import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.HashQualified as HQ
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Server.Backend (Backend)
-import qualified Unison.Server.Backend as Backend
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
   ( APIGet,
@@ -46,7 +45,7 @@ import Unison.Server.Types
     TypeTag,
     mayDefaultWidth,
   )
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 

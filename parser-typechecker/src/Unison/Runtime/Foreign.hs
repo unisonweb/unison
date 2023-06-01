@@ -20,13 +20,13 @@ module Unison.Runtime.Foreign
 where
 
 import Control.Concurrent (MVar, ThreadId)
-import qualified Crypto.Hash as Hash
+import Crypto.Hash qualified as Hash
 import Data.IORef (IORef)
 import Data.Primitive (ByteArray, MutableArray, MutableByteArray)
 import Data.Tagged (Tagged (..))
-import qualified Data.X509 as X509
+import Data.X509 qualified as X509
 import Network.Socket (Socket)
-import qualified Network.TLS as TLS (ClientParams, Context, ServerParams)
+import Network.TLS qualified as TLS (ClientParams, Context, ServerParams)
 import System.Clock (TimeSpec)
 import System.IO (Handle)
 import System.Process (ProcessHandle)
@@ -34,7 +34,7 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF (SuperGroup, Value)
 import Unison.Symbol (Symbol)
-import qualified Unison.Type as Ty
+import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Text (Text)
 import Unison.Util.Text.Pattern as TPat

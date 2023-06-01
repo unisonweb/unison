@@ -4,60 +4,59 @@
 module Unison.CommandLine.InputPatterns where
 
 import Control.Lens (preview, (^.))
-import qualified Control.Lens.Cons as Cons
-import Data.Bifunctor (Bifunctor (bimap), first)
+import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.These (These (..))
-import qualified System.Console.ANSI as Ansi
+import System.Console.ANSI qualified as Ansi
 import System.Console.Haskeline.Completion (Completion (Completion))
-import qualified System.Console.Haskeline.Completion as Haskeline
-import qualified Text.Megaparsec as P
+import System.Console.Haskeline.Completion qualified as Haskeline
+import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
-import qualified U.Codebase.Sqlite.Project as Sqlite
-import qualified U.Codebase.Sqlite.Queries as Queries
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Merge as Branch
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input)
-import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
-import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
+import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
 import Unison.Codebase.Editor.RemoteRepo (WriteGitRepo, WriteRemoteNamespace)
-import qualified Unison.Codebase.Editor.SlurpResult as SR
+import Unison.Codebase.Editor.SlurpResult qualified as SR
 import Unison.Codebase.Editor.UriParser (parseReadRemoteNamespace)
-import qualified Unison.Codebase.Editor.UriParser as UriParser
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
-import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.SyncMode as SyncMode
+import Unison.Codebase.Editor.UriParser qualified as UriParser
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.PushBehavior qualified as PushBehavior
+import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
-import qualified Unison.Codebase.Verbosity as Verbosity
+import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.Completion
-import qualified Unison.CommandLine.Globbing as Globbing
+import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern
   ( ArgumentType (..),
     InputPattern (InputPattern),
     IsOptional (..),
   )
-import qualified Unison.CommandLine.InputPattern as I
-import qualified Unison.HashQualified as HQ
+import Unison.CommandLine.InputPattern qualified as I
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames, ProjectBranchName, ProjectName, Semver)
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Syntax.HashQualified as HQ (fromString)
-import qualified Unison.Syntax.Name as Name (fromText, unsafeFromString)
-import qualified Unison.Util.ColorText as CT
+import Unison.Sqlite qualified as Sqlite
+import Unison.Syntax.HashQualified qualified as HQ (fromString)
+import Unison.Syntax.Name qualified as Name (fromText, unsafeFromString)
+import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -722,6 +721,21 @@ deleteReplacement isTerm =
         then deleteTermReplacementCommand
         else deleteTypeReplacementCommand
 
+deleteProject :: InputPattern
+deleteProject =
+  InputPattern
+    { patternName = "delete.project",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectNameArg)],
+      help = P.wrap "Delete a project.",
+      parse = \case
+        [name]
+          | Right project <- tryInto @ProjectName (Text.pack name) ->
+              Right (Input.DeleteI (DeleteTarget'Project project))
+        _ -> Left (showPatternHelp deleteProject)
+    }
+
 deleteBranch :: InputPattern
 deleteBranch =
   InputPattern
@@ -1182,19 +1196,22 @@ push =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap
-            "The `push` command merges a local namespace into a remote namespace.",
+            "The `push` command merges a local project or namespace into a remote project or namespace.",
           "",
           P.wrapColumn2
-            [ ( "`push remote local`",
-                "merges the contents of the local namespace `local`"
-                  <> "into the remote namespace `remote`."
+            [ ( "`push <remote> <local>`",
+                "publishes the contents of a local namespace or branch"
+                  <> "into a remote namespace or branch."
               ),
-              ( "`push remote`",
-                "publishes the current namespace into the remote namespace `remote`"
+              ( "`push <remote>`",
+                "publishes the current namespace or branch into a remote namespace or branch"
               ),
               ( "`push`",
-                "publishes the current namespace into the remote namespace configured in your `.unisonConfig`"
-                  <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace."
+                "publishes the current namespace or branch. Remote mappings for namespaces are configured in"
+                  <> "your `.unisonConfig` at the key `RemoteMappings.<namespace>` where `<namespace>` is the "
+                  <> "current namespace. Remote mappings for branches default to the branch that you cloned from"
+                  <> "or pushed to initially. Otherwise, it is pushed to"
+                  <> P.group "@<user handle>/<local project name>"
               )
             ],
           "",
@@ -1368,8 +1385,24 @@ mergeLocal =
       (Optional, namespaceArg)
     ]
     ( P.column2
-        [ ("`merge src`", "merges `src` namespace into the current namespace"),
-          ("`merge src dest`", "merges `src` namespace into the `dest` namespace")
+        [ ( "`merge foo/bar baz/qux`",
+            "merges the `foo/bar` branch into the `baz/qux` branch"
+          ),
+          ( "`merge /topic /main`",
+            "merges the branch `topic` of the current project into the `main` branch of the current project"
+          ),
+          ( "`merge foo/topic /main`",
+            "merges the branch `topic` of the project `foo` into the `main` branch of the current project"
+          ),
+          ( "`merge /topic foo/main`",
+            "merges the branch `topic` of the current project into the `main` branch of the project 'foo`"
+          ),
+          ( "`merge .src`",
+            "merges `.src` namespace into the current namespace"
+          ),
+          ( "`merge .src .dest`",
+            "merges `.src` namespace into the `dest` namespace"
+          )
         ]
     )
     ( \case
@@ -2319,22 +2352,6 @@ diffNamespaceToPatch =
         _ -> Left (showPatternHelp diffNamespaceToPatch)
     }
 
-projectClone :: InputPattern
-projectClone =
-  InputPattern
-    { patternName = "project.clone",
-      aliases = [],
-      visibility = I.Hidden,
-      argTypes = [],
-      help = P.wrap "Clone a project branch from a remote server.",
-      parse = \case
-        [name] ->
-          case tryInto @(ProjectAndBranch ProjectName (Maybe ProjectBranchName)) (Text.pack name) of
-            Left _ -> Left (showPatternHelp projectClone)
-            Right projectAndBranch -> Right (Input.ProjectCloneI projectAndBranch)
-        _ -> Left (showPatternHelp projectClone)
-    }
-
 projectCreate :: InputPattern
 projectCreate =
   InputPattern
@@ -2342,7 +2359,10 @@ projectCreate =
       aliases = ["create"],
       visibility = I.Hidden,
       argTypes = [(Required, projectNameArg)],
-      help = P.wrap "Create a project.",
+      help =
+        P.wrapColumn2
+          [ ("`project.create foo`", "creates the project foo and switches you to foo/main")
+          ],
       parse = \case
         [name] ->
           case tryInto @ProjectName (Text.pack name) of
@@ -2358,7 +2378,12 @@ projectSwitch =
       aliases = ["project.switch"],
       visibility = I.Hidden,
       argTypes = [(Required, projectAndBranchNamesArg)],
-      help = P.wrap "Switch to a project or project branch.",
+      help =
+        P.wrapColumn2
+          [ ("`project.switch foo/bar`", "switches to the branch `bar` in the project `foo`"),
+            ("`project.switch foo/`", "switches to the last branch you visited in the project `foo`"),
+            ("`project.switch /bar`", "switches to the branch `bar` in the current project")
+          ],
       parse = \case
         [name] ->
           case tryInto @ProjectAndBranchNames (Text.pack name) of
@@ -2389,26 +2414,6 @@ branches =
       parse = \_ -> Right Input.BranchesI
     }
 
-branchClone :: InputPattern
-branchClone =
-  InputPattern
-    { patternName = "branch.clone",
-      aliases = [],
-      visibility = I.Hidden,
-      argTypes = [],
-      help = P.wrap "Clone a project branch from a remote server.",
-      parse = \case
-        [branchString] ->
-          case tryInto @ProjectBranchName (Text.pack (dropLeadingForwardSlash branchString)) of
-            Left _ -> Left (showPatternHelp branchClone)
-            Right branch -> Right (Input.BranchCloneI branch)
-        _ -> Left (showPatternHelp branchClone)
-    }
-  where
-    dropLeadingForwardSlash = \case
-      '/' : xs -> xs
-      xs -> xs
-
 branchInputPattern :: InputPattern
 branchInputPattern =
   InputPattern
@@ -2416,7 +2421,12 @@ branchInputPattern =
       aliases = [],
       visibility = I.Hidden,
       argTypes = [],
-      help = P.wrap "Create a new branch from an existing branch or namespace.",
+      help =
+        P.wrapColumn2
+          [ ("`branch foo`", "forks the current project branch to a new branch `foo`"),
+            ("`branch /bar foo`", "forks the branch `bar` of the current project to a new branch `foo`"),
+            ("`branch .bar foo`", "forks the path `.bar` of the current project to a new branch `foo`")
+          ],
       parse = \case
         [source0, name] -> do
           source <- first (\_ -> showPatternHelp branchInputPattern) (parseLooseCodeOrProject source0)
@@ -2448,6 +2458,47 @@ branchEmptyInputPattern =
         _ -> Left (showPatternHelp branchEmptyInputPattern)
     }
 
+clone :: InputPattern
+clone =
+  InputPattern
+    { patternName = "clone",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ( "`clone @unison/json/topic json/my-topic`",
+              "creates `json/my-topic` from the remote branch `@unison/json/topic`"
+            ),
+            ( "`clone @unison/base base/`",
+              "creates `base/main` from the remote branch `@unison/base/main`"
+            ),
+            ( "`clone @unison/base /main2`",
+              "creates the branch `main2` in the current project from the remote branch `@unison/base/main`"
+            ),
+            ( "`clone /main /main2`",
+              "creates the branch `main2` in the current project from the remote branch `main` of the current project's associated remote"
+                <> "(see"
+                <> P.group (makeExample helpTopics ["remotes"] <> ")")
+            ),
+            ( "`clone /main my-fork/`",
+              "creates `my-fork/main` from the branch `main` of the current project's associated remote"
+                <> "(see"
+                <> P.group (makeExample helpTopics ["remotes"] <> ")")
+            )
+          ],
+      parse =
+        maybe (Left (showPatternHelp clone)) Right . \case
+          [remoteNamesString] -> do
+            remoteNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack remoteNamesString))
+            Just (Input.CloneI remoteNames Nothing)
+          [remoteNamesString, localNamesString] -> do
+            remoteNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack remoteNamesString))
+            localNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack localNamesString))
+            Just (Input.CloneI remoteNames (Just localNames))
+          _ -> Nothing
+    }
+
 releaseDraft :: InputPattern
 releaseDraft =
   InputPattern
@@ -2472,12 +2523,12 @@ validInputs =
       api,
       authLogin,
       back,
-      branchClone,
       branchEmptyInputPattern,
       branchInputPattern,
       branches,
       cd,
       clear,
+      clone,
       compileScheme,
       copyPatch,
       createAuthor,
@@ -2491,6 +2542,7 @@ validInputs =
       debugTabCompletion,
       delete,
       deleteBranch,
+      deleteProject,
       deleteNamespace,
       deleteNamespaceForce,
       deletePatch,
@@ -2541,7 +2593,6 @@ validInputs =
       previewMergeLocal,
       previewUpdate,
       printVersion,
-      projectClone,
       projectCreate,
       projectSwitch,
       projects,
@@ -2716,7 +2767,7 @@ projectAndBranchNamesArg =
   ArgumentType
     { typeName = "project-and-branch-names",
       suggestions = \input codebase _httpClient path -> do
-        let currentBranch = preview ProjectUtils.projectBranchPathPrism path
+        let currentBranch = fst <$> preview ProjectUtils.projectBranchPathPrism path
         (branches, projects) <-
           Codebase.runTransaction
             codebase

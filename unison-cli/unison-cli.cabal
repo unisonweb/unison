@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -46,6 +46,7 @@ library
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.DeleteBranch
+      Unison.Codebase.Editor.HandleInput.DeleteProject
       Unison.Codebase.Editor.HandleInput.MetadataUtils
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
@@ -124,6 +125,7 @@ library
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
@@ -141,7 +143,7 @@ library
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
     , async
@@ -172,8 +174,8 @@ library
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=1.5.0.0
+    , lsp-types >=1.5.0.0
     , megaparsec
     , memory
     , mtl
@@ -251,6 +253,7 @@ executable cli-integration-tests
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
@@ -270,7 +273,7 @@ executable cli-integration-tests
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
     , async
@@ -303,8 +306,8 @@ executable cli-integration-tests
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=1.5.0.0
+    , lsp-types >=1.5.0.0
     , megaparsec
     , memory
     , mtl
@@ -378,6 +381,7 @@ executable transcripts
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
@@ -395,7 +399,7 @@ executable transcripts
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
     , async
@@ -428,8 +432,8 @@ executable transcripts
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=1.5.0.0
+    , lsp-types >=1.5.0.0
     , megaparsec
     , memory
     , mtl
@@ -509,6 +513,7 @@ executable unison
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
@@ -526,7 +531,7 @@ executable unison
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
     , async
@@ -558,8 +563,8 @@ executable unison
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=1.5.0.0
+    , lsp-types >=1.5.0.0
     , megaparsec
     , memory
     , mtl
@@ -646,6 +651,7 @@ test-suite cli-tests
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
@@ -663,7 +669,7 @@ test-suite cli-tests
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
     , async
@@ -696,8 +702,8 @@ test-suite cli-tests
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=1.5.0.0
+    , lsp-types >=1.5.0.0
     , megaparsec
     , memory
     , mtl

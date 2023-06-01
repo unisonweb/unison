@@ -1,0 +1,91 @@
+
+io.tests = Tests.main do
+    !test_getFileSize
+    !test_getFileSize_err 
+    !test_getFileTimestamp
+    !test_getFileTimestamp_err
+    !io.test.seek.absolute
+    !io.test.seek.relative
+    !io.test.getLine
+
+testFile = do
+    fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
+    () = if FilePath.exists fp
+        then
+            removeFile fp
+        else
+            ()
+    fp
+
+writeFile fp txt =
+    fh = open fp Write
+    putText fh txt
+    close fh
+
+test_getFileSize = do
+    fp = !testFile
+    _ = writeFile fp "What"
+    fs = (FilePath.getSize fp)
+    checkEqual "Get file size should work" fs 4
+    removeFile fp
+
+test_getFileSize_err = do
+    expectError' "File size of missing file" ["does not exist", "cannot get size"] '(FilePath.getSize !testFile)
+
+test_getFileTimestamp = do
+    time = secondsSinceEpoch !now
+    fp = !testFile
+    _ = writeFile fp "What"
+    ts = match FilePath.getTimestamp fp with Instant i _ -> i
+    after = secondsSinceEpoch !now
+    use Int - +
+    -- allow slip of up to a second
+    if ts < (time - +1) then
+        Tests.fail "File timestamp is too early" ((Int.toText ts) ++ " vs " ++ (Int.toText after))
+    else if ts > (after + +1) then
+        Tests.fail "File timestamp is too late" ((Int.toText ts) ++ " vs " ++ (Int.toText after))
+    else
+        Tests.pass "File timestamp is reasonable"
+    
+test_getFileTimestamp_err = do
+    expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(FilePath.getTimestamp !testFile)
+
+seekFile = do
+    fp = !testFile
+    _ = writeFile fp "0123456789"
+    open fp Read
+
+io.test.seek.absolute = do
+    h = !seekFile
+    seek h AbsoluteSeek +4
+    seek h AbsoluteSeek +2
+    got = getText h
+    checkEqual "AbsoluteSeek" got "23456789"
+
+io.test.seek.relative = do
+    h = !seekFile
+    seek h AbsoluteSeek +2
+    seek h RelativeSeek +2
+    got = getText h
+    checkEqual "RelativeSeek" got "456789"
+    seek h RelativeSeek -2
+    got2 = getText h
+    checkEqual "RelativeSeek" got2 "89"
+
+io.test.seek.fromEnd = do
+    h = !seekFile
+    seek h SeekFromEnd -6
+    seek h SeekFromEnd -4
+    got = getText h
+    checkEqual "SeekFromEnd" got "6789"
+
+io.test.getLine = do
+    fp = !testFile
+    _ = writeFile fp "one\ntwo\nthree"
+    h = open fp Read
+    one = Handle.getLine h
+    two = Handle.getLine h
+    three = Handle.getLine h
+    checkEqual "getLine 1" one "one"
+    checkEqual "getLine 2" two "two"
+    checkEqual "getLine 3" three "three"

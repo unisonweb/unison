@@ -4,7 +4,7 @@ module Unison.Codebase.Init.CreateCodebaseError
   )
 where
 
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 
 type Pretty = P.Pretty P.ColorText
 

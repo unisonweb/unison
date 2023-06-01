@@ -7,33 +7,33 @@ module Unison.Server.Share.Definitions (definitionForHQName) where
 
 import Control.Lens hiding ((??))
 import Control.Monad.Except
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified U.Codebase.Causal as V2Causal
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Runtime as Rt
-import qualified Unison.Debug as Debug
-import qualified Unison.HashQualified as HQ
-import qualified Unison.LabeledDependency as LD
+import Unison.Codebase.Runtime qualified as Rt
+import Unison.Debug qualified as Debug
+import Unison.HashQualified qualified as HQ
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.PrettyPrintEnvDecl.Sqlite as PPESqlite
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Sqlite qualified as PPESqlite
 import Unison.Reference (TermReference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.Server.Backend hiding (renderDocRefs)
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.Doc as Doc
-import qualified Unison.Server.NameSearch.Sqlite as SqliteNameSearch
+import Unison.Server.Backend qualified as Backend
+import Unison.Server.Doc qualified as Doc
+import Unison.Server.NameSearch.Sqlite qualified as SqliteNameSearch
 import Unison.Server.Types
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.HashQualified as HQ (toText)
+import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Util.Pretty (Width)
 
 -- | Renders a definition for the given name or hash alongside its documentation.

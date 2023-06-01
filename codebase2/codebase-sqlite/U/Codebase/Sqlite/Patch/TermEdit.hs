@@ -4,9 +4,9 @@ import Control.Lens
 import Data.Bifoldable (Bifoldable (bifoldMap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import U.Codebase.Reference (Reference')
-import qualified U.Codebase.Reference as Reference
-import qualified U.Codebase.Referent as Referent
-import qualified U.Codebase.Sqlite.DbId as Db
+import U.Codebase.Reference qualified as Reference
+import U.Codebase.Referent qualified as Referent
+import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalTextId)
 
 type TermEdit = TermEdit' Db.TextId Db.ObjectId

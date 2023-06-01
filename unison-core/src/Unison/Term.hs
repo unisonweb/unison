@@ -5,39 +5,38 @@ module Unison.Term where
 
 import Control.Lens (Lens', Prism', lens)
 import Control.Monad.State (evalState)
-import qualified Control.Monad.Writer.Strict as Writer
-import Data.Bifunctor (second)
+import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
-import qualified Data.Map as Map
-import qualified Data.Sequence as Sequence
-import qualified Data.Set as Set
-import qualified Data.Set.NonEmpty as NES
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Sequence qualified as Sequence
+import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as NES
+import Data.Text qualified as Text
 import Text.Show
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as B
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
-import qualified Unison.Name as Name
+import Unison.LabeledDependency qualified as LD
+import Unison.Name qualified as Name
 import Unison.Names (Names)
-import qualified Unison.Names as Names
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.NamesWithHistory as Names
+import Unison.Names qualified as Names
+import Unison.Names.ResolutionResult qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference, TermReference, pattern Builtin)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Util.List (multimap, validate)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (and, or)
 

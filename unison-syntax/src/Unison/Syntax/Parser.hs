@@ -4,29 +4,29 @@
 module Unison.Syntax.Parser where
 
 import Control.Monad.Reader.Class (asks)
-import qualified Crypto.Random as Random
+import Crypto.Random qualified as Random
 import Data.Bytes.Put (runPutS)
 import Data.Bytes.Serial (serialize)
 import Data.Bytes.VarInt (VarInt (..))
-import qualified Data.Char as Char
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Char qualified as Char
+import Data.List.NonEmpty qualified as Nel
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Typeable (Proxy (..))
 import Text.Megaparsec (runParserT)
-import qualified Text.Megaparsec as P
-import qualified U.Util.Base32Hex as Base32Hex
-import qualified Unison.ABT as ABT
+import Text.Megaparsec qualified as P
+import U.Util.Base32Hex qualified as Base32Hex
+import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (ConstructorReference)
-import qualified Unison.Hash as Hash
-import qualified Unison.HashQualified as HQ
-import qualified Unison.Hashable as Hashable
+import Unison.Hash qualified as Hash
+import Unison.HashQualified qualified as HQ
+import Unison.Hashable qualified as Hashable
 import Unison.Name as Name
-import qualified Unison.Names.ResolutionResult as Names
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
   ( Alternative (many, (<|>)),
     Set,
@@ -42,13 +42,13 @@ import Unison.Prelude
   )
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Name as Name (unsafeFromString)
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Name qualified as Name (unsafeFromString)
 import Unison.Term (MatchCase (..))
-import qualified Unison.UnisonFile.Error as UF
+import Unison.UnisonFile.Error qualified as UF
 import Unison.Util.Bytes (Bytes)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 debug :: Bool
 debug = False

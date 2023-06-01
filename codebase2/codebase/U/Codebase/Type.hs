@@ -1,12 +1,11 @@
 module U.Codebase.Type where
 
-import qualified Control.Monad.Writer.Strict as Writer
-import Data.Bifunctor (Bifunctor (bimap))
-import qualified Data.Maybe as Maybe
-import qualified Data.Set as Set
+import Control.Monad.Writer.Strict qualified as Writer
+import Data.Maybe qualified as Maybe
+import Data.Set qualified as Set
 import U.Codebase.Kind (Kind)
 import U.Codebase.Reference (Reference, Reference')
-import qualified U.Core.ABT as ABT
+import U.Core.ABT qualified as ABT
 import Unison.Hash (Hash)
 import Unison.Prelude
 import Unsafe.Coerce (unsafeCoerce)

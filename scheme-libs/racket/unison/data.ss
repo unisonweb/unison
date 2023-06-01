@@ -50,7 +50,9 @@
    exn:bug
    make-exn:bug
    exn:bug?
-   exn:bug->exception)
+   exn:bug->exception
+
+   unison-tuple->list)
 
   (import (rnrs))
 
@@ -144,5 +146,13 @@
 
   ; TODO needs better pretty printing for when it isn't caught
   (define-record-type exn:bug (fields msg a))
-  (define (exn:bug->exception b) (exception "RuntimeFailure" (exn:bug-msg b) (exn:bug-a b))))
+  (define (exn:bug->exception b) (exception "RuntimeFailure" (exn:bug-msg b) (exn:bug-a b)))
 
+  (define (unison-tuple->list t)
+    (let ([fs (data-fields t)])
+      (cond
+        [(null? fs) '()]
+        [(= 2 (length fs))
+         (cons (car fs) (unison-tuple->list (cadr fs)))]
+        [else
+          (raise "unison-tuple->list: unexpected value")]))))

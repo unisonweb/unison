@@ -8,22 +8,22 @@ where
 
 import Control.Lens ((^.))
 import Data.These (These (..))
-import qualified Data.UUID.V4 as UUID
+import Data.UUID.V4 qualified as UUID
 import U.Codebase.Sqlite.DbId
-import qualified U.Codebase.Sqlite.Project as Sqlite
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
-import qualified U.Codebase.Sqlite.Queries as Queries
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli (getBranchAt, getCurrentPath, updateAt)
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
-import qualified Unison.Codebase.Branch as Branch (empty)
-import qualified Unison.Codebase.Editor.Input as Input
-import qualified Unison.Codebase.Editor.Output as Output
-import qualified Unison.Codebase.Path as Path
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli (getBranchAt, getCurrentPath, updateAt)
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase.Branch qualified as Branch (empty)
+import Unison.Codebase.Editor.Input qualified as Input
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), ProjectName, classifyProjectBranchName)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 
 data CreateFrom
   = CreateFrom'Branch (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
@@ -55,7 +55,7 @@ handleBranch sourceI projectAndBranchNames0 = do
       Input.BranchSourceI'CurrentContext ->
         ProjectUtils.getCurrentProjectBranch >>= \case
           Nothing -> CreateFrom'LooseCode <$> Cli.getCurrentPath
-          Just currentBranch -> pure (CreateFrom'Branch currentBranch)
+          Just (currentBranch, _restPath) -> pure (CreateFrom'Branch currentBranch)
       Input.BranchSourceI'Empty -> pure CreateFrom'Nothingness
       Input.BranchSourceI'LooseCodeOrProject (This sourcePath) -> do
         currentPath <- Cli.getCurrentPath
@@ -132,6 +132,7 @@ doCreateBranch createFrom project newBranchName description = do
                         | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
                       _ -> Nothing
                 }
+            Queries.setMostRecentBranch projectId newBranchId
             pure newBranchId
 
   let newBranchPath = ProjectUtils.projectBranchPath (ProjectAndBranch projectId newBranchId)

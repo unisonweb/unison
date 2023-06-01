@@ -14,16 +14,15 @@ module Unison.Share.API.Hash
 where
 
 import Control.Lens (folding, ix, (^?))
-import qualified Crypto.JWT as Jose
+import Crypto.JWT qualified as Jose
 import Data.Aeson
-import qualified Data.Aeson as Aeson
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map.Strict as Map
-import qualified Servant.Auth.JWT as Servant.Auth
+import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as Aeson.KeyMap
+import Servant.Auth.JWT qualified as Servant.Auth
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
 import Unison.Prelude
-import qualified Web.JWT as JWT
+import Web.JWT qualified as JWT
 
 newtype HashJWT = HashJWT {unHashJWT :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
@@ -101,8 +100,7 @@ decodeHashJWTClaims (HashJWT text) =
               & JWT.claims
               & JWT.unregisteredClaims
               & JWT.unClaimsMap
-              & Map.toList
-              & HashMap.fromList
+              & Aeson.KeyMap.fromMapText
               & Aeson.Object
        in case Aeson.fromJSON object of
             Aeson.Error err -> error ("bad JWT: " ++ err)
