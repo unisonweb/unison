@@ -2069,7 +2069,7 @@ notifyUser dir = \case
   RenamedProject oldName newName ->
     pure . P.wrap $
       if oldName == newName
-        then "Ok, I didn't rename" <> P.group (prettyProjectName oldName <> ".")
+        then prettyProjectName oldName <> "is already named" <> P.group (prettyProjectName oldName <> "!") <> "😄"
         else "Ok, I renamed" <> prettyProjectName oldName <> "to" <> P.group (prettyProjectName newName <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
