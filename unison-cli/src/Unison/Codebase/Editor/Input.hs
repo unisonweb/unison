@@ -225,7 +225,7 @@ data Input
   | ProjectSwitchI ProjectAndBranchNames
   | ProjectsI
   | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-  | BranchesI
+  | BranchesI (Maybe ProjectName)
   | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
   | ReleaseDraftI Semver
   deriving (Eq, Show)
