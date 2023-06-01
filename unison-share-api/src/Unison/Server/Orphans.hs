@@ -23,7 +23,7 @@ import Unison.Codebase.ShortCausalHash
   )
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.ConstructorType (ConstructorType)
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.Hash (Hash (..))
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
