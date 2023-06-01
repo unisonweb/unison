@@ -64,6 +64,7 @@ import Database.SQLite3 qualified as Direct.Sqlite
 import Debug.Pretty.Simple (pTraceShowM)
 import Debug.RecoverRTTI (anythingToString)
 import GHC.Stack (currentCallStack)
+import System.Environment qualified as Env
 import Unison.Debug qualified as Debug
 import Unison.Prelude
 import Unison.Sqlite.Connection.Internal (Connection (..))
@@ -96,7 +97,12 @@ openConnection ::
   FilePath ->
   IO Connection
 openConnection name file = do
-  conn0 <- Sqlite.open file `catch` rethrowAsSqliteConnectException name file
+  sqliteURI <-
+    Env.lookupEnv "UNISON_READONLY" <&> \case
+      Nothing -> file
+      Just "" -> file
+      _ -> "file:" <> file <> "?mode=ro"
+  conn0 <- Sqlite.open sqliteURI `catch` rethrowAsSqliteConnectException name file
   let conn = Connection {conn = conn0, file, name}
   execute conn [Sql.sql| PRAGMA foreign_keys = ON |]
   execute conn [Sql.sql| PRAGMA busy_timeout = 60000 |]
