@@ -566,6 +566,7 @@ isFailure o = case o of
   CannotCreateReleaseBranchWithBranchCommand {} -> True
   CalculatingDiff {} -> False
   RenamedProject {} -> False
+  RenamedProjectBranch {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

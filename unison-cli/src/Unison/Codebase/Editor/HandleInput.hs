@@ -1404,7 +1404,7 @@ loop e = do
             ProjectsI -> handleProjects
             BranchI source name -> handleBranch source name
             BranchRenameI name -> handleBranchRename name
-            BranchesI -> handleBranches
+            BranchesI name -> handleBranches name
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
 
@@ -1580,7 +1580,7 @@ inputDescription input =
     AuthLoginI {} -> wat
     BranchI {} -> wat
     BranchRenameI {} -> wat
-    BranchesI -> wat
+    BranchesI {} -> wat
     CloneI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat

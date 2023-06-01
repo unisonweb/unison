@@ -2426,8 +2426,15 @@ branches =
       aliases = [],
       visibility = I.Hidden,
       argTypes = [],
-      help = P.wrap "List branches.",
-      parse = \_ -> Right Input.BranchesI
+      help =
+        P.wrapColumn2
+          [ ("`branches`", "lists all branches in the current project"),
+            ("`branches foo", "lists all branches in the project `foo`")
+          ],
+      parse = \case
+        [] -> Right (Input.BranchesI Nothing)
+        [nameString] | Right name <- tryFrom (Text.pack nameString) -> Right (Input.BranchesI (Just name))
+        _ -> Left (showPatternHelp branches)
     }
 
 branchInputPattern :: InputPattern

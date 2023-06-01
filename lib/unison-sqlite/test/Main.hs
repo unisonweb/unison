@@ -28,6 +28,11 @@ test =
             let expected = Right [ParsedOuterLump "? ? ?" [RowParam "foo" 1, RowParam "bar" 2]]
             let actual = internalParseSql sql
             expectEqual expected actual,
+          scope "parses IN :param syntax" do
+            let sql = "IN :foo"
+            let expected = Right [ParsedInLump "foo"]
+            let actual = internalParseSql sql
+            expectEqual expected actual,
           scope "parses VALUES :param syntax" do
             let sql = "VALUES :foo"
             let expected = Right [ParsedValuesLump "foo"]
