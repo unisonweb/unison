@@ -452,7 +452,7 @@ listWatches k = Q.loadWatchesByWatchKind k >>= traverse h2cReferenceId
 -- | returns Nothing if the expression isn't cached.
 loadWatch :: WatchKind -> C.Reference.Id -> MaybeT Transaction (C.Term Symbol)
 loadWatch k r = do
-  r' <- C.Reference.idH (lift . Q.saveHashHash) r
+  r' <- C.Reference.idH (MaybeT . Q.loadHashIdByHash) r
   S.Term.WatchResult wlids t <- MaybeT (Q.loadWatch k r' decodeWatchResultFormat)
   lift (w2cTerm wlids t)
 
