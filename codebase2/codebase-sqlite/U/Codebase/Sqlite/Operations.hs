@@ -1118,7 +1118,8 @@ buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash callback = do
     Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
     Q.insertScopedTypeNames newBranchHashId (fmap c2sTextReference <$> newTypeNames)
 
--- | Register a set of dependencies with a root hash at the provided locations.
+-- | Save a list of (mount-path, branch hash) mounts for the provided name lookup index branch
+-- hash.
 --
 -- E.g. associateNameLookupMounts #roothash [(["lib", "base"], #basehash)]
 associateNameLookupMounts :: BranchHash -> [(PathSegments, BranchHash)] -> Transaction ()

@@ -33,8 +33,9 @@ dropOldNameLookupTables = do
       DROP TABLE IF EXISTS type_name_lookup
     |]
 
--- | These are old name lookups from before we switched to a branch-hash keyed
--- approach. It can be dropped now to reclaim space.
+-- | This migration truncates the scoped name lookup tables, then Share will rebuild
+-- the living name lookups from scratch because it's faster, safer, and simpler to do it that
+-- way.
 deleteAllNameLookups :: Sqlite.Transaction ()
 deleteAllNameLookups = do
   Debug.debugLogM Debug.Migration "Deleting all name lookups"
