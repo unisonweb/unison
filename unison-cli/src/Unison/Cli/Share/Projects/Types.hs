@@ -10,7 +10,7 @@ where
 import U.Codebase.Sqlite.DbId (RemoteProjectBranchId (..), RemoteProjectId (..))
 import Unison.Prelude
 import Unison.Project (ProjectBranchName, ProjectName)
-import qualified Unison.Share.API.Hash as Share.API
+import Unison.Share.API.Hash qualified as Share.API
 
 -- | A remote project.
 data RemoteProject = RemoteProject

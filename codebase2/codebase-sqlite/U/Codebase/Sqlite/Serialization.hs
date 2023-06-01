@@ -3,46 +3,46 @@
 module U.Codebase.Sqlite.Serialization where
 
 import Data.Bits (Bits)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.Bytes.Get (MonadGet, getByteString, getWord8, runGetS)
 import Data.Bytes.Put (MonadPut, putByteString, putWord8)
 import Data.Bytes.Serial (SerialEndian (serializeBE), deserialize, deserializeBE, serialize)
 import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.List (elemIndex)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Vector (Vector)
-import qualified U.Codebase.Decl as Decl
+import U.Codebase.Decl qualified as Decl
 import U.Codebase.Kind (Kind)
-import qualified U.Codebase.Kind as Kind
+import U.Codebase.Kind qualified as Kind
 import U.Codebase.Reference (Reference' (ReferenceBuiltin, ReferenceDerived))
-import qualified U.Codebase.Reference as Reference
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
-import qualified U.Codebase.Referent as Referent
-import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
-import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
-import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
-import qualified U.Codebase.Sqlite.Causal as Causal
-import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
-import qualified U.Codebase.Sqlite.Entity as Entity
+import U.Codebase.Referent qualified as Referent
+import U.Codebase.Sqlite.Branch.Diff qualified as BranchDiff
+import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
+import U.Codebase.Sqlite.Branch.Full qualified as BranchFull
+import U.Codebase.Sqlite.Causal qualified as Causal
+import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
+import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
-import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
-import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
-import qualified U.Codebase.Sqlite.Patch.Full as PatchFull
-import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
-import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
+import U.Codebase.Sqlite.Patch.Diff qualified as PatchDiff
+import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
+import U.Codebase.Sqlite.Patch.Full qualified as PatchFull
+import U.Codebase.Sqlite.Patch.TermEdit qualified as TermEdit
+import U.Codebase.Sqlite.Patch.TypeEdit qualified as TypeEdit
 import U.Codebase.Sqlite.Symbol (Symbol (..))
 import U.Codebase.Sqlite.TempEntity (TempEntity)
-import qualified U.Codebase.Sqlite.TempEntity as TempEntity
-import qualified U.Codebase.Sqlite.Term.Format as TermFormat
-import qualified U.Codebase.Term as Term
-import qualified U.Codebase.Type as Type
-import qualified U.Core.ABT as ABT
-import qualified U.Util.Base32Hex as Base32Hex
+import U.Codebase.Sqlite.TempEntity qualified as TempEntity
+import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Term qualified as Term
+import U.Codebase.Type qualified as Type
+import U.Core.ABT qualified as ABT
+import U.Util.Base32Hex qualified as Base32Hex
 import U.Util.Serialization hiding (debug)
 import Unison.Hash32 (Hash32)
-import qualified Unison.Hash32 as Hash32
+import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
-import qualified Unison.Util.Monoid as Monoid
+import Unison.Util.Monoid qualified as Monoid
 import Prelude hiding (getChar, putChar)
 
 debug :: Bool

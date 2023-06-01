@@ -15,21 +15,21 @@ module Unison.Test.Ucm
 where
 
 import Control.Monad (when)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import System.Directory (removeDirectoryRecursive)
-import qualified System.IO.Temp as Temp
+import System.IO.Temp qualified as Temp
 import U.Util.Text (stripMargin)
 import Unison.Codebase (CodebasePath)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Init as Codebase.Init
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Init qualified as Codebase.Init
 import Unison.Codebase.Init.CreateCodebaseError (CreateCodebaseError (..))
-import qualified Unison.Codebase.SqliteCodebase as SC
-import qualified Unison.Codebase.TranscriptParser as TR
+import Unison.Codebase.SqliteCodebase qualified as SC
+import Unison.Codebase.TranscriptParser qualified as TR
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude (traceM)
-import qualified Unison.PrettyTerminal as PT
+import Unison.PrettyTerminal qualified as PT
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 
 data CodebaseFormat = CodebaseFormat2 deriving (Show, Enum, Bounded)
 

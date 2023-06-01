@@ -1,23 +1,23 @@
 module Unison.Codebase.BranchDiff where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import U.Codebase.HashTags (PatchHash)
 import Unison.Codebase.Branch (Branch0 (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch, PatchDiff)
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.IOSource (isPropagatedValue)
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 import Unison.Util.Relation3 (Relation3)
-import qualified Unison.Util.Relation3 as R3
-import qualified Unison.Util.Relation4 as R4
+import Unison.Util.Relation3 qualified as R3
+import Unison.Util.Relation4 qualified as R4
 
 data DiffType a = Create a | Delete a | Modify a deriving (Show)
 

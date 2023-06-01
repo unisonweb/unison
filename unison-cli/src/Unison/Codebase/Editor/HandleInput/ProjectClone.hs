@@ -7,32 +7,32 @@ where
 import Control.Lens (over, (^.), _2)
 import Control.Monad.Reader (ask)
 import Data.These (These (..))
-import qualified Data.UUID.V4 as UUID
+import Data.UUID.V4 qualified as UUID
 import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..))
-import qualified U.Codebase.Sqlite.DbId as Sqlite
-import qualified U.Codebase.Sqlite.Project as Sqlite (Project)
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
-import qualified U.Codebase.Sqlite.Queries as Queries
+import U.Codebase.Sqlite.DbId qualified as Sqlite
+import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli (stepAt)
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli (stepAt)
 import Unison.Cli.ProjectUtils (projectBranchPath)
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
-import qualified Unison.Cli.Share.Projects as Share
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Editor.HandleInput.Pull as HandleInput.Pull
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.Share.Projects qualified as Share
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.HandleInput.Pull qualified as HandleInput.Pull
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName, projectNameUserSlug)
-import qualified Unison.Share.API.Hash as Share.API
-import qualified Unison.Share.Sync as Share (downloadEntities)
-import qualified Unison.Share.Sync.Types as Share
-import qualified Unison.Sqlite as Sqlite
+import Unison.Share.API.Hash qualified as Share.API
+import Unison.Share.Sync qualified as Share (downloadEntities)
+import Unison.Share.Sync.Types qualified as Share
+import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.Common (hash32ToCausalHash)
-import qualified Unison.Sync.Types as Share
+import Unison.Sync.Types qualified as Share
 import Witch (unsafeFrom)
 
 data LocalProjectKey

@@ -9,8 +9,8 @@ where
 
 import Control.Lens as Lens
 import Data.List.NonEmpty (pattern (:|))
-import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.List.NonEmpty as List.NonEmpty
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Unison.NameSegment (NameSegment)
 import Unison.Position (Position (..))
 import Unison.Prelude

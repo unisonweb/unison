@@ -3,7 +3,7 @@
 module Unison.LSP.NotificationHandlers where
 
 import Language.LSP.Types
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 
 initializedHandler :: NotificationMessage 'Initialized -> Lsp ()

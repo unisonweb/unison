@@ -1,20 +1,20 @@
 module Unison.Typechecker.Extractor where
 
 import Control.Monad.Reader
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Set as Set
-import qualified Unison.Blank as B
+import Data.Set qualified as Set
+import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Context as C
+import Unison.Type qualified as Type
+import Unison.Typechecker.Context qualified as C
 import Unison.Util.Monoid (whenM)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type RedundantTypeAnnotation = Bool
 

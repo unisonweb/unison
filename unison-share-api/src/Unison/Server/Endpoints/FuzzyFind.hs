@@ -25,20 +25,20 @@ import Servant.Docs
     noSamples,
   )
 import Servant.OpenApi ()
-import qualified Text.FuzzyFind as FZF
-import qualified U.Codebase.Causal as V2Causal
+import Text.FuzzyFind qualified as FZF
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.DisplayObject
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnvDecl as PPE
-import qualified Unison.Server.Backend as Backend
+import Unison.PrettyPrintEnvDecl qualified as PPE
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
   ( APIGet,

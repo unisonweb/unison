@@ -1,16 +1,16 @@
 module Unison.Codebase.Metadata where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Util.List as List
+import Unison.Util.List qualified as List
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 import Unison.Util.Relation4 (Relation4)
-import qualified Unison.Util.Relation4 as R4
+import Unison.Util.Relation4 qualified as R4
 import Unison.Util.Star3 (Star3)
-import qualified Unison.Util.Star3 as Star3
+import Unison.Util.Star3 qualified as Star3
 
 type Type = Reference
 

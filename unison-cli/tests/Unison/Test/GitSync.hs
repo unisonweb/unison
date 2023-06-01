@@ -7,19 +7,19 @@ module Unison.Test.GitSync where
 
 import Data.Maybe (fromJust)
 import Data.String.Here.Interpolated (i)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import EasyTest
 import Shellmet ()
 import System.Directory (removePathForcibly)
 import System.FilePath ((</>))
-import qualified System.IO.Temp as Temp
+import System.IO.Temp qualified as Temp
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
 import Unison.Test.Ucm (CodebaseFormat, Transcript)
-import qualified Unison.Test.Ucm as Ucm
+import Unison.Test.Ucm qualified as Ucm
 import Unison.WatchKind (pattern TestWatch)
 
 transcriptOutputFile :: String -> FilePath

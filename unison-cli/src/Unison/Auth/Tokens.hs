@@ -1,23 +1,23 @@
 module Unison.Auth.Tokens where
 
 import Control.Monad.Except
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Char8 as BSC
-import qualified Data.Text as Text
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Char8 qualified as BSC
+import Data.Text qualified as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.TLS as HTTP
-import qualified Network.HTTP.Types as Network
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client.TLS qualified as HTTP
+import Network.HTTP.Types qualified as Network
 import Unison.Auth.CredentialManager
 import Unison.Auth.Discovery (fetchDiscoveryDoc)
 import Unison.Auth.Types
 import Unison.Auth.UserInfo (getUserInfo)
 import Unison.Prelude
 import Unison.Share.Types (CodeserverId)
-import qualified UnliftIO
+import UnliftIO qualified
 import UnliftIO.Exception
 import Web.JWT
-import qualified Web.JWT as JWT
+import Web.JWT qualified as JWT
 
 -- | Checks whether a JWT access token is expired.
 isExpired :: (MonadIO m) => AccessToken -> m Bool

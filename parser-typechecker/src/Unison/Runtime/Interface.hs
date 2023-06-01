@@ -23,13 +23,13 @@ import Control.Concurrent.STM as STM
 import Control.Monad
 import Data.Binary.Get (runGetOrFail)
 -- import Data.Bits (shiftL)
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.Bytes.Get (MonadGet)
 import Data.Bytes.Put (MonadPut, runPutL)
 import Data.Bytes.Serial
 import Data.Foldable
 import Data.IORef
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Set as Set
   ( filter,
     fromList,
@@ -38,25 +38,25 @@ import Data.Set as Set
     singleton,
     (\\),
   )
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text (isPrefixOf)
-import qualified Unison.ABT as Tm (substs)
-import qualified Unison.Builtin.Decls as RF
+import Unison.ABT qualified as Tm (substs)
+import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinMain, builtinTest)
 import Unison.Codebase.Runtime (Error, Runtime (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorReference as RF
+import Unison.ConstructorReference qualified as RF
 import Unison.DataDeclaration (Decl, declDependencies, declFields)
-import qualified Unison.Hashing.V2.Convert as Hashing
-import qualified Unison.LabeledDependency as RF
+import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.LabeledDependency qualified as RF
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
 import Unison.PrettyPrintEnv
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
-import qualified Unison.Reference as RF
-import qualified Unison.Referent as RF (pattern Ref)
+import Unison.Reference qualified as RF
+import Unison.Referent qualified as RF (pattern Ref)
 import Unison.Runtime.ANF
 import Unison.Runtime.ANF.Serialize (getGroup, putGroup)
 import Unison.Runtime.Builtin
@@ -93,14 +93,14 @@ import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.HashQualified as HQ (toString)
+import Unison.Syntax.HashQualified qualified as HQ (toString)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Syntax.TermPrinter
-import qualified Unison.Term as Tm
+import Unison.Term qualified as Tm
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty as P
-import qualified UnliftIO
-import qualified UnliftIO.Concurrent as UnliftIO
+import UnliftIO qualified
+import UnliftIO.Concurrent qualified as UnliftIO
 
 type Term v = Tm.Term v ()
 

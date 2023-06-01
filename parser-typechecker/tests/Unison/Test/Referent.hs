@@ -3,11 +3,11 @@
 module Unison.Test.Referent where
 
 import Data.Text (Text)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import EasyTest
-import qualified Unison.Reference as Rf
-import qualified Unison.Referent as R
-import qualified Unison.ShortHash as SH
+import Unison.Reference qualified as Rf
+import Unison.Referent qualified as R
+import Unison.ShortHash qualified as SH
 
 test :: Test ()
 test =

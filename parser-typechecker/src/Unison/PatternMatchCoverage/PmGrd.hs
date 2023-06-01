@@ -3,8 +3,8 @@ module Unison.PatternMatchCoverage.PmGrd where
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.PmLit (PmLit, prettyPmLit)
 import Unison.PatternMatchCoverage.Pretty
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Syntax.TypePrinter as TypePrinter
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term')
 import Unison.Type (Type)
 import Unison.Util.Pretty

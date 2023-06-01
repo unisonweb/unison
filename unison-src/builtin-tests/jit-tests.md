@@ -19,6 +19,21 @@ to `Tests.check` and `Tests.checkEqual`).
 ```
 
 ```ucm:hide
+.> load unison-src/builtin-tests/array-tests.u
+.> add
+```
+
+```ucm:hide
+.> load unison-src/builtin-tests/math-tests.u
+.> add
+```
+
+```ucm:hide
+.> load unison-src/builtin-tests/serial-tests.u
+.> add
+```
+
+```ucm:hide
 .> load unison-src/builtin-tests/tcp-tests.u
 .> add
 ```
@@ -53,11 +68,6 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm:hide
 .> load unison-src/builtin-tests/io-tests.u
 .> add
-```
-
-TODO remove md5 alias when base is released
-```ucm:hide
-.> alias.term ##crypto.HashAlgorithm.Md5 base.crypto.HashAlgorithm.Md5
 ```
 
 ```ucm:hide

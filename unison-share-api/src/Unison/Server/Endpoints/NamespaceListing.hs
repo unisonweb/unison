@@ -19,19 +19,19 @@ import Servant.Docs
   )
 import Servant.OpenApi ()
 import U.Codebase.Branch (NamespaceStats (..))
-import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Hash as Hash
-import qualified Unison.NameSegment as NameSegment
+import Unison.Hash qualified as Hash
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Server.Backend (Backend)
-import qualified Unison.Server.Backend as Backend
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Types
   ( APIGet,
     HashQualifiedName,

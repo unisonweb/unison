@@ -4,12 +4,12 @@ module Unison.Test.Typechecker.Context (test) where
 
 import Data.Foldable (for_)
 import EasyTest
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Symbol (Symbol)
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Context as Context
-import qualified Unison.Var as Var
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.Typechecker.Context qualified as Context
+import Unison.Var qualified as Var
 
 test :: Test ()
 test =

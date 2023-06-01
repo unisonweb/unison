@@ -6,10 +6,10 @@ where
 
 import Control.Lens ((^.))
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Editor.HandleInput.Branch (CreateFrom (..), doCreateBranch)
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Prelude
 import Unison.Project (Semver)
 import Witch (unsafeFrom)

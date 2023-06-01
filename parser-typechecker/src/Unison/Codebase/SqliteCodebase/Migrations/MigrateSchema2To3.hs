@@ -1,8 +1,8 @@
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3) where
 
 import U.Codebase.Sqlite.DbId (HashVersion (..))
-import qualified U.Codebase.Sqlite.Queries as Q
-import qualified Unison.Sqlite as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Q
+import Unison.Sqlite qualified as Sqlite
 
 -- | The 1 to 2 migration kept around hash objects of hash version 1, unfortunately this
 -- caused an issue:

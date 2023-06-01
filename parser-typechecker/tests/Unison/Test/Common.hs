@@ -8,22 +8,22 @@ module Unison.Test.Common
 where
 
 import Data.Sequence (Seq)
-import qualified Data.Text as Text
-import qualified Text.Megaparsec.Error as MPE
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin as B
-import qualified Unison.FileParsers as FP
+import Data.Text qualified as Text
+import Text.Megaparsec.Error qualified as MPE
+import Unison.ABT qualified as ABT
+import Unison.Builtin qualified as B
+import Unison.FileParsers qualified as FP
 import Unison.Parser.Ann (Ann (..))
 import Unison.PrintError (prettyParseError)
 import Unison.Result (Note, Result)
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Syntax.TermParser as TermParser
-import qualified Unison.Syntax.TypeParser as TypeParser
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TermParser qualified as TermParser
+import Unison.Syntax.TypeParser qualified as TypeParser
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
-import qualified Unison.Util.Pretty as Pr
+import Unison.Util.Pretty qualified as Pr
 import Unison.Var (Var)
 
 type Term v = Term.Term v Ann

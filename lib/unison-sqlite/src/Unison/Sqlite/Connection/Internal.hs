@@ -3,7 +3,7 @@ module Unison.Sqlite.Connection.Internal
   )
 where
 
-import qualified Database.SQLite.Simple as Sqlite
+import Database.SQLite.Simple qualified as Sqlite
 
 -- | A /non-thread safe/ connection to a SQLite database.
 data Connection = Connection

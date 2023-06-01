@@ -1,14 +1,14 @@
 module Unison.Auth.HTTPClient (newAuthenticatedHTTPClient, AuthenticatedHttpClient (..)) where
 
-import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding qualified as Text
 import Network.HTTP.Client (Request)
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.TLS as HTTP
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client.TLS qualified as HTTP
 import Unison.Auth.Tokens (TokenProvider)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Prelude
 import Unison.Share.Types (codeserverIdFromURI)
-import qualified Unison.Util.HTTP as HTTP
+import Unison.Util.HTTP qualified as HTTP
 
 -- | Newtype to delineate HTTP Managers with access-token logic.
 newtype AuthenticatedHttpClient = AuthenticatedHttpClient HTTP.Manager

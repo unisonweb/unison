@@ -8,29 +8,31 @@ module Unison.LSP.Types where
 
 import Colog.Core hiding (Lens')
 import Control.Comonad.Cofree (Cofree)
-import qualified Control.Comonad.Cofree as Cofree
+import Control.Comonad.Cofree qualified as Cofree
 import Control.Lens hiding (List, (:<))
 import Control.Monad.Except
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy.Char8 as BSC
-import qualified Data.HashMap.Strict as HM
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Key qualified as Aeson.Key
+import Data.Aeson.KeyMap qualified as Aeson.KeyMap
+import Data.ByteString.Lazy.Char8 qualified as BSC
+import Data.HashMap.Strict qualified as HM
 import Data.IntervalMap.Lazy (IntervalMap)
-import qualified Data.IntervalMap.Lazy as IM
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Ki
-import qualified Language.LSP.Logging as LSP
+import Data.IntervalMap.Lazy qualified as IM
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Ki qualified
+import Language.LSP.Logging qualified as LSP
 import Language.LSP.Server
-import qualified Language.LSP.Server as LSP
+import Language.LSP.Server qualified as LSP
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Language.LSP.VFS
 import Unison.Codebase
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.LSP.Orphans ()
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
@@ -40,16 +42,16 @@ import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Result (Note)
-import qualified Unison.Server.Backend as Backend
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch (NameSearch)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol
-import qualified Unison.Syntax.Lexer as Lexer
+import Unison.Syntax.Lexer qualified as Lexer
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Unison.UnisonFile as UF
+import Unison.UnisonFile qualified as UF
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
@@ -171,7 +173,7 @@ data Config = Config
 instance Aeson.FromJSON Config where
   parseJSON = Aeson.withObject "Config" \obj -> do
     maxCompletions <- obj Aeson..:! "maxCompletions" Aeson..!= maxCompletions defaultLSPConfig
-    let invalidKeys = Set.fromList (HM.keys obj) `Set.difference` validKeys
+    let invalidKeys = Set.fromList (map Aeson.Key.toText (Aeson.KeyMap.keys obj)) `Set.difference` validKeys
     when (not . null $ invalidKeys) do
       fail . Text.unpack $
         "Unrecognized configuration key(s): "
