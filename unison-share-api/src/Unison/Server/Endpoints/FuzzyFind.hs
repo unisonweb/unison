@@ -11,7 +11,7 @@
 module Unison.Server.Endpoints.FuzzyFind where
 
 import Control.Monad.Except
-import Data.Aeson (ToJSON (toEncoding), defaultOptions, genericToEncoding)
+import Data.Aeson
 import Data.OpenApi (ToSchema)
 import Servant
   ( QueryParam,
@@ -81,13 +81,16 @@ instance ToParam (QueryParam "query" String) where
       Normal
 
 instance ToJSON FZF.Alignment where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (FZF.Alignment {score, result}) =
+    object ["score" .= score, "result" .= result]
 
 instance ToJSON FZF.Result where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (FZF.Result {segments}) = object ["segments" .= toJSON segments]
 
 instance ToJSON FZF.ResultSegment where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = \case
+    FZF.Gap s -> object ["tag" .= String "Gap", "contents" .= s]
+    FZF.Match s -> object ["tag" .= String "Match", "contents" .= s]
 
 deriving instance ToSchema FZF.Alignment
 
@@ -108,11 +111,22 @@ data FoundType = FoundType
   }
   deriving (Generic, Show)
 
-instance ToJSON FoundType
+instance ToJSON FoundType where
+  toJSON (FoundType {bestFoundTypeName, typeDef, namedType}) =
+    object
+      [ "bestFoundTypeName" .= bestFoundTypeName,
+        "typeDef" .= typeDef,
+        "namedType" .= namedType
+      ]
 
 deriving instance ToSchema FoundType
 
-instance ToJSON FoundTerm
+instance ToJSON FoundTerm where
+  toJSON (FoundTerm {bestFoundTermName, namedTerm}) =
+    object
+      [ "bestFoundTermName" .= bestFoundTermName,
+        "namedTerm" .= namedTerm
+      ]
 
 deriving instance ToSchema FoundTerm
 
@@ -121,7 +135,10 @@ data FoundResult
   | FoundTypeResult FoundType
   deriving (Generic, Show)
 
-instance ToJSON FoundResult
+instance ToJSON FoundResult where
+  toJSON = \case
+    FoundTermResult ft -> object ["tag" .= String "FoundTermResult", "contents" .= ft]
+    FoundTypeResult ft -> object ["tag" .= String "FoundTypeResult", "contents" .= ft]
 
 deriving instance ToSchema FoundResult
 

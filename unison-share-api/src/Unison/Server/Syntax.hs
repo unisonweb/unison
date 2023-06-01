@@ -10,7 +10,7 @@
 -- to the server frontend.
 module Unison.Server.Syntax where
 
-import Data.Aeson (FromJSON, ToJSON (..))
+import Data.Aeson
 import Data.List qualified as List
 import Data.List.Extra
 import Data.List.NonEmpty qualified as List.NonEmpty
@@ -41,27 +41,33 @@ type SyntaxText = AnnotatedText Element
 
 type SyntaxSegment = Segment Element
 
-instance ToJSON Element
+instance (ToJSON a) => ToJSON (Segment a) where
+  toJSON (Segment {segment, annotation}) = object ["segment" .= segment, "annotation" .= annotation]
 
-instance FromJSON Element
-
-deriving instance ToSchema Element
-
-instance (ToJSON a) => ToJSON (Segment a)
-
-instance (FromJSON a) => FromJSON (Segment a)
+instance (FromJSON a) => FromJSON (Segment a) where
+  parseJSON = withObject "Segment" $ \o ->
+    Segment <$> o .: "segment" <*> o .: "annotation"
 
 deriving instance (ToSchema a) => ToSchema (Segment a)
 
-instance ToJSON SeqOp
+instance ToJSON SeqOp where
+  toJSON = \case
+    Cons -> String "Cons"
+    Snoc -> String "Snoc"
+    Concat -> String "Concat"
 
-instance FromJSON SeqOp
+instance FromJSON SeqOp where
+  parseJSON = withText "SeqOp" $ \case
+    "Cons" -> pure Cons
+    "Snoc" -> pure Snoc
+    "Concat" -> pure Concat
+    _ -> fail "Expected one of Cons, Snoc, Concat"
 
 deriving instance ToSchema SeqOp
 
-instance ToJSON SyntaxText
+deriving newtype instance ToJSON (AnnotatedText Element)
 
-instance FromJSON SyntaxText
+deriving newtype instance FromJSON (AnnotatedText Element)
 
 deriving anyclass instance ToSchema SyntaxText
 
@@ -151,6 +157,80 @@ data Element
   | -- the 'include' in @[include], etc
     DocKeyword
   deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON Element where
+  toJSON = \case
+    NumericLiteral -> object ["tag" .= String "NumericLiteral"]
+    TextLiteral -> object ["tag" .= String "TextLiteral"]
+    BytesLiteral -> object ["tag" .= String "BytesLiteral"]
+    CharLiteral -> object ["tag" .= String "CharLiteral"]
+    BooleanLiteral -> object ["tag" .= String "BooleanLiteral"]
+    Blank -> object ["tag" .= String "Blank"]
+    Var -> object ["tag" .= String "Var"]
+    TypeReference r -> object ["tag" .= String "TypeReference", "contents" .= r]
+    DataConstructorReference r ->
+      object ["tag" .= String "DataConstructorReference", "contents" .= r]
+    AbilityConstructorReference r -> object ["tag" .= String "AbilityConstructorReference", "contents" .= r]
+    TermReference r -> object ["tag" .= String "TermReference", "contents" .= r]
+    Op s -> object ["tag" .= String "Op", "contents" .= s]
+    AbilityBraces -> object ["tag" .= String "AbilityBraces"]
+    ControlKeyword -> object ["tag" .= String "ControlKeyword"]
+    TypeOperator -> object ["tag" .= String "TypeOperator"]
+    BindingEquals -> object ["tag" .= String "BindingEquals"]
+    TypeAscriptionColon -> object ["tag" .= String "TypeAscriptionColon"]
+    DataTypeKeyword -> object ["tag" .= String "DataTypeKeyword"]
+    DataTypeParams -> object ["tag" .= String "DataTypeParams"]
+    Unit -> object ["tag" .= String "Unit"]
+    DataTypeModifier -> object ["tag" .= String "DataTypeModifier"]
+    UseKeyword -> object ["tag" .= String "UseKeyword"]
+    UsePrefix -> object ["tag" .= String "UsePrefix"]
+    UseSuffix -> object ["tag" .= String "UseSuffix"]
+    HashQualifier n -> object ["tag" .= String "HashQualifier", "contents" .= n]
+    DelayForceChar -> object ["tag" .= String "DelayForceChar"]
+    DelimiterChar -> object ["tag" .= String "DelimiterChar"]
+    Parenthesis -> object ["tag" .= String "Parenthesis"]
+    LinkKeyword -> object ["tag" .= String "LinkKeyword"]
+    DocDelimiter -> object ["tag" .= String "DocDelimiter"]
+    DocKeyword -> object ["tag" .= String "DocKeyword"]
+
+instance FromJSON Element where
+  parseJSON = withObject "Element" $ \obj -> do
+    tag <- obj .: "tag"
+    case tag of
+      "NumericLiteral" -> pure NumericLiteral
+      "TextLiteral" -> pure TextLiteral
+      "BytesLiteral" -> pure BytesLiteral
+      "CharLiteral" -> pure CharLiteral
+      "BooleanLiteral" -> pure BooleanLiteral
+      "Blank" -> pure Blank
+      "Var" -> pure Var
+      "TypeReference" -> TypeReference <$> obj .: "contents"
+      "DataConstructorReference" -> DataConstructorReference <$> obj .: "contents"
+      "AbilityConstructorReference" -> AbilityConstructorReference <$> obj .: "contents"
+      "TermReference" -> TermReference <$> obj .: "contents"
+      "Op" -> Op <$> obj .: "contents"
+      "AbilityBraces" -> pure AbilityBraces
+      "ControlKeyword" -> pure ControlKeyword
+      "TypeOperator" -> pure TypeOperator
+      "BindingEquals" -> pure BindingEquals
+      "TypeAscriptionColon" -> pure TypeAscriptionColon
+      "DataTypeKeyword" -> pure DataTypeKeyword
+      "DataTypeParams" -> pure DataTypeParams
+      "Unit" -> pure Unit
+      "DataTypeModifier" -> pure DataTypeModifier
+      "UseKeyword" -> pure UseKeyword
+      "UsePrefix" -> pure UsePrefix
+      "UseSuffix" -> pure UseSuffix
+      "HashQualifier" -> HashQualifier <$> obj .: "contents"
+      "DelayForceChar" -> pure DelayForceChar
+      "DelimiterChar" -> pure DelimiterChar
+      "Parenthesis" -> pure Parenthesis
+      "LinkKeyword" -> pure LinkKeyword
+      "DocDelimiter" -> pure DocDelimiter
+      "DocKeyword" -> pure DocKeyword
+      _ -> fail $ "Unknown tag: " <> tag
+
+deriving instance ToSchema Element
 
 syntax :: Element -> SyntaxText -> SyntaxText
 syntax = annotate
