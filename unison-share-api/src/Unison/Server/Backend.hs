@@ -1044,7 +1044,7 @@ evalDocRef rt codebase r = do
       r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache evalPPE rt tm
       -- Only cache watches when we're not in readonly mode
       Env.lookupEnv "UNISON_READONLY" >>= \case
-        Just (_:_) -> pure ()
+        Just (_ : _) -> pure ()
         _ -> do
           case r of
             Just tmr ->
