@@ -2414,7 +2414,7 @@ branchesInputPattern =
       parse = \case
         [] -> Right (Input.BranchesI Nothing)
         [nameString] | Right name <- tryFrom (Text.pack nameString) -> Right (Input.BranchesI (Just name))
-        _ -> Left (showPatternHelp branches)
+        _ -> Left (showPatternHelp branchesInputPattern)
     }
 
 branchInputPattern :: InputPattern
