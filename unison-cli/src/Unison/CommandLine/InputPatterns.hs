@@ -725,7 +725,7 @@ deleteProject :: InputPattern
 deleteProject =
   InputPattern
     { patternName = "delete.project",
-      aliases = [],
+      aliases = ["project.delete"],
       visibility = I.Hidden,
       argTypes = [(Required, projectNameArg)],
       help = P.wrap "Delete a project.",
@@ -740,7 +740,7 @@ deleteBranch :: InputPattern
 deleteBranch =
   InputPattern
     { patternName = "delete.branch",
-      aliases = [],
+      aliases = ["branch.delete"],
       visibility = I.Hidden,
       argTypes = [(Required, projectBranchNameWithOptionalProjectNameArg)],
       help = P.wrap "Delete a project branch.",
@@ -2356,7 +2356,7 @@ projectCreate :: InputPattern
 projectCreate =
   InputPattern
     { patternName = "project.create",
-      aliases = ["create"],
+      aliases = ["create.project"],
       visibility = I.Hidden,
       argTypes = [(Required, projectNameArg)],
       help =
@@ -2391,14 +2391,14 @@ projectSwitch :: InputPattern
 projectSwitch =
   InputPattern
     { patternName = "switch",
-      aliases = ["project.switch"],
+      aliases = [],
       visibility = I.Hidden,
       argTypes = [(Required, projectAndBranchNamesArg)],
       help =
         P.wrapColumn2
-          [ ("`project.switch foo/bar`", "switches to the branch `bar` in the project `foo`"),
-            ("`project.switch foo/`", "switches to the last branch you visited in the project `foo`"),
-            ("`project.switch /bar`", "switches to the branch `bar` in the current project")
+          [ ("`switch foo/bar`", "switches to the branch `bar` in the project `foo`"),
+            ("`switch foo/`", "switches to the last branch you visited in the project `foo`"),
+            ("`switch /bar`", "switches to the branch `bar` in the current project")
           ],
       parse = \case
         [name] ->
@@ -2412,7 +2412,7 @@ projects :: InputPattern
 projects =
   InputPattern
     { patternName = "projects",
-      aliases = [],
+      aliases = ["list.project", "ls.project", "project.list"],
       visibility = I.Hidden,
       argTypes = [],
       help = P.wrap "List projects.",
@@ -2423,7 +2423,7 @@ branches :: InputPattern
 branches =
   InputPattern
     { patternName = "branches",
-      aliases = [],
+      aliases = ["list.branch", "ls.branch", "branch.list"],
       visibility = I.Hidden,
       argTypes = [],
       help =
@@ -2441,7 +2441,7 @@ branchInputPattern :: InputPattern
 branchInputPattern =
   InputPattern
     { patternName = "branch",
-      aliases = [],
+      aliases = ["branch.create", "create.branch"],
       visibility = I.Hidden,
       argTypes = [],
       help =
@@ -2469,7 +2469,7 @@ branchEmptyInputPattern :: InputPattern
 branchEmptyInputPattern =
   InputPattern
     { patternName = "branch.empty",
-      aliases = [],
+      aliases = ["branch.create-empty", "create.empty-branch"],
       visibility = I.Hidden,
       argTypes = [],
       help = P.wrap "Create a new empty branch.",
@@ -2526,7 +2526,7 @@ releaseDraft :: InputPattern
 releaseDraft =
   InputPattern
     { patternName = "release.draft",
-      aliases = [],
+      aliases = ["draft.release"],
       visibility = I.Hidden,
       argTypes = [],
       help = P.wrap "Draft a release.",

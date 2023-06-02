@@ -1,4 +1,4 @@
--- | @project.switch@ input handler
+-- | @switch@ input handler
 module Unison.Codebase.Editor.HandleInput.ProjectSwitch
   ( projectSwitch,
   )
