@@ -85,7 +85,7 @@ module U.Codebase.Sqlite.Operations
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
     deleteNameLookupsExceptFor,
-    nameLookupForPerspective,
+    namesPerspectiveForRootAndPath,
 
     -- * reflog
     getReflog,
@@ -1133,6 +1133,25 @@ associateNameLookupMounts rootBh dependencyMounts = do
     pure (path, branchHashId)
   Q.associateNameLookupMounts rootBhId depMounts
 
+-- | Any time we need to lookup or search names we need to know what the scope of that search
+-- should be. This can be complicated to keep track of, so this is a helper type to make it
+-- easy to pass around.
+--
+-- You should use 'namesPerspectiveForRootAndPath' to construct this type.
+--
+-- E.g. if we're in loose code, we need to search the correct name lookup for the
+-- user's perspective. If their perspective is "myprojects.json.latest.lib.base.data.List",
+-- we need to search names using the name index mounted at "myprojects.json.latest.lib.base".
+--
+-- The NamesPerspective representing this viewpoint would be:
+--
+-- @@
+-- NamesPerspective
+--  { nameLookupBranchHashId = #libbasehash
+--  , pathToMountedNameLookup = ["myprojects.json", "latest", "lib", "base"]
+--  , relativePerspective = ["data", "List"]
+--  }
+-- @@
 data NamesPerspective = NamesPerspective
   { -- | The branch hash of the name lookup we'll use for queries
     nameLookupBranchHashId :: Db.BranchHashId,
@@ -1153,13 +1172,13 @@ data NamesPerspective = NamesPerspective
 --
 -- Or if your namespace is "subnamespace.user", you'd get back
 -- (the rootBranchId you provided, "", "subnamespace.user")
-nameLookupForPerspective :: BranchHash -> PathSegments -> Transaction NamesPerspective
-nameLookupForPerspective rootBh namespace = do
+namesPerspectiveForRootAndPath :: BranchHash -> PathSegments -> Transaction NamesPerspective
+namesPerspectiveForRootAndPath rootBh namespace = do
   rootBhId <- Q.expectBranchHashId rootBh
-  nameLookupForPerspectiveHelper rootBhId namespace
+  namesPerspectiveForRootAndPathHelper rootBhId namespace
   where
-    nameLookupForPerspectiveHelper :: Db.BranchHashId -> PathSegments -> Transaction NamesPerspective
-    nameLookupForPerspectiveHelper rootBhId pathSegments = do
+    namesPerspectiveForRootAndPathHelper :: Db.BranchHashId -> PathSegments -> Transaction NamesPerspective
+    namesPerspectiveForRootAndPathHelper rootBhId pathSegments = do
       let defaultPerspective =
             NamesPerspective
               { nameLookupBranchHashId = rootBhId,
@@ -1175,7 +1194,7 @@ nameLookupForPerspective rootBh namespace = do
                 -- The path is within this mount:
                 (_, remainingPath, []) ->
                   lift $
-                    nameLookupForPerspectiveHelper mountBranchHash (into @PathSegments remainingPath)
+                    namesPerspectiveForRootAndPathHelper mountBranchHash (into @PathSegments remainingPath)
                       <&> \(NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup = mountLocation, relativePerspective}) ->
                         NamesPerspective
                           { nameLookupBranchHashId,
@@ -1207,7 +1226,7 @@ namesByPath ::
   PathSegments ->
   Transaction NamesByPath
 namesByPath bh namespace = do
-  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} <- nameLookupForPerspective bh namespace
+  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} <- namesPerspectiveForRootAndPath bh namespace
   termNamesInPath <- Q.termNamesWithinNamespace nameLookupBranchHashId relativePerspective
   typeNamesInPath <- Q.typeNamesWithinNamespace nameLookupBranchHashId relativePerspective
   let convertTerms = prefixNamedRef pathToMountedNameLookup . fmap (bimap s2cTextReferent (fmap s2cConstructorType))
@@ -1254,7 +1273,7 @@ refsForExactName ::
   Transaction [S.NamedRef ref]
 refsForExactName query bh (S.ReversedName (nameSuffix NonEmpty.:| reversedNamespace)) = do
   let namespace = reverse reversedNamespace
-  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective = S.PathSegments relativePerspective} <- nameLookupForPerspective bh (S.PathSegments namespace)
+  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective = S.PathSegments relativePerspective} <- namesPerspectiveForRootAndPath bh (S.PathSegments namespace)
   let reversedRelativePath = nameSuffix NonEmpty.:| reverse relativePerspective
   namedRefs <- query nameLookupBranchHashId (S.ReversedName reversedRelativePath)
   pure $

@@ -44,7 +44,7 @@ scopedNameSearch :: Codebase m v a -> BranchHash -> Path -> Sqlite.Transaction (
 scopedNameSearch codebase rootHash path = do
   -- We compute the names perspective once in advance so we don't need to calculate it on
   -- every query.
-  namesPerspective <- Ops.nameLookupForPerspective rootHash pathSegments
+  namesPerspective <- Ops.namesPerspectiveForRootAndPath rootHash pathSegments
   pure $ NameSearch {typeSearch = mkTypeSearch namesPerspective, termSearch = mkTermSearch namesPerspective}
   where
     mkTypeSearch namesPerspective =

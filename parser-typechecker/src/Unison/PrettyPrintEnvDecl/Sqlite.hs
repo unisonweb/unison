@@ -27,7 +27,7 @@ import Unison.Util.Monoid (foldMapM)
 -- Names are limited to those within the provided perspective
 ppedForReferences :: BranchHash -> Path -> Set LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl
 ppedForReferences rootHash perspective refs = do
-  namesPerspective <- Ops.nameLookupForPerspective rootHash pathSegments
+  namesPerspective <- Ops.namesPerspectiveForRootAndPath rootHash pathSegments
   hashLen <- Codebase.hashLength
   (termNames, typeNames) <-
     refs & foldMapM \ref ->

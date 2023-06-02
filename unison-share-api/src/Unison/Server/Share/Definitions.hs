@@ -128,7 +128,7 @@ addNameIfHashOnly codebase perspective hqQuery rootCausal = case hqQuery of
   HQ.HashOnly sh -> do
     let rootBranchHash = V2Causal.valueHash rootCausal
     let pathSegments = coerce $ Path.toList perspective
-    startingPerspective <- Ops.nameLookupForPerspective rootBranchHash pathSegments
+    startingPerspective <- Ops.namesPerspectiveForRootAndPath rootBranchHash pathSegments
     let findTerm = do
           termRefs <- lift $ termReferentsByShortHash codebase sh
           termRefs
