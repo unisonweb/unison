@@ -321,7 +321,7 @@ data Output
   | -- there's no remote project associated with branch, nor any of its parent branches
     NoAssociatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- there's no remote branch associated with branch
-    NoAssociatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
+    NoAssociatedRemoteProjectBranch URI (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | LocalProjectDoesntExist ProjectName
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
   | LocalProjectNorProjectBranchExist ProjectName ProjectBranchName
