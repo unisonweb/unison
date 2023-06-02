@@ -7,6 +7,8 @@ module Unison.Server.Share.Definitions (definitionForHQName) where
 
 import Control.Lens hiding ((??))
 import Control.Monad.Except
+import Data.List.Extra qualified as List
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Branch qualified as V2Branch
@@ -142,8 +144,25 @@ addNameIfHashOnly codebase perspective hqQuery rootCausal = case hqQuery of
     mayReversedName <- runMaybeT $ findTerm <|> findType
     case mayReversedName of
       Nothing -> pure hqQuery
-      Just (ReversedName reversedName) -> pure $ HQ.NameOnly (Name.fromReverseSegments $ coerce reversedName)
+      Just fqnReversedName -> do
+        let relativeReversedName = unprefixReversedName (PathSegments . coerce $ Path.toList perspective) fqnReversedName
+        pure $ HQ.NameOnly (Name.fromReverseSegments $ coerce relativeReversedName)
   _ -> pure hqQuery
+
+-- | Strips a namespace prefix from a reversed name, returning the original name if the prefix
+-- doesn't match.
+--
+-- >>> unprefixReversedName (S.PathSegments ["base", "data"]) (S.ReversedName ("map" NonEmpty.:| ["List", "data", "base"]))
+-- ReversedName ("map" :| ["List"])
+--
+-- Returns original name if the namespace isn't a prefix
+-- >>> unprefixReversedName (S.PathSegments ["no", "match"]) (S.ReversedName ("map" NonEmpty.:| ["base", "data"]))
+-- ReversedName ("map" :| ["base","data"])
+unprefixReversedName :: PathSegments -> ReversedName -> ReversedName
+unprefixReversedName (PathSegments prefix) original@(ReversedName (nameSeg NonEmpty.:| reversedNamespace)) =
+  List.stripSuffix (reverse prefix) reversedNamespace
+    & fmap (ReversedName . (nameSeg NonEmpty.:|))
+    & fromMaybe original
 
 renderDocRefs ::
   PPEDBuilder ->
