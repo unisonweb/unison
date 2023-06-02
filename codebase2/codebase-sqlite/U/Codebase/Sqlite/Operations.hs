@@ -1236,15 +1236,13 @@ typeNamesForRefWithinNamespace NamesPerspective {nameLookupBranchHashId, pathToM
   Q.typeNamesForRefWithinNamespace nameLookupBranchHashId relativePerspective (c2sTextReference ref) maySuffix
     <&> fmap (prefixReversedName pathToMountedNameLookup)
 
-termNamesBySuffix :: BranchHash -> NameLookups.PathSegments -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
-termNamesBySuffix bh namespace suffix = do
-  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} <- nameLookupForPerspective bh namespace
+termNamesBySuffix :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesBySuffix NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} suffix = do
   Q.termNamesBySuffix nameLookupBranchHashId relativePerspective suffix
     <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
-typeNamesBySuffix :: BranchHash -> NameLookups.PathSegments -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
-typeNamesBySuffix bh namespace suffix = do
-  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} <- nameLookupForPerspective bh namespace
+typeNamesBySuffix :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
+typeNamesBySuffix NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} suffix = do
   Q.typeNamesBySuffix nameLookupBranchHashId relativePerspective suffix
     <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap s2cTextReference)
 

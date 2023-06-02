@@ -109,7 +109,7 @@ scopedNameSearch codebase rootHash path = do
           namedRefs <-
             case searchStrat of
               ExactMatch -> Ops.termRefsForExactName rootHash (coerce $ Name.reverseSegments fqn)
-              SuffixMatch -> Ops.termNamesBySuffix rootHash pathSegments (coerce $ Name.reverseSegments name)
+              SuffixMatch -> Ops.termNamesBySuffix namesPerspective (coerce $ Name.reverseSegments name)
           namedRefs
             & fmap
               ( \(NamedRef.ref -> (ref, mayCT)) ->
@@ -138,7 +138,7 @@ scopedNameSearch codebase rootHash path = do
           namedRefs <-
             case searchStrat of
               ExactMatch -> Ops.typeRefsForExactName rootHash (coerce $ Name.reverseSegments fqn)
-              SuffixMatch -> Ops.typeNamesBySuffix rootHash pathSegments (coerce $ Name.reverseSegments name)
+              SuffixMatch -> Ops.typeNamesBySuffix namesPerspective (coerce $ Name.reverseSegments name)
           namedRefs
             & fmap (Cv.reference2to1 . NamedRef.ref)
             & Set.fromList
