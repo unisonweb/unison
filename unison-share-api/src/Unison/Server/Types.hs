@@ -130,17 +130,37 @@ deriving via Bool instance FromHttpApiData Suffixify
 deriving anyclass instance ToParamSchema Suffixify
 
 instance ToJSON TypeDefinition where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON TypeDefinition {..} =
+    object
+      [ "typeNames" .= typeNames,
+        "bestTypeName" .= bestTypeName,
+        "defnTypeTag" .= defnTypeTag,
+        "typeDefinition" .= typeDefinition,
+        "typeDocs" .= typeDocs
+      ]
 
 deriving instance ToSchema TypeDefinition
 
 instance ToJSON TermDefinition where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON TermDefinition {..} =
+    object
+      [ "termNames" .= termNames,
+        "bestTermName" .= bestTermName,
+        "defnTermTag" .= defnTermTag,
+        "termDefinition" .= termDefinition,
+        "signature" .= signature,
+        "termDocs" .= termDocs
+      ]
 
 deriving instance ToSchema TermDefinition
 
 instance ToJSON DefinitionDisplayResults where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON DefinitionDisplayResults {..} =
+    object
+      [ "termDefinitions" .= termDefinitions,
+        "typeDefinitions" .= typeDefinitions,
+        "missingDefinitions" .= missingDefinitions
+      ]
 
 deriving instance ToSchema DefinitionDisplayResults
 
@@ -191,16 +211,6 @@ data UnisonRef
   | TermRef UnisonHash
   deriving (Eq, Ord, Show, Generic)
 
-data FoundEntry
-  = FoundTerm NamedTerm
-  | FoundType NamedType
-  deriving (Eq, Show, Generic)
-
-instance ToJSON FoundEntry where
-  toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema FoundEntry
-
 unisonRefToText :: UnisonRef -> Text
 unisonRefToText = \case
   TypeRef r -> r
@@ -242,10 +252,19 @@ data NamedType = NamedType
   deriving (Eq, Generic, Show)
 
 instance ToJSON NamedType where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (NamedType n h tag) =
+    Aeson.object
+      [ "typeName" .= HQ'.toTextWith NameSegment.toText n,
+        "typeHash" .= h,
+        "typeTag" .= tag
+      ]
 
 instance FromJSON NamedType where
-  parseJSON = genericParseJSON defaultOptions
+  parseJSON = Aeson.withObject "NamedType" \obj -> do
+    typeName <- obj .: "typeName"
+    typeHash <- obj .: "typeHash"
+    typeTag <- obj .: "typeTag"
+    pure $ NamedType {..}
 
 deriving instance ToSchema NamedType
 

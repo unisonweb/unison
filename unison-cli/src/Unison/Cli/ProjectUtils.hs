@@ -3,6 +3,7 @@ module Unison.Cli.ProjectUtils
   ( -- * Project/path helpers
     getCurrentProject,
     expectCurrentProject,
+    getCurrentProjectIds,
     getCurrentProjectBranch,
     expectCurrentProjectBranch,
     projectPath,
@@ -66,6 +67,11 @@ getCurrentProject = do
 expectCurrentProject :: Cli Sqlite.Project
 expectCurrentProject = do
   getCurrentProject & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
+
+-- | Get the current project ids that a user is on.
+getCurrentProjectIds :: Cli (Maybe (ProjectAndBranch ProjectId ProjectBranchId))
+getCurrentProjectIds =
+  fmap fst . preview projectBranchPathPrism <$> Cli.getCurrentPath
 
 -- | Get the current project+branch+branch path that a user is on.
 getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))

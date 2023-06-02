@@ -27,6 +27,7 @@ module U.Codebase.Sqlite.Queries
     expectHashIdByHash,
     saveCausalHash,
     expectCausalHash,
+    expectBranchHashForCausalHash,
     saveBranchHash,
 
     -- * hash_object table
@@ -108,6 +109,7 @@ module U.Codebase.Sqlite.Queries
     loadAllProjects,
     loadAllProjectsBeginningWith,
     insertProject,
+    renameProject,
     deleteProject,
 
     -- ** project branches
@@ -187,6 +189,7 @@ module U.Codebase.Sqlite.Queries
     typeNamesBySuffix,
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
+    deleteNameLookupsExceptFor,
 
     -- * Reflog
     appendReflog,
@@ -542,6 +545,11 @@ expectHash32 h =
 
 expectBranchHash :: BranchHashId -> Transaction BranchHash
 expectBranchHash = coerce expectHash
+
+expectBranchHashForCausalHash :: CausalHash -> Transaction BranchHash
+expectBranchHashForCausalHash ch = do
+  (_, bhId)<- expectCausalByCausalHash ch
+  expectBranchHash bhId
 
 saveText :: Text -> Transaction TextId
 saveText t = do
@@ -1837,6 +1845,25 @@ checkBranchHashNameLookupExists hashId = do
       )
     |]
 
+-- | Delete any name lookup that's not in the provided list.
+--
+-- This can be used to garbage collect unreachable name lookups.
+deleteNameLookupsExceptFor :: [BranchHashId] -> Transaction ()
+deleteNameLookupsExceptFor hashIds = do
+  case hashIds of
+    [] -> execute [sql| DELETE FROM name_lookups |]
+    (x : xs) -> do
+      let hashIdValues :: NonEmpty (Only BranchHashId)
+          hashIdValues = coerce (x NonEmpty.:| xs)
+      execute
+        [sql|
+          WITH reachable(branch_hash_id) AS (
+            VALUES :hashIdValues
+          )
+          DELETE FROM name_lookups
+            WHERE root_branch_hash_id NOT IN (SELECT branch_hash_id FROM reachable);
+        |]
+
 -- | Insert the given set of term names into the name lookup table
 insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
 insertScopedTermNames bhId = do
@@ -2949,6 +2976,18 @@ insertProject uuid name =
       VALUES (:uuid, :name)
     |]
 
+-- | Rename a `project` row.
+--
+-- Precondition: the new name is available.
+renameProject :: ProjectId -> ProjectName -> Transaction ()
+renameProject projectId name =
+  execute
+    [sql|
+      UPDATE project
+      SET name = :name
+      WHERE id = :projectId
+    |]
+
 -- | Does a project branch exist by this name?
 projectBranchExistsByName :: ProjectId -> ProjectBranchName -> Transaction Bool
 projectBranchExistsByName projectId name =
@@ -3267,11 +3306,12 @@ loadRemoteProjectBranchGen loadRemoteBranchFlag pid remoteUri bid =
             t.depth + 1
           FROM
             t
-          JOIN project_branch_parent AS pbp ON pbp.project_id = t.project_id
+          LEFT JOIN project_branch_parent AS pbp ON pbp.project_id = t.project_id
             AND pbp.branch_id = t.parent_branch_id
           LEFT JOIN project_branch_remote_mapping AS pbrm ON pbrm.local_project_id = t.project_id
           AND pbrm.local_branch_id = t.parent_branch_id
           AND pbrm.remote_host = :remoteUri
+          WHERE t.parent_branch_id IS NOT NULL
         )
         SELECT
           remote_project_id,

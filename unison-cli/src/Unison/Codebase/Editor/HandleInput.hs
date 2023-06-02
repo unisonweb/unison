@@ -88,6 +88,7 @@ import Unison.Codebase.Editor.HandleInput.NamespaceDependencies qualified as Nam
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
+import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
@@ -1399,11 +1400,12 @@ loop e = do
             DiffNamespaceToPatchI diffNamespaceToPatchInput -> do
               description <- inputDescription input
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
+            ProjectRenameI name -> handleProjectRename name
             ProjectSwitchI name -> projectSwitch name
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
             BranchI source name -> handleBranch source name
-            BranchesI -> handleBranches
+            BranchesI name -> handleBranches name
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
 
@@ -1578,7 +1580,7 @@ inputDescription input =
     ApiI -> wat
     AuthLoginI {} -> wat
     BranchI {} -> wat
-    BranchesI -> wat
+    BranchesI {} -> wat
     CloneI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
@@ -1613,7 +1615,8 @@ inputDescription input =
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
-    ProjectSwitchI _ -> wat
+    ProjectRenameI {} -> wat
+    ProjectSwitchI {} -> wat
     ProjectsI -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat

@@ -26,6 +26,7 @@
               exports.ghc
               pkg-config
               zlib
+              glibcLocales
             ] ++ nativePackages;
             # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
             shellHook = ''
@@ -62,51 +63,6 @@
         });
       topLevelAttrs = {
         overlay = final: prev: {
-          #ormolu = prev.haskell.lib.justStaticExecutables
-          #  final.haskell.packages."ghc${ghc-version}".ormolu;
-          #haskell = with prev.haskell.lib;
-          #  prev.haskell // {
-          #    packages = prev.haskell.packages // {
-          #      "ghc${ghc-version}" = prev.haskell.packages."ghc${ghc-version}".extend
-          #        (hfinal: hprev: {
-          #          mkDerivation = drv:
-          #            hprev.mkDerivation (drv // {
-          #              doCheck = false;
-          #              doHaddock = false;
-          #              doBenchmark = false;
-          #              enableLibraryProfiling = false;
-          #              enableExecutableProfiling = false;
-          #            });
-          #          haskell-language-server = let
-          #            p = prev.haskell.lib.overrideCabal
-          #              hprev.haskell-language-server (drv: {
-          #                configureFlags = drv.configureFlags ++ [
-          #                  "-f-brittany"
-          #                  "-f-fourmolu"
-          #                  "-f-floskell"
-          #                  "-f-stylishhaskell"
-          #                  "-f-hlint"
-          #                ];
-          #              });
-          #          in p.overrideScope (lfinal: lprev: {
-          #            # undo all of the horrible overrideScope in
-          #            # nixpkgs configuration files
-          #            ormolu = hfinal.ormolu;
-          #            ghc-lib-parser = hfinal.ghc-lib-parser;
-          #            ghc-lib-parser-ex = hfinal.ghc-lib-parser-ex;
-          #            ghc-paths = hfinal.ghc-paths;
-          #            aeson = hfinal.aeson;
-          #            lsp-types = hfinal.lsp-types;
-          #            # null out some dependencies that we drop with cabal flags
-          #            hls-fourmolu-plugin = null;
-          #            hls-floskell-plugin = null;
-          #            hls-brittany-plugin = hfinal.hls-brittany-plugin;
-          #            hls-stylish-haskell-plugin = null;
-          #            hls-hlint-plugin = null;
-          #          });
-          #        });
-          #    };
-          #  };
           unison-hls = final.haskell-language-server.override {
             haskellPackages = final.haskell.packages."ghc${ghc-version}";
             dynamic = true;

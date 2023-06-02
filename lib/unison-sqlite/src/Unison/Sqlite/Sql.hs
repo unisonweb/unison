@@ -69,11 +69,12 @@ params__ (Sql _ x) = x
 --
 -- which, of course, will require a @qux@ with a 'Sqlite.Simple.ToField' instance in scope.
 --
--- There are four valid syntaxes for interpolating a variable:
+-- There are five valid syntaxes for interpolating a variable:
 --
 --   * @:colon@, which denotes a single-field variable
 --   * @\@at@, followed by 1+ bare @\@@, which denotes a multi-field variable
 --   * @\$dollar@, which denotes an entire 'Sql' fragment
+--   * @IN :colon@, which denotes an @IN@ expression, where the right-hand side is a list of scalars
 --   * @VALUES :colon@, which denotes an entire @VALUES@ literal (1+ tuples)
 --
 -- As an example of the @\@at@ syntax, consider a variable @plonk@ with a two-field 'Sqlite.Simple.ToRow' instance. A
@@ -99,6 +100,21 @@ params__ (Sql _ x) = x
 -- @
 -- [sql| bar baz |]
 -- @
+--
+-- As an example of @IN :colon@ syntax, the query
+--
+-- @
+-- [sql| IN :foo |]
+-- @
+--
+-- will require a list "foo" to be in scope, whose elements have `ToField` instances, and will expand to SQL that looks
+-- like
+--
+-- @
+-- IN (?, ?, ?, ?)
+-- @
+--
+-- depending on how man elements "foo" has.
 --
 -- As an example of @VALUES :colon@ syntax, the query
 --
@@ -133,6 +149,7 @@ sqlQQ input =
     unlump = \case
       ParsedOuterLump s params -> outerLump s params
       ParsedInnerLump s -> innerLump s
+      ParsedInLump s -> inLump s
       ParsedValuesLump s -> valuesLump s
 
     -- Take an outer lump like
@@ -165,16 +182,26 @@ sqlQQ input =
         Nothing -> fail ("Not in scope: " ++ Text.unpack var)
         Just name -> (,) <$> [|query__ $(TH.varE name)|] <*> [|params__ $(TH.varE name)|]
 
+    inLump :: Text -> TH.Q (TH.Exp, TH.Exp)
+    inLump var =
+      TH.lookupValueName (Text.unpack var) >>= \case
+        Nothing -> fail ("Not in scope: " ++ Text.unpack var)
+        Just name -> (,) <$> [|inSql $(TH.varE name)|] <*> [|map Sqlite.Simple.toField $(TH.varE name)|]
+
     valuesLump :: Text -> TH.Q (TH.Exp, TH.Exp)
     valuesLump var =
       TH.lookupValueName (Text.unpack var) >>= \case
         Nothing -> fail ("Not in scope: " ++ Text.unpack var)
         Just name -> (,) <$> [|valuesSql $(TH.varE name)|] <*> [|foldMap Sqlite.Simple.toRow $(TH.varE name)|]
 
+inSql :: Sqlite.Simple.ToField a => [a] -> Text
+inSql scalars =
+  Text.Builder.run ("IN (" <> b_commaSep (map (\_ -> b_qmark) scalars) <> b_rparen)
+
 valuesSql :: (Sqlite.Simple.ToRow a) => List.NonEmpty a -> Text
 valuesSql values =
   Text.Builder.run $
-    "VALUES " <> commaSep (replicate (length values) (valueSql columns))
+    "VALUES " <> b_commaSep (replicate (length values) (valueSql columns))
   where
     columns :: Int
     columns =
@@ -182,15 +209,12 @@ valuesSql values =
 
     valueSql :: Int -> Text.Builder
     valueSql columns =
-      Text.Builder.char '(' <> commaSep (replicate columns (Text.Builder.char '?')) <> Text.Builder.char ')'
-
-    commaSep :: [Text.Builder] -> Text.Builder
-    commaSep =
-      Text.Builder.intercalate (Text.Builder.text ", ")
+      b_lparen <> b_commaSep (replicate columns b_qmark) <> b_rparen
 
 data ParsedLump
   = ParsedOuterLump !Text ![Param]
   | ParsedInnerLump !Text
+  | ParsedInLump !Text
   | ParsedValuesLump !Text
   deriving stock (Eq, Show)
 
@@ -204,6 +228,7 @@ internalParseSql input =
     unlump = \case
       OuterLump sql params -> ParsedOuterLump (Text.Builder.run sql) (reverse params)
       InnerLump query -> ParsedInnerLump query
+      InLump param -> ParsedInLump param
       ValuesLump param -> ParsedValuesLump param
 
 -- Parser state.
@@ -240,12 +265,16 @@ internalParseSql input =
 -- Putting it all together, here's a visual example. Note, too, that the lumps are actually stored in reverse order in
 -- the parser state (because we simply cons lumps as we crawl along, which we reverse at the end).
 --
---   [sql| one $two :three VALUES :four |]
---        ^    ^   ^       ^           ^
---        |    |   |       |           |
---        |    |   |       |           OuterLump " " []
+--   [sql| one $two :three IN :four VALUES :five |]
+--        ^    ^   ^       ^       ^^           ^
+--        |    |   |       |       ||           |
+--        |    |   |       |       ||           OuterLump " " []
+--        |    |   |       |       ||
+--        |    |   |       |       |ValuesLump "five"
+--        |    |   |       |       |
+--        |    |   |       |       OuterLump " " []
 --        |    |   |       |
---        |    |   |       ValuesLump "four"
+--        |    |   |       InLump "four"
 --        |    |   |
 --        |    |   OuterLump " ? " ["three"]
 --        |    |
@@ -256,6 +285,7 @@ internalParseSql input =
 data Lump
   = OuterLump !Text.Builder ![Param]
   | InnerLump !Text -- "$foo" ==> InnerLump "foo"
+  | InLump !Text -- "IN :foo" ==> InLump "foo"
   | ValuesLump !Text -- "VALUES :foo" ==> ValuesLump "foo"
 
 data Param
@@ -278,7 +308,7 @@ parser = do
     NonParam fragment -> outer fragment pure
     AtParam param ->
       outer
-        qmark
+        b_qmark
         -- Either we parsed a bare "@", in which case we want to bump the int count of the latest field we walked over
         -- (which must be a RowField, otherwise the query is invalid as it begins some string of @-params with a bare
         -- @), or we parsed a new "@foo@ row param
@@ -290,9 +320,12 @@ parser = do
                   pure (RowParam name count' : params)
                 _ -> fail ("Invalid query: encountered unnamed-@ without a preceding named-@, like `@foo`")
               else \params -> pure (RowParam param1 1 : params)
-    ColonParam param -> outer qmark \params -> pure (FieldParam (Text.Builder.run param) : params)
+    ColonParam param -> outer b_qmark \params -> pure (FieldParam (Text.Builder.run param) : params)
     DollarParam param -> do
       State.modify' (InnerLump (Text.Builder.run param) :)
+      parser
+    InParam param -> do
+      State.modify' (InLump (Text.Builder.run param) :)
       parser
     ValuesParam param -> do
       State.modify' (ValuesLump (Text.Builder.run param) :)
@@ -311,8 +344,6 @@ parser = do
           params <- g []
           State.put (OuterLump s params : lumps)
       parser
-
-    qmark = Text.Builder.char '?'
 
 -- A single fragment, where a list of fragments (always ending in EndOfFile) makes a whole query.
 --
@@ -359,11 +390,12 @@ parser = do
 -- prepended to each Param fragment.
 data Fragment
   = Comment -- we toss these, so we don't bother remembering the contents
-  | NonParam Text.Builder
-  | AtParam Text.Builder -- "@foo" ==> "foo"; "@" ==> ""
-  | ColonParam Text.Builder -- ":foo" ==> "foo"
-  | DollarParam Text.Builder -- "$foo" ==> "foo"
-  | ValuesParam Text.Builder -- "VALUES :foo" ==> "foo"
+  | NonParam !Text.Builder
+  | AtParam !Text.Builder -- "@foo" ==> "foo"; "@" ==> ""
+  | ColonParam !Text.Builder -- ":foo" ==> "foo"
+  | DollarParam !Text.Builder -- "$foo" ==> "foo"
+  | InParam !Text.Builder -- "IN :foo" ==> "foo"
+  | ValuesParam !Text.Builder -- "VALUES :foo" ==> "foo"
   | Whitespace
   | EndOfInput
 
@@ -380,6 +412,7 @@ fragmentParser =
       ColonParam <$> colonParamP,
       AtParam <$> atParamP,
       DollarParam <$> dollarParamP,
+      InParam <$> inParamP,
       ValuesParam <$> valuesParamP,
       NonParam <$> unstructuredP,
       EndOfInput <$ Megaparsec.eof
@@ -432,6 +465,7 @@ fragmentParser =
               && c /= '[' -- [identifier]
               && c /= '-' -- -- comment (maybe)
               && c /= '/' -- /* comment */ (maybe)
+              && c /= 'I' -- IN :param (maybe)
               && c /= 'V' -- VALUES :param (maybe)
       pure (Text.Builder.char x <> Text.Builder.text xs)
 
@@ -450,6 +484,18 @@ fragmentParser =
     dollarParamP = do
       _ <- Megaparsec.char '$'
       haskellVariableP
+
+    inParamP :: P Text.Builder
+    inParamP = do
+      -- Use try (backtracking), so we can parse both:
+      --
+      --   * "IN :foo", an "in param", i.e. foo is a list of columns
+      --   * "IN (...)", just normal unstructured IN expression, which can contain a subquery, function, etc
+      --
+      Megaparsec.try do
+        _ <- Megaparsec.string "IN"
+        whitespaceP
+        colonParamP
 
     valuesParamP :: P Text.Builder
     valuesParamP = do
@@ -510,3 +556,18 @@ betwixt name quote = do
 char :: Char -> P Text.Builder
 char c =
   Megaparsec.char c $> Text.Builder.char c
+
+-- Few common text builders
+
+b_qmark :: Text.Builder
+b_qmark = Text.Builder.char '?'
+
+b_lparen :: Text.Builder
+b_lparen = Text.Builder.char '('
+
+b_rparen :: Text.Builder
+b_rparen = Text.Builder.char ')'
+
+b_commaSep :: [Text.Builder] -> Text.Builder
+b_commaSep =
+  Text.Builder.intercalate (Text.Builder.text ", ")

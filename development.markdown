@@ -111,6 +111,10 @@ its location on the command line.
 
 * The install directory can be modified with the option `--installdir: ...`
 
+* Take in account that if you want to load the project in haskell-language-server using cabal instead stack you will need:
+  * Copy or link `./contrib/cabal.project` to `./cabal.project`
+  * Delete or rename the existing `./hie.yaml`. The default behaviour without `hie.yaml` works with cabal.
+
 ## Building on Windows
 
 ### I get an error about unison/sql/something
