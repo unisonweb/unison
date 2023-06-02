@@ -82,9 +82,10 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
   let biases = maybeToList $ HQ.toName query
   let rootBranchHash = V2Causal.valueHash shallowRoot
   let ppedBuilder deps = fmap (PPED.biasTo biases) . liftIO . Codebase.runTransaction codebase $ PPESqlite.ppedForReferences rootBranchHash namesRoot deps
-  let nameSearch = SqliteNameSearch.scopedNameSearch codebase rootBranchHash namesRoot
-  dr@(DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do
-    definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
+  (dr@(DefinitionResults terms types misses), nameSearch) <- liftIO $ Codebase.runTransaction codebase do
+    nameSearch <- SqliteNameSearch.scopedNameSearch codebase rootBranchHash namesRoot
+    dr <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
+    pure (dr, nameSearch)
   Debug.debugM Debug.Server "definitionForHQName: found definitions" dr
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]

@@ -40,37 +40,40 @@ data SearchStrategy
   | SuffixMatch
   deriving (Show, Eq)
 
-scopedNameSearch :: Codebase m v a -> BranchHash -> Path -> NameSearch Sqlite.Transaction
-scopedNameSearch codebase rootHash path =
-  NameSearch {typeSearch, termSearch}
+scopedNameSearch :: Codebase m v a -> BranchHash -> Path -> Sqlite.Transaction (NameSearch Sqlite.Transaction)
+scopedNameSearch codebase rootHash path = do
+  -- We compute the names perspective once in advance so we don't need to calculate it on
+  -- every query.
+  namesPerspective <- Ops.nameLookupForPerspective rootHash pathSegments
+  pure $ NameSearch {typeSearch = mkTypeSearch namesPerspective, termSearch = mkTermSearch namesPerspective}
   where
-    typeSearch =
+    mkTypeSearch namesPerspective =
       Search
-        { lookupNames = lookupNamesForTypes,
-          lookupRelativeHQRefs' = lookupRelativeHQRefsForTypes,
+        { lookupNames = lookupNamesForTypes namesPerspective,
+          lookupRelativeHQRefs' = lookupRelativeHQRefsForTypes namesPerspective,
           makeResult = \hqname r names -> pure $ SR.typeResult hqname r names,
           matchesNamedRef = HQ'.matchesNamedReference
         }
-    termSearch =
+    mkTermSearch namesPerspective =
       Search
-        { lookupNames = lookupNamesForTerms,
-          lookupRelativeHQRefs' = lookupRelativeHQRefsForTerms,
+        { lookupNames = lookupNamesForTerms namesPerspective,
+          lookupRelativeHQRefs' = lookupRelativeHQRefsForTerms namesPerspective,
           makeResult = \hqname r names -> pure $ SR.termResult hqname r names,
           matchesNamedRef = HQ'.matchesNamedReferent
         }
 
     pathSegments :: PathSegments
     pathSegments = coerce $ Path.toList path
-    lookupNamesForTypes :: Reference -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
-    lookupNamesForTypes ref = do
-      names <- Ops.typeNamesForRefWithinNamespace rootHash pathSegments (Cv.reference1to2 ref) Nothing
+    lookupNamesForTypes :: Ops.NamesPerspective -> Reference -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
+    lookupNamesForTypes namesPerspective ref = do
+      names <- Ops.typeNamesForRefWithinNamespace namesPerspective (Cv.reference1to2 ref) Nothing
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Reference.toShortHash ref))
         & Set.fromList
         & pure
-    lookupNamesForTerms :: Referent -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
-    lookupNamesForTerms ref = do
-      names <- Ops.termNamesForRefWithinNamespace rootHash pathSegments (Cv.referent1to2 ref) Nothing
+    lookupNamesForTerms :: Ops.NamesPerspective -> Referent -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
+    lookupNamesForTerms namesPerspective ref = do
+      names <- Ops.termNamesForRefWithinNamespace namesPerspective (Cv.referent1to2 ref) Nothing
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Referent.toShortHash ref))
         & Set.fromList
@@ -80,26 +83,26 @@ scopedNameSearch codebase rootHash path =
     -- suffix search, so we maintain that behaviour here. It would probably be better
     -- to have separate functions in the Search type for each of these, and be more explicit
     -- about desired behaviour at the call-site.
-    lookupRelativeHQRefsForTerms :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
-    lookupRelativeHQRefsForTerms hqName = do
-      exact <- hqTermSearch ExactMatch hqName
+    lookupRelativeHQRefsForTerms :: Ops.NamesPerspective -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
+    lookupRelativeHQRefsForTerms namesPerspective hqName = do
+      exact <- hqTermSearch namesPerspective ExactMatch hqName
       if Set.null exact
         then do
-          hqTermSearch SuffixMatch hqName
+          hqTermSearch namesPerspective SuffixMatch hqName
         else do
           pure exact
-    lookupRelativeHQRefsForTypes :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
-    lookupRelativeHQRefsForTypes hqName = do
-      exact <- hqTypeSearch ExactMatch hqName
+    lookupRelativeHQRefsForTypes :: Ops.NamesPerspective -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
+    lookupRelativeHQRefsForTypes namesPerspective hqName = do
+      exact <- hqTypeSearch namesPerspective ExactMatch hqName
       if Set.null exact
         then do
-          hqTypeSearch SuffixMatch hqName
+          hqTypeSearch namesPerspective SuffixMatch hqName
         else do
           pure exact
     -- Search the codebase for matches to the given hq name.
     -- Supports either an exact match or a suffix match.
-    hqTermSearch :: SearchStrategy -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
-    hqTermSearch searchStrat hqName = do
+    hqTermSearch :: Ops.NamesPerspective -> SearchStrategy -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
+    hqTermSearch namesPerspective searchStrat hqName = do
       case hqName of
         HQ'.NameOnly name -> do
           let fqn = Path.prefixName (Path.Absolute path) name
@@ -118,7 +121,7 @@ scopedNameSearch codebase rootHash path =
           let fqn = Path.prefixName (Path.Absolute path) name
           termRefs <- termReferentsByShortHash codebase sh
           Set.forMaybe termRefs \termRef -> do
-            matches <- Ops.termNamesForRefWithinNamespace rootHash pathSegments (Cv.referent1to2 termRef) (Just . coerce $ Name.reverseSegments name)
+            matches <- Ops.termNamesForRefWithinNamespace namesPerspective (Cv.referent1to2 termRef) (Just . coerce $ Name.reverseSegments name)
             -- Return a valid ref if at least one match was found. Require that it be an exact
             -- match if specified.
             if any (\n -> coerce (Name.reverseSegments fqn) == n || searchStrat /= ExactMatch) matches
@@ -127,8 +130,8 @@ scopedNameSearch codebase rootHash path =
 
     -- Search the codebase for matches to the given hq name.
     -- Supports either an exact match or a suffix match.
-    hqTypeSearch :: SearchStrategy -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
-    hqTypeSearch searchStrat hqName = do
+    hqTypeSearch :: Ops.NamesPerspective -> SearchStrategy -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
+    hqTypeSearch namesPerspective searchStrat hqName = do
       case hqName of
         HQ'.NameOnly name -> do
           let fqn = Path.prefixName (Path.Absolute path) name
@@ -144,7 +147,7 @@ scopedNameSearch codebase rootHash path =
           let fqn = Path.prefixName (Path.Absolute path) name
           typeRefs <- typeReferencesByShortHash sh
           Set.forMaybe typeRefs \typeRef -> do
-            matches <- Ops.typeNamesForRefWithinNamespace rootHash pathSegments (Cv.reference1to2 typeRef) (Just . coerce $ Name.reverseSegments name)
+            matches <- Ops.typeNamesForRefWithinNamespace namesPerspective (Cv.reference1to2 typeRef) (Just . coerce $ Name.reverseSegments name)
             -- Return a valid ref if at least one match was found. Require that it be an exact
             -- match if specified.
             if any (\n -> coerce (Name.reverseSegments fqn) == n || searchStrat /= ExactMatch) matches
