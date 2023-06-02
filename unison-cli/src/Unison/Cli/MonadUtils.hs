@@ -515,9 +515,9 @@ expectLatestParsedFile =
 getTermFromLatestParsedFile :: HQ.HashQualified Name.Name -> Cli (Maybe (Term.Term Symbol Ann))
 getTermFromLatestParsedFile (HQ.NameOnly n) = do
   uf <- getLatestParsedFile
-  pure $ case uf of 
+  pure $ case uf of
     Nothing -> Nothing
-    Just uf -> 
+    Just uf ->
       case UF.typecheckingTerm uf of
         Term.LetRecNamed' bs _ -> lookup (Var.named (Name.toText n)) bs
         _ -> Nothing

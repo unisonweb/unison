@@ -1492,7 +1492,7 @@ notifyUser dir = \case
       qualifyType :: Reference -> Pretty
       qualifyType = P.syntaxToColor . prettyNamedReference hashLen name
   TermAmbiguous _ _ tms | Set.null tms -> pure "I couldn't find any term by that name."
-  TermAmbiguous ppe _n tms -> 
+  TermAmbiguous ppe _n tms ->
     pure . P.callout "🤔" . P.lines $
       [ P.wrap "I wasn't sure which of these you meant:",
         "",
@@ -1500,7 +1500,8 @@ notifyUser dir = \case
         "",
         tip "Try again, using one of the unambiguous choices above."
       ]
-      where phq = P.syntaxToColor . prettyHashQualified 
+    where
+      phq = P.syntaxToColor . prettyHashQualified
   HashAmbiguous h rs ->
     pure . P.callout "\129300" . P.lines $
       [ P.wrap $

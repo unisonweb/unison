@@ -88,9 +88,10 @@ resolveTerm name = do
         where
           parsed = hqSplitFromName' =<< HQ.toName name
       [rf] -> pure rf
-      rfs -> 
+      rfs ->
         Cli.returnEarly (TermAmbiguous ppe name (fromList rfs))
-        where ppe = fromSuffixNames hashLength (NamesWithHistory nms mempty)
+        where
+          ppe = fromSuffixNames hashLength (NamesWithHistory nms mempty)
 
 resolveCon :: HQ.HashQualified Name -> Cli ConstructorReference
 resolveCon name = do
@@ -101,9 +102,10 @@ resolveCon name = do
         where
           parsed = hqSplitFromName' =<< HQ.toName name
       ([co], _) -> pure co
-      (_, rfts) -> 
+      (_, rfts) ->
         Cli.returnEarly (TermAmbiguous ppe name (fromList rfts))
-        where ppe = fromSuffixNames hashLength (NamesWithHistory nms mempty)
+        where
+          ppe = fromSuffixNames hashLength (NamesWithHistory nms mempty)
 
 resolveTermRef :: HQ.HashQualified Name -> Cli Reference
 resolveTermRef name = do
@@ -114,9 +116,10 @@ resolveTermRef name = do
         where
           parsed = hqSplitFromName' =<< HQ.toName name
       ([rf], _) -> pure rf
-      (_, rfts) -> 
+      (_, rfts) ->
         Cli.returnEarly (TermAmbiguous ppe name (fromList rfts))
-        where ppe = fromSuffixNames hashLength (NamesWithHistory nms mempty)
+        where
+          ppe = fromSuffixNames hashLength (NamesWithHistory nms mempty)
 
 resolveMainRef :: HQ.HashQualified Name -> Cli (Reference, PrettyPrintEnv)
 resolveMainRef main = do
