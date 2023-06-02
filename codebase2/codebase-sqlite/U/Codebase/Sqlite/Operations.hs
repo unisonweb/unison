@@ -1226,9 +1226,9 @@ namesByPath ::
   PathSegments ->
   Transaction NamesByPath
 namesByPath bh namespace = do
-  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} <- namesPerspectiveForRootAndPath bh namespace
-  termNamesInPath <- Q.termNamesWithinNamespace nameLookupBranchHashId relativePerspective
-  typeNamesInPath <- Q.typeNamesWithinNamespace nameLookupBranchHashId relativePerspective
+  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} <- namesPerspectiveForRootAndPath bh namespace
+  termNamesInPath <- Q.termNamesWithinNamespace nameLookupBranchHashId mempty
+  typeNamesInPath <- Q.typeNamesWithinNamespace nameLookupBranchHashId mempty
   let convertTerms = prefixNamedRef pathToMountedNameLookup . fmap (bimap s2cTextReferent (fmap s2cConstructorType))
   let convertTypes = prefixNamedRef pathToMountedNameLookup . fmap s2cTextReference
   pure $
@@ -1242,8 +1242,8 @@ namesByPath bh namespace = do
 --
 -- Get the list of a names for a given Referent.
 termNamesForRefWithinNamespace :: NamesPerspective -> C.Referent -> Maybe S.ReversedName -> Transaction [S.ReversedName]
-termNamesForRefWithinNamespace NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} ref maySuffix = do
-  Q.termNamesForRefWithinNamespace nameLookupBranchHashId relativePerspective (c2sTextReferent ref) maySuffix
+termNamesForRefWithinNamespace NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} ref maySuffix = do
+  Q.termNamesForRefWithinNamespace nameLookupBranchHashId mempty (c2sTextReferent ref) maySuffix
     <&> fmap (prefixReversedName pathToMountedNameLookup)
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
@@ -1251,18 +1251,18 @@ termNamesForRefWithinNamespace NamesPerspective {nameLookupBranchHashId, pathToM
 --
 -- Get the list of a names for a given Reference, with an optional required suffix.
 typeNamesForRefWithinNamespace :: NamesPerspective -> C.Reference -> Maybe S.ReversedName -> Transaction [S.ReversedName]
-typeNamesForRefWithinNamespace NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} ref maySuffix = do
-  Q.typeNamesForRefWithinNamespace nameLookupBranchHashId relativePerspective (c2sTextReference ref) maySuffix
+typeNamesForRefWithinNamespace NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} ref maySuffix = do
+  Q.typeNamesForRefWithinNamespace nameLookupBranchHashId mempty (c2sTextReference ref) maySuffix
     <&> fmap (prefixReversedName pathToMountedNameLookup)
 
 termNamesBySuffix :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
-termNamesBySuffix NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} suffix = do
-  Q.termNamesBySuffix nameLookupBranchHashId relativePerspective suffix
+termNamesBySuffix NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} suffix = do
+  Q.termNamesBySuffix nameLookupBranchHashId mempty suffix
     <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
 typeNamesBySuffix :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
-typeNamesBySuffix NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} suffix = do
-  Q.typeNamesBySuffix nameLookupBranchHashId relativePerspective suffix
+typeNamesBySuffix NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} suffix = do
+  Q.typeNamesBySuffix nameLookupBranchHashId mempty suffix
     <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap s2cTextReference)
 
 -- | Helper for findings refs by name within the correct mounted indexes.
@@ -1305,8 +1305,8 @@ typeRefsForExactName bh reversedName = do
 -- We can clean this up if we make a custom PPE type just for sqlite pretty printing, but
 -- for now this works fine.
 longestMatchingTermNameForSuffixification :: NamesPerspective -> S.NamedRef C.Referent -> Transaction (Maybe (S.NamedRef (C.Referent, Maybe C.ConstructorType)))
-longestMatchingTermNameForSuffixification NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} namedRef = do
-  Q.longestMatchingTermNameForSuffixification nameLookupBranchHashId relativePerspective (c2sTextReferent <$> namedRef)
+longestMatchingTermNameForSuffixification NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} namedRef = do
+  Q.longestMatchingTermNameForSuffixification nameLookupBranchHashId mempty (c2sTextReferent <$> namedRef)
     <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
 -- | Get the name within the provided namespace that has the longest matching suffix
@@ -1315,8 +1315,8 @@ longestMatchingTermNameForSuffixification NamesPerspective {nameLookupBranchHash
 -- We can clean this up if we make a custom PPE type just for sqlite pretty printing, but
 -- for now this works fine.
 longestMatchingTypeNameForSuffixification :: NamesPerspective -> S.NamedRef C.Reference -> Transaction (Maybe (S.NamedRef C.Reference))
-longestMatchingTypeNameForSuffixification NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective} namedRef = do
-  Q.longestMatchingTypeNameForSuffixification nameLookupBranchHashId relativePerspective (c2sTextReference <$> namedRef)
+longestMatchingTypeNameForSuffixification NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} namedRef = do
+  Q.longestMatchingTypeNameForSuffixification nameLookupBranchHashId mempty (c2sTextReference <$> namedRef)
     <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap s2cTextReference)
 
 -- | Searches all dependencies transitively looking for the provided ref within the
