@@ -1503,7 +1503,6 @@ bprim2 !ustk !bstk EQLU i j = do
   ustk <- bump ustk
   poke ustk $ if universalEq (==) x y then 1 else 0
   pure (ustk, bstk)
-
 bprim2 !ustk !bstk IXOT i j = do
   x <- peekOffBi bstk i
   y <- peekOffBi bstk j
@@ -1517,7 +1516,6 @@ bprim2 !ustk !bstk IXOT i j = do
       poke ustk 1
       pokeOffN ustk 1 i
       pure (ustk, bstk)
-
 bprim2 !ustk !bstk IXOB i j = do
   x <- peekOffBi bstk i
   y <- peekOffBi bstk j
@@ -1531,7 +1529,6 @@ bprim2 !ustk !bstk IXOB i j = do
       poke ustk 1
       pokeOffN ustk 1 i
       pure (ustk, bstk)
-
 bprim2 !ustk !bstk DRPT i j = do
   n <- peekOff ustk i
   t <- peekOffBi bstk j

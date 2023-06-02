@@ -541,6 +541,7 @@ taket = binop0 1 $ \[x0, y, x] ->
 dropt = binop0 1 $ \[x0, y, x] ->
   unbox x0 Ty.natRef x $
     TPrm DRPT [x, y]
+
 atb = binop0 4 $ \[n0, b, n, t, r0, r] ->
   unbox n0 Ty.natRef n
     . TLetD t UN (TPrm IDXB [n, b])
@@ -557,14 +558,14 @@ atb = binop0 4 $ \[n0, b, n, t, r0, r] ->
         )
       ]
 
-indext = binop0 3 $ \[x, y, t, r0, r] -> 
+indext = binop0 3 $ \[x, y, t, r0, r] ->
   TLetD t UN (TPrm IXOT [x, y])
     . TMatch t
     . MatchSum
     $ mapFromList
-      [ (0, ([], none )),
-        (1,
-          ( [UN],     
+      [ (0, ([], none)),
+        ( 1,
+          ( [UN],
             TAbs r0
               . TLetD r BX (TCon Ty.natRef 0 [r0])
               $ some r
@@ -572,13 +573,13 @@ indext = binop0 3 $ \[x, y, t, r0, r] ->
         )
       ]
 
-indexb = binop0 3 $ \[x, y, t, i, r] -> 
+indexb = binop0 3 $ \[x, y, t, i, r] ->
   TLetD t UN (TPrm IXOB [x, y])
     . TMatch t
     . MatchSum
     $ mapFromList
       [ (0, ([], none)),
-        (1,
+        ( 1,
           ( [UN],
             TAbs i
               . TLetD r BX (TCon Ty.natRef 0 [i])
@@ -590,6 +591,7 @@ indexb = binop0 3 $ \[x, y, t, i, r] ->
 sizet = unop0 1 $ \[x, r] ->
   TLetD r UN (TPrm SIZT [x]) $
     TCon Ty.natRef 0 [r]
+
 unconst = unop0 7 $ \[x, t, c0, c, y, p, u, yp] ->
   TLetD t UN (TPrm UCNS [x])
     . TMatch t
@@ -607,6 +609,7 @@ unconst = unop0 7 $ \[x, t, c0, c, y, p, u, yp] ->
           )
         )
       ]
+
 unsnoct = unop0 7 $ \[x, t, c0, c, y, p, u, cp] ->
   TLetD t UN (TPrm USNC [x])
     . TMatch t

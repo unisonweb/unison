@@ -63,6 +63,7 @@ import Data.ByteArray qualified as BA
 import Data.ByteArray.Encoding qualified as BE
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as LB
+import Data.ByteString.Lazy.Search qualified as SS
 import Data.Char
 import Data.Primitive.ByteArray
   ( ByteArray (ByteArray),
@@ -81,8 +82,6 @@ import Unison.Prelude hiding (ByteString, empty)
 import Unison.Util.Rope qualified as R
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (drop, take)
-import qualified Data.ByteString.Lazy.Search as SS
-
 
 type Chunk = V.Vector Word8
 
@@ -200,7 +199,7 @@ indexOf :: Bytes -> Bytes -> Maybe Word64
 indexOf needle haystack =
   case SS.indices needle' haystack' of
     [] -> Nothing
-    (i:_) -> Just (fromIntegral i)
+    (i : _) -> Just (fromIntegral i)
   where
     needle' = toByteString needle
     haystack' = toLazyByteString haystack
