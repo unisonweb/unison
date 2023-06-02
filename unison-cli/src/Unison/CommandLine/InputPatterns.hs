@@ -2371,6 +2371,22 @@ projectCreate =
         _ -> Left (showPatternHelp projectCreate)
     }
 
+projectRenameInputPattern :: InputPattern
+projectRenameInputPattern =
+  InputPattern
+    { patternName = "project.rename",
+      aliases = ["rename.project"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ("`project.rename foo`", "renames the current project to `foo`")
+          ],
+      parse = \case
+        [nameString] | Right name <- tryInto (Text.pack nameString) -> Right (Input.ProjectRenameI name)
+        _ -> Left (showPatternHelp projectRenameInputPattern)
+    }
+
 projectSwitch :: InputPattern
 projectSwitch =
   InputPattern
@@ -2601,6 +2617,7 @@ validInputs =
       previewUpdate,
       printVersion,
       projectCreate,
+      projectRenameInputPattern,
       projectSwitch,
       projects,
       pull,

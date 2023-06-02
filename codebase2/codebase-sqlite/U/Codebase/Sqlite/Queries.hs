@@ -108,6 +108,7 @@ module U.Codebase.Sqlite.Queries
     loadAllProjects,
     loadAllProjectsBeginningWith,
     insertProject,
+    renameProject,
     deleteProject,
 
     -- ** project branches
@@ -2947,6 +2948,18 @@ insertProject uuid name =
     [sql|
       INSERT INTO project (id, name)
       VALUES (:uuid, :name)
+    |]
+
+-- | Rename a `project` row.
+--
+-- Precondition: the new name is available.
+renameProject :: ProjectId -> ProjectName -> Transaction ()
+renameProject projectId name =
+  execute
+    [sql|
+      UPDATE project
+      SET name = :name
+      WHERE id = :projectId
     |]
 
 -- | Does a project branch exist by this name?
