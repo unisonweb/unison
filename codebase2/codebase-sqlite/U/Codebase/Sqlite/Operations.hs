@@ -68,8 +68,8 @@ module U.Codebase.Sqlite.Operations
     termsMentioningType,
 
     -- ** name lookup index
-    namesByPath,
-    NamesByPath (..),
+    allNamesInPerspective,
+    NamesInPerspective (..),
     NamesPerspective (..),
     termNamesForRefWithinNamespace,
     typeNamesForRefWithinNamespace,
@@ -1212,29 +1212,26 @@ checkBranchHashNameLookupExists bh = do
   bhId <- Q.expectBranchHashId bh
   Q.checkBranchHashNameLookupExists bhId
 
-data NamesByPath = NamesByPath
-  { termNamesInPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
-    typeNamesInPath :: [S.NamedRef C.Reference]
+data NamesInPerspective = NamesInPerspective
+  { termNamesInPerspective :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
+    typeNamesInPerspective :: [S.NamedRef C.Reference]
   }
 
 -- | Get all the term and type names for the given namespace from the lookup table.
 -- Requires that an index for this branch hash already exists, which is currently
 -- only true on Share.
-namesByPath ::
-  BranchHash ->
-  -- | A relative namespace string, e.g. Just "base.List"
-  PathSegments ->
-  Transaction NamesByPath
-namesByPath bh namespace = do
-  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} <- namesPerspectiveForRootAndPath bh namespace
-  termNamesInPath <- Q.termNamesWithinNamespace nameLookupBranchHashId mempty
-  typeNamesInPath <- Q.typeNamesWithinNamespace nameLookupBranchHashId mempty
+allNamesInPerspective ::
+  NamesPerspective ->
+  Transaction NamesInPerspective
+allNamesInPerspective NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} = do
+  termNamesInPerspective <- Q.termNamesWithinNamespace nameLookupBranchHashId mempty
+  typeNamesInPerspective <- Q.typeNamesWithinNamespace nameLookupBranchHashId mempty
   let convertTerms = prefixNamedRef pathToMountedNameLookup . fmap (bimap s2cTextReferent (fmap s2cConstructorType))
   let convertTypes = prefixNamedRef pathToMountedNameLookup . fmap s2cTextReference
   pure $
-    NamesByPath
-      { termNamesInPath = convertTerms <$> termNamesInPath,
-        typeNamesInPath = convertTypes <$> typeNamesInPath
+    NamesInPerspective
+      { termNamesInPerspective = convertTerms <$> termNamesInPerspective,
+        typeNamesInPerspective = convertTypes <$> typeNamesInPerspective
       }
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this

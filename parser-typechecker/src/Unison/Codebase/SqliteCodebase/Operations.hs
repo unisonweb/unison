@@ -28,7 +28,7 @@ import U.Codebase.Sqlite.DbId (ObjectId)
 import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import U.Codebase.Sqlite.NamedRef qualified as S
 import U.Codebase.Sqlite.ObjectType qualified as OT
-import U.Codebase.Sqlite.Operations (NamesByPath (..))
+import U.Codebase.Sqlite.Operations (NamesInPerspective (..))
 import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -574,25 +574,24 @@ before h1 h2 =
 -- | Construct a 'ScopedNames' which can produce names which are relative to the provided
 -- Path.
 --
--- NOTE: this method requires an up-to-date name lookup index, which is
--- currently not kept up-to-date automatically (because it's slow to do so).
+-- NOTE: this method requires an up-to-date name lookup index
 namesAtPath ::
   BranchHash ->
-  -- Include ALL names within this path
-  Path ->
-  -- Make names within this path relative to this path, other names will be absolute.
+  -- Include names from the project which contains this path.
   Path ->
   Transaction ScopedNames
-namesAtPath bh namesRootPath relativeToPath = do
-  let namesRoot = PathSegments (coerce @_ @[Text] $ Path.toList namesRootPath)
-  NamesByPath {termNamesInPath, typeNamesInPath} <- Ops.namesByPath bh namesRoot
-  let termsInPath = convertTerms termNamesInPath
-  let typesInPath = convertTypes typeNamesInPath
+namesAtPath bh path = do
+  let namesRoot = PathSegments . coerce . Path.toList $ path
+  namesPerspective@Ops.NamesPerspective {relativePerspective} <- Ops.namesPerspectiveForRootAndPath bh namesRoot
+  let relativePath = Path.fromList $ coerce relativePerspective
+  NamesInPerspective {termNamesInPerspective, typeNamesInPerspective} <- Ops.allNamesInPerspective namesPerspective
+  let termsInPath = convertTerms termNamesInPerspective
+  let typesInPath = convertTypes typeNamesInPerspective
   let rootTerms = Rel.fromList termsInPath
   let rootTypes = Rel.fromList typesInPath
   let absoluteRootNames = Names.makeAbsolute $ Names {terms = rootTerms, types = rootTypes}
   let relativeScopedNames =
-        case relativeToPath of
+        case relativePath of
           Path.Empty -> (Names.makeRelative $ absoluteRootNames)
           p ->
             let reversedPathSegments = reverse . Path.toList $ p
@@ -672,7 +671,7 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
     ignoreLibDiffs :: (Functor m) => TreeDiff m -> TreeDiff m
     ignoreLibDiffs (TreeDiff cfr) =
       cfr
-        & Cofree.hoistCofree (\(Compose diff) -> Compose (Map.delete Projects.libSegment diff))
+        & Cofree.hoistCofree (\(Compose diff) -> Compose (Map.delete Name.libSegment diff))
         & TreeDiff
     toNamedRef :: (Name, ref) -> S.NamedRef ref
     toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}

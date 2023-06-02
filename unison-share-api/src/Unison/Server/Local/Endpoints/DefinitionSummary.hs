@@ -7,7 +7,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Unison.Server.Endpoints.DefinitionSummary
+module Unison.Server.Local.Endpoints.DefinitionSummary
   ( TermSummaryAPI,
     serveTermSummary,
     TermSummary (..),

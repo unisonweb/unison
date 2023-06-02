@@ -41,6 +41,7 @@ import Unison.Server.Backend hiding (renderDocRefs)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Doc qualified as Doc
 import Unison.Server.NameSearch.Sqlite qualified as SqliteNameSearch
+import Unison.Server.Share qualified as Share
 import Unison.Server.Types
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -69,7 +70,7 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
     shallowRoot <- resolveCausalHashV2 (Just rootHash)
     shallowBranch <- V2Causal.value shallowRoot
     perspectiveQuery <- addNameIfHashOnly codebase perspective perspectiveQuery shallowRoot
-    Backend.relocateToNameRoot perspective perspectiveQuery shallowBranch >>= \case
+    Share.relocateToNameRoot perspective perspectiveQuery shallowBranch >>= \case
       Left err -> pure $ Left err
       Right (namesRoot, locatedQuery) -> pure $ Right (shallowRoot, namesRoot, locatedQuery)
   (shallowRoot, namesRoot, query) <- either throwError pure result
