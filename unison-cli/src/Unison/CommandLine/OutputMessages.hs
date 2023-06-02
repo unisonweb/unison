@@ -1634,7 +1634,7 @@ notifyUser dir = \case
   ListDependencies ppe lds types terms ->
     pure $ listDependentsOrDependencies ppe "Dependencies" "dependencies" lds types terms
   ListStructuredFind terms ->
-    pure $ listStructuredFind terms 
+    pure $ listStructuredFind terms
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
   ListNamespaceDependencies ppe path' externalDependencies -> do
     let spacer = ("", "")
@@ -3554,21 +3554,25 @@ endangeredDependentsTable ppeDecl m =
 
 listStructuredFind :: [HQ.HashQualified Name] -> Pretty
 listStructuredFind [] = "😶 I couldn't find any matches."
-listStructuredFind tms = 
+listStructuredFind tms =
   P.callout "🔎" $
-  P.lines [
-    P.wrap $ "These definitions in the current namespace (excluding `lib`)"
-          <> "all have matches:",
-    "",
-    P.numberedList (P.syntaxToColor . prettyHashQualified <$> tms),
-    "",
-    tip (msg (length tms))
-  ]
+    P.lines
+      [ P.wrap $
+          "These definitions in the current namespace (excluding `lib`)"
+            <> "all have matches:",
+        "",
+        P.numberedList (P.syntaxToColor . prettyHashQualified <$> tms),
+        "",
+        tip (msg (length tms))
+      ]
   where
-  msg 1 = "Try " <> IP.makeExample IP.edit ["1"] <> " to bring this into your scratch file."
-  msg n = "Try " <> IP.makeExample IP.edit ["1"] <> " or " 
-                 <> IP.makeExample IP.edit ["1-"<>P.shown n] 
-                 <> " to bring these into your scratch file."
+    msg 1 = "Try " <> IP.makeExample IP.edit ["1"] <> " to bring this into your scratch file."
+    msg n =
+      "Try "
+        <> IP.makeExample IP.edit ["1"]
+        <> " or "
+        <> IP.makeExample IP.edit ["1-" <> P.shown n]
+        <> " to bring these into your scratch file."
 
 listDependentsOrDependencies ::
   PPE.PrettyPrintEnv ->
@@ -3577,7 +3581,7 @@ listDependentsOrDependencies ::
   Set LabeledDependency ->
   [HQ.HashQualified Name] ->
   [HQ.HashQualified Name] ->
-  Pretty 
+  Pretty
 listDependentsOrDependencies ppe labelStart label lds types terms =
   if null (types <> terms)
     then prettyLabeledDependencies ppe lds <> " has no " <> P.text label <> "."

@@ -1658,7 +1658,7 @@ inputDescription input =
       These path _branch -> pure (Path.toText' path)
 
 handleStructuredFindI :: HQ.HashQualified Name -> Cli ()
-handleStructuredFindI rule = do 
+handleStructuredFindI rule = do
   Cli.Env {codebase} <- ask
   (ppe, names, lhs, _rhs) <- lookupRewrite InvalidStructuredFind rule
   let fqppe = PPED.unsuffixifiedPPE ppe
@@ -1675,7 +1675,7 @@ handleStructuredFindI rule = do
         pure $ maybe False (ABT.containsExpression lhs) oe
       ok _ = pure False
   results <- filterM ok results
-  #numberedArgs .= map (Text.unpack . Reference.toText . Referent.toReference . view _2) results 
+  #numberedArgs .= map (Text.unpack . Reference.toText . Referent.toReference . view _2) results
   Cli.respond (ListStructuredFind (fst <$> results))
 
 lookupRewrite :: (HQ.HashQualified Name -> Output) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, Term Symbol Ann, Term Symbol Ann)
