@@ -136,7 +136,6 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration qualified as DD
-import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Hashing.V2.Convert qualified as Hashing
@@ -199,6 +198,7 @@ import Unison.Util.Set qualified as Set
 import Unison.Util.SyntaxText qualified as UST
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
+import UnliftIO.Environment qualified as Env
 
 type SyntaxText = UST.SyntaxText' Reference
 
