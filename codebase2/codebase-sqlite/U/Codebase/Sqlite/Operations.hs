@@ -83,6 +83,7 @@ module U.Codebase.Sqlite.Operations
     associateNameLookupMounts,
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
+    deleteNameLookupsExceptFor,
 
     -- * reflog
     getReflog,
@@ -1376,3 +1377,11 @@ appendReflog :: Reflog.Entry CausalHash Text -> Transaction ()
 appendReflog entry = do
   dbEntry <- (bitraverse Q.saveCausalHash pure) entry
   Q.appendReflog dbEntry
+
+-- | Delete any name lookup that's not in the provided list.
+--
+-- This can be used to garbage collect unreachable name lookups.
+deleteNameLookupsExceptFor :: Set BranchHash -> Transaction ()
+deleteNameLookupsExceptFor reachable = do
+  bhIds <- for (Set.toList reachable) Q.expectBranchHashId
+  Q.deleteNameLookupsExceptFor bhIds

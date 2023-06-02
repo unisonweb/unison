@@ -27,6 +27,7 @@ module U.Codebase.Sqlite.Queries
     expectHashIdByHash,
     saveCausalHash,
     expectCausalHash,
+    expectBranchHashForCausalHash,
     saveBranchHash,
 
     -- * hash_object table
@@ -190,6 +191,7 @@ module U.Codebase.Sqlite.Queries
     longestMatchingTypeNameForSuffixification,
     associateNameLookupMounts,
     listNameLookupMounts,
+    deleteNameLookupsExceptFor,
 
     -- * Reflog
     appendReflog,
@@ -548,6 +550,11 @@ expectHash32 h =
 
 expectBranchHash :: BranchHashId -> Transaction BranchHash
 expectBranchHash = coerce expectHash
+
+expectBranchHashForCausalHash :: CausalHash -> Transaction BranchHash
+expectBranchHashForCausalHash ch = do
+  (_, bhId)<- expectCausalByCausalHash ch
+  expectBranchHash bhId
 
 saveText :: Text -> Transaction TextId
 saveText t = do
@@ -1828,6 +1835,25 @@ checkBranchHashNameLookupExists hashId = do
         LIMIT 1
       )
     |]
+
+-- | Delete any name lookup that's not in the provided list.
+--
+-- This can be used to garbage collect unreachable name lookups.
+deleteNameLookupsExceptFor :: [BranchHashId] -> Transaction ()
+deleteNameLookupsExceptFor hashIds = do
+  case hashIds of
+    [] -> execute [sql| DELETE FROM name_lookups |]
+    (x : xs) -> do
+      let hashIdValues :: NonEmpty (Only BranchHashId)
+          hashIdValues = coerce (x NonEmpty.:| xs)
+      execute
+        [sql|
+          WITH reachable(branch_hash_id) AS (
+            VALUES :hashIdValues
+          )
+          DELETE FROM name_lookups
+            WHERE root_branch_hash_id NOT IN (SELECT branch_hash_id FROM reachable);
+        |]
 
 -- | Insert the given set of term names into the name lookup table
 insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
