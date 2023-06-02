@@ -59,6 +59,7 @@ library
     , deepseq
     , memory
     , primitive
+    , stringsearch
     , text
     , unison-prelude
     , unison-util-rope
@@ -112,6 +113,7 @@ test-suite util-bytes-tests
     , easytest
     , memory
     , primitive
+    , stringsearch
     , text
     , unison-prelude
     , unison-util-bytes

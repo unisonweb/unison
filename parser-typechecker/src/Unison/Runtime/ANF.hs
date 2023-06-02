@@ -1256,6 +1256,7 @@ data POp
   | TAKT
   | DRPT
   | SIZT -- ++,take,drop,size
+  | IXOT -- indexOf
   | UCNS
   | USNC
   | EQLT
@@ -1280,6 +1281,7 @@ data POp
   | UPKB
   | TAKB
   | DRPB -- pack,unpack,take,drop
+  | IXOB -- indexOf
   | IDXB
   | SIZB
   | FLTB

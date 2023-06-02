@@ -533,7 +533,7 @@ dropn = binop0 4 $ \[x0, y0, x, y, b, r] ->
       )
     $ TCon Ty.natRef 0 [r]
 
-appendt, taket, dropt, sizet, unconst, unsnoct :: (Var v) => SuperNormal v
+appendt, taket, dropt, indext, indexb, sizet, unconst, unsnoct :: (Var v) => SuperNormal v
 appendt = binop0 0 $ \[x, y] -> TPrm CATT [x, y]
 taket = binop0 1 $ \[x0, y, x] ->
   unbox x0 Ty.natRef x $
@@ -541,6 +541,52 @@ taket = binop0 1 $ \[x0, y, x] ->
 dropt = binop0 1 $ \[x0, y, x] ->
   unbox x0 Ty.natRef x $
     TPrm DRPT [x, y]
+atb = binop0 4 $ \[n0, b, n, t, r0, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm IDXB [n, b])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], none)),
+        ( 1,
+          ( [UN],
+            TAbs r0
+              . TLetD r BX (TCon Ty.natRef 0 [r0])
+              $ some r
+          )
+        )
+      ]
+
+indext = binop0 3 $ \[x, y, t, r0, r] -> 
+  TLetD t UN (TPrm IXOT [x, y])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], none )),
+        (1,
+          ( [UN],     
+            TAbs r0
+              . TLetD r BX (TCon Ty.natRef 0 [r0])
+              $ some r
+          )
+        )
+      ]
+
+indexb = binop0 3 $ \[x, y, t, i, r] -> 
+  TLetD t UN (TPrm IXOB [x, y])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], none)),
+        (1,
+          ( [UN],
+            TAbs i
+              . TLetD r BX (TCon Ty.natRef 0 [i])
+              $ some r
+          )
+        )
+      ]
+
 sizet = unop0 1 $ \[x, r] ->
   TLetD r UN (TPrm SIZT [x]) $
     TCon Ty.natRef 0 [r]
@@ -670,21 +716,6 @@ takeb = binop0 1 $ \[n0, b, n] ->
 dropb = binop0 1 $ \[n0, b, n] ->
   unbox n0 Ty.natRef n $
     TPrm DRPB [n, b]
-atb = binop0 4 $ \[n0, b, n, t, r0, r] ->
-  unbox n0 Ty.natRef n
-    . TLetD t UN (TPrm IDXB [n, b])
-    . TMatch t
-    . MatchSum
-    $ mapFromList
-      [ (0, ([], none)),
-        ( 1,
-          ( [UN],
-            TAbs r0
-              . TLetD r BX (TCon Ty.natRef 0 [r0])
-              $ some r
-          )
-        )
-      ]
 sizeb = unop0 1 $ \[b, n] ->
   TLetD n UN (TPrm SIZB [b]) $
     TCon Ty.natRef 0 [n]
@@ -1998,6 +2029,7 @@ builtinLookup =
         ("Text.++", (Untracked, appendt)),
         ("Text.take", (Untracked, taket)),
         ("Text.drop", (Untracked, dropt)),
+        ("Text.indexOf", (Untracked, indext)),
         ("Text.size", (Untracked, sizet)),
         ("Text.==", (Untracked, eqt)),
         ("Text.!=", (Untracked, neqt)),
@@ -2027,6 +2059,7 @@ builtinLookup =
         ("Bytes.take", (Untracked, takeb)),
         ("Bytes.drop", (Untracked, dropb)),
         ("Bytes.at", (Untracked, atb)),
+        ("Bytes.indexOf", (Untracked, indexb)),
         ("Bytes.size", (Untracked, sizeb)),
         ("Bytes.flatten", (Untracked, flattenb)),
         ("List.take", (Untracked, takes)),

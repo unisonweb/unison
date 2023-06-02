@@ -29,6 +29,7 @@ module Unison.Util.Bytes
     at,
     take,
     drop,
+    indexOf,
     size,
     empty,
     encodeNat16be,
@@ -80,6 +81,8 @@ import Unison.Prelude hiding (ByteString, empty)
 import Unison.Util.Rope qualified as R
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (drop, take)
+import qualified Data.ByteString.Lazy.Search as SS
+
 
 type Chunk = V.Vector Word8
 
@@ -192,6 +195,15 @@ take n (Bytes bs) = Bytes (R.take n bs)
 
 drop :: Int -> Bytes -> Bytes
 drop n (Bytes bs) = Bytes (R.drop n bs)
+
+indexOf :: Bytes -> Bytes -> Maybe Word64
+indexOf needle haystack =
+  case SS.indices needle' haystack' of
+    [] -> Nothing
+    (i:_) -> Just (fromIntegral i)
+  where
+    needle' = toByteString needle
+    haystack' = toLazyByteString haystack
 
 at, index :: Int -> Bytes -> Maybe Word8
 at n (Bytes bs) = R.index n bs
