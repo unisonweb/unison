@@ -34,6 +34,7 @@ library
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
+      Unison.Cli.Pretty
       Unison.Cli.PrettyPrintUtils
       Unison.Cli.ProjectUtils
       Unison.Cli.Share.Projects
