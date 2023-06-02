@@ -2041,6 +2041,9 @@ notifyUser dir = \case
           if oldBranchName == newBranchName
             then oldProjectAndBranchName <> "is already named" <> P.group (newProjectAndBranchName <> "!") <> "😄"
             else "Ok, I renamed" <> oldProjectAndBranchName <> "to" <> P.group (newProjectAndBranchName <> ".")
+  CantRenameBranchTo branch ->
+    pure . P.wrap $
+      "You can't rename a branch to" <> P.group (prettyProjectBranchName branch <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

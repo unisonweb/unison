@@ -11,11 +11,18 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), classifyProjectBranchName)
 
 handleBranchRename :: ProjectBranchName -> Cli ()
 handleBranchRename newBranchName = do
   (ProjectAndBranch project branch, _path) <- ProjectUtils.expectCurrentProjectBranch
+
+  case classifyProjectBranchName newBranchName of
+    ProjectBranchNameKind'Contributor {} -> pure ()
+    ProjectBranchNameKind'DraftRelease {} -> pure ()
+    ProjectBranchNameKind'NothingSpecial {} -> pure ()
+    ProjectBranchNameKind'Release {} -> Cli.returnEarly (Output.CantRenameBranchTo newBranchName)
+
   let projectName = project ^. #name
   let oldBranchName = branch ^. #name
   when (oldBranchName /= newBranchName) do
