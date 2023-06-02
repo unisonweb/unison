@@ -188,7 +188,7 @@ module U.Codebase.Sqlite.Queries
     typeNamesBySuffix,
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
-    deleteOtherNameLookups,
+    deleteNameLookupsExceptFor,
 
     -- * Reflog
     appendReflog,
@@ -1847,8 +1847,8 @@ checkBranchHashNameLookupExists hashId = do
 -- | Delete any name lookup that's not in the provided list.
 --
 -- This can be used to garbage collect unreachable name lookups.
-deleteOtherNameLookups :: [BranchHashId] -> Transaction ()
-deleteOtherNameLookups hashIds = do
+deleteNameLookupsExceptFor :: [BranchHashId] -> Transaction ()
+deleteNameLookupsExceptFor hashIds = do
   case hashIds of
     [] -> execute [sql| DELETE FROM name_lookups |]
     (x : xs) -> do

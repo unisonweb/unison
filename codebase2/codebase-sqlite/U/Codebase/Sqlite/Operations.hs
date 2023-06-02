@@ -79,7 +79,7 @@ module U.Codebase.Sqlite.Operations
     buildNameLookupForBranchHash,
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
-    deleteOtherNameLookups,
+    deleteNameLookupsExceptFor,
 
     -- * reflog
     getReflog,
@@ -1254,7 +1254,7 @@ appendReflog entry = do
 -- | Delete any name lookup that's not in the provided list.
 --
 -- This can be used to garbage collect unreachable name lookups.
-deleteOtherNameLookups :: Set BranchHash -> Transaction ()
-deleteOtherNameLookups reachable = do
+deleteNameLookupsExceptFor :: Set BranchHash -> Transaction ()
+deleteNameLookupsExceptFor reachable = do
   bhIds <- for (Set.toList reachable) Q.expectBranchHashId
-  Q.deleteOtherNameLookups bhIds
+  Q.deleteNameLookupsExceptFor bhIds
