@@ -1473,7 +1473,7 @@ notifyUser dir = \case
           HQ.HashOnly _ -> prettyReference hashLen
   DeleteNameAmbiguous hashLen p tms tys ->
     pure . P.callout "\129300" . P.lines $
-      [ P.wrap "That name is ambiguous. It could refer to any of the following definitions:",
+      [ P.wrap "I wasn't sure which of these you meant to delete:",
         "",
         P.indentN 2 (P.lines (map qualifyTerm (Set.toList tms) ++ map qualifyType (Set.toList tys))),
         "",
@@ -1491,7 +1491,16 @@ notifyUser dir = \case
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
       qualifyType :: Reference -> Pretty
       qualifyType = P.syntaxToColor . prettyNamedReference hashLen name
-  TermAmbiguous _ _ -> pure "That term is ambiguous."
+  TermAmbiguous _ _ tms | Set.null tms -> pure "I couldn't find any term by that name."
+  TermAmbiguous ppe _n tms -> 
+    pure . P.callout "🤔" . P.lines $
+      [ P.wrap "I wasn't sure which of these you meant:",
+        "",
+        P.indentN 2 (P.lines (map (phq . PPE.termNameOrHashOnly ppe) (Set.toList tms))),
+        "",
+        tip "Try again, using one of the unambiguous choices above."
+      ]
+      where phq = P.syntaxToColor . prettyHashQualified 
   HashAmbiguous h rs ->
     pure . P.callout "\129300" . P.lines $
       [ P.wrap $

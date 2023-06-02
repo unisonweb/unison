@@ -514,10 +514,13 @@ expectLatestParsedFile =
 -- Used to implement rewriting and other refactorings on the current file.
 getTermFromLatestParsedFile :: HQ.HashQualified Name.Name -> Cli (Maybe (Term.Term Symbol Ann))
 getTermFromLatestParsedFile (HQ.NameOnly n) = do
-  uf <- expectLatestParsedFile
-  pure $ case UF.typecheckingTerm uf of
-    Term.LetRecNamed' bs _ -> lookup (Var.named (Name.toText n)) bs
-    _ -> Nothing
+  uf <- getLatestParsedFile
+  pure $ case uf of 
+    Nothing -> Nothing
+    Just uf -> 
+      case UF.typecheckingTerm uf of
+        Term.LetRecNamed' bs _ -> lookup (Var.named (Name.toText n)) bs
+        _ -> Nothing
 getTermFromLatestParsedFile _ = pure Nothing
 
 -- | Get the latest typechecked unison file, or return early if there isn't one.

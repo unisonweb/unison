@@ -1672,8 +1672,8 @@ handleStructuredFindReplaceI rule = do
           | Set.size s == 1,
             Referent.Ref (Reference.DerivedId r) <- Set.findMin s ->
               Cli.runTransaction (Codebase.getTerm codebase r)
-        s -> Cli.returnEarly (TermAmbiguous rule s)
-  tm <- maybe (Cli.returnEarly (TermAmbiguous rule mempty)) pure ot
+        s -> Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule s)
+  tm <- maybe (Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule mempty)) pure ot
   (lhs, rhs) <- case tm of
     Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs, rhs]) -> pure (lhs, rhs)
     Term.Ann' (Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs, rhs])) _typ -> pure (lhs, rhs)
@@ -2755,14 +2755,14 @@ displayI prettyPrintNames outputLoc hq = do
     Nothing -> do
       let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
           results = NamesWithHistory.lookupHQTerm hq parseNames
+      pped <- prettyPrintEnvDecl parseNames
       ref <-
         Set.asSingleton results & onNothing do
           Cli.returnEarly
             if Set.null results
               then SearchTermsNotFound [hq]
-              else TermAmbiguous hq results
+              else TermAmbiguous (PPE.suffixifiedPPE pped) hq results
       let tm = Term.fromReferent External ref
-      pped <- prettyPrintEnvDecl parseNames
       tm <- evalUnisonTerm True (PPE.biasTo bias $ PPE.suffixifiedPPE pped) True tm
       doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do

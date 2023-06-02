@@ -157,7 +157,7 @@ data Output
   | LabeledReferenceAmbiguous Int (HQ.HashQualified Name) (Set LabeledDependency)
   | LabeledReferenceNotFound (HQ.HashQualified Name)
   | DeleteNameAmbiguous Int Path.HQSplit' (Set Referent) (Set Reference)
-  | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
+  | TermAmbiguous PPE.PrettyPrintEnv (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortCausalHash (Set ShortCausalHash)
   | BadNamespace String String

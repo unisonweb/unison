@@ -80,34 +80,43 @@ lookupTermRefWithType codebase name = do
       fmap ((,) tm) <$> Codebase.getTypeOfTerm codebase tm
 
 resolveTerm :: HQ.HashQualified Name -> Cli Referent
-resolveTerm name =
+resolveTerm name = do
+  hashLength <- Cli.runTransaction Codebase.hashLength
   basicParseNames >>= \nms ->
     case lookupTerm name nms of
       [] -> Cli.returnEarly (TermNotFound $ fromJust parsed)
         where
           parsed = hqSplitFromName' =<< HQ.toName name
       [rf] -> pure rf
-      rfs -> Cli.returnEarly (TermAmbiguous name (fromList rfs))
+      rfs -> 
+        Cli.returnEarly (TermAmbiguous ppe name (fromList rfs))
+        where ppe = fromSuffixNames hashLength (NamesWithHistory nms mempty)
 
 resolveCon :: HQ.HashQualified Name -> Cli ConstructorReference
-resolveCon name =
+resolveCon name = do
+  hashLength <- Cli.runTransaction Codebase.hashLength
   basicParseNames >>= \nms ->
     case lookupCon name nms of
       ([], _) -> Cli.returnEarly (TermNotFound $ fromJust parsed)
         where
           parsed = hqSplitFromName' =<< HQ.toName name
       ([co], _) -> pure co
-      (_, rfts) -> Cli.returnEarly (TermAmbiguous name (fromList rfts))
+      (_, rfts) -> 
+        Cli.returnEarly (TermAmbiguous ppe name (fromList rfts))
+        where ppe = fromSuffixNames hashLength (NamesWithHistory nms mempty)
 
 resolveTermRef :: HQ.HashQualified Name -> Cli Reference
-resolveTermRef name =
+resolveTermRef name = do
+  hashLength <- Cli.runTransaction Codebase.hashLength
   basicParseNames >>= \nms ->
     case lookupTermRefs name nms of
       ([], _) -> Cli.returnEarly (TermNotFound $ fromJust parsed)
         where
           parsed = hqSplitFromName' =<< HQ.toName name
       ([rf], _) -> pure rf
-      (_, rfts) -> Cli.returnEarly (TermAmbiguous name (fromList rfts))
+      (_, rfts) -> 
+        Cli.returnEarly (TermAmbiguous ppe name (fromList rfts))
+        where ppe = fromSuffixNames hashLength (NamesWithHistory nms mempty)
 
 resolveMainRef :: HQ.HashQualified Name -> Cli (Reference, PrettyPrintEnv)
 resolveMainRef main = do
