@@ -995,7 +995,7 @@ loop e = do
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
-            StructuredFindI fscope ws -> error "todo" fscope ws -- handleStructuredFindI fscope ws input
+            StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
             ResolveTypeNameI path' -> do
               description <- inputDescription input
@@ -1657,8 +1657,29 @@ inputDescription input =
       -- just trying to recover the syntax the user wrote
       These path _branch -> pure (Path.toText' path)
 
-handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
-handleStructuredFindReplaceI rule = do
+handleStructuredFindI :: HQ.HashQualified Name -> Cli ()
+handleStructuredFindI rule = do 
+  Cli.Env {codebase} <- ask
+  (ppe, names, lhs, _rhs) <- lookupRewrite InvalidStructuredFind rule
+  let fqppe = PPED.unsuffixifiedPPE ppe
+  results :: [(HQ.HashQualified Name, Referent)] <- pure $ do
+    r <- Set.toList (Relation.ran $ Names.terms (NamesWithHistory.currentNames names))
+    Just hq <- [PPE.terms fqppe r]
+    fullName <- [HQ'.toName hq]
+    guard (not (Name.beginsWithSegment fullName Name.libSegment))
+    Referent.Ref _ <- pure r
+    Just shortName <- [PPE.terms (PPED.suffixifiedPPE ppe) r]
+    pure (HQ'.toHQ shortName, r)
+  let ok (_, Referent.Ref (Reference.DerivedId r)) = do
+        oe <- Cli.runTransaction (Codebase.getTerm codebase r)
+        pure $ maybe False (ABT.containsExpression lhs) oe
+      ok _ = pure False
+  results <- filterM ok results
+  #numberedArgs .= map (Text.unpack . Reference.toText . Referent.toReference . view _2) results 
+  Cli.respond (ListStructuredFind (fst <$> results))
+
+lookupRewrite :: (HQ.HashQualified Name -> Output) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, Term Symbol Ann, Term Symbol Ann)
+lookupRewrite onErr rule = do
   Cli.Env {codebase} <- ask
   root <- Cli.getRootBranch
   currentBranch <- Cli.getCurrentBranch0
@@ -1680,7 +1701,12 @@ handleStructuredFindReplaceI rule = do
   (lhs, rhs) <- case tm of
     Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs, rhs]) -> pure (lhs, rhs)
     Term.Ann' (Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs, rhs])) _typ -> pure (lhs, rhs)
-    _ -> Cli.returnEarly (InvalidStructuredFindReplace rule)
+    _ -> Cli.returnEarly (onErr rule)
+  pure (ppe, currentNames, lhs, rhs)
+
+handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
+handleStructuredFindReplaceI rule = do
+  (ppe, _ns, lhs, rhs) <- lookupRewrite InvalidStructuredFindReplace rule
   uf <- Cli.expectLatestParsedFile
   (dest, _) <- Cli.expectLatestFile
   #latestFile ?= (dest, True)

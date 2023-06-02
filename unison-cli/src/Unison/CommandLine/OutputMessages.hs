@@ -861,6 +861,8 @@ notifyUser dir = \case
           <> " does not exist or is not a valid source file."
   InvalidStructuredFindReplace _sym ->
     pure . P.callout "😶" $ IP.helpFor IP.sfindReplace
+  InvalidStructuredFind _sym ->
+    pure . P.callout "😶" $ IP.helpFor IP.sfind
   SourceLoadFailed name ->
     pure . P.callout "😶" $
       P.wrap $
@@ -1631,6 +1633,8 @@ notifyUser dir = \case
     pure $ listDependentsOrDependencies ppe "Dependents" "dependents" lds types terms
   ListDependencies ppe lds types terms ->
     pure $ listDependentsOrDependencies ppe "Dependencies" "dependencies" lds types terms
+  ListStructuredFind terms ->
+    pure $ listStructuredFind terms 
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
   ListNamespaceDependencies ppe path' externalDependencies -> do
     let spacer = ("", "")
@@ -3548,6 +3552,24 @@ endangeredDependentsTable ppeDecl m =
         & fmap (\(n, dep) -> numArg n <> prettyLabeled fqnEnv dep)
         & P.lines
 
+listStructuredFind :: [HQ.HashQualified Name] -> Pretty
+listStructuredFind [] = "😶 I couldn't find any matches."
+listStructuredFind tms = 
+  P.callout "🔎" $
+  P.lines [
+    P.wrap $ "These definitions in the current namespace (excluding `lib`)"
+          <> "all have matches:",
+    "",
+    P.numberedList (P.syntaxToColor . prettyHashQualified <$> tms),
+    "",
+    tip (msg (length tms))
+  ]
+  where
+  msg 1 = "Try " <> IP.makeExample IP.edit ["1"] <> " to bring this into your scratch file."
+  msg n = "Try " <> IP.makeExample IP.edit ["1"] <> " or " 
+                 <> IP.makeExample IP.edit ["1-"<>P.shown n] 
+                 <> " to bring these into your scratch file."
+
 listDependentsOrDependencies ::
   PPE.PrettyPrintEnv ->
   Text ->
@@ -3555,7 +3577,7 @@ listDependentsOrDependencies ::
   Set LabeledDependency ->
   [HQ.HashQualified Name] ->
   [HQ.HashQualified Name] ->
-  P.Pretty P.ColorText
+  Pretty 
 listDependentsOrDependencies ppe labelStart label lds types terms =
   if null (types <> terms)
     then prettyLabeledDependencies ppe lds <> " has no " <> P.text label <> "."

@@ -487,7 +487,22 @@ sfind =
   where
     parse [q] = Input.StructuredFindI Input.FindLocal <$> parseHashQualifiedName q
     parse _ = Left "expected exactly one argument"
-    msg = makeExample sfind ["p"] <> " finds definitions containing the pattern `p` in the current namespace."
+    msg = P.lines 
+      [ P.wrap $ makeExample sfind ["rule"] <> " finds definitions that match the left side of `rule`"
+              <> "in the current namespace.",
+        "",
+        P.wrap $
+          "The argument `rule1` must refer to a pair or a function that immediately returns a pair."
+            <> "It can be in the codebase or scratch file. An example:",
+        "",
+        "    rule1 x = (x + 1, ())  -- 2nd element of pair is ignored by this command", 
+        "",
+        P.wrap $
+          "Here, `x` will stand in for any expression,"
+            <> "so this rule will match "
+            <> P.backticked' "(42+10+11) + 1" "."
+      ]
+
 
 sfindReplace :: InputPattern
 sfindReplace =

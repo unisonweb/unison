@@ -550,16 +550,21 @@ rewriteExpression query0 replacement0 tm =
         go _ _ = pure False
 
 containsExpression :: forall f v a. (Var v, forall a. (Eq a) => Eq (f a), Traversable f) => Term f v a -> Term f v a -> Bool
-containsExpression query tm = matchesHere tm
+containsExpression query0 tm = matchesHere tm
   where
+    used = Set.fromList (allVars tm)
+    varChanges =
+      fst $ foldl go (Map.empty, used) (freeVars query0)
+      where
+        go (m, u) v = let v' = freshIn u v in (Map.insert v v' m, Set.insert v' u)
+    -- rename free vars to avoid possible capture of things in `tm`
+    query = renames varChanges query0
     env0 = Map.fromList [(v, Nothing) | v <- toList (freeVars query)]
     vs0 = Map.keysSet env0
     matchesHere :: Term f v a -> Bool
     matchesHere tm =
       evalState (go (out query) (out tm)) env0 || case out tm of
-        Abs v tm
-          | Map.notMember v env0 -> matchesHere tm
-          | otherwise -> matchesHere (rename v (freshIn (vs0 <> freeVars tm) v) tm)
+        Abs _v tm -> matchesHere tm
         Cycle tm -> matchesHere tm
         Var _v -> False
         Tm f -> any matchesHere (toList f)
