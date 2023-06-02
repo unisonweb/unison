@@ -128,16 +128,17 @@ addNameIfHashOnly codebase perspective hqQuery rootCausal = case hqQuery of
   HQ.HashOnly sh -> do
     let rootBranchHash = V2Causal.valueHash rootCausal
     let pathSegments = coerce $ Path.toList perspective
+    startingPerspective <- Ops.nameLookupForPerspective rootBranchHash pathSegments
     let findTerm = do
           termRefs <- lift $ termReferentsByShortHash codebase sh
           termRefs
             & altMap \ref -> do
-              MaybeT $ Ops.recursiveTermNameSearch pathSegments rootBranchHash (CV.referent1to2 ref)
+              MaybeT $ Ops.recursiveTermNameSearch startingPerspective (CV.referent1to2 ref)
     let findType = do
           typeRefs <- lift $ typeReferencesByShortHash sh
           typeRefs
             & altMap \ref -> do
-              MaybeT $ Ops.recursiveTypeNameSearch pathSegments rootBranchHash (Cv.reference1to2 ref)
+              MaybeT $ Ops.recursiveTypeNameSearch startingPerspective (Cv.reference1to2 ref)
     mayReversedName <- runMaybeT $ findTerm <|> findType
     case mayReversedName of
       Nothing -> pure hqQuery

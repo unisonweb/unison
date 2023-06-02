@@ -1312,9 +1312,8 @@ longestMatchingTypeNameForSuffixification NamesPerspective {nameLookupBranchHash
 -- Note: this returns the first name it finds by searching in order of:
 -- Names in the current namespace, then names in the current namespace's dependencies, then
 -- through the current namespace's dependencies' dependencies, etc.
-recursiveTermNameSearch :: PathSegments -> BranchHash -> C.Referent -> Transaction (Maybe S.ReversedName)
-recursiveTermNameSearch namespace bh r = do
-  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} <- nameLookupForPerspective bh namespace
+recursiveTermNameSearch :: NamesPerspective -> C.Referent -> Transaction (Maybe S.ReversedName)
+recursiveTermNameSearch NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} r = do
   Q.recursiveTermNameSearch nameLookupBranchHashId (c2sTextReferent r)
     <&> fmap \reversedName -> prefixReversedName pathToMountedNameLookup reversedName
 
@@ -1330,9 +1329,8 @@ recursiveTermNameSearch namespace bh r = do
 -- Note: this returns the first name it finds by searching in order of:
 -- Names in the current namespace, then names in the current namespace's dependencies, then
 -- through the current namespace's dependencies' dependencies, etc.
-recursiveTypeNameSearch :: PathSegments -> BranchHash -> C.Reference -> Transaction (Maybe S.ReversedName)
-recursiveTypeNameSearch namespace bh r = do
-  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} <- nameLookupForPerspective bh namespace
+recursiveTypeNameSearch :: NamesPerspective -> C.Reference -> Transaction (Maybe S.ReversedName)
+recursiveTypeNameSearch NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} r = do
   Q.recursiveTypeNameSearch nameLookupBranchHashId (c2sTextReference r)
     <&> fmap \reversedName -> prefixReversedName pathToMountedNameLookup reversedName
 
