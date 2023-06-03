@@ -68,11 +68,16 @@ data ResolvedRemoteNamesFrom
 --
 --   /<branch>            ==>   abort if not in a project
 --
+--                              otherwise, abort if current branch doesn't have an associated remote project
+--
 --   <project>/<branch>   ==>   abort if <project> doesn't have a user slug
 --
 --   <thing>              ==>   if we're not in a project, then treat as if it was <thing>/
 --
 --                              otherwise, if <thing> doesn't have a user slug, treat it as /<thing>
+--
+--                              otherwise, if the current branch doesn't have an associated remote project, treat it as
+--                              <thing>/
 --
 --                              otherwise, hit the server, and if <thing>/ xor /<thing> was valid (e.g. cloning the
 --                              "@runar/topic" project-or-branch, where the "@runar/topic" branch does exist in the
@@ -86,66 +91,59 @@ resolveRemoteNames maybeCurrentProjectBranch = \case
   ProjectAndBranchNames'Ambiguous remoteProjectName remoteBranchName ->
     case maybeCurrentProjectBranch of
       Nothing -> resolveP remoteProjectName
-      Just (currentProjectBranch, _path) ->
+      Just (currentProjectAndBranch, _path) ->
         case projectNameUserSlug remoteProjectName of
           Nothing -> resolveB remoteBranchName
-          Just _ -> do
-            branchProjectKey <- Cli.runTransaction (projectBranchRemoteProjectKey currentProjectBranch)
-            -- Fetching these in parallel would be an improvement
-            maybeRemoteProject <- Share.getProjectByName remoteProjectName
-            maybeRemoteBranch <-
-              runMaybeT do
-                remoteProjectId <-
-                  case branchProjectKey of
-                    RemoteProjectKey'Id remoteProjectId -> pure remoteProjectId
-                    RemoteProjectKey'Name remoteBranchProjectName -> do
-                      remoteBranchProject <- MaybeT (Share.getProjectByName remoteBranchProjectName)
-                      pure (remoteBranchProject ^. #projectId)
-                MaybeT do
-                  Share.getProjectBranchByName (ProjectAndBranch remoteProjectId remoteBranchName) <&> \case
+          Just _ ->
+            Cli.runTransaction (loadAssociatedRemoteProjectId currentProjectAndBranch) >>= \case
+              Nothing -> resolveP remoteProjectName
+              Just remoteBranchProjectId -> do
+                -- Fetching these in parallel would be an improvement
+                maybeRemoteProject <- Share.getProjectByName remoteProjectName
+                maybeRemoteBranch <-
+                  Share.getProjectBranchByName (ProjectAndBranch remoteBranchProjectId remoteBranchName) <&> \case
                     Share.GetProjectBranchResponseBranchNotFound -> Nothing
                     Share.GetProjectBranchResponseProjectNotFound -> Nothing
                     Share.GetProjectBranchResponseSuccess remoteBranch -> Just remoteBranch
-            case (maybeRemoteProject, maybeRemoteBranch) of
-              (Just remoteProject, Nothing) -> do
-                let remoteProjectId = remoteProject ^. #projectId
-                let remoteProjectName = remoteProject ^. #projectName
-                let remoteBranchName = unsafeFrom @Text "main"
-                remoteBranch <-
-                  ProjectUtils.expectRemoteProjectBranchByName
-                    (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
-                pure
-                  ResolvedRemoteNames
-                    { branch = remoteBranch,
-                      from = ResolvedRemoteNamesFrom'Project
-                    }
-              (Nothing, Just remoteBranch) ->
-                pure
-                  ResolvedRemoteNames
-                    { branch = remoteBranch,
-                      from = ResolvedRemoteNamesFrom'Branch
-                    }
-              -- Treat neither existing and both existing uniformly as "ambiguous input"
-              -- Alternatively, if neither exist, we could instead say "although your input was ambiguous, disambuating
-              -- wouldn't help, because we did enough work to know neither thing exists"
-              _ -> do
-                branchProjectName <-
-                  case branchProjectKey of
-                    RemoteProjectKey'Id remoteProjectId ->
-                      Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
-                    RemoteProjectKey'Name remoteProjectName -> pure remoteProjectName
-                Cli.returnEarly $
-                  Output.AmbiguousCloneRemote
-                    remoteProjectName
-                    (ProjectAndBranch branchProjectName remoteBranchName)
+                case (maybeRemoteProject, maybeRemoteBranch) of
+                  (Just remoteProject, Nothing) -> do
+                    let remoteProjectId = remoteProject ^. #projectId
+                    let remoteProjectName = remoteProject ^. #projectName
+                    let remoteBranchName = unsafeFrom @Text "main"
+                    remoteBranch <-
+                      ProjectUtils.expectRemoteProjectBranchByName
+                        (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
+                    pure
+                      ResolvedRemoteNames
+                        { branch = remoteBranch,
+                          from = ResolvedRemoteNamesFrom'Project
+                        }
+                  (Nothing, Just remoteBranch) ->
+                    pure
+                      ResolvedRemoteNames
+                        { branch = remoteBranch,
+                          from = ResolvedRemoteNamesFrom'Branch
+                        }
+                  -- Treat neither existing and both existing uniformly as "ambiguous input"
+                  -- Alternatively, if neither exist, we could instead say "although your input was ambiguous, disambuating
+                  -- wouldn't help, because we did enough work to know neither thing exists"
+                  _ -> do
+                    branchProjectName <-
+                      Cli.runTransaction (Queries.expectRemoteProjectName remoteBranchProjectId Share.hardCodedUri)
+                    Cli.returnEarly $
+                      Output.AmbiguousCloneRemote
+                        remoteProjectName
+                        (ProjectAndBranch branchProjectName remoteBranchName)
   ProjectAndBranchNames'Unambiguous (This p) -> resolveP p
   ProjectAndBranchNames'Unambiguous (That b) -> resolveB b
   ProjectAndBranchNames'Unambiguous (These p b) -> resolvePB p b
   where
     resolveB branchName = do
-      (currentProjectBranch, _path) <- maybeCurrentProjectBranch & onNothing (Cli.returnEarly Output.NotOnProjectBranch)
-      projectKey <- Cli.runTransaction (projectBranchRemoteProjectKey currentProjectBranch)
-      branch <- expectB projectKey branchName
+      (currentProjectAndBranch, _path) <- maybeCurrentProjectBranch & onNothing (Cli.returnEarly Output.NotOnProjectBranch)
+      remoteProjectId <-
+        Cli.runTransaction (loadAssociatedRemoteProjectId currentProjectAndBranch) & onNothingM do
+          Cli.returnEarly (Output.NoAssociatedRemoteProjectBranch Share.hardCodedUri currentProjectAndBranch)
+      branch <- expectB (RemoteProjectKey'Id remoteProjectId) branchName
       pure ResolvedRemoteNames {branch, from = ResolvedRemoteNamesFrom'Branch}
 
     resolveP projectName = do
@@ -310,13 +308,14 @@ cloneInto localProjectBranch remoteProjectBranch = do
   Cli.cd path
 
 -- Return the remote project id associated with the given project branch
-projectBranchRemoteProjectKey ::
+loadAssociatedRemoteProjectId ::
   ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
-  Sqlite.Transaction RemoteProjectKey
-projectBranchRemoteProjectKey (ProjectAndBranch project branch) = do
-  Queries.loadRemoteProjectBranch (project ^. #projectId) Share.hardCodedUri (branch ^. #branchId) <&> \case
-    Nothing -> RemoteProjectKey'Name (project ^. #name)
-    Just (remoteProjectId, _) -> RemoteProjectKey'Id remoteProjectId
+  Sqlite.Transaction (Maybe Sqlite.RemoteProjectId)
+loadAssociatedRemoteProjectId (ProjectAndBranch project branch) =
+  fmap fst <$> Queries.loadRemoteProjectBranch projectId Share.hardCodedUri branchId
+  where
+    projectId = project ^. #projectId
+    branchId = branch ^. #branchId
 
 assertProjectNameHasUserSlug :: ProjectName -> Cli ()
 assertProjectNameHasUserSlug projectName =
