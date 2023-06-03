@@ -646,7 +646,9 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
               -- history looking for a Branch Hash we already have an index for.
               pure (V2Branch.empty, Nothing)
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
-      let treeDiff = ignoreLibDiffs $ BranchDiff.diffBranches fromBranch toBranch
+      depMounts <- Projects.inferDependencyMounts toBranch <&> fmap (first (coerce @_ @PathSegments . Path.toList))
+      let depMountPaths = (Path.fromList . coerce) . fst <$> depMounts
+      let treeDiff = ignoreDepMounts depMountPaths $ BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
       Ops.buildNameLookupForBranchHash
         mayExistingLookupBH
@@ -659,20 +661,23 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
                   pure $ toNamedRef (name, refWithCT)
               save (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
         )
-      depMounts <- Projects.inferDependencyMounts toBranch <&> fmap (first (coerce @_ @PathSegments . Path.toList))
       -- Ensure all of our dependencies have name lookups too.
       for_ depMounts \(_path, depBranchHash) -> do
         -- TODO: see if we can find a way to infer a good fromHash for dependencies
         ensureNameLookupForBranchHash getDeclType Nothing depBranchHash
       Ops.associateNameLookupMounts toBranchHash depMounts
   where
-    -- Ignore changes to the lib namespace, since those will be handled by name lookup
-    -- mounts.
-    ignoreLibDiffs :: (Functor m) => TreeDiff m -> TreeDiff m
-    ignoreLibDiffs (TreeDiff cfr) =
-      cfr
-        & Cofree.hoistCofree (\(Compose diff) -> Compose (Map.delete Name.libSegment diff))
-        & TreeDiff
+    alterTreeDiffAtPath :: (Functor m) => Path -> (TreeDiff m -> TreeDiff m) -> TreeDiff m -> TreeDiff m
+    alterTreeDiffAtPath path f (TreeDiff cfr) =
+      case path of
+        Path.Empty -> f (TreeDiff cfr)
+        (segment Path.:< rest) ->
+          let (a Cofree.:< (Compose rest')) = cfr
+           in TreeDiff (a Cofree.:< Compose (Map.adjust (fmap (coerce $ alterTreeDiffAtPath rest f)) segment rest'))
+    -- Delete portions of the diff which are covered by dependency mounts.
+    ignoreDepMounts :: (Applicative m) => [Path] -> TreeDiff m -> TreeDiff m
+    ignoreDepMounts depMounts treeDiff =
+      foldl' (\acc path -> alterTreeDiffAtPath path (const mempty) acc) treeDiff depMounts
     toNamedRef :: (Name, ref) -> S.NamedRef ref
     toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
     addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
