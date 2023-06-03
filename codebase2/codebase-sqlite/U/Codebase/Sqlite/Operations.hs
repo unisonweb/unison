@@ -1325,9 +1325,8 @@ longestMatchingTypeNameForSuffixification NamesPerspective {nameLookupBranchHash
 -- Names in the current namespace, then names in the current namespace's dependencies, then
 -- through the current namespace's dependencies' dependencies, etc.
 recursiveTermNameSearch :: NamesPerspective -> C.Referent -> Transaction (Maybe S.ReversedName)
-recursiveTermNameSearch NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} r = do
+recursiveTermNameSearch NamesPerspective {nameLookupBranchHashId} r = do
   Q.recursiveTermNameSearch nameLookupBranchHashId (c2sTextReferent r)
-    <&> fmap \reversedName -> prefixReversedName pathToMountedNameLookup reversedName
 
 -- | Searches all dependencies transitively looking for the provided ref within the provided
 -- namespace.
@@ -1342,9 +1341,8 @@ recursiveTermNameSearch NamesPerspective {nameLookupBranchHashId, pathToMountedN
 -- Names in the current namespace, then names in the current namespace's dependencies, then
 -- through the current namespace's dependencies' dependencies, etc.
 recursiveTypeNameSearch :: NamesPerspective -> C.Reference -> Transaction (Maybe S.ReversedName)
-recursiveTypeNameSearch NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} r = do
+recursiveTypeNameSearch NamesPerspective {nameLookupBranchHashId} r = do
   Q.recursiveTypeNameSearch nameLookupBranchHashId (c2sTextReference r)
-    <&> fmap \reversedName -> prefixReversedName pathToMountedNameLookup reversedName
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them
 -- then return them.
