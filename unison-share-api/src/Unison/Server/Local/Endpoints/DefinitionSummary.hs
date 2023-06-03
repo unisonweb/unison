@@ -25,6 +25,8 @@ import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.NameLookups (PathSegments (..))
+import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
@@ -33,6 +35,7 @@ import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
+import Unison.NameSegment (NameSegment (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl.Sqlite qualified as PPESqlite
@@ -105,6 +108,7 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
   let relativeToPath = fromMaybe Path.empty relativeTo
   let termReference = Referent.toReference referent
   let v2Referent = Cv.referent1to2 referent
+
   (root, sig) <-
     Backend.hoistBackend (Codebase.runTransaction codebase) do
       root <- Backend.normaliseRootCausalHash mayRoot
@@ -118,7 +122,9 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
         asks Backend.useNamesIndex >>= \case
           True -> do
             let deps = Type.labeledDependencies typeSig
-            liftIO . Codebase.runTransaction codebase $ PPESqlite.ppedForReferences (V2Causal.valueHash root) (fromMaybe Path.Empty relativeTo) deps
+            liftIO . Codebase.runTransaction codebase $ do
+              namesPerspective <- Ops.namesPerspectiveForRootAndPath (V2Causal.valueHash root) (coerce . Path.toList $ fromMaybe Path.Empty relativeTo)
+              PPESqlite.ppedForReferences namesPerspective deps
           False -> do
             (_localNames, ppe) <- Backend.scopedNamesForBranchHash codebase (Just root) relativeToPath
             pure ppe

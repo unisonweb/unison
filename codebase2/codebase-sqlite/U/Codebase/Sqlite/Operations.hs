@@ -118,7 +118,6 @@ import Control.Lens hiding (children)
 import Control.Monad.Extra qualified as Monad
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.Foldable qualified as Foldable
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.NonEmpty.Extra qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Map.Merge.Lazy qualified as Map
@@ -1265,14 +1264,11 @@ typeNamesBySuffix NamesPerspective {nameLookupBranchHashId, pathToMountedNameLoo
 -- | Helper for findings refs by name within the correct mounted indexes.
 refsForExactName ::
   (Db.BranchHashId -> S.ReversedName -> Transaction [S.NamedRef ref]) ->
-  BranchHash ->
+  NamesPerspective ->
   S.ReversedName ->
   Transaction [S.NamedRef ref]
-refsForExactName query bh (S.ReversedName (nameSuffix NonEmpty.:| reversedNamespace)) = do
-  let namespace = reverse reversedNamespace
-  NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup, relativePerspective = S.PathSegments relativePerspective} <- namesPerspectiveForRootAndPath bh (S.PathSegments namespace)
-  let reversedRelativePath = nameSuffix NonEmpty.:| reverse relativePerspective
-  namedRefs <- query nameLookupBranchHashId (S.ReversedName reversedRelativePath)
+refsForExactName query NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} name = do
+  namedRefs <- query nameLookupBranchHashId name
   pure $
     namedRefs
       <&> prefixNamedRef pathToMountedNameLookup
@@ -1287,14 +1283,14 @@ prefixReversedName :: PathSegments -> S.ReversedName -> S.ReversedName
 prefixReversedName (S.PathSegments prefix) (S.ReversedName reversedSegments) =
   S.ReversedName $ NonEmpty.appendl reversedSegments (reverse prefix)
 
-termRefsForExactName :: BranchHash -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
-termRefsForExactName bh reversedName = do
-  refsForExactName Q.termRefsForExactName bh reversedName
+termRefsForExactName :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termRefsForExactName namesPerspective reversedName = do
+  refsForExactName Q.termRefsForExactName namesPerspective reversedName
     <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
 
-typeRefsForExactName :: BranchHash -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
-typeRefsForExactName bh reversedName = do
-  refsForExactName Q.typeRefsForExactName bh reversedName <&> fmap (fmap s2cTextReference)
+typeRefsForExactName :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
+typeRefsForExactName namesPerspective reversedName = do
+  refsForExactName Q.typeRefsForExactName namesPerspective reversedName <&> fmap (fmap s2cTextReference)
 
 -- | Get the name within the provided namespace that has the longest matching suffix
 -- with the provided name, but a different ref.

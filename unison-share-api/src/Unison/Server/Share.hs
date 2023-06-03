@@ -2,14 +2,18 @@
 module Unison.Server.Share (relocateToNameRoot) where
 
 import Control.Lens hiding ((??))
-import U.Codebase.Branch qualified as V2Branch
-import U.Codebase.Projects as Projects
+import Data.List.NonEmpty qualified as NonEmpty
+import U.Codebase.HashTags (BranchHash)
+import U.Codebase.Sqlite.NameLookups (PathSegments (..))
+import U.Codebase.Sqlite.Operations (NamesPerspective (..))
+import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
-import Unison.Server.Backend
 import Unison.Sqlite qualified as Sqlite
 
 -- | Given an arbitrary query and perspective, find the name root the query belongs in,
@@ -17,5 +21,17 @@ import Unison.Sqlite qualified as Sqlite
 --
 -- A name root is either a project root or a dependency root.
 -- E.g. @.myproject.some.namespace -> .myproject@ or @.myproject.lib.base.List -> .myproject.lib.base@
-relocateToNameRoot :: Path -> HQ.HashQualified Name -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction (Either BackendError (Path, HQ.HashQualified Name))
-relocateToNameRoot perspective query rootBranch = undefined
+relocateToNameRoot :: Path -> HQ.HashQualified Name -> BranchHash -> Sqlite.Transaction (NamesPerspective, HQ.HashQualified Name)
+relocateToNameRoot perspective query rootBh = do
+  -- The namespace containing the name path
+  let nameLocation = case HQ.toName query of
+        Just name ->
+          name
+            & Name.reverseSegments
+            & NonEmpty.tail
+            & Path.fromList
+        Nothing -> Path.empty
+  let fullPath = perspective <> nameLocation
+  namesPerspective@NamesPerspective {relativePerspective} <- Ops.namesPerspectiveForRootAndPath rootBh (PathSegments . coerce . Path.toList $ fullPath)
+  let reprefixName name = Name.fromReverseSegments $ (NonEmpty.head $ Name.reverseSegments name) NonEmpty.:| (coerce relativePerspective)
+  pure (namesPerspective, reprefixName <$> query)

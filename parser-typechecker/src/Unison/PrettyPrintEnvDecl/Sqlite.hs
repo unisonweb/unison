@@ -1,12 +1,10 @@
 module Unison.PrettyPrintEnvDecl.Sqlite where
 
-import U.Codebase.HashTags (BranchHash)
-import U.Codebase.Sqlite.NameLookups (PathSegments (PathSegments), ReversedName (..))
+import U.Codebase.Sqlite.NameLookups (ReversedName (..))
 import U.Codebase.Sqlite.NamedRef (NamedRef (..))
+import U.Codebase.Sqlite.Operations (NamesPerspective)
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Path
-import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
@@ -25,9 +23,8 @@ import Unison.Util.Monoid (foldMapM)
 
 -- | Given a set of references, return a PPE which contains names for only those references.
 -- Names are limited to those within the provided perspective
-ppedForReferences :: BranchHash -> Path -> Set LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl
-ppedForReferences rootHash perspective refs = do
-  namesPerspective <- Ops.namesPerspectiveForRootAndPath rootHash pathSegments
+ppedForReferences :: NamesPerspective -> Set LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl
+ppedForReferences namesPerspective refs = do
   hashLen <- Codebase.hashLength
   (termNames, typeNames) <-
     refs & foldMapM \ref ->
@@ -53,8 +50,6 @@ ppedForReferences rootHash perspective refs = do
   let allTypeNamesToConsider = typeNames <> longestTypeSuffixMatches
   pure . PPED.fromNamesDecl hashLen . NamesWithHistory.fromCurrentNames $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
   where
-    pathSegments :: PathSegments
-    pathSegments = coerce $ Path.toList perspective
     namesForReference :: Ops.NamesPerspective -> LabeledDependency -> Sqlite.Transaction ([(Name, Referent)], [(Name, Reference)])
     namesForReference namesPerspective = \case
       LD.TermReferent ref -> do

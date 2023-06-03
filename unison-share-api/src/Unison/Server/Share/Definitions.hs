@@ -68,13 +68,13 @@ definitionForHQName ::
 definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codebase perspectiveQuery = do
   result <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- resolveCausalHashV2 (Just rootHash)
-    shallowBranch <- V2Causal.value shallowRoot
+    let rootBranchHash = V2Causal.valueHash shallowRoot
     perspectiveQuery <- addNameIfHashOnly codebase perspective perspectiveQuery shallowRoot
-    Share.relocateToNameRoot perspective perspectiveQuery shallowBranch >>= \case
-      Left err -> pure $ Left err
-      Right (namesRoot, locatedQuery) -> pure $ Right (shallowRoot, namesRoot, locatedQuery)
-  (shallowRoot, namesRoot, query) <- either throwError pure result
-  Debug.debugM Debug.Server "definitionForHQName: (namesRoot, query)" (namesRoot, query)
+    (namesPerspective, locatedQuery) <- Share.relocateToNameRoot perspective perspectiveQuery rootBranchHash
+    pure $ Right (shallowRoot, namesPerspective, locatedQuery)
+  (shallowRoot, namesPerspective, query) <- either throwError pure result
+  let namesRoot = Path.fromList . coerce $ Ops.pathToMountedNameLookup namesPerspective
+  Debug.debugM Debug.Server "definitionForHQName: (namesPerspective, query)" (namesPerspective, query)
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our namesRoot but within the
   -- same tree;
@@ -83,12 +83,10 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
   -- `trunk` over those in other releases.
   -- ppe which returns names fully qualified to the current namesRoot,  not to the codebase root.
   let biases = maybeToList $ HQ.toName query
-  let rootBranchHash = V2Causal.valueHash shallowRoot
-  let ppedBuilder deps = fmap (PPED.biasTo biases) . liftIO . Codebase.runTransaction codebase $ PPESqlite.ppedForReferences rootBranchHash namesRoot deps
-  (dr@(DefinitionResults terms types misses), nameSearch) <- liftIO $ Codebase.runTransaction codebase do
-    nameSearch <- SqliteNameSearch.scopedNameSearch codebase rootBranchHash namesRoot
-    dr <- definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
-    pure (dr, nameSearch)
+  let ppedBuilder deps = fmap (PPED.biasTo biases) . liftIO . Codebase.runTransaction codebase $ PPESqlite.ppedForReferences namesPerspective deps
+  let nameSearch = SqliteNameSearch.nameSearchForPerspective codebase namesPerspective
+  dr@(DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do
+    definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
   Debug.debugM Debug.Server "definitionForHQName: found definitions" dr
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
