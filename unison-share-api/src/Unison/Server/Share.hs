@@ -9,6 +9,7 @@ import U.Codebase.Sqlite.Operations (NamesPerspective (..))
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
+import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -27,11 +28,12 @@ relocateToNameRoot perspective query rootBh = do
   let nameLocation = case HQ.toName query of
         Just name ->
           name
-            & Name.reverseSegments
-            & NonEmpty.tail
+            & Name.segments
+            & NonEmpty.init
             & Path.fromList
         Nothing -> Path.empty
   let fullPath = perspective <> nameLocation
+  Debug.debugM Debug.Server "relocateToNameRoot fullPath" fullPath
   namesPerspective@NamesPerspective {relativePerspective} <- Ops.namesPerspectiveForRootAndPath rootBh (PathSegments . coerce . Path.toList $ fullPath)
-  let reprefixName name = Name.fromReverseSegments $ (NonEmpty.head $ Name.reverseSegments name) NonEmpty.:| (coerce relativePerspective)
+  let reprefixName name = Name.fromReverseSegments $ (NonEmpty.head $ Name.reverseSegments name) NonEmpty.:| (reverse $ coerce relativePerspective)
   pure (namesPerspective, reprefixName <$> query)
