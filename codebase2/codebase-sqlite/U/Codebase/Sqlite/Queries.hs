@@ -1849,8 +1849,11 @@ deleteNameLookupsExceptFor hashIds = do
           hashIdValues = coerce (x NonEmpty.:| xs)
       execute
         [sql|
-          WITH reachable(branch_hash_id) AS (
+          WITH RECURSIVE reachable(branch_hash_id) AS (
             VALUES :hashIdValues
+            -- Any name lookup that's mounted on a reachable name lookup is also reachable
+            UNION ALL
+            SELECT mounted_root_branch_hash_id FROM name_lookup_mounts JOIN reachable ON branch_hash_id = parent_root_branch_hash_id
           )
           DELETE FROM name_lookups
             WHERE root_branch_hash_id NOT IN (SELECT branch_hash_id FROM reachable);
