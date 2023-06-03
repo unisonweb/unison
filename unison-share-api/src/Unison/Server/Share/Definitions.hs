@@ -7,14 +7,13 @@ module Unison.Server.Share.Definitions (definitionForHQName) where
 
 import Control.Lens hiding ((??))
 import Control.Monad.Except
-import Data.List.Extra qualified as List
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
+import U.Codebase.Sqlite.Operations (NamesPerspective (NamesPerspective))
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -69,7 +68,7 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
   result <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- resolveCausalHashV2 (Just rootHash)
     let rootBranchHash = V2Causal.valueHash shallowRoot
-    perspectiveQuery <- addNameIfHashOnly codebase perspective perspectiveQuery shallowRoot
+    (perspective, perspectiveQuery) <- addNameIfHashOnly codebase perspective perspectiveQuery shallowRoot
     (namesPerspective, locatedQuery) <- Share.relocateToNameRoot perspective perspectiveQuery rootBranchHash
     pure $ Right (shallowRoot, namesPerspective, locatedQuery)
   (shallowRoot, namesPerspective, query) <- either throwError pure result
@@ -124,12 +123,12 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
 -- So, first we do a breadth-first recursive search to find some name for that definition,
 -- then we can use that name to find the mount and render just as we would if provided a name
 -- up front.
-addNameIfHashOnly :: Codebase m v a -> Path -> HQ.HashQualified Name -> V2Branch.CausalBranch Sqlite.Transaction -> Sqlite.Transaction (HQ.HashQualified Name)
+addNameIfHashOnly :: Codebase m v a -> Path -> HQ.HashQualified Name -> V2Branch.CausalBranch Sqlite.Transaction -> Sqlite.Transaction (Path, HQ.HashQualified Name)
 addNameIfHashOnly codebase perspective hqQuery rootCausal = case hqQuery of
   HQ.HashOnly sh -> do
     let rootBranchHash = V2Causal.valueHash rootCausal
     let pathSegments = coerce $ Path.toList perspective
-    startingPerspective <- Ops.namesPerspectiveForRootAndPath rootBranchHash pathSegments
+    startingPerspective@NamesPerspective {pathToMountedNameLookup} <- Ops.namesPerspectiveForRootAndPath rootBranchHash pathSegments
     let findTerm = do
           termRefs <- lift $ termReferentsByShortHash codebase sh
           termRefs
@@ -141,27 +140,12 @@ addNameIfHashOnly codebase perspective hqQuery rootCausal = case hqQuery of
             & altMap \ref -> do
               MaybeT $ Ops.recursiveTypeNameSearch startingPerspective (Cv.reference1to2 ref)
     mayReversedName <- runMaybeT $ findTerm <|> findType
-    case mayReversedName of
-      Nothing -> pure hqQuery
-      Just fqnReversedName -> do
-        let relativeReversedName = unprefixReversedName (PathSegments . coerce $ Path.toList perspective) fqnReversedName
-        pure $ HQ.NameOnly (Name.fromReverseSegments $ coerce relativeReversedName)
-  _ -> pure hqQuery
-
--- | Strips a namespace prefix from a reversed name, returning the original name if the prefix
--- doesn't match.
---
--- >>> unprefixReversedName (S.PathSegments ["base", "data"]) (S.ReversedName ("map" NonEmpty.:| ["List", "data", "base"]))
--- ReversedName ("map" :| ["List"])
---
--- Returns original name if the namespace isn't a prefix
--- >>> unprefixReversedName (S.PathSegments ["no", "match"]) (S.ReversedName ("map" NonEmpty.:| ["base", "data"]))
--- ReversedName ("map" :| ["base","data"])
-unprefixReversedName :: PathSegments -> ReversedName -> ReversedName
-unprefixReversedName (PathSegments prefix) original@(ReversedName (nameSeg NonEmpty.:| reversedNamespace)) =
-  List.stripSuffix (reverse prefix) reversedNamespace
-    & fmap (ReversedName . (nameSeg NonEmpty.:|))
-    & fromMaybe original
+    Debug.debugM Debug.Server "addNameIfHashOnly: found reversed name" mayReversedName
+    pure $ case mayReversedName of
+      Nothing -> (perspective, hqQuery)
+      Just fqnReversedName ->
+        (Path.fromList . coerce $ pathToMountedNameLookup, HQ.NameOnly (Name.fromReverseSegments $ coerce fqnReversedName))
+  _ -> pure (perspective, hqQuery)
 
 renderDocRefs ::
   PPEDBuilder ->
