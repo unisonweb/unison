@@ -352,6 +352,8 @@ data Output
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
   | RenamedProject ProjectName ProjectName
+  | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
+  | CantRenameBranchTo ProjectBranchName
 
 -- | What did we create a project branch from?
 --
@@ -565,6 +567,8 @@ isFailure o = case o of
   CannotCreateReleaseBranchWithBranchCommand {} -> True
   CalculatingDiff {} -> False
   RenamedProject {} -> False
+  RenamedProjectBranch {} -> False
+  CantRenameBranchTo {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
