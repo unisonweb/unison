@@ -120,8 +120,9 @@ module U.Codebase.Sqlite.Queries
     loadAllProjectBranchesBeginningWith,
     loadAllProjectBranchInfo,
     loadProjectAndBranchNames,
-    insertProjectBranch,
     loadProjectBranch,
+    insertProjectBranch,
+    renameProjectBranch,
     deleteProjectBranch,
     setMostRecentBranch,
     loadMostRecentBranch,
@@ -3374,6 +3375,19 @@ insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBran
         INSERT INTO project_branch_parent (project_id, parent_branch_id, branch_id)
           VALUES (:projectId, :parentBranchId, :branchId)
       |]
+
+-- | Rename a project branch.
+--
+-- Precondition: the new name is available.
+renameProjectBranch :: ProjectId -> ProjectBranchId -> ProjectBranchName -> Transaction ()
+renameProjectBranch projectId branchId branchName = do
+  execute
+    [sql|
+      UPDATE project_branch
+      SET name = :branchName
+      WHERE project_id = :projectId
+        AND branch_id = :branchId
+    |]
 
 deleteProject :: ProjectId -> Transaction ()
 deleteProject projectId = do

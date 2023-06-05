@@ -120,11 +120,11 @@ resolveImplicitSource :: Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
 resolveImplicitSource =
   ProjectUtils.getCurrentProjectBranch >>= \case
     Nothing -> RemoteRepo.writeNamespaceToRead <$> resolveConfiguredUrl PushPull.Pull Path.currentPath
-    Just (ProjectAndBranch localProject localBranch, _restPath) -> do
+    Just (localProjectAndBranch, _restPath) -> do
       (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
         Cli.runEitherTransaction do
-          let localProjectId = localProject ^. #projectId
-          let localBranchId = localBranch ^. #branchId
+          let localProjectId = localProjectAndBranch ^. #project . #projectId
+          let localBranchId = localProjectAndBranch ^. #branch . #branchId
           Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId >>= \case
             Just (remoteProjectId, Just remoteBranchId) -> do
               remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
@@ -137,9 +137,7 @@ resolveImplicitSource =
             _ ->
               pure $
                 Left $
-                  Output.NoAssociatedRemoteProjectBranch
-                    Share.hardCodedUri
-                    (ProjectAndBranch (localProject ^. #name) (localBranch ^. #name))
+                  Output.NoAssociatedRemoteProjectBranch Share.hardCodedUri localProjectAndBranch
       remoteBranch <-
         ProjectUtils.expectRemoteProjectBranchById $
           ProjectAndBranch

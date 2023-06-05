@@ -1848,9 +1848,11 @@ notifyUser dir = \case
   NoAssociatedRemoteProject host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "isn't associated with any project on" <> prettyURI host
-  NoAssociatedRemoteProjectBranch host projectAndBranch ->
+  NoAssociatedRemoteProjectBranch host (ProjectAndBranch project branch) ->
     pure . P.wrap $
-      prettyProjectAndBranchName projectAndBranch <> "isn't associated with any branch on" <> prettyURI host
+      prettyProjectAndBranchName (ProjectAndBranch (project ^. #name) (branch ^. #name))
+        <> "isn't associated with any branch on"
+        <> prettyURI host
   LocalProjectDoesntExist project ->
     pure . P.wrap $
       prettyProjectName project <> "does not exist."
@@ -2034,6 +2036,16 @@ notifyUser dir = \case
       if oldName == newName
         then prettyProjectName oldName <> "is already named" <> P.group (prettyProjectName oldName <> "!") <> "😄"
         else "Ok, I renamed" <> prettyProjectName oldName <> "to" <> P.group (prettyProjectName newName <> ".")
+  RenamedProjectBranch projectName oldBranchName newBranchName ->
+    let oldProjectAndBranchName = prettyProjectAndBranchName (ProjectAndBranch projectName oldBranchName)
+        newProjectAndBranchName = prettyProjectAndBranchName (ProjectAndBranch projectName newBranchName)
+     in pure . P.wrap $
+          if oldBranchName == newBranchName
+            then oldProjectAndBranchName <> "is already named" <> P.group (newProjectAndBranchName <> "!") <> "😄"
+            else "Ok, I renamed" <> oldProjectAndBranchName <> "to" <> P.group (newProjectAndBranchName <> ".")
+  CantRenameBranchTo branch ->
+    pure . P.wrap $
+      "You can't rename a branch to" <> P.group (prettyProjectBranchName branch <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

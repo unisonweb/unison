@@ -22,13 +22,19 @@ projectTests =
   [ scope "project name" do
       let t s = scope (Text.unpack s) (void (expectRight (tryFrom @Text @ProjectName s)))
       t "project"
-      t "@user/project",
+      t "project/"
+      t "@user/project"
+      t "@user/project/",
     scope "project branch name" do
       let t s = scope (Text.unpack s) (void (expectRight (tryFrom @Text @ProjectBranchName s)))
       t "branch"
+      t "/branch"
       t "@user/branch"
+      t "/@user/branch"
       t "releases/1.2.3"
-      t "releases/drafts/1.2.3",
+      t "/releases/1.2.3"
+      t "releases/drafts/1.2.3"
+      t "/releases/drafts/1.2.3",
     scope "project name, project branch name, or both" do
       let t input expected =
             scope (Text.unpack input) $
@@ -36,7 +42,9 @@ projectTests =
                 (Just expected)
                 (either (const Nothing) Just (tryFrom @Text @(These ProjectName ProjectBranchName) input))
       t "project" (This "project")
+      t "project/" (This "project")
       t "@user/project" (This "@user/project")
+      t "@user/project/" (This "@user/project")
       t "/branch" (That "branch")
       t "/@user/branch" (That "@user/branch")
       t "/releases/1.2.3" (That "releases/1.2.3")
@@ -80,11 +88,13 @@ projectTests =
                 (Just (ProjectAndBranch project branch))
                 (either (const Nothing) Just (tryFrom @Text @(ProjectAndBranch ProjectName (Maybe ProjectBranchName)) input))
       t "project" "project" Nothing
+      t "project/" "project" Nothing
       t "project/branch" "project" (Just "branch")
       t "project/@user/branch" "project" (Just "@user/branch")
       t "project/releases/1.2.3" "project" (Just "releases/1.2.3")
       t "project/releases/drafts/1.2.3" "project" (Just "releases/drafts/1.2.3")
       t "@user/project" "@user/project" Nothing
+      t "@user/project/" "@user/project" Nothing
       t "@user/project/branch" "@user/project" (Just "branch")
       t "@user/project/@user/branch" "@user/project" (Just "@user/branch")
       t "@user/project/releases/1.2.3" "@user/project" (Just "releases/1.2.3")

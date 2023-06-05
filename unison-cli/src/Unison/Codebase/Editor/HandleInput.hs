@@ -79,6 +79,7 @@ import Unison.Codebase.Editor.AuthorInfo qualified as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
+import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
@@ -1402,6 +1403,7 @@ loop e = do
             ProjectCreateI name -> projectCreate name
             ProjectsI -> handleProjects
             BranchI source name -> handleBranch source name
+            BranchRenameI name -> handleBranchRename name
             BranchesI name -> handleBranches name
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
@@ -1577,6 +1579,7 @@ inputDescription input =
     ApiI -> wat
     AuthLoginI {} -> wat
     BranchI {} -> wat
+    BranchRenameI {} -> wat
     BranchesI {} -> wat
     CloneI {} -> wat
     CreateMessage {} -> wat
