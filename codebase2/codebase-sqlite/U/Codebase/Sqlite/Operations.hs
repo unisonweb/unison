@@ -80,6 +80,7 @@ module U.Codebase.Sqlite.Operations
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
     deleteNameLookupsExceptFor,
+    fuzzySearchDefinitions,
 
     -- * reflog
     getReflog,
@@ -1258,3 +1259,19 @@ deleteNameLookupsExceptFor :: Set BranchHash -> Transaction ()
 deleteNameLookupsExceptFor reachable = do
   bhIds <- for (Set.toList reachable) Q.expectBranchHashId
   Q.deleteNameLookupsExceptFor bhIds
+
+-- | Search for term or type names which contain the provided list of segments in order.
+-- Search is case insensitive.
+fuzzySearchDefinitions ::
+  BranchHash ->
+  -- | Will return at most n terms and n types; i.e. max number of results is 2n
+  Int ->
+  [Text] ->
+  Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
+fuzzySearchDefinitions bh limit querySegments = do
+  bhId <- Q.expectBranchHashId bh
+  termNames <-
+    Q.fuzzySearchTerms bhId limit querySegments
+      <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+  typeNames <- Q.fuzzySearchTypes bhId limit querySegments <&> fmap (fmap s2cTextReference)
+  pure (termNames, typeNames)

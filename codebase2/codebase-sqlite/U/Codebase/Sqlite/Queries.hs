@@ -191,6 +191,8 @@ module U.Codebase.Sqlite.Queries
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
     deleteNameLookupsExceptFor,
+    fuzzySearchTerms,
+    fuzzySearchTypes,
 
     -- * Reflog
     appendReflog,
@@ -3604,3 +3606,57 @@ loadMostRecentBranch projectId =
       WHERE
         project_id = :projectId
     |]
+
+-- | Searches for all names within the given name lookup which contain the provided list of segments
+-- in order.
+-- Search is case insensitive.
+fuzzySearchTerms :: BranchHashId -> Int -> [Text] -> Transaction [(NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))]
+fuzzySearchTerms bhId limit querySegments = do
+  let preparedQuery = prepareFuzzyQuery '\\' querySegments
+  fmap unRow
+    <$> queryListRow
+      [sql|
+      SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM scoped_term_name_lookup
+      WHERE
+        branch_hash_id = :bhId
+        AND (namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
+        LIMIT :limit
+    |]
+  where
+    unRow :: NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType)) -> NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)
+    unRow = fmap \(a :. Only b) -> (a, b)
+
+-- | Searches for all names within the given name lookup which contain the provided list of segments
+-- in order.
+--
+-- Search is case insensitive.
+fuzzySearchTypes :: BranchHashId -> Int -> [Text] -> Transaction [(NamedRef Reference.TextReference)]
+fuzzySearchTypes bhId limit querySegments = do
+  let preparedQuery = prepareFuzzyQuery '\\' querySegments
+  queryListRow
+    [sql|
+      SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
+        FROM scoped_type_name_lookup
+      WHERE
+        branch_hash_id = :bhId
+        AND (namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
+        LIMIT :limit
+    |]
+
+-- | >>> prepareFuzzyQuery ["foo", "bar"]
+-- "%foo%bar%"
+--
+-- >>> prepareFuzzyQuery ["foo", "", "bar"]
+-- "%foo%bar%"
+--
+-- >>> prepareFuzzyQuery ["foo%", "bar "]
+-- "%foo\\%%bar%"
+prepareFuzzyQuery :: Char -> [Text] -> Text
+prepareFuzzyQuery escapeChar query =
+  query
+    & filter (not . Text.null)
+    & map (likeEscape escapeChar . Text.strip)
+    & \q -> "%" <> Text.intercalate "%" q <> "%"
+
+-- fuzzySearchTypes :: Text -> Transaction [NamedRef Reference.TextReference]
