@@ -3620,7 +3620,7 @@ fuzzySearchTerms bhId limit namespace querySegments = do
       SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
         FROM scoped_term_name_lookup
       WHERE
-        branch_hash_id = :bhId
+        root_branch_hash_id = :bhId
         AND namespace GLOB :namespaceGlob
         AND (namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
         LIMIT :limit
@@ -3641,7 +3641,7 @@ fuzzySearchTypes bhId limit querySegments = do
       SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
         FROM scoped_type_name_lookup
       WHERE
-        branch_hash_id = :bhId
+        root_branch_hash_id = :bhId
         AND (namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
         LIMIT :limit
     |]
