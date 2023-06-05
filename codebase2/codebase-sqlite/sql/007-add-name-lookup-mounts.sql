@@ -6,8 +6,10 @@ CREATE TABLE name_lookup_mounts (
     -- The the parent index we're mounting inside of.
     parent_root_branch_hash_id INTEGER NOT NULL REFERENCES name_lookups(root_branch_hash_id) ON DELETE CASCADE,
     -- The index we're mounting.
-    -- Don't allow deleting a mounted name lookup while it's still mounted in some other index.
-    mounted_root_branch_hash_id INTEGER NOT NULL REFERENCES name_lookups(root_branch_hash_id) ON DELETE RESTRICT,
+    -- Don't allow deleting a mounted name lookup while it's still mounted in some other index,
+    -- unless it's deleted in the same transaction.
+    mounted_root_branch_hash_id INTEGER NOT NULL REFERENCES name_lookups(root_branch_hash_id) DEFERRABLE INITIALLY DEFERRED,
+
     -- The namespace which will point at the index, relative to the parent index, with a trailing dot.
     --
     -- E.g. `lib.base.`
