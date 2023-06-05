@@ -56,12 +56,14 @@ module Unison.Server.Backend
     termEntryHQName,
     termEntryToNamedTerm,
     termEntryType,
+    termEntryLabeledDependencies,
     termListEntry,
     termReferentsByShortHash,
     typeDeclHeader,
     typeEntryDisplayName,
     typeEntryHQName,
     typeEntryToNamedType,
+    typeEntryLabeledDependencies,
     typeListEntry,
     typeReferencesByShortHash,
     typeToSyntaxHeader,
@@ -170,6 +172,7 @@ import Unison.Server.SearchResult qualified as SR
 import Unison.Server.SearchResult' qualified as SR'
 import Unison.Server.Syntax qualified as Syntax
 import Unison.Server.Types
+import Unison.Server.Types qualified as ServerTypes
 import Unison.ShortHash
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
@@ -361,6 +364,17 @@ data TermEntry v a = TermEntry
   }
   deriving (Eq, Ord, Show, Generic)
 
+termEntryLabeledDependencies :: Ord v => TermEntry v a -> Set LD.LabeledDependency
+termEntryLabeledDependencies TermEntry {termEntryType, termEntryReferent, termEntryTag} =
+  foldMap Type.labeledDependencies termEntryType
+    <> Set.singleton (LD.TermReferent (Cv.referent2to1UsingCT ct termEntryReferent))
+  where
+    ct :: V2Referent.ConstructorType
+    ct = case termEntryTag of
+      ServerTypes.Constructor ServerTypes.Ability -> V2Referent.EffectConstructor
+      ServerTypes.Constructor ServerTypes.Data -> V2Referent.DataConstructor
+      _ -> error "termEntryLabeledDependencies: not a constructor, but one was required"
+
 termEntryDisplayName :: TermEntry v a -> Text
 termEntryDisplayName = HQ'.toTextWith NameSegment.toText . termEntryHQName
 
@@ -378,6 +392,10 @@ data TypeEntry = TypeEntry
     typeEntryTag :: TypeTag
   }
   deriving (Eq, Ord, Show, Generic)
+
+typeEntryLabeledDependencies :: TypeEntry -> Set LD.LabeledDependency
+typeEntryLabeledDependencies TypeEntry {typeEntryReference} =
+  Set.singleton (LD.TypeReference typeEntryReference)
 
 typeEntryDisplayName :: TypeEntry -> Text
 typeEntryDisplayName = HQ'.toTextWith NameSegment.toText . typeEntryHQName
@@ -502,10 +520,12 @@ resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testR
 termListEntry ::
   (MonadIO m) =>
   Codebase m Symbol Ann ->
-  V2Branch.Branch n ->
+  -- | Optional branch to check if the term is conflicted.
+  -- If omitted, all terms are just listed as not conflicted.
+  Maybe (V2Branch.Branch n) ->
   ExactName NameSegment V2Referent.Referent ->
   m (TermEntry Symbol Ann)
-termListEntry codebase branch (ExactName nameSegment ref) = do
+termListEntry codebase mayBranch (ExactName nameSegment ref) = do
   ot <- Codebase.runTransaction codebase $ do
     v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
     ot <- loadReferentType codebase v1Referent
@@ -521,12 +541,14 @@ termListEntry codebase branch (ExactName nameSegment ref) = do
         termEntryHash = Cv.referent2toshorthash1 Nothing ref
       }
   where
-    isConflicted =
-      branch
-        & V2Branch.terms
-        & Map.lookup nameSegment
-        & maybe 0 Map.size
-        & (> 1)
+    isConflicted = case mayBranch of
+      Nothing -> False
+      Just branch ->
+        branch
+          & V2Branch.terms
+          & Map.lookup nameSegment
+          & maybe 0 Map.size
+          & (> 1)
 
 getTermTag ::
   (Var v, MonadIO m) =>
@@ -574,10 +596,12 @@ getTypeTag codebase r = do
 typeListEntry ::
   (Var v) =>
   Codebase m v Ann ->
-  V2Branch.Branch n ->
+  -- | Optional branch to check if the term is conflicted.
+  -- If omitted, all terms are just listed as not conflicted.
+  Maybe (V2Branch.Branch n) ->
   ExactName NameSegment Reference ->
   Sqlite.Transaction TypeEntry
-typeListEntry codebase b (ExactName nameSegment ref) = do
+typeListEntry codebase mayBranch (ExactName nameSegment ref) = do
   hashLength <- Codebase.hashLength
   tag <- getTypeTag codebase ref
   pure $
@@ -589,12 +613,14 @@ typeListEntry codebase b (ExactName nameSegment ref) = do
         typeEntryHash = SH.take hashLength $ Reference.toShortHash ref
       }
   where
-    isConflicted =
-      b
-        & V2Branch.types
-        & Map.lookup nameSegment
-        & maybe 0 Map.size
-        & (> 1)
+    isConflicted = case mayBranch of
+      Nothing -> False
+      Just branch ->
+        branch
+          & V2Branch.types
+          & Map.lookup nameSegment
+          & maybe 0 Map.size
+          & (> 1)
 
 typeDeclHeader ::
   forall v m.
@@ -657,12 +683,12 @@ lsBranch codebase b0 = do
         r <- Map.keys refs
         pure (r, ns)
   termEntries <- for (flattenRefs $ V2Branch.terms b0) $ \(r, ns) -> do
-    ShallowTermEntry <$> termListEntry codebase b0 (ExactName ns r)
+    ShallowTermEntry <$> termListEntry codebase (Just b0) (ExactName ns r)
   typeEntries <-
     Codebase.runTransaction codebase do
       for (flattenRefs $ V2Branch.types b0) \(r, ns) -> do
         let v1Ref = Cv.reference2to1 r
-        ShallowTypeEntry <$> typeListEntry codebase b0 (ExactName ns v1Ref)
+        ShallowTypeEntry <$> typeListEntry codebase (Just b0) (ExactName ns v1Ref)
   childrenWithStats <- Codebase.runTransaction codebase (V2Branch.childStats b0)
   let branchEntries :: [ShallowListEntry Symbol Ann] = do
         (ns, (h, stats)) <- Map.toList $ childrenWithStats
@@ -940,7 +966,7 @@ mkTypeDefinition codebase pped namesRoot rootCausal width r docs tp = do
     liftIO $ Codebase.runTransaction codebase do
       causalAtPath <- Codebase.getShallowCausalAtPath namesRoot (Just rootCausal)
       branchAtPath <- V2Causal.value causalAtPath
-      typeEntryTag <$> typeListEntry codebase branchAtPath (ExactName (NameSegment bn) r)
+      typeEntryTag <$> typeListEntry codebase (Just branchAtPath) (ExactName (NameSegment bn) r)
   pure $
     TypeDefinition
       (HQ'.toText <$> PPE.allTypeNames fqnPPE r)
@@ -974,7 +1000,7 @@ mkTermDefinition codebase termPPED namesRoot rootCausal width r docs tm = do
   tag <-
     lift
       ( termEntryTag
-          <$> termListEntry codebase branchAtPath (ExactName (NameSegment bn) (Cv.referent1to2 referent))
+          <$> termListEntry codebase (Just branchAtPath) (ExactName (NameSegment bn) (Cv.referent1to2 referent))
       )
   mk ts bn tag
   where

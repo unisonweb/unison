@@ -1266,12 +1266,13 @@ fuzzySearchDefinitions ::
   BranchHash ->
   -- | Will return at most n terms and n types; i.e. max number of results is 2n
   Int ->
+  Q.NamespaceText ->
   [Text] ->
   Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
-fuzzySearchDefinitions bh limit querySegments = do
+fuzzySearchDefinitions bh limit namespace querySegments = do
   bhId <- Q.expectBranchHashId bh
   termNames <-
-    Q.fuzzySearchTerms bhId limit querySegments
+    Q.fuzzySearchTerms bhId limit namespace querySegments
       <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
   typeNames <- Q.fuzzySearchTypes bhId limit querySegments <&> fmap (fmap s2cTextReference)
   pure (termNames, typeNames)

@@ -3610,8 +3610,9 @@ loadMostRecentBranch projectId =
 -- | Searches for all names within the given name lookup which contain the provided list of segments
 -- in order.
 -- Search is case insensitive.
-fuzzySearchTerms :: BranchHashId -> Int -> [Text] -> Transaction [(NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))]
-fuzzySearchTerms bhId limit querySegments = do
+fuzzySearchTerms :: BranchHashId -> Int -> NamespaceText -> [Text] -> Transaction [(NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))]
+fuzzySearchTerms bhId limit namespace querySegments = do
+  let namespaceGlob = toNamespaceGlob namespace
   let preparedQuery = prepareFuzzyQuery '\\' querySegments
   fmap unRow
     <$> queryListRow
@@ -3620,6 +3621,7 @@ fuzzySearchTerms bhId limit querySegments = do
         FROM scoped_term_name_lookup
       WHERE
         branch_hash_id = :bhId
+        AND namespace GLOB :namespaceGlob
         AND (namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
         LIMIT :limit
     |]
