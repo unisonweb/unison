@@ -42,6 +42,7 @@ import Unison.ABT qualified as ABT
 import Unison.Auth.Types qualified as Auth
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Pretty
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
@@ -448,6 +449,38 @@ notifyNumbered = \case
     )
     where
       switch = IP.makeExample IP.projectSwitch
+  AmbiguousReset (ProjectAndBranch pn0 bn0, path) (ProjectAndBranch currentProject branch) ->
+    ( P.wrap
+        ( "I'm not sure if you wanted to reset the branch"
+            <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
+            <> "or the namespace"
+            <> relPath0
+            <> "in the current branch."
+            <> "Could you be more specific?"
+        )
+        <> P.newline
+        <> P.newline
+        <> P.numberedList
+          [ prettySlashProjectBranchName branch <> " (the branch " <> prettyProjectBranchName branch <> " in the current project)",
+            relPath0 <> " (the relative path " <> relPath0 <> " in the current branch)"
+          ]
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( "use "
+              <> reset ["1"]
+              <> " or "
+              <> reset ["2"]
+              <> " to pick one of these."
+          ),
+      [ Text.unpack (Text.cons '/' (into @Text branch)),
+        Text.unpack (into @Text (show absPath0))
+      ]
+    )
+    where
+      reset = IP.makeExample IP.reset
+      relPath0 = prettyPath' (Path.toPath' path)
+      absPath0 = review ProjectUtils.projectBranchPathPrism (ProjectAndBranch (pn0 ^. #projectId) (bn0 ^. #branchId), path)
   where
     absPathToBranchId = Right
 

@@ -1029,6 +1029,29 @@ forkLocal =
         _ -> Left (I.help forkLocal)
     )
 
+reset :: InputPattern
+reset =
+  InputPattern
+    "reset"
+    []
+    I.Visible
+    [ (Required, namespaceArg),
+      (Optional, namespaceArg)
+    ]
+    ""
+    ( \args -> do
+        case args of
+          arg0 : restArgs -> do
+            arg0 <- first fromString (Input.parseBranchId arg0)
+            arg1 <- case restArgs of
+              [] -> pure Nothing
+              arg1 : [] -> do
+                Just <$> first fromString (parseLooseCodeOrProject arg1)
+              _ -> Left (I.help reset)
+            Right (Input.ResetI arg0 arg1)
+          _ -> Left (I.help reset)
+    )
+
 resetRoot :: InputPattern
 resetRoot =
   InputPattern
@@ -2648,6 +2671,7 @@ validInputs =
       renameTerm,
       renameType,
       replace,
+      reset,
       resetRoot,
       runScheme,
       saveExecuteResult,

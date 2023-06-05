@@ -109,6 +109,7 @@ data Input
   | PullRemoteBranchI PullSourceTarget SyncMode PullMode Verbosity
   | PushRemoteBranchI PushRemoteBranchInput
   | ResetRootI (Either ShortCausalHash Path')
+  | ResetI (Either ShortCausalHash Path') (Maybe LooseCodeOrProject)
   | -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user
