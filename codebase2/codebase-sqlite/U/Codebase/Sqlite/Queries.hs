@@ -2233,7 +2233,7 @@ recursiveTermNameSearch bhId ref = do
             -- Include the primary root
             SELECT :bhId, ""
             UNION ALL
-            SELECT mount.mounted_root_branch_hash_id, rec.reversed_mount_path || mount.reversed_mount_path
+            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
             FROM name_lookup_mounts mount
               INNER JOIN all_in_scope_roots rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
           )
@@ -2270,7 +2270,7 @@ recursiveTypeNameSearch bhId ref = do
             -- Include the primary root
             SELECT :bhId, ""
             UNION ALL
-            SELECT mount.mounted_root_branch_hash_id, rec.reversed_mount_path || mount.reversed_mount_path
+            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
             FROM name_lookup_mounts mount
               INNER JOIN all_in_scope_roots rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
           )
