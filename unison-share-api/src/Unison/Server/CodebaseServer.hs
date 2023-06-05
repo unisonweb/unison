@@ -92,6 +92,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend (Backend, BackendEnv, runBackend)
+import Unison.Server.Errors (backendError)
 import Unison.Server.Local.Endpoints.DefinitionSummary (TermSummaryAPI, TypeSummaryAPI, serveTermSummary, serveTypeSummary)
 import Unison.Server.Local.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Local.Endpoints.GetDefinitions
@@ -101,7 +102,6 @@ import Unison.Server.Local.Endpoints.GetDefinitions
 import Unison.Server.Local.Endpoints.NamespaceDetails qualified as NamespaceDetails
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as NamespaceListing
 import Unison.Server.Local.Endpoints.Projects qualified as Projects
-import Unison.Server.Errors (backendError)
 import Unison.Server.Types (mungeString, setCacheControl)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
