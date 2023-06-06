@@ -98,7 +98,7 @@ $ UNISON_SHARE_ACCESS_TOKEN="my.token.string" ucm
 
 ### `UNISON_READONLY`
 
-Force ucm to use readonly connections to codebases.
+Force unison to use readonly connections to codebases.
 
 ```sh
 $ UNISON_READONLY="true" ucm
