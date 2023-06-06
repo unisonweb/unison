@@ -1038,7 +1038,13 @@ reset =
     [ (Required, namespaceArg),
       (Optional, namespaceArg)
     ]
-    ""
+    ( P.wrapColumn2
+        [ ("`reset #pvfd222s8n`", "reset the current namespace to the causal `#pvfd222s8n`"),
+          ("`reset foo`", "reset the current namespace to that of the `foo` namespace."),
+          ("`reset foo bar`", "reset the namespace `bar` to that of the `foo` namespace."),
+          ("`reset #pvfd222s8n /topic`", "reset the branch `topic` of the current project to the causal `#pvfd222s8n`.")
+        ]
+    )
     ( \args -> do
         case args of
           arg0 : restArgs -> do
