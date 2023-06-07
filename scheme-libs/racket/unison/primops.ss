@@ -24,6 +24,19 @@
 #!r6rs
 (library (unison primops)
   (export
+    builtin-Float.*
+    builtin-Float.fromRepresentation
+    builtin-Float.toRepresentation
+    builtin-Int.+
+    builtin-Int.-
+    builtin-Int.increment
+    builtin-Int.negate
+    builtin-Int.fromRepresentation
+    builtin-Int.toRepresentation
+    builtin-Int.signum
+    builtin-Nat.increment
+    builtin-Nat.toFloat
+
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
     ; unison-FOp-Code.dependencies
@@ -338,6 +351,7 @@
                  vector-copy!
                  bytes-copy!)
            (car icar) (cdr icdr))
+          (unison arithmetic)
           (unison bytevector)
           (unison core)
           (unison data)

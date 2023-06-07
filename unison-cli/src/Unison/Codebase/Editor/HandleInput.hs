@@ -2442,7 +2442,7 @@ doGenerateSchemeBoot force mppe = do
   let bootf = dir </> "unison" </> "boot-generated.ss"
       swrapf = dir </> "unison" </> "simple-wrappers.ss"
       binf = dir </> "unison" </> "builtin-generated.ss"
-      cwrapf = dir </> "unison" </> "compund-wrappers.ss"
+      cwrapf = dir </> "unison" </> "compound-wrappers.ss"
       dirTm = Term.text a (Text.pack dir)
   liftIO $ createDirectoryIfMissing True dir
   saveBase <- Term.ref a <$> resolveTermRef sbName
