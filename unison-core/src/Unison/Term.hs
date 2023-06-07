@@ -1366,6 +1366,45 @@ fromReferent a = \case
     CT.Data -> constructor a r
     CT.Effect -> request a r
 
+containsExpression :: (Var v, Var typeVar, Eq typeAnn) => Term2 typeVar typeAnn loc v a -> Term2 typeVar typeAnn loc v a -> Bool
+containsExpression = ABT.containsExpression
+
+containsCaseTerm :: Var v1 => Term2 tv ta tb v1 loc -> Term2 typeVar typeAnn loc v2 a -> Maybe Bool
+containsCaseTerm pat tm =
+  containsCase <$> toPattern pat <*> pure tm
+
+toPattern :: Var v => Term2 tv ta tb v loc -> Maybe (Pattern loc)
+toPattern tm = case tm of
+  Var' v | "_" `Text.isPrefixOf` Var.name v -> pure $ Pattern.Unbound loc 
+  Var' _ -> pure $ Pattern.Var loc 
+  Apps' (Request' r) args -> Pattern.EffectBind loc r <$> traverse toPattern args <*> pure (Pattern.Unbound loc)
+  Apps' (Constructor' r) args -> Pattern.Constructor loc r <$> traverse toPattern args
+  Int' i -> pure $ Pattern.Int loc i 
+  Nat' n -> pure $ Pattern.Nat loc n 
+  Float' f -> pure $ Pattern.Float loc f 
+  Boolean' b -> pure $ Pattern.Boolean loc b
+  Text' t -> pure $ Pattern.Text loc t
+  Char' c -> pure $ Pattern.Char loc c
+  Blank' _ -> pure $ Pattern.Unbound loc
+  List' xs -> Pattern.SequenceLiteral loc <$> traverse toPattern (toList xs)
+  Apps' (Builtin' "List.cons") [a, b] -> Pattern.SequenceOp loc <$> toPattern a <*> pure Pattern.Cons <*> toPattern b 
+  Apps' (Builtin' "List.snoc") [a, b] -> Pattern.SequenceOp loc <$> toPattern a <*> pure Pattern.Snoc <*> toPattern b
+  Apps' (Builtin' "List.++") [a, b]   -> Pattern.SequenceOp loc <$> toPattern a <*> pure Pattern.Concat <*> toPattern b
+  _ -> Nothing
+  where
+    loc = ABT.annotation tm
+
+containsCase :: Pattern loc -> Term2 typeVar typeAnn loc v a -> Bool
+containsCase pat tm = case ABT.out tm of
+  ABT.Var _ -> False
+  ABT.Cycle tm -> containsCase pat tm
+  ABT.Abs _ tm -> containsCase pat tm
+  ABT.Tm (Match scrute cases) -> 
+    containsCase pat scrute || any hasPat cases 
+    where
+      hasPat (MatchCase p _ rhs) = Pattern.hasSubpattern pat p || containsCase pat rhs
+  ABT.Tm f -> any (containsCase pat) (toList f)
+
 -- mostly boring serialization code below ...
 
 instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where

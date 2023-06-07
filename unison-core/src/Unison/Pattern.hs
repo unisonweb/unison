@@ -66,6 +66,26 @@ updateDependencies tms p = case p of
   SequenceOp loc lhs op rhs ->
     SequenceOp loc (updateDependencies tms lhs) op (updateDependencies tms rhs)
 
+hasSubpattern :: Pattern loc -> Pattern loc -> Bool
+hasSubpattern (Unbound {}) _ = True 
+hasSubpattern (Var {}) _ = True 
+hasSubpattern needle haystack = needle == haystack || go haystack
+  where 
+    go Unbound{} = False
+    go Var{} = False     
+    go Int{} = False
+    go Nat{} = False
+    go Float{} = False
+    go Boolean{} = False
+    go Text{} = False
+    go Char{} = False
+    go (Constructor _ _ ps) = any (hasSubpattern needle) ps
+    go (As _ p) = hasSubpattern needle p
+    go (EffectPure _ p) = hasSubpattern needle p 
+    go (EffectBind _ _ ps p) = any (hasSubpattern needle) ps || hasSubpattern needle p 
+    go (SequenceLiteral _ ps) = any (hasSubpattern needle) ps
+    go (SequenceOp _ ph _ pt) = hasSubpattern needle ph || hasSubpattern needle pt
+
 instance Show (Pattern loc) where
   show (Unbound _) = "Unbound"
   show (Var _) = "Var"
