@@ -449,11 +449,11 @@ notifyNumbered = \case
     )
     where
       switch = IP.makeExample IP.projectSwitch
-  AmbiguousReset (ProjectAndBranch pn0 bn0, path) (ProjectAndBranch currentProject branch) ->
+  AmbiguousReset sourceOfAmbiguity (ProjectAndBranch pn0 bn0, path) (ProjectAndBranch currentProject branch) ->
     ( P.wrap
-        ( "I'm not sure if you wanted to reset the branch"
+        ( openingLine
             <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
-            <> "or the namespace"
+            <> orTheNamespace
             <> relPath0
             <> "in the current branch."
             <> "Could you be more specific?"
@@ -468,9 +468,9 @@ notifyNumbered = \case
         <> P.newline
         <> tip
           ( "use "
-              <> reset ["1"]
+              <> reset (resetArgs ["1"])
               <> " or "
-              <> reset ["2"]
+              <> reset (resetArgs ["2"])
               <> " to pick one of these."
           ),
       [ Text.unpack (Text.cons '/' (into @Text branch)),
@@ -478,6 +478,15 @@ notifyNumbered = \case
       ]
     )
     where
+      openingLine = case sourceOfAmbiguity of
+        E.AmbiguousReset'Hash -> "I'm not sure if you wanted to reset to the branch"
+        E.AmbiguousReset'Target -> "I'm not sure if you wanted to reset the branch"
+      orTheNamespace = case sourceOfAmbiguity of
+        E.AmbiguousReset'Hash -> "or to the namespace"
+        E.AmbiguousReset'Target -> "or the namespace"
+      resetArgs = case sourceOfAmbiguity of
+        E.AmbiguousReset'Hash -> \xs -> xs
+        E.AmbiguousReset'Target -> \xs -> "<some hash>" : xs
       reset = IP.makeExample IP.reset
       relPath0 = prettyPath' (Path.toPath' path)
       absPath0 = review ProjectUtils.projectBranchPathPrism (ProjectAndBranch (pn0 ^. #projectId) (bn0 ^. #branchId), path)

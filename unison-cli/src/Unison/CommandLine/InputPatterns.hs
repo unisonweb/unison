@@ -1048,7 +1048,7 @@ reset =
     ( \args -> do
         case args of
           arg0 : restArgs -> do
-            arg0 <- first fromString (Input.parseBranchId arg0)
+            arg0 <- branchIdOrProject arg0
             arg1 <- case restArgs of
               [] -> pure Nothing
               arg1 : [] -> do
@@ -1057,6 +1057,25 @@ reset =
             Right (Input.ResetI arg0 arg1)
           _ -> Left (I.help reset)
     )
+  where
+    branchIdOrProject ::
+      String ->
+      Either
+        (P.Pretty P.ColorText)
+        ( These
+            Input.BranchId
+            (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+        )
+    branchIdOrProject str =
+      let branchIdRes = Input.parseBranchId str
+          projectRes = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack str)
+       in case (branchIdRes, projectRes) of
+            (Left _, Left _) -> Left (I.help reset)
+            (Left _, Right pr) -> Right (That pr)
+            (Right bid, Left _) -> Right (This bid)
+            (Right bid, Right pr) -> Right (These bid pr)
+
+-- asBranch = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
 
 resetRoot :: InputPattern
 resetRoot =

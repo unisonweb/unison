@@ -130,9 +130,12 @@ foo/main> add
   
     a : Nat
 
-foo/main> ls
+foo/main> branch topic
 
-  1. a (##Nat)
+  Done. I've created the topic branch based off of main.
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
 
 foo/main> history
 
@@ -167,20 +170,7 @@ foo/main> update
   
     a : Nat
 
-foo/main> history
-
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  ⊙ 1. #i6aoik7hpt
-  
-    + Adds / updates:
-    
-      a
-  
-  □ 2. #5l94rduvel (start of history)
-
-foo/main> reset 2
+foo/main> reset /topic
 
   Done.
 
@@ -196,6 +186,7 @@ foo/main> history
 ```
 # ambiguous reset
 
+## ambiguous target
 ```unison
 main.a = 3
 ```
@@ -235,6 +226,40 @@ foo/main> reset 2 main
 
   I'm not sure if you wanted to reset the branch foo/main or the
   namespace main in the current branch. Could you be more
+  specific?
+  
+  1. /main (the branch main in the current project)
+  2. main (the relative path main in the current branch)
+  
+  Tip: use `reset <some hash> 1` or `reset <some hash> 2` to
+       pick one of these.
+
+```
+## ambiguous hash
+
+```unison
+main.a = 3
+```
+
+```ucm
+
+  I found and typechecked the definitions in scratch.u. This
+  file has been previously added to the codebase.
+
+```
+```ucm
+foo/main> switch /topic
+
+foo/topic> add
+
+  ⍟ I've added these definitions:
+  
+    main.a : Nat
+
+foo/topic> reset main
+
+  I'm not sure if you wanted to reset to the branch foo/main or
+  to the namespace main in the current branch. Could you be more
   specific?
   
   1. /main (the branch main in the current project)

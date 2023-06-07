@@ -39,7 +39,7 @@ a = 5
 
 ```ucm
 foo/main> add
-foo/main> ls
+foo/main> branch topic
 foo/main> history
 ```
 
@@ -49,13 +49,13 @@ a = 3
 
 ```ucm
 foo/main> update
-foo/main> history
-foo/main> reset 2
+foo/main> reset /topic
 foo/main> history
 ```
 
 # ambiguous reset
 
+## ambiguous target
 ```unison
 main.a = 3
 ```
@@ -64,4 +64,16 @@ main.a = 3
 foo/main> add
 foo/main> history
 foo/main> reset 2 main
+```
+
+## ambiguous hash
+
+```unison
+main.a = 3
+```
+
+```ucm:error
+foo/main> switch /topic
+foo/topic> add
+foo/topic> reset main
 ```
