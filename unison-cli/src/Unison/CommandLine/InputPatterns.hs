@@ -724,7 +724,10 @@ deleteProject =
       aliases = ["project.delete"],
       visibility = I.Hidden,
       argTypes = [(Required, projectNameArg)],
-      help = P.wrap "Delete a project.",
+      help =
+        P.wrapColumn2
+          [ ("`delete.project foo`", "deletes the local project `foo`")
+          ],
       parse = \case
         [name]
           | Right project <- tryInto @ProjectName (Text.pack name) ->
@@ -739,7 +742,11 @@ deleteBranch =
       aliases = ["branch.delete"],
       visibility = I.Hidden,
       argTypes = [(Required, projectBranchNameWithOptionalProjectNameArg)],
-      help = P.wrap "Delete a project branch.",
+      help =
+        P.wrapColumn2
+          [ ("`delete.branch foo/bar`", "deletes the branch `bar` in the project `foo`"),
+            ("`delete.branch /bar`", "deletes the branch `bar` in the current project")
+          ],
       parse = \case
         [name] ->
           case tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name) of
@@ -1132,7 +1139,17 @@ pullImpl name aliases verbosity pullMode addendum = do
                   <> addendum,
                 "",
                 P.wrapColumn2
-                  [ ( makeExample self ["remote", "local"],
+                  [ ( makeExample self ["@unison/base/main"],
+                      "merges the branch `main`"
+                        <> "of the Unison Share hosted project `@unison/base`"
+                        <> "into the current namespace"
+                    ),
+                    ( makeExample self ["@unison/base/main", "my-base/topic"],
+                      "merges the branch `main`"
+                        <> "of the Unison Share hosted project `@unison/base`"
+                        <> "into the branch `topic` of the local `my-base` project"
+                    ),
+                    ( makeExample self ["remote", "local"],
                       "merges the remote namespace `remote`"
                         <> "into the local namespace `local"
                     ),
@@ -1648,6 +1665,7 @@ helpTopicsMap =
     [ ("testcache", testCacheMsg),
       ("filestatus", fileStatusMsg),
       ("messages.disallowedAbsolute", disallowedAbsoluteMsg),
+      ("remotes", remotesMsg),
       ("namespaces", pathnamesMsg)
     ]
   where
@@ -1758,6 +1776,19 @@ helpTopicsMap =
             "As a workaround, you can give definitions with a relative name"
               <> "temporarily (like `exports.blah.foo`) and then use `move.*` "
               <> "or `merge` commands to move stuff around afterwards."
+        ]
+    remotesMsg =
+      P.callout "\129302" . P.lines $
+        [ P.wrap $
+            "Local projects may be associated with at most one remote project on Unison Share."
+              <> "When this relationship is established, it becomes the default argument for a"
+              <> "number of share commands. For example, running `push` or `pull` in a project"
+              <> "with no arguments will push to or pull from the associated remote, if it exists.",
+          "",
+          P.wrap $
+            "This association is created automatically on when a project is created by `clone`."
+              <> "If the project was created locally then the relationship will be established on"
+              <> "the first `push`."
         ]
 
 help :: InputPattern
