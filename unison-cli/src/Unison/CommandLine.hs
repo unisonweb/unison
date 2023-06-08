@@ -123,7 +123,9 @@ parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
     command : args -> case Map.lookup command patterns of
       Just pat@(InputPattern {parse}) -> do
         let expandedNumbers :: [String]
-            expandedNumbers = foldMap (expandNumber numberedArgs) args
+            expandedNumbers = case InputPattern.argType pat 0 of
+              Just (InputPattern.typeName -> "raw") -> args
+              _ -> foldMap (expandNumber numberedArgs) args
         expandedGlobs <- ifor expandedNumbers $ \i arg -> do
           if Globbing.containsGlob arg
             then do

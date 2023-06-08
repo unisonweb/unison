@@ -679,6 +679,7 @@ notifyUser dir = \case
         ]
   DisplayDefinitions output -> displayDefinitions output
   OutputRewrittenFile ppe dest uf -> displayOutputRewrittenFile ppe dest uf
+  PrependToFile f line -> displayPrependedFile f line
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
@@ -2318,6 +2319,14 @@ formatMissingStuff terms types =
              <> "\n\n"
              <> P.column2 [(P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types]
        )
+
+displayPrependedFile :: FilePath -> String -> IO Pretty
+displayPrependedFile fp line = do
+  fp <- prependToFile (fromString line) fp
+  pure . P.okCallout . P.lines $ [
+    P.wrap $ "I added this line to the top of " <> fromString fp,
+    "",
+    fromString (takeWhile (/= '\n') line) ]
 
 displayOutputRewrittenFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> ([v], UF.UnisonFile v a) -> IO Pretty
 displayOutputRewrittenFile _ppe _fp ([], _uf) =

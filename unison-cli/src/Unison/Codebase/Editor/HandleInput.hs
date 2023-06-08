@@ -996,6 +996,11 @@ loop e = do
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
+            PrependToScratch asWatch line -> do
+              fp0 <- use #latestFile 
+              let fp = maybe "scratch.u" fst fp0
+              let line' = if asWatch then "> " <> line <> "\n---\n" else line <> "\n\n"
+              Cli.respond (PrependToFile fp line')
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
             ResolveTypeNameI path' -> do
@@ -1605,6 +1610,7 @@ inputDescription input =
     FindShallowI {} -> wat
     StructuredFindI {} -> wat
     StructuredFindReplaceI {} -> wat
+    PrependToScratch {} -> wat
     GistI {} -> wat
     HistoryI {} -> wat
     LinksI {} -> wat

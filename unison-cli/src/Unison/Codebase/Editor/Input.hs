@@ -193,7 +193,8 @@ data Input
   | FindShallowI Path'
   | FindPatchI
   | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
-  | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace findScope rewriteQuery
+  | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
+  | PrependToScratch Bool String -- PrependToScratch asWatchExpr line
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.
     ShowDefinitionI OutputLocation ShowDefinitionScope [HQ.HashQualified Name]
   | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]

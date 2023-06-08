@@ -67,7 +67,8 @@ file = do
           WatchBinding kind _ ((_, v), at) ->
             (terms, (kind, (v, Term.generalizeTypeSignatures at)) : watches)
           WatchExpression kind guid _ at ->
-            (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
+            let v = Var.typed (Var.UnnamedWatch kind guid)
+            in (terms, (kind, (v, Term.generalizeTypeSignatures at)) : watches)
           Binding ((_, v), at) -> ((v, Term.generalizeTypeSignatures at) : terms, watches)
           Bindings bs -> ([(v, Term.generalizeTypeSignatures at) | ((_, v), at) <- bs] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)

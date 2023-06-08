@@ -481,6 +481,40 @@ viewByPrefix =
         . traverse parseHashQualifiedName
     )
 
+rawTermQueryArg :: ArgumentType
+rawTermQueryArg = exactDefinitionTermQueryArg { typeName = "raw" }
+
+prependWatchToScratch :: InputPattern
+prependWatchToScratch = 
+  InputPattern "watch" [">"] I.Visible [(ZeroPlus, rawTermQueryArg)] msg parse
+  where
+    msg = P.lines
+      [ P.wrap $ "Prepends the given watch expression to the most recent scratch file."
+              <> "For example:",
+        "",
+        P.indentN 4 ("myproj/main> > 1 + 1"),
+        "",
+        P.wrap $ "will prepend " <> P.backticked "> 1 + 1"
+              <> "to the top of the scratch file, "
+              <> "then typecheck and evaluate it."
+      ] 
+    parse = Right . Input.PrependToScratch True . unwords
+
+prependToScratch :: InputPattern
+prependToScratch = 
+  InputPattern "scratch" ["|"] I.Visible [(ZeroPlus, rawTermQueryArg)] msg parse
+  where
+    msg = P.lines
+      [ P.wrap $ "Prepends the given line to the most recent scratch file."
+              <> "For example:",
+        "",
+        P.indentN 4 ("myproj/main> | rule1 x = (x+1, Nat.increment x)"),
+        "",
+        P.wrap $ "will prepend that line to the top of the scratch file, "
+              <> "then parse and typecheck it."
+      ] 
+    parse = Right . Input.PrependToScratch False . unwords
+
 sfind :: InputPattern
 sfind =
   InputPattern "sfind" ["find.structured"] I.Visible [(Required, definitionQueryArg)] msg parse
@@ -2658,6 +2692,8 @@ validInputs =
       findVerboseAll,
       sfind,
       sfindReplace,
+      prependToScratch,
+      prependWatchToScratch,
       forkLocal,
       gist,
       help,
