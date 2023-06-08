@@ -1029,6 +1029,54 @@ forkLocal =
         _ -> Left (I.help forkLocal)
     )
 
+reset :: InputPattern
+reset =
+  InputPattern
+    "reset"
+    []
+    I.Visible
+    [ (Required, namespaceArg),
+      (Optional, namespaceArg)
+    ]
+    ( P.wrapColumn2
+        [ ("`reset #pvfd222s8n`", "reset the current namespace to the causal `#pvfd222s8n`"),
+          ("`reset foo`", "reset the current namespace to that of the `foo` namespace."),
+          ("`reset foo bar`", "reset the namespace `bar` to that of the `foo` namespace."),
+          ("`reset #pvfd222s8n /topic`", "reset the branch `topic` of the current project to the causal `#pvfd222s8n`.")
+        ]
+    )
+    ( \args -> do
+        case args of
+          arg0 : restArgs -> do
+            arg0 <- branchIdOrProject arg0
+            arg1 <- case restArgs of
+              [] -> pure Nothing
+              arg1 : [] -> do
+                Just <$> first fromString (parseLooseCodeOrProject arg1)
+              _ -> Left (I.help reset)
+            Right (Input.ResetI arg0 arg1)
+          _ -> Left (I.help reset)
+    )
+  where
+    branchIdOrProject ::
+      String ->
+      Either
+        (P.Pretty P.ColorText)
+        ( These
+            Input.BranchId
+            (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+        )
+    branchIdOrProject str =
+      let branchIdRes = Input.parseBranchId str
+          projectRes = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack str)
+       in case (branchIdRes, projectRes) of
+            (Left _, Left _) -> Left (I.help reset)
+            (Left _, Right pr) -> Right (That pr)
+            (Right bid, Left _) -> Right (This bid)
+            (Right bid, Right pr) -> Right (These bid pr)
+
+-- asBranch = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
+
 resetRoot :: InputPattern
 resetRoot =
   InputPattern
@@ -2648,6 +2696,7 @@ validInputs =
       renameTerm,
       renameType,
       replace,
+      reset,
       resetRoot,
       runScheme,
       saveExecuteResult,

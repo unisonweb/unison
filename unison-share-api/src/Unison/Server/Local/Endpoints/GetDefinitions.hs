@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Server.Endpoints.GetDefinitions where
+module Unison.Server.Local.Endpoints.GetDefinitions where
 
 import Servant
   ( QueryParam,
@@ -31,6 +31,7 @@ import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend qualified as Backend
+import Unison.Server.Local.Definitions qualified as Local
 import Unison.Server.Types
   ( APIGet,
     DefinitionDisplayResults,
@@ -130,7 +131,7 @@ serveDefinitions rt codebase mayRoot relativePath hqns width suff =
     rootCausalHash <- Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.normaliseRootCausalHash $ mayRoot
     hqns
       & foldMapM
-        ( Backend.prettyDefinitionsForHQName
+        ( Local.prettyDefinitionsForHQName
             (fromMaybe Path.empty relativePath)
             rootCausalHash
             width

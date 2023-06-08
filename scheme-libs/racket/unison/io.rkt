@@ -1,7 +1,11 @@
 #lang racket/base
 (require unison/data
          unison/chunked-seq
-         unison/core)
+         unison/core
+         racket/flonum
+         (only-in
+           rnrs/arithmetic/flonums-6
+           flmod))
 
 (provide
  (prefix-out
@@ -51,8 +55,9 @@
 (define (monotonic.v1)
     (right (current-inexact-monotonic-milliseconds)))
 
-(define (sec.v1 ts)
-    (inexact->exact (/ ts 1000)))
+; 
+(define (flt f) (fl->exact-integer (fltruncate f)))
 
-(define (nsec.v1 ts)
-    (inexact->exact (* ts 1000000)))
+(define (sec.v1 ts) (flt (/ ts 1000)))
+
+(define (nsec.v1 ts) (flt (* (flmod ts 1000.0) 1000000)))
