@@ -214,7 +214,7 @@ notifyNumbered = \case
     first
       ( \p ->
           P.lines
-            [ P.wrap $ "Here's what's changed in " <> prettyPathOrProjectAndBranchName dest' <> "after the merge:",
+            [ P.wrap $ "Here's what's changed in " <> prettyNamespaceKey dest' <> "after the merge:",
               "",
               p,
               "",
@@ -239,7 +239,7 @@ notifyNumbered = \case
           P.lines
             [ P.wrap $
                 "Here's what's changed in "
-                  <> prettyPathOrProjectAndBranchName dest'
+                  <> prettyNamespaceKey dest'
                   <> "after applying the patch at "
                   <> P.group (prettyPath' patchPath' <> ":"),
               "",
@@ -247,7 +247,7 @@ notifyNumbered = \case
               "",
               tip $
                 "You can use "
-                  <> IP.makeExample IP.todo [prettyPath' patchPath', prettyPathOrProjectAndBranchName dest']
+                  <> IP.makeExample IP.todo [prettyPath' patchPath', prettyNamespaceKey dest']
                   <> "to see if this generated any work to do in this namespace"
                   <> "and "
                   <> IP.makeExample' IP.test
@@ -264,7 +264,7 @@ notifyNumbered = \case
     first
       ( \p ->
           P.lines
-            [ P.wrap $ "Here's what would change in " <> prettyPathOrProjectAndBranchName dest' <> "after the merge:",
+            [ P.wrap $ "Here's what would change in " <> prettyNamespaceKey dest' <> "after the merge:",
               "",
               p
             ]
@@ -1589,33 +1589,33 @@ notifyUser dir = \case
   PullAlreadyUpToDate ns dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPullTarget dest
+        prettyNamespaceKey dest
           <> "was already up-to-date with"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated"
-          <> prettyPullTarget dest
+          <> prettyNamespaceKey dest
           <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   AboutToMerge -> pure "Merging..."
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully pulled into " <> P.group (prettyPullTarget dest <> ", which was empty.")
+        "Successfully pulled into " <> P.group (prettyNamespaceKey dest <> ", which was empty.")
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPathOrProjectAndBranchName dest
+        prettyNamespaceKey dest
           <> "was already up-to-date with"
-          <> P.group (prettyPathOrProjectAndBranchName src <> ".")
+          <> P.group (prettyNamespaceKey src <> ".")
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPathOrProjectAndBranchName dest
+        prettyNamespaceKey dest
           <> "is already up-to-date with"
-          <> P.group (prettyPathOrProjectAndBranchName src <> ".")
+          <> P.group (prettyNamespaceKey src <> ".")
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
