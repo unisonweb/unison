@@ -17,6 +17,7 @@ module Unison.Cli.ProjectUtils
 
     -- * Loading local project info
     expectProjectAndBranchByIds,
+    getProjectAndBranchByTheseNames,
     expectProjectAndBranchByTheseNames,
 
     -- * Loading remote project info
@@ -112,6 +113,26 @@ expectProjectAndBranchByIds (ProjectAndBranch projectId branchId) = do
   project <- Queries.expectProject projectId
   branch <- Queries.expectProjectBranch projectId branchId
   pure (ProjectAndBranch project branch)
+
+-- Get a local project branch by a "these names", using the following defaults if a name is missing:
+--
+--   * The project at the current path
+--   * The branch named "main"
+getProjectAndBranchByTheseNames ::
+  These ProjectName ProjectBranchName ->
+  Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+getProjectAndBranchByTheseNames = \case
+  This projectName -> getProjectAndBranchByTheseNames (These projectName (unsafeFrom @Text "main"))
+  That branchName -> runMaybeT do
+    (ProjectAndBranch project _branch, _restPath) <- MaybeT getCurrentProjectBranch
+    branch <- MaybeT (Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName))
+    pure (ProjectAndBranch project branch)
+  These projectName branchName -> do
+    Cli.runTransaction do
+      runMaybeT do
+        project <- MaybeT (Queries.loadProjectByName projectName)
+        branch <- MaybeT (Queries.loadProjectBranchByName (project ^. #projectId) branchName)
+        pure (ProjectAndBranch project branch)
 
 -- Expect a local project branch by a "these names", using the following defaults if a name is missing:
 --

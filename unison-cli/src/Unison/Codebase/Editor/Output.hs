@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.Output
   ( Output (..),
+    AmbiguousReset'Argument (..),
     CreatedProjectBranchFrom (..),
     DisplayDefinitionsOutput (..),
     WhichBranchEmpty (..),
@@ -116,6 +117,11 @@ data NumberedOutput
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
   | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
+  | AmbiguousReset AmbiguousReset'Argument (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path) (ProjectAndBranch ProjectName ProjectBranchName)
+
+data AmbiguousReset'Argument
+  = AmbiguousReset'Hash
+  | AmbiguousReset'Target
 
 --  | ShowDiff
 
@@ -572,6 +578,7 @@ isFailure o = case o of
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
+  AmbiguousReset {} -> True
   AmbiguousSwitch {} -> True
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
