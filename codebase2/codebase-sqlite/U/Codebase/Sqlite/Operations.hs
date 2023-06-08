@@ -1216,17 +1216,18 @@ data NamesInPerspective = NamesInPerspective
     typeNamesInPerspective :: [S.NamedRef C.Reference]
   }
 
--- | Get all the term and type names for the given namespace from the lookup table.
+-- | Get all the term and type names for the given namespace from the lookup table relative
+-- to the provided perspective.
 -- Requires that an index for this branch hash already exists, which is currently
 -- only true on Share.
 allNamesInPerspective ::
   NamesPerspective ->
   Transaction NamesInPerspective
-allNamesInPerspective NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} = do
-  termNamesInPerspective <- Q.termNamesWithinNamespace nameLookupBranchHashId mempty
-  typeNamesInPerspective <- Q.typeNamesWithinNamespace nameLookupBranchHashId mempty
-  let convertTerms = prefixNamedRef pathToMountedNameLookup . fmap (bimap s2cTextReferent (fmap s2cConstructorType))
-  let convertTypes = prefixNamedRef pathToMountedNameLookup . fmap s2cTextReference
+allNamesInPerspective NamesPerspective {nameLookupBranchHashId, relativePerspective} = do
+  termNamesInPerspective <- Q.termNamesWithinNamespace nameLookupBranchHashId relativePerspective
+  typeNamesInPerspective <- Q.typeNamesWithinNamespace nameLookupBranchHashId relativePerspective
+  let convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
+  let convertTypes = fmap s2cTextReference
   pure $
     NamesInPerspective
       { termNamesInPerspective = convertTerms <$> termNamesInPerspective,

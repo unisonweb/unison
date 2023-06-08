@@ -582,26 +582,17 @@ namesAtPath ::
   Transaction ScopedNames
 namesAtPath bh path = do
   let namesRoot = PathSegments . coerce . Path.toList $ path
-  namesPerspective@Ops.NamesPerspective {relativePerspective} <- Ops.namesPerspectiveForRootAndPath bh namesRoot
-  let relativePath = Path.fromList $ coerce relativePerspective
+  namesPerspective <- Ops.namesPerspectiveForRootAndPath bh namesRoot
   NamesInPerspective {termNamesInPerspective, typeNamesInPerspective} <- Ops.allNamesInPerspective namesPerspective
   let termsInPath = convertTerms termNamesInPerspective
   let typesInPath = convertTypes typeNamesInPerspective
   let rootTerms = Rel.fromList termsInPath
   let rootTypes = Rel.fromList typesInPath
-  let absoluteRootNames = Names.makeAbsolute $ Names {terms = rootTerms, types = rootTypes}
-  let relativeScopedNames =
-        case relativePath of
-          Path.Empty -> (Names.makeRelative $ absoluteRootNames)
-          p ->
-            let reversedPathSegments = reverse . Path.toList $ p
-                relativeTerms = mapMaybe (stripPathPrefix reversedPathSegments) termsInPath
-                relativeTypes = mapMaybe (stripPathPrefix reversedPathSegments) typesInPath
-             in (Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes})
+  let relativeScopedNames = Names.makeRelative $ Names {terms = rootTerms, types = rootTypes}
   pure $
     ScopedNames
-      { relativeScopedNames,
-        absoluteRootNames
+      { relativeScopedNames = relativeScopedNames,
+        absoluteRootNames = mempty
       }
   where
     convertTypes names =
@@ -611,16 +602,6 @@ namesAtPath bh path = do
       names <&> \(S.NamedRef {reversedSegments, ref = (ref, ct)}) ->
         let v1ref = Cv.referent2to1UsingCT (fromMaybe (error "Required constructor type for constructor but it was null") ct) ref
          in (Name.fromReverseSegments (coerce reversedSegments), v1ref)
-
-    -- If the given prefix matches the given name, the prefix is stripped and it's collected
-    -- on the left, otherwise it's left as-is and collected on the right.
-    -- >>> stripPathPrefix ["b", "a"] ("a.b.c", ())
-    -- ([(c,())])
-    stripPathPrefix :: [NameSegment] -> (Name, r) -> Maybe (Name, r)
-    stripPathPrefix reversedPathSegments (n, ref) =
-      case Name.stripReversedPrefix n reversedPathSegments of
-        Nothing -> Nothing
-        Just stripped -> Just (Name.makeRelative stripped, ref)
 
 -- | Add an index for the provided branch hash if one doesn't already exist.
 ensureNameLookupForBranchHash ::
