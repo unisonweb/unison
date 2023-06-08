@@ -2525,6 +2525,22 @@ branchEmptyInputPattern =
         _ -> Left (showPatternHelp branchEmptyInputPattern)
     }
 
+branchRenameInputPattern :: InputPattern
+branchRenameInputPattern =
+  InputPattern
+    { patternName = "branch.rename",
+      aliases = ["rename.branch"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ("`branch.rename foo`", "renames the current branch to `foo`")
+          ],
+      parse = \case
+        [nameString] | Right name <- tryInto (Text.pack nameString) -> Right (Input.BranchRenameI name)
+        _ -> Left (showPatternHelp branchRenameInputPattern)
+    }
+
 clone :: InputPattern
 clone =
   InputPattern
@@ -2592,6 +2608,7 @@ validInputs =
       back,
       branchEmptyInputPattern,
       branchInputPattern,
+      branchRenameInputPattern,
       branchesInputPattern,
       cd,
       clear,

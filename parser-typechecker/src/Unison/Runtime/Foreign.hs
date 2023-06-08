@@ -120,6 +120,10 @@ charClassCmp :: CharPattern -> CharPattern -> Ordering
 charClassCmp = compare
 {-# NOINLINE charClassCmp #-}
 
+codeEq :: SuperGroup Symbol -> SuperGroup Symbol -> Bool
+codeEq sg1 sg2 = sg1 == sg2
+{-# NOINLINE codeEq #-}
+
 tylEq :: Reference -> Reference -> Bool
 tylEq r l = r == l
 {-# NOINLINE tylEq #-}
@@ -154,6 +158,7 @@ ref2eq r
   | r == Ty.ibytearrayRef = Just $ promote barrEq
   | r == Ty.patternRef = Just $ promote cpatEq
   | r == Ty.charClassRef = Just $ promote charClassEq
+  | r == Ty.codeRef = Just $ promote codeEq
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)

@@ -373,7 +373,7 @@ pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBran
             Nothing -> do
               myUserHandle <- view #handle <$> AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
               let localBranchName = localProjectAndBranch ^. #branch . #name
-              let remoteBranchName = deriveRemoteBranchName myUserHandle remoteProjectName localBranchName
+              let remoteBranchName = deriveRemoteBranchName myUserHandle localBranchName
               pushToProjectBranch1
                 localProjectAndBranch
                 localBranchHead
@@ -426,17 +426,16 @@ pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch local
           Just remoteProjectName1 -> remoteProjectName1
   let remoteBranchName =
         case remoteProjectAndBranchMaybes ^. #branch of
-          Nothing -> deriveRemoteBranchName myUserHandle remoteProjectName localBranchName
+          Nothing -> deriveRemoteBranchName myUserHandle localBranchName
           Just remoteBranchName1 -> remoteBranchName1
   let remoteProjectAndBranch = ProjectAndBranch remoteProjectName remoteBranchName
   pushToProjectBranch0 (PushingProjectBranch localProjectAndBranch) localBranchHead remoteProjectAndBranch
 
 -- If left unspecified (and we don't yet have a remote mapping), we derive the remote branch name from the user's
--- handle, remote project name, and local branch name as follows:
+-- handle and local branch name as follows:
 --
 --   * If the local branch name already has a user slug prefix or a (draft) release prefix, then we leave it alone.
---   * Otherwise, if the remote project name's user prefix matches the user's handle (i.e. they are pushing to their own
---     project) *and* the local branch name is "main", then we leave it alone.
+--   * Otherwise, if the local branch name is "main", then we leave it alone.
 --   * Otherwise, we prepend the user's handle to the local branch name.
 --
 -- This way, users (who let us infer remote branch names) tend to make topic branches, even when contributing to their
@@ -449,20 +448,15 @@ pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch local
 -- And "main" is an exception to the rule that we prefix your local branch name with your user handle. That way, you
 -- won't end up with a *topic branch* called "@arya/main" when pushing a local branch called "main". Of course,
 -- special-casing "main" in this way is only temporary, before we have a first-class notion of a default branch.
-deriveRemoteBranchName :: Text -> ProjectName -> ProjectBranchName -> ProjectBranchName
-deriveRemoteBranchName userHandle remoteProjectName localBranchName =
+deriveRemoteBranchName :: Text -> ProjectBranchName -> ProjectBranchName
+deriveRemoteBranchName userHandle localBranchName =
   case classifyProjectBranchName localBranchName of
     ProjectBranchNameKind'Contributor _ _ -> localBranchName
     ProjectBranchNameKind'DraftRelease _ -> localBranchName
     ProjectBranchNameKind'Release _ -> localBranchName
-    ProjectBranchNameKind'NothingSpecial ->
-      case projectNameUserSlug remoteProjectName of
-        -- I'm "arya" pushing local branch "main" to "@arya/lens", so don't call it "@arya/main"
-        Just projectUserSlug
-          | projectUserSlug == userHandle && localBranchName == unsafeFrom @Text "main" ->
-              localBranchName
-        -- Nothing is a weird unlikely case: project doesn't begin with a user slug? server will likely reject
-        _ ->
+    ProjectBranchNameKind'NothingSpecial
+      | localBranchName == unsafeFrom @Text "main" -> localBranchName
+      | otherwise ->
           (UnsafeProjectBranchName . Text.Builder.run . fold)
             [ Text.Builder.char '@',
               Text.Builder.text userHandle,
