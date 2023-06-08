@@ -119,6 +119,7 @@ import Control.Lens hiding (children)
 import Control.Monad.Extra qualified as Monad
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.Foldable qualified as Foldable
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty.Extra qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Map.Merge.Lazy qualified as Map
@@ -1414,6 +1415,32 @@ fuzzySearchDefinitions ::
 fuzzySearchDefinitions NamesPerspective {nameLookupBranchHashId, relativePerspective} limit querySegments = do
   termNames <-
     Q.fuzzySearchTerms nameLookupBranchHashId limit relativePerspective querySegments
-      <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
-  typeNames <- Q.fuzzySearchTypes nameLookupBranchHashId limit querySegments <&> fmap (fmap s2cTextReference)
+      <&> fmap \termName ->
+        termName
+          & (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+          & stripPrefixFromNamedRef relativePerspective
+  typeNames <-
+    Q.fuzzySearchTypes nameLookupBranchHashId limit relativePerspective querySegments
+      <&> fmap (fmap s2cTextReference)
+      <&> fmap \typeName ->
+        typeName
+          & stripPrefixFromNamedRef relativePerspective
   pure (termNames, typeNames)
+
+-- | Strips a prefix path from a named ref. No-op if the prefix doesn't match.
+--
+-- >>> stripPrefixFromNamedRef (PathSegments ["foo", "bar"]) (S.NamedRef (S.ReversedName ("baz" NonEmpty.:| ["bar", "foo"])) ())
+-- NamedRef {reversedSegments = ReversedName ("baz" :| []), ref = ()}
+--
+-- >>> stripPrefixFromNamedRef (PathSegments ["no", "match"]) (S.NamedRef (S.ReversedName ("baz" NonEmpty.:| ["bar", "foo"])) ())
+-- NamedRef {reversedSegments = ReversedName ("baz" :| ["bar","foo"]), ref = ()}
+stripPrefixFromNamedRef :: PathSegments -> S.NamedRef r -> S.NamedRef r
+stripPrefixFromNamedRef (PathSegments prefix) namedRef =
+  let newReversedName =
+        S.reversedSegments namedRef
+          & \case
+            reversedName@(S.ReversedName (name NonEmpty.:| reversedPath)) ->
+              case List.stripSuffix (reverse prefix) reversedPath of
+                Nothing -> reversedName
+                Just strippedReversedPath -> S.ReversedName (name NonEmpty.:| reverse strippedReversedPath)
+   in namedRef {S.reversedSegments = newReversedName}

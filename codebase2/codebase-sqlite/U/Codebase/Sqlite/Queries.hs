@@ -3838,8 +3838,9 @@ fuzzySearchTerms bhId limit namespace querySegments = do
 -- in order.
 --
 -- Search is case insensitive.
-fuzzySearchTypes :: BranchHashId -> Int -> [Text] -> Transaction [(NamedRef Reference.TextReference)]
-fuzzySearchTypes bhId limit querySegments = do
+fuzzySearchTypes :: BranchHashId -> Int -> PathSegments -> [Text] -> Transaction [(NamedRef Reference.TextReference)]
+fuzzySearchTypes bhId limit namespace querySegments = do
+  let namespaceGlob = toNamespaceGlob namespace
   let preparedQuery = prepareFuzzyQuery '\\' querySegments
   queryListRow
     [sql|
@@ -3847,6 +3848,7 @@ fuzzySearchTypes bhId limit querySegments = do
         FROM scoped_type_name_lookup
       WHERE
         root_branch_hash_id = :bhId
+        AND namespace GLOB :namespaceGlob
         AND (namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
         LIMIT :limit
     |]
