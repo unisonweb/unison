@@ -1661,6 +1661,7 @@ handleStructuredFindI :: HQ.HashQualified Name -> Cli ()
 handleStructuredFindI rule = do
   Cli.Env {codebase} <- ask
   (ppe, names, lhs, _rhs) <- lookupRewrite InvalidStructuredFind rule
+  let lhsPat = Term.toPattern lhs
   let fqppe = PPED.unsuffixifiedPPE ppe
   results :: [(HQ.HashQualified Name, Referent)] <- pure $ do
     r <- Set.toList (Relation.ran $ Names.terms (NamesWithHistory.currentNames names))
@@ -1670,13 +1671,17 @@ handleStructuredFindI rule = do
     Referent.Ref _ <- pure r
     Just shortName <- [PPE.terms (PPED.suffixifiedPPE ppe) r]
     pure (HQ'.toHQ shortName, r)
-  let ok (_, Referent.Ref (Reference.DerivedId r)) = do
+  let ok t@(_, Referent.Ref (Reference.DerivedId r)) = do
         oe <- Cli.runTransaction (Codebase.getTerm codebase r)
-        pure $ maybe False (ABT.containsExpression lhs) oe
-      ok _ = pure False
-  results <- filterM ok results
-  #numberedArgs .= map (Text.unpack . Reference.toText . Referent.toReference . view _2) results
-  Cli.respond (ListStructuredFind (fst <$> results))
+        pure $ (t, maybe False (ABT.containsExpression lhs) oe, Term.containsCase <$> lhsPat <*> oe)
+      ok t = pure (t, False, Nothing)
+  results0 <- traverse ok results
+  let caseResults = [ (hq, r) | ((hq,r), _, Just True) <- results0 ]
+  let results = [ (hq, r) | ((hq,r), True, _) <- results0 ]
+  let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
+  #numberedArgs .= map toNumArgs caseResults <> map toNumArgs results
+  -- todo: add second list to ListStructuredFind, can report "functions with patterns matching the LHS"
+  Cli.respond (ListStructuredFind (fmap fst caseResults <$ lhsPat) (fst <$> results))
 
 lookupRewrite :: (HQ.HashQualified Name -> Output) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, Term Symbol Ann, Term Symbol Ann)
 lookupRewrite onErr rule = do

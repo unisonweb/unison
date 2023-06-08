@@ -82,6 +82,7 @@ module Unison.Util.Pretty
     numberedColumn2Header,
     numberedColumnNHeader,
     numberedList,
+    numberedListFrom,
     orElse,
     orElses,
     paragraphyText,
@@ -565,9 +566,12 @@ numberedColumnNHeader headers rows =
   let numbers = ([1 :: Int ..] <&> \n -> hiBlack (shown n <> "."))
    in columnNHeader ("" : headers) (zipWith (:) numbers rows)
 
--- Opinionated `numbered` that uses bold numbers in front
+-- Opinionated `numbered` that uses hiBlack numbers in front
 numberedList :: (Foldable f) => f (Pretty ColorText) -> Pretty ColorText
-numberedList = numbered (\i -> hiBlack . fromString $ show i <> ".")
+numberedList = numberedListFrom 0
+
+numberedListFrom :: (Foldable f) => Int -> f (Pretty ColorText) -> Pretty ColorText
+numberedListFrom n = numbered (\i -> hiBlack . fromString $ show (i+n) <> ".")
 
 leftPad, rightPad :: (IsString s) => Width -> Pretty s -> Pretty s
 leftPad n p =

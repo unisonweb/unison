@@ -1379,6 +1379,8 @@ toPattern tm = case tm of
   Var' _ -> pure $ Pattern.Var loc 
   Apps' (Request' r) args -> Pattern.EffectBind loc r <$> traverse toPattern args <*> pure (Pattern.Unbound loc)
   Apps' (Constructor' r) args -> Pattern.Constructor loc r <$> traverse toPattern args
+  Constructor' r -> pure $ Pattern.Constructor loc r []
+  Request' r -> pure $ Pattern.EffectBind loc r [] (Pattern.Unbound loc)
   Int' i -> pure $ Pattern.Int loc i 
   Nat' n -> pure $ Pattern.Nat loc n 
   Float' f -> pure $ Pattern.Float loc f 

@@ -1633,8 +1633,8 @@ notifyUser dir = \case
     pure $ listDependentsOrDependencies ppe "Dependents" "dependents" lds types terms
   ListDependencies ppe lds types terms ->
     pure $ listDependentsOrDependencies ppe "Dependencies" "dependencies" lds types terms
-  ListStructuredFind terms ->
-    pure $ listStructuredFind terms
+  ListStructuredFind pterms terms ->
+    pure $ listStructuredFind pterms terms
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
   ListNamespaceDependencies ppe path' externalDependencies -> do
     let spacer = ("", "")
@@ -3552,20 +3552,45 @@ endangeredDependentsTable ppeDecl m =
         & fmap (\(n, dep) -> numArg n <> prettyLabeled fqnEnv dep)
         & P.lines
 
-listStructuredFind :: [HQ.HashQualified Name] -> Pretty
-listStructuredFind [] = "😶 I couldn't find any matches."
-listStructuredFind tms =
+listStructuredFind :: Maybe [HQ.HashQualified Name] -> [HQ.HashQualified Name] -> Pretty
+listStructuredFind Nothing [] = "😶 I couldn't find any matches."
+listStructuredFind (Just []) [] = "😶 I couldn't find any matches."
+listStructuredFind ptms tms =
   P.callout "🔎" $
-    P.lines
-      [ P.wrap $
-          "These definitions in the current namespace (excluding `lib`)"
-            <> "all have matches:",
-        "",
-        P.numberedList (P.syntaxToColor . prettyHashQualified <$> tms),
-        "",
-        tip (msg (length tms))
+    P.sepNonEmpty "\n\n" [
+      case ptms of 
+        Nothing -> mempty
+        Just [] -> 
+          P.wrap $ "There are " <> P.bold "0" <> " definitions "
+              <> "in the current namespace (excluding `lib`) "
+              <> "where the " <> P.bold "query appears as a pattern "
+              <> "on the left-hand side of a case."
+        Just ptms ->
+          P.lines
+            [ P.wrap $ "There are " <> P.bold (P.shown lenPtms) <> " definitions "
+                    <> "in the current namespace (excluding `lib`)"
+                    <> "where the " <> P.bold "query appears as a pattern " 
+                    <> "on the left-hand side of a case:"
+              , ""
+              , P.indentN 2 (P.numberedList (pnames ptms)) ],
+       if null tms then 
+         P.wrap $ "There are " <> P.bold "0 " <> " definitions with " <> P.bold "matches elsewhere in the body." 
+       else P.lines [
+         P.wrap (
+            case ptms of
+              Nothing -> "These definitions from the current namespace (excluding `lib`) have matches:"
+              _ | length tms == 1 -> "There is " <> P.bold "1" <> " definition that " 
+                                                 <> P.bold "matches elsewhere in the body:"
+                | otherwise -> "There are " <> P.bold (P.shown (length tms)) <> " definitions"
+                            <> " that " <> P.bold "match elsewhere in the body:"),
+         "",
+         P.indentN 2 $ P.numberedListFrom lenPtms (pnames tms)
+       ],
+       tip (msg (length tms + lenPtms))
       ]
   where
+    lenPtms = maybe 0 length ptms
+    pnames hqs = P.syntaxToColor . prettyHashQualified <$> hqs
     msg 1 = "Try " <> IP.makeExample IP.edit ["1"] <> " to bring this into your scratch file."
     msg n =
       "Try "
