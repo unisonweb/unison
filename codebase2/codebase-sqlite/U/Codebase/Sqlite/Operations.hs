@@ -118,6 +118,7 @@ import Control.Lens hiding (children)
 import Control.Monad.Extra qualified as Monad
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.Foldable qualified as Foldable
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty.Extra qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Map.Merge.Lazy qualified as Map
@@ -157,6 +158,7 @@ import U.Codebase.Sqlite.LocalizeObject qualified as LocalizeObject
 import U.Codebase.Sqlite.NameLookups (PathSegments (..))
 import U.Codebase.Sqlite.NameLookups qualified as NameLookups
 import U.Codebase.Sqlite.NameLookups qualified as S
+import U.Codebase.Sqlite.NamedRef (NamedRef (reversedSegments))
 import U.Codebase.Sqlite.NamedRef qualified as S
 import U.Codebase.Sqlite.ObjectType qualified as ObjectType
 import U.Codebase.Sqlite.Patch.Diff qualified as S
@@ -1223,16 +1225,30 @@ data NamesInPerspective = NamesInPerspective
 allNamesInPerspective ::
   NamesPerspective ->
   Transaction NamesInPerspective
-allNamesInPerspective NamesPerspective {nameLookupBranchHashId, relativePerspective} = do
+allNamesInPerspective NamesPerspective {nameLookupBranchHashId, relativePerspective = relativePerspective@(S.PathSegments perspective)} = do
   termNamesInPerspective <- Q.termNamesWithinNamespace nameLookupBranchHashId relativePerspective
   typeNamesInPerspective <- Q.typeNamesWithinNamespace nameLookupBranchHashId relativePerspective
   let convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
   let convertTypes = fmap s2cTextReference
+  let reversedPathPrefix = S.ReversedPath $ reverse perspective
   pure $
     NamesInPerspective
-      { termNamesInPerspective = convertTerms <$> termNamesInPerspective,
-        typeNamesInPerspective = convertTypes <$> typeNamesInPerspective
+      { termNamesInPerspective = stripPathPrefix reversedPathPrefix . convertTerms <$> termNamesInPerspective,
+        typeNamesInPerspective = stripPathPrefix reversedPathPrefix . convertTypes <$> typeNamesInPerspective
       }
+  where
+    -- If the given prefix matches the given name, the prefix is stripped and it's collected
+    -- on the left, otherwise it's left as-is and collected on the right.
+    -- >>> stripPathPrefix ["b", "a"] ("a.b.c", ())
+    -- ([(c,())])
+    stripPathPrefix :: S.ReversedPath -> S.NamedRef r -> S.NamedRef r
+    stripPathPrefix (S.ReversedPath reversedPrefix) S.NamedRef {S.reversedSegments, S.ref} =
+      case reversedSegments of
+        S.ReversedName (name NonEmpty.:| rest) ->
+          let newRemainder = case List.stripSuffix reversedPrefix rest of
+                Nothing -> rest
+                Just stripped -> stripped
+           in S.NamedRef {S.reversedSegments = S.ReversedName (name NonEmpty.:| newRemainder), S.ref}
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
