@@ -30,9 +30,10 @@ import Servant.Docs
 import Servant.OpenApi ()
 import Text.FuzzyFind qualified as FZF
 import U.Codebase.Causal qualified as V2Causal
-import U.Codebase.HashTags (BranchHash, CausalHash)
+import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Reference qualified as U
 import U.Codebase.Referent qualified as U
+import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import U.Codebase.Sqlite.NamedRef qualified as S
 import U.Codebase.Sqlite.Operations qualified as SqliteOps
 import Unison.Codebase (Codebase)
@@ -168,11 +169,12 @@ serveFuzzyFind ::
   String ->
   Backend.Backend IO [(FZF.Alignment, FoundResult)]
 serveFuzzyFind codebase rootCausal perspective mayLimit typeWidth query = do
-  (bh, dbTermMatches, dbTypeMatches) <- liftIO . Codebase.runTransaction codebase $ do
+  (namesPerspective, dbTermMatches, dbTypeMatches) <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- Backend.resolveCausalHashV2 (Just rootCausal)
     let bh = V2Causal.valueHash shallowRoot
-    (terms, types) <- SqliteOps.fuzzySearchDefinitions bh limit perspectiveText preparedQuery
-    pure (bh, terms, types)
+    namesPerspective <- SqliteOps.namesPerspectiveForRootAndPath bh (coerce $ Path.toList perspective)
+    (terms, types) <- SqliteOps.fuzzySearchDefinitions namesPerspective limit preparedQuery
+    pure (namesPerspective, terms, types)
   let termMatches = fmap namedRefToNamePairTerm dbTermMatches
   let typeMatches = fmap namedRefToNamePairType dbTypeMatches
   let matchNames = Names.fromTermsAndTypes termMatches typeMatches
@@ -184,7 +186,7 @@ serveFuzzyFind codebase rootCausal perspective mayLimit typeWidth query = do
           ]
         )
       alignments = Backend.fuzzyFind matchNames fzfQuery
-  lift (join <$> traverse (loadEntry bh) alignments)
+  lift (join <$> traverse (loadEntry namesPerspective) alignments)
   where
     preparedQuery = prepareQuery query
     fzfQuery = Text.unpack $ Text.intercalate " " preparedQuery
@@ -200,11 +202,9 @@ serveFuzzyFind codebase rootCausal perspective mayLimit typeWidth query = do
     namedRefToNamePairType :: S.NamedRef U.Reference -> (Name, Reference)
     namedRefToNamePairType (S.NamedRef {reversedSegments, ref}) =
       (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
-    perspectiveText :: Text
-    perspectiveText = Path.toText perspective
     limit = fromMaybe 10 mayLimit
-    loadEntry :: BranchHash -> (FZF.Alignment, Text, [Backend.FoundRef]) -> IO [(FZF.Alignment, FoundResult)]
-    loadEntry bh (a, n, refs) = do
+    loadEntry :: SqliteOps.NamesPerspective -> (FZF.Alignment, Text, [Backend.FoundRef]) -> IO [(FZF.Alignment, FoundResult)]
+    loadEntry namesPerspective (a, n, refs) = do
       let relativeToBranch = Nothing
       entries <- for refs $
         \case
@@ -214,7 +214,7 @@ serveFuzzyFind codebase rootCausal perspective mayLimit typeWidth query = do
             Codebase.runTransaction codebase do
               Right . (r,) <$> Backend.typeListEntry codebase relativeToBranch (ExactName (NameSegment n) r)
       let allLabeledDependencies = foldMap (either (termEntryLabeledDependencies . snd) (typeEntryLabeledDependencies . snd)) entries
-      pped <- liftIO . Codebase.runTransaction codebase $ PPED.ppedForReferences bh perspective allLabeledDependencies
+      pped <- liftIO . Codebase.runTransaction codebase $ PPED.ppedForReferences namesPerspective allLabeledDependencies
       let ppe = PPED.suffixifiedPPE pped
       Codebase.runTransaction codebase do
         for entries \case

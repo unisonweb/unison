@@ -1409,12 +1409,11 @@ fuzzySearchDefinitions ::
   NamesPerspective ->
   -- | Will return at most n terms and n types; i.e. max number of results is 2n
   Int ->
-  PathSegments ->
   [Text] ->
   Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
-fuzzySearchDefinitions NamesPerspective {nameLookupBranchHashId} limit namespace querySegments = do
+fuzzySearchDefinitions NamesPerspective {nameLookupBranchHashId, relativePerspective} limit querySegments = do
   termNames <-
-    Q.fuzzySearchTerms nameLookupBranchHashId limit namespace querySegments
+    Q.fuzzySearchTerms nameLookupBranchHashId limit relativePerspective querySegments
       <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
   typeNames <- Q.fuzzySearchTypes nameLookupBranchHashId limit querySegments <&> fmap (fmap s2cTextReference)
   pure (termNames, typeNames)
