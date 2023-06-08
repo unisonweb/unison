@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Server.Endpoints.NamespaceDetails where
+module Unison.Server.Local.Endpoints.NamespaceDetails where
 
 import Control.Monad.Except
 import Data.Aeson

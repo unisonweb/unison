@@ -8,7 +8,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Server.Endpoints.FuzzyFind where
+module Unison.Server.Local.Endpoints.FuzzyFind where
 
 import Control.Monad.Except
 import Data.Aeson

@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Server.Endpoints.Projects where
+module Unison.Server.Local.Endpoints.Projects where
 
 import Control.Monad.Except
 import Data.Aeson

@@ -7,8 +7,10 @@
 -- are unified with non-sqlite operations in the Codebase interface, like 'appendReflog'.
 module Unison.Codebase.SqliteCodebase.Operations where
 
+import Control.Comonad.Cofree qualified as Cofree
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
+import Data.Functor.Compose (Compose (..))
 import Data.List qualified as List
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import Data.Map qualified as Map
@@ -16,14 +18,17 @@ import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Branch.Diff (TreeDiff (TreeDiff))
 import U.Codebase.Branch.Diff qualified as BranchDiff
 import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash), PatchHash)
+import U.Codebase.Projects qualified as Projects
 import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Referent qualified as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
+import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import U.Codebase.Sqlite.NamedRef qualified as S
 import U.Codebase.Sqlite.ObjectType qualified as OT
-import U.Codebase.Sqlite.Operations (NamesByPath (..))
+import U.Codebase.Sqlite.Operations (NamesInPerspective (..))
 import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -569,25 +574,24 @@ before h1 h2 =
 -- | Construct a 'ScopedNames' which can produce names which are relative to the provided
 -- Path.
 --
--- NOTE: this method requires an up-to-date name lookup index, which is
--- currently not kept up-to-date automatically (because it's slow to do so).
+-- NOTE: this method requires an up-to-date name lookup index
 namesAtPath ::
   BranchHash ->
-  -- Include ALL names within this path
-  Path ->
-  -- Make names within this path relative to this path, other names will be absolute.
+  -- Include names from the project which contains this path.
   Path ->
   Transaction ScopedNames
-namesAtPath bh namesRootPath relativeToPath = do
-  let namesRoot = if namesRootPath == Path.empty then Nothing else Just $ tShow namesRootPath
-  NamesByPath {termNamesInPath, typeNamesInPath} <- Ops.namesByPath bh namesRoot
-  let termsInPath = convertTerms termNamesInPath
-  let typesInPath = convertTypes typeNamesInPath
+namesAtPath bh path = do
+  let namesRoot = PathSegments . coerce . Path.toList $ path
+  namesPerspective@Ops.NamesPerspective {relativePerspective} <- Ops.namesPerspectiveForRootAndPath bh namesRoot
+  let relativePath = Path.fromList $ coerce relativePerspective
+  NamesInPerspective {termNamesInPerspective, typeNamesInPerspective} <- Ops.allNamesInPerspective namesPerspective
+  let termsInPath = convertTerms termNamesInPerspective
+  let typesInPath = convertTypes typeNamesInPerspective
   let rootTerms = Rel.fromList termsInPath
   let rootTypes = Rel.fromList typesInPath
   let absoluteRootNames = Names.makeAbsolute $ Names {terms = rootTerms, types = rootTypes}
   let relativeScopedNames =
-        case relativeToPath of
+        case relativePath of
           Path.Empty -> (Names.makeRelative $ absoluteRootNames)
           p ->
             let reversedPathSegments = reverse . Path.toList $ p
@@ -642,7 +646,9 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
               -- history looking for a Branch Hash we already have an index for.
               pure (V2Branch.empty, Nothing)
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
-      let treeDiff = BranchDiff.diffBranches fromBranch toBranch
+      depMounts <- Projects.inferDependencyMounts toBranch <&> fmap (first (coerce @_ @PathSegments . Path.toList))
+      let depMountPaths = (Path.fromList . coerce) . fst <$> depMounts
+      let treeDiff = ignoreDepMounts depMountPaths $ BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
       Ops.buildNameLookupForBranchHash
         mayExistingLookupBH
@@ -655,7 +661,23 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
                   pure $ toNamedRef (name, refWithCT)
               save (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
         )
+      -- Ensure all of our dependencies have name lookups too.
+      for_ depMounts \(_path, depBranchHash) -> do
+        -- TODO: see if we can find a way to infer a good fromHash for dependencies
+        ensureNameLookupForBranchHash getDeclType Nothing depBranchHash
+      Ops.associateNameLookupMounts toBranchHash depMounts
   where
+    alterTreeDiffAtPath :: (Functor m) => Path -> (TreeDiff m -> TreeDiff m) -> TreeDiff m -> TreeDiff m
+    alterTreeDiffAtPath path f (TreeDiff cfr) =
+      case path of
+        Path.Empty -> f (TreeDiff cfr)
+        (segment Path.:< rest) ->
+          let (a Cofree.:< (Compose rest')) = cfr
+           in TreeDiff (a Cofree.:< Compose (Map.adjust (fmap (coerce $ alterTreeDiffAtPath rest f)) segment rest'))
+    -- Delete portions of the diff which are covered by dependency mounts.
+    ignoreDepMounts :: (Applicative m) => [Path] -> TreeDiff m -> TreeDiff m
+    ignoreDepMounts depMounts treeDiff =
+      foldl' (\acc path -> alterTreeDiffAtPath path (const mempty) acc) treeDiff depMounts
     toNamedRef :: (Name, ref) -> S.NamedRef ref
     toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
     addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)

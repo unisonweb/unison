@@ -21,6 +21,7 @@ import Unison.Codebase.Init.OpenCodebaseError qualified as Codebase
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals, prettyPrintIntegrityErrors)
 import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema10To11 (migrateSchema10To11)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12 (migrateSchema11To12)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchema3To4)
@@ -63,7 +64,8 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       (8, migrateSchema7To8),
       (9, migrateSchema8To9),
       (10, migrateSchema9To10),
-      (11, migrateSchema10To11)
+      (11, migrateSchema10To11),
+      (12, migrateSchema11To12)
     ]
 
 data CodebaseVersionStatus
