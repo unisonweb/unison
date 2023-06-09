@@ -1442,5 +1442,5 @@ stripPrefixFromNamedRef (PathSegments prefix) namedRef =
             reversedName@(S.ReversedName (name NonEmpty.:| reversedPath)) ->
               case List.stripSuffix (reverse prefix) reversedPath of
                 Nothing -> reversedName
-                Just strippedReversedPath -> S.ReversedName (name NonEmpty.:| reverse strippedReversedPath)
+                Just strippedReversedPath -> S.ReversedName (name NonEmpty.:| strippedReversedPath)
    in namedRef {S.reversedSegments = newReversedName}
