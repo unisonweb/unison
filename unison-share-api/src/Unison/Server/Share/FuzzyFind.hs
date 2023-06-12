@@ -28,12 +28,10 @@ import Servant.Docs
     noSamples,
   )
 import Servant.OpenApi ()
-import Text.FuzzyFind qualified as FZF
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Reference qualified as U
-import U.Codebase.Referent qualified as U
-import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
+import U.Codebase.Sqlite.NameLookups (PathSegments (..))
+import U.Codebase.Sqlite.NameLookups qualified as NameLookups
 import U.Codebase.Sqlite.NamedRef qualified as S
 import U.Codebase.Sqlite.Operations qualified as SqliteOps
 import Unison.Codebase (Codebase)
@@ -42,16 +40,11 @@ import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.Name (Name)
-import Unison.Name qualified as Name
 import Unison.NameSegment
-import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Sqlite qualified as PPED
-import Unison.Reference (Reference)
-import Unison.Referent (Referent)
 import Unison.Server.Backend (termEntryLabeledDependencies, typeEntryLabeledDependencies)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Syntax (SyntaxText)
@@ -74,9 +67,9 @@ type FuzzyFindAPI =
     :> QueryParam "limit" Int
     :> QueryParam "renderWidth" Width
     :> QueryParam "query" String
-    :> APIGet [(FZF.Alignment, FoundResult)]
+    :> APIGet [(Alignment, FoundResult)]
 
-instance ToSample FZF.Alignment where
+instance ToSample Alignment where
   toSamples _ = noSamples
 
 instance ToParam (QueryParam "limit" Int) where
@@ -94,24 +87,6 @@ instance ToParam (QueryParam "query" String) where
       ["foo", "ff", "td nr"]
       "Space-separated subsequences to find in the name of a type or term."
       Normal
-
-instance ToJSON FZF.Alignment where
-  toJSON (FZF.Alignment {score, result}) =
-    object ["score" .= score, "result" .= result]
-
-instance ToJSON FZF.Result where
-  toJSON (FZF.Result {segments}) = object ["segments" .= toJSON segments]
-
-instance ToJSON FZF.ResultSegment where
-  toJSON = \case
-    FZF.Gap s -> object ["tag" .= String "Gap", "contents" .= s]
-    FZF.Match s -> object ["tag" .= String "Match", "contents" .= s]
-
-deriving instance ToSchema FZF.Alignment
-
-deriving anyclass instance ToSchema FZF.Result
-
-deriving instance ToSchema FZF.ResultSegment
 
 data FoundTerm = FoundTerm
   { bestFoundTermName :: HashQualifiedName,
@@ -166,8 +141,8 @@ serveFuzzyFind ::
   Path.Path ->
   Maybe Int ->
   Maybe Width ->
-  String ->
-  Backend.Backend IO [(FZF.Alignment, FoundResult)]
+  Text ->
+  Backend.Backend IO [(Alignment, FoundResult)]
 serveFuzzyFind codebase rootCausal perspective mayLimit typeWidth query = do
   (namesPerspective, dbTermMatches, dbTypeMatches) <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- Backend.resolveCausalHashV2 (Just rootCausal)
@@ -175,35 +150,36 @@ serveFuzzyFind codebase rootCausal perspective mayLimit typeWidth query = do
     namesPerspective <- SqliteOps.namesPerspectiveForRootAndPath bh (coerce $ Path.toList perspective)
     (terms, types) <- SqliteOps.fuzzySearchDefinitions namesPerspective limit preparedQuery
     pure (namesPerspective, terms, types)
-  let termMatches = fmap namedRefToNamePairTerm dbTermMatches
-  let typeMatches = fmap namedRefToNamePairType dbTypeMatches
-  let matchNames = Names.fromTermsAndTypes termMatches typeMatches
+  let prepareMatch :: S.NamedRef Backend.FoundRef -> (Alignment, UnisonName, [Backend.FoundRef])
+      prepareMatch name@(S.NamedRef {S.reversedSegments}) =
+        let renderedName = NameLookups.reversedNameToNamespaceText reversedSegments
+            segments = computeMatchSegments preparedQuery name
+            alignment = Alignment {score = scoreMatch name, result = MatchResult {segments}}
+         in (alignment, renderedName, [S.ref name])
+  let preparedTerms :: [(Alignment, UnisonName, [Backend.FoundRef])]
+      preparedTerms =
+        dbTermMatches
+          <&> \match ->
+            match
+              & fmap (\(ref, ct) -> Backend.FoundTermRef $ Cv.referent2to1UsingCT (fromMaybe (error "serveFuzzyFind: CT required but not found") ct) ref)
+              & prepareMatch
+  let preparedTypes :: [(Alignment, UnisonName, [Backend.FoundRef])]
+      preparedTypes = prepareMatch . fmap (Backend.FoundTypeRef . Cv.reference2to1) <$> dbTypeMatches
   let alignments ::
-        ( [ ( FZF.Alignment,
+        ( [ ( Alignment,
               UnisonName,
               [Backend.FoundRef]
             )
           ]
         )
-      alignments = Backend.fuzzyFind matchNames fzfQuery
+      alignments =
+        (preparedTerms <> preparedTypes)
+          & List.sortOn (\(Alignment {score}, _, _) -> score)
   lift (join <$> traverse (loadEntry namesPerspective) alignments)
   where
-    preparedQuery = prepareQuery query
-    fzfQuery = Text.unpack $ Text.intercalate " " preparedQuery
-    namedRefToNamePairTerm ::
-      S.NamedRef
-        ( U.Referent,
-          Maybe U.ConstructorType
-        ) ->
-      (Name, Referent)
-    namedRefToNamePairTerm (S.NamedRef {reversedSegments, ref = (ref, mayCt)}) =
-      let ct = fromMaybe (error "serveFuzzyFind: Required constructor type for constructor but it was null") mayCt
-       in (Name.fromReverseSegments (coerce reversedSegments), Cv.referent2to1UsingCT ct ref)
-    namedRefToNamePairType :: S.NamedRef U.Reference -> (Name, Reference)
-    namedRefToNamePairType (S.NamedRef {reversedSegments, ref}) =
-      (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
+    preparedQuery = prepareQuery (Text.unpack query)
     limit = fromMaybe 10 mayLimit
-    loadEntry :: SqliteOps.NamesPerspective -> (FZF.Alignment, Text, [Backend.FoundRef]) -> IO [(FZF.Alignment, FoundResult)]
+    loadEntry :: SqliteOps.NamesPerspective -> (Alignment, Text, [Backend.FoundRef]) -> IO [(Alignment, FoundResult)]
     loadEntry namesPerspective (a, n, refs) = do
       let relativeToBranch = Nothing
       entries <- for refs $
@@ -232,6 +208,91 @@ serveFuzzyFind codebase rootCausal perspective mayLimit typeWidth query = do
             typeHeader <- Backend.typeDeclHeader codebase ppe r
             let ft = FoundType typeName typeHeader namedType
             pure (a, FoundTypeResult ft)
+
+-- Scores a matched name by the number of segments.
+-- Lower is better.
+scoreMatch :: S.NamedRef r -> Int
+scoreMatch S.NamedRef {S.reversedSegments = NameLookups.ReversedName segments} = length segments
+
+data Alignment = Alignment
+  { score :: Int,
+    result :: MatchResult
+  }
+  deriving stock (Generic)
+  deriving anyclass (ToSchema)
+
+data MatchResult = MatchResult
+  { segments :: [MatchSegment]
+  }
+  deriving stock (Generic)
+  deriving anyclass (ToSchema)
+
+data MatchSegment
+  = Gap Text
+  | Match Text
+  deriving stock (Show, Generic)
+  deriving anyclass (ToSchema)
+
+instance ToJSON Alignment where
+  toJSON (Alignment {score, result}) =
+    object ["score" .= score, "result" .= result]
+
+instance ToJSON MatchResult where
+  toJSON (MatchResult {segments}) = object ["segments" .= toJSON segments]
+
+instance ToJSON MatchSegment where
+  toJSON = \case
+    Gap s -> object ["tag" .= String "Gap", "contents" .= s]
+    Match s -> object ["tag" .= String "Match", "contents" .= s]
+
+-- After finding a search results with fuzzy find we do some post processing to
+-- refine the result:
+--  * Sort:
+--      we sort both on the FZF score and the number of segments in the FQN
+--      preferring shorter FQNs over longer. This helps with things like forks
+--      of base.
+--  * Dedupe:
+--      we dedupe on the found refs to avoid having several rows of a
+--      definition with different names in the result set.
+--
+-- >>> import qualified Data.List.NonEmpty as NonEmpty
+-- >>> computeMatchSegments [] (S.NamedRef (NameLookups.ReversedName ("baz" NonEmpty.:| ["bar", "foo"])) ())
+-- >>> computeMatchSegments ["foo", "baz"] (S.NamedRef (NameLookups.ReversedName ("baz" NonEmpty.:| ["bar", "foo"])) ())
+-- >>> computeMatchSegments ["Li", "Ma"] (S.NamedRef (NameLookups.ReversedName ("foldMap" NonEmpty.:| ["List", "data"])) ())
+computeMatchSegments ::
+  [Text] ->
+  (S.NamedRef r) ->
+  [MatchSegment]
+computeMatchSegments query (S.NamedRef {reversedSegments}) =
+  let nameText = NameLookups.reversedNameToNamespaceText reversedSegments
+      -- This will be a list of _lower-cased_ match segments, but we need to reclaim the
+      -- casing from the actual name.
+      matchSegmentShape = List.unfoldr go (filter (not . Text.null) . map Text.toLower $ query, Text.toLower nameText)
+   in List.unfoldr go2 (matchSegmentShape, nameText)
+  where
+    go2 :: ([MatchSegment], Text) -> Maybe (MatchSegment, ([MatchSegment], Text))
+    go2 = \case
+      ([], _) -> Nothing
+      (Gap gap : restShape, name) ->
+        let (actualGap, restName) = Text.splitAt (Text.length gap) name
+         in Just (Gap actualGap, (restShape, restName))
+      (Match match : restShape, name) ->
+        let (actualMatch, restName) = Text.splitAt (Text.length match) name
+         in Just (Match actualMatch, (restShape, restName))
+    go :: ([Text], Text) -> Maybe (MatchSegment, ([Text], Text))
+    go = \case
+      (_, "") -> Nothing
+      ([], rest) -> Just (Gap rest, ([], ""))
+      (q : qs, name) ->
+        Text.breakOn q name
+          & \case
+            ("", rest) ->
+              case Text.stripPrefix q rest of
+                Nothing -> Nothing
+                Just remainder ->
+                  Just (Match q, (qs, remainder))
+            (gap, rest) ->
+              Just (Gap gap, (q : qs, rest))
 
 -- | Splits a query into segments, where each segment must appear in order in any matching
 -- names.
