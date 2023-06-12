@@ -252,8 +252,16 @@ test> Text.tests.indexOf =
      Text.indexOf needle6 haystack == Some 22,
      Text.indexOf needle7 haystack == Some 0,
      Text.indexOf needle8 haystack == None,
-
    ]
+   
+test> Text.tests.indexOfEmoji = 
+  haystack = "clap 👏 your 👏 hands 👏 if 👏 you 👏 love 👏 unison"
+  needle1 = "👏"
+  needle2 = "👏 "
+  checks [
+    Text.indexOf needle1 haystack == Some 5,
+    Text.indexOf needle2 haystack == Some 5,
+  ]
 
 ```
 
@@ -486,13 +494,14 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ test.rtjqan7bcs                     Passed
   ◉ Text.tests.alignment                Passed
   ◉ Text.tests.indexOf                  Passed
+  ◉ Text.tests.indexOfEmoji             Passed
   ◉ Text.tests.literalsEq               Passed
   ◉ Text.tests.patterns                 Passed
   ◉ Text.tests.repeat                   Passed
   ◉ Text.tests.takeDropAppend           Passed
   ◉ Universal.murmurHash.tests          Passed
   
-  ✅ 26 test(s) passing
+  ✅ 27 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 
