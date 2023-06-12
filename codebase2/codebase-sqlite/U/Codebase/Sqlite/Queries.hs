@@ -217,6 +217,10 @@ module U.Codebase.Sqlite.Queries
     -- * elaborate hashes
     elaborateHashes,
 
+    -- * most recent namespace
+    expectMostRecentNamespace,
+    setMostRecentNamespace,
+
     -- * migrations
     createSchema,
     addTempEntityTables,
@@ -267,6 +271,8 @@ import Control.Monad.Extra ((||^))
 import Control.Monad.State (MonadState, evalStateT)
 import Control.Monad.Writer (MonadWriter, runWriterT)
 import Control.Monad.Writer qualified as Writer
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Text qualified as Aeson
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
 import Data.Foldable qualified as Foldable
@@ -283,6 +289,8 @@ import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.String.Here.Uninterpolated (hereFile)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as Text.Lazy
 import Data.Vector qualified as Vector
 import GHC.Stack (callStack)
 import Network.URI (URI)
@@ -3809,3 +3817,39 @@ loadMostRecentBranch projectId =
       WHERE
         project_id = :projectId
     |]
+
+data JsonParseFailure = JsonParseFailure
+  { bytes :: !Text,
+    failure :: !Text
+  }
+  deriving stock (Show)
+  deriving anyclass (SqliteExceptionReason)
+
+-- | Get the most recent namespace the user has visited.
+expectMostRecentNamespace :: Transaction [Text]
+expectMostRecentNamespace =
+  queryOneColCheck
+    [sql|
+      SELECT namespace
+      FROM most_recent_namespace
+    |]
+    check
+  where
+    check :: Text -> Either JsonParseFailure [Text]
+    check bytes =
+      case Aeson.eitherDecodeStrict (Text.encodeUtf8 bytes) of
+        Left failure -> Left JsonParseFailure {bytes, failure = Text.pack failure}
+        Right namespace -> Right namespace
+
+-- | Set the most recent namespace the user has visited.
+setMostRecentNamespace :: [Text] -> Transaction ()
+setMostRecentNamespace namespace =
+  execute
+    [sql|
+      INSERT INTO most_recent_namespace (namespace)
+      VALUES (:json)
+    |]
+  where
+    json :: Text
+    json =
+      Text.Lazy.toStrict (Aeson.encodeToLazyText namespace)
