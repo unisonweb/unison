@@ -2437,7 +2437,7 @@ projectSwitch =
     { patternName = "switch",
       aliases = [],
       visibility = I.Hidden,
-      argTypes = [(Required, projectAndBranchNamesArg False False)],
+      argTypes = [(Required, projectAndBranchNamesArg False)],
       help =
         P.wrapColumn2
           [ ("`switch foo/bar`", "switches to the branch `bar` in the project `foo`"),
@@ -2848,17 +2848,16 @@ remoteNamespaceArg =
     }
 
 -- | A project name, branch name, or both.
-projectAndBranchNamesArg :: Bool -> Bool -> ArgumentType
-projectAndBranchNamesArg includeCurrentProject includeCurrentBranch =
+projectAndBranchNamesArg :: Bool -> ArgumentType
+projectAndBranchNamesArg includeCurrentBranch =
   ArgumentType
     { typeName = "project-and-branch-names",
       suggestions = \(Text.strip . Text.pack -> input) codebase _httpClient path ->
         if Text.null input
-          then handleAmbiguousComplete Text.empty codebase path Text.empty Text.empty
+          then handleAmbiguousComplete input codebase path
           else case tryFrom input of
-            Left _err -> pure []
-            Right (ProjectAndBranchNames'Ambiguous projectName branchName) ->
-              handleAmbiguousComplete input codebase path (into @Text projectName) (into @Text branchName)
+            Left _err -> handleAmbiguousComplete input codebase path
+            Right (ProjectAndBranchNames'Ambiguous _ _) -> handleAmbiguousComplete input codebase path
             -- Here we assume that if we've unambiguously parsed a project, it ended in a forward slash, so we're ready
             -- to suggest branches in that project as autocompletions.
             --
@@ -2905,10 +2904,8 @@ projectAndBranchNamesArg includeCurrentProject includeCurrentBranch =
       Text ->
       Codebase m v a ->
       Path.Absolute ->
-      Text ->
-      Text ->
       m [Completion]
-    handleAmbiguousComplete input codebase path projectName branchName = do
+    handleAmbiguousComplete input codebase path = do
       (branches, projects) <-
         Codebase.runTransaction codebase do
           branches <-
@@ -2916,8 +2913,8 @@ projectAndBranchNamesArg includeCurrentProject includeCurrentBranch =
               Nothing -> pure []
               Just (ProjectAndBranch currentProjectId _, _) ->
                 fmap (filterOutCurrentBranch path currentProjectId) do
-                  Queries.loadAllProjectBranchesBeginningWith currentProjectId branchName
-          projects <- filterOutCurrentProject path <$> Queries.loadAllProjectsBeginningWith projectName
+                  Queries.loadAllProjectBranchesBeginningWith currentProjectId input
+          projects <- Queries.loadAllProjectsBeginningWith input
           pure (branches, projects)
       let branchCompletions = map currentProjectBranchToCompletion branches
       let projectCompletions = map projectToCompletion projects
@@ -2989,13 +2986,6 @@ projectAndBranchNamesArg includeCurrentProject includeCurrentBranch =
         if not (null branchCompletions) && not (null projectCompletions) && not (Text.null input)
           then projectCompletions
           else branchCompletions ++ projectCompletions
-
-    filterOutCurrentProject :: Path.Absolute -> [Sqlite.Project] -> [Sqlite.Project]
-    filterOutCurrentProject path =
-      case (includeCurrentProject, preview ProjectUtils.projectBranchPathPrism path) of
-        (False, Just (ProjectAndBranch currentProjectId _, _)) ->
-          filter (\project -> project ^. #projectId /= currentProjectId)
-        _ -> id
 
     filterOutCurrentBranch :: Path.Absolute -> ProjectId -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
     filterOutCurrentBranch path projectId =
