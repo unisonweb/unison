@@ -3815,10 +3815,26 @@ loadMostRecentBranch projectId =
 -- | Searches for all names within the given name lookup which contain the provided list of segments
 -- in order.
 -- Search is case insensitive.
-fuzzySearchTerms :: BranchHashId -> Int -> PathSegments -> [Text] -> Transaction [(NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))]
-fuzzySearchTerms bhId limit namespace querySegments = do
-  let namespaceGlob = toNamespaceGlob namespace
-  let preparedQuery = prepareFuzzyQuery '\\' querySegments
+fuzzySearchTerms :: Bool -> BranchHashId -> Int -> PathSegments -> [Text] -> Transaction [(NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))]
+fuzzySearchTerms includeDependencies bhId limit namespace querySegments = do
+  -- Union in the dependencies if required.
+  let dependenciesSql =
+        if includeDependencies
+          then
+            [sql|
+      UNION ALL
+        SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM name_lookup_mounts mount
+          INNER JOIN scoped_term_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+        WHERE
+          mount.parent_root_branch_hash_id = :bhId
+          -- We have a pre-condition that the namespace must not be within any of the mounts,
+          -- so this is sufficient to determine whether the entire sub-index is within the
+          -- required namespace prefix.
+          AND mount.mount_path GLOB :namespaceGlob
+          AND (mount.mount_path || namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
+          |]
+          else [sql||]
   fmap unRow
     <$> queryListRow
       [sql|
@@ -3828,9 +3844,12 @@ fuzzySearchTerms bhId limit namespace querySegments = do
         root_branch_hash_id = :bhId
         AND namespace GLOB :namespaceGlob
         AND (namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
+      $dependenciesSql
         LIMIT :limit
     |]
   where
+    namespaceGlob = toNamespaceGlob namespace
+    preparedQuery = prepareFuzzyQuery '\\' querySegments
     unRow :: NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType)) -> NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)
     unRow = fmap \(a :. Only b) -> (a, b)
 
@@ -3838,10 +3857,26 @@ fuzzySearchTerms bhId limit namespace querySegments = do
 -- in order.
 --
 -- Search is case insensitive.
-fuzzySearchTypes :: BranchHashId -> Int -> PathSegments -> [Text] -> Transaction [(NamedRef Reference.TextReference)]
-fuzzySearchTypes bhId limit namespace querySegments = do
-  let namespaceGlob = toNamespaceGlob namespace
-  let preparedQuery = prepareFuzzyQuery '\\' querySegments
+fuzzySearchTypes :: Bool -> BranchHashId -> Int -> PathSegments -> [Text] -> Transaction [(NamedRef Reference.TextReference)]
+fuzzySearchTypes includeDependencies bhId limit namespace querySegments = do
+  -- Union in the dependencies if required.
+  let dependenciesSql =
+        if includeDependencies
+          then
+            [sql|
+      UNION ALL
+        SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, reference_builtin, reference_component_hash, reference_component_index
+        FROM name_lookup_mounts mount
+          INNER JOIN scoped_type_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+        WHERE
+          mount.parent_root_branch_hash_id = :bhId
+          -- We have a pre-condition that the namespace must not be within any of the mounts,
+          -- so this is sufficient to determine whether the entire sub-index is within the
+          -- required namespace prefix.
+          AND mount.mount_path GLOB :namespaceGlob
+          AND (mount.mount_path || namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
+          |]
+          else [sql||]
   queryListRow
     [sql|
       SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
@@ -3850,8 +3885,14 @@ fuzzySearchTypes bhId limit namespace querySegments = do
         root_branch_hash_id = :bhId
         AND namespace GLOB :namespaceGlob
         AND (namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
+
+      $dependenciesSql
+
         LIMIT :limit
     |]
+  where
+    namespaceGlob = toNamespaceGlob namespace
+    preparedQuery = prepareFuzzyQuery '\\' querySegments
 
 -- | >>> prepareFuzzyQuery ["foo", "bar"]
 -- "%foo%bar%"

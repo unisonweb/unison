@@ -1407,20 +1407,21 @@ deleteNameLookupsExceptFor reachable = do
 -- | Search for term or type names which contain the provided list of segments in order.
 -- Search is case insensitive.
 fuzzySearchDefinitions ::
+  Bool ->
   NamesPerspective ->
   -- | Will return at most n terms and n types; i.e. max number of results is 2n
   Int ->
   [Text] ->
   Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
-fuzzySearchDefinitions NamesPerspective {nameLookupBranchHashId, relativePerspective} limit querySegments = do
+fuzzySearchDefinitions includeDependencies NamesPerspective {nameLookupBranchHashId, relativePerspective} limit querySegments = do
   termNames <-
-    Q.fuzzySearchTerms nameLookupBranchHashId limit relativePerspective querySegments
+    Q.fuzzySearchTerms includeDependencies nameLookupBranchHashId limit relativePerspective querySegments
       <&> fmap \termName ->
         termName
           & (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
           & stripPrefixFromNamedRef relativePerspective
   typeNames <-
-    Q.fuzzySearchTypes nameLookupBranchHashId limit relativePerspective querySegments
+    Q.fuzzySearchTypes includeDependencies nameLookupBranchHashId limit relativePerspective querySegments
       <&> fmap (fmap s2cTextReference)
       <&> fmap \typeName ->
         typeName

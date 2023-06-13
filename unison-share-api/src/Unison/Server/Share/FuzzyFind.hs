@@ -136,6 +136,8 @@ instance ToSample FoundResult where
   toSamples _ = noSamples
 
 serveFuzzyFind ::
+  -- | Whether the root is a scratch root
+  Bool ->
   Codebase IO Symbol Ann ->
   CausalHash ->
   Path.Path ->
@@ -143,12 +145,15 @@ serveFuzzyFind ::
   Maybe Width ->
   Text ->
   Backend.Backend IO [(Alignment, FoundResult)]
-serveFuzzyFind codebase rootCausal perspective mayLimit typeWidth query = do
+serveFuzzyFind isInScratch codebase rootCausal perspective mayLimit typeWidth query = do
   (namesPerspective, dbTermMatches, dbTypeMatches) <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- Backend.resolveCausalHashV2 (Just rootCausal)
     let bh = V2Causal.valueHash shallowRoot
-    namesPerspective <- SqliteOps.namesPerspectiveForRootAndPath bh (coerce $ Path.toList perspective)
-    (terms, types) <- SqliteOps.fuzzySearchDefinitions namesPerspective limit preparedQuery
+    namesPerspective@SqliteOps.NamesPerspective {pathToMountedNameLookup = PathSegments pathToPerspective} <- SqliteOps.namesPerspectiveForRootAndPath bh (coerce $ Path.toList perspective)
+    -- If were browsing at a scratch root we need to include one level of dependencies'
+    -- since the projects are "dependencies" of the scratch root.
+    let includeDependencies = isInScratch && null pathToPerspective
+    (terms, types) <- SqliteOps.fuzzySearchDefinitions includeDependencies namesPerspective limit preparedQuery
     pure (namesPerspective, terms, types)
   let prepareMatch :: S.NamedRef Backend.FoundRef -> (Alignment, UnisonName, [Backend.FoundRef])
       prepareMatch name@(S.NamedRef {S.reversedSegments}) =
