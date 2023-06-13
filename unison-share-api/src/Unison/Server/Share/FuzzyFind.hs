@@ -321,24 +321,24 @@ computeMatchSegments query (S.NamedRef {reversedSegments}) =
 -- >>> prepareQuery "foo barBaz    boom"
 -- ["foo","bar","Baz","boom"]
 --
--- Split namespaces into segments
+-- Split namespaces into segments with a required dot in between.
 -- >>> prepareQuery "List.map"
--- ["List","map"]
+-- ["List",".","map"]
 --
 -- Shouldn't get multiple splits for capitalized letters
 -- >>> prepareQuery "List.Map"
--- ["List","Map"]
+-- ["List",".","Map"]
 prepareQuery :: String -> [Text]
 prepareQuery query = do
   word <- words query
   xs <-
     word
-      & map (\c -> if c == '.' then ' ' else c)
       & List.foldl'
         ( \acc next -> case next of
             c
               | Char.isUpper c -> [c] : acc
-              | Char.isSpace c -> [] : acc
+              | Char.isSpace c -> "" : acc
+              | c == '.' -> "" : "." : acc
               | otherwise -> case acc of
                   [] -> [[c]]
                   (last : rest) -> (last ++ [c]) : rest
