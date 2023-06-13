@@ -40,7 +40,6 @@ import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.Debug qualified as Debug
 import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -139,6 +138,8 @@ instance ToSample FoundResult where
 serveFuzzyFind ::
   -- | Whether the root is a scratch root
   Bool ->
+  -- | Whether to search in dependencies
+  Bool ->
   Codebase IO Symbol Ann ->
   CausalHash ->
   Path.Path ->
@@ -146,16 +147,21 @@ serveFuzzyFind ::
   Maybe Width ->
   Text ->
   Backend.Backend IO [(Alignment, FoundResult)]
-serveFuzzyFind isInScratch codebase rootCausal perspective mayLimit typeWidth query = do
-  (scratchRootSearch, bh, namesPerspective, dbTermMatches, dbTypeMatches) <- liftIO . Codebase.runTransaction codebase $ do
+serveFuzzyFind inScratch searchDependencies codebase rootCausal perspective mayLimit typeWidth query = do
+  (includeDependencies, bh, namesPerspective, dbTermMatches, dbTypeMatches) <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- Backend.resolveCausalHashV2 (Just rootCausal)
     let bh = V2Causal.valueHash shallowRoot
     namesPerspective@SqliteOps.NamesPerspective {pathToMountedNameLookup = PathSegments pathToPerspective} <- SqliteOps.namesPerspectiveForRootAndPath bh (coerce $ Path.toList perspective)
-    -- If were browsing at a scratch root we need to include one level of dependencies'
-    -- since the projects are "dependencies" of the scratch root.
-    let scratchRootSearch = isInScratch && null pathToPerspective
-    (terms, types) <- SqliteOps.fuzzySearchDefinitions scratchRootSearch namesPerspective limit preparedQuery
-    pure (scratchRootSearch, bh, namesPerspective, terms, types)
+    -- If were browsing at a scratch root we need to include one level of dependencies even if
+    -- the 'include-dependencies' flag is not set
+    -- since the projects are all "dependencies" of the scratch root as far as name-lookups
+    -- are concerned.
+    let isScratchRootSearch = inScratch && null pathToPerspective
+    -- Include dependencies if they were explicitly requested OR if we're running a search
+    -- from a scratch root
+    let includeDependencies = isScratchRootSearch || searchDependencies
+    (terms, types) <- SqliteOps.fuzzySearchDefinitions includeDependencies namesPerspective limit preparedQuery
+    pure (includeDependencies, bh, namesPerspective, terms, types)
   let prepareMatch :: S.NamedRef Backend.FoundRef -> (PathSegments, Alignment, UnisonName, [Backend.FoundRef])
       prepareMatch name@(S.NamedRef {S.reversedSegments}) =
         let renderedName = NameLookups.reversedNameToNamespaceText reversedSegments
@@ -182,16 +188,19 @@ serveFuzzyFind isInScratch codebase rootCausal perspective mayLimit typeWidth qu
       alignments =
         (preparedTerms <> preparedTypes)
           & List.sortOn (\(_, Alignment {score}, _, _) -> score)
-  lift (join <$> traverse (loadEntry scratchRootSearch bh namesPerspective) alignments)
+  lift (join <$> traverse (loadEntry includeDependencies bh namesPerspective) alignments)
   where
     preparedQuery = prepareQuery (Text.unpack query)
     limit = fromMaybe 10 mayLimit
     loadEntry :: Bool -> BranchHash -> SqliteOps.NamesPerspective -> (PathSegments, Alignment, Text, [Backend.FoundRef]) -> IO [(Alignment, FoundResult)]
-    loadEntry scratchRootSearch bh searchPerspective (pathToMatch, a, n, refs) = do
-      Debug.debugM Debug.Server "Search match" pathToMatch
+    loadEntry includeDependencies bh searchPerspective (pathToMatch, a, n, refs) = do
       namesPerspective <-
-        -- If we're searching from a scratch root, render each match within its project ppe.
-        if scratchRootSearch
+        -- If we're including dependencies we need to ensure each match's type signature is
+        -- rendered using a ppe with that dependency's names.
+        -- So we re-compute the perspective for each match.
+        --
+        -- If not we can use the same perspective for every match.
+        if includeDependencies
           then Codebase.runTransaction codebase $ SqliteOps.namesPerspectiveForRootAndPath bh (coerce (Path.toList perspective) <> pathToMatch)
           else pure searchPerspective
       let relativeToBranch = Nothing
