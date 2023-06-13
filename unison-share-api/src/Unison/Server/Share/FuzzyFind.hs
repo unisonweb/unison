@@ -278,9 +278,11 @@ instance ToJSON MatchSegment where
 --      definition with different names in the result set.
 --
 -- >>> import qualified Data.List.NonEmpty as NonEmpty
--- >>> computeMatchSegments [] (S.NamedRef (NameLookups.ReversedName ("baz" NonEmpty.:| ["bar", "foo"])) ())
 -- >>> computeMatchSegments ["foo", "baz"] (S.NamedRef (NameLookups.ReversedName ("baz" NonEmpty.:| ["bar", "foo"])) ())
+-- [Match "foo",Gap ".bar.",Match "baz"]
+--
 -- >>> computeMatchSegments ["Li", "Ma"] (S.NamedRef (NameLookups.ReversedName ("foldMap" NonEmpty.:| ["List", "data"])) ())
+-- [Gap "data.",Match "Li",Gap "st.fold",Match "Ma",Gap "p"]
 computeMatchSegments ::
   [Text] ->
   (S.NamedRef r) ->
@@ -289,11 +291,14 @@ computeMatchSegments query (S.NamedRef {reversedSegments}) =
   let nameText = NameLookups.reversedNameToNamespaceText reversedSegments
       -- This will be a list of _lower-cased_ match segments, but we need to reclaim the
       -- casing from the actual name.
-      matchSegmentShape = List.unfoldr go (filter (not . Text.null) . map Text.toLower $ query, Text.toLower nameText)
-   in List.unfoldr go2 (matchSegmentShape, nameText)
+      matchSegmentShape = List.unfoldr splitIntoSegments (filter (not . Text.null) . map Text.toLower $ query, Text.toLower nameText)
+   in List.unfoldr reCasifySegments (matchSegmentShape, nameText)
   where
-    go2 :: ([MatchSegment], Text) -> Maybe (MatchSegment, ([MatchSegment], Text))
-    go2 = \case
+    -- The actual matching is case-insensitive but we want to preserve the casing of the
+    -- actual name, so we use the size of match segments to segment the actual name which has
+    -- the correct case.
+    reCasifySegments :: ([MatchSegment], Text) -> Maybe (MatchSegment, ([MatchSegment], Text))
+    reCasifySegments = \case
       ([], _) -> Nothing
       (Gap gap : restShape, name) ->
         let (actualGap, restName) = Text.splitAt (Text.length gap) name
@@ -301,8 +306,9 @@ computeMatchSegments query (S.NamedRef {reversedSegments}) =
       (Match match : restShape, name) ->
         let (actualMatch, restName) = Text.splitAt (Text.length match) name
          in Just (Match actualMatch, (restShape, restName))
-    go :: ([Text], Text) -> Maybe (MatchSegment, ([Text], Text))
-    go = \case
+    -- Using the query, split the match into chunks of 'match' or 'gap'
+    splitIntoSegments :: ([Text], Text) -> Maybe (MatchSegment, ([Text], Text))
+    splitIntoSegments = \case
       (_, "") -> Nothing
       ([], rest) -> Just (Gap rest, ([], ""))
       (q : qs, name) ->
