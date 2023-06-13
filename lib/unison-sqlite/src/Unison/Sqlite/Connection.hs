@@ -104,7 +104,6 @@ openConnection name file = do
       _ -> "file:" <> file <> "?mode=ro"
   conn0 <- Sqlite.open sqliteURI `catch` rethrowAsSqliteConnectException name file
   let conn = Connection {conn = conn0, file, name}
-  execute conn [Sql.sql| PRAGMA journal_mode = wal |]
   execute conn [Sql.sql| PRAGMA foreign_keys = ON |]
   execute conn [Sql.sql| PRAGMA busy_timeout = 60000 |]
   pure conn

@@ -783,3 +783,6 @@ copyCodebase src dest = liftIO $ do
   createDirectoryIfMissing True (makeCodebaseDirPath dest)
   withConnection ("copy-from:" <> src) src $ \srcConn -> do
     Sqlite.vacuumInto srcConn (makeCodebasePath dest)
+  -- We need to reset the journal mode because vacuum-into clears it.
+  withConnection ("copy-to:" <> dest) dest $ \destConn -> do
+    Sqlite.trySetJournalMode destConn Sqlite.JournalMode'WAL

@@ -192,5 +192,8 @@ backupCodebaseIfNecessary backupStrategy localOrRemote conn currentSchemaVersion
       | otherwise -> do
           backupPath <- getPOSIXTime <&> (\t -> root </> backupCodebasePath currentSchemaVersion t)
           Sqlite.vacuumInto conn backupPath
+          -- vacuum-into clears the journal mode, so we need to set it again.
+          Sqlite.withConnection "backup" backupPath \backupConn -> do
+            Sqlite.trySetJournalMode backupConn Sqlite.JournalMode'WAL
           putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
           putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
