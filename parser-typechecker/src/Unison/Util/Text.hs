@@ -10,7 +10,6 @@ import Data.String (IsString (..))
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Internal qualified as T
-import Data.Text.Internal.Lazy.Search qualified as TL
 import Data.Text.Lazy qualified as TL
 import Data.Text.Unsafe qualified as T (Iter (..), iter)
 import Data.Word (Word64)
@@ -124,9 +123,9 @@ toText (Text t) = T.concat (chunkToText <$> unfoldr R.uncons t)
 
 indexOf :: Text -> Text -> Maybe Word64
 indexOf needle haystack =
-  case TL.indices needle' haystack' of
-    [] -> Nothing
-    (i : _) -> Just (fromIntegral i)
+  case TL.breakOn needle' haystack' of
+    (_, "") -> Nothing
+    (prefix, _) -> Just (fromIntegral (TL.length prefix))
   where
     needle' = toLazyText needle
     haystack' = toLazyText haystack
