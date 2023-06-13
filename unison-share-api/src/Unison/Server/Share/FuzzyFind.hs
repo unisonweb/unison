@@ -29,7 +29,7 @@ import Servant.Docs
   )
 import Servant.OpenApi ()
 import U.Codebase.Causal qualified as V2Causal
-import U.Codebase.HashTags (CausalHash)
+import U.Codebase.HashTags (BranchHash, CausalHash)
 import U.Codebase.Sqlite.NameLookups (PathSegments (..))
 import U.Codebase.Sqlite.NameLookups qualified as NameLookups
 import U.Codebase.Sqlite.NamedRef qualified as S
@@ -40,6 +40,7 @@ import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.Debug qualified as Debug
 import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -146,32 +147,33 @@ serveFuzzyFind ::
   Text ->
   Backend.Backend IO [(Alignment, FoundResult)]
 serveFuzzyFind isInScratch codebase rootCausal perspective mayLimit typeWidth query = do
-  (namesPerspective, dbTermMatches, dbTypeMatches) <- liftIO . Codebase.runTransaction codebase $ do
+  (scratchRootSearch, bh, namesPerspective, dbTermMatches, dbTypeMatches) <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- Backend.resolveCausalHashV2 (Just rootCausal)
     let bh = V2Causal.valueHash shallowRoot
     namesPerspective@SqliteOps.NamesPerspective {pathToMountedNameLookup = PathSegments pathToPerspective} <- SqliteOps.namesPerspectiveForRootAndPath bh (coerce $ Path.toList perspective)
     -- If were browsing at a scratch root we need to include one level of dependencies'
     -- since the projects are "dependencies" of the scratch root.
-    let includeDependencies = isInScratch && null pathToPerspective
-    (terms, types) <- SqliteOps.fuzzySearchDefinitions includeDependencies namesPerspective limit preparedQuery
-    pure (namesPerspective, terms, types)
-  let prepareMatch :: S.NamedRef Backend.FoundRef -> (Alignment, UnisonName, [Backend.FoundRef])
+    let scratchRootSearch = isInScratch && null pathToPerspective
+    (terms, types) <- SqliteOps.fuzzySearchDefinitions scratchRootSearch namesPerspective limit preparedQuery
+    pure (scratchRootSearch, bh, namesPerspective, terms, types)
+  let prepareMatch :: S.NamedRef Backend.FoundRef -> (PathSegments, Alignment, UnisonName, [Backend.FoundRef])
       prepareMatch name@(S.NamedRef {S.reversedSegments}) =
         let renderedName = NameLookups.reversedNameToNamespaceText reversedSegments
             segments = computeMatchSegments preparedQuery name
             alignment = Alignment {score = scoreMatch name, result = MatchResult {segments}}
-         in (alignment, renderedName, [S.ref name])
-  let preparedTerms :: [(Alignment, UnisonName, [Backend.FoundRef])]
+         in (NameLookups.reversedNameToPathSegments reversedSegments, alignment, renderedName, [S.ref name])
+  let preparedTerms :: [(PathSegments, Alignment, UnisonName, [Backend.FoundRef])]
       preparedTerms =
         dbTermMatches
           <&> \match ->
             match
               & fmap (\(ref, ct) -> Backend.FoundTermRef $ Cv.referent2to1UsingCT (fromMaybe (error "serveFuzzyFind: CT required but not found") ct) ref)
               & prepareMatch
-  let preparedTypes :: [(Alignment, UnisonName, [Backend.FoundRef])]
+  let preparedTypes :: [(PathSegments, Alignment, UnisonName, [Backend.FoundRef])]
       preparedTypes = prepareMatch . fmap (Backend.FoundTypeRef . Cv.reference2to1) <$> dbTypeMatches
   let alignments ::
-        ( [ ( Alignment,
+        ( [ ( PathSegments,
+              Alignment,
               UnisonName,
               [Backend.FoundRef]
             )
@@ -179,13 +181,19 @@ serveFuzzyFind isInScratch codebase rootCausal perspective mayLimit typeWidth qu
         )
       alignments =
         (preparedTerms <> preparedTypes)
-          & List.sortOn (\(Alignment {score}, _, _) -> score)
-  lift (join <$> traverse (loadEntry namesPerspective) alignments)
+          & List.sortOn (\(_, Alignment {score}, _, _) -> score)
+  lift (join <$> traverse (loadEntry scratchRootSearch bh namesPerspective) alignments)
   where
     preparedQuery = prepareQuery (Text.unpack query)
     limit = fromMaybe 10 mayLimit
-    loadEntry :: SqliteOps.NamesPerspective -> (Alignment, Text, [Backend.FoundRef]) -> IO [(Alignment, FoundResult)]
-    loadEntry namesPerspective (a, n, refs) = do
+    loadEntry :: Bool -> BranchHash -> SqliteOps.NamesPerspective -> (PathSegments, Alignment, Text, [Backend.FoundRef]) -> IO [(Alignment, FoundResult)]
+    loadEntry scratchRootSearch bh searchPerspective (pathToMatch, a, n, refs) = do
+      Debug.debugM Debug.Server "Search match" pathToMatch
+      namesPerspective <-
+        -- If we're searching from a scratch root, render each match within its project ppe.
+        if scratchRootSearch
+          then Codebase.runTransaction codebase $ SqliteOps.namesPerspectiveForRootAndPath bh (coerce (Path.toList perspective) <> pathToMatch)
+          else pure searchPerspective
       let relativeToBranch = Nothing
       entries <- for refs $
         \case
