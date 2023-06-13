@@ -230,6 +230,7 @@ module U.Codebase.Sqlite.Queries
     addMostRecentBranchTable,
     fixScopedNameLookupTables,
     addNameLookupMountTables,
+    addMostRecentNamespaceTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -383,7 +384,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 12
+currentSchemaVersion = 13
 
 createSchema :: Transaction ()
 createSchema = do
@@ -394,8 +395,9 @@ createSchema = do
   fixScopedNameLookupTables
   addProjectTables
   addMostRecentBranchTable
-  execute insertSchemaVersionSql
   addNameLookupMountTables
+  addMostRecentNamespaceTable
+  execute insertSchemaVersionSql
   where
     insertSchemaVersionSql =
       [sql|
@@ -430,6 +432,10 @@ addMostRecentBranchTable =
 addNameLookupMountTables :: Transaction ()
 addNameLookupMountTables =
   executeStatements (Text.pack [hereFile|unison/sql/007-add-name-lookup-mounts.sql|])
+
+addMostRecentNamespaceTable :: Transaction ()
+addMostRecentNamespaceTable =
+  executeStatements (Text.pack [hereFile|unison/sql/008-add-most-recent-namespace-table.sql|])
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -3846,8 +3852,8 @@ setMostRecentNamespace :: [Text] -> Transaction ()
 setMostRecentNamespace namespace =
   execute
     [sql|
-      INSERT INTO most_recent_namespace (namespace)
-      VALUES (:json)
+      UPDATE most_recent_namespace
+      SET namespace = :json
     |]
   where
     json :: Text
