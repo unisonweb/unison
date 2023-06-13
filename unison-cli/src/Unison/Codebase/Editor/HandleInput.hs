@@ -398,6 +398,89 @@ loop e = do
                       -- No expectation, either because this is the most recent entry or
                       -- because we're recovering from a discontinuity
                       Nothing -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
+            ResetI newRoot mtarget -> do
+              newRoot <-
+                case newRoot of
+                  This newRoot -> case newRoot of
+                    Left hash -> Cli.resolveShortCausalHash hash
+                    Right path' -> Cli.expectBranchAtPath' path'
+                  That (ProjectAndBranch mProjectName branchName) -> do
+                    let arg = case mProjectName of
+                          Nothing -> That branchName
+                          Just projectName -> These projectName branchName
+                    ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames arg
+                    Cli.expectBranchAtPath'
+                      ( Path.absoluteToPath'
+                          ( ProjectUtils.projectBranchPath
+                              (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId))
+                          )
+                      )
+                  These branchId (ProjectAndBranch mProjectName branchName) -> Cli.label \jump -> do
+                    absPath <- case branchId of
+                      Left hash -> jump =<< Cli.resolveShortCausalHash hash
+                      Right path' -> Cli.resolvePath' path'
+                    mrelativePath <-
+                      Cli.getMaybeBranchAt absPath <&> \case
+                        Nothing -> Nothing
+                        Just _ -> preview ProjectUtils.projectBranchPathPrism absPath
+                    projectAndBranch <- do
+                      let arg = case mProjectName of
+                            Nothing -> That branchName
+                            Just projectName -> These projectName branchName
+                      ProjectUtils.getProjectAndBranchByTheseNames arg
+                    thePath <- case (mrelativePath, projectAndBranch) of
+                      (Nothing, Nothing) ->
+                        ProjectUtils.getCurrentProject >>= \case
+                          Nothing -> pure absPath
+                          Just project ->
+                            Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
+                      (Just (projectAndBranch0, relPath), Just (ProjectAndBranch project branch)) -> do
+                        projectAndBranch0 <- Cli.runTransaction (ProjectUtils.expectProjectAndBranchByIds projectAndBranch0)
+                        Cli.respondNumbered (AmbiguousReset AmbiguousReset'Hash (projectAndBranch0, relPath) (ProjectAndBranch (project ^. #name) (branch ^. #name)))
+                        Cli.returnEarlyWithoutOutput
+                      (Just _relativePath, Nothing) -> pure absPath
+                      (Nothing, Just (ProjectAndBranch project branch)) ->
+                        pure (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
+                    Cli.expectBranchAtPath' (Path.absoluteToPath' thePath)
+
+              target <-
+                case mtarget of
+                  Nothing -> Cli.getCurrentPath
+                  Just looseCodeOrProject -> case looseCodeOrProject of
+                    This path' -> Cli.resolvePath' path'
+                    That (ProjectAndBranch mProjectName branchName) -> do
+                      let arg = case mProjectName of
+                            Nothing -> That branchName
+                            Just projectName -> These projectName branchName
+                      ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames arg
+                      pure (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
+                    These path' (ProjectAndBranch mProjectName branchName) -> do
+                      absPath <- Cli.resolvePath' path'
+                      mrelativePath <-
+                        Cli.getMaybeBranchAt absPath <&> \case
+                          Nothing -> Nothing
+                          Just _ -> preview ProjectUtils.projectBranchPathPrism absPath
+                      projectAndBranch <- do
+                        let arg = case mProjectName of
+                              Nothing -> That branchName
+                              Just projectName -> These projectName branchName
+                        ProjectUtils.getProjectAndBranchByTheseNames arg
+                      case (mrelativePath, projectAndBranch) of
+                        (Nothing, Nothing) ->
+                          ProjectUtils.getCurrentProject >>= \case
+                            Nothing -> pure absPath
+                            Just project ->
+                              Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
+                        (Just (projectAndBranch0, relPath), Just (ProjectAndBranch project branch)) -> do
+                          projectAndBranch0 <- Cli.runTransaction (ProjectUtils.expectProjectAndBranchByIds projectAndBranch0)
+                          Cli.respondNumbered (AmbiguousReset AmbiguousReset'Target (projectAndBranch0, relPath) (ProjectAndBranch (project ^. #name) (branch ^. #name)))
+                          Cli.returnEarlyWithoutOutput
+                        (Just _relativePath, Nothing) -> pure absPath
+                        (Nothing, Just (ProjectAndBranch project branch)) ->
+                          pure (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
+              description <- inputDescription input
+              _ <- Cli.updateAt description target (const newRoot)
+              Cli.respond Success
             ResetRootI src0 ->
               Cli.time "reset-root" do
                 newRoot <-
@@ -1427,6 +1510,17 @@ inputDescription input =
               Branch.RegularMerge -> "merge"
               Branch.SquashMerge -> "merge.squash"
       pure (command <> " " <> src <> " " <> dest)
+    ResetI hash tgt -> do
+      hashTxt <- case hash of
+        This hash -> hp' hash
+        That pr -> pure (into @Text pr)
+        These hash _pr -> hp' hash
+      tgt <- case tgt of
+        Nothing -> pure ""
+        Just tgt -> do
+          tgt <- looseCodeOrProjectToText tgt
+          pure (" " <> tgt)
+      pure ("reset " <> hashTxt <> tgt)
     ResetRootI src0 -> do
       src <- hp' src0
       pure ("reset-root " <> src)

@@ -9,16 +9,25 @@ import Control.Lens hiding ((??))
 import Control.Monad.Except
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
+import U.Codebase.Sqlite.Operations (NamesPerspective (NamesPerspective))
+import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path)
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt
+import Unison.Codebase.SqliteCodebase.Conversions qualified as CV
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -31,7 +40,9 @@ import Unison.Server.Backend hiding (renderDocRefs)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Doc qualified as Doc
 import Unison.Server.NameSearch.Sqlite qualified as SqliteNameSearch
+import Unison.Server.Share qualified as Share
 import Unison.Server.Types
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Util.Pretty (Width)
@@ -56,12 +67,13 @@ definitionForHQName ::
 definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codebase perspectiveQuery = do
   result <- liftIO . Codebase.runTransaction codebase $ do
     shallowRoot <- resolveCausalHashV2 (Just rootHash)
-    shallowBranch <- V2Causal.value shallowRoot
-    Backend.relocateToProjectRoot perspective perspectiveQuery shallowBranch >>= \case
-      Left err -> pure $ Left err
-      Right (namesRoot, locatedQuery) -> pure $ Right (shallowRoot, namesRoot, locatedQuery)
-  (shallowRoot, namesRoot, query) <- either throwError pure result
-  Debug.debugM Debug.Server "definitionForHQName: (namesRoot, query)" (namesRoot, query)
+    let rootBranchHash = V2Causal.valueHash shallowRoot
+    (perspective, perspectiveQuery) <- addNameIfHashOnly codebase perspective perspectiveQuery shallowRoot
+    (namesPerspective, locatedQuery) <- Share.relocateToNameRoot perspective perspectiveQuery rootBranchHash
+    pure $ Right (shallowRoot, namesPerspective, locatedQuery)
+  (shallowRoot, namesPerspective, query) <- either throwError pure result
+  let namesRoot = Path.fromList . coerce $ Ops.pathToMountedNameLookup namesPerspective
+  Debug.debugM Debug.Server "definitionForHQName: (namesPerspective, query)" (namesPerspective, query)
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our namesRoot but within the
   -- same tree;
@@ -70,9 +82,8 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
   -- `trunk` over those in other releases.
   -- ppe which returns names fully qualified to the current namesRoot,  not to the codebase root.
   let biases = maybeToList $ HQ.toName query
-  let rootBranchHash = V2Causal.valueHash shallowRoot
-  let ppedBuilder deps = fmap (PPED.biasTo biases) . liftIO . Codebase.runTransaction codebase $ PPESqlite.ppedForReferences rootBranchHash namesRoot deps
-  let nameSearch = SqliteNameSearch.scopedNameSearch codebase rootBranchHash namesRoot
+  let ppedBuilder deps = fmap (PPED.biasTo biases) . liftIO . Codebase.runTransaction codebase $ PPESqlite.ppedForReferences namesPerspective deps
+  let nameSearch = SqliteNameSearch.nameSearchForPerspective codebase namesPerspective
   dr@(DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do
     definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
   Debug.debugM Debug.Server "definitionForHQName: found definitions" dr
@@ -104,6 +115,37 @@ definitionForHQName perspective rootHash renderWidth suffixifyBindings rt codeba
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
+
+-- | A _hopefully_ temporary solution for the following problem:
+--
+-- When rendering definitions by-hash, we don't know which of the project's dependencies we
+-- may be in, so we don't know which mount to use when rendering it.
+-- So, first we do a breadth-first recursive search to find some name for that definition,
+-- then we can use that name to find the mount and render just as we would if provided a name
+-- up front.
+addNameIfHashOnly :: Codebase m v a -> Path -> HQ.HashQualified Name -> V2Branch.CausalBranch Sqlite.Transaction -> Sqlite.Transaction (Path, HQ.HashQualified Name)
+addNameIfHashOnly codebase perspective hqQuery rootCausal = case hqQuery of
+  HQ.HashOnly sh -> do
+    let rootBranchHash = V2Causal.valueHash rootCausal
+    let pathSegments = coerce $ Path.toList perspective
+    startingPerspective@NamesPerspective {pathToMountedNameLookup} <- Ops.namesPerspectiveForRootAndPath rootBranchHash pathSegments
+    let findTerm = do
+          termRefs <- lift $ termReferentsByShortHash codebase sh
+          termRefs
+            & altMap \ref -> do
+              MaybeT $ Ops.recursiveTermNameSearch startingPerspective (CV.referent1to2 ref)
+    let findType = do
+          typeRefs <- lift $ typeReferencesByShortHash sh
+          typeRefs
+            & altMap \ref -> do
+              MaybeT $ Ops.recursiveTypeNameSearch startingPerspective (Cv.reference1to2 ref)
+    mayReversedName <- runMaybeT $ findTerm <|> findType
+    Debug.debugM Debug.Server "addNameIfHashOnly: found reversed name" mayReversedName
+    pure $ case mayReversedName of
+      Nothing -> (perspective, hqQuery)
+      Just fqnReversedName ->
+        (Path.fromList . coerce $ pathToMountedNameLookup, HQ.NameOnly (Name.fromReverseSegments $ coerce fqnReversedName))
+  _ -> pure (perspective, hqQuery)
 
 renderDocRefs ::
   PPEDBuilder ->

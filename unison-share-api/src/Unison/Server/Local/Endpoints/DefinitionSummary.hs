@@ -7,7 +7,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Unison.Server.Endpoints.DefinitionSummary
+module Unison.Server.Local.Endpoints.DefinitionSummary
   ( TermSummaryAPI,
     serveTermSummary,
     TermSummary (..),
@@ -17,12 +17,16 @@ module Unison.Server.Endpoints.DefinitionSummary
   )
 where
 
+import Control.Monad.Reader
 import Data.Aeson
 import Data.OpenApi (ToSchema)
 import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.NameLookups (PathSegments (..))
+import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
@@ -31,8 +35,10 @@ import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
+import Unison.NameSegment (NameSegment (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl.Sqlite qualified as PPESqlite
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -48,6 +54,7 @@ import Unison.Server.Types
   )
 import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
+import Unison.Type qualified as Type
 import Unison.Util.Pretty (Width)
 
 type TermSummaryAPI =
@@ -101,6 +108,7 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
   let relativeToPath = fromMaybe Path.empty relativeTo
   let termReference = Referent.toReference referent
   let v2Referent = Cv.referent1to2 referent
+
   (root, sig) <-
     Backend.hoistBackend (Codebase.runTransaction codebase) do
       root <- Backend.normaliseRootCausalHash mayRoot
@@ -110,7 +118,16 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
     Nothing ->
       throwError (Backend.MissingSignatureForTerm termReference)
     Just typeSig -> do
-      (_localNames, ppe) <- Backend.scopedNamesForBranchHash codebase (Just root) relativeToPath
+      ppe <-
+        asks Backend.useNamesIndex >>= \case
+          True -> do
+            let deps = Type.labeledDependencies typeSig
+            liftIO . Codebase.runTransaction codebase $ do
+              namesPerspective <- Ops.namesPerspectiveForRootAndPath (V2Causal.valueHash root) (coerce . Path.toList $ fromMaybe Path.Empty relativeTo)
+              PPESqlite.ppedForReferences namesPerspective deps
+          False -> do
+            (_localNames, ppe) <- Backend.scopedNamesForBranchHash codebase (Just root) relativeToPath
+            pure ppe
       let formattedTermSig = Backend.formatSuffixedType ppe width typeSig
       let summary = mkSummary termReference formattedTermSig
       tag <- lift $ Backend.getTermTag codebase v2Referent sig
