@@ -46,7 +46,6 @@
                 in
                 final.haskell-nix.project' {
                   src = cleanSource ./.;
-                  compiler-nix-name = "ghc928";
                   projectFileName = "stack.yaml";
                   modules = [
                     # enable profiling
