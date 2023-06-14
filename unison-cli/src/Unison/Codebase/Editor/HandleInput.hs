@@ -578,10 +578,8 @@ loop e = do
               whenJust (unsnoc path0) \(path, _) ->
                 Cli.cd path
             PopBranchI -> do
-              loopState <- State.get
-              case Nel.uncons (loopState ^. #currentPathStack) of
-                (_, Nothing) -> Cli.respond StartOfCurrentPathHistory
-                (_, Just paths) -> State.put $! (loopState & #currentPathStack .~ paths)
+              success <- Cli.popd
+              when (not success) (Cli.respond StartOfCurrentPathHistory)
             HistoryI resultsCap diffCap from -> do
               branch <-
                 case from of
