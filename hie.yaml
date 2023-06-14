@@ -6,9 +6,6 @@ cradle:
     - path: "codebase2/codebase-sqlite/./"
       component: "unison-codebase-sqlite:lib"
 
-    - path: "codebase2/codebase-sqlite-hashing-v2/src"
-      component: "unison-codebase-sqlite-hashing-v2:lib"
-
     - path: "codebase2/codebase-sync/./"
       component: "unison-codebase-sync:lib"
 

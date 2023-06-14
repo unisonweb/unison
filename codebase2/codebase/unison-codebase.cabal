@@ -24,6 +24,8 @@ library
       U.Codebase.Referent
       U.Codebase.Reflog
       U.Codebase.ShortHash
+      U.Codebase.Sqlite.HashHandle
+      U.Codebase.Sqlite.V2.HashHandle
       U.Codebase.Term
       U.Codebase.TermEdit
       U.Codebase.Type
@@ -31,6 +33,7 @@ library
       U.Codebase.WatchKind
       U.Util.Term
       U.Util.Type
+      Unison.Hashing.V2.Convert2
   hs-source-dirs:
       ./
   default-extensions:
@@ -62,6 +65,7 @@ library
     , time
     , unison-core
     , unison-hash
+    , unison-hashing-v2
     , unison-prelude
     , unison-util-base32hex
   default-language: Haskell2010

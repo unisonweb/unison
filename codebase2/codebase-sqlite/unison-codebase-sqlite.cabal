@@ -35,7 +35,6 @@ library
       U.Codebase.Sqlite.Decl.Format
       U.Codebase.Sqlite.Decode
       U.Codebase.Sqlite.Entity
-      U.Codebase.Sqlite.HashHandle
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
       U.Codebase.Sqlite.NamedRef

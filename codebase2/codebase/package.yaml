@@ -38,4 +38,5 @@ dependencies:
   - unison-core
   - unison-hash
   - unison-prelude
+  - unison-hashing-v2
   - unison-util-base32hex

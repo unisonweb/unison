@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -299,7 +299,6 @@ library
     , unicode-show
     , unison-codebase
     , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
     , unison-codebase-sync
     , unison-core
     , unison-core1
@@ -491,7 +490,6 @@ test-suite parser-typechecker-tests
     , unicode-show
     , unison-codebase
     , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
     , unison-codebase-sync
     , unison-core
     , unison-core1

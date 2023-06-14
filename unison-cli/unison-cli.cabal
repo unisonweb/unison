@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -204,7 +204,6 @@ library
     , transformers
     , unison-codebase
     , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
     , unison-hash
@@ -337,7 +336,6 @@ executable cli-integration-tests
     , transformers
     , unison-codebase
     , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
     , unison-hash
@@ -464,7 +462,6 @@ executable transcripts
     , unison-cli
     , unison-codebase
     , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
     , unison-hash
@@ -598,7 +595,6 @@ executable unison
     , unison-cli
     , unison-codebase
     , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
     , unison-hash
@@ -735,7 +731,6 @@ test-suite cli-tests
     , unison-cli
     , unison-codebase
     , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
     , unison-hash
