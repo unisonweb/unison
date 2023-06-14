@@ -25,6 +25,7 @@ library
       U.Codebase.Reflog
       U.Codebase.ShortHash
       U.Codebase.Sqlite.HashHandle
+      U.Codebase.Sqlite.Symbol
       U.Codebase.Sqlite.V2.HashHandle
       U.Codebase.Term
       U.Codebase.TermEdit
