@@ -75,6 +75,7 @@ library
       TypeApplications
       TypeOperators
       ViewPatterns
+      ImportQualifiedPost
   ghc-options: -Wall
   build-depends:
       NanoID

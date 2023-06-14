@@ -12,22 +12,23 @@ module Unison.Server.Endpoints.NamespaceDetails where
 import Control.Monad.Except
 import Data.Aeson
 import Data.OpenApi (ToSchema)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Servant (Capture, QueryParam, (:>))
 import Servant.Docs (DocCapture (..), ToCapture (..), ToSample (..))
 import Servant.OpenApi ()
-import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Rt
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
-import qualified Unison.Server.Backend as Backend
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Doc (Doc)
+import Unison.Server.Doc qualified as Doc
 import Unison.Server.Types
   ( APIGet,
     UnisonHash,
@@ -97,13 +98,14 @@ namespaceDetails runtime codebase namespacePath mayRoot mayWidth =
         namespaceDetails <- do
           (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) namespacePath
           readme <-
-            Backend.findDocInBranchAndRender
-              readmeNames
-              width
-              runtime
-              codebase
-              ppe
-              shallowBranch
+            Doc.renderDoc ppe
+              <$> Backend.findDocInBranch
+                readmeNames
+                width
+                runtime
+                codebase
+                ppe
+                shallowBranch
           let causalHash = v2CausalBranchToUnisonHash namespaceCausal
           pure $ NamespaceDetails namespacePath causalHash readme
 

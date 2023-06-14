@@ -95,3 +95,4 @@ default-extensions:
   - TypeApplications
   - TypeOperators
   - ViewPatterns
+  - ImportQualifiedPost
