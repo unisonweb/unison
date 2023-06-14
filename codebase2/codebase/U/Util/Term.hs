@@ -8,8 +8,8 @@ module U.Util.Term where
 import Control.Monad.Writer (execWriter, tell)
 import Data.Foldable (for_, traverse_)
 import U.Codebase.Term (F' (..), MatchCase (..), Pattern (..))
-import qualified U.Codebase.Term as Term
-import qualified U.Core.ABT as ABT
+import U.Codebase.Term qualified as Term
+import U.Core.ABT qualified as ABT
 
 text :: (Ord v) => ABT.Term (Term.F' text termRef typeRef termLink typeLink vt) v a -> [text]
 text =

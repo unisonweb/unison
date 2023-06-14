@@ -18,9 +18,6 @@ cradle:
     - path: "codebase2/util-serialization/./"
       component: "unison-util-serialization:lib"
 
-    - path: "codebase2/util-term/./"
-      component: "unison-util-term:lib"
-
     - path: "lib/orphans/unison-core-orphans-sqlite/src"
       component: "unison-core-orphans-sqlite:lib"
 

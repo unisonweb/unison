@@ -40,7 +40,6 @@ dependencies:
   - unison-util-base32hex
   - unison-util-cache
   - unison-util-serialization
-  - unison-util-term
   - unliftio
   - uuid
   - uuid-orphans-sqlite

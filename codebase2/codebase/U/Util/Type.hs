@@ -5,11 +5,11 @@
 module U.Util.Type where
 
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import U.Codebase.Type (F' (..), TypeR)
 import U.Core.ABT (pattern Var')
-import qualified U.Core.ABT as ABT
-import qualified U.Core.ABT.Var as ABT
+import U.Core.ABT qualified as ABT
+import U.Core.ABT.Var qualified as ABT
 
 -- * Constructors
 

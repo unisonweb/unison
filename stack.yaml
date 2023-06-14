@@ -14,7 +14,6 @@ packages:
 - codebase2/codebase-sync
 - codebase2/core
 - codebase2/util-serialization
-- codebase2/util-term
 - lib/orphans/network-uri-orphans-sqlite
 - lib/orphans/unison-core-orphans-sqlite
 - lib/orphans/unison-hash-orphans-aeson
