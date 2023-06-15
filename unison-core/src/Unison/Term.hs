@@ -1373,6 +1373,12 @@ containsCaseTerm :: Var v1 => Term2 tv ta tb v1 loc -> Term2 typeVar typeAnn loc
 containsCaseTerm pat tm =
   containsCase <$> toPattern pat <*> pure tm
 
+rewriteCasesLHS :: Term2 typeVar typeAnn loc v a 
+                -> Term2 typeVar typeAnn loc v a 
+                -> Term2 typeVar typeAnn loc v a
+                -> Maybe (Term2 typeVar typeAnn loc v a)
+rewriteCasesLHS pat pat' tm = error "todo: rewriteCasesLHS" pat pat' tm
+
 toPattern :: Var v => Term2 tv ta tb v loc -> Maybe (Pattern loc)
 toPattern tm = case tm of
   Var' v | "_" `Text.isPrefixOf` Var.name v -> pure $ Pattern.Unbound loc 

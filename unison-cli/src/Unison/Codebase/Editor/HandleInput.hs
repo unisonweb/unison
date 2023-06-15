@@ -1718,8 +1718,10 @@ handleStructuredFindReplaceI rewriteLhs rule = do
   uf <- Cli.expectLatestParsedFile
   (dest, _) <- Cli.expectLatestFile
   #latestFile ?= (dest, True)
-  let uf' = if rewriteLhs then undefined
-            else UF.rewrite (Set.singleton (HQ.toVar rule)) lhs rhs uf
+  let rewriteFn = 
+        if rewriteLhs then Term.rewriteCasesLHS lhs rhs
+        else ABT.rewriteExpression lhs rhs
+      uf' = UF.rewrite (Set.singleton (HQ.toVar rule)) rewriteFn uf
   Cli.respond $ OutputRewrittenFile ppe dest uf'
 
 handleFindI ::

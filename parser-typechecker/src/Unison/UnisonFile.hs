@@ -97,8 +97,8 @@ effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 hashTerms :: TypecheckedUnisonFile v a -> Map v (Reference, Maybe WatchKind, Term v a, Type v a)
 hashTerms = fmap (over _1 Reference.DerivedId) . hashTermsId
 
-rewrite :: (Var v, Eq a) => Set v -> Term v a -> Term v a -> UnisonFile v a -> ([v], UnisonFile v a)
-rewrite leaveAlone lhs rhs (UnisonFileId datas effects terms watches) =
+rewrite :: (Var v, Eq a) => Set v -> (Term v a -> Maybe (Term v a)) -> UnisonFile v a -> ([v], UnisonFile v a)
+rewrite leaveAlone rewriteFn (UnisonFileId datas effects terms watches) =
   (rewritten, UnisonFileId datas effects (unEither terms') (unEither <$> watches'))
   where
     terms' = go terms
@@ -106,7 +106,7 @@ rewrite leaveAlone lhs rhs (UnisonFileId datas effects terms watches) =
     go tms = [(v, tm') | (v, tm) <- tms, tm' <- f v tm]
       where
         f v tm | Set.member v leaveAlone = [Left tm]
-        f _ tm = maybe [Left tm] (pure . Right) (ABT.rewriteExpression lhs rhs tm)
+        f _ tm = maybe [Left tm] (pure . Right) (rewriteFn tm)
     rewritten = [v | (v, Right _) <- terms' <> join (toList watches')]
     unEither = fmap (\(v, e) -> (v, case e of Left tm -> tm; Right tm -> tm))
 
