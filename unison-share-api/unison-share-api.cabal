@@ -41,6 +41,7 @@ library
       Unison.Server.SearchResult'
       Unison.Server.Share
       Unison.Server.Share.Definitions
+      Unison.Server.Share.FuzzyFind
       Unison.Server.Share.RenderDoc
       Unison.Server.Syntax
       Unison.Server.Types
