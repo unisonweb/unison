@@ -996,13 +996,8 @@ loop e = do
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
-            PrependToScratch asWatch line -> do
-              fp0 <- use #latestFile 
-              let fp = maybe "scratch.u" fst fp0
-              let line' = if asWatch then "> " <> line <> "\n---\n" else line <> "\n\n"
-              Cli.respond (PrependToFile fp line')
             StructuredFindI _fscope ws -> handleStructuredFindI ws
-            StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
+            StructuredFindReplaceI rewriteLhs ws -> handleStructuredFindReplaceI rewriteLhs ws
             ResolveTypeNameI path' -> do
               description <- inputDescription input
               path <- Cli.resolveSplit' path'
@@ -1610,7 +1605,6 @@ inputDescription input =
     FindShallowI {} -> wat
     StructuredFindI {} -> wat
     StructuredFindReplaceI {} -> wat
-    PrependToScratch {} -> wat
     GistI {} -> wat
     HistoryI {} -> wat
     LinksI {} -> wat
@@ -1718,13 +1712,15 @@ lookupRewrite onErr rule = do
     _ -> Cli.returnEarly (onErr rule)
   pure (ppe, currentNames, lhs, rhs)
 
-handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
-handleStructuredFindReplaceI rule = do
+handleStructuredFindReplaceI :: Bool -> HQ.HashQualified Name -> Cli ()
+handleStructuredFindReplaceI rewriteLhs rule = do
   (ppe, _ns, lhs, rhs) <- lookupRewrite InvalidStructuredFindReplace rule
   uf <- Cli.expectLatestParsedFile
   (dest, _) <- Cli.expectLatestFile
   #latestFile ?= (dest, True)
-  Cli.respond $ OutputRewrittenFile ppe dest (UF.rewrite (Set.singleton (HQ.toVar rule)) lhs rhs uf)
+  let uf' = if rewriteLhs then undefined
+            else UF.rewrite (Set.singleton (HQ.toVar rule)) lhs rhs uf
+  Cli.respond $ OutputRewrittenFile ppe dest uf'
 
 handleFindI ::
   Bool ->

@@ -358,7 +358,6 @@ data Output
   | RenamedProject ProjectName ProjectName
   | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath ([Symbol], UF.UnisonFile Symbol Ann)
 --   ^ is symbols that were rewritten
-  | PrependToFile FilePath String
   | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
   | CantRenameBranchTo ProjectBranchName
 
@@ -578,7 +577,6 @@ isFailure o = case o of
   CalculatingDiff {} -> False
   RenamedProject {} -> False
   OutputRewrittenFile {} -> False
-  PrependToFile {} -> False
   RenamedProjectBranch {} -> False
   CantRenameBranchTo {} -> True
 

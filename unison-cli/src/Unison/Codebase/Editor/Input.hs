@@ -193,8 +193,10 @@ data Input
   | FindShallowI Path'
   | FindPatchI
   | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
-  | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
-  | PrependToScratch Bool String -- PrependToScratch asWatchExpr line
+  -- It's very common to want to rewrite pattern matching usages differently
+  -- than positive occurrences of the pattern. `True` rewrites in case LHSs,
+  -- False rewrites everywhere else.
+  | StructuredFindReplaceI Bool (HQ.HashQualified Name) -- sfind.replace rewriteCaseLHS rewriteQuery
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.
     ShowDefinitionI OutputLocation ShowDefinitionScope [HQ.HashQualified Name]
   | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]

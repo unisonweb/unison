@@ -484,37 +484,6 @@ viewByPrefix =
 rawTermQueryArg :: ArgumentType
 rawTermQueryArg = exactDefinitionTermQueryArg { typeName = "raw" }
 
-prependWatchToScratch :: InputPattern
-prependWatchToScratch = 
-  InputPattern "watch" [">"] I.Visible [(ZeroPlus, rawTermQueryArg)] msg parse
-  where
-    msg = P.lines
-      [ P.wrap $ "Prepends the given watch expression to the most recent scratch file."
-              <> "For example:",
-        "",
-        P.indentN 4 ("myproj/main> > 1 + 1"),
-        "",
-        P.wrap $ "will prepend " <> P.backticked "> 1 + 1"
-              <> "to the top of the scratch file, "
-              <> "then typecheck and evaluate it."
-      ] 
-    parse = Right . Input.PrependToScratch True . unwords
-
-prependToScratch :: InputPattern
-prependToScratch = 
-  InputPattern "scratch" ["|"] I.Visible [(ZeroPlus, rawTermQueryArg)] msg parse
-  where
-    msg = P.lines
-      [ P.wrap $ "Prepends the given line to the most recent scratch file."
-              <> "For example:",
-        "",
-        P.indentN 4 ("myproj/main> | rule1 x = (x+1, Nat.increment x)"),
-        "",
-        P.wrap $ "will prepend that line to the top of the scratch file, "
-              <> "then parse and typecheck it."
-      ] 
-    parse = Right . Input.PrependToScratch False . unwords
-
 sfind :: InputPattern
 sfind =
   InputPattern "sfind" ["find.structured"] I.Visible [(Required, definitionQueryArg)] msg parse
@@ -540,11 +509,41 @@ sfind =
               <> P.backticked' "(42+10+11) + 1" "."
         ]
 
+sfindReplaceCases :: InputPattern
+sfindReplaceCases =
+  InputPattern "sfind.replace.cases" ["rewrite.cases", "rewrite.lhs"] I.Visible [(Required, definitionQueryArg)] msg parse
+  where
+    parse [q] = Input.StructuredFindReplaceI True <$> parseHashQualifiedName q
+    parse _ = Left "expected exactly one argument"
+    msg :: P.Pretty CT.ColorText
+    msg =
+      P.lines
+        [ P.wrap (makeExample sfindReplaceCases ["rule1"]) <> " rewrites pattern matching cases in the current file.",
+          "",
+          P.wrap $
+            "The argument `rule1` must refer to a pair or a function that immediately returns a pair."
+              <> "The rule can be in the scratch file or the codebase. An example:",
+          "",
+          "    rule1 x = (Some x, Right x)",
+          "",
+          P.wrap $
+            "Here, `x` can be any pattern where this rewrite is applied, so" <>
+            "for instance:",
+          P.indentN 4 $ P.lines
+            [ P.backticked "[Foo (Some (a,b)),  _] -> a + b",
+              "↓ rewrites to",
+              P.backticked "[Foo (Right (a,b)), _] -> a + b" ],
+          "",
+          P.wrap $ P.bold "Also see" <> makeExample sfindReplace [] <> "which applies"
+               <> "the rewrite rule everywhere else besides the left hand side"
+               <> "of a pattern match."
+        ]
+
 sfindReplace :: InputPattern
 sfindReplace =
   InputPattern "sfind.replace" ["rewrite"] I.Visible [(Required, definitionQueryArg)] msg parse
   where
-    parse [q] = Input.StructuredFindReplaceI <$> parseHashQualifiedName q
+    parse [q] = Input.StructuredFindReplaceI False <$> parseHashQualifiedName q
     parse _ = Left "expected exactly one argument"
     msg :: P.Pretty CT.ColorText
     msg =
@@ -558,9 +557,15 @@ sfindReplace =
           "    rule1 x = (x + 1, Nat.increment x)",
           "",
           P.wrap $
-            "Here, `x` will stand in for any expression when this rewrite is applied,"
+            "Here, `x` will stand in for any expression wherever this rewrite is applied,"
               <> "so this rule will match "
-              <> P.backticked' "(42+10+11) + 1" "."
+              <> P.backticked "(42+10+11) + 1" 
+              <> "and replace it with"
+              <> P.backticked' "Nat.increment (42+10+11)" ".",
+          "",
+          P.wrap $ P.bold "Also see" 
+                <> makeExample sfindReplaceCases [] <> "which rewrites"
+                <> "the left hand sides of pattern match cases."
         ]
 
 find :: InputPattern
@@ -2691,9 +2696,8 @@ validInputs =
       findVerbose,
       findVerboseAll,
       sfind,
+      sfindReplaceCases,
       sfindReplace,
-      prependToScratch,
-      prependWatchToScratch,
       forkLocal,
       gist,
       help,
