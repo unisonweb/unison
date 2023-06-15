@@ -122,6 +122,7 @@ toText (Text t) = T.concat (chunkToText <$> unfoldr R.uncons t)
 {-# INLINE toText #-}
 
 indexOf :: Text -> Text -> Maybe Word64
+indexOf "" _ = Just 0
 indexOf needle haystack =
   case TL.breakOn needle' haystack' of
     (_, "") -> Nothing
