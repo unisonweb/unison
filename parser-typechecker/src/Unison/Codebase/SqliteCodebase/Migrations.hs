@@ -12,7 +12,7 @@ import System.Console.Regions qualified as Region
 import System.FilePath ((</>))
 import Text.Printf (printf)
 import U.Codebase.Reference qualified as C.Reference
-import U.Codebase.Sqlite.DbId (SchemaVersion (..))
+import U.Codebase.Sqlite.DbId (HashVersion (..), SchemaVersion (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Codebase (CodebasePath)
 import Unison.Codebase.Init (BackupStrategy (..), VacuumStrategy (..))
@@ -20,17 +20,12 @@ import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUn
 import Unison.Codebase.Init.OpenCodebaseError qualified as Codebase
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals, prettyPrintIntegrityErrors)
 import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
-import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema10To11 (migrateSchema10To11)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12 (migrateSchema11To12)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
-import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchema3To4)
-import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5 (migrateSchema4To5)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7 (migrateSchema6To7)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8 (migrateSchema7To8)
-import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema8To9 (migrateSchema8To9)
-import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema9To10 (migrateSchema9To10)
 import Unison.Codebase.SqliteCodebase.Operations qualified as Ops2
 import Unison.Codebase.SqliteCodebase.Paths (backupCodebasePath)
 import Unison.Codebase.Type (LocalOrRemote (..))
@@ -56,17 +51,44 @@ migrations ::
 migrations getDeclType termBuffer declBuffer rootCodebasePath =
   Map.fromList
     [ (2, migrateSchema1To2 getDeclType termBuffer declBuffer),
-      (3, migrateSchema2To3),
+      -- The 1 to 2 migration kept around hash objects of hash version 1, unfortunately this
+      -- caused an issue:
+      --
+      -- The migration would detect causals whose value hash did not have a corresponding branch
+      -- object, this was caused by a race-condition in sync which could end up in a partial sync.
+      -- When a branch object was determined to be missing, the migration would replace it with the
+      -- empty branch. This worked well, but led to a situation where related parent or successors
+      -- of that causal would have their hash objects mapped to the new v2 object which contained
+      -- the empty branch in place of missing branches. This is fine, but, if a different codebase
+      -- migrated the same branch and wasn't missing the branch in question it would migrate
+      -- successfully and each database now have the same v1 hash object mapped to two distinct v2
+      -- objects, which rightfully causes a crash when syncing.
+      --
+      -- This migration drops all the v1 hash objects to avoid this issue, since these hash objects
+      -- weren't being used for anything anyways.
+      sqlMigration 3 (Q.removeHashObjectsByHashingVersion (HashVersion 1)),
       (4, migrateSchema3To4),
-      (5, migrateSchema4To5),
+      -- The 4 to 5 migration adds initial support for out-of-order sync i.e. Unison Share
+      sqlMigration 5 Q.addTempEntityTables,
       (6, migrateSchema5To6 rootCodebasePath),
       (7, migrateSchema6To7),
       (8, migrateSchema7To8),
-      (9, migrateSchema8To9),
-      (10, migrateSchema9To10),
-      (11, migrateSchema10To11),
-      (12, migrateSchema11To12)
+      -- Recreates the name lookup tables because the primary key was missing the root hash id.
+      sqlMigration 9 Q.fixScopedNameLookupTables,
+      sqlMigration 10 Q.addProjectTables,
+      sqlMigration 11 Q.addMostRecentBranchTable,
+      (12, migrateSchema11To12),
+      sqlMigration 13 Q.addMostRecentNamespaceTable
     ]
+  where
+    sqlMigration :: SchemaVersion -> Sqlite.Transaction () -> (SchemaVersion, Sqlite.Transaction ())
+    sqlMigration ver migration =
+      ( ver,
+        do
+          Q.expectSchemaVersion (ver - 1)
+          migration
+          Q.setSchemaVersion ver
+      )
 
 data CodebaseVersionStatus
   = CodebaseUpToDate
@@ -194,5 +216,8 @@ backupCodebaseIfNecessary backupStrategy localOrRemote conn currentSchemaVersion
       | otherwise -> do
           backupPath <- getPOSIXTime <&> (\t -> root </> backupCodebasePath currentSchemaVersion t)
           Sqlite.vacuumInto conn backupPath
+          -- vacuum-into clears the journal mode, so we need to set it again.
+          Sqlite.withConnection "backup" backupPath \backupConn -> do
+            Sqlite.trySetJournalMode backupConn Sqlite.JournalMode'WAL
           putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
           putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."

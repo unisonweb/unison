@@ -1,8 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.CommandLine.Welcome where
 
 import Data.Sequence (singleton)
+import Data.These (These (..))
 import System.Random (randomRIO)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -62,7 +61,7 @@ pullBase ns =
         PullRemoteBranchI
           ( PullSourceTarget2
               (ReadShare'LooseCode ns)
-              (PullTargetLooseCode (Path.Path' {Path.unPath' = Left abs}))
+              (This (Path.Path' {Path.unPath' = Left abs}))
           )
           SyncMode.Complete
           PullWithHistory

@@ -3,6 +3,7 @@
 test-output
 transcript-*
 scratch.u
+unisonLocal.zip
 
 # Stack
 .stack-work

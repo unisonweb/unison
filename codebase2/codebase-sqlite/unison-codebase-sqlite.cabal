@@ -17,6 +17,7 @@ extra-source-files:
     sql/005-project-tables.sql
     sql/006-most-recent-branch-table.sql
     sql/007-add-name-lookup-mounts.sql
+    sql/008-add-most-recent-namespace-table.sql
     sql/create.sql
 
 source-repository head
@@ -99,6 +100,7 @@ library
       ViewPatterns
   build-depends:
       Only
+    , aeson
     , base
     , bytes
     , bytestring

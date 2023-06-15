@@ -12,6 +12,7 @@ extra-source-files:
 
 dependencies:
   - Only
+  - aeson
   - base
   - bytes
   - bytestring
