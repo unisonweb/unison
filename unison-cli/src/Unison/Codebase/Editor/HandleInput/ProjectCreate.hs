@@ -111,8 +111,58 @@ generateRandomProjectNames :: IO [ProjectName]
 generateRandomProjectNames = do
   baseNames <-
     RandomShuffle.shuffleM do
-      adjective <- ["happy", "silly"]
-      noun <- ["giraffe", "gorilla"]
+      adjective <-
+        [ "adorable",
+          "beautiful",
+          "charming",
+          "delightful",
+          "excited",
+          "friendly",
+          "gentle",
+          "helpful",
+          "innocent",
+          "jolly",
+          "kind",
+          "lucky",
+          "magnificent",
+          "nice",
+          "outstanding",
+          "pleasant",
+          "quiet",
+          "responsible",
+          "silly",
+          "thoughtful",
+          "useful",
+          "witty"
+          ]
+      noun <-
+        [ "alpaca",
+          "blobfish",
+          "camel",
+          "donkey",
+          "earwig",
+          "ferret",
+          "gerbil",
+          "hamster",
+          "ibis",
+          "jaguar",
+          "koala",
+          "lemur",
+          "marmot",
+          "narwhal",
+          "ostrich",
+          "puffin",
+          "quahog",
+          "reindeer",
+          "seahorse",
+          "turkey",
+          "urchin",
+          "vole",
+          "walrus",
+          "yak",
+          "zebra"
+          ]
+
       pure (adjective <> "-" <> noun)
 
   let namesWithNumbers = do
