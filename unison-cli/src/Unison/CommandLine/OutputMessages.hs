@@ -1796,15 +1796,19 @@ notifyUser dir = \case
   PulledEmptyBranch remote ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
-  CreatedProject projectName branchName ->
+  CreatedProject nameWasRandomlyGenerated projectName ->
     pure $
-      P.wrap
-        ( "I just created project"
-            <> prettyProjectName projectName
-            <> "with branch"
-            <> prettyProjectBranchName branchName
-        )
-        <> "."
+      if nameWasRandomlyGenerated
+        then
+          P.wrap $
+            "🎉 I've created the project with the randomly-chosen name"
+              <> prettyProjectName projectName
+              <> "(use"
+              <> IP.makeExample IP.projectRenameInputPattern ["<new-name>"]
+              <> "to change it)."
+        else
+          P.wrap $
+            "🎉 I've created the project" <> P.group (prettyProjectName projectName <> ".")
   CreatedProjectBranch from projectAndBranch ->
     case from of
       CreatedProjectBranchFrom'LooseCode path ->

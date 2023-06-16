@@ -4,7 +4,9 @@ module Unison.Codebase.Editor.HandleInput.ProjectCreate
   )
 where
 
+import Data.Text qualified as Text
 import Data.UUID.V4 qualified as UUID
+import System.Random.Shuffle qualified as RandomShuffle
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -12,12 +14,12 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli (stepAt)
 import Unison.Cli.ProjectUtils (projectBranchPath)
-import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
 
 -- | Create a new project.
@@ -46,35 +48,76 @@ import Witch (unsafeFrom)
 --
 -- For now, it doesn't seem worth it to do (1) or (2), since we want to do (3) eventually, and we'd rather not waste too
 -- much time getting everything perfectly correct before we get there.
-projectCreate :: ProjectName -> Cli ()
-projectCreate projectName = do
+projectCreate :: Maybe ProjectName -> Cli ()
+projectCreate maybeProjectName = do
   projectId <- liftIO (ProjectId <$> UUID.nextRandom)
   branchId <- liftIO (ProjectBranchId <$> UUID.nextRandom)
 
   let branchName = unsafeFrom @Text "main"
-  Cli.runEitherTransaction do
-    Queries.projectExistsByName projectName >>= \case
-      False -> do
-        Queries.insertProject projectId projectName
-        Queries.insertProjectBranch
-          Sqlite.ProjectBranch
-            { projectId,
-              branchId,
-              name = branchName,
-              parentBranchId = Nothing
-            }
-        Queries.setMostRecentBranch projectId branchId
-        pure (Right ())
-      True -> pure (Left (Output.ProjectNameAlreadyExists projectName))
+
+  projectName <-
+    case maybeProjectName of
+      Nothing -> do
+        randomProjectNames <- liftIO generateRandomProjectNames
+        Cli.runTransaction do
+          let loop = \case
+                [] -> error (reportBug "E066388" "project name supply is supposed to be infinite")
+                projectName : projectNames ->
+                  Queries.projectExistsByName projectName >>= \case
+                    False -> do
+                      insertProjectAndBranch projectId projectName branchId branchName
+                      pure projectName
+                    True -> loop projectNames
+          loop randomProjectNames
+      Just projectName -> do
+        Cli.runEitherTransaction do
+          Queries.projectExistsByName projectName >>= \case
+            False -> do
+              insertProjectAndBranch projectId projectName branchId branchName
+              pure (Right projectName)
+            True -> pure (Left (Output.ProjectNameAlreadyExists projectName))
 
   let path = projectBranchPath ProjectAndBranch {project = projectId, branch = branchId}
-  Cli.stepAt "project.create" (Path.unabsolute path, const mainBranchContents)
-  Cli.respond (Output.CreatedProject projectName branchName)
+  Cli.stepAt "project.create" (Path.unabsolute path, const Branch.empty0)
+  Cli.respond (Output.CreatedProject (isNothing maybeProjectName) projectName)
   Cli.cd path
 
--- The initial contents of the main branch of a new project.
+insertProjectAndBranch :: ProjectId -> ProjectName -> ProjectBranchId -> ProjectBranchName -> Sqlite.Transaction ()
+insertProjectAndBranch projectId projectName branchId branchName = do
+  Queries.insertProject projectId projectName
+  Queries.insertProjectBranch
+    Sqlite.ProjectBranch
+      { projectId,
+        branchId,
+        name = branchName,
+        parentBranchId = Nothing
+      }
+  Queries.setMostRecentBranch projectId branchId
+
+-- An infinite list of random project names that looks like
 --
--- FIXME we should put a README here, or something
-mainBranchContents :: Branch0 m
-mainBranchContents =
-  Branch.empty0
+--   [
+--     -- We have some reasonable amount of base names...
+--     "happy-giraffe",   "happy-gorilla",   "silly-giraffe",   "silly-gorilla",
+--
+--     -- But if we need more, we just add append a number, and so on...
+--     "happy-giraffe-2", "happy-gorilla-2", "silly-giraffe-2", "silly-gorilla-2",
+--
+--     ...
+--   ]
+--
+-- It's in IO because the base supply (without numbers) gets shuffled.
+generateRandomProjectNames :: IO [ProjectName]
+generateRandomProjectNames = do
+  baseNames <-
+    RandomShuffle.shuffleM do
+      adjective <- ["happy", "silly"]
+      noun <- ["giraffe", "gorilla"]
+      pure (adjective <> "-" <> noun)
+
+  let namesWithNumbers = do
+        n <- [(2 :: Int) ..]
+        name <- baseNames
+        pure (name <> "-" <> Text.pack (show n))
+
+  pure (map (unsafeFrom @Text) (baseNames ++ namesWithNumbers))

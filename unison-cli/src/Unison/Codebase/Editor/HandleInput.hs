@@ -1637,7 +1637,6 @@ inputDescription input =
       branchId2 <- hp' (input ^. #branchId2)
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
-    ProjectCreateI project -> pure ("project.create " <> into @Text project)
     ClearI {} -> pure "clear"
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
     --
@@ -1678,6 +1677,7 @@ inputDescription input =
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
+    ProjectCreateI {} -> wat
     ProjectRenameI {} -> wat
     ProjectSwitchI {} -> wat
     ProjectsI -> wat

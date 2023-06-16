@@ -2400,17 +2400,18 @@ projectCreate =
     { patternName = "project.create",
       aliases = ["create.project"],
       visibility = I.Hidden,
-      argTypes = [(Required, projectNameArg)],
+      argTypes = [],
       help =
         P.wrapColumn2
-          [ ("`project.create foo`", "creates the project foo and switches you to foo/main")
+          [ ("`project.create`", "creates a project with a random name"),
+            ("`project.create foo`", "creates a project named `foo`")
           ],
       parse = \case
         [name] ->
           case tryInto @ProjectName (Text.pack name) of
             Left _ -> Left "Invalid project name."
-            Right name1 -> Right (Input.ProjectCreateI name1)
-        _ -> Left (showPatternHelp projectCreate)
+            Right name1 -> Right (Input.ProjectCreateI (Just name1))
+        _ -> Right (Input.ProjectCreateI Nothing)
     }
 
 projectRenameInputPattern :: InputPattern
