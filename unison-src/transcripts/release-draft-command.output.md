@@ -20,7 +20,7 @@ someterm = 18
 ```ucm
 .> project.create foo
 
-  I just created project foo with branch main.
+  🎉 I've created the project foo.
 
 foo/main> add
 
