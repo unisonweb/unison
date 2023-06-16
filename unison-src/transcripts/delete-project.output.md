@@ -3,13 +3,13 @@
 ```ucm
 .> project.create foo
 
-  I just created project foo with branch main.
+  🎉 I've created the project foo.
 
   ☝️  The namespace . is empty.
 
 .> project.create bar
 
-  I just created project bar with branch main.
+  🎉 I've created the project bar.
 
   ☝️  The namespace . is empty.
 

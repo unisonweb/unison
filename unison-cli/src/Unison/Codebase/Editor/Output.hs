@@ -324,7 +324,7 @@ data Output
   | DisplayDebugCompletions [Completion.Completion]
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
-  | CreatedProject ProjectName ProjectBranchName
+  | CreatedProject Bool {- randomly-generated name? -} ProjectName
   | CreatedProjectBranch CreatedProjectBranchFrom (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)

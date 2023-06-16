@@ -190,6 +190,7 @@ library
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -322,6 +323,7 @@ executable cli-integration-tests
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -448,6 +450,7 @@ executable transcripts
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -580,6 +583,7 @@ executable unison
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -718,6 +722,7 @@ test-suite cli-tests
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
