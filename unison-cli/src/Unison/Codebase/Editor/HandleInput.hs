@@ -1722,6 +1722,7 @@ handleStructuredFindReplaceI rewriteLhs rule = do
         if rewriteLhs then Term.rewriteCasesLHS lhs rhs
         else ABT.rewriteExpression lhs rhs
       uf' = UF.rewrite (Set.singleton (HQ.toVar rule)) rewriteFn uf
+  #latestTypecheckedFile .= Just (Left . snd $ uf')
   Cli.respond $ OutputRewrittenFile ppe dest uf'
 
 handleFindI ::
