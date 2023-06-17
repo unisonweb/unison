@@ -25,6 +25,7 @@ module Unison.ABT
     unvar,
     freshenS,
     freshInBoth,
+    freshenBothWrt,
     visit,
     visit',
     visit_,
@@ -77,12 +78,14 @@ module Unison.ABT
     abs',
     absr,
     unabs,
+    unabsA,
     cycle,
     cycle',
     cycler,
     pattern Abs',
     pattern Abs'',
     pattern AbsN',
+    pattern AbsNA',
     pattern Var',
     pattern Cycle',
     pattern Cycle'',
@@ -487,6 +490,22 @@ reannotateUp g t = case out t of
         ann = g t <> foldMap (snd . annotation) body'
      in tm' (annotation t, ann) body'
 
+-- given a list of terms, freshen all their free variables 
+-- to not overlap with any variables used within `wrt`.
+freshenWrt :: (Var v, Traversable f) => Term f v a -> [Term f v a] -> [Term f v a]
+freshenWrt wrt tms = renames varChanges <$> tms
+  where
+    used = Set.fromList (allVars wrt)
+    varChanges =
+      fst $ foldl go (Map.empty, used) (foldMap freeVars tms)
+      where
+        go (m, u) v = let v' = freshIn u v in (Map.insert v v' m, Set.insert v' u)
+
+freshenBothWrt :: (Var v, Traversable f) => Term f v a -> Term f v a -> Term f v a -> (Term f v a, Term f v a)
+freshenBothWrt wrt tm1 tm2 = case freshenWrt wrt [tm1,tm2] of
+  [tm1,tm2] -> (tm1, tm2)
+  _ -> error "freshenWrt impossible"
+
 rewriteExpression ::
   forall f v a.
   (Var v, Show v, forall a. (Eq a) => Eq (f a), forall a. (Show a) => Show (f a), Traversable f) =>
@@ -494,17 +513,9 @@ rewriteExpression ::
   Term f v a ->
   Term f v a ->
   Maybe (Term f v a)
-rewriteExpression query0 replacement0 tm =
-  rewriteHere tm
+rewriteExpression query0 replacement0 tm = rewriteHere tm
   where
-    used = Set.fromList (allVars tm)
-    varChanges =
-      fst $ foldl go (Map.empty, used) (freeVars query0 <> freeVars replacement0)
-      where
-        go (m, u) v = let v' = freshIn u v in (Map.insert v v' m, Set.insert v' u)
-    -- rename free vars to avoid possible capture of things in `tm`
-    query = renames varChanges query0
-    replacement = renames varChanges replacement0
+    (query, replacement) = freshenBothWrt tm query0 replacement0
     env0 = Map.fromList [(v, Nothing) | v <- toList (freeVars query)]
     vs0 = Map.keysSet env0
     rewriteHere :: Term f v a -> Maybe (Term f v a)
