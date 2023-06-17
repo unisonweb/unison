@@ -18,6 +18,11 @@ on:
 
 jobs:
 
+  tmate:
+    - uses: actions/checkout@v3
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      
   ormolu:
     runs-on: ubuntu-20.04
     steps:
