@@ -10,12 +10,15 @@
          unison/boot
          unison/boot-generated
          unison/chunked-seq
-         (for-syntax racket/base unison/boot-generated))
+         (for-syntax racket/base unison/data-info))
 
 (provide unison-POp-CACH unison-POp-LOAD)
 
 (define (chunked-list->list cl)
   (vector->list (chunked-list->vector cl)))
+
+(define (list->chunked-list l)
+  (vector->chunked-list (list->vector l)))
 
 (define-syntax make-syntax-decoder
   (lambda stx
@@ -40,29 +43,30 @@
 
            (define (decode-term tm)
              (data-case tm
-               [#,(sexpr-tag) (tms)
+               [#,unison-schemeterm-sexpr-tag (tms)
                 (map decode-term (chunked-list->list tms))]
-               [#,(handle-tag) (as h tms)
+               [#,unison-schemeterm-handle-tag (as h tms)
                  `(handle
                     ,(map
                        (lambda (tx) `(quote ,(text->ident tx)))
                        (chunked-list->list as))
                     ,(text->ident h)
                     ,@(map decode-term (chunked-list->list tms)))]
-               [#,(cases-tag) (hd sc cs)
+               [#,unison-schemeterm-cases-tag (hd sc cs)
                  `(,(text->ident hd)
                     ,(decode-term sc)
                     ,@(map decode-term (chunked-list->list cs)))]
-               [#,(binds-tag) (hd bs bd)
+               [#,unison-schemeterm-binds-tag (hd bs bd)
                  `(,(text->ident hd)
                     ,(map decode-binding (chunked-list->list bs))
                     ,(decode-term bd))]
-               [#,(ident-tag) (tx) (text->ident tx)]
-               [#,(string-tag) (tx)
+               [#,unison-schemeterm-ident-tag (tx) (text->ident tx)]
+               [#,unison-schemeterm-string-tag (tx)
                 `(string->chunked-string
                    ,(chunked-string->string tx))]
-               [#,(symbol-tag) (tx) `(quote ,(text->ident tx))]
-               [#,(bytevec-tag) (ns) (bytevector ns)]
+               [#,unison-schemeterm-symbol-tag (tx)
+                `(quote ,(text->ident tx))]
+               [#,unison-schemeterm-bytevec-tag (ns) (bytevector ns)]
                [else
                  (raise
                    (format
@@ -70,7 +74,7 @@
                      tm))]))
 
            (data-case dfn
-             [0 (nm vs bd)
+             [#,unison-schemedefn-define-tag (nm vs bd)
                (let ([head (map text->ident
                                 (cons nm (chunked-list->list vs)))]
                      [body (decode-term bd)])
@@ -89,8 +93,9 @@
       [(make-ref-decoder)
        #`(lambda (rf)
            (data-case rf
-             [#,(builtin-tag) (tx) (sum 0 (chunked-string->string tx))]
-             [#,(derived-tag) (id)
+             [#,unison-reference-builtin-tag (tx)
+              (sum 0 (chunked-string->string tx))]
+             [#,unison-reference-derived-tag (id)
                (data-case id [0 (bs i) (sum 1 bs i)])]))])))
 
 (define decode-ref (make-ref-decoder))
@@ -113,7 +118,7 @@
       [(_)
        #`(lambda (gr)
            (data-case (group-ref-ident gr)
-             [#,(ident-tag) (name) name]
+             [#,unison-schemeterm-ident-tag (name) name]
              [else
                (raise
                  (format
@@ -161,14 +166,14 @@
        #`(lambda (val)
            (define (decode-vlit vl)
              (data-case vl
-               [#,(lit-bytes-tag) (bs) bs]
-               [#,(lit-bytearray-tag) (bs) bs]
-               [#,(lit-text-tag) (tx) tx]
-               [#,(lit-typelink-tag) (tl) tl]
-               [#,(lit-termlink-tag) (tl) tl]
-               [#,(lit-code-tag) (sg) sg]
-               [#,(lit-value-tag) (tx) tx]
-               [#,(lit-seq-tag) (vs)
+               [#,unison-vlit-bytes-tag (bs) bs]
+               [#,unison-vlit-bytearray-tag (bs) bs]
+               [#,unison-vlit-text-tag (tx) tx]
+               [#,unison-vlit-typelink-tag (tl) tl]
+               [#,unison-vlit-termlink-tag (tl) tl]
+               [#,unison-vlit-code-tag (sg) sg]
+               [#,unison-vlit-quote-tag (vl) vl]
+               [#,unison-vlit-seq-tag (vs)
                 (vector->chunked-list
                   (vector-map
                     decode-val
@@ -181,7 +186,7 @@
 
            (define (decode-val v)
              (data-case v
-               [#,(data-tag) (rf t us0 bs0)
+               [#,unison-value-data-tag (rf t us0 bs0)
                 (let ([us (chunked-list->list us0)]
                       [bs (map decode-val (chunked-list->list bs0))])
                   (cond
@@ -192,7 +197,7 @@
                         (format
                           "decode-val: unimplemented data case: ~a"
                           (describe-value v)))]))]
-               [#,(partial-tag) (gr us0 bs0)
+               [#,unison-value-partial-tag (gr us0 bs0)
                 (let ([us (chunked-list->list us0)]
                       [bs (map decode-val (chunked-list->list bs0))])
                   (cond
@@ -202,8 +207,8 @@
                     [else
                       (raise
                         "decode-val: unimplemented partial application case")]))]
-               [#,(vlit-tag) (vl) (decode-vlit vl)]
-               [#,(cont-tag) (us0 bs0 k)
+               [#,unison-value-vlit-tag (vl) (decode-vlit vl)]
+               [#,unison-value-cont-tag (us0 bs0 k)
                 (raise "decode-val: unimplemented cont case")]
                [else
                  (raise "decode-val: unknown tag")]))
