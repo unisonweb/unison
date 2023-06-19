@@ -19,12 +19,15 @@ squashNamespace path' = do
   abs <- case path' of
     Just p -> Cli.resolvePath' p
     Nothing -> Cli.getCurrentPath
-  currentV1Branch <- Cli.getBranchAt abs
-  time "V1 squash" $ do
-    let !newCausalHash = V1Causal.currentHash . V1Branch._history $ discardHistory currentV1Branch
-    liftIO . putStrLn $ "V1 Squashed causal: " <> show newCausalHash
+  !currentV1Branch <- Cli.getBranchAt abs
   time "V2 squash" $ Cli.runTransaction $ do
     causal <- Codebase.getShallowCausalAtPath (Path.unabsolute abs) Nothing
     Causal {causalHash, valueHash} <- Causal.squashCausal causal
     unsafeIO $ putStrLn $ "Squashed " <> show (causalHash, valueHash)
+  time "V1 squash" $ do
+    let !unwrapped = V1Branch._history $ discardHistory currentV1Branch
+    liftIO . putStrLn $ "V1 Squashed causal: " <> show (V1Causal.currentHash unwrapped, V1Causal.valueHash unwrapped)
+  time "V1 squash again" $ do
+    let !unwrapped = V1Branch._history $ discardHistory currentV1Branch
+    liftIO . putStrLn $ "V1 Squashed causal: " <> show (V1Causal.currentHash unwrapped, V1Causal.valueHash unwrapped)
   pure ()
