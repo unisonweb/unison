@@ -2537,10 +2537,13 @@ doGenerateSchemeBoot force mppe = do
       swrapf = dir </> "unison" </> "simple-wrappers.ss"
       binf = dir </> "unison" </> "builtin-generated.ss"
       cwrapf = dir </> "unison" </> "compound-wrappers.ss"
+      dinfof = dir </> "unison" </> "data-info.ss"
       dirTm = Term.text a (Text.pack dir)
   liftIO $ createDirectoryIfMissing True dir
+  saveData <- Term.ref a <$> resolveTermRef sdName
   saveBase <- Term.ref a <$> resolveTermRef sbName
   saveWrap <- Term.ref a <$> resolveTermRef swName
+  gen ppe saveData dinfof dirTm dinfoName
   gen ppe saveBase bootf dirTm bootName
   gen ppe saveWrap swrapf dirTm simpleWrapName
   gen ppe saveBase binf dirTm builtinName
@@ -2553,6 +2556,8 @@ doGenerateSchemeBoot force mppe = do
 
     sbName = hq ".unison.internal.compiler.scheme.saveBaseFile"
     swName = hq ".unison.internal.compiler.scheme.saveWrapperFile"
+    sdName = hq ".unison.internal.compiler.scheme.saveDataInfoFile"
+    dinfoName = hq ".unison.internal.compiler.scheme.dataInfos"
     bootName = hq ".unison.internal.compiler.scheme.bootSpec"
     builtinName = hq ".unison.internal.compiler.scheme.builtinSpec"
     simpleWrapName =
