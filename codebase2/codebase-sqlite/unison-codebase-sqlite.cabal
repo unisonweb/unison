@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -18,6 +18,7 @@ extra-source-files:
     sql/006-most-recent-branch-table.sql
     sql/007-add-name-lookup-mounts.sql
     sql/008-add-most-recent-namespace-table.sql
+    sql/009-add-squash-cache-table.sql
     sql/create.sql
 
 source-repository head

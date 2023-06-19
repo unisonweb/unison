@@ -85,6 +85,8 @@ module U.Codebase.Sqlite.Queries
     loadBranchObjectIdByBranchHashId,
     expectBranchObjectIdByCausalHashId,
     expectBranchObjectIdByBranchHashId,
+    tryGetSquashResult,
+    saveSquashResult,
 
     -- ** causal_parent table
     saveCausalParents,
@@ -233,6 +235,7 @@ module U.Codebase.Sqlite.Queries
     fixScopedNameLookupTables,
     addNameLookupMountTables,
     addMostRecentNamespaceTable,
+    addSquashResultTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -386,7 +389,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 13
+currentSchemaVersion = 14
 
 createSchema :: Transaction ()
 createSchema = do
@@ -438,6 +441,10 @@ addNameLookupMountTables =
 addMostRecentNamespaceTable :: Transaction ()
 addMostRecentNamespaceTable =
   executeStatements (Text.pack [hereFile|unison/sql/008-add-most-recent-namespace-table.sql|])
+
+addSquashResultTable :: Transaction ()
+addSquashResultTable =
+  executeStatements (Text.pack [hereFile|unison/sql/009-add-squash-cache-table.sql|])
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -3960,3 +3967,32 @@ setMostRecentNamespace namespace =
     json :: Text
     json =
       Text.Lazy.toStrict (Aeson.encodeToLazyText namespace)
+
+-- | Get the causal hash result from squashing the provided branch hash if we've squashed it
+-- at some point in the past.
+tryGetSquashResult :: BranchHashId -> Transaction (Maybe CausalHashId)
+tryGetSquashResult bhId = do
+  queryMaybeCol
+    [sql|
+      SELECT
+        squashed_causal_hash_id
+      FROM
+        squash_results
+      WHERE
+        branch_hash_id = :bhId
+    |]
+
+-- | Save the result of running a squash on the provided branch hash id.
+saveSquashResult :: BranchHashId -> CausalHashId -> Transaction ()
+saveSquashResult bhId chId =
+  execute
+    [sql|
+      INSERT INTO squash_results (
+        branch_hash_id,
+        squashed_causal_hash_id)
+      VALUES (
+        :bhId,
+        :chId
+        )
+      ON CONFLICT DO NOTHING
+    |]
