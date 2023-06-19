@@ -2734,7 +2734,8 @@ validInputs =
       view,
       viewGlobal,
       viewPatch,
-      viewReflog
+      viewReflog,
+      squashNamespace
     ]
 
 -- | A map of all command patterns by pattern name or alias.
