@@ -6,17 +6,25 @@ import Unison.Cli.Monad
 import Unison.Cli.Monad as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch (discardHistory)
+import Unison.Codebase.Branch.Type as V1Branch
+import Unison.Codebase.Causal.Type as V1Causal
 import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
+import Unison.Sqlite (unsafeIO)
 
 squashNamespace :: Maybe Path' -> Cli ()
 squashNamespace path' = do
-  p' <- case path' of
+  abs <- case path' of
     Just p -> Cli.resolvePath' p
     Nothing -> Cli.getCurrentPath
-  Causal {causalHash, valueHash} <- Cli.runTransaction $ do
-    causal <- Codebase.getShallowCausalAtPath (Path.unabsolute p') Nothing
-    Causal.squashCausal causal
-  liftIO $ print $ "Squashed " <> show (causalHash, valueHash)
+  currentV1Branch <- Cli.getBranchAt abs
+  time "V1 squash" $ do
+    let !newCausalHash = V1Causal.currentHash . V1Branch._history $ discardHistory currentV1Branch
+    liftIO . putStrLn $ "V1 Squashed causal: " <> show newCausalHash
+  time "V2 squash" $ Cli.runTransaction $ do
+    causal <- Codebase.getShallowCausalAtPath (Path.unabsolute abs) Nothing
+    Causal {causalHash, valueHash} <- Causal.squashCausal causal
+    unsafeIO $ putStrLn $ "Squashed " <> show (causalHash, valueHash)
   pure ()
