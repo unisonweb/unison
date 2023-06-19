@@ -95,6 +95,7 @@ import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
+import Unison.Codebase.Editor.HandleInput.SquashNamespace (squashNamespace)
 import Unison.Codebase.Editor.HandleInput.TermResolution
   ( resolveCon,
     resolveMainRef,
@@ -1479,6 +1480,7 @@ loop e = do
             BranchesI name -> handleBranches name
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
+            SquashNamespaceI path -> squashNamespace path
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1491,6 +1493,9 @@ inputDescription input =
       src <- hp' src0
       dest <- p' dest0
       pure ("fork " <> src <> " " <> dest)
+    SquashNamespaceI path' -> do
+      path <- traverse p' path'
+      pure ("squash.namespace " <> fromMaybe "" path)
     MergeLocalBranchI src0 dest0 mode -> do
       src <- looseCodeOrProjectToText src0
       dest <- looseCodeOrProjectToText dest0

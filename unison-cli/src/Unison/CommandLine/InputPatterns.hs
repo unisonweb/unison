@@ -1417,6 +1417,24 @@ squashMerge =
           _ -> Nothing
     }
 
+squashNamespace :: InputPattern
+squashNamespace =
+  InputPattern
+    { patternName = "squash.namespace",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(Optional, namespaceArg)],
+      help =
+        P.wrap $
+          makeExample squashNamespace ["namespace"],
+      parse = \case
+        [] -> Right $ Input.SquashNamespaceI Nothing
+        [pathStr] -> first fromString $ do
+          path <- Path.parsePath' pathStr
+          pure $ Input.SquashNamespaceI (Just path)
+        _ -> Left (I.help squashNamespace)
+    }
+
 mergeLocal :: InputPattern
 mergeLocal =
   InputPattern
