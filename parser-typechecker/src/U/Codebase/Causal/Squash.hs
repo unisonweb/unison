@@ -3,6 +3,7 @@ module U.Codebase.Causal.Squash (squashCausal) where
 import U.Codebase.Branch.Hashing qualified as Branch
 import U.Codebase.Branch.Type
 import U.Codebase.Causal (Causal (..))
+import U.Codebase.Causal.Hashing (hashCausal)
 import U.Codebase.Sqlite.Operations qualified as SqliteOps
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Prelude
