@@ -11,6 +11,10 @@
    data-tag
    data-fields
 
+   declare-unison-data-hash
+   data-hash->number
+   data-number->hash
+
    make-sum
    sum
    sum?
@@ -54,7 +58,11 @@
 
    unison-tuple->list)
 
-  (import (rnrs))
+  (import (rnrs)
+          (only (racket base)
+                make-hash
+                hash-set!
+                hash-ref))
 
   (define-record-type (unison-data make-data data?)
     (fields
@@ -147,6 +155,34 @@
   ; TODO needs better pretty printing for when it isn't caught
   (define-record-type exn:bug (fields msg a))
   (define (exn:bug->exception b) (exception "RuntimeFailure" (exn:bug-msg b) (exn:bug-a b)))
+
+
+  ; A counter for internally numbering declared data, so that the
+  ; entire reference doesn't need to be stored in every data record.
+  (define next-data-number 0)
+  (define (fresh-data-number)
+    (let ([n next-data-number])
+      (set! next-data-number (+ n 1))
+      n))
+
+  ; maps hashes of declared unison data to their internal numberings
+  (define data-hash-numberings (make-hash))
+
+  ; maps internal numberings of declared unison data to their hashes
+  (define data-number-hashes (make-hash))
+
+  ; Adds a hash to the known set of data types, allocating an
+  ; internal numbe for it.
+  (define (declare-unison-data-hash bs)
+    (let ([n (fresh-data-number)])
+      (hash-set! data-hash-numberings bs n)
+      (hash-set! data-number-hashes n bs)))
+
+  (define (data-hash->number bs)
+    (hash-ref data-hash-numberings bs))
+
+  (define (data-number->hash n)
+    (hash-ref data-number-hashes n))
 
   (define (unison-tuple->list t)
     (let ([fs (data-fields t)])
