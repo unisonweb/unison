@@ -273,6 +273,14 @@
           (hash-set! runtime-module-map bs mname))))
     links))
 
+(define (need-dependency? d)
+  (data-case d
+    [0 (tx) #f] ; builtin
+    [1 (id)
+     (data-case id
+       [0 (bs i)
+        (not (hash-has-key? runtime-module-map bs))])]))
+
 (define (resolve-proc gr)
   (sum-case (decode-ref (group-reference gr))
     [0 (tx)
@@ -311,5 +319,9 @@
          (add-runtime-module mname links sdefs))])
     (sum 0 '())))
 
-; TODO: check dependencies and indicate any problems.
-(define (unison-POp-LOAD val) (sum 1 (reify-value val)))
+(define (unison-POp-LOAD val)
+  (let* ([deps (value-term-dependencies val)]
+         [fdeps (filter need-dependency? (chunked-list->list deps))])
+    (if (null? fdeps)
+      (sum 1 (reify-value val))
+      (sum 0 (list->chunked-list fdeps)))))
