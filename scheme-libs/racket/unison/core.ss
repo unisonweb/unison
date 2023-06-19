@@ -55,6 +55,9 @@
                   map
                   bytes
                   bytes-append
+                  bytes?
+                  bytes=?
+                  bytes<?
                   bytes->string/utf-8
                   string->bytes/utf-8
                   with-continuation-mark
@@ -226,6 +229,32 @@
           (let ([sub (rec (cdr c) (- m 1))])
             (cons (car c) sub))])))
 
+  ; Simple macro to expand a syntactic sequence of comparisons into a
+  ; short-circuiting nested comparison.
+  (define-syntax comparisons
+    (syntax-rules ()
+      [(comparisons c) c]
+      [(comparisons c d ...)
+       (let ([sc c])
+         (case sc
+           ['= (comparisons d ...)]
+           [else sc]))]))
+
+  ; universal-compares two lists of values lexicographically
+  (define (lexico-compare ls rs)
+    (let rec ([cls ls] [crs rs])
+      (if (and (null? cls) (null? crs))
+        '=
+        (comparisons
+          (universal-compare (car cls) (car crs))
+          (rec (cdr cls) (cdr crs))))))
+
+  (define (cmp-num l r)
+    (cond
+      [(= l r) '=]
+      [(< l r) '<]
+      [else '>]))
+
   (define (universal-compare l r)
     (cond
       [(equal? l r) '=]
@@ -235,7 +264,24 @@
        (chunked-string-compare/recur l r (lambda (a b) (if (char<? a b) '< '>)))]
       [(and (chunked-bytes? l) (chunked-bytes? r))
        (chunked-bytes-compare/recur l r (lambda (a b) (if (< a b) '< '>)))]
-      [else (raise "universal-compare: unimplemented")]))
+      [(and (bytes? l) (bytes? r))
+       (cond
+         [(bytes=? l r) '=]
+         [(bytes<? l r) '<]
+         [else '>])]
+      [(and (data? l) (data? r))
+       (let ([fls (data-fields l)] [frs (data-fields r)])
+         (comparisons
+           (cmp-num (data-tag l) (data-tag r))
+           (cmp-num (length fls) (length frs))
+           (lexico-compare fls frs)))]
+      [else
+        (let ([dl (describe-value l)]
+              [dr (describe-value r)])
+          (raise
+            (format
+              "universal-compare: unimplemented\n~a\n\n~a"
+              dl dr)))]))
 
   (define (chunked-string<? l r) (chunked-string=?/recur l r char<?))
 
