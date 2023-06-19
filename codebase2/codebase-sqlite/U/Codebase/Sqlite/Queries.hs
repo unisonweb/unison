@@ -172,7 +172,6 @@ module U.Codebase.Sqlite.Queries
 
     -- * Name Lookup
     copyScopedNameLookup,
-    dropNameLookupTables,
     insertScopedTermNames,
     insertScopedTypeNames,
     removeScopedTermNames,
@@ -181,6 +180,8 @@ module U.Codebase.Sqlite.Queries
     typeNamesWithinNamespace,
     termNamesForRefWithinNamespace,
     typeNamesForRefWithinNamespace,
+    recursiveTermNameSearch,
+    recursiveTypeNameSearch,
     termRefsForExactName,
     typeRefsForExactName,
     checkBranchHashNameLookupExists,
@@ -190,7 +191,11 @@ module U.Codebase.Sqlite.Queries
     typeNamesBySuffix,
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
+    associateNameLookupMounts,
+    listNameLookupMounts,
     deleteNameLookupsExceptFor,
+    fuzzySearchTerms,
+    fuzzySearchTypes,
 
     -- * Reflog
     appendReflog,
@@ -214,6 +219,10 @@ module U.Codebase.Sqlite.Queries
     -- * elaborate hashes
     elaborateHashes,
 
+    -- * most recent namespace
+    expectMostRecentNamespace,
+    setMostRecentNamespace,
+
     -- * migrations
     createSchema,
     addTempEntityTables,
@@ -222,6 +231,8 @@ module U.Codebase.Sqlite.Queries
     addProjectTables,
     addMostRecentBranchTable,
     fixScopedNameLookupTables,
+    addNameLookupMountTables,
+    addMostRecentNamespaceTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -263,6 +274,8 @@ import Control.Monad.Extra ((||^))
 import Control.Monad.State (MonadState, evalStateT)
 import Control.Monad.Writer (MonadWriter, runWriterT)
 import Control.Monad.Writer qualified as Writer
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Text qualified as Aeson
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
 import Data.Foldable qualified as Foldable
@@ -279,6 +292,8 @@ import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.String.Here.Uninterpolated (hereFile)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as Text.Lazy
 import Data.Vector qualified as Vector
 import GHC.Stack (callStack)
 import Network.URI (URI)
@@ -322,7 +337,8 @@ import U.Codebase.Sqlite.LocalIds
     LocalTextId (..),
   )
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
-import U.Codebase.Sqlite.NamedRef (NamedRef, ReversedSegments)
+import U.Codebase.Sqlite.NameLookups
+import U.Codebase.Sqlite.NamedRef (NamedRef)
 import U.Codebase.Sqlite.NamedRef qualified as NamedRef
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import U.Codebase.Sqlite.ObjectType qualified as ObjectType
@@ -365,16 +381,12 @@ import Unison.Util.Alternative qualified as Alternative
 import Unison.Util.Lens qualified as Lens
 import Unison.Util.Map qualified as Map
 
--- | A namespace rendered as a path, no leading '.'
--- E.g. "base.data"
-type NamespaceText = Text
-
 type TextPathSegments = [Text]
 
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 11
+currentSchemaVersion = 13
 
 createSchema :: Transaction ()
 createSchema = do
@@ -385,6 +397,8 @@ createSchema = do
   fixScopedNameLookupTables
   addProjectTables
   addMostRecentBranchTable
+  addNameLookupMountTables
+  addMostRecentNamespaceTable
   execute insertSchemaVersionSql
   where
     insertSchemaVersionSql =
@@ -416,6 +430,14 @@ addProjectTables =
 addMostRecentBranchTable :: Transaction ()
 addMostRecentBranchTable =
   executeStatements (Text.pack [hereFile|unison/sql/006-most-recent-branch-table.sql|])
+
+addNameLookupMountTables :: Transaction ()
+addNameLookupMountTables =
+  executeStatements (Text.pack [hereFile|unison/sql/007-add-name-lookup-mounts.sql|])
+
+addMostRecentNamespaceTable :: Transaction ()
+addMostRecentNamespaceTable =
+  executeStatements (Text.pack [hereFile|unison/sql/008-add-most-recent-namespace-table.sql|])
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -1776,20 +1798,6 @@ removeHashObjectsByHashingVersion hashVersion =
       WHERE hash_version = :hashVersion
     |]
 
--- | Not used in typical operations, but if we ever end up in a situation where a bug
--- has caused the name lookup index to go out of sync this can be used to get back to a clean
--- slate.
-dropNameLookupTables :: Transaction ()
-dropNameLookupTables = do
-  execute
-    [sql|
-      DROP TABLE IF EXISTS term_name_lookup
-    |]
-  execute
-    [sql|
-      DROP TABLE IF EXISTS type_name_lookup
-    |]
-
 -- | Copies existing name lookup rows but replaces their branch hash id;
 -- This is a low-level operation used as part of deriving a new name lookup index
 -- from an existing one as performantly as possible.
@@ -1858,8 +1866,11 @@ deleteNameLookupsExceptFor hashIds = do
           hashIdValues = coerce (x NonEmpty.:| xs)
       execute
         [sql|
-          WITH reachable(branch_hash_id) AS (
+          WITH RECURSIVE reachable(branch_hash_id) AS (
             VALUES :hashIdValues
+            -- Any name lookup that's mounted on a reachable name lookup is also reachable
+            UNION ALL
+            SELECT mounted_root_branch_hash_id FROM name_lookup_mounts JOIN reachable ON branch_hash_id = parent_root_branch_hash_id
           )
           DELETE FROM name_lookups
             WHERE root_branch_hash_id NOT IN (SELECT branch_hash_id FROM reachable);
@@ -1978,12 +1989,13 @@ likeEscape escapeChar pat =
       | c == escapeChar -> Text.pack [escapeChar, escapeChar]
       | otherwise -> Text.singleton c
 
--- | Get the list of a term names in the root namespace according to the name lookup index
-termNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
-termNamesWithinNamespace bhId mayNamespace = do
-  let namespaceGlob = case mayNamespace of
-        Nothing -> "*"
-        Just namespace -> toNamespaceGlob namespace
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Get the list of a term names in the provided name lookup and relative namespace.
+-- Includes dependencies, but not transitive dependencies.
+termNamesWithinNamespace :: BranchHashId -> PathSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesWithinNamespace bhId namespace = do
   results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
     queryListRow
       [sql|
@@ -1992,17 +2004,31 @@ termNamesWithinNamespace bhId mayNamespace = do
         WHERE
           root_branch_hash_id = :bhId
           AND namespace GLOB :namespaceGlob
+
+        UNION ALL
+
+        SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM name_lookup_mounts mount
+          INNER JOIN scoped_term_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+        WHERE
+          mount.parent_root_branch_hash_id = :bhId
+          -- We have a pre-condition that the namespace must not be within any of the mounts,
+          -- so this is sufficient to determine whether the entire sub-index is within the
+          -- required namespace prefix.
+          AND mount.mount_path GLOB :namespaceGlob
       |]
   pure (fmap unRow <$> results)
   where
+    namespaceGlob = toNamespaceGlob namespace
     unRow (a :. Only b) = (a, b)
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
--- | Get the list of a type names in the root namespace according to the name lookup index
-typeNamesWithinNamespace :: BranchHashId -> Maybe Text -> Transaction [NamedRef Reference.TextReference]
-typeNamesWithinNamespace bhId mayNamespace =
+-- Get the list of a type names in the provided name lookup and relative namespace.
+-- Includes dependencies, but not transitive dependencies.
+typeNamesWithinNamespace :: BranchHashId -> PathSegments -> Transaction [NamedRef Reference.TextReference]
+typeNamesWithinNamespace bhId namespace =
   queryListRow
     [sql|
       SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
@@ -2010,22 +2036,31 @@ typeNamesWithinNamespace bhId mayNamespace =
       WHERE
         root_branch_hash_id = :bhId
         AND namespace GLOB :namespaceGlob
+
+      UNION ALL
+
+      SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, reference_builtin, reference_component_hash, reference_component_index
+      FROM name_lookup_mounts mount
+        INNER JOIN scoped_type_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+      WHERE
+        mount.parent_root_branch_hash_id = :bhId
+        -- We have a pre-condition that the namespace must not be within any of the mounts,
+        -- so this is sufficient to determine whether the entire sub-index is within the
+        -- required namespace prefix.
+        AND mount.mount_path GLOB :namespaceGlob
     |]
   where
-    namespaceGlob =
-      case mayNamespace of
-        Nothing -> "*"
-        Just namespace -> toNamespaceGlob namespace
+    namespaceGlob = toNamespaceGlob namespace
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
 -- Get the list of term names within a given namespace which have the given suffix.
-termNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesBySuffix :: BranchHashId -> PathSegments -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = toNamespaceGlob namespaceRoot
-  let lastSegment = NonEmpty.head suffix
+  let lastSegment = NonEmpty.head . into @(NonEmpty Text) $ suffix
   let reversedNameGlob = toSuffixGlob suffix
   results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
     -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
@@ -2043,6 +2078,14 @@ termNamesBySuffix bhId namespaceRoot suffix = do
               AND last_name_segment IS :lastSegment
               AND namespace GLOB :namespaceGlob
               AND reversed_name GLOB :reversedNameGlob
+        UNION ALL
+        SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM name_lookup_mounts mount
+          INNER JOIN scoped_term_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+        WHERE mount.parent_root_branch_hash_id = :bhId
+              AND mount.mount_path GLOB :namespaceGlob
+              AND last_name_segment IS :lastSegment
+              AND reversed_name GLOB :reversedNameGlob
       |]
   pure (fmap unRow <$> results)
   where
@@ -2052,11 +2095,11 @@ termNamesBySuffix bhId namespaceRoot suffix = do
 -- is only true on Share.
 --
 -- Get the list of type names within a given namespace which have the given suffix.
-typeNamesBySuffix :: BranchHashId -> NamespaceText -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+typeNamesBySuffix :: BranchHashId -> PathSegments -> ReversedName -> Transaction [NamedRef Reference.TextReference]
 typeNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "typeNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = toNamespaceGlob namespaceRoot
-  let lastNameSegment = NonEmpty.head suffix
+  let lastNameSegment = NonEmpty.head . into @(NonEmpty Text) $ suffix
   let reversedNameGlob = toSuffixGlob suffix
   -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
   -- GLOB, but this helps improve query performance.
@@ -2073,13 +2116,25 @@ typeNamesBySuffix bhId namespaceRoot suffix = do
             AND last_name_segment IS :lastNameSegment
             AND namespace GLOB :namespaceGlob
             AND reversed_name GLOB :reversedNameGlob
+      UNION ALL
+      SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, reference_builtin, reference_component_hash, reference_component_index
+      FROM name_lookup_mounts mount
+        INNER JOIN scoped_type_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+      WHERE mount.parent_root_branch_hash_id = :bhId
+            AND mount.mount_path GLOB :namespaceGlob
+            AND last_name_segment IS :lastNameSegment
+            AND reversed_name GLOB :reversedNameGlob
     |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
 -- Get the set of refs for an exact name.
-termRefsForExactName :: BranchHashId -> ReversedSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+-- This will only return results which are within the name lookup for the provided branch hash
+-- id. It's the caller's job to select the correct name lookup for your exact name.
+--
+-- See termRefsForExactName in U.Codebase.Sqlite.Operations
+termRefsForExactName :: BranchHashId -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 termRefsForExactName bhId reversedSegments = do
   let reversedName = toReversedName reversedSegments
   results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
@@ -2098,7 +2153,11 @@ termRefsForExactName bhId reversedSegments = do
 -- is only true on Share.
 --
 -- Get the set of refs for an exact name.
-typeRefsForExactName :: BranchHashId -> ReversedSegments -> Transaction [NamedRef Reference.TextReference]
+-- This will only return results which are within the name lookup for the provided branch hash
+-- id. It's the caller's job to select the correct name lookup for your exact name.
+--
+-- See termRefsForExactName in U.Codebase.Sqlite.Operations
+typeRefsForExactName :: BranchHashId -> ReversedName -> Transaction [NamedRef Reference.TextReference]
 typeRefsForExactName bhId reversedSegments = do
   let reversedName = toReversedName reversedSegments
   queryListRow
@@ -2113,7 +2172,8 @@ typeRefsForExactName bhId reversedSegments = do
 -- is only true on Share.
 --
 -- Get the list of term names for a given Referent within a given namespace.
-termNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Referent.TextReferent -> Maybe ReversedSegments -> Transaction [ReversedSegments]
+-- Considers one level of dependencies, but not transitive dependencies.
+termNamesForRefWithinNamespace :: BranchHashId -> PathSegments -> Referent.TextReferent -> Maybe ReversedName -> Transaction [ReversedName]
 termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let namespaceGlob = toNamespaceGlob namespaceRoot
   let suffixGlob = case maySuffix of
@@ -2121,19 +2181,28 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
         Nothing -> "*"
   queryListColCheck
     [sql|
-      SELECT reversed_name FROM scoped_term_name_lookup
-      WHERE root_branch_hash_id = :bhId
-            AND referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
-            AND namespace GLOB :namespaceGlob
-            AND reversed_name GLOB :suffixGlob
-    |]
+        SELECT reversed_name FROM scoped_term_name_lookup
+        WHERE root_branch_hash_id = :bhId
+              AND referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
+              AND namespace GLOB :namespaceGlob
+              AND reversed_name GLOB :suffixGlob
+        UNION ALL
+        SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name
+        FROM name_lookup_mounts mount
+          INNER JOIN scoped_term_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+        WHERE mount.parent_root_branch_hash_id = :bhId
+              AND mount.mount_path GLOB :namespaceGlob
+              AND referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
+              AND reversed_name GLOB :suffixGlob
+        |]
     \reversedNames -> for reversedNames reversedNameToReversedSegments
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
 --
 -- Get the list of type names for a given Reference within a given namespace.
-typeNamesForRefWithinNamespace :: BranchHashId -> NamespaceText -> Reference.TextReference -> Maybe ReversedSegments -> Transaction [ReversedSegments]
+-- Considers one level of dependencies, but not transitive dependencies.
+typeNamesForRefWithinNamespace :: BranchHashId -> PathSegments -> Reference.TextReference -> Maybe ReversedName -> Transaction [ReversedName]
 typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let namespaceGlob = toNamespaceGlob namespaceRoot
   let suffixGlob = case maySuffix of
@@ -2141,13 +2210,95 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
         Nothing -> "*"
   queryListColCheck
     [sql|
-      SELECT reversed_name FROM scoped_type_name_lookup
-      WHERE root_branch_hash_id = :bhId
-            AND reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
-            AND namespace GLOB :namespaceGlob
-            AND reversed_name GLOB :suffixGlob
-    |]
+        SELECT reversed_name FROM scoped_type_name_lookup
+        WHERE root_branch_hash_id = :bhId
+              AND reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
+              AND namespace GLOB :namespaceGlob
+              AND reversed_name GLOB :suffixGlob
+        UNION ALL
+        SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name
+        FROM name_lookup_mounts mount
+          INNER JOIN scoped_type_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+        WHERE mount.parent_root_branch_hash_id = :bhId
+              AND mount.mount_path GLOB :namespaceGlob
+              AND reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
+              AND reversed_name GLOB :suffixGlob
+        |]
     \reversedNames -> for reversedNames reversedNameToReversedSegments
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Searches all dependencies transitively looking for the provided referent.
+-- Prefer 'termNamesForRefWithinNamespace' in most cases.
+-- This is slower and only necessary when resolving the name of references when you don't know which
+-- dependency it may exist in.
+--
+-- Searching transitive dependencies is exponential so we want to replace this with a more
+-- efficient approach as soon as possible.
+--
+-- Note: this returns the first name it finds by searching in order of:
+-- Names in the current namespace, then names in the current namespace's dependencies, then
+-- through the current namespace's dependencies' dependencies, etc.
+recursiveTermNameSearch :: BranchHashId -> Referent.TextReferent -> Transaction (Maybe ReversedName)
+recursiveTermNameSearch bhId ref = do
+  queryMaybeColCheck
+    [sql|
+        -- Recursive table containing all transitive deps
+        WITH RECURSIVE
+          all_in_scope_roots(root_branch_hash_id, reversed_mount_path) AS (
+            -- Include the primary root
+            SELECT :bhId, ""
+            UNION ALL
+            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
+            FROM name_lookup_mounts mount
+              INNER JOIN all_in_scope_roots rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
+          )
+        SELECT (reversed_name || reversed_mount_path) AS reversed_name
+          FROM all_in_scope_roots
+            INNER JOIN scoped_term_name_lookup
+            ON scoped_term_name_lookup.root_branch_hash_id = all_in_scope_roots.root_branch_hash_id
+        WHERE referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
+        LIMIT 1
+        |]
+    (\reversedName -> reversedNameToReversedSegments reversedName)
+
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- Searches all dependencies transitively looking for the provided referent.
+-- Prefer 'typeNamesForRefWithinNamespace' in most cases.
+-- This is slower and only necessary when resolving the name of references when you don't know which
+-- dependency it may exist in.
+--
+-- Searching transitive dependencies is exponential so we want to replace this with a more
+-- efficient approach as soon as possible.
+--
+-- Note: this returns the first name it finds by searching in order of:
+-- Names in the current namespace, then names in the current namespace's dependencies, then
+-- through the current namespace's dependencies' dependencies, etc.
+recursiveTypeNameSearch :: BranchHashId -> Reference.TextReference -> Transaction (Maybe ReversedName)
+recursiveTypeNameSearch bhId ref = do
+  queryMaybeColCheck
+    [sql|
+        -- Recursive table containing all transitive deps
+        WITH RECURSIVE
+          all_in_scope_roots(root_branch_hash_id, reversed_mount_path) AS (
+            -- Include the primary root
+            SELECT :bhId, ""
+            UNION ALL
+            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
+            FROM name_lookup_mounts mount
+              INNER JOIN all_in_scope_roots rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
+          )
+        SELECT (reversed_name || reversed_mount_path) AS reversed_name
+          FROM all_in_scope_roots
+            INNER JOIN scoped_type_name_lookup
+            ON scoped_type_name_lookup.root_branch_hash_id = all_in_scope_roots.root_branch_hash_id
+        WHERE reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
+        LIMIT 1
+        |]
+    (\reversedName -> reversedNameToReversedSegments reversedName)
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -2165,13 +2316,46 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
 -- This is still relatively efficient because we can use an index and LIMIT 1 to make each
 -- individual query fast, and in the common case we'll only need two or three queries to find
 -- the longest matching suffix.
-longestMatchingTermNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
-longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(lastSegment NonEmpty.:| _), ref}) = do
+--
+-- Considers one level of dependencies, but not transitive dependencies.
+longestMatchingTermNameForSuffixification :: BranchHashId -> PathSegments -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
+longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(ReversedName (lastSegment NonEmpty.:| _)), ref}) = do
+  let namespaceGlob = toNamespaceGlob namespaceRoot <> ".*"
   let loop :: [Text] -> MaybeT Transaction (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))
       loop [] = empty
       loop (suffGlob : rest) = do
         result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))) <-
-          lift $ queryMaybeRow (theSql suffGlob)
+          lift $
+            queryMaybeRow
+              -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+              -- GLOB, but this helps improve query performance.
+              -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+              -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+              -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+              -- names which couldn't possibly match before we then manually filter the remaining names
+              -- using the `reversed_name` glob which can't be optimized with an index.
+              [sql|
+              SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
+              WHERE root_branch_hash_id = :bhId
+                    AND last_name_segment IS :lastSegment
+                    AND namespace GLOB :namespaceGlob
+                    AND reversed_name GLOB :suffGlob
+                    -- We don't need to consider names for the same definition when suffixifying, so
+                    -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
+                    AND NOT (referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @)
+              UNION ALL
+              SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, names.referent_builtin, names.referent_component_hash, names.referent_component_index, names.referent_constructor_index, names.referent_constructor_type
+              FROM name_lookup_mounts mount
+                INNER JOIN scoped_term_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+              WHERE mount.parent_root_branch_hash_id = :bhId
+                    AND mount.mount_path GLOB :namespaceGlob
+                    AND last_name_segment IS :lastSegment
+                    AND reversed_name GLOB :suffGlob
+                    -- We don't need to consider names for the same definition when suffixifying, so
+                    -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
+                    AND NOT (names.referent_builtin IS @ref AND names.referent_component_hash IS @ AND names.referent_component_index IS @ AND names.referent_constructor_index IS @)
+              LIMIT 1
+            |]
         case result of
           Just namedRef ->
             -- We want to find matches for the _longest_ possible suffix, so we keep going until we
@@ -2183,41 +2367,70 @@ longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
             empty
   let suffixes =
         revSuffix
-          & toList
+          & into @[Text]
           & List.inits
           & mapMaybe NonEmpty.nonEmpty
-          & map toSuffixGlob
+          & map (toSuffixGlob . into @ReversedName)
   runMaybeT $ loop suffixes
   where
     unRow (a :. Only b) = (a, b)
-    theSql suffGlob =
-      -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
-      -- GLOB, but this helps improve query performance.
-      -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
-      -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
-      -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
-      -- names which couldn't possibly match before we then manually filter the remaining names
-      -- using the `reversed_name` glob which can't be optimized with an index.
-      [sql|
-        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM scoped_term_name_lookup
-        WHERE root_branch_hash_id = :bhId
-              AND last_name_segment IS :lastSegment
-              AND namespace GLOB :namespaceGlob
-              AND reversed_name GLOB :suffGlob
-              -- We don't need to consider names for the same definition when suffixifying, so
-              -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
-              AND NOT (referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @)
-         LIMIT 1
-      |]
-    namespaceGlob = globEscape namespaceRoot <> ".*"
 
-longestMatchingTypeNameForSuffixification :: BranchHashId -> NamespaceText -> NamedRef Reference.TextReference -> Transaction (Maybe (NamedRef Reference.TextReference))
-longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(lastSegment NonEmpty.:| _), ref}) = do
+-- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
+-- is only true on Share.
+--
+-- The goal of this query is to search the codebase for the single name which has a different
+-- hash from the provided name, but shares longest matching suffix for for that name.
+--
+-- Including this name in the pretty-printer object causes it to suffixify the name so that it
+-- is unambiguous from other names in scope.
+--
+-- Sqlite doesn't provide enough functionality to do this query in a single query, so we do
+-- it iteratively, querying for longer and longer suffixes we no longer find matches.
+-- Then we return the name with longest matching suffix.
+--
+-- This is still relatively efficient because we can use an index and LIMIT 1 to make each
+-- individual query fast, and in the common case we'll only need two or three queries to find
+-- the longest matching suffix.
+--
+-- Considers one level of dependencies, but not transitive dependencies.
+longestMatchingTypeNameForSuffixification :: BranchHashId -> PathSegments -> NamedRef Reference.TextReference -> Transaction (Maybe (NamedRef Reference.TextReference))
+longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(ReversedName (lastSegment NonEmpty.:| _)), ref}) = do
+  let namespaceGlob = toNamespaceGlob namespaceRoot <> ".*"
   let loop :: [Text] -> MaybeT Transaction (NamedRef Reference.TextReference)
       loop [] = empty
       loop (suffGlob : rest) = do
         result :: Maybe (NamedRef (Reference.TextReference)) <-
-          lift $ queryMaybeRow (theSql suffGlob)
+          lift $
+            queryMaybeRow
+              -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
+              -- GLOB, but this helps improve query performance.
+              -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
+              -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
+              -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
+              -- names which couldn't possibly match before we then manually filter the remaining names
+              -- using the `reversed_name` glob which can't be optimized with an index.
+              [sql|
+              SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
+              WHERE root_branch_hash_id = :bhId
+                    AND last_name_segment IS :lastSegment
+                    AND namespace GLOB :namespaceGlob
+                    AND reversed_name GLOB :suffGlob
+                    -- We don't need to consider names for the same definition when suffixifying, so
+                    -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
+                    AND NOT (reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @)
+              UNION ALL
+              SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, names.reference_builtin, names.reference_component_hash, names.reference_component_index
+              FROM name_lookup_mounts mount
+                INNER JOIN scoped_type_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+              WHERE mount.parent_root_branch_hash_id = :bhId
+                    AND mount.mount_path GLOB :namespaceGlob
+                    AND last_name_segment IS :lastSegment
+                    AND reversed_name GLOB :suffGlob
+                    -- We don't need to consider names for the same definition when suffixifying, so
+                    -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
+                    AND NOT (names.reference_builtin IS @ref AND names.reference_component_hash IS @ AND names.reference_component_index IS @)
+              LIMIT 1
+            |]
         case result of
           Just namedRef ->
             -- We want to find matches for the _longest_ possible suffix, so we keep going until we
@@ -2229,32 +2442,39 @@ longestMatchingTypeNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef 
             empty
   let suffixes =
         revSuffix
-          & toList
+          & into @[Text]
           & List.inits
           & mapMaybe NonEmpty.nonEmpty
-          & map toSuffixGlob
+          & map (toSuffixGlob . into @ReversedName)
   runMaybeT $ loop suffixes
-  where
-    theSql suffGlob =
-      -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
-      -- GLOB, but this helps improve query performance.
-      -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
-      -- ONLY do a single prefix-search, meaning we use the index for `namespace`, but not for
-      -- `reversed_name`. By adding the `last_name_segment` constraint, we can cull a ton of
-      -- names which couldn't possibly match before we then manually filter the remaining names
-      -- using the `reversed_name` glob which can't be optimized with an index.
+
+-- | Associate name lookup indexes for dependencies to specific mounting points within another name lookup.
+associateNameLookupMounts :: BranchHashId -> [(PathSegments, BranchHashId)] -> Transaction ()
+associateNameLookupMounts rootBranchHashId mounts = do
+  for_ mounts \(mountPath, mountedBranchHashId) -> do
+    let mountPathText = pathSegmentsToText mountPath <> "."
+        reversedMountPathText = pathSegmentsToText (PathSegments . reverse . coerce $ mountPath) <> "."
+
+    execute
       [sql|
-        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM scoped_type_name_lookup
-        WHERE root_branch_hash_id = :bhId
-              AND last_name_segment IS :lastSegment
-              AND namespace GLOB :namespaceGlob
-              AND reversed_name GLOB :suffGlob
-              -- We don't need to consider names for the same definition when suffixifying, so
-              -- we filter those out. Importantly this also avoids matching the name we're trying to suffixify.
-              AND NOT (reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @)
-        LIMIT 1
+          INSERT INTO name_lookup_mounts (parent_root_branch_hash_id, mounted_root_branch_hash_id, mount_path, reversed_mount_path)
+          VALUES (:rootBranchHashId, :mountedBranchHashId, :mountPathText, :reversedMountPathText)
+        |]
+
+-- | Fetch the name lookup mounts for a given name lookup index.
+listNameLookupMounts :: BranchHashId -> Transaction [(PathSegments, BranchHashId)]
+listNameLookupMounts rootBranchHashId =
+  do
+    queryListRow
+      [sql|
+        SELECT mount_path, mounted_root_branch_hash_id
+        FROM name_lookup_mounts
+        WHERE parent_root_branch_hash_id = :rootBranchHashId
       |]
-    namespaceGlob = globEscape namespaceRoot <> ".*"
+    <&> fmap
+      \(mountPathText, mountedRootBranchHashId) ->
+        let mountPath = textToPathSegments (Text.init mountPathText)
+         in (mountPath, mountedRootBranchHashId)
 
 -- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool
@@ -3537,15 +3757,15 @@ ensureBranchRemoteMapping pid bid rpid host rbid =
 --
 -- >>> toSuffixGlob ("foo" NonEmpty.:| ["bar"])
 -- "foo.bar.*"
-toSuffixGlob :: ReversedSegments -> Text
-toSuffixGlob suffix = globEscape (Text.intercalate "." (toList suffix)) <> ".*"
+toSuffixGlob :: ReversedName -> Text
+toSuffixGlob suffix = globEscape (Text.intercalate "." (into @[Text] suffix)) <> ".*"
 
 -- | Convert reversed segments into the DB representation of a reversed_name.
 --
 -- >>> toReversedName (NonEmpty.fromList ["foo", "bar"])
 -- "foo.bar."
-toReversedName :: ReversedSegments -> Text
-toReversedName revSegs = Text.intercalate "." (toList revSegs) <> "."
+toReversedName :: ReversedName -> Text
+toReversedName revSegs = Text.intercalate "." (into @[Text] revSegs) <> "."
 
 -- | Convert a namespace into the appropriate glob for searching within that namespace
 --
@@ -3554,9 +3774,10 @@ toReversedName revSegs = Text.intercalate "." (toList revSegs) <> "."
 --
 -- >>> toNamespaceGlob ""
 -- "*"
-toNamespaceGlob :: Text -> Text
-toNamespaceGlob "" = "*"
-toNamespaceGlob namespace = globEscape namespace <> ".*"
+toNamespaceGlob :: PathSegments -> Text
+toNamespaceGlob = \case
+  PathSegments [] -> "*"
+  namespace -> globEscape (pathSegmentsToText namespace) <> ".*"
 
 -- | Thrown if we try to get the segments of an empty name, shouldn't ever happen since empty names
 -- are invalid.
@@ -3568,14 +3789,14 @@ data EmptyName = EmptyName String
 --
 -- >>> reversedNameToReversedSegments "foo.bar."
 -- Right ("foo" :| ["bar"])
-reversedNameToReversedSegments :: (HasCallStack) => Text -> Either EmptyName ReversedSegments
+reversedNameToReversedSegments :: (HasCallStack) => Text -> Either EmptyName ReversedName
 reversedNameToReversedSegments txt =
   txt
     & Text.splitOn "."
     -- Names have a trailing dot, so we need to drop the last empty segment
     & List.dropEnd1
     & NonEmpty.nonEmpty
-    & maybe (Left (EmptyName $ show callStack)) Right
+    & maybe (Left (EmptyName $ show callStack)) (Right . into @ReversedName)
 
 setMostRecentBranch :: ProjectId -> ProjectBranchId -> Transaction ()
 setMostRecentBranch projectId branchId =
@@ -3604,3 +3825,138 @@ loadMostRecentBranch projectId =
       WHERE
         project_id = :projectId
     |]
+
+-- | Searches for all names within the given name lookup which contain the provided list of segments
+-- in order.
+-- Search is case insensitive.
+fuzzySearchTerms :: Bool -> BranchHashId -> Int -> PathSegments -> [Text] -> Transaction [(NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))]
+fuzzySearchTerms includeDependencies bhId limit namespace querySegments = do
+  -- Union in the dependencies if required.
+  let dependenciesSql =
+        if includeDependencies
+          then
+            [sql|
+      UNION ALL
+        SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM name_lookup_mounts mount
+          INNER JOIN scoped_term_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+        WHERE
+          mount.parent_root_branch_hash_id = :bhId
+          -- We have a pre-condition that the namespace must not be within any of the mounts,
+          -- so this is sufficient to determine whether the entire sub-index is within the
+          -- required namespace prefix.
+          AND mount.mount_path GLOB :namespaceGlob
+          AND (mount.mount_path || namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
+          |]
+          else [sql||]
+  fmap unRow
+    <$> queryListRow
+      [sql|
+      SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
+        FROM scoped_term_name_lookup
+      WHERE
+        root_branch_hash_id = :bhId
+        AND namespace GLOB :namespaceGlob
+        AND (namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
+      $dependenciesSql
+        LIMIT :limit
+    |]
+  where
+    namespaceGlob = toNamespaceGlob namespace
+    preparedQuery = prepareFuzzyQuery '\\' querySegments
+    unRow :: NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType)) -> NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)
+    unRow = fmap \(a :. Only b) -> (a, b)
+
+-- | Searches for all names within the given name lookup which contain the provided list of segments
+-- in order.
+--
+-- Search is case insensitive.
+fuzzySearchTypes :: Bool -> BranchHashId -> Int -> PathSegments -> [Text] -> Transaction [(NamedRef Reference.TextReference)]
+fuzzySearchTypes includeDependencies bhId limit namespace querySegments = do
+  -- Union in the dependencies if required.
+  let dependenciesSql =
+        if includeDependencies
+          then
+            [sql|
+      UNION ALL
+        SELECT (names.reversed_name || mount.reversed_mount_path) AS reversed_name, reference_builtin, reference_component_hash, reference_component_index
+        FROM name_lookup_mounts mount
+          INNER JOIN scoped_type_name_lookup names ON names.root_branch_hash_id = mount.mounted_root_branch_hash_id
+        WHERE
+          mount.parent_root_branch_hash_id = :bhId
+          -- We have a pre-condition that the namespace must not be within any of the mounts,
+          -- so this is sufficient to determine whether the entire sub-index is within the
+          -- required namespace prefix.
+          AND mount.mount_path GLOB :namespaceGlob
+          AND (mount.mount_path || namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
+          |]
+          else [sql||]
+  queryListRow
+    [sql|
+      SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index
+        FROM scoped_type_name_lookup
+      WHERE
+        root_branch_hash_id = :bhId
+        AND namespace GLOB :namespaceGlob
+        AND (namespace || last_name_segment) LIKE :preparedQuery ESCAPE '\'
+
+      $dependenciesSql
+
+        LIMIT :limit
+    |]
+  where
+    namespaceGlob = toNamespaceGlob namespace
+    preparedQuery = prepareFuzzyQuery '\\' querySegments
+
+-- | >>> prepareFuzzyQuery ["foo", "bar"]
+-- "%foo%bar%"
+--
+-- >>> prepareFuzzyQuery ["foo", "", "bar"]
+-- "%foo%bar%"
+--
+-- >>> prepareFuzzyQuery ["foo%", "bar "]
+-- "%foo\\%%bar%"
+prepareFuzzyQuery :: Char -> [Text] -> Text
+prepareFuzzyQuery escapeChar query =
+  query
+    & filter (not . Text.null)
+    & map (likeEscape escapeChar . Text.strip)
+    & \q -> "%" <> Text.intercalate "%" q <> "%"
+
+-- fuzzySearchTypes :: Text -> Transaction [NamedRef Reference.TextReference]
+
+data JsonParseFailure = JsonParseFailure
+  { bytes :: !Text,
+    failure :: !Text
+  }
+  deriving stock (Show)
+  deriving anyclass (SqliteExceptionReason)
+
+-- | Get the most recent namespace the user has visited.
+expectMostRecentNamespace :: Transaction [Text]
+expectMostRecentNamespace =
+  queryOneColCheck
+    [sql|
+      SELECT namespace
+      FROM most_recent_namespace
+    |]
+    check
+  where
+    check :: Text -> Either JsonParseFailure [Text]
+    check bytes =
+      case Aeson.eitherDecodeStrict (Text.encodeUtf8 bytes) of
+        Left failure -> Left JsonParseFailure {bytes, failure = Text.pack failure}
+        Right namespace -> Right namespace
+
+-- | Set the most recent namespace the user has visited.
+setMostRecentNamespace :: [Text] -> Transaction ()
+setMostRecentNamespace namespace =
+  execute
+    [sql|
+      UPDATE most_recent_namespace
+      SET namespace = :json
+    |]
+  where
+    json :: Text
+    json =
+      Text.Lazy.toStrict (Aeson.encodeToLazyText namespace)

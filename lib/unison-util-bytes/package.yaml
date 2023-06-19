@@ -12,6 +12,7 @@ dependencies:
   - deepseq
   - memory
   - primitive
+  - stringsearch
   - text
   - vector
   - unison-prelude

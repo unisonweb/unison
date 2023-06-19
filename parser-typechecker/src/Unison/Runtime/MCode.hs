@@ -399,6 +399,7 @@ data BPrim2
   | DRPT
   | CATT
   | TAKT -- drop,append,take
+  | IXOT -- indexof
   | EQLT
   | LEQT
   | LEST -- ==,<=,<
@@ -416,6 +417,7 @@ data BPrim2
   | DRPB
   | IDXB
   | CATB -- take,drop,index,append
+  | IXOB -- indexof
   -- general
   | THRO -- throw
   | TRCE -- trace
@@ -1138,6 +1140,7 @@ emitPOp ANF.TTOF = emitBP1 TTOF
 emitPOp ANF.CATT = emitBP2 CATT
 emitPOp ANF.TAKT = emitBP2 TAKT
 emitPOp ANF.DRPT = emitBP2 DRPT
+emitPOp ANF.IXOT = emitBP2 IXOT
 emitPOp ANF.SIZT = emitBP1 SIZT
 emitPOp ANF.UCNS = emitBP1 UCNS
 emitPOp ANF.USNC = emitBP1 USNC
@@ -1162,6 +1165,7 @@ emitPOp ANF.PAKB = emitBP1 PAKB
 emitPOp ANF.UPKB = emitBP1 UPKB
 emitPOp ANF.TAKB = emitBP2 TAKB
 emitPOp ANF.DRPB = emitBP2 DRPB
+emitPOp ANF.IXOB = emitBP2 IXOB
 emitPOp ANF.IDXB = emitBP2 IDXB
 emitPOp ANF.SIZB = emitBP1 SIZB
 emitPOp ANF.FLTB = emitBP1 FLTB

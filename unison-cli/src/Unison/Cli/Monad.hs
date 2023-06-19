@@ -30,6 +30,7 @@ module Unison.Cli.Monad
 
     -- * Changing the current directory
     cd,
+    popd,
 
     -- * Communicating output to the user
     respond,
@@ -64,6 +65,7 @@ import GHC.OverloadedLabels (IsLabel (..))
 import System.CPUTime (getCPUTime)
 import Text.Printf (printf)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
@@ -75,6 +77,7 @@ import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.CodebaseServer qualified as Server
@@ -372,9 +375,27 @@ time label action =
         s = ns / 1_000_000_000
 
 cd :: Path.Absolute -> Cli ()
-cd path =
+cd path = do
+  setMostRecentNamespace path
   State.modify' \state ->
     state {currentPathStack = List.NonEmpty.cons path (currentPathStack state)}
+
+-- | Pop the latest path off the stack, if it's not the only path in the stack.
+--
+-- Returns whether anything was popped.
+popd :: Cli Bool
+popd = do
+  state <- State.get
+  case List.NonEmpty.uncons (currentPathStack state) of
+    (_, Nothing) -> pure False
+    (_, Just paths) -> do
+      setMostRecentNamespace (List.NonEmpty.head paths)
+      State.put state {currentPathStack = paths}
+      pure True
+
+setMostRecentNamespace :: Path.Absolute -> Cli ()
+setMostRecentNamespace =
+  runTransaction . Queries.setMostRecentNamespace . map NameSegment.toText . Path.toList . Path.unabsolute
 
 respond :: Output -> Cli ()
 respond output = do

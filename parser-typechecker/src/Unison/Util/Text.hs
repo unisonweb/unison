@@ -10,7 +10,9 @@ import Data.String (IsString (..))
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Internal qualified as T
+import Data.Text.Lazy qualified as TL
 import Data.Text.Unsafe qualified as T (Iter (..), iter)
+import Data.Word (Word64)
 import Unison.Util.Bytes qualified as B
 import Unison.Util.Rope qualified as R
 import Prelude hiding (drop, replicate, take)
@@ -41,6 +43,9 @@ replicate 0 _ = mempty
 replicate 1 t = t
 replicate n t =
   replicate (n `div` 2) t <> replicate (n - (n `div` 2)) t
+
+toLazyText :: Text -> TL.Text
+toLazyText (Text t) = TL.fromChunks (chunkToText <$> toList t)
 
 chunkToText :: Chunk -> T.Text
 chunkToText (Chunk _ t) = t
@@ -115,6 +120,16 @@ unpack = toString
 toText :: Text -> T.Text
 toText (Text t) = T.concat (chunkToText <$> unfoldr R.uncons t)
 {-# INLINE toText #-}
+
+indexOf :: Text -> Text -> Maybe Word64
+indexOf "" _ = Just 0
+indexOf needle haystack =
+  case TL.breakOn needle' haystack' of
+    (_, "") -> Nothing
+    (prefix, _) -> Just (fromIntegral (TL.length prefix))
+  where
+    needle' = toLazyText needle
+    haystack' = toLazyText haystack
 
 -- Drop with both a maximum size and a predicate. Yields actual number of
 -- dropped characters.

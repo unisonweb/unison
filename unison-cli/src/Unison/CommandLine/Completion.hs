@@ -51,8 +51,8 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Server.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
-import Unison.Server.Endpoints.NamespaceListing qualified as Server
+import Unison.Server.Local.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
+import Unison.Server.Local.Endpoints.NamespaceListing qualified as Server
 import Unison.Server.Types qualified as Server
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Share.Types qualified as Share

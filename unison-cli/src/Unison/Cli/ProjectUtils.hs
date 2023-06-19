@@ -17,7 +17,9 @@ module Unison.Cli.ProjectUtils
 
     -- * Loading local project info
     expectProjectAndBranchByIds,
+    getProjectAndBranchByTheseNames,
     expectProjectAndBranchByTheseNames,
+    expectLooseCodeOrProjectBranch,
 
     -- * Loading remote project info
     expectRemoteProjectByName,
@@ -43,8 +45,10 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Share.Projects qualified as Share
+import Unison.Codebase.Editor.Input (LooseCodeOrProject)
 import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
@@ -113,6 +117,26 @@ expectProjectAndBranchByIds (ProjectAndBranch projectId branchId) = do
   branch <- Queries.expectProjectBranch projectId branchId
   pure (ProjectAndBranch project branch)
 
+-- Get a local project branch by a "these names", using the following defaults if a name is missing:
+--
+--   * The project at the current path
+--   * The branch named "main"
+getProjectAndBranchByTheseNames ::
+  These ProjectName ProjectBranchName ->
+  Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+getProjectAndBranchByTheseNames = \case
+  This projectName -> getProjectAndBranchByTheseNames (These projectName (unsafeFrom @Text "main"))
+  That branchName -> runMaybeT do
+    (ProjectAndBranch project _branch, _restPath) <- MaybeT getCurrentProjectBranch
+    branch <- MaybeT (Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName))
+    pure (ProjectAndBranch project branch)
+  These projectName branchName -> do
+    Cli.runTransaction do
+      runMaybeT do
+        project <- MaybeT (Queries.loadProjectByName projectName)
+        branch <- MaybeT (Queries.loadProjectBranchByName (project ^. #projectId) branchName)
+        pure (ProjectAndBranch project branch)
+
 -- Expect a local project branch by a "these names", using the following defaults if a name is missing:
 --
 --   * The project at the current path
@@ -137,6 +161,25 @@ expectProjectAndBranchByTheseNames = \case
           pure (ProjectAndBranch project branch)
     maybeProjectAndBranch & onNothing do
       Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
+
+-- | Expect/resolve a possibly-ambiguous "loose code or project", with the following rules:
+--
+--   1. If we have an unambiguous `/branch` or `project/branch`, look up in the database.
+--   2. If we have an unambiguous `loose.code.path`, just return it.
+--   3. If we have an ambiguous `foo`, *because we do not currently have an unambiguous syntax for relative paths*,
+--      we elect to treat it as a loose code path (because `/branch` can be selected with a leading forward slash).
+expectLooseCodeOrProjectBranch ::
+  These Path' (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) ->
+  Cli (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+expectLooseCodeOrProjectBranch =
+  _Right expectProjectAndBranchByTheseNames . f
+  where
+    f :: LooseCodeOrProject -> Either Path' (These ProjectName ProjectBranchName) -- (Maybe ProjectName, ProjectBranchName)
+    f = \case
+      This path -> Left path
+      That (ProjectAndBranch Nothing branch) -> Right (That branch)
+      That (ProjectAndBranch (Just project) branch) -> Right (These project branch)
+      These path _ -> Left path -- (3) above
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Remote project utils

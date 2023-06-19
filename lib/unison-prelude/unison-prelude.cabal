@@ -22,6 +22,7 @@ library
       Unison.Prelude
       Unison.Util.Alternative
       Unison.Util.Lens
+      Unison.Util.List
       Unison.Util.Map
       Unison.Util.Monoid
       Unison.Util.Set

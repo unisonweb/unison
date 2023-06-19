@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.Output
   ( Output (..),
+    AmbiguousReset'Argument (..),
     CreatedProjectBranchFrom (..),
     DisplayDefinitionsOutput (..),
     WhichBranchEmpty (..),
@@ -92,9 +93,22 @@ data NumberedOutput
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMerge (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMergePropagate (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMergePreview (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMerge
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      Path.Absolute
+      PPE.PrettyPrintEnv
+      (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMergePropagate
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      Path.Absolute
+      Path.Path'
+      PPE.PrettyPrintEnv
+      (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMergePreview
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      Path.Absolute
+      PPE.PrettyPrintEnv
+      (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -116,6 +130,11 @@ data NumberedOutput
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
   | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
+  | AmbiguousReset AmbiguousReset'Argument (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path) (ProjectAndBranch ProjectName ProjectBranchName)
+
+data AmbiguousReset'Argument
+  = AmbiguousReset'Hash
+  | AmbiguousReset'Target
 
 --  | ShowDiff
 
@@ -259,19 +278,19 @@ data Output
   | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
   | PullAlreadyUpToDate
       (ReadRemoteNamespace Share.RemoteProjectBranch)
-      (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | PullSuccessful
       (ReadRemoteNamespace Share.RemoteProjectBranch)
-      (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
-    MergeOverEmpty (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+    MergeOverEmpty (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | MergeAlreadyUpToDate
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | PreviewMergeAlreadyUpToDate
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | -- | No conflicts or edits remain for the current patch.
     NoConflictsOrEdits
   | NotImplemented
@@ -307,7 +326,7 @@ data Output
   | DisplayDebugCompletions [Completion.Completion]
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
-  | CreatedProject ProjectName ProjectBranchName
+  | CreatedProject Bool {- randomly-generated name? -} ProjectName
   | CreatedProjectBranch CreatedProjectBranchFrom (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
@@ -582,6 +601,7 @@ isFailure o = case o of
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
+  AmbiguousReset {} -> True
   AmbiguousSwitch {} -> True
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True

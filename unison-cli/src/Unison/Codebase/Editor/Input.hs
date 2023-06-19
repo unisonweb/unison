@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.Input
     DiffNamespaceToPatchInput (..),
     GistInput (..),
     PullSourceTarget (..),
-    PullTarget (..),
     PushRemoteBranchInput (..),
     PushSourceTarget (..),
     PushSource (..),
@@ -109,6 +108,12 @@ data Input
   | PullRemoteBranchI PullSourceTarget SyncMode PullMode Verbosity
   | PushRemoteBranchI PushRemoteBranchInput
   | ResetRootI (Either ShortCausalHash Path')
+  | ResetI
+      ( These
+          (Either ShortCausalHash Path')
+          (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+      )
+      (Maybe LooseCodeOrProject)
   | -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user
@@ -226,7 +231,7 @@ data Input
   | AuthLoginI
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
-  | ProjectCreateI ProjectName
+  | ProjectCreateI (Maybe ProjectName)
   | ProjectRenameI ProjectName
   | ProjectSwitchI ProjectAndBranchNames
   | ProjectsI
@@ -267,16 +272,8 @@ data GistInput = GistInput
 data PullSourceTarget
   = PullSourceTarget0
   | PullSourceTarget1 (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-  | PullSourceTarget2
-      (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-      (PullTarget (These ProjectName ProjectBranchName))
+  | PullSourceTarget2 (ReadRemoteNamespace (These ProjectName ProjectBranchName)) LooseCodeOrProject
   deriving stock (Eq, Show)
-
--- | Where are we pulling into?
-data PullTarget a
-  = PullTargetLooseCode Path'
-  | PullTargetProject a
-  deriving stock (Eq, Show, Generic)
 
 data PushSource
   = PathySource Path'

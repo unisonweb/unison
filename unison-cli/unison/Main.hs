@@ -53,6 +53,7 @@ import System.IO.Temp qualified as Temp
 import System.Path qualified as Path
 import Text.Megaparsec (runParser)
 import Text.Pretty.Simple (pHPrint)
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
@@ -74,6 +75,7 @@ import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.LSP qualified as LSP
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -286,6 +288,16 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                         takeMVar mvar
                       WithCLI -> do
                         PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+
+                        -- If the user didn't provide a starting path on the command line, put them in the most recent
+                        -- path they cd'd to
+                        startingPath <-
+                          case mayStartingPath of
+                            Just startingPath -> pure startingPath
+                            Nothing -> do
+                              segments <- Codebase.runTransaction theCodebase Queries.expectMostRecentNamespace
+                              pure (Path.Absolute (Path.fromList (map NameSegment.NameSegment segments)))
+
                         launch
                           currentDir
                           config
@@ -294,7 +306,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                           theCodebase
                           []
                           (Just baseUrl)
-                          mayStartingPath
+                          (Just startingPath)
                           downloadBase
                           initRes
                           notifyOnRootChanges

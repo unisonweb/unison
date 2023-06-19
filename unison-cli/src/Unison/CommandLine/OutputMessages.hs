@@ -42,6 +42,7 @@ import Unison.ABT qualified as ABT
 import Unison.Auth.Types qualified as Auth
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Pretty
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
@@ -216,7 +217,7 @@ notifyNumbered = \case
     first
       ( \p ->
           P.lines
-            [ P.wrap $ "Here's what's changed in " <> prettyPathOrProjectAndBranchName dest' <> "after the merge:",
+            [ P.wrap $ "Here's what's changed in " <> prettyNamespaceKey dest' <> "after the merge:",
               "",
               p,
               "",
@@ -241,7 +242,7 @@ notifyNumbered = \case
           P.lines
             [ P.wrap $
                 "Here's what's changed in "
-                  <> prettyPathOrProjectAndBranchName dest'
+                  <> prettyNamespaceKey dest'
                   <> "after applying the patch at "
                   <> P.group (prettyPath' patchPath' <> ":"),
               "",
@@ -249,7 +250,7 @@ notifyNumbered = \case
               "",
               tip $
                 "You can use "
-                  <> IP.makeExample IP.todo [prettyPath' patchPath', prettyPathOrProjectAndBranchName dest']
+                  <> IP.makeExample IP.todo [prettyPath' patchPath', prettyNamespaceKey dest']
                   <> "to see if this generated any work to do in this namespace"
                   <> "and "
                   <> IP.makeExample' IP.test
@@ -266,7 +267,7 @@ notifyNumbered = \case
     first
       ( \p ->
           P.lines
-            [ P.wrap $ "Here's what would change in " <> prettyPathOrProjectAndBranchName dest' <> "after the merge:",
+            [ P.wrap $ "Here's what would change in " <> prettyNamespaceKey dest' <> "after the merge:",
               "",
               p
             ]
@@ -451,6 +452,47 @@ notifyNumbered = \case
     )
     where
       switch = IP.makeExample IP.projectSwitch
+  AmbiguousReset sourceOfAmbiguity (ProjectAndBranch pn0 bn0, path) (ProjectAndBranch currentProject branch) ->
+    ( P.wrap
+        ( openingLine
+            <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
+            <> orTheNamespace
+            <> relPath0
+            <> "in the current branch."
+            <> "Could you be more specific?"
+        )
+        <> P.newline
+        <> P.newline
+        <> P.numberedList
+          [ prettySlashProjectBranchName branch <> " (the branch " <> prettyProjectBranchName branch <> " in the current project)",
+            relPath0 <> " (the relative path " <> relPath0 <> " in the current branch)"
+          ]
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( "use "
+              <> reset (resetArgs ["1"])
+              <> " or "
+              <> reset (resetArgs ["2"])
+              <> " to pick one of these."
+          ),
+      [ Text.unpack (Text.cons '/' (into @Text branch)),
+        Text.unpack (into @Text (show absPath0))
+      ]
+    )
+    where
+      openingLine = case sourceOfAmbiguity of
+        E.AmbiguousReset'Hash -> "I'm not sure if you wanted to reset to the branch"
+        E.AmbiguousReset'Target -> "I'm not sure if you wanted to reset the branch"
+      orTheNamespace = case sourceOfAmbiguity of
+        E.AmbiguousReset'Hash -> "or to the namespace"
+        E.AmbiguousReset'Target -> "or the namespace"
+      resetArgs = case sourceOfAmbiguity of
+        E.AmbiguousReset'Hash -> \xs -> xs
+        E.AmbiguousReset'Target -> \xs -> "<some hash>" : xs
+      reset = IP.makeExample IP.reset
+      relPath0 = prettyPath' (Path.toPath' path)
+      absPath0 = review ProjectUtils.projectBranchPathPrism (ProjectAndBranch (pn0 ^. #projectId) (bn0 ^. #branchId), path)
   where
     absPathToBranchId = Right
 
@@ -1565,33 +1607,33 @@ notifyUser dir = \case
   PullAlreadyUpToDate ns dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPullTarget dest
+        prettyNamespaceKey dest
           <> "was already up-to-date with"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated"
-          <> prettyPullTarget dest
+          <> prettyNamespaceKey dest
           <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   AboutToMerge -> pure "Merging..."
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully pulled into " <> P.group (prettyPullTarget dest <> ", which was empty.")
+        "Successfully pulled into " <> P.group (prettyNamespaceKey dest <> ", which was empty.")
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPathOrProjectAndBranchName dest
+        prettyNamespaceKey dest
           <> "was already up-to-date with"
-          <> P.group (prettyPathOrProjectAndBranchName src <> ".")
+          <> P.group (prettyNamespaceKey src <> ".")
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPathOrProjectAndBranchName dest
+        prettyNamespaceKey dest
           <> "is already up-to-date with"
-          <> P.group (prettyPathOrProjectAndBranchName src <> ".")
+          <> P.group (prettyNamespaceKey src <> ".")
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
@@ -1774,15 +1816,19 @@ notifyUser dir = \case
   PulledEmptyBranch remote ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
-  CreatedProject projectName branchName ->
+  CreatedProject nameWasRandomlyGenerated projectName ->
     pure $
-      P.wrap
-        ( "I just created project"
-            <> prettyProjectName projectName
-            <> "with branch"
-            <> prettyProjectBranchName branchName
-        )
-        <> "."
+      if nameWasRandomlyGenerated
+        then
+          P.wrap $
+            "🎉 I've created the project with the randomly-chosen name"
+              <> prettyProjectName projectName
+              <> "(use"
+              <> IP.makeExample IP.projectRenameInputPattern ["<new-name>"]
+              <> "to change it)."
+        else
+          P.wrap $
+            "🎉 I've created the project" <> P.group (prettyProjectName projectName <> ".")
   CreatedProjectBranch from projectAndBranch ->
     case from of
       CreatedProjectBranchFrom'LooseCode path ->

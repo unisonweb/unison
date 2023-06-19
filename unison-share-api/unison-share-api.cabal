@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -23,13 +23,15 @@ library
       Unison.Server.Doc.AsHtml
       Unison.Server.Doc.Markdown.Render
       Unison.Server.Doc.Markdown.Types
-      Unison.Server.Endpoints.DefinitionSummary
-      Unison.Server.Endpoints.FuzzyFind
-      Unison.Server.Endpoints.GetDefinitions
-      Unison.Server.Endpoints.NamespaceDetails
-      Unison.Server.Endpoints.NamespaceListing
-      Unison.Server.Endpoints.Projects
       Unison.Server.Errors
+      Unison.Server.Local
+      Unison.Server.Local.Definitions
+      Unison.Server.Local.Endpoints.DefinitionSummary
+      Unison.Server.Local.Endpoints.FuzzyFind
+      Unison.Server.Local.Endpoints.GetDefinitions
+      Unison.Server.Local.Endpoints.NamespaceDetails
+      Unison.Server.Local.Endpoints.NamespaceListing
+      Unison.Server.Local.Endpoints.Projects
       Unison.Server.NameSearch
       Unison.Server.NameSearch.FromNames
       Unison.Server.NameSearch.Sqlite
@@ -37,7 +39,9 @@ library
       Unison.Server.QueryResult
       Unison.Server.SearchResult
       Unison.Server.SearchResult'
+      Unison.Server.Share
       Unison.Server.Share.Definitions
+      Unison.Server.Share.FuzzyFind
       Unison.Server.Share.RenderDoc
       Unison.Server.Syntax
       Unison.Server.Types

@@ -811,7 +811,10 @@ deleteProject =
       aliases = ["project.delete"],
       visibility = I.Hidden,
       argTypes = [(Required, projectNameArg)],
-      help = P.wrap "Delete a project.",
+      help =
+        P.wrapColumn2
+          [ ("`delete.project foo`", "deletes the local project `foo`")
+          ],
       parse = \case
         [name]
           | Right project <- tryInto @ProjectName (Text.pack name) ->
@@ -826,7 +829,11 @@ deleteBranch =
       aliases = ["branch.delete"],
       visibility = I.Hidden,
       argTypes = [(Required, projectBranchNameWithOptionalProjectNameArg)],
-      help = P.wrap "Delete a project branch.",
+      help =
+        P.wrapColumn2
+          [ ("`delete.branch foo/bar`", "deletes the branch `bar` in the project `foo`"),
+            ("`delete.branch /bar`", "deletes the branch `bar` in the current project")
+          ],
       parse = \case
         [name] ->
           case tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name) of
@@ -1116,6 +1123,51 @@ forkLocal =
         _ -> Left (I.help forkLocal)
     )
 
+reset :: InputPattern
+reset =
+  InputPattern
+    "reset"
+    []
+    I.Visible
+    [ (Required, namespaceArg),
+      (Optional, namespaceArg)
+    ]
+    ( P.wrapColumn2
+        [ ("`reset #pvfd222s8n`", "reset the current namespace to the causal `#pvfd222s8n`"),
+          ("`reset foo`", "reset the current namespace to that of the `foo` namespace."),
+          ("`reset foo bar`", "reset the namespace `bar` to that of the `foo` namespace."),
+          ("`reset #pvfd222s8n /topic`", "reset the branch `topic` of the current project to the causal `#pvfd222s8n`.")
+        ]
+    )
+    ( maybeToEither (I.help reset) . \case
+        arg0 : restArgs -> do
+          arg0 <- branchIdOrProject arg0
+          arg1 <- case restArgs of
+            [] -> pure Nothing
+            arg1 : [] -> Just <$> parseLooseCodeOrProject arg1
+            _ -> Nothing
+          Just (Input.ResetI arg0 arg1)
+        _ -> Nothing
+    )
+  where
+    branchIdOrProject ::
+      String ->
+      Maybe
+        ( These
+            Input.BranchId
+            (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+        )
+    branchIdOrProject str =
+      let branchIdRes = Input.parseBranchId str
+          projectRes = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack str)
+       in case (branchIdRes, projectRes) of
+            (Left _, Left _) -> Nothing
+            (Left _, Right pr) -> Just (That pr)
+            (Right bid, Left _) -> Just (This bid)
+            (Right bid, Right pr) -> Just (These bid pr)
+
+-- asBranch = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
+
 resetRoot :: InputPattern
 resetRoot =
   InputPattern
@@ -1161,52 +1213,62 @@ pullImpl name aliases verbosity pullMode addendum = do
   where
     self =
       InputPattern
-        name
-        aliases
-        I.Visible
-        [(Optional, remoteNamespaceArg), (Optional, namespaceArg)]
-        ( P.lines
-            [ P.wrap
-                "The"
-                <> makeExample' self
-                <> "command merges a remote namespace into a local namespace"
-                <> addendum,
-              "",
-              P.wrapColumn2
-                [ ( makeExample self ["remote", "local"],
-                    "merges the remote namespace `remote`"
-                      <> "into the local namespace `local"
-                  ),
-                  ( makeExample self ["remote"],
-                    "merges the remote namespace `remote`"
-                      <> "into the current namespace"
-                  ),
-                  ( makeExample' self,
-                    "merges the remote namespace configured in `.unisonConfig`"
-                      <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
-                  )
-                ],
-              "",
-              explainRemote Pull
-            ]
-        )
-        ( \case
-            [] ->
-              Right $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.ShortCircuit pullMode verbosity
-            [sourceString] -> do
-              source <- parseReadRemoteNamespace "remote-namespace" sourceString
-              Right $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) SyncMode.ShortCircuit pullMode verbosity
-            [sourceString, targetString] -> do
-              source <- parseReadRemoteNamespace "remote-namespace" sourceString
-              target <- parsePullTarget targetString
-              Right $
-                Input.PullRemoteBranchI
-                  (Input.PullSourceTarget2 source target)
-                  SyncMode.ShortCircuit
-                  pullMode
-                  verbosity
-            _ -> Left (I.help self)
-        )
+        { patternName = name,
+          aliases = aliases,
+          visibility = I.Visible,
+          argTypes = [(Optional, remoteNamespaceArg), (Optional, namespaceArg)],
+          help =
+            P.lines
+              [ P.wrap
+                  "The"
+                  <> makeExample' self
+                  <> "command merges a remote namespace into a local namespace"
+                  <> addendum,
+                "",
+                P.wrapColumn2
+                  [ ( makeExample self ["@unison/base/main"],
+                      "merges the branch `main`"
+                        <> "of the Unison Share hosted project `@unison/base`"
+                        <> "into the current namespace"
+                    ),
+                    ( makeExample self ["@unison/base/main", "my-base/topic"],
+                      "merges the branch `main`"
+                        <> "of the Unison Share hosted project `@unison/base`"
+                        <> "into the branch `topic` of the local `my-base` project"
+                    ),
+                    ( makeExample self ["remote", "local"],
+                      "merges the remote namespace `remote`"
+                        <> "into the local namespace `local"
+                    ),
+                    ( makeExample self ["remote"],
+                      "merges the remote namespace `remote`"
+                        <> "into the current namespace"
+                    ),
+                    ( makeExample' self,
+                      "merges the remote namespace configured in `.unisonConfig`"
+                        <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
+                    )
+                  ],
+                "",
+                explainRemote Pull
+              ],
+          parse =
+            maybeToEither (I.help self) . \case
+              [] -> Just $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.ShortCircuit pullMode verbosity
+              [sourceString] -> do
+                source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+                Just $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) SyncMode.ShortCircuit pullMode verbosity
+              [sourceString, targetString] -> do
+                source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+                target <- parseLooseCodeOrProject targetString
+                Just $
+                  Input.PullRemoteBranchI
+                    (Input.PullSourceTarget2 source target)
+                    SyncMode.ShortCircuit
+                    pullMode
+                    verbosity
+              _ -> Nothing
+        }
 
 pullExhaustive :: InputPattern
 pullExhaustive =
@@ -1226,32 +1288,32 @@ pullExhaustive =
               <> "versions M1l and earlier.  It may be extra slow!"
         ]
     )
-    ( \case
+    ( maybeToEither (I.help pullExhaustive) . \case
         [] ->
-          Right $
+          Just $
             Input.PullRemoteBranchI
               Input.PullSourceTarget0
               SyncMode.Complete
               Input.PullWithHistory
               Verbosity.Verbose
         [sourceString] -> do
-          source <- parseReadRemoteNamespace "remote-namespace" sourceString
-          Right $
+          source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+          Just $
             Input.PullRemoteBranchI
               (Input.PullSourceTarget1 source)
               SyncMode.Complete
               Input.PullWithHistory
               Verbosity.Verbose
         [sourceString, targetString] -> do
-          source <- parseReadRemoteNamespace "remote-namespace" sourceString
-          target <- parsePullTarget targetString
-          Right $
+          source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+          target <- parseLooseCodeOrProject targetString
+          Just $
             Input.PullRemoteBranchI
               (Input.PullSourceTarget2 source target)
               SyncMode.Complete
               Input.PullWithHistory
               Verbosity.Verbose
-        _ -> Left (I.help pullVerbose)
+        _ -> Nothing
     )
 
 debugTabCompletion :: InputPattern
@@ -1439,24 +1501,25 @@ pushExhaustive =
 squashMerge :: InputPattern
 squashMerge =
   InputPattern
-    "merge.squash"
-    ["squash"]
-    I.Visible
-    [(Required, namespaceArg), (Required, namespaceArg)]
-    ( P.wrap $
-        makeExample squashMerge ["src", "dest"]
-          <> "merges `src` namespace into `dest`,"
-          <> "discarding the history of `src` in the process."
-          <> "The resulting `dest` will have (at most) 1"
-          <> "additional history entry."
-    )
-    ( \case
-        [src, dest] -> first fromString $ do
-          src <- parseLooseCodeOrProject src
-          dest <- parseLooseCodeOrProject dest
-          pure $ Input.MergeLocalBranchI src dest Branch.SquashMerge
-        _ -> Left (I.help squashMerge)
-    )
+    { patternName = "merge.squash",
+      aliases = ["squash"],
+      visibility = I.Visible,
+      argTypes = [(Required, namespaceArg), (Required, namespaceArg)],
+      help =
+        P.wrap $
+          makeExample squashMerge ["src", "dest"]
+            <> "merges `src` namespace into `dest`,"
+            <> "discarding the history of `src` in the process."
+            <> "The resulting `dest` will have (at most) 1"
+            <> "additional history entry.",
+      parse =
+        maybeToEither (I.help squashMerge) . \case
+          [src, dest] -> do
+            src <- parseLooseCodeOrProject src
+            dest <- parseLooseCodeOrProject dest
+            Just $ Input.MergeLocalBranchI src dest Branch.SquashMerge
+          _ -> Nothing
+    }
 
 mergeLocal :: InputPattern
 mergeLocal =
@@ -1488,24 +1551,24 @@ mergeLocal =
           )
         ]
     )
-    ( \case
-        [src] -> first fromString do
+    ( maybeToEither (I.help mergeLocal) . \case
+        [src] -> do
           src <- parseLooseCodeOrProject src
-          pure $ Input.MergeLocalBranchI src (This Path.relativeEmpty') Branch.RegularMerge
-        [src, dest] -> first fromString $ do
+          Just $ Input.MergeLocalBranchI src (This Path.relativeEmpty') Branch.RegularMerge
+        [src, dest] -> do
           src <- parseLooseCodeOrProject src
           dest <- parseLooseCodeOrProject dest
-          pure $ Input.MergeLocalBranchI src dest Branch.RegularMerge
-        _ -> Left (I.help mergeLocal)
+          Just $ Input.MergeLocalBranchI src dest Branch.RegularMerge
+        _ -> Nothing
     )
 
-parseLooseCodeOrProject :: String -> Either String Input.LooseCodeOrProject
+parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
 parseLooseCodeOrProject inputString =
   case (asLooseCode, asBranch) of
-    (Right path, Left _) -> Right (This path)
-    (Left _, Right branch) -> Right (That branch)
-    (Right path, Right branch) -> Right (These path branch)
-    (Left _, Left _) -> Left ("Failed to parse " ++ inputString ++ " as a branch or namespace")
+    (Right path, Left _) -> Just (This path)
+    (Left _, Right branch) -> Just (That branch)
+    (Right path, Right branch) -> Just (These path branch)
+    (Left _, Left _) -> Nothing
   where
     asLooseCode = Path.parsePath' inputString
     asBranch = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
@@ -1555,15 +1618,15 @@ previewMergeLocal =
           )
         ]
     )
-    ( \case
-        [src] -> first fromString $ do
+    ( maybeToEither (I.help previewMergeLocal) . \case
+        [src] -> do
           src <- parseLooseCodeOrProject src
           pure $ Input.PreviewMergeLocalBranchI src (This Path.relativeEmpty')
-        [src, dest] -> first fromString $ do
+        [src, dest] -> do
           src <- parseLooseCodeOrProject src
           dest <- parseLooseCodeOrProject dest
           pure $ Input.PreviewMergeLocalBranchI src dest
-        _ -> Left (I.help previewMergeLocal)
+        _ -> Nothing
     )
 
 replaceEdit ::
@@ -1689,6 +1752,7 @@ helpTopicsMap =
     [ ("testcache", testCacheMsg),
       ("filestatus", fileStatusMsg),
       ("messages.disallowedAbsolute", disallowedAbsoluteMsg),
+      ("remotes", remotesMsg),
       ("namespaces", pathnamesMsg)
     ]
   where
@@ -1799,6 +1863,19 @@ helpTopicsMap =
             "As a workaround, you can give definitions with a relative name"
               <> "temporarily (like `exports.blah.foo`) and then use `move.*` "
               <> "or `merge` commands to move stuff around afterwards."
+        ]
+    remotesMsg =
+      P.callout "\129302" . P.lines $
+        [ P.wrap $
+            "Local projects may be associated with at most one remote project on Unison Share."
+              <> "When this relationship is established, it becomes the default argument for a"
+              <> "number of share commands. For example, running `push` or `pull` in a project"
+              <> "with no arguments will push to or pull from the associated remote, if it exists.",
+          "",
+          P.wrap $
+            "This association is created automatically on when a project is created by `clone`."
+              <> "If the project was created locally then the relationship will be established on"
+              <> "the first `push`."
         ]
 
 help :: InputPattern
@@ -2441,17 +2518,18 @@ projectCreate =
     { patternName = "project.create",
       aliases = ["create.project"],
       visibility = I.Hidden,
-      argTypes = [(Required, projectNameArg)],
+      argTypes = [],
       help =
         P.wrapColumn2
-          [ ("`project.create foo`", "creates the project foo and switches you to foo/main")
+          [ ("`project.create`", "creates a project with a random name"),
+            ("`project.create foo`", "creates a project named `foo`")
           ],
       parse = \case
         [name] ->
           case tryInto @ProjectName (Text.pack name) of
             Left _ -> Left "Invalid project name."
-            Right name1 -> Right (Input.ProjectCreateI name1)
-        _ -> Left (showPatternHelp projectCreate)
+            Right name1 -> Right (Input.ProjectCreateI (Just name1))
+        _ -> Right (Input.ProjectCreateI Nothing)
     }
 
 projectRenameInputPattern :: InputPattern
@@ -2476,7 +2554,7 @@ projectSwitch =
     { patternName = "switch",
       aliases = [],
       visibility = I.Hidden,
-      argTypes = [(Required, projectAndBranchNamesArg False False)],
+      argTypes = [(Required, projectAndBranchNamesArg False)],
       help =
         P.wrapColumn2
           [ ("`switch foo/bar`", "switches to the branch `bar` in the project `foo`"),
@@ -2533,19 +2611,22 @@ branchInputPattern =
             ("`branch /bar foo`", "forks the branch `bar` of the current project to a new branch `foo`"),
             ("`branch .bar foo`", "forks the path `.bar` of the current project to a new branch `foo`")
           ],
-      parse = \case
-        [source0, name] -> do
-          source <- first (\_ -> showPatternHelp branchInputPattern) (parseLooseCodeOrProject source0)
-          projectAndBranch <-
-            first
-              (\_ -> showPatternHelp branchInputPattern)
-              (tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name))
-          Right (Input.BranchI (Input.BranchSourceI'LooseCodeOrProject source) projectAndBranch)
-        [name] ->
-          first (\_ -> showPatternHelp branchInputPattern) do
-            projectAndBranch <- tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name)
-            Right (Input.BranchI Input.BranchSourceI'CurrentContext projectAndBranch)
-        _ -> Left (showPatternHelp branchInputPattern)
+      parse =
+        maybeToEither (showPatternHelp branchInputPattern) . \case
+          [source0, name] -> do
+            source <- parseLooseCodeOrProject source0
+            projectAndBranch <-
+              Text.pack name
+                & tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+                & eitherToMaybe
+            Just (Input.BranchI (Input.BranchSourceI'LooseCodeOrProject source) projectAndBranch)
+          [name] -> do
+            projectAndBranch <-
+              Text.pack name
+                & tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+                & eitherToMaybe
+            Just (Input.BranchI Input.BranchSourceI'CurrentContext projectAndBranch)
+          _ -> Nothing
     }
 
 branchEmptyInputPattern :: InputPattern
@@ -2738,6 +2819,7 @@ validInputs =
       renameTerm,
       renameType,
       replace,
+      reset,
       resetRoot,
       runScheme,
       saveExecuteResult,
@@ -2889,17 +2971,16 @@ remoteNamespaceArg =
     }
 
 -- | A project name, branch name, or both.
-projectAndBranchNamesArg :: Bool -> Bool -> ArgumentType
-projectAndBranchNamesArg includeCurrentProject includeCurrentBranch =
+projectAndBranchNamesArg :: Bool -> ArgumentType
+projectAndBranchNamesArg includeCurrentBranch =
   ArgumentType
     { typeName = "project-and-branch-names",
       suggestions = \(Text.strip . Text.pack -> input) codebase _httpClient path ->
         if Text.null input
-          then handleAmbiguousComplete Text.empty codebase path Text.empty Text.empty
+          then handleAmbiguousComplete input codebase path
           else case tryFrom input of
-            Left _err -> pure []
-            Right (ProjectAndBranchNames'Ambiguous projectName branchName) ->
-              handleAmbiguousComplete input codebase path (into @Text projectName) (into @Text branchName)
+            Left _err -> handleAmbiguousComplete input codebase path
+            Right (ProjectAndBranchNames'Ambiguous _ _) -> handleAmbiguousComplete input codebase path
             -- Here we assume that if we've unambiguously parsed a project, it ended in a forward slash, so we're ready
             -- to suggest branches in that project as autocompletions.
             --
@@ -2946,10 +3027,8 @@ projectAndBranchNamesArg includeCurrentProject includeCurrentBranch =
       Text ->
       Codebase m v a ->
       Path.Absolute ->
-      Text ->
-      Text ->
       m [Completion]
-    handleAmbiguousComplete input codebase path projectName branchName = do
+    handleAmbiguousComplete input codebase path = do
       (branches, projects) <-
         Codebase.runTransaction codebase do
           branches <-
@@ -2957,8 +3036,8 @@ projectAndBranchNamesArg includeCurrentProject includeCurrentBranch =
               Nothing -> pure []
               Just (ProjectAndBranch currentProjectId _, _) ->
                 fmap (filterOutCurrentBranch path currentProjectId) do
-                  Queries.loadAllProjectBranchesBeginningWith currentProjectId branchName
-          projects <- filterOutCurrentProject path <$> Queries.loadAllProjectsBeginningWith projectName
+                  Queries.loadAllProjectBranchesBeginningWith currentProjectId input
+          projects <- Queries.loadAllProjectsBeginningWith input
           pure (branches, projects)
       let branchCompletions = map currentProjectBranchToCompletion branches
       let projectCompletions = map projectToCompletion projects
@@ -3031,13 +3110,6 @@ projectAndBranchNamesArg includeCurrentProject includeCurrentBranch =
           then projectCompletions
           else branchCompletions ++ projectCompletions
 
-    filterOutCurrentProject :: Path.Absolute -> [Sqlite.Project] -> [Sqlite.Project]
-    filterOutCurrentProject path =
-      case (includeCurrentProject, preview ProjectUtils.projectBranchPathPrism path) of
-        (False, Just (ProjectAndBranch currentProjectId _, _)) ->
-          filter (\project -> project ^. #projectId /= currentProjectId)
-        _ -> id
-
     filterOutCurrentBranch :: Path.Absolute -> ProjectId -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
     filterOutCurrentBranch path projectId =
       case (includeCurrentBranch, preview ProjectUtils.projectBranchPathPrism path) of
@@ -3097,15 +3169,6 @@ projectNameArg =
       suggestions = \_ _ _ _ -> pure [],
       globTargets = Set.empty
     }
-
-parsePullTarget :: String -> Either (P.Pretty CT.ColorText) (Input.PullTarget (These ProjectName ProjectBranchName))
-parsePullTarget targetString =
-  case tryInto @(These ProjectName ProjectBranchName) (Text.pack targetString) of
-    Left _ ->
-      case Path.parsePath' targetString of
-        Left _ -> Left (I.help pull)
-        Right path -> pure (Input.PullTargetLooseCode path)
-    Right project -> pure (Input.PullTargetProject project)
 
 -- | Parse a 'Input.PushSource'.
 parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource

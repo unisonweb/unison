@@ -8,7 +8,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Server.Endpoints.FuzzyFind where
+module Unison.Server.Local.Endpoints.FuzzyFind where
 
 import Control.Monad.Except
 import Data.Aeson
@@ -174,7 +174,7 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
         )
       alignments =
         take (fromMaybe 10 limit) $ Backend.fuzzyFind localNamesOnly (fromMaybe "" query)
-  lift (join <$> traverse (loadEntry relativeToBranch (PPE.suffixifiedPPE ppe)) alignments)
+  lift (join <$> traverse (loadEntry (Just relativeToBranch) (PPE.suffixifiedPPE ppe)) alignments)
   where
     loadEntry relativeToBranch ppe (a, n, refs) = do
       for refs $

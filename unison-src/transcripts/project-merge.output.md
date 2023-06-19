@@ -32,7 +32,7 @@ zonk = 0
 
 .> project.create foo
 
-  I just created project foo with branch main.
+  🎉 I've created the project foo.
 
 .> merge foo foo/main
 
@@ -76,7 +76,7 @@ foo/main> add
 ```ucm
 .> project.create bar
 
-  I just created project bar with branch main.
+  🎉 I've created the project bar.
 
 bar/main> merge foo/main
 
