@@ -4,6 +4,9 @@ module Unison.Codebase.Editor.HandleInput.ProjectCreate
   )
 where
 
+import Control.Lens (over, (^.))
+import Control.Monad.Reader (ask)
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
 import Data.UUID.V4 qualified as UUID
 import System.Random.Shuffle qualified as RandomShuffle
@@ -14,12 +17,19 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli (stepAt)
 import Unison.Cli.ProjectUtils (projectBranchPath)
+import Unison.Cli.Share.Projects qualified as Share
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.HandleInput.Pull qualified as Pull
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Share.API.Hash qualified as Share.API
 import Unison.Sqlite qualified as Sqlite
+import Unison.Sync.Common qualified as Sync.Common
 import Witch (unsafeFrom)
 
 -- | Create a new project.
@@ -78,9 +88,63 @@ projectCreate maybeProjectName = do
             True -> pure (Left (Output.ProjectNameAlreadyExists projectName))
 
   let path = projectBranchPath ProjectAndBranch {project = projectId, branch = branchId}
-  Cli.stepAt "project.create" (Path.unabsolute path, const Branch.empty0)
   Cli.respond (Output.CreatedProject (isNothing maybeProjectName) projectName)
   Cli.cd path
+
+  Cli.respond Output.FetchingLatestReleaseOfBase
+
+  -- Make an effort to pull the latest release of base, which can go wrong in a number of ways, the most likely of
+  -- which is that the user is offline.
+  maybeBaseLatestReleaseBranchObject <-
+    Cli.label \done -> do
+      baseProject <-
+        Share.getProjectByName' (unsafeFrom @Text "@unison/base") >>= \case
+          Right (Just baseProject) -> pure baseProject
+          _ -> done Nothing
+      ver <- baseProject ^. #latestRelease & onNothing (done Nothing)
+      let baseProjectId = baseProject ^. #projectId
+      let baseLatestReleaseBranchName = unsafeFrom @Text ("releases/" <> into @Text ver)
+      response <-
+        Share.getProjectBranchByName' (ProjectAndBranch baseProjectId baseLatestReleaseBranchName)
+          & onLeftM \_err -> done Nothing
+      baseLatestReleaseBranch <-
+        case response of
+          Share.GetProjectBranchResponseBranchNotFound -> done Nothing
+          Share.GetProjectBranchResponseProjectNotFound -> done Nothing
+          Share.GetProjectBranchResponseSuccess branch -> pure branch
+      Pull.downloadShareProjectBranch baseLatestReleaseBranch
+      Cli.Env {codebase} <- ask
+      baseLatestReleaseBranchObject <-
+        liftIO $
+          Codebase.expectBranchForHash
+            codebase
+            (Sync.Common.hash32ToCausalHash (Share.API.hashJWTHash (baseLatestReleaseBranch ^. #branchHead)))
+      pure (Just baseLatestReleaseBranchObject)
+
+  let reflogDescription =
+        case maybeProjectName of
+          Nothing -> "project.create"
+          Just projectName -> "project.create " <> into @Text projectName
+
+  let projectBranchObject =
+        case maybeBaseLatestReleaseBranchObject of
+          Nothing -> Branch.empty0
+          Just baseLatestReleaseBranchObject ->
+            let -- lib.base
+                projectBranchLibBaseObject =
+                  over
+                    Branch.children
+                    (Map.insert (NameSegment "base") baseLatestReleaseBranchObject)
+                    Branch.empty0
+                projectBranchLibObject = Branch.cons projectBranchLibBaseObject Branch.empty
+             in over
+                  Branch.children
+                  (Map.insert Name.libSegment projectBranchLibObject)
+                  Branch.empty0
+
+  Cli.stepAt reflogDescription (Path.unabsolute path, const projectBranchObject)
+
+  Cli.respond Output.HappyCoding
 
 insertProjectAndBranch :: ProjectId -> ProjectName -> ProjectBranchId -> ProjectBranchName -> Sqlite.Transaction ()
 insertProjectAndBranch projectId projectName branchId branchName = do

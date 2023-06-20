@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Pull
     loadPropagateDiffDefaultPatch,
     mergeBranchAndPropagateDefaultPatch,
     propagatePatch,
+    downloadShareProjectBranch,
     withEntitiesDownloadedProgressCallback,
   )
 where
@@ -180,23 +181,28 @@ loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
         Cli.returnEarly (Output.GitError err)
     ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
     ReadShare'ProjectBranch remoteBranch -> do
-      let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch (remoteBranch ^. #projectName) remoteProjectBranchName))
-          causalHash = Common.hash32ToCausalHash . Share.hashJWTHash $ causalHashJwt
-          causalHashJwt = remoteBranch ^. #branchHead
-          remoteProjectBranchName = remoteBranch ^. #branchName
-      (result, numDownloaded) <-
-        Cli.with withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
-          result <- Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback
-          numDownloaded <- liftIO getNumDownloaded
-          pure (result, numDownloaded)
-      case result of
-        Left err0 ->
-          (Cli.returnEarly . Output.ShareError) case err0 of
-            Share.SyncError err -> Output.ShareErrorDownloadEntities err
-            Share.TransportError err -> Output.ShareErrorTransport err
-        Right () -> do
-          Cli.respond (Output.DownloadedEntities numDownloaded)
-          liftIO (Codebase.expectBranchForHash codebase causalHash)
+      downloadShareProjectBranch remoteBranch
+      let causalHash = Common.hash32ToCausalHash (Share.hashJWTHash (remoteBranch ^. #branchHead))
+      liftIO (Codebase.expectBranchForHash codebase causalHash)
+
+-- | @downloadShareProjectBranch branch@ downloads the given branch.
+downloadShareProjectBranch :: Share.RemoteProjectBranch -> Cli ()
+downloadShareProjectBranch branch = do
+  let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch (branch ^. #projectName) remoteProjectBranchName))
+      causalHashJwt = branch ^. #branchHead
+      remoteProjectBranchName = branch ^. #branchName
+  exists <- Cli.runTransaction (Queries.causalExistsByHash32 (Share.hashJWTHash causalHashJwt))
+  when (not exists) do
+    (result, numDownloaded) <-
+      Cli.with withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
+        result <- Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback
+        numDownloaded <- liftIO getNumDownloaded
+        pure (result, numDownloaded)
+    result & onLeft \err0 -> do
+      (Cli.returnEarly . Output.ShareError) case err0 of
+        Share.SyncError err -> Output.ShareErrorDownloadEntities err
+        Share.TransportError err -> Output.ShareErrorTransport err
+    Cli.respond (Output.DownloadedEntities numDownloaded)
 
 loadShareLooseCodeIntoMemory :: ReadShareLooseCode -> Cli (Branch IO)
 loadShareLooseCodeIntoMemory rrn@(ReadShareLooseCode {server, repo, path}) = do
