@@ -92,10 +92,11 @@
 
 (define-unison (getBuffering.impl.v3 handle)
     (case (file-stream-buffer-mode handle)
-        [('none) (Right (data BufferMode 0))]
-        [('line) (Right (data BufferMode 1))]
-        [('block) (Right (data BufferMode 2))]
-    ))
+        [(none) (Right NoBuffering)]
+        [(line) (Right LineBuffering)]
+        [(block) (Right BlockBuffering)]
+        [(#f) (Exception 'IO "Unable to determine buffering mode of handle")]
+        [else (Exception 'IO "Unexpected response from file-stream-buffer-mode")]))
 
 (define-unison (setBuffering.impl.v3 handle mode)
     (data-case mode
@@ -106,6 +107,9 @@
             (file-stream-buffer-mode handle 'line)
             (Right none))
         (2 ()
+            (file-stream-buffer-mode handle 'block)
+            (Right none))
+        (3 ()
             (file-stream-buffer-mode handle 'block)
             (Right none))))
 
