@@ -109,7 +109,6 @@
         (2 ()
             (file-stream-buffer-mode handle 'block)
             (Right none))
-        (3 ()
-            (file-stream-buffer-mode handle 'block)
-            (Right none))))
+        (3 (size)
+            (Exception 'IO "Sized block buffering not supported"))))
 
