@@ -17,21 +17,9 @@ on:
       - release/*
 
 jobs:
-
-  ormolu:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          path: unison
-      - uses: mrkkrp/ormolu-action@v11
-        with:
-          version: "0.5.0.1"
-
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    needs: ormolu
     defaults:
       run:
         working-directory: unison
@@ -285,3 +273,7 @@ jobs:
           stack exec -- stack-clean-old list -G || true
           echo project .stack-work
           stack exec -- stack-clean-old list -P || true
+
+      - name: Setup tmate session
+        if: ${{ always() }}
+        uses: mxschmitt/action-tmate@v3
