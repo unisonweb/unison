@@ -48,6 +48,8 @@
     unison-FOp-IO.getBytes.impl.v3
     builtin-IO.seekHandle.impl.v3
     builtin-IO.getLine.impl.v1
+    builtin-IO.setBuffering.impl.v3
+    builtin-IO.getBuffering.impl.v3
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3

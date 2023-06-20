@@ -7,6 +7,7 @@ io.tests = Tests.main do
     !io.test.seek.absolute
     !io.test.seek.relative
     !io.test.getLine
+    !io.test.getsetBuffering
 
 testFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
@@ -89,3 +90,17 @@ io.test.getLine = do
     checkEqual "getLine 1" one "one"
     checkEqual "getLine 2" two "two"
     checkEqual "getLine 3" three "three"
+
+io.test.getsetBuffering = do
+    prev = getBuffering stdOut
+    setBuffering stdOut BlockBuffering
+    bf = getBuffering stdOut
+    setBuffering stdOut LineBuffering
+    b2 = getBuffering stdOut
+    setBuffering stdOut NoBuffering
+    b3 = getBuffering stdOut
+    setBuffering stdOut prev
+    checkEqual "Block" bf BlockBuffering
+    checkEqual "Line" b2 LineBuffering
+    checkEqual "No" b3 NoBuffering
+
