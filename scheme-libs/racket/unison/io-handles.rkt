@@ -35,21 +35,20 @@
   (combine-out
     seekHandle.impl.v3
     getLine.impl.v1
+    getBuffering.impl.v3
+    setBuffering.impl.v3
     ))
 
 ; Still to implement:
-;    getBuffering.impl.v3
 ;    handlePosition.impl.v3
 ;    isSeekable.impl.v3
 ;    getChar.impl.v1
 ;    ready.impl.v1
 ;    isFileOpen.impl.v3
 ;    isFileEOF.impl.v3
-
-; Not implementing for now:
 ;    setEcho.impl.v1
 ;    getEcho.impl.v1
-;    setBuffering.impl.v3
+;       - unsafe-port->file-descriptor
 
    )
 
@@ -83,3 +82,33 @@
         (Right (string->chunked-string ""))
         (Right (string->chunked-string line))
         )))
+
+(define BufferMode
+    (data 'Reference 1 (data 'Id 0 (bytevector 107 13 114 185 126 64 211 42 13 102 196 109 125 88 217 3 36 251 159 9 35 172 24 16 54 158 72 167 2 22 248 214 77 251 43 81 18 154 173 92 126 242 69 233 142 79 137 22 152 161 71 175 85 193 31 162 82 54 3 70 220 161 142 37) 0)))
+
+(define BlockBuffering (data BufferMode 2))
+(define LineBuffering (data BufferMode 1))
+(define NoBuffering (data BufferMode 0))
+
+(define-unison (getBuffering.impl.v3 handle)
+    (case (file-stream-buffer-mode handle)
+        [(none) (Right NoBuffering)]
+        [(line) (Right LineBuffering)]
+        [(block) (Right BlockBuffering)]
+        [(#f) (Exception 'IO "Unable to determine buffering mode of handle")]
+        [else (Exception 'IO "Unexpected response from file-stream-buffer-mode")]))
+
+(define-unison (setBuffering.impl.v3 handle mode)
+    (data-case mode
+        (0 ()
+            (file-stream-buffer-mode handle 'none)
+            (Right none))
+        (1 ()
+            (file-stream-buffer-mode handle 'line)
+            (Right none))
+        (2 ()
+            (file-stream-buffer-mode handle 'block)
+            (Right none))
+        (3 (size)
+            (Exception 'IO "Sized block buffering not supported"))))
+

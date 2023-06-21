@@ -8,6 +8,7 @@ import Control.Lens (over, (^.))
 import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
+import Data.Text qualified as Text
 import Data.UUID.V4 qualified as UUID
 import System.Random.Shuffle qualified as RandomShuffle
 import U.Codebase.Sqlite.DbId
@@ -30,6 +31,8 @@ import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.API.Hash qualified as Share.API
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.Common qualified as Sync.Common
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
 
 -- | Create a new project.
