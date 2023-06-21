@@ -2441,8 +2441,28 @@ projectCreate =
         [name] ->
           case tryInto @ProjectName (Text.pack name) of
             Left _ -> Left "Invalid project name."
-            Right name1 -> Right (Input.ProjectCreateI (Just name1))
-        _ -> Right (Input.ProjectCreateI Nothing)
+            Right name1 -> Right (Input.ProjectCreateI True (Just name1))
+        _ -> Right (Input.ProjectCreateI True Nothing)
+    }
+
+projectCreateEmptyInputPattern :: InputPattern
+projectCreateEmptyInputPattern =
+  InputPattern
+    { patternName = "project.create-empty",
+      aliases = ["create.empty-project"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ("`project.create-empty`", "creates an empty project with a random name"),
+            ("`project.create-empty foo`", "creates an empty project named `foo`")
+          ],
+      parse = \case
+        [name] ->
+          case tryInto @ProjectName (Text.pack name) of
+            Left _ -> Left "Invalid project name."
+            Right name1 -> Right (Input.ProjectCreateI False (Just name1))
+        _ -> Right (Input.ProjectCreateI False Nothing)
     }
 
 projectRenameInputPattern :: InputPattern
@@ -2711,6 +2731,7 @@ validInputs =
       previewUpdate,
       printVersion,
       projectCreate,
+      projectCreateEmptyInputPattern,
       projectRenameInputPattern,
       projectSwitch,
       projectsInputPattern,

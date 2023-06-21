@@ -8,7 +8,6 @@ import Control.Lens (over, (^.))
 import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
-import Data.Text qualified as Text
 import Data.UUID.V4 qualified as UUID
 import System.Random.Shuffle qualified as RandomShuffle
 import U.Codebase.Sqlite.DbId
@@ -31,8 +30,6 @@ import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.API.Hash qualified as Share.API
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.Common qualified as Sync.Common
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
-import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
 
 -- | Create a new project.
@@ -61,8 +58,8 @@ import Witch (unsafeFrom)
 --
 -- For now, it doesn't seem worth it to do (1) or (2), since we want to do (3) eventually, and we'd rather not waste too
 -- much time getting everything perfectly correct before we get there.
-projectCreate :: Maybe ProjectName -> Cli ()
-projectCreate maybeProjectName = do
+projectCreate :: Bool -> Maybe ProjectName -> Cli ()
+projectCreate tryDownloadingBase maybeProjectName = do
   projectId <- liftIO (ProjectId <$> UUID.nextRandom)
   branchId <- liftIO (ProjectBranchId <$> UUID.nextRandom)
 
@@ -94,12 +91,14 @@ projectCreate maybeProjectName = do
   Cli.respond (Output.CreatedProject (isNothing maybeProjectName) projectName)
   Cli.cd path
 
-  Cli.respond Output.FetchingLatestReleaseOfBase
-
   -- Make an effort to pull the latest release of base, which can go wrong in a number of ways, the most likely of
   -- which is that the user is offline.
   maybeBaseLatestReleaseBranchObject <-
     Cli.label \done -> do
+      when (not tryDownloadingBase) (done Nothing)
+
+      Cli.respond Output.FetchingLatestReleaseOfBase
+
       baseProject <-
         Share.getProjectByName' (unsafeFrom @Text "@unison/base") >>= \case
           Right (Just baseProject) -> pure baseProject

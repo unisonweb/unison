@@ -11,8 +11,8 @@ someterm = 18
 ```
 
 ```ucm
-.> project.create foo
-.> project.create bar
+.> project.create-empty foo
+.> project.create-empty bar
 foo/main> add
 foo/main> branch bar
 foo/main> branch topic
