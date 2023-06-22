@@ -36,7 +36,6 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.Types qualified as LSP
 import Unison.LSP.VFS qualified as VFS
-import Unison.Names (Names)
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Pattern qualified as Pattern
