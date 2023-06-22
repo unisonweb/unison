@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -14,6 +14,10 @@ extra-source-files:
     sql/002-reflog-table.sql
     sql/003-namespace-statistics.sql
     sql/004-fix-scoped-name-lookup-tables.sql
+    sql/005-project-tables.sql
+    sql/006-most-recent-branch-table.sql
+    sql/007-add-name-lookup-mounts.sql
+    sql/008-add-most-recent-namespace-table.sql
     sql/create.sql
 
 source-repository head
@@ -35,6 +39,7 @@ library
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
       U.Codebase.Sqlite.NamedRef
+      U.Codebase.Sqlite.NameLookups
       U.Codebase.Sqlite.ObjectType
       U.Codebase.Sqlite.Operations
       U.Codebase.Sqlite.Orphans
@@ -43,9 +48,13 @@ library
       U.Codebase.Sqlite.Patch.Full
       U.Codebase.Sqlite.Patch.TermEdit
       U.Codebase.Sqlite.Patch.TypeEdit
+      U.Codebase.Sqlite.Project
+      U.Codebase.Sqlite.ProjectBranch
       U.Codebase.Sqlite.Queries
       U.Codebase.Sqlite.Reference
       U.Codebase.Sqlite.Referent
+      U.Codebase.Sqlite.RemoteProject
+      U.Codebase.Sqlite.RemoteProjectBranch
       U.Codebase.Sqlite.Serialization
       U.Codebase.Sqlite.Symbol
       U.Codebase.Sqlite.Sync22
@@ -72,6 +81,7 @@ library
       FlexibleInstances
       FunctionalDependencies
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
@@ -90,6 +100,7 @@ library
       ViewPatterns
   build-depends:
       Only
+    , aeson
     , base
     , bytes
     , bytestring
@@ -100,6 +111,8 @@ library
     , lens
     , monad-validate
     , mtl
+    , network-uri
+    , network-uri-orphans-sqlite
     , nonempty-containers
     , safe
     , text
@@ -107,6 +120,7 @@ library
     , unison-codebase
     , unison-codebase-sync
     , unison-core
+    , unison-core-orphans-sqlite
     , unison-hash
     , unison-hash-orphans-sqlite
     , unison-prelude
@@ -116,5 +130,8 @@ library
     , unison-util-serialization
     , unison-util-term
     , unliftio
+    , uuid
+    , uuid-orphans-sqlite
     , vector
+    , witch
   default-language: Haskell2010

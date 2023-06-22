@@ -1,14 +1,14 @@
 module Unison.Auth.Discovery where
 
-import qualified Data.Aeson as Aeson
-import qualified Data.Text as Text
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.TLS as HTTP
+import Data.Aeson qualified as Aeson
+import Data.Text qualified as Text
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client.TLS qualified as HTTP
 import Network.URI
 import Unison.Auth.Types
 import Unison.Prelude
 import Unison.Share.Types (CodeserverURI (..), codeserverToURI)
-import qualified UnliftIO
+import UnliftIO qualified
 
 discoveryURIForCodeserver :: CodeserverURI -> URI
 discoveryURIForCodeserver cs =

@@ -23,32 +23,31 @@ module Unison.Builtin
   )
 where
 
-import Data.Bifunctor (first, second)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Text.Regex.TDFA as RE
-import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Builtin.Terms as TD
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Text.Regex.TDFA qualified as RE
+import Unison.Builtin.Decls qualified as DD
+import Unison.Builtin.Terms qualified as TD
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
-import qualified Unison.DataDeclaration as DD
+import Unison.ConstructorType qualified as CT
+import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.Convert as H
+import Unison.Hashing.V2.Convert qualified as H
 import Unison.Name (Name)
 import Unison.Names (Names (Names))
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.Reference as R
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as R
+import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Name as Name (unsafeFromText, unsafeFromVar)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.Util.Relation as Rel
-import qualified Unison.Var as Var
+import Unison.Syntax.Name qualified as Name (unsafeFromText, unsafeFromVar)
+import Unison.Type qualified as Type
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Util.Relation qualified as Rel
+import Unison.Var qualified as Var
 
 type DataDeclaration = DD.DataDeclaration Symbol Ann
 
@@ -481,6 +480,7 @@ builtinsSrc =
     B "Text.++" $ text --> text --> text,
     B "Text.take" $ nat --> text --> text,
     B "Text.drop" $ nat --> text --> text,
+    B "Text.indexOf" $ text --> text --> optionalt nat,
     B "Text.size" $ text --> nat,
     B "Text.repeat" $ nat --> text --> text,
     B "Text.==" $ text --> text --> boolean,
@@ -530,6 +530,7 @@ builtinsSrc =
     B "Bytes.take" $ nat --> bytes --> bytes,
     B "Bytes.drop" $ nat --> bytes --> bytes,
     B "Bytes.at" $ nat --> bytes --> optionalt nat,
+    B "Bytes.indexOf" $ bytes --> bytes --> optionalt nat,
     B "Bytes.toList" $ bytes --> list nat,
     B "Bytes.size" $ bytes --> nat,
     B "Bytes.flatten" $ bytes --> bytes,

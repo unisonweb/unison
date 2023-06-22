@@ -3,10 +3,10 @@ module U.Codebase.Sqlite.HashHandle
   )
 where
 
-import qualified U.Codebase.Reference as C
+import U.Codebase.Reference qualified as C
 import U.Codebase.Sqlite.Symbol (Symbol)
-import qualified U.Codebase.Term as C.Term
-import qualified U.Codebase.Type as C.Type
+import U.Codebase.Term qualified as C.Term
+import U.Codebase.Type qualified as C.Type
 import Unison.Hash (Hash)
 import Unison.Prelude
 

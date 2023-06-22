@@ -1,11 +1,11 @@
 module Unison.Codebase.Editor.HandleInput.MoveBranch where
 
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Output (Output (..))
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
 
 -- | Moves a branch and its history from one location to another, and saves the new root

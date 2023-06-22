@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -75,15 +75,13 @@ library
       Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema8To9
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
@@ -102,6 +100,7 @@ library
       Unison.PatternMatchCoverage.Class
       Unison.PatternMatchCoverage.Constraint
       Unison.PatternMatchCoverage.Desugar
+      Unison.PatternMatchCoverage.EffectHandler
       Unison.PatternMatchCoverage.Fix
       Unison.PatternMatchCoverage.GrdTree
       Unison.PatternMatchCoverage.IntervalSet
@@ -110,6 +109,7 @@ library
       Unison.PatternMatchCoverage.NormalizedConstraints
       Unison.PatternMatchCoverage.PmGrd
       Unison.PatternMatchCoverage.PmLit
+      Unison.PatternMatchCoverage.Pretty
       Unison.PatternMatchCoverage.Solve
       Unison.PatternMatchCoverage.UFMap
       Unison.PrettyPrintEnv
@@ -119,6 +119,7 @@ library
       Unison.PrettyPrintEnv.Util
       Unison.PrettyPrintEnvDecl
       Unison.PrettyPrintEnvDecl.Names
+      Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
       Unison.Result
       Unison.Runtime.ANF
@@ -191,6 +192,7 @@ library
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -287,7 +289,7 @@ library
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these
@@ -378,6 +380,7 @@ test-suite parser-typechecker-tests
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -478,7 +481,7 @@ test-suite parser-typechecker-tests
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these

@@ -3,10 +3,10 @@ module Unison.LSP.Diagnostics where
 import Language.LSP.Types
 import Unison.LSP.Types
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parser.Ann as Ann
+import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
-import qualified Unison.Syntax.Lexer as Lex
-import qualified Unison.Util.Range as Range
+import Unison.Syntax.Lexer qualified as Lex
+import Unison.Util.Range qualified as Range
 
 annToRange :: Ann -> Maybe Range
 annToRange = \case

@@ -4,14 +4,12 @@ module Unison.LSP.FileAnalysis where
 
 import Control.Lens
 import Control.Monad.Reader
-import qualified Crypto.Random as Random
-import Data.Bifunctor (second)
+import Crypto.Random qualified as Random
 import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
-import qualified Data.IntervalMap.Lazy as IM
-import qualified Data.Map as Map
-import qualified Data.Text as Text
-import Debug.RecoverRTTI (anythingToString)
+import Data.IntervalMap.Lazy qualified as IM
+import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Language.LSP.Types
   ( Diagnostic,
     DiagnosticSeverity (DsError),
@@ -21,12 +19,12 @@ import Language.LSP.Types
     Uri (getUri),
   )
 import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
-import qualified Unison.ABT as ABT
+import Unison.ABT qualified as ABT
 import Unison.Cli.TypeCheck (typecheckHelper)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Debug as Debug
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Path qualified as Path
+import Unison.DataDeclaration qualified as DD
+import Unison.Debug qualified as Debug
 import Unison.LSP.Conversions
 import Unison.LSP.Diagnostics
   ( mkDiagnostic,
@@ -34,34 +32,34 @@ import Unison.LSP.Diagnostics
   )
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
-import qualified Unison.LSP.Types as LSP
-import qualified Unison.LSP.VFS as VFS
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.LSP.Types qualified as LSP
+import Unison.LSP.VFS qualified as VFS
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.PrettyPrintEnvDecl.Names as PPED
-import qualified Unison.PrintError as PrintError
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.PrintError qualified as PrintError
 import Unison.Result (Note)
-import qualified Unison.Result as Result
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Symbol as Symbol
-import qualified Unison.Syntax.HashQualified' as HQ' (toText)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Syntax.TypePrinter as TypePrinter
-import qualified Unison.Term as Term
+import Unison.Symbol qualified as Symbol
+import Unison.Syntax.HashQualified' qualified as HQ' (toText)
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TypePrinter qualified as TypePrinter
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Typechecker.Context as Context
-import qualified Unison.Typechecker.TypeError as TypeError
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
+import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.TypeError qualified as TypeError
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Var as Var
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Var qualified as Var
 import Unison.WatchKind (pattern TestWatch)
 import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
 
@@ -185,7 +183,7 @@ fileAnalysisWorker = forever do
     Map.fromList <$> forMaybe (toList dirtyFileIDs) \docUri -> runMaybeT do
       fileInfo <- MaybeT (checkFile $ TextDocumentIdentifier docUri)
       pure (docUri, fileInfo)
-  Debug.debugM Debug.LSP "Freshly Typechecked " (anythingToString (Map.toList freshlyCheckedFiles))
+  Debug.debugM Debug.LSP "Freshly Typechecked " (Map.toList freshlyCheckedFiles)
   -- Overwrite any files we successfully checked
   atomically $ modifyTVar' checkedFilesV (Map.union freshlyCheckedFiles)
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
@@ -240,9 +238,25 @@ analyseNotes fileUri ppe src notes = do
             -- still have valid diagnostics.
             TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
               Context.PatternArityMismatch loc _typ _numArgs -> singleRange loc
-              _ -> do
-                Debug.debugM Debug.LSP "No Diagnostic configured for type error: " e
-                empty
+              Context.HandlerOfUnexpectedType loc _typ -> singleRange loc
+              Context.TypeMismatch {} -> shouldHaveBeenHandled e
+              Context.IllFormedType {} -> shouldHaveBeenHandled e
+              Context.UnknownSymbol loc _ -> singleRange loc
+              Context.UnknownTerm loc _ _ _ -> singleRange loc
+              Context.AbilityCheckFailure {} -> shouldHaveBeenHandled e
+              Context.AbilityEqFailure {} -> shouldHaveBeenHandled e
+              Context.EffectConstructorWrongArgCount {} -> shouldHaveBeenHandled e
+              Context.MalformedEffectBind {} -> shouldHaveBeenHandled e
+              Context.DuplicateDefinitions {} -> shouldHaveBeenHandled e
+              Context.UnguardedLetRecCycle {} -> shouldHaveBeenHandled e
+              Context.ConcatPatternWithoutConstantLength loc _ -> singleRange loc
+              Context.DataEffectMismatch _ _ decl -> singleRange $ DD.annotation decl
+              Context.UncoveredPatterns loc _ -> singleRange loc
+              Context.RedundantPattern loc -> singleRange loc
+              Context.InaccessiblePattern loc -> singleRange loc
+          shouldHaveBeenHandled e = do
+            Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e
+            empty
           diags = noteDiagnostic currentPath note ranges
       -- Sort on match accuracy first, then name.
       codeActions <- case cause of

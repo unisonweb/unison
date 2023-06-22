@@ -4,7 +4,7 @@ module Unison.Hashing.V2.Kind
 where
 
 import Unison.Hashing.V2.Tokenizable (Tokenizable)
-import qualified Unison.Hashing.V2.Tokenizable as Hashable
+import Unison.Hashing.V2.Tokenizable qualified as Hashable
 import Unison.Prelude
 
 data Kind

@@ -5,27 +5,27 @@
 
 module Unison.Server.Errors where
 
-import qualified Data.ByteString.Lazy.Char8 as BSC
-import qualified Data.Set as Set
-import qualified Data.Text.Lazy as Text
-import qualified Data.Text.Lazy.Encoding as Text
+import Data.ByteString.Lazy.Char8 qualified as BSC
+import Data.Set qualified as Set
+import Data.Text.Lazy qualified as Text
+import Data.Text.Lazy.Encoding qualified as Text
 import Servant (ServerError (..), err400, err404, err409, err500)
-import U.Codebase.HashTags (CausalHash)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.HashQualified as HQ
+import U.Codebase.HashTags (BranchHash, CausalHash)
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Server.Backend as Backend
+import Unison.Reference qualified as Reference
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Types
   ( HashQualifiedName,
     munge,
     mungeShow,
     mungeString,
   )
-import qualified Unison.ShortHash as SH
-import qualified Unison.Syntax.HashQualified as HQ (toString)
+import Unison.ShortHash qualified as SH
+import Unison.Syntax.HashQualified qualified as HQ (toString)
 
 badHQN :: HashQualifiedName -> ServerError
 badHQN hqn =
@@ -52,6 +52,8 @@ backendError = \case
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
   Backend.NoSuchDefinition hqName -> noSuchDefinition hqName
   Backend.AmbiguousHashForDefinition shorthash -> ambiguousHashForDefinition shorthash
+  Backend.ExpectedNameLookup branchHash -> expectedNameLookup branchHash
+  Backend.DisjointProjectAndPerspective perspective projectRoot -> disjointProjectAndPerspective perspective projectRoot
 
 badNamespace :: String -> String -> ServerError
 badNamespace err namespace =
@@ -110,4 +112,22 @@ ambiguousHashForDefinition shorthash =
   err400
     { errBody =
         "The hash prefix " <> BSC.pack (SH.toString shorthash) <> " is ambiguous"
+    }
+
+expectedNameLookup :: BranchHash -> ServerError
+expectedNameLookup branchHash =
+  err500
+    { errBody =
+        "Name lookup index required for branch hash: " <> BSC.pack (show branchHash)
+    }
+
+disjointProjectAndPerspective :: Path.Path -> Path.Path -> ServerError
+disjointProjectAndPerspective perspective projectRoot =
+  err500
+    { errBody =
+        "The project root "
+          <> munge (Path.toText projectRoot)
+          <> " is disjoint with the perspective "
+          <> munge (Path.toText perspective)
+          <> ". This is a bug, please report it."
     }

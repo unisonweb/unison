@@ -1,21 +1,20 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.CommandLine.Welcome where
 
 import Data.Sequence (singleton)
+import Data.These (These (..))
 import System.Random (randomRIO)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareRemoteNamespace (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..))
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.SyncMode as SyncMode
-import qualified Unison.Codebase.Verbosity as Verbosity
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SyncMode qualified as SyncMode
+import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Prelude
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 import Prelude hiding (readFile, writeFile)
 
 data Welcome = Welcome
@@ -27,7 +26,7 @@ data Welcome = Welcome
   }
 
 data DownloadBase
-  = DownloadBase ReadShareRemoteNamespace
+  = DownloadBase ReadShareLooseCode
   | DontDownloadBase
   deriving (Show, Eq)
 
@@ -42,7 +41,7 @@ data CodebaseInitStatus
 
 data Onboarding
   = Init CodebaseInitStatus -- Can transition to [DownloadingBase, Author, Finished, PreviouslyOnboarded]
-  | DownloadingBase ReadShareRemoteNamespace -- Can transition to [Author, Finished]
+  | DownloadingBase ReadShareLooseCode -- Can transition to [Author, Finished]
   | Author -- Can transition to [Finished]
   -- End States
   | Finished
@@ -53,15 +52,17 @@ welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> Text -> ShouldWatch
 welcome initStatus downloadBase filePath unisonVersion shouldWatchFiles =
   Welcome (Init initStatus) downloadBase filePath unisonVersion shouldWatchFiles
 
-pullBase :: ReadShareRemoteNamespace -> Either Event Input
+pullBase :: ReadShareLooseCode -> Either Event Input
 pullBase ns =
   let seg = NameSegment "base"
       rootPath = Path.Path {Path.toSeq = singleton seg}
       abs = Path.Absolute {Path.unabsolute = rootPath}
       pullRemote =
         PullRemoteBranchI
-          (Just (ReadRemoteNamespaceShare ns))
-          (Path.Path' {Path.unPath' = Left abs})
+          ( PullSourceTarget2
+              (ReadShare'LooseCode ns)
+              (This (Path.Path' {Path.unPath' = Left abs}))
+          )
           SyncMode.Complete
           PullWithHistory
           Verbosity.Silent
@@ -82,7 +83,7 @@ run codebase Welcome {onboarding = onboarding, downloadBase = downloadBase, watc
           go PreviouslyOnboarded (headerMsg : acc)
           where
             headerMsg = toInput (header version)
-        DownloadingBase ns@(ReadShareRemoteNamespace {path}) ->
+        DownloadingBase ns@(ReadShareLooseCode {path}) ->
           go Author ([pullBaseInput, downloadMsg] ++ acc)
           where
             downloadMsg = Right $ CreateMessage (downloading path)
@@ -166,7 +167,7 @@ authorSuggestion :: P.Pretty P.ColorText
 authorSuggestion =
   P.newline
     <> P.lines
-      [ P.wrap "📜 🪶 You might want to set up your author information next.",
+      [ P.wrap "📜🪶 You might want to set up your author information next.",
         P.wrap "Type" <> P.hiBlue " create.author" <> " to create an author for this codebase",
         P.group (P.newline <> P.wrap "Read about how to link your author to your code at"),
         P.wrap $ P.blue "https://www.unison-lang.org/learn/tooling/configuration/"

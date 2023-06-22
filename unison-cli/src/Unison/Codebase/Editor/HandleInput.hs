@@ -8,30 +8,28 @@ where
 
 -- TODO: Don't import backend
 
-import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import qualified Control.Error.Util as ErrorUtil
+import Control.Error.Util qualified as ErrorUtil
 import Control.Exception (catch)
 import Control.Lens
+import Control.Lens qualified as Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
-import qualified Control.Monad.State as State
+import Control.Monad.State qualified as State
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Writer (WriterT (..))
-import Data.Bifunctor (first, second)
-import qualified Data.Foldable as Foldable
-import qualified Data.Foldable.Extra as Foldable
-import qualified Data.List as List
+import Data.Foldable qualified as Foldable
+import Data.List qualified as List
 import Data.List.Extra (nubOrd)
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Data.List.NonEmpty qualified as Nel
+import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NESet
-import qualified Data.Text as Text
+import Data.Set.NonEmpty qualified as NESet
+import Data.Text qualified as Text
+import Data.These (These (..))
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
-import qualified System.Console.Regions as Console.Regions
 import System.Directory
   ( XdgDirectory (..),
     createDirectoryIfMissing,
@@ -43,46 +41,60 @@ import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.Process
   ( callProcess,
-    readCreateProcess,
     readCreateProcessWithExitCode,
     shell,
   )
-import qualified Text.Megaparsec as P
-import qualified U.Codebase.Branch.Diff as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.Branch.Diff qualified as V2Branch.Diff
+import U.Codebase.Branch.Type qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
-import qualified U.Codebase.Reference as V2 (Reference)
-import qualified U.Codebase.Reflog as Reflog
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Queries as Queries
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin as Builtin
-import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Builtin.Terms as Builtin
+import U.Codebase.Reference qualified as V2 (Reference)
+import U.Codebase.Referent qualified as V2 (Referent)
+import U.Codebase.Referent qualified as V2.Referent
+import U.Codebase.Reflog qualified as Reflog
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.ABT qualified as ABT
+import Unison.Builtin qualified as Builtin
+import Unison.Builtin.Decls qualified as DD
+import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
-import Unison.Cli.UnisonConfigUtils (gitUrlKey, remoteMappingKey)
-import Unison.Codebase (Codebase, Preprocessing (..), PushGitBranchOpts (..))
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase (Codebase)
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Merge as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.BranchUtil as BranchUtil
-import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Merge qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
-import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
+import Unison.Codebase.Editor.AuthorInfo qualified as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
-import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
+import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
+import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
+import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
+import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
+import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
+import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
-import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
+import Unison.Codebase.Editor.HandleInput.NamespaceDependencies qualified as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
+import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
+import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
+import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
+import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
+import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
+import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
+import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
+import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.TermResolution
   ( resolveCon,
     resolveMainRef,
@@ -90,137 +102,118 @@ import Unison.Codebase.Editor.HandleInput.TermResolution
   )
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
 import Unison.Codebase.Editor.Input
-import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Output as Output
-import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
-import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
-import qualified Unison.Codebase.Editor.Propagate as Propagate
-import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRemoteNamespace (..),
-    ReadRemoteNamespace (..),
-    ReadShareRemoteNamespace (..),
-    ShareUserHandle (..),
-    WriteGitRemotePath (..),
-    WriteGitRepo,
-    WriteRemotePath (..),
-    WriteShareRemotePath (..),
-    printNamespace,
-    writePathToRead,
-    writeToReadGit,
-  )
-import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
-import qualified Unison.Codebase.Editor.Slurp as Slurp
-import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
-import qualified Unison.Codebase.Editor.TodoOutput as TO
-import qualified Unison.Codebase.Editor.UriParser as UriParser
-import qualified Unison.Codebase.IntegrityCheck as IntegrityCheck (integrityCheckFullCodebase)
-import qualified Unison.Codebase.MainTerm as MainTerm
-import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Editor.Output.DumpNamespace qualified as Output.DN
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..), ShareUserHandle (..))
+import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
+import Unison.Codebase.Editor.Slurp qualified as Slurp
+import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
+import Unison.Codebase.Editor.TodoOutput qualified as TO
+import Unison.Codebase.IntegrityCheck qualified as IntegrityCheck (integrityCheckFullCodebase)
+import Unison.Codebase.MainTerm qualified as MainTerm
+import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch (..))
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
-import qualified Unison.Codebase.Path as HQSplit'
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
-import Unison.Codebase.PushBehavior (PushBehavior)
-import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Conversions
-import qualified Unison.Codebase.SyncMode as SyncMode
+import Unison.Codebase.Path qualified as HQSplit'
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
+import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
-import qualified Unison.Codebase.TermEdit as TermEdit
-import qualified Unison.Codebase.TermEdit.Typing as TermEdit
-import Unison.Codebase.Type (GitPushBehavior (..))
+import Unison.Codebase.TermEdit qualified as TermEdit
+import Unison.Codebase.TermEdit.Typing qualified as TermEdit
 import Unison.Codebase.TypeEdit (TypeEdit)
-import qualified Unison.Codebase.TypeEdit as TypeEdit
-import qualified Unison.Codebase.Verbosity as Verbosity
-import qualified Unison.CommandLine.Completion as Completion
-import qualified Unison.CommandLine.DisplayValues as DisplayValues
-import qualified Unison.CommandLine.FuzzySelect as Fuzzy
-import qualified Unison.CommandLine.InputPattern as InputPattern
-import qualified Unison.CommandLine.InputPatterns as IP
-import qualified Unison.CommandLine.InputPatterns as InputPatterns
+import Unison.Codebase.TypeEdit qualified as TypeEdit
+import Unison.Codebase.Verbosity qualified as Verbosity
+import Unison.CommandLine.Completion qualified as Completion
+import Unison.CommandLine.DisplayValues qualified as DisplayValues
+import Unison.CommandLine.FuzzySelect qualified as Fuzzy
+import Unison.CommandLine.InputPatterns qualified as IP
+import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Hash as Hash
-import Unison.Hash32 (Hash32)
-import qualified Unison.Hash32 as Hash32
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
-import qualified Unison.HashQualified' as HashQualified
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.ConstructorType qualified as ConstructorType
+import Unison.Core.Project (ProjectAndBranch (..))
+import Unison.DataDeclaration qualified as DD
+import Unison.Hash qualified as Hash
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualified' qualified as HashQualified
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
+import Unison.LabeledDependency qualified as LabeledDependency
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
-import qualified Unison.Parser.Ann as Ann
-import qualified Unison.Parsers as Parsers
+import Unison.Parser.Ann qualified as Ann
+import Unison.Parsers qualified as Parsers
 import Unison.Position (Position (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo, empty)
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.PrettyPrintEnvDecl.Names as PPE
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference (..), TermReference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Result as Result
-import qualified Unison.Runtime.IOSource as IOSource
+import Unison.Referent qualified as Referent
+import Unison.Result qualified as Result
+import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Server.Backend (ShallowListEntry (..))
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.CodebaseServer as Server
+import Unison.Server.Backend qualified as Backend
+import Unison.Server.CodebaseServer qualified as Server
+import Unison.Server.Doc.Markdown.Render qualified as Md
+import Unison.Server.Doc.Markdown.Types qualified as Md
+import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
-import qualified Unison.Server.SearchResult as SR
-import qualified Unison.Server.SearchResult' as SR'
-import qualified Unison.Share.Codeserver as Codeserver
-import qualified Unison.Share.Sync as Share
-import qualified Unison.Share.Sync.Types as Share
-import Unison.Share.Types (codeserverBaseURL)
-import qualified Unison.ShortHash as SH
-import qualified Unison.Sqlite as Sqlite
+import Unison.Server.SearchResult qualified as SR
+import Unison.Server.SearchResult' qualified as SR'
+import Unison.Share.Codeserver qualified as Codeserver
+import Unison.ShortHash qualified as SH
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Sync.Types as Share
-import qualified Unison.Syntax.HashQualified as HQ (fromString, toString, toText, unsafeFromString)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Name as Name (toString, toVar, unsafeFromString, unsafeFromVar)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Syntax.TermPrinter as TP
+import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, unsafeFromString)
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromString, unsafeFromVar)
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TermPrinter qualified as TP
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Type.Names as Type
-import qualified Unison.Typechecker as Typechecker
-import qualified Unison.Typechecker.TypeLookup as TypeLookup
+import Unison.Type qualified as Type
+import Unison.Type.Names qualified as Type
+import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
-import qualified Unison.Util.Find as Find
-import Unison.Util.List (uniqueBy)
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Relation4 as R4
-import qualified Unison.Util.Set as Set
-import qualified Unison.Util.Star3 as Star3
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Find qualified as Find
+import Unison.Util.List (nubOrdOn, uniqueBy)
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Pretty qualified as P
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Relation qualified as R
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Relation4 qualified as R4
+import Unison.Util.Set qualified as Set
+import Unison.Util.Star3 qualified as Star3
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
-import qualified Unison.WatchKind as WK
-import qualified UnliftIO.STM as STM
+import Unison.Var qualified as Var
+import Unison.WatchKind qualified as WK
 import Web.Browser (openBrowser)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -363,7 +356,7 @@ loop e = do
                     P.lines
                       [ "The API information is as follows:",
                         P.newline,
-                        P.indentN 2 (P.hiBlue ("UI: " <> fromString (Server.urlFor Server.UI baseUrl))),
+                        P.indentN 2 (P.hiBlue ("UI: " <> fromString (Server.urlFor (Server.UI Path.absoluteEmpty Nothing) baseUrl))),
                         P.newline,
                         P.indentN 2 (P.hiBlue ("API: " <> fromString (Server.urlFor Server.Api baseUrl)))
                       ]
@@ -399,6 +392,89 @@ loop e = do
                       -- No expectation, either because this is the most recent entry or
                       -- because we're recovering from a discontinuity
                       Nothing -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
+            ResetI newRoot mtarget -> do
+              newRoot <-
+                case newRoot of
+                  This newRoot -> case newRoot of
+                    Left hash -> Cli.resolveShortCausalHash hash
+                    Right path' -> Cli.expectBranchAtPath' path'
+                  That (ProjectAndBranch mProjectName branchName) -> do
+                    let arg = case mProjectName of
+                          Nothing -> That branchName
+                          Just projectName -> These projectName branchName
+                    ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames arg
+                    Cli.expectBranchAtPath'
+                      ( Path.absoluteToPath'
+                          ( ProjectUtils.projectBranchPath
+                              (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId))
+                          )
+                      )
+                  These branchId (ProjectAndBranch mProjectName branchName) -> Cli.label \jump -> do
+                    absPath <- case branchId of
+                      Left hash -> jump =<< Cli.resolveShortCausalHash hash
+                      Right path' -> Cli.resolvePath' path'
+                    mrelativePath <-
+                      Cli.getMaybeBranchAt absPath <&> \case
+                        Nothing -> Nothing
+                        Just _ -> preview ProjectUtils.projectBranchPathPrism absPath
+                    projectAndBranch <- do
+                      let arg = case mProjectName of
+                            Nothing -> That branchName
+                            Just projectName -> These projectName branchName
+                      ProjectUtils.getProjectAndBranchByTheseNames arg
+                    thePath <- case (mrelativePath, projectAndBranch) of
+                      (Nothing, Nothing) ->
+                        ProjectUtils.getCurrentProject >>= \case
+                          Nothing -> pure absPath
+                          Just project ->
+                            Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
+                      (Just (projectAndBranch0, relPath), Just (ProjectAndBranch project branch)) -> do
+                        projectAndBranch0 <- Cli.runTransaction (ProjectUtils.expectProjectAndBranchByIds projectAndBranch0)
+                        Cli.respondNumbered (AmbiguousReset AmbiguousReset'Hash (projectAndBranch0, relPath) (ProjectAndBranch (project ^. #name) (branch ^. #name)))
+                        Cli.returnEarlyWithoutOutput
+                      (Just _relativePath, Nothing) -> pure absPath
+                      (Nothing, Just (ProjectAndBranch project branch)) ->
+                        pure (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
+                    Cli.expectBranchAtPath' (Path.absoluteToPath' thePath)
+
+              target <-
+                case mtarget of
+                  Nothing -> Cli.getCurrentPath
+                  Just looseCodeOrProject -> case looseCodeOrProject of
+                    This path' -> Cli.resolvePath' path'
+                    That (ProjectAndBranch mProjectName branchName) -> do
+                      let arg = case mProjectName of
+                            Nothing -> That branchName
+                            Just projectName -> These projectName branchName
+                      ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames arg
+                      pure (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
+                    These path' (ProjectAndBranch mProjectName branchName) -> do
+                      absPath <- Cli.resolvePath' path'
+                      mrelativePath <-
+                        Cli.getMaybeBranchAt absPath <&> \case
+                          Nothing -> Nothing
+                          Just _ -> preview ProjectUtils.projectBranchPathPrism absPath
+                      projectAndBranch <- do
+                        let arg = case mProjectName of
+                              Nothing -> That branchName
+                              Just projectName -> These projectName branchName
+                        ProjectUtils.getProjectAndBranchByTheseNames arg
+                      case (mrelativePath, projectAndBranch) of
+                        (Nothing, Nothing) ->
+                          ProjectUtils.getCurrentProject >>= \case
+                            Nothing -> pure absPath
+                            Just project ->
+                              Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
+                        (Just (projectAndBranch0, relPath), Just (ProjectAndBranch project branch)) -> do
+                          projectAndBranch0 <- Cli.runTransaction (ProjectUtils.expectProjectAndBranchByIds projectAndBranch0)
+                          Cli.respondNumbered (AmbiguousReset AmbiguousReset'Target (projectAndBranch0, relPath) (ProjectAndBranch (project ^. #name) (branch ^. #name)))
+                          Cli.returnEarlyWithoutOutput
+                        (Just _relativePath, Nothing) -> pure absPath
+                        (Nothing, Just (ProjectAndBranch project branch)) ->
+                          pure (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
+              description <- inputDescription input
+              _ <- Cli.updateAt description target (const newRoot)
+              Cli.respond Success
             ResetRootI src0 ->
               Cli.time "reset-root" do
                 newRoot <-
@@ -425,14 +501,21 @@ loop e = do
                     Right path -> WhichBranchEmptyPath path
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
-              srcb <- Cli.expectBranchAtPath' src0
-              dest <- Cli.resolvePath' dest0
+              src0 <- ProjectUtils.expectLooseCodeOrProjectBranch src0
+              dest0 <- ProjectUtils.expectLooseCodeOrProjectBranch dest0
+              let srcp = looseCodeOrProjectToPath src0
+              let destp = looseCodeOrProjectToPath dest0
+              srcb <- Cli.expectBranchAtPath' srcp
+              dest <- Cli.resolvePath' destp
+              -- todo: fixme: use project and branch names
               let err = Just $ MergeAlreadyUpToDate src0 dest0
               mergeBranchAndPropagateDefaultPatch mergeMode description err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
               Cli.Env {codebase} <- ask
-              srcb <- Cli.expectBranchAtPath' src0
-              dest <- Cli.resolvePath' dest0
+              src0 <- ProjectUtils.expectLooseCodeOrProjectBranch src0
+              dest0 <- ProjectUtils.expectLooseCodeOrProjectBranch dest0
+              srcb <- Cli.expectBranchAtPath' $ looseCodeOrProjectToPath src0
+              dest <- Cli.resolvePath' $ looseCodeOrProjectToPath dest0
               destb <- Cli.getBranchAt dest
               merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               if merged == destb
@@ -452,40 +535,6 @@ loop e = do
                 (False, False) -> pure ()
               (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
               Cli.respondNumbered (ShowDiffNamespace absBefore absAfter ppe diff)
-            CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
-            LoadPullRequestI baseRepo headRepo dest0 -> do
-              Cli.assertNoBranchAtPath' dest0
-              Cli.Env {codebase} <- ask
-              description <- inputDescription input
-              destAbs <- Cli.resolvePath' dest0
-              let getBranch = \case
-                    ReadRemoteNamespaceGit repo ->
-                      Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
-                        Cli.returnEarly (Output.GitError err)
-                    ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-              baseb <- getBranch baseRepo
-              headb <- getBranch headRepo
-              mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
-              squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
-              Cli.updateAt description destAbs $ Branch.step \destBranch0 ->
-                destBranch0
-                  & Branch.children
-                    %~ ( \childMap ->
-                           childMap
-                             & at "base" ?~ baseb
-                             & at "head" ?~ headb
-                             & at "merged" ?~ mergedb
-                             & at "squashed" ?~ squashedb
-                       )
-              let base = snoc dest0 "base"
-                  head = snoc dest0 "head"
-                  merged = snoc dest0 "merged"
-                  squashed = snoc dest0 "squashed"
-              Cli.respond $ LoadPullRequest baseRepo headRepo base head merged squashed
-              loadPropagateDiffDefaultPatch
-                description
-                (Just merged)
-                (snoc destAbs "merged")
             MoveBranchI src' dest' -> do
               hasConfirmed <- confirmedCommand input
               description <- inputDescription input
@@ -523,16 +572,14 @@ loop e = do
               path <- Cli.resolvePath' path'
               branchExists <- Cli.branchExistsAtPath' path'
               when (not branchExists) (Cli.respond $ CreatedNewBranch path)
-              #currentPathStack %= Nel.cons path
+              Cli.cd path
             UpI -> do
               path0 <- Cli.getCurrentPath
               whenJust (unsnoc path0) \(path, _) ->
-                #currentPathStack %= Nel.cons path
+                Cli.cd path
             PopBranchI -> do
-              loopState <- State.get
-              case Nel.uncons (loopState ^. #currentPathStack) of
-                (_, Nothing) -> Cli.respond StartOfCurrentPathHistory
-                (_, Just paths) -> State.put $! (loopState & #currentPathStack .~ paths)
+              success <- Cli.popd
+              when (not success) (Cli.respond StartOfCurrentPathHistory)
             HistoryI resultsCap diffCap from -> do
               branch <-
                 case from of
@@ -568,11 +615,86 @@ loop e = do
               Cli.updateRoot prev description
               (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
               Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
-            UiI -> do
-              Cli.Env {serverBaseUrl} <- ask
+            UiI path' -> do
+              Cli.Env {serverBaseUrl, codebase} <- ask
               whenJust serverBaseUrl \url -> do
-                _success <- liftIO (openBrowser (Server.urlFor Server.UI url))
+                (perspective, definitionRef) <-
+                  getUIUrlParts codebase
+
+                _success <- liftIO (openBrowser (Server.urlFor (Server.UI perspective definitionRef) url))
                 pure ()
+              where
+                getUIUrlParts :: Codebase m Symbol Ann -> Cli (Path.Absolute, Maybe (Server.DefinitionReference))
+                getUIUrlParts codebase = do
+                  currentPath <- Cli.getCurrentPath
+                  let absPath = Path.resolve currentPath path'
+
+                  case Lens.unsnoc absPath of
+                    Just (abs, nameSeg) -> do
+                      namespaceBranch <-
+                        Cli.runTransaction
+                          (Codebase.getShallowBranchAtPath (Path.unabsolute abs) Nothing)
+
+                      let terms = maybe Set.empty Map.keysSet (Map.lookup nameSeg (V2Branch.terms namespaceBranch))
+                      let types = maybe Set.empty Map.keysSet (Map.lookup nameSeg (V2Branch.types namespaceBranch))
+
+                      -- Only safe to force in toTypeReference and toTermReference
+                      case (Set.lookupMin terms, Set.lookupMin types) of
+                        (Just te, _) -> do
+                          let name = Path.unsafeToName $ Path.fromPath' path'
+                          defRef <- Cli.runTransaction (toTermReference codebase name te)
+
+                          if Path.isAbsolute path'
+                            then pure (Path.absoluteEmpty, Just defRef)
+                            else pure (currentPath, Just defRef)
+                        (Nothing, Just ty) ->
+                          let name = Path.unsafeToName $ Path.fromPath' path'
+                              defRef = toTypeReference name ty
+                           in if Path.isAbsolute path'
+                                then pure (Path.absoluteEmpty, Just defRef)
+                                else pure (currentPath, Just defRef)
+                        -- Catch all that uses the absPath to build the perspective.
+                        -- Also catches the case where a namespace arg was given.
+                        (Nothing, Nothing) ->
+                          pure (absPath, Nothing)
+                    Nothing ->
+                      pure (absPath, Nothing)
+
+                toTypeReference :: Name -> V2.Reference -> Server.DefinitionReference
+                toTypeReference name reference =
+                  Server.TypeReference $
+                    HQ.fromNamedReference name (Conversions.reference2to1 reference)
+
+                toTermReference :: Codebase m Symbol Ann -> Name -> V2.Referent -> Sqlite.Transaction Server.DefinitionReference
+                toTermReference codebase name referent = do
+                  case referent of
+                    V2.Referent.Ref reference ->
+                      pure $
+                        Server.TermReference $
+                          HQ.fromNamedReference name (Conversions.reference2to1 reference)
+                    V2.Referent.Con _ _ -> do
+                      v1Referent <- Conversions.referent2to1 (Codebase.getDeclType codebase) referent
+                      let hq = HQ.fromNamedReferent name v1Referent
+
+                      pure case v1Referent of
+                        Referent.Con _ ConstructorType.Data ->
+                          Server.DataConstructorReference hq
+                        Referent.Con _ ConstructorType.Effect ->
+                          Server.AbilityConstructorReference hq
+                        Referent.Ref _ -> error "Impossible! *twirls mustache*"
+            DocToMarkdownI docName -> do
+              basicPrettyPrintNames <- getBasicPrettyPrintNames
+              hqLength <- Cli.runTransaction Codebase.hashLength
+              let pped = PPED.fromNamesDecl hqLength (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+              basicPrettyPrintNames <- basicParseNames
+              let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames basicPrettyPrintNames)
+              Cli.Env {codebase, runtime} <- ask
+              mdText <- liftIO $ do
+                docRefs <- Backend.docsForDefinitionName codebase nameSearch docName
+                for docRefs $ \docRef -> do
+                  Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
+                  pure . Md.toText $ Md.toMarkdown doc
+              Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
             DocsToHtmlI namespacePath' sourceDirectory -> do
               Cli.Env {codebase, sandboxedRuntime} <- ask
               rootBranch <- Cli.getRootBranch
@@ -713,7 +835,7 @@ loop e = do
                     let root0 = Branch.head root
                     let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
                     -- Use an absolutely qualified ppe for view.global
-                    let pped = PPE.fromNamesDecl hqLength names
+                    let pped = PPED.fromNamesDecl hqLength names
                     pure (names, pped)
                   else do
                     currentBranch <- Cli.getCurrentBranch0
@@ -858,7 +980,7 @@ loop e = do
                   description
                   (BranchUtil.makeDeletePatch (Path.convert src))
                 Cli.respond Success
-              DeleteTarget'Branch insistence Nothing -> do
+              DeleteTarget'Namespace insistence Nothing -> do
                 hasConfirmed <- confirmedCommand input
                 if hasConfirmed || insistence == Force
                   then do
@@ -866,7 +988,7 @@ loop e = do
                     Cli.updateRoot Branch.empty description
                     Cli.respond DeletedEverything
                   else Cli.respond DeleteEverythingConfirmation
-              DeleteTarget'Branch insistence (Just p@(parentPath, childName)) -> do
+              DeleteTarget'Namespace insistence (Just p@(parentPath, childName)) -> do
                 branch <- Cli.expectBranchAtPath' (Path.unsplit' p)
                 description <- inputDescription input
                 absPath <- Cli.resolveSplit' p
@@ -895,6 +1017,8 @@ loop e = do
                   parentBranch
                     & Branch.modifyAt (Path.singleton childName) \_ -> Branch.empty
                 afterDelete
+              DeleteTarget'ProjectBranch name -> handleDeleteBranch name
+              DeleteTarget'Project name -> handleDeleteProject name
             DisplayI outputLoc names' -> do
               currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
@@ -921,14 +1045,13 @@ loop e = do
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               #numberedArgs .= fmap entryToHQString entries
-              getRoot <- atomically . STM.readTMVar <$> use #root
+              currentBranch <- Cli.getCurrentBranch
               let buildPPE = do
                     schLength <- Codebase.runTransaction codebase Codebase.branchHashLength
-                    rootBranch <- getRoot
                     pure $
                       Backend.basicSuffixifiedNames
                         schLength
-                        rootBranch
+                        currentBranch
                         (Backend.AllNames (Path.unabsolute pathArgAbs))
               Cli.respond $ ListShallow buildPPE entries
               where
@@ -1221,45 +1344,10 @@ loop e = do
               patch <- Cli.getPatchAt (fromMaybe Cli.defaultPatchPath maybePath)
               ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               Cli.respondNumbered $ ListEdits patch ppe
-            PullRemoteBranchI mRepo path sMode pMode verbosity ->
-              inputDescription input
-                >>= doPullRemoteBranch mRepo path sMode pMode verbosity
+            PullRemoteBranchI sourceTarget sMode pMode verbosity -> doPullRemoteBranch sourceTarget sMode pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
-            ListDependenciesI hq -> do
-              Cli.Env {codebase} <- ask
-              hqLength <- Cli.runTransaction Codebase.hashLength
-              -- todo: add flag to handle transitive efficiently
-              lds <- resolveHQToLabeledDependencies hq
-              when (null lds) do
-                Cli.returnEarly (LabeledReferenceNotFound hq)
-              rootBranch <- Cli.getRootBranch
-              for_ lds \ld -> do
-                dependencies :: Set Reference <-
-                  Cli.runTransaction do
-                    let tp r@(Reference.DerivedId i) =
-                          Codebase.getTypeDeclaration codebase i <&> \case
-                            Nothing -> error $ "What happened to " ++ show i ++ "?"
-                            Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
-                        tp _ = pure mempty
-                        tm (Referent.Ref r@(Reference.DerivedId i)) =
-                          Codebase.getTerm codebase i <&> \case
-                            Nothing -> error $ "What happened to " ++ show i ++ "?"
-                            Just tm -> Set.delete r $ Term.dependencies tm
-                        tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
-                          Codebase.getTypeDeclaration codebase i <&> \case
-                            Nothing -> error $ "What happened to " ++ show i ++ "?"
-                            Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
-                              Nothing -> error $ "What happened to " ++ show con ++ "?"
-                              Just tp -> Type.dependencies tp
-                        tm _ = pure mempty
-                     in LD.fold tp tm ld
-                (missing, names0) <- liftIO (Branch.findHistoricalRefs' dependencies rootBranch)
-                let types = R.toList $ Names.types names0
-                let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
-                let names = types <> terms
-                #numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
-                Cli.respond $ ListDependencies hqLength ld names missing
+            ListDependenciesI hq -> handleDependencies hq
             NamespaceDependenciesI namespacePath' -> do
               Cli.Env {codebase} <- ask
               path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
@@ -1363,8 +1451,8 @@ loop e = do
                 Cli.runTransaction do
                   fromBranch <- Codebase.expectCausalBranchByCausalHash fromCH >>= V2Causal.value
                   toBranch <- Codebase.expectCausalBranchByCausalHash toCH >>= V2Causal.value
-                  treeDiff <- V2Branch.diffBranches fromBranch toBranch
-                  let nameChanges = V2Branch.nameChanges Nothing treeDiff
+                  let treeDiff = V2Branch.Diff.diffBranches fromBranch toBranch
+                  nameChanges <- V2Branch.Diff.allNameChanges Nothing treeDiff
                   pure (DisplayDebugNameDiff nameChanges)
               Cli.respond output
             DeprecateTermI {} -> Cli.respond NotImplemented
@@ -1382,6 +1470,15 @@ loop e = do
             DiffNamespaceToPatchI diffNamespaceToPatchInput -> do
               description <- inputDescription input
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
+            ProjectRenameI name -> handleProjectRename name
+            ProjectSwitchI name -> projectSwitch name
+            ProjectCreateI name -> projectCreate name
+            ProjectsI -> handleProjects
+            BranchI source name -> handleBranch source name
+            BranchRenameI name -> handleBranchRename name
+            BranchesI name -> handleBranches name
+            CloneI remoteNames localNames -> handleClone remoteNames localNames
+            ReleaseDraftI semver -> handleReleaseDraft semver
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
@@ -1395,13 +1492,24 @@ inputDescription input =
       dest <- p' dest0
       pure ("fork " <> src <> " " <> dest)
     MergeLocalBranchI src0 dest0 mode -> do
-      src <- p' src0
-      dest <- p' dest0
+      src <- looseCodeOrProjectToText src0
+      dest <- looseCodeOrProjectToText dest0
       let command =
             case mode of
               Branch.RegularMerge -> "merge"
               Branch.SquashMerge -> "merge.squash"
       pure (command <> " " <> src <> " " <> dest)
+    ResetI hash tgt -> do
+      hashTxt <- case hash of
+        This hash -> hp' hash
+        That pr -> pure (into @Text pr)
+        These hash _pr -> hp' hash
+      tgt <- case tgt of
+        Nothing -> pure ""
+        Just tgt -> do
+          tgt <- looseCodeOrProjectToText tgt
+          pure (" " <> tgt)
+      pure ("reset " <> hashTxt <> tgt)
     ResetRootI src0 -> do
       src <- hp' src0
       pure ("reset-root " <> src)
@@ -1457,15 +1565,17 @@ inputDescription input =
         DeleteTarget'Type DeleteOutput'Diff thing0 -> do
           thing <- traverse hqs' thing0
           pure ("delete.type.verbose " <> Text.intercalate " " thing)
-        DeleteTarget'Branch Try opath0 -> do
+        DeleteTarget'Namespace Try opath0 -> do
           opath <- ops' opath0
           pure ("delete.namespace " <> opath)
-        DeleteTarget'Branch Force opath0 -> do
+        DeleteTarget'Namespace Force opath0 -> do
           opath <- ops' opath0
           pure ("delete.namespace.force " <> opath)
         DeleteTarget'Patch path0 -> do
           path <- ps' path0
           pure ("delete.patch " <> path)
+        DeleteTarget'ProjectBranch _ -> wat
+        DeleteTarget'Project _ -> wat
     ReplaceI src target p0 -> do
       p <- opatch p0
       pure $
@@ -1515,33 +1625,7 @@ inputDescription input =
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
     GenSchemeLibsI -> pure "compile.native.genlibs"
     FetchSchemeCompilerI name -> pure ("compile.native.fetch" <> Text.pack name)
-    PullRemoteBranchI orepo dest0 _syncMode pullMode _ -> do
-      dest <- p' dest0
-      let command =
-            Text.pack . InputPattern.patternName $
-              case pullMode of
-                PullWithoutHistory -> InputPatterns.pullWithoutHistory
-                PullWithHistory -> InputPatterns.pull
-      pure $
-        command
-          <> " "
-          -- todo: show the actual config-loaded namespace
-          <> maybe
-            "(remote namespace from .unisonConfig)"
-            printNamespace
-            orepo
-          <> " "
-          <> dest
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
-    LoadPullRequestI base head dest0 -> do
-      dest <- p' dest0
-      pure $
-        "pr.load "
-          <> printNamespace base
-          <> " "
-          <> printNamespace head
-          <> " "
-          <> dest
     RemoveTermReplacementI src p0 -> do
       p <- opatch p0
       pure ("delete.term-replacement" <> HQ.toText src <> " " <> p)
@@ -1553,17 +1637,23 @@ inputDescription input =
       branchId2 <- hp' (input ^. #branchId2)
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
+    ClearI {} -> pure "clear"
+    DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
     --
     ApiI -> wat
     AuthLoginI {} -> wat
+    BranchI {} -> wat
+    BranchRenameI {} -> wat
+    BranchesI {} -> wat
+    CloneI {} -> wat
     CreateMessage {} -> wat
-    CreatePullRequestI {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat
-    DebugNameDiffI {} -> wat
     DebugDumpNamespaceSimpleI {} -> wat
     DebugDumpNamespacesI {} -> wat
+    DebugNameDiffI {} -> wat
     DebugNumberedArgsI {} -> wat
+    DebugTabCompletionI _input -> wat
     DebugTypecheckedUnisonFileI {} -> wat
     DeprecateTermI {} -> wat
     DeprecateTypeI {} -> wat
@@ -1581,25 +1671,29 @@ inputDescription input =
     ListDependentsI {} -> wat
     ListEditsI {} -> wat
     LoadI {} -> wat
-    ClearI {} -> pure "clear"
     NamesI {} -> wat
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
+    ProjectCreateI {} -> wat
+    ProjectRenameI {} -> wat
+    ProjectSwitchI {} -> wat
+    ProjectsI -> wat
+    PullRemoteBranchI {} -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
+    ReleaseDraftI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
     ShowReflogI {} -> wat
     SwitchBranchI {} -> wat
     TestI {} -> wat
     TodoI {} -> wat
-    UiI -> wat
+    UiI {} -> wat
     UpI {} -> wat
     VersionI -> wat
-    DebugTabCompletionI _input -> wat
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
     hp' = either (pure . Text.pack . show) p'
@@ -1620,23 +1714,12 @@ inputDescription input =
       pure (p <> "." <> HQ'.toTextWith NameSegment.toText hq)
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
-
-handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Cli ()
-handleCreatePullRequest baseRepo0 headRepo0 = do
-  Cli.Env {codebase} <- ask
-
-  let withBranch :: ReadRemoteNamespace -> (forall x. (Branch IO -> Cli x) -> Cli x)
-      withBranch rrn k = case rrn of
-        ReadRemoteNamespaceGit repo -> do
-          Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \case
-            Left err -> Cli.returnEarly (Output.GitError err)
-            Right x -> k x
-        ReadRemoteNamespaceShare repo -> k =<< importRemoteShareBranch repo
-
-  (ppe, diff) <- withBranch baseRepo0 \baseBranch -> withBranch headRepo0 \headBranch -> do
-    merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
-    diffHelper (Branch.head baseBranch) (Branch.head merged)
-  Cli.respondNumbered (ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff)
+    looseCodeOrProjectToText :: Input.LooseCodeOrProject -> Cli Text
+    looseCodeOrProjectToText = \case
+      This path -> p' path
+      That branch -> pure (into @Text branch)
+      -- just trying to recover the syntax the user wrote
+      These path _branch -> pure (Path.toText' path)
 
 handleFindI ::
   Bool ->
@@ -1712,16 +1795,59 @@ handleFindI isVerbose fscope ws input = do
       respondResults =<< getResults (getNames FindLocalAndDeps)
     _ -> respondResults results
 
-handleDependents :: HQ.HashQualified Name -> Cli ()
-handleDependents hq = do
-  hqLength <- Cli.runTransaction Codebase.hashLength
+handleDependencies :: HQ.HashQualified Name -> Cli ()
+handleDependencies hq = do
+  Cli.Env {codebase} <- ask
   -- todo: add flag to handle transitive efficiently
   lds <- resolveHQToLabeledDependencies hq
+  ppe <- PPE.suffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.WithinStrict
+  when (null lds) do
+    Cli.returnEarly (LabeledReferenceNotFound hq)
+  results <- for (toList lds) \ld -> do
+    dependencies :: Set LabeledDependency <-
+      Cli.runTransaction do
+        let tp r@(Reference.DerivedId i) =
+              Codebase.getTypeDeclaration codebase i <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just decl ->
+                  Set.map LabeledDependency.TypeReference . Set.delete r . DD.dependencies $
+                    DD.asDataDecl decl
+            tp _ = pure mempty
+            tm r@(Referent.Ref (Reference.DerivedId i)) =
+              Codebase.getTerm codebase i <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just tm -> Set.delete (LabeledDependency.TermReferent r) (Term.labeledDependencies tm)
+            tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
+              Codebase.getTypeDeclaration codebase i <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
+                  Nothing -> error $ "What happened to " ++ show con ++ "?"
+                  Just tp -> Type.labeledDependencies tp
+            tm _ = pure mempty
+         in LD.fold tp tm ld
+    let types = [(PPE.typeName ppe r, r) | LabeledDependency.TypeReference r <- toList dependencies]
+    let terms = [(PPE.termName ppe r, r) | LabeledDependency.TermReferent r <- toList dependencies]
+    pure (types, terms)
+  let types = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ fst <$> results)
+  let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
+  #numberedArgs
+    .= map (Text.unpack . Reference.toText . snd) types
+    <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+  Cli.respond $ ListDependencies ppe lds (fst <$> types) (fst <$> terms)
 
+handleDependents :: HQ.HashQualified Name -> Cli ()
+handleDependents hq = do
+  -- todo: add flag to handle transitive efficiently
+  lds <- resolveHQToLabeledDependencies hq
+  -- Use an unsuffixified PPE here, so we display full names (relative to the current path),
+  -- rather than the shortest possible unambiguous name.
+  pped <- currentPrettyPrintEnvDecl Backend.WithinStrict
+  let fqppe = PPE.unsuffixifiedPPE pped
+  let ppe = PPE.suffixifiedPPE pped
   when (null lds) do
     Cli.returnEarly (LabeledReferenceNotFound hq)
 
-  for_ lds \ld -> do
+  results <- for (toList lds) \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
       let tp r = Codebase.dependents Queries.ExcludeOwnComponent r
@@ -1730,32 +1856,21 @@ handleDependents hq = do
             Referent.Con (ConstructorReference r _cid) _ct ->
               Codebase.dependents Queries.ExcludeOwnComponent r
        in Cli.runTransaction (LD.fold tp tm ld)
-    -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
-    -- unambiguous name.
-    ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
-    let results :: [(Reference, Maybe Name)]
-        results =
-          -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
-          -- take a flag to control whether we want to show all dependents
-          mapMaybe f (Set.toList dependents)
-          where
-            f :: Reference -> Maybe (Reference, Maybe Name)
-            f reference =
-              asum
-                [ g <$> PPE.terms ppe (Referent.Ref reference),
-                  g <$> PPE.types ppe reference
-                ]
-              where
-                g :: HQ'.HashQualified Name -> (Reference, Maybe Name)
-                g hqName =
-                  (reference, Just (HQ'.toName hqName))
-    #numberedArgs .= map (Text.unpack . Reference.toText . fst) results
-    Cli.respond (ListDependents hqLength ld results)
-
--- | Handle a @gist@ command.
-handleGist :: GistInput -> Cli ()
-handleGist (GistInput repo) =
-  doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
+    let -- True is term names, False is type names
+        results :: [(Bool, HQ.HashQualified Name, Reference)]
+        results = do
+          r <- Set.toList dependents
+          Just (isTerm, hq) <- [(True,) <$> PPE.terms fqppe (Referent.Ref r), (False,) <$> PPE.types fqppe r]
+          fullName <- [HQ'.toName hq]
+          guard (not (Name.beginsWithSegment fullName Name.libSegment))
+          Just shortName <- pure $ PPE.terms ppe (Referent.Ref r) <|> PPE.types ppe r
+          pure (isTerm, HQ'.toHQ shortName, r)
+    pure results
+  let sort = nubOrdOn snd . Name.sortByText (HQ.toText . fst)
+  let types = sort [(n, r) | (False, n, r) <- join results]
+  let terms = sort [(n, r) | (True, n, r) <- join results]
+  #numberedArgs .= map (Text.unpack . Reference.toText . view _2) (types <> terms)
+  Cli.respond (ListDependents ppe lds (fst <$> types) (fst <$> terms))
 
 handleDiffNamespaceToPatch :: Text -> DiffNamespaceToPatchInput -> Cli ()
 handleDiffNamespaceToPatch description input = do
@@ -1770,7 +1885,7 @@ handleDiffNamespaceToPatch description input = do
         branch1 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId1)
         branch2 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId2)
         lift do
-          branchDiff <- V2Branch.nameBasedDiff <$> V2Branch.diffBranches branch1 branch2
+          branchDiff <- V2Branch.Diff.nameBasedDiff (V2Branch.Diff.diffBranches branch1 branch2)
           termEdits <-
             (branchDiff ^. #terms)
               & Relation.domain
@@ -1884,169 +1999,6 @@ handleIOTest main = do
   tm' <- evalUnisonTerm False ppe False tm
   Cli.respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
 
--- | Handle a @push@ command.
-handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
-handlePushRemoteBranch PushRemoteBranchInput {maybeRemoteRepo = mayRepo, localPath = path, pushBehavior, syncMode} =
-  Cli.time "handlePushRemoteBranch" do
-    repo <- mayRepo & onNothing (resolveConfiguredUrl Push path)
-    doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
-
--- | Either perform a "normal" push (updating a remote path), which takes a 'PushBehavior' (to control whether creating
--- a new namespace is allowed), or perform a "gisty" push, which doesn't update any paths (and also is currently only
--- uploaded for remote git repos, not remote Share repos).
-data PushFlavor
-  = NormalPush WriteRemotePath PushBehavior
-  | GistyPush WriteGitRepo
-
--- Internal helper that implements pushing to a remote repo, which generalizes @gist@ and @push@.
-doPushRemoteBranch ::
-  -- | The repo to push to.
-  PushFlavor ->
-  -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
-  Path' ->
-  SyncMode.SyncMode ->
-  Cli ()
-doPushRemoteBranch pushFlavor localPath0 syncMode = do
-  Cli.Env {codebase} <- ask
-  localPath <- Cli.resolvePath' localPath0
-  case pushFlavor of
-    NormalPush (writeRemotePath@(WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath})) pushBehavior -> do
-      sourceBranch <- Cli.getBranchAt localPath
-      let withRemoteRoot :: Branch IO -> Either Output (Branch IO)
-          withRemoteRoot remoteRoot = do
-            let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if
-                -- this rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch`
-                -- already.
-                f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
-            case Branch.modifyAtM remotePath f remoteRoot of
-              Nothing -> Left (RefusedToPush pushBehavior writeRemotePath)
-              Just newRemoteRoot -> Right newRemoteRoot
-      let opts =
-            PushGitBranchOpts
-              { behavior =
-                  case pushBehavior of
-                    PushBehavior.ForcePush -> GitPushBehaviorForce
-                    PushBehavior.RequireEmpty -> GitPushBehaviorFf
-                    PushBehavior.RequireNonEmpty -> GitPushBehaviorFf,
-                syncMode
-              }
-      result <-
-        Cli.ioE (Codebase.pushGitBranch codebase repo opts (\remoteRoot -> pure (withRemoteRoot remoteRoot))) \err ->
-          Cli.returnEarly (Output.GitError err)
-      _branch <- result & onLeft Cli.returnEarly
-      Cli.respond Success
-    NormalPush (WriteRemotePathShare sharePath) pushBehavior -> handlePushToUnisonShare sharePath localPath pushBehavior
-    GistyPush repo -> do
-      sourceBranch <- Cli.getBranchAt localPath
-      let opts =
-            PushGitBranchOpts
-              { behavior = GitPushBehaviorGist,
-                syncMode
-              }
-      result <-
-        Cli.ioE (Codebase.pushGitBranch codebase repo opts (\_remoteRoot -> pure (Right sourceBranch))) \err ->
-          Cli.returnEarly (Output.GitError err)
-      _branch <- result & onLeft Cli.returnEarly
-      schLength <- Cli.runTransaction Codebase.branchHashLength
-      Cli.respond $
-        GistCreated
-          ( ReadRemoteNamespaceGit
-              ReadGitRemoteNamespace
-                { repo = writeToReadGit repo,
-                  sch = Just (SCH.fromHash schLength (Branch.headHash sourceBranch)),
-                  path = Path.empty
-                }
-          )
-  where
-    -- Per `pushBehavior`, we are either:
-    --
-    --   (1) force-pushing, in which case the remote branch state doesn't matter
-    --   (2) updating an empty branch, which fails if the branch isn't empty (`push.create`)
-    --   (3) updating a non-empty branch, which fails if the branch is empty (`push`)
-    shouldPushTo :: PushBehavior -> Branch m -> Bool
-    shouldPushTo pushBehavior remoteBranch =
-      case pushBehavior of
-        PushBehavior.ForcePush -> True
-        PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
-        PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
-
-handlePushToUnisonShare :: WriteShareRemotePath -> Path.Absolute -> PushBehavior -> Cli ()
-handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
-  let codeserver = Codeserver.resolveCodeserver server
-  let baseURL = codeserverBaseURL codeserver
-  let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
-  _userInfo <- ensureAuthenticatedWithCodeserver codeserver
-
-  -- doesn't handle the case where a non-existent path is supplied
-  localCausalHash <-
-    Cli.runTransaction (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))) & onNothingM do
-      Cli.returnEarly (EmptyPush . Path.absoluteToPath' $ localPath)
-
-  let checkAndSetPush :: Maybe Hash32 -> Cli ()
-      checkAndSetPush remoteHash =
-        when (Just (Hash32.fromHash (unCausalHash localCausalHash)) /= remoteHash) do
-          let push =
-                Cli.with withEntitiesUploadedProgressCallback \uploadedCallback -> do
-                  Share.checkAndSetPush
-                    baseURL
-                    sharePath
-                    remoteHash
-                    localCausalHash
-                    uploadedCallback
-          push & onLeftM (pushError ShareErrorCheckAndSetPush)
-
-  case behavior of
-    PushBehavior.ForcePush -> do
-      maybeHashJwt <-
-        Share.getCausalHashByPath baseURL sharePath & onLeftM \err0 ->
-          (Cli.returnEarly . Output.ShareError) case err0 of
-            Share.SyncError err -> ShareErrorGetCausalHashByPath err
-            Share.TransportError err -> ShareErrorTransport err
-      checkAndSetPush (Share.hashJWTHash <$> maybeHashJwt)
-      Cli.respond (ViewOnShare remote)
-    PushBehavior.RequireEmpty -> do
-      checkAndSetPush Nothing
-      Cli.respond (ViewOnShare remote)
-    PushBehavior.RequireNonEmpty -> do
-      let push :: Cli (Either (Share.SyncError Share.FastForwardPushError) ())
-          push =
-            Cli.with withEntitiesUploadedProgressCallback \uploadedCallback ->
-              Share.fastForwardPush
-                baseURL
-                sharePath
-                localCausalHash
-                uploadedCallback
-      push & onLeftM (pushError ShareErrorFastForwardPush)
-      Cli.respond (ViewOnShare remote)
-  where
-    pathToSegments :: Path -> [Text]
-    pathToSegments =
-      coerce Path.toList
-
-    -- Provide the given action a callback that displays to the terminal.
-    withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
-    withEntitiesUploadedProgressCallback action = do
-      entitiesUploadedVar <- newTVarIO 0
-      Console.Regions.displayConsoleRegions do
-        Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
-          Console.Regions.setConsoleRegion region do
-            entitiesUploaded <- readTVar entitiesUploadedVar
-            pure $
-              "\n  Uploaded "
-                <> tShow entitiesUploaded
-                <> " entities...\n\n"
-          result <- action (\n -> atomically (modifyTVar' entitiesUploadedVar (+ n)))
-          entitiesUploaded <- readTVarIO entitiesUploadedVar
-          Console.Regions.finishConsoleRegion region $
-            "\n  Uploaded " <> tShow entitiesUploaded <> " entities."
-          pure result
-
-    pushError :: (a -> Output.ShareError) -> Share.SyncError a -> Cli b
-    pushError f err0 = do
-      Cli.returnEarly case err0 of
-        Share.SyncError err -> Output.ShareError (f err)
-        Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
-
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> [HQ.HashQualified Name] -> Cli ()
 handleShowDefinition outputLoc showDefinitionScope inputQuery = do
@@ -2075,7 +2027,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     (_, ShowDefinitionGlobal) -> do
       let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
       -- Use an absolutely qualified ppe for view.global
-      let ppe = PPE.fromNamesDecl hqLength names
+      let ppe = PPED.fromNamesDecl hqLength names
       pure (names, ppe)
     (_, ShowDefinitionLocal) -> do
       currentBranch <- Cli.getCurrentBranch0
@@ -2083,7 +2035,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
       pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
-    let nameSearch = Backend.makeNameSearch hqLength names
+    let nameSearch = NameSearch.makeNameSearch hqLength names
     Cli.runTransaction (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
@@ -2211,101 +2163,6 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
         "lib" Nel.:| _ : _ -> True
         _ -> False
 
--- Takes a maybe (namespace address triple); returns it as-is if `Just`;
--- otherwise, tries to load a value from .unisonConfig, and complains
--- if needed.
-resolveConfiguredUrl :: PushPull -> Path' -> Cli WriteRemotePath
-resolveConfiguredUrl pushPull destPath' = do
-  destPath <- Cli.resolvePath' destPath'
-  whenNothingM (remoteMappingForPath pushPull destPath) do
-    let gitUrlConfigKey = gitUrlKey destPath
-    -- Fall back to deprecated GitUrl key
-    Cli.getConfig gitUrlConfigKey >>= \case
-      Just url ->
-        (WriteRemotePathGit <$> P.parse UriParser.deprecatedWriteGitRemotePath (Text.unpack gitUrlConfigKey) url) & onLeft \err ->
-          Cli.returnEarly (ConfiguredRemoteMappingParseError pushPull destPath url (show err))
-      Nothing -> Cli.returnEarly (NoConfiguredRemoteMapping pushPull destPath)
-
--- | Tries to look up a remote mapping for a given path.
--- Will also resolve paths relative to any mapping which is configured for a parent of that
--- path.
---
--- E.g.
---
--- A config which maps:
---
--- .myshare.foo -> .me.public.foo
---
--- Will resolve the following local paths into share paths like so:
---
--- .myshare.foo -> .me.public.foo
--- .myshare.foo.bar -> .me.public.foo.bar
--- .myshare.foo.bar.baz -> .me.public.foo.bar.baz
--- .myshare -> <Nothing>
-remoteMappingForPath :: PushPull -> Path.Absolute -> Cli (Maybe WriteRemotePath)
-remoteMappingForPath pushPull dest = do
-  pathPrefixes dest & Foldable.firstJustM \(prefix, suffix) -> do
-    let remoteMappingConfigKey = remoteMappingKey prefix
-    Cli.getConfig remoteMappingConfigKey >>= \case
-      Just url -> do
-        let parseResult = P.parse UriParser.writeRemotePath (Text.unpack remoteMappingConfigKey) url
-         in case parseResult of
-              Left err -> Cli.returnEarly (ConfiguredRemoteMappingParseError pushPull dest url (show err))
-              Right wrp -> do
-                let remote = wrp & RemoteRepo.remotePath_ %~ \p -> Path.resolve p suffix
-                 in pure $ Just remote
-      Nothing -> pure Nothing
-  where
-    -- Produces a list of path prefixes and suffixes, from longest prefix to shortest
-    --
-    -- E.g.
-    --
-    -- >>> pathPrefixes ("a" :< "b" :< Path.absoluteEmpty)
-    -- fromList [(.a.b,),(.a,b),(.,a.b)]
-    pathPrefixes :: Path.Absolute -> Seq (Path.Absolute, Path.Path)
-    pathPrefixes p =
-      Path.unabsolute p
-        & Path.toSeq
-        & \seq ->
-          Seq.zip (Seq.inits seq) (Seq.tails seq)
-            & Seq.reverse
-            <&> bimap (Path.Absolute . Path.Path) (Path.Path)
-
-importRemoteShareBranch :: ReadShareRemoteNamespace -> Cli (Branch IO)
-importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
-  let codeserver = Codeserver.resolveCodeserver server
-  let baseURL = codeserverBaseURL codeserver
-  -- Auto-login to share if pulling from a non-public path
-  when (not $ RemoteRepo.isPublic rrn) . void $ ensureAuthenticatedWithCodeserver codeserver
-  let shareFlavoredPath = Share.Path (shareUserHandleToText repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
-  Cli.Env {codebase} <- ask
-  causalHash <-
-    Cli.with withEntitiesDownloadedProgressCallback \downloadedCallback ->
-      Share.pull baseURL shareFlavoredPath downloadedCallback & onLeftM \err0 ->
-        (Cli.returnEarly . Output.ShareError) case err0 of
-          Share.SyncError err -> Output.ShareErrorPull err
-          Share.TransportError err -> Output.ShareErrorTransport err
-  liftIO (Codebase.getBranchForHash codebase causalHash) & onNothingM do
-    error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
-  where
-    -- Provide the given action a callback that display to the terminal.
-    withEntitiesDownloadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
-    withEntitiesDownloadedProgressCallback action = do
-      entitiesDownloadedVar <- newTVarIO 0
-      Console.Regions.displayConsoleRegions do
-        Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
-          Console.Regions.setConsoleRegion region do
-            entitiesDownloaded <- readTVar entitiesDownloadedVar
-            pure $
-              "\n  Downloaded "
-                <> tShow entitiesDownloaded
-                <> " entities...\n\n"
-          result <- action (\n -> atomically (modifyTVar' entitiesDownloadedVar (+ n)))
-          entitiesDownloaded <- readTVarIO entitiesDownloadedVar
-          Console.Regions.finishConsoleRegion region $
-            "\n  Downloaded " <> tShow entitiesDownloaded <> " entities."
-          pure result
-
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
@@ -2409,18 +2266,6 @@ getLinks' src selection0 = do
   let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
   let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
   pure (PPE.suffixifiedPPE ppe, out)
-
--- Returns True if the operation changed the namespace, False otherwise.
-propagatePatch ::
-  Text ->
-  Patch ->
-  Path.Absolute ->
-  Cli Bool
-propagatePatch inputDescription patch scopePath = do
-  Cli.time "propagatePatch" do
-    Cli.stepAt'
-      (inputDescription <> " (applying patch)")
-      (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
 -- | Show todo output if there are any conflicts or edits.
 doShowTodoOutput :: Patch -> Path.Absolute -> Cli ()
@@ -2577,34 +2422,6 @@ searchBranchScored names0 score queries =
             pair qn =
               (\score -> (Just score, result)) <$> score qn name
 
--- | supply `dest0` if you want to print diff messages
---   supply unchangedMessage if you want to display it if merge had no effect
-mergeBranchAndPropagateDefaultPatch ::
-  Branch.MergeMode ->
-  Text ->
-  Maybe Output ->
-  Branch IO ->
-  Maybe Path.Path' ->
-  Path.Absolute ->
-  Cli ()
-mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb maybeDest0 dest =
-  ifM
-    mergeBranch
-    (loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest)
-    (for_ unchangedMessage Cli.respond)
-  where
-    mergeBranch :: Cli Bool
-    mergeBranch =
-      Cli.time "mergeBranch" do
-        Cli.Env {codebase} <- ask
-        destb <- Cli.getBranchAt dest
-        merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
-        b <- Cli.updateAtM inputDescription dest (const $ pure merged)
-        for_ maybeDest0 \dest0 -> do
-          (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
-          Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
-        pure b
-
 basicPPE :: Cli PPE.PrettyPrintEnv
 basicPPE = do
   parseNames <-
@@ -2621,31 +2438,17 @@ compilerPath = Path.Path' {Path.unPath' = Left abs}
 
 doFetchCompiler :: String -> Cli ()
 doFetchCompiler username =
-  inputDescription pullInput
-    >>= doPullRemoteBranch
-      repo
-      compilerPath
-      SyncMode.Complete
-      Input.PullWithoutHistory
-      Verbosity.Silent
+  doPullRemoteBranch sourceTarget SyncMode.Complete Input.PullWithoutHistory Verbosity.Silent
   where
     -- fetching info
     ns =
-      ReadShareRemoteNamespace
+      ReadShareLooseCode
         { server = RemoteRepo.DefaultCodeserver,
           repo = ShareUserHandle (Text.pack username),
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }
-    repo = Just $ ReadRemoteNamespaceShare ns
-
-    pullInput =
-      PullRemoteBranchI
-        repo
-        compilerPath
-        SyncMode.Complete
-        Input.PullWithoutHistory
-        Verbosity.Silent
+    sourceTarget = PullSourceTarget2 (ReadShare'LooseCode ns) (This compilerPath)
 
 ensureCompilerExists :: Cli ()
 ensureCompilerExists =
@@ -2674,12 +2477,17 @@ doGenerateSchemeBoot force mppe = do
   ppe <- maybe basicPPE pure mppe
   dir <- getSchemeGenLibDir
   let bootf = dir </> "unison" </> "boot-generated.ss"
+      swrapf = dir </> "unison" </> "simple-wrappers.ss"
       binf = dir </> "unison" </> "builtin-generated.ss"
+      cwrapf = dir </> "unison" </> "compound-wrappers.ss"
       dirTm = Term.text a (Text.pack dir)
   liftIO $ createDirectoryIfMissing True dir
   saveBase <- Term.ref a <$> resolveTermRef sbName
+  saveWrap <- Term.ref a <$> resolveTermRef swName
   gen ppe saveBase bootf dirTm bootName
+  gen ppe saveWrap swrapf dirTm simpleWrapName
   gen ppe saveBase binf dirTm builtinName
+  gen ppe saveWrap cwrapf dirTm compoundWrapName
   where
     a = External
     hq nm
@@ -2687,8 +2495,13 @@ doGenerateSchemeBoot force mppe = do
       | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
 
     sbName = hq ".unison.internal.compiler.scheme.saveBaseFile"
+    swName = hq ".unison.internal.compiler.scheme.saveWrapperFile"
     bootName = hq ".unison.internal.compiler.scheme.bootSpec"
     builtinName = hq ".unison.internal.compiler.scheme.builtinSpec"
+    simpleWrapName =
+      hq ".unison.internal.compiler.scheme.simpleWrapperSpec"
+    compoundWrapName =
+      hq ".unison.internal.compiler.scheme.compoundWrapperSpec"
 
     gen ppe save file dir nm =
       liftIO (doesFileExist file) >>= \b -> when (not b || force) do
@@ -2715,37 +2528,23 @@ typecheckAndEval ppe tm = do
     a = External
     rendered = P.toPlainUnbroken $ TP.pretty ppe tm
 
-ensureSchemeExists :: SchemeBackend -> Cli ()
-ensureSchemeExists bk =
+ensureSchemeExists :: Cli ()
+ensureSchemeExists =
   liftIO callScheme >>= \case
     True -> pure ()
     False -> Cli.returnEarly (PrintMessage msg)
   where
-    msg = case bk of
-      Racket ->
-        P.lines
-          [ "I can't seem to call racket. See",
-            "",
-            P.indentN
-              2
-              "https://download.racket-lang.org/",
-            "",
-            "for how to install Racket."
-          ]
-      Chez ->
-        P.lines
-          [ "I can't seem to call scheme. See",
-            "",
-            P.indentN
-              2
-              "https://github.com/cisco/ChezScheme/blob/main/BUILDING",
-            "",
-            "for how to install Chez Scheme."
-          ]
-
-    cmd = case bk of
-      Racket -> "racket -l- raco help"
-      Chez -> "scheme -q"
+    msg =
+      P.lines
+        [ "I can't seem to call racket. See",
+          "",
+          P.indentN
+            2
+            "https://download.racket-lang.org/",
+          "",
+          "for how to install Racket."
+        ]
+    cmd = "racket -l- raco help"
     callScheme =
       readCreateProcessWithExitCode (shell cmd) "" >>= \case
         (ExitSuccess, _, _) -> pure True
@@ -2754,28 +2553,16 @@ ensureSchemeExists bk =
 racketOpts :: FilePath -> FilePath -> [String] -> [String]
 racketOpts gendir statdir args = libs ++ args
   where
-    includes = [gendir, statdir </> "common", statdir </> "racket"]
+    includes = [gendir, statdir </> "racket"]
     libs = concatMap (\dir -> ["-S", dir]) includes
 
-chezOpts :: FilePath -> FilePath -> [String] -> [String]
-chezOpts gendir statdir args =
-  "-q" : opt ++ libs ++ ["--script"] ++ args
-  where
-    includes = [gendir, statdir </> "common", statdir </> "chez"]
-    libs = ["--libdirs", List.intercalate ":" includes]
-    opt = ["--optimize-level", "3"]
-
-data SchemeBackend = Racket | Chez
-
-runScheme :: SchemeBackend -> String -> [String] -> Cli ()
-runScheme bk file args = do
-  ensureSchemeExists bk
+runScheme :: String -> [String] -> Cli ()
+runScheme file args = do
+  ensureSchemeExists
   gendir <- getSchemeGenLibDir
   statdir <- getSchemeStaticLibDir
-  let cmd = case bk of Racket -> "racket"; Chez -> "scheme"
-      opts = case bk of
-        Racket -> racketOpts gendir statdir (file : args)
-        Chez -> chezOpts gendir statdir (file : args)
+  let cmd = "racket"
+      opts = racketOpts gendir statdir (file : args)
   success <-
     liftIO $
       (True <$ callProcess cmd opts)
@@ -2783,16 +2570,12 @@ runScheme bk file args = do
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
-buildScheme :: SchemeBackend -> String -> String -> Cli ()
-buildScheme bk main file = do
-  ensureSchemeExists bk
+buildScheme :: String -> String -> Cli ()
+buildScheme main file = do
+  ensureSchemeExists
   statDir <- getSchemeStaticLibDir
   genDir <- getSchemeGenLibDir
-  build genDir statDir main file
-  where
-    build
-      | Racket <- bk = buildRacket
-      | Chez <- bk = buildChez
+  buildRacket genDir statDir main file
 
 buildRacket :: String -> String -> String -> String -> Cli ()
 buildRacket genDir statDir main file =
@@ -2803,37 +2586,14 @@ buildRacket genDir statDir main file =
           (True <$ callProcess "racket" opts)
           (\(_ :: IOException) -> pure False)
 
-buildChez :: String -> String -> String -> String -> Cli ()
-buildChez genDir statDir main file = do
-  let cmd = shell "scheme -q --optimize-level 3"
-  void . liftIO $ readCreateProcess cmd (build statDir genDir)
-  where
-    surround s = '"' : s ++ "\""
-    parens s = '(' : s ++ ")"
-    lns dir nms = surround . ln dir <$> nms
-    ln dir nm = dir </> "unison" </> (nm ++ ".ss")
-
-    static = ["core", "cont", "bytevector", "string", "primops", "boot"]
-    gen = ["boot-generated", "builtin-generated"]
-
-    bootf = surround $ main ++ ".boot"
-    base = "'(\"scheme\" \"petite\")"
-
-    build sd gd =
-      parens . List.intercalate " " $
-        ["make-boot-file", bootf, base]
-          ++ lns sd static
-          ++ lns gd gen
-          ++ [surround file]
-
 doRunAsScheme :: HQ.HashQualified Name -> [String] -> Cli ()
 doRunAsScheme main args = do
   fullpath <- generateSchemeFile True (HQ.toString main) main
-  runScheme Racket fullpath args
+  runScheme fullpath args
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
-  generateSchemeFile True out main >>= buildScheme Racket out
+  generateSchemeFile True out main >>= buildScheme out
 
 generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do
@@ -2863,73 +2623,6 @@ generateSchemeFile exec out main = do
 
     saveNm = hq ".unison.internal.compiler.saveScheme"
     filePathNm = hq "FilePath.FilePath"
-
-doPullRemoteBranch ::
-  Maybe ReadRemoteNamespace ->
-  Path' ->
-  SyncMode.SyncMode ->
-  PullMode ->
-  Verbosity.Verbosity ->
-  Text ->
-  Cli ()
-doPullRemoteBranch mayRepo path syncMode pullMode verbosity description = do
-  Cli.Env {codebase} <- ask
-  let preprocess = case pullMode of
-        Input.PullWithHistory -> Unmodified
-        Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-  ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
-  remoteBranch <- case ns of
-    ReadRemoteNamespaceGit repo ->
-      Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
-        Cli.returnEarly (Output.GitError err)
-    ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-  when (Branch.isEmpty0 (Branch.head remoteBranch)) do
-    Cli.respond (PulledEmptyBranch ns)
-  let unchangedMsg = PullAlreadyUpToDate ns path
-  destAbs <- Cli.resolvePath' path
-  let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
-  case pullMode of
-    Input.PullWithHistory -> do
-      destBranch <- Cli.getBranch0At destAbs
-      if Branch.isEmpty0 destBranch
-        then do
-          void $ Cli.updateAtM description destAbs (const $ pure remoteBranch)
-          Cli.respond $ MergeOverEmpty path
-        else
-          mergeBranchAndPropagateDefaultPatch
-            Branch.RegularMerge
-            description
-            (Just unchangedMsg)
-            remoteBranch
-            printDiffPath
-            destAbs
-    Input.PullWithoutHistory -> do
-      didUpdate <-
-        Cli.updateAtM
-          description
-          destAbs
-          (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
-      Cli.respond
-        if didUpdate
-          then PullSuccessful ns path
-          else unchangedMsg
-
-loadPropagateDiffDefaultPatch ::
-  Text ->
-  Maybe Path.Path' ->
-  Path.Absolute ->
-  Cli ()
-loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
-  Cli.time "loadPropagateDiffDefaultPatch" do
-    original <- Cli.getBranch0At dest
-    patch <- liftIO $ Branch.getPatch Cli.defaultPatchNameSegment original
-    patchDidChange <- propagatePatch inputDescription patch dest
-    when patchDidChange do
-      whenJust maybeDest0 \dest0 -> do
-        patched <- Cli.getBranchAt dest
-        let patchPath = snoc dest0 Cli.defaultPatchNameSegment
-        (ppe, diff) <- diffHelper original (Branch.head patched)
-        Cli.respondNumbered (ShowDiffAfterMergePropagate dest0 dest patchPath ppe diff)
 
 delete ::
   Input ->
@@ -3367,7 +3060,7 @@ hqNameQuery query = do
   Cli.runTransaction do
     hqLength <- Codebase.hashLength
     let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
-    let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+    let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
     Backend.hqNameQuery codebase nameSearch query
 
 -- | Select a definition from the given branch.
@@ -3423,7 +3116,7 @@ synthesizeForce typeOfFunc = do
             TypeLookup.dataDecls = Map.empty,
             TypeLookup.effectDecls = Map.empty
           }
-  case Result.runResultT (Typechecker.synthesize env (DD.forceTerm External External term)) of
+  case Result.runResultT (Typechecker.synthesize PPE.empty env (DD.forceTerm External External term)) of
     Identity (Nothing, notes) ->
       error
         ( unlines
@@ -3543,3 +3236,15 @@ stripUnisonFileReferences unisonFile term =
             | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
           x -> ABT.tm x
    in ABT.cata alg term
+
+looseCodeOrProjectToPath :: Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Path'
+looseCodeOrProjectToPath = \case
+  Left pth -> pth
+  Right (ProjectAndBranch prj br) ->
+    Path.absoluteToPath'
+      ( ProjectUtils.projectBranchPath
+          ( ProjectAndBranch
+              (prj ^. #projectId)
+              (br ^. #branchId)
+          )
+      )

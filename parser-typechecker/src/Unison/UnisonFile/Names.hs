@@ -1,27 +1,26 @@
 module Unison.UnisonFile.Names where
 
-import Data.Bifunctor (second)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.DataDeclaration.Names as DD.Names
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.Names qualified as DD.Names
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Names (Names (Names))
-import qualified Unison.Names.ResolutionResult as Names
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Syntax.Name as Name (unsafeFromVar)
-import qualified Unison.Term as Term
-import qualified Unison.UnisonFile as UF
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Term qualified as Term
+import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Env (Env (..))
 import Unison.UnisonFile.Error (Error (DupDataAndAbility, UnknownType))
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
-import qualified Unison.Util.Relation as Relation
+import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
 toNames :: (Var v) => UnisonFile v a -> Names
 toNames uf = datas <> effects

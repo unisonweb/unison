@@ -5,10 +5,10 @@ If you are a newcomer to the Haskell ecosystem trying to set up your dev environ
 
 Here is a working set of versions you can use to build the Unison executable:
 
-GHC version: 8.10.7
-Stack version: 2.9.1
-Cabal version 3.6.2.0
-Haskell language server version: 1.7.0.0
+- GHC version: 8.10.7
+- Stack version: 2.9.1
+- Cabal version 3.6.2.0
+- Haskell language server version: 1.7.0.0
 
 The GHC version for the project can be confirmed by looking at the `resolver` key in this project's `stack.yaml`.
 

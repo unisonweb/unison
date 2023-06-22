@@ -25,12 +25,12 @@ where
 
 import Control.Lens hiding ((.=))
 import Data.Aeson (FromJSON (..), KeyValue ((.=)), ToJSON (..), (.:), (.:?))
-import qualified Data.Aeson as Aeson
-import qualified Data.Map as Map
-import qualified Data.Text as Text
+import Data.Aeson qualified as Aeson
+import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Data.Time (NominalDiffTime)
 import Network.URI
-import qualified Network.URI as URI
+import Network.URI qualified as URI
 import Unison.Prelude
 import Unison.Share.Types
 
@@ -155,7 +155,7 @@ data UserInfo = UserInfo
     name :: Maybe Text,
     handle :: Text -- The user's handle, no @ sign, e.g. "JohnSmith"
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
 
 instance ToJSON UserInfo where
   toJSON (UserInfo userId name handle) =

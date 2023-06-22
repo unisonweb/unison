@@ -13,7 +13,7 @@ Let's look at some examples. We'll start with a namespace with just the builtins
   
   
   
-  □ 1. #l6nvab7prj (start of history)
+  □ 1. #dpen6o8u9a (start of history)
 
 .> fork builtin builtin2
 
@@ -42,21 +42,21 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #la42o8m5tq
+  ⊙ 1. #4fri0ae2n9
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ 2. #fqkpt5ogt2
+  ⊙ 2. #bdu9sp9eov
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ 3. #l6nvab7prj (start of history)
+  □ 3. #dpen6o8u9a (start of history)
 
 ```
 If we merge that back into `builtin`, we get that same chain of history:
@@ -66,26 +66,28 @@ If we merge that back into `builtin`, we get that same chain of history:
 
   Nothing changed as a result of the merge.
 
+  Applying changes from patch...
+
 .> history builtin
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #la42o8m5tq
+  ⊙ 1. #4fri0ae2n9
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ 2. #fqkpt5ogt2
+  ⊙ 2. #bdu9sp9eov
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ 3. #l6nvab7prj (start of history)
+  □ 3. #dpen6o8u9a (start of history)
 
 ```
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
@@ -106,7 +108,7 @@ Let's try again, but using a `merge.squash` (or just `squash`) instead. The hist
   
   
   
-  □ 1. #l6nvab7prj (start of history)
+  □ 1. #dpen6o8u9a (start of history)
 
 ```
 The churn that happened in `mybuiltin` namespace ended up back in the same spot, so the squash merge of that namespace with our original namespace had no effect.
@@ -252,6 +254,8 @@ Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob bot
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .> history trunk
 
   Note: The most recent namespace hash is immediately below this
@@ -279,6 +283,8 @@ Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob bot
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .> history trunk
 
@@ -357,6 +363,8 @@ This time, we'll first squash Alice and Bob's changes together before squashing 
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .> squash bob trunk
 
   Here's what's changed in trunk after the merge:
@@ -374,6 +382,8 @@ This time, we'll first squash Alice and Bob's changes together before squashing 
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .> history trunk
 
@@ -412,6 +422,8 @@ Another thing we can do is `squash` into an empty namespace. This effectively ma
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .> history nohistoryalice
 
@@ -480,18 +492,20 @@ This checks to see that squashing correctly preserves deletions:
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .delete> history builtin
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #ae3oc8cikb
+  ⊙ 1. #b7cgpsmc1j
   
     - Deletes:
     
       Nat.* Nat.+
   
-  □ 2. #l6nvab7prj (start of history)
+  □ 2. #dpen6o8u9a (start of history)
 
 ```
 Notice that `Nat.+` and `Nat.*` are deleted by the squash, and we see them deleted in one atomic step in the history.

@@ -3,11 +3,11 @@ module Main where
 import EasyTest
 import System.IO.CodePage (withCP65001)
 import System.Random (Random)
-import qualified Unison.Util.Relation as Relation
+import Unison.Util.Relation qualified as Relation
 import Unison.Util.Relation3 (Relation3)
-import qualified Unison.Util.Relation3 as Relation3
+import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Relation4 (Relation4)
-import qualified Unison.Util.Relation4 as Relation4
+import Unison.Util.Relation4 qualified as Relation4
 
 main :: IO ()
 main =

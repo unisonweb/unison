@@ -11,37 +11,35 @@ module U.Codebase.Sqlite.Sync22 where
 
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.Validate (ValidateT, runValidateT)
-import qualified Control.Monad.Validate as Validate
-import Data.Bifunctor (bimap)
+import Control.Monad.Validate qualified as Validate
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Get (runGetS)
 import Data.Bytes.Put (runPutS)
 import Data.List.Extra (nubOrd)
-import qualified Data.Set as Set
-import qualified Data.Vector as Vector
-import Data.Void (Void)
-import qualified U.Codebase.Reference as Reference
-import qualified U.Codebase.Sqlite.Branch.Format as BL
+import Data.Set qualified as Set
+import Data.Vector qualified as Vector
+import U.Codebase.Reference qualified as Reference
+import U.Codebase.Sqlite.Branch.Format qualified as BL
 import U.Codebase.Sqlite.DbId
-import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
 import U.Codebase.Sqlite.HashHandle (HashHandle)
-import qualified U.Codebase.Sqlite.LocalIds as L
-import qualified U.Codebase.Sqlite.ObjectType as OT
-import qualified U.Codebase.Sqlite.Patch.Format as PL
-import qualified U.Codebase.Sqlite.Queries as Q
-import qualified U.Codebase.Sqlite.Reference as Sqlite
-import qualified U.Codebase.Sqlite.Reference as Sqlite.Reference
-import qualified U.Codebase.Sqlite.Referent as Sqlite.Referent
-import qualified U.Codebase.Sqlite.Serialization as S
-import qualified U.Codebase.Sqlite.Term.Format as TL
-import qualified U.Codebase.Sqlite.Term.Format as TermFormat
+import U.Codebase.Sqlite.LocalIds qualified as L
+import U.Codebase.Sqlite.ObjectType qualified as OT
+import U.Codebase.Sqlite.Patch.Format qualified as PL
+import U.Codebase.Sqlite.Queries qualified as Q
+import U.Codebase.Sqlite.Reference qualified as Sqlite
+import U.Codebase.Sqlite.Reference qualified as Sqlite.Reference
+import U.Codebase.Sqlite.Referent qualified as Sqlite.Referent
+import U.Codebase.Sqlite.Serialization qualified as S
+import U.Codebase.Sqlite.Term.Format qualified as TL
+import U.Codebase.Sqlite.Term.Format qualified as TermFormat
 import U.Codebase.Sync (Sync (Sync), TrySyncResult)
-import qualified U.Codebase.Sync as Sync
-import qualified U.Codebase.WatchKind as WK
+import U.Codebase.Sync qualified as Sync
+import U.Codebase.WatchKind qualified as WK
 import Unison.Prelude
 import Unison.Sqlite (Transaction)
 import Unison.Util.Cache (Cache)
-import qualified Unison.Util.Cache as Cache
+import Unison.Util.Cache qualified as Cache
 
 data Entity
   = O ObjectId

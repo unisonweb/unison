@@ -5,10 +5,9 @@
 -}
 module Main (main) where
 
-import Data.Bifunctor (second)
 import Data.List
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import EasyTest
 import System.Directory
 import System.Environment (getArgs)
@@ -20,7 +19,7 @@ import System.FilePath
   )
 import System.IO.CodePage (withCP65001)
 import Unison.Codebase.Init (withTemporaryUcmCodebase)
-import qualified Unison.Codebase.SqliteCodebase as SC
+import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.TranscriptParser (TranscriptError (..), withTranscriptRunner)
 import Unison.Prelude
 

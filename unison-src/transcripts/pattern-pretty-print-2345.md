@@ -53,6 +53,7 @@ tremulous = cases
 
 throaty = cases
   { Ab.a a -> k } -> ()
+  { _ } -> ()
   
 agitated = cases
   a | a == 2 -> ()

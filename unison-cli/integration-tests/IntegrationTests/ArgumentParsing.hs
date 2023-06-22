@@ -5,7 +5,7 @@ module IntegrationTests.ArgumentParsing where
 import Data.List (intercalate)
 import Data.Time (diffUTCTime, getCurrentTime)
 import EasyTest
-import qualified System.Directory
+import System.Directory qualified
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath ((</>))
 import System.Process (readProcessWithExitCode)

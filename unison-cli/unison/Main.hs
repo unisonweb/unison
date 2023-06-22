@@ -27,66 +27,67 @@ import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
-import Data.Bifunctor
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.Configurator.Types (Config)
 import Data.Either.Validation (Validation (..))
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.IO as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.IO qualified as Text
 import GHC.Conc (setUncaughtExceptionHandler)
-import qualified GHC.Conc
-import qualified Ki
-import qualified Language.Haskell.TH as TH
-import qualified Language.Haskell.TH.Syntax as TH
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.TLS as HTTP
+import GHC.Conc qualified
+import Ki qualified
+import Language.Haskell.TH qualified as TH
+import Language.Haskell.TH.Syntax qualified as TH
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client.TLS qualified as HTTP
 import Stats (recordRtsStats)
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName, lookupEnv, withArgs)
-import qualified System.Exit as Exit
-import qualified System.FilePath as FP
+import System.Exit qualified as Exit
+import System.FilePath qualified as FP
 import System.IO (stderr)
 import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
-import qualified System.IO.Temp as Temp
-import qualified System.Path as Path
+import System.IO.Temp qualified as Temp
+import System.Path qualified as Path
 import Text.Megaparsec (runParser)
 import Text.Pretty.Simple (pHPrint)
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Codebase (Codebase, CodebasePath)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Editor.Input as Input
-import Unison.Codebase.Editor.RemoteRepo (ReadShareRemoteNamespace)
-import Unison.Codebase.Editor.UriParser (parseReadShareRemoteNamespace)
-import qualified Unison.Codebase.Editor.VersionParser as VP
+import Unison.Codebase.Editor.Input qualified as Input
+import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode)
+import Unison.Codebase.Editor.UriParser (parseReadShareLooseCode)
+import Unison.Codebase.Editor.VersionParser qualified as VP
 import Unison.Codebase.Execute (execute)
 import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResult (..), SpecifiedCodebase (..))
-import qualified Unison.Codebase.Init as CodebaseInit
+import Unison.Codebase.Init qualified as CodebaseInit
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Rt
-import qualified Unison.Codebase.SqliteCodebase as SC
-import qualified Unison.Codebase.TranscriptParser as TR
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Rt
+import Unison.Codebase.SqliteCodebase qualified as SC
+import Unison.Codebase.TranscriptParser qualified as TR
 import Unison.CommandLine (plural', watchConfig)
-import qualified Unison.CommandLine.Main as CommandLine
-import qualified Unison.CommandLine.Types as CommandLine
+import Unison.CommandLine.Main qualified as CommandLine
+import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
-import qualified Unison.CommandLine.Welcome as Welcome
-import qualified Unison.LSP as LSP
+import Unison.CommandLine.Welcome qualified as Welcome
+import Unison.LSP qualified as LSP
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyTerminal as PT
+import Unison.PrettyTerminal qualified as PT
 import Unison.Runtime.Exception (RuntimeExn (..))
-import qualified Unison.Runtime.Interface as RTI
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.CodebaseServer as Server
+import Unison.Runtime.Interface qualified as RTI
+import Unison.Server.Backend qualified as Backend
+import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Pretty as P
-import qualified UnliftIO
+import Unison.Util.Pretty qualified as P
+import UnliftIO qualified
 import UnliftIO.Directory (getHomeDirectory)
-import qualified Version
+import Version qualified
 
 main :: IO ()
 main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
@@ -118,7 +119,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                 ]
             )
         Run (RunFromSymbol mainName) args -> do
-          getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup) \(_, _, theCodebase) -> do
+          getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
             RTI.withRuntime False RTI.OneOff Version.gitDescribeWithDate \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
                 Left err -> exitError err
@@ -130,7 +131,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
               case e of
                 Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
                 Right contents -> do
-                  getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup) \(initRes, _, theCodebase) -> do
+                  getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                     withRuntimes RTI.OneOff \(rt, sbrt) -> do
                       let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpRootNotifier _ = pure ()
@@ -156,7 +157,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
           case e of
             Left _ -> exitError "I had trouble reading this input."
             Right contents -> do
-              getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup) \(initRes, _, theCodebase) -> do
+              getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                 withRuntimes RTI.OneOff \(rt, sbrt) -> do
                   let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpRootNotifier _ = pure ()
@@ -247,7 +248,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
             Nothing -> action
             Just fp -> recordRtsStats fp action
         Launch isHeadless codebaseServerOpts downloadBase mayStartingPath shouldWatchFiles -> do
-          getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup) \(initRes, _, theCodebase) -> do
+          getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
             withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
               rootVar <- newEmptyTMVarIO
               pathVar <- newTVarIO initialPath
@@ -275,7 +276,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                             [ "I've started the Codebase API server at",
                               P.string $ Server.urlFor Server.Api baseUrl,
                               "and the Codebase UI at",
-                              P.string $ Server.urlFor Server.UI baseUrl
+                              P.string $ Server.urlFor (Server.UI Path.absoluteEmpty Nothing) baseUrl
                             ]
                         PT.putPrettyLn $
                           P.string "Running the codebase manager headless with "
@@ -287,6 +288,16 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                         takeMVar mvar
                       WithCLI -> do
                         PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+
+                        -- If the user didn't provide a starting path on the command line, put them in the most recent
+                        -- path they cd'd to
+                        startingPath <-
+                          case mayStartingPath of
+                            Just startingPath -> pure startingPath
+                            Nothing -> do
+                              segments <- Codebase.runTransaction theCodebase Queries.expectMostRecentNamespace
+                              pure (Path.Absolute (Path.fromList (map NameSegment.NameSegment segments)))
+
                         launch
                           currentDir
                           config
@@ -295,7 +306,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                           theCodebase
                           []
                           (Just baseUrl)
-                          mayStartingPath
+                          (Just startingPath)
                           downloadBase
                           initRes
                           notifyOnRootChanges
@@ -342,7 +353,7 @@ prepareTranscriptDir shouldFork mCodePathOption shouldSaveCodebase = do
   case shouldFork of
     UseFork -> do
       -- A forked codebase does not need to Create a codebase, because it already exists
-      getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup) $ const (pure ())
+      getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) $ const (pure ())
       path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
       PT.putPrettyLn $
         P.lines
@@ -366,7 +377,7 @@ runTranscripts' progName mcodepath transcriptDir markdownFiles = do
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
-  and <$> getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) (SC.MigrateAutomatically SC.Backup) \(_, codebasePath, theCodebase) -> do
+  and <$> getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, codebasePath, theCodebase) -> do
     TR.withTranscriptRunner Version.gitDescribeWithDate (Just configFilePath) $ \runTranscript -> do
       for markdownFiles $ \(MarkdownFile fileName) -> do
         transcriptSrc <- readUtf8 fileName
@@ -517,7 +528,7 @@ isFlag f arg = arg == f || arg == "-" ++ f || arg == "--" ++ f
 getConfigFilePath :: Maybe FilePath -> IO FilePath
 getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseDir mcodepath
 
-defaultBaseLib :: Maybe ReadShareRemoteNamespace
+defaultBaseLib :: Maybe ReadShareLooseCode
 defaultBaseLib =
   let mayBaseSharePath =
         $( do
@@ -525,7 +536,7 @@ defaultBaseLib =
              TH.lift mayPath
          )
    in mayBaseSharePath & \case
-        Just s -> eitherToMaybe $ parseReadShareRemoteNamespace "UNISON_BASE_PATH" s
+        Just s -> eitherToMaybe $ parseReadShareLooseCode "UNISON_BASE_PATH" s
         Nothing -> rightMay $ runParser VP.defaultBaseLib "version" gitRef
   where
     (gitRef, _date) = Version.gitDescribe

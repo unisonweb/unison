@@ -8,7 +8,8 @@ module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
 where
 
 import Control.Concurrent.STM (TVar)
-import Control.Lens
+import Control.Lens hiding (from)
+import Control.Lens qualified as Lens
 import Control.Monad.Except (runExceptT)
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Except (throwE)
@@ -16,22 +17,22 @@ import Control.Monad.Trans.Writer.CPS (Writer, execWriter, tell)
 import Data.Generics.Product
 import Data.Generics.Sum (_Ctor)
 import Data.List.Extra (nubOrd)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Tuple (swap)
 import Data.Tuple.Extra ((***))
-import qualified Data.Zip as Zip
+import Data.Zip qualified as Zip
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
-import qualified U.Codebase.Reference as C.Reference
-import qualified U.Codebase.Reference as UReference
-import qualified U.Codebase.Referent as UReferent
-import qualified U.Codebase.Sqlite.Branch.Full as S
-import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
+import U.Codebase.Reference qualified as C.Reference
+import U.Codebase.Reference qualified as UReference
+import U.Codebase.Referent qualified as UReferent
+import U.Codebase.Sqlite.Branch.Full qualified as S
+import U.Codebase.Sqlite.Branch.Full qualified as S.Branch.Full
 import U.Codebase.Sqlite.Causal (GDbCausal (..))
-import qualified U.Codebase.Sqlite.Causal as SC.DbCausal (GDbCausal (..))
+import U.Codebase.Sqlite.Causal qualified as SC.DbCausal (GDbCausal (..))
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
@@ -41,44 +42,44 @@ import U.Codebase.Sqlite.DbId
     PatchObjectId (..),
     TextId,
   )
-import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Patch.Format as S.Patch.Format
-import qualified U.Codebase.Sqlite.Patch.Full as S
-import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
-import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
-import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.LocalizeObject qualified as S.LocalizeObject
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Patch.Format qualified as S.Patch.Format
+import U.Codebase.Sqlite.Patch.Full qualified as S
+import U.Codebase.Sqlite.Patch.TermEdit qualified as TermEdit
+import U.Codebase.Sqlite.Patch.TypeEdit qualified as TypeEdit
+import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import U.Codebase.Sync (Sync (Sync))
-import qualified U.Codebase.Sync as Sync
+import U.Codebase.Sync qualified as Sync
 import U.Codebase.WatchKind (WatchKind)
-import qualified U.Codebase.WatchKind as WK
-import qualified Unison.ABT as ABT
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Hashing
-import qualified Unison.Codebase.SqliteCodebase.Operations as CodebaseOps
-import qualified Unison.ConstructorReference as ConstructorReference
-import qualified Unison.ConstructorType as CT
-import qualified Unison.DataDeclaration as DD
+import U.Codebase.WatchKind qualified as WK
+import Unison.ABT qualified as ABT
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers qualified as Hashing
+import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
+import Unison.ConstructorReference qualified as ConstructorReference
+import Unison.ConstructorType qualified as CT
+import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Unison
-import qualified Unison.Hashing.V2 as Hashing
-import qualified Unison.Hashing.V2.Convert as Convert
+import Unison.Hash qualified as Unison
+import Unison.Hashing.V2 qualified as Hashing
+import Unison.Hashing.V2.Convert qualified as Convert
 import Unison.Parser.Ann (Ann)
 import Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Referent' as Referent'
-import qualified Unison.Sqlite as Sqlite
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Referent' qualified as Referent'
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Util.Set as Set
+import Unison.Util.Set qualified as Set
 import Prelude hiding (log)
 
 verboseOutput :: Bool
@@ -805,7 +806,7 @@ remapObjIdRefs objMapping refMapping someObjIdRef = newSomeObjId
       Nothing -> error $ "Expected reference mapping for ID: " <> show oldSomeRefId
       Just r -> r
     newSomeObjId :: SomeReference (UReference.Id' (New ObjectId))
-    newSomeObjId = (newSomeRefId ^. from uRefIdAsRefId_) & someRef_ . UReference.idH .~ newObjId
+    newSomeObjId = (newSomeRefId ^. Lens.from uRefIdAsRefId_) & someRef_ . UReference.idH .~ newObjId
 
 data SomeReference ref
   = TermReference ref

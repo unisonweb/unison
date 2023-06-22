@@ -10,9 +10,9 @@ module ArgParse where
 import Control.Applicative (Alternative (many, (<|>)), Applicative (liftA2), optional)
 import Data.Foldable (Foldable (fold))
 import Data.Functor ((<&>))
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Options.Applicative
   ( CommandFields,
     Mod,
@@ -49,19 +49,19 @@ import Options.Applicative
     strOption,
     subparserInline,
   )
-import qualified Options.Applicative as OptParse
+import Options.Applicative qualified as OptParse
 import Options.Applicative.Builder.Internal (noGlobal {- https://github.com/pcapriotti/optparse-applicative/issues/461 -})
 import Options.Applicative.Help (bold, (<+>))
-import qualified Options.Applicative.Help.Pretty as P
+import Options.Applicative.Help.Pretty qualified as P
 import Stats
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
-import qualified Unison.PrettyTerminal as PT
+import Unison.PrettyTerminal qualified as PT
 import Unison.Server.CodebaseServer (CodebaseServerOpts (..))
-import qualified Unison.Server.CodebaseServer as Server
+import Unison.Server.CodebaseServer qualified as Server
 import Unison.Util.Pretty (Width (..))
 
 -- The name of a symbol to execute.
@@ -157,6 +157,7 @@ codebaseServerOptsFromEnv :: IO CodebaseServerOpts
 codebaseServerOptsFromEnv = do
   token <- lookupEnv Server.ucmTokenVar
   host <- lookupEnv Server.ucmHostVar
+  allowCorsHost <- lookupEnv Server.ucmAllowCorsHost
   port <- lookupEnv Server.ucmPortVar <&> (>>= readMaybe)
   codebaseUIPath <- lookupEnv Server.ucmUIVar
   pure $ CodebaseServerOpts {..}
@@ -312,12 +313,14 @@ codebaseServerOptsParser envOpts = do
   cliToken <- tokenFlag <|> pure (token envOpts)
   cliHost <- hostFlag <|> pure (host envOpts)
   cliPort <- portFlag <|> pure (port envOpts)
+  cliAllowCorsHost <- allowCorsHostFlag <|> pure (allowCorsHost envOpts)
   cliCodebaseUIPath <- codebaseUIPathFlag <|> pure (codebaseUIPath envOpts)
   pure
     CodebaseServerOpts
       { token = cliToken <|> token envOpts,
         host = cliHost <|> host envOpts,
         port = cliPort <|> port envOpts,
+        allowCorsHost = cliAllowCorsHost <|> allowCorsHost envOpts,
         codebaseUIPath = cliCodebaseUIPath <|> codebaseUIPath envOpts
       }
   where
@@ -338,6 +341,12 @@ codebaseServerOptsParser envOpts = do
         long "port"
           <> metavar "NUMBER"
           <> help "Codebase server port"
+          <> noGlobal
+    allowCorsHostFlag =
+      optional . strOption $
+        long "allow-cors-host"
+          <> metavar "STRING"
+          <> help "Host that should be allowed to access api (cors)"
           <> noGlobal
     codebaseUIPathFlag =
       optional . strOption $

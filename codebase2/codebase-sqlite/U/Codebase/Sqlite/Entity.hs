@@ -1,12 +1,12 @@
 module U.Codebase.Sqlite.Entity where
 
-import qualified U.Codebase.Sqlite.Branch.Format as Namespace
-import qualified U.Codebase.Sqlite.Causal as Causal
+import U.Codebase.Sqlite.Branch.Format qualified as Namespace
+import U.Codebase.Sqlite.Causal qualified as Causal
 import U.Codebase.Sqlite.DbId (BranchHashId, BranchObjectId, CausalHashId, HashId, ObjectId, PatchObjectId, TextId)
-import qualified U.Codebase.Sqlite.Decl.Format as Decl
-import qualified U.Codebase.Sqlite.Patch.Format as Patch
+import U.Codebase.Sqlite.Decl.Format qualified as Decl
+import U.Codebase.Sqlite.Patch.Format qualified as Patch
 import U.Codebase.Sqlite.TempEntityType (TempEntityType (..))
-import qualified U.Codebase.Sqlite.Term.Format as Term
+import U.Codebase.Sqlite.Term.Format qualified as Term
 
 -- |
 -- data SyncEntity

@@ -1,13 +1,13 @@
 module U.Codebase.Term where
 
-import qualified Control.Monad.Writer as Writer
-import qualified Data.Foldable as Foldable
-import qualified Data.Set as Set
+import Control.Monad.Writer qualified as Writer
+import Data.Foldable qualified as Foldable
+import Data.Set qualified as Set
 import U.Codebase.Reference (Reference, Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Type (TypeR)
-import qualified U.Codebase.Type as Type
-import qualified U.Core.ABT as ABT
+import U.Codebase.Type qualified as Type
+import U.Core.ABT qualified as ABT
 import Unison.Hash (Hash)
 import Unison.Prelude
 

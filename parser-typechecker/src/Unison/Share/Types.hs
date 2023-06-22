@@ -15,12 +15,12 @@ module Unison.Share.Types
 where
 
 import Data.Aeson
-import qualified Data.List as List
-import qualified Data.List.Extra as List
+import Data.List qualified as List
+import Data.List.Extra qualified as List
 import Data.Text
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Network.URI
-import qualified Servant.Client as Servant
+import Servant.Client qualified as Servant
 import Unison.Prelude
 
 data Scheme = Http | Https
