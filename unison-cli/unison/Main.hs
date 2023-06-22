@@ -250,8 +250,18 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
         Launch isHeadless codebaseServerOpts downloadBase mayStartingPath shouldWatchFiles -> do
           getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
             withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
+              startingPath <- case isHeadless of
+                WithCLI -> do
+                  -- If the user didn't provide a starting path on the command line, put them in the most recent
+                  -- path they cd'd to
+                  case mayStartingPath of
+                    Just startingPath -> pure startingPath
+                    Nothing -> do
+                      segments <- Codebase.runTransaction theCodebase Queries.expectMostRecentNamespace
+                      pure (Path.Absolute (Path.fromList (map NameSegment.NameSegment segments)))
+                Headless -> pure $ fromMaybe defaultInitialPath mayStartingPath
               rootVar <- newEmptyTMVarIO
-              pathVar <- newTVarIO initialPath
+              pathVar <- newTVarIO startingPath
               let notifyOnRootChanges :: Branch IO -> STM ()
                   notifyOnRootChanges b = do
                     isEmpty <- isEmptyTMVar rootVar
@@ -288,15 +298,6 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                         takeMVar mvar
                       WithCLI -> do
                         PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-
-                        -- If the user didn't provide a starting path on the command line, put them in the most recent
-                        -- path they cd'd to
-                        startingPath <-
-                          case mayStartingPath of
-                            Just startingPath -> pure startingPath
-                            Nothing -> do
-                              segments <- Codebase.runTransaction theCodebase Queries.expectMostRecentNamespace
-                              pure (Path.Absolute (Path.fromList (map NameSegment.NameSegment segments)))
 
                         launch
                           currentDir
@@ -466,8 +467,8 @@ runTranscripts renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption
             )
   when (not completed) $ Exit.exitWith (Exit.ExitFailure 1)
 
-initialPath :: Path.Absolute
-initialPath = Path.absoluteEmpty
+defaultInitialPath :: Path.Absolute
+defaultInitialPath = Path.absoluteEmpty
 
 launch ::
   FilePath ->
@@ -497,7 +498,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPat
    in CommandLine.main
         dir
         welcome
-        (fromMaybe initialPath mayStartingPath)
+        (fromMaybe defaultInitialPath mayStartingPath)
         config
         inputs
         runtime
