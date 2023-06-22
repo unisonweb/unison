@@ -42,6 +42,9 @@ jobs:
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
       # purge one manually.
 
+      - name: Setup tmate session
+        if: ${{ always() }}
+        uses: mxschmitt/action-tmate@v3
 
       - id: stackage-resolver
         name: record stackage resolver
@@ -273,7 +276,3 @@ jobs:
           stack exec -- stack-clean-old list -G || true
           echo project .stack-work
           stack exec -- stack-clean-old list -P || true
-
-      - name: Setup tmate session
-        if: ${{ always() }}
-        uses: mxschmitt/action-tmate@v3
