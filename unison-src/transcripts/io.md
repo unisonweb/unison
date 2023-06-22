@@ -398,7 +398,8 @@ Calling our examples with the wrong number of args will error.
 ```unison:hide
 testTimeZone = do
   (offset, summer, name) = Clock.internals.systemTimeZone +0
-  (offset : Int, summer : Nat, name : Text)
+  _ = (offset : Int, summer : Nat, name : Text)
+  ()
 ```
 
 ```ucm

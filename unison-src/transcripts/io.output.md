@@ -659,7 +659,8 @@ Calling our examples with the wrong number of args will error.
 ```unison
 testTimeZone = do
   (offset, summer, name) = Clock.internals.systemTimeZone +0
-  (offset : Int, summer : Nat, name : Text)
+  _ = (offset : Int, summer : Nat, name : Text)
+  ()
 ```
 
 ```ucm
@@ -667,10 +668,10 @@ testTimeZone = do
 
   ⍟ I've added these definitions:
   
-    testTimeZone : '{IO} (Int, Nat, Text)
+    testTimeZone : '{IO} ()
 
 .> run testTimeZone
 
-  (-300, 0, "EST")
+  ()
 
 ```
