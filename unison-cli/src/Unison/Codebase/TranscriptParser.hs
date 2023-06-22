@@ -18,7 +18,6 @@ module Unison.Codebase.TranscriptParser
   )
 where
 
-
 import Control.Lens (use, (?~), (^.))
 import Crypto.Random qualified as Random
 import Data.Aeson qualified as Aeson
