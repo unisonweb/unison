@@ -5,11 +5,13 @@ module Unison.LSP.FileAnalysis where
 import Control.Lens
 import Control.Monad.Reader
 import Crypto.Random qualified as Random
+import Data.Align (alignWith)
 import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import Data.IntervalMap.Lazy qualified as IM
 import Data.Map qualified as Map
 import Data.Text qualified as Text
+import Data.These
 import Language.LSP.Types
   ( Diagnostic,
     DiagnosticSeverity (DsError),
@@ -34,6 +36,7 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.Types qualified as LSP
 import Unison.LSP.VFS qualified as VFS
+import Unison.Names (Names)
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Pattern qualified as Pattern
@@ -61,7 +64,7 @@ import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Var qualified as Var
 import Unison.WatchKind (pattern TestWatch)
-import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
+import UnliftIO.STM
 
 -- | Lex, parse, and typecheck a file.
 checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
@@ -185,7 +188,14 @@ fileAnalysisWorker = forever do
       pure (docUri, fileInfo)
   Debug.debugM Debug.LSP "Freshly Typechecked " (Map.toList freshlyCheckedFiles)
   -- Overwrite any files we successfully checked
-  atomically $ modifyTVar' checkedFilesV (Map.union freshlyCheckedFiles)
+  atomically $ do
+    checkedFiles <- readTVar checkedFilesV
+    let zipper = \case
+          These mvar new -> tryTakeTMVar mvar *> putTMVar mvar new *> pure mvar
+          This mvar -> pure mvar
+          That new -> newTMVar new
+    newCheckedFiles <- sequenceA $ alignWith zipper checkedFiles freshlyCheckedFiles
+    writeTVar checkedFilesV newCheckedFiles
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
@@ -375,11 +385,22 @@ toRangeMap :: (Foldable f) => f (Range, a) -> IntervalMap Position [a]
 toRangeMap vs =
   IM.fromListWith (<>) (toList vs <&> \(r, a) -> (rangeToInterval r, [a]))
 
-getFileAnalysis :: Uri -> Lsp (Maybe FileAnalysis)
+getFileAnalysis :: Uri -> MaybeT Lsp FileAnalysis
 getFileAnalysis uri = do
   checkedFilesV <- asks checkedFilesVar
-  checkedFiles <- readTVarIO checkedFilesV
-  pure $ Map.lookup uri checkedFiles
+  -- Try to get the file analysis, if there's a var, then read it, waiting if necessary
+  -- If there's no var, add one and wait for it to be filled (all Uris should be analyzed
+  -- eventually unless theres some bug in the VFS).
+  tmvar <- atomically do
+    checkedFiles <- readTVar checkedFilesV
+    case Map.lookup uri checkedFiles of
+      Nothing -> do
+        mvar <- newEmptyTMVar
+        Debug.debugM Debug.LSP "File analysis requested but none available, waiting for analysis for" uri
+        writeTVar checkedFilesV $ Map.insert uri mvar checkedFiles
+        pure mvar
+      Just mvar -> pure mvar
+  atomically (readTMVar tmvar)
 
 getFileSummary :: Uri -> MaybeT Lsp FileSummary
 getFileSummary uri = do
