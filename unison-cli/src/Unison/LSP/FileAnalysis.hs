@@ -36,7 +36,6 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.Types qualified as LSP
 import Unison.LSP.VFS qualified as VFS
-import Unison.Names (Names)
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Pattern qualified as Pattern
@@ -404,13 +403,13 @@ getFileAnalysis uri = do
 
 getFileSummary :: Uri -> MaybeT Lsp FileSummary
 getFileSummary uri = do
-  FileAnalysis {fileSummary} <- MaybeT $ getFileAnalysis uri
+  FileAnalysis {fileSummary} <- getFileAnalysis uri
   MaybeT . pure $ fileSummary
 
 -- TODO memoize per file
 ppedForFile :: Uri -> Lsp PPED.PrettyPrintEnvDecl
 ppedForFile fileUri = do
-  getFileAnalysis fileUri >>= \case
+  runMaybeT (getFileAnalysis fileUri) >>= \case
     Just (FileAnalysis {typecheckedFile = tf, parsedFile = uf}) ->
       ppedForFileHelper uf tf
     _ -> ppedForFileHelper Nothing Nothing
