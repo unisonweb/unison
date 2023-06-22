@@ -5,7 +5,7 @@ where
 
 import Control.Lens
 import EasyTest
-import qualified Unison.Cli.Monad as Cli
+import Unison.Cli.Monad qualified as Cli
 
 test :: Test ()
 test =

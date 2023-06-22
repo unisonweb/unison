@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -18,6 +18,8 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.Sqlite.V2.HashHandle
+      U.Codebase.Branch.Hashing
+      U.Codebase.Causal.Hashing
   other-modules:
       Unison.Hashing.V2.Convert2
   hs-source-dirs:
@@ -36,6 +38,7 @@ library
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -59,10 +62,10 @@ library
     , unison-codebase-sqlite
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-hashing-v2
     , unison-prelude
     , unison-sqlite
-    , unison-util
     , unison-util-base32hex
     , unison-util-term
     , vector

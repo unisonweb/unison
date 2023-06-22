@@ -9,17 +9,17 @@ import Control.Concurrent
     killThread,
     threadDelay,
   )
-import qualified Control.Concurrent.STM as STM
-import qualified Data.Map as Map
+import Control.Concurrent.STM qualified as STM
+import Data.Map qualified as Map
 import Data.Time.Clock
   ( UTCTime,
     diffUTCTime,
   )
 import System.FSNotify (Event (Added, Modified))
-import qualified System.FSNotify as FSNotify
+import System.FSNotify qualified as FSNotify
 import Unison.Prelude
 import Unison.Util.TQueue (TQueue)
-import qualified Unison.Util.TQueue as TQueue
+import Unison.Util.TQueue qualified as TQueue
 import UnliftIO.Exception (catch)
 import UnliftIO.IORef
   ( newIORef,
@@ -35,11 +35,11 @@ import UnliftIO.MVar
   )
 import UnliftIO.STM (atomically)
 
-untilJust :: Monad m => m (Maybe a) -> m a
+untilJust :: (Monad m) => m (Maybe a) -> m a
 untilJust act = act >>= maybe (untilJust act) return
 
 watchDirectory' ::
-  forall m. MonadIO m => FilePath -> m (IO (), IO (FilePath, UTCTime))
+  forall m. (MonadIO m) => FilePath -> m (IO (), IO (FilePath, UTCTime))
 watchDirectory' d = do
   mvar <- newEmptyMVar
   let handler :: Event -> IO ()
@@ -85,7 +85,7 @@ collectUntilPause queue minPauseµsec = do
 
 watchDirectory ::
   forall m.
-  MonadIO m =>
+  (MonadIO m) =>
   FilePath ->
   (FilePath -> Bool) ->
   m (IO (), IO (FilePath, Text))
@@ -97,9 +97,11 @@ watchDirectory dir allow = do
         if allow file
           then
             let handle :: IOException -> IO ()
-                handle e = do
-                  liftIO $ putStrLn $ "‼  Got an exception while reading: " <> file
-                  liftIO $ print (e :: IOException)
+                handle _e =
+                  -- Sometimes we notice a change and try to read a file while it's being written.
+                  -- This typically occurs when UCM is writing to the scratch file and can be
+                  -- ignored anyways.
+                  pure ()
                 go :: IO (Maybe (FilePath, Text))
                 go = liftIO $ do
                   contents <- readUtf8 file
@@ -124,7 +126,8 @@ watchDirectory dir allow = do
     forever $ do
       event@(file, _) <- watcher
       when (allow file) $
-        STM.atomically $ TQueue.enqueue queue event
+        STM.atomically $
+          TQueue.enqueue queue event
   pending <- newIORef []
   let await :: IO (FilePath, Text)
       await =

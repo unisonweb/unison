@@ -47,24 +47,15 @@ The deleted namespace shouldn't appear in `ls` output.
 ```
 ## history
 
-The history of the namespace should still exist if requested explicitly.
+The history of the namespace should be empty.
 
 ```ucm
 .> history mynamespace
 
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  ⊙ 1. #nvh8d4j0fm
-  
-    - Deletes:
-    
-      x
-  
-  □ 2. #i52j9fd57b (start of history)
+  ☝️  The namespace .mynamespace is empty.
 
 ```
-Merging an empty namespace should still copy its history if it has some.
+Merging an empty namespace should be a no-op
 
 ```ucm
   ☝️  The namespace .empty is empty.
@@ -75,20 +66,13 @@ Merging an empty namespace should still copy its history if it has some.
 
 .empty> merge .mynamespace
 
-  Nothing changed as a result of the merge.
+  ⚠️
+  
+  The namespace .mynamespace doesn't exist.
 
 .empty> history
 
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  ⊙ 1. #nvh8d4j0fm
-  
-    - Deletes:
-    
-      x
-  
-  □ 2. #i52j9fd57b (start of history)
+  ☝️  The namespace .empty is empty.
 
 ```
 Add and then delete a term to add some history to a deleted namespace.

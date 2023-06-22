@@ -7,37 +7,35 @@ import EasyTest
 import System.Environment (getArgs)
 import System.IO
 import System.IO.CodePage (withCP65001)
-import qualified Unison.Core.Test.Name as Name
-import qualified Unison.Test.ABT as ABT
-import qualified Unison.Test.ANF as ANF
-import qualified Unison.Test.Cache as Cache
-import qualified Unison.Test.Codebase.Branch as Branch
-import qualified Unison.Test.Codebase.Causal as Causal
-import qualified Unison.Test.Codebase.Path as Path
-import qualified Unison.Test.CodebaseInit as CodebaseInit
-import qualified Unison.Test.DataDeclaration as DataDeclaration
-import qualified Unison.Test.MCode as MCode
-import qualified Unison.Test.Referent as Referent
-import qualified Unison.Test.Syntax.FileParser as FileParser
-import qualified Unison.Test.Syntax.TermParser as TermParser
-import qualified Unison.Test.Syntax.TermPrinter as TermPrinter
-import qualified Unison.Test.Syntax.TypePrinter as TypePrinter
-import qualified Unison.Test.Term as Term
-import qualified Unison.Test.Type as Type
-import qualified Unison.Test.Typechecker as Typechecker
-import qualified Unison.Test.Typechecker.Context as Context
-import qualified Unison.Test.Typechecker.TypeError as TypeError
-import qualified Unison.Test.UnisonSources as UnisonSources
-import qualified Unison.Test.Util.PinBoard as PinBoard
-import qualified Unison.Test.Util.Relation as Relation
-import qualified Unison.Test.Util.Text as Text
-import qualified Unison.Test.Var as Var
+import Unison.Core.Test.Name qualified as Name
+import Unison.Test.ABT qualified as ABT
+import Unison.Test.ANF qualified as ANF
+import Unison.Test.Codebase.Branch qualified as Branch
+import Unison.Test.Codebase.Causal qualified as Causal
+import Unison.Test.Codebase.Path qualified as Path
+import Unison.Test.CodebaseInit qualified as CodebaseInit
+import Unison.Test.DataDeclaration qualified as DataDeclaration
+import Unison.Test.MCode qualified as MCode
+import Unison.Test.Referent qualified as Referent
+import Unison.Test.Syntax.FileParser qualified as FileParser
+import Unison.Test.Syntax.TermParser qualified as TermParser
+import Unison.Test.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Test.Syntax.TypePrinter qualified as TypePrinter
+import Unison.Test.Term qualified as Term
+import Unison.Test.Type qualified as Type
+import Unison.Test.Typechecker qualified as Typechecker
+import Unison.Test.Typechecker.Context qualified as Context
+import Unison.Test.Typechecker.TypeError qualified as TypeError
+import Unison.Test.UnisonSources qualified as UnisonSources
+import Unison.Test.Util.PinBoard qualified as PinBoard
+import Unison.Test.Util.Relation qualified as Relation
+import Unison.Test.Util.Text qualified as Text
+import Unison.Test.Var qualified as Var
 
 test :: Test ()
 test =
   tests
-    [ Cache.test,
-      Term.test,
+    [ Term.test,
       TermParser.test,
       TermPrinter.test,
       Type.test,

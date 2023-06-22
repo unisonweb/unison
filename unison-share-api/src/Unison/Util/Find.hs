@@ -8,30 +8,30 @@ module Unison.Util.Find
   )
 where
 
-import qualified Data.Char as Char
-import qualified Data.List as List
-import qualified Data.Text as Text
+import Data.Char qualified as Char
+import Data.List qualified as List
+import Data.Text qualified as Text
 -- http://www.serpentine.com/blog/2007/02/27/a-haskell-regular-expression-tutorial/
 -- https://www.stackage.org/haddock/lts-13.9/regex-base-0.93.2/Text-Regex-Base-Context.html -- re-exported by TDFA
 -- https://www.stackage.org/haddock/lts-13.9/regex-tdfa-1.2.3.1/Text-Regex-TDFA.html
-import qualified Text.Regex.TDFA as RE
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Text.Regex.TDFA qualified as RE
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.Names (Names)
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.Server.SearchResult (SearchResult)
-import qualified Unison.Server.SearchResult as SR
-import qualified Unison.ShortHash as SH
-import qualified Unison.Syntax.Name as Name (toString)
+import Unison.Server.SearchResult qualified as SR
+import Unison.ShortHash qualified as SH
+import Unison.Syntax.Name qualified as Name (toString)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.Relation as R
+import Unison.Util.Pretty qualified as P
+import Unison.Util.Relation qualified as R
 
 fuzzyFinder ::
   forall a.
@@ -149,7 +149,7 @@ prefixFindInBranch b hq =
 
 -- only search before the # before the # and after the # after the #
 fuzzyFindInBranch ::
-  HasCallStack =>
+  (HasCallStack) =>
   Names ->
   HQ'.HashQualified Name ->
   [(SearchResult, P.Pretty P.ColorText)]

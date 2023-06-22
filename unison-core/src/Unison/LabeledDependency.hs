@@ -17,13 +17,13 @@ module Unison.LabeledDependency
   )
 where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorType (ConstructorType (Data, Effect))
 import Unison.Prelude hiding (fold)
 import Unison.Reference (Id, Reference (DerivedId))
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 
 -- | A Union Type which contains either Type References or Term Referents.
 data LabeledDependency
@@ -62,14 +62,14 @@ dataConstructor r = ConReference r Data
 effectConstructor :: ConstructorReference -> LabeledDependency
 effectConstructor r = ConReference r Effect
 
-referents :: Foldable f => f Referent -> Set LabeledDependency
+referents :: (Foldable f) => f Referent -> Set LabeledDependency
 referents rs = Set.fromList (map referent $ toList rs)
 
 fold :: (Reference -> a) -> (Referent -> a) -> LabeledDependency -> a
 fold f _ (TypeReference r) = f r
 fold _ g (TermReferent r) = g r
 
-partition :: Foldable t => t LabeledDependency -> ([Reference], [Referent])
+partition :: (Foldable t) => t LabeledDependency -> ([Reference], [Referent])
 partition =
   foldMap \case
     TypeReference ref -> ([ref], [])

@@ -5,20 +5,19 @@
 
 module Unison.Pattern where
 
-import qualified Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Type as Type
+import Unison.Referent qualified as Referent
+import Unison.Type qualified as Type
 
 data Pattern loc
   = Unbound loc
@@ -90,7 +89,21 @@ application (Constructor _ _ (_ : _)) = True
 application _ = False
 
 loc :: Pattern loc -> loc
-loc p = head $ Foldable.toList p
+loc = \case
+  Unbound loc -> loc
+  Var loc -> loc
+  Boolean loc _ -> loc
+  Int loc _ -> loc
+  Nat loc _ -> loc
+  Float loc _ -> loc
+  Text loc _ -> loc
+  Char loc _ -> loc
+  Constructor loc _ _ -> loc
+  As loc _ -> loc
+  EffectPure loc _ -> loc
+  EffectBind loc _ _ _ -> loc
+  SequenceLiteral loc _ -> loc
+  SequenceOp loc _ _ _ -> loc
 
 setLoc :: Pattern loc -> loc -> Pattern loc
 setLoc p loc = case p of
@@ -119,7 +132,7 @@ instance Eq (Pattern loc) where
   SequenceOp _ ph op pt == SequenceOp _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
   _ == _ = False
 
-foldMap' :: Monoid m => (Pattern loc -> m) -> Pattern loc -> m
+foldMap' :: (Monoid m) => (Pattern loc -> m) -> Pattern loc -> m
 foldMap' f p = case p of
   Unbound _ -> f p
   Var _ -> f p
@@ -137,7 +150,7 @@ foldMap' f p = case p of
   SequenceOp _ p1 _ p2 -> f p <> foldMap' f p1 <> foldMap' f p2
 
 generalizedDependencies ::
-  Ord r =>
+  (Ord r) =>
   (Reference -> r) ->
   (Reference -> ConstructorId -> r) ->
   (Reference -> r) ->

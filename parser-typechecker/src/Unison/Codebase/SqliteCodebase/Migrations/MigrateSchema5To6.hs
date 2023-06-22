@@ -1,16 +1,16 @@
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6) where
 
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Time (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import System.FilePath ((</>))
 import U.Codebase.HashTags (CausalHash (CausalHash))
-import qualified U.Codebase.Reflog as Reflog
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Reflog qualified as Reflog
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Codebase (CodebasePath)
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Prelude
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import UnliftIO (catchIO)
 
 -- | The 5 to 6 migration adds the reflog as a table in the DB
@@ -53,7 +53,7 @@ oldReflogEntries reflogPath now =
       -- least puts them in the correct order chronologically.
       let offsetTime = addUTCTime (negate $ fromInteger @NominalDiffTime n) now
        in case Text.words txt of
-            (Hash.fromBase32Hex -> Just old) : (Hash.fromBase32Hex -> Just new) : (Text.unwords -> reason) ->
+            (Hash.fromBase32HexText -> Just old) : (Hash.fromBase32HexText -> Just new) : (Text.unwords -> reason) ->
               Just $
                 Reflog.Entry
                   { time = offsetTime,

@@ -274,7 +274,7 @@ bSearch m k =
       Some (k', v)
         | k == k' -> Some v
         | k > k' -> find (i+1) u
-        | k < k' -> find l i
+        | otherwise -> find l i
       None -> None
   find 0 (size m)
 
@@ -299,7 +299,7 @@ bSplit m k =
       Some (k', _)
         | k == k' -> (List.take i m, List.drop (i+1) m)
         | k > k' -> find (i+1) u
-        | k < k' -> find l i
+        | otherwise -> find l i
       None -> (m, [])
   find 0 (size m)
 

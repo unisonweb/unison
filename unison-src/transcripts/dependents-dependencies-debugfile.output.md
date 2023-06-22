@@ -47,49 +47,63 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 
 .> dependents q
 
-  #vtdbqaojv6 doesn't have any named dependents.
+  q has no dependents.
 
 .> dependencies q
 
-  Dependencies of #vtdbqaojv6:
+  Dependencies of: q
   
-       Reference   Name
-    1. ##Nat       builtin.Nat
-    2. ##Nat.*     builtin.Nat.*
-    3. ##Nat.+     builtin.Nat.+
-    4. #htoo5rnb54 inside.p
+    Types:
+  
+    1. Nat
+  
+    Terms:
+  
+    2. Nat.*
+    3. Nat.+
+    4. p
+  
+  Tip: Try `view 4` to see the source of any numbered item in
+       the above list.
 
 .> dependencies B
 
-  Dependencies of #eo6rj0lj1b:
+  Dependencies of: type B, B
   
-       Reference Name
-    1. ##Int     builtin.Int
-
-  Dependencies of #eo6rj0lj1b#0:
+    Types:
   
-       Reference   Name
-    1. #eo6rj0lj1b outside.B
-    2. ##Int       builtin.Int
+    1. B
+    2. Int
+  
+  Tip: Try `view 2` to see the source of any numbered item in
+       the above list.
 
 .> dependencies d
 
-  Dependencies of #ukd7tu6kds:
+  Dependencies of: d
   
-       Reference     Name
-    1. ##Boolean     builtin.Boolean
-    2. ##Nat         builtin.Nat
-    3. ##Nat.+       builtin.Nat.+
-    4. ##Universal.< builtin.Universal.<
-    5. #f3lgjvjqoo   outside.c
-    6. #htoo5rnb54   inside.p
+    Types:
+  
+    1. Boolean
+    2. Nat
+  
+    Terms:
+  
+    3. <
+    4. c
+    5. Nat.+
+    6. p
+  
+  Tip: Try `view 6` to see the source of any numbered item in
+       the above list.
 
 .> dependents d
 
-  Dependents of #ukd7tu6kds:
+  Dependents of: d
   
-       Name     Reference
-    1. inside.r #nkgohbke6n
+    Terms:
+  
+    1. r
   
   Tip: Try `view 1` to see the source of any numbered item in
        the above list.

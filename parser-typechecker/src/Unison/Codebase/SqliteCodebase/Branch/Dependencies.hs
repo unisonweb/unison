@@ -7,27 +7,28 @@ module Unison.Codebase.SqliteCodebase.Branch.Dependencies where
 
 import Data.Foldable (toList)
 import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Monoid.Generic (GenericMonoid (..), GenericSemigroup (..))
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import GHC.Generics (Generic)
+import U.Codebase.HashTags (CausalHash, PatchHash)
 import Unison.Codebase.Branch.Type as Branch
-import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Hash (Hash)
 import Unison.NameSegment (NameSegment)
 import Unison.Reference (Reference, pattern Derived)
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Star3 as Star3
+import Unison.Referent qualified as Referent
+import Unison.Util.Relation qualified as R
+import Unison.Util.Star3 qualified as Star3
 
-type Branches m = [(Branch.CausalHash, m (Branch m))]
+type Branches m = [(CausalHash, m (Branch m))]
 
 data Dependencies = Dependencies
-  { patches :: Set EditHash,
+  { patches :: Set PatchHash,
     terms :: Set Hash,
     decls :: Set Hash
   }
@@ -37,7 +38,7 @@ data Dependencies = Dependencies
   deriving (Monoid) via GenericMonoid Dependencies
 
 data Dependencies' = Dependencies'
-  { patches' :: [EditHash],
+  { patches' :: [PatchHash],
     terms' :: [Hash],
     decls' :: [Hash]
   }
@@ -49,7 +50,7 @@ data Dependencies' = Dependencies'
 to' :: Dependencies -> Dependencies'
 to' Dependencies {..} = Dependencies' (toList patches) (toList terms) (toList decls)
 
-fromBranch :: Applicative m => Branch m -> (Branches m, Dependencies)
+fromBranch :: (Applicative m) => Branch m -> (Branches m, Dependencies)
 fromBranch (Branch c) = case c of
   Causal.One _hh _eh e -> fromBranch0 e
   Causal.Cons _hh _eh e (h, m) -> fromBranch0 e <> fromTails (Map.singleton h m)
@@ -57,7 +58,7 @@ fromBranch (Branch c) = case c of
   where
     fromTails m = ([(h, Branch <$> mc) | (h, mc) <- Map.toList m], mempty)
 
-fromBranch0 :: Applicative m => Branch0 m -> (Branches m, Dependencies)
+fromBranch0 :: (Applicative m) => Branch0 m -> (Branches m, Dependencies)
 fromBranch0 b =
   ( fromChildren (Branch._children b),
     fromTermsStar (Branch._terms b)
@@ -65,7 +66,7 @@ fromBranch0 b =
       <> fromEdits (Branch._edits b)
   )
   where
-    fromChildren :: Applicative m => Map NameSegment (Branch m) -> Branches m
+    fromChildren :: (Applicative m) => Map NameSegment (Branch m) -> Branches m
     fromChildren m = [(Branch.headHash b, pure b) | b <- toList m]
     references :: Branch.Star r NameSegment -> [r]
     references = toList . R.dom . Star3.d1
@@ -86,5 +87,5 @@ fromBranch0 b =
       where
         terms = Set.fromList [h | (Derived h _) <- mdValues s]
         decls = Set.fromList [h | (Derived h _) <- references s]
-    fromEdits :: Map NameSegment (EditHash, m Patch) -> Dependencies
+    fromEdits :: Map NameSegment (PatchHash, m Patch) -> Dependencies
     fromEdits m = Dependencies (Set.fromList . fmap fst $ toList m) mempty mempty

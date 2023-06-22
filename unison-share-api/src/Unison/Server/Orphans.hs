@@ -1,45 +1,45 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Orphans where
 
 import Control.Lens
 import Data.Aeson
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Binary
 import Data.ByteString.Short (ShortByteString)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.OpenApi
 import Data.Proxy
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Servant
 import Servant.Docs (DocCapture (DocCapture), DocQueryParam (..), ParamKind (..), ToCapture (..), ToParam (..))
 import U.Codebase.HashTags
-import U.Util.Hash (Hash (..))
-import qualified U.Util.Hash as Hash
 import Unison.Codebase.Editor.DisplayObject
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.ShortCausalHash
   ( ShortCausalHash (..),
   )
-import qualified Unison.Codebase.ShortCausalHash as SCH
+import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.ConstructorType (ConstructorType)
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.ConstructorType qualified as CT
+import Unison.Hash (Hash (..))
+import Unison.Hash qualified as Hash
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
-import qualified Unison.Syntax.HashQualified as HQ (fromText)
-import qualified Unison.Syntax.HashQualified' as HQ' (fromText)
-import qualified Unison.Syntax.Name as Name (fromTextEither, toText)
+import Unison.ShortHash qualified as SH
+import Unison.Syntax.HashQualified qualified as HQ (fromText)
+import Unison.Syntax.HashQualified' qualified as HQ' (fromText)
+import Unison.Syntax.Name qualified as Name (fromTextEither, toText)
 import Unison.Util.Pretty (Width (..))
 
 instance ToJSON Hash where
@@ -150,7 +150,10 @@ deriving via Hash instance Binary CausalHash
 deriving via Text instance ToHttpApiData ShortCausalHash
 
 instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = \case
+    BuiltinObject b -> object ["tag" Aeson..= String "BuiltinObject", "contents" Aeson..= b]
+    MissingObject sh -> object ["tag" Aeson..= String "MissingObject", "contents" Aeson..= sh]
+    UserObject a -> object ["tag" Aeson..= String "UserObject", "contents" Aeson..= a]
 
 deriving instance (ToSchema b, ToSchema a) => ToSchema (DisplayObject b a)
 
@@ -223,7 +226,9 @@ deriving via Int instance ToHttpApiData Width
 deriving anyclass instance ToParamSchema Width
 
 instance ToJSON ConstructorType where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = \case
+    CT.Data -> String "Data"
+    CT.Effect -> String "Effect"
 
 instance FromHttpApiData Path.Relative where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
@@ -354,6 +359,6 @@ instance ToHttpApiData Name where
 
 deriving newtype instance ToSchema NameSegment
 
-deriving anyclass instance ToSchema n => ToSchema (HQ.HashQualified n)
+deriving anyclass instance (ToSchema n) => ToSchema (HQ.HashQualified n)
 
-deriving anyclass instance ToSchema n => ToSchema (HQ'.HashQualified n)
+deriving anyclass instance (ToSchema n) => ToSchema (HQ'.HashQualified n)

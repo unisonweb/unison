@@ -15,15 +15,15 @@ module Unison.CommandLine.InputPattern
   )
 where
 
-import qualified System.Console.Haskeline as Line
+import System.Console.Haskeline qualified as Line
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Path as Path
-import qualified Unison.CommandLine.Globbing as Globbing
+import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.Prelude
-import qualified Unison.Util.ColorText as CT
-import qualified Unison.Util.Pretty as P
+import Unison.Util.ColorText qualified as CT
+import Unison.Util.Pretty qualified as P
 
 -- InputPatterns accept some fixed number of Required arguments of various
 -- types, followed by a variable number of a single type of argument.
@@ -51,7 +51,7 @@ data ArgumentType = ArgumentType
     -- | Generate completion suggestions for this argument type
     suggestions ::
       forall m v a.
-      MonadIO m =>
+      (MonadIO m) =>
       String ->
       Codebase m v a ->
       AuthenticatedHttpClient ->
@@ -86,7 +86,8 @@ argType ip i = go (i, argTypes ip)
     -- The argument list spec is invalid if something follows a vararg
     go args =
       error $
-        "Input pattern " <> show (patternName ip)
+        "Input pattern "
+          <> show (patternName ip)
           <> " has an invalid argument list: "
           <> show args
 

@@ -1,13 +1,13 @@
 module U.Codebase.Sqlite.TempEntity where
 
-import qualified U.Codebase.Sqlite.Branch.Format as Namespace
-import qualified U.Codebase.Sqlite.Causal as Causal
-import qualified U.Codebase.Sqlite.Decl.Format as Decl
-import qualified U.Codebase.Sqlite.Entity as Entity
+import U.Codebase.Sqlite.Branch.Format qualified as Namespace
+import U.Codebase.Sqlite.Causal qualified as Causal
+import U.Codebase.Sqlite.Decl.Format qualified as Decl
+import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds (LocalIds')
-import qualified U.Codebase.Sqlite.Patch.Format as Patch
-import qualified U.Codebase.Sqlite.Term.Format as Term
-import U.Util.Hash32 (Hash32)
+import U.Codebase.Sqlite.Patch.Format qualified as Patch
+import U.Codebase.Sqlite.Term.Format qualified as Term
+import Unison.Hash32 (Hash32)
 import Unison.Prelude
 
 -- |

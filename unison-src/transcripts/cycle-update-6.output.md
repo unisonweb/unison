@@ -73,6 +73,8 @@ N.B. The `find.verbose pong` is just to print the hash, for easy copying.
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 ```
 ```unison
 ping : 'Nat

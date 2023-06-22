@@ -4,14 +4,14 @@
 
 module Unison.Test.Syntax.TypePrinter where
 
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import EasyTest
-import qualified Unison.Builtin
-import qualified Unison.PrettyPrintEnv.Names as PPE
+import Unison.Builtin qualified
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Syntax.TypePrinter
-import qualified Unison.Test.Common as Common
+import Unison.Test.Common qualified as Common
 import Unison.Util.ColorText (toPlain)
-import qualified Unison.Util.Pretty as PP
+import Unison.Util.Pretty qualified as PP
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.

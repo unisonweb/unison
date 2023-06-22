@@ -5,12 +5,12 @@ module Unison.Test.Type where
 import EasyTest
 import Unison.Symbol (Symbol)
 import Unison.Type
-import qualified Unison.Typechecker as Typechecker
-import qualified Unison.Var as Var
+import Unison.Typechecker qualified as Typechecker
+import Unison.Var qualified as Var
 
 infixr 1 -->
 
-(-->) :: Ord v => Type v () -> Type v () -> Type v ()
+(-->) :: (Ord v) => Type v () -> Type v () -> Type v ()
 (-->) a b = arrow () a b
 
 test :: Test ()

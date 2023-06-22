@@ -1,19 +1,19 @@
 module Unison.Syntax.TypeParser where
 
 import Control.Monad.Reader (asks)
-import qualified Data.Set as Set
-import qualified Text.Megaparsec as P
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin.Decls as DD
-import qualified Unison.HashQualified as HQ
-import qualified Unison.NamesWithHistory as Names
-import qualified Unison.Syntax.Name as Name (toVar)
+import Data.Set qualified as Set
+import Text.Megaparsec qualified as P
+import Unison.ABT qualified as ABT
+import Unison.Builtin.Decls qualified as DD
+import Unison.HashQualified qualified as HQ
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.Syntax.Lexer as L
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.Parser
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Var (Var)
 
 -- A parsed type is annotated with its starting and ending position in the
@@ -23,20 +23,20 @@ type TypeP v = P v (Type v Ann)
 -- Value types cannot have effects, unless those effects appear to
 -- the right of a function arrow:
 --   valueType ::= Int | Text | App valueType valueType | Arrow valueType computationType
-valueType :: Var v => TypeP v
+valueType :: (Var v) => TypeP v
 valueType = forall type1 <|> type1
 
 -- Computation
 -- computationType ::= [{effect*}] valueType
-computationType :: Var v => TypeP v
+computationType :: (Var v) => TypeP v
 computationType = effect <|> valueType
 
-valueTypeLeaf :: Var v => TypeP v
+valueTypeLeaf :: (Var v) => TypeP v
 valueTypeLeaf =
   tupleOrParenthesizedType valueType <|> typeAtom <|> sequenceTyp
 
 -- Examples: Optional, Optional#abc, woot, #abc
-typeAtom :: Var v => TypeP v
+typeAtom :: (Var v) => TypeP v
 typeAtom =
   hqPrefixId >>= \tok -> case L.payload tok of
     HQ.NameOnly n -> pure $ Type.var (ann tok) (Name.toVar n)
@@ -47,13 +47,13 @@ typeAtom =
         then P.customFailure (UnknownType tok matches)
         else pure $ Type.ref (ann tok) (Set.findMin matches)
 
-type1 :: Var v => TypeP v
+type1 :: (Var v) => TypeP v
 type1 = arrow type2a
 
-type2a :: Var v => TypeP v
+type2a :: (Var v) => TypeP v
 type2a = delayed <|> type2
 
-delayed :: Var v => TypeP v
+delayed :: (Var v) => TypeP v
 delayed = do
   q <- reserved "'"
   t <- effect <|> type2a
@@ -63,27 +63,27 @@ delayed = do
       (DD.unitType (ann q))
       t
 
-type2 :: Var v => TypeP v
+type2 :: (Var v) => TypeP v
 type2 = do
   hd <- valueTypeLeaf
   tl <- many (effectList <|> valueTypeLeaf)
   pure $ foldl' (\a b -> Type.app (ann a <> ann b) a b) hd tl
 
 -- ex : {State Text, IO} (List Int)
-effect :: Var v => TypeP v
+effect :: (Var v) => TypeP v
 effect = do
   es <- effectList
   t <- type2
   pure (Type.effect1 (ann es <> ann t) es t)
 
-effectList :: Var v => TypeP v
+effectList :: (Var v) => TypeP v
 effectList = do
   open <- openBlockWith "{"
   es <- sepBy (reserved ",") valueType
   close <- closeBlock
   pure $ Type.effects (ann open <> ann close) es
 
-sequenceTyp :: Var v => TypeP v
+sequenceTyp :: (Var v) => TypeP v
 sequenceTyp = do
   open <- openBlockWith "["
   t <- valueType
@@ -101,7 +101,7 @@ tupleOrParenthesizedType rec = do
        in Type.app a (Type.app (ann t1) (DD.pairType a) t1) t2
 
 --  valueType ::= ... | Arrow valueType computationType
-arrow :: Var v => TypeP v -> TypeP v
+arrow :: (Var v) => TypeP v -> TypeP v
 arrow rec =
   let eff = mkArr <$> optional effectList
       mkArr Nothing a b = Type.arrow (ann a <> ann b) a b
@@ -109,7 +109,7 @@ arrow rec =
    in chainr1 (effect <|> rec) (reserved "->" *> eff)
 
 -- "forall a b . List a -> List b -> Maybe Text"
-forall :: Var v => TypeP v -> TypeP v
+forall :: (Var v) => TypeP v -> TypeP v
 forall rec = do
   kw <- reserved "forall" <|> reserved "∀"
   vars <- fmap (fmap L.payload) . some $ prefixDefinitionName

@@ -1,10 +1,10 @@
 module Main (main) where
 
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import EasyTest
 import System.IO.CodePage (withCP65001)
 import Unison.Prelude
-import qualified Unison.Util.Bytes as Bytes
+import Unison.Util.Bytes qualified as Bytes
 
 main :: IO ()
 main =
@@ -42,8 +42,10 @@ test =
           scope "<>" . expect' $
             Bytes.toArray (b1s <> b2s <> b3s) == b1 <> b2 <> b3
           scope "Ord" . expect' $
-            (b1 <> b2 <> b3) `compare` b3
-              == (b1s <> b2s <> b3s) `compare` b3s
+            (b1 <> b2 <> b3)
+              `compare` b3
+              == (b1s <> b2s <> b3s)
+              `compare` b3s
           scope "take" . expect' $
             Bytes.toArray (Bytes.take k (b1s <> b2s)) == BS.take k (b1 <> b2)
           scope "drop" . expect' $

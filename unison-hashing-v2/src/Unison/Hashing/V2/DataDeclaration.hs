@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Unison.Hashing.V2.DataDeclaration
   ( DataDeclaration (..),
     EffectDeclaration (..),
@@ -10,20 +8,18 @@ module Unison.Hashing.V2.DataDeclaration
 where
 
 import Control.Lens (over, _3)
-import Data.Bifunctor (first, second)
-import qualified Data.Map as Map
-import qualified Unison.ABT as ABT
+import Data.Map qualified as Map
+import Unison.ABT qualified as ABT
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.ABT as ABT
-import Unison.Hashing.V2.Reference (Reference)
-import qualified Unison.Hashing.V2.Reference as Reference
-import qualified Unison.Hashing.V2.Reference.Util as Reference.Util
+import Unison.Hashing.V2.ABT qualified as ABT
+import Unison.Hashing.V2.Reference (Reference (..), ReferenceId)
+import Unison.Hashing.V2.Reference.Util qualified as Reference.Util
 import Unison.Hashing.V2.Tokenizable (Hashable1)
-import qualified Unison.Hashing.V2.Tokenizable as Hashable
-import Unison.Hashing.V2.Type (Type)
-import qualified Unison.Hashing.V2.Type as Type
-import qualified Unison.Name as Name
-import qualified Unison.Names.ResolutionResult as Names
+import Unison.Hashing.V2.Tokenizable qualified as Hashable
+import Unison.Hashing.V2.Type (Type, TypeF)
+import Unison.Hashing.V2.Type qualified as Type
+import Unison.Name qualified as Name
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
 import Unison.Var (Var)
 import Prelude hiding (cycle)
@@ -52,16 +48,16 @@ constructorTypes = (snd <$>) . constructors
 constructors :: DataDeclaration v a -> [(v, Type v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v, t) | (_, v, t) <- ctors]
 
-toABT :: ABT.Var v => DataDeclaration v () -> ABT.Term F v ()
+toABT :: (ABT.Var v) => DataDeclaration v () -> ABT.Term F v ()
 toABT dd = ABT.tm $ Modified (modifier dd) dd'
   where
     dd' = ABT.absChain (bound dd) (ABT.tm (Constructors (ABT.transform Type <$> constructorTypes dd)))
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
-hashDecls0 :: (Eq v, ABT.Var v, Show v) => Map v (DataDeclaration v ()) -> [(v, Reference.Id)]
+hashDecls0 :: (Eq v, ABT.Var v, Show v) => Map v (DataDeclaration v ()) -> [(v, ReferenceId)]
 hashDecls0 decls =
   let abts = toABT <$> decls
-      ref r = ABT.tm (Type (Type.Ref (Reference.DerivedId r)))
+      ref r = ABT.tm (Type (Type.TypeRef (ReferenceDerivedId r)))
       cs = Reference.Util.hashComponents ref abts
    in [(v, r) | (v, (r, _)) <- Map.toList cs]
 
@@ -80,11 +76,11 @@ hashDecls ::
   (Eq v, Var v, Show v) =>
   (v -> Name.Name) ->
   Map v (DataDeclaration v a) ->
-  Names.ResolutionResult v a [(v, Reference.Id, DataDeclaration v a)]
+  Names.ResolutionResult v a [(v, ReferenceId, DataDeclaration v a)]
 hashDecls unsafeVarToName decls = do
   -- todo: make sure all other external references are resolved before calling this
   let varToRef = hashDecls0 (void <$> decls)
-      varToRef' = second Reference.DerivedId <$> varToRef
+      varToRef' = second ReferenceDerivedId <$> varToRef
       decls' = bindTypes <$> decls
       bindTypes dd = dd {constructors' = over _3 (Type.bindExternal varToRef') <$> constructors' dd}
       typeReferences = Map.fromList (first unsafeVarToName <$> varToRef')
@@ -95,7 +91,7 @@ hashDecls unsafeVarToName decls = do
   pure [(v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls']]
 
 bindReferences ::
-  Var v =>
+  (Var v) =>
   (v -> Name.Name) ->
   Set v ->
   Map Name.Name Reference ->
@@ -107,7 +103,7 @@ bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constru
   pure $ DataDeclaration m a bound constructors
 
 data F a
-  = Type (Type.F a)
+  = Type (TypeF a)
   | LetRec [a] a
   | Constructors [a]
   | Modified Modifier a

@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -44,6 +44,7 @@ library
       FlexibleInstances
       FunctionalDependencies
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -66,7 +67,9 @@ library
     , megaparsec
     , mtl
     , text
+    , unison-core
     , unison-core1
+    , unison-hash
     , unison-prelude
     , unison-util-base32hex
     , unison-util-bytes
@@ -94,6 +97,7 @@ test-suite syntax-tests
       FlexibleInstances
       FunctionalDependencies
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -118,7 +122,9 @@ test-suite syntax-tests
     , megaparsec
     , mtl
     , text
+    , unison-core
     , unison-core1
+    , unison-hash
     , unison-prelude
     , unison-syntax
     , unison-util-base32hex

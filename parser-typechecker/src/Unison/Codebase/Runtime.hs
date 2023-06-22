@@ -3,26 +3,26 @@
 
 module Unison.Codebase.Runtime where
 
-import qualified Data.Map as Map
-import qualified Unison.ABT as ABT
+import Data.Map qualified as Map
+import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (tupleTerm, pattern TupleTerm')
-import qualified Unison.Codebase.CodeLookup as CL
-import qualified Unison.Codebase.CodeLookup.Util as CL
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Codebase.CodeLookup qualified as CL
+import Unison.Codebase.CodeLookup.Util qualified as CL
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Term as Term
+import Unison.Reference qualified as Reference
+import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile (TypecheckedUnisonFile)
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.Pretty as P
+import Unison.UnisonFile qualified as UF
+import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
 type Error = P.Pretty P.ColorText
 
@@ -70,7 +70,7 @@ type WatchResults v a =
 -- can be skipped.
 evaluateWatches ::
   forall v a.
-  Var v =>
+  (Var v) =>
   CL.CodeLookup v IO a ->
   PPE.PrettyPrintEnv ->
   (Reference.Id -> IO (Maybe (Term v))) ->

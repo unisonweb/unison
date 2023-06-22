@@ -1,11 +1,11 @@
 module Unison.Codebase.SqliteCodebase.Branch.Cache where
 
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import System.Mem.Weak
-import qualified U.Codebase.HashTags as V2
-import qualified Unison.Codebase.Branch as V1.Branch
+import U.Codebase.HashTags qualified as V2
+import Unison.Codebase.Branch qualified as V1.Branch
 import Unison.Prelude
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import UnliftIO.STM
 
 -- | A cache of 'V1.Branch.Branch' by 'V2.CausalHash'es.
@@ -18,7 +18,7 @@ data BranchCache m = BranchCache
 -- as long as they're reachable by something else in the app.
 --
 -- This means you don't need to worry about a Branch not being GC'd because it's in the cache.
-newBranchCache :: forall m. MonadIO m => m (BranchCache Sqlite.Transaction)
+newBranchCache :: forall m. (MonadIO m) => m (BranchCache Sqlite.Transaction)
 newBranchCache = do
   var <- newTVarIO mempty
   pure $

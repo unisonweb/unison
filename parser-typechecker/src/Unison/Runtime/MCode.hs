@@ -41,7 +41,7 @@ import Data.Bifunctor (bimap, first)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
 import Data.List (partition)
-import qualified Data.Map.Strict as M
+import Data.Map.Strict qualified as M
 import Data.Primitive.PrimArray
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
@@ -72,7 +72,7 @@ import Unison.Runtime.ANF
     pattern TShift,
     pattern TVar,
   )
-import qualified Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
@@ -387,6 +387,8 @@ data BPrim1
   | CVLD -- validate
   | VALU
   | TLTT -- value, Term.Link.toText
+  -- debug
+  | DBTX -- debug text
   deriving (Show, Eq, Ord)
 
 data BPrim2
@@ -397,6 +399,7 @@ data BPrim2
   | DRPT
   | CATT
   | TAKT -- drop,append,take
+  | IXOT -- indexof
   | EQLT
   | LEQT
   | LEST -- ==,<=,<
@@ -414,9 +417,10 @@ data BPrim2
   | DRPB
   | IDXB
   | CATB -- take,drop,index,append
+  | IXOB -- indexof
   -- general
-  | THRO
-  | TRCE -- throw
+  | THRO -- throw
+  | TRCE -- trace
   -- code
   | SDBX -- sandbox
   deriving (Show, Eq, Ord)
@@ -629,7 +633,7 @@ ctx vs cs = pushCtx (zip vs cs) ECtx
 
 -- Look up a variable in the context, getting its position on the
 -- relevant stack and its calling convention if it is there.
-ctxResolve :: Var v => Ctx v -> v -> Maybe (Int, Mem)
+ctxResolve :: (Var v) => Ctx v -> v -> Maybe (Int, Mem)
 ctxResolve ctx v = walk 0 0 ctx
   where
     walk _ _ ECtx = Nothing
@@ -653,7 +657,7 @@ catCtx (Block l) r = Block $ catCtx l r
 catCtx (Var v m l) r = Var v m $ catCtx l r
 
 -- Split the context after a particular variable
-breakAfter :: Eq v => (v -> Bool) -> Ctx v -> (Ctx v, Ctx v)
+breakAfter :: (Eq v) => (v -> Bool) -> Ctx v -> (Ctx v, Ctx v)
 breakAfter _ ECtx = (ECtx, ECtx)
 breakAfter p (Tag vs) = first Tag $ breakAfter p vs
 breakAfter p (Block vs) = first Block $ breakAfter p vs
@@ -665,13 +669,13 @@ breakAfter p (Var v m vs) = (Var v m lvs, rvs)
 
 -- Modify the context to contain the variables introduced by an
 -- unboxed sum
-sumCtx :: Var v => Ctx v -> v -> [(v, Mem)] -> Ctx v
+sumCtx :: (Var v) => Ctx v -> v -> [(v, Mem)] -> Ctx v
 sumCtx ctx v vcs
   | (lctx, rctx) <- breakAfter (== v) ctx =
       catCtx lctx $ pushCtx vcs rctx
 
 -- Look up a variable in the top let rec context
-rctxResolve :: Var v => RCtx v -> v -> Maybe Word64
+rctxResolve :: (Var v) => RCtx v -> v -> Maybe Word64
 rctxResolve ctx u = M.lookup u ctx
 
 -- Compile a top-level definition group to a collection of combinators.
@@ -679,7 +683,7 @@ rctxResolve ctx u = M.lookup u ctx
 -- and intra-group calls are numbered locally, with 0 specifying
 -- the global entry point.
 emitCombs ::
-  Var v =>
+  (Var v) =>
   RefNums ->
   Reference ->
   Word64 ->
@@ -751,7 +755,7 @@ countCtx0 ui bi (Block ctx) = countCtx0 ui bi ctx
 countCtx0 ui bi ECtx = (ui, bi)
 
 emitComb ::
-  Var v =>
+  (Var v) =>
   RefNums ->
   Reference ->
   Word64 ->
@@ -768,7 +772,7 @@ addCount i j = onCount $ \(C u b x) -> C (u + i) (b + j) x
 
 -- Emit a machine code section from an ANF term
 emitSection ::
-  Var v =>
+  (Var v) =>
   RefNums ->
   Reference ->
   Word64 ->
@@ -804,14 +808,16 @@ emitSection _ _ grpn rec ctx (TVar v)
 emitSection _ _ grpn _ ctx (TPrm p args) =
   -- 3 is a conservative estimate of how many extra stack slots
   -- a prim op will need for its results.
-  addCount 3 3 . countCtx ctx
+  addCount 3 3
+    . countCtx ctx
     . Ins (emitPOp p $ emitArgs grpn ctx args)
     . Yield
     $ DArgV i j
   where
     (i, j) = countBlock ctx
 emitSection _ _ grpn _ ctx (TFOp p args) =
-  addCount 3 3 . countCtx ctx
+  addCount 3 3
+    . countCtx ctx
     . Ins (emitFOp p $ emitArgs grpn ctx args)
     . Yield
     $ DArgV i j
@@ -897,7 +903,7 @@ emitSection _ _ _ _ _ tm =
 
 -- Emit the code for a function call
 emitFunction ::
-  Var v =>
+  (Var v) =>
   RefNums ->
   Word64 -> -- self combinator number
   RCtx v -> -- recursive binding group
@@ -1014,7 +1020,7 @@ litArg _ = UArg1 0
 -- require a machine code Let, which uses more complicated stack
 -- manipulation.
 emitLet ::
-  Var v =>
+  (Var v) =>
   RefNums ->
   Reference ->
   Word64 ->
@@ -1045,7 +1051,8 @@ emitLet rns grpr grpn rec d vcs ctx bnd
       internalBug $ "unsupported compound direct let: " ++ show bnd
   | Indirect w <- d =
       \esect ->
-        f <$> emitSection rns grpr grpn rec (Block ctx) bnd
+        f
+          <$> emitSection rns grpr grpn rec (Block ctx) bnd
           <*> record (pushCtx vcs ctx) w esect
   where
     f s w = Let s (CIx grpr grpn w)
@@ -1133,6 +1140,7 @@ emitPOp ANF.TTOF = emitBP1 TTOF
 emitPOp ANF.CATT = emitBP2 CATT
 emitPOp ANF.TAKT = emitBP2 TAKT
 emitPOp ANF.DRPT = emitBP2 DRPT
+emitPOp ANF.IXOT = emitBP2 IXOT
 emitPOp ANF.SIZT = emitBP1 SIZT
 emitPOp ANF.UCNS = emitBP1 UCNS
 emitPOp ANF.USNC = emitBP1 USNC
@@ -1157,6 +1165,7 @@ emitPOp ANF.PAKB = emitBP1 PAKB
 emitPOp ANF.UPKB = emitBP1 UPKB
 emitPOp ANF.TAKB = emitBP2 TAKB
 emitPOp ANF.DRPB = emitBP2 DRPB
+emitPOp ANF.IXOB = emitBP2 IXOB
 emitPOp ANF.IDXB = emitBP2 IDXB
 emitPOp ANF.SIZB = emitBP1 SIZB
 emitPOp ANF.FLTB = emitBP1 FLTB
@@ -1176,6 +1185,7 @@ emitPOp ANF.SDBX = emitBP2 SDBX
 -- error call
 emitPOp ANF.EROR = emitBP2 THRO
 emitPOp ANF.TRCE = emitBP2 TRCE
+emitPOp ANF.DBTX = emitBP1 DBTX
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
@@ -1237,7 +1247,7 @@ emitBP2 p a =
       ++ show (p, a)
 
 emitDataMatching ::
-  Var v =>
+  (Var v) =>
   Reference ->
   RefNums ->
   Reference ->
@@ -1263,7 +1273,7 @@ emitDataMatching r rns grpr grpn rec ctx cs df =
 -- already there, but it was unknown how many there were until
 -- branching on the tag.
 emitSumMatching ::
-  Var v =>
+  (Var v) =>
   RefNums ->
   Reference ->
   Word64 ->
@@ -1279,7 +1289,7 @@ emitSumMatching rns grpr grpn rec ctx v i cs =
     edf = Die "uncovered unboxed sum case"
 
 emitRequestMatching ::
-  Var v =>
+  (Var v) =>
   RefNums ->
   Reference ->
   Word64 ->
@@ -1298,8 +1308,8 @@ emitRequestMatching rns grpr grpn rec ctx hs df = MatchW 0 edf <$> tops
     edf = Die "unhandled ability"
 
 emitLitMatching ::
-  Var v =>
-  Traversable f =>
+  (Var v) =>
+  (Traversable f) =>
   (Int -> Section -> f Section -> Section) ->
   String ->
   RefNums ->
@@ -1319,7 +1329,7 @@ emitLitMatching con err rns grpr grpn rec ctx i cs df =
       | otherwise = countCtx ctx $ Die err
 
 emitCase ::
-  Var v =>
+  (Var v) =>
   RefNums ->
   Reference ->
   Word64 ->
@@ -1331,7 +1341,7 @@ emitCase rns grpr grpn rec ctx (ccs, TAbss vs bo) =
   emitSection rns grpr grpn rec (Tag $ pushCtx (zip vs ccs) ctx) bo
 
 emitSumCase ::
-  Var v =>
+  (Var v) =>
   RefNums ->
   Reference ->
   Word64 ->
@@ -1361,7 +1371,7 @@ emitLit l = Lit $ case l of
 -- these allocations and passes the appropriate context into the
 -- provided continuation.
 emitClosures ::
-  Var v =>
+  (Var v) =>
   Word64 ->
   RCtx v ->
   Ctx v ->
@@ -1379,12 +1389,14 @@ emitClosures grpn rec ctx args k =
       | otherwise =
           internalBug $ "emitClosures: unknown reference: " ++ show a
 
-emitArgs :: Var v => Word64 -> Ctx v -> [v] -> Args
+emitArgs :: (Var v) => Word64 -> Ctx v -> [v] -> Args
 emitArgs grpn ctx args
   | Just l <- traverse (ctxResolve ctx) args = demuxArgs l
   | otherwise =
       internalBug $
-        "emitArgs[" ++ show grpn ++ "]: "
+        "emitArgs["
+          ++ show grpn
+          ++ "]: "
           ++ "could not resolve argument variables: "
           ++ show args
 
@@ -1428,6 +1440,9 @@ sectionTypes _ = []
 
 instrTypes :: Instr -> [Word64]
 instrTypes (Pack _ w _) = [w `shiftR` 16]
+instrTypes (Reset ws) = setToList ws
+instrTypes (Capture w) = [w]
+instrTypes (SetDyn w _) = [w]
 instrTypes _ = []
 
 branchDeps :: Branch -> [Word64]
@@ -1463,7 +1478,10 @@ prettyCombs w es =
 
 prettyComb :: Word64 -> Word64 -> Comb -> ShowS
 prettyComb w i (Lam ua ba _ _ s) =
-  shows w . showString ":" . shows i . shows [ua, ba]
+  shows w
+    . showString ":"
+    . shows i
+    . shows [ua, ba]
     . showString ":\n"
     . prettySection 2 s
 
@@ -1480,13 +1498,16 @@ prettySection ind sec =
     Jump i as ->
       showString "Jump " . shows i . showString " " . prettyArgs as
     Match i bs ->
-      showString "Match " . shows i . showString "\n"
+      showString "Match "
+        . shows i
+        . showString "\n"
         . prettyBranches (ind + 1) bs
     Yield as -> showString "Yield " . prettyArgs as
     Ins i nx ->
       prettyIns i . showString "\n" . prettySection ind nx
     Let s n ->
-      showString "Let\n" . prettySection (ind + 2) s
+      showString "Let\n"
+        . prettySection (ind + 2) s
         . showString "\n"
         . indent ind
         . prettyIx n
@@ -1495,7 +1516,8 @@ prettySection ind sec =
 
 prettyIx :: CombIx -> ShowS
 prettyIx (CIx _ c s) =
-  showString "Resume[" . shows c
+  showString "Resume["
+    . shows c
     . showString ","
     . shows s
     . showString "]"
@@ -1512,10 +1534,16 @@ prettyBranches ind bs =
   where
     pdf e = indent ind . showString "DFLT ->\n" . prettySection (ind + 1) e
     ptcase t e =
-      showString "\n" . indent ind . shows t . showString " ->\n"
+      showString "\n"
+        . indent ind
+        . shows t
+        . showString " ->\n"
         . prettySection (ind + 1) e
     picase i e =
-      showString "\n" . indent ind . shows i . showString " ->\n"
+      showString "\n"
+        . indent ind
+        . shows i
+        . showString " ->\n"
         . prettySection (ind + 1) e
 
 un :: ShowS
@@ -1526,7 +1554,8 @@ bx = ('B' :)
 
 prettyIns :: Instr -> ShowS
 prettyIns (Pack r i as) =
-  showString "Pack " . showsPrec 10 r
+  showString "Pack "
+    . showsPrec 10 r
     . (' ' :)
     . shows i
     . (' ' :)
@@ -1543,13 +1572,17 @@ prettyArgs (DArg2 i j) = un . shows [i] . (' ' :) . bx . shows [j]
 prettyArgs (UArgR i l) = un . shows (Prelude.take l [i ..])
 prettyArgs (BArgR i l) = bx . shows (Prelude.take l [i ..])
 prettyArgs (DArgR i l j k) =
-  un . shows (Prelude.take l [i ..]) . (' ' :)
+  un
+    . shows (Prelude.take l [i ..])
+    . (' ' :)
     . bx
     . shows (Prelude.take k [j ..])
 prettyArgs (UArgN v) = un . shows (primArrayToList v)
 prettyArgs (BArgN v) = bx . shows (primArrayToList v)
 prettyArgs (DArgN u b) =
-  un . shows (primArrayToList u) . (' ' :)
+  un
+    . shows (primArrayToList u)
+    . (' ' :)
     . bx
     . shows (primArrayToList b)
 prettyArgs (DArgV i j) = ('V' :) . shows [i, j]

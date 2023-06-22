@@ -12,8 +12,6 @@ module Unison.Codebase.Branch
     Raw,
     Star,
     NamespaceHash,
-    CausalHash,
-    EditHash,
 
     -- * Branch construction
     branch0,
@@ -85,21 +83,19 @@ where
 
 import Control.Lens hiding (children, cons, transform, uncons)
 import Control.Monad.State (State)
-import qualified Control.Monad.State as State
-import Data.Bifunctor (second)
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Map as Map
-import qualified Data.Semialign as Align
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Control.Monad.State qualified as State
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
+import Data.Semialign qualified as Align
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Branch.Type (NamespaceStats (..))
+import U.Codebase.HashTags (PatchHash (..))
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0 (..),
-    CausalHash (..),
-    EditHash,
     NamespaceHash,
     Star,
     UnwrappedBranch,
@@ -110,26 +106,26 @@ import Unison.Codebase.Branch.Type
     namespaceHash,
   )
 import Unison.Codebase.Causal (Causal)
-import qualified Unison.Codebase.Causal as Causal
-import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Causal qualified as Causal
+import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch)
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path (..))
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Hashing.V2.Convert as H
-import qualified Unison.Hashing.V2.Hashable as H
+import Unison.Codebase.Path qualified as Path
+import Unison.Hashing.V2 qualified as Hashing (ContentAddressable (contentHash))
+import Unison.Hashing.V2.Convert qualified as H
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
-import qualified Unison.Util.List as List
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Relation4 as R4
-import qualified Unison.Util.Star3 as Star3
+import Unison.Util.List qualified as List
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Relation qualified as R
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Relation4 qualified as R4
+import Unison.Util.Star3 qualified as Star3
 import Prelude hiding (head, read, subtract)
 
 instance AsEmpty (Branch m) where
@@ -139,8 +135,8 @@ instance AsEmpty (Branch m) where
         | b0 == empty = Just ()
         | otherwise = Nothing
 
-instance H.Hashable (Branch0 m) where
-  hash = H.hashBranch0
+instance Hashing.ContentAddressable (Branch0 m) where
+  contentHash = H.hashBranch0
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
@@ -189,7 +185,7 @@ branch0 ::
   Metadata.Star Referent NameSegment ->
   Metadata.Star TypeReference NameSegment ->
   Map NameSegment (Branch m) ->
-  Map NameSegment (EditHash, m Patch) ->
+  Map NameSegment (PatchHash, m Patch) ->
   Branch0 m
 branch0 terms types children edits =
   Branch0
@@ -330,13 +326,13 @@ deriveDeepEdits :: forall m. Branch0 m -> Branch0 m
 deriveDeepEdits branch =
   branch {deepEdits = makeDeepEdits branch}
   where
-    makeDeepEdits :: Branch0 m -> Map Name EditHash
+    makeDeepEdits :: Branch0 m -> Map Name PatchHash
     makeDeepEdits branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
       where
-        go :: (Seq (DeepChildAcc m)) -> Map Name EditHash -> DeepState m (Map Name EditHash)
+        go :: (Seq (DeepChildAcc m)) -> Map Name PatchHash -> DeepState m (Map Name PatchHash)
         go Seq.Empty acc = pure acc
         go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
-          let edits :: Map Name EditHash
+          let edits :: Map Name PatchHash
               edits =
                 Map.mapKeysMonotonic
                   (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
@@ -378,31 +374,31 @@ head_ :: Lens' (Branch m) (Branch0 m)
 head_ = history . Causal.head_
 
 -- | a version of `deepEdits` that returns the `m Patch` as well.
-deepEdits' :: Branch0 m -> Map Name (EditHash, m Patch)
+deepEdits' :: Branch0 m -> Map Name (PatchHash, m Patch)
 deepEdits' = go id
   where
     -- can change this to an actual prefix once Name is a [NameSegment]
-    go :: (Name -> Name) -> Branch0 m -> Map Name (EditHash, m Patch)
+    go :: (Name -> Name) -> Branch0 m -> Map Name (PatchHash, m Patch)
     go addPrefix Branch0 {_children, _edits} =
       Map.mapKeys (addPrefix . Name.fromSegment) _edits
         <> foldMap f (Map.toList _children)
       where
-        f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
+        f :: (NameSegment, Branch m) -> Map Name (PatchHash, m Patch)
         f (c, b) = go (addPrefix . Name.cons c) (head b)
 
 -- | Discards the history of a Branch0's children, recursively
-discardHistory0 :: Applicative m => Branch0 m -> Branch0 m
+discardHistory0 :: (Applicative m) => Branch0 m -> Branch0 m
 discardHistory0 = over children (fmap tweak)
   where
     tweak b = one (discardHistory0 (head b))
 
 -- | Discards the history of a Branch and its children, recursively
-discardHistory :: Applicative m => Branch m -> Branch m
+discardHistory :: (Applicative m) => Branch m -> Branch m
 discardHistory b =
   one (discardHistory0 (head b))
 
 -- `before b1 b2` is true if `b2` incorporates all of `b1`
-before :: Monad m => Branch m -> Branch m -> m Bool
+before :: (Monad m) => Branch m -> Branch m -> m Bool
 before (Branch b1) (Branch b2) = Causal.before b1 b2
 
 -- | what does this do? —AI
@@ -410,12 +406,12 @@ toList0 :: Branch0 m -> [(Path, Branch0 m)]
 toList0 = go Path.empty
   where
     go p b =
-      (p, b) :
-      ( Map.toList (_children b)
-          >>= ( \(seg, cb) ->
-                  go (Path.snoc p seg) (head cb)
-              )
-      )
+      (p, b)
+        : ( Map.toList (_children b)
+              >>= ( \(seg, cb) ->
+                      go (Path.snoc p seg) (head cb)
+                  )
+          )
 
 -- returns `Nothing` if no Branch at `path` or if Branch is empty at `path`
 getAt ::
@@ -453,7 +449,7 @@ isEmpty :: Branch m -> Bool
 isEmpty = (== empty)
 
 -- | Perform an update over the current branch and create a new causal step.
-step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
+step :: (Applicative m) => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
 step f = runIdentity . stepM (Identity . f)
 
 -- | Perform an update over the current branch and create a new causal step.
@@ -462,14 +458,14 @@ stepM f = \case
   Branch (Causal.One _h _eh e) | e == empty0 -> Branch . Causal.one <$> f empty0
   b -> mapMOf history (Causal.stepDistinctM f) b
 
-cons :: Applicative m => Branch0 m -> Branch m -> Branch m
+cons :: (Applicative m) => Branch0 m -> Branch m -> Branch m
 cons = step . const
 
 isOne :: Branch m -> Bool
 isOne (Branch Causal.One {}) = True
 isOne _ = False
 
-uncons :: Applicative m => Branch m -> m (Maybe (Branch0 m, Branch m))
+uncons :: (Applicative m) => Branch m -> m (Maybe (Branch0 m, Branch m))
 uncons (Branch b) = go <$> Causal.uncons b
   where
     go = over (_Just . _2) Branch
@@ -521,7 +517,7 @@ stepManyAtM actions startBranch = do
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere ::
-  Applicative m => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
+  (Applicative m) => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
 stepEverywhere f Branch0 {..} = f (branch0 _terms _types children _edits)
   where
     children = fmap (step $ stepEverywhere f) _children
@@ -536,18 +532,18 @@ getChildBranch seg b = fromMaybe empty $ Map.lookup seg (_children b)
 setChildBranch :: NameSegment -> Branch m -> Branch0 m -> Branch0 m
 setChildBranch seg b = over children (updateChildren seg b)
 
-getPatch :: Applicative m => NameSegment -> Branch0 m -> m Patch
+getPatch :: (Applicative m) => NameSegment -> Branch0 m -> m Patch
 getPatch seg b = case Map.lookup seg (_edits b) of
   Nothing -> pure Patch.empty
   Just (_, p) -> p
 
-getMaybePatch :: Applicative m => NameSegment -> Branch0 m -> m (Maybe Patch)
+getMaybePatch :: (Applicative m) => NameSegment -> Branch0 m -> m (Maybe Patch)
 getMaybePatch seg b = case Map.lookup seg (_edits b) of
   Nothing -> pure Nothing
   Just (_, p) -> Just <$> p
 
 modifyPatches ::
-  Monad m => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
+  (Monad m) => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
 modifyPatches seg f = mapMOf edits update
   where
     update m = do
@@ -555,10 +551,10 @@ modifyPatches seg f = mapMOf edits update
         Nothing -> pure $ f Patch.empty
         Just (_, p) -> f <$> p
       let h = H.hashPatch p'
-      pure $ Map.insert seg (h, pure p') m
+      pure $ Map.insert seg (PatchHash h, pure p') m
 
-replacePatch :: Applicative m => NameSegment -> Patch -> Branch0 m -> Branch0 m
-replacePatch n p = over edits (Map.insert n (H.hashPatch p, pure p))
+replacePatch :: (Applicative m) => NameSegment -> Patch -> Branch0 m -> Branch0 m
+replacePatch n p = over edits (Map.insert n (PatchHash (H.hashPatch p), pure p))
 
 deletePatch :: NameSegment -> Branch0 m -> Branch0 m
 deletePatch n = over edits (Map.delete n)
@@ -576,7 +572,7 @@ updateChildren seg updatedChild =
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.
 modifyAt ::
-  Applicative m =>
+  (Applicative m) =>
   Path ->
   (Branch m -> Branch m) ->
   Branch m ->
@@ -587,8 +583,8 @@ modifyAt path f = runIdentity . modifyAtM path (pure . f)
 -- Because it's a `Branch`, it overwrites the history at `path`.
 modifyAtM ::
   forall n m.
-  Functor n =>
-  Applicative m => -- because `Causal.cons` uses `pure`
+  (Functor n) =>
+  (Applicative m) => -- because `Causal.cons` uses `pure`
   Path ->
   (Branch m -> n (Branch m)) ->
   Branch m ->
@@ -703,14 +699,14 @@ deleteTypeName r n b
       over types (Star3.deletePrimaryD1 (r, n)) b
 deleteTypeName _ _ b = b
 
-lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
+lca :: (Monad m) => Branch m -> Branch m -> m (Maybe (Branch m))
 lca (Branch a) (Branch b) = fmap Branch <$> Causal.lca a b
 
-transform :: Functor m => (forall a. m a -> n a) -> Branch m -> Branch n
+transform :: (Functor m) => (forall a. m a -> n a) -> Branch m -> Branch n
 transform f b = case _history b of
   causal -> Branch . Causal.transform f $ transformB0s f causal
   where
-    transformB0 :: Functor m => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
+    transformB0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
     transformB0 f b =
       b
         { _children = transform f <$> _children b,
@@ -718,7 +714,7 @@ transform f b = case _history b of
         }
 
     transformB0s ::
-      Functor m =>
+      (Functor m) =>
       (forall a. m a -> n a) ->
       Causal m (Branch0 m) ->
       Causal m (Branch0 n)
@@ -736,7 +732,7 @@ children0 = children .> itraversed <. (history . Causal.head_)
 -- the existing base if there are no)
 consBranchSnapshot ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   Branch m ->
   Branch m ->
   Branch m

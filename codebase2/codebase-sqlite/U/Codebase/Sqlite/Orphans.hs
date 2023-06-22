@@ -5,14 +5,14 @@ module U.Codebase.Sqlite.Orphans where
 
 import Control.Applicative
 import U.Codebase.Branch.Type (NamespaceStats (..))
-import qualified U.Codebase.Reference as C.Reference
-import qualified U.Codebase.Referent as C.Referent
-import qualified U.Codebase.Reflog as Reflog
+import U.Codebase.Reference qualified as C.Reference
+import U.Codebase.Referent qualified as C.Referent
+import U.Codebase.Reflog qualified as Reflog
 import U.Codebase.Sqlite.DbId
 import U.Codebase.WatchKind (WatchKind)
-import qualified U.Codebase.WatchKind as WatchKind
+import U.Codebase.WatchKind qualified as WatchKind
 import U.Util.Base32Hex
-import qualified U.Util.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Prelude
 import Unison.Sqlite
 

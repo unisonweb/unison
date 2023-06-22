@@ -10,12 +10,12 @@ module Unison.Codebase.Branch.Merge
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Map.Merge.Lazy as Map
+import Data.Map qualified as Map
+import Data.Map.Merge.Lazy qualified as Map
+import U.Codebase.HashTags (PatchHash (..))
 import Unison.Codebase.Branch
   ( Branch (..),
     Branch0 (_children, _edits, _terms, _types),
-    EditHash,
     branch0,
     cons,
     discardHistory0,
@@ -25,22 +25,22 @@ import Unison.Codebase.Branch
     isEmpty0,
   )
 import Unison.Codebase.Branch.BranchDiff (BranchDiff (BranchDiff))
-import qualified Unison.Codebase.Branch.BranchDiff as BDiff
-import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.Branch.BranchDiff qualified as BDiff
+import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Patch (Patch)
-import qualified Unison.Codebase.Patch as Patch
-import qualified Unison.Hashing.V2.Convert as H
+import Unison.Codebase.Patch qualified as Patch
+import Unison.Hashing.V2.Convert qualified as H
 import Unison.Prelude hiding (empty)
 import Unison.Util.Map (unionWithM)
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Star3 as Star3
+import Unison.Util.Relation qualified as R
+import Unison.Util.Star3 qualified as Star3
 import Prelude hiding (head, read, subtract)
 
 data MergeMode = RegularMerge | SquashMerge deriving (Eq, Ord, Show)
 
 merge'' ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (Branch m -> Branch m -> m (Maybe (Branch m))) -> -- lca calculator
   MergeMode ->
   Branch m ->
@@ -88,7 +88,7 @@ merge'' lca mode (Branch x) (Branch y) =
       let newPatches = makePatch <$> Map.difference changedPatches (_edits b0)
           makePatch Patch.PatchDiff {..} =
             let p = Patch.Patch _addedTermEdits _addedTypeEdits
-             in (H.hashPatch p, pure p)
+             in (PatchHash (H.hashPatch p), pure p)
       pure $
         branch0
           (Star3.difference (_terms b0) removedTerms <> addedTerms)
@@ -107,11 +107,11 @@ merge'' lca mode (Branch x) (Branch y) =
                   R.difference (Patch._typeEdits p) _removedTypeEdits
                     <> _addedTypeEdits
               }
-      pure (H.hashPatch np, pure np)
+      pure (PatchHash (H.hashPatch np), pure np)
 
 merge0 ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (Branch m -> Branch m -> m (Maybe (Branch m))) ->
   MergeMode ->
   Branch0 m ->
@@ -127,10 +127,10 @@ merge0 lca mode b1 b2 = do
       c3
       e3
   where
-    g :: (EditHash, m Patch) -> (EditHash, m Patch) -> m (EditHash, m Patch)
+    g :: (PatchHash, m Patch) -> (PatchHash, m Patch) -> m (PatchHash, m Patch)
     g (h1, m1) (h2, _) | h1 == h2 = pure (h1, m1)
     g (_, m1) (_, m2) = do
       e1 <- m1
       e2 <- m2
       let e3 = e1 <> e2
-      pure (H.hashPatch e3, pure e3)
+      pure (PatchHash (H.hashPatch e3), pure e3)

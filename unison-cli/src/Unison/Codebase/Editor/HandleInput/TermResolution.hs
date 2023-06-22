@@ -13,14 +13,14 @@ import Control.Monad.Trans (liftIO)
 import Data.Maybe (catMaybes, fromJust)
 import Data.Set (fromList, toList)
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
+import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.NamesUtils (basicParseNames, basicPrettyPrintNamesA)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Output (Output (..))
 import Unison.Codebase.Path (hqSplitFromName')
-import qualified Unison.Codebase.Runtime as Runtime
+import Unison.Codebase.Runtime qualified as Runtime
 import Unison.ConstructorReference
-import qualified Unison.HashQualified as HQ
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.NamesWithHistory
@@ -33,9 +33,9 @@ import Unison.PrettyPrintEnv.Names (fromSuffixNames)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.HashQualified as HQ (toString)
+import Unison.Syntax.HashQualified qualified as HQ (toString)
 import Unison.Type (Type)
-import qualified Unison.Typechecker as Typechecker
+import Unison.Typechecker qualified as Typechecker
 
 addHistory :: Names -> NamesWithHistory
 addHistory names = NamesWithHistory names mempty
@@ -120,5 +120,5 @@ resolveMainRef main = do
   lookupTermRefWithType codebase main >>= \case
     [(rf, ty)]
       | Typechecker.fitsScheme ty mainType -> pure (rf, ppe)
-      | otherwise -> Cli.returnEarly (BadMainFunction smain ty ppe [mainType])
+      | otherwise -> Cli.returnEarly (BadMainFunction "main" smain ty ppe [mainType])
     _ -> Cli.returnEarly (NoMainFunction smain ppe [mainType])

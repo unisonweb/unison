@@ -13,7 +13,9 @@ module Unison.Cli.MonadUtils
 
     -- ** Resolving branch identifiers
     resolveAbsBranchId,
+    resolveAbsBranchIdV2,
     resolveBranchId,
+    resolveBranchIdToAbsBranchId,
     resolveShortCausalHash,
 
     -- ** Getting/setting branches
@@ -75,43 +77,44 @@ where
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State
-import qualified Data.Configurator as Configurator
-import qualified Data.Configurator.Types as Configurator
-import qualified Data.Set as Set
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import Data.Configurator qualified as Configurator
+import Data.Configurator.Types qualified as Configurator
+import Data.Set qualified as Set
+import U.Codebase.Branch qualified as V2 (Branch)
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
+import U.Codebase.HashTags (CausalHash (..))
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Codebase as Codebase
+import Unison.Cli.Monad qualified as Cli
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.BranchUtil as BranchUtil
-import qualified Unison.Codebase.Causal as Causal
-import qualified Unison.Codebase.Editor.Input as Input
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Editor.Input qualified as Input
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Patch (Patch (..))
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.HashQualified' as HQ'
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.UnisonFile (TypecheckedUnisonFile)
-import qualified Unison.Util.Set as Set
+import Unison.Util.Set qualified as Set
 import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------
 -- .unisonConfig things
 
 -- | Lookup a config value by key.
-getConfig :: Configurator.Configured a => Text -> Cli (Maybe a)
+getConfig :: (Configurator.Configured a) => Text -> Cli (Maybe a)
 getConfig key = do
   Cli.Env {config} <- ask
   liftIO (Configurator.lookup config key)
@@ -145,31 +148,53 @@ resolveAbsBranchId = \case
   Left hash -> resolveShortCausalHash hash
   Right path -> getBranchAt path
 
+-- | V2 version of 'resolveAbsBranchId2'.
+resolveAbsBranchIdV2 :: Input.AbsBranchId -> Sqlite.Transaction (Either Output.Output (V2.Branch Sqlite.Transaction))
+resolveAbsBranchIdV2 = \case
+  Left shortHash -> do
+    resolveShortCausalHashToCausalHash shortHash >>= \case
+      Left output -> pure (Left output)
+      Right hash -> succeed (Codebase.expectCausalBranchByCausalHash hash)
+  Right path -> succeed (Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path))
+  where
+    succeed getCausal = do
+      causal <- getCausal
+      branch <- V2Causal.value causal
+      pure (Right branch)
+
 -- | Resolve a @BranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
 -- branches by path are OK - the empty branch will be returned).
-resolveBranchId  :: Input.BranchId -> Cli (Branch IO)
+resolveBranchId :: Input.BranchId -> Cli (Branch IO)
 resolveBranchId branchId = do
-  absBranchId <- traverseOf _Right resolvePath' branchId
+  absBranchId <- resolveBranchIdToAbsBranchId branchId
   resolveAbsBranchId absBranchId
+
+-- | Resolve a @BranchId@ to an @AbsBranchId@.
+resolveBranchIdToAbsBranchId :: Input.BranchId -> Cli Input.AbsBranchId
+resolveBranchIdToAbsBranchId =
+  traverseOf _Right resolvePath'
 
 -- | Resolve a @ShortCausalHash@ to the corresponding @Branch IO@, or fail if no such branch hash is found.
 resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
-resolveShortCausalHash hash = do
+resolveShortCausalHash shortHash = do
   Cli.time "resolveShortCausalHash" do
     Cli.Env {codebase} <- ask
-    (hashSet, len) <-
-      Cli.runTransaction do
-        hashSet <- Codebase.causalHashesByPrefix hash
-        len <- Codebase.branchHashLength
-        pure (hashSet, len)
-    h <-
-      Set.asSingleton hashSet & onNothing do
-        Cli.returnEarly
-          if Set.null hashSet
-            then Output.NoBranchWithHash hash
-            else Output.BranchHashAmbiguous hash (Set.map (SCH.fromHash len) hashSet)
-    branch <- liftIO (Codebase.getBranchForHash codebase h)
+    hash <- Cli.runEitherTransaction (resolveShortCausalHashToCausalHash shortHash)
+    branch <- liftIO (Codebase.getBranchForHash codebase hash)
     pure (fromMaybe Branch.empty branch)
+
+resolveShortCausalHashToCausalHash :: ShortCausalHash -> Sqlite.Transaction (Either Output.Output CausalHash)
+resolveShortCausalHashToCausalHash shortHash = do
+  hashes <- Codebase.causalHashesByPrefix shortHash
+  case Set.asSingleton hashes of
+    Nothing ->
+      fmap Left do
+        if Set.null hashes
+          then pure (Output.NoBranchWithHash shortHash)
+          else do
+            len <- Codebase.branchHashLength
+            pure (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash len) hashes))
+    Just hash -> pure (Right hash)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting/Setting branches
@@ -185,12 +210,15 @@ getRootBranch0 =
   Branch.head <$> getRootBranch
 
 -- | Set a new root branch.
+--
 -- Note: This does _not_ update the codebase, the caller is responsible for that.
 setRootBranch :: Branch IO -> Cli ()
 setRootBranch b = do
   void $ modifyRootBranch (const b)
 
--- | Get the root branch.
+-- | Modify the root branch.
+--
+-- Note: This does _not_ update the codebase, the caller is responsible for that.
 modifyRootBranch :: (Branch IO -> Branch IO) -> Cli (Branch IO)
 modifyRootBranch f = do
   rootVar <- use #root
@@ -212,13 +240,13 @@ getCurrentBranch0 = do
   Branch.head <$> getCurrentBranch
 
 -- | Get the last saved root hash.
-getLastSavedRootHash :: Cli V2Branch.CausalHash
+getLastSavedRootHash :: Cli CausalHash
 getLastSavedRootHash = do
   use #lastSavedRootHash
 
 -- | Set a new root branch.
 -- Note: This does _not_ update the codebase, the caller is responsible for that.
-setLastSavedRootHash :: V2Branch.CausalHash -> Cli ()
+setLastSavedRootHash :: CausalHash -> Cli ()
 setLastSavedRootHash ch = do
   #lastSavedRootHash .= ch
 
@@ -297,7 +325,7 @@ stepAtM ::
 stepAtM cause = stepManyAtM @[] cause . pure
 
 stepManyAt ::
-  Foldable f =>
+  (Foldable f) =>
   Text ->
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli ()
@@ -306,7 +334,7 @@ stepManyAt reason actions = do
   syncRoot reason
 
 stepManyAt' ::
-  Foldable f =>
+  (Foldable f) =>
   Text ->
   f (Path, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
@@ -316,7 +344,7 @@ stepManyAt' reason actions = do
   pure res
 
 stepManyAtNoSync' ::
-  Foldable f =>
+  (Foldable f) =>
   f (Path, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepManyAtNoSync' actions = do
@@ -327,14 +355,14 @@ stepManyAtNoSync' actions = do
 
 -- Like stepManyAt, but doesn't update the last saved root
 stepManyAtNoSync ::
-  Foldable f =>
+  (Foldable f) =>
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli ()
 stepManyAtNoSync actions =
   void . modifyRootBranch $ Branch.stepManyAt actions
 
 stepManyAtM ::
-  Foldable f =>
+  (Foldable f) =>
   Text ->
   f (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
@@ -343,7 +371,7 @@ stepManyAtM reason actions = do
   syncRoot reason
 
 stepManyAtMNoSync ::
-  Foldable f =>
+  (Foldable f) =>
   f (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
 stepManyAtMNoSync actions = do
@@ -384,7 +412,7 @@ updateRoot :: Branch IO -> Text -> Cli ()
 updateRoot new reason =
   Cli.time "updateRoot" do
     Cli.Env {codebase} <- ask
-    let newHash = Cv.causalHash1to2 $ Branch.headHash new
+    let newHash = Branch.headHash new
     oldHash <- getLastSavedRootHash
     when (oldHash /= newHash) do
       setRootBranch new

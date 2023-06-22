@@ -29,6 +29,7 @@ module Unison.Names
     prefix0,
     restrictReferences,
     refTermsNamed,
+    refTermsHQNamed,
     termReferences,
     termReferents,
     typeReferences,
@@ -46,33 +47,35 @@ module Unison.Names
     isEmpty,
     hashQualifyTypesRelation,
     hashQualifyTermsRelation,
+    fromTermsAndTypes,
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Text.FuzzyFind as FZF
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Text.FuzzyFind qualified as FZF
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.ConstructorType qualified as CT
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.Prelude
 import Unison.Reference (Reference, TermReference, TypeReference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation as Relation
+import Unison.Util.Relation qualified as R
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Set qualified as Set (mapMaybe)
 import Prelude hiding (filter, map)
-import qualified Prelude
+import Prelude qualified
 
 -- This will support the APIs of both PrettyPrintEnv and the old Names.
 -- For pretty-printing, we need to look up names for References.
@@ -249,9 +252,23 @@ numHashChars = 3
 termsNamed :: Names -> Name -> Set Referent
 termsNamed = flip R.lookupDom . terms
 
+-- | Get all terms with a specific name.
 refTermsNamed :: Names -> Name -> Set TermReference
 refTermsNamed names n =
-  Set.fromList [r | Referent.Ref r <- toList $ termsNamed names n]
+  Set.mapMaybe Referent.toTermReference (termsNamed names n)
+
+-- | Get all terms with a specific hash-qualified name.
+refTermsHQNamed :: Names -> HQ.HashQualified Name -> Set TermReference
+refTermsHQNamed names = \case
+  HQ.NameOnly name -> refTermsNamed names name
+  HQ.HashOnly _hash -> Set.empty
+  HQ.HashQualified name hash ->
+    let f :: Referent -> Maybe TermReference
+        f ref0 = do
+          ref <- Referent.toTermReference ref0
+          guard (Reference.isPrefixOf hash ref)
+          Just ref
+     in Set.mapMaybe f (termsNamed names name)
 
 typesNamed :: Names -> Name -> Set TypeReference
 typesNamed = flip R.lookupDom . types
@@ -349,6 +366,10 @@ fromTerms ts = Names (R.fromList ts) mempty
 
 fromTypes :: [(Name, TypeReference)] -> Names
 fromTypes ts = Names mempty (R.fromList ts)
+
+fromTermsAndTypes :: [(Name, Referent)] -> [(Name, TypeReference)] -> Names
+fromTermsAndTypes terms types =
+  fromTerms terms <> fromTypes types
 
 -- | Map over each name in a 'Names'.
 mapNames :: (Name -> Name) -> Names -> Names
@@ -479,7 +500,7 @@ hashQualifyTermsRelation = hashQualifyRelation HQ.fromNamedReferent
 hashQualifyTypesRelation :: R.Relation Name TypeReference -> R.Relation (HQ.HashQualified Name) TypeReference
 hashQualifyTypesRelation = hashQualifyRelation HQ.fromNamedReference
 
-hashQualifyRelation :: Ord r => (Name -> r -> HQ.HashQualified Name) -> R.Relation Name r -> R.Relation (HQ.HashQualified Name) r
+hashQualifyRelation :: (Ord r) => (Name -> r -> HQ.HashQualified Name) -> R.Relation Name r -> R.Relation (HQ.HashQualified Name) r
 hashQualifyRelation fromNamedRef rel = R.map go rel
   where
     go (n, r) =

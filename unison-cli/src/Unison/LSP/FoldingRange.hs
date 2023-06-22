@@ -5,9 +5,9 @@ module Unison.LSP.FoldingRange where
 import Control.Lens hiding (List)
 import Language.LSP.Types hiding (line)
 import Language.LSP.Types.Lens hiding (id, to)
-import qualified Unison.ABT as ABT
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Debug as Debug
+import Unison.ABT qualified as ABT
+import Unison.DataDeclaration qualified as DD
+import Unison.Debug qualified as Debug
 import Unison.LSP.Conversions (annToRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis)
 import Unison.LSP.Types

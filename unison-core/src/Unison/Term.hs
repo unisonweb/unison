@@ -5,39 +5,38 @@ module Unison.Term where
 
 import Control.Lens (Lens', Prism', lens)
 import Control.Monad.State (evalState)
-import qualified Control.Monad.Writer.Strict as Writer
-import Data.Bifunctor (second)
+import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
-import qualified Data.Map as Map
-import qualified Data.Sequence as Sequence
-import qualified Data.Set as Set
-import qualified Data.Set.NonEmpty as NES
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Sequence qualified as Sequence
+import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as NES
+import Data.Text qualified as Text
 import Text.Show
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as B
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
-import qualified Unison.Name as Name
+import Unison.LabeledDependency qualified as LD
+import Unison.Name qualified as Name
 import Unison.Names (Names)
-import qualified Unison.Names as Names
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.NamesWithHistory as Names
+import Unison.Names qualified as Names
+import Unison.Names.ResolutionResult qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference, TermReference, pattern Builtin)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Util.List (multimap, validate)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (and, or)
 
@@ -46,7 +45,7 @@ data MatchCase loc a = MatchCase
     matchGuard :: Maybe a,
     matchBody :: a
   }
-  deriving (Show, Eq, Foldable, Functor, Generic, Generic1, Traversable)
+  deriving (Show, Eq, Ord, Foldable, Functor, Generic, Generic1, Traversable)
 
 matchPattern_ :: Lens' (MatchCase loc a) (Pattern loc)
 matchPattern_ = lens matchPattern setter
@@ -93,7 +92,7 @@ data F typeVar typeAnn patternAnn a
     Match a [MatchCase patternAnn a]
   | TermLink Referent
   | TypeLink Reference
-  deriving (Foldable, Functor, Generic, Generic1, Traversable)
+  deriving (Ord, Foldable, Functor, Generic, Generic1, Traversable)
 
 _Ref :: Prism' (F tv ta pa a) Reference
 _Ref = _Ctor @"Ref"
@@ -115,6 +114,11 @@ _TermLink = _Ctor @"TermLink"
 
 _TypeLink :: Prism' (F tv ta pa a) Reference
 _TypeLink = _Ctor @"TypeLink"
+
+-- | Returns the top-level type annotation for a term if it has one.
+getTypeAnnotation :: Term v a -> Maybe (Type v a)
+getTypeAnnotation (ABT.Tm' (Ann _ t)) = Just t
+getTypeAnnotation _ = Nothing
 
 type IsTop = Bool
 
@@ -139,7 +143,7 @@ type Term0' vt v = Term' vt v ()
 
 bindNames ::
   forall v a.
-  Var v =>
+  (Var v) =>
   (v -> Name.Name) ->
   Set v ->
   Names ->
@@ -178,7 +182,7 @@ bindNames unsafeVarToName keepFreeTerms ns0 e = do
 -- lookup. Any terms not found in the `Names` are kept free.
 bindSomeNames ::
   forall v a.
-  Var v =>
+  (Var v) =>
   (v -> Name.Name) ->
   Set v ->
   Names ->
@@ -208,7 +212,7 @@ bindSomeNames unsafeVarToName avoid ns e = bindNames unsafeVarToName (avoid <> v
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
-prepareTDNR :: Var v => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
+prepareTDNR :: (Var v) => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
 prepareTDNR t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
   where
     f (ABT.Term _ (a, bound) (ABT.Var v))
@@ -216,7 +220,7 @@ prepareTDNR t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
           Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
     f _ = Nothing
 
-amap :: Ord v => (a -> a2) -> Term v a -> Term v a2
+amap :: (Ord v) => (a -> a2) -> Term v a -> Term v a2
 amap f = fmap f . patternMap (fmap f) . typeMap (fmap f)
 
 patternMap :: (Pattern ap -> Pattern ap2) -> Term2 vt at ap v a -> Term2 vt at ap2 v a
@@ -236,14 +240,14 @@ patternMap f = go
       -- Safe since `Match` is only ctor that has embedded `Pattern ap` arg
       ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
 
-vmap :: Ord v2 => (v -> v2) -> Term v a -> Term v2 a
+vmap :: (Ord v2) => (v -> v2) -> Term v a -> Term v2 a
 vmap f = ABT.vmap f . typeMap (ABT.vmap f)
 
-vtmap :: Ord vt2 => (vt -> vt2) -> Term' vt v a -> Term' vt2 v a
+vtmap :: (Ord vt2) => (vt -> vt2) -> Term' vt v a -> Term' vt2 v a
 vtmap f = typeMap (ABT.vmap f)
 
 typeMap ::
-  Ord vt2 =>
+  (Ord vt2) =>
   (Type vt at -> Type vt2 at2) ->
   Term2 vt at ap v a ->
   Term2 vt2 at2 ap v a
@@ -303,7 +307,7 @@ matchCaseExtraMap :: (loc -> loc') -> MatchCase loc a -> MatchCase loc' a
 matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
 
 unannotate ::
-  forall vt at ap v a. Ord v => Term2 vt at ap v a -> Term0' vt v
+  forall vt at ap v a. (Ord v) => Term2 vt at ap v a -> Term0' vt v
 unannotate = go
   where
     go :: Term2 vt at ap v a -> Term0' vt v
@@ -318,12 +322,12 @@ unannotate = go
       f' -> ABT.tm (unsafeCoerce f')
     go _ = error "unpossible"
 
-wrapV :: Ord v => Term v a -> Term (ABT.V v) a
+wrapV :: (Ord v) => Term v a -> Term (ABT.V v) a
 wrapV = vmap ABT.Bound
 
 -- | All variables mentioned in the given term.
 -- Includes both term and type variables, both free and bound.
-allVars :: Ord v => Term v a -> Set v
+allVars :: (Ord v) => Term v a -> Set v
 allVars tm =
   Set.fromList $
     ABT.allVars tm ++ [v | tp <- allTypes tm, v <- ABT.allVars tp]
@@ -335,10 +339,10 @@ allVars tm =
 freeVars :: Term' vt v a -> Set v
 freeVars = ABT.freeVars
 
-freeTypeVars :: Ord vt => Term' vt v a -> Set vt
+freeTypeVars :: (Ord vt) => Term' vt v a -> Set vt
 freeTypeVars t = Map.keysSet $ freeTypeVarAnnotations t
 
-freeTypeVarAnnotations :: Ord vt => Term' vt v a -> Map vt [a]
+freeTypeVarAnnotations :: (Ord vt) => Term' vt v a -> Map vt [a]
 freeTypeVarAnnotations e = multimap $ go Set.empty e
   where
     go bound tm = case tm of
@@ -614,15 +618,15 @@ pattern List' ::
 pattern List' xs <- (ABT.out -> ABT.Tm (List xs))
 
 pattern Lam' ::
-  ABT.Var v =>
+  (ABT.Var v) =>
   ABT.Subst (F typeVar typeAnn patternAnn) v a ->
   ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 
-pattern Delay' :: Ord v => Term2 vt at ap v a -> Term2 vt at ap v a
+pattern Delay' :: (Ord v) => Term2 vt at ap v a -> Term2 vt at ap v a
 pattern Delay' body <- (unDelay -> Just body)
 
-unDelay :: Ord v => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
+unDelay :: (Ord v) => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
 unDelay tm = case ABT.out tm of
   ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body)))
     | Set.notMember v (ABT.freeVars body) ->
@@ -645,21 +649,21 @@ pattern LamsNamedPred' :: [v] -> Term2 vt at ap v a -> (Term2 vt at ap v a, v ->
 pattern LamsNamedPred' vs body <- (unLamsPred' -> Just (vs, body))
 
 pattern LamsNamedOrDelay' ::
-  Var v =>
+  (Var v) =>
   [v] ->
   Term2 vt at ap v a ->
   Term2 vt at ap v a
 pattern LamsNamedOrDelay' vs body <- (unLamsUntilDelay' -> Just (vs, body))
 
 pattern Let1' ::
-  Var v =>
+  (Var v) =>
   Term' vt v a ->
   ABT.Subst (F vt a a) v a ->
   Term' vt v a
 pattern Let1' b subst <- (unLet1 -> Just (_, b, subst))
 
 pattern Let1Top' ::
-  Var v =>
+  (Var v) =>
   IsTop ->
   Term' vt v a ->
   ABT.Subst (F vt a a) v a ->
@@ -727,7 +731,7 @@ pattern LetRecNamedAnnotatedTop' ::
 pattern LetRecNamedAnnotatedTop' top ann bs e <-
   (unLetRecNamedAnnotated -> Just (top, ann, bs, e))
 
-fresh :: Var v => Term0 v -> v -> v
+fresh :: (Var v) => Term0 v -> v -> v
 fresh = ABT.fresh
 
 -- some smart constructors
@@ -735,10 +739,10 @@ fresh = ABT.fresh
 var :: a -> v -> Term2 vt at ap v a
 var = ABT.annotatedVar
 
-var' :: Var v => Text -> Term0' vt v
+var' :: (Var v) => Text -> Term0' vt v
 var' = var () . Var.named
 
-ref :: Ord v => a -> Reference -> Term2 vt at ap v a
+ref :: (Ord v) => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
 pattern Referent' :: Referent -> Term2 vt at ap v a
@@ -750,34 +754,34 @@ unReferent (Constructor' r) = Just $ Referent.Con r CT.Data
 unReferent (Request' r) = Just $ Referent.Con r CT.Effect
 unReferent _ = Nothing
 
-refId :: Ord v => a -> Reference.Id -> Term2 vt at ap v a
+refId :: (Ord v) => a -> Reference.Id -> Term2 vt at ap v a
 refId a = ref a . Reference.DerivedId
 
-termLink :: Ord v => a -> Referent -> Term2 vt at ap v a
+termLink :: (Ord v) => a -> Referent -> Term2 vt at ap v a
 termLink a r = ABT.tm' a (TermLink r)
 
-typeLink :: Ord v => a -> Reference -> Term2 vt at ap v a
+typeLink :: (Ord v) => a -> Reference -> Term2 vt at ap v a
 typeLink a r = ABT.tm' a (TypeLink r)
 
-builtin :: Ord v => a -> Text -> Term2 vt at ap v a
+builtin :: (Ord v) => a -> Text -> Term2 vt at ap v a
 builtin a n = ref a (Reference.Builtin n)
 
-float :: Ord v => a -> Double -> Term2 vt at ap v a
+float :: (Ord v) => a -> Double -> Term2 vt at ap v a
 float a d = ABT.tm' a (Float d)
 
-boolean :: Ord v => a -> Bool -> Term2 vt at ap v a
+boolean :: (Ord v) => a -> Bool -> Term2 vt at ap v a
 boolean a b = ABT.tm' a (Boolean b)
 
-int :: Ord v => a -> Int64 -> Term2 vt at ap v a
+int :: (Ord v) => a -> Int64 -> Term2 vt at ap v a
 int a d = ABT.tm' a (Int d)
 
-nat :: Ord v => a -> Word64 -> Term2 vt at ap v a
+nat :: (Ord v) => a -> Word64 -> Term2 vt at ap v a
 nat a d = ABT.tm' a (Nat d)
 
-text :: Ord v => a -> Text -> Term2 vt at ap v a
+text :: (Ord v) => a -> Text -> Term2 vt at ap v a
 text a = ABT.tm' a . Text
 
-char :: Ord v => a -> Char -> Term2 vt at ap v a
+char :: (Ord v) => a -> Char -> Term2 vt at ap v a
 char a = ABT.tm' a . Char
 
 watch :: (Var v, Semigroup a) => a -> String -> Term v a -> Term v a
@@ -788,48 +792,48 @@ watchMaybe :: (Var v, Semigroup a) => Maybe String -> Term v a -> Term v a
 watchMaybe Nothing e = e
 watchMaybe (Just note) e = watch (ABT.annotation e) note e
 
-blank :: Ord v => a -> Term2 vt at ap v a
+blank :: (Ord v) => a -> Term2 vt at ap v a
 blank a = ABT.tm' a (Blank B.Blank)
 
-placeholder :: Ord v => a -> String -> Term2 vt a ap v a
+placeholder :: (Ord v) => a -> String -> Term2 vt a ap v a
 placeholder a s = ABT.tm' a . Blank $ B.Recorded (B.Placeholder a s)
 
-resolve :: Ord v => at -> ab -> String -> Term2 vt ab ap v at
+resolve :: (Ord v) => at -> ab -> String -> Term2 vt ab ap v at
 resolve at ab s = ABT.tm' at . Blank $ B.Recorded (B.Resolve ab s)
 
-constructor :: Ord v => a -> ConstructorReference -> Term2 vt at ap v a
+constructor :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 constructor a ref = ABT.tm' a (Constructor ref)
 
-request :: Ord v => a -> ConstructorReference -> Term2 vt at ap v a
+request :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 request a ref = ABT.tm' a (Request ref)
 
 -- todo: delete and rename app' to app
-app_ :: Ord v => Term0' vt v -> Term0' vt v -> Term0' vt v
+app_ :: (Ord v) => Term0' vt v -> Term0' vt v -> Term0' vt v
 app_ f arg = ABT.tm (App f arg)
 
-app :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+app :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 app a f arg = ABT.tm' a (App f arg)
 
-match :: Ord v => a -> Term2 vt at a v a -> [MatchCase a (Term2 vt at a v a)] -> Term2 vt at a v a
+match :: (Ord v) => a -> Term2 vt at a v a -> [MatchCase a (Term2 vt at a v a)] -> Term2 vt at a v a
 match a scrutinee branches = ABT.tm' a (Match scrutinee branches)
 
-handle :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+handle :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 handle a h block = ABT.tm' a (Handle h block)
 
-and :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+and :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 and a x y = ABT.tm' a (And x y)
 
-or :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+or :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 or a x y = ABT.tm' a (Or x y)
 
-list :: Ord v => a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
+list :: (Ord v) => a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
 list a es = list' a (Sequence.fromList es)
 
-list' :: Ord v => a -> Seq (Term2 vt at ap v a) -> Term2 vt at ap v a
+list' :: (Ord v) => a -> Seq (Term2 vt at ap v a) -> Term2 vt at ap v a
 list' a es = ABT.tm' a (List es)
 
 apps ::
-  Ord v =>
+  (Ord v) =>
   Term2 vt at ap v a ->
   [(a, Term2 vt at ap v a)] ->
   Term2 vt at ap v a
@@ -842,14 +846,14 @@ apps' ::
   Term2 vt at ap v a
 apps' = foldl' (\f t -> app (ABT.annotation f <> ABT.annotation t) f t)
 
-iff :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+iff :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 iff a cond t f = ABT.tm' a (If cond t f)
 
-ann_ :: Ord v => Term0' vt v -> Type vt () -> Term0' vt v
+ann_ :: (Ord v) => Term0' vt v -> Type vt () -> Term0' vt v
 ann_ e t = ABT.tm (Ann e t)
 
 ann ::
-  Ord v =>
+  (Ord v) =>
   a ->
   Term2 vt at ap v a ->
   Type vt at ->
@@ -857,17 +861,17 @@ ann ::
 ann a e t = ABT.tm' a (Ann e t)
 
 -- arya: are we sure we want the two annotations to be the same?
-lam :: Ord v => a -> v -> Term2 vt at ap v a -> Term2 vt at ap v a
+lam :: (Ord v) => a -> v -> Term2 vt at ap v a -> Term2 vt at ap v a
 lam a v body = ABT.tm' a (Lam (ABT.abs' a v body))
 
-delay :: Var v => a -> Term2 vt at ap v a -> Term2 vt at ap v a
+delay :: (Var v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a
 delay a body =
   ABT.tm' a (Lam (ABT.abs' a (ABT.freshIn (ABT.freeVars body) (Var.named "_")) body))
 
-lam' :: Ord v => a -> [v] -> Term2 vt at ap v a -> Term2 vt at ap v a
+lam' :: (Ord v) => a -> [v] -> Term2 vt at ap v a -> Term2 vt at ap v a
 lam' a vs body = foldr (lam a) body vs
 
-lam'' :: Ord v => [(a, v)] -> Term2 vt at ap v a -> Term2 vt at ap v a
+lam'' :: (Ord v) => [(a, v)] -> Term2 vt at ap v a -> Term2 vt at ap v a
 lam'' vs body = foldr (uncurry lam) body vs
 
 isLam :: Term2 vt at ap v a -> Bool
@@ -911,7 +915,7 @@ letRec' isTop bindings body =
 --   =>
 --   let rec x = 42; y = "hi" in (x,y)
 consLetRec ::
-  Ord v =>
+  (Ord v, Semigroup a) =>
   Bool -> -- isTop parameter
   a -> -- annotation for overall let rec
   (a, v, Term' vt v a) -> -- the binding
@@ -922,24 +926,29 @@ consLetRec isTop a (ab, vb, b) body = case body of
   _ -> letRec isTop a [((ab, vb), b)] body
 
 letRec ::
-  Ord v =>
+  forall v vt a.
+  (Ord v) =>
   Bool ->
+  -- Annotation spanning the full let rec
   a ->
   [((a, v), Term' vt v a)] ->
   Term' vt v a ->
   Term' vt v a
 letRec _ _ [] e = e
-letRec isTop a bindings e =
+letRec isTop blockAnn bindings e =
   ABT.cycle'
-    a
-    (foldr (uncurry ABT.abs' . fst) z bindings)
+    blockAnn
+    (foldr addAbs body bindings)
   where
-    z = ABT.tm' a (LetRec isTop (map snd bindings) e)
+    addAbs :: ((a, v), b) -> ABT.Term f v a -> ABT.Term f v a
+    addAbs ((_a, v), _b) t = ABT.abs' blockAnn v t
+    body :: Term' vt v a
+    body = ABT.tm' blockAnn (LetRec isTop (map snd bindings) e)
 
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
 -- and the output expression may also reference any binding in the block.
-letRec_ :: Ord v => IsTop -> [(v, Term0' vt v)] -> Term0' vt v -> Term0' vt v
+letRec_ :: (Ord v) => IsTop -> [(v, Term0' vt v)] -> Term0' vt v -> Term0' vt v
 letRec_ _ [] e = e
 letRec_ isTop bindings e = ABT.cycle (foldr (ABT.abs . fst) z bindings)
   where
@@ -949,21 +958,21 @@ letRec_ isTop bindings e = ABT.cycle (foldr (ABT.abs . fst) z bindings)
 -- reference only previous bindings in the block, not including itself.
 -- The output expression may reference any binding in the block.
 -- todo: delete me
-let1_ :: Ord v => IsTop -> [(v, Term0' vt v)] -> Term0' vt v -> Term0' vt v
+let1_ :: (Ord v) => IsTop -> [(v, Term0' vt v)] -> Term0' vt v -> Term0' vt v
 let1_ isTop bindings e = foldr f e bindings
   where
     f (v, b) body = ABT.tm (Let isTop b (ABT.abs v body))
 
 -- | annotations are applied to each nested Let expression
 let1 ::
-  Ord v =>
+  (Ord v, Semigroup a) =>
   IsTop ->
   [((a, v), Term2 vt at ap v a)] ->
   Term2 vt at ap v a ->
   Term2 vt at ap v a
 let1 isTop bindings e = foldr f e bindings
   where
-    f ((ann, v), b) body = ABT.tm' ann (Let isTop b (ABT.abs' ann v body))
+    f ((ann, v), b) body = ABT.tm' (ann <> ABT.annotation body) (Let isTop b (ABT.abs' (ABT.annotation body) v body))
 
 let1' ::
   (Semigroup a, Ord v) =>
@@ -974,15 +983,26 @@ let1' ::
 let1' isTop bindings e = foldr f e bindings
   where
     ann = ABT.annotation
-    f (v, b) body = ABT.tm' a (Let isTop b (ABT.abs' a v body))
+    f (v, b) body = ABT.tm' (a <> ABT.annotation body) (Let isTop b (ABT.abs' (ABT.annotation body) v body))
       where
         a = ann b <> ann body
+
+-- | Like 'let1', but for a single binding, avoiding the Semigroup constraint.
+singleLet ::
+  (Ord v) =>
+  IsTop ->
+  -- Annotation spanning the whole let-binding
+  a ->
+  (v, Term2 vt at ap v a) ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
+singleLet isTop a (v, body) e = ABT.tm' a (Let isTop body (ABT.abs' a v e))
 
 -- let1' :: Var v => [(Text, Term0 vt v)] -> Term0 vt v -> Term0 vt v
 -- let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
 unLet1 ::
-  Var v =>
+  (Var v) =>
   Term' vt v a ->
   Maybe (IsTop, Term' vt v a, ABT.Subst (F vt a a) v a)
 unLet1 (ABT.Tm' (Let isTop b (ABT.Abs' subst))) = Just (isTop, b, subst)
@@ -1137,7 +1157,7 @@ unLamsOpt' t = case unLams' t of
 -- Same as unLams', but stops at any variable named `()`, which indicates a
 -- delay (`'`) annotation which we want to preserve.
 unLamsUntilDelay' ::
-  Var v =>
+  (Var v) =>
   Term2 vt at ap v a ->
   Maybe ([v], Term2 vt at ap v a)
 unLamsUntilDelay' t = case unLamsPred' (t, (/=) $ Var.named "()") of
@@ -1253,7 +1273,7 @@ labeledDependencies =
     LD.typeRef
 
 updateDependencies ::
-  Ord v =>
+  (Ord v) =>
   Map Referent Referent ->
   Map Reference Reference ->
   Term v a ->
@@ -1282,16 +1302,16 @@ updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
-betaReduce :: Var v => Term0 v -> Term0 v
+betaReduce :: (Var v) => Term0 v -> Term0 v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
 
-betaNormalForm :: Var v => Term0 v -> Term0 v
+betaNormalForm :: (Var v) => Term0 v -> Term0 v
 betaNormalForm (App' f a) = betaNormalForm (betaReduce (app () (betaNormalForm f) a))
 betaNormalForm e = e
 
 -- x -> f x => f
-etaNormalForm :: Ord v => Term0 v -> Term0 v
+etaNormalForm :: (Ord v) => Term0 v -> Term0 v
 etaNormalForm tm = case tm of
   LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaNormalForm body
     where
@@ -1301,12 +1321,13 @@ etaNormalForm tm = case tm of
   _ -> tm
 
 -- x -> f x => f as long as `x` is a variable of type `Var.Eta`
-etaReduceEtaVars :: Var v => Term0 v -> Term0 v
+etaReduceEtaVars :: (Var v) => Term0 v -> Term0 v
 etaReduceEtaVars tm = case tm of
   LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaReduceEtaVars body
     where
       ok v v' f =
-        v == v' && Var.typeOf v == Var.Eta
+        v == v'
+          && Var.typeOf v == Var.Eta
           && v `Set.notMember` freeVars f
       step (LamNamed' v (App' f (Var' v'))) | ok v v' f = f
       step tm = tm
@@ -1316,7 +1337,7 @@ etaReduceEtaVars tm = case tm of
 -- back to free variables
 unhashComponent ::
   forall v a.
-  Var v =>
+  (Var v) =>
   Map Reference.Id (Term v a) ->
   Map Reference.Id (v, Term v a)
 unhashComponent m =
@@ -1335,7 +1356,7 @@ unhashComponent m =
    in second unhash1 <$> m'
 
 fromReferent ::
-  Ord v =>
+  (Ord v) =>
   a ->
   Referent ->
   Term2 vt at ap v a

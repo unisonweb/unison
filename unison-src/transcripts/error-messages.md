@@ -62,6 +62,11 @@ foo = with -- unclosed
 ### Matching
 
 ```unison:error
+-- No cases
+foo = match 1 with
+```
+
+```unison:error
 foo = match 1 with
   2 -- no right-hand-side
 ```
@@ -73,6 +78,29 @@ foo = cases
   3 -> ()
 ```
 
+```unison:error
+-- Missing a '->'
+x = match Some a with
+      None -> 
+        1
+      Some _
+        2
+```
+
+```unison:error
+-- Missing patterns
+x = match Some a with
+      None -> 1
+           -> 2
+           -> 3
+```
+
+```unison:error
+-- Guards following an unguarded case
+x = match Some a with
+      None     -> 1
+        | true -> 2
+```
 
 ### Watches
 

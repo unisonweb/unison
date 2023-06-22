@@ -11,18 +11,18 @@ module Unison.CommandLine.Globbing
 where
 
 import Control.Lens as Lens hiding (noneOf)
-import qualified Data.Either as Either
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Either qualified as Either
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Unison.Codebase.Branch (Branch0)
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Path qualified as Path
 import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Star3 as Star3
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Star3 qualified as Star3
 
 -- | Possible targets which a glob may select.
 data TargetType
@@ -74,7 +74,8 @@ expandGlobToNameSegments targets branch globPath =
         matchingTypes = matchingNamesInStar predicate (Branch._types branch)
         matchingNamesInStar :: (NameSegment -> Bool) -> Branch.Star a NameSegment -> [[NameSegment]]
         matchingNamesInStar predicate star =
-          star & Star3.d1
+          star
+            & Star3.d1
             & Relation.ran
             & Set.toList
             & filter predicate

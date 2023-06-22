@@ -40,10 +40,10 @@ import Control.Concurrent.MVar
 import Data.Foldable (find, foldlM)
 import Data.Functor.Compose
 import Data.Hashable (Hashable, hash)
-import qualified Data.IntMap as IntMap
+import Data.IntMap qualified as IntMap
 import Data.IntMap.Strict (IntMap)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import Data.Tuple (swap)
 import System.Mem.Weak (Weak, deRefWeak, mkWeakPtr)
 import Unison.Prelude
@@ -57,7 +57,7 @@ import Unison.Prelude
 newtype PinBoard a
   = PinBoard (MVar (IntMap (Bucket a)))
 
-new :: MonadIO m => m (PinBoard a)
+new :: (MonadIO m) => m (PinBoard a)
 new =
   liftIO (PinBoard <$> newMVar IntMap.empty)
 
@@ -90,7 +90,7 @@ pin (PinBoard boardVar) x = liftIO do
     n =
       hash x
 
-debugDump :: MonadIO m => (a -> Text) -> PinBoard a -> m ()
+debugDump :: (MonadIO m) => (a -> Text) -> PinBoard a -> m ()
 debugDump f (PinBoard boardVar) = liftIO do
   board <- readMVar boardVar
   contents <- (traverse . traverse) bucketToList (IntMap.toList board)
@@ -129,7 +129,7 @@ bucketCompact (Bucket weaks) =
   bucketFromList <$> mapMaybeM (\w -> (w <$) <$> deRefWeak w) weaks
 
 -- | Look up a value in a bucket per its Eq instance.
-bucketFind :: Eq a => Bucket a -> a -> IO (Maybe a)
+bucketFind :: (Eq a) => Bucket a -> a -> IO (Maybe a)
 bucketFind bucket x =
   find (== x) <$> bucketToList bucket
 

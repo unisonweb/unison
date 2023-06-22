@@ -1,23 +1,17 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module U.Codebase.Referent where
 
 import Control.Lens (Prism, Traversal)
 import Data.Bifoldable (Bifoldable (..))
-import Data.Bifunctor (Bifunctor (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Generics.Sum (_Ctor)
 import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Reference (Reference, Reference')
-import qualified U.Codebase.Reference as Reference
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.ShortHash (ShortHash)
-import qualified U.Codebase.ShortHash as SH
-import U.Util.Hash (Hash)
+import U.Codebase.ShortHash qualified as SH
+import Unison.Hash (Hash)
 import Unison.Prelude
 
 data ConstructorType
@@ -53,6 +47,11 @@ toReference :: Referent -> Reference
 toReference = \case
   Ref termRef -> termRef
   Con typeRef _ -> typeRef
+
+toTermReference :: Referent' termRef typeRef -> Maybe termRef
+toTermReference = \case
+  Ref termRef -> Just termRef
+  Con _ _ -> Nothing
 
 type Id = Id' Hash Hash
 

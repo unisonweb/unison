@@ -95,6 +95,7 @@ module Unison.Util.Pretty
     sepNonEmpty,
     sepSpaced,
     shown,
+    pshown,
     singleQuoted,
     singleQuoted',
     softbreak,
@@ -146,19 +147,20 @@ module Unison.Util.Pretty
   )
 where
 
-import Data.Bifunctor (second)
 import Data.Char (isSpace)
 import Data.List (intersperse)
-import qualified Data.List as List
-import qualified Data.ListLike as LL
-import qualified Data.Sequence as Seq
-import qualified Data.Text as Text
+import Data.List qualified as List
+import Data.ListLike qualified as LL
+import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as Text.Lazy
+import Text.Pretty.Simple (pShow)
 import Unison.Prelude
 import Unison.Util.AnnotatedText (annotateMaybe)
-import qualified Unison.Util.AnnotatedText as AT
-import qualified Unison.Util.ColorText as CT
+import Unison.Util.AnnotatedText qualified as AT
+import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.SyntaxText as ST
+import Unison.Util.SyntaxText qualified as ST
 import Prelude hiding (lines, map)
 
 newtype Width = Width {widthToInt :: Int}
@@ -187,7 +189,7 @@ data F s r
   | Append (Seq r)
   deriving (Eq, Show, Foldable, Traversable, Functor)
 
-isEmpty :: Eq s => IsString s => Pretty s -> Bool
+isEmpty :: (Eq s) => (IsString s) => Pretty s -> Bool
 isEmpty s = out s == Empty || out s == Lit ""
 
 mapLit :: (s -> t) -> F s r -> F t r
@@ -211,7 +213,7 @@ orElses :: [Pretty s] -> Pretty s
 orElses [] = mempty
 orElses ps = foldr1 orElse ps
 
-wrapImpl :: IsString s => [Pretty s] -> Pretty s
+wrapImpl :: (IsString s) => [Pretty s] -> Pretty s
 wrapImpl [] = mempty
 wrapImpl (p : ps) =
   wrap_ . Seq.fromList $
@@ -241,7 +243,7 @@ wrapString s = wrap (lit $ fromString s)
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
 paragraphyText = sep "\n" . fmap (wrapPreserveSpaces . text) . Text.splitOn "\n"
 
-wrap' :: IsString s => (s -> [Pretty s]) -> Pretty s -> Pretty s
+wrap' :: (IsString s) => (s -> [Pretty s]) -> Pretty s -> Pretty s
 wrap' wordify p = wrapImpl (toLeaves [p])
   where
     toLeaves [] = []
@@ -383,22 +385,22 @@ render availableWidth p = go mempty [Right p]
           SingleLine c -> SingleLine (min c (availableWidth - 1))
           MultiLine fc lc mc -> MultiLine fc lc (min mc (availableWidth - 1))
 
-newline :: IsString s => Pretty s
+newline :: (IsString s) => Pretty s
 newline = "\n"
 
-lineSkip :: IsString s => Pretty s
+lineSkip :: (IsString s) => Pretty s
 lineSkip = newline <> newline
 
-spaceIfNeeded :: Eq s => IsString s => Pretty s -> Pretty s -> Pretty s
+spaceIfNeeded :: (Eq s) => (IsString s) => Pretty s -> Pretty s -> Pretty s
 spaceIfNeeded a b = if isEmpty a then b else a <> " " <> b
 
-spaceIfBreak :: IsString s => Pretty s
+spaceIfBreak :: (IsString s) => Pretty s
 spaceIfBreak = "" `orElse` " "
 
-spacesIfBreak :: IsString s => Int -> Pretty s
+spacesIfBreak :: (IsString s) => Int -> Pretty s
 spacesIfBreak n = "" `orElse` fromString (replicate n ' ')
 
-softbreak :: IsString s => Pretty s
+softbreak :: (IsString s) => Pretty s
 softbreak = " " `orElse` newline
 
 spaced :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
@@ -460,12 +462,12 @@ sepNonEmpty :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sepNonEmpty between ps = sep between (nonEmpty ps)
 
 -- if list is too long, adds `... 22 more` to the end
-excerptSep :: IsString s => Maybe Int -> Pretty s -> [Pretty s] -> Pretty s
+excerptSep :: (IsString s) => Maybe Int -> Pretty s -> [Pretty s] -> Pretty s
 excerptSep maxCount =
   excerptSep' maxCount (\i -> group ("... " <> shown i <> " more"))
 
 excerptSep' ::
-  IsString s =>
+  (IsString s) =>
   Maybe Int ->
   (Int -> Pretty s) ->
   Pretty s ->
@@ -474,7 +476,7 @@ excerptSep' ::
 excerptSep' maxCount summarize s ps = case maxCount of
   Just max
     | length ps > max ->
-      sep s (take max ps) <> summarize (length ps - max)
+        sep s (take max ps) <> summarize (length ps - max)
   _ -> sep s ps
 
 nonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> [Pretty s]
@@ -483,10 +485,10 @@ nonEmpty (toList -> l) = case l of
   h : t -> h : nonEmpty t
   [] -> []
 
-parenthesize :: IsString s => Pretty s -> Pretty s
+parenthesize :: (IsString s) => Pretty s -> Pretty s
 parenthesize p = group $ "(" <> p <> ")"
 
-parenthesizeIf :: IsString s => Bool -> Pretty s -> Pretty s
+parenthesizeIf :: (IsString s) => Bool -> Pretty s -> Pretty s
 parenthesizeIf False s = s
 parenthesizeIf True s = parenthesize s
 
@@ -564,10 +566,10 @@ numberedColumnNHeader headers rows =
    in columnNHeader ("" : headers) (zipWith (:) numbers rows)
 
 -- Opinionated `numbered` that uses bold numbers in front
-numberedList :: Foldable f => f (Pretty ColorText) -> Pretty ColorText
+numberedList :: (Foldable f) => f (Pretty ColorText) -> Pretty ColorText
 numberedList = numbered (\i -> hiBlack . fromString $ show i <> ".")
 
-leftPad, rightPad :: IsString s => Width -> Pretty s -> Pretty s
+leftPad, rightPad :: (IsString s) => Width -> Pretty s -> Pretty s
 leftPad n p =
   let rem = n - preferredWidth p
    in if rem > 0 then fromString (replicate (widthToInt rem) ' ') <> p else p
@@ -584,7 +586,7 @@ excerptColumn2Headed ::
 excerptColumn2Headed max hd cols = case max of
   Just max
     | len > max ->
-      lines [column2 (hd : take max cols), "... " <> shown (len - max) <> " more"]
+        lines [column2 (hd : take max cols), "... " <> shown (len - max) <> " more"]
   _ -> column2 (hd : cols)
   where
     len = length cols
@@ -771,17 +773,21 @@ align' rows = alignedRows
         | (col0, col1) <- rows
       ]
 
-text :: IsString s => Text -> Pretty s
+text :: (IsString s) => Text -> Pretty s
 text t = fromString (Text.unpack t)
 
 num :: (Show n, Num n, IsString s) => n -> Pretty s
 num n = fromString (show n)
 
-string :: IsString s => String -> Pretty s
+string :: (IsString s) => String -> Pretty s
 string = fromString
 
 shown :: (Show a, IsString s) => a -> Pretty s
 shown = fromString . show
+
+-- | Like 'shown', but uses a pretty layout (so long as the Show instance is derived).
+pshown :: (Show a, IsString s) => a -> Pretty s
+pshown = text . Text.Lazy.toStrict . pShow
 
 -- `softHang foo bar` will attempt to put the first line of `bar` right after
 -- `foo` on the same line, but will behave like `hang foo bar` if there's not
@@ -912,7 +918,7 @@ indentAfterNewline by = flatMap f
           -- or other extra info attached to the original `s`
             lit (LL.take (LL.length hd) s0) <> "\n" <> by <> f (LL.drop 1 s)
 
-instance IsString s => IsString (Pretty s) where
+instance (IsString s) => IsString (Pretty s) where
   fromString s = lit' (foldMap chDelta s) (fromString s)
 
 instance Semigroup (Pretty s) where
@@ -1022,7 +1028,7 @@ background f p =
     _ -> p
 
 plural ::
-  Foldable f =>
+  (Foldable f) =>
   f a ->
   Pretty ColorText ->
   Pretty ColorText
@@ -1068,7 +1074,7 @@ type BoxStyle s =
     (Pretty s, Pretty s) -- singleton
   )
 
-lBoxStyle1, lBoxStyle2, rBoxStyle2 :: IsString s => BoxStyle s
+lBoxStyle1, lBoxStyle2, rBoxStyle2 :: (IsString s) => BoxStyle s
 lBoxStyle1 =
   ( ("┌ ", "│ "), -- first
     ("├ ", "│ "), -- middle
@@ -1143,23 +1149,23 @@ fatalCallout = callout "❗️"
 okCallout = callout "✅"
 blockedCallout = callout "🚫"
 
-backticked :: IsString s => Pretty s -> Pretty s
+backticked :: (IsString s) => Pretty s -> Pretty s
 backticked p = group ("`" <> p <> "`")
 
 -- | Attach some punctuation after the closing backtick.
-backticked' :: IsString s => Pretty s -> Pretty s -> Pretty s
+backticked' :: (IsString s) => Pretty s -> Pretty s -> Pretty s
 backticked' p end = group ("`" <> p <> "`" <> end)
 
-singleQuoted :: IsString s => Pretty s -> Pretty s
+singleQuoted :: (IsString s) => Pretty s -> Pretty s
 singleQuoted p = "'" <> p <> "'"
 
-singleQuoted' :: IsString s => Pretty s -> Pretty s -> Pretty s
+singleQuoted' :: (IsString s) => Pretty s -> Pretty s -> Pretty s
 singleQuoted' p end = "'" <> p <> "'" <> end
 
-instance Show s => Show (Pretty s) where
+instance (Show s) => Show (Pretty s) where
   show p = render 80 (metaPretty p)
 
-metaPretty :: Show s => Pretty s -> Pretty String
+metaPretty :: (Show s) => Pretty s -> Pretty String
 metaPretty = go (0 :: Int)
   where
     go prec p = case out p of
@@ -1175,7 +1181,7 @@ metaPretty = go (0 :: Int)
           "OrElse" `hang` spaced [go 1 a, go 1 b]
       Append s -> surroundCommas "[" "]" (go 1 <$> s)
 
-map :: LL.ListLike s2 Char => (s -> s2) -> Pretty s -> Pretty s2
+map :: (LL.ListLike s2 Char) => (s -> s2) -> Pretty s -> Pretty s2
 map f p = case out p of
   Append ps -> foldMap (map f) ps
   Empty -> mempty

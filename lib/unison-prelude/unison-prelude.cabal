@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -17,21 +17,29 @@ source-repository head
 
 library
   exposed-modules:
+      U.Util.Text
       Unison.Debug
       Unison.Prelude
+      Unison.Util.Alternative
+      Unison.Util.Lens
+      Unison.Util.List
       Unison.Util.Map
       Unison.Util.Monoid
       Unison.Util.Set
+      Unison.Util.Timing
   hs-source-dirs:
       src
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
+      ConstraintKinds
       DeriveFunctor
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
@@ -50,8 +58,10 @@ library
     , pretty-simple
     , safe
     , text
+    , time
     , transformers
     , unliftio
     , vector
+    , witch
     , witherable
   default-language: Haskell2010

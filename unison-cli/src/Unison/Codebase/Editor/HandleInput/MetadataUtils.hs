@@ -7,34 +7,34 @@ where
 
 import Control.Lens
 import Control.Monad.Reader (ask)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.UnisonConfigUtils (defaultMetadataKey)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
+import Unison.Codebase.Editor.Output.BranchDiff qualified as OBranchDiff
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
-import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import qualified Unison.Codebase.Metadata as Metadata
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.CommandLine.InputPatterns as InputPatterns
-import qualified Unison.HashQualified as HQ
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Codebase.Editor.SlurpComponent qualified as SC
+import Unison.Codebase.Metadata qualified as Metadata
+import Unison.Codebase.Path qualified as Path
+import Unison.CommandLine.InputPatterns qualified as InputPatterns
+import Unison.HashQualified qualified as HQ
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Syntax.Name as Name (unsafeFromVar)
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Set as Set
+import Unison.Referent qualified as Referent
+import Unison.Server.Backend qualified as Backend
+import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Relation qualified as R
+import Unison.Util.Set qualified as Set
 
 -- Add default metadata to all added types and terms in a slurp component.
 --
@@ -78,7 +78,7 @@ manageLinks ::
   [Path.HQSplit'] ->
   [HQ.HashQualified Name] ->
   ( forall r.
-    Ord r =>
+    (Ord r) =>
     (r, Metadata.Type, Metadata.Value) ->
     Branch.Star r NameSegment ->
     Branch.Star r NameSegment

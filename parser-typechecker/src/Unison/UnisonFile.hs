@@ -34,29 +34,28 @@ module Unison.UnisonFile
 where
 
 import Control.Lens
-import Data.Bifunctor (first, second)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin.Decls as DD
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
+import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.DataDeclaration qualified as DD
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.TypeLookup as TL
+import Unison.Type qualified as Type
+import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), pattern TypecheckedUnisonFile, pattern UnisonFile)
-import qualified Unison.Util.List as List
+import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind, pattern TestWatch)
 
@@ -99,7 +98,7 @@ hashTerms = fmap (over _1 Reference.DerivedId) . hashTermsId
 
 typecheckedUnisonFile ::
   forall v a.
-  Var v =>
+  (Var v) =>
   Map v (Reference.Id, DataDeclaration v a) ->
   Map v (Reference.Id, EffectDeclaration v a) ->
   [[(v, Term v a, Type v a)]] ->
@@ -128,7 +127,7 @@ typecheckedUnisonFile datas effects tlcs watches =
             ]
 
 lookupDecl ::
-  Ord v =>
+  (Ord v) =>
   v ->
   TypecheckedUnisonFile v a ->
   Maybe (Reference.Id, DD.Decl v a)
@@ -153,7 +152,7 @@ indexByReference uf = (tms, tys)
 -- The returned terms refer to other definitions in the file by their
 -- var, not by reference.
 -- Includes test watches.
-allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (Term v a)
+allTerms :: (Ord v) => TypecheckedUnisonFile v a -> Map v (Term v a)
 allTerms uf =
   Map.fromList [(v, t) | (v, t, _) <- join $ topLevelComponents uf]
 
@@ -166,7 +165,7 @@ topLevelComponents file =
 
 -- External type references that appear in the types of the file's terms
 termSignatureExternalLabeledDependencies ::
-  Ord v => TypecheckedUnisonFile v a -> Set LabeledDependency
+  (Ord v) => TypecheckedUnisonFile v a -> Set LabeledDependency
 termSignatureExternalLabeledDependencies
   (TypecheckedUnisonFile dataDeclarations' effectDeclarations' _ _ hashTerms) =
     Set.difference
@@ -197,7 +196,7 @@ discardTypes (TypecheckedUnisonFileId datas effects terms watches _) =
       g tup3s = [(v, e) | (v, e, _t) <- tup3s]
    in UnisonFileId datas effects [(a, b) | (a, b, _) <- join terms] watches'
 
-declsToTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
+declsToTypeLookup :: (Var v) => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf =
   TL.TypeLookup
     mempty
@@ -215,7 +214,7 @@ nonEmpty uf =
     || any (not . null) (watchComponents uf)
 
 hashConstructors ::
-  forall v a. Ord v => TypecheckedUnisonFile v a -> Map v Referent.Id
+  forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v Referent.Id
 hashConstructors file =
   let ctors1 =
         Map.elems (dataDeclarationsId' file) >>= \(ref, dd) ->
@@ -226,7 +225,7 @@ hashConstructors file =
    in Map.fromList (ctors1 ++ ctors2)
 
 -- | Returns the set of constructor names for decls whose names in the given Set.
-constructorsForDecls :: Ord v => Set v -> TypecheckedUnisonFile v a -> Set v
+constructorsForDecls :: (Ord v) => Set v -> TypecheckedUnisonFile v a -> Set v
 constructorsForDecls types uf =
   let dataConstructors =
         dataDeclarationsId' uf

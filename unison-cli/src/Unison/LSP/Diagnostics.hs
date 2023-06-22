@@ -5,7 +5,7 @@ import Unison.LSP.Types
 import Unison.Prelude
 
 reportDiagnostics ::
-  Foldable f =>
+  (Foldable f) =>
   Uri ->
   Maybe FileVersion ->
   -- | Note, it's important to still send an empty list of diagnostics if there aren't any

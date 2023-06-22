@@ -4,51 +4,56 @@ module Unison.CommandLine.Main
 where
 
 import Compat (withInterruptHandler)
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Control.Exception (catch, finally, mask)
-import Control.Lens ((?~), (^.))
+import Control.Lens (preview, (?~), (^.))
 import Control.Monad.Catch (MonadMask)
-import qualified Crypto.Random as Random
+import Crypto.Random qualified as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy.IO as Text.Lazy
-import qualified Ki
-import qualified System.Console.Haskeline as Line
-import System.IO (hPutStrLn, stderr)
+import Data.Text qualified as Text
+import Data.Text.Lazy.IO qualified as Text.Lazy
+import Ki qualified
+import System.Console.Haskeline qualified as Line
+import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
 import Text.Pretty.Simple (pShow)
-import qualified U.Codebase.Sqlite.Operations as Operations
+import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (newCredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
-import qualified Unison.Auth.HTTPClient as AuthN
-import qualified Unison.Auth.Tokens as AuthN
-import qualified Unison.Cli.Monad as Cli
+import Unison.Auth.HTTPClient qualified as AuthN
+import Unison.Auth.Tokens qualified as AuthN
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.Pretty (prettyProjectAndBranchName)
+import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Editor.HandleInput as HandleInput
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Runtime
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Runtime
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
-import qualified Unison.CommandLine.InputPatterns as IP
+import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
-import qualified Unison.CommandLine.Welcome as Welcome
+import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
-import qualified Unison.Server.CodebaseServer as Server
+import Unison.Project (ProjectAndBranch (..))
+import Unison.Runtime.IOSource qualified as IOSource
+import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.TQueue as Q
-import qualified UnliftIO
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Util.Pretty qualified as P
+import Unison.Util.TQueue qualified as Q
+import UnliftIO qualified
 import UnliftIO.STM
 
 getUserInput ::
@@ -75,9 +80,24 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
         Just a -> pure a
     go :: Line.InputT m Input
     go = do
-      line <-
-        Line.getInputLine $
-          P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
+      promptString <-
+        case preview projectBranchPathPrism currentPath of
+          Nothing -> pure ((P.green . P.shown) currentPath)
+          Just (ProjectAndBranch projectId branchId, restPath) -> do
+            lift (Codebase.runTransaction codebase (Queries.loadProjectAndBranchNames projectId branchId)) <&> \case
+              -- If the project branch has been deleted from sqlite, just show a borked prompt
+              Nothing -> P.red "???"
+              Just (projectName, branchName) ->
+                P.sep
+                  " "
+                  ( catMaybes
+                      [ Just (prettyProjectAndBranchName (ProjectAndBranch projectName branchName)),
+                        case restPath of
+                          Path.Empty -> Nothing
+                          _ -> (Just . P.green . P.shown) restPath
+                      ]
+                  )
+      line <- Line.getInputLine (P.toANSI 80 (promptString <> fromString prompt))
       case line of
         Nothing -> pure QuitI
         Just l -> case words l of
@@ -116,10 +136,12 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
       -- Try putting the root, but if someone else as already written over the root, don't
       -- overwrite it.
       void $ tryPutTMVar rootVar root
-    -- Start forcing the thunk in a background thread.
+    -- Start forcing thunks in a background thread.
     -- This might be overly aggressive, maybe we should just evaluate the top level but avoid
     -- recursive "deep*" things.
-    void $ UnliftIO.evaluate root
+    UnliftIO.concurrently_
+      (UnliftIO.evaluate root)
+      (UnliftIO.evaluate IOSource.typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
   let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
   Ki.fork_ scope $ do
     let loop lastRoot = do
@@ -143,8 +165,12 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
   credentialManager <- newCredentialManager
   let tokenProvider = AuthN.newTokenProvider credentialManager
   authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
+  initialEcho <- hGetEcho stdin
+  let restoreEcho = (\currentEcho -> when (currentEcho /= initialEcho) $ hSetEcho stdin initialEcho)
   let getInput :: Cli.LoopState -> IO Input
       getInput loopState = do
+        currentEcho <- hGetEcho stdin
+        liftIO $ restoreEcho currentEcho
         getUserInput
           codebase
           authHTTPClient

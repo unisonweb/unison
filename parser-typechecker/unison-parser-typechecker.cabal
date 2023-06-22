@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -16,6 +16,10 @@ build-type:     Simple
 source-repository head
   type: git
   location: https://github.com/unisonweb/unison
+
+flag arraychecks
+  manual: True
+  default: False
 
 flag optimized
   manual: True
@@ -71,13 +75,13 @@ library
       Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
@@ -92,6 +96,22 @@ library
       Unison.FileParsers
       Unison.Hashing.V2.Convert
       Unison.Parsers
+      Unison.PatternMatchCoverage
+      Unison.PatternMatchCoverage.Class
+      Unison.PatternMatchCoverage.Constraint
+      Unison.PatternMatchCoverage.Desugar
+      Unison.PatternMatchCoverage.EffectHandler
+      Unison.PatternMatchCoverage.Fix
+      Unison.PatternMatchCoverage.GrdTree
+      Unison.PatternMatchCoverage.IntervalSet
+      Unison.PatternMatchCoverage.ListPat
+      Unison.PatternMatchCoverage.Literal
+      Unison.PatternMatchCoverage.NormalizedConstraints
+      Unison.PatternMatchCoverage.PmGrd
+      Unison.PatternMatchCoverage.PmLit
+      Unison.PatternMatchCoverage.Pretty
+      Unison.PatternMatchCoverage.Solve
+      Unison.PatternMatchCoverage.UFMap
       Unison.PrettyPrintEnv
       Unison.PrettyPrintEnv.FQN
       Unison.PrettyPrintEnv.MonadPretty
@@ -99,10 +119,12 @@ library
       Unison.PrettyPrintEnv.Util
       Unison.PrettyPrintEnvDecl
       Unison.PrettyPrintEnvDecl.Names
+      Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
       Unison.Result
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Serialize
+      Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
@@ -147,6 +169,7 @@ library
       Unison.Util.Logger
       Unison.Util.PinBoard
       Unison.Util.Pretty.MegaParsec
+      Unison.Util.RefPromise
       Unison.Util.Star3
       Unison.Util.Text
       Unison.Util.Text.Pattern
@@ -169,6 +192,7 @@ library
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -188,6 +212,7 @@ library
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring
@@ -232,6 +257,7 @@ library
     , mmorph
     , monad-validate
     , mtl
+    , murmur-hash
     , mutable-containers
     , mwc-random
     , natural-transformation
@@ -263,7 +289,7 @@ library
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these
@@ -277,14 +303,15 @@ library
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-hashing-v2
     , unison-prelude
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-bytes
+    , unison-util-cache
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -299,9 +326,11 @@ library
     , x509-system
     , yaml
     , zlib
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
 
 test-suite parser-typechecker-tests
   type: exitcode-stdio-1.0
@@ -310,7 +339,6 @@ test-suite parser-typechecker-tests
       Unison.Core.Test.Name
       Unison.Test.ABT
       Unison.Test.ANF
-      Unison.Test.Cache
       Unison.Test.Codebase.Branch
       Unison.Test.Codebase.Causal
       Unison.Test.Codebase.Path
@@ -352,6 +380,7 @@ test-suite parser-typechecker-tests
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -371,6 +400,7 @@ test-suite parser-typechecker-tests
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring
@@ -418,6 +448,7 @@ test-suite parser-typechecker-tests
     , mmorph
     , monad-validate
     , mtl
+    , murmur-hash
     , mutable-containers
     , mwc-random
     , natural-transformation
@@ -450,7 +481,7 @@ test-suite parser-typechecker-tests
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these
@@ -464,15 +495,16 @@ test-suite parser-typechecker-tests
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
-    , unison-util
     , unison-util-base32hex
     , unison-util-bytes
+    , unison-util-cache
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -487,6 +519,8 @@ test-suite parser-typechecker-tests
     , x509-system
     , yaml
     , zlib
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK

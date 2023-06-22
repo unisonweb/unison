@@ -1,44 +1,44 @@
 module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclHeader, prettyDeclOrBuiltinHeader) where
 
 import Data.List (isPrefixOf)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration
   ( DataDeclaration,
     EffectDeclaration,
     toDataDecl,
   )
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.HashQualified as HQ
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.DataDeclaration qualified as DD
+import Unison.HashQualified qualified as HQ
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.Reference (Reference (DerivedId))
-import qualified Unison.Referent as Referent
-import qualified Unison.Result as Result
-import qualified Unison.Syntax.HashQualified as HQ (toString, toVar, unsafeFromString)
+import Unison.Referent qualified as Referent
+import Unison.Result qualified as Result
+import Unison.Syntax.HashQualified qualified as HQ (toString, toVar, unsafeFromString)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.TypePrinter (runPretty)
-import qualified Unison.Syntax.TypePrinter as TypePrinter
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker as Typechecker
+import Unison.Syntax.TypePrinter qualified as TypePrinter
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
-import qualified Unison.Typechecker.TypeLookup as TypeLookup
+import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.Util.Pretty (Pretty)
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.SyntaxText as S
+import Unison.Util.Pretty qualified as P
+import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type SyntaxText = S.SyntaxText' Reference
 
 prettyDecl ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnvDecl ->
   Reference ->
   HQ.HashQualified Name ->
@@ -49,7 +49,7 @@ prettyDecl ppe r hq d = case d of
   Right dd -> prettyDataDecl ppe r hq dd
 
 prettyEffectDecl ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   Reference ->
   HQ.HashQualified Name ->
@@ -58,7 +58,7 @@ prettyEffectDecl ::
 prettyEffectDecl ppe r name = prettyGADT ppe CT.Effect r name . toDataDecl
 
 prettyGADT ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   CT.ConstructorType ->
   Reference ->
@@ -97,7 +97,7 @@ prettyPattern env ctorType namespace ref =
     conRef = Referent.Con ref ctorType
 
 prettyDataDecl ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnvDecl ->
   Reference ->
   HQ.HashQualified Name ->
@@ -128,7 +128,8 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
     field (fname, typ) =
       P.group $
         styleHashQualified'' (fmt (S.TypeReference r)) fname
-          <> fmt S.TypeAscriptionColon " :" `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
+          <> fmt S.TypeAscriptionColon " :"
+          `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
     header = prettyDataHeader name dd <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
 
 -- Comes up with field names for a data declaration which has the form of a
@@ -146,7 +147,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
 -- the expected record naming convention.
 fieldNames ::
   forall v a.
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   Reference ->
   HQ.HashQualified Name ->
@@ -176,7 +177,7 @@ fieldNames env r name dd = do
           }
   accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
     for accessors \(v, trm) ->
-      case Result.result (Typechecker.synthesize typecheckingEnv trm) of
+      case Result.result (Typechecker.synthesize env typecheckingEnv trm) of
         Nothing -> Nothing
         Just typ -> Just (v, trm, typ)
   let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ))) $ accessorsWithTypes)
@@ -205,7 +206,7 @@ prettyModifier (DD.Unique _uid) =
   fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
 
 prettyDataHeader ::
-  Var v => HQ.HashQualified Name -> DD.DataDeclaration v a -> Pretty SyntaxText
+  (Var v) => HQ.HashQualified Name -> DD.DataDeclaration v a -> Pretty SyntaxText
 prettyDataHeader name dd =
   P.sepNonEmpty
     " "
@@ -216,7 +217,7 @@ prettyDataHeader name dd =
     ]
 
 prettyEffectHeader ::
-  Var v =>
+  (Var v) =>
   HQ.HashQualified Name ->
   DD.EffectDeclaration v a ->
   Pretty SyntaxText
@@ -232,7 +233,7 @@ prettyEffectHeader name ed =
     ]
 
 prettyDeclHeader ::
-  Var v =>
+  (Var v) =>
   HQ.HashQualified Name ->
   Either (DD.EffectDeclaration v a) (DD.DataDeclaration v a) ->
   Pretty SyntaxText
@@ -240,7 +241,7 @@ prettyDeclHeader name (Left e) = prettyEffectHeader name e
 prettyDeclHeader name (Right d) = prettyDataHeader name d
 
 prettyDeclOrBuiltinHeader ::
-  Var v =>
+  (Var v) =>
   HQ.HashQualified Name ->
   DD.DeclOrBuiltin v a ->
   Pretty SyntaxText

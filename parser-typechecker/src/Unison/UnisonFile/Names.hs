@@ -1,35 +1,34 @@
 module Unison.UnisonFile.Names where
 
-import Data.Bifunctor (second)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.DataDeclaration.Names as DD.Names
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.Names qualified as DD.Names
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Names (Names (Names))
-import qualified Unison.Names.ResolutionResult as Names
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Syntax.Name as Name (unsafeFromVar)
-import qualified Unison.Term as Term
-import qualified Unison.UnisonFile as UF
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Term qualified as Term
+import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Env (Env (..))
 import Unison.UnisonFile.Error (Error (DupDataAndAbility, UnknownType))
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
-import qualified Unison.Util.Relation as Relation
+import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
-toNames :: Var v => UnisonFile v a -> Names
+toNames :: (Var v) => UnisonFile v a -> Names
 toNames uf = datas <> effects
   where
     datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeFromVar) (Map.toList (UF.dataDeclarationsId uf))
     effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeFromVar) (Map.toList (UF.effectDeclarationsId uf))
 
-typecheckedToNames :: Var v => TypecheckedUnisonFile v a -> Names
+typecheckedToNames :: (Var v) => TypecheckedUnisonFile v a -> Names
 typecheckedToNames uf = Names (terms <> ctors) types
   where
     terms =
@@ -53,7 +52,7 @@ typecheckedToNames uf = Names (terms <> ctors) types
         . UF.hashConstructors
         $ uf
 
-typecheckedUnisonFile0 :: Ord v => TypecheckedUnisonFile v a
+typecheckedUnisonFile0 :: (Ord v) => TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFileId Map.empty Map.empty mempty mempty mempty
 
 -- Substitutes free type and term variables occurring in the terms of this
@@ -65,7 +64,7 @@ typecheckedUnisonFile0 = TypecheckedUnisonFileId Map.empty Map.empty mempty memp
 -- we are done parsing, whereas `math.sqrt#abc` can be resolved immediately
 -- as it can't refer to a local definition.
 bindNames ::
-  Var v =>
+  (Var v) =>
   Names ->
   UnisonFile v a ->
   Names.ResolutionResult v a (UnisonFile v a)
@@ -88,7 +87,7 @@ bindNames names (UnisonFileId d e ts ws) = do
 -- left.
 environmentFor ::
   forall v a.
-  Var v =>
+  (Var v) =>
   Names ->
   Map v (DataDeclaration v a) ->
   Map v (EffectDeclaration v a) ->

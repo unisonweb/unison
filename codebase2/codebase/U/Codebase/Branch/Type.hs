@@ -8,8 +8,6 @@ module U.Codebase.Branch.Type
     MetadataType,
     MetadataValue,
     MdValues (..),
-    NameSegment (..),
-    CausalHash,
     NamespaceStats (..),
     hasDefinitions,
     childAt,
@@ -21,17 +19,16 @@ module U.Codebase.Branch.Type
   )
 where
 
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import U.Codebase.Causal (Causal)
-import qualified U.Codebase.Causal as Causal
+import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash, CausalHash, PatchHash)
 import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
 import U.Codebase.TermEdit (TermEdit)
 import U.Codebase.TypeEdit (TypeEdit)
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-
-newtype NameSegment = NameSegment {unNameSegment :: Text} deriving (Eq, Ord, Show)
 
 type MetadataType = Reference
 
@@ -60,7 +57,8 @@ data Patch = Patch
 
 instance Show (Branch m) where
   show b =
-    "Branch { terms = " ++ show (fmap Map.keys (terms b))
+    "Branch { terms = "
+      ++ show (fmap Map.keys (terms b))
       ++ ", types = "
       ++ show (fmap Map.keys (types b))
       ++ ", patches = "
@@ -93,7 +91,7 @@ hasDefinitions (NamespaceStats numTerms numTypes _numPatches) =
 childAt :: NameSegment -> Branch m -> Maybe (CausalBranch m)
 childAt ns (Branch {children}) = Map.lookup ns children
 
-hoist :: Functor n => (forall x. m x -> n x) -> Branch m -> Branch n
+hoist :: (Functor n) => (forall x. m x -> n x) -> Branch m -> Branch n
 hoist f Branch {..} =
   Branch
     { terms = (fmap . fmap) f terms,
@@ -103,7 +101,7 @@ hoist f Branch {..} =
         fmap (fmap (hoist f) . Causal.hoist f) children
     }
 
-hoistCausalBranch :: Functor n => (forall x. m x -> n x) -> CausalBranch m -> CausalBranch n
+hoistCausalBranch :: (Functor n) => (forall x. m x -> n x) -> CausalBranch m -> CausalBranch n
 hoistCausalBranch f cb =
   cb
     & Causal.hoist f
@@ -113,14 +111,14 @@ hoistCausalBranch f cb =
 -- provided branch.
 --
 -- If only name is specified, metadata will be returned for all terms at that name.
-termMetadata :: Monad m => Branch m -> NameSegment -> Maybe Referent -> m [Map MetadataValue MetadataType]
+termMetadata :: (Monad m) => Branch m -> NameSegment -> Maybe Referent -> m [Map MetadataValue MetadataType]
 termMetadata Branch {terms} = metadataHelper terms
 
 -- | Returns all the metadata value references that are attached to a type with the provided name in the
 -- provided branch.
 --
 -- If only name is specified, metadata will be returned for all types at that name.
-typeMetadata :: Monad m => Branch m -> NameSegment -> Maybe Reference -> m [Map MetadataValue MetadataType]
+typeMetadata :: (Monad m) => Branch m -> NameSegment -> Maybe Reference -> m [Map MetadataValue MetadataType]
 typeMetadata Branch {types} = metadataHelper types
 
 metadataHelper :: (Monad m, Ord ref) => Map NameSegment (Map ref (m MdValues)) -> NameSegment -> Maybe ref -> m [Map MetadataValue MetadataType]

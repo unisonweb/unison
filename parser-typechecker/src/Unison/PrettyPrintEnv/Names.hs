@@ -2,17 +2,16 @@
 
 module Unison.PrettyPrintEnv.Names (fromNames, fromSuffixNames) where
 
-import Data.Bifunctor (second)
-import qualified Data.Set as Set
-import qualified Unison.HashQualified' as HQ'
+import Data.Set qualified as Set
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
+import Unison.Name qualified as Name
+import Unison.Names qualified as Names
 import Unison.NamesWithHistory (NamesWithHistory)
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
-import qualified Unison.Util.Relation as Rel
+import Unison.Util.Relation qualified as Rel
 
 fromNames :: Int -> NamesWithHistory -> PrettyPrintEnv
 fromNames len names = PrettyPrintEnv terms' types'
@@ -58,5 +57,5 @@ fromSuffixNames len names = PrettyPrintEnv terms' types'
 
 -- | Reduce the provided names to their minimal unique suffix within the scope of the given
 -- relation.
-shortestUniqueSuffixes :: Ord ref => ref -> Rel.Relation Name ref -> [(a, HQ'.HashQualified Name)] -> [(a, HQ'.HashQualified Name)]
+shortestUniqueSuffixes :: (Ord ref) => ref -> Rel.Relation Name ref -> [(a, HQ'.HashQualified Name)] -> [(a, HQ'.HashQualified Name)]
 shortestUniqueSuffixes ref rel names = names <&> second (fmap (\name -> Name.shortestUniqueSuffix name ref rel))

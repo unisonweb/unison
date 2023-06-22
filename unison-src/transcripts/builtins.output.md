@@ -7,6 +7,9 @@ This transcript defines unit tests for builtin functions. There's a single `.> t
 ```unison
 use Int
 
+-- used for some take/drop tests later
+bigN = Nat.shiftLeft 1 63
+
 -- Note: you can make the tests more fine-grained if you
 -- want to be able to tell which one is failing
 test> Int.tests.arithmetic =
@@ -71,6 +74,8 @@ test> Int.tests.conversions =
         fromText "+0" == Some +0,
         fromText "a8f9djasdlfkj" == None,
         fromText "3940" == Some +3940,
+        fromText "1000000000000000000000000000" == None,
+        fromText "-1000000000000000000000000000" == None,
         toFloat +9394 == 9394.0,
         toFloat -20349 == -20349.0
         ]
@@ -136,6 +141,8 @@ test> Nat.tests.conversions =
         toText 10 == "10",
         fromText "ooga" == None,
         fromText "90" == Some 90,
+        fromText "-1" == None,
+        fromText "100000000000000000000000000" == None,
         unsnoc "abc" == Some ("ab", ?c),
         uncons "abc" == Some (?a, "bc"),
         unsnoc "" == None,
@@ -179,7 +186,9 @@ test> Text.tests.takeDropAppend =
         Text.take 99 "yabba" == "yabba",
         Text.drop 0 "yabba" == "yabba",
         Text.drop 2 "yabba" == "bba",
-        Text.drop 99 "yabba" == ""
+        Text.drop 99 "yabba" == "",
+        Text.take bigN "yabba" == "yabba",
+        Text.drop bigN "yabba" == ""
         ]
 
 test> Text.tests.repeat =
@@ -222,6 +231,40 @@ test> Text.tests.patterns =
     isMatch (join [l "abra", many (l "cadabra")]) "abracadabracadabra" == true,
 
   ]
+
+
+test> Text.tests.indexOf =
+   haystack = "01020304" ++ "05060708" ++ "090a0b0c01"
+   needle1 = "01"
+   needle2 = "02"
+   needle3 = "0304"
+   needle4 = "05"
+   needle5 = "0405"
+   needle6 = "0c"
+   needle7 = haystack
+   needle8 = "lopez"
+   needle9 = ""
+   checks [
+     Text.indexOf needle1 haystack == Some 0,
+     Text.indexOf needle2 haystack == Some 2,
+     Text.indexOf needle3 haystack == Some 4,
+     Text.indexOf needle4 haystack == Some 8,
+     Text.indexOf needle5 haystack == Some 6,
+     Text.indexOf needle6 haystack == Some 22,
+     Text.indexOf needle7 haystack == Some 0,
+     Text.indexOf needle8 haystack == None,
+     Text.indexOf needle9 haystack == Some 0,
+   ]
+   
+test> Text.tests.indexOfEmoji = 
+  haystack = "clap 👏 your 👏 hands 👏 if 👏 you 👏 love 👏 unison"
+  needle1 = "👏"
+  needle2 = "👏 "
+  checks [
+    Text.indexOf needle1 haystack == Some 5,
+    Text.indexOf needle2 haystack == Some 5,
+  ]
+
 ```
 
 ## `Bytes` functions
@@ -232,7 +275,9 @@ test> Bytes.tests.at =
         checks [
           Bytes.at 1 bs == Some 13,
           Bytes.at 0 bs == Some 77,
-          Bytes.at 99 bs == None
+          Bytes.at 99 bs == None,
+          Bytes.take bigN bs == bs,
+          Bytes.drop bigN bs == empty
         ]
 
 test> Bytes.tests.compression =
@@ -258,6 +303,28 @@ test> Bytes.tests.fromBase64UrlUnpadded =
               (raiseMessage () (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ")))) == Right "hello world"
          , isLeft (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ="))]
 
+test> Bytes.tests.indexOf =
+   haystack = 0xs01020304 ++ 0xs05060708 ++ 0xs090a0b0c01
+   needle1 = 0xs01
+   needle2 = 0xs02
+   needle3 = 0xs0304
+   needle4 = 0xs05
+   needle5 = 0xs0405
+   needle6 = 0xs0c
+   needle7 = haystack
+   needle8 = 0xsffffff
+   checks [
+     Bytes.indexOf needle1 haystack == Some 0,
+     Bytes.indexOf needle2 haystack == Some 1,
+     Bytes.indexOf needle3 haystack == Some 2,
+     Bytes.indexOf needle4 haystack == Some 4,
+     Bytes.indexOf needle5 haystack == Some 3,
+     Bytes.indexOf needle6 haystack == Some 11,
+     Bytes.indexOf needle7 haystack == Some 0,
+     Bytes.indexOf needle8 haystack == None,
+
+   ]
+
 ```
 
 ## `List` comparison
@@ -272,6 +339,14 @@ test> checks [
         compare [1,2,3] [1,2,4] == -1,
         compare [1,2,2] [1,2,1,2] == +1,
         compare [1,2,3,4] [3,2,1] == -1
+      ]
+```
+
+Other list functions
+```unison
+test> checks [
+        List.take bigN [1,2,3] == [1,2,3],
+        List.drop bigN [1,2,3] == []
       ]
 ```
 
@@ -360,6 +435,37 @@ openFile]
     ✅ Passed Passed
 
 ```
+## Universal hash functions
+
+Just exercises the function
+
+```unison
+> Universal.murmurHash 1
+test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      Universal.murmurHash.tests : [Result]
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    1 | > Universal.murmurHash 1
+          ⧩
+          5006114823290027883
+  
+    2 | test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
+    
+    ✅ Passed Passed
+
+```
 ## Run the tests
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
@@ -377,6 +483,7 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Bytes.tests.at                      Passed
   ◉ Bytes.tests.compression             Passed
   ◉ Bytes.tests.fromBase64UrlUnpadded   Passed
+  ◉ Bytes.tests.indexOf                 Passed
   ◉ Int.tests.arithmetic                Passed
   ◉ Int.tests.bitTwiddling              Passed
   ◉ Int.tests.conversions               Passed
@@ -388,12 +495,15 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Sandbox.test3                       Passed
   ◉ test.rtjqan7bcs                     Passed
   ◉ Text.tests.alignment                Passed
+  ◉ Text.tests.indexOf                  Passed
+  ◉ Text.tests.indexOfEmoji             Passed
   ◉ Text.tests.literalsEq               Passed
   ◉ Text.tests.patterns                 Passed
   ◉ Text.tests.repeat                   Passed
   ◉ Text.tests.takeDropAppend           Passed
+  ◉ Universal.murmurHash.tests          Passed
   
-  ✅ 23 test(s) passing
+  ✅ 27 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 

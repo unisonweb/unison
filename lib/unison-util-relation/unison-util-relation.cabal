@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -30,6 +30,7 @@ library
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -59,6 +60,7 @@ test-suite util-relation-tests
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -92,6 +94,7 @@ benchmark relation
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns

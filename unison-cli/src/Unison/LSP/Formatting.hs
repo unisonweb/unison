@@ -3,34 +3,34 @@
 module Unison.LSP.Formatting where
 
 import Control.Lens hiding (List)
-import qualified Data.List as List
-import qualified Data.List.NonEmpty.Extra as NEL
-import qualified Data.Map as Map
-import qualified Data.Text as Text
+import Data.List qualified as List
+import Data.List.NonEmpty.Extra qualified as NEL
+import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Language.LSP.Types hiding (line)
 import Language.LSP.Types.Lens hiding (id, to)
-import qualified Unison.ABT as ABT
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.DataDeclaration as Decl
-import qualified Unison.HashQualified as HQ
+import Unison.ABT qualified as ABT
+import Unison.Codebase.Path qualified as Path
+import Unison.DataDeclaration qualified as Decl
+import Unison.HashQualified qualified as HQ
 import Unison.LSP.Conversions (annToRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis, ppedForFile)
 import Unison.LSP.Types
-import qualified Unison.Lexer.Pos as L
-import qualified Unison.Name as Name
-import qualified Unison.Parser.Ann as Ann
+import Unison.Lexer.Pos qualified as L
+import Unison.Name qualified as Name
+import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.Reference as Reference
-import qualified Unison.Symbol as Symbol
-import qualified Unison.Syntax.DeclPrinter as DeclPrinter
-import qualified Unison.Syntax.Name as Name
-import qualified Unison.Syntax.TermPrinter as TermPrinter
-import qualified Unison.Term as Term
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Var as Var
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Reference qualified as Reference
+import Unison.Symbol qualified as Symbol
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Term qualified as Term
+import Unison.UnisonFile qualified as UF
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Var qualified as Var
 
 formatDocRequest :: RequestMessage 'TextDocumentFormatting -> (Either ResponseError (List TextEdit) -> Lsp ()) -> Lsp ()
 formatDocRequest m respond = do

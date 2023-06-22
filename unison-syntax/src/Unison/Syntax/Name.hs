@@ -15,18 +15,18 @@ module Unison.Syntax.Name
 where
 
 import Data.List.NonEmpty (pattern (:|))
-import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as Text.Lazy
-import qualified Data.Text.Lazy.Builder as Text (Builder)
-import qualified Data.Text.Lazy.Builder as Text.Builder
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as Text.Lazy
+import Data.Text.Lazy.Builder qualified as Text (Builder)
+import Data.Text.Lazy.Builder qualified as Text.Builder
 import Unison.Name.Internal (Name (Name))
 import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 instance IsString Name where
   fromString =
@@ -56,7 +56,7 @@ toText (Name pos (x0 :| xs)) =
       Relative -> ""
 
 -- | Convert a name to a string representation, then parse that as a var.
-toVar :: Var v => Name -> v
+toVar :: (Var v) => Name -> v
 toVar =
   Var.named . toText
 
@@ -103,13 +103,13 @@ unsafeFromString =
 --
 -- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
 -- no attempt at rejecting bogus names like "foo...bar...baz".
-unsafeFromText :: HasCallStack => Text -> Name
+unsafeFromText :: (HasCallStack) => Text -> Name
 unsafeFromText = either (error . Text.unpack) id . fromTextEither
 
 -- | Unsafely parse a name from a var, by first rendering the var as a string.
 --
 -- See 'unsafeFromText'.
-unsafeFromVar :: Var v => v -> Name
+unsafeFromVar :: (Var v) => v -> Name
 unsafeFromVar =
   unsafeFromText . Var.name
 

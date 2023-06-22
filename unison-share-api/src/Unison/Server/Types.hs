@@ -1,30 +1,25 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 module Unison.Server.Types where
 
 -- Types common to endpoints --
 import Control.Lens hiding ((.=))
 import Data.Aeson
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
-import qualified Data.ByteString.Lazy as LZ
-import qualified Data.Map as Map
+import Data.ByteString.Lazy qualified as LZ
+import Data.Map qualified as Map
 import Data.OpenApi
   ( OpenApiType (..),
     ToParamSchema (..),
     ToSchema (..),
   )
-import qualified Data.OpenApi.Lens as OpenApi
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as Text.Lazy
-import qualified Data.Text.Lazy.Encoding as Text
+import Data.OpenApi.Lens qualified as OpenApi
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as Text.Lazy
+import Data.Text.Lazy.Encoding qualified as Text
 import Servant.API
   ( Capture,
     FromHttpApiData (..),
@@ -36,27 +31,26 @@ import Servant.API
     addHeader,
   )
 import Servant.Docs (DocCapture (..), DocQueryParam (..), ParamKind (..), ToParam)
-import qualified Servant.Docs as Docs
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
-import qualified U.Codebase.HashTags as V2
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
+import Servant.Docs qualified as Docs
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
+import U.Codebase.HashTags
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
   )
-import qualified Unison.Hash as Hash
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.Hash qualified as Hash
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
 import Unison.ShortHash (ShortHash)
-import qualified Unison.Syntax.HashQualified as HQ (fromText)
+import Unison.Syntax.HashQualified qualified as HQ (fromText)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -136,17 +130,37 @@ deriving via Bool instance FromHttpApiData Suffixify
 deriving anyclass instance ToParamSchema Suffixify
 
 instance ToJSON TypeDefinition where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON TypeDefinition {..} =
+    object
+      [ "typeNames" .= typeNames,
+        "bestTypeName" .= bestTypeName,
+        "defnTypeTag" .= defnTypeTag,
+        "typeDefinition" .= typeDefinition,
+        "typeDocs" .= typeDocs
+      ]
 
 deriving instance ToSchema TypeDefinition
 
 instance ToJSON TermDefinition where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON TermDefinition {..} =
+    object
+      [ "termNames" .= termNames,
+        "bestTermName" .= bestTermName,
+        "defnTermTag" .= defnTermTag,
+        "termDefinition" .= termDefinition,
+        "signature" .= signature,
+        "termDocs" .= termDocs
+      ]
 
 deriving instance ToSchema TermDefinition
 
 instance ToJSON DefinitionDisplayResults where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON DefinitionDisplayResults {..} =
+    object
+      [ "termDefinitions" .= termDefinitions,
+        "typeDefinitions" .= typeDefinitions,
+        "missingDefinitions" .= missingDefinitions
+      ]
 
 deriving instance ToSchema DefinitionDisplayResults
 
@@ -197,16 +211,6 @@ data UnisonRef
   | TermRef UnisonHash
   deriving (Eq, Ord, Show, Generic)
 
-data FoundEntry
-  = FoundTerm NamedTerm
-  | FoundType NamedType
-  deriving (Eq, Show, Generic)
-
-instance ToJSON FoundEntry where
-  toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema FoundEntry
-
 unisonRefToText :: UnisonRef -> Text
 unisonRefToText = \case
   TypeRef r -> r
@@ -248,10 +252,19 @@ data NamedType = NamedType
   deriving (Eq, Generic, Show)
 
 instance ToJSON NamedType where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (NamedType n h tag) =
+    Aeson.object
+      [ "typeName" .= HQ'.toTextWith NameSegment.toText n,
+        "typeHash" .= h,
+        "typeTag" .= tag
+      ]
 
 instance FromJSON NamedType where
-  parseJSON = genericParseJSON defaultOptions
+  parseJSON = Aeson.withObject "NamedType" \obj -> do
+    typeName <- obj .: "typeName"
+    typeHash <- obj .: "typeHash"
+    typeTag <- obj .: "typeTag"
+    pure $ NamedType {..}
 
 deriving instance ToSchema NamedType
 
@@ -296,7 +309,7 @@ deriving instance ToSchema TypeTag
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.Lazy.fromStrict
 
-mungeShow :: Show s => s -> LZ.ByteString
+mungeShow :: (Show s) => s -> LZ.ByteString
 mungeShow = mungeString . show
 
 mungeString :: String -> LZ.ByteString
@@ -305,7 +318,7 @@ mungeString = Text.encodeUtf8 . Text.Lazy.pack
 defaultWidth :: Width
 defaultWidth = 80
 
-discard :: Applicative m => a -> m ()
+discard :: (Applicative m) => a -> m ()
 discard = const $ pure ()
 
 mayDefaultWidth :: Maybe Width -> Width
@@ -316,8 +329,8 @@ setCacheControl = addHeader @"Cache-Control" "public"
 
 branchToUnisonHash :: Branch.Branch m -> UnisonHash
 branchToUnisonHash b =
-  ("#" <>) . Hash.base32Hex . Causal.unCausalHash $ Branch.headHash b
+  ("#" <>) . Hash.toBase32HexText . unCausalHash $ Branch.headHash b
 
 v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
 v2CausalBranchToUnisonHash b =
-  ("#" <>) . Hash.base32Hex . V2.unCausalHash $ V2Causal.causalHash b
+  ("#" <>) . Hash.toBase32HexText . unCausalHash $ V2Causal.causalHash b

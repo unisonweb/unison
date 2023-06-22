@@ -5,12 +5,12 @@ module Unison.Sqlite.JournalMode
   )
 where
 
-import qualified Data.Text as Text
-import qualified Database.SQLite.Simple as Sqlite
+import Data.Text qualified as Text
+import Database.SQLite.Simple qualified as Sqlite
 import Unison.Prelude
 import Unison.Sqlite.Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason)
-import Unison.Sqlite.Sql
+import Unison.Sqlite.Sql (Sql (..))
 
 -- | https://www.sqlite.org/pragma.html#pragma_journal_mode
 data JournalMode
@@ -32,7 +32,7 @@ journalModeFromText = \case
   "off" -> Just JournalMode'OFF
   _ -> Nothing
 
-unsafeJournalModeFromText :: HasCallStack => Text -> JournalMode
+unsafeJournalModeFromText :: (HasCallStack) => Text -> JournalMode
 unsafeJournalModeFromText s =
   fromMaybe (error ("Unknown journal mode: " ++ Text.unpack s)) (journalModeFromText s)
 
@@ -45,11 +45,11 @@ journalModeToText = \case
   JournalMode'WAL -> "wal"
   JournalMode'OFF -> "off"
 
-trySetJournalMode :: MonadIO m => Connection -> JournalMode -> m ()
+trySetJournalMode :: (MonadIO m) => Connection -> JournalMode -> m ()
 trySetJournalMode conn mode0 = liftIO do
-  queryOneRowCheck_
+  queryOneRowCheck
     conn
-    (Sql ("PRAGMA journal_mode = " <> journalModeToText mode0))
+    (Sql ("PRAGMA journal_mode = " <> journalModeToText mode0) [])
     \(Sqlite.Only mode1s) ->
       let mode1 = unsafeJournalModeFromText mode1s
        in if mode0 /= mode1

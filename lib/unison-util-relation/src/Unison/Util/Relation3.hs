@@ -3,13 +3,13 @@
 module Unison.Util.Relation3 where
 
 import Data.Function (on)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Semigroup (Sum (Sum, getSum))
 import Data.Tuple.Extra (uncurry3)
 import Unison.Prelude hiding (empty, toList)
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 
 data Relation3 a b c = Relation3
   { d1 :: Map a (Relation b c),
@@ -94,6 +94,10 @@ mapD2Monotonic f Relation3 {d1, d2, d3} =
 member :: (Ord a, Ord b, Ord c) => a -> b -> c -> Relation3 a b c -> Bool
 member a b c = R.member b c . lookupD1 a
 
+memberD2 :: (Ord b) => b -> Relation3 a b c -> Bool
+memberD2 b =
+  Map.member b . d2
+
 lookupD1 :: (Ord a, Ord b, Ord c) => a -> Relation3 a b c -> Relation b c
 lookupD1 a = fromMaybe mempty . Map.lookup a . d1
 
@@ -150,10 +154,10 @@ insert a b c Relation3 {..} =
 
 insertAll,
   deleteAll ::
-    Foldable f =>
-    Ord a =>
-    Ord b =>
-    Ord c =>
+    (Foldable f) =>
+    (Ord a) =>
+    (Ord b) =>
+    (Ord c) =>
     f (a, b, c) ->
     Relation3 a b c ->
     Relation3 a b c

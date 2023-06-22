@@ -13,16 +13,16 @@ module Unison.Syntax.HashQualified
   )
 where
 
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Unison.HashQualified (HashQualified (..))
-import qualified Unison.HashQualified as HashQualified
+import Unison.HashQualified qualified as HashQualified
 import Unison.Name (Name, Parse)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.Prelude hiding (fromString)
-import qualified Unison.ShortHash as SH
-import qualified Unison.Syntax.Name as Name (fromText, toText)
+import Unison.ShortHash qualified as SH
+import Unison.Syntax.Name qualified as Name (fromText, toText)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import Prelude hiding (take)
 
 instance Parse Text (HashQualified Name) where
@@ -52,7 +52,7 @@ unsafeFromText txt = fromMaybe msg . fromText $ txt
   where
     msg = error $ "HashQualified.unsafeFromText " <> show txt
 
-unsafeFromVar :: Var v => v -> HashQualified Name
+unsafeFromVar :: (Var v) => v -> HashQualified Name
 unsafeFromVar = unsafeFromText . Var.name
 
 toString :: HashQualified Name -> String
@@ -63,6 +63,6 @@ toText :: HashQualified Name -> Text
 toText =
   HashQualified.toTextWith Name.toText
 
-toVar :: Var v => HashQualified Name -> v
+toVar :: (Var v) => HashQualified Name -> v
 toVar =
   Var.named . toText

@@ -53,6 +53,8 @@ fslkdjflskdjflksjdf = 663
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .> diff.namespace b1 b2
 
   Resolved name conflicts:
@@ -193,6 +195,8 @@ fromJust = "asldkfjasldkfj"
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 ```
 ```unison
@@ -562,6 +566,8 @@ a = 555
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 ```
 ```ucm
 .> merge nsz nsw
@@ -587,6 +593,8 @@ a = 555
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
   I tried to auto-apply the patch, but couldn't because it
   contained contradictory entries.

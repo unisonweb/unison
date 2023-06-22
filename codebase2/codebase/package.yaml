@@ -4,12 +4,15 @@ github: unisonweb/unison
 default-extensions:
   - ApplicativeDo
   - BlockArguments
+  - DeriveFoldable
   - DeriveFunctor
   - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
@@ -31,8 +34,8 @@ dependencies:
   - lens
   - mtl
   - text
-  - unison-core
-  - unison-util
-  - unison-util-base32hex
-  - unison-prelude
   - time
+  - unison-core
+  - unison-hash
+  - unison-prelude
+  - unison-util-base32hex

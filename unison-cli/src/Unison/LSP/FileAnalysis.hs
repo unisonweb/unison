@@ -4,16 +4,14 @@ module Unison.LSP.FileAnalysis where
 
 import Control.Lens
 import Control.Monad.Reader
-import qualified Crypto.Random as Random
+import Crypto.Random qualified as Random
 import Data.Align (alignWith)
-import Data.Bifunctor (second)
 import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
-import qualified Data.IntervalMap.Lazy as IM
-import qualified Data.Map as Map
-import qualified Data.Text as Text
+import Data.IntervalMap.Lazy qualified as IM
+import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Data.These
-import Debug.RecoverRTTI (anythingToString)
 import Language.LSP.Types
   ( Diagnostic,
     DiagnosticSeverity (DsError),
@@ -23,12 +21,12 @@ import Language.LSP.Types
     Uri (getUri),
   )
 import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
-import qualified Unison.ABT as ABT
+import Unison.ABT qualified as ABT
 import Unison.Cli.TypeCheck (typecheckHelper)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Debug as Debug
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Path qualified as Path
+import Unison.DataDeclaration qualified as DD
+import Unison.Debug qualified as Debug
 import Unison.LSP.Conversions
 import Unison.LSP.Diagnostics
   ( mkDiagnostic,
@@ -36,41 +34,46 @@ import Unison.LSP.Diagnostics
   )
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
-import qualified Unison.LSP.VFS as VFS
+import Unison.LSP.Types qualified as LSP
+import Unison.LSP.VFS qualified as VFS
 import Unison.Names (Names)
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.PrettyPrintEnvDecl.Names as PPED
-import qualified Unison.PrintError as PrintError
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.PrintError qualified as PrintError
 import Unison.Result (Note)
-import qualified Unison.Result as Result
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.HashQualified' as HQ' (toText)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Syntax.TypePrinter as TypePrinter
-import qualified Unison.Typechecker.Context as Context
-import qualified Unison.Typechecker.TypeError as TypeError
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
+import Unison.Symbol qualified as Symbol
+import Unison.Syntax.HashQualified' qualified as HQ' (toText)
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TypePrinter qualified as TypePrinter
+import Unison.Term qualified as Term
+import Unison.Type (Type)
+import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.TypeError qualified as TypeError
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Var as Var
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Var qualified as Var
+import Unison.WatchKind (pattern TestWatch)
 import UnliftIO.STM
 
 -- | Lex, parse, and typecheck a file.
-checkFile :: HasUri d Uri => d -> Lsp (Maybe FileAnalysis)
+checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
 checkFile doc = runMaybeT $ do
   let fileUri = doc ^. uri
-  (fileVersion, contents) <- MaybeT (VFS.getFileContents doc)
+  (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getParseNames
   let sourceName = getUri $ doc ^. uri
-  let lexedSource@(srcText, _) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
+  let lexedSource@(srcText, tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   cb <- asks codebase
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
@@ -80,8 +83,7 @@ checkFile doc = runMaybeT $ do
         Nothing -> (Nothing, Nothing)
         Just (Left uf) -> (Just uf, Nothing)
         Just (Right tf) -> (Just $ UF.discardTypes tf, Just tf)
-  pped <- lift $ ppedForFileHelper parsedFile typecheckedFile
-  (diagnostics, codeActions) <- lift $ analyseFile pped fileUri srcText notes
+  (diagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
   let diagnosticRanges =
         diagnostics
           & fmap (\d -> (d ^. range, d))
@@ -90,8 +92,84 @@ checkFile doc = runMaybeT $ do
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
-  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, ..}
+  let fileSummary = mkFileSummary parsedFile typecheckedFile
+  let tokenMap = getTokenMap tokens
+  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, ..}
   pure $ fileAnalysis
+
+-- | If a symbol is a 'User' symbol, return (Just sym), otherwise return Nothing.
+assertUserSym :: Symbol -> Maybe Symbol
+assertUserSym sym = case sym of
+  Symbol.Symbol _ (Var.User {}) -> Just sym
+  _ -> Nothing
+
+-- | Summarize the information available to us from the current state of the file.
+-- See 'FileSummary' for more information.
+mkFileSummary :: Maybe (UF.UnisonFile Symbol Ann) -> Maybe (UF.TypecheckedUnisonFile Symbol Ann) -> Maybe FileSummary
+mkFileSummary parsed typechecked = case (parsed, typechecked) of
+  (Nothing, Nothing) -> Nothing
+  (_, Just tf@(UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId})) ->
+    let (trms, testWatches, exprWatches) =
+          hashTermsId & ifoldMap \sym (ref, wk, trm, typ) ->
+            case wk of
+              Nothing -> (Map.singleton sym (Just ref, trm, getUserTypeAnnotation sym <|> Just typ), mempty, mempty)
+              Just TestWatch -> (mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)], mempty)
+              Just _ -> (mempty, mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)])
+     in Just $
+          FileSummary
+            { dataDeclsBySymbol = dataDeclarationsId',
+              dataDeclsByReference = declsRefMap dataDeclarationsId',
+              effectDeclsBySymbol = effectDeclarationsId',
+              effectDeclsByReference = declsRefMap effectDeclarationsId',
+              termsBySymbol = trms,
+              termsByReference = termsRefMap trms,
+              testWatchSummary = testWatches,
+              exprWatchSummary = exprWatches,
+              fileNames = UF.typecheckedToNames tf
+            }
+  (Just uf@(UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches}), _) ->
+    let trms =
+          terms & foldMap \(sym, trm) ->
+            (Map.singleton sym (Nothing, trm, Nothing))
+        (testWatches, exprWatches) =
+          watches & ifoldMap \wk tms ->
+            tms & foldMap \(v, trm) ->
+              case wk of
+                TestWatch -> ([(assertUserSym v, Nothing, trm, Nothing)], mempty)
+                _ -> (mempty, [(assertUserSym v, Nothing, trm, Nothing)])
+     in Just $
+          FileSummary
+            { dataDeclsBySymbol = dataDeclarationsId,
+              dataDeclsByReference = declsRefMap dataDeclarationsId,
+              effectDeclsBySymbol = effectDeclarationsId,
+              effectDeclsByReference = declsRefMap effectDeclarationsId,
+              termsBySymbol = trms,
+              termsByReference = termsRefMap trms,
+              testWatchSummary = testWatches,
+              exprWatchSummary = exprWatches,
+              fileNames = UF.toNames uf
+            }
+  where
+    declsRefMap :: (Ord v, Ord r) => Map v (r, a) -> Map r (Map v a)
+    declsRefMap m =
+      m
+        & Map.toList
+        & fmap (\(v, (r, a)) -> (r, Map.singleton v a))
+        & Map.fromListWith (<>)
+    termsRefMap :: (Ord v, Ord r) => Map v (r, a, b) -> Map r (Map v (a, b))
+    termsRefMap m =
+      m
+        & Map.toList
+        & fmap (\(v, (r, a, b)) -> (r, Map.singleton v (a, b)))
+        & Map.fromListWith (<>)
+    -- Gets the user provided type annotation for a term if there is one.
+    -- This type sig will have Ann's within the file if it exists.
+    getUserTypeAnnotation :: Symbol -> Maybe (Type Symbol Ann)
+    getUserTypeAnnotation v = do
+      UF.UnisonFileId {terms, watches} <- parsed
+      trm <- Prelude.lookup v (terms <> fold watches)
+      typ <- Term.getTypeAnnotation trm
+      pure typ
 
 fileAnalysisWorker :: Lsp ()
 fileAnalysisWorker = forever do
@@ -108,7 +186,7 @@ fileAnalysisWorker = forever do
     Map.fromList <$> forMaybe (toList dirtyFileIDs) \docUri -> runMaybeT do
       fileInfo <- MaybeT (checkFile $ TextDocumentIdentifier docUri)
       pure (docUri, fileInfo)
-  Debug.debugM Debug.LSP "Freshly Typechecked " (anythingToString (Map.toList freshlyCheckedFiles))
+  Debug.debugM Debug.LSP "Freshly Typechecked " (Map.toList freshlyCheckedFiles)
   -- Overwrite any files we successfully checked
   atomically $ do
     checkedFiles <- readTVar checkedFilesV
@@ -121,11 +199,21 @@ fileAnalysisWorker = forever do
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
-analyseFile :: Foldable f => PPED.PrettyPrintEnvDecl -> Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
-analyseFile ppe fileUri srcText notes = do
-  analyseNotes fileUri (PPED.suffixifiedPPE ppe) (Text.unpack srcText) notes
+analyseFile :: (Foldable f) => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseFile fileUri srcText notes = do
+  pped <- PPED.suffixifiedPPE <$> LSP.globalPPED
+  analyseNotes fileUri pped (Text.unpack srcText) notes
 
-analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+getTokenMap :: [L.Token L.Lexeme] -> IM.IntervalMap Position L.Lexeme
+getTokenMap tokens =
+  tokens
+    & mapMaybe
+      ( \token ->
+          IM.singleton <$> (annToInterval $ Parser.ann token) <*> pure (L.payload token)
+      )
+    & fold
+
+analyseNotes :: (Foldable f) => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseNotes fileUri ppe src notes = do
   currentPath <- getCurrentPath
   flip foldMapM notes \note -> case note of
@@ -154,9 +242,31 @@ analyseNotes fileUri ppe src notes = do
               (_v, locs) <- toList defns
               (r, rs) <- withNeighbours (locs >>= aToR)
               pure (r, ("duplicate definition",) <$> rs)
-            TypeError.Other e -> do
-              Debug.debugM Debug.LSP "No Diagnostic configured for type error: " e
-              empty
+            TypeError.RedundantPattern loc -> singleRange loc
+            TypeError.UncoveredPatterns loc _pats -> singleRange loc
+            -- These type errors don't have custom type error conversions, but some
+            -- still have valid diagnostics.
+            TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
+              Context.PatternArityMismatch loc _typ _numArgs -> singleRange loc
+              Context.HandlerOfUnexpectedType loc _typ -> singleRange loc
+              Context.TypeMismatch {} -> shouldHaveBeenHandled e
+              Context.IllFormedType {} -> shouldHaveBeenHandled e
+              Context.UnknownSymbol loc _ -> singleRange loc
+              Context.UnknownTerm loc _ _ _ -> singleRange loc
+              Context.AbilityCheckFailure {} -> shouldHaveBeenHandled e
+              Context.AbilityEqFailure {} -> shouldHaveBeenHandled e
+              Context.EffectConstructorWrongArgCount {} -> shouldHaveBeenHandled e
+              Context.MalformedEffectBind {} -> shouldHaveBeenHandled e
+              Context.DuplicateDefinitions {} -> shouldHaveBeenHandled e
+              Context.UnguardedLetRecCycle {} -> shouldHaveBeenHandled e
+              Context.ConcatPatternWithoutConstantLength loc _ -> singleRange loc
+              Context.DataEffectMismatch _ _ decl -> singleRange $ DD.annotation decl
+              Context.UncoveredPatterns loc _ -> singleRange loc
+              Context.RedundantPattern loc -> singleRange loc
+              Context.InaccessiblePattern loc -> singleRange loc
+          shouldHaveBeenHandled e = do
+            Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e
+            empty
           diags = noteDiagnostic currentPath note ranges
       -- Sort on match accuracy first, then name.
       codeActions <- case cause of
@@ -254,18 +364,18 @@ analyseNotes fileUri ppe src notes = do
     typeHoleReplacementCodeActions diags v typ
       | not (isUserBlank v) = pure []
       | otherwise = do
-        Env {codebase} <- ask
-        ppe <- PPED.suffixifiedPPE <$> globalPPED
-        let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
-        refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
-        forMaybe (toList refs) $ \ref -> runMaybeT $ do
-          hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
-          typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
-          let prettyType = TypePrinter.prettyStr Nothing ppe typ
-          let txtName = HQ'.toText hqNameSuggestion
-          let ranges = (diags ^.. folded . range)
-          let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
-          pure $ includeEdits fileUri txtName ranges rca
+          Env {codebase} <- ask
+          ppe <- PPED.suffixifiedPPE <$> globalPPED
+          let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
+          refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
+          forMaybe (toList refs) $ \ref -> runMaybeT $ do
+            hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
+            typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
+            let prettyType = TypePrinter.prettyStr Nothing ppe typ
+            let txtName = HQ'.toText hqNameSuggestion
+            let ranges = (diags ^.. folded . range)
+            let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
+            pure $ includeEdits fileUri txtName ranges rca
     isUserBlank :: Symbol -> Bool
     isUserBlank v = case Var.typeOf v of
       Var.User name -> Text.isPrefixOf "_" name
@@ -306,6 +416,11 @@ getFileNames :: Uri -> MaybeT Lsp Names
 getFileNames fileUri = do
   FileAnalysis {typecheckedFile = tf, parsedFile = pf} <- getFileAnalysis fileUri
   hoistMaybe (fmap UF.typecheckedToNames tf <|> fmap UF.toNames pf)
+
+getFileSummary :: Uri -> MaybeT Lsp FileSummary
+getFileSummary uri = do
+  FileAnalysis {fileSummary} <- getFileAnalysis uri
+  MaybeT . pure $ fileSummary
 
 -- TODO memoize per file
 ppedForFile :: Uri -> Lsp PPED.PrettyPrintEnvDecl

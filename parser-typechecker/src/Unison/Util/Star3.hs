@@ -2,11 +2,11 @@
 
 module Unison.Util.Star3 where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Prelude
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 
 -- Represents a set of (fact, d1, d2, d3), but indexed using a star schema so
 -- it can be efficiently queried from any of the dimensions.
@@ -201,7 +201,7 @@ deleteD2 (f, x) s = garbageCollect f (Star3 (fact s) (d1 s) d2' (d3 s))
 
 -- | Given a possibly-invalid Star3, which may contain the given fact in its fact set that are not related to any d1,
 -- d2, or d3, return a valid Star3, with this fact possibly removed.
-garbageCollect :: Ord fact => fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
+garbageCollect :: (Ord fact) => fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
 garbageCollect f star =
   star
     { fact =

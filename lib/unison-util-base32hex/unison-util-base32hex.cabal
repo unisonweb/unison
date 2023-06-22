@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -18,8 +18,6 @@ source-repository head
 library
   exposed-modules:
       U.Util.Base32Hex
-      U.Util.Hash
-      U.Util.Hash32
   hs-source-dirs:
       src
   default-extensions:
@@ -35,6 +33,7 @@ library
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns

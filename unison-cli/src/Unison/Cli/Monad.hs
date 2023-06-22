@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DefaultSignatures #-}
 
 -- | The main CLI monad.
 module Unison.Cli.Monad
@@ -29,6 +28,10 @@ module Unison.Cli.Monad
     returnEarlyWithoutOutput,
     haltRepl,
 
+    -- * Changing the current directory
+    cd,
+    popd,
+
     -- * Communicating output to the user
     respond,
     respondNumbered,
@@ -38,6 +41,7 @@ module Unison.Cli.Monad
 
     -- * Running transactions
     runTransaction,
+    runEitherTransaction,
 
     -- * Misc types
     LoadSourceResult (..),
@@ -48,11 +52,11 @@ import Control.Exception (throwIO)
 import Control.Lens (lens, (.=))
 import Control.Monad.Reader (MonadReader (..))
 import Control.Monad.State.Strict (MonadState)
-import qualified Control.Monad.State.Strict as State
-import qualified Data.Configurator.Types as Configurator
+import Control.Monad.State.Strict qualified as State
+import Data.Configurator.Types qualified as Configurator
 import Data.Generics.Labels ()
-import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.List.NonEmpty as List.NonEmpty
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
@@ -60,27 +64,29 @@ import Data.Unique (Unique, newUnique)
 import GHC.OverloadedLabels (IsLabel (..))
 import System.CPUTime (getCPUTime)
 import Text.Printf (printf)
-import qualified U.Codebase.Branch as V2Branch
+import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.Server.CodebaseServer as Server
-import qualified Unison.Sqlite as Sqlite
+import Unison.Server.CodebaseServer qualified as Server
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Parser as Parser
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Unison.UnisonFile as UF
+import Unison.UnisonFile qualified as UF
 import UnliftIO.STM
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -166,7 +172,7 @@ data Env = Env
 -- There's an additional pseudo @"currentPath"@ field lens, for convenience.
 data LoopState = LoopState
   { root :: TMVar (Branch IO),
-    lastSavedRootHash :: V2Branch.CausalHash,
+    lastSavedRootHash :: CausalHash,
     -- the current position in the namespace
     currentPathStack :: List.NonEmpty Path.Absolute,
     -- TBD
@@ -192,7 +198,7 @@ data LoopState = LoopState
 
 instance
   {-# OVERLAPS #-}
-  Functor f =>
+  (Functor f) =>
   IsLabel "currentPath" ((Path.Absolute -> f Path.Absolute) -> (LoopState -> f LoopState))
   where
   fromLabel :: (Path.Absolute -> f Path.Absolute) -> (LoopState -> f LoopState)
@@ -204,7 +210,7 @@ instance
       )
 
 -- | Create an initial loop state given a root branch and the current path.
-loopState0 :: V2Branch.CausalHash -> TMVar (Branch IO) -> Path.Absolute -> LoopState
+loopState0 :: CausalHash -> TMVar (Branch IO) -> Path.Absolute -> LoopState
 loopState0 lastSavedRootHash b p = do
   LoopState
     { root = b,
@@ -365,6 +371,29 @@ time label action =
         ms = ns / 1_000_000
         s = ns / 1_000_000_000
 
+cd :: Path.Absolute -> Cli ()
+cd path = do
+  setMostRecentNamespace path
+  State.modify' \state ->
+    state {currentPathStack = List.NonEmpty.cons path (currentPathStack state)}
+
+-- | Pop the latest path off the stack, if it's not the only path in the stack.
+--
+-- Returns whether anything was popped.
+popd :: Cli Bool
+popd = do
+  state <- State.get
+  case List.NonEmpty.uncons (currentPathStack state) of
+    (_, Nothing) -> pure False
+    (_, Just paths) -> do
+      setMostRecentNamespace (List.NonEmpty.head paths)
+      State.put state {currentPathStack = paths}
+      pure True
+
+setMostRecentNamespace :: Path.Absolute -> Cli ()
+setMostRecentNamespace =
+  runTransaction . Queries.setMostRecentNamespace . map NameSegment.toText . Path.toList . Path.unabsolute
+
 respond :: Output -> Cli ()
 respond output = do
   Env {notify} <- ask
@@ -381,3 +410,8 @@ runTransaction :: Sqlite.Transaction a -> Cli a
 runTransaction action = do
   Env {codebase} <- ask
   liftIO (Codebase.runTransaction codebase action)
+
+-- | Return early if a transaction returns Left.
+runEitherTransaction :: Sqlite.Transaction (Either Output a) -> Cli a
+runEitherTransaction action =
+  runTransaction action & onLeftM returnEarly

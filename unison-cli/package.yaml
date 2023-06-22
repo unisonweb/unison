@@ -12,8 +12,9 @@ ghc-options: -Wall
 dependencies:
   - IntervalMap
   - ListLike
-  - aeson
+  - aeson >= 2.0.0.0
   - aeson-pretty
+  - ansi-terminal
   - async
   - base
   - bytes
@@ -41,8 +42,8 @@ dependencies:
   - ki
   - lens
   - lock-file
-  - lsp
-  - lsp-types
+  - lsp >= 1.5.0.0
+  - lsp-types >= 1.5.0.0
   - megaparsec
   - memory
   - mtl
@@ -56,6 +57,7 @@ dependencies:
   - pretty-simple
   - process
   - random >= 1.2.0
+  - random-shuffle
   - recover-rtti
   - regex-tdfa
   - semialign
@@ -63,6 +65,7 @@ dependencies:
   - servant-client
   - stm
   - text
+  - text-builder
   - text-rope
   - these
   - time
@@ -70,23 +73,26 @@ dependencies:
   - unison-codebase
   - unison-codebase-sqlite
   - unison-codebase-sqlite-hashing-v2
-  - unison-sqlite
+  - unison-core
   - unison-core1
+  - unison-hash
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer
   - unison-share-api
+  - unison-share-projects-api
   - unison-sqlite
   - unison-syntax
-  - unison-util
   - unison-util-base32hex
   - unison-util-relation
   - unliftio
   - unordered-containers
+  - uuid
   - vector
   - witherable
   - wai
   - warp
+  - witch
   - witherable
 
 library:
@@ -179,6 +185,7 @@ default-extensions:
   - FlexibleInstances
   - GADTs
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - InstanceSigs
   - LambdaCase
   - MultiParamTypeClasses

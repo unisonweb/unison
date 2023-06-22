@@ -15,10 +15,12 @@ Test that tab completion works as expected.
 
 .> debug.tab-complete delete.
 
+   delete.branch
    delete.link
    delete.namespace
    delete.namespace.force
    delete.patch
+   delete.project
    delete.term
    delete.term-replacement
    delete.term.verbose
