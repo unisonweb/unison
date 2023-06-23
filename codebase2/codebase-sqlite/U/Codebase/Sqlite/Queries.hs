@@ -2221,8 +2221,6 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
             ON scoped_term_name_lookup.root_branch_hash_id = all_in_scope_roots.root_branch_hash_id
         WHERE referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
               AND reversed_name GLOB :suffixGlob
-              -- Exclude results we would've already found above.
-              AND root_branch_hash_id != :bhId
         LIMIT 1
       |]
           (\reversedName -> reversedNameToReversedSegments reversedName)
