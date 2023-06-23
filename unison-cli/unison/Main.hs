@@ -482,7 +482,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPat
         OpenedCodebase -> PreviouslyCreatedCodebase
 
       (ucmVersion, _date) = Version.gitDescribe
-      welcome = Welcome.welcome isNewCodebase dir ucmVersion shouldWatchFiles
+      welcome = Welcome.welcome isNewCodebase ucmVersion
    in CommandLine.main
         dir
         welcome

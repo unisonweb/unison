@@ -34,6 +34,7 @@ import System.Directory
     doesFileExist,
     getHomeDirectory,
   )
+import System.Random (randomRIO)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
@@ -2104,11 +2105,12 @@ notifyUser dir = \case
       "I'll now fetch the latest version of the base Unison library..."
   FailedToFetchLatestReleaseOfBase ->
     pure . P.wrap $ "Sorry something went wrong while fetching the library."
-  HappyCoding ->
+  HappyCoding -> do
+    earth <- (["🌎", "🌍", "🌏"] !!) <$> randomRIO (0, 2)
     pure $
       P.wrap "🎨 Type `ui` to explore this project's code in your browser."
         <> P.newline
-        <> P.wrap "🌏 Discover libraries at https://share.unison-lang.org"
+        <> P.wrap (earth <> "Discover libraries at https://share.unison-lang.org")
         <> P.newline
         <> P.wrap "📖 Use `help-topic projects` to learn more about projects."
         <> P.newline

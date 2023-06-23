@@ -7,18 +7,14 @@ module Unison.CommandLine.Welcome
   )
 where
 
-import System.Random (randomRIO)
 import Unison.Codebase.Editor.Input
-import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import Unison.Prelude
 import Unison.Util.Pretty qualified as P
 import Prelude hiding (readFile, writeFile)
 
 data Welcome = Welcome
   { onboarding :: Onboarding, -- Onboarding States
-    watchDir :: FilePath,
-    unisonVersion :: Text,
-    shouldWatchFiles :: ShouldWatchFiles
+    unisonVersion :: Text
   }
 
 -- Previously Created is different from Previously Onboarded because a user can
@@ -38,15 +34,15 @@ data Onboarding
   | PreviouslyOnboarded
   deriving (Show, Eq)
 
-welcome :: CodebaseInitStatus -> FilePath -> Text -> ShouldWatchFiles -> Welcome
-welcome initStatus filePath unisonVersion shouldWatchFiles =
-  Welcome (Init initStatus) filePath unisonVersion shouldWatchFiles
+welcome :: CodebaseInitStatus -> Text -> Welcome
+welcome initStatus unisonVersion =
+  Welcome (Init initStatus) unisonVersion
 
-run :: Welcome -> IO [Either Event Input]
-run Welcome {onboarding = onboarding, watchDir = dir, unisonVersion = version, shouldWatchFiles} = do
+run :: Welcome -> [Either Event Input]
+run Welcome {onboarding = onboarding, unisonVersion = version} = do
   go onboarding []
   where
-    go :: Onboarding -> [Either Event Input] -> IO [Either Event Input]
+    go :: Onboarding -> [Either Event Input] -> [Either Event Input]
     go onboarding acc =
       case onboarding of
         Init NewlyCreatedCodebase -> do
@@ -62,12 +58,8 @@ run Welcome {onboarding = onboarding, watchDir = dir, unisonVersion = version, s
           where
             authorMsg = toInput authorSuggestion
         -- These are our two terminal Welcome conditions, at the end we reverse the order of the desired input commands otherwise they come out backwards
-        Finished -> do
-          startMsg <- getStarted shouldWatchFiles dir
-          pure $ reverse (toInput startMsg : acc)
-        PreviouslyOnboarded -> do
-          startMsg <- getStarted shouldWatchFiles dir
-          pure $ reverse (toInput startMsg : acc)
+        Finished -> reverse (toInput getStarted : acc)
+        PreviouslyOnboarded -> reverse (toInput getStarted : acc)
 
 toInput :: P.Pretty P.ColorText -> Either Event Input
 toInput pretty =
@@ -118,22 +110,9 @@ authorSuggestion =
         P.wrap $ P.blue "https://www.unison-lang.org/learn/tooling/configuration/"
       ]
 
-getStarted :: ShouldWatchFiles -> FilePath -> IO (P.Pretty P.ColorText)
-getStarted shouldWatchFiles dir = do
-  earth <- (["🌎", "🌍", "🌏"] !!) <$> randomRIO (0, 2)
-
-  pure $
-    P.linesSpaced
-      [ P.wrap "Get started:",
-        P.indentN 2 $
-          P.column2
-            ( [ ("📖", "Type " <> P.hiBlue "help" <> " to list all commands, or " <> P.hiBlue "help <cmd>" <> " to view help for one command"),
-                ("🎨", "Type " <> P.hiBlue "ui" <> " to open the Codebase UI in your default browser"),
-                ("📚", "Read the official docs at " <> P.blue "https://www.unison-lang.org/learn/"),
-                (earth, "Visit Unison Share at " <> P.blue "https://share.unison-lang.org" <> " to discover libraries")
-              ]
-                <> case shouldWatchFiles of
-                  ShouldWatchFiles -> [("👀", "I'm watching for changes to " <> P.bold ".u" <> " files under " <> (P.group . P.blue $ P.string dir))]
-                  ShouldNotWatchFiles -> [("📝", "File watching is disabled, use the 'load' command to parse and typecheck unison files.")]
-            )
-      ]
+getStarted :: P.Pretty P.ColorText
+getStarted =
+  P.wrap "📚 Read the official docs at https://www.unison-lang.org/learn/"
+    <> P.newline
+    <> P.newline
+    <> P.wrap "Type 'project.create' to get started."
