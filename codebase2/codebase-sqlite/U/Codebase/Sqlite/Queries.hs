@@ -2206,10 +2206,11 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
         -- Recursive table containing all transitive deps
         WITH RECURSIVE
           all_in_scope_roots(root_branch_hash_id, reversed_mount_path) AS (
-            -- Start with the direct dependencies
-            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path
-            FROM name_lookup_mounts mount
-            WHERE mount.parent_root_branch_hash_id = :bhId
+            -- We've already searched direct deps above, so start with children of direct deps
+            SELECT transitive.mounted_root_branch_hash_id, transitive.reversed_mount_path || direct.reversed_mount_path
+            FROM name_lookup_mounts direct
+                 JOIN name_lookup_mounts transitive on direct.mounted_root_branch_hash_id = transitive.parent_root_branch_hash_id
+            WHERE direct.parent_root_branch_hash_id = :bhId
             UNION ALL
             SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
             FROM name_lookup_mounts mount
@@ -2264,10 +2265,11 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
         -- Recursive table containing all transitive deps
         WITH RECURSIVE
           all_in_scope_roots(root_branch_hash_id, reversed_mount_path) AS (
-            -- Start with the direct dependencies
-            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path
-            FROM name_lookup_mounts mount
-            WHERE mount.parent_root_branch_hash_id = :bhId
+            -- We've already searched direct deps above, so start with children of direct deps
+            SELECT transitive.mounted_root_branch_hash_id, transitive.reversed_mount_path || direct.reversed_mount_path
+            FROM name_lookup_mounts direct
+                 JOIN name_lookup_mounts transitive on direct.mounted_root_branch_hash_id = transitive.parent_root_branch_hash_id
+            WHERE direct.parent_root_branch_hash_id = :bhId
             UNION ALL
             SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
             FROM name_lookup_mounts mount
