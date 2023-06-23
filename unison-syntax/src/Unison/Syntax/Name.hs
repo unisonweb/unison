@@ -14,18 +14,18 @@ module Unison.Syntax.Name
 where
 
 import Data.List.NonEmpty (pattern (:|))
-import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as Text.Lazy
-import qualified Data.Text.Lazy.Builder as Text (Builder)
-import qualified Data.Text.Lazy.Builder as Text.Builder
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as Text.Lazy
+import Data.Text.Lazy.Builder qualified as Text (Builder)
+import Data.Text.Lazy.Builder qualified as Text.Builder
 import Unison.Name.Internal (Name (Name))
 import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 instance IsString Name where
   fromString =

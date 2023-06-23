@@ -12,7 +12,7 @@ to `Tests.check` and `Tests.checkEqual`).
 
 ```
 ```ucm
-.> run threadKilledTypeLinkTest
+.> run tests.interpreter.only
 
   ()
 

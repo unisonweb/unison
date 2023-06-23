@@ -5,11 +5,11 @@ module Unison.Test.Util.Text where
 import Control.Monad
 import Data.List (foldl', unfoldr)
 import Data.Maybe (isNothing)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import EasyTest
-import qualified Unison.Util.Rope as R
-import qualified Unison.Util.Text as Text
-import qualified Unison.Util.Text.Pattern as P
+import Unison.Util.Rope qualified as R
+import Unison.Util.Text qualified as Text
+import Unison.Util.Text.Pattern qualified as P
 
 test :: Test ()
 test =

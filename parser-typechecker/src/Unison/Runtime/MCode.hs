@@ -41,7 +41,7 @@ import Data.Bifunctor (bimap, first)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
 import Data.List (partition)
-import qualified Data.Map.Strict as M
+import Data.Map.Strict qualified as M
 import Data.Primitive.PrimArray
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
@@ -72,7 +72,7 @@ import Unison.Runtime.ANF
     pattern TShift,
     pattern TVar,
   )
-import qualified Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
@@ -399,6 +399,7 @@ data BPrim2
   | DRPT
   | CATT
   | TAKT -- drop,append,take
+  | IXOT -- indexof
   | EQLT
   | LEQT
   | LEST -- ==,<=,<
@@ -416,6 +417,7 @@ data BPrim2
   | DRPB
   | IDXB
   | CATB -- take,drop,index,append
+  | IXOB -- indexof
   -- general
   | THRO -- throw
   | TRCE -- trace
@@ -1138,6 +1140,7 @@ emitPOp ANF.TTOF = emitBP1 TTOF
 emitPOp ANF.CATT = emitBP2 CATT
 emitPOp ANF.TAKT = emitBP2 TAKT
 emitPOp ANF.DRPT = emitBP2 DRPT
+emitPOp ANF.IXOT = emitBP2 IXOT
 emitPOp ANF.SIZT = emitBP1 SIZT
 emitPOp ANF.UCNS = emitBP1 UCNS
 emitPOp ANF.USNC = emitBP1 USNC
@@ -1162,6 +1165,7 @@ emitPOp ANF.PAKB = emitBP1 PAKB
 emitPOp ANF.UPKB = emitBP1 UPKB
 emitPOp ANF.TAKB = emitBP2 TAKB
 emitPOp ANF.DRPB = emitBP2 DRPB
+emitPOp ANF.IXOB = emitBP2 IXOB
 emitPOp ANF.IDXB = emitBP2 IDXB
 emitPOp ANF.SIZB = emitBP1 SIZB
 emitPOp ANF.FLTB = emitBP1 FLTB

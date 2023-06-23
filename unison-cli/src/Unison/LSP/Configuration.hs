@@ -3,9 +3,9 @@
 module Unison.LSP.Configuration where
 
 import Data.Aeson
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Language.LSP.Types
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 import Unison.Prelude
 

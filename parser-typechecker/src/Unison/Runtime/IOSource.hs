@@ -6,34 +6,34 @@ module Unison.Runtime.IOSource where
 import Control.Lens (view, _2)
 import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
-import qualified Data.Map as Map
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Text.RawString.QQ (r)
-import qualified Unison.Builtin as Builtin
+import Unison.Builtin qualified as Builtin
 import Unison.Codebase.CodeLookup (CodeLookup (..))
-import qualified Unison.Codebase.CodeLookup.Util as CL
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.CodeLookup.Util qualified as CL
+import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.DataDeclaration.ConstructorId as DD
+import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.ConstructorId qualified as DD
 import Unison.FileParsers (parseAndSynthesizeFile)
-import qualified Unison.NamesWithHistory as Names
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.PrintError as PrintError
-import qualified Unison.Reference as R
-import qualified Unison.Result as Result
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrintError qualified as PrintError
+import Unison.Reference qualified as R
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Term as Term
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Term qualified as Term
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 debug :: Bool
 debug = False

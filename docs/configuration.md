@@ -96,6 +96,14 @@ E.g.
 $ UNISON_SHARE_ACCESS_TOKEN="my.token.string" ucm
 ```
 
+### `UNISON_READONLY`
+
+Force unison to use readonly connections to codebases.
+
+```sh
+$ UNISON_READONLY="true" ucm
+```
+
 ### Local Codebase Server
 
 The port, host and token to be used for the local codebase server can all be configured by providing environment

@@ -78,38 +78,37 @@ import Control.Lens (snoc, unsnoc)
 import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
-import Data.Bifunctor (Bifunctor (..))
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or)
-import qualified Data.Map as Map
-import qualified Data.Primitive as PA
-import qualified Data.Set as Set
-import qualified Data.Text as Data.Text
+import Data.Map qualified as Map
+import Data.Primitive qualified as PA
+import Data.Set qualified as Set
+import Data.Text qualified as Data.Text
 import GHC.Stack (CallStack, callStack)
-import qualified Unison.ABT as ABT
-import qualified Unison.ABT.Normalized as ABTN
+import Unison.ABT qualified as ABT
+import Unison.ABT.Normalized qualified as ABTN
 import Unison.Blank (nameb)
-import qualified Unison.Builtin.Decls as Ty
+import Unison.Builtin.Decls qualified as Ty
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
-import qualified Unison.Pattern as P
+import Unison.Pattern qualified as P
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference (..))
 import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.Term hiding (List, Ref, Text, float, fresh, resolve)
-import qualified Unison.Type as Ty
+import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.EnumContainers as EC
-import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Util.Text as Util.Text
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq)
-import qualified Prelude
+import Prelude qualified
 
 -- For internal errors
 data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
@@ -1260,6 +1259,7 @@ data POp
   | TAKT
   | DRPT
   | SIZT -- ++,take,drop,size
+  | IXOT -- indexOf
   | UCNS
   | USNC
   | EQLT
@@ -1284,6 +1284,7 @@ data POp
   | UPKB
   | TAKB
   | DRPB -- pack,unpack,take,drop
+  | IXOB -- indexOf
   | IDXB
   | SIZB
   | FLTB

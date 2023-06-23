@@ -22,25 +22,24 @@ module Unison.Codebase.Editor.SlurpResult
   )
 where
 
-import Data.Bifunctor (second)
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
-import qualified Unison.Codebase.Editor.SlurpComponent as SC
+import Unison.Codebase.Editor.SlurpComponent qualified as SC
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.DeclPrinter as DeclPrinter
-import qualified Unison.Syntax.HashQualified as HQ (unsafeFromVar)
-import qualified Unison.Syntax.Name as Name (toText)
-import qualified Unison.Syntax.TypePrinter as TP
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.Pretty as P
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Syntax.TypePrinter qualified as TP
+import Unison.UnisonFile qualified as UF
+import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 -- `oldRefNames` are the previously existing names for the old reference
 --   (these names will all be pointed to a new reference)

@@ -9,9 +9,9 @@ import Data.Text
 import EasyTest
 import Unison.Codebase.Path
 import Unison.Codebase.Path.Parse
-import qualified Unison.HashQualified' as HQ'
+import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 
 test :: Test ()
 test =

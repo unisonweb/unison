@@ -77,37 +77,37 @@ where
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State
-import qualified Data.Configurator as Configurator
-import qualified Data.Configurator.Types as Configurator
-import qualified Data.Set as Set
-import qualified U.Codebase.Branch as V2 (Branch)
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import Data.Configurator qualified as Configurator
+import Data.Configurator.Types qualified as Configurator
+import Data.Set qualified as Set
+import U.Codebase.Branch qualified as V2 (Branch)
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Codebase as Codebase
+import Unison.Cli.Monad qualified as Cli
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.BranchUtil as BranchUtil
-import qualified Unison.Codebase.Editor.Input as Input
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Editor.Input qualified as Input
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Patch (Patch (..))
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.HashQualified' as HQ'
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.UnisonFile (TypecheckedUnisonFile)
-import qualified Unison.Util.Set as Set
+import Unison.Util.Set qualified as Set
 import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -210,12 +210,15 @@ getRootBranch0 =
   Branch.head <$> getRootBranch
 
 -- | Set a new root branch.
+--
 -- Note: This does _not_ update the codebase, the caller is responsible for that.
 setRootBranch :: Branch IO -> Cli ()
 setRootBranch b = do
   void $ modifyRootBranch (const b)
 
--- | Get the root branch.
+-- | Modify the root branch.
+--
+-- Note: This does _not_ update the codebase, the caller is responsible for that.
 modifyRootBranch :: (Branch IO -> Branch IO) -> Cli (Branch IO)
 modifyRootBranch f = do
   rootVar <- use #root

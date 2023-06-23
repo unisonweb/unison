@@ -1,11 +1,15 @@
-; TLS primitives! Supplied by openssl (libssl)
+; TCP primitives!
 #lang racket/base
 (require racket/exn
          racket/match
          racket/tcp
-         unison/data)
+         unison/data
+         unison/chunked-seq
+         unison/core)
 
 (provide
+ socket-pair-input
+ socket-pair-output
  (prefix-out
   unison-FOp-IO.
   (combine-out
@@ -18,60 +22,70 @@
    socketAccept.impl.v3
    socketSend.impl.v3)))
 
-(define (input socket) (car socket))
-(define (output socket) (car (cdr socket)))
+(struct socket-pair (input output))
+
+(define (handle-errors fn)
+  (with-handlers
+      [[exn:fail:network? (lambda (e) (exception "IOFailure" (exception->string e) '()))]
+       [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exception->string e) '()))]
+       [(lambda _ #t) (lambda (e) (exception "MiscFailure" (chunked-string->string (format "Unknown exception ~a" (exn->string e))) e))] ]
+    (fn)))
 
 (define (closeSocket.impl.v3 socket)
-  (if (pair? socket)
+  (handle-errors
+   (lambda ()
+     (if (socket-pair? socket)
+         (begin
+           (close-input-port (socket-pair-input socket))
+           (close-output-port (socket-pair-output socket)))
+         (tcp-close socket))
+     (right none))))
+
+(define (clientSocket.impl.v3 host port) ; string string -> socket-pair
+  (handle-errors
+   (lambda ()
+     (let-values ([(input output) (tcp-connect (chunked-string->string host) (string->number (chunked-string->string port)))])
+       (right (socket-pair input output))))))
+
+(define (socketSend.impl.v3 socket data) ; socket bytes -> ()
+  (if (not (socket-pair? socket))
+      (exception "InvalidArguments" "Cannot send on a server socket" '())
       (begin
-        (close-input-port (input socket))
-        (close-output-port (output socket)))
-      (tcp-close socket))
-  (right none))
+        (write-bytes (chunked-bytes->bytes data) (socket-pair-output socket))
+        (flush-output (socket-pair-output socket))
+        (right none)))); )
 
-(define (clientSocket.impl.v3 host port)
-  (with-handlers
-      [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
-       [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exn->string e) '()))]
-       [(lambda _ #t) (lambda (e) (exception "MiscFailure" "Unknown exception" e))] ]
-
-    (let-values ([(input output) (tcp-connect host (string->number port))])
-      (right (list input output)))))
-
-(define (socketSend.impl.v3 socket data)
-  (if (not (pair? socket))
-      (exception "InvalidArguments" "Cannot send on a server socket")
-      (begin
-        (write-bytes data (output socket))
-        (flush-output (output socket))
-        (right none))))
-
-(define (socketReceive.impl.v3 socket amt)
-  (if (not (pair? socket))
+(define (socketReceive.impl.v3 socket amt) ; socket int -> bytes
+  (if (not (socket-pair? socket))
       (exception "InvalidArguments" "Cannot receive on a server socket")
-      (begin
-        (let ([buffer (make-bytes amt)])
-          (read-bytes-avail! buffer (input socket))
-          (right buffer)))))
+      (handle-errors
+       (lambda ()
+         (begin
+           (let* ([buffer (make-bytes amt)]
+                  [read (read-bytes-avail! buffer (socket-pair-input socket))])
+             (right (bytes->chunked-bytes (subbytes buffer 0 read)))))))))
 
-; A "connected" socket is represented as a list of (list input-port output-port),
-; while a "listening" socket is just the tcp-listener itself.
 (define (socketPort.impl.v3 socket)
-  (let-values ([(_ local-port __ ___) (tcp-addresses (if (pair? socket) (input socket) socket) #t)])
+  (let-values ([(_ local-port __ ___) (tcp-addresses
+                                       (if (socket-pair? socket)
+                                           (socket-pair-input socket)
+                                           socket) #t)])
     (right local-port)))
 
-(define serverSocket.impl.v3
+(define serverSocket.impl.v3 ; string -> socket (or) string string -> socket
   (lambda args
     (let-values ([(hostname port)
                   (match args
-                    [(list _ port) (values #f port)]
-                    [(list _ hostname port) (values hostname port)])])
+                    [(list _ port) (values #f (chunked-string->string port))]
+                    [(list _ hostname port) (values
+                                             (chunked-string->string hostname)
+                                             (chunked-string->string port))])])
 
       (with-handlers
-          [[exn:fail:network? (lambda (e) (exception "IOFailure" (exn->string e) '()))]
-           [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exn->string e) '()))]
-           [(lambda _ #t) (lambda (e) (exception "MiscFailure" "Unknown exception" e))] ]
-        (let ([listener (tcp-listen (string->number port) 4 #f (if (equal? 0 hostname) #f hostname))])
+          [[exn:fail:network? (lambda (e) (exception "IOFailure" (exception->string e) '()))]
+           [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exception->string e) '()))]
+           [(lambda _ #t) (lambda (e) (exception "MiscFailure" (string->chunked-string "Unknown exception") e))] ]
+        (let ([listener (tcp-listen (string->number port ) 4 #f (if (equal? 0 hostname) #f hostname))])
           (right listener))))))
 
 ; NOTE: This is a no-op because racket's public TCP stack doesn't have separate operations for
@@ -84,8 +98,8 @@
   (right none))
 
 (define (socketAccept.impl.v3 listener)
-  (if (pair? listener)
-      (exception "InvalidArguments" "Cannot accept on a non-server socket")
+  (if (socket-pair? listener)
+      (exception "InvalidArguments" (string->chunked-string "Cannot accept on a non-server socket"))
       (begin
         (let-values ([(input output) (tcp-accept listener)])
-          (right (list input output))))))
+          (right (socket-pair input output))))))

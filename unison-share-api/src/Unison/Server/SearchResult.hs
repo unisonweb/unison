@@ -1,18 +1,18 @@
 module Unison.Server.SearchResult where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.HashQualified (HashQualified)
-import qualified Unison.HashQualified' as HQ'
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.Names (Names (..))
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Syntax.Name {- instance Name.Alphabetical Name -} ()
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 
 data SearchResult = Tp TypeResult | Tm TermResult deriving (Eq, Ord, Show)
 

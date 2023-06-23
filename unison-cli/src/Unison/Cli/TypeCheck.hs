@@ -7,26 +7,26 @@ module Unison.Cli.TypeCheck
 where
 
 import Control.Monad.Reader (ask)
-import qualified Data.Text as Text
-import qualified Unison.Builtin as Builtin
+import Data.Text qualified as Text
+import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
+import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
 import Unison.Names (Names)
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.Result as Result
-import qualified Unison.Sqlite as Sqlite
+import Unison.Result qualified as Result
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol (Symbol))
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Parser as Parser
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Var as Var
+import Unison.UnisonFile qualified as UF
+import Unison.Var qualified as Var
 
 typecheck ::
   [Type Symbol Ann] ->

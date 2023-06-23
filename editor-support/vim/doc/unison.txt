@@ -5,8 +5,6 @@ CONTENTS                                                              *unison*
 
 1. Quick start                                            |unison-quick-start|
 2. Installation                                          |unison-installation|
-3. Configuration                                        |unison-configuration|
-4. Recommended Settings                          |unison-recommended-settings|
 
 ==============================================================================
 QUICK START                                               *unison-quick-start*
@@ -16,27 +14,9 @@ Install with your plugin manager of choice. For example with vim-plug: >
 <
 You should now have syntax highlighting for `.u` files.
 
-If you want advanced features such as code completion, you'll need to point
-the plugin to a running Unison API server.
-
-In one terminal window run: >
-  ucm --port=6789 --token='local_ucm'
-<
-Feel free to substitute a port number and token of your choice. The token can
-be whatever you want, but you should probably avoid characters that have
-special meaning in shells and URLs.
-
-Now open a vim window and run the following commands: >
-  :let g:unison_api_port = 6789
-  :let g:unison_api_token = 'local_ucm'
-<
-It's easiest if you always use the same port and token and add these commands
-to your |vimrc|.
-
-If all went well you should be able to open a `scratch.u` file, enter insert
-mode and start typing (ex: `map`), trigger omni completion (see |compl-omni|)
-with `CTRL-X CTRL-O`, and see completion results for Unison types and terms!
-
+See https://www.unison-lang.org/learn/usage-topics/editor-setup/ for
+up-to-date information about editor support for Unison, including support for
+advanced features such as autocomplete, via the Language Server Protocol (LSP).
 
 See |unison-installation| and |unison-configuration| for troubleshooting and
 more information.
@@ -47,79 +27,9 @@ INSTALLATION                                             *unison-installation*
 Install with your plugin manager of choice. For example with vim-plug: >
   Plug 'unisonweb/unison', { 'branch': 'trunk', 'rtp': 'editor-support/vim' }
 
-Note: This plugin requires both `curl` and `jq` to be installed.  If they are
-installed but not on the `PATH` of the running vim process, you can set them
-explicitly with |unison_curl_path| and |unison_jq_path|.
-
 If you are a Nix user, you can use https://github.com/ceedubs/unison-nix/ to
 install this plugin, and the dependencies will automatically be managed by
 Nix.
-
-==============================================================================
-CONFIGURATION                                           *unison-configuration*
-
-All Unison configuration values allow buffer-local settings (ex:
-`b:unison_api_port`) to override an global configuration (ex:
-`g:unison_api_port`).
-
-
-Required configuration values:                 *unison-configuration-required*
-
-                                                           *g:unison_api_port*
-g:unison_api_port~
-
-  Example: >
-    let g:unison_api_port='5862'
-<
-
-                                                          *g:unison_api_token*
-g:unison_api_token~
-
-  Example: >
-    let g:unison_api_token='z8123l_acv2'
-<
-
-Optional configuration values:                 *unison-configuration-optional*
-
-                                                           *g:unison_api_host*
-g:unison_api_host~
-
-  Example: >
-    let g:unison_api_host='localhost'
-<
-
-                                                 *g:unison_set_buffer_defaults*
-g:unison_set_buffer_defaults~
-  Set to 0 to disable default settings (such as 'omnifunc')
-
-  Example: >
-    let g:unison_set_buffer_defaults=0
-<
-                                                          *g:unison_curl_path*
-g:unison_curl_path~
-  The path to the `curl` executable.
-
-  Example: >
-    let g:unison_curl_path='/usr/bin/curl'
-<
-
-                                                            *g:unison_jq_path*
-g:unison_jq_path~
-  The path to the `jq` executable.
-
-  Example: >
-    let g:unison_jq_path='/usr/local/bin/jq'
-<
-==============================================================================
-RECOMMENDED SETTINGS                             *unison-recommended-settings*
-
-These settings aren't specific to Unison, but they will likely improve the
-experience of the Unison support.
-
->
-  " close preview window when completion is finished
-  autocmd CompleteDone * silent! pclose!
-<
 
 ==============================================================================
  vim:tw=78:et:ft=help:norl:

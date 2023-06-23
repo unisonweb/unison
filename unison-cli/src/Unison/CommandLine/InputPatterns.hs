@@ -3,51 +3,56 @@
 -}
 module Unison.CommandLine.InputPatterns where
 
-import qualified Control.Lens.Cons as Cons
-import Data.Bifunctor (Bifunctor (bimap), first)
+import Control.Lens (preview, (^.))
+import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.These (These (..))
 import System.Console.Haskeline.Completion (Completion (Completion))
-import qualified Text.Megaparsec as P
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Merge as Branch
+import System.Console.Haskeline.Completion qualified as Haskeline
+import Text.Megaparsec qualified as P
+import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Cli.Pretty (prettyProjectNameSlash, prettySlashProjectBranchName)
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase (Codebase)
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input)
-import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
-import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
-import Unison.Codebase.Editor.RemoteRepo (WriteGitRepo, WriteRemotePath)
-import qualified Unison.Codebase.Editor.SlurpResult as SR
+import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
+import Unison.Codebase.Editor.RemoteRepo (WriteGitRepo, WriteRemoteNamespace)
+import Unison.Codebase.Editor.SlurpResult qualified as SR
 import Unison.Codebase.Editor.UriParser (parseReadRemoteNamespace)
-import qualified Unison.Codebase.Editor.UriParser as UriParser
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
-import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.SyncMode as SyncMode
+import Unison.Codebase.Editor.UriParser qualified as UriParser
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.PushBehavior qualified as PushBehavior
+import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
-import qualified Unison.Codebase.Verbosity as Verbosity
+import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.Completion
-import qualified Unison.CommandLine.Globbing as Globbing
-import Unison.CommandLine.InputPattern
-  ( ArgumentType (..),
-    InputPattern (InputPattern),
-    IsOptional (..),
-  )
-import qualified Unison.CommandLine.InputPattern as I
-import qualified Unison.HashQualified as HQ
+import Unison.CommandLine.Globbing qualified as Globbing
+import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..))
+import Unison.CommandLine.InputPattern qualified as I
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import qualified Unison.Syntax.HashQualified as HQ (fromString)
-import qualified Unison.Syntax.Name as Name (unsafeFromString)
-import qualified Unison.Util.ColorText as CT
+import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName, Semver)
+import Unison.Syntax.HashQualified qualified as HQ (fromString)
+import Unison.Syntax.Name qualified as Name (fromText, unsafeFromString)
+import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -441,12 +446,18 @@ api =
 ui :: InputPattern
 ui =
   InputPattern
-    "ui"
-    []
-    I.Visible
-    []
-    "`ui` opens the Codebase UI in the default browser."
-    (const $ pure Input.UiI)
+    { patternName = "ui",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help = P.wrap "`ui` opens the Local UI in the default browser.",
+      parse = \case
+        [] -> pure $ Input.UiI Path.relativeEmpty'
+        [path] -> first fromString $ do
+          p <- Path.parsePath' path
+          pure $ Input.UiI p
+        _ -> Left (I.help ui)
+    }
 
 undo :: InputPattern
 undo =
@@ -706,25 +717,49 @@ deleteReplacement isTerm =
         then deleteTermReplacementCommand
         else deleteTypeReplacementCommand
 
+deleteProject :: InputPattern
+deleteProject =
+  InputPattern
+    { patternName = "delete.project",
+      aliases = ["project.delete"],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectNameArg)],
+      help =
+        P.wrapColumn2
+          [ ("`delete.project foo`", "deletes the local project `foo`")
+          ],
+      parse = \case
+        [name]
+          | Right project <- tryInto @ProjectName (Text.pack name) ->
+              Right (Input.DeleteI (DeleteTarget'Project project))
+        _ -> Left (showPatternHelp deleteProject)
+    }
+
+deleteBranch :: InputPattern
+deleteBranch =
+  InputPattern
+    { patternName = "delete.branch",
+      aliases = ["branch.delete"],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectBranchNameWithOptionalProjectNameArg)],
+      help =
+        P.wrapColumn2
+          [ ("`delete.branch foo/bar`", "deletes the branch `bar` in the project `foo`"),
+            ("`delete.branch /bar`", "deletes the branch `bar` in the current project")
+          ],
+      parse = \case
+        [name] ->
+          case tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name) of
+            Left _ -> Left (showPatternHelp deleteBranch)
+            Right projectAndBranch -> Right (Input.DeleteI (DeleteTarget'ProjectBranch projectAndBranch))
+        _ -> Left (showPatternHelp deleteBranch)
+    }
+
 deleteTermReplacement :: InputPattern
 deleteTermReplacement = deleteReplacement True
 
 deleteTypeReplacement :: InputPattern
 deleteTypeReplacement = deleteReplacement False
-
-parseHashQualifiedName ::
-  String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
-parseHashQualifiedName s =
-  maybe
-    ( Left
-        . P.warnCallout
-        . P.wrap
-        $ P.string s
-          <> " is not a well-formed name, hash, or hash-qualified name. "
-          <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
-    )
-    Right
-    $ HQ.fromString s
 
 aliasTerm :: InputPattern
 aliasTerm =
@@ -883,10 +918,10 @@ deleteNamespaceParser helpText insistence =
       ["."] ->
         first fromString
           . pure
-          $ Input.DeleteI (DeleteTarget'Branch insistence Nothing)
+          $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
       [p] -> first fromString $ do
         p <- Path.parseSplit' Path.definitionNameSegment p
-        pure $ Input.DeleteI (DeleteTarget'Branch insistence (Just p))
+        pure $ Input.DeleteI (DeleteTarget'Namespace insistence (Just p))
       _ -> Left helpText
   )
 
@@ -1001,6 +1036,51 @@ forkLocal =
         _ -> Left (I.help forkLocal)
     )
 
+reset :: InputPattern
+reset =
+  InputPattern
+    "reset"
+    []
+    I.Visible
+    [ (Required, namespaceArg),
+      (Optional, namespaceArg)
+    ]
+    ( P.wrapColumn2
+        [ ("`reset #pvfd222s8n`", "reset the current namespace to the causal `#pvfd222s8n`"),
+          ("`reset foo`", "reset the current namespace to that of the `foo` namespace."),
+          ("`reset foo bar`", "reset the namespace `bar` to that of the `foo` namespace."),
+          ("`reset #pvfd222s8n /topic`", "reset the branch `topic` of the current project to the causal `#pvfd222s8n`.")
+        ]
+    )
+    ( maybeToEither (I.help reset) . \case
+        arg0 : restArgs -> do
+          arg0 <- branchIdOrProject arg0
+          arg1 <- case restArgs of
+            [] -> pure Nothing
+            arg1 : [] -> Just <$> parseLooseCodeOrProject arg1
+            _ -> Nothing
+          Just (Input.ResetI arg0 arg1)
+        _ -> Nothing
+    )
+  where
+    branchIdOrProject ::
+      String ->
+      Maybe
+        ( These
+            Input.BranchId
+            (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+        )
+    branchIdOrProject str =
+      let branchIdRes = Input.parseBranchId str
+          projectRes = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack str)
+       in case (branchIdRes, projectRes) of
+            (Left _, Left _) -> Nothing
+            (Left _, Right pr) -> Just (That pr)
+            (Right bid, Left _) -> Just (This bid)
+            (Right bid, Right pr) -> Just (These bid pr)
+
+-- asBranch = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
+
 resetRoot :: InputPattern
 resetRoot =
   InputPattern
@@ -1046,47 +1126,62 @@ pullImpl name aliases verbosity pullMode addendum = do
   where
     self =
       InputPattern
-        name
-        aliases
-        I.Visible
-        [(Optional, remoteNamespaceArg), (Optional, namespaceArg)]
-        ( P.lines
-            [ P.wrap
-                "The"
-                <> makeExample' self
-                <> "command merges a remote namespace into a local namespace"
-                <> addendum,
-              "",
-              P.wrapColumn2
-                [ ( makeExample self ["remote", "local"],
-                    "merges the remote namespace `remote`"
-                      <> "into the local namespace `local"
-                  ),
-                  ( makeExample self ["remote"],
-                    "merges the remote namespace `remote`"
-                      <> "into the current namespace"
-                  ),
-                  ( makeExample' self,
-                    "merges the remote namespace configured in `.unisonConfig`"
-                      <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
-                  )
-                ],
-              "",
-              explainRemote Pull
-            ]
-        )
-        ( \case
-            [] ->
-              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
-            [url] -> do
-              ns <- parseReadRemoteNamespace "remote-namespace" url
-              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
-            [url, path] -> do
-              ns <- parseReadRemoteNamespace "remote-namespace" url
-              p <- first fromString $ Path.parsePath' path
-              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit pullMode verbosity
-            _ -> Left (I.help self)
-        )
+        { patternName = name,
+          aliases = aliases,
+          visibility = I.Visible,
+          argTypes = [(Optional, remoteNamespaceArg), (Optional, namespaceArg)],
+          help =
+            P.lines
+              [ P.wrap
+                  "The"
+                  <> makeExample' self
+                  <> "command merges a remote namespace into a local namespace"
+                  <> addendum,
+                "",
+                P.wrapColumn2
+                  [ ( makeExample self ["@unison/base/main"],
+                      "merges the branch `main`"
+                        <> "of the Unison Share hosted project `@unison/base`"
+                        <> "into the current namespace"
+                    ),
+                    ( makeExample self ["@unison/base/main", "my-base/topic"],
+                      "merges the branch `main`"
+                        <> "of the Unison Share hosted project `@unison/base`"
+                        <> "into the branch `topic` of the local `my-base` project"
+                    ),
+                    ( makeExample self ["remote", "local"],
+                      "merges the remote namespace `remote`"
+                        <> "into the local namespace `local"
+                    ),
+                    ( makeExample self ["remote"],
+                      "merges the remote namespace `remote`"
+                        <> "into the current namespace"
+                    ),
+                    ( makeExample' self,
+                      "merges the remote namespace configured in `.unisonConfig`"
+                        <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
+                    )
+                  ],
+                "",
+                explainRemote Pull
+              ],
+          parse =
+            maybeToEither (I.help self) . \case
+              [] -> Just $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.ShortCircuit pullMode verbosity
+              [sourceString] -> do
+                source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+                Just $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) SyncMode.ShortCircuit pullMode verbosity
+              [sourceString, targetString] -> do
+                source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+                target <- parseLooseCodeOrProject targetString
+                Just $
+                  Input.PullRemoteBranchI
+                    (Input.PullSourceTarget2 source target)
+                    SyncMode.ShortCircuit
+                    pullMode
+                    verbosity
+              _ -> Nothing
+        }
 
 pullExhaustive :: InputPattern
 pullExhaustive =
@@ -1106,17 +1201,32 @@ pullExhaustive =
               <> "versions M1l and earlier.  It may be extra slow!"
         ]
     )
-    ( \case
+    ( maybeToEither (I.help pullExhaustive) . \case
         [] ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
-        [url] -> do
-          ns <- parseReadRemoteNamespace "remote-namespace" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
-        [url, path] -> do
-          ns <- parseReadRemoteNamespace "remote-namespace" url
-          p <- first fromString $ Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Verbose
-        _ -> Left (I.help pullVerbose)
+          Just $
+            Input.PullRemoteBranchI
+              Input.PullSourceTarget0
+              SyncMode.Complete
+              Input.PullWithHistory
+              Verbosity.Verbose
+        [sourceString] -> do
+          source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+          Just $
+            Input.PullRemoteBranchI
+              (Input.PullSourceTarget1 source)
+              SyncMode.Complete
+              Input.PullWithHistory
+              Verbosity.Verbose
+        [sourceString, targetString] -> do
+          source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+          target <- parseLooseCodeOrProject targetString
+          Just $
+            Input.PullRemoteBranchI
+              (Input.PullSourceTarget2 source target)
+              SyncMode.Complete
+              Input.PullWithHistory
+              Verbosity.Verbose
+        _ -> Nothing
     )
 
 debugTabCompletion :: InputPattern
@@ -1144,50 +1254,47 @@ push =
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap
-            "The `push` command merges a local namespace into a remote namespace.",
+            "The `push` command merges a local project or namespace into a remote project or namespace.",
           "",
           P.wrapColumn2
-            [ ( "`push remote local`",
-                "merges the contents of the local namespace `local`"
-                  <> "into the remote namespace `remote`."
+            [ ( "`push <remote> <local>`",
+                "publishes the contents of a local namespace or branch"
+                  <> "into a remote namespace or branch."
               ),
-              ( "`push remote`",
-                "publishes the current namespace into the remote namespace `remote`"
+              ( "`push <remote>`",
+                "publishes the current namespace or branch into a remote namespace or branch"
               ),
               ( "`push`",
-                "publishes the current namespace into the remote namespace configured in your `.unisonConfig`"
-                  <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace."
+                "publishes the current namespace or branch. Remote mappings for namespaces are configured in"
+                  <> "your `.unisonConfig` at the key `RemoteMappings.<namespace>` where `<namespace>` is the "
+                  <> "current namespace. Remote mappings for branches default to the branch that you cloned from"
+                  <> "or pushed to initially. Otherwise, it is pushed to"
+                  <> P.group "@<user handle>/<local project name>"
               )
             ],
           "",
           explainRemote Push
         ]
     )
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
-    )
+    \args -> do
+      sourceTarget <-
+        case args of
+          [] -> Right Input.PushSourceTarget0
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Input.PushSourceTarget1 target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Input.PushSourceTarget2 source target)
+          _ -> Left (I.help push)
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { sourceTarget,
+              pushBehavior = PushBehavior.RequireNonEmpty,
+              syncMode = SyncMode.ShortCircuit
+            }
 
 pushCreate :: InputPattern
 pushCreate =
@@ -1218,31 +1325,25 @@ pushCreate =
           explainRemote Push
         ]
     )
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
-                  pushBehavior = PushBehavior.RequireEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.RequireEmpty,
-                  syncMode = SyncMode.ShortCircuit
-                }
-    )
+    \args -> do
+      sourceTarget <-
+        case args of
+          [] -> Right Input.PushSourceTarget0
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Input.PushSourceTarget1 target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Input.PushSourceTarget2 source target)
+          _ -> Left (I.help pushForce)
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { sourceTarget,
+              pushBehavior = PushBehavior.RequireEmpty,
+              syncMode = SyncMode.ShortCircuit
+            }
 
 pushForce :: InputPattern
 pushForce =
@@ -1252,31 +1353,25 @@ pushForce =
     I.Hidden
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     (P.wrap "Like `push`, but overwrites any remote namespace.")
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
-                  pushBehavior = PushBehavior.ForcePush,
-                  syncMode = SyncMode.ShortCircuit
-                }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.ForcePush,
-                  syncMode = SyncMode.ShortCircuit
-                }
-    )
+    \args -> do
+      sourceTarget <-
+        case args of
+          [] -> Right Input.PushSourceTarget0
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Input.PushSourceTarget1 target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Input.PushSourceTarget2 source target)
+          _ -> Left (I.help pushForce)
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { sourceTarget,
+              pushBehavior = PushBehavior.ForcePush,
+              syncMode = SyncMode.ShortCircuit
+            }
 
 pushExhaustive :: InputPattern
 pushExhaustive =
@@ -1296,127 +1391,48 @@ pushExhaustive =
               <> "versions M1l and earlier. It may be extra slow!"
         ]
     )
-    ( \case
-        [] ->
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = Path.relativeEmpty',
-                  maybeRemoteRepo = Nothing,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.Complete
-                }
-        url : rest -> do
-          pushPath <- parseWriteRemotePath "remote-path" url
-          p <- case rest of
-            [] -> Right Path.relativeEmpty'
-            [path] -> first fromString $ Path.parsePath' path
-            _ -> Left (I.help push)
-          Right $
-            Input.PushRemoteBranchI
-              Input.PushRemoteBranchInput
-                { localPath = p,
-                  maybeRemoteRepo = Just pushPath,
-                  pushBehavior = PushBehavior.RequireNonEmpty,
-                  syncMode = SyncMode.Complete
-                }
-    )
-
-createPullRequest :: InputPattern
-createPullRequest =
-  InputPattern
-    "pull-request.create"
-    ["pr.create"]
-    I.Visible
-    [(Required, remoteNamespaceArg), (Required, remoteNamespaceArg), (Optional, namespaceArg)]
-    ( P.group $
-        P.lines
-          [ P.wrap $
-              makeExample createPullRequest ["base", "head"]
-                <> "will generate a request to merge the remote repo `head`"
-                <> "into the remote repo `base`.",
-            "",
-            "example: "
-              <> makeExampleNoBackticks
-                createPullRequest
-                [ "unison.public.base.main",
-                  "myself.public.prs.base.myFeature"
-                ]
-          ]
-    )
-    ( \case
-        [baseUrl, headUrl] -> do
-          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
-          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
-          pure $ Input.CreatePullRequestI baseRepo headRepo
-        _ -> Left (I.help createPullRequest)
-    )
-
-loadPullRequest :: InputPattern
-loadPullRequest =
-  InputPattern
-    "pull-request.load"
-    ["pr.load"]
-    I.Visible
-    [(Required, remoteNamespaceArg), (Required, remoteNamespaceArg), (Optional, namespaceArg)]
-    ( P.lines
-        [ P.wrap $
-            makeExample loadPullRequest ["base", "head"]
-              <> "will load a pull request for merging the remote repo `head` into the"
-              <> "remote repo `base`, staging each in the current namespace"
-              <> "(so make yourself a clean spot to work first).",
-          P.wrap $
-            makeExample loadPullRequest ["base", "head", "dest"]
-              <> "will load a pull request for merging the remote repo `head` into the"
-              <> "remote repo `base`, staging each in `dest`, which must be empty."
-        ]
-    )
-    ( \case
-        [baseUrl, headUrl] -> do
-          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
-          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
-          pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
-        [baseUrl, headUrl, dest] -> do
-          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
-          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
-          destPath <- first fromString $ Path.parsePath' dest
-          pure $ Input.LoadPullRequestI baseRepo headRepo destPath
-        _ -> Left (I.help loadPullRequest)
-    )
-
-parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
-parseWriteGitRepo label input = do
-  first
-    (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeGitRepo label (Text.pack input))
-
-parseWriteRemotePath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
-parseWriteRemotePath label input = do
-  first
-    (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeRemotePath label (Text.pack input))
+    \args -> do
+      sourceTarget <-
+        case args of
+          [] -> Right Input.PushSourceTarget0
+          [targetStr] -> do
+            target <- parsePushTarget targetStr
+            Right (Input.PushSourceTarget1 target)
+          [targetStr, sourceStr] -> do
+            target <- parsePushTarget targetStr
+            source <- parsePushSource sourceStr
+            Right (Input.PushSourceTarget2 source target)
+          _ -> Left (I.help pushExhaustive)
+      Right $
+        Input.PushRemoteBranchI
+          Input.PushRemoteBranchInput
+            { sourceTarget,
+              pushBehavior = PushBehavior.RequireNonEmpty,
+              syncMode = SyncMode.Complete
+            }
 
 squashMerge :: InputPattern
 squashMerge =
   InputPattern
-    "merge.squash"
-    ["squash"]
-    I.Visible
-    [(Required, namespaceArg), (Required, namespaceArg)]
-    ( P.wrap $
-        makeExample squashMerge ["src", "dest"]
-          <> "merges `src` namespace into `dest`,"
-          <> "discarding the history of `src` in the process."
-          <> "The resulting `dest` will have (at most) 1"
-          <> "additional history entry."
-    )
-    ( \case
-        [src, dest] -> first fromString $ do
-          src <- Path.parsePath' src
-          dest <- Path.parsePath' dest
-          pure $ Input.MergeLocalBranchI src dest Branch.SquashMerge
-        _ -> Left (I.help squashMerge)
-    )
+    { patternName = "merge.squash",
+      aliases = ["squash"],
+      visibility = I.Visible,
+      argTypes = [(Required, namespaceArg), (Required, namespaceArg)],
+      help =
+        P.wrap $
+          makeExample squashMerge ["src", "dest"]
+            <> "merges `src` namespace into `dest`,"
+            <> "discarding the history of `src` in the process."
+            <> "The resulting `dest` will have (at most) 1"
+            <> "additional history entry.",
+      parse =
+        maybeToEither (I.help squashMerge) . \case
+          [src, dest] -> do
+            src <- parseLooseCodeOrProject src
+            dest <- parseLooseCodeOrProject dest
+            Just $ Input.MergeLocalBranchI src dest Branch.SquashMerge
+          _ -> Nothing
+    }
 
 mergeLocal :: InputPattern
 mergeLocal =
@@ -1428,20 +1444,47 @@ mergeLocal =
       (Optional, namespaceArg)
     ]
     ( P.column2
-        [ ("`merge src`", "merges `src` namespace into the current namespace"),
-          ("`merge src dest`", "merges `src` namespace into the `dest` namespace")
+        [ ( "`merge foo/bar baz/qux`",
+            "merges the `foo/bar` branch into the `baz/qux` branch"
+          ),
+          ( "`merge /topic /main`",
+            "merges the branch `topic` of the current project into the `main` branch of the current project"
+          ),
+          ( "`merge foo/topic /main`",
+            "merges the branch `topic` of the project `foo` into the `main` branch of the current project"
+          ),
+          ( "`merge /topic foo/main`",
+            "merges the branch `topic` of the current project into the `main` branch of the project 'foo`"
+          ),
+          ( "`merge .src`",
+            "merges `.src` namespace into the current namespace"
+          ),
+          ( "`merge .src .dest`",
+            "merges `.src` namespace into the `dest` namespace"
+          )
         ]
     )
-    ( \case
-        [src] -> first fromString $ do
-          src <- Path.parsePath' src
-          pure $ Input.MergeLocalBranchI src Path.relativeEmpty' Branch.RegularMerge
-        [src, dest] -> first fromString $ do
-          src <- Path.parsePath' src
-          dest <- Path.parsePath' dest
-          pure $ Input.MergeLocalBranchI src dest Branch.RegularMerge
-        _ -> Left (I.help mergeLocal)
+    ( maybeToEither (I.help mergeLocal) . \case
+        [src] -> do
+          src <- parseLooseCodeOrProject src
+          Just $ Input.MergeLocalBranchI src (This Path.relativeEmpty') Branch.RegularMerge
+        [src, dest] -> do
+          src <- parseLooseCodeOrProject src
+          dest <- parseLooseCodeOrProject dest
+          Just $ Input.MergeLocalBranchI src dest Branch.RegularMerge
+        _ -> Nothing
     )
+
+parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
+parseLooseCodeOrProject inputString =
+  case (asLooseCode, asBranch) of
+    (Right path, Left _) -> Just (This path)
+    (Left _, Right branch) -> Just (That branch)
+    (Right path, Right branch) -> Just (These path branch)
+    (Left _, Left _) -> Nothing
+  where
+    asLooseCode = Path.parsePath' inputString
+    asBranch = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
 
 diffNamespace :: InputPattern
 diffNamespace =
@@ -1488,15 +1531,15 @@ previewMergeLocal =
           )
         ]
     )
-    ( \case
-        [src] -> first fromString $ do
-          src <- Path.parsePath' src
-          pure $ Input.PreviewMergeLocalBranchI src Path.relativeEmpty'
-        [src, dest] -> first fromString $ do
-          src <- Path.parsePath' src
-          dest <- Path.parsePath' dest
+    ( maybeToEither (I.help previewMergeLocal) . \case
+        [src] -> do
+          src <- parseLooseCodeOrProject src
+          pure $ Input.PreviewMergeLocalBranchI src (This Path.relativeEmpty')
+        [src, dest] -> do
+          src <- parseLooseCodeOrProject src
+          dest <- parseLooseCodeOrProject dest
           pure $ Input.PreviewMergeLocalBranchI src dest
-        _ -> Left (I.help previewMergeLocal)
+        _ -> Nothing
     )
 
 replaceEdit ::
@@ -1622,6 +1665,7 @@ helpTopicsMap =
     [ ("testcache", testCacheMsg),
       ("filestatus", fileStatusMsg),
       ("messages.disallowedAbsolute", disallowedAbsoluteMsg),
+      ("remotes", remotesMsg),
       ("namespaces", pathnamesMsg)
     ]
   where
@@ -1732,6 +1776,19 @@ helpTopicsMap =
             "As a workaround, you can give definitions with a relative name"
               <> "temporarily (like `exports.blah.foo`) and then use `move.*` "
               <> "or `merge` commands to move stuff around afterwards."
+        ]
+    remotesMsg =
+      P.callout "\129302" . P.lines $
+        [ P.wrap $
+            "Local projects may be associated with at most one remote project on Unison Share."
+              <> "When this relationship is established, it becomes the default argument for a"
+              <> "number of share commands. For example, running `push` or `pull` in a project"
+              <> "with no arguments will push to or pull from the associated remote, if it exists.",
+          "",
+          P.wrap $
+            "This association is created automatically on when a project is created by `clone`."
+              <> "If the project was created locally then the relationship will be established on"
+              <> "the first `push`."
         ]
 
 help :: InputPattern
@@ -2072,6 +2129,26 @@ docsToHtml =
         _ -> Left $ showPatternHelp docsToHtml
     )
 
+docToMarkdown :: InputPattern
+docToMarkdown =
+  InputPattern
+    "debug.doc-to-markdown"
+    []
+    I.Visible
+    []
+    ( P.wrapColumn2
+        [ ( "`debug.doc-to-markdown term.doc`",
+            "Render a doc to markdown."
+          )
+        ]
+    )
+    ( \case
+        [docNameText] -> first fromString $ do
+          docName <- maybeToEither "Invalid name" . Name.fromText . Text.pack $ docNameText
+          pure $ Input.DocToMarkdownI docName
+        _ -> Left $ showPatternHelp docToMarkdown
+    )
+
 execute :: InputPattern
 execute =
   InputPattern
@@ -2348,115 +2425,330 @@ diffNamespaceToPatch =
         _ -> Left (showPatternHelp diffNamespaceToPatch)
     }
 
+projectCreate :: InputPattern
+projectCreate =
+  InputPattern
+    { patternName = "project.create",
+      aliases = ["create.project"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ("`project.create`", "creates a project with a random name"),
+            ("`project.create foo`", "creates a project named `foo`")
+          ],
+      parse = \case
+        [name] ->
+          case tryInto @ProjectName (Text.pack name) of
+            Left _ -> Left "Invalid project name."
+            Right name1 -> Right (Input.ProjectCreateI (Just name1))
+        _ -> Right (Input.ProjectCreateI Nothing)
+    }
+
+projectRenameInputPattern :: InputPattern
+projectRenameInputPattern =
+  InputPattern
+    { patternName = "project.rename",
+      aliases = ["rename.project"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ("`project.rename foo`", "renames the current project to `foo`")
+          ],
+      parse = \case
+        [nameString] | Right name <- tryInto (Text.pack nameString) -> Right (Input.ProjectRenameI name)
+        _ -> Left (showPatternHelp projectRenameInputPattern)
+    }
+
+projectSwitch :: InputPattern
+projectSwitch =
+  InputPattern
+    { patternName = "switch",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [(Required, projectAndBranchNamesArg False)],
+      help =
+        P.wrapColumn2
+          [ ("`switch foo/bar`", "switches to the branch `bar` in the project `foo`"),
+            ("`switch foo/`", "switches to the last branch you visited in the project `foo`"),
+            ("`switch /bar`", "switches to the branch `bar` in the current project")
+          ],
+      parse = \case
+        [name] ->
+          case tryInto @ProjectAndBranchNames (Text.pack name) of
+            Left _ -> Left (showPatternHelp projectSwitch)
+            Right projectAndBranch -> Right (Input.ProjectSwitchI projectAndBranch)
+        _ -> Left (showPatternHelp projectSwitch)
+    }
+
+projectsInputPattern :: InputPattern
+projectsInputPattern =
+  InputPattern
+    { patternName = "projects",
+      aliases = ["list.project", "ls.project", "project.list"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help = P.wrap "List projects.",
+      parse = \_ -> Right Input.ProjectsI
+    }
+
+branchesInputPattern :: InputPattern
+branchesInputPattern =
+  InputPattern
+    { patternName = "branches",
+      aliases = ["list.branch", "ls.branch", "branch.list"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ("`branches`", "lists all branches in the current project"),
+            ("`branches foo", "lists all branches in the project `foo`")
+          ],
+      parse = \case
+        [] -> Right (Input.BranchesI Nothing)
+        [nameString] | Right name <- tryFrom (Text.pack nameString) -> Right (Input.BranchesI (Just name))
+        _ -> Left (showPatternHelp branchesInputPattern)
+    }
+
+branchInputPattern :: InputPattern
+branchInputPattern =
+  InputPattern
+    { patternName = "branch",
+      aliases = ["branch.create", "create.branch"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ("`branch foo`", "forks the current project branch to a new branch `foo`"),
+            ("`branch /bar foo`", "forks the branch `bar` of the current project to a new branch `foo`"),
+            ("`branch .bar foo`", "forks the path `.bar` of the current project to a new branch `foo`")
+          ],
+      parse =
+        maybeToEither (showPatternHelp branchInputPattern) . \case
+          [source0, name] -> do
+            source <- parseLooseCodeOrProject source0
+            projectAndBranch <-
+              Text.pack name
+                & tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+                & eitherToMaybe
+            Just (Input.BranchI (Input.BranchSourceI'LooseCodeOrProject source) projectAndBranch)
+          [name] -> do
+            projectAndBranch <-
+              Text.pack name
+                & tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+                & eitherToMaybe
+            Just (Input.BranchI Input.BranchSourceI'CurrentContext projectAndBranch)
+          _ -> Nothing
+    }
+
+branchEmptyInputPattern :: InputPattern
+branchEmptyInputPattern =
+  InputPattern
+    { patternName = "branch.empty",
+      aliases = ["branch.create-empty", "create.empty-branch"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help = P.wrap "Create a new empty branch.",
+      parse = \case
+        [name] ->
+          first (\_ -> showPatternHelp branchEmptyInputPattern) do
+            projectAndBranch <- tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack name)
+            Right (Input.BranchI Input.BranchSourceI'Empty projectAndBranch)
+        _ -> Left (showPatternHelp branchEmptyInputPattern)
+    }
+
+branchRenameInputPattern :: InputPattern
+branchRenameInputPattern =
+  InputPattern
+    { patternName = "branch.rename",
+      aliases = ["rename.branch"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ("`branch.rename foo`", "renames the current branch to `foo`")
+          ],
+      parse = \case
+        [nameString] | Right name <- tryInto (Text.pack nameString) -> Right (Input.BranchRenameI name)
+        _ -> Left (showPatternHelp branchRenameInputPattern)
+    }
+
+clone :: InputPattern
+clone =
+  InputPattern
+    { patternName = "clone",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ( "`clone @unison/json/topic json/my-topic`",
+              "creates `json/my-topic` from the remote branch `@unison/json/topic`"
+            ),
+            ( "`clone @unison/base base/`",
+              "creates `base/main` from the remote branch `@unison/base/main`"
+            ),
+            ( "`clone @unison/base /main2`",
+              "creates the branch `main2` in the current project from the remote branch `@unison/base/main`"
+            ),
+            ( "`clone /main /main2`",
+              "creates the branch `main2` in the current project from the remote branch `main` of the current project's associated remote"
+                <> "(see"
+                <> P.group (makeExample helpTopics ["remotes"] <> ")")
+            ),
+            ( "`clone /main my-fork/`",
+              "creates `my-fork/main` from the branch `main` of the current project's associated remote"
+                <> "(see"
+                <> P.group (makeExample helpTopics ["remotes"] <> ")")
+            )
+          ],
+      parse =
+        maybe (Left (showPatternHelp clone)) Right . \case
+          [remoteNamesString] -> do
+            remoteNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack remoteNamesString))
+            Just (Input.CloneI remoteNames Nothing)
+          [remoteNamesString, localNamesString] -> do
+            remoteNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack remoteNamesString))
+            localNames <- eitherToMaybe (tryInto @ProjectAndBranchNames (Text.pack localNamesString))
+            Just (Input.CloneI remoteNames (Just localNames))
+          _ -> Nothing
+    }
+
+releaseDraft :: InputPattern
+releaseDraft =
+  InputPattern
+    { patternName = "release.draft",
+      aliases = ["draft.release"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help = P.wrap "Draft a release.",
+      parse = \case
+        [tryInto @Semver . Text.pack -> Right semver] -> Right (Input.ReleaseDraftI semver)
+        _ -> Left (showPatternHelp releaseDraft)
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
     I.patternName
-    [ help,
-      helpTopics,
-      load,
-      clear,
-      add,
-      previewAdd,
-      update,
-      previewUpdate,
-      updateNoPatch,
-      delete,
-      deleteVerbose,
-      forkLocal,
-      mergeLocal,
-      squashMerge,
-      previewMergeLocal,
-      diffNamespace,
-      names True, -- names.global
-      names False, -- names
-      push,
-      pushCreate,
-      pushForce,
-      pullVerbose,
-      pullWithoutHistory,
-      pull,
-      pushExhaustive,
-      pullExhaustive,
-      createPullRequest,
-      loadPullRequest,
-      cd,
-      up,
+    [ add,
+      aliasMany,
+      aliasTerm,
+      aliasType,
+      api,
+      authLogin,
       back,
+      branchEmptyInputPattern,
+      branchInputPattern,
+      branchRenameInputPattern,
+      branchesInputPattern,
+      cd,
+      clear,
+      clone,
+      compileScheme,
+      copyPatch,
+      createAuthor,
+      debugClearWatchCache,
+      debugDoctor,
+      debugDumpNamespace,
+      debugDumpNamespaceSimple,
+      debugFileHashes,
+      debugNameDiff,
+      debugNumberedArgs,
+      debugTabCompletion,
+      delete,
+      deleteBranch,
+      deleteProject,
       deleteNamespace,
       deleteNamespaceForce,
-      renameBranch,
       deletePatch,
-      renamePatch,
-      copyPatch,
+      deleteTerm,
+      deleteTermReplacement,
+      deleteTermVerbose,
+      deleteType,
+      deleteTypeReplacement,
+      deleteTypeVerbose,
+      deleteVerbose,
+      dependencies,
+      dependents,
+      diffNamespace,
+      diffNamespaceToPatch,
+      display,
+      displayTo,
+      docToMarkdown,
+      docs,
+      docsToHtml,
+      edit,
+      execute,
+      fetchScheme,
       find,
-      findGlobal,
       findAll,
+      findGlobal,
+      findPatch,
       findShallow,
       findVerbose,
       findVerboseAll,
-      view,
-      viewGlobal,
-      display,
-      displayTo,
-      api,
-      ui,
-      docs,
-      docsToHtml,
-      findPatch,
-      viewPatch,
-      undo,
+      forkLocal,
+      gist,
+      help,
+      helpTopics,
       history,
-      edit,
-      renameTerm,
-      deleteTerm,
-      deleteTermVerbose,
-      aliasTerm,
-      renameType,
-      deleteType,
-      deleteTypeVerbose,
-      aliasType,
-      aliasMany,
-      todo,
-      patch,
-      link,
-      unlink,
-      links,
-      createAuthor,
-      replace,
-      deleteTermReplacement,
-      deleteTypeReplacement,
-      test,
-      testAll,
       ioTest,
-      execute,
-      saveExecuteResult,
-      viewReflog,
-      resetRoot,
-      quit,
-      updateBuiltins,
+      link,
+      links,
+      load,
       makeStandalone,
-      runScheme,
-      compileScheme,
-      schemeLibgen,
-      fetchScheme,
       mergeBuiltins,
       mergeIOBuiltins,
-      dependents,
-      dependencies,
+      mergeLocal,
+      names False, -- names
+      names True, -- names.global
       namespaceDependencies,
-      debugNumberedArgs,
-      debugFileHashes,
-      debugDumpNamespace,
-      debugDumpNamespaceSimple,
-      debugClearWatchCache,
-      debugDoctor,
-      debugTabCompletion,
-      debugNameDiff,
-      gist,
-      authLogin,
+      patch,
+      previewAdd,
+      previewMergeLocal,
+      previewUpdate,
       printVersion,
-      diffNamespaceToPatch
+      projectCreate,
+      projectRenameInputPattern,
+      projectSwitch,
+      projectsInputPattern,
+      pull,
+      pullExhaustive,
+      pullVerbose,
+      pullWithoutHistory,
+      push,
+      pushCreate,
+      pushExhaustive,
+      pushForce,
+      quit,
+      releaseDraft,
+      renameBranch,
+      renamePatch,
+      renameTerm,
+      renameType,
+      replace,
+      reset,
+      resetRoot,
+      runScheme,
+      saveExecuteResult,
+      schemeLibgen,
+      squashMerge,
+      test,
+      testAll,
+      todo,
+      ui,
+      undo,
+      unlink,
+      up,
+      update,
+      updateBuiltins,
+      updateNoPatch,
+      view,
+      viewGlobal,
+      viewPatch,
+      viewReflog
     ]
 
 -- | A map of all command patterns by pattern name or alias.
@@ -2587,6 +2879,252 @@ remoteNamespaceArg =
                 sharePathCompletion http input,
       globTargets = mempty
     }
+
+-- | A project name, branch name, or both.
+projectAndBranchNamesArg :: Bool -> ArgumentType
+projectAndBranchNamesArg includeCurrentBranch =
+  ArgumentType
+    { typeName = "project-and-branch-names",
+      suggestions = \(Text.strip . Text.pack -> input) codebase _httpClient path ->
+        case Text.uncons input of
+          -- Things like "/foo" would be parsed as unambiguous branches in the logic below, except we also want to
+          -- handle "/<TAB>" and "/@<TAB>" inputs, which aren't valid branch names, but are valid branch prefixes. So,
+          -- if the input begins with a forward slash, just rip it off and treat the rest as the branch prefix.
+          Just ('/', input1) -> handleBranchesComplete input1 codebase path
+          _ ->
+            case tryFrom input of
+              -- This case handles inputs like "", "@", and possibly other things that don't look like a valid project
+              -- or branch, but are a valid prefix of one
+              Left _err -> handleAmbiguousComplete input codebase path
+              Right (ProjectAndBranchNames'Ambiguous _ _) -> handleAmbiguousComplete input codebase path
+              -- Here we assume that if we've unambiguously parsed a project, it ended in a forward slash, so we're ready
+              -- to suggest branches in that project as autocompletions.
+              --
+              -- Conceivably, with some other syntax, it may be possible to unambiguously parse a project name, while
+              -- still wanting to suggest full project names (e.g. I type "PROJECT=foo<tab>" to get a list of projects
+              -- that begin with "foo"), but because that's not how our syntax works today, we don't inspect the input
+              -- string for a trailing forward slash.
+              Right (ProjectAndBranchNames'Unambiguous (This projectName)) -> do
+                branches <-
+                  Codebase.runTransaction codebase do
+                    Queries.loadProjectByName projectName >>= \case
+                      Nothing -> pure []
+                      Just project -> do
+                        let projectId = project ^. #projectId
+                        fmap (filterOutCurrentBranch path projectId) do
+                          Queries.loadAllProjectBranchesBeginningWith projectId Text.empty
+                pure (map (projectBranchToCompletion projectName) branches)
+              -- This branch is probably dead due to intercepting inputs that begin with "/" above
+              Right (ProjectAndBranchNames'Unambiguous (That branchName)) ->
+                handleBranchesComplete (into @Text branchName) codebase path
+              Right (ProjectAndBranchNames'Unambiguous (These projectName branchName)) -> do
+                branches <-
+                  Codebase.runTransaction codebase do
+                    Queries.loadProjectByName projectName >>= \case
+                      Nothing -> pure []
+                      Just project -> do
+                        let projectId = project ^. #projectId
+                        fmap (filterOutCurrentBranch path projectId) do
+                          Queries.loadAllProjectBranchesBeginningWith projectId (into @Text branchName)
+                pure (map (projectBranchToCompletion projectName) branches),
+      globTargets = Set.empty
+    }
+  where
+    handleAmbiguousComplete ::
+      MonadIO m =>
+      Text ->
+      Codebase m v a ->
+      Path.Absolute ->
+      m [Completion]
+    handleAmbiguousComplete input codebase path = do
+      (branches, projects) <-
+        Codebase.runTransaction codebase do
+          branches <-
+            case preview ProjectUtils.projectBranchPathPrism path of
+              Nothing -> pure []
+              Just (ProjectAndBranch currentProjectId _, _) ->
+                fmap (filterOutCurrentBranch path currentProjectId) do
+                  Queries.loadAllProjectBranchesBeginningWith currentProjectId input
+          projects <- Queries.loadAllProjectsBeginningWith input
+          pure (branches, projects)
+      let branchCompletions = map currentProjectBranchToCompletion branches
+      let projectCompletions = map projectToCompletion projects
+      -- There's one final wibble to deal with here at the eleventh hour. You might think we can just append
+      -- branchCompletions to projectCompletions and call it a day, *however*...!
+      --
+      -- Say we have two branches "bar" and "biz". These branches are rendered (and completed) with leading forward
+      -- slashes.
+      --
+      --   > switch b<TAB>
+      --   /bar /biz
+      --
+      --   > switch ba<TAB>
+      --   > switch /bar -- the completion
+      --
+      -- Now say we repeat the above, but with a project "bongo".
+      --
+      --   > switch <TAB>
+      --   /bar /biz bongo
+      --
+      -- If the user types a prefix that's common to both a branch and a project, like "b", their input will simply
+      -- disappear. Wtf, haskeline?!
+      --
+      --   > switch b<TAB>
+      --   > switch -- the completion
+      --
+      -- Well, it makes sense: we tell haskeline that we have three completions, "/bar", "/biz", and "bongo", with
+      -- partial input "b". The longest common prefix here is the empty string "".
+      --
+      -- So, we have this final check. If there are indeed matching projects *and* matching branches, and the user
+      -- has input at least one character (i.e. they aren't just tab-completing like "switch <TAB>" to see
+      -- everything), then we pretend (for the sake of tab-completion) that there are only matching projects. This
+      -- makes the back-and-forth with the tab completer much more intuitive:
+      --
+      --   > switch <TAB>
+      --   /bar /biz bongo
+      --   > switch b<TAB>
+      --   > switch bongo -- the completion
+      --
+      -- A more optimal interface would not hide branches at all, even though their tab-completions end up prefixing
+      -- a forward-slash:
+      --
+      --   > switch <TAB>
+      --   /bar /biz bongo
+      --   > switch b<TAB>
+      --   /bar /biz bongo
+      --   > switch ba<TAB>
+      --   > switch /bar -- the completion
+      --
+      -- However, that simly doesn't seem possible with haskeline. Another sub-optimal point in the design space
+      -- would be to *not* actually tab-complete branch names with leading forward slashes, even though they are
+      -- rendered as such in the tab-completion options. For example,
+      --
+      --   > switch <TAB>
+      --   /bar /biz
+      --   > switch ba<TAB>
+      --   > switch bar -- the completion
+      --
+      -- However, this has the unfortunate disadvantage of tab-completing a possibly ambiguous thing for the user,
+      -- as in the case when there's both a branch and project with the same name:
+      --
+      --   > switch <TAB>
+      --   /bar /biz bar
+      --   > switch ba<TAB>
+      --   > switch bar -- the completion
+      --
+      --   Ambiguous! Try `switch /bar` or `switch bar/`
+      pure
+        if not (null branchCompletions) && not (null projectCompletions) && not (Text.null input)
+          then projectCompletions
+          else branchCompletions ++ projectCompletions
+
+    handleBranchesComplete :: MonadIO m => Text -> Codebase m v a -> Path.Absolute -> m [Completion]
+    handleBranchesComplete branchName codebase path = do
+      branches <-
+        case preview ProjectUtils.projectBranchPathPrism path of
+          Nothing -> pure []
+          Just (ProjectAndBranch currentProjectId _, _) ->
+            Codebase.runTransaction codebase do
+              fmap (filterOutCurrentBranch path currentProjectId) do
+                Queries.loadAllProjectBranchesBeginningWith currentProjectId branchName
+      pure (map currentProjectBranchToCompletion branches)
+
+    filterOutCurrentBranch :: Path.Absolute -> ProjectId -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
+    filterOutCurrentBranch path projectId =
+      case (includeCurrentBranch, preview ProjectUtils.projectBranchPathPrism path) of
+        (False, Just (ProjectAndBranch currentProjectId currentBranchId, _))
+          | projectId == currentProjectId -> filter (\(branchId, _) -> branchId /= currentBranchId)
+        _ -> id
+
+    currentProjectBranchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Completion
+    currentProjectBranchToCompletion (_, branchName) =
+      Completion
+        { replacement = '/' : Text.unpack (into @Text branchName),
+          display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName),
+          isFinished = False
+        }
+
+    projectBranchToCompletion :: ProjectName -> (ProjectBranchId, ProjectBranchName) -> Completion
+    projectBranchToCompletion projectName (_, branchName) =
+      Completion
+        { replacement = Text.unpack (into @Text (ProjectAndBranch projectName branchName)),
+          display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName),
+          isFinished = False
+        }
+
+    projectToCompletion :: Sqlite.Project -> Completion
+    projectToCompletion project =
+      Completion
+        { replacement = stringProjectName,
+          display = P.toAnsiUnbroken (prettyProjectNameSlash (project ^. #name)),
+          isFinished = False
+        }
+      where
+        stringProjectName = Text.unpack (into @Text (project ^. #name) <> "/")
+
+-- | A project branch name.
+projectBranchNameArg :: ArgumentType
+projectBranchNameArg =
+  ArgumentType
+    { typeName = "project-branch-name",
+      suggestions = \_ _ _ _ -> pure [],
+      globTargets = Set.empty
+    }
+
+-- [project/]branch
+projectBranchNameWithOptionalProjectNameArg :: ArgumentType
+projectBranchNameWithOptionalProjectNameArg =
+  ArgumentType
+    { typeName = "project-branch-name-with-optional-project-name",
+      suggestions = \_ _ _ _ -> pure [],
+      globTargets = Set.empty
+    }
+
+-- | A project name.
+projectNameArg :: ArgumentType
+projectNameArg =
+  ArgumentType
+    { typeName = "project-name",
+      suggestions = \_ _ _ _ -> pure [],
+      globTargets = Set.empty
+    }
+
+-- | Parse a 'Input.PushSource'.
+parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource
+parsePushSource sourceStr =
+  case tryFrom (Text.pack sourceStr) of
+    Left _ ->
+      case Path.parsePath' sourceStr of
+        Left _ -> Left (I.help push)
+        Right path -> Right (Input.PathySource path)
+    Right branch -> Right (Input.ProjySource branch)
+
+-- | Parse a push target.
+parsePushTarget :: String -> Either (P.Pretty CT.ColorText) (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+parsePushTarget target =
+  case P.parseMaybe UriParser.writeRemoteNamespace (Text.pack target) of
+    Nothing -> Left (I.help push)
+    Just path -> Right path
+
+parseHashQualifiedName ::
+  String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
+parseHashQualifiedName s =
+  maybe
+    ( Left
+        . P.warnCallout
+        . P.wrap
+        $ P.string s
+          <> " is not a well-formed name, hash, or hash-qualified name. "
+          <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
+    )
+    Right
+    $ HQ.fromString s
+
+parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
+parseWriteGitRepo label input = do
+  first
+    (fromString . show) -- turn any parsing errors into a Pretty.
+    (P.parse (UriParser.writeGitRepo <* P.eof) label (Text.pack input))
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]

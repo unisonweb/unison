@@ -10,17 +10,17 @@ module Unison.CommandLine.FuzzySelect
 where
 
 import Control.Monad.Except (runExceptT, throwError)
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import GHC.IO.Handle (hDuplicateTo)
 import System.IO (BufferMode (NoBuffering), hPutStrLn, stderr)
 import Unison.Prelude
-import qualified UnliftIO
+import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
 import UnliftIO.Exception (bracket)
 import UnliftIO.IO (hGetBuffering, hSetBuffering, stdin)
-import qualified UnliftIO.Process as Proc
+import UnliftIO.Process qualified as Proc
 
 -- | Fuzzy Selection options
 data Options = Options

@@ -27,6 +27,8 @@ library:
   source-dirs: src
   exposed-modules:
     - U.Codebase.Sqlite.V2.HashHandle
+    - U.Codebase.Branch.Hashing
+    - U.Codebase.Causal.Hashing
   when:
     - condition: false
       other-modules: Paths_unison_codebase_sqlite_hashing_v2
@@ -45,6 +47,7 @@ default-extensions:
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns

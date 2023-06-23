@@ -4,7 +4,7 @@
 
 module Unison.Parser.Ann where
 
-import qualified Unison.Lexer.Pos as L
+import Unison.Lexer.Pos qualified as L
 
 data Ann
   = -- Used for things like Builtins which don't have a source position.

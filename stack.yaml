@@ -2,21 +2,12 @@ flags:
   haskeline:
     terminfo: false
 
-allow-newer: true # async package has needlessly strict upper bound
-
 allow-different-user: true
 
 build:
   interleaved-output: false
 
 packages:
-- yaks/easytest
-- parser-typechecker
-- unison-core
-- unison-cli
-- unison-hashing-v2
-- unison-share-api
-- unison-syntax
 - codebase2/codebase
 - codebase2/codebase-sqlite
 - codebase2/codebase-sqlite-hashing-v2
@@ -24,56 +15,52 @@ packages:
 - codebase2/core
 - codebase2/util-serialization
 - codebase2/util-term
+- lib/orphans/network-uri-orphans-sqlite
+- lib/orphans/unison-core-orphans-sqlite
+- lib/orphans/unison-hash-orphans-aeson
+- lib/orphans/unison-hash-orphans-sqlite
+- lib/orphans/uuid-orphans-sqlite
 - lib/unison-hash
-- lib/unison-hash-orphans-aeson
-- lib/unison-hash-orphans-sqlite
 - lib/unison-hashing
 - lib/unison-prelude
+- lib/unison-pretty-printer
 - lib/unison-sqlite
 - lib/unison-util-base32hex
 - lib/unison-util-bytes
 - lib/unison-util-cache
 - lib/unison-util-relation
 - lib/unison-util-rope
-- lib/unison-pretty-printer
+- parser-typechecker
+- unison-cli
+- unison-core
+- unison-hashing-v2
+- unison-share-api
+- unison-share-projects-api
+- unison-syntax
+- yaks/easytest
 
-#compiler-check: match-exact
-resolver: lts-18.28
+resolver: lts-20.22
 
 extra-deps:
+# version in snapshot is too new
+- network-3.1.2.7 # 3.1.3.0 doesn't seem to build in Windows
+
+# broken version in snapshot
 - github: unisonweb/configurator
   commit: e47e9e9fe1f576f8c835183b9def52d73c01327a
-- github: unisonweb/shellmet
-  commit: 2fd348592c8f51bb4c0ca6ba4bc8e38668913746
-- github: awkward-squad/ki
-  commit: 563e96238dfe392dccf68d93953c8f30fd53bec8
-  subdirs:
-    - ki
 # This custom Haskeline alters ANSI rendering on Windows.
 # If changing the haskeline dependency, please ensure color renders properly in a
 # Windows terminal.
 # https://github.com/judah/haskeline/pull/126
-- github: judah/haskeline
-  commit: d6c2643b0d5c19be7e440615c6f84d603d4bc648
+- github: unisonweb/haskeline
+  commit: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
+
+# not in stackage
+- fuzzyfind-3.0.1
 - guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
-- sandi-0.5@sha256:b278d072ca717706ea38f9bd646e023f7f2576a778fb43565b434f93638849aa,3010
-- fuzzyfind-3.0.0@sha256:d79a5d3ed194dd436c6b839bf187211d880cf773b2febaca456e5ccf93f5ac65,1814
-- monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
-- NanoID-3.1.0@sha256:9118ab00e8650b5a56a10c90295d357eb77a8057a598b7e56dfedc9c6d53c77d,1524
-# 2.3.27 bundles sqlite >=3.35.0, needed for 'delete returning'
-- direct-sqlite-2.3.27
-# not in lts-18.13
-- recover-rtti-0.4.0.0@sha256:2ce1e031ec0e34d736fa45f0149bbd55026f614939dc90ffd14a9c5d24093ff4,4423
 - lock-file-0.7.0.0@sha256:3ad84b5e454145e1d928063b56abb96db24a99a21b493989520e58fa0ab37b00,4484
-- http-client-0.7.11
-- lsp-1.5.0.0
-- lsp-types-1.5.0.0
-- text-rope-0.2@sha256:53b9b4cef0b278b9c591cd4ca76543acacf64c9d1bfbc06d0d9a88960446d9a7,2087
-- co-log-core-0.3.1.0
-# lts 18.28 provides 0.3.2.1 but we need at least 0.3.3
-- terminal-size-0.3.3
-# lts 18.28 provides 3.1.1.1 but we need at least 3.1.2.7
-- network-3.1.2.7
+- monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
+- recover-rtti-0.4.2@sha256:c179a303921126d8d782264e14f386c96e54a270df74be002e4c4ec3c8c7aebd,4529
 
 ghc-options:
  # All packages

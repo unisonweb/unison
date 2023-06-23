@@ -17,7 +17,7 @@ import Data.Word (Word64)
 import GHC.Exts (IsList (..))
 import Unison.Runtime.MCode hiding (MatchT)
 import Unison.Runtime.Serialize
-import qualified Unison.Util.Text as Util.Text
+import Unison.Util.Text qualified as Util.Text
 
 putComb :: (MonadPut m) => Comb -> m ()
 putComb (Lam ua ba uf bf body) =

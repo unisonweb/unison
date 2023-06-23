@@ -3,15 +3,15 @@
 module U.Core.ABT where
 
 import Control.Monad (join)
-import qualified Data.Foldable as Foldable
+import Data.Foldable qualified as Foldable
 import Data.Functor.Identity (Identity (runIdentity))
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
-import qualified Data.Set as Set
-import qualified Debug.RecoverRTTI as RTTI
+import Data.Set qualified as Set
+import Debug.RecoverRTTI qualified as RTTI
 import GHC.Generics (Generic)
 import U.Core.ABT.Var (Var (freshIn))
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Prelude hiding (abs, cycle)
 
 data ABT f v r

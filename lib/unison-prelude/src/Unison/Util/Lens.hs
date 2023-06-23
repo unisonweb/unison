@@ -6,7 +6,7 @@ module Unison.Util.Lens
   )
 where
 
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 
 type Field1' s a = Lens.Field1 s s a a
 

@@ -8,7 +8,7 @@ import EasyTest
 import Text.Megaparsec
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.VersionParser
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 
 test :: Test ()
 test =
@@ -28,7 +28,7 @@ makeTest (version, path) =
     expectEqual
       (rightMay $ runParser defaultBaseLib "versionparser" version)
       ( Just
-          ( ReadShareRemoteNamespace
+          ( ReadShareLooseCode
               { server = DefaultCodeserver,
                 repo = ShareUserHandle "unison",
                 path = Path.fromList ["public", "base"] <> Path.fromText path

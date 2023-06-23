@@ -1,8 +1,12 @@
 **Choose your PR title well:** Your pull request title is what's used to create release notes, so please make it descriptive of the change itself, which may be different from the initial motivation to make the change.
 
+Note: CI will check that all code has been formatted with Ormolu. See [development.markdown](https://github.com/unisonweb/unison/blob/trunk/development.markdown) for details of how to set this up.
+
 ## Overview
 
-What does this change accomplish and why? i.e. How does it change the user experience?
+What does this change accomplish and why?
+i.e. How does it change the user experience?
+i.e. What was the old behavior/API and what is the new behavior/API?
 
 Feel free to include "before and after" examples if appropriate. (You can copy/paste screenshots directly into this editor.)
 
@@ -22,6 +26,8 @@ What could have been done differently, but wasn't? And why?
 Have you included tests (which could be a transcript) for this change, or is it somehow covered by existing tests? 
 
 Would you recommend improving the test coverage (either as part of this PR or as a separate issue) or do you think it’s adequate?
+
+If you only tested by hand, because that's all that's practical to do for this change, mention that.
 
 ## Loose ends
 
