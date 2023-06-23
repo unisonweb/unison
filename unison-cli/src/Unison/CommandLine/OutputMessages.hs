@@ -505,11 +505,11 @@ notifyNumbered = \case
         deps
           & Map.elems
           & List.foldl'
-            ( \(nextInt, (nameToNum, args)) names ->
+            ( \(nextNum, (nameToNum, args)) names ->
                 let unnumberedNames = Set.toList $ Set.difference names (Map.keysSet nameToNum)
-                    newNextNum = nextInt + length unnumberedNames
+                    newNextNum = nextNum + length unnumberedNames
                  in ( newNextNum,
-                      ( nameToNum <> (Map.fromList (zip unnumberedNames [newNextNum ..])),
+                      ( nameToNum <> (Map.fromList (zip unnumberedNames [nextNum ..])),
                         args <> fmap Name.toString unnumberedNames
                       )
                     )
