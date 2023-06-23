@@ -490,6 +490,48 @@ notifyNumbered = \case
       reset = IP.makeExample IP.reset
       relPath0 = prettyPath' (Path.toPath' path)
       absPath0 = review ProjectUtils.projectBranchPathPrism (ProjectAndBranch (pn0 ^. #projectId) (bn0 ^. #branchId), path)
+  ListNamespaceDependencies _ppe _path Empty -> ("This namespace has no external dependencies.", mempty)
+  ListNamespaceDependencies ppe path' externalDependencies ->
+    ( P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
+        List.intersperse spacer (externalDepsTable externalDependencies),
+      numberedArgs
+    )
+    where
+      spacer = ("", "")
+      (nameNumbers, numberedArgs) = numberedDependents externalDependencies
+      getNameNumber name = fromMaybe (error "ListNamespaceDependencies: name is missing number") (Map.lookup name nameNumbers)
+      numberedDependents :: Map LabeledDependency (Set Name) -> (Map Name Int, NumberedArgs)
+      numberedDependents deps =
+        deps
+          & Map.elems
+          & List.foldl'
+            ( \(nextInt, (nameToNum, args)) names ->
+                let unnumberedNames = Set.toList $ Set.difference names (Map.keysSet nameToNum)
+                    newNextNum = nextInt + length unnumberedNames
+                 in ( newNextNum,
+                      ( nameToNum <> (Map.fromList (zip unnumberedNames [newNextNum ..])),
+                        args <> fmap Name.toString unnumberedNames
+                      )
+                    )
+            )
+            (1, (mempty, mempty))
+          & snd
+      externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
+      externalDepsTable = ifoldMap $ \ld dependents ->
+        [(prettyLD ld, prettyDependents dependents)]
+      prettyLD :: LabeledDependency -> P.Pretty P.ColorText
+      prettyLD =
+        P.syntaxToColor
+          . prettyHashQualified
+          . LD.fold
+            (PPE.typeName ppe)
+            (PPE.termName ppe)
+      prettyDependents :: Set Name -> P.Pretty P.ColorText
+      prettyDependents refs =
+        refs
+          & Set.toList
+          & fmap (\name -> formatNum (getNameNumber name) <> prettyName name)
+          & P.lines
   where
     absPathToBranchId = Right
 
@@ -1657,28 +1699,6 @@ notifyUser dir = \case
     pure $ listDependentsOrDependencies ppe "Dependents" "dependents" lds types terms
   ListDependencies ppe lds types terms ->
     pure $ listDependentsOrDependencies ppe "Dependencies" "dependencies" lds types terms
-  ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
-  ListNamespaceDependencies ppe path' externalDependencies -> do
-    let spacer = ("", "")
-    pure . P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
-      List.intersperse spacer (externalDepsTable externalDependencies)
-    where
-      externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
-      externalDepsTable = ifoldMap $ \ld dependents ->
-        [(prettyLD ld, prettyDependents dependents)]
-      prettyLD :: LabeledDependency -> P.Pretty P.ColorText
-      prettyLD =
-        P.syntaxToColor
-          . prettyHashQualified
-          . LD.fold
-            (PPE.typeName ppe)
-            (PPE.termName ppe)
-      prettyDependents :: Set Name -> P.Pretty P.ColorText
-      prettyDependents refs =
-        refs
-          & Set.toList
-          & fmap prettyName
-          & P.lines
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       ( effects <&> \(n, r) ->

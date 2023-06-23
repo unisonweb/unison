@@ -1357,7 +1357,7 @@ loop e = do
                   externalDependencies <-
                     Cli.runTransaction (NamespaceDependencies.namespaceDependencies codebase (Branch.head b))
                   ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
-                  Cli.respond $ ListNamespaceDependencies ppe path externalDependencies
+                  Cli.respondNumbered $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> do
               numArgs <- use #numberedArgs
               Cli.respond (DumpNumberedArgs numArgs)
