@@ -37,6 +37,7 @@ library
       Unison.Cli.Pretty
       Unison.Cli.PrettyPrintUtils
       Unison.Cli.ProjectUtils
+      Unison.Cli.ServantClientUtils
       Unison.Cli.Share.Projects
       Unison.Cli.Share.Projects.Types
       Unison.Cli.TypeCheck
@@ -131,6 +132,7 @@ library
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -260,6 +262,7 @@ executable cli-integration-tests
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -389,6 +392,7 @@ executable transcripts
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -522,6 +526,7 @@ executable unison
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -660,6 +665,7 @@ test-suite cli-tests
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels

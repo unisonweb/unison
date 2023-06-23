@@ -373,6 +373,9 @@ data Output
   | RenamedProject ProjectName ProjectName
   | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
   | CantRenameBranchTo ProjectBranchName
+  | FetchingLatestReleaseOfBase
+  | FailedToFetchLatestReleaseOfBase
+  | HappyCoding
 
 -- | What did we create a project branch from?
 --
@@ -588,6 +591,9 @@ isFailure o = case o of
   RenamedProject {} -> False
   RenamedProjectBranch {} -> False
   CantRenameBranchTo {} -> True
+  FetchingLatestReleaseOfBase {} -> False
+  FailedToFetchLatestReleaseOfBase {} -> True
+  HappyCoding {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
