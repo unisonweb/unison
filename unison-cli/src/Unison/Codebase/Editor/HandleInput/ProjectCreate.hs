@@ -91,42 +91,42 @@ projectCreate tryDownloadingBase maybeProjectName = do
   Cli.respond (Output.CreatedProject (isNothing maybeProjectName) projectName)
   Cli.cd path
 
-  -- Make an effort to pull the latest release of base, which can go wrong in a number of ways, the most likely of
-  -- which is that the user is offline.
   maybeBaseLatestReleaseBranchObject <-
-    Cli.label \done -> do
-      when (not tryDownloadingBase) (done Nothing)
+    if tryDownloadingBase
+      then do
+        Cli.respond Output.FetchingLatestReleaseOfBase
 
-      Cli.respond Output.FetchingLatestReleaseOfBase
-
-      baseProject <-
-        Share.getProjectByName' (unsafeFrom @Text "@unison/base") >>= \case
-          Right (Just baseProject) -> pure baseProject
-          _ -> done Nothing
-      ver <- baseProject ^. #latestRelease & onNothing (done Nothing)
-      let baseProjectId = baseProject ^. #projectId
-      let baseLatestReleaseBranchName = unsafeFrom @Text ("releases/" <> into @Text ver)
-      response <-
-        Share.getProjectBranchByName' (ProjectAndBranch baseProjectId baseLatestReleaseBranchName)
-          & onLeftM \_err -> done Nothing
-      baseLatestReleaseBranch <-
-        case response of
-          Share.GetProjectBranchResponseBranchNotFound -> done Nothing
-          Share.GetProjectBranchResponseProjectNotFound -> done Nothing
-          Share.GetProjectBranchResponseSuccess branch -> pure branch
-      Pull.downloadShareProjectBranch baseLatestReleaseBranch
-      Cli.Env {codebase} <- ask
-      baseLatestReleaseBranchObject <-
-        liftIO $
-          Codebase.expectBranchForHash
-            codebase
-            (Sync.Common.hash32ToCausalHash (Share.API.hashJWTHash (baseLatestReleaseBranch ^. #branchHead)))
-      pure (Just baseLatestReleaseBranchObject)
-
-  let reflogDescription =
-        case maybeProjectName of
-          Nothing -> "project.create"
-          Just projectName -> "project.create " <> into @Text projectName
+        -- Make an effort to pull the latest release of base, which can go wrong in a number of ways, the most likely of
+        -- which is that the user is offline.
+        maybeBaseLatestReleaseBranchObject <-
+          Cli.label \done -> do
+            baseProject <-
+              Share.getProjectByName' (unsafeFrom @Text "@unison/base") >>= \case
+                Right (Just baseProject) -> pure baseProject
+                _ -> done Nothing
+            ver <- baseProject ^. #latestRelease & onNothing (done Nothing)
+            let baseProjectId = baseProject ^. #projectId
+            let baseLatestReleaseBranchName = unsafeFrom @Text ("releases/" <> into @Text ver)
+            response <-
+              Share.getProjectBranchByName' (ProjectAndBranch baseProjectId baseLatestReleaseBranchName)
+                & onLeftM \_err -> done Nothing
+            baseLatestReleaseBranch <-
+              case response of
+                Share.GetProjectBranchResponseBranchNotFound -> done Nothing
+                Share.GetProjectBranchResponseProjectNotFound -> done Nothing
+                Share.GetProjectBranchResponseSuccess branch -> pure branch
+            Pull.downloadShareProjectBranch baseLatestReleaseBranch
+            Cli.Env {codebase} <- ask
+            baseLatestReleaseBranchObject <-
+              liftIO $
+                Codebase.expectBranchForHash
+                  codebase
+                  (Sync.Common.hash32ToCausalHash (Share.API.hashJWTHash (baseLatestReleaseBranch ^. #branchHead)))
+            pure (Just baseLatestReleaseBranchObject)
+        when (isNothing maybeBaseLatestReleaseBranchObject) do
+          Cli.respond Output.FailedToFetchLatestReleaseOfBase
+        pure maybeBaseLatestReleaseBranchObject
+      else pure Nothing
 
   let projectBranchObject =
         case maybeBaseLatestReleaseBranchObject of
@@ -147,6 +147,11 @@ projectCreate tryDownloadingBase maybeProjectName = do
   Cli.stepAt reflogDescription (Path.unabsolute path, const projectBranchObject)
 
   Cli.respond Output.HappyCoding
+  where
+    reflogDescription =
+      case maybeProjectName of
+        Nothing -> "project.create"
+        Just projectName -> "project.create " <> into @Text projectName
 
 insertProjectAndBranch :: ProjectId -> ProjectName -> ProjectBranchId -> ProjectBranchName -> Sqlite.Transaction ()
 insertProjectAndBranch projectId projectName branchId branchName = do

@@ -2102,6 +2102,8 @@ notifyUser dir = \case
   FetchingLatestReleaseOfBase ->
     pure . P.wrap $
       "I'll now fetch the latest version of the base Unison library..."
+  FailedToFetchLatestReleaseOfBase ->
+    pure . P.wrap $ "Sorry something went wrong while fetching the library."
   HappyCoding ->
     pure $
       P.wrap "🎨 Type `ui` to explore this project's code in your browser."
