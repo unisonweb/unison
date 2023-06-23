@@ -2179,7 +2179,7 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let suffixGlob = case maySuffix of
         Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
-  queryListColCheck
+  directNames <- queryListColCheck
     [sql|
         SELECT reversed_name FROM scoped_term_name_lookup
         WHERE root_branch_hash_id = :bhId
@@ -2196,6 +2196,37 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
               AND reversed_name GLOB :suffixGlob
         |]
     \reversedNames -> for reversedNames reversedNameToReversedSegments
+  -- If we don't find a name in the name lookup, expand the search to recursively include transitive deps
+  -- and just return the first one we find.
+  if null directNames
+    then do
+      toList
+        <$> queryMaybeColCheck
+          [sql|
+        -- Recursive table containing all transitive deps
+        WITH RECURSIVE
+          all_in_scope_roots(root_branch_hash_id, reversed_mount_path) AS (
+            -- Start with the direct dependencies
+            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path
+            FROM name_lookup_mounts mount
+            WHERE mount.parent_root_branch_hash_id = :bhId
+            UNION ALL
+            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
+            FROM name_lookup_mounts mount
+              INNER JOIN all_in_scope_roots rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
+          )
+        SELECT (reversed_name || reversed_mount_path) AS reversed_name
+          FROM all_in_scope_roots
+            INNER JOIN scoped_term_name_lookup
+            ON scoped_term_name_lookup.root_branch_hash_id = all_in_scope_roots.root_branch_hash_id
+        WHERE referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
+              AND reversed_name GLOB :suffixGlob
+              -- Exclude results we would've already found above.
+              AND root_branch_hash_id != :bhId
+        LIMIT 1
+      |]
+          (\reversedName -> reversedNameToReversedSegments reversedName)
+    else pure directNames
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -2208,7 +2239,7 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let suffixGlob = case maySuffix of
         Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
-  queryListColCheck
+  directNames <- queryListColCheck
     [sql|
         SELECT reversed_name FROM scoped_type_name_lookup
         WHERE root_branch_hash_id = :bhId
@@ -2225,6 +2256,35 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
               AND reversed_name GLOB :suffixGlob
         |]
     \reversedNames -> for reversedNames reversedNameToReversedSegments
+  -- If we don't find a name in the name lookup, expand the search to recursively include transitive deps
+  -- and just return the first one we find.
+  if null directNames
+    then
+      toList
+        <$> queryMaybeColCheck
+          [sql|
+        -- Recursive table containing all transitive deps
+        WITH RECURSIVE
+          all_in_scope_roots(root_branch_hash_id, reversed_mount_path) AS (
+            -- Start with the direct dependencies
+            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path
+            FROM name_lookup_mounts mount
+            WHERE mount.parent_root_branch_hash_id = :bhId
+            UNION ALL
+            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
+            FROM name_lookup_mounts mount
+              INNER JOIN all_in_scope_roots rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
+          )
+        SELECT (reversed_name || reversed_mount_path) AS reversed_name
+          FROM all_in_scope_roots
+            INNER JOIN scoped_type_name_lookup
+            ON scoped_type_name_lookup.root_branch_hash_id = all_in_scope_roots.root_branch_hash_id
+        WHERE reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
+              AND reversed_name GLOB :suffixGlob
+        LIMIT 1
+          |]
+          (\reversedName -> reversedNameToReversedSegments reversedName)
+    else pure directNames
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
