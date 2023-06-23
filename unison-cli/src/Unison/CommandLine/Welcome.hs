@@ -1,34 +1,25 @@
-module Unison.CommandLine.Welcome where
+module Unison.CommandLine.Welcome
+  ( CodebaseInitStatus (..),
+    Welcome (..),
+    asciiartUnison,
+    run,
+    welcome,
+  )
+where
 
-import Data.Sequence (singleton)
-import Data.These (These (..))
 import System.Random (randomRIO)
-import Unison.Codebase (Codebase)
-import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..))
-import Unison.Codebase.Path (Path)
-import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.SyncMode qualified as SyncMode
-import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
-import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Prelude
 import Unison.Util.Pretty qualified as P
 import Prelude hiding (readFile, writeFile)
 
 data Welcome = Welcome
   { onboarding :: Onboarding, -- Onboarding States
-    downloadBase :: DownloadBase,
     watchDir :: FilePath,
     unisonVersion :: Text,
     shouldWatchFiles :: ShouldWatchFiles
   }
-
-data DownloadBase
-  = DownloadBase ReadShareLooseCode
-  | DontDownloadBase
-  deriving (Show, Eq)
 
 -- Previously Created is different from Previously Onboarded because a user can
 -- 1.) create a new codebase
@@ -40,54 +31,32 @@ data CodebaseInitStatus
   deriving (Show, Eq)
 
 data Onboarding
-  = Init CodebaseInitStatus -- Can transition to [DownloadingBase, Author, Finished, PreviouslyOnboarded]
-  | DownloadingBase ReadShareLooseCode -- Can transition to [Author, Finished]
+  = Init CodebaseInitStatus -- Can transition to [Author, Finished, PreviouslyOnboarded]
   | Author -- Can transition to [Finished]
   -- End States
   | Finished
   | PreviouslyOnboarded
   deriving (Show, Eq)
 
-welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> Text -> ShouldWatchFiles -> Welcome
-welcome initStatus downloadBase filePath unisonVersion shouldWatchFiles =
-  Welcome (Init initStatus) downloadBase filePath unisonVersion shouldWatchFiles
+welcome :: CodebaseInitStatus -> FilePath -> Text -> ShouldWatchFiles -> Welcome
+welcome initStatus filePath unisonVersion shouldWatchFiles =
+  Welcome (Init initStatus) filePath unisonVersion shouldWatchFiles
 
-pullBase :: ReadShareLooseCode -> Either Event Input
-pullBase ns =
-  let seg = NameSegment "base"
-      rootPath = Path.Path {Path.toSeq = singleton seg}
-      abs = Path.Absolute {Path.unabsolute = rootPath}
-      pullRemote =
-        PullRemoteBranchI
-          ( PullSourceTarget2
-              (ReadShare'LooseCode ns)
-              (This (Path.Path' {Path.unPath' = Left abs}))
-          )
-          SyncMode.Complete
-          PullWithHistory
-          Verbosity.Silent
-   in Right pullRemote
-
-run :: Codebase IO v a -> Welcome -> IO [Either Event Input]
-run codebase Welcome {onboarding = onboarding, downloadBase = downloadBase, watchDir = dir, unisonVersion = version, shouldWatchFiles} = do
+run :: Welcome -> IO [Either Event Input]
+run Welcome {onboarding = onboarding, watchDir = dir, unisonVersion = version, shouldWatchFiles} = do
   go onboarding []
   where
     go :: Onboarding -> [Either Event Input] -> IO [Either Event Input]
     go onboarding acc =
       case onboarding of
         Init NewlyCreatedCodebase -> do
-          determineFirstStep downloadBase codebase >>= \step -> go step (headerMsg : acc)
+          go PreviouslyOnboarded (headerMsg : acc)
           where
             headerMsg = toInput (header version)
         Init PreviouslyCreatedCodebase -> do
           go PreviouslyOnboarded (headerMsg : acc)
           where
             headerMsg = toInput (header version)
-        DownloadingBase ns@(ReadShareLooseCode {path}) ->
-          go Author ([pullBaseInput, downloadMsg] ++ acc)
-          where
-            downloadMsg = Right $ CreateMessage (downloading path)
-            pullBaseInput = pullBase ns
         Author ->
           go Finished (authorMsg : acc)
           where
@@ -103,16 +72,6 @@ run codebase Welcome {onboarding = onboarding, downloadBase = downloadBase, watc
 toInput :: P.Pretty P.ColorText -> Either Event Input
 toInput pretty =
   Right $ CreateMessage pretty
-
-determineFirstStep :: DownloadBase -> Codebase IO v a -> IO Onboarding
-determineFirstStep downloadBase codebase = do
-  isEmptyCodebase <- Codebase.runTransaction codebase Codebase.getRootBranchExists
-  case downloadBase of
-    DownloadBase ns
-      | isEmptyCodebase ->
-          pure $ DownloadingBase ns
-    _ ->
-      pure PreviouslyOnboarded
 
 asciiartUnison :: P.Pretty P.ColorText
 asciiartUnison =
@@ -138,20 +97,6 @@ asciiartUnison =
     <> P.hiGreen "___"
     <> P.cyan "|___|"
     <> P.purple "_|_|"
-
-downloading :: Path -> P.Pretty P.ColorText
-downloading path =
-  P.lines
-    [ P.group (P.wrap "🐣 Since this is a fresh codebase, let me download the base library for you." <> P.newline),
-      P.wrap
-        ( "🕐 Downloading"
-            <> P.blue (P.string (show path))
-            <> "of the"
-            <> P.bold "base library"
-            <> "into"
-            <> P.group (P.blue ".base" <> ", this may take a minute...")
-        )
-    ]
 
 header :: Text -> P.Pretty P.ColorText
 header version =

@@ -156,7 +156,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
           loop currentRoot
     loop Nothing
   eventQueue <- Q.newIO
-  welcomeEvents <- Welcome.run codebase welcome
+  welcomeEvents <- Welcome.run welcome
   initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
   pageOutput <- newIORef True
   cancelFileSystemWatch <- case shouldWatchFiles of
