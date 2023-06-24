@@ -722,7 +722,7 @@ deleteProject =
   InputPattern
     { patternName = "delete.project",
       aliases = ["project.delete"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [(Required, projectNameArg)],
       help =
         P.wrapColumn2
@@ -740,7 +740,7 @@ deleteBranch =
   InputPattern
     { patternName = "delete.branch",
       aliases = ["branch.delete"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [(Required, projectBranchNameWithOptionalProjectNameArg)],
       help =
         P.wrapColumn2
@@ -2430,7 +2430,7 @@ projectCreate =
   InputPattern
     { patternName = "project.create",
       aliases = ["create.project"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2470,7 +2470,7 @@ projectRenameInputPattern =
   InputPattern
     { patternName = "project.rename",
       aliases = ["rename.project"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2486,7 +2486,7 @@ projectSwitch =
   InputPattern
     { patternName = "switch",
       aliases = [],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [(Required, projectAndBranchNamesArg False)],
       help =
         P.wrapColumn2
@@ -2507,7 +2507,7 @@ projectsInputPattern =
   InputPattern
     { patternName = "projects",
       aliases = ["list.project", "ls.project", "project.list"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help = P.wrap "List projects.",
       parse = \_ -> Right Input.ProjectsI
@@ -2518,7 +2518,7 @@ branchesInputPattern =
   InputPattern
     { patternName = "branches",
       aliases = ["list.branch", "ls.branch", "branch.list"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2536,7 +2536,7 @@ branchInputPattern =
   InputPattern
     { patternName = "branch",
       aliases = ["branch.create", "create.branch"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2567,7 +2567,7 @@ branchEmptyInputPattern =
   InputPattern
     { patternName = "branch.empty",
       aliases = ["branch.create-empty", "create.empty-branch"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help = P.wrap "Create a new empty branch.",
       parse = \case
@@ -2583,7 +2583,7 @@ branchRenameInputPattern =
   InputPattern
     { patternName = "branch.rename",
       aliases = ["rename.branch"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2599,7 +2599,7 @@ clone =
   InputPattern
     { patternName = "clone",
       aliases = [],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2640,7 +2640,7 @@ releaseDraft =
   InputPattern
     { patternName = "release.draft",
       aliases = ["draft.release"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help = P.wrap "Draft a release.",
       parse = \case
