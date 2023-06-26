@@ -3,6 +3,8 @@ module U.Codebase.Sqlite.HashHandle
   )
 where
 
+import U.Codebase.Branch.Type (Branch)
+import U.Codebase.HashTags
 import U.Codebase.Reference qualified as C
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Term qualified as C.Term
@@ -18,5 +20,12 @@ data HashHandle = HashHandle
     -- | Hash the type of a single constructor in a decl component. The provided hash argument is the hash of the decl component.
     toReferenceDecl :: Hash -> C.Type.TypeD Symbol -> C.Reference,
     -- | Hash decl's mentions
-    toReferenceDeclMentions :: Hash -> C.Type.TypeD Symbol -> Set C.Reference
+    toReferenceDeclMentions :: Hash -> C.Type.TypeD Symbol -> Set C.Reference,
+    hashBranch :: forall m. Monad m => Branch m -> m BranchHash,
+    hashCausal ::
+      -- The causal's namespace hash
+      BranchHash ->
+      -- The causal's parents
+      Set CausalHash ->
+      CausalHash
   }
