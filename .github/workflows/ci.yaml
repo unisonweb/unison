@@ -14,5 +14,33 @@ jobs:
       with:
         name: unison
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix build
+    - name: build unison exe
+      run: nix build
+    - name: unison-cli tests
+      run: nix run '.#unison-cli:test:cli-tests'
+    - name: unison-core tests
+      run: nix run '.#unison-core1:test:tests'
+    - name: unison-parser-typechecker tests
+      run: nix run '.#unison-parser-typechecker:test:parser-typechecker-tests'
+    - name: unison-sqlite tests
+      run: nix run '.#unison-sqlite:test:tests'
+    - name: unison-syntax tests
+      run: nix run '.#unison-syntax:test:syntax-tests'
+    - name: unison-util-bytes tests
+      run: nix run '.#unison-util-bytes:test:util-bytes-tests'
+    - name: unison-util-cache tests
+      run: nix run '.#unison-util-cache:test:util-cache-tests'
+    - name: unison-util-relation tests
+      run: nix run '.#unison-util-relation:test:util-relation-tests'
+    - name: transcripts
+      run: |
+        nix run '.#unison-cli:exe:transcripts'
+        # Add all changes to the index for when we diff.
+        git add --all
+        # Fail if any transcripts cause git diffs.
+        git diff --cached --ignore-cr-at-eol --exit-code
+    - name: prettyprint-round-trip
+      run: nix run '.#unison-cli:exe:unison' -- transcript unison-src/transcripts-round-trip/main.md
+    - name: cli-integration-tests
+      run: nix run '.#unison-cli:exe:cli-integration-tests'
 
