@@ -14,6 +14,11 @@ jobs:
       with:
         name: unison
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    # One of the transcripts fails if the user's git name hasn't been set.
+    - name: set git user info
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
     - name: build unison exe
       run: nix build
     - name: unison-cli tests
