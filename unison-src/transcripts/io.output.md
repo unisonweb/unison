@@ -654,3 +654,24 @@ Calling our examples with the wrong number of args will error.
     ##raise
 
 ```
+### Get the time zone
+
+```unison
+testTimeZone = do
+  (offset, summer, name) = Clock.internals.systemTimeZone +0
+  _ = (offset : Int, summer : Nat, name : Text)
+  ()
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testTimeZone : '{IO} ()
+
+.> run testTimeZone
+
+  ()
+
+```

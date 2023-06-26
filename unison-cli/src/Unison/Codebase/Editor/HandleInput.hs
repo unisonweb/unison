@@ -1357,7 +1357,7 @@ loop e = do
                   externalDependencies <-
                     Cli.runTransaction (NamespaceDependencies.namespaceDependencies codebase (Branch.head b))
                   ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
-                  Cli.respond $ ListNamespaceDependencies ppe path externalDependencies
+                  Cli.respondNumbered $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> do
               numArgs <- use #numberedArgs
               Cli.respond (DumpNumberedArgs numArgs)
@@ -1472,7 +1472,7 @@ loop e = do
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
             ProjectRenameI name -> handleProjectRename name
             ProjectSwitchI name -> projectSwitch name
-            ProjectCreateI name -> projectCreate name
+            ProjectCreateI tryDownloadingBase name -> projectCreate tryDownloadingBase name
             ProjectsI -> handleProjects
             BranchI source name -> handleBranch source name
             BranchRenameI name -> handleBranchRename name
@@ -1637,7 +1637,6 @@ inputDescription input =
       branchId2 <- hp' (input ^. #branchId2)
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
-    ProjectCreateI project -> pure ("project.create " <> into @Text project)
     ClearI {} -> pure "clear"
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
     --
@@ -1678,6 +1677,7 @@ inputDescription input =
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
+    ProjectCreateI {} -> wat
     ProjectRenameI {} -> wat
     ProjectSwitchI {} -> wat
     ProjectsI -> wat

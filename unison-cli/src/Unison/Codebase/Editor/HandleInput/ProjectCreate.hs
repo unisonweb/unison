@@ -4,7 +4,12 @@ module Unison.Codebase.Editor.HandleInput.ProjectCreate
   )
 where
 
+import Control.Lens (over, (^.))
+import Control.Monad.Reader (ask)
+import Data.Map.Strict qualified as Map
+import Data.Text qualified as Text
 import Data.UUID.V4 qualified as UUID
+import System.Random.Shuffle qualified as RandomShuffle
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -12,12 +17,19 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli (stepAt)
 import Unison.Cli.ProjectUtils (projectBranchPath)
-import Unison.Codebase.Branch (Branch0)
+import Unison.Cli.Share.Projects qualified as Share
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.HandleInput.Pull qualified as Pull
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Share.API.Hash qualified as Share.API
+import Unison.Sqlite qualified as Sqlite
+import Unison.Sync.Common qualified as Sync.Common
 import Witch (unsafeFrom)
 
 -- | Create a new project.
@@ -46,35 +58,187 @@ import Witch (unsafeFrom)
 --
 -- For now, it doesn't seem worth it to do (1) or (2), since we want to do (3) eventually, and we'd rather not waste too
 -- much time getting everything perfectly correct before we get there.
-projectCreate :: ProjectName -> Cli ()
-projectCreate projectName = do
+projectCreate :: Bool -> Maybe ProjectName -> Cli ()
+projectCreate tryDownloadingBase maybeProjectName = do
   projectId <- liftIO (ProjectId <$> UUID.nextRandom)
   branchId <- liftIO (ProjectBranchId <$> UUID.nextRandom)
 
   let branchName = unsafeFrom @Text "main"
-  Cli.runEitherTransaction do
-    Queries.projectExistsByName projectName >>= \case
-      False -> do
-        Queries.insertProject projectId projectName
-        Queries.insertProjectBranch
-          Sqlite.ProjectBranch
-            { projectId,
-              branchId,
-              name = branchName,
-              parentBranchId = Nothing
-            }
-        Queries.setMostRecentBranch projectId branchId
-        pure (Right ())
-      True -> pure (Left (Output.ProjectNameAlreadyExists projectName))
+
+  projectName <-
+    case maybeProjectName of
+      Nothing -> do
+        randomProjectNames <- liftIO generateRandomProjectNames
+        Cli.runTransaction do
+          let loop = \case
+                [] -> error (reportBug "E066388" "project name supply is supposed to be infinite")
+                projectName : projectNames ->
+                  Queries.projectExistsByName projectName >>= \case
+                    False -> do
+                      insertProjectAndBranch projectId projectName branchId branchName
+                      pure projectName
+                    True -> loop projectNames
+          loop randomProjectNames
+      Just projectName -> do
+        Cli.runEitherTransaction do
+          Queries.projectExistsByName projectName >>= \case
+            False -> do
+              insertProjectAndBranch projectId projectName branchId branchName
+              pure (Right projectName)
+            True -> pure (Left (Output.ProjectNameAlreadyExists projectName))
 
   let path = projectBranchPath ProjectAndBranch {project = projectId, branch = branchId}
-  Cli.stepAt "project.create" (Path.unabsolute path, const mainBranchContents)
-  Cli.respond (Output.CreatedProject projectName branchName)
+  Cli.respond (Output.CreatedProject (isNothing maybeProjectName) projectName)
   Cli.cd path
 
--- The initial contents of the main branch of a new project.
+  maybeBaseLatestReleaseBranchObject <-
+    if tryDownloadingBase
+      then do
+        Cli.respond Output.FetchingLatestReleaseOfBase
+
+        -- Make an effort to pull the latest release of base, which can go wrong in a number of ways, the most likely of
+        -- which is that the user is offline.
+        maybeBaseLatestReleaseBranchObject <-
+          Cli.label \done -> do
+            baseProject <-
+              Share.getProjectByName' (unsafeFrom @Text "@unison/base") >>= \case
+                Right (Just baseProject) -> pure baseProject
+                _ -> done Nothing
+            ver <- baseProject ^. #latestRelease & onNothing (done Nothing)
+            let baseProjectId = baseProject ^. #projectId
+            let baseLatestReleaseBranchName = unsafeFrom @Text ("releases/" <> into @Text ver)
+            response <-
+              Share.getProjectBranchByName' (ProjectAndBranch baseProjectId baseLatestReleaseBranchName)
+                & onLeftM \_err -> done Nothing
+            baseLatestReleaseBranch <-
+              case response of
+                Share.GetProjectBranchResponseBranchNotFound -> done Nothing
+                Share.GetProjectBranchResponseProjectNotFound -> done Nothing
+                Share.GetProjectBranchResponseSuccess branch -> pure branch
+            Pull.downloadShareProjectBranch baseLatestReleaseBranch
+            Cli.Env {codebase} <- ask
+            baseLatestReleaseBranchObject <-
+              liftIO $
+                Codebase.expectBranchForHash
+                  codebase
+                  (Sync.Common.hash32ToCausalHash (Share.API.hashJWTHash (baseLatestReleaseBranch ^. #branchHead)))
+            pure (Just baseLatestReleaseBranchObject)
+        when (isNothing maybeBaseLatestReleaseBranchObject) do
+          Cli.respond Output.FailedToFetchLatestReleaseOfBase
+        pure maybeBaseLatestReleaseBranchObject
+      else pure Nothing
+
+  let projectBranchObject =
+        case maybeBaseLatestReleaseBranchObject of
+          Nothing -> Branch.empty0
+          Just baseLatestReleaseBranchObject ->
+            let -- lib.base
+                projectBranchLibBaseObject =
+                  over
+                    Branch.children
+                    (Map.insert (NameSegment "base") baseLatestReleaseBranchObject)
+                    Branch.empty0
+                projectBranchLibObject = Branch.cons projectBranchLibBaseObject Branch.empty
+             in over
+                  Branch.children
+                  (Map.insert Name.libSegment projectBranchLibObject)
+                  Branch.empty0
+
+  Cli.stepAt reflogDescription (Path.unabsolute path, const projectBranchObject)
+
+  Cli.respond Output.HappyCoding
+  where
+    reflogDescription =
+      case maybeProjectName of
+        Nothing -> "project.create"
+        Just projectName -> "project.create " <> into @Text projectName
+
+insertProjectAndBranch :: ProjectId -> ProjectName -> ProjectBranchId -> ProjectBranchName -> Sqlite.Transaction ()
+insertProjectAndBranch projectId projectName branchId branchName = do
+  Queries.insertProject projectId projectName
+  Queries.insertProjectBranch
+    Sqlite.ProjectBranch
+      { projectId,
+        branchId,
+        name = branchName,
+        parentBranchId = Nothing
+      }
+  Queries.setMostRecentBranch projectId branchId
+
+-- An infinite list of random project names that looks like
 --
--- FIXME we should put a README here, or something
-mainBranchContents :: Branch0 m
-mainBranchContents =
-  Branch.empty0
+--   [
+--     -- We have some reasonable amount of base names...
+--     "happy-giraffe",   "happy-gorilla",   "silly-giraffe",   "silly-gorilla",
+--
+--     -- But if we need more, we just add append a number, and so on...
+--     "happy-giraffe-2", "happy-gorilla-2", "silly-giraffe-2", "silly-gorilla-2",
+--
+--     ...
+--   ]
+--
+-- It's in IO because the base supply (without numbers) gets shuffled.
+generateRandomProjectNames :: IO [ProjectName]
+generateRandomProjectNames = do
+  baseNames <-
+    RandomShuffle.shuffleM do
+      adjective <-
+        [ "adorable",
+          "beautiful",
+          "charming",
+          "delightful",
+          "excited",
+          "friendly",
+          "gentle",
+          "helpful",
+          "innocent",
+          "jolly",
+          "kind",
+          "lucky",
+          "magnificent",
+          "nice",
+          "outstanding",
+          "pleasant",
+          "quiet",
+          "responsible",
+          "silly",
+          "thoughtful",
+          "useful",
+          "witty"
+          ]
+      noun <-
+        [ "alpaca",
+          "blobfish",
+          "camel",
+          "donkey",
+          "earwig",
+          "ferret",
+          "gerbil",
+          "hamster",
+          "ibis",
+          "jaguar",
+          "koala",
+          "lemur",
+          "marmot",
+          "narwhal",
+          "ostrich",
+          "puffin",
+          "quahog",
+          "reindeer",
+          "seahorse",
+          "turkey",
+          "urchin",
+          "vole",
+          "walrus",
+          "yak",
+          "zebra"
+          ]
+
+      pure (adjective <> "-" <> noun)
+
+  let namesWithNumbers = do
+        n <- [(2 :: Int) ..]
+        name <- baseNames
+        pure (name <> "-" <> Text.pack (show n))
+
+  pure (map (unsafeFrom @Text) (baseNames ++ namesWithNumbers))

@@ -226,7 +226,7 @@ data Input
   | AuthLoginI
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
-  | ProjectCreateI ProjectName
+  | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
   | ProjectRenameI ProjectName
   | ProjectSwitchI ProjectAndBranchNames
   | ProjectsI

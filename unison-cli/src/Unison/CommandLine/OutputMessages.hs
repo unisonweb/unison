@@ -43,6 +43,7 @@ import Unison.Auth.Types qualified as Auth
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
@@ -490,6 +491,48 @@ notifyNumbered = \case
       reset = IP.makeExample IP.reset
       relPath0 = prettyPath' (Path.toPath' path)
       absPath0 = review ProjectUtils.projectBranchPathPrism (ProjectAndBranch (pn0 ^. #projectId) (bn0 ^. #branchId), path)
+  ListNamespaceDependencies _ppe _path Empty -> ("This namespace has no external dependencies.", mempty)
+  ListNamespaceDependencies ppe path' externalDependencies ->
+    ( P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
+        List.intersperse spacer (externalDepsTable externalDependencies),
+      numberedArgs
+    )
+    where
+      spacer = ("", "")
+      (nameNumbers, numberedArgs) = numberedDependents externalDependencies
+      getNameNumber name = fromMaybe (error "ListNamespaceDependencies: name is missing number") (Map.lookup name nameNumbers)
+      numberedDependents :: Map LabeledDependency (Set Name) -> (Map Name Int, NumberedArgs)
+      numberedDependents deps =
+        deps
+          & Map.elems
+          & List.foldl'
+            ( \(nextNum, (nameToNum, args)) names ->
+                let unnumberedNames = Set.toList $ Set.difference names (Map.keysSet nameToNum)
+                    newNextNum = nextNum + length unnumberedNames
+                 in ( newNextNum,
+                      ( nameToNum <> (Map.fromList (zip unnumberedNames [nextNum ..])),
+                        args <> fmap Name.toString unnumberedNames
+                      )
+                    )
+            )
+            (1, (mempty, mempty))
+          & snd
+      externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
+      externalDepsTable = ifoldMap $ \ld dependents ->
+        [(prettyLD ld, prettyDependents dependents)]
+      prettyLD :: LabeledDependency -> P.Pretty P.ColorText
+      prettyLD =
+        P.syntaxToColor
+          . prettyHashQualified
+          . LD.fold
+            (PPE.typeName ppe)
+            (PPE.termName ppe)
+      prettyDependents :: Set Name -> P.Pretty P.ColorText
+      prettyDependents refs =
+        refs
+          & Set.toList
+          & fmap (\name -> formatNum (getNameNumber name) <> prettyName name)
+          & P.lines
   where
     absPathToBranchId = Right
 
@@ -1657,28 +1700,6 @@ notifyUser dir = \case
     pure $ listDependentsOrDependencies ppe "Dependents" "dependents" lds types terms
   ListDependencies ppe lds types terms ->
     pure $ listDependentsOrDependencies ppe "Dependencies" "dependencies" lds types terms
-  ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
-  ListNamespaceDependencies ppe path' externalDependencies -> do
-    let spacer = ("", "")
-    pure . P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
-      List.intersperse spacer (externalDepsTable externalDependencies)
-    where
-      externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
-      externalDepsTable = ifoldMap $ \ld dependents ->
-        [(prettyLD ld, prettyDependents dependents)]
-      prettyLD :: LabeledDependency -> P.Pretty P.ColorText
-      prettyLD =
-        P.syntaxToColor
-          . prettyHashQualified
-          . LD.fold
-            (PPE.typeName ppe)
-            (PPE.termName ppe)
-      prettyDependents :: Set Name -> P.Pretty P.ColorText
-      prettyDependents refs =
-        refs
-          & Set.toList
-          & fmap prettyName
-          & P.lines
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       ( effects <&> \(n, r) ->
@@ -1796,15 +1817,19 @@ notifyUser dir = \case
   PulledEmptyBranch remote ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
-  CreatedProject projectName branchName ->
+  CreatedProject nameWasRandomlyGenerated projectName ->
     pure $
-      P.wrap
-        ( "I just created project"
-            <> prettyProjectName projectName
-            <> "with branch"
-            <> prettyProjectBranchName branchName
-        )
-        <> "."
+      if nameWasRandomlyGenerated
+        then
+          P.wrap $
+            "🎉 I've created the project with the randomly-chosen name"
+              <> prettyProjectName projectName
+              <> "(use"
+              <> IP.makeExample IP.projectRenameInputPattern ["<new-name>"]
+              <> "to change it)."
+        else
+          P.wrap $
+            "🎉 I've created the project" <> P.group (prettyProjectName projectName <> ".")
   CreatedProjectBranch from projectAndBranch ->
     case from of
       CreatedProjectBranchFrom'LooseCode path ->
@@ -1940,7 +1965,13 @@ notifyUser dir = \case
       P.text ("Unauthorized: " <> message)
   ServantClientError err ->
     pure case err of
-      Servant.ConnectionError _exception -> P.wrap "Something went wrong with the connection. Try again?"
+      Servant.ConnectionError exception ->
+        P.wrap $
+          fromMaybe "Something went wrong with the connection. Try again?" do
+            case ServantClientUtils.classifyConnectionError exception of
+              ServantClientUtils.ConnectionError'Offline -> Just "You appear to be offline."
+              ServantClientUtils.ConnectionError'SomethingElse _ -> Nothing
+              ServantClientUtils.ConnectionError'SomethingEntirelyUnexpected _ -> Nothing
       Servant.DecodeFailure message response ->
         P.wrap "Huh, I failed to decode a response from the server."
           <> P.newline
@@ -2088,6 +2119,34 @@ notifyUser dir = \case
   CantRenameBranchTo branch ->
     pure . P.wrap $
       "You can't rename a branch to" <> P.group (prettyProjectBranchName branch <> ".")
+  FetchingLatestReleaseOfBase ->
+    pure . P.wrap $
+      "I'll now fetch the latest version of the base Unison library..."
+  FailedToFetchLatestReleaseOfBase ->
+    pure . P.wrap $ "Sorry something went wrong while fetching the library."
+  HappyCoding ->
+    pure $
+      P.wrap "🎨 Type `ui` to explore this project's code in your browser."
+        <> P.newline
+        <> P.wrap "🌏 Discover libraries at https://share.unison-lang.org"
+        <> P.newline
+        <> P.wrap "📖 Use `help-topic projects` to learn more about projects."
+        <> P.newline
+        <> P.newline
+        <> P.wrap "Write your first Unison code with UCM:"
+        <> P.newline
+        <> P.newline
+        <> P.indentN
+          2
+          ( P.wrap "1. Open scratch.u."
+              <> P.newline
+              <> P.wrap "2. Write some Unison code and save the file."
+              <> P.newline
+              <> P.wrap "3. In UCM, type `add` to save it to your new project."
+          )
+        <> P.newline
+        <> P.newline
+        <> P.wrap "🎉 🥳 Happy coding!"
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

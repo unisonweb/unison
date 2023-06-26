@@ -37,6 +37,7 @@ library
       Unison.Cli.Pretty
       Unison.Cli.PrettyPrintUtils
       Unison.Cli.ProjectUtils
+      Unison.Cli.ServantClientUtils
       Unison.Cli.Share.Projects
       Unison.Cli.Share.Projects.Types
       Unison.Cli.TypeCheck
@@ -132,6 +133,7 @@ library
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -190,6 +192,7 @@ library
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -260,6 +263,7 @@ executable cli-integration-tests
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -322,6 +326,7 @@ executable cli-integration-tests
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -388,6 +393,7 @@ executable transcripts
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -448,6 +454,7 @@ executable transcripts
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -520,6 +527,7 @@ executable unison
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -580,6 +588,7 @@ executable unison
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -658,6 +667,7 @@ test-suite cli-tests
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -718,6 +728,7 @@ test-suite cli-tests
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
