@@ -2226,9 +2226,9 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
           [sql|
         $transitive_dependency_mounts
         SELECT (reversed_name || reversed_mount_path) AS reversed_name
-          FROM all_in_scope_roots
+          FROM transitive_dependency_mounts
             INNER JOIN scoped_term_name_lookup
-            ON scoped_term_name_lookup.root_branch_hash_id = all_in_scope_roots.root_branch_hash_id
+            ON scoped_term_name_lookup.root_branch_hash_id = transitive_dependency_mounts.root_branch_hash_id
         WHERE referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
               AND reversed_name GLOB :suffixGlob
         LIMIT 1
