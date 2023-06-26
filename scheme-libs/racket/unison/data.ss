@@ -1,194 +1,236 @@
 ;; Helpers for building data that conform to the compiler calling convention
 
-#!r6rs
-(library (unison data)
-  (export
+#!racket/base
+(provide
+  make-data
+  data
+  unison-data?
+  unison-data-ref
+  unison-data-tag
+  unison-data-fields
 
-   make-data
-   data
-   data?
-   data-ref
-   data-tag
-   data-fields
+  declare-unison-data-hash
+  data-hash->number
+  data-number->hash
 
-   declare-unison-data-hash
-   data-hash->number
-   data-number->hash
+  make-sum
+  sum
+  unison-sum?
+  unison-sum-tag
+  unison-sum-fields
 
-   make-sum
-   sum
-   sum?
-   sum-tag
-   sum-fields
+  make-pure
+  unison-pure?
+  unison-pure-val
 
-   make-pure
-   pure?
-   pure-val
+  make-request
+  unison-request?
+  unison-request-ability
+  unison-request-tag
+  unison-request-fields
 
-   make-request
-   request?
-   request-ability
-   request-tag
-   request-fields
+  some
+  none
+  some?
+  none?
+  option-get
+  right
+  left
+  right?
+  left?
+  either-get
+  either-get
+  unit
+  false
+  true
+  bool
+  char
+  ord
+  any
+  failure
+  exception
+  exn:bug
+  make-exn:bug
+  exn:bug?
+  exn:bug->exception
 
-   some
-   none
-   some?
-   none?
-   option-get
-   right
-   left
-   right?
-   left?
-   either-get
-   either-get
-   unit
-   false
-   true
-   bool
-   char
-   ord
-   any
-   failure
-   exception
-   exn:bug
-   make-exn:bug
-   exn:bug?
-   exn:bug->exception
+  unison-tuple->list)
 
-   unison-tuple->list)
+(require
+  racket/base
+  racket/fixnum
+  (only-in "vector-trie.rkt" ->fx/wraparound))
 
-  (import (rnrs)
-          (only (racket base)
-                make-hash
-                hash-set!
-                hash-ref))
+(struct unison-data
+  (ref tag fields)
+  #:sealed
+  #:constructor-name make-data
+  #:property prop:equal+hash
+  (let ()
+    (define (equal-proc data-l data-r rec)
+      (and
+        (= (unison-data-tag data-l) (unison-data-tag data-r))
+        (andmap rec
+                (unison-data-fields data-l)
+                (unison-data-fields data-r))))
 
-  (define-record-type (unison-data make-data data?)
-    (fields
-      (immutable ref data-ref)
-      (immutable tag data-tag)
-      (immutable fields data-fields)))
+    (define ((hash-proc init) d rec)
+      (for/fold ([hc init])
+                ([v (unison-data-fields d)])
+        (fxxor (fx*/wraparound hc 31)
+               (->fx/wraparound (rec v)))))
 
-  (define (data r t . args) (make-data r t args))
+    (list equal-proc (hash-proc 3) (hash-proc 5))))
 
-  (define-record-type (unison-sum make-sum sum?)
-    (fields
-      (immutable tag sum-tag)
-      (immutable fields sum-fields)))
+(define (data r t . args) (make-data r t args))
 
-  (define (sum t . args) (make-sum t args))
+(struct unison-sum
+  (tag fields)
+  #:constructor-name make-sum)
 
-  (define-record-type (unison-pure make-pure pure?)
-    (fields
-      (immutable val pure-val)))
+(define (sum t . args) (make-sum t args))
 
-  (define-record-type (unison-request make-request request?)
-    (fields
-      (immutable ability request-ability)
-      (immutable tag request-tag)
-      (immutable fields request-fields)))
+(struct unison-pure
+  (val)
+  #:constructor-name make-pure)
 
-  ; Option a
-  (define none (sum 0))
+(struct unison-request
+  (ability tag fields)
+  #:constructor-name make-request)
 
-  ; a -> Option a
-  (define (some a) (sum 1 a))
+; Structures for other unison builtins. Originally the plan was
+; just to secretly use an in-unison data type representation.
+; However, there are generic functions written in scheme that
+; do not have access to typing informatiaon, and it becomes
+; impossible to distinguish data type values from pseudo-builtins
+; using the same representation, while the behavior must be
+; different. So, at least, we must wrap the unison data in
+; something that allows us to distinguish it as builtin.
+(struct unison-termlink ()
+  #:transparent
+  #:reflection-name 'termlink)
 
-  ; Option a -> Bool
-  (define (some? option) (eq? 1 (sum-tag option)))
+(struct unison-termlink-con unison-termlink
+  (ref index)
+  #:reflection-name 'termlink)
 
-  ; Option a -> Bool
-  (define (none? option) (eq? 0 (sum-tag option)))
+(struct unison-termlink-ref unison-termlink
+  (ref)
+  #:reflection-name 'termlink)
 
-  ; Option a -> a (or #f)
-  (define (option-get option)
-    (if
-     (some? option)
-     (car (sum-fields option))
-     (raise "Cannot get the value of an empty option ")))
+(struct unison-typelink ()
+  #:transparent
+  #:reflection-name 'typelink)
 
-  ; #<void> works as well
-  ; Unit
-  (define unit (sum 0))
+(struct unison-typelink-builtin unison-typelink
+  (name)
+  #:reflection-name 'typelink)
 
-  ; Booleans are represented as numbers
-  (define false 0)
-  (define true 1)
+(struct unison-typelink-derived unison-typelink
+  (ref)
+  #:reflection-name 'typelink)
 
-  (define (bool b) (if b 1 0))
+; Option a
+(define none (sum 0))
 
-  (define (char c) (char->integer c))
+; a -> Option a
+(define (some a) (sum 1 a))
 
-  (define (ord o)
+; Option a -> Bool
+(define (some? option) (eq? 1 (unison-sum-tag option)))
+
+; Option a -> Bool
+(define (none? option) (eq? 0 (unison-sum-tag option)))
+
+; Option a -> a (or #f)
+(define (option-get option)
+  (if
+   (some? option)
+   (car (unison-sum-fields option))
+   (raise "Cannot get the value of an empty option ")))
+
+; #<void> works as well
+; Unit
+(define unit (sum 0))
+
+; Booleans are represented as numbers
+(define false 0)
+(define true 1)
+
+(define (bool b) (if b 1 0))
+
+(define (char c) (char->integer c))
+
+(define (ord o)
+  (cond
+    [(eq? o '<) 0]
+    [(eq? o '=) 1]
+    [(eq? o '>) 2]))
+
+; a -> Either b a
+(define (right a) (sum 1 a))
+
+; b -> Either b a
+(define (left b) (sum 0 b))
+
+; Either a b -> Boolean
+(define (right? either) (eq? 1 (unison-sum-tag either)))
+
+; Either a b -> Boolean
+(define (left? either) (eq? 0 (unison-sum-tag either)))
+
+; Either a b -> a | b
+(define (either-get either) (car (unison-sum-fields either)))
+
+; a -> Any
+(define (any a) (data 'Any 0 a))
+
+; Type -> Text -> Any -> Failure
+(define (failure typeLink msg any)
+  (sum 0 typeLink msg any))
+
+; Type -> Text -> a ->{Exception} b
+(define (exception typeLink msg a)
+  (failure typeLink msg (any a)))
+
+; TODO needs better pretty printing for when it isn't caught
+(struct exn:bug (msg a)
+  #:constructor-name make-exn:bug)
+(define (exn:bug->exception b) (exception "RuntimeFailure" (exn:bug-msg b) (exn:bug-a b)))
+
+
+; A counter for internally numbering declared data, so that the
+; entire reference doesn't need to be stored in every data record.
+(define next-data-number 0)
+(define (fresh-data-number)
+  (let ([n next-data-number])
+    (set! next-data-number (+ n 1))
+    n))
+
+; maps hashes of declared unison data to their internal numberings
+(define data-hash-numberings (make-hash))
+
+; maps internal numberings of declared unison data to their hashes
+(define data-number-hashes (make-hash))
+
+; Adds a hash to the known set of data types, allocating an
+; internal numbe for it.
+(define (declare-unison-data-hash bs)
+  (let ([n (fresh-data-number)])
+    (hash-set! data-hash-numberings bs n)
+    (hash-set! data-number-hashes n bs)))
+
+(define (data-hash->number bs)
+  (hash-ref data-hash-numberings bs))
+
+(define (data-number->hash n)
+  (hash-ref data-number-hashes n))
+
+(define (unison-tuple->list t)
+  (let ([fs (unison-data-fields t)])
     (cond
-      [(eq? o '<) 0]
-      [(eq? o '=) 1]
-      [(eq? o '>) 2]))
-
-  ; a -> Either b a
-  (define (right a) (sum 1 a))
-
-  ; b -> Either b a
-  (define (left b) (sum 0 b))
-
-  ; Either a b -> Boolean
-  (define (right? either) (eq? 1 (sum-tag either)))
-
-  ; Either a b -> Boolean
-  (define (left? either) (eq? 0 (sum-tag either)))
-
-  ; Either a b -> a | b
-  (define (either-get either) (car (sum-fields either)))
-
-  ; a -> Any
-  (define (any a) (data 'Any 0 a))
-
-  ; Type -> Text -> Any -> Failure
-  (define (failure typeLink msg any)
-    (sum 0 typeLink msg any))
-
-  ; Type -> Text -> a ->{Exception} b
-  (define (exception typeLink msg a)
-    (failure typeLink msg (any a)))
-
-  ; TODO needs better pretty printing for when it isn't caught
-  (define-record-type exn:bug (fields msg a))
-  (define (exn:bug->exception b) (exception "RuntimeFailure" (exn:bug-msg b) (exn:bug-a b)))
-
-
-  ; A counter for internally numbering declared data, so that the
-  ; entire reference doesn't need to be stored in every data record.
-  (define next-data-number 0)
-  (define (fresh-data-number)
-    (let ([n next-data-number])
-      (set! next-data-number (+ n 1))
-      n))
-
-  ; maps hashes of declared unison data to their internal numberings
-  (define data-hash-numberings (make-hash))
-
-  ; maps internal numberings of declared unison data to their hashes
-  (define data-number-hashes (make-hash))
-
-  ; Adds a hash to the known set of data types, allocating an
-  ; internal numbe for it.
-  (define (declare-unison-data-hash bs)
-    (let ([n (fresh-data-number)])
-      (hash-set! data-hash-numberings bs n)
-      (hash-set! data-number-hashes n bs)))
-
-  (define (data-hash->number bs)
-    (hash-ref data-hash-numberings bs))
-
-  (define (data-number->hash n)
-    (hash-ref data-number-hashes n))
-
-  (define (unison-tuple->list t)
-    (let ([fs (data-fields t)])
-      (cond
-        [(null? fs) '()]
-        [(= 2 (length fs))
-         (cons (car fs) (unison-tuple->list (cadr fs)))]
-        [else
-          (raise "unison-tuple->list: unexpected value")]))))
+      [(null? fs) '()]
+      [(= 2 (length fs))
+       (cons (car fs) (unison-tuple->list (cadr fs)))]
+      [else
+        (raise "unison-tuple->list: unexpected value")])))

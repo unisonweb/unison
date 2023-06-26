@@ -559,7 +559,7 @@
       (lambda ()
         (sum 1 (bytevector-u64-ref bs n 'big)))))
 
-  (define unison-FOp-internal.dataTag data-tag)
+  (define unison-FOp-internal.dataTag unison-data-tag)
 
   (define (unison-FOp-IO.getBytes.impl.v3 p n)
     (reify-exn
