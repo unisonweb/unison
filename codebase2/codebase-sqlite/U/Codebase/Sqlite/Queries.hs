@@ -2203,19 +2203,7 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
       toList
         <$> queryMaybeColCheck
           [sql|
-        -- Recursive table containing all transitive deps
-        WITH RECURSIVE
-          all_in_scope_roots(root_branch_hash_id, reversed_mount_path) AS (
-            -- We've already searched direct deps above, so start with children of direct deps
-            SELECT transitive.mounted_root_branch_hash_id, transitive.reversed_mount_path || direct.reversed_mount_path
-            FROM name_lookup_mounts direct
-                 JOIN name_lookup_mounts transitive on direct.mounted_root_branch_hash_id = transitive.parent_root_branch_hash_id
-            WHERE direct.parent_root_branch_hash_id = :bhId
-            UNION ALL
-            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
-            FROM name_lookup_mounts mount
-              INNER JOIN all_in_scope_roots rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
-          )
+        $transitive_dependency_mounts
         SELECT (reversed_name || reversed_mount_path) AS reversed_name
           FROM all_in_scope_roots
             INNER JOIN scoped_term_name_lookup
@@ -2226,6 +2214,8 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
       |]
           (\reversedName -> reversedNameToReversedSegments reversedName)
     else pure directNames
+  where
+    transitive_dependency_mounts = transitiveDependenciesSql bhId
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -2262,29 +2252,41 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
       toList
         <$> queryMaybeColCheck
           [sql|
-        -- Recursive table containing all transitive deps
-        WITH RECURSIVE
-          all_in_scope_roots(root_branch_hash_id, reversed_mount_path) AS (
-            -- We've already searched direct deps above, so start with children of direct deps
-            SELECT transitive.mounted_root_branch_hash_id, transitive.reversed_mount_path || direct.reversed_mount_path
-            FROM name_lookup_mounts direct
-                 JOIN name_lookup_mounts transitive on direct.mounted_root_branch_hash_id = transitive.parent_root_branch_hash_id
-            WHERE direct.parent_root_branch_hash_id = :bhId
-            UNION ALL
-            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
-            FROM name_lookup_mounts mount
-              INNER JOIN all_in_scope_roots rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
-          )
+        $transitive_dependency_mounts
         SELECT (reversed_name || reversed_mount_path) AS reversed_name
-          FROM all_in_scope_roots
+          FROM transitive_dependency_mounts
             INNER JOIN scoped_type_name_lookup
-            ON scoped_type_name_lookup.root_branch_hash_id = all_in_scope_roots.root_branch_hash_id
+            ON scoped_type_name_lookup.root_branch_hash_id = transitive_dependency_mounts.root_branch_hash_id
         WHERE reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
               AND reversed_name GLOB :suffixGlob
         LIMIT 1
           |]
           (\reversedName -> reversedNameToReversedSegments reversedName)
     else pure directNames
+  where
+    transitive_dependency_mounts = transitiveDependenciesSql bhId
+
+-- | Brings into scope the transitive_dependency_mounts CTE table, which contains all transitive deps of the given root, but does NOT include the direct dependencies.
+-- @transitive_dependency_mounts(root_branch_hash_id, reversed_mount_path)@
+-- Where @reversed_mount_path@ is the reversed path from the provided root to the mounted
+-- dependency's root.
+transitiveDependenciesSql :: BranchHashId -> Sql
+transitiveDependenciesSql rootBranchHashId =
+  [sql|
+        -- Recursive table containing all transitive deps
+        WITH RECURSIVE
+          transitive_dependency_mounts(root_branch_hash_id, reversed_mount_path) AS (
+            -- We've already searched direct deps above, so start with children of direct deps
+            SELECT transitive.mounted_root_branch_hash_id, transitive.reversed_mount_path || direct.reversed_mount_path
+            FROM name_lookup_mounts direct
+                 JOIN name_lookup_mounts transitive on direct.mounted_root_branch_hash_id = transitive.parent_root_branch_hash_id
+            WHERE direct.parent_root_branch_hash_id = :rootBranchHashId
+            UNION ALL
+            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
+            FROM name_lookup_mounts mount
+              INNER JOIN transitive_dependency_mounts rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
+          )
+          |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
