@@ -29,12 +29,7 @@ import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
-import System.Directory
-  ( canonicalizePath,
-    doesFileExist,
-    getHomeDirectory,
-  )
-import System.Random (randomRIO)
+import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
@@ -2106,11 +2101,10 @@ notifyUser dir = \case
   FailedToFetchLatestReleaseOfBase ->
     pure . P.wrap $ "Sorry something went wrong while fetching the library."
   HappyCoding -> do
-    earth <- (["🌎", "🌍", "🌏"] !!) <$> randomRIO (0, 2)
     pure $
       P.wrap "🎨 Type `ui` to explore this project's code in your browser."
         <> P.newline
-        <> P.wrap (earth <> "Discover libraries at https://share.unison-lang.org")
+        <> P.wrap ("🌎 Discover libraries at https://share.unison-lang.org")
         <> P.newline
         <> P.wrap "📖 Use `help-topic projects` to learn more about projects."
         <> P.newline
