@@ -3,7 +3,8 @@
          racket/string
          racket/file
          rnrs/io/ports-6
-         (only-in racket empty?)
+         (only-in rnrs standard-error-port standard-input-port standard-output-port)
+         (only-in racket empty? with-output-to-string system)
          compatibility/mlist
          (only-in unison/boot data-case define-unison)
          unison/data
@@ -28,8 +29,8 @@
           unison/concurrent
          )
 
-
 (provide
+ unison-FOp-IO.stdHandle
  (prefix-out
   builtin-IO.
   (combine-out
@@ -37,6 +38,8 @@
     getLine.impl.v1
     getBuffering.impl.v3
     setBuffering.impl.v3
+    getEcho.impl.v1
+    setEcho.impl.v1
     ))
 
 ; Still to implement:
@@ -89,14 +92,17 @@
 (define BlockBuffering (data BufferMode 2))
 (define LineBuffering (data BufferMode 1))
 (define NoBuffering (data BufferMode 0))
+(define Boolean (data 'Reference 0 (string->chunked-string "Boolean")))
+(define True (data Boolean 1))
+(define False (data Boolean 0))
 
 (define-unison (getBuffering.impl.v3 handle)
     (case (file-stream-buffer-mode handle)
         [(none) (Right NoBuffering)]
         [(line) (Right LineBuffering)]
         [(block) (Right BlockBuffering)]
-        [(#f) (Exception 'IO "Unable to determine buffering mode of handle")]
-        [else (Exception 'IO "Unexpected response from file-stream-buffer-mode")]))
+        [(#f) (Exception 'IO "Unable to determine buffering mode of handle" '())]
+        [else (Exception 'IO "Unexpected response from file-stream-buffer-mode" '())]))
 
 (define-unison (setBuffering.impl.v3 handle mode)
     (data-case mode
@@ -110,5 +116,36 @@
             (file-stream-buffer-mode handle 'block)
             (Right none))
         (3 (size)
-            (Exception 'IO "Sized block buffering not supported"))))
+            (Exception 'IO "Sized block buffering not supported" '()))))
 
+(define (with-buffer-mode port mode)
+  (file-stream-buffer-mode port mode)
+  port)
+
+(define stdin (with-buffer-mode (standard-input-port) 'none))
+(define stdout (with-buffer-mode (standard-output-port) 'line))
+(define stderr (with-buffer-mode (standard-error-port) 'line))
+
+(define (unison-FOp-IO.stdHandle n)
+  (case n
+    [(0) stdin]
+    [(1) stdout]
+    [(2) stderr]))
+
+(define-unison (getEcho.impl.v1 handle)
+  (if (eq? handle stdin)
+      (Right (if (get-stdin-echo) True False))
+      (Exception 'IO "getEcho only supported on stdin" '())))
+
+(define-unison (setEcho.impl.v1 handle echo)
+  (if (eq? handle stdin)
+      (begin
+        (data-case echo
+            (1 () (system "stty echo"))
+            (0 () (system "stty -echo")))
+        (Right none))
+      (Exception 'IO "setEcho only supported on stdin" '())))
+
+(define (get-stdin-echo)
+  (let ([current (with-output-to-string (lambda () (system "stty -a")))])
+    (string-contains? current " echo ")))

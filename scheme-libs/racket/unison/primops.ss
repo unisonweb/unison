@@ -50,6 +50,8 @@
     builtin-IO.getLine.impl.v1
     builtin-IO.setBuffering.impl.v3
     builtin-IO.getBuffering.impl.v3
+    builtin-IO.setEcho.impl.v1
+    builtin-IO.getEcho.impl.v1
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
@@ -578,20 +580,6 @@
       (sum 1 #f)))
 
   (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
-
-  (define (with-buffer-mode port mode)
-    (file-stream-buffer-mode port mode)
-    port)
-
-  (define stdin (with-buffer-mode (standard-input-port) 'none))
-  (define stdout (with-buffer-mode (standard-output-port) 'line))
-  (define stderr (with-buffer-mode (standard-error-port) 'line))
-
-  (define (unison-FOp-IO.stdHandle n)
-    (case n
-      [(0) stdin]
-      [(1) stdout]
-      [(2) stderr]))
 
   (define (unison-FOp-IO.getArgs.impl.v1)
     (sum 1 (cdr (command-line))))

@@ -1,13 +1,14 @@
 
 io.tests = Tests.main do
     !test_getFileSize
-    !test_getFileSize_err 
+    !test_getFileSize_err
     !test_getFileTimestamp
     !test_getFileTimestamp_err
     !io.test.seek.absolute
     !io.test.seek.relative
     !io.test.getLine
     !io.test.getsetBuffering
+    !io.test_getEcho
 
 testFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
@@ -47,7 +48,7 @@ test_getFileTimestamp = do
         Tests.fail "File timestamp is too late" ((Int.toText ts) ++ " vs " ++ (Int.toText after))
     else
         Tests.pass "File timestamp is reasonable"
-    
+
 test_getFileTimestamp_err = do
     expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(FilePath.getTimestamp !testFile)
 
@@ -104,3 +105,10 @@ io.test.getsetBuffering = do
     checkEqual "Line" b2 LineBuffering
     checkEqual "No" b3 NoBuffering
 
+io.test_getEcho = do
+    prev = getEcho stdIn
+    setEcho stdIn false
+    checkEqual "echo turned off" (getEcho stdIn) false
+    setEcho stdIn true
+    checkEqual "echo turned back on" (getEcho stdIn) true
+    setEcho stdIn prev
