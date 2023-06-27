@@ -14,7 +14,7 @@ import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.TypeCheck qualified as Cli (typecheckFile')
+import Unison.Cli.TypeCheck qualified as Cli (typecheckFile)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
@@ -547,7 +547,7 @@ propagate patch b = case validatePatch patch of
                   mempty
                   (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
                   mempty
-          typecheckResult <- Cli.typecheckFile' codebase [] file
+          typecheckResult <- Cli.typecheckFile codebase [] file
           pure . fmap UF.hashTerms $ Result.result typecheckResult
 
 -- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
