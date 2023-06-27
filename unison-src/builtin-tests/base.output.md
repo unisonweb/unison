@@ -7,7 +7,7 @@ Thus, make sure the contents of this file define the contents of the cache
 ```ucm
 .> pull @unison/base/releases/2.0.0 .base
 
-  Downloaded 11980 entities.
+  Downloaded 11939 entities.
 
   ✅
   
@@ -15,7 +15,7 @@ Thus, make sure the contents of this file define the contents of the cache
 
 .> compile.native.fetch
 
-  Downloaded 65491 entities.
+  Downloaded 65927 entities.
 
   ✅
   

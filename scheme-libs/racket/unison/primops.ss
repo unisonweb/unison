@@ -48,6 +48,8 @@
     unison-FOp-IO.getBytes.impl.v3
     builtin-IO.seekHandle.impl.v3
     builtin-IO.getLine.impl.v1
+    builtin-IO.setBuffering.impl.v3
+    builtin-IO.getBuffering.impl.v3
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
@@ -346,6 +348,7 @@
                  bytes->string/utf-8
                  string->bytes/utf-8
                  exn:fail:contract?
+                 file-stream-buffer-mode
                  with-handlers
                  sequence-ref
                  vector-copy!
@@ -576,9 +579,13 @@
 
   (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
 
-  (define stdin (standard-input-port))
-  (define stdout (standard-output-port))
-  (define stderr (standard-error-port))
+  (define (with-buffer-mode port mode)
+    (file-stream-buffer-mode port mode)
+    port)
+
+  (define stdin (with-buffer-mode (standard-input-port) 'none))
+  (define stdout (with-buffer-mode (standard-output-port) 'line))
+  (define stderr (with-buffer-mode (standard-error-port) 'line))
 
   (define (unison-FOp-IO.stdHandle n)
     (case n

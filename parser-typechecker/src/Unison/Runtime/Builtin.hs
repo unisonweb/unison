@@ -1,4 +1,3 @@
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -58,8 +57,10 @@ import Data.Text qualified
 import Data.Text.IO qualified as Text.IO
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime,
+    posixSecondsToUTCTime,
     utcTimeToPOSIXSeconds,
   )
+import Data.Time.LocalTime (TimeZone (..), getTimeZone)
 import Data.X509 qualified as X
 import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
@@ -1058,6 +1059,26 @@ infixr 0 -->
 
 (-->) :: a -> b -> (a, b)
 x --> y = (x, y)
+
+-- Box an unboxed value
+-- Takes the boxed variable, the unboxed variable, and the type of the value
+box :: (Var v) => v -> v -> Reference -> Term ANormalF v -> Term ANormalF v
+box b u ty = TLetD b BX (TCon ty 0 [u])
+
+time'zone :: ForeignOp
+time'zone instr =
+  ([BX],)
+    . TAbss [bsecs]
+    . unbox bsecs Ty.intRef secs
+    . TLets Direct [offset, summer, name] [UN, UN, BX] (TFOp instr [secs])
+    . box bsummer summer Ty.natRef
+    . box boffset offset Ty.intRef
+    . TLetD un BX (TCon Ty.unitRef 0 [])
+    . TLetD p2 BX (TCon Ty.pairRef 0 [name, un])
+    . TLetD p1 BX (TCon Ty.pairRef 0 [bsummer, p2])
+    $ TCon Ty.pairRef 0 [boffset, p1]
+  where
+    (secs, bsecs, offset, boffset, summer, bsummer, name, un, p2, p1) = fresh
 
 start'process :: ForeignOp
 start'process instr =
@@ -2266,6 +2287,13 @@ declareForeigns = do
   -- so we can safely cast to Nat
   declareForeign Tracked "Clock.internals.nsec.v1" boxToNat $
     mkForeign (\n -> pure (fromIntegral $ nsec n :: Word64))
+
+  declareForeign Tracked "Clock.internals.systemTimeZone.v1" time'zone $
+    mkForeign
+      ( \secs -> do
+          TimeZone offset summer name <- getTimeZone (posixSecondsToUTCTime (fromIntegral (secs :: Int)))
+          pure (offset :: Int, summer, name)
+      )
 
   let chop = reverse . dropWhile isPathSeparator . reverse
 
