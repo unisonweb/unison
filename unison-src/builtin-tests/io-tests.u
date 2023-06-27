@@ -9,6 +9,7 @@ io.tests = Tests.main do
     !io.test.getLine
     !io.test.getsetBuffering
     !io.test_getEcho
+    !io.test_getArgs
 
 testFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
@@ -112,3 +113,9 @@ io.test_getEcho = do
     setEcho stdIn true
     checkEqual "echo turned back on" (getEcho stdIn) true
     setEcho stdIn prev
+
+io.test_getArgs = do
+    checkEqual "cli args" !getArgs []
+
+io.test_getEnv = do
+    checkEqual "HOME env variable" (startsWith "/" (getEnv "HOME")) true
