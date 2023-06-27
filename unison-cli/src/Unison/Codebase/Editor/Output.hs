@@ -375,8 +375,7 @@ data Output
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
   | RenamedProject ProjectName ProjectName
-  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath ([Symbol], UF.UnisonFile Symbol Ann)
---   ^ is symbols that were rewritten
+  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath String ([Symbol] {- symbols rewritten -}, UF.UnisonFile Symbol Ann)
   | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
   | CantRenameBranchTo ProjectBranchName
 

@@ -720,7 +720,7 @@ notifyUser dir = \case
               <> "to push the changes."
         ]
   DisplayDefinitions output -> displayDefinitions output
-  OutputRewrittenFile ppe dest uf -> displayOutputRewrittenFile ppe dest uf
+  OutputRewrittenFile ppe dest msg uf -> displayOutputRewrittenFile ppe dest msg uf
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
@@ -2365,15 +2365,16 @@ formatMissingStuff terms types =
              <> P.column2 [(P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types]
        )
 
-displayOutputRewrittenFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> ([v], UF.UnisonFile v a) -> IO Pretty
-displayOutputRewrittenFile _ppe _fp ([], _uf) =
-  pure $ P.callout "😶️" . P.wrap $ "No matches found in the file."
-displayOutputRewrittenFile ppe fp (vs, uf) = do
-  fp <- prependToFile (prettyUnisonFile ppe uf <> foldLine) fp
-  let msg = P.sep " " (P.blue . prettyVar <$> vs)
+displayOutputRewrittenFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> String -> ([v], UF.UnisonFile v a) -> IO Pretty
+displayOutputRewrittenFile _ppe _fp _ ([], _uf) =
+  pure "😶️ I couldn't find any matches in the file."
+displayOutputRewrittenFile ppe fp msg (vs, uf) = do
+  let modifiedDefs = P.sep " " (P.blue . prettyVar <$> vs)
+  let header = "-- " <> P.string msg <> "\n" <> "-- | Modified definition(s): " <> modifiedDefs
+  fp <- prependToFile (header <> "\n\n" <> prettyUnisonFile ppe uf <> foldLine) fp
   pure $
     P.callout "☝️" . P.lines $
-      [ P.wrap $ "I found and replaced matches in these definitions: " <> msg,
+      [ P.wrap $ "I found and replaced matches in these definitions: " <> modifiedDefs,
         "",
         "The rewritten file has been added to the top of " <> fromString fp
       ]

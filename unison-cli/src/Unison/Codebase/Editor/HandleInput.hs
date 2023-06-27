@@ -1789,7 +1789,8 @@ handleStructuredFindReplaceI rewriteLhs rule = do
         else ABT.rewriteExpression lhs rhs
       uf' = UF.rewrite (Set.singleton (HQ.toVar rule)) rewriteFn uf
   #latestTypecheckedFile .= Just (Left . snd $ uf')
-  Cli.respond $ OutputRewrittenFile ppe dest uf'
+  let msg = if rewriteLhs then "| Rewrote pattern matching left-hand sides using: " else "| Rewrote using: "
+  Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) uf'
 
 handleFindI ::
   Bool ->

@@ -529,10 +529,11 @@ sfindReplaceCases =
           P.wrap $
             "Here, `x` can be any pattern where this rewrite is applied, so" <>
             "for instance:",
+          "",
           P.indentN 4 $ P.lines
-            [ P.backticked "[Foo (Some (a,b)),  _] -> a + b",
+            [ "[Foo (Some (a,b)),  _] -> a + b",
               "↓ rewrites to",
-              P.backticked "[Foo (Right (a,b)), _] -> a + b" ],
+              "[Foo (Right (a,b)), _] -> a + b" ],
           "",
           P.wrap $ P.bold "Also see" <> makeExample sfindReplace [] <> "which applies"
                <> "the rewrite rule everywhere else besides the left hand side"
