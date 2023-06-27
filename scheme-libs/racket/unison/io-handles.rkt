@@ -4,7 +4,7 @@
          racket/file
          rnrs/io/ports-6
          (only-in rnrs standard-error-port standard-input-port standard-output-port vector-map)
-         (only-in racket empty? with-output-to-string system)
+         (only-in racket empty? with-output-to-string system false?)
          compatibility/mlist
          (only-in unison/boot data-case define-unison)
          unison/data
@@ -152,7 +152,7 @@
     (Right (vector->chunked-list
         (vector-map string->chunked-string (current-command-line-arguments)))))
 
-(define-unison (getEnv key)
+(define-unison (getEnv.impl.v1 key)
     (let ([value (environment-variables-ref (current-environment-variables) (chunked-string->string key))])
         (if (false? value)
             (Exception 'IO "environmental variable not found" key)
