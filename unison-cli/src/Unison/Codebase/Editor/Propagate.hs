@@ -520,7 +520,7 @@ propagate patch b = case validatePatch patch of
                 [(v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m']
 
     verifyTermComponent ::
-      Codebase m Symbol Ann ->
+      Codebase IO Symbol Ann ->
       Map Symbol (Reference, Term Symbol Ann, a) ->
       Edits Symbol ->
       Sqlite.Transaction (Maybe (Map Symbol (Reference, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)))
