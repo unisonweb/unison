@@ -29,6 +29,30 @@
   unison-request-tag
   unison-request-fields
 
+  partial-app
+  unison-closure?
+  unison-closure-code
+  unison-closure-env
+
+  unison-termlink
+  unison-termlink?
+  unison-termlink-con
+  unison-termlink-con?
+  unison-termlink-con-ref
+  unison-termlink-con-index
+  unison-termlink-ref
+  unison-termlink-ref?
+  unison-termlink-ref-ref
+
+  unison-typelink
+  unison-typelink?
+  unison-typelink-builtin
+  unison-typelink-builtin?
+  unison-typelink-builtin-name
+  unison-typelink-derived
+  unison-typelink-derived?
+  unison-typelink-derived-ref
+
   some
   none
   some?
@@ -64,6 +88,7 @@
 (struct unison-data
   (ref tag fields)
   #:sealed
+  #:transparent
   #:constructor-name make-data
   #:property prop:equal+hash
   (let ()
@@ -129,6 +154,18 @@
 (struct unison-typelink-derived unison-typelink
   (ref)
   #:reflection-name 'typelink)
+
+(struct unison-closure
+  (code env)
+  #:transparent
+  #:property prop:procedure
+  (case-lambda
+    [(clo) clo]
+    [(clo . rest)
+     (apply (unison-closure-code clo)
+            (append (unison-closure-env clo) rest))]))
+
+(define (partial-app f . args) (unison-closure f args))
 
 ; Option a
 (define none (sum 0))
