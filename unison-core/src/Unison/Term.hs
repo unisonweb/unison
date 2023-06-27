@@ -1386,17 +1386,20 @@ rewriteCasesLHS pat0 pat0' tm =
     ann = ABT.annotation
     embedPattern t = app (ann t) (builtin (ann t) "#pattern") t 
     pat = ABT.rebuildUp' embedPattern pat0
-    pat' = ABT.rebuildUp' embedPattern pat0'
+    pat' = pat0'
 
     into :: Term2 typeVar typeAnn a v a -> Term2 typeVar typeAnn a v a
     into = ABT.rebuildUp' go where
-      go t@(Match' scrutinee cases) = apps' (builtin (ann t) "#match") (scrutinee : map matchCaseToTerm cases)
+      go t@(Match' scrutinee cases) = 
+        apps' (builtin at "#match") [scrutinee, apps' (builtin at "#cases") (map matchCaseToTerm cases)]
+        where
+          at = ann t
       go t = t
 
     out :: Term2 typeVar typeAnn a v a -> Term2 typeVar typeAnn a v a
     out = ABT.rebuildUp' go where
       go (App' (Builtin' "#pattern") t) = t
-      go t@(Apps' (Builtin' "#match") (scrute : cases)) = 
+      go t@(Apps' (Builtin' "#match") [scrute, Apps' (Builtin' "#cases") cases]) = 
         match at scrute (tweak . matchCaseFromTerm <$> cases) 
         where
           at = ABT.annotation t
@@ -1432,27 +1435,31 @@ toPattern tm = case tm of
     loc = ABT.annotation tm
 
 matchCaseFromTerm :: Var v => Term2 typeVar typeAnn a v a -> Maybe (MatchCase a (Term2 typeVar typeAnn a v a))
-matchCaseFromTerm (App' (Builtin' "#case") (ABT.unabsA -> (_, Apps' _ [pat, guard, body]))) = do
+matchCaseFromTerm (App' (Builtin' "#case") (ABT.unabsA -> (_, Apps' _ci [pat, guard, body]))) = do
   p <- toPattern pat
   let g = unguard guard
   pure $ MatchCase p (rechain pat <$> g) (rechain pat body) 
   where
     unguard (App' (Builtin' "#guard") t) = Just t  
+    unguard (Builtin' "#noguard") = Nothing 
     unguard _ = Nothing
     rechain pat tm = foldr (\v tm -> ABT.abs' (ABT.annotation tm) v tm) tm (ABT.allVars pat)
 matchCaseFromTerm t = 
-  Just (MatchCase (Pattern.Unbound (ABT.annotation t)) Nothing (text (ABT.annotation t) "bug: matchCaseToTerm"))
+  Just (MatchCase (Pattern.Unbound (ABT.annotation t)) Nothing (text (ABT.annotation t) "💥 bug: matchCaseToTerm"))
 
 matchCaseToTerm :: (Semigroup a, Ord v) => MatchCase a (Term2 typeVar typeAnn a v a) -> Term2 typeVar typeAnn a v a
 matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) = 
   app loc0 (builtin loc0 "#case") chain
   where
   loc0 = Pattern.loc pat
-  chain = ABT.absChain' avs (apps' ci [evalState (intop pat) avs, intog guard, body])
+  chain = ABT.absChain' avs (apps' ci [evalState (embedPattern <$> intop pat) avs, intog guard, body])
     where 
       ci = builtin loc0 "#case.inner"
       intog Nothing = builtin loc0 "#noguard"
       intog (Just (ABT.unabsA -> (_,t))) = app (ABT.annotation t) (builtin (ABT.annotation t) "#guard") t
+
+  embedPattern t = ABT.rebuildUp' embed t
+    where embed t = app (ABT.annotation t) (builtin (ABT.annotation t) "#pattern") t 
   intop pat = case pat of
     Pattern.Unbound loc  -> pure (blank loc)
     Pattern.Var loc -> do
