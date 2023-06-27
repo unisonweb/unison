@@ -98,7 +98,7 @@
                   #`[(a ... z)
                      (with-name
                        #,(datum->syntax name (syntax->datum name))
-                       (lambda r (apply #,name a ... z r)))]
+                       (partial-app #,name a ... z))]
                   acc))])))
 
     ; Given an overall function name, a fast path name, and a list of
