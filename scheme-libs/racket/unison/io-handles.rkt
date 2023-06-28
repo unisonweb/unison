@@ -152,7 +152,8 @@
     (string-contains? current " echo ")))
 
 
-;; From https://github.com/python/cpython/blob/bf2f76ec0976c09de79c8827764f30e3b6fba776/Lib/shlex.py#L325
+;; From https://github.com/sorawee/shlex/blob/5de06500e8c831cfc8dffb99d57a76decc02c569/main.rkt (MIT License)
+;; with is a port of https://github.com/python/cpython/blob/bf2f76ec0976c09de79c8827764f30e3b6fba776/Lib/shlex.py#L325
 (define unsafe-pattern #rx"[^a-zA-Z0-9_@%+=:,./-]")
 (define (quote-arg s)
   (if (non-empty-string? s)
