@@ -1071,7 +1071,7 @@ loop e = do
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
-            StructuredFindReplaceI rewriteLhs ws -> handleStructuredFindReplaceI rewriteLhs ws
+            StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
             ResolveTypeNameI path' -> do
               description <- inputDescription input
               path <- Cli.resolveSplit' path'
@@ -1729,8 +1729,8 @@ inputDescription input =
 handleStructuredFindI :: HQ.HashQualified Name -> Cli ()
 handleStructuredFindI rule = do
   Cli.Env {codebase} <- ask
-  (ppe, names, lhs, _rhs) <- lookupRewrite InvalidStructuredFind rule
-  let lhsPat = Term.toPattern lhs
+  (ppe, names, rules0) <- lookupRewrite InvalidStructuredFind rule
+  let rules = [(lookInLhs, lhs, Term.toPattern lhs) | (lookInLhs, lhs, _rhs) <- rules0 ]
   let fqppe = PPED.unsuffixifiedPPE ppe
   results :: [(HQ.HashQualified Name, Referent)] <- pure $ do
     r <- Set.toList (Relation.ran $ Names.terms (NamesWithHistory.currentNames names))
@@ -1742,17 +1742,18 @@ handleStructuredFindI rule = do
     pure (HQ'.toHQ shortName, r)
   let ok t@(_, Referent.Ref (Reference.DerivedId r)) = do
         oe <- Cli.runTransaction (Codebase.getTerm codebase r)
-        pure $ (t, maybe False (ABT.containsExpression lhs) oe, Term.containsCase <$> lhsPat <*> oe)
+        pure $ (t, hasAny oe, hasAnyCase oe)
       ok t = pure (t, False, Nothing)
+      hasAny t = any (\(lookInLhs,lhs,_) -> not lookInLhs && maybe False (ABT.containsExpression lhs) t) rules  
+      hasAnyCase t = asum [ Term.containsCase <$> lhsPat <*> t | (True,_,lhsPat) <- rules ]
   results0 <- traverse ok results
   let caseResults = [ (hq, r) | ((hq,r), _, Just True) <- results0 ]
   let results = [ (hq, r) | ((hq,r), True, _) <- results0 ]
   let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
   #numberedArgs .= map toNumArgs caseResults <> map toNumArgs results
-  -- todo: add second list to ListStructuredFind, can report "functions with patterns matching the LHS"
-  Cli.respond (ListStructuredFind (fmap fst caseResults <$ lhsPat) (fst <$> results))
+  Cli.respond (ListStructuredFind (fmap fst caseResults <$ asum (view _3 <$> rules)) (fst <$> results))
 
-lookupRewrite :: (HQ.HashQualified Name -> Output) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, Term Symbol Ann, Term Symbol Ann)
+lookupRewrite :: (HQ.HashQualified Name -> Output) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, [(Bool, Term Symbol Ann, Term Symbol Ann)])
 lookupRewrite onErr rule = do
   Cli.Env {codebase} <- ask
   root <- Cli.getRootBranch
@@ -1772,24 +1773,35 @@ lookupRewrite onErr rule = do
               Cli.runTransaction (Codebase.getTerm codebase r)
         s -> Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule s)
   tm <- maybe (Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule mempty)) pure ot
-  (lhs, rhs) <- case tm of
-    Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs, rhs]) -> pure (lhs, rhs)
-    Term.Ann' (Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs, rhs])) _typ -> pure (lhs, rhs)
+  let 
+    extract tm = case tm of
+      Term.Ann' tm _typ -> extract tm
+      Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs, rhs]) -> pure (False, lhs, rhs)
+      Term.LamsNamedOpt' _vs (DD.EitherLeft'  (DD.TupleTerm' [lhs,rhs])) -> pure (True, lhs, rhs)
+      Term.LamsNamedOpt' _vs (DD.EitherRight' (DD.TupleTerm' [lhs,rhs])) -> pure (False, lhs, rhs)
+      _ -> Cli.returnEarly (onErr rule)
+  rules <- case tm of
+    DD.TupleTerm' rules -> traverse extract rules
+    Term.Ann' (DD.TupleTerm' rules) _ -> traverse extract rules
+    Term.LamsNamed' _vs (DD.TupleTerm' [lhs, rhs]) -> pure [(False, lhs, rhs)]
+    Term.Ann' (Term.LamsNamed' _vs (DD.TupleTerm' [lhs, rhs])) _typ -> pure [(False, lhs, rhs)]
     _ -> Cli.returnEarly (onErr rule)
-  pure (ppe, currentNames, lhs, rhs)
+  pure (ppe, currentNames, rules)
 
-handleStructuredFindReplaceI :: Bool -> HQ.HashQualified Name -> Cli ()
-handleStructuredFindReplaceI rewriteLhs rule = do
-  (ppe, _ns, lhs, rhs) <- lookupRewrite InvalidStructuredFindReplace rule
+handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
+handleStructuredFindReplaceI rule = do
+  (ppe, _ns, rules) <- lookupRewrite InvalidStructuredFindReplace rule
   uf <- Cli.expectLatestParsedFile
   (dest, _) <- Cli.expectLatestFile
   #latestFile ?= (dest, True)
-  let rewriteFn = 
-        if rewriteLhs then Term.rewriteCasesLHS lhs rhs
-        else ABT.rewriteExpression lhs rhs
-      uf' = UF.rewrite (Set.singleton (HQ.toVar rule)) rewriteFn uf
+  let 
+    step tm (True, lhs, rhs)  = tm >>= Term.rewriteCasesLHS  lhs rhs
+    step tm (False, lhs, rhs) = tm >>= ABT.rewriteExpression lhs rhs
+    go _tm0 tm [] = tm
+    go tm0 tm (r:rules) = go tm0 (step (tm <|> tm0) r) rules
+    uf' = UF.rewrite (Set.singleton (HQ.toVar rule)) (\tm -> go (Just tm) Nothing rules) uf
   #latestTypecheckedFile .= Just (Left . snd $ uf')
-  let msg = if rewriteLhs then "| Rewrote pattern matching left-hand sides using: " else "| Rewrote using: "
+  let msg = "| Rewrote using: "
   Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) uf'
 
 handleFindI ::
