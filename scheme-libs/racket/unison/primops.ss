@@ -51,6 +51,7 @@
     builtin-IO.setBuffering.impl.v3
     builtin-IO.getBuffering.impl.v3
     builtin-IO.setEcho.impl.v1
+    builtin-IO.process.call
     builtin-IO.getEcho.impl.v1
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
