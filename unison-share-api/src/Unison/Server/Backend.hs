@@ -880,6 +880,7 @@ mungeSyntaxText ::
 mungeSyntaxText = fmap Syntax.convertElement
 
 mkTypeDefinition ::
+  MonadIO m =>
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
   Path.Path ->
@@ -890,7 +891,7 @@ mkTypeDefinition ::
   DisplayObject
     (AnnotatedText (UST.Element Reference))
     (AnnotatedText (UST.Element Reference)) ->
-  Backend IO TypeDefinition
+  m TypeDefinition
 mkTypeDefinition codebase pped namesRoot rootCausal width r docs tp = do
   let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
   tag <-
