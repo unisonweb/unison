@@ -2104,7 +2104,7 @@ notifyUser dir = \case
     pure $
       P.wrap "🎨 Type `ui` to explore this project's code in your browser."
         <> P.newline
-        <> P.wrap ("🌎 Discover libraries at https://share.unison-lang.org")
+        <> P.wrap ("🔭 Discover libraries at https://share.unison-lang.org")
         <> P.newline
         <> P.wrap "📖 Use `help-topic projects` to learn more about projects."
         <> P.newline
