@@ -1776,16 +1776,18 @@ lookupRewrite onErr rule = do
   let 
     extract tm = case tm of
       Term.Ann' tm _typ -> extract tm
-      Term.LamsNamedOpt' _vs (DD.TupleTerm' [lhs, rhs]) -> pure (False, lhs, rhs)
-      Term.LamsNamedOpt' _vs (DD.EitherLeft'  (DD.TupleTerm' [lhs,rhs])) -> pure (True, lhs, rhs)
-      Term.LamsNamedOpt' _vs (DD.EitherRight' (DD.TupleTerm' [lhs,rhs])) -> pure (False, lhs, rhs)
+      (DD.TupleTerm' [lhs, rhs]) -> pure (False, lhs, rhs)
+      (DD.EitherLeft'  (DD.TupleTerm' [lhs,rhs])) -> pure (True, lhs, rhs)
+      (DD.EitherRight' (DD.TupleTerm' [lhs,rhs])) -> pure (False, lhs, rhs)
       _ -> Cli.returnEarly (onErr rule)
-  rules <- case tm of
-    DD.TupleTerm' rules -> traverse extract rules
-    Term.Ann' (DD.TupleTerm' rules) _ -> traverse extract rules
-    Term.LamsNamed' _vs (DD.TupleTerm' [lhs, rhs]) -> pure [(False, lhs, rhs)]
-    Term.Ann' (Term.LamsNamed' _vs (DD.TupleTerm' [lhs, rhs])) _typ -> pure [(False, lhs, rhs)]
-    _ -> Cli.returnEarly (onErr rule)
+    extractOuter tm = case tm of
+      Term.Ann' tm _typ -> extractOuter tm
+      Term.LamsNamed' _vs tm -> extractOuter tm
+      DD.EitherLeft'  (DD.TupleTerm' [lhs,rhs]) -> pure [(True, lhs, rhs)]
+      DD.EitherRight' (DD.TupleTerm' [lhs,rhs]) -> pure [(False, lhs, rhs)]
+      DD.TupleTerm' rules -> traverse extract rules
+      _ -> Cli.returnEarly (onErr rule)
+  rules <- extractOuter tm 
   pure (ppe, currentNames, rules)
 
 handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
