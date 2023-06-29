@@ -39,7 +39,6 @@ library
       Unison.Server.QueryResult
       Unison.Server.SearchResult
       Unison.Server.SearchResult'
-      Unison.Server.Share
       Unison.Server.Syntax
       Unison.Server.Types
       Unison.Sync.API
