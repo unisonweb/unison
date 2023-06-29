@@ -1,6 +1,5 @@
 module Unison.Cli.TypeCheck
   ( typecheck,
-    typecheckHelper,
     typecheckFile,
     typecheckTerm,
   )
@@ -27,28 +26,6 @@ import Unison.UnisonFile qualified as UF
 import Unison.Var qualified as Var
 
 typecheck ::
-  [Type Symbol Ann] ->
-  NamesWithHistory ->
-  Text ->
-  (Text, [L.Token L.Lexeme]) ->
-  Cli
-    ( Result.Result
-        (Seq (Result.Note Symbol Ann))
-        (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann))
-    )
-typecheck ambient names sourceName source =
-  Cli.time "typecheck" do
-    Cli.Env {codebase, generateUniqueName} <- ask
-    uniqueName <- liftIO generateUniqueName
-    (Cli.runTransaction . Result.getResult) $
-      parseAndSynthesizeFile
-        ambient
-        (Codebase.typeLookupForDependencies codebase)
-        (Parser.ParsingEnv uniqueName names)
-        (Text.unpack sourceName)
-        (fst source)
-
-typecheckHelper ::
   (MonadIO m) =>
   Codebase IO Symbol Ann ->
   IO Parser.UniqueName ->
@@ -61,9 +38,9 @@ typecheckHelper ::
         (Seq (Result.Note Symbol Ann))
         (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann))
     )
-typecheckHelper codebase generateUniqueName ambient names sourceName source = do
-  uniqueName <- liftIO generateUniqueName
-  (liftIO . Codebase.runTransaction codebase . Result.getResult) $
+typecheck codebase generateUniqueName ambient names sourceName source = liftIO do
+  uniqueName <- generateUniqueName
+  (Codebase.runTransaction codebase . Result.getResult) $
     parseAndSynthesizeFile
       ambient
       (Codebase.typeLookupForDependencies codebase)

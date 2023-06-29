@@ -241,7 +241,9 @@ loop e = do
           loopState
             & #latestFile .~ Just (Text.unpack sourceName, False)
             & #latestTypecheckedFile .~ Nothing
-        MaybeT (WriterT (Identity (r, notes))) <- typecheck ambient parseNames sourceName lexed
+        MaybeT (WriterT (Identity (r, notes))) <- do
+          Cli.Env {codebase, generateUniqueName} <- ask
+          typecheck codebase generateUniqueName ambient parseNames sourceName lexed
         result <- r & onNothing (Cli.returnEarly (ParseErrors text [err | Result.Parsing err <- toList notes]))
         result & onLeft \uf -> do
           ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames uf)

@@ -22,7 +22,7 @@ import Language.LSP.Types
   )
 import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
 import Unison.ABT qualified as ABT
-import Unison.Cli.TypeCheck (typecheckHelper)
+import Unison.Cli.TypeCheck (typecheck)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as DD
@@ -76,7 +76,7 @@ checkFile doc = runMaybeT $ do
   let ambientAbilities = []
   cb <- asks codebase
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
-  r <- (liftIO $ typecheckHelper cb generateUniqueName ambientAbilities parseNames sourceName lexedSource)
+  r <- typecheck cb generateUniqueName ambientAbilities parseNames sourceName lexedSource
   let Result.Result notes mayResult = r
   let (parsedFile, typecheckedFile) = case mayResult of
         Nothing -> (Nothing, Nothing)
