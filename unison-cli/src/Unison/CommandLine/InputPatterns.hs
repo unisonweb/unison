@@ -2367,14 +2367,14 @@ fetchScheme =
         [] -> pure (Input.FetchSchemeCompilerI "unison" release)
         [name] -> pure (Input.FetchSchemeCompilerI name branch)
           where
-          branch
-            | name == "unison" = release
-            | otherwise = "main"
-        [name,branch] -> pure (Input.FetchSchemeCompilerI name branch)
+            branch
+              | name == "unison" = release
+              | otherwise = "main"
+        [name, branch] -> pure (Input.FetchSchemeCompilerI name branch)
         _ -> Left $ showPatternHelp fetchScheme
     )
-    where
-      release = "releases/0.0.1"
+  where
+    release = "releases/0.0.1"
 
 createAuthor :: InputPattern
 createAuthor =

@@ -138,7 +138,10 @@ import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.Project
-  (ProjectAndBranch (..), ProjectName (..), ProjectBranchName (..))
+  ( ProjectAndBranch (..),
+    ProjectName (..),
+    ProjectBranchName (..),
+  )
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
@@ -2457,7 +2460,7 @@ doFetchCompiler username branch =
 ensureCompilerExists :: Cli ()
 ensureCompilerExists =
   Cli.branchExistsAtPath' compilerPath
-    >>= flip unless (doFetchCompiler "unison" "0.0.1")
+    >>= flip unless (doFetchCompiler "unison" "releases/0.0.1")
 
 getCacheDir :: Cli String
 getCacheDir = liftIO $ getXdgDirectory XdgCache "unisonlanguage"
