@@ -169,6 +169,18 @@ rewriteCaseRef = lookupDeclRef "RewriteCase"
 pattern RewriteCase' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 pattern RewriteCase' lhs rhs <- (unRewriteCase -> Just (lhs,rhs))
 
+rewriteCase :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+rewriteCase a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
+  where 
+    a1 = ABT.annotation tm1
+    r = ConstructorReference rewriteCaseRef 0
+
+rewriteTerm :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+rewriteTerm a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
+  where 
+    a1 = ABT.annotation tm1
+    r = ConstructorReference rewriteTermRef 0
+
 unRewriteCase :: Term2 vt at ap v a -> Maybe (Term2 vt at ap v a, Term2 vt at ap v a)
 unRewriteCase (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs,rhs])
   | r == rewriteCaseRef = Just (lhs,rhs)
