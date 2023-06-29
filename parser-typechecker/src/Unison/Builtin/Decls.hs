@@ -151,6 +151,55 @@ okConstructorReferent, failConstructorReferent :: Referent.Referent
 okConstructorReferent = Referent.Con (ConstructorReference testResultRef okConstructorId) CT.Data
 failConstructorReferent = Referent.Con (ConstructorReference testResultRef failConstructorId) CT.Data
 
+-- follow the same pattern as eitherRef and EitherLeft
+rewriteTermRef :: Reference
+rewriteTermRef = lookupDeclRef "RewriteTerm"
+
+pattern RewriteTerm' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+pattern RewriteTerm' lhs rhs <- (unRewriteTerm -> Just (lhs,rhs))
+
+unRewriteTerm :: Term2 vt at ap v a -> Maybe (Term2 vt at ap v a, Term2 vt at ap v a)
+unRewriteTerm (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs,rhs])
+  | r == rewriteTermRef = Just (lhs,rhs)
+unRewriteTerm _ = Nothing
+
+rewriteCaseRef :: Reference
+rewriteCaseRef = lookupDeclRef "RewriteCase"
+
+pattern RewriteCase' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+pattern RewriteCase' lhs rhs <- (unRewriteCase -> Just (lhs,rhs))
+
+unRewriteCase :: Term2 vt at ap v a -> Maybe (Term2 vt at ap v a, Term2 vt at ap v a)
+unRewriteCase (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs,rhs])
+  | r == rewriteCaseRef = Just (lhs,rhs)
+unRewriteCase _ = Nothing
+
+rewriteTypeRef :: Reference
+rewriteTypeRef = lookupDeclRef "RewriteType"
+
+pattern RewriteType' :: forall vt at ap v a . [vt] -> Type vt at -> Type vt at -> Term2 vt at ap v a
+pattern RewriteType' vs lhs rhs <- (unRewriteType -> Just (vs, lhs,rhs))
+
+rewriteType :: (Var v, Semigroup a) =>
+                a
+                -> [v]
+                -> ABT.Term Type.F v a
+                -> ABT.Term Type.F v a
+                -> Term2 v a a v a
+rewriteType a vs lhs rhs = 
+  Term.app a (Term.constructor la (ConstructorReference rewriteTypeRef 0))
+             (Term.ann a (Term.delay a (Term.delay a (unitTerm a))) 
+                         (Type.foralls a vs (Type.arrow (la <> ra) lhs (Type.arrow ra rhs (unitType ra)))))
+  where
+    la = ABT.annotation lhs
+    ra = ABT.annotation rhs
+
+unRewriteType :: Term2 vt at ap v a -> Maybe ([vt], Type vt at, Type vt at)
+unRewriteType (Term.App' (Term.Constructor' (ConstructorReference r _)) 
+                         (Term.Ann' _ (Type.ForallsNamedOpt' vs (Type.Arrow' lhs (Type.Arrow' rhs _unit)))))
+  | r == rewriteTypeRef = Just (vs, lhs, rhs)
+unRewriteType _ = Nothing
+
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
 builtinDataDecls :: [(Symbol, Reference.Id, DataDeclaration Symbol ())]
@@ -186,7 +235,10 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.ArithmeticFailure", arithmeticFailure),
           (v "io2.MiscFailure", miscFailure),
           (v "io2.STMFailure", stmFailure),
-          (v "io2.ThreadKilledFailure", threadKilledFailure)
+          (v "io2.ThreadKilledFailure", threadKilledFailure),
+          (v "RewriteTerm", rewriteTerm),
+          (v "RewriteType", rewriteType),
+          (v "RewriteCase", rewriteCase)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
@@ -249,6 +301,44 @@ builtinDataDecls = rs1 ++ rs
               [v "a", v "b"]
               (var "b" `arr` Type.apps' (var "Either") [var "a", var "b"])
           )
+        ]
+    rewriteCase =
+      DataDeclaration
+        (Unique "a116f0f1a8d16aba115b7790b09c56820be48798d9fef64fda3ec2325388f769") 
+        ()
+        [v "a", v "b"]
+        [ ( (),
+            v "RewriteCase.RewriteCase",
+            Type.foralls
+              ()
+              [v "a", v "b"]
+              (var "a" `arr` (var "b" `arr` Type.apps' (var "RewriteCase") [var "a", var "b"]))
+          )
+        ]
+    rewriteTerm =
+      DataDeclaration
+        (Unique "d577219dc862f148bbdbeb78ae977f6a7da22eb44a1b43d484cabd3e4d7e76a1") 
+        ()
+        [v "a", v "b"]
+        [ ( (),
+            v "RewriteTerm.RewriteTerm",
+            Type.foralls
+              ()
+              [v "a", v "b"]
+              (var "a" `arr` (var "b" `arr` Type.apps' (var "RewriteTerm") [var "a", var "b"]))
+          )
+        ]
+    rewriteType =
+      DataDeclaration
+        (Unique "f9ae4c4263c2f173deeb550dc1f798147c301ea3a6b306810988e4634834507b") 
+        ()
+        [v "a", v "b"]
+        [ ( (),
+            v "RewriteType.RewriteType",
+            Type.foralls
+              ()
+              [v "a", v "b"]
+              ((var "a" `arr` (var "b" `arr` var "Unit")) `arr` Type.apps' (var "RewriteType") [var "a", var "b"]))
         ]
     isTest =
       DataDeclaration
