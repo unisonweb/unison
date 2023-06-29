@@ -2282,7 +2282,7 @@ doShowTodoOutput patch scopePath = do
            )
       -- only needs the local references to check for obsolete defs
       ppe <- do
-        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        names <- makePrintNamesFromLabeled' (TO.labeledDependencies todo)
         prettyPrintEnvDecl names
       Cli.respondNumbered $ TodoOutput ppe todo
 
