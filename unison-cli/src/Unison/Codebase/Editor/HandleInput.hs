@@ -139,8 +139,8 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.Project
   ( ProjectAndBranch (..),
-    ProjectName (..),
     ProjectBranchName (..),
+    ProjectName (..),
   )
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash qualified as Hash
