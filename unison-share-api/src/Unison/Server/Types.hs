@@ -72,6 +72,13 @@ type UnisonName = Text
 
 type UnisonHash = Text
 
+data NamespaceDetails = NamespaceDetails
+  { fqn :: Path.Path,
+    hash :: UnisonHash,
+    readme :: Maybe Doc
+  }
+  deriving (Generic, Show)
+
 instance Docs.ToSample NamespaceDetails where
   toSamples _ =
     [ ( "When no value is provided for `namespace`, the root namespace `.` is "
@@ -82,13 +89,6 @@ instance Docs.ToSample NamespaceDetails where
           Nothing
       )
     ]
-
-data NamespaceDetails = NamespaceDetails
-  { fqn :: Path.Path,
-    hash :: UnisonHash,
-    readme :: Maybe Doc
-  }
-  deriving (Generic, Show)
 
 instance ToJSON NamespaceDetails where
   toJSON NamespaceDetails {..} =
