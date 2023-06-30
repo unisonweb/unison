@@ -2,56 +2,27 @@
 
 #!racket/base
 (provide
-  make-data
-  data
-  unison-data?
-  unison-data-ref
-  unison-data-tag
-  unison-data-fields
-
   declare-unison-data-hash
   data-hash->number
   data-number->hash
 
-  make-sum
+  (struct-out unison-data)
+  (struct-out unison-sum)
+  (struct-out unison-pure)
+  (struct-out unison-request)
+  (struct-out unison-closure)
+  (struct-out unison-termlink)
+  (struct-out unison-termlink-con)
+  (struct-out unison-termlink-ref)
+  (struct-out unison-typelink)
+  (struct-out unison-typelink-builtin)
+  (struct-out unison-typelink-derived)
+  (struct-out unison-code)
+  (struct-out unison-quote)
+
+  data
   sum
-  unison-sum?
-  unison-sum-tag
-  unison-sum-fields
-
-  make-pure
-  unison-pure?
-  unison-pure-val
-
-  make-request
-  unison-request?
-  unison-request-ability
-  unison-request-tag
-  unison-request-fields
-
   partial-app
-  unison-closure?
-  unison-closure-code
-  unison-closure-env
-
-  unison-termlink
-  unison-termlink?
-  unison-termlink-con
-  unison-termlink-con?
-  unison-termlink-con-ref
-  unison-termlink-con-index
-  unison-termlink-ref
-  unison-termlink-ref?
-  unison-termlink-ref-ref
-
-  unison-typelink
-  unison-typelink?
-  unison-typelink-builtin
-  unison-typelink-builtin?
-  unison-typelink-builtin-name
-  unison-typelink-derived
-  unison-typelink-derived?
-  unison-typelink-derived-ref
 
   some
   none
@@ -152,8 +123,11 @@
   #:reflection-name 'typelink)
 
 (struct unison-typelink-derived unison-typelink
-  (ref)
+  (ref ix)
   #:reflection-name 'typelink)
+
+(struct unison-code (rep))
+(struct unison-quote (val))
 
 (struct unison-closure
   (code env)
