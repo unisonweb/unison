@@ -24,9 +24,15 @@ jobs:
       - uses: actions/checkout@v2
         with:
           path: unison
-      - uses: mrkkrp/ormolu-action@v11
+      - uses: unisonweb/ormolu-action@master
         with:
           version: "0.5.0.1"
+      - name: apply formatting changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        if: ${{ always() }}
+        with:
+          commit_message: Apply formatting changes
+          branch: ${{ github.head_ref }}        
 
   build:
     name: ${{ matrix.os }}
