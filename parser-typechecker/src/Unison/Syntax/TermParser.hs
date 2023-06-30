@@ -77,7 +77,28 @@ term3 = do
     Just y -> Term.ann (mkAnn t y) t y
 
 keywordBlock :: (Var v) => TermP v
-keywordBlock = letBlock <|> handle <|> ifthen <|> match <|> lamCase
+keywordBlock = letBlock <|> handle <|> ifthen <|> match <|> lamCase <|> rewriteBlock
+
+rewriteBlock :: (Var v) => TermP v
+rewriteBlock = do
+  t <- openBlockWith "@rewrite"
+  elements <- sepBy semi (rewriteTerm <|> rewriteCase <|> rewriteType)
+  b <- closeBlock
+  pure (DD.rewrites (ann t <> ann b) elements) 
+  where
+    rewriteTermlike kw mk = do 
+       kw <- quasikeyword kw
+       lhs <- term
+       rhs <- block "==>"
+       pure (mk (ann kw <> ann rhs) lhs rhs)
+    rewriteTerm = rewriteTermlike "term" DD.rewriteTerm
+    rewriteCase = rewriteTermlike "case" DD.rewriteCase
+    rewriteType = do
+      kw <- quasikeyword "signature"
+      vs <- fromMaybe [] <$> optional (some prefixDefinitionName <* symbolyQuasikeyword ".")
+      lhs <- TypeParser.computationType
+      rhs <- openBlockWith "==>" *> TypeParser.computationType <* closeBlock
+      pure (DD.rewriteType (ann kw <> ann rhs) (L.payload <$> vs) lhs rhs)
 
 typeLink' :: (Var v) => P v (L.Token Reference)
 typeLink' = do
@@ -376,6 +397,11 @@ hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 quasikeyword :: (Ord v) => String -> P v (L.Token ())
 quasikeyword kw = queryToken $ \case
   L.WordyId s Nothing | s == kw -> Just ()
+  _ -> Nothing
+
+symbolyQuasikeyword :: (Ord v) => String -> P v (L.Token ())
+symbolyQuasikeyword kw = queryToken $ \case
+  L.SymbolyId s Nothing | s == kw -> Just ()
   _ -> Nothing
 
 -- If the hash qualified is name only, it is treated as a var, if it

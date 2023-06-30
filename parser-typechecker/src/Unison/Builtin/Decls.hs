@@ -191,12 +191,7 @@ rewriteTypeRef = lookupDeclRef "RewriteType"
 pattern RewriteType' :: forall vt at ap v a . [vt] -> Type vt at -> Type vt at -> Term2 vt at ap v a
 pattern RewriteType' vs lhs rhs <- (unRewriteType -> Just (vs, lhs,rhs))
 
-rewriteType :: (Var v, Semigroup a) =>
-                a
-                -> [v]
-                -> ABT.Term Type.F v a
-                -> ABT.Term Type.F v a
-                -> Term2 v a a v a
+rewriteType :: (Var v, Semigroup a) => a -> [v] -> Type v a -> Type v a -> Term2 v a a v a
 rewriteType a vs lhs rhs = 
   Term.app a (Term.constructor la (ConstructorReference rewriteTypeRef 0))
              (Term.ann a (Term.delay a (Term.delay a (unitTerm a))) 
