@@ -5,10 +5,12 @@
 ; primop moduels for the purpose of wrapping them into surface unison
 ; code.
 #!racket/base
-(require racket/base
+(require (except-in racket false true unit any)
          racket/vector
          unison/boot
          unison/boot-generated
+         unison/data
+         unison/data-info
          unison/chunked-seq
          (for-syntax racket/base unison/data-info))
 
@@ -112,6 +114,14 @@
 
 (define decode-termlink (make-termlink-decoder))
 
+(define (termlink-ref tl)
+  (sum-case (decode-termlink tl)
+    [0 (rf i) (raise
+                (format
+                  "termlink-ref: unexpected constructor reference"
+                  (describe-value tl)))]
+    [1 (rf) rf]))
+
 (define-syntax make-group-ref-decoder
   (lambda (stx)
     (syntax-case stx ()
@@ -159,63 +169,168 @@
 
 (define runtime-module-map (make-hash))
 
-(define-syntax make-value-decoder
-  (lambda (stx)
-    (syntax-case stx ()
-      [(make-value-decoder)
-       #`(lambda (val)
-           (define (decode-vlit vl)
-             (data-case vl
-               [#,unison-vlit-bytes-tag (bs) bs]
-               [#,unison-vlit-bytearray-tag (bs) bs]
-               [#,unison-vlit-text-tag (tx) tx]
-               [#,unison-vlit-typelink-tag (tl) tl]
-               [#,unison-vlit-termlink-tag (tl) tl]
-               [#,unison-vlit-code-tag (sg) sg]
-               [#,unison-vlit-quote-tag (vl) vl]
-               [#,unison-vlit-seq-tag (vs)
-                (vector->chunked-list
-                  (vector-map
-                    decode-val
-                    (chunked-list->vector vs)))]
-               [else
-                 (raise
-                   (format
-                     "decode-vlit: unimplemented case: ~a"
-                     vl))]))
+(define (reify-reference rf)
+  (match rf
+    [(unison-data _ t (list nm))
+     #:when (= t unison-reference-builtin-tag)
+     (unison-typelink-builtin (chunked-string->string nm))]
+    [(unison-data _ t (list id))
+     #:when (= t unison-reference-derived-tag)
+     (match id
+       [(unison-data _ t (list rf i))
+        #:when (= t unison-id-id-tag)
+        (unison-typelink-derived rf i)])]))
 
-           (define (decode-val v)
-             (data-case v
-               [#,unison-value-data-tag (rf t us0 bs0)
-                (let ([us (chunked-list->list us0)]
-                      [bs (map decode-val (chunked-list->list bs0))])
-                  (cond
-                    [(null? us) (apply data rf t bs)]
-                    [(and (null? bs) (= 1 (length us))) (car us)]
-                    [else
-                      (raise
-                        (format
-                          "decode-val: unimplemented data case: ~a"
-                          (describe-value v)))]))]
-               [#,unison-value-partial-tag (gr us0 bs0)
-                (let ([us (chunked-list->list us0)]
-                      [bs (map decode-val (chunked-list->list bs0))])
-                  (cond
-                    [(null? us)
-                     (let ([proc (resolve-proc gr)])
-                       (apply proc bs))]
-                    [else
-                      (raise
-                        "decode-val: unimplemented partial application case")]))]
-               [#,unison-value-vlit-tag (vl) (decode-vlit vl)]
-               [#,unison-value-cont-tag (us0 bs0 k)
-                (raise "decode-val: unimplemented cont case")]
-               [else
-                 (raise "decode-val: unknown tag")]))
+(define (reify-referent rn)
+  (match rn
+    [(unison-data _ t (list rf i))
+     #:when (= t unison-referent-con-tag)
+     (unison-termlink-con (reify-reference rf) i)]
+    [(unison-data _ t (list rf))
+     #:when (= t unison-referent-def-tag)
+     (unison-termlink-ref (reify-reference rf))]))
 
-           (decode-val val))])))
+(define (reify-vlit vl)
+  (match vl
+    [(unison-data _ t (list l))
+     (cond
+       [(= t unison-vlit-bytes-tag) l]
+       [(= t unison-vlit-bytearray-tag) l]
+       [(= t unison-vlit-text-tag) l]
+       [(= t unison-vlit-typelink-tag) (reify-reference l)]
+       [(= t unison-vlit-termlink-tag) (reify-referent l)]
+       [(= t unison-vlit-code-tag) (unison-code l)]
+       [(= t unison-vlit-quote-tag) (unison-quote l)]
+       [(= t unison-vlit-seq-tag)
+        ; TODO: better map over chunked list
+        (vector->chunked-list
+          (vector-map reify-value (chunked-list->vector l)))]
+       [else
+         (raise (format "decode-vlit: unimplemented case: !a" vl))])]))
 
-(define reify-value (make-value-decoder))
+(define (reify-value v)
+  (match v
+    [(unison-data _ t (list rf t us0 bs0))
+     #:when (= t unison-value-data-tag)
+     (let ([us (chunked-list->list us0)]
+           [bs (map reify-value (chunked-list->list bs0))])
+       (cond
+         [(null? us) (make-data (reify-reference rf) t bs)]
+         [(and (null? bs) (= 1 (length us))) (car us)]
+         [else
+           (raise
+             (format
+               "reify-value: unimplemented data case: ~a"
+               (describe-value v)))]))]
+    [(unison-data _ t (list gr us0 bs0))
+     #:when (= t unison-value-partial-tag)
+     (let ([us (chunked-list->list us0)]
+           [bs (map reify-value (chunked-list->list bs0))])
+       (cond
+         [(null? us)
+          (let ([proc (resolve-proc gr)])
+            (apply proc bs))]
+         [else
+           (raise
+             "reify-value: unimplemented partial application case")]))]
+    [(unison-data _ t (list vl))
+     #:when (= t unison-value-vlit-tag)
+     (reify-vlit vl)]
+    [(unison-data _ t (list us0 bs0 k))
+     (raise "reify-value: unimplemented cont case")]
+    [else
+      (raise "reify-value: unknown tag")]))
+
+; (define-syntax make-value-decoder
+;   (lambda (stx)
+;     (syntax-case stx ()
+;       [(make-value-decoder)
+;        #`(lambda (val)
+;            (define (decode-vlit vl)
+;              (data-case vl
+;                [#,unison-vlit-bytes-tag (bs) bs]
+;                [#,unison-vlit-bytearray-tag (bs) bs]
+;                [#,unison-vlit-text-tag (tx) tx]
+;                [#,unison-vlit-typelink-tag (tl)
+;                  (data-case tl
+;                    [#,unison-reference-builtin-tag (nm)
+;                     (unison-typelink-builtin
+;                       (chunked-string->string nm))]
+;                    [#,unison-reference-derived-tag (id)
+;                      (data-case id
+;                        [#,unison-id-id-tag (rf i)
+;                          (unison-typelink-derived rf)])])]
+;                [#,unison-vlit-termlink-tag (tl)
+;                 (data-case tl
+;                   [#,)]
+;                [#,unison-vlit-code-tag (sg) sg]
+;                [#,unison-vlit-quote-tag (vl) vl]
+;                [#,unison-vlit-seq-tag (vs)
+;                 (vector->chunked-list
+;                   (vector-map
+;                     decode-val
+;                     (chunked-list->vector vs)))]
+;                [else
+;                  (raise
+;                    (format
+;                      "decode-vlit: unimplemented case: ~a"
+;                      vl))]))
+;
+;            (define (decode-val v)
+;              (data-case v
+;                [#,unison-value-data-tag (rf t us0 bs0)
+;                 (let ([us (chunked-list->list us0)]
+;                       [bs (map decode-val (chunked-list->list bs0))])
+;                   (cond
+;                     [(null? us) (apply data rf t bs)]
+;                     [(and (null? bs) (= 1 (length us))) (car us)]
+;                     [else
+;                       (raise
+;                         (format
+;                           "decode-val: unimplemented data case: ~a"
+;                           (describe-value v)))]))]
+;                [#,unison-value-partial-tag (gr us0 bs0)
+;                 (let ([us (chunked-list->list us0)]
+;                       [bs (map decode-val (chunked-list->list bs0))])
+;                   (cond
+;                     [(null? us)
+;                      (let ([proc (resolve-proc gr)])
+;                        (apply proc bs))]
+;                     [else
+;                       (raise
+;                         "decode-val: unimplemented partial application case")]))]
+;                [#,unison-value-vlit-tag (vl) (decode-vlit vl)]
+;                [#,unison-value-cont-tag (us0 bs0 k)
+;                 (raise "decode-val: unimplemented cont case")]
+;                [else
+;                  (raise "decode-val: unknown tag")]))
+;
+;            (decode-val val))])))
+
+; (define reify-value (make-value-decoder))
+
+(define (reflect-value v)
+  (match v
+    [(? chunked-bytes?)
+     (unison-value-vlit (unison-vlit-bytes v))]
+    [(? bytes?)
+     (unison-value-vlit (unison-vlit-bytearray v))]
+    [(? chunked-string?)
+     (unison-value-vlit (unison-vlit-text v))]
+    ; TODO: better map over chunked lists
+    [(? chunked-list?)
+     (unison-value-vlit
+       (unison-vlit-seq
+         (list->chunked-list
+           (map reflect-value (chunked-list->list v)))))]
+    ; [(? unison-termlink?)
+    ;  (unison-value-vlit
+    ;    (unison-vlit-termlink
+    [(unison-data rf t fs)
+     (unison-value-data
+       rf t
+       empty-chunked-list
+       (list->chunked-list (map reflect-value fs)))]))
 
 (define (ufst utup)
   (data-case utup
@@ -307,17 +422,32 @@
          ,@defs)
       runtime-namespace)))
 
-; TODO: check dependencies and indicate problems.
 (define (unison-POp-CACH dfns0)
+  (define (flat-map f l)
+    (foldl
+      (lambda (x acc)
+        (append (chunked-list->list (f (usnd x))) acc))
+      '()
+      l))
+
   (let ([udefs (chunked-list->list dfns0)])
     (cond
       [(not (null? udefs))
        (let* ([links (map ufst udefs)]
-              [sdefs (flatten (map gen-code udefs))]
-              [mname (generate-module-name links)])
-         (add-module-associations links mname)
-         (add-runtime-module mname links sdefs))])
-    (sum 0 '())))
+              [refs (map termlink-ref links)]
+              [deps (flat-map group-term-dependencies udefs)]
+              [fdeps (filter need-dependency? deps)]
+              [rdeps (remove* refs fdeps)])
+         (display (describe-value links)) (display "\n\n")
+         (display (describe-value deps)) (display "\n\n")
+         (if (null? rdeps)
+           (let ([sdefs (flatten (map gen-code udefs))]
+                 [mname (generate-module-name links)])
+             (add-module-associations links mname)
+             (add-runtime-module mname links sdefs)
+             (sum 0 '()))
+           (sum 1 (list->chunked-list rdeps))))]
+      [else (sum 0 '())])))
 
 (define (unison-POp-LOAD val)
   (let* ([deps (value-term-dependencies val)]
