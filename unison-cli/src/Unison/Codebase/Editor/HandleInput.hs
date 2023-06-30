@@ -144,6 +144,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.HashQualified' qualified as HashQualified
 import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.JitInfo qualified as JitInfo
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.LabeledDependency qualified as LabeledDependency
@@ -2457,7 +2458,7 @@ doFetchCompiler username branch =
 ensureCompilerExists :: Cli ()
 ensureCompilerExists =
   Cli.branchExistsAtPath' compilerPath
-    >>= flip unless (doFetchCompiler "unison" "releases/0.0.1")
+    >>= flip unless (doFetchCompiler "unison" JitInfo.currentRelease)
 
 getCacheDir :: Cli String
 getCacheDir = liftIO $ getXdgDirectory XdgCache "unisonlanguage"

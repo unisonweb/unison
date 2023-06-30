@@ -46,6 +46,7 @@ import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..))
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.HashQualified qualified as HQ
+import Unison.JitInfo qualified as JitInfo
 import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
@@ -2364,17 +2365,15 @@ fetchScheme =
         ]
     )
     ( \case
-        [] -> pure (Input.FetchSchemeCompilerI "unison" release)
+        [] -> pure (Input.FetchSchemeCompilerI "unison" JitInfo.currentRelease)
         [name] -> pure (Input.FetchSchemeCompilerI name branch)
           where
             branch
-              | name == "unison" = release
+              | name == "unison" = JitInfo.currentRelease
               | otherwise = "main"
         [name, branch] -> pure (Input.FetchSchemeCompilerI name branch)
         _ -> Left $ showPatternHelp fetchScheme
     )
-  where
-    release = "releases/0.0.1"
 
 createAuthor :: InputPattern
 createAuthor =
