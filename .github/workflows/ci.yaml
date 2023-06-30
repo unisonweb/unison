@@ -31,6 +31,7 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v4
         if: ${{ always() }}
         with:
+          repository: /home/runner/work/unison/unison/unison
           commit_message: Apply formatting changes
           branch: ${{ github.head_ref }}        
 
