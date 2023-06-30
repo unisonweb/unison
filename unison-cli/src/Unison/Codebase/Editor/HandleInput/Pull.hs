@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Pull
     loadPropagateDiffDefaultPatch,
     mergeBranchAndPropagateDefaultPatch,
     propagatePatch,
+    downloadShareProjectBranch,
     withEntitiesDownloadedProgressCallback,
   )
 where
@@ -12,72 +13,75 @@ where
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
-import qualified Data.List.NonEmpty as Nel
+import Data.List.NonEmpty qualified as Nel
+import Data.Text qualified as Text
 import Data.These
-import qualified System.Console.Regions as Console.Regions
-import qualified U.Codebase.Sqlite.Project as Sqlite (Project)
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite (ProjectBranch)
-import qualified U.Codebase.Sqlite.Queries as Queries
+import System.Console.Regions qualified as Console.Regions
+import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
-import qualified Unison.Cli.Share.Projects as Share
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.Share.Projects qualified as Share
 import Unison.Cli.UnisonConfigUtils (resolveConfiguredUrl)
 import Unison.Codebase (Preprocessing (..))
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Merge as Branch
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.HandleInput.AuthLogin (ensureAuthenticatedWithCodeserver)
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.Input
-import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Output as Output
-import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
-import qualified Unison.Codebase.Editor.Propagate as Propagate
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..), ShareUserHandle (..))
-import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
+import Unison.Codebase.Editor.Propagate qualified as Propagate
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..), ShareUserHandle (..), printReadRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Patch (Patch (..))
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path (Path')
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SyncMode (SyncMode)
-import qualified Unison.Codebase.SyncMode as SyncMode
-import qualified Unison.Codebase.Verbosity as Verbosity
+import Unison.Codebase.SyncMode qualified as SyncMode
+import Unison.Codebase.Verbosity qualified as Verbosity
+import Unison.CommandLine.InputPattern qualified as InputPattern
+import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
-import qualified Unison.Share.API.Hash as Share
-import qualified Unison.Share.Codeserver as Codeserver
-import qualified Unison.Share.Sync as Share
-import qualified Unison.Share.Sync.Types as Share
+import Unison.Share.API.Hash qualified as Share
+import Unison.Share.Codeserver qualified as Codeserver
+import Unison.Share.Sync qualified as Share
+import Unison.Share.Sync.Types qualified as Share
 import Unison.Share.Types (codeserverBaseURL)
-import qualified Unison.Sync.Common as Common
-import qualified Unison.Sync.Types as Share
+import Unison.Sync.Common qualified as Common
+import Unison.Sync.Types qualified as Share
 
-doPullRemoteBranch ::
-  PullSourceTarget ->
-  SyncMode.SyncMode ->
-  PullMode ->
-  Verbosity.Verbosity ->
-  Text ->
-  Cli ()
-doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity description = do
+doPullRemoteBranch :: PullSourceTarget -> SyncMode.SyncMode -> PullMode -> Verbosity.Verbosity -> Cli ()
+doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
   (source, target) <- resolveSourceAndTarget unresolvedSourceAndTarget
   remoteBranchObject <- loadRemoteNamespaceIntoMemory syncMode pullMode source
   when (Branch.isEmpty0 (Branch.head remoteBranchObject)) do
     Cli.respond (PulledEmptyBranch source)
   targetAbsolutePath <-
     case target of
-      PullTargetLooseCode path -> Cli.resolvePath' path
-      PullTargetProject (ProjectAndBranch project branch) ->
+      Left path -> Cli.resolvePath' path
+      Right (ProjectAndBranch project branch) ->
         pure $ ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId))
-  let printDiffPath =
-        if Verbosity.isSilent verbosity
-          then Nothing
-          else Just case target of
-            PullTargetLooseCode path -> Left path
-            PullTargetProject x -> Right (ProjectAndBranch (x ^. #project . #name) (x ^. #branch . #name))
+  let description =
+        Text.unwords
+          [ Text.pack . InputPattern.patternName $
+              case pullMode of
+                PullWithoutHistory -> InputPatterns.pullWithoutHistory
+                PullWithHistory -> InputPatterns.pull,
+            printReadRemoteNamespace (\remoteBranch -> into @Text (ProjectAndBranch (remoteBranch ^. #projectName) (remoteBranch ^. #branchName))) source,
+            case target of
+              Left path -> Path.toText' path
+              Right (ProjectAndBranch project branch) -> into @Text (ProjectAndBranch (project ^. #name) (branch ^. #name))
+          ]
   case pullMode of
     Input.PullWithHistory -> do
       targetBranchObject <- Cli.getBranch0At targetAbsolutePath
@@ -92,7 +96,7 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity descrip
             description
             (Just (PullAlreadyUpToDate source target))
             remoteBranchObject
-            printDiffPath
+            (if Verbosity.isSilent verbosity then Nothing else Just target)
             targetAbsolutePath
     Input.PullWithoutHistory -> do
       didUpdate <-
@@ -109,22 +113,23 @@ resolveSourceAndTarget ::
   PullSourceTarget ->
   Cli
     ( ReadRemoteNamespace Share.RemoteProjectBranch,
-      PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+      Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
     )
 resolveSourceAndTarget = \case
   Input.PullSourceTarget0 -> liftA2 (,) resolveImplicitSource resolveImplicitTarget
   Input.PullSourceTarget1 source -> liftA2 (,) (resolveExplicitSource source) resolveImplicitTarget
-  Input.PullSourceTarget2 source target -> liftA2 (,) (resolveExplicitSource source) (resolveExplicitTarget target)
+  Input.PullSourceTarget2 source target ->
+    liftA2 (,) (resolveExplicitSource source) (ProjectUtils.expectLooseCodeOrProjectBranch target)
 
 resolveImplicitSource :: Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
 resolveImplicitSource =
   ProjectUtils.getCurrentProjectBranch >>= \case
     Nothing -> RemoteRepo.writeNamespaceToRead <$> resolveConfiguredUrl PushPull.Pull Path.currentPath
-    Just (ProjectAndBranch localProject localBranch, _restPath) -> do
+    Just (localProjectAndBranch, _restPath) -> do
       (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
         Cli.runEitherTransaction do
-          let localProjectId = localProject ^. #projectId
-          let localBranchId = localBranch ^. #branchId
+          let localProjectId = localProjectAndBranch ^. #project . #projectId
+          let localBranchId = localProjectAndBranch ^. #branch . #branchId
           Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId >>= \case
             Just (remoteProjectId, Just remoteBranchId) -> do
               remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
@@ -137,9 +142,7 @@ resolveImplicitSource =
             _ ->
               pure $
                 Left $
-                  Output.NoAssociatedRemoteProjectBranch
-                    Share.hardCodedUri
-                    (ProjectAndBranch (localProject ^. #name) (localBranch ^. #name))
+                  Output.NoAssociatedRemoteProjectBranch Share.hardCodedUri localProjectAndBranch
       remoteBranch <-
         ProjectUtils.expectRemoteProjectBranchById $
           ProjectAndBranch
@@ -156,20 +159,11 @@ resolveExplicitSource = \case
   ReadShare'ProjectBranch projectAndBranchNames ->
     ReadShare'ProjectBranch <$> ProjectUtils.expectRemoteProjectBranchByTheseNames projectAndBranchNames
 
-resolveImplicitTarget :: Cli (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+resolveImplicitTarget :: Cli (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
 resolveImplicitTarget =
   ProjectUtils.getCurrentProjectBranch <&> \case
-    Nothing -> PullTargetLooseCode Path.currentPath
-    Just (projectAndBranch, _restPath) -> PullTargetProject projectAndBranch
-
-resolveExplicitTarget ::
-  PullTarget (These ProjectName ProjectBranchName) ->
-  Cli (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-resolveExplicitTarget = \case
-  PullTargetLooseCode path -> pure (PullTargetLooseCode path)
-  PullTargetProject projectAndBranchNames -> do
-    projectAndBranch <- ProjectUtils.expectProjectAndBranchByTheseNames projectAndBranchNames
-    pure (PullTargetProject projectAndBranch)
+    Nothing -> Left Path.currentPath
+    Just (projectAndBranch, _restPath) -> Right projectAndBranch
 
 loadRemoteNamespaceIntoMemory ::
   SyncMode ->
@@ -187,23 +181,28 @@ loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
         Cli.returnEarly (Output.GitError err)
     ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
     ReadShare'ProjectBranch remoteBranch -> do
-      let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch (remoteBranch ^. #projectName) remoteProjectBranchName))
-          causalHash = Common.hash32ToCausalHash . Share.hashJWTHash $ causalHashJwt
-          causalHashJwt = remoteBranch ^. #branchHead
-          remoteProjectBranchName = remoteBranch ^. #branchName
-      (result, numDownloaded) <-
-        Cli.with withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
-          result <- Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback
-          numDownloaded <- liftIO getNumDownloaded
-          pure (result, numDownloaded)
-      case result of
-        Left err0 ->
-          (Cli.returnEarly . Output.ShareError) case err0 of
-            Share.SyncError err -> Output.ShareErrorDownloadEntities err
-            Share.TransportError err -> Output.ShareErrorTransport err
-        Right () -> do
-          Cli.respond (Output.DownloadedEntities numDownloaded)
-          liftIO (Codebase.expectBranchForHash codebase causalHash)
+      downloadShareProjectBranch remoteBranch
+      let causalHash = Common.hash32ToCausalHash (Share.hashJWTHash (remoteBranch ^. #branchHead))
+      liftIO (Codebase.expectBranchForHash codebase causalHash)
+
+-- | @downloadShareProjectBranch branch@ downloads the given branch.
+downloadShareProjectBranch :: Share.RemoteProjectBranch -> Cli ()
+downloadShareProjectBranch branch = do
+  let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch (branch ^. #projectName) remoteProjectBranchName))
+      causalHashJwt = branch ^. #branchHead
+      remoteProjectBranchName = branch ^. #branchName
+  exists <- Cli.runTransaction (Queries.causalExistsByHash32 (Share.hashJWTHash causalHashJwt))
+  when (not exists) do
+    (result, numDownloaded) <-
+      Cli.with withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
+        result <- Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback
+        numDownloaded <- liftIO getNumDownloaded
+        pure (result, numDownloaded)
+    result & onLeft \err0 -> do
+      (Cli.returnEarly . Output.ShareError) case err0 of
+        Share.SyncError err -> Output.ShareErrorDownloadEntities err
+        Share.TransportError err -> Output.ShareErrorTransport err
+    Cli.respond (Output.DownloadedEntities numDownloaded)
 
 loadShareLooseCodeIntoMemory :: ReadShareLooseCode -> Cli (Branch IO)
 loadShareLooseCodeIntoMemory rrn@(ReadShareLooseCode {server, repo, path}) = do
@@ -246,7 +245,7 @@ mergeBranchAndPropagateDefaultPatch ::
   Text ->
   Maybe Output ->
   Branch IO ->
-  Maybe (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) ->
+  Maybe (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
   Path.Absolute ->
   Cli ()
 mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb maybeDest0 dest =
@@ -269,7 +268,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
 
 loadPropagateDiffDefaultPatch ::
   Text ->
-  Maybe (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) ->
+  Maybe (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
   Path.Absolute ->
   Cli ()
 loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do

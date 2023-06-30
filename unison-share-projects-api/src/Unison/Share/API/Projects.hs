@@ -38,11 +38,11 @@ module Unison.Share.API.Projects
 where
 
 import Data.Aeson
-import qualified Data.Aeson.Key as Aeson.Key
-import qualified Data.Aeson.KeyMap as Aeson.KeyMap
+import Data.Aeson.Key qualified as Aeson.Key
+import Data.Aeson.KeyMap qualified as Aeson.KeyMap
 import Data.Aeson.Types
 import Data.Monoid (Endo (..))
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Servant.API
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
@@ -321,10 +321,22 @@ instance ToJSON SetProjectBranchHeadResponse where
 ------------------------------------------------------------------------------------------------------------------------
 -- Types
 
+-- | A sem-ver release version without a user, project, or "releases/" prefix.
+-- E.g. "1.2.3"
+type ReleaseVersion = Text
+
+-- | A project branch name segment.
+-- Does not contain a project or contributor segment.
+--
+-- E.g. "main"
+type BranchName = Text
+
 -- | A project.
 data Project = Project
   { projectId :: Text,
-    projectName :: Text
+    projectName :: Text,
+    latestRelease :: Maybe ReleaseVersion,
+    defaultBranch :: Maybe BranchName
   }
   deriving stock (Eq, Show, Generic)
 
@@ -333,13 +345,17 @@ instance FromJSON Project where
     withObject "Project" \o -> do
       projectId <- parseField o "project-id"
       projectName <- parseField o "project-name"
-      pure Project {projectId, projectName}
+      latestRelease <- o .:? "latest-release"
+      defaultBranch <- o .:? "default-branch"
+      pure Project {..}
 
 instance ToJSON Project where
-  toJSON (Project projectId projectName) =
+  toJSON (Project projectId projectName latestRelease defaultBranch) =
     object
       [ "project-id" .= projectId,
-        "project-name" .= projectName
+        "project-name" .= projectName,
+        "latest-release" .= latestRelease,
+        "default-branch" .= defaultBranch
       ]
 
 -- | A project branch.

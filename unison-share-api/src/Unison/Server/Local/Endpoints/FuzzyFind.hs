@@ -8,10 +8,10 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Server.Endpoints.FuzzyFind where
+module Unison.Server.Local.Endpoints.FuzzyFind where
 
 import Control.Monad.Except
-import Data.Aeson (ToJSON (toEncoding), defaultOptions, genericToEncoding)
+import Data.Aeson
 import Data.OpenApi (ToSchema)
 import Servant
   ( QueryParam,
@@ -25,20 +25,20 @@ import Servant.Docs
     noSamples,
   )
 import Servant.OpenApi ()
-import qualified Text.FuzzyFind as FZF
-import qualified U.Codebase.Causal as V2Causal
+import Text.FuzzyFind qualified as FZF
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.DisplayObject
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnvDecl as PPE
-import qualified Unison.Server.Backend as Backend
+import Unison.PrettyPrintEnvDecl qualified as PPE
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
   ( APIGet,
@@ -81,13 +81,16 @@ instance ToParam (QueryParam "query" String) where
       Normal
 
 instance ToJSON FZF.Alignment where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (FZF.Alignment {score, result}) =
+    object ["score" .= score, "result" .= result]
 
 instance ToJSON FZF.Result where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (FZF.Result {segments}) = object ["segments" .= toJSON segments]
 
 instance ToJSON FZF.ResultSegment where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = \case
+    FZF.Gap s -> object ["tag" .= String "Gap", "contents" .= s]
+    FZF.Match s -> object ["tag" .= String "Match", "contents" .= s]
 
 deriving instance ToSchema FZF.Alignment
 
@@ -108,11 +111,22 @@ data FoundType = FoundType
   }
   deriving (Generic, Show)
 
-instance ToJSON FoundType
+instance ToJSON FoundType where
+  toJSON (FoundType {bestFoundTypeName, typeDef, namedType}) =
+    object
+      [ "bestFoundTypeName" .= bestFoundTypeName,
+        "typeDef" .= typeDef,
+        "namedType" .= namedType
+      ]
 
 deriving instance ToSchema FoundType
 
-instance ToJSON FoundTerm
+instance ToJSON FoundTerm where
+  toJSON (FoundTerm {bestFoundTermName, namedTerm}) =
+    object
+      [ "bestFoundTermName" .= bestFoundTermName,
+        "namedTerm" .= namedTerm
+      ]
 
 deriving instance ToSchema FoundTerm
 
@@ -121,7 +135,10 @@ data FoundResult
   | FoundTypeResult FoundType
   deriving (Generic, Show)
 
-instance ToJSON FoundResult
+instance ToJSON FoundResult where
+  toJSON = \case
+    FoundTermResult ft -> object ["tag" .= String "FoundTermResult", "contents" .= ft]
+    FoundTypeResult ft -> object ["tag" .= String "FoundTypeResult", "contents" .= ft]
 
 deriving instance ToSchema FoundResult
 
@@ -157,7 +174,7 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
         )
       alignments =
         take (fromMaybe 10 limit) $ Backend.fuzzyFind localNamesOnly (fromMaybe "" query)
-  lift (join <$> traverse (loadEntry relativeToBranch (PPE.suffixifiedPPE ppe)) alignments)
+  lift (join <$> traverse (loadEntry (Just relativeToBranch) (PPE.suffixifiedPPE ppe)) alignments)
   where
     loadEntry relativeToBranch ppe (a, n, refs) = do
       for refs $

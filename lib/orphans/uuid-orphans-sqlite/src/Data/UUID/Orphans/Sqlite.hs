@@ -3,9 +3,9 @@
 module Data.UUID.Orphans.Sqlite () where
 
 import Data.UUID (UUID)
-import qualified Data.UUID as UUID
-import qualified Database.SQLite.Simple.FromField as Sqlite
-import qualified Database.SQLite.Simple.ToField as Sqlite
+import Data.UUID qualified as UUID
+import Database.SQLite.Simple.FromField qualified as Sqlite
+import Database.SQLite.Simple.ToField qualified as Sqlite
 
 instance Sqlite.FromField UUID where
   fromField field = do

@@ -6,7 +6,7 @@ import Control.Concurrent (mkWeakThreadId, myThreadId)
 import Control.Exception (AsyncException (UserInterrupt), throwTo)
 import System.Mem.Weak (deRefWeak)
 import Unison.Prelude
-import qualified UnliftIO
+import UnliftIO qualified
 
 {- ORMOLU_DISABLE -}
 #if defined(mingw32_HOST_OS)

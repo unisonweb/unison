@@ -15,13 +15,14 @@ import Data.Set qualified as Set
 import Servant.OpenApi ()
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Projects qualified as Projects
+import U.Codebase.Sqlite.NameLookups (PathSegments (..))
+import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt
 import Unison.LabeledDependency qualified as LD
-import Unison.NameSegment (NameSegment)
+import Unison.NameSegment (NameSegment (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl.Sqlite qualified as PPESqlite
@@ -45,18 +46,17 @@ findAndRenderDoc ::
   Maybe Width ->
   Backend IO (Maybe Doc)
 findAndRenderDoc docNames runtime codebase namespacePath rootCausalHash _mayWidth = do
-  (rootCausal, shallowBranch) <-
-    Backend.hoistBackend (Codebase.runTransaction codebase) do
-      rootCausal <- lift $ Backend.resolveCausalHashV2 (Just rootCausalHash)
-      namespaceCausal <- lift $ Codebase.getShallowCausalAtPath namespacePath (Just rootCausal)
-      shallowBranch <- lift $ V2Causal.value namespaceCausal
-      pure (rootCausal, shallowBranch)
-  namesRoot <- fmap (fromMaybe namespacePath) . liftIO . Codebase.runTransaction codebase $ Projects.inferNamesRoot namespacePath shallowBranch
-  let rootBranchHash = V2Causal.valueHash rootCausal
-  let mayDocRef = Backend.findDocInBranch docNames shallowBranch
+  (shallowBranchAtNamespace, namesPerspective) <-
+    liftIO . (Codebase.runTransaction codebase) $ do
+      rootCausal <- Backend.resolveCausalHashV2 (Just rootCausalHash)
+      let rootBranchHash = V2Causal.valueHash rootCausal
+      namespaceCausal <- Codebase.getShallowCausalAtPath namespacePath (Just rootCausal)
+      shallowBranchAtNamespace <- V2Causal.value namespaceCausal
+      namesPerspective <- Ops.namesPerspectiveForRootAndPath rootBranchHash (coerce . Path.toList $ namespacePath)
+      pure (shallowBranchAtNamespace, namesPerspective)
+  let mayDocRef = Backend.findDocInBranch docNames shallowBranchAtNamespace
   for mayDocRef \docRef -> do
     eDoc <- liftIO $ evalDocRef runtime codebase docRef
     let docDeps = Doc.dependencies eDoc <> Set.singleton (LD.TermReference docRef)
-    docPPE <- liftIO $ Codebase.runTransaction codebase $ PPESqlite.ppedForReferences rootBranchHash namesRoot docDeps
-    let renderedDoc = Doc.renderDoc docPPE eDoc
-    pure renderedDoc
+    docPPE <- liftIO $ Codebase.runTransaction codebase $ PPESqlite.ppedForReferences namesPerspective docDeps
+    pure $ Doc.renderDoc docPPE eDoc

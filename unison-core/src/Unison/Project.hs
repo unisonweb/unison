@@ -22,14 +22,14 @@ module Unison.Project
   )
 where
 
-import qualified Data.Char as Char
-import qualified Data.Text as Text
-import qualified Data.Text.Read as Text (decimal)
+import Data.Char qualified as Char
+import Data.Text qualified as Text
+import Data.Text.Read qualified as Text (decimal)
 import Data.These (These (..))
-import qualified Text.Builder
-import qualified Text.Builder as Text (Builder)
-import qualified Text.Megaparsec as Megaparsec
-import qualified Text.Megaparsec.Char as Megaparsec
+import Text.Builder qualified
+import Text.Builder qualified as Text (Builder)
+import Text.Megaparsec qualified as Megaparsec
+import Text.Megaparsec.Char qualified as Megaparsec
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.Prelude
 import Witch
@@ -38,9 +38,10 @@ instance From ProjectName Text
 
 instance TryFrom Text ProjectName where
   tryFrom =
-    maybeTryFrom (Megaparsec.parseMaybe projectNameParser)
+    maybeTryFrom (fmap fst . Megaparsec.parseMaybe projectNameParser)
 
-projectNameParser :: Megaparsec.Parsec Void Text ProjectName
+-- Parse a project name, and whether it ended in a forward slash (which is, of course, not part of the name)
+projectNameParser :: Megaparsec.Parsec Void Text (ProjectName, Bool)
 projectNameParser = do
   userSlug <-
     asum
@@ -50,7 +51,8 @@ projectNameParser = do
         pure mempty
       ]
   projectSlug <- projectSlugParser
-  pure (UnsafeProjectName (Text.Builder.run (userSlug <> projectSlug)))
+  hasTrailingSlash <- isJust <$> optional (Megaparsec.char '/')
+  pure (UnsafeProjectName (Text.Builder.run (userSlug <> projectSlug)), hasTrailingSlash)
   where
     projectSlugParser :: Megaparsec.Parsec Void Text Text.Builder
     projectSlugParser = do
@@ -89,7 +91,7 @@ prependUserSlugToProjectName :: Text -> ProjectName -> ProjectName
 prependUserSlugToProjectName userSlug (UnsafeProjectName projectName) =
   if Text.head projectName == '@'
     then UnsafeProjectName projectName
-    else fromMaybe (UnsafeProjectName projectName) (Megaparsec.parseMaybe projectNameParser newProjectName)
+    else fromMaybe (UnsafeProjectName projectName) (fst <$> Megaparsec.parseMaybe projectNameParser newProjectName)
   where
     newProjectName =
       Text.Builder.run $
@@ -102,11 +104,11 @@ instance From ProjectBranchName Text
 
 instance TryFrom Text ProjectBranchName where
   tryFrom =
-    maybeTryFrom (Megaparsec.parseMaybe projectBranchNameParser)
+    maybeTryFrom (Megaparsec.parseMaybe (projectBranchNameParser True))
 
-projectBranchNameParser :: Megaparsec.Parsec Void Text ProjectBranchName
-projectBranchNameParser =
-  unstructureStructuredProjectName <$> structuredProjectBranchNameParser
+projectBranchNameParser :: Bool -> Megaparsec.Parsec Void Text ProjectBranchName
+projectBranchNameParser allowLeadingSlash =
+  unstructureStructuredProjectName <$> structuredProjectBranchNameParser allowLeadingSlash
 
 -- An internal type that captures the structure of a project branch name after parsing. 'classifyProjectBranchName' is
 -- how a user can recover this structure for the few cases it's relevant (e.g. during push)
@@ -133,8 +135,9 @@ unstructureStructuredProjectName =
         <> Text.Builder.char '.'
         <> Text.Builder.decimal z
 
-structuredProjectBranchNameParser :: Megaparsec.Parsec Void Text StructuredProjectBranchName
-structuredProjectBranchNameParser = do
+structuredProjectBranchNameParser :: Bool -> Megaparsec.Parsec Void Text StructuredProjectBranchName
+structuredProjectBranchNameParser allowLeadingSlash = do
+  _ <- when allowLeadingSlash (void (optional (Megaparsec.char '/')))
   branch <-
     asum
       [ do
@@ -247,7 +250,7 @@ data ProjectBranchNameKind
 -- NothingSpecial
 classifyProjectBranchName :: ProjectBranchName -> ProjectBranchNameKind
 classifyProjectBranchName (UnsafeProjectBranchName branchName) =
-  case Megaparsec.parseMaybe structuredProjectBranchNameParser branchName of
+  case Megaparsec.parseMaybe (structuredProjectBranchNameParser False) branchName of
     Just (StructuredProjectBranchName'Contributor user name) ->
       ProjectBranchNameKind'Contributor (Text.Builder.run user) (UnsafeProjectBranchName (Text.Builder.run name))
     Just (StructuredProjectBranchName'DraftRelease ver) -> ProjectBranchNameKind'DraftRelease ver
@@ -297,12 +300,9 @@ projectAndBranchNamesParser2 = do
     Nothing ->
       asum
         [ Megaparsec.try do
-            project <- projectNameParser
-            optional (Megaparsec.char '/') >>= \case
-              Nothing -> pure case Megaparsec.parseMaybe projectBranchNameParser (into @Text project) of
-                Nothing -> ProjectAndBranchNames'Unambiguous (This project)
-                Just branch -> ProjectAndBranchNames'Ambiguous project branch
-              Just _ -> do
+            (project, hasTrailingSlash) <- projectNameParser
+            if hasTrailingSlash
+              then do
                 optional (Megaparsec.lookAhead Megaparsec.anySingle) >>= \case
                   Nothing -> pure (ProjectAndBranchNames'Unambiguous (This project))
                   Just nextChar
@@ -315,16 +315,19 @@ projectAndBranchNamesParser2 = do
                     | Char.isDigit nextChar -> empty
                     -- If the character after "<name>/" is the valid start of a branch, then parse a branch.
                     | Char.isAlpha nextChar || nextChar == '@' || nextChar == '_' -> do
-                        branch <- projectBranchNameParser
+                        branch <- projectBranchNameParser False
                         pure (ProjectAndBranchNames'Unambiguous (These project branch))
                     -- Otherwise, some invalid start-of-branch character follows, like a close paren or something.
-                    | otherwise -> pure (ProjectAndBranchNames'Unambiguous (This project)),
+                    | otherwise -> pure (ProjectAndBranchNames'Unambiguous (This project))
+              else pure case Megaparsec.parseMaybe (projectBranchNameParser False) (into @Text project) of
+                Nothing -> ProjectAndBranchNames'Unambiguous (This project)
+                Just branch -> ProjectAndBranchNames'Ambiguous project branch,
           unambiguousBranchParser
         ]
     Just _ -> unambiguousBranchParser
   where
     unambiguousBranchParser = do
-      branch <- projectBranchNameParser
+      branch <- projectBranchNameParser False
       pure (ProjectAndBranchNames'Unambiguous (That branch))
 
 -- TODO this should go away in favor of ProjectAndBranchNames
@@ -345,18 +348,23 @@ instance TryFrom Text (These ProjectName ProjectBranchName) where
 -- Valid things:
 --
 --   1. project
---   2. project/branch
---   3. /branch
+--   2. project/
+--   3. project/branch
+--   4. /branch
 projectAndBranchNamesParser :: Megaparsec.Parsec Void Text (These ProjectName ProjectBranchName)
 projectAndBranchNamesParser = do
   optional projectNameParser >>= \case
-    Nothing -> That <$> branchParser
-    Just prj ->
-      optional branchParser <&> \case
-        Nothing -> This prj
-        Just br -> These prj br
-  where
-    branchParser = Megaparsec.char '/' >> projectBranchNameParser
+    Nothing -> do
+      _ <- Megaparsec.char '/'
+      branch <- projectBranchNameParser False
+      pure (That branch)
+    Just (project, hasTrailingSlash) ->
+      if hasTrailingSlash
+        then do
+          optional (projectBranchNameParser False) <&> \case
+            Nothing -> This project
+            Just branch -> These project branch
+        else pure (This project)
 
 -- | @project/branch@ syntax, where the branch is optional.
 instance From (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) Text where
@@ -375,14 +383,12 @@ instance TryFrom Text (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) w
 -- Valid things:
 --
 --   1. project
---   2. project/branch
+--   2. project/
+--   3. project/branch
 projectWithOptionalBranchParser :: Megaparsec.Parsec Void Text (ProjectAndBranch ProjectName (Maybe ProjectBranchName))
 projectWithOptionalBranchParser = do
-  project <- projectNameParser
-  branch <-
-    optional do
-      _ <- Megaparsec.char '/'
-      projectBranchNameParser
+  (project, hasTrailingSlash) <- projectNameParser
+  branch <- if hasTrailingSlash then optional (projectBranchNameParser False) else pure Nothing
   pure (ProjectAndBranch project branch)
 
 -- | @project/branch@ syntax, where the project is optional. The branch can optionally be preceded by a forward slash.
@@ -408,13 +414,12 @@ branchWithOptionalProjectParser :: Megaparsec.Parsec Void Text (ProjectAndBranch
 branchWithOptionalProjectParser =
   asum
     [ Megaparsec.try do
-        project <- projectNameParser
-        _ <- Megaparsec.char '/'
-        branch <- projectBranchNameParser
+        (project, hasTrailingSlash) <- projectNameParser
+        guard hasTrailingSlash
+        branch <- projectBranchNameParser False
         pure (ProjectAndBranch (Just project) branch),
       do
-        _ <- Megaparsec.optional (Megaparsec.char '/')
-        branch <- projectBranchNameParser
+        branch <- projectBranchNameParser True
         pure (ProjectAndBranch Nothing branch)
     ]
 

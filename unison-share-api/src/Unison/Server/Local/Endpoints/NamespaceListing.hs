@@ -1,7 +1,8 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Server.Endpoints.NamespaceListing (serve, NamespaceListingAPI, NamespaceListing (..), NamespaceObject (..), NamedNamespace (..), NamedPatch (..), KindExpression (..)) where
+module Unison.Server.Local.Endpoints.NamespaceListing (serve, NamespaceListingAPI, NamespaceListing (..), NamespaceObject (..), NamedNamespace (..), NamedPatch (..), KindExpression (..)) where
 
 import Control.Monad.Except
 import Data.Aeson
@@ -18,19 +19,19 @@ import Servant.Docs
   )
 import Servant.OpenApi ()
 import U.Codebase.Branch (NamespaceStats (..))
-import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Hash as Hash
-import qualified Unison.NameSegment as NameSegment
+import Unison.Hash qualified as Hash
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Server.Backend (Backend)
-import qualified Unison.Server.Backend as Backend
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Types
   ( APIGet,
     HashQualifiedName,
@@ -78,10 +79,19 @@ data NamespaceListing = NamespaceListing
   deriving stock (Generic, Show)
 
 instance ToJSON NamespaceListing where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON NamespaceListing {..} =
+    object
+      [ "namespaceListingFQN" .= namespaceListingFQN,
+        "namespaceListingHash" .= namespaceListingHash,
+        "namespaceListingChildren" .= namespaceListingChildren
+      ]
 
 instance FromJSON NamespaceListing where
-  parseJSON = genericParseJSON defaultOptions
+  parseJSON = withObject "NamespaceListing" $ \o -> do
+    namespaceListingFQN <- o .: "namespaceListingFQN"
+    namespaceListingHash <- o .: "namespaceListingHash"
+    namespaceListingChildren <- o .: "namespaceListingChildren"
+    pure NamespaceListing {..}
 
 deriving instance ToSchema NamespaceListing
 
@@ -93,10 +103,21 @@ data NamespaceObject
   deriving (Generic, Show)
 
 instance ToJSON NamespaceObject where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = \case
+    Subnamespace ns -> object ["tag" .= String "Subnamespace", "contents" .= ns]
+    TermObject t -> object ["tag" .= String "TermObject", "contents" .= t]
+    TypeObject t -> object ["tag" .= String "TypeObject", "contents" .= t]
+    PatchObject p -> object ["tag" .= String "PatchObject", "contents" .= p]
 
 instance FromJSON NamespaceObject where
-  parseJSON = genericParseJSON defaultOptions
+  parseJSON = withObject "NamespaceObject" $ \o -> do
+    tag <- o .: "tag"
+    case tag :: Text of
+      "Subnamespace" -> Subnamespace <$> o .: "contents"
+      "TermObject" -> TermObject <$> o .: "contents"
+      "TypeObject" -> TypeObject <$> o .: "contents"
+      "PatchObject" -> PatchObject <$> o .: "contents"
+      _ -> fail "Invalid NamespaceObject"
 
 deriving instance ToSchema NamespaceObject
 
@@ -108,10 +129,19 @@ data NamedNamespace = NamedNamespace
   deriving (Generic, Show)
 
 instance ToJSON NamedNamespace where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON NamedNamespace {..} =
+    object
+      [ "namespaceName" .= namespaceName,
+        "namespaceHash" .= namespaceHash,
+        "namespaceSize" .= namespaceSize
+      ]
 
 instance FromJSON NamedNamespace where
-  parseJSON = genericParseJSON defaultOptions
+  parseJSON = withObject "NamedNamespace" $ \o -> do
+    namespaceName <- o .: "namespaceName"
+    namespaceHash <- o .: "namespaceHash"
+    namespaceSize <- o .: "namespaceSize"
+    pure NamedNamespace {..}
 
 deriving instance ToSchema NamedNamespace
 
@@ -120,17 +150,25 @@ newtype NamedPatch = NamedPatch {patchName :: HashQualifiedName}
   deriving anyclass (ToSchema)
 
 instance ToJSON NamedPatch where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON NamedPatch {..} =
+    object
+      [ "patchName" .= patchName
+      ]
 
 instance FromJSON NamedPatch where
-  parseJSON = genericParseJSON defaultOptions
+  parseJSON = withObject "NamedPatch" $ \o -> do
+    patchName <- o .: "patchName"
+    pure NamedPatch {..}
 
 newtype KindExpression = KindExpression {kindExpressionText :: Text}
   deriving stock (Generic, Show)
   deriving anyclass (ToSchema)
 
 instance ToJSON KindExpression where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON KindExpression {..} =
+    object
+      [ "kindExpressionText" .= kindExpressionText
+      ]
 
 backendListEntryToNamespaceObject ::
   (Var v) =>

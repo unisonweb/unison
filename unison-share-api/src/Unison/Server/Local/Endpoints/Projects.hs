@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 
-module Unison.Server.Endpoints.Projects where
+module Unison.Server.Local.Endpoints.Projects where
 
 import Control.Monad.Except
 import Data.Aeson
@@ -9,7 +10,7 @@ import Data.OpenApi
   ( ToParamSchema (..),
     ToSchema (..),
   )
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Servant (QueryParam, (:>))
 import Servant.API (FromHttpApiData (..))
 import Servant.Docs
@@ -18,22 +19,22 @@ import Servant.Docs
     ToParam (..),
     ToSample (..),
   )
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Hash as Hash
-import qualified Unison.NameSegment as NameSegment
+import Unison.Hash qualified as Hash
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
-import qualified Unison.Server.Backend as Backend
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Types (APIGet, UnisonHash)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Util.Monoid (foldMapM)
 
@@ -66,7 +67,7 @@ instance ToParam (QueryParam "owner" ProjectOwner) where
       Normal
 
 instance ToJSON ProjectOwner where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (ProjectOwner owner) = toJSON owner
 
 deriving anyclass instance ToParamSchema ProjectOwner
 
@@ -93,7 +94,12 @@ data ProjectListing = ProjectListing
   deriving anyclass (ToSchema)
 
 instance ToJSON ProjectListing where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (ProjectListing {..}) =
+    object
+      [ "owner" .= owner,
+        "name" .= name,
+        "hash" .= hash
+      ]
 
 backendListEntryToProjectListing ::
   ProjectOwner ->

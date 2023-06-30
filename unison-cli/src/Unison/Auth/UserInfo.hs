@@ -1,12 +1,12 @@
 module Unison.Auth.UserInfo where
 
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString.Lazy.Char8 as BL
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.TLS as HTTP
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString.Lazy.Char8 qualified as BL
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client.TLS qualified as HTTP
 import Unison.Auth.Types
 import Unison.Prelude
 

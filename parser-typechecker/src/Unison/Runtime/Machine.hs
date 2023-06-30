@@ -13,19 +13,19 @@ import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
 import Control.Exception
 import Data.Bits
-import qualified Data.Map.Strict as M
+import Data.Map.Strict qualified as M
 import Data.Ord (comparing)
-import qualified Data.Sequence as Sq
-import qualified Data.Set as S
-import qualified Data.Set as Set
-import qualified Data.Text as DTx
-import qualified Data.Text.IO as Tx
+import Data.Sequence qualified as Sq
+import Data.Set qualified as S
+import Data.Set qualified as Set
+import Data.Text qualified as DTx
+import Data.Text.IO qualified as Tx
 import Data.Traversable
 import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
-import qualified Unison.Builtin.Decls as Rf
-import qualified Unison.ConstructorReference as CR
+import Unison.Builtin.Decls qualified as Rf
+import Unison.ConstructorReference qualified as CR
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference (Builtin), toShortHash)
 import Unison.Referent (pattern Con, pattern Ref)
@@ -38,7 +38,7 @@ import Unison.Runtime.ANF as ANF
     packTags,
     valueLinks,
   )
-import qualified Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception
@@ -46,16 +46,16 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
-import qualified Unison.Type as Rf
-import qualified Unison.Util.Bytes as By
+import Unison.Type qualified as Rf
+import Unison.Util.Bytes qualified as By
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty (toPlainUnbroken)
-import qualified Unison.Util.Text as Util.Text
+import Unison.Util.Text qualified as Util.Text
 import UnliftIO (IORef)
-import qualified UnliftIO
-import qualified UnliftIO.Concurrent as UnliftIO
+import UnliftIO qualified
+import UnliftIO.Concurrent qualified as UnliftIO
 
 -- | A ref storing every currently active thread.
 -- This is helpful for cleaning up orphaned threads when the main process
@@ -1503,6 +1503,32 @@ bprim2 !ustk !bstk EQLU i j = do
   ustk <- bump ustk
   poke ustk $ if universalEq (==) x y then 1 else 0
   pure (ustk, bstk)
+bprim2 !ustk !bstk IXOT i j = do
+  x <- peekOffBi bstk i
+  y <- peekOffBi bstk j
+  case Util.Text.indexOf x y of
+    Nothing -> do
+      ustk <- bump ustk
+      poke ustk 0
+      pure (ustk, bstk)
+    Just i -> do
+      ustk <- bumpn ustk 2
+      poke ustk 1
+      pokeOffN ustk 1 i
+      pure (ustk, bstk)
+bprim2 !ustk !bstk IXOB i j = do
+  x <- peekOffBi bstk i
+  y <- peekOffBi bstk j
+  case By.indexOf x y of
+    Nothing -> do
+      ustk <- bump ustk
+      poke ustk 0
+      pure (ustk, bstk)
+    Just i -> do
+      ustk <- bumpn ustk 2
+      poke ustk 1
+      pokeOffN ustk 1 i
+      pure (ustk, bstk)
 bprim2 !ustk !bstk DRPT i j = do
   n <- peekOff ustk i
   t <- peekOffBi bstk j

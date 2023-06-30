@@ -4,12 +4,14 @@ module Unison.LSP.FileAnalysis where
 
 import Control.Lens
 import Control.Monad.Reader
-import qualified Crypto.Random as Random
+import Crypto.Random qualified as Random
+import Data.Align (alignWith)
 import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
-import qualified Data.IntervalMap.Lazy as IM
-import qualified Data.Map as Map
-import qualified Data.Text as Text
+import Data.IntervalMap.Lazy qualified as IM
+import Data.Map qualified as Map
+import Data.Text qualified as Text
+import Data.These
 import Language.LSP.Types
   ( Diagnostic,
     DiagnosticSeverity (DsError),
@@ -19,12 +21,12 @@ import Language.LSP.Types
     Uri (getUri),
   )
 import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
-import qualified Unison.ABT as ABT
+import Unison.ABT qualified as ABT
 import Unison.Cli.TypeCheck (typecheckHelper)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Debug as Debug
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Path qualified as Path
+import Unison.DataDeclaration qualified as DD
+import Unison.Debug qualified as Debug
 import Unison.LSP.Conversions
 import Unison.LSP.Diagnostics
   ( mkDiagnostic,
@@ -32,36 +34,36 @@ import Unison.LSP.Diagnostics
   )
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
-import qualified Unison.LSP.Types as LSP
-import qualified Unison.LSP.VFS as VFS
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.LSP.Types qualified as LSP
+import Unison.LSP.VFS qualified as VFS
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.PrettyPrintEnvDecl.Names as PPED
-import qualified Unison.PrintError as PrintError
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.PrintError qualified as PrintError
 import Unison.Result (Note)
-import qualified Unison.Result as Result
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Symbol as Symbol
-import qualified Unison.Syntax.HashQualified' as HQ' (toText)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Syntax.TypePrinter as TypePrinter
-import qualified Unison.Term as Term
+import Unison.Symbol qualified as Symbol
+import Unison.Syntax.HashQualified' qualified as HQ' (toText)
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TypePrinter qualified as TypePrinter
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Typechecker.Context as Context
-import qualified Unison.Typechecker.TypeError as TypeError
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
+import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.TypeError qualified as TypeError
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Var as Var
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Var qualified as Var
 import Unison.WatchKind (pattern TestWatch)
-import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
+import UnliftIO.STM
 
 -- | Lex, parse, and typecheck a file.
 checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
@@ -185,7 +187,14 @@ fileAnalysisWorker = forever do
       pure (docUri, fileInfo)
   Debug.debugM Debug.LSP "Freshly Typechecked " (Map.toList freshlyCheckedFiles)
   -- Overwrite any files we successfully checked
-  atomically $ modifyTVar' checkedFilesV (Map.union freshlyCheckedFiles)
+  atomically $ do
+    checkedFiles <- readTVar checkedFilesV
+    let zipper = \case
+          These mvar new -> tryTakeTMVar mvar *> putTMVar mvar new *> pure mvar
+          This mvar -> pure mvar
+          That new -> newTMVar new
+    newCheckedFiles <- sequenceA $ alignWith zipper checkedFiles freshlyCheckedFiles
+    writeTVar checkedFilesV newCheckedFiles
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
@@ -375,21 +384,32 @@ toRangeMap :: (Foldable f) => f (Range, a) -> IntervalMap Position [a]
 toRangeMap vs =
   IM.fromListWith (<>) (toList vs <&> \(r, a) -> (rangeToInterval r, [a]))
 
-getFileAnalysis :: Uri -> Lsp (Maybe FileAnalysis)
+getFileAnalysis :: Uri -> MaybeT Lsp FileAnalysis
 getFileAnalysis uri = do
   checkedFilesV <- asks checkedFilesVar
-  checkedFiles <- readTVarIO checkedFilesV
-  pure $ Map.lookup uri checkedFiles
+  -- Try to get the file analysis, if there's a var, then read it, waiting if necessary
+  -- If there's no var, add one and wait for it to be filled (all Uris should be analyzed
+  -- eventually unless theres some bug in the VFS).
+  tmvar <- atomically do
+    checkedFiles <- readTVar checkedFilesV
+    case Map.lookup uri checkedFiles of
+      Nothing -> do
+        mvar <- newEmptyTMVar
+        Debug.debugM Debug.LSP "File analysis requested but none available, waiting for analysis for" uri
+        writeTVar checkedFilesV $ Map.insert uri mvar checkedFiles
+        pure mvar
+      Just mvar -> pure mvar
+  atomically (readTMVar tmvar)
 
 getFileSummary :: Uri -> MaybeT Lsp FileSummary
 getFileSummary uri = do
-  FileAnalysis {fileSummary} <- MaybeT $ getFileAnalysis uri
+  FileAnalysis {fileSummary} <- getFileAnalysis uri
   MaybeT . pure $ fileSummary
 
 -- TODO memoize per file
 ppedForFile :: Uri -> Lsp PPED.PrettyPrintEnvDecl
 ppedForFile fileUri = do
-  getFileAnalysis fileUri >>= \case
+  runMaybeT (getFileAnalysis fileUri) >>= \case
     Just (FileAnalysis {typecheckedFile = tf, parsedFile = uf}) ->
       ppedForFileHelper uf tf
     _ -> ppedForFileHelper Nothing Nothing

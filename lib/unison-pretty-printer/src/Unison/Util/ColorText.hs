@@ -34,7 +34,7 @@ module Unison.Util.ColorText
   )
 where
 
-import qualified System.Console.ANSI as ANSI
+import System.Console.ANSI qualified as ANSI
 import Unison.Prelude
 import Unison.Util.AnnotatedText
   ( AnnotatedText (..),
@@ -42,7 +42,7 @@ import Unison.Util.AnnotatedText
     annotate,
     toPair,
   )
-import qualified Unison.Util.SyntaxText as ST hiding (toPlain)
+import Unison.Util.SyntaxText qualified as ST hiding (toPlain)
 
 type ColorText = AnnotatedText Color
 

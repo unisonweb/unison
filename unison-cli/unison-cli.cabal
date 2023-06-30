@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -34,8 +34,10 @@ library
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
+      Unison.Cli.Pretty
       Unison.Cli.PrettyPrintUtils
       Unison.Cli.ProjectUtils
+      Unison.Cli.ServantClientUtils
       Unison.Cli.Share.Projects
       Unison.Cli.Share.Projects.Types
       Unison.Cli.TypeCheck
@@ -45,6 +47,7 @@ library
       Unison.Codebase.Editor.HandleInput.AuthLogin
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
+      Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteProject
       Unison.Codebase.Editor.HandleInput.MetadataUtils
@@ -53,6 +56,7 @@ library
       Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
       Unison.Codebase.Editor.HandleInput.ProjectClone
       Unison.Codebase.Editor.HandleInput.ProjectCreate
+      Unison.Codebase.Editor.HandleInput.ProjectRename
       Unison.Codebase.Editor.HandleInput.Projects
       Unison.Codebase.Editor.HandleInput.ProjectSwitch
       Unison.Codebase.Editor.HandleInput.Pull
@@ -72,7 +76,6 @@ library
       Unison.Codebase.Editor.TodoOutput
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
-      Unison.Codebase.Editor.VersionParser
       Unison.Codebase.TranscriptParser
       Unison.CommandLine
       Unison.CommandLine.Completion
@@ -125,9 +128,11 @@ library
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -186,6 +191,7 @@ library
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -252,9 +258,11 @@ executable cli-integration-tests
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -317,6 +325,7 @@ executable cli-integration-tests
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -379,9 +388,11 @@ executable transcripts
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -442,6 +453,7 @@ executable transcripts
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -510,9 +522,11 @@ executable unison
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -573,6 +587,7 @@ executable unison
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -627,7 +642,6 @@ test-suite cli-tests
       Unison.Test.LSP
       Unison.Test.Ucm
       Unison.Test.UriParser
-      Unison.Test.VersionParser
   hs-source-dirs:
       tests
   default-extensions:
@@ -647,9 +661,11 @@ test-suite cli-tests
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -710,6 +726,7 @@ test-suite cli-tests
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign

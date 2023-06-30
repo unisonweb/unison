@@ -14,7 +14,7 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Foldable (for_)
 import Data.Functor (($>))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import UnliftIO (MonadIO, atomically, modifyTVar', newTVarIO, readTVar, readTVarIO, writeTVar)
 import Prelude hiding (lookup)
 

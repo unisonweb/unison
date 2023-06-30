@@ -8,32 +8,32 @@ where
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import Control.Lens (over, view, (.~), (^.), _1, _2)
 import Control.Monad.Reader (ask)
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Set.NonEmpty as Set.NonEmpty
+import Data.List.NonEmpty qualified as Nel
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text as Text
 import Data.These (These (..))
 import Data.Void (absurd)
-import qualified System.Console.Regions as Console.Regions
-import qualified Text.Builder
+import System.Console.Regions qualified as Console.Regions
+import Text.Builder qualified
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId
-import qualified U.Codebase.Sqlite.Operations as Operations
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Project as Sqlite (Project)
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite (ProjectBranch)
-import qualified U.Codebase.Sqlite.Queries as Queries
+import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
-import qualified Unison.Cli.Share.Projects as Share
-import qualified Unison.Cli.UnisonConfigUtils as UnisonConfigUtils
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.Share.Projects qualified as Share
+import Unison.Cli.UnisonConfigUtils qualified as UnisonConfigUtils
 import Unison.Codebase (PushGitBranchOpts (..))
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..))
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.AuthLogin (ensureAuthenticatedWithCodeserver)
-import qualified Unison.Codebase.Editor.HandleInput.AuthLogin as AuthLogin
+import Unison.Codebase.Editor.HandleInput.AuthLogin qualified as AuthLogin
 import Unison.Codebase.Editor.Input
   ( GistInput (..),
     PushRemoteBranchInput (..),
@@ -41,7 +41,7 @@ import Unison.Codebase.Editor.Input
     PushSourceTarget (..),
   )
 import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Push))
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
@@ -53,17 +53,17 @@ import Unison.Codebase.Editor.RemoteRepo
     writeToReadGit,
   )
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
-import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.ShortCausalHash as SCH
+import Unison.Codebase.PushBehavior qualified as PushBehavior
+import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SyncMode (SyncMode)
-import qualified Unison.Codebase.SyncMode as SyncMode
+import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Type (GitPushBehavior (..))
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
-import qualified Unison.Hash32 as Hash32
+import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project
@@ -74,14 +74,14 @@ import Unison.Project
     prependUserSlugToProjectName,
     projectNameUserSlug,
   )
-import qualified Unison.Share.API.Hash as Share.API
-import qualified Unison.Share.API.Projects as Share.API
-import qualified Unison.Share.Codeserver as Codeserver
-import qualified Unison.Share.Sync as Share
-import qualified Unison.Share.Sync.Types as Share
+import Unison.Share.API.Hash qualified as Share.API
+import Unison.Share.API.Projects qualified as Share.API
+import Unison.Share.Codeserver qualified as Codeserver
+import Unison.Share.Sync qualified as Share
+import Unison.Share.Sync.Types qualified as Share
 import Unison.Share.Types (codeserverBaseURL)
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sync.Types as Share
+import Unison.Sqlite qualified as Sqlite
+import Unison.Sync.Types qualified as Share
 import Witch (unsafeFrom)
 
 -- | Handle a @gist@ command.
@@ -121,7 +121,11 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
             WriteRemoteNamespaceGit namespace -> pushLooseCodeToGitLooseCode localPath namespace pushBehavior syncMode
             WriteRemoteNamespaceShare namespace -> pushLooseCodeToShareLooseCode localPath namespace pushBehavior
             WriteRemoteProjectBranch v -> absurd v
-        Just (localProjectAndBranch, _restPath) -> pushProjectBranchToProjectBranch localProjectAndBranch Nothing
+        Just (localProjectAndBranch, _restPath) ->
+          pushProjectBranchToProjectBranch
+            force
+            localProjectAndBranch
+            Nothing
     -- push <implicit> to .some.path (git)
     PushSourceTarget1 (WriteRemoteNamespaceGit namespace) -> do
       localPath <- Cli.getCurrentPath
@@ -136,9 +140,9 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
         Nothing -> do
           localPath <- Cli.getCurrentPath
           remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
-          pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
+          pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch
         Just (localProjectAndBranch, _restPath) ->
-          pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch0)
+          pushProjectBranchToProjectBranch force localProjectAndBranch (Just remoteProjectAndBranch0)
     -- push .some.path to .some.path (git)
     PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceGit namespace) -> do
       localPath <- Cli.resolvePath' localPath0
@@ -151,7 +155,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
     PushSourceTarget2 (PathySource localPath0) (WriteRemoteProjectBranch remoteProjectAndBranch0) -> do
       localPath <- Cli.resolvePath' localPath0
       remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
-      pushLooseCodeToProjectBranch localPath remoteProjectAndBranch
+      pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch
     -- push @some/project to .some.path (git)
     PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteNamespaceGit namespace) -> do
       ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames localProjectAndBranch0
@@ -170,7 +174,13 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
     -- push @some/project to @some/project
     PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteProjectBranch remoteProjectAndBranch) -> do
       localProjectAndBranch <- ProjectUtils.expectProjectAndBranchByTheseNames localProjectAndBranch0
-      pushProjectBranchToProjectBranch localProjectAndBranch (Just remoteProjectAndBranch)
+      pushProjectBranchToProjectBranch force localProjectAndBranch (Just remoteProjectAndBranch)
+  where
+    force =
+      case pushBehavior of
+        PushBehavior.ForcePush -> True
+        PushBehavior.RequireEmpty -> False
+        PushBehavior.RequireNonEmpty -> False
 
 -- Push a local namespace ("loose code") to a Git-hosted remote namespace ("loose code").
 pushLooseCodeToGitLooseCode :: Path.Absolute -> WriteGitRemoteNamespace -> PushBehavior -> SyncMode -> Cli ()
@@ -294,8 +304,8 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
         Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
 
 -- Push a local namespace ("loose code") to a remote project branch.
-pushLooseCodeToProjectBranch :: Path.Absolute -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
-pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
+pushLooseCodeToProjectBranch :: Bool -> Path.Absolute -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
+pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch = do
   _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   localBranchHead <-
     Cli.runEitherTransaction do
@@ -303,16 +313,17 @@ pushLooseCodeToProjectBranch localPath remoteProjectAndBranch = do
         Nothing -> Left (EmptyLooseCodePush (Path.absoluteToPath' localPath))
         Just hash -> Right hash
 
-  uploadPlan <- pushToProjectBranch0 PushingLooseCode localBranchHead remoteProjectAndBranch
+  uploadPlan <- pushToProjectBranch0 force PushingLooseCode localBranchHead remoteProjectAndBranch
   executeUploadPlan uploadPlan
 
 -- | Push a local project branch to a remote project branch. If the remote project branch is left unspecified, we either
 -- use a pre-existing mapping for the local branch, or else infer what remote branch to push to (possibly creating it).
 pushProjectBranchToProjectBranch ::
+  Bool ->
   ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
   Maybe (These ProjectName ProjectBranchName) ->
   Cli ()
-pushProjectBranchToProjectBranch localProjectAndBranch maybeRemoteProjectAndBranchNames = do
+pushProjectBranchToProjectBranch force localProjectAndBranch maybeRemoteProjectAndBranchNames = do
   _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   let localProjectAndBranchIds = localProjectAndBranch & over #project (view #projectId) & over #branch (view #branchId)
   let localProjectAndBranchNames = localProjectAndBranch & over #project (view #name) & over #branch (view #name)
@@ -328,12 +339,27 @@ pushProjectBranchToProjectBranch localProjectAndBranch maybeRemoteProjectAndBran
 
   uploadPlan <-
     case maybeRemoteProjectAndBranchNames of
-      Nothing -> pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBranchHead Nothing
+      Nothing ->
+        pushProjectBranchToProjectBranch'InferredProject
+          force
+          localProjectAndBranch
+          localBranchHead
+          Nothing
       Just (This remoteProjectName) ->
-        pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch localBranchHead (ProjectAndBranch (Just remoteProjectName) Nothing)
-      Just (That remoteBranchName) -> pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBranchHead (Just remoteBranchName)
+        pushProjectBranchToProjectBranch'IgnoreRemoteMapping
+          force
+          localProjectAndBranch
+          localBranchHead
+          (ProjectAndBranch (Just remoteProjectName) Nothing)
+      Just (That remoteBranchName) ->
+        pushProjectBranchToProjectBranch'InferredProject
+          force
+          localProjectAndBranch
+          localBranchHead
+          (Just remoteBranchName)
       Just (These remoteProjectName remoteBranchName) ->
         pushToProjectBranch0
+          force
           (PushingProjectBranch localProjectAndBranch)
           localBranchHead
           (ProjectAndBranch remoteProjectName remoteBranchName)
@@ -341,8 +367,13 @@ pushProjectBranchToProjectBranch localProjectAndBranch maybeRemoteProjectAndBran
   executeUploadPlan uploadPlan
 
 -- "push" or "push /foo", remote mapping unknown
-pushProjectBranchToProjectBranch'InferredProject :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Hash32 -> Maybe ProjectBranchName -> Cli UploadPlan
-pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBranchHead maybeRemoteBranchName = do
+pushProjectBranchToProjectBranch'InferredProject ::
+  Bool ->
+  ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
+  Hash32 ->
+  Maybe ProjectBranchName ->
+  Cli UploadPlan
+pushProjectBranchToProjectBranch'InferredProject force localProjectAndBranch localBranchHead maybeRemoteBranchName = do
   let loadRemoteProjectInfo ::
         Sqlite.Transaction
           ( Maybe
@@ -364,7 +395,12 @@ pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBran
             pure (Just (remoteProjectId, remoteProjectName, maybeRemoteBranchInfo))
 
   Cli.runTransaction loadRemoteProjectInfo >>= \case
-    Nothing -> pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch localBranchHead (ProjectAndBranch Nothing maybeRemoteBranchName)
+    Nothing ->
+      pushProjectBranchToProjectBranch'IgnoreRemoteMapping
+        force
+        localProjectAndBranch
+        localBranchHead
+        (ProjectAndBranch Nothing maybeRemoteBranchName)
     Just (remoteProjectId, remoteProjectName, maybeRemoteBranchInfo) ->
       case maybeRemoteBranchName of
         Nothing -> do
@@ -373,8 +409,9 @@ pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBran
             Nothing -> do
               myUserHandle <- view #handle <$> AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
               let localBranchName = localProjectAndBranch ^. #branch . #name
-              let remoteBranchName = deriveRemoteBranchName myUserHandle remoteProjectName localBranchName
+              let remoteBranchName = deriveRemoteBranchName myUserHandle localBranchName
               pushToProjectBranch1
+                force
                 localProjectAndBranch
                 localBranchHead
                 (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
@@ -390,7 +427,8 @@ pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBran
                 Share.GetProjectBranchResponseProjectNotFound -> remoteProjectBranchDoesntExist
                 Share.GetProjectBranchResponseSuccess remoteBranch -> do
                   afterUploadAction <-
-                    makeFastForwardAfterUploadAction
+                    makeSetHeadAfterUploadAction
+                      force
                       (PushingProjectBranch localProjectAndBranch)
                       localBranchHead
                       remoteBranch
@@ -403,6 +441,7 @@ pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBran
         -- "push /foo" with remote mapping for project from ancestor branch
         Just remoteBranchName ->
           pushToProjectBranch1
+            force
             localProjectAndBranch
             localBranchHead
             (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
@@ -412,31 +451,35 @@ pushProjectBranchToProjectBranch'InferredProject localProjectAndBranch localBran
 
 -- "push", "push foo", or "push /foo" ignoring remote mapping (if any)
 pushProjectBranchToProjectBranch'IgnoreRemoteMapping ::
+  Bool ->
   ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
   Hash32 ->
   ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) ->
   Cli UploadPlan
-pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch localBranchHead remoteProjectAndBranchMaybes = do
-  myUserHandle <- view #handle <$> AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
-  let localProjectName = localProjectAndBranch ^. #project . #name
-  let localBranchName = localProjectAndBranch ^. #branch . #name
-  let remoteProjectName =
-        case remoteProjectAndBranchMaybes ^. #project of
-          Nothing -> prependUserSlugToProjectName myUserHandle localProjectName
-          Just remoteProjectName1 -> remoteProjectName1
-  let remoteBranchName =
-        case remoteProjectAndBranchMaybes ^. #branch of
-          Nothing -> deriveRemoteBranchName myUserHandle remoteProjectName localBranchName
-          Just remoteBranchName1 -> remoteBranchName1
-  let remoteProjectAndBranch = ProjectAndBranch remoteProjectName remoteBranchName
-  pushToProjectBranch0 (PushingProjectBranch localProjectAndBranch) localBranchHead remoteProjectAndBranch
+pushProjectBranchToProjectBranch'IgnoreRemoteMapping
+  force
+  localProjectAndBranch
+  localBranchHead
+  remoteProjectAndBranchMaybes = do
+    myUserHandle <- view #handle <$> AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
+    let localProjectName = localProjectAndBranch ^. #project . #name
+    let localBranchName = localProjectAndBranch ^. #branch . #name
+    let remoteProjectName =
+          case remoteProjectAndBranchMaybes ^. #project of
+            Nothing -> prependUserSlugToProjectName myUserHandle localProjectName
+            Just remoteProjectName1 -> remoteProjectName1
+    let remoteBranchName =
+          case remoteProjectAndBranchMaybes ^. #branch of
+            Nothing -> deriveRemoteBranchName myUserHandle localBranchName
+            Just remoteBranchName1 -> remoteBranchName1
+    let remoteProjectAndBranch = ProjectAndBranch remoteProjectName remoteBranchName
+    pushToProjectBranch0 force (PushingProjectBranch localProjectAndBranch) localBranchHead remoteProjectAndBranch
 
 -- If left unspecified (and we don't yet have a remote mapping), we derive the remote branch name from the user's
--- handle, remote project name, and local branch name as follows:
+-- handle and local branch name as follows:
 --
 --   * If the local branch name already has a user slug prefix or a (draft) release prefix, then we leave it alone.
---   * Otherwise, if the remote project name's user prefix matches the user's handle (i.e. they are pushing to their own
---     project) *and* the local branch name is "main", then we leave it alone.
+--   * Otherwise, if the local branch name is "main", then we leave it alone.
 --   * Otherwise, we prepend the user's handle to the local branch name.
 --
 -- This way, users (who let us infer remote branch names) tend to make topic branches, even when contributing to their
@@ -449,20 +492,15 @@ pushProjectBranchToProjectBranch'IgnoreRemoteMapping localProjectAndBranch local
 -- And "main" is an exception to the rule that we prefix your local branch name with your user handle. That way, you
 -- won't end up with a *topic branch* called "@arya/main" when pushing a local branch called "main". Of course,
 -- special-casing "main" in this way is only temporary, before we have a first-class notion of a default branch.
-deriveRemoteBranchName :: Text -> ProjectName -> ProjectBranchName -> ProjectBranchName
-deriveRemoteBranchName userHandle remoteProjectName localBranchName =
+deriveRemoteBranchName :: Text -> ProjectBranchName -> ProjectBranchName
+deriveRemoteBranchName userHandle localBranchName =
   case classifyProjectBranchName localBranchName of
     ProjectBranchNameKind'Contributor _ _ -> localBranchName
     ProjectBranchNameKind'DraftRelease _ -> localBranchName
     ProjectBranchNameKind'Release _ -> localBranchName
-    ProjectBranchNameKind'NothingSpecial ->
-      case projectNameUserSlug remoteProjectName of
-        -- I'm "arya" pushing local branch "main" to "@arya/lens", so don't call it "@arya/main"
-        Just projectUserSlug
-          | projectUserSlug == userHandle && localBranchName == unsafeFrom @Text "main" ->
-              localBranchName
-        -- Nothing is a weird unlikely case: project doesn't begin with a user slug? server will likely reject
-        _ ->
+    ProjectBranchNameKind'NothingSpecial
+      | localBranchName == unsafeFrom @Text "main" -> localBranchName
+      | otherwise ->
           (UnsafeProjectBranchName . Text.Builder.run . fold)
             [ Text.Builder.char '@',
               Text.Builder.text userHandle,
@@ -476,8 +514,13 @@ data WhatAreWePushing
   | PushingLooseCode
 
 -- we have the remote project and branch names, but we don't know whether either already exist
-pushToProjectBranch0 :: WhatAreWePushing -> Hash32 -> ProjectAndBranch ProjectName ProjectBranchName -> Cli UploadPlan
-pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
+pushToProjectBranch0 ::
+  Bool ->
+  WhatAreWePushing ->
+  Hash32 ->
+  ProjectAndBranch ProjectName ProjectBranchName ->
+  Cli UploadPlan
+pushToProjectBranch0 force pushing localBranchHead remoteProjectAndBranch = do
   let remoteProjectName = remoteProjectAndBranch ^. #project
 
   -- Assert that this project name has a user slug before bothering to hit Share
@@ -519,7 +562,7 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
         Share.GetProjectBranchResponseProjectNotFound ->
           Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranch)
         Share.GetProjectBranchResponseSuccess remoteBranch -> do
-          afterUploadAction <- makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch
+          afterUploadAction <- makeSetHeadAfterUploadAction force pushing localBranchHead remoteBranch
           pure
             UploadPlan
               { remoteBranch = remoteProjectAndBranch,
@@ -530,11 +573,12 @@ pushToProjectBranch0 pushing localBranchHead remoteProjectAndBranch = do
 -- "push /foo" with a remote mapping for the project (either from this branch or one of our ancestors)
 -- but we don't know whether the remote branch exists
 pushToProjectBranch1 ::
+  Bool ->
   ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
   Hash32 ->
   ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   Cli UploadPlan
-pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranch = do
+pushToProjectBranch1 force localProjectAndBranch localBranchHead remoteProjectAndBranch = do
   Share.getProjectBranchByName (over #project fst remoteProjectAndBranch) >>= \case
     Share.GetProjectBranchResponseBranchNotFound -> do
       pure
@@ -551,7 +595,7 @@ pushToProjectBranch1 localProjectAndBranch localBranchHead remoteProjectAndBranc
     Share.GetProjectBranchResponseProjectNotFound -> remoteProjectBranchDoesntExist
     Share.GetProjectBranchResponseSuccess remoteBranch -> do
       afterUploadAction <-
-        makeFastForwardAfterUploadAction (PushingProjectBranch localProjectAndBranch) localBranchHead remoteBranch
+        makeSetHeadAfterUploadAction force (PushingProjectBranch localProjectAndBranch) localBranchHead remoteBranch
       pure
         UploadPlan
           { remoteBranch = over #project snd remoteProjectAndBranch,
@@ -673,26 +717,29 @@ createBranchAfterUploadAction pushing justCreatedProject localBranchHead remoteP
           Share.hardCodedUri
           (remoteBranch ^. #branchId)
 
--- We intend to fast-forward a remote branch.
+-- We intend to push to a remote branch.
 --
 -- There are two last checks to do that may cause this action to short-circuit:
 --
---   1. If the remote branch head is equal to the hash we intend to fast-forward it to, then there's nothing to upload.
---   2. If the remote branch head is ahead of the hash we intend to fast-forward it to, then we will refuse to push
---      (until we implement some syntax for a force-push).
-makeFastForwardAfterUploadAction ::
+--   1. If the remote branch head is equal to the hash we intend to set it to, then there's nothing to upload.
+--
+--   2. If the remote branch head is ahead of the hash we intend to fast-forward it to, and this isn't a force-push,
+--      then we will refuse to push (until we implement some syntax for a force-push).
+makeSetHeadAfterUploadAction ::
+  Bool ->
   WhatAreWePushing ->
   Hash32 ->
   Share.RemoteProjectBranch ->
   Cli AfterUploadAction
-makeFastForwardAfterUploadAction pushing localBranchHead remoteBranch = do
+makeSetHeadAfterUploadAction force pushing localBranchHead remoteBranch = do
   let remoteProjectAndBranchNames = ProjectAndBranch (remoteBranch ^. #projectName) (remoteBranch ^. #branchName)
 
   when (localBranchHead == Share.API.hashJWTHash (remoteBranch ^. #branchHead)) do
     Cli.returnEarly (RemoteProjectBranchIsUpToDate Share.hardCodedUri remoteProjectAndBranchNames)
 
-  whenM (Cli.runTransaction (wouldNotBeFastForward localBranchHead remoteBranchHead)) do
-    Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
+  when (not force) do
+    whenM (Cli.runTransaction (wouldNotBeFastForward localBranchHead remoteBranchHead)) do
+      Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
 
   pure do
     let request =

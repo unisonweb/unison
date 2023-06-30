@@ -2,7 +2,7 @@ Deleting the branch you are on takes you to its parent (though this is impossibl
 your working directory with each command).
 
 ```ucm
-.> project.create foo
+.> project.create-empty foo
 foo/main> branch topic
 foo/topic> delete.branch /topic
 ```

@@ -29,6 +29,7 @@ module Unison.Util.Bytes
     at,
     take,
     drop,
+    indexOf,
     size,
     empty,
     encodeNat16be,
@@ -53,31 +54,32 @@ module Unison.Util.Bytes
 where
 
 import Basement.Block.Mutable (Block (Block))
-import qualified Codec.Compression.GZip as GZip
-import qualified Codec.Compression.Zlib as Zlib
+import Codec.Compression.GZip qualified as GZip
+import Codec.Compression.Zlib qualified as Zlib
 import Control.DeepSeq (NFData (..))
 import Control.Monad.Primitive (unsafeIOToPrim)
 import Data.Bits (shiftL, shiftR, (.|.))
-import qualified Data.ByteArray as BA
-import qualified Data.ByteArray.Encoding as BE
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as LB
+import Data.ByteArray qualified as BA
+import Data.ByteArray.Encoding qualified as BE
+import Data.ByteString qualified as B
+import Data.ByteString.Lazy qualified as LB
+import Data.ByteString.Lazy.Search qualified as SS
 import Data.Char
 import Data.Primitive.ByteArray
   ( ByteArray (ByteArray),
     copyByteArrayToPtr,
   )
 import Data.Primitive.Ptr (copyPtrToMutableByteArray)
-import qualified Data.Text as Text
-import qualified Data.Vector.Primitive as V
-import qualified Data.Vector.Primitive.Mutable as MV
-import qualified Data.Vector.Storable as SV
-import qualified Data.Vector.Storable.ByteString as BSV
-import qualified Data.Vector.Storable.Mutable as MSV
+import Data.Text qualified as Text
+import Data.Vector.Primitive qualified as V
+import Data.Vector.Primitive.Mutable qualified as MV
+import Data.Vector.Storable qualified as SV
+import Data.Vector.Storable.ByteString qualified as BSV
+import Data.Vector.Storable.Mutable qualified as MSV
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Storable (pokeByteOff)
 import Unison.Prelude hiding (ByteString, empty)
-import qualified Unison.Util.Rope as R
+import Unison.Util.Rope qualified as R
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (drop, take)
 
@@ -192,6 +194,15 @@ take n (Bytes bs) = Bytes (R.take n bs)
 
 drop :: Int -> Bytes -> Bytes
 drop n (Bytes bs) = Bytes (R.drop n bs)
+
+indexOf :: Bytes -> Bytes -> Maybe Word64
+indexOf needle haystack =
+  case SS.indices needle' haystack' of
+    [] -> Nothing
+    (i : _) -> Just (fromIntegral i)
+  where
+    needle' = toByteString needle
+    haystack' = toLazyByteString haystack
 
 at, index :: Int -> Bytes -> Maybe Word8
 at n (Bytes bs) = R.index n bs

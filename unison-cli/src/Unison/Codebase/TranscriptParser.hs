@@ -19,44 +19,44 @@ module Unison.Codebase.TranscriptParser
 where
 
 import Control.Lens (use, (?~), (^.))
-import qualified Crypto.Random as Random
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Encode.Pretty as Aeson
-import qualified Data.ByteString.Lazy.Char8 as BL
-import qualified Data.Char as Char
-import qualified Data.Configurator as Configurator
+import Crypto.Random qualified as Random
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.ByteString.Lazy.Char8 qualified as BL
+import Data.Char qualified as Char
+import Data.Configurator qualified as Configurator
 import Data.Configurator.Types (Config)
 import Data.IORef
 import Data.List (isSubsequenceOf)
-import qualified Data.Map as Map
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Data.These (These (..))
-import qualified Ki
-import qualified Network.HTTP.Client as HTTP
+import Ki qualified
+import Network.HTTP.Client qualified as HTTP
 import System.Directory (doesFileExist)
 import System.Environment (lookupEnv)
 import System.Exit (die)
-import qualified System.IO as IO
+import System.IO qualified as IO
 import System.IO.Error (catchIOError)
-import qualified Text.Megaparsec as P
-import qualified U.Codebase.Sqlite.Operations as Operations
-import qualified Unison.Auth.CredentialManager as AuthN
-import qualified Unison.Auth.HTTPClient as AuthN
-import qualified Unison.Auth.Tokens as AuthN
+import Text.Megaparsec qualified as P
+import U.Codebase.Sqlite.Operations qualified as Operations
+import Unison.Auth.CredentialManager qualified as AuthN
+import Unison.Auth.HTTPClient qualified as AuthN
+import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch.Type as Branch
-import qualified Unison.Codebase.Editor.HandleInput as HandleInput
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch.Type qualified as Branch
+import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
-import qualified Unison.Codebase.Runtime as Runtime
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.Runtime qualified as Runtime
 import Unison.CommandLine
 import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
@@ -66,14 +66,14 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (ProjectAndBranchNames'Unambiguous), ProjectBranchName, ProjectName)
-import qualified Unison.Runtime.Interface as RTI
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.CodebaseServer as Server
+import Unison.Runtime.Interface qualified as RTI
+import Unison.Server.Backend qualified as Backend
+import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Util.TQueue as Q
-import qualified UnliftIO
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.TQueue qualified as Q
+import UnliftIO qualified
 import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
 

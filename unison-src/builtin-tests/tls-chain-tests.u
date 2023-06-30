@@ -36,7 +36,7 @@ chainClient portPromise toSend =
   defaultClient = (Tls.ClientConfig.default (HostName.HostName "intermediate") "")
   tlsconfig = ClientConfig.certificates.set [parseCert rootCert] defaultClient
 
-  sock = clientSocket (HostName.HostName ("127" ++ ".0.0.1")) (Port.Port (Nat.toText (Promise.read portPromise)))
+  sock = Socket.client (HostName.HostName ("127" ++ ".0.0.1")) (Port.Port (Nat.toText (Promise.read portPromise)))
   tls = Tls.newClient tlsconfig sock
   tlsock = Tls.handshake tls
   TlsSocket.send tlsock (toUtf8 toSend)
