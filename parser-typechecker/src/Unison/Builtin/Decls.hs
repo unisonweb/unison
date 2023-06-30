@@ -151,7 +151,6 @@ okConstructorReferent, failConstructorReferent :: Referent.Referent
 okConstructorReferent = Referent.Con (ConstructorReference testResultRef okConstructorId) CT.Data
 failConstructorReferent = Referent.Con (ConstructorReference testResultRef failConstructorId) CT.Data
 
--- follow the same pattern as eitherRef and EitherLeft
 rewriteTermRef :: Reference
 rewriteTermRef = lookupDeclRef "RewriteTerm"
 
@@ -212,6 +211,22 @@ unRewriteType (Term.App' (Term.Constructor' (ConstructorReference r _))
   | r == rewriteTypeRef = Just (vs, lhs, rhs)
 unRewriteType _ = Nothing
 
+rewritesRef :: Reference
+rewritesRef = lookupDeclRef "Rewrites"
+
+pattern Rewrites' :: [Term2 vt at ap v a] -> Term2 vt at ap v a
+pattern Rewrites' ts <- (unRewrites -> Just ts)
+
+rewrites :: (Var v, Monoid a) => a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
+rewrites a [] = Term.app a (Term.constructor a (ConstructorReference rewritesRef 0)) (tupleTerm [])
+rewrites a ts@(hd:_) = Term.app a (Term.constructor a1 (ConstructorReference rewritesRef 0)) (tupleTerm ts)
+  where a1 = ABT.annotation hd 
+
+unRewrites :: Term2 vt at ap v a -> Maybe [Term2 vt at ap v a]
+unRewrites (Term.App' (Term.Constructor' (ConstructorReference r _)) tup)
+  | r == rewritesRef, TupleTerm' ts <- tup = Just ts
+unRewrites _ = Nothing
+
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
 builtinDataDecls :: [(Symbol, Reference.Id, DataDeclaration Symbol ())]
@@ -250,7 +265,8 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.ThreadKilledFailure", threadKilledFailure),
           (v "RewriteTerm", rewriteTerm),
           (v "RewriteType", rewriteType),
-          (v "RewriteCase", rewriteCase)
+          (v "RewriteCase", rewriteCase),
+          (v "Rewrites", rewrites)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
@@ -351,6 +367,18 @@ builtinDataDecls = rs1 ++ rs
               ()
               [v "a", v "b"]
               ((var "a" `arr` (var "b" `arr` var "Unit")) `arr` Type.apps' (var "RewriteType") [var "a", var "b"]))
+        ]
+    rewrites =
+      DataDeclaration
+        (Unique "f64795bf31f7eb41e59b31379d6576a4abaca5b4c1bfc0b8c211e608906aff1a") 
+        ()
+        [v "a"]
+        [ ( (),
+            v "Rewrites.Rewrites",
+            Type.foralls
+              ()
+              [v "a"]
+              (var "a" `arr` Type.apps' (var "Rewrites") [var "a"]))
         ]
     isTest =
       DataDeclaration
@@ -706,7 +734,7 @@ exceptionType a = Type.ref a exceptionRef
 tlsSignedCertType :: (Var v) => a -> Type v a
 tlsSignedCertType a = Type.ref a tlsSignedCertRef
 
-unitTerm :: (Var v) => a -> Term v a
+unitTerm :: (Var v) => a -> Term2 vt at ap v a
 unitTerm ann = Term.constructor ann (ConstructorReference unitRef 0)
 
 tupleConsTerm ::
@@ -717,7 +745,7 @@ tupleConsTerm ::
 tupleConsTerm hd tl =
   Term.apps' (Term.constructor (ABT.annotation hd) (ConstructorReference pairRef 0)) [hd, tl]
 
-tupleTerm :: (Var v, Monoid a) => [Term v a] -> Term v a
+tupleTerm :: (Var v, Monoid a) => [Term2 vt at ap v a] -> Term2 vt at ap v a
 tupleTerm = foldr tupleConsTerm (unitTerm mempty)
 
 -- delayed terms are just lambdas that take a single `()` arg
