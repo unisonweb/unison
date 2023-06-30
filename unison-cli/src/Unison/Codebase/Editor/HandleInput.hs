@@ -1776,16 +1776,14 @@ lookupRewrite onErr rule = do
   let 
     extract tm = case tm of
       Term.Ann' tm _typ -> extract tm
-      (DD.TupleTerm' [lhs, rhs]) -> pure (False, lhs, rhs)
-      (DD.EitherLeft'  (DD.TupleTerm' [lhs,rhs])) -> pure (True, lhs, rhs)
-      (DD.EitherRight' (DD.TupleTerm' [lhs,rhs])) -> pure (False, lhs, rhs)
+      (DD.RewriteTerm' lhs rhs) -> pure (False, lhs, rhs)
+      (DD.RewriteCase' lhs rhs) -> pure (True, lhs, rhs)
+      (DD.RewriteType' _vs lhs rhs) -> error "todo - type signature rewrites" lhs rhs
       _ -> Cli.returnEarly (onErr rule)
     extractOuter tm = case tm of
       Term.Ann' tm _typ -> extractOuter tm
       Term.LamsNamed' _vs tm -> extractOuter tm
-      DD.EitherLeft'  (DD.TupleTerm' [lhs,rhs]) -> pure [(True, lhs, rhs)]
-      DD.EitherRight' (DD.TupleTerm' [lhs,rhs]) -> pure [(False, lhs, rhs)]
-      DD.TupleTerm' rules -> traverse extract rules
+      DD.Rewrites' rules -> traverse extract rules 
       _ -> Cli.returnEarly (onErr rule)
   rules <- extractOuter tm 
   pure (ppe, currentNames, rules)

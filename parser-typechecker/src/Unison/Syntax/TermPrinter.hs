@@ -442,6 +442,24 @@ pretty0
                 pure $ PP.group (tupleLink "(" <> clist <> tupleLink ")")
               (App' f@(Builtin' "Any.Any") arg, _) ->
                 paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> goNormal 10 arg)
+              (DD.Rewrites' rs, _) -> do
+                let kw = fmt S.ControlKeyword "@rewrite" 
+                    arr = fmt S.ControlKeyword "==>"
+                    control = fmt S.ControlKeyword
+                    sub kw lhs = PP.sep " " <$> sequence [pure $ control kw, goNormal 0 lhs, pure arr]
+                    go (DD.RewriteTerm' lhs rhs) = PP.hang <$> sub "term" lhs <*> goNormal 0 rhs
+                    go (DD.RewriteCase' lhs rhs) = PP.hang <$> sub "case" lhs <*> goNormal 0 rhs
+                    go (DD.RewriteType' vs lhs rhs) = do
+                      lhs <- TypePrinter.pretty0 im 0 lhs
+                      PP.hang (PP.sep " " (stuff lhs)) <$> TypePrinter.pretty0 im 0 rhs
+                      where 
+                        stuff lhs = 
+                          [ control "signature" ]
+                          <> [ fmt S.Var (PP.text (Var.name v)) | v <- vs ]
+                          <> (if null vs then [] else [ fmt S.TypeOperator "." ])
+                          <> [ lhs, arr ]
+                    go tm = goNormal 10 tm
+                PP.hang kw <$> fmap PP.lines (traverse go rs)
               (Apps' f@(Constructor' _) args, _) ->
                 paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> PP.spacedTraverse (goNormal 10) args)
               {-
