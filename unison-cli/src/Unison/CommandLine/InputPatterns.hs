@@ -3,7 +3,7 @@
 -}
 module Unison.CommandLine.InputPatterns where
 
-import    Control.Lens (preview, (^.))
+import Control.Lens (preview, (^.))
 import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
 import Data.List.NonEmpty qualified as NE
