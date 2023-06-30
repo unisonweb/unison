@@ -18,6 +18,7 @@ module Unison.Name
     endsWithReverseSegments,
     endsWithSegments,
     stripReversedPrefix,
+    tryStripReversedPrefix,
     reverseSegments,
     segments,
     suffixes,
@@ -52,21 +53,21 @@ module Unison.Name
 where
 
 import Control.Lens (mapped, over, _1, _2)
-import qualified Data.List as List
-import qualified Data.List.Extra as List
+import Data.List qualified as List
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as List.NonEmpty
-import qualified Data.Map as Map
-import qualified Data.RFC5051 as RFC5051
-import qualified Data.Set as Set
+import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.Map qualified as Map
+import Data.RFC5051 qualified as RFC5051
+import Data.Set qualified as Set
 import Unison.Name.Internal
 import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
-import qualified Unison.Util.List as List
-import qualified Unison.Util.Relation as R
+import Unison.Util.List qualified as List
+import Unison.Util.Relation qualified as R
 
 -- | @compareSuffix x y@ compares the suffix of @y@ (in reverse segment order) that is as long as @x@ to @x@ (in reverse
 -- segment order).
@@ -160,17 +161,31 @@ endsWithReverseSegments :: Name -> [NameSegment] -> Bool
 endsWithReverseSegments (Name _ ss0) ss1 =
   List.NonEmpty.isPrefixOf ss1 ss0
 
--- >>> stripReversedPrefix "a.b.c" ["b", "a"]
--- Just c
--- >>> stripReversedPrefix "x.y" ["b", "a"]
+-- >>> stripReversedPrefix (fromReverseSegments ("c" :| ["b", "a"])) ["b", "a"]
+-- Just (Name Relative (NameSegment {toText = "c"} :| []))
+-- >>> stripReversedPrefix (fromReverseSegments ("y" :| ["x"])) ["b", "a"]
 -- Nothing
--- >>> stripReversedPrefix "a.b" ["b", "a"]
--- Nothing
+--
+-- >>> stripReversedPrefix (fromReverseSegments ("c" :| ["b", "a"])) ["b", "a"]
+-- Just (Name Relative (NameSegment {toText = "c"} :| []))
 stripReversedPrefix :: Name -> [NameSegment] -> Maybe Name
 stripReversedPrefix (Name p segs) suffix = do
   stripped <- List.stripSuffix suffix (toList segs)
   nonEmptyStripped <- List.NonEmpty.nonEmpty stripped
   pure $ Name p nonEmptyStripped
+
+-- | Like 'stripReversedPrefix' but if the prefix doesn't match, or if it would strip the
+-- entire name away just return the original name.
+--
+-- >>> tryStripReversedPrefix (fromReverseSegments ("c" :| ["b", "a"])) ["b", "a"]
+-- Name Relative (NameSegment {toText = "c"} :| [])
+-- >>> tryStripReversedPrefix (fromReverseSegments ("y" :| ["x"])) ["b", "a"]
+-- Name Relative (NameSegment {toText = "y"} :| [NameSegment {toText = "x"}])
+--
+-- >>> tryStripReversedPrefix (fromReverseSegments ("c" :| ["b", "a"])) ["b", "a"]
+-- Name Relative (NameSegment {toText = "c"} :| [])
+tryStripReversedPrefix :: Name -> [NameSegment] -> Name
+tryStripReversedPrefix n s = fromMaybe n (stripReversedPrefix n s)
 
 -- | @isPrefixOf x y@ returns whether @x@ is a prefix of (or equivalent to) @y@, which is false if one name is relative
 -- and the other is absolute.

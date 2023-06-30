@@ -7,52 +7,41 @@ module Unison.CommandLine.OutputMessages where
 
 import Control.Lens hiding (at)
 import Control.Monad.State
-import qualified Control.Monad.State.Strict as State
+import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans.Writer.CPS
-import qualified Data.ByteString.Lazy as LazyByteString
-import qualified Data.Foldable as Foldable
+import Data.ByteString.Lazy qualified as LazyByteString
+import Data.Foldable qualified as Foldable
 import Data.List (stripPrefix)
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.Extra (notNull, nubOrd, nubOrdOn)
-import qualified Data.List.NonEmpty as NEList
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Data.List.NonEmpty qualified as NEList
+import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
-import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import Data.Void (absurd)
-import qualified Network.HTTP.Types as Http
-import Network.URI (URI)
-import qualified Network.URI as URI
-import qualified Network.URI.Encode as URI
-import qualified Servant.Client as Servant
-import qualified System.Console.ANSI as ANSI
-import qualified System.Console.Haskeline.Completion as Completion
-import System.Directory
-  ( canonicalizePath,
-    doesFileExist,
-    getHomeDirectory,
-  )
+import Network.HTTP.Types qualified as Http
+import Servant.Client qualified as Servant
+import System.Console.ANSI qualified as ANSI
+import System.Console.Haskeline.Completion qualified as Completion
+import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
-import qualified U.Codebase.Sqlite.Project as Sqlite
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
-import U.Util.Base32Hex (Base32Hex)
-import qualified U.Util.Base32Hex as Base32Hex
-import qualified Unison.ABT as ABT
-import qualified Unison.Auth.Types as Auth
-import qualified Unison.Builtin.Decls as DD
-import Unison.Cli.ProjectUtils (projectBranchPathPrism)
-import qualified Unison.Cli.Share.Projects.Types as Share
+import Unison.ABT qualified as ABT
+import Unison.Auth.Types qualified as Auth
+import Unison.Builtin.Decls qualified as DD
+import Unison.Cli.Pretty
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
-import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
   ( CreatedProjectBranchFrom (..),
     DisplayDefinitionsOutput (..),
@@ -62,65 +51,54 @@ import Unison.Codebase.Editor.Output
     ShareError (..),
     TestReportStats (CachedTests, NewlyComputed),
     UndoFailureReason (CantUndoPastMerge, CantUndoPastStart),
-    WhichBranchEmpty (..),
   )
-import qualified Unison.Codebase.Editor.Output as E
-import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
-import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
-import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRepo,
-    ReadRemoteNamespace,
-    ShareUserHandle (..),
-    WriteGitRepo,
-    WriteRemoteNamespace (..),
-    WriteShareRemoteNamespace (..),
-    shareUserHandleToText,
-  )
-import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
-import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
-import qualified Unison.Codebase.Editor.TodoOutput as TO
+import Unison.Codebase.Editor.Output qualified as E
+import Unison.Codebase.Editor.Output.BranchDiff qualified as OBD
+import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
+import Unison.Codebase.Editor.RemoteRepo (ShareUserHandle (..), WriteRemoteNamespace (..), WriteShareRemoteNamespace (..))
+import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
+import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
+import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.GitError
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrityErrors)
 import Unison.Codebase.Patch (Patch (..))
-import qualified Unison.Codebase.Patch as Patch
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.Runtime as Runtime
+import Unison.Codebase.Patch qualified as Patch
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.PushBehavior qualified as PushBehavior
+import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.Codebase.SqliteCodebase.GitError
   ( GitSqliteCodebaseError (..),
   )
-import qualified Unison.Codebase.TermEdit as TermEdit
+import Unison.Codebase.TermEdit qualified as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
-import qualified Unison.Codebase.TypeEdit as TypeEdit
+import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.InputPattern (InputPattern)
 import Unison.CommandLine.InputPatterns (makeExample')
-import qualified Unison.CommandLine.InputPatterns as IP
+import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Hash as Hash
+import Unison.DataDeclaration qualified as DD
+import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
-import qualified Unison.Hash32 as Hash32
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as NameSegment
 import Unison.Names (Names (..))
-import qualified Unison.Names as Names
-import qualified Unison.NamesWithHistory as Names
+import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Util as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPED
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Util qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyTerminal
   ( clearCurrentLine,
     putPretty',
@@ -131,24 +109,24 @@ import Unison.PrintError
     printNoteWithSource,
     renderCompilerBug,
   )
-import Unison.Project (ProjectAndBranch (..), ProjectName, Semver (..))
+import Unison.Project (ProjectAndBranch (..))
 import Unison.Reference (Reference, TermReference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Referent' as Referent
-import qualified Unison.Result as Result
+import Unison.Referent qualified as Referent
+import Unison.Referent' qualified as Referent
+import Unison.Result qualified as Result
 import Unison.Server.Backend (ShallowListEntry (..), TypeEntry (..))
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.SearchResult' as SR'
-import qualified Unison.Share.Sync as Share
+import Unison.Server.Backend qualified as Backend
+import Unison.Server.SearchResult' qualified as SR'
+import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
-import qualified Unison.ShortHash as ShortHash
+import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
-import qualified Unison.Sync.Types as Share
-import qualified Unison.Syntax.DeclPrinter as DeclPrinter
-import qualified Unison.Syntax.HashQualified as HQ (toString, toText, unsafeFromVar)
-import qualified Unison.Syntax.Name as Name (toString, toText)
+import Unison.Sync.Types qualified as Share
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.HashQualified qualified as HQ (toString, toText, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toString, toText)
 import Unison.Syntax.NamePrinter
   ( SyntaxText,
     prettyHashQualified,
@@ -160,22 +138,21 @@ import Unison.Syntax.NamePrinter
     prettyReferent,
     prettyShortHash,
     styleHashQualified,
-    styleHashQualified',
   )
-import qualified Unison.Syntax.TermPrinter as TermPrinter
-import qualified Unison.Syntax.TypePrinter as TypePrinter
+import Unison.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.List as List
+import Unison.UnisonFile qualified as UF
+import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.Relation as R
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Pretty qualified as P
+import Unison.Util.Relation qualified as R
 import Unison.Var (Var)
-import qualified Unison.Var as Var
-import qualified Unison.WatchKind as WK
+import Unison.Var qualified as Var
+import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
 
 type Pretty = P.Pretty P.ColorText
@@ -234,7 +211,7 @@ notifyNumbered = \case
     first
       ( \p ->
           P.lines
-            [ P.wrap $ "Here's what's changed in " <> prettyPathOrProjectAndBranchName dest' <> "after the merge:",
+            [ P.wrap $ "Here's what's changed in " <> prettyNamespaceKey dest' <> "after the merge:",
               "",
               p,
               "",
@@ -259,7 +236,7 @@ notifyNumbered = \case
           P.lines
             [ P.wrap $
                 "Here's what's changed in "
-                  <> prettyPathOrProjectAndBranchName dest'
+                  <> prettyNamespaceKey dest'
                   <> "after applying the patch at "
                   <> P.group (prettyPath' patchPath' <> ":"),
               "",
@@ -267,7 +244,7 @@ notifyNumbered = \case
               "",
               tip $
                 "You can use "
-                  <> IP.makeExample IP.todo [prettyPath' patchPath', prettyPathOrProjectAndBranchName dest']
+                  <> IP.makeExample IP.todo [prettyPath' patchPath', prettyNamespaceKey dest']
                   <> "to see if this generated any work to do in this namespace"
                   <> "and "
                   <> IP.makeExample' IP.test
@@ -284,7 +261,7 @@ notifyNumbered = \case
     first
       ( \p ->
           P.lines
-            [ P.wrap $ "Here's what would change in " <> prettyPathOrProjectAndBranchName dest' <> "after the merge:",
+            [ P.wrap $ "Here's what would change in " <> prettyNamespaceKey dest' <> "after the merge:",
               "",
               p
             ]
@@ -469,6 +446,89 @@ notifyNumbered = \case
     )
     where
       switch = IP.makeExample IP.projectSwitch
+  AmbiguousReset sourceOfAmbiguity (ProjectAndBranch pn0 bn0, path) (ProjectAndBranch currentProject branch) ->
+    ( P.wrap
+        ( openingLine
+            <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
+            <> orTheNamespace
+            <> relPath0
+            <> "in the current branch."
+            <> "Could you be more specific?"
+        )
+        <> P.newline
+        <> P.newline
+        <> P.numberedList
+          [ prettySlashProjectBranchName branch <> " (the branch " <> prettyProjectBranchName branch <> " in the current project)",
+            relPath0 <> " (the relative path " <> relPath0 <> " in the current branch)"
+          ]
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( "use "
+              <> reset (resetArgs ["1"])
+              <> " or "
+              <> reset (resetArgs ["2"])
+              <> " to pick one of these."
+          ),
+      [ Text.unpack (Text.cons '/' (into @Text branch)),
+        Text.unpack (into @Text (show absPath0))
+      ]
+    )
+    where
+      openingLine = case sourceOfAmbiguity of
+        E.AmbiguousReset'Hash -> "I'm not sure if you wanted to reset to the branch"
+        E.AmbiguousReset'Target -> "I'm not sure if you wanted to reset the branch"
+      orTheNamespace = case sourceOfAmbiguity of
+        E.AmbiguousReset'Hash -> "or to the namespace"
+        E.AmbiguousReset'Target -> "or the namespace"
+      resetArgs = case sourceOfAmbiguity of
+        E.AmbiguousReset'Hash -> \xs -> xs
+        E.AmbiguousReset'Target -> \xs -> "<some hash>" : xs
+      reset = IP.makeExample IP.reset
+      relPath0 = prettyPath' (Path.toPath' path)
+      absPath0 = review ProjectUtils.projectBranchPathPrism (ProjectAndBranch (pn0 ^. #projectId) (bn0 ^. #branchId), path)
+  ListNamespaceDependencies _ppe _path Empty -> ("This namespace has no external dependencies.", mempty)
+  ListNamespaceDependencies ppe path' externalDependencies ->
+    ( P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
+        List.intersperse spacer (externalDepsTable externalDependencies),
+      numberedArgs
+    )
+    where
+      spacer = ("", "")
+      (nameNumbers, numberedArgs) = numberedDependents externalDependencies
+      getNameNumber name = fromMaybe (error "ListNamespaceDependencies: name is missing number") (Map.lookup name nameNumbers)
+      numberedDependents :: Map LabeledDependency (Set Name) -> (Map Name Int, NumberedArgs)
+      numberedDependents deps =
+        deps
+          & Map.elems
+          & List.foldl'
+            ( \(nextNum, (nameToNum, args)) names ->
+                let unnumberedNames = Set.toList $ Set.difference names (Map.keysSet nameToNum)
+                    newNextNum = nextNum + length unnumberedNames
+                 in ( newNextNum,
+                      ( nameToNum <> (Map.fromList (zip unnumberedNames [nextNum ..])),
+                        args <> fmap Name.toString unnumberedNames
+                      )
+                    )
+            )
+            (1, (mempty, mempty))
+          & snd
+      externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
+      externalDepsTable = ifoldMap $ \ld dependents ->
+        [(prettyLD ld, prettyDependents dependents)]
+      prettyLD :: LabeledDependency -> P.Pretty P.ColorText
+      prettyLD =
+        P.syntaxToColor
+          . prettyHashQualified
+          . LD.fold
+            (PPE.typeName ppe)
+            (PPE.termName ppe)
+      prettyDependents :: Set Name -> P.Pretty P.ColorText
+      prettyDependents refs =
+        refs
+          & Set.toList
+          & fmap (\name -> formatNum (getNameNumber name) <> prettyName name)
+          & P.lines
   where
     absPathToBranchId = Right
 
@@ -573,22 +633,6 @@ showListEdits patch ppe =
             ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
               "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTypeName)
             )
-
-prettyURI :: URI -> Pretty
-prettyURI = P.bold . P.blue . P.shown
-
-prettyReadRemoteNamespace :: ReadRemoteNamespace Share.RemoteProjectBranch -> Pretty
-prettyReadRemoteNamespace =
-  prettyReadRemoteNamespaceWith \remoteProjectBranch ->
-    into @Text (ProjectAndBranch (remoteProjectBranch ^. #projectName) (remoteProjectBranch ^. #branchName))
-
-prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
-prettyReadRemoteNamespaceWith printProject =
-  P.group . P.blue . P.text . RemoteRepo.printReadRemoteNamespace printProject
-
-prettyWriteRemoteNamespace :: WriteRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
-prettyWriteRemoteNamespace =
-  P.group . P.blue . P.text . RemoteRepo.printWriteRemoteNamespace
 
 notifyUser :: FilePath -> Output -> IO Pretty
 notifyUser dir = \case
@@ -1584,33 +1628,33 @@ notifyUser dir = \case
   PullAlreadyUpToDate ns dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPullTarget dest
+        prettyNamespaceKey dest
           <> "was already up-to-date with"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated"
-          <> prettyPullTarget dest
+          <> prettyNamespaceKey dest
           <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   AboutToMerge -> pure "Merging..."
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully pulled into " <> P.group (prettyPullTarget dest <> ", which was empty.")
+        "Successfully pulled into " <> P.group (prettyNamespaceKey dest <> ", which was empty.")
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPathOrProjectAndBranchName dest
+        prettyNamespaceKey dest
           <> "was already up-to-date with"
-          <> P.group (prettyPathOrProjectAndBranchName src <> ".")
+          <> P.group (prettyNamespaceKey src <> ".")
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyPathOrProjectAndBranchName dest
+        prettyNamespaceKey dest
           <> "is already up-to-date with"
-          <> P.group (prettyPathOrProjectAndBranchName src <> ".")
+          <> P.group (prettyNamespaceKey src <> ".")
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
@@ -1652,28 +1696,6 @@ notifyUser dir = \case
     pure $ listDependentsOrDependencies ppe "Dependents" "dependents" lds types terms
   ListDependencies ppe lds types terms ->
     pure $ listDependentsOrDependencies ppe "Dependencies" "dependencies" lds types terms
-  ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
-  ListNamespaceDependencies ppe path' externalDependencies -> do
-    let spacer = ("", "")
-    pure . P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
-      List.intersperse spacer (externalDepsTable externalDependencies)
-    where
-      externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
-      externalDepsTable = ifoldMap $ \ld dependents ->
-        [(prettyLD ld, prettyDependents dependents)]
-      prettyLD :: LabeledDependency -> P.Pretty P.ColorText
-      prettyLD =
-        P.syntaxToColor
-          . prettyHashQualified
-          . LD.fold
-            (PPE.typeName ppe)
-            (PPE.termName ppe)
-      prettyDependents :: Set Name -> P.Pretty P.ColorText
-      prettyDependents refs =
-        refs
-          & Set.toList
-          & fmap prettyName
-          & P.lines
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       ( effects <&> \(n, r) ->
@@ -1791,15 +1813,19 @@ notifyUser dir = \case
   PulledEmptyBranch remote ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyReadRemoteNamespace remote) <> "has some history, but is currently empty."
-  CreatedProject projectName branchName ->
+  CreatedProject nameWasRandomlyGenerated projectName ->
     pure $
-      P.wrap
-        ( "I just created project"
-            <> prettyProjectName projectName
-            <> "with branch"
-            <> prettyProjectBranchName branchName
-        )
-        <> "."
+      if nameWasRandomlyGenerated
+        then
+          P.wrap $
+            "🎉 I've created the project with the randomly-chosen name"
+              <> prettyProjectName projectName
+              <> "(use"
+              <> IP.makeExample IP.projectRenameInputPattern ["<new-name>"]
+              <> "to change it)."
+        else
+          P.wrap $
+            "🎉 I've created the project" <> P.group (prettyProjectName projectName <> ".")
   CreatedProjectBranch from projectAndBranch ->
     case from of
       CreatedProjectBranchFrom'LooseCode path ->
@@ -1885,9 +1911,11 @@ notifyUser dir = \case
   NoAssociatedRemoteProject host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "isn't associated with any project on" <> prettyURI host
-  NoAssociatedRemoteProjectBranch host projectAndBranch ->
+  NoAssociatedRemoteProjectBranch host (ProjectAndBranch project branch) ->
     pure . P.wrap $
-      prettyProjectAndBranchName projectAndBranch <> "isn't associated with any branch on" <> prettyURI host
+      prettyProjectAndBranchName (ProjectAndBranch (project ^. #name) (branch ^. #name))
+        <> "isn't associated with any branch on"
+        <> prettyURI host
   LocalProjectDoesntExist project ->
     pure . P.wrap $
       prettyProjectName project <> "does not exist."
@@ -1933,7 +1961,13 @@ notifyUser dir = \case
       P.text ("Unauthorized: " <> message)
   ServantClientError err ->
     pure case err of
-      Servant.ConnectionError _exception -> P.wrap "Something went wrong with the connection. Try again?"
+      Servant.ConnectionError exception ->
+        P.wrap $
+          fromMaybe "Something went wrong with the connection. Try again?" do
+            case ServantClientUtils.classifyConnectionError exception of
+              ServantClientUtils.ConnectionError'Offline -> Just "You appear to be offline."
+              ServantClientUtils.ConnectionError'SomethingElse _ -> Nothing
+              ServantClientUtils.ConnectionError'SomethingEntirelyUnexpected _ -> Nothing
       Servant.DecodeFailure message response ->
         P.wrap "Huh, I failed to decode a response from the server."
           <> P.newline
@@ -2066,6 +2100,49 @@ notifyUser dir = \case
         <> if remote == local
           then P.group (prettyProjectAndBranchName remote <> ".")
           else prettyProjectAndBranchName remote <> "as" <> P.group (prettyProjectAndBranchName local <> ".")
+  RenamedProject oldName newName ->
+    pure . P.wrap $
+      if oldName == newName
+        then prettyProjectName oldName <> "is already named" <> P.group (prettyProjectName oldName <> "!") <> "😄"
+        else "Ok, I renamed" <> prettyProjectName oldName <> "to" <> P.group (prettyProjectName newName <> ".")
+  RenamedProjectBranch projectName oldBranchName newBranchName ->
+    let oldProjectAndBranchName = prettyProjectAndBranchName (ProjectAndBranch projectName oldBranchName)
+        newProjectAndBranchName = prettyProjectAndBranchName (ProjectAndBranch projectName newBranchName)
+     in pure . P.wrap $
+          if oldBranchName == newBranchName
+            then oldProjectAndBranchName <> "is already named" <> P.group (newProjectAndBranchName <> "!") <> "😄"
+            else "Ok, I renamed" <> oldProjectAndBranchName <> "to" <> P.group (newProjectAndBranchName <> ".")
+  CantRenameBranchTo branch ->
+    pure . P.wrap $
+      "You can't rename a branch to" <> P.group (prettyProjectBranchName branch <> ".")
+  FetchingLatestReleaseOfBase ->
+    pure . P.wrap $
+      "I'll now fetch the latest version of the base Unison library..."
+  FailedToFetchLatestReleaseOfBase ->
+    pure . P.wrap $ "Sorry something went wrong while fetching the library."
+  HappyCoding -> do
+    pure $
+      P.wrap "🎨 Type `ui` to explore this project's code in your browser."
+        <> P.newline
+        <> P.wrap ("🔭 Discover libraries at https://share.unison-lang.org")
+        <> P.newline
+        <> P.wrap "📖 Use `help-topic projects` to learn more about projects."
+        <> P.newline
+        <> P.newline
+        <> P.wrap "Write your first Unison code with UCM:"
+        <> P.newline
+        <> P.newline
+        <> P.indentN
+          2
+          ( P.wrap "1. Open scratch.u."
+              <> P.newline
+              <> P.wrap "2. Write some Unison code and save the file."
+              <> P.newline
+              <> P.wrap "3. In UCM, type `add` to save it to your new project."
+          )
+        <> P.newline
+        <> P.newline
+        <> P.wrap "🎉 🥳 Happy coding!"
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -2301,111 +2378,6 @@ sharePathToWriteRemotePathShare sharePath =
         repo = ShareUserHandle $ Share.unRepoInfo (Share.pathRepoInfo sharePath),
         path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
       }
-
-shareOrigin :: Text
-shareOrigin = "https://share.unison-lang.org"
-
-prettyRepoInfo :: Share.RepoInfo -> Pretty
-prettyRepoInfo (Share.RepoInfo repoInfo) =
-  P.blue (P.text repoInfo)
-
-prettyShareLink :: WriteShareRemoteNamespace -> Pretty
-prettyShareLink WriteShareRemoteNamespace {repo, path} =
-  let encodedPath =
-        Path.toList path
-          & fmap (URI.encodeText . NameSegment.toText)
-          & Text.intercalate "/"
-   in P.green . P.text $ shareOrigin <> "/@" <> shareUserHandleToText repo <> "/p/code/latest/namespaces/" <> encodedPath
-
-prettySharePath :: Share.Path -> Pretty
-prettySharePath =
-  prettyRelative
-    . Path.Relative
-    . Path.fromList
-    . coerce @[Text] @[NameSegment]
-    . toList
-    . Share.pathSegments
-
-prettyFilePath :: FilePath -> Pretty
-prettyFilePath fp =
-  P.blue (P.string fp)
-
-prettyPath' :: Path.Path' -> Pretty
-prettyPath' p' =
-  if Path.isCurrentPath p'
-    then "the current namespace"
-    else P.blue (P.shown p')
-
-prettyPullTarget :: Input.PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Pretty
-prettyPullTarget = \case
-  Input.PullTargetLooseCode path -> prettyPath' path
-  Input.PullTargetProject (ProjectAndBranch project branch) ->
-    prettyProjectAndBranchName (ProjectAndBranch (project ^. #name) (branch ^. #name))
-
-prettyBranchId :: Input.AbsBranchId -> Pretty
-prettyBranchId = \case
-  Left sch -> prettySCH sch
-  Right absPath -> prettyAbsolute $ absPath
-
-prettyRelative :: Path.Relative -> Pretty
-prettyRelative = P.blue . P.shown
-
-prettyAbsolute :: Path.Absolute -> Pretty
-prettyAbsolute = P.blue . P.shown
-
-prettySCH :: (IsString s) => ShortCausalHash -> P.Pretty s
-prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)
-
-prettyCausalHash :: (IsString s) => CausalHash -> P.Pretty s
-prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . unCausalHash $ hash)
-
-prettyBase32Hex :: (IsString s) => Base32Hex -> P.Pretty s
-prettyBase32Hex = P.text . Base32Hex.toText
-
-prettyBase32Hex# :: (IsString s) => Base32Hex -> P.Pretty s
-prettyBase32Hex# b = P.group $ "#" <> prettyBase32Hex b
-
-prettyHash :: (IsString s) => Hash.Hash -> P.Pretty s
-prettyHash = prettyBase32Hex# . Hash.toBase32Hex
-
-prettyHash32 :: (IsString s) => Hash32 -> P.Pretty s
-prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
-
-prettyProjectName :: ProjectName -> Pretty
-prettyProjectName =
-  P.green . P.text . into @Text
-
--- | 'prettyProjectName' with a trailing slash.
-prettyProjectNameSlash :: ProjectName -> Pretty
-prettyProjectNameSlash project =
-  P.group (prettyProjectName project <> P.hiBlack "/")
-
-prettyProjectBranchName :: ProjectBranchName -> Pretty
-prettyProjectBranchName =
-  P.blue . P.text . into @Text
-
-prettySemver :: Semver -> Pretty
-prettySemver (Semver x y z) =
-  P.group (P.num x <> "." <> P.num y <> "." <> P.num z)
-
--- | Like 'prettyProjectBranchName', but with a leading forward slash. This is used in some outputs to
--- encourage/advertise an unambiguous syntax for project branches, as there's an ambiguity with single-segment relative
--- paths.
---
--- Not all project branches are printed such: for example, when listing all branches of a project, we probably don't
--- need or want to prefix every one with a forward slash.
-prettySlashProjectBranchName :: ProjectBranchName -> Pretty
-prettySlashProjectBranchName branch =
-  P.group (P.hiBlack "/" <> prettyProjectBranchName branch)
-
-prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
-prettyProjectAndBranchName (ProjectAndBranch project branch) =
-  P.group (prettyProjectName project <> P.hiBlack "/" <> prettyProjectBranchName branch)
-
-prettyPathOrProjectAndBranchName :: Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
-prettyPathOrProjectAndBranchName = \case
-  Left x -> prettyPath' x
-  Right x -> prettyProjectAndBranchName x
 
 formatMissingStuff ::
   (Show tm, Show typ) =>
@@ -2647,64 +2619,6 @@ unsafePrettyTermResultSig' ppe = \case
     head (TypePrinter.prettySignaturesCT ppe [(r, name, typ)])
   _ -> error "Don't pass Nothing"
 
--- produces:
--- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms#0
--- Optional.None, Maybe.Nothing : Maybe a
-unsafePrettyTermResultSigFull' ::
-  (Var v) =>
-  PPE.PrettyPrintEnv ->
-  SR'.TermResult' v a ->
-  Pretty
-unsafePrettyTermResultSigFull' ppe = \case
-  SR'.TermResult' hq (Just typ) r aliases ->
-    P.lines
-      [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r),
-        P.group $
-          P.commas (fmap greyHash $ hq : map HQ'.toHQ (toList aliases))
-            <> " : "
-            <> P.syntaxToColor (TypePrinter.prettySyntax ppe typ),
-        mempty
-      ]
-  _ -> error "Don't pass Nothing"
-  where
-    greyHash = styleHashQualified' id P.hiBlack
-
-prettyTypeResultHeader' :: (Var v) => SR'.TypeResult' v a -> Pretty
-prettyTypeResultHeader' (SR'.TypeResult' name dt r _aliases) =
-  prettyDeclTriple (name, r, dt)
-
--- produces:
--- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms
--- type Optional
--- type Maybe
-prettyTypeResultHeaderFull' :: (Var v) => SR'.TypeResult' v a -> Pretty
-prettyTypeResultHeaderFull' (SR'.TypeResult' name dt r aliases) =
-  P.lines stuff <> P.newline
-  where
-    stuff =
-      (P.hiBlack "-- " <> greyHash (HQ.fromReference r))
-        : fmap
-          (\name -> prettyDeclTriple (name, r, dt))
-          (name : map HQ'.toHQ (toList aliases))
-      where
-        greyHash = styleHashQualified' id P.hiBlack
-
-prettyDeclTriple ::
-  (Var v) =>
-  (HQ.HashQualified Name, Reference.Reference, DisplayObject () (DD.Decl v a)) ->
-  Pretty
-prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-  BuiltinObject _ -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
-  MissingObject _ -> mempty -- these need to be handled elsewhere
-  UserObject decl -> P.syntaxToColor $ DeclPrinter.prettyDeclHeader name decl
-
-prettyDeclPair ::
-  (Var v) =>
-  PPE.PrettyPrintEnv ->
-  (Reference, DisplayObject () (DD.Decl v a)) ->
-  Pretty
-prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
-
 renderNameConflicts :: PPE.PrettyPrintEnv -> Names -> Numbered Pretty
 renderNameConflicts ppe conflictedNames = do
   let conflictedTypeNames :: Map Name [HQ.HashQualified Name]
@@ -2798,7 +2712,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2813,7 +2727,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)
@@ -3619,34 +3533,6 @@ prettyDiff diff =
             else mempty
         ]
 
-prettyTermName :: PPE.PrettyPrintEnv -> Referent -> Pretty
-prettyTermName ppe r =
-  P.syntaxToColor $
-    prettyHashQualified (PPE.termName ppe r)
-
-prettyTypeName :: PPE.PrettyPrintEnv -> Reference -> Pretty
-prettyTypeName ppe r =
-  P.syntaxToColor $
-    prettyHashQualified (PPE.typeName ppe r)
-
-prettyReadGitRepo :: ReadGitRepo -> Pretty
-prettyReadGitRepo = \case
-  RemoteRepo.ReadGitRepo {url} -> P.blue (P.text url)
-
-prettyWriteGitRepo :: WriteGitRepo -> Pretty
-prettyWriteGitRepo RemoteRepo.WriteGitRepo {url} = P.blue (P.text url)
-
--- prettyWriteRepo :: WriteRepo -> Pretty
--- prettyWriteRepo = \case
---   RemoteRepo.WriteRepoGit RemoteRepo.WriteGitRepo {url} -> P.blue (P.text url)
---   RemoteRepo.WriteRepoShare s -> P.blue (P.text (RemoteRepo.printShareRepo s))
-
--- | Pretty-print a 'WhichBranchEmpty'.
-prettyWhichBranchEmpty :: WhichBranchEmpty -> Pretty
-prettyWhichBranchEmpty = \case
-  WhichBranchEmptyHash hash -> P.shown hash
-  WhichBranchEmptyPath path -> prettyPath' path
-
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of
   Term.List' ts -> all isSuccess ts
@@ -3706,67 +3592,6 @@ endangeredDependentsTable ppeDecl m =
       refs
         & fmap (\(n, dep) -> numArg n <> prettyLabeled fqnEnv dep)
         & P.lines
-
--- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
-displayBranchHash :: CausalHash -> String
-displayBranchHash = ("#" <>) . Text.unpack . Hash.toBase32HexText . unCausalHash
-
-prettyHumanReadableTime :: UTCTime -> UTCTime -> Pretty
-prettyHumanReadableTime now time =
-  P.green . P.string $ humanReadableTimeI18N' terseTimeLocale now time
-  where
-    terseTimeLocale =
-      defaultHumanTimeLocale
-        { justNow = "now",
-          secondsAgo = \f -> (++ " secs" ++ dir f),
-          oneMinuteAgo = \f -> "a min" ++ dir f,
-          minutesAgo = \f -> (++ " mins" ++ dir f),
-          oneHourAgo = \f -> "an hour" ++ dir f,
-          aboutHoursAgo = \f x -> "about " ++ x ++ " hours" ++ dir f,
-          at = \_ t -> t,
-          daysAgo = \f -> (++ " days" ++ dir f),
-          weekAgo = \f -> (++ " week" ++ dir f),
-          weeksAgo = \f -> (++ " weeks" ++ dir f),
-          onYear = \dt -> dt,
-          dayOfWeekFmt = "%A, %-l:%M%p",
-          thisYearFmt = "%b %e",
-          prevYearFmt = "%b %e, %Y"
-        }
-
-    dir True = " from now"
-    dir False = " ago"
-
-prettyRemoteBranchInfo :: (URI, ProjectName, ProjectBranchName) -> Pretty
-prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
-  -- Special-case Unison Share since we know its project branch URLs
-  if URI.uriToString id host "" == "https://api.unison-lang.org"
-    then
-      P.hiBlack . P.text $
-        "https://share.unison-lang.org/"
-          <> into @Text remoteProject
-          <> "/code/"
-          <> into @Text remoteBranch
-    else
-      prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
-        <> " on "
-        <> P.hiBlack (P.shown host)
-
-stripProjectBranchInfo :: Path.Absolute -> Maybe Path.Path
-stripProjectBranchInfo = fmap snd . preview projectBranchPathPrism
-
-prettyAbsoluteStripProject :: Path.Absolute -> Pretty
-prettyAbsoluteStripProject path =
-  P.blue case stripProjectBranchInfo path of
-    Just p -> P.shown p
-    Nothing -> P.shown path
-
-prettyLabeledDependencies :: PPE.PrettyPrintEnv -> Set LabeledDependency -> Pretty
-prettyLabeledDependencies ppe lds =
-  P.syntaxToColor (P.sep ", " (ld <$> toList lds))
-  where
-    ld = \case
-      LD.TermReferent r -> prettyHashQualified (PPE.termNameOrHashOnly ppe r)
-      LD.TypeReference r -> "type " <> prettyHashQualified (PPE.typeNameOrHashOnly ppe r)
 
 listDependentsOrDependencies ::
   PPE.PrettyPrintEnv ->

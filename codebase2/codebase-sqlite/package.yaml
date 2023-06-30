@@ -12,6 +12,7 @@ extra-source-files:
 
 dependencies:
   - Only
+  - aeson
   - base
   - bytes
   - bytestring
@@ -44,6 +45,7 @@ dependencies:
   - uuid
   - uuid-orphans-sqlite
   - vector
+  - witch
 
 default-extensions:
   - ApplicativeDo
@@ -63,6 +65,7 @@ default-extensions:
   - FlexibleInstances
   - FunctionalDependencies
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - InstanceSigs
   - LambdaCase
   - MultiParamTypeClasses

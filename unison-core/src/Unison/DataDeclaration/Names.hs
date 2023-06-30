@@ -3,17 +3,17 @@
 module Unison.DataDeclaration.Names (bindNames, dataDeclToNames', effectDeclToNames') where
 
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration (DataDeclaration), EffectDeclaration)
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Name as Name
+import Unison.DataDeclaration qualified as DD
+import Unison.Name qualified as Name
 import Unison.Names (Names (Names))
-import qualified Unison.Names.ResolutionResult as Names
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Type.Names as Type.Names
-import qualified Unison.Util.Relation as Rel
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Type.Names qualified as Type.Names
+import Unison.Util.Relation qualified as Rel
 import Unison.Var (Var)
 import Prelude hiding (cycle)
 

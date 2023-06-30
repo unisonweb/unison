@@ -17,41 +17,41 @@ module Unison.Hashing.V2.Convert
 where
 
 import Control.Lens (over, _3)
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Control.Monad.Trans.Writer.CPS (Writer)
-import qualified Control.Monad.Trans.Writer.CPS as Writer
+import Control.Monad.Trans.Writer.CPS qualified as Writer
 import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
 import Data.Foldable (toList)
 import Data.Functor ((<&>))
 import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import U.Codebase.HashTags (CausalHash (..), PatchHash (..))
-import qualified Unison.ABT as ABT
-import qualified Unison.Codebase.Branch.Type as Memory.Branch
-import qualified Unison.Codebase.Patch as Memory.Patch
-import qualified Unison.Codebase.TermEdit as Memory.TermEdit
-import qualified Unison.Codebase.TypeEdit as Memory.TypeEdit
-import qualified Unison.ConstructorReference as Memory.ConstructorReference
-import qualified Unison.ConstructorType as CT
-import qualified Unison.ConstructorType as Memory.ConstructorType
-import qualified Unison.DataDeclaration as Memory.DD
+import Unison.ABT qualified as ABT
+import Unison.Codebase.Branch.Type qualified as Memory.Branch
+import Unison.Codebase.Patch qualified as Memory.Patch
+import Unison.Codebase.TermEdit qualified as Memory.TermEdit
+import Unison.Codebase.TypeEdit qualified as Memory.TypeEdit
+import Unison.ConstructorReference qualified as Memory.ConstructorReference
+import Unison.ConstructorType qualified as CT
+import Unison.ConstructorType qualified as Memory.ConstructorType
+import Unison.DataDeclaration qualified as Memory.DD
 import Unison.Hash (Hash, HashFor (HashFor))
-import qualified Unison.Hashing.V2 as Hashing
-import qualified Unison.Kind as Memory.Kind
-import qualified Unison.NameSegment as Memory.NameSegment
+import Unison.Hashing.V2 qualified as Hashing
+import Unison.Kind qualified as Memory.Kind
+import Unison.NameSegment qualified as Memory.NameSegment
 import Unison.Names.ResolutionResult (ResolutionResult)
-import qualified Unison.Pattern as Memory.Pattern
-import qualified Unison.Reference as Memory.Reference
-import qualified Unison.Referent as Memory.Referent
-import qualified Unison.Syntax.Name as Name (unsafeFromVar)
-import qualified Unison.Term as Memory.Term
-import qualified Unison.Type as Memory.Type
-import qualified Unison.Util.Map as Map
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Star3 as Memory.Star3
+import Unison.Pattern qualified as Memory.Pattern
+import Unison.Reference qualified as Memory.Reference
+import Unison.Referent qualified as Memory.Referent
+import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Term qualified as Memory.Term
+import Unison.Type qualified as Memory.Type
+import Unison.Util.Map qualified as Map
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Star3 qualified as Memory.Star3
 import Unison.Var (Var)
 
 typeToReference :: (Var v) => Memory.Type.Type v a -> Memory.Reference.Reference

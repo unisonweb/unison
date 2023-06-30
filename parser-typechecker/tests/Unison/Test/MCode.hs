@@ -6,7 +6,7 @@
 module Unison.Test.MCode where
 
 import Control.Concurrent.STM
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import EasyTest
 import Unison.Reference (Reference (Builtin))
 import Unison.Runtime.ANF

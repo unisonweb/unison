@@ -250,6 +250,40 @@ test> Text.tests.patterns =
     isMatch (join [l "abra", many (l "cadabra")]) "abracadabracadabra" == true,
 
   ]
+
+
+test> Text.tests.indexOf =
+   haystack = "01020304" ++ "05060708" ++ "090a0b0c01"
+   needle1 = "01"
+   needle2 = "02"
+   needle3 = "0304"
+   needle4 = "05"
+   needle5 = "0405"
+   needle6 = "0c"
+   needle7 = haystack
+   needle8 = "lopez"
+   needle9 = ""
+   checks [
+     Text.indexOf needle1 haystack == Some 0,
+     Text.indexOf needle2 haystack == Some 2,
+     Text.indexOf needle3 haystack == Some 4,
+     Text.indexOf needle4 haystack == Some 8,
+     Text.indexOf needle5 haystack == Some 6,
+     Text.indexOf needle6 haystack == Some 22,
+     Text.indexOf needle7 haystack == Some 0,
+     Text.indexOf needle8 haystack == None,
+     Text.indexOf needle9 haystack == Some 0,
+   ]
+   
+test> Text.tests.indexOfEmoji = 
+  haystack = "clap 👏 your 👏 hands 👏 if 👏 you 👏 love 👏 unison"
+  needle1 = "👏"
+  needle2 = "👏 "
+  checks [
+    Text.indexOf needle1 haystack == Some 5,
+    Text.indexOf needle2 haystack == Some 5,
+  ]
+
 ```
 
 ```ucm:hide
@@ -291,6 +325,28 @@ test> Bytes.tests.fromBase64UrlUnpadded =
            '(fromUtf8
               (raiseMessage () (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ")))) == Right "hello world"
          , isLeft (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ="))]
+
+test> Bytes.tests.indexOf =
+   haystack = 0xs01020304 ++ 0xs05060708 ++ 0xs090a0b0c01
+   needle1 = 0xs01
+   needle2 = 0xs02
+   needle3 = 0xs0304
+   needle4 = 0xs05
+   needle5 = 0xs0405
+   needle6 = 0xs0c
+   needle7 = haystack
+   needle8 = 0xsffffff
+   checks [
+     Bytes.indexOf needle1 haystack == Some 0,
+     Bytes.indexOf needle2 haystack == Some 1,
+     Bytes.indexOf needle3 haystack == Some 2,
+     Bytes.indexOf needle4 haystack == Some 4,
+     Bytes.indexOf needle5 haystack == Some 3,
+     Bytes.indexOf needle6 haystack == Some 11,
+     Bytes.indexOf needle7 haystack == Some 0,
+     Bytes.indexOf needle8 haystack == None,
+
+   ]
 
 ```
 

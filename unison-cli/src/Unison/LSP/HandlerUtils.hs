@@ -4,10 +4,10 @@ module Unison.LSP.HandlerUtils where
 
 import Control.Lens
 import Control.Monad.Reader
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Language.LSP.Types
 import Language.LSP.Types.Lens as LSP
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 import Unison.Prelude
 import UnliftIO (race_)

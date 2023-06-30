@@ -8,8 +8,8 @@ import U.Codebase.Reference (Reference')
 import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalIds', LocalTextId)
 import U.Codebase.Sqlite.Symbol (Symbol)
-import qualified U.Codebase.Type as Type
-import qualified U.Core.ABT as ABT
+import U.Codebase.Type qualified as Type
+import U.Core.ABT qualified as ABT
 import Unison.Prelude
 
 -- | Add new formats here

@@ -57,6 +57,7 @@ dependencies:
   - pretty-simple
   - process
   - random >= 1.2.0
+  - random-shuffle
   - recover-rtti
   - regex-tdfa
   - semialign
@@ -184,9 +185,11 @@ default-extensions:
   - FlexibleInstances
   - GADTs
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - InstanceSigs
   - LambdaCase
   - MultiParamTypeClasses
+  - MultiWayIf
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedLabels

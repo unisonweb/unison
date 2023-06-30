@@ -3,11 +3,11 @@
 
 module Unison.Symbol where
 
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
 import Unison.Prelude
 import Unison.Var (Var (..))
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 data Symbol = Symbol !Word64 Var.Type deriving (Generic)
 

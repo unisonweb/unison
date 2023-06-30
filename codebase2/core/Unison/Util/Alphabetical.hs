@@ -4,8 +4,8 @@
 
 module Unison.Util.Alphabetical where
 
-import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.RFC5051 as RFC5051
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.RFC5051 qualified as RFC5051
 import Data.Text (Text)
 
 -- Alphabetical ordering used for sorting things to display to humans.

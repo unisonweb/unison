@@ -3,11 +3,12 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Server.Endpoints.NamespaceDetails where
+module Unison.Server.Local.Endpoints.NamespaceDetails where
 
 import Control.Monad.Except
 import Data.Aeson
@@ -70,7 +71,12 @@ data NamespaceDetails = NamespaceDetails
   deriving (Generic, Show)
 
 instance ToJSON NamespaceDetails where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON NamespaceDetails {..} =
+    object
+      [ "fqn" .= fqn,
+        "hash" .= hash,
+        "readme" .= readme
+      ]
 
 deriving instance ToSchema NamespaceDetails
 

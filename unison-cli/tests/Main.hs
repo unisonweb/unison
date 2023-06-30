@@ -4,12 +4,11 @@ import EasyTest
 import System.Environment (getArgs)
 import System.IO
 import System.IO.CodePage (withCP65001)
-import qualified Unison.Test.ClearCache as ClearCache
-import qualified Unison.Test.Cli.Monad as Cli.Monad
-import qualified Unison.Test.GitSync as GitSync
-import qualified Unison.Test.LSP as LSP
-import qualified Unison.Test.UriParser as UriParser
-import qualified Unison.Test.VersionParser as VersionParser
+import Unison.Test.ClearCache qualified as ClearCache
+import Unison.Test.Cli.Monad qualified as Cli.Monad
+import Unison.Test.GitSync qualified as GitSync
+import Unison.Test.LSP qualified as LSP
+import Unison.Test.UriParser qualified as UriParser
 
 test :: Test ()
 test =
@@ -18,8 +17,7 @@ test =
       ClearCache.test,
       Cli.Monad.test,
       GitSync.test,
-      UriParser.test,
-      VersionParser.test
+      UriParser.test
     ]
 
 main :: IO ()

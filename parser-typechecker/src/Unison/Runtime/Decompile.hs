@@ -43,7 +43,7 @@ import Unison.Term
     typeLink,
     pattern LamNamed',
   )
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type
   ( anyRef,
     booleanRef,
@@ -55,9 +55,9 @@ import Unison.Type
     termLinkRef,
     typeLinkRef,
   )
-import qualified Unison.Util.Bytes as By
+import Unison.Util.Bytes qualified as By
 import Unison.Util.Pretty (lit)
-import qualified Unison.Util.Text as Text
+import Unison.Util.Text qualified as Text
 import Unison.Var (Var)
 import Unsafe.Coerce -- for Int -> Double
 

@@ -5,30 +5,30 @@ module Unison.LSP.Hover where
 
 import Control.Lens hiding (List)
 import Control.Monad.Reader
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
-import qualified Unison.ABT as ABT
-import qualified Unison.HashQualified as HQ
+import Unison.ABT qualified as ABT
+import Unison.HashQualified qualified as HQ
 import Unison.LSP.FileAnalysis (ppedForFile)
-import qualified Unison.LSP.Queries as LSPQ
+import Unison.LSP.Queries qualified as LSPQ
 import Unison.LSP.Types
-import qualified Unison.LSP.VFS as VFS
-import qualified Unison.LabeledDependency as LD
+import Unison.LSP.VFS qualified as VFS
+import Unison.LabeledDependency qualified as LD
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.Reference as Reference
-import qualified Unison.Runtime.IOSource as IOSource
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Reference qualified as Reference
+import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.DeclPrinter as DeclPrinter
-import qualified Unison.Syntax.Name as Name
-import qualified Unison.Syntax.TypePrinter as TypePrinter
-import qualified Unison.Term as Term
-import qualified Unison.Util.Pretty as Pretty
-import qualified UnliftIO
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.TypePrinter qualified as TypePrinter
+import Unison.Term qualified as Term
+import Unison.Util.Pretty qualified as Pretty
+import UnliftIO qualified
 
 -- | Hover help handler
 --
