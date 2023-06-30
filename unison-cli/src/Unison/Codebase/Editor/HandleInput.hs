@@ -137,11 +137,7 @@ import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as ConstructorType
-import Unison.Core.Project
-  ( ProjectAndBranch (..),
-    ProjectBranchName (..),
-    ProjectName (..),
-  )
+import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
@@ -219,6 +215,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Web.Browser (openBrowser)
+import Witch (unsafeFrom)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -2449,8 +2446,8 @@ doFetchCompiler username branch =
     -- fetching info
     prj =
       These
-        (UnsafeProjectName $ "@" <> Text.pack username <> "/internal")
-        (UnsafeProjectBranchName $ Text.pack branch)
+        (unsafeFrom $ "@" <> Text.pack username <> "/internal")
+        (unsafeFrom $ Text.pack branch)
 
     sourceTarget =
       PullSourceTarget2
