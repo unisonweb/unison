@@ -7,7 +7,10 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
-module Main where
+module Main
+  ( main,
+  )
+where
 
 import ArgParse
   ( CodebasePathOption (..),
@@ -15,7 +18,6 @@ import ArgParse
     GlobalOptions (GlobalOptions, codebasePathOption, exitOption),
     IsHeadless (Headless, WithCLI),
     RunSource (..),
-    ShouldDownloadBase (..),
     ShouldExit (DoNotExit, Exit),
     ShouldForkCodebase (..),
     ShouldSaveCodebase (..),
@@ -25,7 +27,6 @@ import ArgParse
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Concurrent.STM
-import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
 import Data.ByteString.Lazy qualified as BL
 import Data.Configurator.Types (Config)
@@ -37,13 +38,11 @@ import Data.Text.IO qualified as Text
 import GHC.Conc (setUncaughtExceptionHandler)
 import GHC.Conc qualified
 import Ki qualified
-import Language.Haskell.TH qualified as TH
-import Language.Haskell.TH.Syntax qualified as TH
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
 import Stats (recordRtsStats)
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
-import System.Environment (getProgName, lookupEnv, withArgs)
+import System.Environment (getProgName, withArgs)
 import System.Exit qualified as Exit
 import System.FilePath qualified as FP
 import System.IO (stderr)
@@ -51,15 +50,12 @@ import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
 import System.IO.Temp qualified as Temp
 import System.Path qualified as Path
-import Text.Megaparsec (runParser)
 import Text.Pretty.Simple (pHPrint)
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input qualified as Input
-import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode)
-import Unison.Codebase.Editor.UriParser (parseReadShareLooseCode)
-import Unison.Codebase.Editor.VersionParser qualified as VP
 import Unison.Codebase.Execute (execute)
 import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResult (..), SpecifiedCodebase (..))
 import Unison.Codebase.Init qualified as CodebaseInit
@@ -74,6 +70,7 @@ import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.LSP qualified as LSP
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -145,7 +142,6 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                         [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
                         serverUrl
                         startPath
-                        ShouldNotDownloadBase
                         initRes
                         noOpRootNotifier
                         noOpPathNotifier
@@ -171,7 +167,6 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                     [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
                     serverUrl
                     startPath
-                    ShouldNotDownloadBase
                     initRes
                     noOpRootNotifier
                     noOpPathNotifier
@@ -245,11 +240,21 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
           case mrtsStatsFp of
             Nothing -> action
             Just fp -> recordRtsStats fp action
-        Launch isHeadless codebaseServerOpts downloadBase mayStartingPath shouldWatchFiles -> do
+        Launch isHeadless codebaseServerOpts mayStartingPath shouldWatchFiles -> do
           getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
             withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
+              startingPath <- case isHeadless of
+                WithCLI -> do
+                  -- If the user didn't provide a starting path on the command line, put them in the most recent
+                  -- path they cd'd to
+                  case mayStartingPath of
+                    Just startingPath -> pure startingPath
+                    Nothing -> do
+                      segments <- Codebase.runTransaction theCodebase Queries.expectMostRecentNamespace
+                      pure (Path.Absolute (Path.fromList (map NameSegment.NameSegment segments)))
+                Headless -> pure $ fromMaybe defaultInitialPath mayStartingPath
               rootVar <- newEmptyTMVarIO
-              pathVar <- newTVarIO initialPath
+              pathVar <- newTVarIO startingPath
               let notifyOnRootChanges :: Branch IO -> STM ()
                   notifyOnRootChanges b = do
                     isEmpty <- isEmptyTMVar rootVar
@@ -286,6 +291,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                         takeMVar mvar
                       WithCLI -> do
                         PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+
                         launch
                           currentDir
                           config
@@ -294,8 +300,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                           theCodebase
                           []
                           (Just baseUrl)
-                          mayStartingPath
-                          downloadBase
+                          (Just startingPath)
                           initRes
                           notifyOnRootChanges
                           notifyOnPathChanges
@@ -454,8 +459,8 @@ runTranscripts renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption
             )
   when (not completed) $ Exit.exitWith (Exit.ExitFailure 1)
 
-initialPath :: Path.Absolute
-initialPath = Path.absoluteEmpty
+defaultInitialPath :: Path.Absolute
+defaultInitialPath = Path.absoluteEmpty
 
 launch ::
   FilePath ->
@@ -466,26 +471,22 @@ launch ::
   [Either Input.Event Input.Input] ->
   Maybe Server.BaseUrl ->
   Maybe Path.Absolute ->
-  ShouldDownloadBase ->
   InitResult ->
   (Branch IO -> STM ()) ->
   (Path.Absolute -> STM ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath shouldDownloadBase initResult notifyRootChange notifyPathChange shouldWatchFiles =
-  let downloadBase = case defaultBaseLib of
-        Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
-        _ -> Welcome.DontDownloadBase
-      isNewCodebase = case initResult of
-        CreatedCodebase {} -> NewlyCreatedCodebase
-        _ -> PreviouslyCreatedCodebase
+launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles =
+  let isNewCodebase = case initResult of
+        CreatedCodebase -> NewlyCreatedCodebase
+        OpenedCodebase -> PreviouslyCreatedCodebase
 
       (ucmVersion, _date) = Version.gitDescribe
-      welcome = Welcome.welcome isNewCodebase downloadBase dir ucmVersion shouldWatchFiles
+      welcome = Welcome.welcome isNewCodebase ucmVersion
    in CommandLine.main
         dir
         welcome
-        (fromMaybe initialPath mayStartingPath)
+        (fromMaybe defaultInitialPath mayStartingPath)
         config
         inputs
         runtime
@@ -508,26 +509,8 @@ markdownFile md = case FP.takeExtension md of
 isDotU :: String -> Bool
 isDotU file = FP.takeExtension file == ".u"
 
--- so we can do `ucm --help`, `ucm -help` or `ucm help` (I hate
--- having to remember which one is supported)
-isFlag :: String -> String -> Bool
-isFlag f arg = arg == f || arg == "-" ++ f || arg == "--" ++ f
-
 getConfigFilePath :: Maybe FilePath -> IO FilePath
 getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseDir mcodepath
-
-defaultBaseLib :: Maybe ReadShareLooseCode
-defaultBaseLib =
-  let mayBaseSharePath =
-        $( do
-             mayPath <- TH.runIO (lookupEnv "UNISON_BASE_PATH")
-             TH.lift mayPath
-         )
-   in mayBaseSharePath & \case
-        Just s -> eitherToMaybe $ parseReadShareLooseCode "UNISON_BASE_PATH" s
-        Nothing -> rightMay $ runParser VP.defaultBaseLib "version" gitRef
-  where
-    (gitRef, _date) = Version.gitDescribe
 
 getCodebaseOrExit :: Maybe CodebasePathOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
 getCodebaseOrExit codebasePathOption migrationStrategy action = do

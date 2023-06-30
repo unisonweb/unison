@@ -106,12 +106,7 @@ import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Output.DumpNamespace qualified as Output.DN
-import Unison.Codebase.Editor.RemoteRepo
-  ( ReadRemoteNamespace (..),
-    ReadShareLooseCode (..),
-    ShareUserHandle (..),
-    printReadRemoteNamespace,
-  )
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..), ShareUserHandle (..))
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
@@ -138,12 +133,11 @@ import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.Completion qualified as Completion
 import Unison.CommandLine.DisplayValues qualified as DisplayValues
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
-import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as ConstructorType
-import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
@@ -507,29 +501,28 @@ loop e = do
                     Right path -> WhichBranchEmptyPath path
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
-              src0 <- treatAmbiguousLooseCodeOrProjectAsLooseCode src0
-              dest0 <- treatAmbiguousLooseCodeOrProjectAsLooseCode dest0
+              src0 <- ProjectUtils.expectLooseCodeOrProjectBranch src0
+              dest0 <- ProjectUtils.expectLooseCodeOrProjectBranch dest0
               let srcp = looseCodeOrProjectToPath src0
               let destp = looseCodeOrProjectToPath dest0
               srcb <- Cli.expectBranchAtPath' srcp
               dest <- Cli.resolvePath' destp
               -- todo: fixme: use project and branch names
-              let destNames = projectAndBranchNames <$> dest0
-              let err = Just $ MergeAlreadyUpToDate (projectAndBranchNames <$> src0) destNames
-              mergeBranchAndPropagateDefaultPatch mergeMode description err srcb (Just destNames) dest
+              let err = Just $ MergeAlreadyUpToDate src0 dest0
+              mergeBranchAndPropagateDefaultPatch mergeMode description err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
               Cli.Env {codebase} <- ask
-              src0 <- treatAmbiguousLooseCodeOrProjectAsLooseCode src0
-              dest0 <- treatAmbiguousLooseCodeOrProjectAsLooseCode dest0
+              src0 <- ProjectUtils.expectLooseCodeOrProjectBranch src0
+              dest0 <- ProjectUtils.expectLooseCodeOrProjectBranch dest0
               srcb <- Cli.expectBranchAtPath' $ looseCodeOrProjectToPath src0
               dest <- Cli.resolvePath' $ looseCodeOrProjectToPath dest0
               destb <- Cli.getBranchAt dest
               merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               if merged == destb
-                then Cli.respond (PreviewMergeAlreadyUpToDate (projectAndBranchNames <$> src0) (projectAndBranchNames <$> dest0))
+                then Cli.respond (PreviewMergeAlreadyUpToDate src0 dest0)
                 else do
                   (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
-                  Cli.respondNumbered (ShowDiffAfterMergePreview (projectAndBranchNames <$> dest0) dest ppe diff)
+                  Cli.respondNumbered (ShowDiffAfterMergePreview dest0 dest ppe diff)
             DiffNamespaceI before after -> do
               absBefore <- traverseOf _Right Cli.resolvePath' before
               absAfter <- traverseOf _Right Cli.resolvePath' after
@@ -585,10 +578,8 @@ loop e = do
               whenJust (unsnoc path0) \(path, _) ->
                 Cli.cd path
             PopBranchI -> do
-              loopState <- State.get
-              case Nel.uncons (loopState ^. #currentPathStack) of
-                (_, Nothing) -> Cli.respond StartOfCurrentPathHistory
-                (_, Just paths) -> State.put $! (loopState & #currentPathStack .~ paths)
+              success <- Cli.popd
+              when (not success) (Cli.respond StartOfCurrentPathHistory)
             HistoryI resultsCap diffCap from -> do
               branch <-
                 case from of
@@ -1353,9 +1344,7 @@ loop e = do
               patch <- Cli.getPatchAt (fromMaybe Cli.defaultPatchPath maybePath)
               ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               Cli.respondNumbered $ ListEdits patch ppe
-            PullRemoteBranchI sourceTarget sMode pMode verbosity ->
-              inputDescription input
-                >>= doPullRemoteBranch sourceTarget sMode pMode verbosity
+            PullRemoteBranchI sourceTarget sMode pMode verbosity -> doPullRemoteBranch sourceTarget sMode pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> handleDependencies hq
@@ -1368,7 +1357,7 @@ loop e = do
                   externalDependencies <-
                     Cli.runTransaction (NamespaceDependencies.namespaceDependencies codebase (Branch.head b))
                   ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
-                  Cli.respond $ ListNamespaceDependencies ppe path externalDependencies
+                  Cli.respondNumbered $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> do
               numArgs <- use #numberedArgs
               Cli.respond (DumpNumberedArgs numArgs)
@@ -1483,7 +1472,7 @@ loop e = do
               handleDiffNamespaceToPatch description diffNamespaceToPatchInput
             ProjectRenameI name -> handleProjectRename name
             ProjectSwitchI name -> projectSwitch name
-            ProjectCreateI name -> projectCreate name
+            ProjectCreateI tryDownloadingBase name -> projectCreate tryDownloadingBase name
             ProjectsI -> handleProjects
             BranchI source name -> handleBranch source name
             BranchRenameI name -> handleBranchRename name
@@ -1636,24 +1625,6 @@ inputDescription input =
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
     GenSchemeLibsI -> pure "compile.native.genlibs"
     FetchSchemeCompilerI name -> pure ("compile.native.fetch" <> Text.pack name)
-    PullRemoteBranchI sourceTarget _syncMode pullMode _verbosity -> do
-      let command =
-            Text.pack . InputPattern.patternName $
-              case pullMode of
-                PullWithoutHistory -> InputPatterns.pullWithoutHistory
-                PullWithHistory -> InputPatterns.pull
-      case sourceTarget of
-        PullSourceTarget0 -> pure command
-        PullSourceTarget1 source0 ->
-          let source = printReadRemoteNamespace (into @Text) source0
-           in pure (command <> " " <> source)
-        PullSourceTarget2 source0 target0 -> do
-          let source = printReadRemoteNamespace (into @Text) source0
-          target <-
-            case target0 of
-              PullTargetLooseCode target1 -> p' target1
-              PullTargetProject target1 -> pure (into @Text target1)
-          pure (command <> " " <> source <> " " <> target)
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
     RemoveTermReplacementI src p0 -> do
       p <- opatch p0
@@ -1666,7 +1637,6 @@ inputDescription input =
       branchId2 <- hp' (input ^. #branchId2)
       patch <- ps' (input ^. #patch)
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
-    ProjectCreateI project -> pure ("project.create " <> into @Text project)
     ClearI {} -> pure "clear"
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
     --
@@ -1707,9 +1677,11 @@ inputDescription input =
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
     PreviewUpdateI {} -> wat
+    ProjectCreateI {} -> wat
     ProjectRenameI {} -> wat
     ProjectSwitchI {} -> wat
     ProjectsI -> wat
+    PullRemoteBranchI {} -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ReleaseDraftI {} -> wat
@@ -2191,23 +2163,6 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
         "lib" Nel.:| _ : _ -> True
         _ -> False
 
--- Temporary helper: the current `merge` logic treats ambiguous parses (like `foo`) as relative paths, not branch
--- names, so that's what this function does.
---
--- Ideally, `merge` handlers would be extracted to their own module, where helpers like this one would be much easier
--- to find.
-treatAmbiguousLooseCodeOrProjectAsLooseCode ::
-  LooseCodeOrProject ->
-  Cli (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-treatAmbiguousLooseCodeOrProjectAsLooseCode =
-  _Right (ProjectUtils.expectProjectAndBranchByTheseNames . thatOrThese) . f
-  where
-    f :: LooseCodeOrProject -> Either Path' (Maybe ProjectName, ProjectBranchName)
-    f = \case
-      This path -> Left path
-      That (ProjectAndBranch project branch) -> Right (project, branch)
-      These path _ -> Left path
-
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
@@ -2483,12 +2438,7 @@ compilerPath = Path.Path' {Path.unPath' = Left abs}
 
 doFetchCompiler :: String -> Cli ()
 doFetchCompiler username =
-  inputDescription pullInput
-    >>= doPullRemoteBranch
-      sourceTarget
-      SyncMode.Complete
-      Input.PullWithoutHistory
-      Verbosity.Silent
+  doPullRemoteBranch sourceTarget SyncMode.Complete Input.PullWithoutHistory Verbosity.Silent
   where
     -- fetching info
     ns =
@@ -2498,14 +2448,7 @@ doFetchCompiler username =
           path =
             Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
         }
-    sourceTarget = PullSourceTarget2 (ReadShare'LooseCode ns) (PullTargetLooseCode compilerPath)
-
-    pullInput =
-      PullRemoteBranchI
-        sourceTarget
-        SyncMode.Complete
-        Input.PullWithoutHistory
-        Verbosity.Silent
+    sourceTarget = PullSourceTarget2 (ReadShare'LooseCode ns) (This compilerPath)
 
 ensureCompilerExists :: Cli ()
 ensureCompilerExists =
@@ -3310,14 +3253,3 @@ looseCodeOrProjectToPath = \case
               (br ^. #branchId)
           )
       )
-
-projectAndBranchNames ::
-  ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch ->
-  ProjectAndBranch ProjectName ProjectBranchName
-projectAndBranchNames pb =
-  ProjectAndBranch (pb ^. #project . #name) (pb ^. #branch . #name)
-
-thatOrThese :: (Maybe this, that) -> These this that
-thatOrThese (mthis, that) = case mthis of
-  Just this -> These this that
-  Nothing -> That that

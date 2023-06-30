@@ -18,12 +18,11 @@ module Unison.Cli.Pretty
     prettyHumanReadableTime,
     prettyLabeledDependencies,
     prettyPath',
-    prettyPathOrProjectAndBranchName,
     prettyProjectAndBranchName,
     prettyProjectBranchName,
     prettyProjectName,
     prettyProjectNameSlash,
-    prettyPullTarget,
+    prettyNamespaceKey,
     prettyReadGitRepo,
     prettyReadRemoteNamespace,
     prettyReadRemoteNamespaceWith,
@@ -75,6 +74,7 @@ import Unison.Codebase.Editor.RemoteRepo
     shareUserHandleToText,
   )
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
+import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -155,10 +155,10 @@ prettyPath' p' =
     then "the current namespace"
     else P.blue (P.shown p')
 
-prettyPullTarget :: Input.PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Pretty
-prettyPullTarget = \case
-  Input.PullTargetLooseCode path -> prettyPath' path
-  Input.PullTargetProject (ProjectAndBranch project branch) ->
+prettyNamespaceKey :: Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Pretty
+prettyNamespaceKey = \case
+  Left path -> prettyPath' path
+  Right (ProjectAndBranch project branch) ->
     prettyProjectAndBranchName (ProjectAndBranch (project ^. #name) (branch ^. #name))
 
 prettyBranchId :: Input.AbsBranchId -> Pretty
@@ -220,11 +220,6 @@ prettySlashProjectBranchName branch =
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
 prettyProjectAndBranchName (ProjectAndBranch project branch) =
   P.group (prettyProjectName project <> P.hiBlack "/" <> prettyProjectBranchName branch)
-
-prettyPathOrProjectAndBranchName :: Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
-prettyPathOrProjectAndBranchName = \case
-  Left x -> prettyPath' x
-  Right x -> prettyProjectAndBranchName x
 
 -- produces:
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms#0

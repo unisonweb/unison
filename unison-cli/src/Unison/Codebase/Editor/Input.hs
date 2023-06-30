@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.Input
     DiffNamespaceToPatchInput (..),
     GistInput (..),
     PullSourceTarget (..),
-    PullTarget (..),
     PushRemoteBranchInput (..),
     PushSourceTarget (..),
     PushSource (..),
@@ -227,7 +226,7 @@ data Input
   | AuthLoginI
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
-  | ProjectCreateI ProjectName
+  | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
   | ProjectRenameI ProjectName
   | ProjectSwitchI ProjectAndBranchNames
   | ProjectsI
@@ -268,16 +267,8 @@ data GistInput = GistInput
 data PullSourceTarget
   = PullSourceTarget0
   | PullSourceTarget1 (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-  | PullSourceTarget2
-      (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-      (PullTarget (These ProjectName ProjectBranchName))
+  | PullSourceTarget2 (ReadRemoteNamespace (These ProjectName ProjectBranchName)) LooseCodeOrProject
   deriving stock (Eq, Show)
-
--- | Where are we pulling into?
-data PullTarget a
-  = PullTargetLooseCode Path'
-  | PullTargetProject a
-  deriving stock (Eq, Show, Generic)
 
 data PushSource
   = PathySource Path'

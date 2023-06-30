@@ -10,7 +10,7 @@ zonk = 0
 
 ```ucm
 .foo> add
-.> project.create foo
+.> project.create-empty foo
 .> merge foo foo/main
 ```
 
@@ -23,7 +23,7 @@ foo/main> add
 ```
 
 ```ucm
-.> project.create bar
+.> project.create-empty bar
 bar/main> merge foo/main
 bar/main> branch /topic
 ```

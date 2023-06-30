@@ -17,6 +17,8 @@ extra-source-files:
     sql/005-project-tables.sql
     sql/006-most-recent-branch-table.sql
     sql/007-add-name-lookup-mounts.sql
+    sql/008-add-most-recent-namespace-table.sql
+    sql/009-add-squash-cache-table.sql
     sql/create.sql
 
 source-repository head
@@ -26,6 +28,7 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.Branch
+      U.Codebase.Causal.Squash
       U.Codebase.Sqlite.Branch.Diff
       U.Codebase.Sqlite.Branch.Format
       U.Codebase.Sqlite.Branch.Full
@@ -99,6 +102,7 @@ library
       ViewPatterns
   build-depends:
       Only
+    , aeson
     , base
     , bytes
     , bytestring

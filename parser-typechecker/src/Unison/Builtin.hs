@@ -72,7 +72,7 @@ names0 = Names terms types
           ]
         <> Rel.fromList
           [ (Name.unsafeFromVar v, Referent.Ref (R.DerivedId i))
-            | (v, i) <- Map.toList $ TD.builtinTermsRef
+            | (v, i) <- Map.toList TD.builtinTermsRef
           ]
     types =
       Rel.fromList builtinTypes
@@ -94,8 +94,8 @@ typeLookup :: TL.TypeLookup Symbol Ann
 typeLookup =
   TL.TypeLookup
     (fmap (const Intrinsic) <$> termRefTypes)
-    (Map.fromList . map (first R.DerivedId) $ map snd builtinDataDecls)
-    (Map.fromList . map (first R.DerivedId) $ map snd builtinEffectDecls)
+    (Map.fromList $ map (first R.DerivedId . snd) builtinDataDecls)
+    (Map.fromList $ map (first R.DerivedId . snd) builtinEffectDecls)
 
 constructorType :: R.Reference -> Maybe CT.ConstructorType
 constructorType r =
@@ -857,6 +857,7 @@ ioBuiltins =
     ("Clock.internals.realtime.v1", unit --> iof timeSpec),
     ("Clock.internals.sec.v1", timeSpec --> int),
     ("Clock.internals.nsec.v1", timeSpec --> nat),
+    ("Clock.internals.systemTimeZone.v1", int --> io (tuple [int, nat, text])),
     ( "IO.array",
       forall1 "a" $ \a ->
         nat --> io (marrayt iot a)

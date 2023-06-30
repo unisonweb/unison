@@ -93,9 +93,22 @@ data NumberedOutput
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMerge (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMergePropagate (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMergePreview (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMerge
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      Path.Absolute
+      PPE.PrettyPrintEnv
+      (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMergePropagate
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      Path.Absolute
+      Path.Path'
+      PPE.PrettyPrintEnv
+      (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMergePreview
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      Path.Absolute
+      PPE.PrettyPrintEnv
+      (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -118,6 +131,11 @@ data NumberedOutput
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
   | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
   | AmbiguousReset AmbiguousReset'Argument (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path) (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- | List all direct dependencies which don't have any names in the current branch
+    ListNamespaceDependencies
+      PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
+      Path.Absolute -- The namespace we're checking dependencies for.
+      (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
 
 data AmbiguousReset'Argument
   = AmbiguousReset'Hash
@@ -263,19 +281,19 @@ data Output
   | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
   | PullAlreadyUpToDate
       (ReadRemoteNamespace Share.RemoteProjectBranch)
-      (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | PullSuccessful
       (ReadRemoteNamespace Share.RemoteProjectBranch)
-      (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
-    MergeOverEmpty (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+    MergeOverEmpty (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | MergeAlreadyUpToDate
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | PreviewMergeAlreadyUpToDate
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | -- | No conflicts or edits remain for the current patch.
     NoConflictsOrEdits
   | NotImplemented
@@ -283,11 +301,6 @@ data Output
   | ListDependencies PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | -- | List dependents of a type or term.
     ListDependents PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
-  | -- | List all direct dependencies which don't have any names in the current branch
-    ListNamespaceDependencies
-      PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
-      Path.Absolute -- The namespace we're checking dependencies for.
-      (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
@@ -311,7 +324,7 @@ data Output
   | DisplayDebugCompletions [Completion.Completion]
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
-  | CreatedProject ProjectName ProjectBranchName
+  | CreatedProject Bool {- randomly-generated name? -} ProjectName
   | CreatedProjectBranch CreatedProjectBranchFrom (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
@@ -360,6 +373,9 @@ data Output
   | RenamedProject ProjectName ProjectName
   | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
   | CantRenameBranchTo ProjectBranchName
+  | FetchingLatestReleaseOfBase
+  | FailedToFetchLatestReleaseOfBase
+  | HappyCoding
 
 -- | What did we create a project branch from?
 --
@@ -522,7 +538,6 @@ isFailure o = case o of
   NoOp -> False
   ListDependencies {} -> False
   ListDependents {} -> False
-  ListNamespaceDependencies {} -> False
   TermMissingType {} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
   NamespaceEmpty {} -> True
@@ -575,6 +590,9 @@ isFailure o = case o of
   RenamedProject {} -> False
   RenamedProjectBranch {} -> False
   CantRenameBranchTo {} -> True
+  FetchingLatestReleaseOfBase {} -> False
+  FailedToFetchLatestReleaseOfBase {} -> True
+  HappyCoding {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
@@ -597,4 +615,5 @@ isNumberedFailure = \case
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False
   ShowDiffNamespace {} -> False
+  ListNamespaceDependencies {} -> False
   TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)

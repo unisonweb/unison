@@ -42,17 +42,21 @@ nameSearchForPerspective :: Codebase m v a -> Ops.NamesPerspective -> (NameSearc
 nameSearchForPerspective codebase namesPerspective@Ops.NamesPerspective {pathToMountedNameLookup} = do
   NameSearch {typeSearch, termSearch}
   where
+    -- Some searches will provide a fully-qualified name, so we need to strip off the
+    -- mount-path before we search or it will fail to find anything.
+    stripMountPathPrefix :: Name -> Name
+    stripMountPathPrefix name = Name.tryStripReversedPrefix name (reverse $ coerce pathToMountedNameLookup)
     typeSearch =
       Search
         { lookupNames = lookupNamesForTypes,
-          lookupRelativeHQRefs' = lookupRelativeHQRefsForTypes,
+          lookupRelativeHQRefs' = lookupRelativeHQRefsForTypes . fmap stripMountPathPrefix,
           makeResult = \hqname r names -> pure $ SR.typeResult hqname r names,
           matchesNamedRef = HQ'.matchesNamedReference
         }
     termSearch =
       Search
         { lookupNames = lookupNamesForTerms,
-          lookupRelativeHQRefs' = lookupRelativeHQRefsForTerms,
+          lookupRelativeHQRefs' = lookupRelativeHQRefsForTerms . fmap stripMountPathPrefix,
           makeResult = \hqname r names -> pure $ SR.termResult hqname r names,
           matchesNamedRef = HQ'.matchesNamedReferent
         }

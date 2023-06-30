@@ -262,6 +262,7 @@ test> Text.tests.indexOf =
    needle6 = "0c"
    needle7 = haystack
    needle8 = "lopez"
+   needle9 = ""
    checks [
      Text.indexOf needle1 haystack == Some 0,
      Text.indexOf needle2 haystack == Some 2,
@@ -271,8 +272,17 @@ test> Text.tests.indexOf =
      Text.indexOf needle6 haystack == Some 22,
      Text.indexOf needle7 haystack == Some 0,
      Text.indexOf needle8 haystack == None,
-
+     Text.indexOf needle9 haystack == Some 0,
    ]
+   
+test> Text.tests.indexOfEmoji = 
+  haystack = "clap 👏 your 👏 hands 👏 if 👏 you 👏 love 👏 unison"
+  needle1 = "👏"
+  needle2 = "👏 "
+  checks [
+    Text.indexOf needle1 haystack == Some 5,
+    Text.indexOf needle2 haystack == Some 5,
+  ]
 
 ```
 
