@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -38,6 +38,7 @@ library
       Unison.Server.SearchResult
       Unison.Server.SearchResult'
       Unison.Server.Share.Definitions
+      Unison.Server.Share.NamespaceDetails
       Unison.Server.Share.RenderDoc
       Unison.Server.Syntax
       Unison.Server.Types
