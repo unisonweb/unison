@@ -1,4 +1,3 @@
-
 module Unison.JitInfo (currentRelease) where
 
 currentRelease :: String
