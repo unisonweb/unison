@@ -247,8 +247,8 @@ jobs:
         if: runner.os == 'Linux'
         with:
           path: ~/.cache/unisonlanguage/base.unison
-          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-${{github.sha}}
-          restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-
+          key: base.unison_${{hashFiles('unison-src/builtin-tests/base.md','unison-cli/src/Unison/JitInfo.hs')}}-${{github.sha}}
+          restore-keys: base.unison_${{hashFiles('unison-src/builtin-tests/base.md','unison-cli/src/Unison/JitInfo.hs')}}-
 
       - name: set up `base` codebase
         if: runner.os == 'Linux'
