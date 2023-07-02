@@ -22,10 +22,20 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v37
+        with:
+          # globs copied from default settings for run-ormolu
+          files: |
+            **/*.hs
+            **/*.hs-boot
+          separator: "\n"
       - uses: unisonweb/run-ormolu@8e1437595b4127e368c114cabd1aeedb3b873918
         with:
           version: "0.5.0.1"
           mode: inplace
+          pattern: ${{ steps.changed-files.outputs.all_changed_files }}
       - name: apply formatting changes
         uses: stefanzweifel/git-auto-commit-action@v4
         if: ${{ always() }}
