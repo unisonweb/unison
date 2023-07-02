@@ -22,8 +22,6 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
-        with:
-          path: unison
       - uses: unisonweb/run-ormolu@8e1437595b4127e368c114cabd1aeedb3b873918
         with:
           version: "0.5.0.1"
@@ -32,7 +30,6 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v4
         if: ${{ always() }}
         with:
-          repository: unison
           commit_message: automatically run ormolu
 
   build:
@@ -41,7 +38,6 @@ jobs:
     needs: ormolu
     defaults:
       run:
-        working-directory: unison
         shell: bash
     strategy:
       # Run each build to completion, regardless of if any have failed
@@ -54,8 +50,6 @@ jobs:
           - windows-2019
     steps:
       - uses: actions/checkout@v2
-        with:
-          path: unison
 
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
