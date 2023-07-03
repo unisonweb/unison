@@ -36,6 +36,7 @@
     builtin-Int.signum
     builtin-Nat.increment
     builtin-Nat.toFloat
+    builtin-Text.indexOf
 
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
@@ -350,6 +351,8 @@
                  exn:fail:contract?
                  file-stream-buffer-mode
                  with-handlers
+                 match
+                 regexp-match-positions
                  sequence-ref
                  vector-copy!
                  bytes-copy!)
@@ -357,6 +360,7 @@
           (unison arithmetic)
           (unison bytevector)
           (unison core)
+          (only (unison boot) define-unison)
           (unison data)
           (unison math)
           (unison chunked-seq)
@@ -372,6 +376,16 @@
           (unison gzip)
           (unison zlib)
           (unison concurrent))
+
+  ; NOTE: this is just a temporary stopgap until the real function is
+  ; done. I accidentally pulled in too new a version of base in the
+  ; project version of the unison compiler and it broke the jit tests.
+  (define-unison (builtin-Text.indexOf s t)
+    (let ([ss (chunked-string->string s)]
+          [tt (chunked-string->string t)])
+      (match (regexp-match-positions ss tt)
+        [#f (data 'Optional 1)] ; none
+        [(cons (cons i j) r) (data 'Optional 0 i)]))) ; some
 
   (define (unison-POp-UPKB bs)
     (build-chunked-list

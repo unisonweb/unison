@@ -24,9 +24,16 @@ jobs:
       - uses: actions/checkout@v2
         with:
           path: unison
-      - uses: mrkkrp/ormolu-action@v11
+      - uses: unisonweb/run-ormolu@8e1437595b4127e368c114cabd1aeedb3b873918
         with:
           version: "0.5.0.1"
+          mode: inplace
+      - name: apply formatting changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        if: ${{ always() }}
+        with:
+          repository: unison
+          commit_message: automatically run ormolu
 
   build:
     name: ${{ matrix.os }}
