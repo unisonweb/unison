@@ -1039,7 +1039,7 @@ loop e = do
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
               Cli.respond $ ListOfPatches $ Set.fromList patches
-              #numberedArgs .= fmap Name.toString patches
+              #numberedArgs .= fmap     Name.toString patches
             FindShallowI pathArg -> do
               Cli.Env {codebase} <- ask
 
