@@ -2445,7 +2445,7 @@ authLogin =
         ]
     )
     ( \case
-        [] -> Right $     Input.AuthLoginI
+        [] -> Right $ Input.AuthLoginI
         _ -> Left (showPatternHelp authLogin)
     )
 
