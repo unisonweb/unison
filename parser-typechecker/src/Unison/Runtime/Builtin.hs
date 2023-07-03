@@ -2384,7 +2384,7 @@ declareForeigns = do
 
   declareForeign Tracked "IO.listen.impl.v3" boxToEF0
     . mkForeignIOF
-    $ \sk -> SYS.listenSock sk 2
+    $ \sk -> SYS.listenSock sk 2048
 
   declareForeign Tracked "IO.clientSocket.impl.v3" boxBoxToEFBox
     . mkForeignIOF
