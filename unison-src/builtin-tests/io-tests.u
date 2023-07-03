@@ -8,6 +8,7 @@ io.tests = Tests.main do
     !io.test.seek.relative
     !io.test.getLine
     !io.test.getsetBuffering
+    !io.test.getRandomBytes
 
 testFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
@@ -104,3 +105,6 @@ io.test.getsetBuffering = do
     checkEqual "Line" b2 LineBuffering
     checkEqual "No" b3 NoBuffering
 
+io.test.getRandomBytes = do
+    bs = IO.randomBytes 10
+    checkEqual "get 10 random bytes" 10 (base.Bytes.size bs)
