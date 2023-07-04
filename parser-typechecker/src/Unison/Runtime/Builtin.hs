@@ -37,6 +37,7 @@ import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
 import Crypto.Hash qualified as Hash
 import Crypto.MAC.HMAC qualified as HMAC
+import Crypto.Random (getRandomBytes)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
@@ -2741,6 +2742,9 @@ declareForeigns = do
 
   declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
     pure . asWord64 . hash64 . serializeValueLazy
+
+  declareForeign Tracked "IO.randomBytes" natToBox . mkForeign $
+    \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
 
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
   declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress

@@ -2,6 +2,7 @@ module Unison.Cli.TypeCheck
   ( typecheck,
     typecheckHelper,
     typecheckFile,
+    typecheckFile',
     typecheckTerm,
   )
 where

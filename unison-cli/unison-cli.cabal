@@ -76,7 +76,6 @@ library
       Unison.Codebase.Editor.TodoOutput
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
-      Unison.Codebase.Editor.VersionParser
       Unison.Codebase.TranscriptParser
       Unison.CommandLine
       Unison.CommandLine.Completion
@@ -89,6 +88,7 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Types
       Unison.CommandLine.Welcome
+      Unison.JitInfo
       Unison.LSP
       Unison.LSP.CancelRequest
       Unison.LSP.CodeAction
@@ -643,7 +643,6 @@ test-suite cli-tests
       Unison.Test.LSP
       Unison.Test.Ucm
       Unison.Test.UriParser
-      Unison.Test.VersionParser
   hs-source-dirs:
       tests
   default-extensions:

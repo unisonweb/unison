@@ -26,6 +26,7 @@ Tests.main suite = do
 
 Tests.run : '{IO,Exception,Tests} () ->{IO,Exception} Boolean
 Tests.run suite =
+  use Nat +
   h passed failed = cases
     { _ } -> (passed, failed) 
     { pass msg -> k } -> 

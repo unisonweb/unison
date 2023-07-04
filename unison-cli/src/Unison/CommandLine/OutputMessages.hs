@@ -29,11 +29,7 @@ import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
-import System.Directory
-  ( canonicalizePath,
-    doesFileExist,
-    getHomeDirectory,
-  )
+import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
@@ -2124,11 +2120,11 @@ notifyUser dir = \case
       "I'll now fetch the latest version of the base Unison library..."
   FailedToFetchLatestReleaseOfBase ->
     pure . P.wrap $ "Sorry something went wrong while fetching the library."
-  HappyCoding ->
+  HappyCoding -> do
     pure $
       P.wrap "🎨 Type `ui` to explore this project's code in your browser."
         <> P.newline
-        <> P.wrap "🌏 Discover libraries at https://share.unison-lang.org"
+        <> P.wrap ("🔭 Discover libraries at https://share.unison-lang.org")
         <> P.newline
         <> P.wrap "📖 Use `help-topic projects` to learn more about projects."
         <> P.newline
