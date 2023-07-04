@@ -90,8 +90,8 @@
   (let* ([buffer (make-bytes bytes)]
          [line (read-bytes-avail! buffer handle)])
     (if (eof-object? line)
-        (Right (string->chunked-string ""))
-        (Right (string->chunked-string line))
+        (Right (bytes->chunked-bytes #""))
+        (Right (bytes->chunked-bytes buffer))
         )))
 
 (define BufferMode
