@@ -73,6 +73,22 @@
                   };
                 };
             })
+            (final: prev: {
+              unison-stack = prev.symlinkJoin {
+                name = "stack";
+                paths = [ final.stack ];
+                buildInputs = [ final.makeWrapper ];
+                postBuild =
+                  let
+                    flags = [ "--no-nix" "--system-ghc" "--no-install-ghc" ];
+                    add-flags =
+                      "--add-flags '${prev.lib.concatStringsSep " " flags}'";
+                  in
+                  ''
+                    wrapProgram "$out/bin/stack" ${add-flags}
+                  '';
+              };
+            })
           ];
           pkgs = import nixpkgs {
             inherit system overlays;
@@ -86,7 +102,7 @@
               # https://github.com/input-output-hk/haskell.nix/issues/1793
               # https://github.com/input-output-hk/haskell.nix/issues/1885
               allToolDeps = false;
-              buildInputs = (args.buildInputs or [ ]) ++ (with pkgs; [ stack ]);
+              buildInputs = (args.buildInputs or [ ]) ++ (with pkgs; [ unison-stack ]);
               # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
               shellHook = ''
                 export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
