@@ -12,6 +12,7 @@ io.tests = Tests.main do
     !io.test_getArgs
     !io.test_getEnv
     !io.test.getRandomBytes
+    !io.test_getSomeBytes
 
 testFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
@@ -132,3 +133,10 @@ io.test_getEnv = do
 io.test.getRandomBytes = do
     bs = IO.randomBytes 10
     checkEqual "get 10 random bytes" 10 (base.Bytes.size bs)
+
+io.test_getSomeBytes = do
+    fp = !testFile
+    _ = writeFile fp "one\ntwo\nthree"
+    h = open fp Read
+    one = getSomeBytes h 3
+    checkEqual "get some bytes" one (toUtf8 "one")
