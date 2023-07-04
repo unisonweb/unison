@@ -407,3 +407,19 @@ testTimeZone = do
 .> run testTimeZone
 ```
 
+### Get some random bytes
+
+```unison:hide
+testRandom : '{io2.IO} [Result]
+testRandom = do
+  test = do
+    bytes = IO.randomBytes 10
+    check "randomBytes returns the right number of bytes" (size bytes == 10)
+  runTest test
+```
+
+```ucm
+.> add
+.> io.test testGetEnv
+```
+

@@ -675,3 +675,33 @@ testTimeZone = do
   ()
 
 ```
+### Get some random bytes
+
+```unison
+testRandom : '{io2.IO} [Result]
+testRandom = do
+  test = do
+    bytes = IO.randomBytes 10
+    check "randomBytes returns the right number of bytes" (size bytes == 10)
+  runTest test
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testRandom : '{IO} [Result]
+
+.> io.test testGetEnv
+
+    New test results:
+  
+  ◉ testGetEnv   PATH environent variable should be set
+  ◉ testGetEnv   DOESNTEXIST didn't exist
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testGetEnv to view the source of a test.
+
+```
