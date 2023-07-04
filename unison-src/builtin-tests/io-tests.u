@@ -106,6 +106,10 @@ io.test.getsetBuffering = do
     checkEqual "Line" b2 LineBuffering
     checkEqual "No" b3 NoBuffering
 
+is_a_tty = do
+    exitCode = call "test" ["-t", "0"]
+    exitCode == 0
+
 io.test_getEcho = do
     prev = getEcho stdIn
     setEcho stdIn false
@@ -119,3 +123,12 @@ io.test_getArgs = do
 
 io.test_getEnv = do
     checkEqual "HOME env variable" (startsWith "/" (getEnv "HOME")) true
+    if is_a_tty () then
+        prev = getEcho stdIn
+        setEcho stdIn false
+        checkEqual "echo turned off" (getEcho stdIn) false
+        setEcho stdIn true
+        checkEqual "echo turned back on" (getEcho stdIn) true
+        setEcho stdIn prev
+    else
+        ()

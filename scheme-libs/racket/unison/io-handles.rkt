@@ -4,7 +4,7 @@
          racket/file
          rnrs/io/ports-6
          (only-in rnrs standard-error-port standard-input-port standard-output-port vector-map)
-         (only-in racket empty? with-output-to-string system false?)
+         (only-in racket empty? with-output-to-string system/exit-code system false?)
          compatibility/mlist
          (only-in unison/boot data-case define-unison)
          unison/data
@@ -42,6 +42,7 @@
     setEcho.impl.v1
     getArgs.impl.v1
     getEnv.impl.v1
+    process.call
     ))
 
 ; Still to implement:
@@ -157,3 +158,22 @@
         (if (false? value)
             (Exception 'IO "environmental variable not found" key)
             (Right (string->chunked-string value)))))
+
+;; From https://github.com/sorawee/shlex/blob/5de06500e8c831cfc8dffb99d57a76decc02c569/main.rkt (MIT License)
+;; with is a port of https://github.com/python/cpython/blob/bf2f76ec0976c09de79c8827764f30e3b6fba776/Lib/shlex.py#L325
+(define unsafe-pattern #rx"[^a-zA-Z0-9_@%+=:,./-]")
+(define (quote-arg s)
+  (if (non-empty-string? s)
+      (if (regexp-match unsafe-pattern s)
+          (string-append "'" (string-replace s "'" "'\"'\"'") "'")
+          s)
+      "''"))
+
+(define-unison (process.call command arguments)
+  (system/exit-code
+          (string-join (cons
+                        (chunked-string->string command)
+                        (map (lambda (arg) (quote-arg (chunked-string->string arg)))
+                        (vector->list
+                             (chunked-list->vector arguments))))
+                             " ")))

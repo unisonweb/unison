@@ -51,6 +51,7 @@
     builtin-IO.setBuffering.impl.v3
     builtin-IO.getBuffering.impl.v3
     builtin-IO.setEcho.impl.v1
+    builtin-IO.process.call
     builtin-IO.getEcho.impl.v1
     builtin-IO.getArgs.impl.v1
     builtin-IO.getEnv.impl.v1
