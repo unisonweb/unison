@@ -50,6 +50,7 @@
     unison-FOp-IO.getBytes.impl.v3
     builtin-IO.seekHandle.impl.v3
     builtin-IO.getLine.impl.v1
+    builtin-IO.getSomeBytes.impl.v1
     builtin-IO.setBuffering.impl.v3
     builtin-IO.getBuffering.impl.v3
     builtin-IO.setEcho.impl.v1

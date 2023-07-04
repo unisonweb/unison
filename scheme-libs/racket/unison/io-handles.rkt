@@ -36,6 +36,7 @@
   (combine-out
     seekHandle.impl.v3
     getLine.impl.v1
+    getSomeBytes.impl.v1
     getBuffering.impl.v3
     setBuffering.impl.v3
     getEcho.impl.v1
@@ -80,6 +81,14 @@
 
 (define-unison (getLine.impl.v1 handle)
   (let* ([line (read-line handle)])
+    (if (eof-object? line)
+        (Right (string->chunked-string ""))
+        (Right (string->chunked-string line))
+        )))
+
+(define-unison (getSomeBytes.impl.v1 handle bytes)
+  (let* ([buffer (make-bytes bytes)]
+         [line (read-bytes-avail! buffer handle)])
     (if (eof-object? line)
         (Right (string->chunked-string ""))
         (Right (string->chunked-string line))
