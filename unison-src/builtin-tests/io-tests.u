@@ -10,6 +10,7 @@ io.tests = Tests.main do
     !io.test.getsetBuffering
     !io.test_getEcho
     !io.test_getArgs
+    !io.test_getEnv
     !io.test.getRandomBytes
 
 testFile = do
