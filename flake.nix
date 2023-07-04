@@ -1,15 +1,11 @@
 {
   description = "Unison";
   nixConfig = {
-    extra-substituters = [
-      "https://cache.iog.io"
-      "https://unison.cachix.org"
+    extra-substituters = [ "https://cache.iog.io" "https://unison.cachix.org" ];
+    extra-trusted-public-keys = [
+      "hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ="
+      "unison.cachix.org-1:gFuvOrYJX5lXoSoYm6Na3xwUbb9q+S5JFL+UAsWbmzQ="
     ];
-    extra-trusted-public-keys =
-      [
-        "hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ="
-        "unison.cachix.org-1:gFuvOrYJX5lXoSoYm6Na3xwUbb9q+S5JFL+UAsWbmzQ="
-      ];
   };
   inputs = {
     haskellNix.url = "github:input-output-hk/haskell.nix";
@@ -65,7 +61,8 @@
                       # `unison-cli:unison` and somehow haskell.nix
                       # decides to add some file sharing package
                       # `unison` as a build-tool dependency.
-                      packages.unison-cli.components.exes.cli-integration-tests.build-tools = lib.mkForce [ ];
+                      packages.unison-cli.components.exes.cli-integration-tests.build-tools =
+                        lib.mkForce [ ];
                     })
                   ];
                   branchMap = {
@@ -83,30 +80,31 @@
           };
           flake = pkgs.unison-project.flake { };
 
-          commonShellArgs = args: args // {
-            # workaround:
-            # https://github.com/input-output-hk/haskell.nix/issues/1793
-            # https://github.com/input-output-hk/haskell.nix/issues/1885
-            allToolDeps = false;
-            buildInputs = (args.buildInputs or [ ]) ++ (with pkgs; [ stack ]);
-            tools =
-              let ormolu-ver = "0.5.2.0";
-              in (args.tools or { }) // {
-                cabal = { };
-                ormolu = { version = ormolu-ver; };
-                haskell-language-server = {
-                  version = "latest";
-                  # specify flags via project file rather than a module override
-                  # https://github.com/input-output-hk/haskell.nix/issues/1509
-                  cabalProject = ''
-                    packages: .
-                    package haskell-language-server
-                      flags: -brittany -fourmolu -stylishhaskell -hlint
-                    constraints: ormolu == ${ormolu-ver}
-                  '';
+          commonShellArgs = args:
+            args // {
+              # workaround:
+              # https://github.com/input-output-hk/haskell.nix/issues/1793
+              # https://github.com/input-output-hk/haskell.nix/issues/1885
+              allToolDeps = false;
+              buildInputs = (args.buildInputs or [ ]) ++ (with pkgs; [ stack ]);
+              tools =
+                let ormolu-ver = "0.5.2.0";
+                in (args.tools or { }) // {
+                  cabal = { };
+                  ormolu = { version = ormolu-ver; };
+                  haskell-language-server = {
+                    version = "latest";
+                    # specify flags via project file rather than a module override
+                    # https://github.com/input-output-hk/haskell.nix/issues/1509
+                    cabalProject = ''
+                      packages: .
+                      package haskell-language-server
+                        flags: -brittany -fourmolu -stylishhaskell -hlint
+                      constraints: ormolu == ${ormolu-ver}
+                    '';
+                  };
                 };
-              };
-          };
+            };
 
           shellFor = args: pkgs.unison-project.shellFor (commonShellArgs args);
 
@@ -115,12 +113,13 @@
           localPackageNames = builtins.attrNames localPackages;
           devShells =
             let
-              mkDevShell = pkgName: shellFor
-                {
+              mkDevShell = pkgName:
+                shellFor {
                   packages = hpkgs: [ hpkgs."${pkgName}" ];
                   withHoogle = true;
                 };
-              localPackageDevShells = pkgs.lib.genAttrs localPackageNames mkDevShell;
+              localPackageDevShells =
+                pkgs.lib.genAttrs localPackageNames mkDevShell;
             in
             {
               default = devShells.only-tools;
@@ -135,7 +134,8 @@
             } // localPackageDevShells;
         in
         flake // {
-          defaultPackage = flake.packages."unison-cli:exe:unison"; inherit (pkgs) unison-project;
+          defaultPackage = flake.packages."unison-cli:exe:unison";
+          inherit (pkgs) unison-project;
           inherit devShells localPackageNames;
         });
 }
