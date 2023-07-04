@@ -112,18 +112,6 @@ is_a_tty = do
     exitCode == 0
 
 io.test_getEcho = do
-    prev = getEcho stdIn
-    setEcho stdIn false
-    checkEqual "echo turned off" (getEcho stdIn) false
-    setEcho stdIn true
-    checkEqual "echo turned back on" (getEcho stdIn) true
-    setEcho stdIn prev
-
-io.test_getArgs = do
-    checkEqual "cli args" !getArgs []
-
-io.test_getEnv = do
-    checkEqual "HOME env variable" (startsWith "/" (getEnv "HOME")) true
     if is_a_tty () then
         prev = getEcho stdIn
         setEcho stdIn false
@@ -133,6 +121,12 @@ io.test_getEnv = do
         setEcho stdIn prev
     else
         ()
+
+io.test_getArgs = do
+    checkEqual "cli args" !getArgs []
+
+io.test_getEnv = do
+    checkEqual "HOME env variable" (startsWith "/" (getEnv "HOME")) true
 
 io.test.getRandomBytes = do
     bs = IO.randomBytes 10
