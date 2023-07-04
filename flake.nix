@@ -87,6 +87,10 @@
               # https://github.com/input-output-hk/haskell.nix/issues/1885
               allToolDeps = false;
               buildInputs = (args.buildInputs or [ ]) ++ (with pkgs; [ stack ]);
+              # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
+              shellHook = ''
+                export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
+              '';
               tools =
                 let ormolu-ver = "0.5.2.0";
                 in (args.tools or { }) // {
