@@ -154,10 +154,10 @@
         (vector-map string->chunked-string (current-command-line-arguments)))))
 
 (define-unison (getEnv.impl.v1 key)
-    (let ([value (environment-variables-ref (current-environment-variables) (chunked-string->string key))])
+    (let ([value (environment-variables-ref (current-environment-variables) (string->bytes/utf-8 (chunked-string->string key)))])
         (if (false? value)
             (Exception 'IO "environmental variable not found" key)
-            (Right (string->chunked-string value)))))
+            (Right (string->chunked-string (bytes->string/utf-8 value))))))
 
 ;; From https://github.com/sorawee/shlex/blob/5de06500e8c831cfc8dffb99d57a76decc02c569/main.rkt (MIT License)
 ;; with is a port of https://github.com/python/cpython/blob/bf2f76ec0976c09de79c8827764f30e3b6fba776/Lib/shlex.py#L325
