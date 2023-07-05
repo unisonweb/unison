@@ -18,6 +18,7 @@ import System.FilePath
     (</>),
   )
 import System.IO.CodePage (withCP65001)
+import System.IO.Silently (silence)
 import Unison.Codebase.Init (withTemporaryUcmCodebase)
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.TranscriptParser (TranscriptError (..), withTranscriptRunner)
@@ -38,7 +39,7 @@ testBuilder expectFailure dir prelude transcript = scope transcript $ do
     withTranscriptRunner Verbosity.Silent "TODO: pass version here" Nothing $ \runTranscript -> do
       for files $ \filePath -> do
         transcriptSrc <- readUtf8 filePath
-        out <- runTranscript filePath transcriptSrc (codebasePath, codebase)
+        out <- silence $ runTranscript filePath transcriptSrc (codebasePath, codebase)
         pure (filePath, out)
   for_ outputs $ \case
     (filePath, Left err) -> do

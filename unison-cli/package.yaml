@@ -147,6 +147,7 @@ executables:
       - process
       - shellmet
       - unison-cli
+      - silently
 
   cli-integration-tests:
     when:

@@ -461,6 +461,7 @@ executable transcripts
     , servant
     , servant-client
     , shellmet
+    , silently
     , stm
     , text
     , text-builder
