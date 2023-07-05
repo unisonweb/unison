@@ -36,7 +36,6 @@ import Network.HTTP.Client qualified as HTTP
 import System.Directory (doesFileExist)
 import System.Environment (lookupEnv)
 import System.Exit (die)
-import System.IO qualified as IO
 import System.IO.Error (catchIOError)
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -57,6 +56,7 @@ import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.Verbosity (Verbosity, isSilent)
 import Unison.CommandLine
 import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
@@ -193,17 +193,18 @@ type TranscriptRunner =
 withTranscriptRunner ::
   forall m r.
   (UnliftIO.MonadUnliftIO m) =>
+  Verbosity ->
   UCMVersion ->
   Maybe FilePath ->
   (TranscriptRunner -> m r) ->
   m r
-withTranscriptRunner ucmVersion configFile action = do
+withTranscriptRunner verbosity ucmVersion configFile action = do
   withRuntimes \runtime sbRuntime -> withConfig $ \config -> do
     action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase $ \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
         result <- for parsed \stanzas -> do
-          liftIO $ run codebaseDir stanzas codebase runtime sbRuntime config ucmVersion (tShow baseUrl)
+          liftIO $ run verbosity codebaseDir stanzas codebase runtime sbRuntime config ucmVersion (tShow baseUrl)
         pure $ join @(Either TranscriptError) result
   where
     withRuntimes :: ((Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a)
@@ -226,6 +227,7 @@ withTranscriptRunner ucmVersion configFile action = do
             (\(config, _cancelConfig) -> action (Just config))
 
 run ::
+  Verbosity ->
   FilePath ->
   [Stanza] ->
   Codebase IO Symbol Ann ->
@@ -235,10 +237,10 @@ run ::
   UCMVersion ->
   Text ->
   IO (Either TranscriptError Text)
-run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.try $ Ki.scoped \scope -> do
+run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.try $ Ki.scoped \scope -> do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   let initialPath = Path.absoluteEmpty
-  putPrettyLn $
+  unless (isSilent verbosity) . putPrettyLn $
     Pretty.lines
       [ asciiartUnison,
         "",
@@ -268,7 +270,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
   allowErrors <- newIORef False
   hasErrors <- newIORef False
   mStanza <- newIORef Nothing
-  traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 :: Int ..])
+  traverse_ (atomically . Q.enqueue inputQueue) stanzas
   let patternMap =
         Map.fromList $
           validInputs
@@ -367,14 +369,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               Nothing -> do
                 liftIO (putStrLn "")
                 pure $ Right QuitI
-              Just (s, idx) -> do
-                liftIO . putStr $
-                  "\r⚙️   Processing stanza "
-                    ++ show idx
-                    ++ " of "
-                    ++ show (length stanzas)
-                    ++ "."
-                liftIO (IO.hFlush IO.stdout)
+              Just s -> do
                 case s of
                   Unfenced _ -> do
                     liftIO (output $ show s)
@@ -448,7 +443,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
       appendFailingStanza = do
         stanzaOpt <- readIORef mStanza
         currentOut <- readIORef out
-        let stnz = maybe "" show (fmap fst stanzaOpt :: Maybe Stanza)
+        let stnz = maybe "" show stanzaOpt
         unless (stnz `isSubsequenceOf` concat currentOut) $
           modifyIORef' out (\acc -> acc <> pure stnz)
 

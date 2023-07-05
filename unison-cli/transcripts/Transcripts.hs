@@ -21,6 +21,7 @@ import System.IO.CodePage (withCP65001)
 import Unison.Codebase.Init (withTemporaryUcmCodebase)
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.TranscriptParser (TranscriptError (..), withTranscriptRunner)
+import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Prelude
 
 data TestConfig = TestConfig
@@ -33,8 +34,8 @@ type TestBuilder = FilePath -> [String] -> String -> Test ()
 testBuilder ::
   Bool -> FilePath -> [String] -> String -> Test ()
 testBuilder expectFailure dir prelude transcript = scope transcript $ do
-  outputs <- io . withTemporaryUcmCodebase SC.init "transcript" SC.DoLock $ \(codebasePath, codebase) -> do
-    withTranscriptRunner "TODO: pass version here" Nothing $ \runTranscript -> do
+  outputs <- io . withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock $ \(codebasePath, codebase) -> do
+    withTranscriptRunner Verbosity.Silent "TODO: pass version here" Nothing $ \runTranscript -> do
       for files $ \filePath -> do
         transcriptSrc <- readUtf8 filePath
         out <- runTranscript filePath transcriptSrc (codebasePath, codebase)
@@ -47,8 +48,9 @@ testBuilder expectFailure dir prelude transcript = scope transcript $ do
           when (not expectFailure) . crash $ "Error parsing " <> filePath <> ": " <> Text.unpack msg
         TranscriptRunFailure errOutput -> do
           io $ writeUtf8 outputFile errOutput
-          io $ Text.putStrLn errOutput
-          when (not expectFailure) . crash $ "Failure in " <> filePath
+          when (not expectFailure) $ do
+            io $ Text.putStrLn errOutput
+            crash $ "Failure in " <> filePath
     (filePath, Right out) -> do
       let outputFile = outputFileForTranscript filePath
       io $ writeUtf8 outputFile out
