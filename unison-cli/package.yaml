@@ -30,6 +30,7 @@ dependencies:
   - extra
   - filepath
   - free
+  - fsnotify
   - fuzzyfind
   - friendly-time
   - generic-lens
