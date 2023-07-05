@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -77,6 +77,7 @@ library
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
       Unison.Codebase.TranscriptParser
+      Unison.Codebase.Watch
       Unison.CommandLine
       Unison.CommandLine.Completion
       Unison.CommandLine.DisplayValues
@@ -168,6 +169,7 @@ library
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -302,6 +304,7 @@ executable cli-integration-tests
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -430,6 +433,7 @@ executable transcripts
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -563,6 +567,7 @@ executable unison
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -703,6 +708,7 @@ test-suite cli-tests
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
