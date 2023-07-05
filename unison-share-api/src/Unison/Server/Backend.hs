@@ -85,6 +85,7 @@ module Unison.Server.Backend
     evalDocRef,
     mkTermDefinition,
     mkTypeDefinition,
+    displayTerm,
   )
 where
 
