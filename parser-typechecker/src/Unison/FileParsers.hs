@@ -1,7 +1,8 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE UnicodeSyntax #-}
-
-module Unison.FileParsers where
+module Unison.FileParsers
+  ( parseAndSynthesizeFile,
+    synthesizeFile',
+  )
+where
 
 import Control.Lens
 import Control.Monad.State (evalStateT)
@@ -49,8 +50,6 @@ type Term v = Term.Term v Ann
 type Type v = Type.Type v Ann
 
 type UnisonFile v = UF.UnisonFile v Ann
-
-type Result' v = Result (Seq (Note v Ann))
 
 debug :: Bool
 debug = False

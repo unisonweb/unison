@@ -29,7 +29,7 @@ foo.a = 5
 # reset branch
 
 ```ucm
-.> project.create foo
+.> project.create-empty foo
 foo/main> history
 ```
 

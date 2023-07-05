@@ -75,6 +75,7 @@ module U.Codebase.Sqlite.Queries
     -- ** causal table
     saveCausal,
     isCausalHash,
+    causalExistsByHash32,
     expectCausal,
     loadCausalHashIdByCausalHash,
     expectCausalHashIdByCausalHash,
@@ -85,6 +86,8 @@ module U.Codebase.Sqlite.Queries
     loadBranchObjectIdByBranchHashId,
     expectBranchObjectIdByCausalHashId,
     expectBranchObjectIdByBranchHashId,
+    tryGetSquashResult,
+    saveSquashResult,
 
     -- ** causal_parent table
     saveCausalParents,
@@ -233,6 +236,7 @@ module U.Codebase.Sqlite.Queries
     fixScopedNameLookupTables,
     addNameLookupMountTables,
     addMostRecentNamespaceTable,
+    addSquashResultTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -386,7 +390,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 13
+currentSchemaVersion = 14
 
 createSchema :: Transaction ()
 createSchema = do
@@ -438,6 +442,10 @@ addNameLookupMountTables =
 addMostRecentNamespaceTable :: Transaction ()
 addMostRecentNamespaceTable =
   executeStatements (Text.pack [hereFile|unison/sql/008-add-most-recent-namespace-table.sql|])
+
+addSquashResultTable :: Transaction ()
+addSquashResultTable =
+  executeStatements (Text.pack [hereFile|unison/sql/009-add-squash-cache-table.sql|])
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -1212,6 +1220,19 @@ isCausalHash hash =
         SELECT 1
         FROM causal
         WHERE self_hash_id = :hash
+      )
+    |]
+
+-- | Return whether or not a causal exists with the given hash32.
+causalExistsByHash32 :: Hash32 -> Transaction Bool
+causalExistsByHash32 hash =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM causal
+        JOIN hash ON causal.self_hash_id = hash.id
+        WHERE hash.base32 = :hash
       )
     |]
 
@@ -2179,7 +2200,7 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let suffixGlob = case maySuffix of
         Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
-  queryListColCheck
+  directNames <- queryListColCheck
     [sql|
         SELECT reversed_name FROM scoped_term_name_lookup
         WHERE root_branch_hash_id = :bhId
@@ -2196,6 +2217,26 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
               AND reversed_name GLOB :suffixGlob
         |]
     \reversedNames -> for reversedNames reversedNameToReversedSegments
+  -- If we don't find a name in the name lookup, expand the search to recursively include transitive deps
+  -- and just return the first one we find.
+  if null directNames
+    then do
+      toList
+        <$> queryMaybeColCheck
+          [sql|
+        $transitive_dependency_mounts
+        SELECT (reversed_name || reversed_mount_path) AS reversed_name
+          FROM transitive_dependency_mounts
+            INNER JOIN scoped_term_name_lookup
+            ON scoped_term_name_lookup.root_branch_hash_id = transitive_dependency_mounts.root_branch_hash_id
+        WHERE referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
+              AND reversed_name GLOB :suffixGlob
+        LIMIT 1
+      |]
+          (\reversedName -> reversedNameToReversedSegments reversedName)
+    else pure directNames
+  where
+    transitive_dependency_mounts = transitiveDependenciesSql bhId
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -2208,7 +2249,7 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
   let suffixGlob = case maySuffix of
         Just suffix -> toSuffixGlob suffix
         Nothing -> "*"
-  queryListColCheck
+  directNames <- queryListColCheck
     [sql|
         SELECT reversed_name FROM scoped_type_name_lookup
         WHERE root_branch_hash_id = :bhId
@@ -2225,6 +2266,48 @@ typeNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
               AND reversed_name GLOB :suffixGlob
         |]
     \reversedNames -> for reversedNames reversedNameToReversedSegments
+  -- If we don't find a name in the name lookup, expand the search to recursively include transitive deps
+  -- and just return the first one we find.
+  if null directNames
+    then
+      toList
+        <$> queryMaybeColCheck
+          [sql|
+        $transitive_dependency_mounts
+        SELECT (reversed_name || reversed_mount_path) AS reversed_name
+          FROM transitive_dependency_mounts
+            INNER JOIN scoped_type_name_lookup
+            ON scoped_type_name_lookup.root_branch_hash_id = transitive_dependency_mounts.root_branch_hash_id
+        WHERE reference_builtin IS @ref AND reference_component_hash IS @ AND reference_component_index IS @
+              AND reversed_name GLOB :suffixGlob
+        LIMIT 1
+          |]
+          (\reversedName -> reversedNameToReversedSegments reversedName)
+    else pure directNames
+  where
+    transitive_dependency_mounts = transitiveDependenciesSql bhId
+
+-- | Brings into scope the transitive_dependency_mounts CTE table, which contains all transitive deps of the given root, but does NOT include the direct dependencies.
+-- @transitive_dependency_mounts(root_branch_hash_id, reversed_mount_path)@
+-- Where @reversed_mount_path@ is the reversed path from the provided root to the mounted
+-- dependency's root.
+transitiveDependenciesSql :: BranchHashId -> Sql
+transitiveDependenciesSql rootBranchHashId =
+  [sql|
+        -- Recursive table containing all transitive deps
+        WITH RECURSIVE
+          transitive_dependency_mounts(root_branch_hash_id, reversed_mount_path) AS (
+            -- We've already searched direct deps above, so start with children of direct deps
+            SELECT transitive.mounted_root_branch_hash_id, transitive.reversed_mount_path || direct.reversed_mount_path
+            FROM name_lookup_mounts direct
+                 JOIN name_lookup_mounts transitive on direct.mounted_root_branch_hash_id = transitive.parent_root_branch_hash_id
+            WHERE direct.parent_root_branch_hash_id = :rootBranchHashId
+            UNION ALL
+            SELECT mount.mounted_root_branch_hash_id, mount.reversed_mount_path || rec.reversed_mount_path
+            FROM name_lookup_mounts mount
+              INNER JOIN transitive_dependency_mounts rec ON mount.parent_root_branch_hash_id = rec.root_branch_hash_id
+          )
+          |]
 
 -- | NOTE: requires that the codebase has an up-to-date name lookup index. As of writing, this
 -- is only true on Share.
@@ -3960,3 +4043,32 @@ setMostRecentNamespace namespace =
     json :: Text
     json =
       Text.Lazy.toStrict (Aeson.encodeToLazyText namespace)
+
+-- | Get the causal hash result from squashing the provided branch hash if we've squashed it
+-- at some point in the past.
+tryGetSquashResult :: BranchHashId -> Transaction (Maybe CausalHashId)
+tryGetSquashResult bhId = do
+  queryMaybeCol
+    [sql|
+      SELECT
+        squashed_causal_hash_id
+      FROM
+        squash_results
+      WHERE
+        branch_hash_id = :bhId
+    |]
+
+-- | Save the result of running a squash on the provided branch hash id.
+saveSquashResult :: BranchHashId -> CausalHashId -> Transaction ()
+saveSquashResult bhId chId =
+  execute
+    [sql|
+      INSERT INTO squash_results (
+        branch_hash_id,
+        squashed_causal_hash_id)
+      VALUES (
+        :bhId,
+        :chId
+        )
+      ON CONFLICT DO NOTHING
+    |]

@@ -14,10 +14,12 @@ module Unison.Cli.Share.Projects
     -- * API functions
     getProjectById,
     getProjectByName,
+    getProjectByName',
     createProject,
     GetProjectBranchResponse (..),
     getProjectBranchById,
     getProjectBranchByName,
+    getProjectBranchByName',
     createProjectBranch,
     SetProjectBranchHeadResponse (..),
     setProjectBranchHead,
@@ -35,6 +37,7 @@ import Network.URI (URI)
 import Network.URI qualified as URI
 import Servant.API ((:<|>) (..), (:>))
 import Servant.Client
+import Servant.Client qualified as Servant
 import U.Codebase.Sqlite.DbId (RemoteProjectBranchId (..), RemoteProjectId (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.HTTPClient qualified as Auth
@@ -54,16 +57,22 @@ import Unison.Share.Types (codeserverBaseURL)
 -- On success, update the `remote_project` table.
 getProjectById :: RemoteProjectId -> Cli (Maybe RemoteProject)
 getProjectById (RemoteProjectId projectId) = do
-  response <- servantClientToCli (getProject0 (Just projectId) Nothing)
+  response <- servantClientToCli (getProject0 (Just projectId) Nothing) & onLeftM servantClientError
   onGetProjectResponse response
 
 -- | Get a project by name.
 --
 -- On success, update the `remote_project` table.
 getProjectByName :: ProjectName -> Cli (Maybe RemoteProject)
-getProjectByName projectName = do
-  response <- servantClientToCli (getProject0 Nothing (Just (into @Text projectName)))
-  onGetProjectResponse response
+getProjectByName projectName =
+  getProjectByName' projectName & onLeftM servantClientError
+
+-- | Variant of 'getProjectByName' that returns servant client errors.
+getProjectByName' :: ProjectName -> Cli (Either Servant.ClientError (Maybe RemoteProject))
+getProjectByName' projectName = do
+  servantClientToCli (getProject0 Nothing (Just (into @Text projectName))) >>= \case
+    Left err -> pure (Left err)
+    Right response -> Right <$> onGetProjectResponse response
 
 -- | Create a new project. Kinda weird: returns `Nothing` if the user handle part of the project doesn't exist.
 --
@@ -72,9 +81,10 @@ createProject :: ProjectName -> Cli (Maybe RemoteProject)
 createProject projectName = do
   let request = Share.API.CreateProjectRequest {projectName = into @Text projectName}
   servantClientToCli (createProject0 request) >>= \case
-    Share.API.CreateProjectResponseNotFound {} -> pure Nothing
-    Share.API.CreateProjectResponseUnauthorized x -> unauthorized x
-    Share.API.CreateProjectResponseSuccess project -> Just <$> onGotProject project
+    Left err -> servantClientError err
+    Right (Share.API.CreateProjectResponseNotFound {}) -> pure Nothing
+    Right (Share.API.CreateProjectResponseUnauthorized x) -> unauthorized x
+    Right (Share.API.CreateProjectResponseSuccess project) -> Just <$> onGotProject project
 
 data GetProjectBranchResponse
   = GetProjectBranchResponseBranchNotFound
@@ -86,7 +96,7 @@ data GetProjectBranchResponse
 -- On success, update the `remote_project_branch` table.
 getProjectBranchById :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli GetProjectBranchResponse
 getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjectBranchId branchId)) = do
-  response <- servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing)
+  response <- servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing) & onLeftM servantClientError
   onGetProjectBranchResponse response
 
 -- | Get a project branch by name.
@@ -94,8 +104,19 @@ getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjec
 -- On success, update the `remote_project_branch` table.
 getProjectBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli GetProjectBranchResponse
 getProjectBranchByName (ProjectAndBranch (RemoteProjectId projectId) branchName) = do
-  response <- servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)))
+  response <-
+    servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)))
+      & onLeftM servantClientError
   onGetProjectBranchResponse response
+
+-- | Variant of 'getProjectBranchByName' that returns servant client errors.
+getProjectBranchByName' ::
+  ProjectAndBranch RemoteProjectId ProjectBranchName ->
+  Cli (Either Servant.ClientError GetProjectBranchResponse)
+getProjectBranchByName' (ProjectAndBranch (RemoteProjectId projectId) branchName) = do
+  servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName))) >>= \case
+    Left err -> pure (Left err)
+    Right response -> Right <$> onGetProjectBranchResponse response
 
 -- | Create a new project branch.
 --
@@ -103,10 +124,11 @@ getProjectBranchByName (ProjectAndBranch (RemoteProjectId projectId) branchName)
 createProjectBranch :: Share.API.CreateProjectBranchRequest -> Cli (Maybe RemoteProjectBranch)
 createProjectBranch request =
   servantClientToCli (createProjectBranch0 request) >>= \case
-    Share.API.CreateProjectBranchResponseMissingCausalHash hash -> bugRemoteMissingCausalHash hash
-    Share.API.CreateProjectBranchResponseNotFound {} -> pure Nothing
-    Share.API.CreateProjectBranchResponseUnauthorized x -> unauthorized x
-    Share.API.CreateProjectBranchResponseSuccess branch -> Just <$> onGotProjectBranch branch
+    Left err -> servantClientError err
+    Right (Share.API.CreateProjectBranchResponseMissingCausalHash hash) -> bugRemoteMissingCausalHash hash
+    Right (Share.API.CreateProjectBranchResponseNotFound {}) -> pure Nothing
+    Right (Share.API.CreateProjectBranchResponseUnauthorized x) -> unauthorized x
+    Right (Share.API.CreateProjectBranchResponseSuccess branch) -> Just <$> onGotProjectBranch branch
 
 data SetProjectBranchHeadResponse
   = SetProjectBranchHeadResponseNotFound
@@ -121,14 +143,15 @@ data SetProjectBranchHeadResponse
 setProjectBranchHead :: Share.API.SetProjectBranchHeadRequest -> Cli SetProjectBranchHeadResponse
 setProjectBranchHead request =
   servantClientToCli (setProjectBranchHead0 request) >>= \case
-    Share.API.SetProjectBranchHeadResponseUnauthorized x -> unauthorized x
-    Share.API.SetProjectBranchHeadResponseNotFound _ -> pure SetProjectBranchHeadResponseNotFound
-    Share.API.SetProjectBranchHeadResponseMissingCausalHash hash -> bugRemoteMissingCausalHash hash
-    Share.API.SetProjectBranchHeadResponseExpectedCausalHashMismatch expected actual ->
+    Left err -> servantClientError err
+    Right (Share.API.SetProjectBranchHeadResponseUnauthorized x) -> unauthorized x
+    Right (Share.API.SetProjectBranchHeadResponseNotFound _) -> pure SetProjectBranchHeadResponseNotFound
+    Right (Share.API.SetProjectBranchHeadResponseMissingCausalHash hash) -> bugRemoteMissingCausalHash hash
+    Right (Share.API.SetProjectBranchHeadResponseExpectedCausalHashMismatch expected actual) ->
       pure (SetProjectBranchHeadResponseExpectedCausalHashMismatch expected actual)
-    Share.API.SetProjectBranchHeadResponsePublishedReleaseIsImmutable -> pure SetProjectBranchHeadResponsePublishedReleaseIsImmutable
-    Share.API.SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable -> pure SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable
-    Share.API.SetProjectBranchHeadResponseSuccess -> pure SetProjectBranchHeadResponseSuccess
+    Right (Share.API.SetProjectBranchHeadResponsePublishedReleaseIsImmutable) -> pure SetProjectBranchHeadResponsePublishedReleaseIsImmutable
+    Right (Share.API.SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable) -> pure SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable
+    Right (Share.API.SetProjectBranchHeadResponseSuccess) -> pure SetProjectBranchHeadResponseSuccess
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database manipulation callbacks
@@ -152,8 +175,9 @@ onGotProject :: Share.API.Project -> Cli RemoteProject
 onGotProject project = do
   let projectId = RemoteProjectId (project ^. #projectId)
   projectName <- validateProjectName (project ^. #projectName)
+  let latestRelease = (project ^. #latestRelease) >>= eitherToMaybe . tryFrom @Text
   Cli.runTransaction (Queries.ensureRemoteProject projectId hardCodedUri projectName)
-  pure RemoteProject {projectId, projectName}
+  pure RemoteProject {projectId, projectName, latestRelease}
 
 onGotProjectBranch :: Share.API.ProjectBranch -> Cli RemoteProjectBranch
 onGotProjectBranch branch = do
@@ -186,6 +210,10 @@ validateBranchName branchName =
   tryInto @ProjectBranchName branchName & onLeft \_ ->
     Cli.returnEarly (Output.InvalidProjectBranchName branchName)
 
+servantClientError :: Servant.ClientError -> Cli void
+servantClientError =
+  Cli.returnEarly . Output.ServantClientError
+
 unauthorized :: Share.API.Unauthorized -> Cli void
 unauthorized (Share.API.Unauthorized message) =
   Cli.returnEarly (Output.Unauthorized message)
@@ -210,7 +238,7 @@ hardCodedUri =
     Nothing -> error ("BaseUrl is an invalid URI: " ++ showBaseUrl hardCodedBaseUrl)
     Just uri -> uri
 
-servantClientToCli :: ClientM a -> Cli a
+servantClientToCli :: ClientM a -> Cli (Either Servant.ClientError a)
 servantClientToCli action = do
   Cli.Env {authHTTPClient = Auth.AuthenticatedHttpClient httpManager} <- ask
 
@@ -218,8 +246,7 @@ servantClientToCli action = do
       clientEnv =
         mkClientEnv httpManager hardCodedBaseUrl
 
-  liftIO (runClientM action clientEnv) & onLeftM \err ->
-    Cli.returnEarly (Output.ServantClientError err)
+  liftIO (runClientM action clientEnv)
 
 getProject0 :: Maybe Text -> Maybe Text -> ClientM Share.API.GetProjectResponse
 createProject0 :: Share.API.CreateProjectRequest -> ClientM Share.API.CreateProjectResponse
