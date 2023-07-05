@@ -36,6 +36,7 @@ import Network.HTTP.Client qualified as HTTP
 import System.Directory (doesFileExist)
 import System.Environment (lookupEnv)
 import System.Exit (die)
+import System.IO qualified as IO
 import System.IO.Error (catchIOError)
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -57,6 +58,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Verbosity (Verbosity, isSilent)
+import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
@@ -270,7 +272,7 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
   allowErrors <- newIORef False
   hasErrors <- newIORef False
   mStanza <- newIORef Nothing
-  traverse_ (atomically . Q.enqueue inputQueue) stanzas
+  traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 :: Int ..])
   let patternMap =
         Map.fromList $
           validInputs
@@ -369,7 +371,15 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
               Nothing -> do
                 liftIO (putStrLn "")
                 pure $ Right QuitI
-              Just s -> do
+              Just (s, idx) -> do
+                unless (Verbosity.isSilent verbosity) . liftIO $ do
+                  putStr $
+                    "\r⚙️   Processing stanza "
+                      ++ show idx
+                      ++ " of "
+                      ++ show (length stanzas)
+                      ++ "."
+                  IO.hFlush IO.stdout
                 case s of
                   Unfenced _ -> do
                     liftIO (output $ show s)
@@ -443,7 +453,7 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
       appendFailingStanza = do
         stanzaOpt <- readIORef mStanza
         currentOut <- readIORef out
-        let stnz = maybe "" show stanzaOpt
+        let stnz = maybe "" show (fmap fst stanzaOpt :: Maybe Stanza)
         unless (stnz `isSubsequenceOf` concat currentOut) $
           modifyIORef' out (\acc -> acc <> pure stnz)
 
