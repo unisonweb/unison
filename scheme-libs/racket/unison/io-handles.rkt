@@ -3,8 +3,8 @@
          racket/string
          racket/file
          rnrs/io/ports-6
-         (only-in rnrs standard-error-port standard-input-port standard-output-port)
-         (only-in racket empty? with-output-to-string system/exit-code system)
+         (only-in rnrs standard-error-port standard-input-port standard-output-port vector-map)
+         (only-in racket empty? with-output-to-string system/exit-code system false?)
          compatibility/mlist
          (only-in unison/boot data-case define-unison)
          unison/data
@@ -36,10 +36,13 @@
   (combine-out
     seekHandle.impl.v3
     getLine.impl.v1
+    getSomeBytes.impl.v1
     getBuffering.impl.v3
     setBuffering.impl.v3
     getEcho.impl.v1
     setEcho.impl.v1
+    getArgs.impl.v1
+    getEnv.impl.v1
     process.call
     ))
 
@@ -50,10 +53,6 @@
 ;    ready.impl.v1
 ;    isFileOpen.impl.v3
 ;    isFileEOF.impl.v3
-;    setEcho.impl.v1
-;    getEcho.impl.v1
-;       - unsafe-port->file-descriptor
-
    )
 
 (define either-id (bytevector 6 15 103 128 65 126 44 164 169 154 106 164 187 86 33 156 155 89 79 64 71 158 119 151 142 79 121 206 247 92 41 13 151 250 243 205 13 193 134 218 198 145 193 96 55 87 92 215 34 52 161 162 226 22 169 43 228 184 86 77 149 58 66 125))
@@ -85,6 +84,14 @@
     (if (eof-object? line)
         (Right (string->chunked-string ""))
         (Right (string->chunked-string line))
+        )))
+
+(define-unison (getSomeBytes.impl.v1 handle bytes)
+  (let* ([buffer (make-bytes bytes)]
+         [line (read-bytes-avail! buffer handle)])
+    (if (eof-object? line)
+        (Right (bytes->chunked-bytes #""))
+        (Right (bytes->chunked-bytes buffer))
         )))
 
 (define BufferMode
@@ -151,6 +158,15 @@
   (let ([current (with-output-to-string (lambda () (system "stty -a")))])
     (string-contains? current " echo ")))
 
+(define-unison (getArgs.impl.v1 unit)
+    (Right (vector->chunked-list
+        (vector-map string->chunked-string (current-command-line-arguments)))))
+
+(define-unison (getEnv.impl.v1 key)
+    (let ([value (environment-variables-ref (current-environment-variables) (string->bytes/utf-8 (chunked-string->string key)))])
+        (if (false? value)
+            (Exception 'IO "environmental variable not found" key)
+            (Right (string->chunked-string (bytes->string/utf-8 value))))))
 
 ;; From https://github.com/sorawee/shlex/blob/5de06500e8c831cfc8dffb99d57a76decc02c569/main.rkt (MIT License)
 ;; with is a port of https://github.com/python/cpython/blob/bf2f76ec0976c09de79c8827764f30e3b6fba776/Lib/shlex.py#L325
