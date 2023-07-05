@@ -102,7 +102,12 @@
               # https://github.com/input-output-hk/haskell.nix/issues/1793
               # https://github.com/input-output-hk/haskell.nix/issues/1885
               allToolDeps = false;
-              buildInputs = (args.buildInputs or [ ]) ++ (with pkgs; [ unison-stack pkg-config zlib ]);
+              buildInputs =
+                let
+                  native-packages = pkgs.lib.optionals pkgs.stdenv.isDarwin
+                    (with pkgs.darwin.apple_sdk.frameworks; [ Cocoa ]);
+                in
+                (args.buildInputs or [ ]) ++ (with pkgs; [ unison-stack pkg-config zlib ]) ++ native-packages;
               # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
               shellHook = ''
                 export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
