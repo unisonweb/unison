@@ -116,9 +116,6 @@ jobs:
             stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
             stack-work-4_${{matrix.os}}-
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-
       # Install stack by downloading the binary from GitHub.
       # The installation process differs by OS.
       - name: install stack (Linux)
@@ -191,8 +188,16 @@ jobs:
         run: stack --no-terminal build --fast --no-run-tests --test
 
       # Run each test suite (tests and transcripts)
+      - name: check pagefile usage (windows)
+        working-directory: ${{ github.workspace }}
+        if: runner.os == 'Windows'
+        run: wmic.exe pagefile list /format:list
       - name: unison-cli test
         run: stack --no-terminal build --fast --test unison-cli
+      - name: check pagefile usage (windows)
+        working-directory: ${{ github.workspace }}
+        if: runner.os == 'Windows'
+        run: wmic.exe pagefile list /format:list
       - name: unison-core tests
         run: stack --no-terminal build --fast --test unison-core
       - name: unison-parser-typechecker tests
@@ -288,5 +293,9 @@ jobs:
           echo project .stack-work
           stack exec -- stack-clean-old list -P || true
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
+      - name: check pagefile usage (windows)
+        working-directory: ${{ github.workspace }}
+        if: runner.os == 'Windows'
+        run: wmic.exe pagefile list /format:list
+#       - name: Setup tmate session
+#         uses: mxschmitt/action-tmate@v3
