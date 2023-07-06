@@ -395,7 +395,7 @@ currentSchemaVersion = 15
 
 createSchema :: Transaction ()
 createSchema = do
-  executeStatements (Text.pack [hereFile|unison/sql/create.sql|])
+  executeStatements [hereFile|unison/sql/create.sql|]
   addTempEntityTables
   addNamespaceStatsTables
   addReflogTable
@@ -415,45 +415,45 @@ createSchema = do
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
-  executeStatements (Text.pack [hereFile|unison/sql/001-temp-entity-tables.sql|])
+  executeStatements [hereFile|unison/sql/001-temp-entity-tables.sql|]
 
 addNamespaceStatsTables :: Transaction ()
 addNamespaceStatsTables =
-  executeStatements (Text.pack [hereFile|unison/sql/003-namespace-statistics.sql|])
+  executeStatements [hereFile|unison/sql/003-namespace-statistics.sql|]
 
 addReflogTable :: Transaction ()
 addReflogTable =
-  executeStatements (Text.pack [hereFile|unison/sql/002-reflog-table.sql|])
+  executeStatements [hereFile|unison/sql/002-reflog-table.sql|]
 
 fixScopedNameLookupTables :: Transaction ()
 fixScopedNameLookupTables =
-  executeStatements (Text.pack [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|])
+  executeStatements [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|]
 
 addProjectTables :: Transaction ()
 addProjectTables =
-  executeStatements (Text.pack [hereFile|unison/sql/005-project-tables.sql|])
+  executeStatements [hereFile|unison/sql/005-project-tables.sql|]
 
 addMostRecentBranchTable :: Transaction ()
 addMostRecentBranchTable =
-  executeStatements (Text.pack [hereFile|unison/sql/006-most-recent-branch-table.sql|])
+  executeStatements [hereFile|unison/sql/006-most-recent-branch-table.sql|]
 
 addNameLookupMountTables :: Transaction ()
 addNameLookupMountTables =
-  executeStatements (Text.pack [hereFile|unison/sql/007-add-name-lookup-mounts.sql|])
+  executeStatements [hereFile|unison/sql/007-add-name-lookup-mounts.sql|]
 
 addMostRecentNamespaceTable :: Transaction ()
 addMostRecentNamespaceTable =
-  executeStatements (Text.pack [hereFile|unison/sql/008-add-most-recent-namespace-table.sql|])
+  executeStatements [hereFile|unison/sql/008-add-most-recent-namespace-table.sql|]
 
 addSquashResultTable :: Transaction ()
 addSquashResultTable =
-  executeStatements (Text.pack [hereFile|unison/sql/009-add-squash-cache-table.sql|])
+  executeStatements [hereFile|unison/sql/009-add-squash-cache-table.sql|]
 
 -- | Added as a fix because 'addSquashResultTable' was missed in the createSchema action
 -- for a portion of time.
 addSquashResultTableIfNotExists :: Transaction ()
 addSquashResultTableIfNotExists =
-  executeStatements (Text.pack [hereFile|unison/sql/010-ensure-squash-cache-table.sql|])
+  executeStatements [hereFile|unison/sql/010-ensure-squash-cache-table.sql|]
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
