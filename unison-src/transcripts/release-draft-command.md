@@ -11,7 +11,7 @@ someterm = 18
 ```
 
 ```ucm
-.> project.create foo
+.> project.create-empty foo
 foo/main> add
 ```
 

@@ -30,6 +30,7 @@ dependencies:
   - extra
   - filepath
   - free
+  - fsnotify
   - fuzzyfind
   - friendly-time
   - generic-lens
@@ -189,6 +190,7 @@ default-extensions:
   - InstanceSigs
   - LambdaCase
   - MultiParamTypeClasses
+  - MultiWayIf
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedLabels

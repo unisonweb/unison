@@ -8,17 +8,19 @@ import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
+import Data.Maybe (fromJust)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
+import Network.URI qualified as URI
 import System.Console.Haskeline.Completion (Completion (Completion))
 import System.Console.Haskeline.Completion qualified as Haskeline
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
-import Unison.Cli.Pretty (prettyProjectNameSlash, prettySlashProjectBranchName)
+import Unison.Cli.Pretty (prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -44,6 +46,7 @@ import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..))
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.HashQualified qualified as HQ
+import Unison.JitInfo qualified as JitInfo
 import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
@@ -722,7 +725,7 @@ deleteProject =
   InputPattern
     { patternName = "delete.project",
       aliases = ["project.delete"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [(Required, projectNameArg)],
       help =
         P.wrapColumn2
@@ -740,7 +743,7 @@ deleteBranch =
   InputPattern
     { patternName = "delete.branch",
       aliases = ["branch.delete"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [(Required, projectBranchNameWithOptionalProjectNameArg)],
       help =
         P.wrapColumn2
@@ -1666,7 +1669,8 @@ helpTopicsMap =
       ("filestatus", fileStatusMsg),
       ("messages.disallowedAbsolute", disallowedAbsoluteMsg),
       ("remotes", remotesMsg),
-      ("namespaces", pathnamesMsg)
+      ("namespaces", pathnamesMsg),
+      ("projects", projectsMsg)
     ]
   where
     blankline = ("", "")
@@ -1790,6 +1794,30 @@ helpTopicsMap =
               <> "If the project was created locally then the relationship will be established on"
               <> "the first `push`."
         ]
+    projectsMsg =
+      P.lines $
+        [ P.wrap $
+            "A project is a versioned collection of code that can be edited, published, and depended on other projects."
+              <> "Unison projects are analogous to Git repositories.",
+          "",
+          P.column2
+            [ (patternName projectCreate, "create a new project"),
+              (patternName projectsInputPattern, "list all your projects"),
+              (patternName branchInputPattern, "create a new workstream"),
+              (patternName branchesInputPattern, "list all your branches"),
+              (patternName mergeLocal, "merge one branch into another"),
+              (patternName projectSwitch, "switch to a project or branch"),
+              (patternName push, "upload your changes to Unison Share"),
+              (patternName pull, "download code(/changes/updates) from Unison Share"),
+              (patternName clone, "download a Unison Share project or branch for contribution")
+            ],
+          "",
+          tip ("Use" <> makeExample help [patternName projectCreate] <> "to learn more."),
+          "",
+          P.wrap $
+            "For full documentation, see"
+              <> prettyURI (fromJust (URI.parseURI "https://unison-lang.org/learn/projects"))
+        ]
 
 help :: InputPattern
 help =
@@ -1806,10 +1834,24 @@ help =
               "\n\n"
               showPatternHelp
               visibleInputs
-        [isHelp -> Just msg] -> Left msg
-        [cmd] -> case Map.lookup cmd commandsByName of
-          Nothing -> Left . warn $ "I don't know of that command. Try `help`."
-          Just pat -> Left $ showPatternHelp pat
+        [cmd] ->
+          case (Map.lookup cmd commandsByName, isHelp cmd) of
+            (Nothing, Just msg) -> Left msg
+            (Nothing, Nothing) -> Left . warn $ "I don't know of that command. Try `help`."
+            (Just pat, Nothing) -> Left $ showPatternHelp pat
+            -- If we have a command and a help topic with the same name (like "projects"), then append a tip to the
+            -- command's help that suggests running `help-topic command`
+            (Just pat, Just _) ->
+              Left $
+                showPatternHelp pat
+                  <> P.newline
+                  <> P.newline
+                  <> ( tip $
+                         "To read more about"
+                           <> P.group (P.string cmd <> ",")
+                           <> "use"
+                           <> makeExample helpTopics [P.string cmd]
+                     )
         _ -> Left $ warn "Use `help <cmd>` or `help`."
     )
   where
@@ -2300,22 +2342,36 @@ fetchScheme =
     []
     ( P.wrapColumn2
         [ ( makeExample fetchScheme [],
-            "Fetches the unison library for compiling to scheme.\n\n\
-            \This is done automatically when"
-              <> P.group (makeExample compileScheme [])
-              <> "is run\
-                 \ if the library is not already in the standard location\
-                 \ (unison.internal). However, this command will force\
-                 \ a pull even if the library already exists. You can also specify\
-                 \ a username to pull from (the default is `unison`) to use an alternate\
-                 \ implementation of the scheme compiler. It will attempt to fetch\
-                 \ [username].public.internal.trunk for use."
+            P.lines . fmap P.wrap $
+              [ "Fetches the unison library for compiling to scheme.",
+                "This is done automatically when"
+                  <> P.group (makeExample compileScheme [])
+                  <> "is run if the library is not already in the\
+                     \ standard location (unison.internal). However,\
+                     \ this command will force a pull even if the\
+                     \ library already exists.",
+                "You can also specify a user and branch name to pull\
+                \ from in order to use an alternate version of the\
+                \ unison compiler (for development purposes, for\
+                \ example).",
+                "The default user is `unison`. The default branch\
+                \ for the `unison` user is a specified latest\
+                \ version of the compiler for stability. The\
+                \ default branch for other uses is `main`. The\
+                \ command fetches code from a project:",
+                P.indentN 2 ("@user/internal/branch")
+              ]
           )
         ]
     )
     ( \case
-        [] -> pure (Input.FetchSchemeCompilerI "unison")
-        [name] -> pure (Input.FetchSchemeCompilerI name)
+        [] -> pure (Input.FetchSchemeCompilerI "unison" JitInfo.currentRelease)
+        [name] -> pure (Input.FetchSchemeCompilerI name branch)
+          where
+            branch
+              | name == "unison" = JitInfo.currentRelease
+              | otherwise = "main"
+        [name, branch] -> pure (Input.FetchSchemeCompilerI name branch)
         _ -> Left $ showPatternHelp fetchScheme
     )
 
@@ -2430,7 +2486,7 @@ projectCreate =
   InputPattern
     { patternName = "project.create",
       aliases = ["create.project"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2441,8 +2497,28 @@ projectCreate =
         [name] ->
           case tryInto @ProjectName (Text.pack name) of
             Left _ -> Left "Invalid project name."
-            Right name1 -> Right (Input.ProjectCreateI (Just name1))
-        _ -> Right (Input.ProjectCreateI Nothing)
+            Right name1 -> Right (Input.ProjectCreateI True (Just name1))
+        _ -> Right (Input.ProjectCreateI True Nothing)
+    }
+
+projectCreateEmptyInputPattern :: InputPattern
+projectCreateEmptyInputPattern =
+  InputPattern
+    { patternName = "project.create-empty",
+      aliases = ["create.empty-project"],
+      visibility = I.Hidden,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ("`project.create-empty`", "creates an empty project with a random name"),
+            ("`project.create-empty foo`", "creates an empty project named `foo`")
+          ],
+      parse = \case
+        [name] ->
+          case tryInto @ProjectName (Text.pack name) of
+            Left _ -> Left "Invalid project name."
+            Right name1 -> Right (Input.ProjectCreateI False (Just name1))
+        _ -> Right (Input.ProjectCreateI False Nothing)
     }
 
 projectRenameInputPattern :: InputPattern
@@ -2450,7 +2526,7 @@ projectRenameInputPattern =
   InputPattern
     { patternName = "project.rename",
       aliases = ["rename.project"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2466,7 +2542,7 @@ projectSwitch =
   InputPattern
     { patternName = "switch",
       aliases = [],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [(Required, projectAndBranchNamesArg False)],
       help =
         P.wrapColumn2
@@ -2487,7 +2563,7 @@ projectsInputPattern =
   InputPattern
     { patternName = "projects",
       aliases = ["list.project", "ls.project", "project.list"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help = P.wrap "List projects.",
       parse = \_ -> Right Input.ProjectsI
@@ -2498,7 +2574,7 @@ branchesInputPattern =
   InputPattern
     { patternName = "branches",
       aliases = ["list.branch", "ls.branch", "branch.list"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2516,7 +2592,7 @@ branchInputPattern =
   InputPattern
     { patternName = "branch",
       aliases = ["branch.create", "create.branch"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2547,7 +2623,7 @@ branchEmptyInputPattern =
   InputPattern
     { patternName = "branch.empty",
       aliases = ["branch.create-empty", "create.empty-branch"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help = P.wrap "Create a new empty branch.",
       parse = \case
@@ -2563,7 +2639,7 @@ branchRenameInputPattern =
   InputPattern
     { patternName = "branch.rename",
       aliases = ["rename.branch"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2579,7 +2655,7 @@ clone =
   InputPattern
     { patternName = "clone",
       aliases = [],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help =
         P.wrapColumn2
@@ -2620,7 +2696,7 @@ releaseDraft =
   InputPattern
     { patternName = "release.draft",
       aliases = ["draft.release"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       argTypes = [],
       help = P.wrap "Draft a release.",
       parse = \case
@@ -2711,6 +2787,7 @@ validInputs =
       previewUpdate,
       printVersion,
       projectCreate,
+      projectCreateEmptyInputPattern,
       projectRenameInputPattern,
       projectSwitch,
       projectsInputPattern,
@@ -2886,49 +2963,47 @@ projectAndBranchNamesArg includeCurrentBranch =
   ArgumentType
     { typeName = "project-and-branch-names",
       suggestions = \(Text.strip . Text.pack -> input) codebase _httpClient path ->
-        if Text.null input
-          then handleAmbiguousComplete input codebase path
-          else case tryFrom input of
-            Left _err -> handleAmbiguousComplete input codebase path
-            Right (ProjectAndBranchNames'Ambiguous _ _) -> handleAmbiguousComplete input codebase path
-            -- Here we assume that if we've unambiguously parsed a project, it ended in a forward slash, so we're ready
-            -- to suggest branches in that project as autocompletions.
-            --
-            -- Conceivably, with some other syntax, it may be possible to unambiguously parse a project name, while
-            -- still wanting to suggest full project names (e.g. I type "PROJECT=foo<tab>" to get a list of projects
-            -- that begin with "foo"), but because that's not how our syntax works today, we don't inspect the input
-            -- string for a trailing forward slash.
-            Right (ProjectAndBranchNames'Unambiguous (This projectName)) -> do
-              branches <-
-                Codebase.runTransaction codebase do
-                  Queries.loadProjectByName projectName >>= \case
-                    Nothing -> pure []
-                    Just project -> do
-                      let projectId = project ^. #projectId
-                      fmap (filterOutCurrentBranch path projectId) do
-                        Queries.loadAllProjectBranchesBeginningWith projectId Text.empty
-              pure (map (projectBranchToCompletion projectName) branches)
-            Right (ProjectAndBranchNames'Unambiguous (That branchName)) -> do
-              branches <-
-                case preview ProjectUtils.projectBranchPathPrism path of
-                  Nothing -> pure []
-                  Just (ProjectAndBranch currentProjectId _, _) ->
-                    Codebase.runTransaction codebase do
-                      fmap (filterOutCurrentBranch path currentProjectId) do
-                        Queries.loadAllProjectBranchesBeginningWith
-                          currentProjectId
-                          (into @Text branchName)
-              pure (map currentProjectBranchToCompletion branches)
-            Right (ProjectAndBranchNames'Unambiguous (These projectName branchName)) -> do
-              branches <-
-                Codebase.runTransaction codebase do
-                  Queries.loadProjectByName projectName >>= \case
-                    Nothing -> pure []
-                    Just project -> do
-                      let projectId = project ^. #projectId
-                      fmap (filterOutCurrentBranch path projectId) do
-                        Queries.loadAllProjectBranchesBeginningWith projectId (into @Text branchName)
-              pure (map (projectBranchToCompletion projectName) branches),
+        case Text.uncons input of
+          -- Things like "/foo" would be parsed as unambiguous branches in the logic below, except we also want to
+          -- handle "/<TAB>" and "/@<TAB>" inputs, which aren't valid branch names, but are valid branch prefixes. So,
+          -- if the input begins with a forward slash, just rip it off and treat the rest as the branch prefix.
+          Just ('/', input1) -> handleBranchesComplete input1 codebase path
+          _ ->
+            case tryFrom input of
+              -- This case handles inputs like "", "@", and possibly other things that don't look like a valid project
+              -- or branch, but are a valid prefix of one
+              Left _err -> handleAmbiguousComplete input codebase path
+              Right (ProjectAndBranchNames'Ambiguous _ _) -> handleAmbiguousComplete input codebase path
+              -- Here we assume that if we've unambiguously parsed a project, it ended in a forward slash, so we're ready
+              -- to suggest branches in that project as autocompletions.
+              --
+              -- Conceivably, with some other syntax, it may be possible to unambiguously parse a project name, while
+              -- still wanting to suggest full project names (e.g. I type "PROJECT=foo<tab>" to get a list of projects
+              -- that begin with "foo"), but because that's not how our syntax works today, we don't inspect the input
+              -- string for a trailing forward slash.
+              Right (ProjectAndBranchNames'Unambiguous (This projectName)) -> do
+                branches <-
+                  Codebase.runTransaction codebase do
+                    Queries.loadProjectByName projectName >>= \case
+                      Nothing -> pure []
+                      Just project -> do
+                        let projectId = project ^. #projectId
+                        fmap (filterOutCurrentBranch path projectId) do
+                          Queries.loadAllProjectBranchesBeginningWith projectId Text.empty
+                pure (map (projectBranchToCompletion projectName) branches)
+              -- This branch is probably dead due to intercepting inputs that begin with "/" above
+              Right (ProjectAndBranchNames'Unambiguous (That branchName)) ->
+                handleBranchesComplete (into @Text branchName) codebase path
+              Right (ProjectAndBranchNames'Unambiguous (These projectName branchName)) -> do
+                branches <-
+                  Codebase.runTransaction codebase do
+                    Queries.loadProjectByName projectName >>= \case
+                      Nothing -> pure []
+                      Just project -> do
+                        let projectId = project ^. #projectId
+                        fmap (filterOutCurrentBranch path projectId) do
+                          Queries.loadAllProjectBranchesBeginningWith projectId (into @Text branchName)
+                pure (map (projectBranchToCompletion projectName) branches),
       globTargets = Set.empty
     }
   where
@@ -3019,6 +3094,17 @@ projectAndBranchNamesArg includeCurrentBranch =
         if not (null branchCompletions) && not (null projectCompletions) && not (Text.null input)
           then projectCompletions
           else branchCompletions ++ projectCompletions
+
+    handleBranchesComplete :: MonadIO m => Text -> Codebase m v a -> Path.Absolute -> m [Completion]
+    handleBranchesComplete branchName codebase path = do
+      branches <-
+        case preview ProjectUtils.projectBranchPathPrism path of
+          Nothing -> pure []
+          Just (ProjectAndBranch currentProjectId _, _) ->
+            Codebase.runTransaction codebase do
+              fmap (filterOutCurrentBranch path currentProjectId) do
+                Queries.loadAllProjectBranchesBeginningWith currentProjectId branchName
+      pure (map currentProjectBranchToCompletion branches)
 
     filterOutCurrentBranch :: Path.Absolute -> ProjectId -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
     filterOutCurrentBranch path projectId =

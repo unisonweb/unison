@@ -39,6 +39,7 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
   )
+import Unison.Codebase.Path qualified as Path
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
@@ -70,6 +71,34 @@ type Size = Int
 type UnisonName = Text
 
 type UnisonHash = Text
+
+data NamespaceDetails = NamespaceDetails
+  { fqn :: Path.Path,
+    hash :: UnisonHash,
+    readme :: Maybe Doc
+  }
+  deriving (Generic, Show)
+
+instance Docs.ToSample NamespaceDetails where
+  toSamples _ =
+    [ ( "When no value is provided for `namespace`, the root namespace `.` is "
+          <> "listed by default",
+        NamespaceDetails
+          Path.empty
+          "#gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
+          Nothing
+      )
+    ]
+
+instance ToJSON NamespaceDetails where
+  toJSON NamespaceDetails {..} =
+    object
+      [ "fqn" .= fqn,
+        "hash" .= hash,
+        "readme" .= readme
+      ]
+
+deriving instance ToSchema NamespaceDetails
 
 -- | A hash qualified name, unlike HashQualified, the hash is required
 data ExactName name ref = ExactName

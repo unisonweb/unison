@@ -50,8 +50,16 @@ vfsLogger = Colog.cmap (fmap tShow) (Colog.hoistLogAction lift LSP.defaultClient
 markFilesDirty :: (Foldable f, HasUri doc Uri) => f doc -> Lsp ()
 markFilesDirty docs = do
   dirtyFilesV <- asks dirtyFilesVar
+  checkedFilesV <- asks checkedFilesVar
   let dirtyUris = setOf (folded . uri) docs
-  atomically $ modifyTVar' dirtyFilesV (Set.union dirtyUris)
+  atomically $ do
+    modifyTVar' dirtyFilesV (Set.union dirtyUris)
+    checkedFiles <- readTVar checkedFilesV
+    -- Clear the analysis for any files which need to be re-checked.
+    for_ dirtyUris \uri -> do
+      case Map.lookup uri checkedFiles of
+        Nothing -> pure ()
+        Just mvar -> void $ tryTakeTMVar mvar
 
 -- | Mark all files for re-checking.
 --

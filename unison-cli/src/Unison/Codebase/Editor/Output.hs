@@ -131,6 +131,11 @@ data NumberedOutput
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
   | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
   | AmbiguousReset AmbiguousReset'Argument (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path) (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- | List all direct dependencies which don't have any names in the current branch
+    ListNamespaceDependencies
+      PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
+      Path.Absolute -- The namespace we're checking dependencies for.
+      (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
 
 data AmbiguousReset'Argument
   = AmbiguousReset'Hash
@@ -296,11 +301,6 @@ data Output
   | ListDependencies PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | -- | List dependents of a type or term.
     ListDependents PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
-  | -- | List all direct dependencies which don't have any names in the current branch
-    ListNamespaceDependencies
-      PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
-      Path.Absolute -- The namespace we're checking dependencies for.
-      (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
@@ -373,6 +373,9 @@ data Output
   | RenamedProject ProjectName ProjectName
   | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
   | CantRenameBranchTo ProjectBranchName
+  | FetchingLatestReleaseOfBase
+  | FailedToFetchLatestReleaseOfBase
+  | HappyCoding
 
 -- | What did we create a project branch from?
 --
@@ -535,7 +538,6 @@ isFailure o = case o of
   NoOp -> False
   ListDependencies {} -> False
   ListDependents {} -> False
-  ListNamespaceDependencies {} -> False
   TermMissingType {} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
   NamespaceEmpty {} -> True
@@ -588,6 +590,9 @@ isFailure o = case o of
   RenamedProject {} -> False
   RenamedProjectBranch {} -> False
   CantRenameBranchTo {} -> True
+  FetchingLatestReleaseOfBase {} -> False
+  FailedToFetchLatestReleaseOfBase {} -> True
+  HappyCoding {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
@@ -610,4 +615,5 @@ isNumberedFailure = \case
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False
   ShowDiffNamespace {} -> False
+  ListNamespaceDependencies {} -> False
   TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)

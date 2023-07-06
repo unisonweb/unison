@@ -2,8 +2,8 @@ The `branch` command creates a new branch.
 
 ```ucm:hide
 .> builtins.merge
-.> project.create foo
-.> project.create bar
+.> project.create-empty foo
+.> project.create-empty bar
 ```
 
 First, we'll just create a loose code namespace with a term in it for later.

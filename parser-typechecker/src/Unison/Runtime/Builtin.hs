@@ -1,4 +1,3 @@
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -38,6 +37,7 @@ import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
 import Crypto.Hash qualified as Hash
 import Crypto.MAC.HMAC qualified as HMAC
+import Crypto.Random (getRandomBytes)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
@@ -58,8 +58,10 @@ import Data.Text qualified
 import Data.Text.IO qualified as Text.IO
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime,
+    posixSecondsToUTCTime,
     utcTimeToPOSIXSeconds,
   )
+import Data.Time.LocalTime (TimeZone (..), getTimeZone)
 import Data.X509 qualified as X
 import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
@@ -1058,6 +1060,26 @@ infixr 0 -->
 
 (-->) :: a -> b -> (a, b)
 x --> y = (x, y)
+
+-- Box an unboxed value
+-- Takes the boxed variable, the unboxed variable, and the type of the value
+box :: (Var v) => v -> v -> Reference -> Term ANormalF v -> Term ANormalF v
+box b u ty = TLetD b BX (TCon ty 0 [u])
+
+time'zone :: ForeignOp
+time'zone instr =
+  ([BX],)
+    . TAbss [bsecs]
+    . unbox bsecs Ty.intRef secs
+    . TLets Direct [offset, summer, name] [UN, UN, BX] (TFOp instr [secs])
+    . box bsummer summer Ty.natRef
+    . box boffset offset Ty.intRef
+    . TLetD un BX (TCon Ty.unitRef 0 [])
+    . TLetD p2 BX (TCon Ty.pairRef 0 [name, un])
+    . TLetD p1 BX (TCon Ty.pairRef 0 [bsummer, p2])
+    $ TCon Ty.pairRef 0 [boffset, p1]
+  where
+    (secs, bsecs, offset, boffset, summer, bsummer, name, un, p2, p1) = fresh
 
 start'process :: ForeignOp
 start'process instr =
@@ -2267,6 +2289,13 @@ declareForeigns = do
   declareForeign Tracked "Clock.internals.nsec.v1" boxToNat $
     mkForeign (\n -> pure (fromIntegral $ nsec n :: Word64))
 
+  declareForeign Tracked "Clock.internals.systemTimeZone.v1" time'zone $
+    mkForeign
+      ( \secs -> do
+          TimeZone offset summer name <- getTimeZone (posixSecondsToUTCTime (fromIntegral (secs :: Int)))
+          pure (offset :: Int, summer, name)
+      )
+
   let chop = reverse . dropWhile isPathSeparator . reverse
 
   declareForeign Tracked "IO.getTempDirectory.impl.v3" unitToEFBox $
@@ -2356,7 +2385,7 @@ declareForeigns = do
 
   declareForeign Tracked "IO.listen.impl.v3" boxToEF0
     . mkForeignIOF
-    $ \sk -> SYS.listenSock sk 2
+    $ \sk -> SYS.listenSock sk 2048
 
   declareForeign Tracked "IO.clientSocket.impl.v3" boxBoxToEFBox
     . mkForeignIOF
@@ -2713,6 +2742,9 @@ declareForeigns = do
 
   declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
     pure . asWord64 . hash64 . serializeValueLazy
+
+  declareForeign Tracked "IO.randomBytes" natToBox . mkForeign $
+    \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
 
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
   declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress

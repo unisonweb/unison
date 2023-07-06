@@ -36,6 +36,8 @@
     builtin-Int.signum
     builtin-Nat.increment
     builtin-Nat.toFloat
+    builtin-Text.indexOf
+    builtin-IO.randomBytes
 
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
@@ -48,6 +50,14 @@
     unison-FOp-IO.getBytes.impl.v3
     builtin-IO.seekHandle.impl.v3
     builtin-IO.getLine.impl.v1
+    builtin-IO.getSomeBytes.impl.v1
+    builtin-IO.setBuffering.impl.v3
+    builtin-IO.getBuffering.impl.v3
+    builtin-IO.setEcho.impl.v1
+    builtin-IO.process.call
+    builtin-IO.getEcho.impl.v1
+    builtin-IO.getArgs.impl.v1
+    builtin-IO.getEnv.impl.v1
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
@@ -346,7 +356,10 @@
                  bytes->string/utf-8
                  string->bytes/utf-8
                  exn:fail:contract?
+                 file-stream-buffer-mode
                  with-handlers
+                 match
+                 regexp-match-positions
                  sequence-ref
                  vector-copy!
                  bytes-copy!)
@@ -354,6 +367,7 @@
           (unison arithmetic)
           (unison bytevector)
           (unison core)
+          (only (unison boot) define-unison)
           (unison data)
           (unison math)
           (unison chunked-seq)
@@ -368,7 +382,21 @@
           (unison tcp)
           (unison gzip)
           (unison zlib)
-          (unison concurrent))
+          (unison concurrent)
+          (racket random))
+
+  ; NOTE: this is just a temporary stopgap until the real function is
+  ; done. I accidentally pulled in too new a version of base in the
+  ; project version of the unison compiler and it broke the jit tests.
+  (define-unison (builtin-Text.indexOf s t)
+    (let ([ss (chunked-string->string s)]
+          [tt (chunked-string->string t)])
+      (match (regexp-match-positions ss tt)
+        [#f (data 'Optional 1)] ; none
+        [(cons (cons i j) r) (data 'Optional 0 i)]))) ; some
+
+  (define-unison (builtin-IO.randomBytes n)
+    (bytes->chunked-bytes (crypto-random-bytes n)))
 
   (define (unison-POp-UPKB bs)
     (build-chunked-list
@@ -575,16 +603,6 @@
       (sum 1 #f)))
 
   (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
-
-  (define stdin (standard-input-port))
-  (define stdout (standard-output-port))
-  (define stderr (standard-error-port))
-
-  (define (unison-FOp-IO.stdHandle n)
-    (case n
-      [(0) stdin]
-      [(1) stdout]
-      [(2) stderr]))
 
   (define (unison-FOp-IO.getArgs.impl.v1)
     (sum 1 (cdr (command-line))))

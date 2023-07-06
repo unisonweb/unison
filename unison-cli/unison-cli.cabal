@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -37,6 +37,7 @@ library
       Unison.Cli.Pretty
       Unison.Cli.PrettyPrintUtils
       Unison.Cli.ProjectUtils
+      Unison.Cli.ServantClientUtils
       Unison.Cli.Share.Projects
       Unison.Cli.Share.Projects.Types
       Unison.Cli.TypeCheck
@@ -75,8 +76,8 @@ library
       Unison.Codebase.Editor.TodoOutput
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
-      Unison.Codebase.Editor.VersionParser
       Unison.Codebase.TranscriptParser
+      Unison.Codebase.Watch
       Unison.CommandLine
       Unison.CommandLine.Completion
       Unison.CommandLine.DisplayValues
@@ -88,6 +89,7 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Types
       Unison.CommandLine.Welcome
+      Unison.JitInfo
       Unison.LSP
       Unison.LSP.CancelRequest
       Unison.LSP.CodeAction
@@ -132,6 +134,7 @@ library
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -166,6 +169,7 @@ library
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -261,6 +265,7 @@ executable cli-integration-tests
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -299,6 +304,7 @@ executable cli-integration-tests
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -390,6 +396,7 @@ executable transcripts
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -426,6 +433,7 @@ executable transcripts
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -523,6 +531,7 @@ executable unison
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -558,6 +567,7 @@ executable unison
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -638,7 +648,6 @@ test-suite cli-tests
       Unison.Test.LSP
       Unison.Test.Ucm
       Unison.Test.UriParser
-      Unison.Test.VersionParser
   hs-source-dirs:
       tests
   default-extensions:
@@ -662,6 +671,7 @@ test-suite cli-tests
       InstanceSigs
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -698,6 +708,7 @@ test-suite cli-tests
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
