@@ -14,6 +14,8 @@ module U.Codebase.Sqlite.Operations
     expectBranchByBranchHashId,
     expectNamespaceStatsByHash,
     expectNamespaceStatsByHashId,
+    tryGetSquashResult,
+    saveSquashResult,
 
     -- * terms
     Q.saveTermComponent,
@@ -1403,6 +1405,21 @@ deleteNameLookupsExceptFor :: Set BranchHash -> Transaction ()
 deleteNameLookupsExceptFor reachable = do
   bhIds <- for (Set.toList reachable) Q.expectBranchHashId
   Q.deleteNameLookupsExceptFor bhIds
+
+-- | Get the causal hash which would be the result of squashing the provided branch hash.
+-- Returns Nothing if we haven't computed it before.
+tryGetSquashResult :: BranchHash -> Transaction (Maybe CausalHash)
+tryGetSquashResult bh = do
+  bhId <- Q.expectBranchHashId bh
+  chId <- Q.tryGetSquashResult bhId
+  traverse Q.expectCausalHash chId
+
+-- | Saves the result of a squash
+saveSquashResult :: BranchHash -> CausalHash -> Transaction ()
+saveSquashResult bh ch = do
+  bhId <- Q.expectBranchHashId bh
+  chId <- Q.saveCausalHash ch
+  Q.saveSquashResult bhId chId
 
 -- | Search for term or type names which contain the provided list of segments in order.
 -- Search is case insensitive.

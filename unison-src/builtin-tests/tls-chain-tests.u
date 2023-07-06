@@ -41,7 +41,7 @@ chainClient portPromise toSend =
   tlsock = Tls.handshake tls
   TlsSocket.send tlsock (toUtf8 toSend)
   -- res = fromUtf8 (TlsSocket.receive tlsock)
-  TlsSocket.close tlsock
+  TlsSocket.terminate tlsock
   -- res
 
 -- server receives then sends
@@ -61,7 +61,7 @@ chainServer portPromise toSend =
   tlsock = net.Tls.handshake tls
   res = fromUtf8 (TlsSocket.receive tlsock)
   -- TlsSocket.send tlsock (toUtf8 toSend)
-  TlsSocket.close tlsock
+  TlsSocket.terminate tlsock
   res
 
 tlsChainTest = do

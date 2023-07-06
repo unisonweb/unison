@@ -1,13 +1,18 @@
 
 io.tests = Tests.main do
     !test_getFileSize
-    !test_getFileSize_err 
+    !test_getFileSize_err
     !test_getFileTimestamp
     !test_getFileTimestamp_err
     !io.test.seek.absolute
     !io.test.seek.relative
     !io.test.getLine
     !io.test.getsetBuffering
+    !io.test_getEcho
+    !io.test_getArgs
+    !io.test_getEnv
+    !io.test.getRandomBytes
+    !io.test_getSomeBytes
 
 testFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
@@ -47,7 +52,7 @@ test_getFileTimestamp = do
         Tests.fail "File timestamp is too late" ((Int.toText ts) ++ " vs " ++ (Int.toText after))
     else
         Tests.pass "File timestamp is reasonable"
-    
+
 test_getFileTimestamp_err = do
     expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(FilePath.getTimestamp !testFile)
 
@@ -104,3 +109,34 @@ io.test.getsetBuffering = do
     checkEqual "Line" b2 LineBuffering
     checkEqual "No" b3 NoBuffering
 
+is_a_tty = do
+    exitCode = call "test" ["-t", "0"]
+    exitCode == 0
+
+io.test_getEcho = do
+    if is_a_tty () then
+        prev = getEcho stdIn
+        setEcho stdIn false
+        checkEqual "echo turned off" (getEcho stdIn) false
+        setEcho stdIn true
+        checkEqual "echo turned back on" (getEcho stdIn) true
+        setEcho stdIn prev
+    else
+        ()
+
+io.test_getArgs = do
+    checkEqual "cli args" !getArgs []
+
+io.test_getEnv = do
+    checkEqual "HOME env variable" (startsWith "/" (getEnv "HOME")) true
+
+io.test.getRandomBytes = do
+    bs = IO.randomBytes 10
+    checkEqual "get 10 random bytes" 10 (base.Bytes.size bs)
+
+io.test_getSomeBytes = do
+    fp = !testFile
+    _ = writeFile fp "one\ntwo\nthree"
+    h = open fp Read
+    one = getSomeBytes h 3
+    checkEqual "get some bytes" one (toUtf8 "one")

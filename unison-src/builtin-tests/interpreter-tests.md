@@ -64,6 +64,7 @@ to `Tests.check` and `Tests.checkEqual`).
 ```
 
 ```ucm:hide
+.> alias.term ##IO.randomBytes IO.randomBytes
 .> load unison-src/builtin-tests/io-tests.u
 .> add
 ```

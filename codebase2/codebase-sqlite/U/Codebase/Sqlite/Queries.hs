@@ -86,6 +86,8 @@ module U.Codebase.Sqlite.Queries
     loadBranchObjectIdByBranchHashId,
     expectBranchObjectIdByCausalHashId,
     expectBranchObjectIdByBranchHashId,
+    tryGetSquashResult,
+    saveSquashResult,
 
     -- ** causal_parent table
     saveCausalParents,
@@ -234,6 +236,7 @@ module U.Codebase.Sqlite.Queries
     fixScopedNameLookupTables,
     addNameLookupMountTables,
     addMostRecentNamespaceTable,
+    addSquashResultTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -387,7 +390,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 13
+currentSchemaVersion = 14
 
 createSchema :: Transaction ()
 createSchema = do
@@ -439,6 +442,10 @@ addNameLookupMountTables =
 addMostRecentNamespaceTable :: Transaction ()
 addMostRecentNamespaceTable =
   executeStatements (Text.pack [hereFile|unison/sql/008-add-most-recent-namespace-table.sql|])
+
+addSquashResultTable :: Transaction ()
+addSquashResultTable =
+  executeStatements (Text.pack [hereFile|unison/sql/009-add-squash-cache-table.sql|])
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -2219,9 +2226,9 @@ termNamesForRefWithinNamespace bhId namespaceRoot ref maySuffix = do
           [sql|
         $transitive_dependency_mounts
         SELECT (reversed_name || reversed_mount_path) AS reversed_name
-          FROM all_in_scope_roots
+          FROM transitive_dependency_mounts
             INNER JOIN scoped_term_name_lookup
-            ON scoped_term_name_lookup.root_branch_hash_id = all_in_scope_roots.root_branch_hash_id
+            ON scoped_term_name_lookup.root_branch_hash_id = transitive_dependency_mounts.root_branch_hash_id
         WHERE referent_builtin IS @ref AND referent_component_hash IS @ AND referent_component_index IS @ AND referent_constructor_index IS @
               AND reversed_name GLOB :suffixGlob
         LIMIT 1
@@ -4036,3 +4043,32 @@ setMostRecentNamespace namespace =
     json :: Text
     json =
       Text.Lazy.toStrict (Aeson.encodeToLazyText namespace)
+
+-- | Get the causal hash result from squashing the provided branch hash if we've squashed it
+-- at some point in the past.
+tryGetSquashResult :: BranchHashId -> Transaction (Maybe CausalHashId)
+tryGetSquashResult bhId = do
+  queryMaybeCol
+    [sql|
+      SELECT
+        squashed_causal_hash_id
+      FROM
+        squash_results
+      WHERE
+        branch_hash_id = :bhId
+    |]
+
+-- | Save the result of running a squash on the provided branch hash id.
+saveSquashResult :: BranchHashId -> CausalHashId -> Transaction ()
+saveSquashResult bhId chId =
+  execute
+    [sql|
+      INSERT INTO squash_results (
+        branch_hash_id,
+        squashed_causal_hash_id)
+      VALUES (
+        :bhId,
+        :chId
+        )
+      ON CONFLICT DO NOTHING
+    |]

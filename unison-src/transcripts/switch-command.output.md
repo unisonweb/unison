@@ -23,7 +23,7 @@ someterm = 18
   🎉 I've created the project foo.
 
   🎨 Type `ui` to explore this project's code in your browser.
-  🌏 Discover libraries at https://share.unison-lang.org
+  🔭 Discover libraries at https://share.unison-lang.org
   📖 Use `help-topic projects` to learn more about projects.
   
   Write your first Unison code with UCM:
@@ -39,7 +39,7 @@ someterm = 18
   🎉 I've created the project bar.
 
   🎨 Type `ui` to explore this project's code in your browser.
-  🌏 Discover libraries at https://share.unison-lang.org
+  🔭 Discover libraries at https://share.unison-lang.org
   📖 Use `help-topic projects` to learn more about projects.
   
   Write your first Unison code with UCM:
