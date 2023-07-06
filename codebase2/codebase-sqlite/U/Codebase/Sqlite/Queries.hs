@@ -390,7 +390,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 14
+currentSchemaVersion = 15
 
 createSchema :: Transaction ()
 createSchema = do
@@ -404,6 +404,7 @@ createSchema = do
   addNameLookupMountTables
   addMostRecentNamespaceTable
   execute insertSchemaVersionSql
+  addSquashResultTable
   where
     insertSchemaVersionSql =
       [sql|
