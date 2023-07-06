@@ -237,6 +237,7 @@ module U.Codebase.Sqlite.Queries
     addNameLookupMountTables,
     addMostRecentNamespaceTable,
     addSquashResultTable,
+    addSquashResultTableIfNotExists,
 
     -- ** schema version
     currentSchemaVersion,
@@ -447,6 +448,12 @@ addMostRecentNamespaceTable =
 addSquashResultTable :: Transaction ()
 addSquashResultTable =
   executeStatements (Text.pack [hereFile|unison/sql/009-add-squash-cache-table.sql|])
+
+-- | Added as a fix because 'addSquashResultTable' was missed in the createSchema action
+-- for a portion of time.
+addSquashResultTableIfNotExists :: Transaction ()
+addSquashResultTableIfNotExists =
+  executeStatements (Text.pack [hereFile|unison/sql/010-ensure-squash-cache-table.sql|])
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
