@@ -107,7 +107,7 @@
                   native-packages = pkgs.lib.optionals pkgs.stdenv.isDarwin
                     (with pkgs.darwin.apple_sdk.frameworks; [ Cocoa ]);
                 in
-                (args.buildInputs or [ ]) ++ (with pkgs; [ unison-stack pkg-config zlib ]) ++ native-packages;
+                (args.buildInputs or [ ]) ++ (with pkgs; [ unison-stack pkg-config zlib glibcLocales ]) ++ native-packages;
               # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
               shellHook = ''
                 export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
