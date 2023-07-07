@@ -31,7 +31,7 @@ module Unison.Server.Backend
     displayType,
     docsInBranchToHtmlFiles,
     expandShortCausalHash,
-    findDocInBranchAndRender,
+    findDocInBranch,
     formatSuffixedType,
     getCurrentParseNames,
     getCurrentPrettyNames,
@@ -455,25 +455,16 @@ lsAtPath codebase mayRootBranch absPath = do
   b <- Codebase.runTransaction codebase (Codebase.getShallowBranchAtPath (Path.unabsolute absPath) mayRootBranch)
   lsBranch codebase b
 
-findDocInBranchAndRender ::
+findDocInBranch ::
   Set NameSegment ->
-  Width ->
-  Rt.Runtime Symbol ->
-  Codebase IO Symbol Ann ->
-  PPED.PrettyPrintEnvDecl ->
   V2Branch.Branch m ->
-  Backend IO (Maybe Doc.Doc)
-findDocInBranchAndRender names _width runtime codebase ppe namespaceBranch =
-  let renderReadme :: PPED.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
-      renderReadme ppe docReference = do
-        doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc ppe
-        pure doc
-
-      -- choose the first term (among conflicted terms) matching any of these names, in this order.
+  Maybe TermReference
+findDocInBranch names namespaceBranch =
+  let -- choose the first term (among conflicted terms) matching any of these names, in this order.
       -- we might later want to return all of them to let the front end decide
       toCheck = Set.toList names
-      readme :: Maybe Reference
-      readme = listToMaybe $ do
+      readmeRef :: Maybe Reference
+      readmeRef = listToMaybe $ do
         name <- toCheck
         term <- toList $ Map.lookup name termsMap
         k <- Map.keys term
@@ -483,8 +474,7 @@ findDocInBranchAndRender names _width runtime codebase ppe namespaceBranch =
           V2Referent.Ref ref -> pure $ Cv.reference2to1 ref
         where
           termsMap = V2Branch.terms namespaceBranch
-   in liftIO $ do
-        traverse (renderReadme ppe) readme
+   in readmeRef
 
 isDoc :: Codebase m Symbol Ann -> Referent.Referent -> Sqlite.Transaction Bool
 isDoc codebase ref = do

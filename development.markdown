@@ -18,34 +18,7 @@ On startup, Unison prints a url for the codebase UI. If you did step 3 above, th
 
 ## Autoformatting your code with Ormolu
 
-We use 0.5.0.1 of Ormolu and CI will fail if your code isn't properly formatted. 
-
-```
-ghcup install ghc 9.2.7 # if not already installed
-ghcup install cabal # if not already installed
-cabal unpack ormolu-0.5.0.1
-cd ormolu-0.5.0.1
-cabal install -w ghc-9.2.7
-```
-
-You can then add the following to `.git/hooks/pre-commit` to make sure all your commits get formatted:
-
-```
-#!/bin/bash
-
-set -e
-
-if [[ -z "${SKIP_FORMATTING}" ]]; then
-    ormolu -i $(git diff --cached --name-only | grep '\.hs$')
-    git add $(git diff --cached --name-only)
-fi
-```
-
-If you've got an existing PR that somehow hasn't been formatted correctly, you can install the correct version of Ormolu locally, then do:
-
-```
-ormolu -i $(git ls-files | grep '\.hs$')
-```
+We use 0.5.0.1 of Ormolu and CI will add an extra commit, if needed, to autoformat your code.
 
 Also note that you can always wrap a comment around some code you don't want Ormolu to touch, using:
 

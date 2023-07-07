@@ -39,6 +39,8 @@ library
       Unison.Server.QueryResult
       Unison.Server.SearchResult
       Unison.Server.SearchResult'
+      Unison.Server.Share.NamespaceDetails
+      Unison.Server.Share.RenderDoc
       Unison.Server.Syntax
       Unison.Server.Types
       Unison.Sync.API
@@ -76,6 +78,7 @@ library
       TypeApplications
       TypeOperators
       ViewPatterns
+      ImportQualifiedPost
   ghc-options: -Wall
   build-depends:
       NanoID

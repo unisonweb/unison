@@ -9,7 +9,6 @@ import Unison.Test.Cli.Monad qualified as Cli.Monad
 import Unison.Test.GitSync qualified as GitSync
 import Unison.Test.LSP qualified as LSP
 import Unison.Test.UriParser qualified as UriParser
-import Unison.Test.VersionParser qualified as VersionParser
 
 test :: Test ()
 test =
@@ -18,8 +17,7 @@ test =
       ClearCache.test,
       Cli.Monad.test,
       GitSync.test,
-      UriParser.test,
-      VersionParser.test
+      UriParser.test
     ]
 
 main :: IO ()
