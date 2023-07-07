@@ -7,7 +7,7 @@ base_codebase=${XDG_CACHE_HOME:-"$HOME/.cache"}/unisonlanguage/base.unison
 
 if [ ! -d $base_codebase ]; then
     echo !!!! Creating a codebase in $base_codebase
-    UNISON_DEBUG=timing $ucm transcript -S $base_codebase unison-src/builtin-tests/base.md
+    $ucm transcript -S $base_codebase unison-src/builtin-tests/base.md
 fi
 
 dir=${XDG_DATA_HOME:-"$HOME/.local/share"}/unisonlanguage/scheme-libs
@@ -16,4 +16,4 @@ echo $dir
 mkdir -p $dir
 cp -r scheme-libs/* $dir/
 
-time $ucm transcript.fork -c $base_codebase unison-src/builtin-tests/jit-tests.md
+UNISON_DEBUG=timing time $ucm transcript.fork -c $base_codebase unison-src/builtin-tests/jit-tests.md
