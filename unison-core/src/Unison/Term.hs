@@ -1371,8 +1371,22 @@ containsExpression :: (Var v, Var typeVar, Eq typeAnn) => Term2 typeVar typeAnn 
 containsExpression = ABT.containsExpression
 
 containsCaseTerm :: Var v1 => Term2 tv ta tb v1 loc -> Term2 typeVar typeAnn loc v2 a -> Maybe Bool
-containsCaseTerm pat tm =
-  containsCase <$> toPattern pat <*> pure tm
+containsCaseTerm pat =
+  (\tm -> containsCase <$> pat' <*> pure tm)
+  where
+    pat' = toPattern pat
+
+containsSignature :: (Ord v, ABT.Var vt, Show vt) => Type vt at -> Term2 vt at ap v a -> Bool
+containsSignature tyLhs tm = any ok (ABT.subterms tm)
+  where
+    ok (Ann' _ tp) = ABT.containsExpression tyLhs tp
+    ok _ = False
+
+rewriteSignatures :: (Ord v, ABT.Var vt, Show vt) => Type vt at -> Type vt at -> Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
+rewriteSignatures tyLhs tyRhs tm = ABT.rebuildMaybeUp go tm
+  where
+    go a@(Ann' tm tp) = ann (ABT.annotation a) tm <$> ABT.rewriteExpression tyLhs tyRhs tp
+    go _ = Nothing
 
 rewriteCasesLHS :: forall v typeVar typeAnn a
                 . (Var v, Var typeVar, Ord v, Show typeVar, Eq typeAnn, Semigroup a) 
@@ -1380,8 +1394,8 @@ rewriteCasesLHS :: forall v typeVar typeAnn a
                 -> Term2 typeVar typeAnn a v a 
                 -> Term2 typeVar typeAnn a v a
                 -> Maybe (Term2 typeVar typeAnn a v a)
-rewriteCasesLHS pat0 pat0' tm = 
-  out <$> ABT.rewriteExpression pat pat' (into tm)  
+rewriteCasesLHS pat0 pat0' = 
+  (\tm -> out <$> ABT.rewriteExpression pat pat' (into tm))
   where
     ann = ABT.annotation
     embedPattern t = app (ann t) (builtin (ann t) "#pattern") t 

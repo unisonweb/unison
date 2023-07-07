@@ -35,6 +35,7 @@ module Unison.ABT
     subterms,
     annotateBound,
     rebuildUp,
+    rebuildMaybeUp,
     rebuildUp',
     reannotateUp,
     rewriteDown,
@@ -411,6 +412,22 @@ rebuildUp' f (Term _ ann body) = case body of
   Cycle body -> f $ cycle' ann (rebuildUp' f body)
   Abs x e -> f $ abs' ann x (rebuildUp' f e)
   Tm body -> f $ tm' ann (fmap (rebuildUp' f) body)
+
+rebuildMaybeUp ::
+  (Ord v, Foldable f, Functor f) =>
+  (Term f v a -> Maybe (Term f v a)) ->
+  Term f v a ->
+  Maybe (Term f v a)
+rebuildMaybeUp f tm@(Term _ ann body) = f $ case body of
+  Var _ -> tm 
+  Cycle body -> fromMaybe tm $ fmap (cycle' ann) (rebuildMaybeUp f body)
+  Abs x e -> fromMaybe tm $ fmap (abs' ann x) (rebuildMaybeUp f e)
+  Tm body -> 
+    if all (isNothing . snd) body'
+    then tm
+    else tm' ann (fmap (uncurry fromMaybe) body')
+    where
+      body' = fmap (\tm -> (tm, rebuildMaybeUp f tm)) body
 
 freeVarOccurrences :: (Traversable f, Ord v) => Set v -> Term f v a -> [(v, a)]
 freeVarOccurrences except t =

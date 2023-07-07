@@ -1730,7 +1730,7 @@ handleStructuredFindI :: HQ.HashQualified Name -> Cli ()
 handleStructuredFindI rule = do
   Cli.Env {codebase} <- ask
   (ppe, names, rules0) <- lookupRewrite InvalidStructuredFind rule
-  let rules = [(lookInLhs, lhs, Term.toPattern lhs) | (lookInLhs, lhs, _rhs) <- rules0 ]
+  let rules = snd <$> rules0
   let fqppe = PPED.unsuffixifiedPPE ppe
   results :: [(HQ.HashQualified Name, Referent)] <- pure $ do
     r <- Set.toList (Relation.ran $ Names.terms (NamesWithHistory.currentNames names))
@@ -1742,18 +1742,15 @@ handleStructuredFindI rule = do
     pure (HQ'.toHQ shortName, r)
   let ok t@(_, Referent.Ref (Reference.DerivedId r)) = do
         oe <- Cli.runTransaction (Codebase.getTerm codebase r)
-        pure $ (t, hasAny oe, hasAnyCase oe)
-      ok t = pure (t, False, Nothing)
-      hasAny t = any (\(lookInLhs,lhs,_) -> not lookInLhs && maybe False (ABT.containsExpression lhs) t) rules  
-      hasAnyCase t = asum [ Term.containsCase <$> lhsPat <*> t | (True,_,lhsPat) <- rules ]
+        pure $ (t, maybe False (\e -> any ($ e) rules) oe)
+      ok t = pure (t, False)
   results0 <- traverse ok results
-  let caseResults = [ (hq, r) | ((hq,r), _, Just True) <- results0 ]
-  let results = [ (hq, r) | ((hq,r), True, _) <- results0 ]
+  let results = [ (hq, r) | ((hq,r), True) <- results0 ]
   let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
-  #numberedArgs .= map toNumArgs caseResults <> map toNumArgs results
-  Cli.respond (ListStructuredFind (fmap fst caseResults <$ asum (view _3 <$> rules)) (fst <$> results))
+  #numberedArgs .= map toNumArgs results
+  Cli.respond (ListStructuredFind (fst <$> results))
 
-lookupRewrite :: (HQ.HashQualified Name -> Output) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, [(Bool, Term Symbol Ann, Term Symbol Ann)])
+lookupRewrite :: (HQ.HashQualified Name -> Output) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, [(Term Symbol Ann -> Maybe (Term Symbol Ann), Term Symbol Ann -> Bool)])
 lookupRewrite onErr rule = do
   Cli.Env {codebase} <- ask
   root <- Cli.getRootBranch
@@ -1776,9 +1773,9 @@ lookupRewrite onErr rule = do
   let 
     extract tm = case tm of
       Term.Ann' tm _typ -> extract tm
-      (DD.RewriteTerm' lhs rhs) -> pure (False, lhs, rhs)
-      (DD.RewriteCase' lhs rhs) -> pure (True, lhs, rhs)
-      (DD.RewriteType' _vs lhs rhs) -> error "todo - type signature rewrites" lhs rhs
+      (DD.RewriteTerm' lhs rhs) -> pure (ABT.rewriteExpression lhs rhs, ABT.containsExpression lhs)
+      (DD.RewriteCase' lhs rhs) -> pure (Term.rewriteCasesLHS lhs rhs, fromMaybe False . Term.containsCaseTerm lhs)
+      (DD.RewriteSignature' _vs lhs rhs) -> pure (Term.rewriteSignatures lhs rhs, Term.containsSignature lhs)
       _ -> Cli.returnEarly (onErr rule)
     extractOuter tm = case tm of
       Term.Ann' tm _typ -> extractOuter tm
@@ -1795,10 +1792,8 @@ handleStructuredFindReplaceI rule = do
   (dest, _) <- Cli.expectLatestFile
   #latestFile ?= (dest, True)
   let 
-    step tm (True, lhs, rhs)  = tm >>= Term.rewriteCasesLHS  lhs rhs
-    step tm (False, lhs, rhs) = tm >>= ABT.rewriteExpression lhs rhs
     go _tm0 tm [] = tm
-    go tm0 tm (r:rules) = go tm0 (step (tm <|> tm0) r) rules
+    go tm0 tm ((r,_):rules) = go tm0 ((tm <|> tm0) >>= r) rules
     uf' = UF.rewrite (Set.singleton (HQ.toVar rule)) (\tm -> go (Just tm) Nothing rules) uf
   #latestTypecheckedFile .= Just (Left . snd $ uf')
   let msg = "| Rewrote using: "

@@ -186,10 +186,10 @@ unRewriteCase (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs,rh
 unRewriteCase _ = Nothing
 
 rewriteTypeRef :: Reference
-rewriteTypeRef = lookupDeclRef "RewriteType"
+rewriteTypeRef = lookupDeclRef "RewriteSignature"
 
-pattern RewriteType' :: forall vt at ap v a . [vt] -> Type vt at -> Type vt at -> Term2 vt at ap v a
-pattern RewriteType' vs lhs rhs <- (unRewriteType -> Just (vs, lhs,rhs))
+pattern RewriteSignature' :: forall vt at ap v a . [vt] -> Type vt at -> Type vt at -> Term2 vt at ap v a
+pattern RewriteSignature' vs lhs rhs <- (unRewriteSignature -> Just (vs, lhs,rhs))
 
 rewriteType :: (Var v, Semigroup a) => a -> [v] -> Type v a -> Type v a -> Term2 v a a v a
 rewriteType a vs lhs rhs = 
@@ -200,11 +200,11 @@ rewriteType a vs lhs rhs =
     la = ABT.annotation lhs
     ra = ABT.annotation rhs
 
-unRewriteType :: Term2 vt at ap v a -> Maybe ([vt], Type vt at, Type vt at)
-unRewriteType (Term.App' (Term.Constructor' (ConstructorReference r _)) 
+unRewriteSignature :: Term2 vt at ap v a -> Maybe ([vt], Type vt at, Type vt at)
+unRewriteSignature (Term.App' (Term.Constructor' (ConstructorReference r _)) 
                          (Term.Ann' _ (Type.ForallsNamedOpt' vs (Type.Arrow' lhs (Type.Arrow' rhs _unit)))))
   | r == rewriteTypeRef = Just (vs, lhs, rhs)
-unRewriteType _ = Nothing
+unRewriteSignature _ = Nothing
 
 rewritesRef :: Reference
 rewritesRef = lookupDeclRef "Rewrites"
@@ -259,7 +259,7 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.STMFailure", stmFailure),
           (v "io2.ThreadKilledFailure", threadKilledFailure),
           (v "RewriteTerm", rewriteTerm),
-          (v "RewriteType", rewriteType),
+          (v "RewriteSignature", rewriteType),
           (v "RewriteCase", rewriteCase),
           (v "Rewrites", rewrites)
         ] of
@@ -357,11 +357,11 @@ builtinDataDecls = rs1 ++ rs
         ()
         [v "a", v "b"]
         [ ( (),
-            v "RewriteType.RewriteType",
+            v "RewriteSignature.RewriteSignature",
             Type.foralls
               ()
               [v "a", v "b"]
-              ((var "a" `arr` (var "b" `arr` var "Unit")) `arr` Type.apps' (var "RewriteType") [var "a", var "b"]))
+              ((var "a" `arr` (var "b" `arr` var "Unit")) `arr` Type.apps' (var "RewriteSignature") [var "a", var "b"]))
         ]
     rewrites =
       DataDeclaration

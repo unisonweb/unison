@@ -230,7 +230,7 @@ data Output
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
-  | ListStructuredFind (Maybe [HQ.HashQualified Name]) [HQ.HashQualified Name] 
+  | ListStructuredFind [HQ.HashQualified Name] 
   -- ListStructuredFind patternMatchingUsages termBodyUsages
   | -- show the result of add/update
     SlurpOutput Input PPE.PrettyPrintEnv SlurpResult
@@ -496,7 +496,7 @@ isFailure o = case o of
   ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ _ ds -> null ds
   ListOfPatches s -> Set.null s
-  ListStructuredFind ptms tms -> null tms && null (fromMaybe [] ptms)
+  ListStructuredFind tms -> null tms
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors {} -> True
   TypeErrors {} -> True

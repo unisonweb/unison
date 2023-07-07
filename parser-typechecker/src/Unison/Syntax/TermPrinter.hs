@@ -449,7 +449,7 @@ pretty0
                     sub kw lhs = PP.sep " " <$> sequence [pure $ control kw, goNormal 0 lhs, pure arr]
                     go (DD.RewriteTerm' lhs rhs) = PP.hang <$> sub "term" lhs <*> goNormal 0 rhs
                     go (DD.RewriteCase' lhs rhs) = PP.hang <$> sub "case" lhs <*> goNormal 0 rhs
-                    go (DD.RewriteType' vs lhs rhs) = do
+                    go (DD.RewriteSignature' vs lhs rhs) = do
                       lhs <- TypePrinter.pretty0 im 0 lhs
                       PP.hang (PP.sep " " (stuff lhs)) <$> TypePrinter.pretty0 im 0 rhs
                       where 
