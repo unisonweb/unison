@@ -46,6 +46,7 @@ import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..))
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.HashQualified qualified as HQ
+import Unison.JitInfo qualified as JitInfo
 import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
@@ -2394,22 +2395,36 @@ fetchScheme =
     []
     ( P.wrapColumn2
         [ ( makeExample fetchScheme [],
-            "Fetches the unison library for compiling to scheme.\n\n\
-            \This is done automatically when"
-              <> P.group (makeExample compileScheme [])
-              <> "is run\
-                 \ if the library is not already in the standard location\
-                 \ (unison.internal). However, this command will force\
-                 \ a pull even if the library already exists. You can also specify\
-                 \ a username to pull from (the default is `unison`) to use an alternate\
-                 \ implementation of the scheme compiler. It will attempt to fetch\
-                 \ [username].public.internal.trunk for use."
+            P.lines . fmap P.wrap $
+              [ "Fetches the unison library for compiling to scheme.",
+                "This is done automatically when"
+                  <> P.group (makeExample compileScheme [])
+                  <> "is run if the library is not already in the\
+                     \ standard location (unison.internal). However,\
+                     \ this command will force a pull even if the\
+                     \ library already exists.",
+                "You can also specify a user and branch name to pull\
+                \ from in order to use an alternate version of the\
+                \ unison compiler (for development purposes, for\
+                \ example).",
+                "The default user is `unison`. The default branch\
+                \ for the `unison` user is a specified latest\
+                \ version of the compiler for stability. The\
+                \ default branch for other uses is `main`. The\
+                \ command fetches code from a project:",
+                P.indentN 2 ("@user/internal/branch")
+              ]
           )
         ]
     )
     ( \case
-        [] -> pure (Input.FetchSchemeCompilerI "unison")
-        [name] -> pure (Input.FetchSchemeCompilerI name)
+        [] -> pure (Input.FetchSchemeCompilerI "unison" JitInfo.currentRelease)
+        [name] -> pure (Input.FetchSchemeCompilerI name branch)
+          where
+            branch
+              | name == "unison" = JitInfo.currentRelease
+              | otherwise = "main"
+        [name, branch] -> pure (Input.FetchSchemeCompilerI name branch)
         _ -> Left $ showPatternHelp fetchScheme
     )
 

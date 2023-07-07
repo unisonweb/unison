@@ -5,17 +5,16 @@ module Unison.Codebase.Editor.Propagate
   )
 where
 
-import Control.Error.Util (hush)
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Data.Graph qualified as Graph
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Sqlite.Queries qualified as Queries
-import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.TypeCheck qualified as Cli (typecheckFile')
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
@@ -33,7 +32,6 @@ import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
-import Unison.FileParsers (synthesizeFile')
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
@@ -549,20 +547,8 @@ propagate patch b = case validatePatch patch of
                   mempty
                   (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
                   mempty
-          typecheckResult <- typecheckFile codebase [] file
-          pure
-            . fmap UF.hashTerms
-            $ runIdentity (Result.toMaybe typecheckResult)
-              >>= hush
-
-typecheckFile ::
-  Codebase m Symbol Ann ->
-  [Type Symbol Ann] ->
-  UF.UnisonFile Symbol Ann ->
-  Sqlite.Transaction (Result.Result (Seq (Result.Note Symbol Ann)) (Either x (UF.TypecheckedUnisonFile Symbol Ann)))
-typecheckFile codebase ambient file = do
-  typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
-  pure . fmap Right $ synthesizeFile' ambient (typeLookup <> Builtin.typeLookup) file
+          typecheckResult <- Cli.typecheckFile' codebase [] file
+          pure . fmap UF.hashTerms $ Result.result typecheckResult
 
 -- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
 unhashTypeComponent :: Reference -> Sqlite.Transaction (Map Symbol (Reference, Decl Symbol Ann))

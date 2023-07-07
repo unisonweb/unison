@@ -106,7 +106,7 @@ import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Output.DumpNamespace qualified as Output.DN
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..), ShareUserHandle (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..))
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
@@ -144,6 +144,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.HashQualified' qualified as HashQualified
 import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.JitInfo qualified as JitInfo
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.LabeledDependency qualified as LabeledDependency
@@ -215,6 +216,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Web.Browser (openBrowser)
+import Witch (unsafeFrom)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -1294,7 +1296,8 @@ loop e = do
             CompileSchemeI output main -> doCompileScheme output main
             ExecuteSchemeI main args -> doRunAsScheme main args
             GenSchemeLibsI -> doGenerateSchemeBoot True Nothing
-            FetchSchemeCompilerI name -> doFetchCompiler name
+            FetchSchemeCompilerI name branch ->
+              doFetchCompiler name branch
             IOTestI main -> handleIOTest main
             -- UpdateBuiltinsI -> do
             --   stepAt updateBuiltins
@@ -1627,7 +1630,8 @@ inputDescription input =
           <> Text.unwords (fmap Text.pack args)
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
     GenSchemeLibsI -> pure "compile.native.genlibs"
-    FetchSchemeCompilerI name -> pure ("compile.native.fetch" <> Text.pack name)
+    FetchSchemeCompilerI name branch ->
+      pure ("compile.native.fetch" <> Text.pack name <> " " <> Text.pack branch)
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
     RemoveTermReplacementI src p0 -> do
       p <- opatch p0
@@ -2514,24 +2518,25 @@ compilerPath = Path.Path' {Path.unPath' = Left abs}
     rootPath = Path.Path {Path.toSeq = Seq.fromList segs}
     abs = Path.Absolute {Path.unabsolute = rootPath}
 
-doFetchCompiler :: String -> Cli ()
-doFetchCompiler username =
+doFetchCompiler :: String -> String -> Cli ()
+doFetchCompiler username branch =
   doPullRemoteBranch sourceTarget SyncMode.Complete Input.PullWithoutHistory Verbosity.Silent
   where
     -- fetching info
-    ns =
-      ReadShareLooseCode
-        { server = RemoteRepo.DefaultCodeserver,
-          repo = ShareUserHandle (Text.pack username),
-          path =
-            Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
-        }
-    sourceTarget = PullSourceTarget2 (ReadShare'LooseCode ns) (This compilerPath)
+    prj =
+      These
+        (unsafeFrom $ "@" <> Text.pack username <> "/internal")
+        (unsafeFrom $ Text.pack branch)
+
+    sourceTarget =
+      PullSourceTarget2
+        (ReadShare'ProjectBranch prj)
+        (This compilerPath)
 
 ensureCompilerExists :: Cli ()
 ensureCompilerExists =
   Cli.branchExistsAtPath' compilerPath
-    >>= flip unless (doFetchCompiler "unison")
+    >>= flip unless (doFetchCompiler "unison" JitInfo.currentRelease)
 
 getCacheDir :: Cli String
 getCacheDir = liftIO $ getXdgDirectory XdgCache "unisonlanguage"

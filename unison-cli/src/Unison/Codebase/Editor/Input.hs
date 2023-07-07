@@ -178,8 +178,8 @@ data Input
     CompileSchemeI String (HQ.HashQualified Name)
   | -- generate scheme libraries
     GenSchemeLibsI
-  | -- fetch scheme compiler from a given username
-    FetchSchemeCompilerI String
+  | -- fetch scheme compiler from a given username and branch
+    FetchSchemeCompilerI String String
   | TestI TestInput
   | -- metadata
     -- `link metadata definitions` (adds metadata to all of `definitions`)

@@ -19,6 +19,7 @@ extra-source-files:
     sql/007-add-name-lookup-mounts.sql
     sql/008-add-most-recent-namespace-table.sql
     sql/009-add-squash-cache-table.sql
+    sql/010-ensure-squash-cache-table.sql
     sql/create.sql
 
 source-repository head
