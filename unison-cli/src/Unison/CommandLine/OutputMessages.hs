@@ -3668,12 +3668,11 @@ listStructuredFind tms =
   P.callout "🔎" . P.lines $ [
        "These definitions from the current namespace (excluding `lib`) have matches:",
        "",
-       P.indentN 2 $ P.numberedListFrom len (pnames tms),
+       P.indentN 2 $ P.numberedList (pnames tms),
        "",
        tip (msg (length tms))
       ]
   where
-    len = length tms
     pnames hqs = P.syntaxToColor . prettyHashQualified <$> hqs
     msg 1 = "Try " <> IP.makeExample IP.edit ["1"] <> " to bring this into your scratch file."
     msg n =
