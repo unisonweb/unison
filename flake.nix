@@ -102,6 +102,7 @@
               # https://github.com/input-output-hk/haskell.nix/issues/1793
               # https://github.com/input-output-hk/haskell.nix/issues/1885
               allToolDeps = false;
+              additional = hpkgs: with hpkgs; [ Cabal stm exceptions ghc ghc-heap ];
               buildInputs =
                 let
                   native-packages = pkgs.lib.optionals pkgs.stdenv.isDarwin
