@@ -31,7 +31,7 @@ jobs:
             **/*.hs
             **/*.hs-boot
           separator: "\n"
-      - uses: unisonweb/run-ormolu@8e1437595b4127e368c114cabd1aeedb3b873918
+      - uses: haskell-actions/run-ormolu@v14
         with:
           version: "0.5.0.1"
           mode: inplace
