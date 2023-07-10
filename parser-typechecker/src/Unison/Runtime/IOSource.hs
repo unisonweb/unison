@@ -982,8 +982,7 @@ showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
 showNotes source env =
   intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
 
-decodeResult ::
-  String -> SynthResult -> EitherResult
+decodeResult :: String -> SynthResult -> EitherResult
 decodeResult source (Result.Result notes Nothing) =
   Left $ showNotes source ppEnv notes
 decodeResult source (Result.Result notes (Just (Left uf))) =

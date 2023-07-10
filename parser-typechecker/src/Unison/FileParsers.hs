@@ -1,6 +1,7 @@
 module Unison.FileParsers
   ( parseAndSynthesizeFile,
-    synthesizeFile',
+    synthesizeFileWithTNDR,
+    synthesizeFile,
   )
 where
 
@@ -79,9 +80,21 @@ parseAndSynthesizeFile ambient typeLookupf env filePath src = do
   when debug $ traceM "parseAndSynthesizeFile"
   uf <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) env
   let names0 = NamesWithHistory.currentNames (Parser.names env)
-  (tm, tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
-  let (Result notes' r) = synthesizeFile ambient typeLookup tdnrMap uf tm
+  (tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
+  let (Result notes' r) = synthesizeFile (Typechecker.Env ambient typeLookup tdnrMap) uf
   tell notes' $> maybe (Left uf) Right r
+
+synthesizeFileWithTNDR ::
+  (Var v, Monad m) =>
+  [Type v] ->
+  (Set Reference -> m (TL.TypeLookup v Ann)) ->
+  Parser.ParsingEnv ->
+  UF.UnisonFile v Ann ->
+  ResultT (Seq (Note v Ann)) m (UF.TypecheckedUnisonFile v Ann)
+synthesizeFileWithTNDR ambient typeLookupf env uf = do
+  let names0 = NamesWithHistory.currentNames (Parser.names env)
+  (tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
+  Result.hoist (pure . runIdentity) (synthesizeFile (Typechecker.Env ambient typeLookup tdnrMap) uf)
 
 type TDNRMap v = Map Typechecker.Name [Typechecker.NamedReference v Ann]
 
@@ -93,7 +106,7 @@ resolveNames ::
   ResultT
     (Seq (Note v Ann))
     m
-    (Term v, TDNRMap v, TL.TypeLookup v Ann)
+    (TDNRMap v, TL.TypeLookup v Ann)
 resolveNames typeLookupf preexistingNames uf = do
   let tm = UF.typecheckingTerm uf
       possibleDeps =
@@ -130,31 +143,18 @@ resolveNames typeLookupf preexistingNames uf = do
                 typ <- toList $ TL.typeOfReferent tl r,
                 let nr = Typechecker.NamedReference (Name.toText name) typ (Right r)
             ]
-  pure (tm, fqnsByShortName, tl)
-
-synthesizeFile' ::
-  forall v.
-  (Var v) =>
-  [Type v] ->
-  TL.TypeLookup v Ann ->
-  UnisonFile v ->
-  Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
-synthesizeFile' ambient tl uf =
-  synthesizeFile ambient tl mempty uf $ UF.typecheckingTerm uf
+  pure (fqnsByShortName, tl)
 
 synthesizeFile ::
   forall v.
   (Var v) =>
-  [Type v] ->
-  TL.TypeLookup v Ann ->
-  TDNRMap v ->
+  Typechecker.Env v Ann ->
   UnisonFile v ->
-  Term v ->
   Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
-synthesizeFile ambient tl fqnsByShortName uf term = do
-  let -- substitute Blanks for any remaining free vars in UF body
+synthesizeFile env0 uf = do
+  let term = UF.typecheckingTerm uf
+      -- substitute Blanks for any remaining free vars in UF body
       tdnrTerm = Term.prepareTDNR term
-      env0 = Typechecker.Env ambient tl fqnsByShortName
       unisonFilePPE =
         ( PPE.fromNames
             10

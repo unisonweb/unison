@@ -67,8 +67,7 @@ toEither r = ExceptT (go <$> runResultT r)
 tell1 :: (Monad f) => note -> ResultT (Seq note) f ()
 tell1 = tell . pure
 
-fromParsing ::
-  (Monad f) => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
+fromParsing :: (Monad f) => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
 fromParsing (Left e) = do
   tell1 $ Parsing e
   Fail.fail ""
