@@ -14,6 +14,7 @@ module Unison.UnisonFile
     effectDeclarations,
     typecheckingTerm,
     watchesOfKind,
+    definitionLocation,
 
     -- * TypecheckedUnisonFile
     TypecheckedUnisonFile (..),
@@ -66,23 +67,33 @@ dataDeclarations = fmap (first Reference.DerivedId) . dataDeclarationsId
 effectDeclarations :: UnisonFile v a -> Map v (Reference, EffectDeclaration v a)
 effectDeclarations = fmap (first Reference.DerivedId) . effectDeclarationsId
 
-watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, Term v a)]
+watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, a, Term v a)]
 watchesOfKind kind uf = Map.findWithDefault [] kind (watches uf)
 
-watchesOfOtherKinds :: WatchKind -> UnisonFile v a -> [(v, Term v a)]
+watchesOfOtherKinds :: WatchKind -> UnisonFile v a -> [(v, a, Term v a)]
 watchesOfOtherKinds kind uf =
   join [ws | (k, ws) <- Map.toList (watches uf), k /= kind]
 
-allWatches :: UnisonFile v a -> [(v, Term v a)]
+allWatches :: UnisonFile v a -> [(v, a, Term v a)]
 allWatches = join . Map.elems . watches
+
+-- | Get the location of a given definition in the file.
+definitionLocation :: (Var v) => v -> UnisonFile v a -> Maybe a
+definitionLocation v uf =
+  terms uf ^? folded . filteredBy (_1 . only v) . _2
+    <|> watches uf ^? folded . folded . filteredBy (_1 . only v) . _2
+    <|> dataDeclarations uf ^? ix v . _2 . to DD.annotation
+    <|> effectDeclarations uf ^? ix v . _2 . to (DD.annotation . DD.toDataDecl)
 
 -- Converts a file to a single let rec with a body of `()`, for
 -- purposes of typechecking.
 typecheckingTerm :: (Var v, Monoid a) => UnisonFile v a -> Term v a
 typecheckingTerm uf =
-  Term.letRec' True (terms uf <> testWatches <> watchesOfOtherKinds TestWatch uf) $
+  Term.letRec' True bindings $
     DD.unitTerm mempty
   where
+    bindings =
+      terms uf <> testWatches <> watchesOfOtherKinds TestWatch uf
     -- we make sure each test has type Test.Result
     f w = let wa = ABT.annotation w in Term.ann wa w (DD.testResultType wa)
     testWatches = map (second f) $ watchesOfKind TestWatch uf
@@ -94,8 +105,8 @@ dataDeclarations' = fmap (first Reference.DerivedId) . dataDeclarationsId'
 effectDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, EffectDeclaration v a)
 effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 
-hashTerms :: TypecheckedUnisonFile v a -> Map v (Reference, Maybe WatchKind, Term v a, Type v a)
-hashTerms = fmap (over _1 Reference.DerivedId) . hashTermsId
+hashTerms :: TypecheckedUnisonFile v a -> Map v (a, Reference, Maybe WatchKind, Term v a, Type v a)
+hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
 
 rewrite :: (Var v, Eq a) => Set v -> (Term v a -> Maybe (Term v a)) -> UnisonFile v a -> ([v], UnisonFile v a)
 rewrite leaveAlone rewriteFn (UnisonFileId datas effects terms watches) =
@@ -115,27 +126,29 @@ typecheckedUnisonFile ::
   (Var v) =>
   Map v (Reference.Id, DataDeclaration v a) ->
   Map v (Reference.Id, EffectDeclaration v a) ->
-  [[(v, Term v a, Type v a)]] ->
-  [(WatchKind, [(v, Term v a, Type v a)])] ->
+  [[(v, a, Term v a, Type v a)]] ->
+  [(WatchKind, [(v, a, Term v a, Type v a)])] ->
   TypecheckedUnisonFile v a
 typecheckedUnisonFile datas effects tlcs watches =
   TypecheckedUnisonFileId datas effects tlcs watches hashImpl
   where
+    hashImpl :: (Map v (a, Reference.Id, Maybe WatchKind, Term v a, Type v a))
     hashImpl =
       let -- includes watches
-          allTerms :: [(v, Term v a, Type v a)]
+          allTerms :: [(v, a, Term v a, Type v a)]
           allTerms = join tlcs ++ join (snd <$> watches)
           types :: Map v (Type v a)
-          types = Map.fromList [(v, t) | (v, _, t) <- allTerms]
+          types = Map.fromList [(v, t) | (v, _a, _, t) <- allTerms]
           watchKinds :: Map v (Maybe WatchKind)
           watchKinds =
             Map.fromList $
-              [(v, Nothing) | (v, _e, _t) <- join tlcs]
-                ++ [(v, Just wk) | (wk, wkTerms) <- watches, (v, _e, _t) <- wkTerms]
-          hcs = Hashing.hashTermComponents $ Map.fromList $ (\(v, e, t) -> (v, (e, t))) <$> allTerms
+              [(v, Nothing) | (v, _a, _e, _t) <- join tlcs]
+                ++ [(v, Just wk) | (wk, wkTerms) <- watches, (v, _a, _e, _t) <- wkTerms]
+          hcs :: Map v (Reference.Id, Term v a, Type v a, a)
+          hcs = Hashing.hashTermComponents $ Map.fromList $ (\(v, a, e, t) -> (v, (e, t, a))) <$> allTerms
        in Map.fromList
-            [ (v, (r, wk, e, t))
-              | (v, (r, e, _typ)) <- Map.toList hcs,
+            [ (v, (a, r, wk, e, t))
+              | (v, (r, e, _typ, a)) <- Map.toList hcs,
                 Just t <- [Map.lookup v types],
                 wk <- [Map.findWithDefault (error $ show v ++ " missing from watchKinds") v watchKinds]
             ]
@@ -151,7 +164,7 @@ lookupDecl v uf =
 
 indexByReference ::
   TypecheckedUnisonFile v a ->
-  (Map Reference.Id (Term v a, Type v a), Map Reference.Id (DD.Decl v a))
+  (Map Reference.Id (a, Term v a, Type v a), Map Reference.Id (DD.Decl v a))
 indexByReference uf = (tms, tys)
   where
     tys =
@@ -159,7 +172,7 @@ indexByReference uf = (tms, tys)
         <> Map.fromList (over _2 Left <$> toList (effectDeclarationsId' uf))
     tms =
       Map.fromList
-        [ (r, (tm, ty)) | (Reference.DerivedId r, _wk, tm, ty) <- toList (hashTerms uf)
+        [ (r, (a, tm, ty)) | (a, Reference.DerivedId r, _wk, tm, ty) <- Map.elems (hashTerms uf)
         ]
 
 -- | A mapping of all terms in the file by their var name.
@@ -168,12 +181,12 @@ indexByReference uf = (tms, tys)
 -- Includes test watches.
 allTerms :: (Ord v) => TypecheckedUnisonFile v a -> Map v (Term v a)
 allTerms uf =
-  Map.fromList [(v, t) | (v, t, _) <- join $ topLevelComponents uf]
+  Map.fromList [(v, t) | (v, _a, t, _) <- join $ topLevelComponents uf]
 
 -- | the top level components (no watches) plus test watches.
 topLevelComponents ::
   TypecheckedUnisonFile v a ->
-  [[(v, Term v a, Type v a)]]
+  [[(v, a, Term v a, Type v a)]]
 topLevelComponents file =
   topLevelComponents' file ++ [comp | (TestWatch, comp) <- watchComponents file]
 
@@ -185,7 +198,7 @@ termSignatureExternalLabeledDependencies
     Set.difference
       ( Set.map LD.typeRef
           . foldMap Type.dependencies
-          . fmap (\(_r, _wk, _e, t) -> t)
+          . fmap (\(_a, _r, _wk, _e, t) -> t)
           . toList
           $ hashTerms
       )
@@ -201,14 +214,14 @@ dependencies :: (Monoid a, Var v) => UnisonFile v a -> Set Reference
 dependencies (UnisonFile ds es ts ws) =
   foldMap (DD.dependencies . snd) ds
     <> foldMap (DD.dependencies . DD.toDataDecl . snd) es
-    <> foldMap (Term.dependencies . snd) ts
-    <> foldMap (foldMap (Term.dependencies . snd)) ws
+    <> foldMap (Term.dependencies . view _3) ts
+    <> foldMap (foldMap (Term.dependencies . view _3)) ws
 
 discardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes (TypecheckedUnisonFileId datas effects terms watches _) =
   let watches' = g . mconcat <$> List.multimap watches
-      g tup3s = [(v, e) | (v, e, _t) <- tup3s]
-   in UnisonFileId datas effects [(a, b) | (a, b, _) <- join terms] watches'
+      g tup3s = [(v, a, e) | (v, a, e, _t) <- tup3s]
+   in UnisonFileId datas effects [(v, a, trm) | (v, a, trm, _typ) <- join terms] watches'
 
 declsToTypeLookup :: (Var v) => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf =

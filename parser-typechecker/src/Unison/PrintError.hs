@@ -1061,7 +1061,7 @@ renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) 
 renderTerm env e =
   let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e)
    in if length s > Settings.renderTermMaxLength
-        then fromString (take Settings.renderTermMaxLength s <> "...")
+        then fromString ("..." <> drop (length s - Settings.renderTermMaxLength) s)
         else fromString s
 
 renderPattern :: Env -> Pattern ann -> ColorText

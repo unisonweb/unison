@@ -110,3 +110,80 @@ More context at: https://stackoverflow.com/a/59761201/310162
 ### I get an error about `removeDirectoryRecursive`/`removeContentsRecursive`/`removePathRecursive`/`permission denied (Access is denied.)`
 
 Stack doesn't work deterministically in Windows due to mismatched expectations about how file deletion works. If you get this error, you can just retry the build and it will probably make more progress than the last time.
+
+## Building with Nix
+
+## Building package components with nix
+
+### Build the unison executable
+```
+nix build
+```
+
+### Build a specific component
+This is specified with the normal
+`<package>:<component-type>:<component-name>` triple.
+
+Some examples:
+```
+nix build '.#unison-cli:lib:unison-cli'
+nix build '.#unison-syntax:test:syntax-tests'
+nix build '.#unison-cli:exe:transcripts'
+```
+
+### Development environments
+
+#### Get into a development environment for building with stack
+This gets you into a development environment with the preferred
+versions of the compiler and other development tools. These
+include:
+
+- ghc
+- stack
+- ormolu
+- haskell-language-server
+
+```
+nix develop
+```
+
+#### Get into a development environment for building with cabal
+This gets you into a development environment with the preferred
+versions of the compiler and other development tools. Additionally,
+all non-local haskell dependencies (including profiling dependencies)
+are provided in the nix shell.
+
+```
+nix develop '.#local'
+```
+
+#### Get into a development environment for building a specific package
+This gets you into a development environment with the preferred
+versions of the compiler and other development tools. Additionally,
+all haskell dependencies of this package are provided by the nix shell
+(including profiling dependencies).
+
+```
+nix develop '.#<package-name>'
+```
+
+for example:
+
+```
+nix develop '.#unison-cli'
+```
+or
+```
+nix develop '.#unison-parser-typechecker'
+```
+
+This is useful if you wanted to profile a package. For example, if you
+want to profile `unison-cli:exe:unison` then you could get into one of these
+shells, cd into its directory, then run the program with
+profiling.
+
+```
+nix develop '.#unison-parser-typechecker'
+cd unison-cli
+cabal run --enable-profiling unison-cli:exe:unison -- +RTS -p
+```

@@ -159,7 +159,7 @@ fieldNames env r name dd = do
     _ -> Nothing
   let vars :: [v]
       vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
-  let accessors :: [(v, Term.Term v ())]
+  let accessors :: [(v, (), Term.Term v ())]
       accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
   let typeLookup :: TypeLookup v ()
       typeLookup =
@@ -176,14 +176,14 @@ fieldNames env r name dd = do
             Typechecker._termsByShortname = mempty
           }
   accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
-    for accessors \(v, trm) ->
+    for accessors \(v, _a, trm) ->
       case Result.result (Typechecker.synthesize env typecheckingEnv trm) of
         Nothing -> Nothing
         Just typ -> Just (v, trm, typ)
-  let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ))) $ accessorsWithTypes)
+  let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ, ()))) $ accessorsWithTypes)
   let names =
         [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
-          | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes
+          | r <- (\(refId, _trm, _typ, _ann) -> refId) <$> Map.elems hashes
         ]
   let fieldNames =
         Map.fromList
@@ -195,7 +195,7 @@ fieldNames env r name dd = do
       Just
         [ HQ.unsafeFromString name
           | v <- vars,
-            Just (ref, _, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes],
+            Just (ref, _, _, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes],
             Just name <- [Map.lookup ref fieldNames]
         ]
     else Nothing
