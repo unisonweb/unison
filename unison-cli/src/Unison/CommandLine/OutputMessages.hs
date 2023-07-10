@@ -2445,10 +2445,10 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
       (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et))
     pretty (Left (Right (n, (r, dt)))) =
       (DD.annotation dt, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Right dt))
-    pretty (Right (Nothing, (n, tm))) =
-      (ABT.annotation tm, pb (hqv n) tm)
-    pretty (Right (Just wk, (n, tm))) =
-      (ABT.annotation tm, go wk n tm)
+    pretty (Right (Nothing, (n, a, tm))) =
+      (a, pb (hqv n) tm)
+    pretty (Right (Just wk, (n, a, tm))) =
+      (a, go wk n tm)
       where
         go wk v tm = case wk of
           WK.RegularWatch
