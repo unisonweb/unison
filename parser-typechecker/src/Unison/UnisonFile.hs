@@ -114,12 +114,12 @@ rewrite leaveAlone rewriteFn (UnisonFileId datas effects terms watches) =
   where
     terms' = go terms
     watches' = go <$> watches
-    go tms = [(v, tm') | (v, tm) <- tms, tm' <- f v tm]
+    go tms = [(v, a, tm') | (v, a, tm) <- tms, tm' <- f v tm]
       where
         f v tm | Set.member v leaveAlone = [Left tm]
         f _ tm = maybe [Left tm] (pure . Right) (rewriteFn tm)
-    rewritten = [v | (v, Right _) <- terms' <> join (toList watches')]
-    unEither = fmap (\(v, e) -> (v, case e of Left tm -> tm; Right tm -> tm))
+    rewritten = [v | (v, _, Right _) <- terms' <> join (toList watches')]
+    unEither = fmap (\(v, a, e) -> (v, a, case e of Left tm -> tm; Right tm -> tm))
 
 typecheckedUnisonFile ::
   forall v a.
