@@ -123,10 +123,11 @@ parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
     command : args -> case Map.lookup command patterns of
       Just pat@(InputPattern {parse}) -> do
         let expandedNumbers :: [String]
-            expandedNumbers = 
-              foldMap (expandNumber numberedArgs) 
-                      -- don't expand args of type "raw"
-                      (args `zip` map ((/=) (Just "raw") . argName) [0..])
+            expandedNumbers =
+              foldMap
+                (expandNumber numberedArgs)
+                -- don't expand args of type "raw"
+                (args `zip` map ((/=) (Just "raw") . argName) [0 ..])
             argName i = InputPattern.typeName <$> InputPattern.argType pat i
         expandedGlobs <- ifor expandedNumbers $ \i arg -> do
           if Globbing.containsGlob arg
@@ -152,9 +153,9 @@ parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 -- Any argument tagged with 'False' is left alone
-expandNumber :: [String] -> (String,Bool) -> [String]
-expandNumber _ (s,False) = [s]
-expandNumber numberedArgs (s,True) =
+expandNumber :: [String] -> (String, Bool) -> [String]
+expandNumber _ (s, False) = [s]
+expandNumber numberedArgs (s, True) =
   maybe
     [s]
     (map (\i -> fromMaybe (show i) . atMay numberedArgs $ i - 1))

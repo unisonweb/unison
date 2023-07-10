@@ -155,55 +155,63 @@ rewriteTermRef :: Reference
 rewriteTermRef = lookupDeclRef "RewriteTerm"
 
 pattern RewriteTerm' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
-pattern RewriteTerm' lhs rhs <- (unRewriteTerm -> Just (lhs,rhs))
+pattern RewriteTerm' lhs rhs <- (unRewriteTerm -> Just (lhs, rhs))
 
 unRewriteTerm :: Term2 vt at ap v a -> Maybe (Term2 vt at ap v a, Term2 vt at ap v a)
-unRewriteTerm (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs,rhs])
-  | r == rewriteTermRef = Just (lhs,rhs)
+unRewriteTerm (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs, rhs])
+  | r == rewriteTermRef = Just (lhs, rhs)
 unRewriteTerm _ = Nothing
 
 rewriteCaseRef :: Reference
 rewriteCaseRef = lookupDeclRef "RewriteCase"
 
 pattern RewriteCase' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
-pattern RewriteCase' lhs rhs <- (unRewriteCase -> Just (lhs,rhs))
+pattern RewriteCase' lhs rhs <- (unRewriteCase -> Just (lhs, rhs))
 
 rewriteCase :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 rewriteCase a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
-  where 
+  where
     a1 = ABT.annotation tm1
     r = ConstructorReference rewriteCaseRef 0
 
 rewriteTerm :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 rewriteTerm a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
-  where 
+  where
     a1 = ABT.annotation tm1
     r = ConstructorReference rewriteTermRef 0
 
 unRewriteCase :: Term2 vt at ap v a -> Maybe (Term2 vt at ap v a, Term2 vt at ap v a)
-unRewriteCase (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs,rhs])
-  | r == rewriteCaseRef = Just (lhs,rhs)
+unRewriteCase (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs, rhs])
+  | r == rewriteCaseRef = Just (lhs, rhs)
 unRewriteCase _ = Nothing
 
 rewriteTypeRef :: Reference
 rewriteTypeRef = lookupDeclRef "RewriteSignature"
 
-pattern RewriteSignature' :: forall vt at ap v a . [vt] -> Type vt at -> Type vt at -> Term2 vt at ap v a
-pattern RewriteSignature' vs lhs rhs <- (unRewriteSignature -> Just (vs, lhs,rhs))
+pattern RewriteSignature' :: forall vt at ap v a. [vt] -> Type vt at -> Type vt at -> Term2 vt at ap v a
+pattern RewriteSignature' vs lhs rhs <- (unRewriteSignature -> Just (vs, lhs, rhs))
 
 rewriteType :: (Var v, Semigroup a) => a -> [v] -> Type v a -> Type v a -> Term2 v a a v a
-rewriteType a vs lhs rhs = 
-  Term.app a (Term.constructor la (ConstructorReference rewriteTypeRef 0))
-             (Term.ann a (Term.delay a (Term.delay a (unitTerm a))) 
-                         (Type.foralls a vs (Type.arrow (la <> ra) lhs (Type.arrow ra rhs (unitType ra)))))
+rewriteType a vs lhs rhs =
+  Term.app
+    a
+    (Term.constructor la (ConstructorReference rewriteTypeRef 0))
+    ( Term.ann
+        a
+        (Term.delay a (Term.delay a (unitTerm a)))
+        (Type.foralls a vs (Type.arrow (la <> ra) lhs (Type.arrow ra rhs (unitType ra))))
+    )
   where
     la = ABT.annotation lhs
     ra = ABT.annotation rhs
 
 unRewriteSignature :: Term2 vt at ap v a -> Maybe ([vt], Type vt at, Type vt at)
-unRewriteSignature (Term.App' (Term.Constructor' (ConstructorReference r _)) 
-                         (Term.Ann' _ (Type.ForallsNamedOpt' vs (Type.Arrow' lhs (Type.Arrow' rhs _unit)))))
-  | r == rewriteTypeRef = Just (vs, lhs, rhs)
+unRewriteSignature
+  ( Term.App'
+      (Term.Constructor' (ConstructorReference r _))
+      (Term.Ann' _ (Type.ForallsNamedOpt' vs (Type.Arrow' lhs (Type.Arrow' rhs _unit))))
+    )
+    | r == rewriteTypeRef = Just (vs, lhs, rhs)
 unRewriteSignature _ = Nothing
 
 rewritesRef :: Reference
@@ -214,8 +222,9 @@ pattern Rewrites' ts <- (unRewrites -> Just ts)
 
 rewrites :: (Var v, Monoid a) => a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
 rewrites a [] = Term.app a (Term.constructor a (ConstructorReference rewritesRef 0)) (tupleTerm [])
-rewrites a ts@(hd:_) = Term.app a (Term.constructor a1 (ConstructorReference rewritesRef 0)) (tupleTerm ts)
-  where a1 = ABT.annotation hd 
+rewrites a ts@(hd : _) = Term.app a (Term.constructor a1 (ConstructorReference rewritesRef 0)) (tupleTerm ts)
+  where
+    a1 = ABT.annotation hd
 
 unRewrites :: Term2 vt at ap v a -> Maybe [Term2 vt at ap v a]
 unRewrites (Term.App' (Term.Constructor' (ConstructorReference r _)) tup)
@@ -327,7 +336,7 @@ builtinDataDecls = rs1 ++ rs
         ]
     rewriteCase =
       DataDeclaration
-        (Unique "a116f0f1a8d16aba115b7790b09c56820be48798d9fef64fda3ec2325388f769") 
+        (Unique "a116f0f1a8d16aba115b7790b09c56820be48798d9fef64fda3ec2325388f769")
         ()
         [v "a", v "b"]
         [ ( (),
@@ -340,7 +349,7 @@ builtinDataDecls = rs1 ++ rs
         ]
     rewriteTerm =
       DataDeclaration
-        (Unique "d577219dc862f148bbdbeb78ae977f6a7da22eb44a1b43d484cabd3e4d7e76a1") 
+        (Unique "d577219dc862f148bbdbeb78ae977f6a7da22eb44a1b43d484cabd3e4d7e76a1")
         ()
         [v "a", v "b"]
         [ ( (),
@@ -353,7 +362,7 @@ builtinDataDecls = rs1 ++ rs
         ]
     rewriteType =
       DataDeclaration
-        (Unique "f9ae4c4263c2f173deeb550dc1f798147c301ea3a6b306810988e4634834507b") 
+        (Unique "f9ae4c4263c2f173deeb550dc1f798147c301ea3a6b306810988e4634834507b")
         ()
         [v "a", v "b"]
         [ ( (),
@@ -361,11 +370,12 @@ builtinDataDecls = rs1 ++ rs
             Type.foralls
               ()
               [v "a", v "b"]
-              ((var "a" `arr` (var "b" `arr` var "Unit")) `arr` Type.apps' (var "RewriteSignature") [var "a", var "b"]))
+              ((var "a" `arr` (var "b" `arr` var "Unit")) `arr` Type.apps' (var "RewriteSignature") [var "a", var "b"])
+          )
         ]
     rewrites =
       DataDeclaration
-        (Unique "f64795bf31f7eb41e59b31379d6576a4abaca5b4c1bfc0b8c211e608906aff1a") 
+        (Unique "f64795bf31f7eb41e59b31379d6576a4abaca5b4c1bfc0b8c211e608906aff1a")
         ()
         [v "a"]
         [ ( (),
@@ -373,7 +383,8 @@ builtinDataDecls = rs1 ++ rs
             Type.foralls
               ()
               [v "a"]
-              (var "a" `arr` Type.apps' (var "Rewrites") [var "a"]))
+              (var "a" `arr` Type.apps' (var "Rewrites") [var "a"])
+          )
         ]
     isTest =
       DataDeclaration

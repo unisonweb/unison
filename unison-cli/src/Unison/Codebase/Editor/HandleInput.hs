@@ -1749,7 +1749,7 @@ handleStructuredFindI rule = do
         pure $ (t, maybe False (\e -> any ($ e) rules) oe)
       ok t = pure (t, False)
   results0 <- traverse ok results
-  let results = [ (hq, r) | ((hq,r), True) <- results0 ]
+  let results = [(hq, r) | ((hq, r), True) <- results0]
   let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
   #numberedArgs .= map toNumArgs results
   Cli.respond (ListStructuredFind (fst <$> results))
@@ -1774,19 +1774,18 @@ lookupRewrite onErr rule = do
               Cli.runTransaction (Codebase.getTerm codebase r)
         s -> Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule s)
   tm <- maybe (Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule mempty)) pure ot
-  let 
-    extract tm = case tm of
-      Term.Ann' tm _typ -> extract tm
-      (DD.RewriteTerm' lhs rhs) -> pure (ABT.rewriteExpression lhs rhs, ABT.containsExpression lhs)
-      (DD.RewriteCase' lhs rhs) -> pure (Term.rewriteCasesLHS lhs rhs, fromMaybe False . Term.containsCaseTerm lhs)
-      (DD.RewriteSignature' _vs lhs rhs) -> pure (Term.rewriteSignatures lhs rhs, Term.containsSignature lhs)
-      _ -> Cli.returnEarly (onErr rule)
-    extractOuter tm = case tm of
-      Term.Ann' tm _typ -> extractOuter tm
-      Term.LamsNamed' _vs tm -> extractOuter tm
-      DD.Rewrites' rules -> traverse extract rules 
-      _ -> Cli.returnEarly (onErr rule)
-  rules <- extractOuter tm 
+  let extract tm = case tm of
+        Term.Ann' tm _typ -> extract tm
+        (DD.RewriteTerm' lhs rhs) -> pure (ABT.rewriteExpression lhs rhs, ABT.containsExpression lhs)
+        (DD.RewriteCase' lhs rhs) -> pure (Term.rewriteCasesLHS lhs rhs, fromMaybe False . Term.containsCaseTerm lhs)
+        (DD.RewriteSignature' _vs lhs rhs) -> pure (Term.rewriteSignatures lhs rhs, Term.containsSignature lhs)
+        _ -> Cli.returnEarly (onErr rule)
+      extractOuter tm = case tm of
+        Term.Ann' tm _typ -> extractOuter tm
+        Term.LamsNamed' _vs tm -> extractOuter tm
+        DD.Rewrites' rules -> traverse extract rules
+        _ -> Cli.returnEarly (onErr rule)
+  rules <- extractOuter tm
   pure (ppe, currentNames, rules)
 
 handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
@@ -1795,10 +1794,9 @@ handleStructuredFindReplaceI rule = do
   uf <- Cli.expectLatestParsedFile
   (dest, _) <- Cli.expectLatestFile
   #latestFile ?= (dest, True)
-  let 
-    go _tm0 tm [] = tm
-    go tm0 tm ((r,_):rules) = go tm0 ((tm <|> tm0) >>= r) rules
-    uf' = UF.rewrite (Set.singleton (HQ.toVar rule)) (\tm -> go (Just tm) Nothing rules) uf
+  let go _tm0 tm [] = tm
+      go tm0 tm ((r, _) : rules) = go tm0 ((tm <|> tm0) >>= r) rules
+      uf' = UF.rewrite (Set.singleton (HQ.toVar rule)) (\tm -> go (Just tm) Nothing rules) uf
   #latestTypecheckedFile .= Just (Left . snd $ uf')
   let msg = "| Rewrote using: "
   Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) uf'

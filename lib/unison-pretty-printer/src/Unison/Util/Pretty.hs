@@ -571,7 +571,7 @@ numberedList :: (Foldable f) => f (Pretty ColorText) -> Pretty ColorText
 numberedList = numberedListFrom 0
 
 numberedListFrom :: (Foldable f) => Int -> f (Pretty ColorText) -> Pretty ColorText
-numberedListFrom n = numbered (\i -> hiBlack . fromString $ show (i+n) <> ".")
+numberedListFrom n = numbered (\i -> hiBlack . fromString $ show (i + n) <> ".")
 
 leftPad, rightPad :: (IsString s) => Width -> Pretty s -> Pretty s
 leftPad n p =

@@ -84,13 +84,13 @@ rewriteBlock = do
   t <- openBlockWith "@rewrite"
   elements <- sepBy semi (rewriteTerm <|> rewriteCase <|> rewriteType)
   b <- closeBlock
-  pure (DD.rewrites (ann t <> ann b) elements) 
+  pure (DD.rewrites (ann t <> ann b) elements)
   where
-    rewriteTermlike kw mk = do 
-       kw <- quasikeyword kw
-       lhs <- term
-       rhs <- block "==>"
-       pure (mk (ann kw <> ann rhs) lhs rhs)
+    rewriteTermlike kw mk = do
+      kw <- quasikeyword kw
+      lhs <- term
+      rhs <- block "==>"
+      pure (mk (ann kw <> ann rhs) lhs rhs)
     rewriteTerm = rewriteTermlike "term" DD.rewriteTerm
     rewriteCase = rewriteTermlike "case" DD.rewriteCase
     rewriteType = do

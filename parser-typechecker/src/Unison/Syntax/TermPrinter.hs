@@ -443,7 +443,7 @@ pretty0
               (App' f@(Builtin' "Any.Any") arg, _) ->
                 paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> goNormal 10 arg)
               (DD.Rewrites' rs, _) -> do
-                let kw = fmt S.ControlKeyword "@rewrite" 
+                let kw = fmt S.ControlKeyword "@rewrite"
                     arr = fmt S.ControlKeyword "==>"
                     control = fmt S.ControlKeyword
                     sub kw lhs = PP.sep " " <$> sequence [pure $ control kw, goNormal 0 lhs, pure arr]
@@ -452,12 +452,12 @@ pretty0
                     go (DD.RewriteSignature' vs lhs rhs) = do
                       lhs <- TypePrinter.pretty0 im 0 lhs
                       PP.hang (PP.sep " " (stuff lhs)) <$> TypePrinter.pretty0 im 0 rhs
-                      where 
-                        stuff lhs = 
-                          [ control "signature" ]
-                          <> [ fmt S.Var (PP.text (Var.name v)) | v <- vs ]
-                          <> (if null vs then [] else [ fmt S.TypeOperator "." ])
-                          <> [ lhs, arr ]
+                      where
+                        stuff lhs =
+                          [control "signature"]
+                            <> [fmt S.Var (PP.text (Var.name v)) | v <- vs]
+                            <> (if null vs then [] else [fmt S.TypeOperator "."])
+                            <> [lhs, arr]
                     go tm = goNormal 10 tm
                 PP.hang kw <$> fmap PP.lines (traverse go rs)
               (Apps' f@(Constructor' _) args, _) ->

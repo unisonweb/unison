@@ -1388,62 +1388,65 @@ rewriteSignatures tyLhs tyRhs tm = ABT.rebuildMaybeUp go tm
     go a@(Ann' tm tp) = ann (ABT.annotation a) tm <$> ABT.rewriteExpression tyLhs tyRhs tp
     go _ = Nothing
 
-rewriteCasesLHS :: forall v typeVar typeAnn a
-                . (Var v, Var typeVar, Ord v, Show typeVar, Eq typeAnn, Semigroup a) 
-                => Term2 typeVar typeAnn a v a 
-                -> Term2 typeVar typeAnn a v a 
-                -> Term2 typeVar typeAnn a v a
-                -> Maybe (Term2 typeVar typeAnn a v a)
-rewriteCasesLHS pat0 pat0' = 
+rewriteCasesLHS ::
+  forall v typeVar typeAnn a.
+  (Var v, Var typeVar, Ord v, Show typeVar, Eq typeAnn, Semigroup a) =>
+  Term2 typeVar typeAnn a v a ->
+  Term2 typeVar typeAnn a v a ->
+  Term2 typeVar typeAnn a v a ->
+  Maybe (Term2 typeVar typeAnn a v a)
+rewriteCasesLHS pat0 pat0' =
   (\tm -> out <$> ABT.rewriteExpression pat pat' (into tm))
   where
     ann = ABT.annotation
-    embedPattern t = app (ann t) (builtin (ann t) "#pattern") t 
+    embedPattern t = app (ann t) (builtin (ann t) "#pattern") t
     pat = ABT.rebuildUp' embedPattern pat0
     pat' = pat0'
 
     into :: Term2 typeVar typeAnn a v a -> Term2 typeVar typeAnn a v a
-    into = ABT.rebuildUp' go where
-      go t@(Match' scrutinee cases) = 
-        apps' (builtin at "#match") [scrutinee, apps' (builtin at "#cases") (map matchCaseToTerm cases)]
-        where
-          at = ann t
-      go t = t
+    into = ABT.rebuildUp' go
+      where
+        go t@(Match' scrutinee cases) =
+          apps' (builtin at "#match") [scrutinee, apps' (builtin at "#cases") (map matchCaseToTerm cases)]
+          where
+            at = ann t
+        go t = t
 
     out :: Term2 typeVar typeAnn a v a -> Term2 typeVar typeAnn a v a
-    out = ABT.rebuildUp' go where
-      go (App' (Builtin' "#pattern") t) = t
-      go t@(Apps' (Builtin' "#match") [scrute, Apps' (Builtin' "#cases") cases]) = 
-        match at scrute (tweak . matchCaseFromTerm <$> cases) 
-        where
-          at = ABT.annotation t
-          tweak Nothing = MatchCase (Pattern.Unbound at) Nothing (text at "🆘 rewrite produced an invalid pattern")
-          tweak (Just mc) = mc
-      go t = t 
+    out = ABT.rebuildUp' go
+      where
+        go (App' (Builtin' "#pattern") t) = t
+        go t@(Apps' (Builtin' "#match") [scrute, Apps' (Builtin' "#cases") cases]) =
+          match at scrute (tweak . matchCaseFromTerm <$> cases)
+          where
+            at = ABT.annotation t
+            tweak Nothing = MatchCase (Pattern.Unbound at) Nothing (text at "🆘 rewrite produced an invalid pattern")
+            tweak (Just mc) = mc
+        go t = t
 
-toPattern :: Var v => Term2 tv ta tb v loc -> Maybe (Pattern loc) 
-toPattern tm = case tm of 
-  Var' v | "_" `Text.isPrefixOf` Var.name v -> pure $ Pattern.Unbound loc 
-  Var' _ -> pure $ Pattern.Var loc 
+toPattern :: Var v => Term2 tv ta tb v loc -> Maybe (Pattern loc)
+toPattern tm = case tm of
+  Var' v | "_" `Text.isPrefixOf` Var.name v -> pure $ Pattern.Unbound loc
+  Var' _ -> pure $ Pattern.Var loc
   Apps' (Builtin' "#as") [Var' _, tm] -> Pattern.As loc <$> toPattern tm
-  App' (Builtin' "#effect-pure") p -> Pattern.EffectPure loc <$> toPattern p 
-  Apps' (Builtin' "#effect-bind") [Apps' (Request' r) args, k] -> 
+  App' (Builtin' "#effect-pure") p -> Pattern.EffectPure loc <$> toPattern p
+  Apps' (Builtin' "#effect-bind") [Apps' (Request' r) args, k] ->
     Pattern.EffectBind loc r <$> traverse toPattern args <*> toPattern k
   Apps' (Request' r) args -> Pattern.EffectBind loc r <$> traverse toPattern args <*> pure (Pattern.Unbound loc)
   Apps' (Constructor' r) args -> Pattern.Constructor loc r <$> traverse toPattern args
   Constructor' r -> pure $ Pattern.Constructor loc r []
   Request' r -> pure $ Pattern.EffectBind loc r [] (Pattern.Unbound loc)
-  Int' i -> pure $ Pattern.Int loc i 
-  Nat' n -> pure $ Pattern.Nat loc n 
-  Float' f -> pure $ Pattern.Float loc f 
+  Int' i -> pure $ Pattern.Int loc i
+  Nat' n -> pure $ Pattern.Nat loc n
+  Float' f -> pure $ Pattern.Float loc f
   Boolean' b -> pure $ Pattern.Boolean loc b
   Text' t -> pure $ Pattern.Text loc t
   Char' c -> pure $ Pattern.Char loc c
   Blank' _ -> pure $ Pattern.Unbound loc
   List' xs -> Pattern.SequenceLiteral loc <$> traverse toPattern (toList xs)
-  Apps' (Builtin' "List.cons") [a, b] -> Pattern.SequenceOp loc <$> toPattern a <*> pure Pattern.Cons <*> toPattern b 
+  Apps' (Builtin' "List.cons") [a, b] -> Pattern.SequenceOp loc <$> toPattern a <*> pure Pattern.Cons <*> toPattern b
   Apps' (Builtin' "List.snoc") [a, b] -> Pattern.SequenceOp loc <$> toPattern a <*> pure Pattern.Snoc <*> toPattern b
-  Apps' (Builtin' "List.++") [a, b]   -> Pattern.SequenceOp loc <$> toPattern a <*> pure Pattern.Concat <*> toPattern b
+  Apps' (Builtin' "List.++") [a, b] -> Pattern.SequenceOp loc <$> toPattern a <*> pure Pattern.Concat <*> toPattern b
   _ -> Nothing
   where
     loc = ABT.annotation tm
@@ -1452,72 +1455,73 @@ matchCaseFromTerm :: Var v => Term2 typeVar typeAnn a v a -> Maybe (MatchCase a 
 matchCaseFromTerm (App' (Builtin' "#case") (ABT.unabsA -> (_, Apps' _ci [pat, guard, body]))) = do
   p <- toPattern pat
   let g = unguard guard
-  pure $ MatchCase p (rechain pat <$> g) (rechain pat body) 
+  pure $ MatchCase p (rechain pat <$> g) (rechain pat body)
   where
-    unguard (App' (Builtin' "#guard") t) = Just t  
-    unguard (Builtin' "#noguard") = Nothing 
+    unguard (App' (Builtin' "#guard") t) = Just t
+    unguard (Builtin' "#noguard") = Nothing
     unguard _ = Nothing
     rechain pat tm = foldr (\v tm -> ABT.abs' (ABT.annotation tm) v tm) tm (ABT.allVars pat)
-matchCaseFromTerm t = 
+matchCaseFromTerm t =
   Just (MatchCase (Pattern.Unbound (ABT.annotation t)) Nothing (text (ABT.annotation t) "💥 bug: matchCaseToTerm"))
 
 matchCaseToTerm :: (Semigroup a, Ord v) => MatchCase a (Term2 typeVar typeAnn a v a) -> Term2 typeVar typeAnn a v a
-matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) = 
+matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
   app loc0 (builtin loc0 "#case") chain
   where
-  loc0 = Pattern.loc pat
-  chain = ABT.absChain' avs (apps' ci [evalState (embedPattern <$> intop pat) avs, intog guard, body])
-    where 
-      ci = builtin loc0 "#case.inner"
-      intog Nothing = builtin loc0 "#noguard"
-      intog (Just (ABT.unabsA -> (_,t))) = app (ABT.annotation t) (builtin (ABT.annotation t) "#guard") t
-
-  embedPattern t = ABT.rebuildUp' embed t
-    where embed t = app (ABT.annotation t) (builtin (ABT.annotation t) "#pattern") t 
-  intop pat = case pat of
-    Pattern.Unbound loc  -> pure (blank loc)
-    Pattern.Var loc -> do
-      avs <- State.get
-      case avs of
-        (a,v):avs -> State.put avs $> var a v
-        _ -> pure (blank loc)
-    Pattern.Boolean loc b -> pure (boolean loc b)
-    Pattern.Int loc i -> pure (int loc i)
-    Pattern.Nat loc n -> pure (nat loc n)
-    Pattern.Float loc f -> pure (float loc f)
-    Pattern.Text loc t -> pure (text loc t)
-    Pattern.Char loc c -> pure (char loc c)
-    Pattern.Constructor loc r ps -> apps' (constructor loc r) <$> traverse intop ps
-    Pattern.As loc p -> do 
-      avs <- State.get
-      case avs of
-        (a,v):avs -> do
-          State.put avs
-          p <- intop p
-          pure $ apps' (builtin loc "#as") [var a v, p]
-        _ -> pure (blank loc)
-    Pattern.EffectPure loc p -> app loc (builtin loc "#effect-pure") <$> intop p
-    Pattern.EffectBind loc r ps k -> do
-      ps <- traverse intop ps
-      k <- intop k
-      pure $ apps' (builtin loc "#effect-bind") [apps' (request loc r) ps, k]
-    Pattern.SequenceLiteral loc ps -> list loc <$> traverse intop ps 
-    Pattern.SequenceOp loc p op q -> do
-      p <- intop p
-      q <- intop q
-      pure $ apps' (intoOp op) [p, q]
+    loc0 = Pattern.loc pat
+    chain = ABT.absChain' avs (apps' ci [evalState (embedPattern <$> intop pat) avs, intog guard, body])
       where
-        intoOp Pattern.Concat = builtin loc "List.++"
-        intoOp Pattern.Snoc = builtin loc "List.snoc"
-        intoOp Pattern.Cons = builtin loc "List.cons"
+        ci = builtin loc0 "#case.inner"
+        intog Nothing = builtin loc0 "#noguard"
+        intog (Just (ABT.unabsA -> (_, t))) = app (ABT.annotation t) (builtin (ABT.annotation t) "#guard") t
+
+    embedPattern t = ABT.rebuildUp' embed t
+      where
+        embed t = app (ABT.annotation t) (builtin (ABT.annotation t) "#pattern") t
+    intop pat = case pat of
+      Pattern.Unbound loc -> pure (blank loc)
+      Pattern.Var loc -> do
+        avs <- State.get
+        case avs of
+          (a, v) : avs -> State.put avs $> var a v
+          _ -> pure (blank loc)
+      Pattern.Boolean loc b -> pure (boolean loc b)
+      Pattern.Int loc i -> pure (int loc i)
+      Pattern.Nat loc n -> pure (nat loc n)
+      Pattern.Float loc f -> pure (float loc f)
+      Pattern.Text loc t -> pure (text loc t)
+      Pattern.Char loc c -> pure (char loc c)
+      Pattern.Constructor loc r ps -> apps' (constructor loc r) <$> traverse intop ps
+      Pattern.As loc p -> do
+        avs <- State.get
+        case avs of
+          (a, v) : avs -> do
+            State.put avs
+            p <- intop p
+            pure $ apps' (builtin loc "#as") [var a v, p]
+          _ -> pure (blank loc)
+      Pattern.EffectPure loc p -> app loc (builtin loc "#effect-pure") <$> intop p
+      Pattern.EffectBind loc r ps k -> do
+        ps <- traverse intop ps
+        k <- intop k
+        pure $ apps' (builtin loc "#effect-bind") [apps' (request loc r) ps, k]
+      Pattern.SequenceLiteral loc ps -> list loc <$> traverse intop ps
+      Pattern.SequenceOp loc p op q -> do
+        p <- intop p
+        q <- intop q
+        pure $ apps' (intoOp op) [p, q]
+        where
+          intoOp Pattern.Concat = builtin loc "List.++"
+          intoOp Pattern.Snoc = builtin loc "List.snoc"
+          intoOp Pattern.Cons = builtin loc "List.cons"
 
 containsCase :: Pattern loc -> Term2 typeVar typeAnn loc v a -> Bool
 containsCase pat tm = case ABT.out tm of
   ABT.Var _ -> False
   ABT.Cycle tm -> containsCase pat tm
   ABT.Abs _ tm -> containsCase pat tm
-  ABT.Tm (Match scrute cases) -> 
-    containsCase pat scrute || any hasPat cases 
+  ABT.Tm (Match scrute cases) ->
+    containsCase pat scrute || any hasPat cases
     where
       hasPat (MatchCase p _ rhs) = Pattern.hasSubpattern pat p || containsCase pat rhs
   ABT.Tm f -> any (containsCase pat) (toList f)

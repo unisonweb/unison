@@ -1013,7 +1013,7 @@ lexemes' eof =
                 Just t | t == "type" || Set.member t typeModifiers -> pure [Token (Reserved "=") start end]
                 Just _ -> S.put (env {opening = Just "="}) >> pure [Token (Open "=") start end]
                 _ -> err start LayoutError
-            
+
             rewriteArr = do
               [Token _ start end] <- symbolyKw "==>"
               env <- S.get

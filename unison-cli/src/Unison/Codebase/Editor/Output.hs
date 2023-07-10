@@ -230,9 +230,9 @@ data Output
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
-  | ListStructuredFind [HQ.HashQualified Name] 
-  -- ListStructuredFind patternMatchingUsages termBodyUsages
-  | -- show the result of add/update
+  | ListStructuredFind [HQ.HashQualified Name]
+  | -- ListStructuredFind patternMatchingUsages termBodyUsages
+    -- show the result of add/update
     SlurpOutput Input PPE.PrettyPrintEnv SlurpResult
   | -- Original source, followed by the errors:
     ParseErrors Text [Parser.Err Symbol]
@@ -375,7 +375,7 @@ data Output
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
   | RenamedProject ProjectName ProjectName
-  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath String ([Symbol] {- symbols rewritten -}, UF.UnisonFile Symbol Ann)
+  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath String ([Symbol {- symbols rewritten -}], UF.UnisonFile Symbol Ann)
   | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
   | CantRenameBranchTo ProjectBranchName
   | FetchingLatestReleaseOfBase

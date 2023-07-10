@@ -419,13 +419,13 @@ rebuildMaybeUp ::
   Term f v a ->
   Maybe (Term f v a)
 rebuildMaybeUp f tm@(Term _ ann body) = f $ case body of
-  Var _ -> tm 
+  Var _ -> tm
   Cycle body -> fromMaybe tm $ fmap (cycle' ann) (rebuildMaybeUp f body)
   Abs x e -> fromMaybe tm $ fmap (abs' ann x) (rebuildMaybeUp f e)
-  Tm body -> 
+  Tm body ->
     if all (isNothing . snd) body'
-    then tm
-    else tm' ann (fmap (uncurry fromMaybe) body')
+      then tm
+      else tm' ann (fmap (uncurry fromMaybe) body')
     where
       body' = fmap (\tm -> (tm, rebuildMaybeUp f tm)) body
 
@@ -507,7 +507,7 @@ reannotateUp g t = case out t of
         ann = g t <> foldMap (snd . annotation) body'
      in tm' (annotation t, ann) body'
 
--- given a list of terms, freshen all their free variables 
+-- given a list of terms, freshen all their free variables
 -- to not overlap with any variables used within `wrt`.
 freshenWrt :: (Var v, Traversable f) => Term f v a -> [Term f v a] -> [Term f v a]
 freshenWrt wrt tms = renames varChanges <$> tms
@@ -519,8 +519,8 @@ freshenWrt wrt tms = renames varChanges <$> tms
         go (m, u) v = let v' = freshIn u v in (Map.insert v v' m, Set.insert v' u)
 
 freshenBothWrt :: (Var v, Traversable f) => Term f v a -> Term f v a -> Term f v a -> (Term f v a, Term f v a)
-freshenBothWrt wrt tm1 tm2 = case freshenWrt wrt [tm1,tm2] of
-  [tm1,tm2] -> (tm1, tm2)
+freshenBothWrt wrt tm1 tm2 = case freshenWrt wrt [tm1, tm2] of
+  [tm1, tm2] -> (tm1, tm2)
   _ -> error "freshenWrt impossible"
 
 rewriteExpression ::

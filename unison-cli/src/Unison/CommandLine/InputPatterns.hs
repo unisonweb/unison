@@ -485,7 +485,7 @@ viewByPrefix =
     )
 
 rawTermQueryArg :: ArgumentType
-rawTermQueryArg = exactDefinitionTermQueryArg { typeName = "raw" }
+rawTermQueryArg = exactDefinitionTermQueryArg {typeName = "raw"}
 
 sfind :: InputPattern
 sfind =
@@ -532,7 +532,7 @@ sfindReplace =
           P.wrap $
             "Here, `x` will stand in for any expression wherever this rewrite is applied,"
               <> "so this rule will match "
-              <> P.backticked "(42+10+11) + 1" 
+              <> P.backticked "(42+10+11) + 1"
               <> "and replace it with"
               <> P.backticked' "Nat.increment (42+10+11)" "."
         ]

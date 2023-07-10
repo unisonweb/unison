@@ -3665,13 +3665,13 @@ endangeredDependentsTable ppeDecl m =
 listStructuredFind :: [HQ.HashQualified Name] -> Pretty
 listStructuredFind [] = "😶 I couldn't find any matches."
 listStructuredFind tms =
-  P.callout "🔎" . P.lines $ [
-       "These definitions from the current namespace (excluding `lib`) have matches:",
-       "",
-       P.indentN 2 $ P.numberedList (pnames tms),
-       "",
-       tip (msg (length tms))
-      ]
+  P.callout "🔎" . P.lines $
+    [ "These definitions from the current namespace (excluding `lib`) have matches:",
+      "",
+      P.indentN 2 $ P.numberedList (pnames tms),
+      "",
+      tip (msg (length tms))
+    ]
   where
     pnames hqs = P.syntaxToColor . prettyHashQualified <$> hqs
     msg 1 = "Try " <> IP.makeExample IP.edit ["1"] <> " to bring this into your scratch file."
