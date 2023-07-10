@@ -150,8 +150,87 @@ cleanup = do
           term x + 1 ==> Nat.increment x
           term a -> f a ==> f
 
+.> add
+
+  ⍟ I've added these definitions:
+  
+    Either.mapRight  : (a ->{g} b)
+                       -> Optional a
+                       ->{g} Optional b
+    cleanup          : '{IO} ()
+    d                : Doc2
+    eitherToOptional : ∀ e1 a e a1 a2 a3 b a4 a5 b1.
+                         e1
+                         -> a1
+                         -> Rewrites
+                           ( RewriteTerm
+                             (Either e1 b1) (Optional a5),
+                             RewriteTerm
+                             (Either a4 a1) (Optional a1),
+                             RewriteCase
+                             (Either e1 b) (Optional a3),
+                             RewriteCase
+                             (Either a2 a1) (Optional a1),
+                             RewriteSignature
+                             (Either e a) (Optional a))
+    ex1              : [Nat]
+    rule1            : ∀ o g i g1.
+                         (i ->{g} o)
+                         -> Nat
+                         -> Rewrites
+                           ( RewriteTerm Nat Nat,
+                             RewriteTerm
+                             (i ->{g, g1} o) (i ->{g} o))
+
 .> run cleanup
 
   ()
+
+```
+```unison
+eitherEx = Left ("hello", "there")
+```
+
+```unison
+findEitherEx x = @rewrite term Left ("hello", x) ==> Left ("hello" Text.++ x) 
+findEitherFailure = @rewrite signature a . Either Failure a ==> () 
+```
+
+```ucm
+.> sfind findEitherEx
+
+  🔎
+  
+  These definitions from the current namespace (excluding `lib`) have matches:
+  
+    1. eitherEx
+  
+  Tip: Try `edit 1` to bring this into your scratch file.
+
+.> sfind findEitherFailure
+
+  🔎
+  
+  These definitions from the current namespace (excluding `lib`) have matches:
+  
+    1. toEither
+    2. reraise
+    3. printText
+    4. toEither.handler
+    5. catch
+  
+  Tip: Try `edit 1` or `edit 1-5` to bring these into your
+       scratch file.
+
+.> find 1-5
+
+  1. Exception.catch : '{g, Exception} a ->{g} Either Failure a
+  2. Exception.reraise : Either Failure a ->{Exception} a
+  3. Exception.toEither : '{ε, Exception} a
+                          ->{ε} Either Failure a
+  4. Exception.toEither.handler : Request {Exception} a
+                                  -> Either Failure a
+  5. printText : Text ->{IO} Either Failure ()
+  
 
 ```

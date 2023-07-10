@@ -52,5 +52,25 @@ cleanup = do
 .> rewrite eitherToOptional
 .> load rewrites-tmp.u
 .> display d
+.> add
 .> run cleanup
+```
+
+```unison:hide
+eitherEx = Left ("hello", "there")
+```
+
+```ucm:hide
+.> add
+```
+
+```unison:hide
+findEitherEx x = @rewrite term Left ("hello", x) ==> Left ("hello" Text.++ x) 
+findEitherFailure = @rewrite signature a . Either Failure a ==> () 
+```
+
+```ucm
+.> sfind findEitherEx
+.> sfind findEitherFailure
+.> find 1-5
 ```
