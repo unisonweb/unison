@@ -62,6 +62,7 @@
                 raise-syntax-error
                 build-path
                 path->string
+                match
                 for/fold)
           (string-copy! racket-string-copy!)
           (bytes-append bytevector-append)
@@ -151,21 +152,22 @@
 (define (describe-list-sq l) (describe-list #\[ #\] l))
 (define (describe-list-br l) (describe-list #\{ #\} l))
 
+(define (describe-hash h)
+  (substring (bytevector->base32-string b32h h) 0 8))
+
+(define (describe-derived h i)
+  (let ([th (describe-hash h)]
+        [ti (if (= i 0) "" (string-append "." (number->string i)))])
+    (string-append "#" th ti)))
+
 (define (describe-ref r)
-  (cond
-    [(symbol? r) (symbol->string r)]
-    [(unison-data? r)
-     (case (unison-data-tag r)
-       [(0) (string-append "##" (car (unison-data-fields r)))]
-       [(1)
-        (let*-values ([(i) (apply values (unison-data-fields r))]
-                      [(bs ix) (apply values (unison-data-fields i))])
-          (let* ([bd (bytevector->base32-string b32h bs)]
-                 [td (substring bd 0 5)]
-                 [sx (if (>= 0 ix)
-                       ""
-                       (string-append "." (number->string ix)))])
-            (string-append "#" td sx)))])]))
+  (match r
+    [(? symbol?) (symbol->string r)]
+    [(unison-data r 0 (list name)) (string-append "##" name)]
+    [(unison-data r 1 (list (unison-data s 0 (list bs ix))))
+     (describe-derived bs ix)]
+    [(unison-typelink-builtin name) (string-append "##" name)]
+    [(unison-typelink-derived hash i) (describe-derived hash i)]))
 
 (define (describe-bytes bs)
   (let* ([s (bytevector->base32-string b32h bs)]
@@ -173,23 +175,40 @@
          [sfx (if (<= l 10) "" "...")])
     (string-append "32x" (substring s 0 10) sfx)))
 
-;; TODO support for records
 (define (describe-value x)
-  (cond
-    [(unison-sum? x)
-     (let ([tt (number->string (unison-sum-tag x))]
-           [vs (describe-list-br (unison-sum-fields x))])
+  (match x
+    [(unison-sum t fs)
+     (let ([tt (number->string t)]
+           [vs (describe-list-br fs)])
        (string-append "Sum " tt " " vs))]
-    [(unison-data? x)
-     (let ([tt (number->string (unison-data-tag x))]
-           [rt (describe-ref (unison-data-ref x))]
-           [vs (describe-list-br (unison-data-fields x))])
+    [(unison-data r t fs)
+     (let ([tt (number->string t)]
+           [rt (describe-ref r)]
+           [vs (describe-list-br fs)])
        (string-append "Data " rt " " tt " " vs))]
-    [(chunked-list? x)
+    [(unison-pure v)
+     (string-append "Pure " (describe-list-br (list v)))]
+    [(unison-termlink-con r t)
+     (let ([rt (describe-ref r)]
+           [tt (number->string t)])
+       (string-append "{Con " r " " t "}"))]
+    [(unison-termlink-builtin name) (string-append "##" name)]
+    [(unison-termlink-derived hash i) (describe-derived hash i)]
+    [(unison-typelink-builtin nm)
+     (string-append "##" nm)]
+    [(unison-typelink-derived rf i)
+     (let ([rt (describe-ref rf)]
+           [it (if (= i 0) "" (number->string i))])
+       (string-append "#" rt it))]
+    [(unison-quote v)
+     (string-append "{Value " (describe-value v) "}")]
+    [(unison-code v)
+     (string-append "Code (" (describe-value v) ")")]
+    [(? chunked-list?)
      (describe-list-sq (vector->list (chunked-list->vector x)))]
-    [(chunked-string? x)
+    [(? chunked-string?)
       (format "\"~a\"" (chunked-string->string x))]
-    [(chunked-bytes? x)
+    [(? chunked-bytes?)
      (format
       "0xs~a"
       (chunked-string->string
@@ -197,11 +216,11 @@
          ([acc empty-chunked-string])
          ([n (in-chunked-bytes x)])
          (chunked-string-append acc (string->chunked-string (number->string n 16))))))]
-    [(list? x) (describe-list-sq x)]
+    [(? list?) (describe-list-sq x)]
     ; [(ilist? x) (describe-list-sq (list->mlist x))]
-    [(number? x) (number->string x)]
-    [(string? x) (string-append "\"" x "\"")]
-    [(bytes? x) (describe-bytes x)]
+    [(? number?) (number->string x)]
+    [(? string?) (string-append "\"" x "\"")]
+    [(? bytes?) (describe-bytes x)]
     [else
       (format "~a" x)]))
 
@@ -289,6 +308,8 @@
                (pointwise (cdr ll) (cdr lr)))])))
   (cond
     [(equal? l r) #t]
+    [(and (unison-code? l) (unison-code? r))
+     (universal=? (unison-code-rep l) (unison-code-rep r))]
     [(and (chunked-list? l) (chunked-list? r))
      (chunked-list=?/recur l r universal=?)]
     [(and (unison-data? l) (unison-data? r))
