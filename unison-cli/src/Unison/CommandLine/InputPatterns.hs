@@ -20,7 +20,7 @@ import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
-import Unison.Cli.Pretty (prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
+import Unison.Cli.Pretty (prettyProjectName, prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -3162,9 +3162,21 @@ projectNameArg :: ArgumentType
 projectNameArg =
   ArgumentType
     { typeName = "project-name",
-      suggestions = \_ _ _ _ -> pure [],
+      suggestions = \(Text.strip . Text.pack -> input) codebase _httpClient _path -> do
+        projects <-
+          Codebase.runTransaction codebase do
+            Queries.loadAllProjectsBeginningWith input
+        pure $ map projectToCompletion projects,
       globTargets = Set.empty
     }
+  where
+    projectToCompletion :: Sqlite.Project -> Completion
+    projectToCompletion project =
+      Completion
+        { replacement = Text.unpack (into @Text (project ^. #name)),
+          display = P.toAnsiUnbroken (prettyProjectName (project ^. #name)),
+          isFinished = False
+        }
 
 -- | Parse a 'Input.PushSource'.
 parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource
