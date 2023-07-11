@@ -2145,8 +2145,8 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
               pure []
             Just tm -> do
               Cli.respond $ TestIncrementalOutputStart ppe (n, total) r tm
-              --                          v don't cache; test cache populated below
-              tm' <- evalUnisonTermE True ppe False tm
+              --                        v don't cache; test cache populated below
+              tm' <- evalPureUnison ppe False tm
               case tm' of
                 Left e -> do
                   Cli.respond (EvaluationFailure e)
@@ -3177,6 +3177,20 @@ evalUnisonFile sandbox ppe unisonFile args = do
         let value' = Term.amap (\() -> Ann.External) value
         Cli.runTransaction (Codebase.putWatch kind hash value')
     pure rs
+
+evalPureUnison :: 
+  PPE.PrettyPrintEnv ->
+  Bool -> 
+  Term Symbol Ann ->
+  Cli (Either Runtime.Error (Term Symbol Ann))
+evalPureUnison ppe useCache tm = evalUnisonTermE False ppe useCache tm' 
+  where
+    tm' = Term.iff a (Term.apps' (Term.builtin a "validateSandboxed") [allow, Term.delay a tm]) 
+                     tm
+                     (Term.app a (Term.builtin a "bug") (Term.text a msg)) 
+    a = ABT.annotation tm
+    allow = Term.list a [Term.termLink a (Referent.Ref (Reference.Builtin "Debug.toText"))]
+    msg = "pure code can't perform I/O"
 
 -- | Evaluate a single closed definition.
 evalUnisonTermE ::
