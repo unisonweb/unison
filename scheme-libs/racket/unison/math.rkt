@@ -1,8 +1,10 @@
 #lang racket/base
 
-(require math/base)
+(require math/base
+         (only-in unison/boot data-case define-unison))
 
 (provide
+    builtin-Float.exp
  (prefix-out unison-POp-
              (combine-out
               ABSF
@@ -18,6 +20,7 @@
               ATN2
               ATNH
               CEIL
+              EXPF
               COSF
               COSH
               DIVF
@@ -29,6 +32,8 @@
               SINF
               ITOF)))
 
+(define-unison (builtin-Float.exp n) (exp n))
+(define (EXPF n) (exp n))
 (define ABSF abs)
 (define ACOS acos)
 (define ACSH acosh)
