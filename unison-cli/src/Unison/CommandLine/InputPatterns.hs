@@ -489,52 +489,62 @@ rawTermQueryArg = exactDefinitionTermQueryArg {typeName = "raw"}
 
 sfind :: InputPattern
 sfind =
-  InputPattern "sfind" ["find.structured"] I.Visible [(Required, definitionQueryArg)] msg parse
+  InputPattern "rewrite.find" ["sfind"] I.Visible [(Required, definitionQueryArg)] msg parse
   where
     parse [q] = Input.StructuredFindI Input.FindLocal <$> parseHashQualifiedName q
     parse _ = Left "expected exactly one argument"
     msg =
       P.lines
         [ P.wrap $
-            makeExample sfind ["rule"]
-              <> " finds definitions that match the left side of `rule`"
+            makeExample sfind ["rule1"]
+              <> " finds definitions that match any of the left side(s) of `rule`"
               <> "in the current namespace.",
           "",
           P.wrap $
-            "The argument `rule1` must refer to a pair or a function that immediately returns a pair."
+            "The argument `rule1` must refer to a `@rewrite` block or a function that immediately returns"
+              <> "a `@rewrite` block."
               <> "It can be in the codebase or scratch file. An example:",
           "",
-          "    rule1 x = (x + 1, ())  -- 2nd element of pair is ignored by this command",
+          "    rule1 x = @rewrite term x + 1 ==> ()  -- right of ==> is ignored by this command",
           "",
           P.wrap $
             "Here, `x` will stand in for any expression,"
               <> "so this rule will match "
-              <> P.backticked' "(42+10+11) + 1" "."
+              <> P.backticked' "(42+10+11) + 1" ".",
+          "",
+          "See https://unison-lang.org/learn/structured-find to learn more.",
+          "",
+          P.wrap ("Also see the related command" <> makeExample sfindReplace [])
         ]
 
 sfindReplace :: InputPattern
 sfindReplace =
-  InputPattern "sfind.replace" ["rewrite"] I.Visible [(Required, definitionQueryArg)] msg parse
+  InputPattern "rewrite" ["sfind.replace"] I.Visible [(Required, definitionQueryArg)] msg parse
   where
     parse [q] = Input.StructuredFindReplaceI <$> parseHashQualifiedName q
     parse _ = Left "expected exactly one argument"
     msg :: P.Pretty CT.ColorText
     msg =
       P.lines
-        [ makeExample sfindReplace ["rule1"] <> " rewrites definitions in the current file.",
+        [ makeExample sfindReplace ["rule1"] <> " rewrites definitions in the latest scratch file.",
           "",
           P.wrap $
-            "The argument `rule1` must refer to a pair or a function that immediately returns a pair."
-              <> "The rule can be in the scratch file or the codebase. For example:",
+            "The argument `rule1` must refer to a `@rewrite` block or a function that immediately returns"
+              <> "a `@rewrite` block."
+              <> "It can be in the codebase or scratch file. An example:",
           "",
-          "    rule1 x = (x + 1, Nat.increment x)",
+          "    rule1 x = @rewrite term x + 1 ==> Nat.increment x",
           "",
           P.wrap $
             "Here, `x` will stand in for any expression wherever this rewrite is applied,"
               <> "so this rule will match "
               <> P.backticked "(42+10+11) + 1"
               <> "and replace it with"
-              <> P.backticked' "Nat.increment (42+10+11)" "."
+              <> P.backticked' "Nat.increment (42+10+11)" ".",
+          "",
+          "See https://unison-lang.org/learn/structured-find to learn more.",
+          "",
+          P.wrap ("Also see the related command" <> makeExample sfind [])
         ]
 
 find :: InputPattern
