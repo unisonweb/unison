@@ -1,5 +1,6 @@
 module U.Codebase.Branch.Diff
   ( TreeDiff (..),
+    hoistTreeDiff,
     NameChanges (..),
     DefinitionDiffs (..),
     Diff (..),
@@ -12,6 +13,7 @@ module U.Codebase.Branch.Diff
 where
 
 import Control.Comonad.Cofree
+import Control.Comonad.Cofree qualified as Cofree
 import Control.Lens (ifoldMap)
 import Control.Lens qualified as Lens
 import Data.Functor.Compose (Compose (..))
@@ -75,6 +77,10 @@ instance (Applicative m) => Semigroup (TreeDiff m) where
 
 instance (Applicative m) => Monoid (TreeDiff m) where
   mempty = TreeDiff (mempty :< Compose mempty)
+
+hoistTreeDiff :: Functor m => (forall x. m x -> n x) -> TreeDiff m -> TreeDiff n
+hoistTreeDiff f (TreeDiff cfr) =
+  TreeDiff $ Cofree.hoistCofree (\(Compose m) -> Compose (fmap f m)) cfr
 
 -- | A summary of a 'TreeDiff', containing all names added and removed.
 -- Note that there isn't a clear notion of a name "changing" since conflicts might muddy the notion
