@@ -20,7 +20,7 @@ module Unison.Typechecker.Context
     Type,
     TypeVar,
     Result (..),
-    PatternMatchCoverageCheckSwitch(..),
+    PatternMatchCoverageCheckSwitch (..),
     errorTerms,
     innermostErrorTerm,
     lookupAnn,

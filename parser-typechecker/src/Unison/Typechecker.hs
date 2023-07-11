@@ -15,7 +15,7 @@ module Unison.Typechecker
     fitsScheme,
     Env (..),
     Notes (..),
-    Resolution(..),
+    Resolution (..),
     Name,
     NamedReference (..),
     Context.PatternMatchCoverageCheckSwitch (..),
