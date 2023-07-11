@@ -484,9 +484,6 @@ viewByPrefix =
         . traverse parseHashQualifiedName
     )
 
-rawTermQueryArg :: ArgumentType
-rawTermQueryArg = exactDefinitionTermQueryArg {typeName = "raw"}
-
 sfind :: InputPattern
 sfind =
   InputPattern "rewrite.find" ["sfind"] I.Visible [(Required, definitionQueryArg)] msg parse
