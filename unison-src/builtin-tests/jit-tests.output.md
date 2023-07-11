@@ -8,8 +8,6 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm
 .> run.native tests
 
-  Scheme evaluation failed.
-
 ```
 ```ucm
 .> run.native tests.jit.only
