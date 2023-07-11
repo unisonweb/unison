@@ -1759,12 +1759,10 @@ handleStructuredFindI rule = do
 lookupRewrite :: (HQ.HashQualified Name -> Output) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, [(Term Symbol Ann -> Maybe (Term Symbol Ann), Term Symbol Ann -> Bool)])
 lookupRewrite onErr rule = do
   Cli.Env {codebase} <- ask
-  root <- Cli.getRootBranch
   currentBranch <- Cli.getCurrentBranch0
-  currentPath' <- Cli.getCurrentPath
   hqLength <- Cli.runTransaction Codebase.hashLength
   let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
-  let ppe = Backend.getCurrentPrettyNames hqLength (Backend.WithinStrict (Path.unabsolute currentPath')) root
+  let ppe = PPED.fromNamesDecl hqLength currentNames
   ot <- Cli.getTermFromLatestParsedFile rule
   ot <- case ot of
     Just _ -> pure ot
