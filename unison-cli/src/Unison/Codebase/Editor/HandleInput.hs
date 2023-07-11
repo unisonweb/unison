@@ -201,6 +201,7 @@ import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Alphabetical qualified as Alphabetical
 import Unison.Util.Find qualified as Find
 import Unison.Util.List (nubOrdOn, uniqueBy)
 import Unison.Util.Monoid qualified as Monoid
@@ -1750,7 +1751,7 @@ handleStructuredFindI rule = do
         pure $ (t, maybe False (\e -> any ($ e) rules) oe)
       ok t = pure (t, False)
   results0 <- traverse ok results
-  let results = [(hq, r) | ((hq, r), True) <- results0]
+  let results = Alphabetical.sortAlphabeticallyOn fst [(hq, r) | ((hq, r), True) <- results0]
   let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
   #numberedArgs .= map toNumArgs results
   Cli.respond (ListStructuredFind (fst <$> results))
