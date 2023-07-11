@@ -1,6 +1,5 @@
 module Unison.Cli.TypeCheck
-  ( typecheck,
-    typecheckFileWithTNDR,
+  ( typecheckFileWithTNDR,
     typecheckFile,
     typecheckTerm,
   )
@@ -8,55 +7,22 @@ where
 
 import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
-import Data.Text qualified as Text
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile, synthesizeFileWithTNDR)
-import Unison.NamesWithHistory (NamesWithHistory (..))
+import Unison.FileParsers (synthesizeFile, synthesizeFileWithTNDR)
 import Unison.Parser.Ann (Ann (..))
-import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.Result qualified as Result
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol (Symbol))
-import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile qualified as UF
 import Unison.Var qualified as Var
-
-typecheck ::
-  (MonadIO m) =>
-  Codebase IO Symbol Ann ->
-  IO Parser.UniqueName ->
-  [Type Symbol Ann] ->
-  NamesWithHistory ->
-  Text ->
-  (Text, [L.Token L.Lexeme]) ->
-  m
-    ( Result.Result
-        (Seq (Result.Note Symbol Ann))
-        (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann))
-    )
-typecheck codebase generateUniqueName ambient names sourceName source = liftIO do
-  uniqueName <- generateUniqueName
-  (Codebase.runTransaction codebase . Result.getResult) do
-    let parsingEnv = Parser.ParsingEnv uniqueName names
-    unisonFile <-
-      Result.fromParsing $
-        Parsers.parseFile (Text.unpack sourceName) (Text.unpack (fst source)) parsingEnv
-    typecheckedUnisonFile <-
-      synthesizeFileWithTNDR ambient (Codebase.typeLookupForDependencies codebase) parsingEnv unisonFile
-    parseAndSynthesizeFile
-      ambient
-      (Codebase.typeLookupForDependencies codebase)
-      (Parser.ParsingEnv uniqueName names)
-      (Text.unpack sourceName)
-      (fst source)
 
 typecheckFileWithTNDR ::
   Codebase IO Symbol Ann ->

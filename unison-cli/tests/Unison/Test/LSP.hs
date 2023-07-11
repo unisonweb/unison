@@ -4,6 +4,7 @@
 module Unison.Test.LSP (test) where
 
 import Crypto.Random qualified as Random
+import Data.Foldable qualified as Foldable
 import Data.List.Extra (firstJust)
 import Data.String.Here.Uninterpolated (here)
 import Data.Text
@@ -14,6 +15,7 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef)
 import Unison.Cli.TypeCheck qualified as Typecheck
 import Unison.Codebase (Codebase)
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Init qualified as Codebase.Init
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -21,12 +23,12 @@ import Unison.LSP.Queries qualified as LSPQ
 import Unison.Lexer.Pos qualified as Lexer
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parser.Ann qualified as Ann
+import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
@@ -249,9 +251,8 @@ extractCursor txt =
 makeNodeSelectionTest :: (String, Text, Bool, LSPQ.SourceNode ()) -> Test ()
 makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ do
   (pos, src) <- extractCursor testSrc
-  (notes, mayParsedFile, mayTypecheckedFile) <- typecheckSrc name src
+  (pf, tf) <- typecheckSrc name src
   scope "parsed file" $ do
-    pf <- maybe (crash (show ("Failed to parse" :: String, notes))) pure mayParsedFile
     let pfResult =
           UF.terms pf
             & firstJust \(_v, _fileAnn, trm) ->
@@ -260,7 +261,6 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
 
   when testTypechecked $
     scope "typechecked file" $ do
-      tf <- maybe (crash "Failed to typecheck") pure mayTypecheckedFile
       let tfResult =
             UF.hashTermsId tf
               & toList
@@ -298,8 +298,7 @@ term x y = x && y
 
 annotationNestingTest :: (String, Text) -> Test ()
 annotationNestingTest (name, src) = scope name do
-  (_notes, _pf, maytf) <- typecheckSrc name src
-  tf <- maybe (crash "Failed to typecheck") pure maytf
+  (_, tf) <- typecheckSrc name src
   UF.hashTermsId tf
     & toList
     & traverse_ \(_fileAnn, _refId, _wk, trm, _typ) ->
@@ -323,20 +322,25 @@ assertAnnotationsAreNested term = do
           | isInFile -> pure ann
           | otherwise -> Left $ "Containment breach: children aren't contained with the parent:" <> show (ann, abt)
 
-typecheckSrc :: String -> Text -> Test (Seq (Result.Note Symbol Ann), Maybe (UF.UnisonFile Symbol Ann), Maybe (UF.TypecheckedUnisonFile Symbol Ann))
+typecheckSrc :: String -> Text -> Test (UF.UnisonFile Symbol Ann, UF.TypecheckedUnisonFile Symbol Ann)
 typecheckSrc name src = do
-  withTestCodebase \codebase -> do
-    let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
-    let ambientAbilities = []
-    let parseNames = mempty
-    let lexedSource = (src, L.lexer name (Text.unpack src))
-    r <- Typecheck.typecheck codebase generateUniqueName ambientAbilities parseNames (Text.pack name) lexedSource
-    let Result.Result notes mayResult = r
-    let (parsedFile, typecheckedFile) = case mayResult of
-          Nothing -> (Nothing, Nothing)
-          Just (Left uf) -> (Just uf, Nothing)
-          Just (Right tf) -> (Just $ UF.discardTypes tf, Just tf)
-    pure (notes, parsedFile, typecheckedFile)
+  result <-
+    withTestCodebase \codebase -> do
+      uniqueName <- Parser.uniqueBase32Namegen <$> Random.getSystemDRG
+      let ambientAbilities = []
+      let parseNames = mempty
+      let parsingEnv = Parser.ParsingEnv uniqueName parseNames
+      case Parsers.parseFile name (Text.unpack src) parsingEnv of
+        Left err -> pure (Left (crash ("Failed to parse: " ++ show err)))
+        -- tf <- maybe (crash "Failed to typecheck") pure maytf
+        Right unisonFile ->
+          Codebase.runTransaction codebase (Typecheck.typecheckFileWithTNDR codebase ambientAbilities parsingEnv unisonFile) <&> \case
+            Result.Result notes Nothing -> Left (crash ("Failed to typecheck: " ++ show (Foldable.toList @Seq notes)))
+            Result.Result _ (Just typecheckedUnisonFile) -> Right (unisonFile, typecheckedUnisonFile)
+
+  case result of
+    Left action -> action
+    Right result -> pure result
 
 withTestCodebase ::
   (Codebase IO Symbol Ann -> IO r) -> Test r
