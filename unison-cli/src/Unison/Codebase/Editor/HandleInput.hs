@@ -3178,16 +3178,19 @@ evalUnisonFile sandbox ppe unisonFile args = do
         Cli.runTransaction (Codebase.putWatch kind hash value')
     pure rs
 
-evalPureUnison :: 
+evalPureUnison ::
   PPE.PrettyPrintEnv ->
-  Bool -> 
+  Bool ->
   Term Symbol Ann ->
   Cli (Either Runtime.Error (Term Symbol Ann))
-evalPureUnison ppe useCache tm = evalUnisonTermE False ppe useCache tm' 
+evalPureUnison ppe useCache tm = evalUnisonTermE False ppe useCache tm'
   where
-    tm' = Term.iff a (Term.apps' (Term.builtin a "validateSandboxed") [allow, Term.delay a tm]) 
-                     tm
-                     (Term.app a (Term.builtin a "bug") (Term.text a msg)) 
+    tm' =
+      Term.iff
+        a
+        (Term.apps' (Term.builtin a "validateSandboxed") [allow, Term.delay a tm])
+        tm
+        (Term.app a (Term.builtin a "bug") (Term.text a msg))
     a = ABT.annotation tm
     allow = Term.list a [Term.termLink a (Referent.Ref (Reference.Builtin "Debug.toText"))]
     msg = "pure code can't perform I/O"
