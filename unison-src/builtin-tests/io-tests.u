@@ -13,6 +13,7 @@ io.tests = Tests.main do
     !io.test_getEnv
     !io.test.getRandomBytes
     !io.test_getSomeBytes
+    !io.test_getChar
     !io.test_getCurrentDirectory
 
 testFile = do
@@ -141,6 +142,13 @@ io.test_getEnv = do
 io.test.getRandomBytes = do
     bs = IO.randomBytes 10
     checkEqual "get 10 random bytes" 10 (base.Bytes.size bs)
+
+io.test_getChar = do
+    fp = !testFile
+    _ = writeFile fp "oón"
+    h = open fp Read
+    checkEqual "get char" (getChar h) ?o
+    checkEqual "get a complicated char" (getChar h) ?ó
 
 io.test_getSomeBytes = do
     fp = !testFile

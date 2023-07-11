@@ -43,6 +43,7 @@
     setEcho.impl.v1
     getArgs.impl.v1
     getEnv.impl.v1
+    getChar.impl.v1
     process.call
     getCurrentDirectory.impl.v3
     ))
@@ -89,6 +90,12 @@
         (Right (string->chunked-string ""))
         (Right (string->chunked-string line))
         )))
+
+(define-unison (getChar.impl.v1 handle)
+  (let* ([char (read-char handle)])
+    (if (eof-object? char)
+        (Exception 'isEOFError "End of file reached")
+        (Right char))))
 
 (define-unison (getSomeBytes.impl.v1 handle bytes)
   (let* ([buffer (make-bytes bytes)]
