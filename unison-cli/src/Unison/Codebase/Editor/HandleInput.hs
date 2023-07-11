@@ -3196,7 +3196,13 @@ synthesizeForce typeOfFunc = do
             TypeLookup.dataDecls = Map.empty,
             TypeLookup.effectDecls = Map.empty
           }
-  case Result.runResultT (Typechecker.synthesize PPE.empty env (DD.forceTerm External External term)) of
+  case Result.runResultT
+    ( Typechecker.synthesize
+        PPE.empty
+        Typechecker.PatternMatchCoverageCheckSwitch'Enabled
+        env
+        (DD.forceTerm External External term)
+    ) of
     Identity (Nothing, notes) ->
       error
         ( unlines

@@ -177,7 +177,7 @@ fieldNames env r name dd = do
           }
   accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
     for accessors \(v, _a, trm) ->
-      case Result.result (Typechecker.synthesize env typecheckingEnv trm) of
+      case Result.result (Typechecker.synthesize env Typechecker.PatternMatchCoverageCheckSwitch'Disabled typecheckingEnv trm) of
         Nothing -> Nothing
         Just typ -> Just (v, trm, typ)
   let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ, ()))) $ accessorsWithTypes)
