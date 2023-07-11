@@ -5,7 +5,7 @@ module Unison.FileParsers
   )
 where
 
-import Control.Lens (view, _3)
+import Control.Lens
 import Control.Monad.State (evalStateT)
 import Control.Monad.Writer (tell)
 import Data.Foldable qualified as Foldable
@@ -37,12 +37,14 @@ import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.Extractor (RedundantTypeAnnotation)
 import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.UnisonFile (definitionLocation)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as Rel
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import Unison.WatchKind (WatchKind)
 
 type Term v = Term.Term v Ann
 
@@ -189,14 +191,21 @@ synthesizeFile env0 uf = do
        in traverse (traverse addTypesToTopLevelBindings) tlcsFromTypechecker
     let doTdnr = applyTdnrDecisions infos
     let doTdnrInComponent (v, t, tp) = (v, doTdnr t, tp)
-    let tdnredTlcs = (fmap . fmap) doTdnrInComponent topLevelComponents
+    let tdnredTlcs =
+          topLevelComponents
+            & (fmap . fmap)
+              ( \vtt ->
+                  vtt
+                    & doTdnrInComponent
+                    & \(v, t, tp) -> (v, fromMaybe (error $ "Symbol from typechecked file not present in parsed file" <> show v) (definitionLocation v uf), t, tp)
+              )
     let (watches', terms') = partition isWatch tdnredTlcs
-        isWatch = all (\(v, _, _) -> Set.member v watchedVars)
-        watchedVars = Set.fromList [v | (v, _) <- UF.allWatches uf]
+        isWatch = all (\(v, _, _, _) -> Set.member v watchedVars)
+        watchedVars = Set.fromList [v | (v, _a, _) <- UF.allWatches uf]
         tlcKind [] = error "empty TLC, should never occur"
-        tlcKind tlc@((v, _, _) : _) =
-          let hasE k =
-                elem v . fmap fst $ Map.findWithDefault [] k (UF.watches uf)
+        tlcKind tlc@((v, _, _, _) : _) =
+          let hasE :: WatchKind -> Bool
+              hasE k = elem v . fmap (view _1) $ Map.findWithDefault [] k (UF.watches uf)
            in case Foldable.find hasE (Map.keys $ UF.watches uf) of
                 Nothing -> error "wat"
                 Just kind -> (kind, tlc)

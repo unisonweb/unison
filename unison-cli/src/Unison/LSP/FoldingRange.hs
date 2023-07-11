@@ -29,7 +29,7 @@ foldingRangesForFile fileUri =
       UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms} <- MaybeT $ pure parsedFile
       let dataFolds = dataDeclarationsId ^.. folded . _2 . to dataDeclSpan
       let abilityFolds = effectDeclarationsId ^.. folded . _2 . to DD.toDataDecl . to dataDeclSpan
-      let termFolds = terms ^.. folded . _2 . to ABT.annotation
+      let termFolds = terms ^.. folded . _3 . to ABT.annotation
       let folds = dataFolds <> abilityFolds <> termFolds
       let ranges = mapMaybe annToRange folds
       pure $ ranges <&> \r -> FoldingRange {_startLine = r ^. start . line, _startCharacter = Just (r ^. start . character), _endLine = r ^. end . line, _endCharacter = Just (r ^. end . character), _kind = Just FoldingRangeRegion}

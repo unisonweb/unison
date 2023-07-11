@@ -105,7 +105,7 @@ import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Output.DumpNamespace qualified as Output.DN
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareLooseCode (..), ShareUserHandle (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..))
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
@@ -143,6 +143,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.HashQualified' qualified as HashQualified
 import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.JitInfo qualified as JitInfo
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.LabeledDependency qualified as LabeledDependency
@@ -214,6 +215,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Web.Browser (openBrowser)
+import Witch (unsafeFrom)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -1235,7 +1237,8 @@ loop e = do
             CompileSchemeI output main -> doCompileScheme output main
             ExecuteSchemeI main args -> doRunAsScheme main args
             GenSchemeLibsI -> doGenerateSchemeBoot True Nothing
-            FetchSchemeCompilerI name -> doFetchCompiler name
+            FetchSchemeCompilerI name branch ->
+              doFetchCompiler name branch
             IOTestI main -> handleIOTest main
             -- UpdateBuiltinsI -> do
             --   stepAt updateBuiltins
@@ -1311,7 +1314,7 @@ loop e = do
               let datas, effects, terms :: [(Name, Reference.Id)]
                   datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
                   effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
-                  terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
+                  terms = [(Name.unsafeFromVar v, r) | (v, (_, r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugTabCompletionI inputs -> do
               Cli.Env {authHTTPClient, codebase} <- ask
@@ -1627,7 +1630,8 @@ inputDescription input =
           <> Text.unwords (fmap Text.pack args)
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
     GenSchemeLibsI -> pure "compile.native.genlibs"
-    FetchSchemeCompilerI name -> pure ("compile.native.fetch" <> Text.pack name)
+    FetchSchemeCompilerI name branch ->
+      pure ("compile.native.fetch" <> Text.pack name <> " " <> Text.pack branch)
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
     RemoveTermReplacementI src p0 -> do
       p <- opatch p0
@@ -1970,7 +1974,7 @@ handleIOTest main = do
       -- First, look at the terms in the latest typechecked file for a name-match.
       whenJustM Cli.getLatestTypecheckedFile \typecheckedFile -> do
         whenJust (HQ.toName main) \mainName ->
-          whenJust (Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)) \(ref, _wk, _term, typ) ->
+          whenJust (Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)) \(_, ref, _wk, _term, typ) ->
             returnMatches [(Reference.fromId ref, typ)]
 
       -- Then, if we get here (because nothing in the scratch file matched), look at the terms in the codebase.
@@ -2205,14 +2209,14 @@ doDisplay outputLoc names tm = do
           evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) $ Cli.runTransaction (Codebase.getTerm codebase r)
-        Just (tm, _) -> pure (Just $ Term.unannotate tm)
+        Just (_, tm, _) -> pure (Just $ Term.unannotate tm)
       loadTerm _ = pure Nothing
       loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
         Nothing -> fmap (fmap $ DD.amap (const ())) $ Cli.runTransaction $ Codebase.getTypeDeclaration codebase r
         Just decl -> pure (Just $ DD.amap (const ()) decl)
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
-        | Just (_, ty) <- Map.lookup r tms = pure $ Just (void ty)
+        | Just (_, _, ty) <- Map.lookup r tms = pure $ Just (void ty)
       loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . loadTypeOfTerm codebase $ r
   rendered <-
     DisplayValues.displayTerm
@@ -2439,24 +2443,25 @@ compilerPath = Path.Path' {Path.unPath' = Left abs}
     rootPath = Path.Path {Path.toSeq = Seq.fromList segs}
     abs = Path.Absolute {Path.unabsolute = rootPath}
 
-doFetchCompiler :: String -> Cli ()
-doFetchCompiler username =
+doFetchCompiler :: String -> String -> Cli ()
+doFetchCompiler username branch =
   doPullRemoteBranch sourceTarget SyncMode.Complete Input.PullWithoutHistory Verbosity.Silent
   where
     -- fetching info
-    ns =
-      ReadShareLooseCode
-        { server = RemoteRepo.DefaultCodeserver,
-          repo = ShareUserHandle (Text.pack username),
-          path =
-            Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
-        }
-    sourceTarget = PullSourceTarget2 (ReadShare'LooseCode ns) (This compilerPath)
+    prj =
+      These
+        (unsafeFrom $ "@" <> Text.pack username <> "/internal")
+        (unsafeFrom $ Text.pack branch)
+
+    sourceTarget =
+      PullSourceTarget2
+        (ReadShare'ProjectBranch prj)
+        (This compilerPath)
 
 ensureCompilerExists :: Cli ()
 ensureCompilerExists =
   Cli.branchExistsAtPath' compilerPath
-    >>= flip unless (doFetchCompiler "unison")
+    >>= flip unless (doFetchCompiler "unison" JitInfo.currentRelease)
 
 getCacheDir :: Cli String
 getCacheDir = liftIO $ getXdgDirectory XdgCache "unisonlanguage"
@@ -2935,7 +2940,7 @@ addWatch watchName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
   let mainComponent = filter ((\v -> Var.nameStr v == watchName) . view _1) components
   case mainComponent of
-    [(v, tm, ty)] ->
+    [(v, ann, tm, ty)] ->
       Just $
         let v2 = Var.freshIn (Set.fromList [v]) v
             a = ABT.annotation tm
@@ -2944,7 +2949,7 @@ addWatch watchName (Just uf) = do
                 (UF.dataDeclarationsId' uf)
                 (UF.effectDeclarationsId' uf)
                 (UF.topLevelComponents' uf)
-                (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, Term.var a v, ty)])])
+                (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, ann, Term.var a v, ty)])])
             )
     _ -> addWatch watchName Nothing
 
@@ -2962,7 +2967,7 @@ addSavedTermToUnisonFile resultName = do
     UF.typecheckedUnisonFile
       (UF.dataDeclarationsId' uf)
       (UF.effectDeclarationsId' uf)
-      ([(resultSymbol, trm, typ)] : UF.topLevelComponents' uf)
+      ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf)
       (UF.watchComponents uf)
 
 -- | Look up runnable term with the given name in the codebase or
@@ -3004,7 +3009,7 @@ getTerm' mainName =
         let components = join $ UF.topLevelComponents uf
         let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
         case mainComponent of
-          [(v, tm, ty)] ->
+          [(v, _, tm, ty)] ->
             checkType ty \otyp ->
               let runMain = DD.forceTerm a a (Term.var a v)
                   v2 = Var.freshIn (Set.fromList [v]) v
@@ -3026,7 +3031,7 @@ getTerm' mainName =
 createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli (TypecheckedUnisonFile Symbol Ann)
 createWatcherFile v tm typ =
   Cli.getLatestTypecheckedFile >>= \case
-    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, tm, typ)])])
+    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, External, tm, typ)])])
     Just uf ->
       let v2 = Var.freshIn (Set.fromList [v]) v
        in pure $
@@ -3035,7 +3040,7 @@ createWatcherFile v tm typ =
               (UF.effectDeclarationsId' uf)
               (UF.topLevelComponents' uf)
               -- what about main's component? we have dropped them if they existed.
-              [(magicMainWatcherString, [(v2, tm, typ)])]
+              [(magicMainWatcherString, [(v2, External, tm, typ)])]
 
 executePPE ::
   (Var v) =>
@@ -3229,7 +3234,7 @@ evalUnisonTerm sandbox ppe useCache tm =
 stripUnisonFileReferences :: TypecheckedUnisonFile Symbol a -> Term Symbol () -> Term Symbol ()
 stripUnisonFileReferences unisonFile term =
   let refMap :: Map Reference.Id Symbol
-      refMap = Map.fromList . map (\(sym, (refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
+      refMap = Map.fromList . map (\(sym, (_, refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
       alg () = \case
         ABT.Var x -> ABT.var x
         ABT.Cycle x -> ABT.cycle x

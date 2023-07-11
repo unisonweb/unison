@@ -26,13 +26,13 @@ a = 5
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #d31cd19hmj
+  ⊙ 1. #9o9nce99ll
   
     + Adds / updates:
     
       a
   
-  □ 2. #t4v947uir6 (start of history)
+  □ 2. #fhvlkucguq (start of history)
 
 .> reset 2
 
@@ -45,7 +45,7 @@ a = 5
   
   
   
-  □ 1. #t4v947uir6 (start of history)
+  □ 1. #fhvlkucguq (start of history)
 
 ```
 ```unison
@@ -79,13 +79,13 @@ foo.a = 5
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #fnbh3f6bi4
+  ⊙ 1. #6q9qb5j7he
   
     + Adds / updates:
     
       foo.a
   
-  □ 2. #t4v947uir6 (start of history)
+  □ 2. #fhvlkucguq (start of history)
 
 .> reset 1 foo
 
@@ -104,7 +104,7 @@ foo.a = 5
   🎉 I've created the project foo.
 
   🎨 Type `ui` to explore this project's code in your browser.
-  🌏 Discover libraries at https://share.unison-lang.org
+  🔭 Discover libraries at https://share.unison-lang.org
   📖 Use `help-topic projects` to learn more about projects.
   
   Write your first Unison code with UCM:

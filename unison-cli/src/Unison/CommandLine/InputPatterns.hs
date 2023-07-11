@@ -8,17 +8,19 @@ import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
+import Data.Maybe (fromJust)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
+import Network.URI qualified as URI
 import System.Console.Haskeline.Completion (Completion (Completion))
 import System.Console.Haskeline.Completion qualified as Haskeline
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
-import Unison.Cli.Pretty (prettyProjectNameSlash, prettySlashProjectBranchName)
+import Unison.Cli.Pretty (prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -44,6 +46,7 @@ import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..))
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.HashQualified qualified as HQ
+import Unison.JitInfo qualified as JitInfo
 import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
@@ -741,7 +744,7 @@ deleteBranch =
     { patternName = "delete.branch",
       aliases = ["branch.delete"],
       visibility = I.Visible,
-      argTypes = [(Required, projectBranchNameWithOptionalProjectNameArg)],
+      argTypes = [(Required, projectAndBranchNamesArg True)],
       help =
         P.wrapColumn2
           [ ("`delete.branch foo/bar`", "deletes the branch `bar` in the project `foo`"),
@@ -1666,7 +1669,8 @@ helpTopicsMap =
       ("filestatus", fileStatusMsg),
       ("messages.disallowedAbsolute", disallowedAbsoluteMsg),
       ("remotes", remotesMsg),
-      ("namespaces", pathnamesMsg)
+      ("namespaces", pathnamesMsg),
+      ("projects", projectsMsg)
     ]
   where
     blankline = ("", "")
@@ -1790,6 +1794,30 @@ helpTopicsMap =
               <> "If the project was created locally then the relationship will be established on"
               <> "the first `push`."
         ]
+    projectsMsg =
+      P.lines $
+        [ P.wrap $
+            "A project is a versioned collection of code that can be edited, published, and depended on other projects."
+              <> "Unison projects are analogous to Git repositories.",
+          "",
+          P.column2
+            [ (patternName projectCreate, "create a new project"),
+              (patternName projectsInputPattern, "list all your projects"),
+              (patternName branchInputPattern, "create a new workstream"),
+              (patternName branchesInputPattern, "list all your branches"),
+              (patternName mergeLocal, "merge one branch into another"),
+              (patternName projectSwitch, "switch to a project or branch"),
+              (patternName push, "upload your changes to Unison Share"),
+              (patternName pull, "download code(/changes/updates) from Unison Share"),
+              (patternName clone, "download a Unison Share project or branch for contribution")
+            ],
+          "",
+          tip ("Use" <> makeExample help [patternName projectCreate] <> "to learn more."),
+          "",
+          P.wrap $
+            "For full documentation, see"
+              <> prettyURI (fromJust (URI.parseURI "https://unison-lang.org/learn/projects"))
+        ]
 
 help :: InputPattern
 help =
@@ -1806,10 +1834,24 @@ help =
               "\n\n"
               showPatternHelp
               visibleInputs
-        [isHelp -> Just msg] -> Left msg
-        [cmd] -> case Map.lookup cmd commandsByName of
-          Nothing -> Left . warn $ "I don't know of that command. Try `help`."
-          Just pat -> Left $ showPatternHelp pat
+        [cmd] ->
+          case (Map.lookup cmd commandsByName, isHelp cmd) of
+            (Nothing, Just msg) -> Left msg
+            (Nothing, Nothing) -> Left . warn $ "I don't know of that command. Try `help`."
+            (Just pat, Nothing) -> Left $ showPatternHelp pat
+            -- If we have a command and a help topic with the same name (like "projects"), then append a tip to the
+            -- command's help that suggests running `help-topic command`
+            (Just pat, Just _) ->
+              Left $
+                showPatternHelp pat
+                  <> P.newline
+                  <> P.newline
+                  <> ( tip $
+                         "To read more about"
+                           <> P.group (P.string cmd <> ",")
+                           <> "use"
+                           <> makeExample helpTopics [P.string cmd]
+                     )
         _ -> Left $ warn "Use `help <cmd>` or `help`."
     )
   where
@@ -2300,22 +2342,36 @@ fetchScheme =
     []
     ( P.wrapColumn2
         [ ( makeExample fetchScheme [],
-            "Fetches the unison library for compiling to scheme.\n\n\
-            \This is done automatically when"
-              <> P.group (makeExample compileScheme [])
-              <> "is run\
-                 \ if the library is not already in the standard location\
-                 \ (unison.internal). However, this command will force\
-                 \ a pull even if the library already exists. You can also specify\
-                 \ a username to pull from (the default is `unison`) to use an alternate\
-                 \ implementation of the scheme compiler. It will attempt to fetch\
-                 \ [username].public.internal.trunk for use."
+            P.lines . fmap P.wrap $
+              [ "Fetches the unison library for compiling to scheme.",
+                "This is done automatically when"
+                  <> P.group (makeExample compileScheme [])
+                  <> "is run if the library is not already in the\
+                     \ standard location (unison.internal). However,\
+                     \ this command will force a pull even if the\
+                     \ library already exists.",
+                "You can also specify a user and branch name to pull\
+                \ from in order to use an alternate version of the\
+                \ unison compiler (for development purposes, for\
+                \ example).",
+                "The default user is `unison`. The default branch\
+                \ for the `unison` user is a specified latest\
+                \ version of the compiler for stability. The\
+                \ default branch for other uses is `main`. The\
+                \ command fetches code from a project:",
+                P.indentN 2 ("@user/internal/branch")
+              ]
           )
         ]
     )
     ( \case
-        [] -> pure (Input.FetchSchemeCompilerI "unison")
-        [name] -> pure (Input.FetchSchemeCompilerI name)
+        [] -> pure (Input.FetchSchemeCompilerI "unison" JitInfo.currentRelease)
+        [name] -> pure (Input.FetchSchemeCompilerI name branch)
+          where
+            branch
+              | name == "unison" = JitInfo.currentRelease
+              | otherwise = "main"
+        [name, branch] -> pure (Input.FetchSchemeCompilerI name branch)
         _ -> Left $ showPatternHelp fetchScheme
     )
 

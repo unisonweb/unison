@@ -91,7 +91,6 @@ library
       Unison.Codebase.Type
       Unison.Codebase.TypeEdit
       Unison.Codebase.Verbosity
-      Unison.Codebase.Watch
       Unison.CodebasePath
       Unison.FileParsers
       Unison.Hashing.V2.Convert
@@ -239,7 +238,6 @@ library
     , filepath
     , fingertree
     , free
-    , fsnotify
     , fuzzyfind
     , generic-lens
     , generic-monoid
@@ -430,7 +428,6 @@ test-suite parser-typechecker-tests
     , filepath
     , fingertree
     , free
-    , fsnotify
     , fuzzyfind
     , generic-lens
     , generic-monoid

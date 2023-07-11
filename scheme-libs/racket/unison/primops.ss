@@ -27,6 +27,7 @@
     builtin-Float.*
     builtin-Float.fromRepresentation
     builtin-Float.toRepresentation
+    builtin-Float.exp
     builtin-Int.+
     builtin-Int.-
     builtin-Int.increment
@@ -36,6 +37,8 @@
     builtin-Int.signum
     builtin-Nat.increment
     builtin-Nat.toFloat
+    builtin-Text.indexOf
+    builtin-IO.randomBytes
 
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
@@ -48,8 +51,16 @@
     unison-FOp-IO.getBytes.impl.v3
     builtin-IO.seekHandle.impl.v3
     builtin-IO.getLine.impl.v1
+    builtin-IO.getSomeBytes.impl.v1
     builtin-IO.setBuffering.impl.v3
     builtin-IO.getBuffering.impl.v3
+    builtin-IO.setEcho.impl.v1
+    builtin-IO.process.call
+    builtin-IO.getEcho.impl.v1
+    builtin-IO.getArgs.impl.v1
+    builtin-IO.getEnv.impl.v1
+    builtin-IO.getChar.impl.v1
+    builtin-IO.getCurrentDirectory.impl.v3
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
@@ -221,12 +232,14 @@
     unison-POp-CONS
     unison-POp-DBTX
     unison-POp-DECI
+    unison-POp-DECN
     unison-POp-DIVN
     unison-POp-DRPB
     unison-POp-DRPS
     unison-POp-DRPT
     unison-POp-EQLN
     unison-POp-EQLT
+    unison-POp-EXPF
     unison-POp-LEQT
     unison-POp-EQLU
     unison-POp-EROR
@@ -350,6 +363,8 @@
                  exn:fail:contract?
                  file-stream-buffer-mode
                  with-handlers
+                 match
+                 regexp-match-positions
                  sequence-ref
                  vector-copy!
                  bytes-copy!)
@@ -357,6 +372,7 @@
           (unison arithmetic)
           (unison bytevector)
           (unison core)
+          (only (unison boot) define-unison)
           (unison data)
           (unison math)
           (unison chunked-seq)
@@ -371,7 +387,21 @@
           (unison tcp)
           (unison gzip)
           (unison zlib)
-          (unison concurrent))
+          (unison concurrent)
+          (racket random))
+
+  ; NOTE: this is just a temporary stopgap until the real function is
+  ; done. I accidentally pulled in too new a version of base in the
+  ; project version of the unison compiler and it broke the jit tests.
+  (define-unison (builtin-Text.indexOf s t)
+    (let ([ss (chunked-string->string s)]
+          [tt (chunked-string->string t)])
+      (match (regexp-match-positions ss tt)
+        [#f (data 'Optional 1)] ; none
+        [(cons (cons i j) r) (data 'Optional 0 i)]))) ; some
+
+  (define-unison (builtin-IO.randomBytes n)
+    (bytes->chunked-bytes (crypto-random-bytes n)))
 
   (define (unison-POp-UPKB bs)
     (build-chunked-list
@@ -403,6 +433,7 @@
   (define (unison-POp-COMN n) (fxnot n))
   (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
   (define (unison-POp-DECI n) (fx1- n))
+  (define (unison-POp-DECN n) (- n 1))
   (define (unison-POp-DIVN m n) (fxdiv m n))
   (define (unison-POp-DRPB n bs) (chunked-bytes-drop bs n))
   (define (unison-POp-DRPS n l) (chunked-list-drop l n))
@@ -578,20 +609,6 @@
       (sum 1 #f)))
 
   (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
-
-  (define (with-buffer-mode port mode)
-    (file-stream-buffer-mode port mode)
-    port)
-
-  (define stdin (with-buffer-mode (standard-input-port) 'none))
-  (define stdout (with-buffer-mode (standard-output-port) 'line))
-  (define stderr (with-buffer-mode (standard-error-port) 'line))
-
-  (define (unison-FOp-IO.stdHandle n)
-    (case n
-      [(0) stdin]
-      [(1) stdout]
-      [(2) stderr]))
 
   (define (unison-FOp-IO.getArgs.impl.v1)
     (sum 1 (cdr (command-line))))

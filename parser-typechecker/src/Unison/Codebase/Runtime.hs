@@ -80,12 +80,12 @@ evaluateWatches ::
 evaluateWatches code ppe evaluationCache rt tuf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference.Id, Term.Term v a)
-      m = fmap (\(id, _wk, tm, _tp) -> (id, tm)) (UF.hashTermsId tuf)
+      m = fmap (\(_a, id, _wk, tm, _tp) -> (id, tm)) (UF.hashTermsId tuf)
       watches :: Set v = Map.keysSet watchKinds
       watchKinds :: Map v WatchKind
       watchKinds =
         Map.fromList
-          [(v, k) | (k, ws) <- UF.watchComponents tuf, (v, _tm, _tp) <- ws]
+          [(v, k) | (k, ws) <- UF.watchComponents tuf, (v, _a, _tm, _tp) <- ws]
       unann = Term.amap (const ())
   -- 2. use the cache to lookup things already computed
   m' <- fmap Map.fromList . for (Map.toList m) $ \(v, (r, t)) -> do
@@ -96,8 +96,8 @@ evaluateWatches code ppe evaluationCache rt tuf = do
   -- 3. create a big ol' let rec whose body is a big tuple of all watches
   let rv :: Map Reference.Id v
       rv = Map.fromList [(r, v) | (v, (r, _)) <- Map.toList m]
-      bindings :: [(v, Term v)]
-      bindings = [(v, unref rv b) | (v, (_, _, b, _)) <- Map.toList m']
+      bindings :: [(v, (), Term v)]
+      bindings = [(v, (), unref rv b) | (v, (_, _, b, _)) <- Map.toList m']
       watchVars = [Term.var () v | v <- toList watches]
       bigOl'LetRec = Term.letRec' True bindings (tupleTerm watchVars)
       cl = void (CL.fromTypecheckedUnisonFile tuf) <> void code
@@ -153,7 +153,7 @@ evaluateTerm' codeLookup cache ppe rt tm = do
               mempty
               mempty
               mempty
-              [(WK.RegularWatch, [(Var.nameds "result", tm, mempty <$> mainType rt)])]
+              [(WK.RegularWatch, [(Var.nameds "result", mempty, tm, mempty <$> mainType rt)])]
       r <- evaluateWatches (void codeLookup) ppe cache rt (void tuf)
       pure $
         r <&> \(_, map) ->
