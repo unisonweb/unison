@@ -246,6 +246,7 @@ loop e = do
         MaybeT (WriterT (Identity (r, notes))) <- typecheck ambient parseNames sourceName lexed
         result <- r & onNothing (Cli.returnEarly (ParseErrors text [err | Result.Parsing err <- toList notes]))
         result & onLeft \uf -> do
+          -- set that the file at least parsed (but didn't typecheck)
           State.modify' (& #latestTypecheckedFile .~ Just (Left uf))
           ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames uf)
           ppe <- suffixifiedPPE ns
