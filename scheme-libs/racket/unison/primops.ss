@@ -58,6 +58,8 @@
     builtin-IO.getEcho.impl.v1
     builtin-IO.getArgs.impl.v1
     builtin-IO.getEnv.impl.v1
+    builtin-IO.getChar.impl.v1
+    builtin-IO.getCurrentDirectory.impl.v3
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
