@@ -13,7 +13,8 @@
   (struct-out unison-closure)
   (struct-out unison-termlink)
   (struct-out unison-termlink-con)
-  (struct-out unison-termlink-ref)
+  (struct-out unison-termlink-builtin)
+  (struct-out unison-termlink-derived)
   (struct-out unison-typelink)
   (struct-out unison-typelink-builtin)
   (struct-out unison-typelink-derived)
@@ -110,8 +111,12 @@
   (ref index)
   #:reflection-name 'termlink)
 
-(struct unison-termlink-ref unison-termlink
-  (ref)
+(struct unison-termlink-builtin unison-termlink
+  (name)
+  #:reflection-name 'termlink)
+
+(struct unison-termlink-derived unison-termlink
+  (hash i)
   #:reflection-name 'termlink)
 
 (struct unison-typelink ()
