@@ -15,16 +15,14 @@ import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.MonadUtils qualified as Cli (stepAt)
+import Unison.Cli.MonadUtils qualified as Cli (updateAt)
 import Unison.Cli.ProjectUtils (projectBranchPath)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Pull qualified as HandleInput.Pull
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
-import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName, projectNameUserSlug)
 import Unison.Share.API.Hash qualified as Share.API
@@ -302,9 +300,7 @@ cloneInto localProjectBranch remoteProjectBranch = do
   let branchHead = hash32ToCausalHash (Share.API.hashJWTHash remoteBranchHeadJwt)
   theBranch <- liftIO (Codebase.expectBranchForHash codebase branchHead)
   let path = projectBranchPath (over #project fst localProjectAndBranch)
-  Cli.stepAt
-    ("clone " <> into @Text remoteProjectBranchNames)
-    (Path.unabsolute path, const (Branch.head theBranch))
+  Cli.updateAt ("clone " <> into @Text remoteProjectBranchNames) path (const theBranch)
   Cli.cd path
 
 -- Return the remote project id associated with the given project branch

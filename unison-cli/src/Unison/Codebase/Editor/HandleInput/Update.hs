@@ -105,7 +105,7 @@ handleUpdate input optionalPatch requestedNames = do
       hashTerms :: Map Reference (Type Symbol Ann)
       hashTerms = Map.fromList (toList hashTerms0)
         where
-          hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms (Slurp.originalFile sr)
+          hashTerms0 = (\(_ann, r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms (Slurp.originalFile sr)
       termEdits :: [(Name, Reference, Reference)]
       termEdits = do
         v <- Set.toList (SC.terms (updates sr))
@@ -253,7 +253,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
     -- Running example:
     --
     --   "ping" => (#newping, Nothing, <#wham + 4>, <Nat>)
-    let nameToInterimInfo :: Map Symbol (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
+    let nameToInterimInfo :: Map Symbol (Ann, TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
         nameToInterimInfo =
           UF.hashTermsId (Slurp.originalFile slurp0)
 
@@ -278,7 +278,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
             ( \name ->
                 case Map.lookup name nameToInterimInfo of
                   Nothing -> error (reportBug "E798907" "no interim ref for name")
-                  Just (interimRef, _, _, _) -> (nameToTermRefs name, interimRef)
+                  Just (_, interimRef, _, _, _) -> (nameToTermRefs name, interimRef)
             )
             namesBeingUpdated
 
@@ -409,7 +409,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                       interimTermComponents =
                         nameToInterimInfo
                           & Map.elems
-                          & map (\(ref, _wk, term, typ) -> (ref, (term, typ)))
+                          & map (\(_ann, ref, _wk, term, typ) -> (ref, (term, typ)))
                           & componentize
                           & uncomponentize
 
@@ -479,7 +479,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                 --   #newping => <#wham + 4>
                 interimRefToTerm :: Map TermReferenceId (Term Symbol Ann)
                 interimRefToTerm =
-                  Map.remap (\(_var, (ref, _wk, term, _typ)) -> (ref, term)) nameToInterimInfo
+                  Map.remap (\(_var, (_ann, ref, _wk, term, _typ)) -> (ref, term)) nameToInterimInfo
                 -- Running example: apply the following reference mapping everwhere in a term:
                 --
                 --   #pingpong.ping -> #newping
@@ -504,7 +504,9 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                   --   fresh1 = fresh3 + 4
                   --   fresh2 = fresh1 + 2
                   --   fresh3 = fresh2 + 3
-                  terms = Map.elems refToGeneratedNameAndTerm,
+                  terms =
+                    Map.elems refToGeneratedNameAndTerm <&> \(v, term) ->
+                      (v, External, term),
                   -- In the context of this update, whatever watches were in the latest typechecked Unison file are
                   -- irrelevant, so we don't need to copy them over.
                   watches = Map.empty
@@ -539,15 +541,16 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                     --   #newping => "ping"
                     interimRefToName :: Map TermReferenceId Symbol
                     interimRefToName =
-                      Map.remap (\(name, (ref, _wk, _term, _typ)) -> (ref, name)) nameToInterimInfo
+                      Map.remap (\(name, (_ann, ref, _wk, _term, _typ)) -> (ref, name)) nameToInterimInfo
 
             let renameTerm ::
-                  (Symbol, Term Symbol Ann, Type Symbol Ann) ->
-                  (Symbol, Term Symbol Ann, Type Symbol Ann)
-                renameTerm (generatedName, term, typ) =
+                  (Symbol, Ann, Term Symbol Ann, Type Symbol Ann) ->
+                  (Symbol, Ann, Term Symbol Ann, Type Symbol Ann)
+                renameTerm (generatedName, ann, term, typ) =
                   ( case Map.lookup generatedName generatedNameToName of
                       Just name -> name
                       Nothing -> error (reportBug "E440546" "no name for generated name"),
+                    ann,
                     ABT.renames generatedNameToName term,
                     typ
                   )
@@ -589,7 +592,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
       map doTerm . toList $
         SC.terms slurp <> UF.constructorsForDecls (SC.types slurp) uf
     names = UF.typecheckedToNames uf
-    tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
+    tests = Set.fromList $ view _1 <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
     (isTestType, isTestValue) = IOSource.isTest
     md v =
       if Set.member v tests

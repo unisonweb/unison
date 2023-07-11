@@ -744,7 +744,7 @@ deleteBranch =
     { patternName = "delete.branch",
       aliases = ["branch.delete"],
       visibility = I.Visible,
-      argTypes = [(Required, projectBranchNameWithOptionalProjectNameArg)],
+      argTypes = [(Required, projectAndBranchNamesArg True)],
       help =
         P.wrapColumn2
           [ ("`delete.branch foo/bar`", "deletes the branch `bar` in the project `foo`"),

@@ -27,6 +27,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.FileCodebase qualified as FCC
 import Unison.Codebase.Init.CreateCodebaseError
 import Unison.Codebase.Init.OpenCodebaseError
+import Unison.Codebase.Verbosity (Verbosity, isSilent)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -168,11 +169,11 @@ createCodebase cbInit debugName path lockOption action = do
 
 -- previously: initCodebaseOrExit :: CodebasePath -> m (m (), Codebase m v a)
 -- previously: FileCodebase.initCodebase :: CodebasePath -> m (m (), Codebase m v a)
-withNewUcmCodebaseOrExit :: (MonadIO m) => Init m Symbol Ann -> DebugName -> CodebasePath -> CodebaseLockOption -> (Codebase m Symbol Ann -> m r) -> m r
-withNewUcmCodebaseOrExit cbInit debugName path lockOption action = do
+withNewUcmCodebaseOrExit :: (MonadIO m) => Init m Symbol Ann -> Verbosity -> DebugName -> CodebasePath -> CodebaseLockOption -> (Codebase m Symbol Ann -> m r) -> m r
+withNewUcmCodebaseOrExit cbInit verbosity debugName path lockOption action = do
   prettyDir <- P.string <$> canonicalizePath path
   let codebaseSetup codebase = do
-        liftIO $ PT.putPrettyLn' . P.wrap $ "Initializing a new codebase in: " <> prettyDir
+        unless (isSilent verbosity) . liftIO $ PT.putPrettyLn' . P.wrap $ "Initializing a new codebase in: " <> prettyDir
         Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
   createCodebase cbInit debugName path lockOption (\cb -> codebaseSetup cb *> action cb)
     >>= \case
@@ -180,19 +181,20 @@ withNewUcmCodebaseOrExit cbInit debugName path lockOption action = do
       Right result -> pure result
 
 -- | try to init a codebase where none exists and then exit regardless (i.e. `ucm --codebase dir init`)
-initCodebaseAndExit :: (MonadIO m) => Init m Symbol Ann -> DebugName -> Maybe CodebasePath -> CodebaseLockOption -> m ()
-initCodebaseAndExit i debugName mdir lockOption = do
+initCodebaseAndExit :: (MonadIO m) => Init m Symbol Ann -> Verbosity -> DebugName -> Maybe CodebasePath -> CodebaseLockOption -> m ()
+initCodebaseAndExit i verbosity debugName mdir lockOption = do
   codebaseDir <- Codebase.getCodebaseDir mdir
-  withNewUcmCodebaseOrExit i debugName codebaseDir lockOption (const $ pure ())
+  withNewUcmCodebaseOrExit i verbosity debugName codebaseDir lockOption (const $ pure ())
 
 withTemporaryUcmCodebase ::
   (MonadUnliftIO m) =>
   Init m Symbol Ann ->
+  Verbosity ->
   DebugName ->
   CodebaseLockOption ->
   ((CodebasePath, Codebase m Symbol Ann) -> m r) ->
   m r
-withTemporaryUcmCodebase cbInit debugName lockOption action = do
+withTemporaryUcmCodebase cbInit verbosity debugName lockOption action = do
   UnliftIO.withSystemTempDirectory debugName $ \tempDir -> do
-    withNewUcmCodebaseOrExit cbInit debugName tempDir lockOption $ \codebase -> do
+    withNewUcmCodebaseOrExit cbInit verbosity debugName tempDir lockOption $ \codebase -> do
       action (tempDir, codebase)
