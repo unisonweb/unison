@@ -505,7 +505,8 @@ sfind =
               <> "a `@rewrite` block."
               <> "It can be in the codebase or scratch file. An example:",
           "",
-          "    rule1 x = @rewrite term x + 1 ==> ()  -- right of ==> is ignored by this command",
+          "    -- right of ==> is ignored by this command",
+          "    rule1 x = @rewrite term x + 1 ==> ()",
           "",
           P.wrap $
             "Here, `x` will stand in for any expression,"
