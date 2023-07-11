@@ -1367,27 +1367,49 @@ fromReferent a = \case
     CT.Data -> constructor a r
     CT.Effect -> request a r
 
+-- Used to find matches of `@rewrite case` rules
 containsExpression :: (Var v, Var typeVar, Eq typeAnn) => Term2 typeVar typeAnn loc v a -> Term2 typeVar typeAnn loc v a -> Bool
 containsExpression = ABT.containsExpression
 
+-- Used to find matches of `@rewrite case` rules
+-- Returns `Nothing` if `pat` can't be interpreted as a `Pattern` 
+-- (like `1 + 1` is not a valid pattern, but `Some x` can be)
 containsCaseTerm :: Var v1 => Term2 tv ta tb v1 loc -> Term2 typeVar typeAnn loc v2 a -> Maybe Bool
 containsCaseTerm pat =
   (\tm -> containsCase <$> pat' <*> pure tm)
   where
     pat' = toPattern pat
 
+-- Implementation detail / core logic of `containsCaseTerm`
+containsCase :: Pattern loc -> Term2 typeVar typeAnn loc v a -> Bool
+containsCase pat tm = case ABT.out tm of
+  ABT.Var _ -> False
+  ABT.Cycle tm -> containsCase pat tm
+  ABT.Abs _ tm -> containsCase pat tm
+  ABT.Tm (Match scrute cases) ->
+    containsCase pat scrute || any hasPat cases
+    where
+      hasPat (MatchCase p _ rhs) = Pattern.hasSubpattern pat p || containsCase pat rhs
+  ABT.Tm f -> any (containsCase pat) (toList f)
+
+-- Used to find matches of `@rewrite signature` rules
 containsSignature :: (Ord v, ABT.Var vt, Show vt) => Type vt at -> Term2 vt at ap v a -> Bool
 containsSignature tyLhs tm = any ok (ABT.subterms tm)
   where
     ok (Ann' _ tp) = ABT.containsExpression tyLhs tp
     ok _ = False
 
+-- Used to rewrite type signatures in terms (`@rewrite signature` rules)
 rewriteSignatures :: (Ord v, ABT.Var vt, Show vt) => Type vt at -> Type vt at -> Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
 rewriteSignatures tyLhs tyRhs tm = ABT.rebuildMaybeUp go tm
   where
     go a@(Ann' tm tp) = ann (ABT.annotation a) tm <$> ABT.rewriteExpression tyLhs tyRhs tp
     go _ = Nothing
 
+-- Used to rewrite cases of a `match` (`@rewrite case` rules)
+-- Implementation is tricky - we convert the term to a form 
+-- which lets us use `ABT.rewriteExpression` to do the heavy lifting,
+-- then convert the results back to a "regular" term after.
 rewriteCasesLHS ::
   forall v typeVar typeAnn a.
   (Var v, Var typeVar, Ord v, Show typeVar, Eq typeAnn, Semigroup a) =>
@@ -1424,6 +1446,7 @@ rewriteCasesLHS pat0 pat0' =
             tweak (Just mc) = mc
         go t = t
 
+-- Implementation detail of `@rewrite case` rules (both find and replace) 
 toPattern :: Var v => Term2 tv ta tb v loc -> Maybe (Pattern loc)
 toPattern tm = case tm of
   Var' v | "_" `Text.isPrefixOf` Var.name v -> pure $ Pattern.Unbound loc
@@ -1451,6 +1474,7 @@ toPattern tm = case tm of
   where
     loc = ABT.annotation tm
 
+-- Implementation detail of `@rewrite case` rules (both find and replace) 
 matchCaseFromTerm :: Var v => Term2 typeVar typeAnn a v a -> Maybe (MatchCase a (Term2 typeVar typeAnn a v a))
 matchCaseFromTerm (App' (Builtin' "#case") (ABT.unabsA -> (_, Apps' _ci [pat, guard, body]))) = do
   p <- toPattern pat
@@ -1464,6 +1488,7 @@ matchCaseFromTerm (App' (Builtin' "#case") (ABT.unabsA -> (_, Apps' _ci [pat, gu
 matchCaseFromTerm t =
   Just (MatchCase (Pattern.Unbound (ABT.annotation t)) Nothing (text (ABT.annotation t) "💥 bug: matchCaseToTerm"))
 
+-- Implementation detail of `@rewrite case` rules (both find and replace) 
 matchCaseToTerm :: (Semigroup a, Ord v) => MatchCase a (Term2 typeVar typeAnn a v a) -> Term2 typeVar typeAnn a v a
 matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
   app loc0 (builtin loc0 "#case") chain
@@ -1514,17 +1539,6 @@ matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
           intoOp Pattern.Concat = builtin loc "List.++"
           intoOp Pattern.Snoc = builtin loc "List.snoc"
           intoOp Pattern.Cons = builtin loc "List.cons"
-
-containsCase :: Pattern loc -> Term2 typeVar typeAnn loc v a -> Bool
-containsCase pat tm = case ABT.out tm of
-  ABT.Var _ -> False
-  ABT.Cycle tm -> containsCase pat tm
-  ABT.Abs _ tm -> containsCase pat tm
-  ABT.Tm (Match scrute cases) ->
-    containsCase pat scrute || any hasPat cases
-    where
-      hasPat (MatchCase p _ rhs) = Pattern.hasSubpattern pat p || containsCase pat rhs
-  ABT.Tm f -> any (containsCase pat) (toList f)
 
 -- mostly boring serialization code below ...
 

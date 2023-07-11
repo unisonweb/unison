@@ -523,6 +523,8 @@ freshenBothWrt wrt tm1 tm2 = case freshenWrt wrt [tm1, tm2] of
   [tm1, tm2] -> (tm1, tm2)
   _ -> error "freshenWrt impossible"
 
+-- | Core logic of structured find and replace. Works for any base functor.
+-- Returns `Nothing` if no replacements.
 rewriteExpression ::
   forall f v a.
   (Var v, Show v, forall a. (Eq a) => Eq (f a), forall a. (Show a) => Show (f a), Traversable f) =>
@@ -577,6 +579,9 @@ rewriteExpression query0 replacement0 tm = rewriteHere tm
                in go (rename v1 v3 body1) (rename v2 v3 body2)
         go _ _ = pure False
 
+-- | Core logic of structured find. Works for any base functor.
+-- Returns `True` if there's a subexpression of `tm` which matches `query0`
+-- for some assignment of variables. 
 containsExpression :: forall f v a. (Var v, forall a. (Eq a) => Eq (f a), Traversable f) => Term f v a -> Term f v a -> Bool
 containsExpression query0 tm = matchesHere tm
   where
