@@ -11,13 +11,6 @@ compose3 f g = a -> b -> c -> f (g a b c)
 id a = a
 void x = ()
 
-List.map : (a ->{g} b) -> [a] ->{g} [b]
-List.map f as = 
-  go acc = cases
-    [] -> acc 
-    h +: t -> go (acc :+ f h) t
-  go [] as 
-
 structural ability Exception where
   raise: io2.Failure -> anything
 
