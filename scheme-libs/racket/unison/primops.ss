@@ -38,6 +38,11 @@
     builtin-Nat.toFloat
     builtin-Text.indexOf
 
+    builtin-Value.toBuiltin
+    builtin-Value.fromBuiltin
+    builtin-Code.fromGroup
+    builtin-Code.toGroup
+
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
     ; unison-FOp-Code.dependencies
@@ -376,6 +381,13 @@
           (unison gzip)
           (unison zlib)
           (unison concurrent))
+
+  (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
+  (define-unison (builtin-Value.fromBuiltin v)
+    (unison-quote-val v))
+  (define-unison (builtin-Code.fromGroup sg) (unison-code sg))
+  (define-unison (builtin-Code.toGroup co)
+    (unison-code-rep co))
 
   ; NOTE: this is just a temporary stopgap until the real function is
   ; done. I accidentally pulled in too new a version of base in the
