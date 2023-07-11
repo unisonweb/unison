@@ -31,6 +31,7 @@ module Unison.UnisonFile
     termSignatureExternalLabeledDependencies,
     topLevelComponents,
     typecheckedUnisonFile,
+    Unison.UnisonFile.rewrite,
   )
 where
 
@@ -106,6 +107,19 @@ effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 
 hashTerms :: TypecheckedUnisonFile v a -> Map v (a, Reference, Maybe WatchKind, Term v a, Type v a)
 hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
+
+rewrite :: (Var v, Eq a) => Set v -> (Term v a -> Maybe (Term v a)) -> UnisonFile v a -> ([v], UnisonFile v a)
+rewrite leaveAlone rewriteFn (UnisonFileId datas effects terms watches) =
+  (rewritten, UnisonFileId datas effects (unEither terms') (unEither <$> watches'))
+  where
+    terms' = go terms
+    watches' = go <$> watches
+    go tms = [(v, a, tm') | (v, a, tm) <- tms, tm' <- f v tm]
+      where
+        f v tm | Set.member v leaveAlone = [Left tm]
+        f _ tm = maybe [Left tm] (pure . Right) (rewriteFn tm)
+    rewritten = [v | (v, _, Right _) <- terms' <> join (toList watches')]
+    unEither = fmap (\(v, a, e) -> (v, a, case e of Left tm -> tm; Right tm -> tm))
 
 typecheckedUnisonFile ::
   forall v a.

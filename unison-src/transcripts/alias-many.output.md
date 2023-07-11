@@ -621,81 +621,91 @@ Let's try it!
   440. Ref.read : Ref g a ->{g} a
   441. Ref.write : Ref g a -> a ->{g} ()
   442. builtin type Request
-  443. builtin type Scope
-  444. Scope.array : Nat ->{Scope s} MutableArray (Scope s) a
-  445. Scope.arrayOf : a
+  443. unique type RewriteCase a b
+  444. RewriteCase.RewriteCase : a -> b -> RewriteCase a b
+  445. unique type Rewrites a
+  446. Rewrites.Rewrites : a -> Rewrites a
+  447. unique type RewriteSignature a b
+  448. RewriteSignature.RewriteSignature : (a -> b -> ())
+                                           -> RewriteSignature
+                                             a b
+  449. unique type RewriteTerm a b
+  450. RewriteTerm.RewriteTerm : a -> b -> RewriteTerm a b
+  451. builtin type Scope
+  452. Scope.array : Nat ->{Scope s} MutableArray (Scope s) a
+  453. Scope.arrayOf : a
                        -> Nat
                        ->{Scope s} MutableArray (Scope s) a
-  446. Scope.bytearray : Nat
+  454. Scope.bytearray : Nat
                          ->{Scope s} MutableByteArray (Scope s)
-  447. Scope.bytearrayOf : Nat
+  455. Scope.bytearrayOf : Nat
                            -> Nat
                            ->{Scope s} MutableByteArray
                              (Scope s)
-  448. Scope.ref : a ->{Scope s} Ref {Scope s} a
-  449. Scope.run : (∀ s. '{g, Scope s} r) ->{g} r
-  450. structural type SeqView a b
-  451. SeqView.VElem : a -> b -> SeqView a b
-  452. SeqView.VEmpty : SeqView a b
-  453. Socket.toText : Socket -> Text
-  454. unique type Test.Result
-  455. Test.Result.Fail : Text -> Result
-  456. Test.Result.Ok : Text -> Result
-  457. builtin type Text
-  458. Text.!= : Text -> Text -> Boolean
-  459. Text.++ : Text -> Text -> Text
-  460. Text.drop : Nat -> Text -> Text
-  461. Text.empty : Text
-  462. Text.eq : Text -> Text -> Boolean
-  463. Text.fromCharList : [Char] -> Text
-  464. Text.fromUtf8.impl : Bytes -> Either Failure Text
-  465. Text.gt : Text -> Text -> Boolean
-  466. Text.gteq : Text -> Text -> Boolean
-  467. Text.indexOf : Text -> Text -> Optional Nat
-  468. Text.lt : Text -> Text -> Boolean
-  469. Text.lteq : Text -> Text -> Boolean
-  470. Text.patterns.anyChar : Pattern Text
-  471. Text.patterns.char : Class -> Pattern Text
-  472. Text.patterns.charIn : [Char] -> Pattern Text
-  473. Text.patterns.charRange : Char -> Char -> Pattern Text
-  474. Text.patterns.digit : Pattern Text
-  475. Text.patterns.eof : Pattern Text
-  476. Text.patterns.letter : Pattern Text
-  477. Text.patterns.literal : Text -> Pattern Text
-  478. Text.patterns.notCharIn : [Char] -> Pattern Text
-  479. Text.patterns.notCharRange : Char -> Char -> Pattern Text
-  480. Text.patterns.punctuation : Pattern Text
-  481. Text.patterns.space : Pattern Text
-  482. Text.repeat : Nat -> Text -> Text
-  483. Text.reverse : Text -> Text
-  484. Text.size : Text -> Nat
-  485. Text.take : Nat -> Text -> Text
-  486. Text.toCharList : Text -> [Char]
-  487. Text.toLowercase : Text -> Text
-  488. Text.toUppercase : Text -> Text
-  489. Text.toUtf8 : Text -> Bytes
-  490. Text.uncons : Text -> Optional (Char, Text)
-  491. Text.unsnoc : Text -> Optional (Text, Char)
-  492. ThreadId.toText : ThreadId -> Text
-  493. todo : a -> b
-  494. structural type Tuple a b
-  495. Tuple.Cons : a -> b -> Tuple a b
-  496. structural type Unit
-  497. Unit.Unit : ()
-  498. Universal.< : a -> a -> Boolean
-  499. Universal.<= : a -> a -> Boolean
-  500. Universal.== : a -> a -> Boolean
-  501. Universal.> : a -> a -> Boolean
-  502. Universal.>= : a -> a -> Boolean
-  503. Universal.compare : a -> a -> Int
-  504. Universal.murmurHash : a -> Nat
-  505. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
-  506. builtin type Value
-  507. Value.dependencies : Value -> [Term]
-  508. Value.deserialize : Bytes -> Either Text Value
-  509. Value.load : Value ->{IO} Either [Term] a
-  510. Value.serialize : Value -> Bytes
-  511. Value.value : a -> Value
+  456. Scope.ref : a ->{Scope s} Ref {Scope s} a
+  457. Scope.run : (∀ s. '{g, Scope s} r) ->{g} r
+  458. structural type SeqView a b
+  459. SeqView.VElem : a -> b -> SeqView a b
+  460. SeqView.VEmpty : SeqView a b
+  461. Socket.toText : Socket -> Text
+  462. unique type Test.Result
+  463. Test.Result.Fail : Text -> Result
+  464. Test.Result.Ok : Text -> Result
+  465. builtin type Text
+  466. Text.!= : Text -> Text -> Boolean
+  467. Text.++ : Text -> Text -> Text
+  468. Text.drop : Nat -> Text -> Text
+  469. Text.empty : Text
+  470. Text.eq : Text -> Text -> Boolean
+  471. Text.fromCharList : [Char] -> Text
+  472. Text.fromUtf8.impl : Bytes -> Either Failure Text
+  473. Text.gt : Text -> Text -> Boolean
+  474. Text.gteq : Text -> Text -> Boolean
+  475. Text.indexOf : Text -> Text -> Optional Nat
+  476. Text.lt : Text -> Text -> Boolean
+  477. Text.lteq : Text -> Text -> Boolean
+  478. Text.patterns.anyChar : Pattern Text
+  479. Text.patterns.char : Class -> Pattern Text
+  480. Text.patterns.charIn : [Char] -> Pattern Text
+  481. Text.patterns.charRange : Char -> Char -> Pattern Text
+  482. Text.patterns.digit : Pattern Text
+  483. Text.patterns.eof : Pattern Text
+  484. Text.patterns.letter : Pattern Text
+  485. Text.patterns.literal : Text -> Pattern Text
+  486. Text.patterns.notCharIn : [Char] -> Pattern Text
+  487. Text.patterns.notCharRange : Char -> Char -> Pattern Text
+  488. Text.patterns.punctuation : Pattern Text
+  489. Text.patterns.space : Pattern Text
+  490. Text.repeat : Nat -> Text -> Text
+  491. Text.reverse : Text -> Text
+  492. Text.size : Text -> Nat
+  493. Text.take : Nat -> Text -> Text
+  494. Text.toCharList : Text -> [Char]
+  495. Text.toLowercase : Text -> Text
+  496. Text.toUppercase : Text -> Text
+  497. Text.toUtf8 : Text -> Bytes
+  498. Text.uncons : Text -> Optional (Char, Text)
+  499. Text.unsnoc : Text -> Optional (Text, Char)
+  500. ThreadId.toText : ThreadId -> Text
+  501. todo : a -> b
+  502. structural type Tuple a b
+  503. Tuple.Cons : a -> b -> Tuple a b
+  504. structural type Unit
+  505. Unit.Unit : ()
+  506. Universal.< : a -> a -> Boolean
+  507. Universal.<= : a -> a -> Boolean
+  508. Universal.== : a -> a -> Boolean
+  509. Universal.> : a -> a -> Boolean
+  510. Universal.>= : a -> a -> Boolean
+  511. Universal.compare : a -> a -> Int
+  512. Universal.murmurHash : a -> Nat
+  513. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
+  514. builtin type Value
+  515. Value.dependencies : Value -> [Term]
+  516. Value.deserialize : Bytes -> Either Text Value
+  517. Value.load : Value ->{IO} Either [Term] a
+  518. Value.serialize : Value -> Bytes
+  519. Value.value : a -> Value
   
 
 .builtin> alias.many 94-104 .mylib

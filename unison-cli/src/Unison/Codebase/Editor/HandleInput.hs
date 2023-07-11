@@ -186,7 +186,7 @@ import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, unsafeFromString)
+import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, toVar, unsafeFromString)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromString, unsafeFromVar)
 import Unison.Syntax.Parser qualified as Parser
@@ -201,6 +201,7 @@ import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Alphabetical qualified as Alphabetical
 import Unison.Util.Find qualified as Find
 import Unison.Util.List (nubOrdOn, uniqueBy)
 import Unison.Util.Monoid qualified as Monoid
@@ -246,6 +247,8 @@ loop e = do
         MaybeT (WriterT (Identity (r, notes))) <- typecheck ambient parseNames sourceName lexed
         result <- r & onNothing (Cli.returnEarly (ParseErrors text [err | Result.Parsing err <- toList notes]))
         result & onLeft \uf -> do
+          -- set that the file at least parsed (but didn't typecheck)
+          State.modify' (& #latestTypecheckedFile .~ Just (Left uf))
           ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames uf)
           ppe <- suffixifiedPPE ns
           let tes = [err | Result.TypeError err <- toList notes]
@@ -276,7 +279,7 @@ loop e = do
             go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
         when (not (null e')) do
           Cli.respond $ Evaluated text ppe bindings e'
-        #latestTypecheckedFile .= Just unisonFile
+        #latestTypecheckedFile .= Just (Right unisonFile)
 
   case e of
     Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
@@ -1071,6 +1074,8 @@ loop e = do
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
+            StructuredFindI _fscope ws -> handleStructuredFindI ws
+            StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
             ResolveTypeNameI path' -> do
               description <- inputDescription input
               path <- Cli.resolveSplit' path'
@@ -1668,6 +1673,8 @@ inputDescription input =
     FindI {} -> wat
     FindPatchI {} -> wat
     FindShallowI {} -> wat
+    StructuredFindI {} -> wat
+    StructuredFindReplaceI {} -> wat
     GistI {} -> wat
     HistoryI {} -> wat
     LinksI {} -> wat
@@ -1724,6 +1731,75 @@ inputDescription input =
       That branch -> pure (into @Text branch)
       -- just trying to recover the syntax the user wrote
       These path _branch -> pure (Path.toText' path)
+
+handleStructuredFindI :: HQ.HashQualified Name -> Cli ()
+handleStructuredFindI rule = do
+  Cli.Env {codebase} <- ask
+  (ppe, names, rules0) <- lookupRewrite InvalidStructuredFind rule
+  let rules = snd <$> rules0
+  let fqppe = PPED.unsuffixifiedPPE ppe
+  results :: [(HQ.HashQualified Name, Referent)] <- pure $ do
+    r <- Set.toList (Relation.ran $ Names.terms (NamesWithHistory.currentNames names))
+    Just hq <- [PPE.terms fqppe r]
+    fullName <- [HQ'.toName hq]
+    guard (not (Name.beginsWithSegment fullName Name.libSegment))
+    Referent.Ref _ <- pure r
+    Just shortName <- [PPE.terms (PPED.suffixifiedPPE ppe) r]
+    pure (HQ'.toHQ shortName, r)
+  let ok t@(_, Referent.Ref (Reference.DerivedId r)) = do
+        oe <- Cli.runTransaction (Codebase.getTerm codebase r)
+        pure $ (t, maybe False (\e -> any ($ e) rules) oe)
+      ok t = pure (t, False)
+  results0 <- traverse ok results
+  let results = Alphabetical.sortAlphabeticallyOn fst [(hq, r) | ((hq, r), True) <- results0]
+  let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
+  #numberedArgs .= map toNumArgs results
+  Cli.respond (ListStructuredFind (fst <$> results))
+
+lookupRewrite :: (HQ.HashQualified Name -> Output) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, [(Term Symbol Ann -> Maybe (Term Symbol Ann), Term Symbol Ann -> Bool)])
+lookupRewrite onErr rule = do
+  Cli.Env {codebase} <- ask
+  currentBranch <- Cli.getCurrentBranch0
+  hqLength <- Cli.runTransaction Codebase.hashLength
+  let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+  let ppe = PPED.fromNamesDecl hqLength currentNames
+  ot <- Cli.getTermFromLatestParsedFile rule
+  ot <- case ot of
+    Just _ -> pure ot
+    Nothing -> do
+      case NamesWithHistory.lookupHQTerm rule currentNames of
+        s
+          | Set.size s == 1,
+            Referent.Ref (Reference.DerivedId r) <- Set.findMin s ->
+              Cli.runTransaction (Codebase.getTerm codebase r)
+        s -> Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule s)
+  tm <- maybe (Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule mempty)) pure ot
+  let extract tm = case tm of
+        Term.Ann' tm _typ -> extract tm
+        (DD.RewriteTerm' lhs rhs) -> pure (ABT.rewriteExpression lhs rhs, ABT.containsExpression lhs)
+        (DD.RewriteCase' lhs rhs) -> pure (Term.rewriteCasesLHS lhs rhs, fromMaybe False . Term.containsCaseTerm lhs)
+        (DD.RewriteSignature' _vs lhs rhs) -> pure (Term.rewriteSignatures lhs rhs, Term.containsSignature lhs)
+        _ -> Cli.returnEarly (onErr rule)
+      extractOuter tm = case tm of
+        Term.Ann' tm _typ -> extractOuter tm
+        Term.LamsNamed' _vs tm -> extractOuter tm
+        DD.Rewrites' rules -> traverse extract rules
+        _ -> Cli.returnEarly (onErr rule)
+  rules <- extractOuter tm
+  pure (ppe, currentNames, rules)
+
+handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
+handleStructuredFindReplaceI rule = do
+  (ppe, _ns, rules) <- lookupRewrite InvalidStructuredFindReplace rule
+  uf <- Cli.expectLatestParsedFile
+  (dest, _) <- Cli.expectLatestFile
+  #latestFile ?= (dest, True)
+  let go _tm0 tm [] = tm
+      go tm0 tm ((r, _) : rules) = go tm0 ((tm <|> tm0) >>= r) rules
+      uf' = UF.rewrite (Set.singleton (HQ.toVar rule)) (\tm -> go (Just tm) Nothing rules) uf
+  #latestTypecheckedFile .= Just (Left . snd $ uf')
+  let msg = "| Rewrote using: "
+  Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) uf'
 
 handleFindI ::
   Bool ->
@@ -2195,7 +2271,7 @@ doDisplay outputLoc names tm = do
   loopState <- State.get
 
   ppe <- prettyPrintEnvDecl names
-  let (tms, typs) = maybe mempty UF.indexByReference (loopState ^. #latestTypecheckedFile)
+  (tms, typs) <- maybe mempty UF.indexByReference <$> Cli.getLatestTypecheckedFile
   let loc = case outputLoc of
         ConsoleLocation -> Nothing
         FileLocation path -> Just path
@@ -2769,14 +2845,14 @@ displayI prettyPrintNames outputLoc hq = do
     Nothing -> do
       let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
           results = NamesWithHistory.lookupHQTerm hq parseNames
+      pped <- prettyPrintEnvDecl parseNames
       ref <-
         Set.asSingleton results & onNothing do
           Cli.returnEarly
             if Set.null results
               then SearchTermsNotFound [hq]
-              else TermAmbiguous hq results
+              else TermAmbiguous (PPE.suffixifiedPPE pped) hq results
       let tm = Term.fromReferent External ref
-      pped <- prettyPrintEnvDecl parseNames
       tm <- evalUnisonTerm True (PPE.biasTo bias $ PPE.suffixifiedPPE pped) True tm
       doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
@@ -2807,8 +2883,7 @@ docsI srcLoc prettyPrintNames src =
 
     fileByName :: Cli ()
     fileByName = do
-      loopState <- State.get
-      let ns = maybe mempty UF.typecheckedToNames (loopState ^. #latestTypecheckedFile)
+      ns <- maybe mempty UF.typecheckedToNames <$> Cli.getLatestTypecheckedFile
       fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
       case NamesWithHistory.lookupHQTerm dotDoc fnames of
         s | Set.size s == 1 -> do
