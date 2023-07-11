@@ -13,6 +13,7 @@ io.tests = Tests.main do
     !io.test_getEnv
     !io.test.getRandomBytes
     !io.test_getSomeBytes
+    !io.test_getCurrentDirectory
 
 testFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
@@ -55,6 +56,13 @@ test_getFileTimestamp = do
 
 test_getFileTimestamp_err = do
     expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(FilePath.getTimestamp !testFile)
+
+io.test_getCurrentDirectory = do
+    match !getCurrentDirectory with
+        FilePath text -> if Text.startsWith "/" text then
+            Tests.pass "Current directory starts with /"
+        else
+            Tests.fail "Current directory doesn't start with /" text
 
 seekFile = do
     fp = !testFile

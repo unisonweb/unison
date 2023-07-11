@@ -44,6 +44,7 @@
     getArgs.impl.v1
     getEnv.impl.v1
     process.call
+    getCurrentDirectory.impl.v3
     ))
 
 ; Still to implement:
@@ -66,6 +67,9 @@
     (let* ([x7 (data (data 'Reference 0 "Any") 0 payload)]
             [x8 (data (data 'Reference 1 (data 'Id 0 failure-ability-id 0)) 0 typeLink message x7)])
     (data (data 'Reference 1 (data 'Id 0 either-id 0)) 1 x8)))
+
+(define-unison (getCurrentDirectory.impl.v3 unit)
+    (Right (string->chunked-string (path->string (current-directory)))))
 
 (define-unison (seekHandle.impl.v3 handle mode amount)
     (data-case mode
