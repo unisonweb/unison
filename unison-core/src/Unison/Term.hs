@@ -1372,7 +1372,7 @@ containsExpression :: (Var v, Var typeVar, Eq typeAnn) => Term2 typeVar typeAnn 
 containsExpression = ABT.containsExpression
 
 -- Used to find matches of `@rewrite case` rules
--- Returns `Nothing` if `pat` can't be interpreted as a `Pattern` 
+-- Returns `Nothing` if `pat` can't be interpreted as a `Pattern`
 -- (like `1 + 1` is not a valid pattern, but `Some x` can be)
 containsCaseTerm :: Var v1 => Term2 tv ta tb v1 loc -> Term2 typeVar typeAnn loc v2 a -> Maybe Bool
 containsCaseTerm pat =
@@ -1407,7 +1407,7 @@ rewriteSignatures tyLhs tyRhs tm = ABT.rebuildMaybeUp go tm
     go _ = Nothing
 
 -- Used to rewrite cases of a `match` (`@rewrite case` rules)
--- Implementation is tricky - we convert the term to a form 
+-- Implementation is tricky - we convert the term to a form
 -- which lets us use `ABT.rewriteExpression` to do the heavy lifting,
 -- then convert the results back to a "regular" term after.
 rewriteCasesLHS ::
@@ -1446,7 +1446,7 @@ rewriteCasesLHS pat0 pat0' =
             tweak (Just mc) = mc
         go t = t
 
--- Implementation detail of `@rewrite case` rules (both find and replace) 
+-- Implementation detail of `@rewrite case` rules (both find and replace)
 toPattern :: Var v => Term2 tv ta tb v loc -> Maybe (Pattern loc)
 toPattern tm = case tm of
   Var' v | "_" `Text.isPrefixOf` Var.name v -> pure $ Pattern.Unbound loc
@@ -1474,7 +1474,7 @@ toPattern tm = case tm of
   where
     loc = ABT.annotation tm
 
--- Implementation detail of `@rewrite case` rules (both find and replace) 
+-- Implementation detail of `@rewrite case` rules (both find and replace)
 matchCaseFromTerm :: Var v => Term2 typeVar typeAnn a v a -> Maybe (MatchCase a (Term2 typeVar typeAnn a v a))
 matchCaseFromTerm (App' (Builtin' "#case") (ABT.unabsA -> (_, Apps' _ci [pat, guard, body]))) = do
   p <- toPattern pat
@@ -1488,7 +1488,7 @@ matchCaseFromTerm (App' (Builtin' "#case") (ABT.unabsA -> (_, Apps' _ci [pat, gu
 matchCaseFromTerm t =
   Just (MatchCase (Pattern.Unbound (ABT.annotation t)) Nothing (text (ABT.annotation t) "💥 bug: matchCaseToTerm"))
 
--- Implementation detail of `@rewrite case` rules (both find and replace) 
+-- Implementation detail of `@rewrite case` rules (both find and replace)
 matchCaseToTerm :: (Semigroup a, Ord v) => MatchCase a (Term2 typeVar typeAnn a v a) -> Term2 typeVar typeAnn a v a
 matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
   app loc0 (builtin loc0 "#case") chain

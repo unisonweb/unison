@@ -581,7 +581,7 @@ rewriteExpression query0 replacement0 tm = rewriteHere tm
 
 -- | Core logic of structured find. Works for any base functor.
 -- Returns `True` if there's a subexpression of `tm` which matches `query0`
--- for some assignment of variables. 
+-- for some assignment of variables.
 containsExpression :: forall f v a. (Var v, forall a. (Eq a) => Eq (f a), Traversable f) => Term f v a -> Term f v a -> Bool
 containsExpression query0 tm = matchesHere tm
   where
