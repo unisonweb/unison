@@ -37,6 +37,10 @@
   decode-value
   describe-value
 
+  bytevector->base32-string
+  b32
+  b32h
+
   bytevector->string/utf-8
   string->bytevector/utf-8)
 
