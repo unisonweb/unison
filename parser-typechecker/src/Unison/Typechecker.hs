@@ -5,7 +5,22 @@
 
 -- | This module is the primary interface to the Unison typechecker
 -- module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
-module Unison.Typechecker where
+module Unison.Typechecker
+  ( synthesize,
+    synthesizeAndResolve,
+    check,
+    wellTyped,
+    isEqual,
+    isSubtype,
+    fitsScheme,
+    Env (..),
+    Notes (..),
+    Resolution(..),
+    Name,
+    NamedReference (..),
+    Context.PatternMatchCoverageCheckSwitch (..),
+  )
+where
 
 import Control.Lens
 import Control.Monad.Fail (fail)
@@ -92,14 +107,16 @@ makeLenses ''Env
 synthesize ::
   (Monad f, Var v, Ord loc) =>
   PrettyPrintEnv ->
+  Context.PatternMatchCoverageCheckSwitch ->
   Env v loc ->
   Term v loc ->
   ResultT (Notes v loc) f (Type v loc)
-synthesize ppe env t =
+synthesize ppe pmccSwitch env t =
   let result =
         convertResult $
           Context.synthesizeClosed
             ppe
+            pmccSwitch
             (TypeVar.liftType <$> view ambientAbilities env)
             (view typeLookup env)
             (TypeVar.liftTerm t)
@@ -156,7 +173,13 @@ synthesizeAndResolve ::
   (Monad f, Var v, Monoid loc, Ord loc) => PrettyPrintEnv -> Env v loc -> TDNR f v loc (Type v loc)
 synthesizeAndResolve ppe env = do
   tm <- get
-  (tp, notes) <- listen . lift $ synthesize ppe env tm
+  (tp, notes) <-
+    listen . lift $
+      synthesize
+        ppe
+        Context.PatternMatchCoverageCheckSwitch'Enabled
+        env
+        tm
   typeDirectedNameResolution ppe notes tp env
 
 compilerBug :: Context.CompilerBug v loc -> Result (Notes v loc) ()
@@ -308,7 +331,12 @@ check ::
   Term v loc ->
   Type v loc ->
   ResultT (Notes v loc) f (Type v loc)
-check ppe env term typ = synthesize ppe env (Term.ann (ABT.annotation term) term typ)
+check ppe env term typ =
+  synthesize
+    ppe
+    Context.PatternMatchCoverageCheckSwitch'Enabled
+    env
+    (Term.ann (ABT.annotation term) term typ)
 
 -- | `checkAdmissible' e t` tests that `(f : t -> r) e` is well-typed.
 -- If `t` has quantifiers, these are moved outside, so if `t : forall a . a`,
@@ -321,7 +349,7 @@ check ppe env term typ = synthesize ppe env (Term.ann (ABT.annotation term) term
 --     tweak t = Type.arrow() t t
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped :: (Monad f, Var v, Ord loc) => PrettyPrintEnv -> Env v loc -> Term v loc -> f Bool
-wellTyped ppe env term = go <$> runResultT (synthesize ppe env term)
+wellTyped ppe env term = go <$> runResultT (synthesize ppe Context.PatternMatchCoverageCheckSwitch'Enabled env term)
   where
     go (may, _) = isJust may
 
