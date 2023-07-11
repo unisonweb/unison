@@ -28,3 +28,6 @@ math.tests = do
     checkEqual "divi" (10 / 4) 2
     checkEqual "eqlf" (1.1 == 1.1) true
     checkEqual "eqlf" (1.1 == 1.2) false
+    checkEqual "decn" (Nat.decrement 10) 9
+    checkEqual "deci" (Int.decrement +10) +9
+    checkCloseEnough "expf" (Float.exp 2.0) 7.3890560989306

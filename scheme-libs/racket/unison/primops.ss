@@ -27,6 +27,7 @@
     builtin-Float.*
     builtin-Float.fromRepresentation
     builtin-Float.toRepresentation
+    builtin-Float.exp
     builtin-Int.+
     builtin-Int.-
     builtin-Int.increment
@@ -231,12 +232,14 @@
     unison-POp-CONS
     unison-POp-DBTX
     unison-POp-DECI
+    unison-POp-DECN
     unison-POp-DIVN
     unison-POp-DRPB
     unison-POp-DRPS
     unison-POp-DRPT
     unison-POp-EQLN
     unison-POp-EQLT
+    unison-POp-EXPF
     unison-POp-LEQT
     unison-POp-EQLU
     unison-POp-EROR
@@ -430,6 +433,7 @@
   (define (unison-POp-COMN n) (fxnot n))
   (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
   (define (unison-POp-DECI n) (fx1- n))
+  (define (unison-POp-DECN n) (- n 1))
   (define (unison-POp-DIVN m n) (fxdiv m n))
   (define (unison-POp-DRPB n bs) (chunked-bytes-drop bs n))
   (define (unison-POp-DRPS n l) (chunked-list-drop l n))
