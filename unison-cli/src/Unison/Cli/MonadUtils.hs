@@ -68,7 +68,10 @@ module Unison.Cli.MonadUtils
 
     -- * Latest touched Unison file
     getLatestFile,
+    getLatestParsedFile,
+    getTermFromLatestParsedFile,
     expectLatestFile,
+    expectLatestParsedFile,
     getLatestTypecheckedFile,
     expectLatestTypecheckedFile,
   )
@@ -98,7 +101,9 @@ import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
@@ -106,8 +111,12 @@ import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.UnisonFile (TypecheckedUnisonFile)
+import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Term qualified as Term
+import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
+import Unison.UnisonFile qualified as UF
 import Unison.Util.Set qualified as Set
+import Unison.Var qualified as Var
 import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -482,7 +491,37 @@ expectLatestFile = do
 -- | Get the latest typechecked unison file.
 getLatestTypecheckedFile :: Cli (Maybe (TypecheckedUnisonFile Symbol Ann))
 getLatestTypecheckedFile = do
-  use #latestTypecheckedFile
+  oe <- use #latestTypecheckedFile
+  pure $ case oe of
+    Just (Right tf) -> Just tf
+    _ -> Nothing
+
+-- | Get the latest parsed unison file.
+getLatestParsedFile :: Cli (Maybe (UnisonFile Symbol Ann))
+getLatestParsedFile = do
+  oe <- use #latestTypecheckedFile
+  pure $ case oe of
+    Just (Left uf) -> Just uf
+    Just (Right tf) -> Just $ UF.discardTypes tf
+    _ -> Nothing
+
+expectLatestParsedFile :: Cli (UnisonFile Symbol Ann)
+expectLatestParsedFile =
+  getLatestParsedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
+
+-- | Returns a parsed term (potentially with free variables) from the latest file.
+-- This term will refer to other terms in the file by vars, not by hash.
+-- Used to implement rewriting and other refactorings on the current file.
+getTermFromLatestParsedFile :: HQ.HashQualified Name.Name -> Cli (Maybe (Term.Term Symbol Ann))
+getTermFromLatestParsedFile (HQ.NameOnly n) = do
+  uf <- getLatestParsedFile
+  pure $ case uf of
+    Nothing -> Nothing
+    Just uf ->
+      case UF.typecheckingTerm uf of
+        Term.LetRecNamed' bs _ -> lookup (Var.named (Name.toText n)) bs
+        _ -> Nothing
+getTermFromLatestParsedFile _ = pure Nothing
 
 -- | Get the latest typechecked unison file, or return early if there isn't one.
 expectLatestTypecheckedFile :: Cli (TypecheckedUnisonFile Symbol Ann)
