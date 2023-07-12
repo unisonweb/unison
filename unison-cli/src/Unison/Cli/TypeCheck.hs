@@ -5,10 +5,7 @@ module Unison.Cli.TypeCheck
   )
 where
 
-import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
-import Unison.Cli.Monad (Cli)
-import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.FileParsers qualified as FileParsers
@@ -54,38 +51,25 @@ computeTypecheckingEnvironment shouldUseTndr codebase ambientAbilities unisonFil
         unisonFile
 
 typecheckTerm ::
+  Codebase IO Symbol Ann ->
   Term Symbol Ann ->
-  Cli
+  Sqlite.Transaction
     ( Result.Result
         (Seq (Result.Note Symbol Ann))
         (Type Symbol Ann)
     )
-typecheckTerm tm = do
-  Cli.Env {codebase} <- ask
+typecheckTerm codebase tm = do
   let v = Symbol 0 (Var.Inference Var.Other)
-  liftIO $
-    fmap extract
-      <$> Codebase.runTransaction codebase (typecheckFileWithoutTNDR codebase [] (UF.UnisonFileId mempty mempty [(v, External, tm)] mempty))
+  let file = UF.UnisonFileId mempty mempty [(v, External, tm)] mempty
+  typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
+  let typecheckingEnv =
+        Typechecker.Env
+          { _ambientAbilities = [],
+            _typeLookup = typeLookup,
+            _termsByShortname = Map.empty
+          }
+  pure $ fmap extract $ FileParsers.synthesizeFile typecheckingEnv file
   where
     extract tuf
       | [[(_, _, _, ty)]] <- UF.topLevelComponents' tuf = ty
       | otherwise = error "internal error: typecheckTerm"
-
-typecheckFileWithoutTNDR ::
-  Codebase IO Symbol Ann ->
-  [Type Symbol Ann] ->
-  UF.UnisonFile Symbol Ann ->
-  Sqlite.Transaction
-    ( Result.Result
-        (Seq (Result.Note Symbol Ann))
-        (UF.TypecheckedUnisonFile Symbol Ann)
-    )
-typecheckFileWithoutTNDR codebase ambient file = do
-  typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
-  let env =
-        Typechecker.Env
-          { _ambientAbilities = ambient,
-            _typeLookup = typeLookup,
-            _termsByShortname = Map.empty
-          }
-  pure $ FileParsers.synthesizeFile env file

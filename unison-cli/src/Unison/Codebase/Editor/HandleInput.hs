@@ -2585,9 +2585,9 @@ doGenerateSchemeBoot force mppe = do
 
 typecheckAndEval :: PPE.PrettyPrintEnv -> Term Symbol Ann -> Cli ()
 typecheckAndEval ppe tm = do
-  Cli.Env {runtime} <- ask
+  Cli.Env {codebase, runtime} <- ask
   let mty = Runtime.mainType runtime
-  typecheckTerm (Term.delay a tm) >>= \case
+  Cli.runTransaction (typecheckTerm codebase (Term.delay a tm)) >>= \case
     -- Type checking succeeded
     Result.Result _ (Just ty)
       | Typechecker.fitsScheme ty mty ->
