@@ -1,7 +1,6 @@
 module Unison.Cli.TypeCheck
   ( ShouldUseTndr (..),
     computeTypecheckingEnvironment,
-    typecheckFileWithoutTNDR,
     typecheckTerm,
   )
 where
@@ -29,16 +28,15 @@ import Unison.Var qualified as Var
 -- | Should we use type-directed name resolution?
 data ShouldUseTndr
   = ShouldUseTndr'No
-  | ShouldUseTndr'Yes
+  | ShouldUseTndr'Yes Parser.ParsingEnv
 
 computeTypecheckingEnvironment ::
   ShouldUseTndr ->
   Codebase IO Symbol Ann ->
   [Type Symbol Ann] ->
-  Parser.ParsingEnv ->
   UnisonFile Symbol Ann ->
   Sqlite.Transaction (Typechecker.Env Symbol Ann)
-computeTypecheckingEnvironment shouldUseTndr codebase ambientAbilities parsingEnv unisonFile =
+computeTypecheckingEnvironment shouldUseTndr codebase ambientAbilities unisonFile =
   case shouldUseTndr of
     ShouldUseTndr'No -> do
       typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies unisonFile)
@@ -48,7 +46,7 @@ computeTypecheckingEnvironment shouldUseTndr codebase ambientAbilities parsingEn
             _typeLookup = typeLookup,
             _termsByShortname = Map.empty
           }
-    ShouldUseTndr'Yes ->
+    ShouldUseTndr'Yes parsingEnv ->
       FileParsers.computeTypecheckingEnvironment
         ambientAbilities
         (Codebase.typeLookupForDependencies codebase)

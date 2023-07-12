@@ -338,10 +338,9 @@ typecheckSrc name src = do
           typecheckingEnv <-
             Codebase.runTransaction codebase do
               Typecheck.computeTypecheckingEnvironment
-                Typecheck.ShouldUseTndr'Yes
+                (Typecheck.ShouldUseTndr'Yes parsingEnv)
                 codebase
                 ambientAbilities
-                parsingEnv
                 unisonFile
           pure case FileParsers.synthesizeFile typecheckingEnv unisonFile of
             Result.Result notes Nothing -> Left (crash ("Failed to typecheck: " ++ show (Foldable.toList @Seq notes)))

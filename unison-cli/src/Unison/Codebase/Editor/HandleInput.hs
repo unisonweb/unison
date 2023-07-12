@@ -1463,7 +1463,7 @@ loadUnisonFile sourceName text = do
       State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
       typecheckingEnv <-
         Cli.runTransaction do
-          computeTypecheckingEnvironment ShouldUseTndr'Yes codebase [] parsingEnv unisonFile
+          computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
       let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
       maybeTypecheckedUnisonFile & onNothing do
         ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames unisonFile)

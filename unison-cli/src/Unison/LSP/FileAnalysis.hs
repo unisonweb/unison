@@ -87,7 +87,7 @@ checkFile doc = runMaybeT $ do
         typecheckingEnv <-
           liftIO do
             Codebase.runTransaction cb do
-              computeTypecheckingEnvironment ShouldUseTndr'Yes cb ambientAbilities parsingEnv parsedFile
+              computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
         let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
         pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
   (diagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes

@@ -14,7 +14,7 @@ import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.TypeCheck qualified as Cli (typecheckFileWithoutTNDR)
+import Unison.Cli.TypeCheck qualified as Cli (computeTypecheckingEnvironment, ShouldUseTndr (..))
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
@@ -62,6 +62,7 @@ import Unison.Util.Star3 qualified as Star3
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind)
+import qualified Unison.FileParsers as FileParsers
 
 data Edits v = Edits
   { termEdits :: Map Reference TermEdit,
@@ -553,7 +554,8 @@ propagate patch b = case validatePatch patch of
                         )
                   )
                   mempty
-          typecheckResult <- Cli.typecheckFileWithoutTNDR codebase [] file
+          typecheckingEnv <- Cli.computeTypecheckingEnvironment Cli.ShouldUseTndr'No codebase [] file
+          let typecheckResult = FileParsers.synthesizeFile typecheckingEnv file
           Result.result typecheckResult
             & fmap UF.hashTerms
             & (fmap . fmap) (\(_ann, ref, wk, tm, tp) -> (ref, wk, tm, tp))
