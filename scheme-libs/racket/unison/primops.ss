@@ -38,6 +38,7 @@
     builtin-Nat.increment
     builtin-Nat.toFloat
     builtin-Text.indexOf
+    builtin-Bytes.indexOf
     builtin-IO.randomBytes
 
     unison-FOp-internal.dataTag
@@ -377,6 +378,7 @@
           (unison math)
           (unison chunked-seq)
           (unison chunked-bytes)
+          (unison string-search)
           (unison bytes-nat)
           (unison pattern)
           (unison crypto)
@@ -389,16 +391,6 @@
           (unison zlib)
           (unison concurrent)
           (racket random))
-
-  ; NOTE: this is just a temporary stopgap until the real function is
-  ; done. I accidentally pulled in too new a version of base in the
-  ; project version of the unison compiler and it broke the jit tests.
-  (define-unison (builtin-Text.indexOf s t)
-    (let ([ss (chunked-string->string s)]
-          [tt (chunked-string->string t)])
-      (match (regexp-match-positions ss tt)
-        [#f (data 'Optional 1)] ; none
-        [(cons (cons i j) r) (data 'Optional 0 i)]))) ; some
 
   (define-unison (builtin-IO.randomBytes n)
     (bytes->chunked-bytes (crypto-random-bytes n)))
@@ -484,6 +476,16 @@
   (define (unison-POp-TAKS n s) (chunked-list-take s n))
   (define (unison-POp-TAKT n t) (chunked-string-take t n))
   (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
+
+  (define (->optional v)
+    (if v
+        (data 'Optional 0 v)
+        (data 'Optional 1)))
+
+  (define-unison (builtin-Text.indexOf n h)
+    (->optional (chunked-string-index-of h n)))
+  (define-unison (builtin-Bytes.indexOf n h)
+    (->optional (chunked-bytes-index-of h n)))
 
   ;; TODO currently only runs in low-level tracing support
   (define (unison-POp-DBTX x)
