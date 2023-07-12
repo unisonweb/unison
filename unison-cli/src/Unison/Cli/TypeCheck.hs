@@ -1,5 +1,6 @@
 module Unison.Cli.TypeCheck
-  ( typecheckFileWithTNDR,
+  ( ShouldUseTndr (..),
+    computeTypecheckingEnvironment,
     typecheckFileWithoutTNDR,
     typecheckTerm,
   )
@@ -11,7 +12,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.FileParsers (computeTypecheckingEnvironment, synthesizeFile)
+import Unison.FileParsers qualified as FileParsers
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Result qualified as Result
@@ -21,27 +22,38 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
+import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.Var qualified as Var
 
-typecheckFileWithTNDR ::
+-- | Should we use type-directed name resolution?
+data ShouldUseTndr
+  = ShouldUseTndr'No
+  | ShouldUseTndr'Yes
+
+computeTypecheckingEnvironment ::
+  ShouldUseTndr ->
   Codebase IO Symbol Ann ->
   [Type Symbol Ann] ->
   Parser.ParsingEnv ->
-  UF.UnisonFile Symbol Ann ->
-  Sqlite.Transaction
-    ( Result.Result
-        (Seq (Result.Note Symbol Ann))
-        (UF.TypecheckedUnisonFile Symbol Ann)
-    )
-typecheckFileWithTNDR codebase ambient parsingEnv unisonFile = do
-  typecheckingEnvironment <-
-    computeTypecheckingEnvironment
-      ambient
-      (Codebase.typeLookupForDependencies codebase)
-      parsingEnv
-      unisonFile
-  Result.getResult (synthesizeFile typecheckingEnvironment unisonFile)
+  UnisonFile Symbol Ann ->
+  Sqlite.Transaction (Typechecker.Env Symbol Ann)
+computeTypecheckingEnvironment shouldUseTndr codebase ambientAbilities parsingEnv unisonFile =
+  case shouldUseTndr of
+    ShouldUseTndr'No -> do
+      typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies unisonFile)
+      pure
+        Typechecker.Env
+          { _ambientAbilities = ambientAbilities,
+            _typeLookup = typeLookup,
+            _termsByShortname = Map.empty
+          }
+    ShouldUseTndr'Yes ->
+      FileParsers.computeTypecheckingEnvironment
+        ambientAbilities
+        (Codebase.typeLookupForDependencies codebase)
+        parsingEnv
+        unisonFile
 
 typecheckTerm ::
   Term Symbol Ann ->
@@ -78,4 +90,4 @@ typecheckFileWithoutTNDR codebase ambient file = do
             _typeLookup = typeLookup,
             _termsByShortname = Map.empty
           }
-  pure $ synthesizeFile env file
+  pure $ FileParsers.synthesizeFile env file

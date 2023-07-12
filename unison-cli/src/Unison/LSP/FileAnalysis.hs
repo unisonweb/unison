@@ -22,11 +22,12 @@ import Language.LSP.Types
   )
 import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
 import Unison.ABT qualified as ABT
-import Unison.Cli.TypeCheck (typecheckFileWithTNDR)
+import Unison.Cli.TypeCheck (ShouldUseTndr (..), computeTypecheckingEnvironment)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
+import Unison.FileParsers qualified as FileParsers
 import Unison.LSP.Conversions
 import Unison.LSP.Diagnostics
   ( mkDiagnostic,
@@ -83,8 +84,11 @@ checkFile doc = runMaybeT $ do
     case Result.fromParsing (Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv) of
       Result.Result parsingNotes Nothing -> pure (parsingNotes, Nothing, Nothing)
       Result.Result _ (Just parsedFile) -> do
-        Result.Result typecheckingNotes maybeTypecheckedFile <-
-          liftIO (Codebase.runTransaction cb (typecheckFileWithTNDR cb ambientAbilities parsingEnv parsedFile))
+        typecheckingEnv <-
+          liftIO do
+            Codebase.runTransaction cb do
+              computeTypecheckingEnvironment ShouldUseTndr'Yes cb ambientAbilities parsingEnv parsedFile
+        let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
         pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
   (diagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
   let diagnosticRanges =

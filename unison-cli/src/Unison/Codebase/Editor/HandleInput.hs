@@ -55,7 +55,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.TypeCheck (typecheckFileWithTNDR, typecheckTerm)
+import Unison.Cli.TypeCheck (ShouldUseTndr (..), computeTypecheckingEnvironment, typecheckTerm)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
@@ -125,6 +125,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.DataDeclaration qualified as DD
+import Unison.FileParsers qualified as FileParsers
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
@@ -1460,23 +1461,25 @@ loadUnisonFile sourceName text = do
           & onLeft \err -> Cli.returnEarly (ParseErrors text [err])
       -- set that the file at least parsed (but didn't typecheck)
       State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
-      Cli.runTransaction (typecheckFileWithTNDR codebase [] parsingEnv unisonFile) >>= \case
-        Result.Result notes maybeTypecheckedUnisonFile ->
-          maybeTypecheckedUnisonFile & onNothing do
-            ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames unisonFile)
-            ppe <- suffixifiedPPE ns
-            let tes = [err | Result.TypeError err <- toList notes]
-                cbs =
-                  [ bug
-                    | Result.CompilerBug (Result.TypecheckerBug bug) <-
-                        toList notes
-                  ]
-            when (not (null tes)) do
-              currentPath <- Cli.getCurrentPath
-              Cli.respond (TypeErrors currentPath text ppe tes)
-            when (not (null cbs)) do
-              Cli.respond (CompilerBugs text ppe cbs)
-            Cli.returnEarlyWithoutOutput
+      typecheckingEnv <-
+        Cli.runTransaction do
+          computeTypecheckingEnvironment ShouldUseTndr'Yes codebase [] parsingEnv unisonFile
+      let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
+      maybeTypecheckedUnisonFile & onNothing do
+        ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames unisonFile)
+        ppe <- suffixifiedPPE ns
+        let tes = [err | Result.TypeError err <- toList notes]
+            cbs =
+              [ bug
+                | Result.CompilerBug (Result.TypecheckerBug bug) <-
+                    toList notes
+              ]
+        when (not (null tes)) do
+          currentPath <- Cli.getCurrentPath
+          Cli.respond (TypeErrors currentPath text ppe tes)
+        when (not (null cbs)) do
+          Cli.respond (CompilerBugs text ppe cbs)
+        Cli.returnEarlyWithoutOutput
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"

@@ -19,6 +19,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Init qualified as Codebase.Init
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.FileParsers qualified as FileParsers
 import Unison.LSP.Queries qualified as LSPQ
 import Unison.Lexer.Pos qualified as Lexer
 import Unison.Parser.Ann (Ann (..))
@@ -333,8 +334,16 @@ typecheckSrc name src = do
       case Parsers.parseFile name (Text.unpack src) parsingEnv of
         Left err -> pure (Left (crash ("Failed to parse: " ++ show err)))
         -- tf <- maybe (crash "Failed to typecheck") pure maytf
-        Right unisonFile ->
-          Codebase.runTransaction codebase (Typecheck.typecheckFileWithTNDR codebase ambientAbilities parsingEnv unisonFile) <&> \case
+        Right unisonFile -> do
+          typecheckingEnv <-
+            Codebase.runTransaction codebase do
+              Typecheck.computeTypecheckingEnvironment
+                Typecheck.ShouldUseTndr'Yes
+                codebase
+                ambientAbilities
+                parsingEnv
+                unisonFile
+          pure case FileParsers.synthesizeFile typecheckingEnv unisonFile of
             Result.Result notes Nothing -> Left (crash ("Failed to typecheck: " ++ show (Foldable.toList @Seq notes)))
             Result.Result _ (Just typecheckedUnisonFile) -> Right (unisonFile, typecheckedUnisonFile)
 
