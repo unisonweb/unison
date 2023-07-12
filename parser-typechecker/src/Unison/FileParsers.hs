@@ -1,20 +1,17 @@
 module Unison.FileParsers
-  ( parseAndSynthesizeFile,
-    synthesizeFileWithTNDR,
+  ( synthesizeFileWithTNDR,
     synthesizeFile,
   )
 where
 
 import Control.Lens
 import Control.Monad.State (evalStateT)
-import Control.Monad.Writer (tell)
 import Data.Foldable qualified as Foldable
 import Data.List (partition)
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
-import Data.Text (unpack)
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as Blank
 import Unison.Builtin qualified as Builtin
@@ -22,7 +19,6 @@ import Unison.Name qualified as Name
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
-import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (Reference)
@@ -52,9 +48,6 @@ type Type v = Type.Type v Ann
 
 type UnisonFile v = UF.UnisonFile v Ann
 
-debug :: Bool
-debug = False
-
 convertNotes :: (Ord v) => Typechecker.Notes v ann -> Seq (Note v ann)
 convertNotes (Typechecker.Notes bugs es is) =
   (CompilerBug . TypecheckerBug <$> bugs) <> (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is')
@@ -67,25 +60,6 @@ convertNotes (Typechecker.Notes bugs es is) =
 -- duplicates (based on var name and location), preferring the later note as
 -- that will have the latest typechecking info
 
-parseAndSynthesizeFile ::
-  (Var v, Monad m) =>
-  [Type v] ->
-  (Set Reference -> m (TL.TypeLookup v Ann)) ->
-  Parser.ParsingEnv ->
-  FilePath ->
-  Text ->
-  ResultT
-    (Seq (Note v Ann))
-    m
-    (Either (UF.UnisonFile v Ann) (UF.TypecheckedUnisonFile v Ann))
-parseAndSynthesizeFile ambient typeLookupf env filePath src = do
-  when debug $ traceM "parseAndSynthesizeFile"
-  uf <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) env
-  let names0 = NamesWithHistory.currentNames (Parser.names env)
-  (tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
-  let (Result notes' r) = synthesizeFile (Typechecker.Env ambient typeLookup tdnrMap) uf
-  tell notes' $> maybe (Left uf) Right r
-
 synthesizeFileWithTNDR ::
   (Var v, Monad m) =>
   [Type v] ->
@@ -95,20 +69,16 @@ synthesizeFileWithTNDR ::
   ResultT (Seq (Note v Ann)) m (UF.TypecheckedUnisonFile v Ann)
 synthesizeFileWithTNDR ambient typeLookupf env uf = do
   let names0 = NamesWithHistory.currentNames (Parser.names env)
-  (tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
-  Result.hoist (pure . runIdentity) (synthesizeFile (Typechecker.Env ambient typeLookup tdnrMap) uf)
-
-type TDNRMap v = Map Typechecker.Name [Typechecker.NamedReference v Ann]
+  typecheckerEnv0 <- resolveNames typeLookupf names0 uf
+  let typecheckerEnv = typecheckerEnv0 {Typechecker._ambientAbilities = ambient}
+  Result.hoist (pure . runIdentity) (synthesizeFile typecheckerEnv uf)
 
 resolveNames ::
   (Var v, Monad m) =>
   (Set Reference -> m (TL.TypeLookup v Ann)) ->
   Names.Names ->
   UnisonFile v ->
-  ResultT
-    (Seq (Note v Ann))
-    m
-    (TDNRMap v, TL.TypeLookup v Ann)
+  ResultT (Seq (Note v Ann)) m (Typechecker.Env v Ann)
 resolveNames typeLookupf preexistingNames uf = do
   let tm = UF.typecheckingTerm uf
       possibleDeps =
@@ -145,7 +115,12 @@ resolveNames typeLookupf preexistingNames uf = do
                 typ <- toList $ TL.typeOfReferent tl r,
                 let nr = Typechecker.NamedReference (Name.toText name) typ (Right r)
             ]
-  pure (fqnsByShortName, tl)
+  pure
+    Typechecker.Env
+      { _ambientAbilities = [],
+        _typeLookup = tl,
+        _termsByShortname = fqnsByShortName
+      }
 
 synthesizeFile ::
   forall v.

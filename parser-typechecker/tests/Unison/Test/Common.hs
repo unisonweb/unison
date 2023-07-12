@@ -7,15 +7,17 @@ module Unison.Test.Common
   )
 where
 
+import Control.Monad.Writer (tell)
 import Data.Sequence (Seq)
-import Data.Text qualified as Text
 import Text.Megaparsec.Error qualified as MPE
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as B
 import Unison.FileParsers qualified as FP
 import Unison.Parser.Ann (Ann (..))
+import Unison.Parsers qualified as Parsers
 import Unison.PrintError (prettyParseError)
 import Unison.Result (Note, Result)
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TermParser qualified as TermParser
@@ -65,13 +67,11 @@ parseAndSynthesizeAsFile ::
   Result
     (Seq (Note Symbol Ann))
     (Either (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann))
-parseAndSynthesizeAsFile ambient filename s =
-  FP.parseAndSynthesizeFile
-    ambient
-    (\_deps -> pure B.typeLookup)
-    parsingEnv
-    filename
-    (Text.pack s)
+parseAndSynthesizeAsFile ambient filename s = do
+  file <- Result.fromParsing (Parsers.parseFile filename s parsingEnv)
+  case FP.synthesizeFileWithTNDR ambient (\_deps -> pure B.typeLookup) parsingEnv file of
+    Result.Result notes Nothing -> tell notes >> pure (Left file)
+    Result.Result _ (Just typecheckedFile) -> pure (Right typecheckedFile)
 
 parsingEnv :: Parser.ParsingEnv
 parsingEnv = Parser.ParsingEnv mempty B.names
