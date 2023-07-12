@@ -1,6 +1,6 @@
 module Unison.Cli.TypeCheck
   ( typecheckFileWithTNDR,
-    typecheckFile,
+    typecheckFileWithoutTNDR,
     typecheckTerm,
   )
 where
@@ -54,13 +54,13 @@ typecheckTerm tm = do
   let v = Symbol 0 (Var.Inference Var.Other)
   liftIO $
     fmap extract
-      <$> Codebase.runTransaction codebase (typecheckFile codebase [] (UF.UnisonFileId mempty mempty [(v, External, tm)] mempty))
+      <$> Codebase.runTransaction codebase (typecheckFileWithoutTNDR codebase [] (UF.UnisonFileId mempty mempty [(v, External, tm)] mempty))
   where
     extract tuf
       | [[(_, _, _, ty)]] <- UF.topLevelComponents' tuf = ty
       | otherwise = error "internal error: typecheckTerm"
 
-typecheckFile ::
+typecheckFileWithoutTNDR ::
   Codebase IO Symbol Ann ->
   [Type Symbol Ann] ->
   UF.UnisonFile Symbol Ann ->
@@ -69,7 +69,7 @@ typecheckFile ::
         (Seq (Result.Note Symbol Ann))
         (UF.TypecheckedUnisonFile Symbol Ann)
     )
-typecheckFile codebase ambient file = do
+typecheckFileWithoutTNDR codebase ambient file = do
   typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   let env =
         Typechecker.Env

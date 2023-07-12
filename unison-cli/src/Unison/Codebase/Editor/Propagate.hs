@@ -14,7 +14,7 @@ import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.TypeCheck qualified as Cli (typecheckFile)
+import Unison.Cli.TypeCheck qualified as Cli (typecheckFileWithoutTNDR)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
@@ -553,8 +553,8 @@ propagate patch b = case validatePatch patch of
                         )
                   )
                   mempty
-          typecheckResult <- Cli.typecheckFile codebase [] file
-          runIdentity (Result.toMaybe typecheckResult)
+          typecheckResult <- Cli.typecheckFileWithoutTNDR codebase [] file
+          Result.result typecheckResult
             & fmap UF.hashTerms
             & (fmap . fmap) (\(_ann, ref, wk, tm, tp) -> (ref, wk, tm, tp))
             & pure
