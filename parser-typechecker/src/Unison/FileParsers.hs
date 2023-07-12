@@ -1,5 +1,5 @@
 module Unison.FileParsers
-  ( synthesizeFileWithTNDR,
+  ( computeTypecheckingEnvironment,
     synthesizeFile,
   )
 where
@@ -23,7 +23,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (Reference)
 import Unison.Referent qualified as Referent
-import Unison.Result (CompilerBug (..), Note (..), Result, ResultT, pattern Result)
+import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
 import Unison.Result qualified as Result
 import Unison.Syntax.Name qualified as Name (toText, unsafeFromVar)
 import Unison.Syntax.Parser qualified as Parser
@@ -60,27 +60,22 @@ convertNotes (Typechecker.Notes bugs es is) =
 -- duplicates (based on var name and location), preferring the later note as
 -- that will have the latest typechecking info
 
-synthesizeFileWithTNDR ::
+-- | Compute a typechecking environment, given:
+--
+--     * The abilities that are considered to already have ambient handlers.
+--     * A function to compute a @TypeLookup@ for the given set of type- or term-references.
+--     * The parsing environment that was used to parse the parsed Unison file.
+--     * The parsed Unison file for which the typechecking environment is applicable.
+computeTypecheckingEnvironment ::
   (Var v, Monad m) =>
   [Type v] ->
   (Set Reference -> m (TL.TypeLookup v Ann)) ->
   Parser.ParsingEnv ->
-  UF.UnisonFile v Ann ->
-  ResultT (Seq (Note v Ann)) m (UF.TypecheckedUnisonFile v Ann)
-synthesizeFileWithTNDR ambient typeLookupf env uf = do
-  let names0 = NamesWithHistory.currentNames (Parser.names env)
-  typecheckerEnv0 <- resolveNames typeLookupf names0 uf
-  let typecheckerEnv = typecheckerEnv0 {Typechecker._ambientAbilities = ambient}
-  Result.hoist (pure . runIdentity) (synthesizeFile typecheckerEnv uf)
-
-resolveNames ::
-  (Var v, Monad m) =>
-  (Set Reference -> m (TL.TypeLookup v Ann)) ->
-  Names.Names ->
   UnisonFile v ->
-  ResultT (Seq (Note v Ann)) m (Typechecker.Env v Ann)
-resolveNames typeLookupf preexistingNames uf = do
-  let tm = UF.typecheckingTerm uf
+  m (Typechecker.Env v Ann)
+computeTypecheckingEnvironment ambientAbilities typeLookupf parsingEnv uf = do
+  let preexistingNames = NamesWithHistory.currentNames (Parser.names parsingEnv)
+      tm = UF.typecheckingTerm uf
       possibleDeps =
         [ (Name.toText name, Var.name v, r)
           | (name, r) <- Rel.toList (Names.terms preexistingNames),
@@ -88,7 +83,7 @@ resolveNames typeLookupf preexistingNames uf = do
             name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v))
         ]
       possibleRefs = Referent.toReference . view _3 <$> possibleDeps
-  tl <- lift . lift $ fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
+  tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
   -- For populating the TDNR environment, we pick definitions
   -- from the namespace and from the local file whose full name
   -- has a suffix that equals one of the free variables in the file.
@@ -117,17 +112,17 @@ resolveNames typeLookupf preexistingNames uf = do
             ]
   pure
     Typechecker.Env
-      { _ambientAbilities = [],
+      { _ambientAbilities = ambientAbilities,
         _typeLookup = tl,
         _termsByShortname = fqnsByShortName
       }
 
 synthesizeFile ::
-  forall v.
-  (Var v) =>
+  forall m v.
+  (Monad m, Var v) =>
   Typechecker.Env v Ann ->
   UnisonFile v ->
-  Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
+  ResultT (Seq (Note v Ann)) m (UF.TypecheckedUnisonFile v Ann)
 synthesizeFile env0 uf = do
   let term = UF.typecheckingTerm uf
       -- substitute Blanks for any remaining free vars in UF body
@@ -140,7 +135,7 @@ synthesizeFile env0 uf = do
       Result notes mayType =
         evalStateT (Typechecker.synthesizeAndResolve unisonFilePPE env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
-  Result (convertNotes notes) mayType >>= \_typ -> do
+  Result.makeResult (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
     (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let topLevelBindings :: Map v (Term v)
@@ -156,7 +151,7 @@ synthesizeFile env0 uf = do
               [t | Context.TopLevelComponent t <- infos]
             where
               vars (v, _, _) = v
-          addTypesToTopLevelBindings :: (v, c, c1) -> Result (Seq (Note v Ann)) (v, Term v, c)
+          addTypesToTopLevelBindings :: (v, c, c1) -> ResultT (Seq (Note v Ann)) m (v, Term v, c)
           addTypesToTopLevelBindings (v, typ, _redundant) = do
             tm <- case Map.lookup v topLevelBindings of
               Nothing -> Result.compilerBug $ Result.TopLevelComponentNotFound v term

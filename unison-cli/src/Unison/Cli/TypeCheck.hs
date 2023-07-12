@@ -11,7 +11,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.FileParsers (synthesizeFile, synthesizeFileWithTNDR)
+import Unison.FileParsers (computeTypecheckingEnvironment, synthesizeFile)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Result qualified as Result
@@ -34,13 +34,14 @@ typecheckFileWithTNDR ::
         (Seq (Result.Note Symbol Ann))
         (UF.TypecheckedUnisonFile Symbol Ann)
     )
-typecheckFileWithTNDR codebase ambient parsingEnv unisonFile =
-  Result.getResult do
-    synthesizeFileWithTNDR
+typecheckFileWithTNDR codebase ambient parsingEnv unisonFile = do
+  typecheckingEnvironment <-
+    computeTypecheckingEnvironment
       ambient
       (Codebase.typeLookupForDependencies codebase)
       parsingEnv
       unisonFile
+  Result.getResult (synthesizeFile typecheckingEnvironment unisonFile)
 
 typecheckTerm ::
   Term Symbol Ann ->

@@ -16,7 +16,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId qualified as DD
-import Unison.FileParsers (synthesizeFileWithTNDR)
+import Unison.FileParsers (computeTypecheckingEnvironment, synthesizeFile)
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parsers qualified as Parsers
@@ -29,7 +29,7 @@ import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
-import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty qualified as Pretty
@@ -41,6 +41,15 @@ debug = False
 parsingEnv :: Parser.ParsingEnv
 parsingEnv =
   Parser.ParsingEnv mempty (Names.NamesWithHistory Builtin.names0 mempty)
+
+typecheckingEnv :: Typechecker.Env Symbol Ann
+typecheckingEnv =
+  runIdentity do
+    computeTypecheckingEnvironment
+      []
+      (\_ -> pure (External <$ Builtin.typeLookup))
+      parsingEnv
+      parsedFile
 
 parsedFile :: UF.UnisonFile Symbol Ann
 parsedFile =
@@ -55,11 +64,9 @@ typecheckedFile =
 
 typecheckedFile' :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile' =
-  let tl :: a -> Identity (TL.TypeLookup Symbol Ann)
-      tl = const $ pure (External <$ Builtin.typeLookup)
-   in case synthesizeFileWithTNDR [] tl parsingEnv parsedFile of
-        Result.Result notes Nothing -> error (showNotes sourceString ppEnv notes)
-        Result.Result _ (Just file) -> file
+  case synthesizeFile typecheckingEnv parsedFile of
+    Result.Result notes Nothing -> error (showNotes sourceString ppEnv notes)
+    Result.Result _ (Just file) -> file
 
 typecheckedFileTerms :: Map.Map Symbol R.Reference
 typecheckedFileTerms = view _2 <$> UF.hashTerms typecheckedFile
