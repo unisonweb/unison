@@ -4,7 +4,7 @@ import Control.Monad.Except
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Char8 qualified as BSC
 import Data.Text qualified as Text
-import Data.Time.Clock.POSIX (getPOSIXTime)
+import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
 import Network.HTTP.Types qualified as Network
@@ -15,18 +15,6 @@ import Unison.Auth.UserInfo (getUserInfo)
 import Unison.Prelude
 import Unison.Share.Types (CodeserverId)
 import UnliftIO qualified
-import UnliftIO.Exception
-import Web.JWT
-import Web.JWT qualified as JWT
-
--- | Checks whether a JWT access token is expired.
-isExpired :: (MonadIO m) => AccessToken -> m Bool
-isExpired accessToken = liftIO do
-  jwt <- JWT.decode accessToken `whenNothing` (throwIO $ InvalidJWT "Failed to decode JWT")
-  now <- getPOSIXTime
-  expDate <- JWT.exp (claims jwt) `whenNothing` (throwIO $ InvalidJWT "Missing exp claim on JWT")
-  let expiry = JWT.secondsSinceEpoch expDate
-  pure (now >= expiry)
 
 -- | Given a 'CodeserverId', provide a valid 'AccessToken' for the associated host.
 -- The TokenProvider may automatically refresh access tokens if we have a refresh token.
@@ -35,15 +23,16 @@ type TokenProvider = CodeserverId -> IO (Either CredentialFailure AccessToken)
 -- | Creates a 'TokenProvider' using the given 'CredentialManager'
 newTokenProvider :: CredentialManager -> TokenProvider
 newTokenProvider manager host = UnliftIO.try @_ @CredentialFailure $ do
-  CodeserverCredentials {tokens, discoveryURI} <- throwEitherM $ getCredentials manager host
+  creds@CodeserverCredentials {tokens, discoveryURI} <- throwEitherM $ getCredentials manager host
   let Tokens {accessToken = currentAccessToken} = tokens
-  expired <- isExpired currentAccessToken
+  expired <- isExpired creds
   if expired
     then do
       discoveryDoc <- throwEitherM $ fetchDiscoveryDoc discoveryURI
+      fetchTime <- getCurrentTime
       newTokens@(Tokens {accessToken = newAccessToken}) <- throwEitherM $ performTokenRefresh discoveryDoc tokens
       userInfo <- throwEitherM $ getUserInfo discoveryDoc newAccessToken
-      saveCredentials manager host (codeserverCredentials discoveryURI newTokens userInfo)
+      saveCredentials manager host (codeserverCredentials discoveryURI newTokens fetchTime userInfo)
       pure $ newAccessToken
     else pure currentAccessToken
 
