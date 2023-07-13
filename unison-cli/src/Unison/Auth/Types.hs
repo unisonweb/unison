@@ -28,7 +28,7 @@ import Data.Aeson (FromJSON (..), KeyValue ((.=)), ToJSON (..), (.:), (.:?))
 import Data.Aeson qualified as Aeson
 import Data.Map qualified as Map
 import Data.Text qualified as Text
-import Data.Time (UTCTime, NominalDiffTime)
+import Data.Time (NominalDiffTime, UTCTime)
 import Network.URI
 import Network.URI qualified as URI
 import Unison.Prelude
