@@ -105,8 +105,8 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name qualified as Name
-import Unison.Names (Names)
 import Unison.NameSegment (NameSegment)
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Reference (TypeReference)
@@ -527,7 +527,7 @@ getTermFromLatestParsedFile (HQ.NameOnly n) = do
 getTermFromLatestParsedFile _ = pure Nothing
 
 getNamesFromLatestParsedFile :: Cli Names
-getNamesFromLatestParsedFile = do 
+getNamesFromLatestParsedFile = do
   uf <- getLatestParsedFile
   pure $ case uf of
     Nothing -> mempty
