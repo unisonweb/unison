@@ -1761,7 +1761,8 @@ lookupRewrite onErr rule = do
   Cli.Env {codebase} <- ask
   currentBranch <- Cli.getCurrentBranch0
   hqLength <- Cli.runTransaction Codebase.hashLength
-  let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+  fileNames <- Cli.getNamesFromLatestParsedFile
+  let currentNames = NamesWithHistory.fromCurrentNames (fileNames <> Branch.toNames currentBranch)
   let ppe = PPED.fromNamesDecl hqLength currentNames
   ot <- Cli.getTermFromLatestParsedFile rule
   ot <- case ot of
