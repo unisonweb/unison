@@ -28,6 +28,8 @@
     builtin-Float.fromRepresentation
     builtin-Float.toRepresentation
     builtin-Float.exp
+    builtin-Float.log
+    builtin-Float.logBase
     builtin-Int.+
     builtin-Int.-
     builtin-Int.increment
@@ -209,6 +211,7 @@
     unison-POp-ATN2
     unison-POp-ATNH
     unison-POp-CEIL
+    unison-POp-FLOR
     unison-POp-COSF
     unison-POp-COSH
     unison-POp-DIVF
@@ -233,7 +236,9 @@
     unison-POp-CONS
     unison-POp-DBTX
     unison-POp-DECI
+    unison-POp-INCI
     unison-POp-DECN
+    unison-POp-INCN
     unison-POp-DIVN
     unison-POp-DRPB
     unison-POp-DRPS
@@ -288,6 +293,8 @@
     unison-POp-MULI
     unison-POp-MODI
     unison-POp-LEQI
+    unison-POp-LOGB
+    unison-POp-LOGF
     unison-POp-POWN
     unison-POp-VWRS
     unison-POp-SPLL
@@ -405,6 +412,7 @@
   (define unison-POp-MODI mod)
   (define (unison-POp-LEQI a b) (bool (<= a b)))
   (define unison-POp-POWN expt)
+  (define unison-POp-LOGF log)
 
   (define (reify-exn thunk)
     (guard
@@ -425,7 +433,9 @@
   (define (unison-POp-COMN n) (fxnot n))
   (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
   (define (unison-POp-DECI n) (fx1- n))
+  (define (unison-POp-INCI n) (fx+ n 1))
   (define (unison-POp-DECN n) (- n 1))
+  (define (unison-POp-INCN n) (+ n 1))
   (define (unison-POp-DIVN m n) (fxdiv m n))
   (define (unison-POp-DRPB n bs) (chunked-bytes-drop bs n))
   (define (unison-POp-DRPS n l) (chunked-list-drop l n))

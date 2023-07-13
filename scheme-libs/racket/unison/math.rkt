@@ -5,6 +5,8 @@
 
 (provide
     builtin-Float.exp
+    builtin-Float.log
+    builtin-Float.logBase
  (prefix-out unison-POp-
              (combine-out
               ABSF
@@ -12,6 +14,7 @@
               ACSH
               ADDF
               ADDI
+              LOGB
               ASIN
               SINH
               TRNF
@@ -20,6 +23,7 @@
               ATN2
               ATNH
               CEIL
+              FLOR
               EXPF
               COSF
               COSH
@@ -32,7 +36,10 @@
               SINF
               ITOF)))
 
+(define-unison (builtin-Float.logBase base num) (log num base))
+(define (LOGB base num) (log num base))
 (define-unison (builtin-Float.exp n) (exp n))
+(define-unison (builtin-Float.log n) (log n))
 (define (EXPF n) (exp n))
 (define ABSF abs)
 (define ACOS acos)
@@ -46,6 +53,7 @@
 (define ATN2 atan)
 (define ATNH atanh)
 (define CEIL ceiling)
+(define FLOR floor)
 (define COSF cos)
 (define TRNF truncate)
 (define SINF sin)
