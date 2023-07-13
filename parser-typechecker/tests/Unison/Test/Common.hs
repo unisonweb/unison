@@ -69,7 +69,12 @@ parseAndSynthesizeAsFile ::
     (Either (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann))
 parseAndSynthesizeAsFile ambient filename s = do
   file <- Result.fromParsing (Parsers.parseFile filename s parsingEnv)
-  typecheckingEnv <- FP.computeTypecheckingEnvironment ambient (\_deps -> pure B.typeLookup) parsingEnv file
+  typecheckingEnv <-
+    FP.computeTypecheckingEnvironment
+      (FP.ShouldUseTndr'Yes parsingEnv)
+      ambient
+      (\_deps -> pure B.typeLookup)
+      file
   case FP.synthesizeFile typecheckingEnv file of
     Result.Result notes Nothing -> tell notes >> pure (Left file)
     Result.Result _ (Just typecheckedFile) -> pure (Right typecheckedFile)

@@ -1,5 +1,6 @@
 module Unison.FileParsers
-  ( computeTypecheckingEnvironment,
+  ( ShouldUseTndr (..),
+    computeTypecheckingEnvironment,
     synthesizeFile,
   )
 where
@@ -48,6 +49,9 @@ type Type v = Type.Type v Ann
 
 type UnisonFile v = UF.UnisonFile v Ann
 
+-- each round of TDNR emits its own TopLevelComponent notes, so we remove
+-- duplicates (based on var name and location), preferring the later note as
+-- that will have the latest typechecking info
 convertNotes :: (Ord v) => Typechecker.Notes v ann -> Seq (Note v ann)
 convertNotes (Typechecker.Notes bugs es is) =
   (CompilerBug . TypecheckerBug <$> bugs) <> (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is')
@@ -56,66 +60,78 @@ convertNotes (Typechecker.Notes bugs es is) =
     f (_, Context.TopLevelComponent cs) = Right [v | (v, _, _) <- cs]
     f (i, _) = Left i
 
--- each round of TDNR emits its own TopLevelComponent notes, so we remove
--- duplicates (based on var name and location), preferring the later note as
--- that will have the latest typechecking info
+-- | Should we use type-directed name resolution?
+data ShouldUseTndr
+  = ShouldUseTndr'No
+  | ShouldUseTndr'Yes Parser.ParsingEnv
 
 -- | Compute a typechecking environment, given:
 --
+--     * Whether or not to use type-directed name resolution during type checking.
 --     * The abilities that are considered to already have ambient handlers.
 --     * A function to compute a @TypeLookup@ for the given set of type- or term-references.
 --     * The parsing environment that was used to parse the parsed Unison file.
 --     * The parsed Unison file for which the typechecking environment is applicable.
 computeTypecheckingEnvironment ::
   (Var v, Monad m) =>
+  ShouldUseTndr ->
   [Type v] ->
   (Set Reference -> m (TL.TypeLookup v Ann)) ->
-  Parser.ParsingEnv ->
   UnisonFile v ->
   m (Typechecker.Env v Ann)
-computeTypecheckingEnvironment ambientAbilities typeLookupf parsingEnv uf = do
-  let preexistingNames = NamesWithHistory.currentNames (Parser.names parsingEnv)
-      tm = UF.typecheckingTerm uf
-      possibleDeps =
-        [ (Name.toText name, Var.name v, r)
-          | (name, r) <- Rel.toList (Names.terms preexistingNames),
-            v <- Set.toList (Term.freeVars tm),
-            name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v))
-        ]
-      possibleRefs = Referent.toReference . view _3 <$> possibleDeps
-  tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
-  -- For populating the TDNR environment, we pick definitions
-  -- from the namespace and from the local file whose full name
-  -- has a suffix that equals one of the free variables in the file.
-  -- Example, the namespace has [foo.bar.baz, qux.quaffle] and
-  -- the file has definitons [utils.zonk, utils.blah] and
-  -- the file has free variables [bar.baz, zonk].
-  --
-  -- In this case, [foo.bar.baz, utils.zonk] are used to create
-  -- the TDNR environment.
-  let fqnsByShortName =
-        List.multimap $
-          -- external TDNR possibilities
-          [ (shortname, nr)
-            | (name, shortname, r) <- possibleDeps,
-              typ <- toList $ TL.typeOfReferent tl r,
-              let nr = Typechecker.NamedReference name typ (Right r)
-          ]
-            <>
-            -- local file TDNR possibilities
-            [ (Var.name v, nr)
-              | (name, r) <- Rel.toList (Names.terms $ UF.toNames uf),
+computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
+  case shouldUseTndr of
+    ShouldUseTndr'No -> do
+      tl <- typeLookupf (UF.dependencies uf)
+      pure
+        Typechecker.Env
+          { _ambientAbilities = ambientAbilities,
+            _typeLookup = tl,
+            _termsByShortname = Map.empty
+          }
+    ShouldUseTndr'Yes parsingEnv -> do
+      let preexistingNames = NamesWithHistory.currentNames (Parser.names parsingEnv)
+          tm = UF.typecheckingTerm uf
+          possibleDeps =
+            [ (Name.toText name, Var.name v, r)
+              | (name, r) <- Rel.toList (Names.terms preexistingNames),
                 v <- Set.toList (Term.freeVars tm),
-                name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v)),
-                typ <- toList $ TL.typeOfReferent tl r,
-                let nr = Typechecker.NamedReference (Name.toText name) typ (Right r)
+                name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v))
             ]
-  pure
-    Typechecker.Env
-      { _ambientAbilities = ambientAbilities,
-        _typeLookup = tl,
-        _termsByShortname = fqnsByShortName
-      }
+          possibleRefs = Referent.toReference . view _3 <$> possibleDeps
+      tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
+      -- For populating the TDNR environment, we pick definitions
+      -- from the namespace and from the local file whose full name
+      -- has a suffix that equals one of the free variables in the file.
+      -- Example, the namespace has [foo.bar.baz, qux.quaffle] and
+      -- the file has definitons [utils.zonk, utils.blah] and
+      -- the file has free variables [bar.baz, zonk].
+      --
+      -- In this case, [foo.bar.baz, utils.zonk] are used to create
+      -- the TDNR environment.
+      let fqnsByShortName =
+            List.multimap $
+              -- external TDNR possibilities
+              [ (shortname, nr)
+                | (name, shortname, r) <- possibleDeps,
+                  typ <- toList $ TL.typeOfReferent tl r,
+                  let nr = Typechecker.NamedReference name typ (Right r)
+              ]
+                <>
+                -- local file TDNR possibilities
+                [ (Var.name v, nr)
+                  | (name, r) <- Rel.toList (Names.terms $ UF.toNames uf),
+                    v <- Set.toList (Term.freeVars tm),
+                    name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v)),
+                    typ <- toList $ TL.typeOfReferent tl r,
+                    let nr = Typechecker.NamedReference (Name.toText name) typ (Right r)
+                ]
+      pure
+        Typechecker.Env
+          { _ambientAbilities = ambientAbilities,
+            _typeLookup = tl,
+            _termsByShortname = fqnsByShortName
+          }
 
 synthesizeFile ::
   forall m v.

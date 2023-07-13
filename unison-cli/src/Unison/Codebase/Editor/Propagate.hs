@@ -14,7 +14,7 @@ import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.TypeCheck qualified as Cli (computeTypecheckingEnvironment, ShouldUseTndr (..))
+import Unison.Cli.TypeCheck qualified as Cli (computeTypecheckingEnvironment)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
@@ -32,6 +32,7 @@ import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
+import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
@@ -62,7 +63,6 @@ import Unison.Util.Star3 qualified as Star3
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind)
-import qualified Unison.FileParsers as FileParsers
 
 data Edits v = Edits
   { termEdits :: Map Reference TermEdit,
@@ -554,7 +554,7 @@ propagate patch b = case validatePatch patch of
                         )
                   )
                   mempty
-          typecheckingEnv <- Cli.computeTypecheckingEnvironment Cli.ShouldUseTndr'No codebase [] file
+          typecheckingEnv <- Cli.computeTypecheckingEnvironment FileParsers.ShouldUseTndr'No codebase [] file
           let typecheckResult = FileParsers.synthesizeFile typecheckingEnv file
           Result.result typecheckResult
             & fmap UF.hashTerms

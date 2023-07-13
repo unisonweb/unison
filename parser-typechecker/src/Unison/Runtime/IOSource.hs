@@ -16,7 +16,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId qualified as DD
-import Unison.FileParsers (computeTypecheckingEnvironment, synthesizeFile)
+import Unison.FileParsers (ShouldUseTndr (..), computeTypecheckingEnvironment, synthesizeFile)
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parsers qualified as Parsers
@@ -46,9 +46,9 @@ typecheckingEnv :: Typechecker.Env Symbol Ann
 typecheckingEnv =
   runIdentity do
     computeTypecheckingEnvironment
+      (ShouldUseTndr'Yes parsingEnv)
       []
       (\_ -> pure (External <$ Builtin.typeLookup))
-      parsingEnv
       parsedFile
 
 parsedFile :: UF.UnisonFile Symbol Ann

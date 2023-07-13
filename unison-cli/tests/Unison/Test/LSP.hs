@@ -338,7 +338,7 @@ typecheckSrc name src = do
           typecheckingEnv <-
             Codebase.runTransaction codebase do
               Typecheck.computeTypecheckingEnvironment
-                (Typecheck.ShouldUseTndr'Yes parsingEnv)
+                (FileParsers.ShouldUseTndr'Yes parsingEnv)
                 codebase
                 ambientAbilities
                 unisonFile

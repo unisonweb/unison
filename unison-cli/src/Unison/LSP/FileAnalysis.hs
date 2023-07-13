@@ -22,17 +22,15 @@ import Language.LSP.Types
   )
 import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
 import Unison.ABT qualified as ABT
-import Unison.Cli.TypeCheck (ShouldUseTndr (..), computeTypecheckingEnvironment)
+import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
+import Unison.FileParsers (ShouldUseTndr (..))
 import Unison.FileParsers qualified as FileParsers
 import Unison.LSP.Conversions
-import Unison.LSP.Diagnostics
-  ( mkDiagnostic,
-    reportDiagnostics,
-  )
+import Unison.LSP.Diagnostics (mkDiagnostic, reportDiagnostics)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.Types qualified as LSP

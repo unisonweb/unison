@@ -55,7 +55,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.TypeCheck (ShouldUseTndr (..), computeTypecheckingEnvironment, typecheckTerm)
+import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
@@ -1463,7 +1463,7 @@ loadUnisonFile sourceName text = do
       State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
       typecheckingEnv <-
         Cli.runTransaction do
-          computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
+          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
       let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
       maybeTypecheckedUnisonFile & onNothing do
         ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames unisonFile)
