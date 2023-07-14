@@ -32,18 +32,21 @@ module Unison.UnisonFile
     topLevelComponents,
     typecheckedUnisonFile,
     Unison.UnisonFile.rewrite,
+    prepareRewrite,
   )
 where
 
 import Control.Lens
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Vector qualified as Vector
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.DataDeclaration qualified as DD
+import Unison.Hash qualified as Hash
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
@@ -59,6 +62,7 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), pattern TypecheckedUnisonFile, pattern UnisonFile)
 import Unison.Util.List qualified as List
 import Unison.Var (Var)
+import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind, pattern TestWatch)
 
 dataDeclarations :: UnisonFile v a -> Map v (Reference, DataDeclaration v a)
@@ -108,6 +112,76 @@ effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 hashTerms :: TypecheckedUnisonFile v a -> Map v (a, Reference, Maybe WatchKind, Term v a, Type v a)
 hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
 
+mapTerms :: (Term v a -> Term v a) -> UnisonFile v a -> UnisonFile v a
+mapTerms f (UnisonFileId datas effects terms watches) =
+  UnisonFileId datas effects terms' watches'
+  where
+    terms' = over _3 f <$> terms
+    watches' = fmap (over _3 f) <$> watches
+
+-- | This function should be called in preparation for a call to
+-- UnisonFile.rewrite. It prevents the possibility of accidental
+-- variable capture while still allowing the rules to capture variables
+-- where that's the intent. For example:
+--
+--   f x = x + 42
+--   ex = List.map (x -> Nat.increment x) [1,2,3]
+--
+--   rule1 f = @rewrite term (x -> f x) ==> f
+--   rule2 = @rewrite term (x -> f x) ==> f
+--
+-- Here, `rule1` introduces a variable `f`, which can stand for
+-- any definition. Whereas `rule2` refers to the the top-level `f`
+-- function in the file.
+--
+-- This function returns a tuple of: (prepareRule, preparedFile, finish)
+--   `prepareRule` should be called on any `@rewrite` block to do
+--                 prevent accidental capture. It receives the [v] of
+--                 variables bound locally by the rule (`rule1` above binds `f`).
+--   `preparedFile` should be passed to `UnisonFile.rewrite`
+--   `finish` should be called on the result of `UnisonFile.rewrite`
+--
+-- Internally, the function works by replacing all free variables in the file
+-- with a unique reference, performing the rewrite using the ABT machinery,
+-- then converting back to a "regular" UnisonFile with free variables in the
+-- terms.
+prepareRewrite :: (Monoid a, Var v) => UnisonFile v a -> ([v] -> Term v a -> Term v a, UnisonFile v a, UnisonFile v a -> UnisonFile v a)
+prepareRewrite uf@(UnisonFileId _datas _effects terms watches) =
+  (freshen, mapTerms substs uf, mapTerms refToVar)
+  where
+    -- fn to replace free vars with unique refs
+    substs = ABT.substsInheritAnnotation varToRef
+    -- fn to replace free variables of a @rewrite block with unique refs
+    --   subtlety: we freshen any vars which are used in the file to avoid
+    --   accidental capture
+    freshen vs tm = case ABT.freshenWrt Var.bakeId (typecheckingTerm uf) [tm1] of
+      [tm] -> tm
+      _ -> error "prepareRewrite bug (in freshen)"
+      where
+        -- logic to leave alone variables bound by @rewrite block
+        tm0 = ABT.absChain' (repeat (ABT.annotation tm) `zip` vs) tm
+        tm1 = ABT.dropAbs (length vs) (substs tm0)
+    -- An arbitrary, random unique hash, generated via /dev/urandom
+    -- we just need something that won't collide with refs
+    h = Hash.fromByteString "f0dd645e2382aba2035350297fb2a26263d1891965e5f351e19ae69317b1c866"
+    varToRef =
+      [(v, Term.ref () (Reference.Derived h i)) | (v, i) <- vs `zip` [0 ..]]
+      where
+        vs = (view _1 <$> terms) <> (toList watches >>= map (view _1))
+    vars = Vector.fromList (fst <$> varToRef)
+    -- function to convert unique refs back to free variables
+    refToVar = ABT.rebuildUp' go
+      where
+        go tm@(Term.Ref' (Reference.Derived h0 i)) | h == h0 =
+          case vars Vector.!? (fromIntegral i) of
+            Just v -> Term.var (ABT.annotation tm) v
+            Nothing -> error $ "UnisonFile.prepareRewrite bug, index out of bounds: " ++ show i
+        go tm = tm
+
+-- Rewrite a UnisonFile using a function for transforming terms.
+-- The function should return `Nothing` if the term is unchanged.
+-- This function returns what symbols were modified.
+-- The `Set v` is symbols that should be left alone.
 rewrite :: (Var v, Eq a) => Set v -> (Term v a -> Maybe (Term v a)) -> UnisonFile v a -> ([v], UnisonFile v a)
 rewrite leaveAlone rewriteFn (UnisonFileId datas effects terms watches) =
   (rewritten, UnisonFileId datas effects (unEither terms') (unEither <$> watches'))

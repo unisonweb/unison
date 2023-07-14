@@ -69,6 +69,7 @@ module Unison.Cli.MonadUtils
     -- * Latest touched Unison file
     getLatestFile,
     getLatestParsedFile,
+    getNamesFromLatestParsedFile,
     getTermFromLatestParsedFile,
     expectLatestFile,
     expectLatestParsedFile,
@@ -105,6 +106,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Reference (TypeReference)
@@ -115,6 +117,7 @@ import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Term qualified as Term
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UFN
 import Unison.Util.Set qualified as Set
 import Unison.Var qualified as Var
 import UnliftIO.STM
@@ -522,6 +525,13 @@ getTermFromLatestParsedFile (HQ.NameOnly n) = do
         Term.LetRecNamed' bs _ -> lookup (Var.named (Name.toText n)) bs
         _ -> Nothing
 getTermFromLatestParsedFile _ = pure Nothing
+
+getNamesFromLatestParsedFile :: Cli Names
+getNamesFromLatestParsedFile = do
+  uf <- getLatestParsedFile
+  pure $ case uf of
+    Nothing -> mempty
+    Just uf -> UFN.toNames uf
 
 -- | Get the latest typechecked unison file, or return early if there isn't one.
 expectLatestTypecheckedFile :: Cli (TypecheckedUnisonFile Symbol Ann)

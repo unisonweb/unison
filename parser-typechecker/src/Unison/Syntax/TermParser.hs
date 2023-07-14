@@ -95,7 +95,7 @@ rewriteBlock = do
     rewriteCase = rewriteTermlike "case" DD.rewriteCase
     rewriteType = do
       kw <- quasikeyword "signature"
-      vs <- fromMaybe [] <$> optional (some prefixDefinitionName <* symbolyQuasikeyword ".")
+      vs <- P.try (some prefixDefinitionName <* symbolyQuasikeyword ".") <|> pure []
       lhs <- TypeParser.computationType
       rhs <- openBlockWith "==>" *> TypeParser.computationType <* closeBlock
       pure (DD.rewriteType (ann kw <> ann rhs) (L.payload <$> vs) lhs rhs)
