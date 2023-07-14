@@ -519,7 +519,7 @@ reannotateUp g t = case out t of
 -- The `afterFreshen` function is applied to each freshened
 -- variable. It can be the identity function or `Var.bakeId`,
 -- or it can do some other tagging of freshened variables.
--- 
+--
 -- This is used by structural find and replace to ensure that rules
 -- don't accidentally capture local variables.
 freshenWrt :: (Var v, Traversable f) => (v -> v) -> Term f v a -> [Term f v a] -> [Term f v a]

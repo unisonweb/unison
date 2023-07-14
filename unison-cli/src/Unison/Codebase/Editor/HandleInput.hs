@@ -1806,10 +1806,10 @@ handleStructuredFindReplaceI rule = do
   (ppe, _ns, rules) <- lookupRewrite InvalidStructuredFindReplace prepare rule
   (dest, _) <- Cli.expectLatestFile
   #latestFile ?= (dest, True)
-  let go n tm [] = if n == (0::Int) then Nothing else Just tm
+  let go n tm [] = if n == (0 :: Int) then Nothing else Just tm
       go n tm ((r, _) : rules) = case r tm of
         Nothing -> go n tm rules
-        Just tm -> go (n+1) tm rules
+        Just tm -> go (n + 1) tm rules
       (vs, uf0') = UF.rewrite (Set.singleton (HQ.toVar rule)) (\tm -> go 0 tm rules) uf
       uf' = (vs, finish uf0')
   #latestTypecheckedFile .= Just (Left . snd $ uf')

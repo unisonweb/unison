@@ -119,28 +119,28 @@ mapTerms f (UnisonFileId datas effects terms watches) =
     terms' = over _3 f <$> terms
     watches' = fmap (over _3 f) <$> watches
 
--- | This function should be called in preparation for a call to 
--- UnisonFile.rewrite. It prevents the possibility of accidental 
+-- | This function should be called in preparation for a call to
+-- UnisonFile.rewrite. It prevents the possibility of accidental
 -- variable capture while still allowing the rules to capture variables
 -- where that's the intent. For example:
--- 
+--
 --   f x = x + 42
---   ex = List.map (x -> Nat.increment x) [1,2,3] 
--- 
---   rule1 f = @rewrite term (x -> f x) ==> f 
---   rule2 = @rewrite term (x -> f x) ==> f 
+--   ex = List.map (x -> Nat.increment x) [1,2,3]
+--
+--   rule1 f = @rewrite term (x -> f x) ==> f
+--   rule2 = @rewrite term (x -> f x) ==> f
 --
 -- Here, `rule1` introduces a variable `f`, which can stand for
 -- any definition. Whereas `rule2` refers to the the top-level `f`
 -- function in the file.
--- 
+--
 -- This function returns a tuple of: (prepareRule, preparedFile, finish)
 --   `prepareRule` should be called on any `@rewrite` block to do
 --                 prevent accidental capture. It receives the [v] of
 --                 variables bound locally by the rule (`rule1` above binds `f`).
 --   `preparedFile` should be passed to `UnisonFile.rewrite`
 --   `finish` should be called on the result of `UnisonFile.rewrite`
--- 
+--
 -- Internally, the function works by replacing all free variables in the file
 -- with a unique reference, performing the rewrite using the ABT machinery,
 -- then converting back to a "regular" UnisonFile with free variables in the
@@ -153,7 +153,7 @@ prepareRewrite uf@(UnisonFileId _datas _effects terms watches) =
     substs = ABT.substsInheritAnnotation varToRef
     -- fn to replace free variables of a @rewrite block with unique refs
     --   subtlety: we freshen any vars which are used in the file to avoid
-    --   accidental capture 
+    --   accidental capture
     freshen vs tm = case ABT.freshenWrt Var.bakeId (typecheckingTerm uf) [tm1] of
       [tm] -> tm
       _ -> error "prepareRewrite bug (in freshen)"
