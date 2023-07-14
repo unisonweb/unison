@@ -107,6 +107,7 @@ foo2 =
 rule = @rewrite
   case None ==> Left "oh no"
   term foo1 ==> foo2
+  case None ==> Left "89899"
 
 sameFileEx = 
   _ = "ex"
