@@ -29,6 +29,10 @@ rule1 f x = @rewrite
   term x + 1 ==> Nat.increment x
   term (a -> f a) ==> f -- eta reduction
 
+unique type Optional2 a = Some2 a | None2
+
+rule2 x = @rewrite signature Optional ==> Optional2
+
 cleanup = do 
   _ = IO.removeFile.impl "rewrites-tmp.u"
   ()
@@ -60,10 +64,16 @@ unique ability Woot2 where woot2 : () -> Nat
 
 woot1to2 x = @rewrite 
   term Woot1.woot1 ==> Woot2.woot2
+  term blah ==> blah2
   signature _ . Woot1 ==> Woot2 
 
 wootEx : Nat ->{Woot1} Nat 
-wootEx a = !woot1
+wootEx a = 
+  _ = !woot1
+  blah
+
+blah = 123
+blah2 = 456
 ```
 
 Let's apply the rewrite `woot1to2`:
@@ -81,6 +91,92 @@ After adding the rewritten form to the codebase, here's the rewritten `Woot1` to
 
 ```ucm
 .> view wootEx 
+```
+
+This example shows that rewrite rules can to refer to term definitions that only exist in the file:
+
+```unison:hide rewrites-tmp.u
+foo1 = 
+  b = "b"
+  123
+
+foo2 = 
+  a = "a"
+  233
+
+rule = @rewrite
+  case None ==> Left "oh no"
+  term foo1 ==> foo2
+
+sameFileEx = 
+  _ = "ex"
+  foo1
+```
+
+```ucm:hide
+.> rewrite rule
+.> load rewrites-tmp.u
+.> add
+```
+
+After adding the rewritten form to the codebase, here's the rewritten definitions:
+
+```ucm
+.> view foo1 foo2 sameFileEx 
+```
+
+## Capture avoidance
+
+```unison:hide rewrites-tmp.u
+bar1 = 
+  b = "bar"
+  123
+
+bar2 = 
+  a = 39494 
+  233
+
+rule bar2 = @rewrite
+  case None ==> Left "oh no"
+  term bar1 ==> bar2
+
+sameFileEx = 
+  _ = "ex"
+  bar1
+```
+
+In the above example, `bar2` is locally bound by the rule, so when applied, it should not refer to the `bar2` top level binding.
+
+```ucm
+.> rewrite rule
+```
+
+Instead, it should be an unbound free variable, which doesn't typecheck:
+
+```ucm:error
+.> load rewrites-tmp.u
+```
+
+In this example, the `a` is locally bound by the rule, so it shouldn't capture the `a = 39494` binding which is in scope at the point of the replacement:
+
+```unison:hide rewrites-tmp.u
+bar2 = 
+  a = 39494 
+  233
+
+rule a = @rewrite
+  case None ==> Left "oh no"
+  term 233 ==> a 
+```
+
+```ucm
+.> rewrite rule
+```
+
+The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:
+
+```ucm:error
+.> load rewrites-tmp.u
 ```
 
 ```ucm:hide
