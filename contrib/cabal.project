@@ -43,7 +43,12 @@ source-repository-package
   location: https://github.com/unisonweb/haskeline.git
   tag: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
 
-constraints: fsnotify < 0.4
+constraints:
+  fsnotify < 0.4,
+  crypton-x509-store <= 1.6.8,
+  lsp < 2.0.0.0,
+  servant <= 0.19.1,
+  optparse-applicative <= 0.17.0.0
 
 -- For now there is no way to apply ghc-options for all local packages
 -- See https://cabal.readthedocs.io/en/latest/cabal-project.html#package-configuration-options
@@ -125,8 +130,9 @@ package unison-hashing-v2
 package unison-share-api
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
+-- adding -Wno-deprecations cause jose-0.10 has deprecated Crypto.JWT.addClaim
 package unison-share-projects-api
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+  ghc-options: -Wall -Werror -Wno-deprecations -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package unison-syntax
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
