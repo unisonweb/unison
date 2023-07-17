@@ -5,10 +5,7 @@ import Unison.Builtin qualified as Builtin
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.PrintError
-  ( defaultWidth,
-    prettyParseError,
-  )
+import Unison.PrintError (defaultWidth, prettyParseError)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FileParser qualified as FileParser
 import Unison.Syntax.Parser qualified as Parser

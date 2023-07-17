@@ -1,5 +1,6 @@
 module Unison.Test.Syntax.FileParser where
 
+import Data.Functor.Identity (Identity (..))
 import Data.List (uncons)
 import Data.Set (elems)
 import EasyTest
@@ -66,7 +67,7 @@ test =
 
 expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
 expectFileParseFailure s expectation = scope s $ do
-  let result = P.run (P.rootFile file) s Common.parsingEnv
+  let result = runIdentity (P.run (P.rootFile file) s Common.parsingEnv)
   case result of
     Right _ -> crash "Parser succeeded"
     Left (MPE.FancyError _ sets) ->
@@ -140,6 +141,6 @@ parses :: String -> Test ()
 parses s = scope s $ do
   let p :: UnisonFile Symbol P.Ann
       !p =
-        unsafeGetRightFrom s $
+        unsafeGetRightFrom s . runIdentity $
           P.run (P.rootFile file) s Common.parsingEnv
   pure p >> ok

@@ -331,7 +331,7 @@ typecheckSrc name src = do
       let ambientAbilities = []
       let parseNames = mempty
       let parsingEnv = Parser.ParsingEnv uniqueName parseNames
-      case Parsers.parseFile name (Text.unpack src) parsingEnv of
+      Parsers.parseFile name (Text.unpack src) parsingEnv >>= \case
         Left err -> pure (Left (crash ("Failed to parse: " ++ show err)))
         -- tf <- maybe (crash "Failed to typecheck") pure maytf
         Right unisonFile -> do
@@ -342,9 +342,9 @@ typecheckSrc name src = do
                 codebase
                 ambientAbilities
                 unisonFile
-          pure case FileParsers.synthesizeFile typecheckingEnv unisonFile of
-            Result.Result notes Nothing -> Left (crash ("Failed to typecheck: " ++ show (Foldable.toList @Seq notes)))
-            Result.Result _ (Just typecheckedUnisonFile) -> Right (unisonFile, typecheckedUnisonFile)
+          Result.runResultT (FileParsers.synthesizeFile typecheckingEnv unisonFile) <&> \case
+            (Nothing, notes) -> Left (crash ("Failed to typecheck: " ++ show (Foldable.toList @Seq notes)))
+            (Just typecheckedUnisonFile, _) -> Right (unisonFile, typecheckedUnisonFile)
 
   case result of
     Left action -> action

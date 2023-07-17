@@ -5,6 +5,7 @@ module Unison.Test.Syntax.TermParser where
 
 import Control.Applicative
 import Control.Monad (join)
+import Data.Functor.Identity (Identity (..))
 import EasyTest
 import Text.Megaparsec qualified as P
 import Text.RawString.QQ
@@ -205,7 +206,7 @@ unitTests =
   ]
   where
     -- type TermP v = P v (AnnotatedTerm v Ann)
-    t :: P Symbol a -> String -> Test ()
+    t :: P Symbol Identity a -> String -> Test ()
     t = parseWith
     w = wordyDefinitionName
     s = symbolyDefinitionName
@@ -213,9 +214,9 @@ unitTests =
 parses :: String -> Test ()
 parses = parseWith TP.term
 
-parseWith :: P Symbol a -> String -> Test ()
+parseWith :: P Symbol Identity a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
-  case Ps.parse @Symbol p s Common.parsingEnv of
+  case runIdentity (Ps.parse @_ @Symbol p s Common.parsingEnv) of
     Left e -> do
       note $ renderParseErrorAsANSI 60 s e
       crash $ renderParseErrorAsANSI 60 s e

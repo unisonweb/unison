@@ -8,6 +8,7 @@ module Unison.Test.Common
 where
 
 import Control.Monad.Writer (tell)
+import Data.Functor.Identity (runIdentity)
 import Data.Sequence (Seq)
 import Text.Megaparsec.Error qualified as MPE
 import Unison.ABT qualified as ABT
@@ -41,6 +42,7 @@ t s =
     -- . either (error . show ) id
     -- . Type.bindSomeNames B.names0
     . either (error . showParseError s) tweak
+    . runIdentity
     $ Parser.run (Parser.root TypeParser.valueType) s parsingEnv
   where
     tweak = Type.generalizeLowercase mempty
@@ -48,10 +50,10 @@ t s =
 tm :: String -> Term Symbol
 tm s =
   either (error . showParseError s) id
-  -- . Term.bindSomeNames mempty B.names0
-  -- . either (error . showParseError s) id
-  $
-    Parser.run (Parser.root TermParser.term) s parsingEnv
+    -- . Term.bindSomeNames mempty B.names0
+    -- . either (error . showParseError s) id
+    . runIdentity
+    $ Parser.run (Parser.root TermParser.term) s parsingEnv
 
 showParseError ::
   (Var v) =>
@@ -68,7 +70,7 @@ parseAndSynthesizeAsFile ::
     (Seq (Note Symbol Ann))
     (Either (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann))
 parseAndSynthesizeAsFile ambient filename s = do
-  file <- Result.fromParsing (Parsers.parseFile filename s parsingEnv)
+  file <- Result.fromParsing (runIdentity (Parsers.parseFile filename s parsingEnv))
   typecheckingEnv <-
     FP.computeTypecheckingEnvironment
       (FP.ShouldUseTndr'Yes parsingEnv)
