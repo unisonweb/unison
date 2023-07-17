@@ -182,7 +182,10 @@ data LoopState = LoopState
     -- change event for that path (we skip file changes if the file has
     -- just been modified programmatically)
     latestFile :: Maybe (FilePath, Bool),
-    latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
+    -- Nothing means the file didn't parse
+    -- Just (Left) means the file parsed but didn't typecheck
+    -- Just (Right) means the file parsed and typechecked
+    latestTypecheckedFile :: Maybe (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann)),
     -- The previous user input. Used to request confirmation of
     -- questionable user commands.
     lastInput :: Maybe Input,

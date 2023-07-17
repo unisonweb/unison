@@ -231,6 +231,8 @@ jobs:
           git diff --cached --ignore-cr-at-eol --exit-code
       - name: prettyprint-round-trip
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
+      - name: structured-find-replace
+        run: stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
       - name: cli-integration-tests
         run: stack --no-terminal exec cli-integration-tests
       - name: Cache Racket dependencies
