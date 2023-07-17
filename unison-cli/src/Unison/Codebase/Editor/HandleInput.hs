@@ -1728,7 +1728,7 @@ inputDescription input =
 handleStructuredFindI :: HQ.HashQualified Name -> Cli ()
 handleStructuredFindI rule = do
   Cli.Env {codebase} <- ask
-  (ppe, names, rules0) <- lookupRewrite InvalidStructuredFind rule
+  (ppe, names, rules0) <- lookupRewrite InvalidStructuredFind (\_ tm -> tm) rule
   let rules = snd <$> rules0
   let fqppe = PPED.unsuffixifiedPPE ppe
   results :: [(HQ.HashQualified Name, Referent)] <- pure $ do
@@ -1749,12 +1749,13 @@ handleStructuredFindI rule = do
   #numberedArgs .= map toNumArgs results
   Cli.respond (ListStructuredFind (fst <$> results))
 
-lookupRewrite :: (HQ.HashQualified Name -> Output) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, [(Term Symbol Ann -> Maybe (Term Symbol Ann), Term Symbol Ann -> Bool)])
-lookupRewrite onErr rule = do
+lookupRewrite :: (HQ.HashQualified Name -> Output) -> ([Symbol] -> Term Symbol Ann -> Term Symbol Ann) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, [(Term Symbol Ann -> Maybe (Term Symbol Ann), Term Symbol Ann -> Bool)])
+lookupRewrite onErr prepare rule = do
   Cli.Env {codebase} <- ask
   currentBranch <- Cli.getCurrentBranch0
   hqLength <- Cli.runTransaction Codebase.hashLength
-  let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+  fileNames <- Cli.getNamesFromLatestParsedFile
+  let currentNames = NamesWithHistory.fromCurrentNames (fileNames <> Branch.toNames currentBranch)
   let ppe = PPED.fromNamesDecl hqLength currentNames
   ot <- Cli.getTermFromLatestParsedFile rule
   ot <- case ot of
@@ -1767,29 +1768,43 @@ lookupRewrite onErr rule = do
               Cli.runTransaction (Codebase.getTerm codebase r)
         s -> Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule s)
   tm <- maybe (Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule mempty)) pure ot
-  let extract tm = case tm of
-        Term.Ann' tm _typ -> extract tm
-        (DD.RewriteTerm' lhs rhs) -> pure (ABT.rewriteExpression lhs rhs, ABT.containsExpression lhs)
-        (DD.RewriteCase' lhs rhs) -> pure (Term.rewriteCasesLHS lhs rhs, fromMaybe False . Term.containsCaseTerm lhs)
-        (DD.RewriteSignature' _vs lhs rhs) -> pure (Term.rewriteSignatures lhs rhs, Term.containsSignature lhs)
+  let extract vs tm = case tm of
+        Term.Ann' tm _typ -> extract vs tm
+        (DD.RewriteTerm' lhs rhs) ->
+          pure
+            ( ABT.rewriteExpression lhs rhs,
+              ABT.containsExpression lhs
+            )
+        (DD.RewriteCase' lhs rhs) ->
+          pure
+            ( Term.rewriteCasesLHS lhs rhs,
+              fromMaybe False . Term.containsCaseTerm lhs
+            )
+        (DD.RewriteSignature' _vs lhs rhs) ->
+          pure (Term.rewriteSignatures lhs rhs, Term.containsSignature lhs)
         _ -> Cli.returnEarly (onErr rule)
-      extractOuter tm = case tm of
-        Term.Ann' tm _typ -> extractOuter tm
-        Term.LamsNamed' _vs tm -> extractOuter tm
-        DD.Rewrites' rules -> traverse extract rules
-        _ -> Cli.returnEarly (onErr rule)
-  rules <- extractOuter tm
+      extractOuter vs0 tm = case tm of
+        Term.Ann' tm _typ -> extractOuter vs0 tm
+        Term.LamsNamed' vs tm -> extractOuter (vs0 ++ vs) tm
+        tm -> case prepare vs0 tm of
+          DD.Rewrites' rules -> traverse (extract vs0) rules
+          _ -> Cli.returnEarly (onErr rule)
+  rules <- extractOuter [] tm
   pure (ppe, currentNames, rules)
 
 handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
 handleStructuredFindReplaceI rule = do
-  (ppe, _ns, rules) <- lookupRewrite InvalidStructuredFindReplace rule
-  uf <- Cli.expectLatestParsedFile
+  uf0 <- Cli.expectLatestParsedFile
+  let (prepare, uf, finish) = UF.prepareRewrite uf0
+  (ppe, _ns, rules) <- lookupRewrite InvalidStructuredFindReplace prepare rule
   (dest, _) <- Cli.expectLatestFile
   #latestFile ?= (dest, True)
-  let go _tm0 tm [] = tm
-      go tm0 tm ((r, _) : rules) = go tm0 ((tm <|> tm0) >>= r) rules
-      uf' = UF.rewrite (Set.singleton (HQ.toVar rule)) (\tm -> go (Just tm) Nothing rules) uf
+  let go n tm [] = if n == (0 :: Int) then Nothing else Just tm
+      go n tm ((r, _) : rules) = case r tm of
+        Nothing -> go n tm rules
+        Just tm -> go (n + 1) tm rules
+      (vs, uf0') = UF.rewrite (Set.singleton (HQ.toVar rule)) (\tm -> go 0 tm rules) uf
+      uf' = (vs, finish uf0')
   #latestTypecheckedFile .= Just (Left . snd $ uf')
   let msg = "| Rewrote using: "
   Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) uf'
@@ -2214,8 +2229,8 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
               pure []
             Just tm -> do
               Cli.respond $ TestIncrementalOutputStart ppe (n, total) r tm
-              --                          v don't cache; test cache populated below
-              tm' <- evalUnisonTermE True ppe False tm
+              --                        v don't cache; test cache populated below
+              tm' <- evalPureUnison ppe False tm
               case tm' of
                 Left e -> do
                   Cli.respond (EvaluationFailure e)
@@ -3189,7 +3204,13 @@ synthesizeForce typeOfFunc = do
             TypeLookup.dataDecls = Map.empty,
             TypeLookup.effectDecls = Map.empty
           }
-  case Result.runResultT (Typechecker.synthesize PPE.empty env (DD.forceTerm External External term)) of
+  case Result.runResultT
+    ( Typechecker.synthesize
+        PPE.empty
+        Typechecker.PatternMatchCoverageCheckSwitch'Enabled
+        env
+        (DD.forceTerm External External term)
+    ) of
     Identity (Nothing, notes) ->
       error
         ( unlines
@@ -3245,6 +3266,23 @@ evalUnisonFile sandbox ppe unisonFile args = do
         let value' = Term.amap (\() -> Ann.External) value
         Cli.runTransaction (Codebase.putWatch kind hash value')
     pure rs
+
+evalPureUnison ::
+  PPE.PrettyPrintEnv ->
+  Bool ->
+  Term Symbol Ann ->
+  Cli (Either Runtime.Error (Term Symbol Ann))
+evalPureUnison ppe useCache tm = evalUnisonTermE False ppe useCache tm'
+  where
+    tm' =
+      Term.iff
+        a
+        (Term.apps' (Term.builtin a "validateSandboxed") [allow, Term.delay a tm])
+        tm
+        (Term.app a (Term.builtin a "bug") (Term.text a msg))
+    a = ABT.annotation tm
+    allow = Term.list a [Term.termLink a (Referent.Ref (Reference.Builtin "Debug.toText"))]
+    msg = "pure code can't perform I/O"
 
 -- | Evaluate a single closed definition.
 evalUnisonTermE ::

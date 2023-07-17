@@ -13,6 +13,7 @@ import Data.ByteArray.Encoding qualified as BE
 import Data.ByteString.Char8 qualified as BSC
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Client (urlEncodedBody)
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
@@ -94,6 +95,7 @@ authLogin host = do
         -- otherwise the server will shut down prematurely.
         putMVar authResultVar result
         pure respReceived
+  fetchTime <- liftIO getCurrentTime
   tokens@(Tokens {accessToken}) <-
     Cli.with (Warp.withApplication (pure $ authTransferServer codeHandler)) \port -> do
       let redirectURI = "http://localhost:" <> show port <> "/redirect"
@@ -103,7 +105,7 @@ authLogin host = do
       bailOnFailure . liftIO $ UnliftIO.withAsync (Web.openBrowser (show authorizationKickoff)) \_ -> readMVar authResultVar
   userInfo <- bailOnFailure (getUserInfo doc accessToken)
   let codeserverId = codeserverIdFromCodeserverURI host
-  let creds = codeserverCredentials discoveryURI tokens userInfo
+  let creds = codeserverCredentials discoveryURI tokens fetchTime userInfo
   liftIO (saveCredentials credentialManager codeserverId creds)
   Cli.respond Output.Success
   pure userInfo

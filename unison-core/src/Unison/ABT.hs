@@ -26,6 +26,7 @@ module Unison.ABT
     freshenS,
     freshInBoth,
     freshenBothWrt,
+    freshenWrt,
     visit,
     visit',
     visit_,
@@ -80,6 +81,7 @@ module Unison.ABT
     absr,
     unabs,
     unabsA,
+    dropAbs,
     cycle,
     cycle',
     cycler,
@@ -243,6 +245,11 @@ pattern AbsNA' :: [(a, v)] -> Term f v a -> Term f v a
 pattern AbsNA' avs body <- (unabsA -> (avs, body))
 
 {-# COMPLETE Var', Cycle', Abs'', Tm' #-}
+
+dropAbs :: Int -> Term f v a -> Term f v a
+dropAbs z tm | z <= 0 = tm
+dropAbs n (Term _ _ (Abs _ body)) = dropAbs (n - 1) body
+dropAbs _ tm = tm
 
 unabsA :: Term f v a -> ([(a, v)], Term f v a)
 unabsA (Term _ a (Abs hd body)) =
@@ -507,19 +514,25 @@ reannotateUp g t = case out t of
         ann = g t <> foldMap (snd . annotation) body'
      in tm' (annotation t, ann) body'
 
--- given a list of terms, freshen all their free variables
+-- Given a list of terms, freshen all their free variables
 -- to not overlap with any variables used within `wrt`.
-freshenWrt :: (Var v, Traversable f) => Term f v a -> [Term f v a] -> [Term f v a]
-freshenWrt wrt tms = renames varChanges <$> tms
+-- The `afterFreshen` function is applied to each freshened
+-- variable. It can be the identity function or `Var.bakeId`,
+-- or it can do some other tagging of freshened variables.
+--
+-- This is used by structural find and replace to ensure that rules
+-- don't accidentally capture local variables.
+freshenWrt :: (Var v, Traversable f) => (v -> v) -> Term f v a -> [Term f v a] -> [Term f v a]
+freshenWrt afterFreshen wrt tms = renames varChanges <$> tms
   where
     used = Set.fromList (allVars wrt)
     varChanges =
       fst $ foldl go (Map.empty, used) (foldMap freeVars tms)
       where
-        go (m, u) v = let v' = freshIn u v in (Map.insert v v' m, Set.insert v' u)
+        go (m, u) v = let v' = afterFreshen $ freshIn u v in (Map.insert v v' m, Set.insert v' u)
 
 freshenBothWrt :: (Var v, Traversable f) => Term f v a -> Term f v a -> Term f v a -> (Term f v a, Term f v a)
-freshenBothWrt wrt tm1 tm2 = case freshenWrt wrt [tm1, tm2] of
+freshenBothWrt wrt tm1 tm2 = case freshenWrt id wrt [tm1, tm2] of
   [tm1, tm2] -> (tm1, tm2)
   _ -> error "freshenWrt impossible"
 
