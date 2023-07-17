@@ -1458,7 +1458,7 @@ loadUnisonFile sourceName text = do
       let parsingEnv = Parser.ParsingEnv uniqueName parseNames
       unisonFile <-
         Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv
-          & onLeft \err -> Cli.returnEarly (ParseErrors text [err])
+          & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
       -- set that the file at least parsed (but didn't typecheck)
       State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
       typecheckingEnv <-
@@ -2983,7 +2983,7 @@ parseType input src = do
           (NamesWithHistory.currentNames names0)
           (NamesWithHistory.NamesWithHistory parseNames (NamesWithHistory.oldNames names0))
   typ <-
-    Parsers.parseType (Text.unpack (fst lexed)) (Parser.ParsingEnv mempty names) & onLeft \err ->
+    Parsers.parseType (Text.unpack (fst lexed)) (Parser.ParsingEnv mempty names) & onLeftM \err ->
       Cli.returnEarly (TypeParseError src err)
 
   Type.bindNames Name.unsafeFromVar mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->

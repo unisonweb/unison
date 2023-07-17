@@ -79,7 +79,8 @@ checkFile doc = runMaybeT $ do
   uniqueName <- liftIO generateUniqueName
   let parsingEnv = Parser.ParsingEnv uniqueName parseNames
   (notes, parsedFile, typecheckedFile) <- do
-    case Result.fromParsing (Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv) of
+    parseResult <- Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv
+    case Result.fromParsing parseResult of
       Result.Result parsingNotes Nothing -> pure (parsingNotes, Nothing, Nothing)
       Result.Result _ (Just parsedFile) -> do
         typecheckingEnv <-

@@ -53,7 +53,7 @@ typecheckingEnv =
 
 parsedFile :: UF.UnisonFile Symbol Ann
 parsedFile =
-  case Parsers.parseFile "<IO.u builtin>" sourceString parsingEnv of
+  case runIdentity (Parsers.parseFile "<IO.u builtin>" sourceString parsingEnv) of
     Left err -> error (Pretty.toAnsiUnbroken (PrintError.prettyParseError sourceString err))
     Right file -> file
 

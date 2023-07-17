@@ -34,10 +34,10 @@ import Unison.Var qualified as Var
 import Unison.WatchKind qualified as UF
 import Prelude hiding (readFile)
 
-resolutionFailures :: (Ord v) => [Names.ResolutionFailure v Ann] -> P v x
+resolutionFailures :: (Ord v) => [Names.ResolutionFailure v Ann] -> P v m x
 resolutionFailures es = P.customFailure (ResolutionFailures es)
 
-file :: forall v. (Var v) => P v (UnisonFile v Ann)
+file :: forall m v. (Monad m, Var v) => P v m (UnisonFile v Ann)
 file = do
   _ <- openBlock
   -- The file may optionally contain top-level imports,
@@ -132,7 +132,7 @@ file = do
     pure uf
 
 -- | Final validations and sanity checks to perform before finishing parsing.
-validateUnisonFile :: forall v. (Var v) => UnisonFile v Ann -> P v ()
+validateUnisonFile :: (Var v) => UnisonFile v Ann -> P v m ()
 validateUnisonFile uf =
   checkForDuplicateTermsAndConstructors uf
 
@@ -140,10 +140,10 @@ validateUnisonFile uf =
 -- to detect all duplicate terms during parsing itself. Here we collect all terms and
 -- constructors and verify that no duplicates exist in the file, triggering an error if needed.
 checkForDuplicateTermsAndConstructors ::
-  forall v.
+  forall m v.
   (Ord v) =>
   UnisonFile v Ann ->
-  P v ()
+  P v m ()
 checkForDuplicateTermsAndConstructors uf = do
   when (not . null $ duplicates) $ do
     let dupeList :: [(v, [Ann])]
@@ -197,7 +197,7 @@ getVars = \case
   Binding ((_, v), _) -> [v]
   Bindings bs -> [v | ((_, v), _) <- bs]
 
-stanza :: (Var v) => P v (Stanza v (Term v Ann))
+stanza :: (Monad m, Var v) => P v m (Stanza v (Term v Ann))
 stanza = watchExpression <|> unexpectedAction <|> binding
   where
     unexpectedAction = failureIf (TermParser.blockTerm $> getErr) binding
@@ -230,8 +230,8 @@ stanza = watchExpression <|> unexpectedAction <|> binding
         Nothing -> Binding binding
         Just doc -> Bindings [((ann doc, Var.joinDot v (Var.named "doc")), doc), binding]
 
-watched :: (Var v) => P v (UF.WatchKind, Text, Ann)
-watched = P.try $ do
+watched :: (Monad m, Var v) => P v m (UF.WatchKind, Text, Ann)
+watched = P.try do
   kind <- optional wordyIdString
   guid <- uniqueName 10
   op <- optional (L.payload <$> P.lookAhead symbolyIdString)
@@ -249,9 +249,10 @@ watched = P.try $ do
 type Accessors v = [(L.Token v, [(L.Token v, Type v Ann)])]
 
 declarations ::
-  (Var v) =>
+  (Monad m, Var v) =>
   P
     v
+    m
     ( Map v (DataDeclaration v Ann),
       Map v (EffectDeclaration v Ann),
       Accessors v
@@ -280,7 +281,7 @@ declarations = do
           <> [(v, DD.annotation . DD.toDataDecl <$> es) | (v, es) <- Map.toList mesBad]
 
 -- unique[someguid] type Blah = ...
-modifier :: (Var v) => P v (Maybe (L.Token DD.Modifier))
+modifier :: (Monad m, Var v) => P v m (Maybe (L.Token DD.Modifier))
 modifier = do
   optional (unique <|> structural)
   where
@@ -297,9 +298,10 @@ modifier = do
       pure (DD.Structural <$ tok)
 
 declaration ::
-  (Var v) =>
+  (Monad m, Var v) =>
   P
     v
+    m
     ( Either
         (v, DataDeclaration v Ann, Accessors v)
         (v, EffectDeclaration v Ann)
@@ -309,10 +311,10 @@ declaration = do
   fmap Right (effectDeclaration mod) <|> fmap Left (dataDeclaration mod)
 
 dataDeclaration ::
-  forall v.
-  (Var v) =>
+  forall m v.
+  (Monad m, Var v) =>
   Maybe (L.Token DD.Modifier) ->
-  P v (v, DataDeclaration v Ann, Accessors v)
+  P v m (v, DataDeclaration v Ann, Accessors v)
 dataDeclaration mod = do
   keywordTok <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <-
@@ -338,12 +340,12 @@ dataDeclaration mod = do
               Type.foralls ctorAnn typeArgVs ctorType
             )
       prefixVar = TermParser.verifyRelativeVarName prefixDefinitionName
-      dataConstructor :: P v (Ann, v, Type v Ann)
+      dataConstructor :: P v m (Ann, v, Type v Ann)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
-      record :: P v ([(Ann, v, Type v Ann)], [(L.Token v, [(L.Token v, Type v Ann)])])
+      record :: P v m ([(Ann, v, Type v Ann)], [(L.Token v, [(L.Token v, Type v Ann)])])
       record = do
         _ <- openBlockWith "{"
-        let field :: P v [(L.Token v, Type v Ann)]
+        let field :: P v m [(L.Token v, Type v Ann)]
             field = do
               f <- liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
               optional (reserved ",")
@@ -372,7 +374,10 @@ dataDeclaration mod = do
         )
 
 effectDeclaration ::
-  (Var v) => Maybe (L.Token DD.Modifier) -> P v (v, EffectDeclaration v Ann)
+  forall m v.
+  (Monad m, Var v) =>
+  Maybe (L.Token DD.Modifier) ->
+  P v m (v, EffectDeclaration v Ann)
 effectDeclaration mod = do
   keywordTok <- fmap void (reserved "ability") <|> openBlockWith "ability"
   name <- TermParser.verifyRelativeVarName prefixDefinitionName
@@ -397,8 +402,7 @@ effectDeclaration mod = do
             constructors
         )
   where
-    constructor ::
-      (Var v) => [L.Token v] -> L.Token v -> P v (Ann, v, Type v Ann)
+    constructor :: [L.Token v] -> L.Token v -> P v m (Ann, v, Type v Ann)
     constructor typeArgs name =
       explodeToken
         <$> TermParser.verifyRelativeVarName prefixDefinitionName
