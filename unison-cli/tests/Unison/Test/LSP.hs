@@ -331,20 +331,20 @@ typecheckSrc name src = do
       let ambientAbilities = []
       let parseNames = mempty
       let parsingEnv = Parser.ParsingEnv uniqueName parseNames
-      Parsers.parseFile name (Text.unpack src) parsingEnv >>= \case
-        Left err -> pure (Left (crash ("Failed to parse: " ++ show err)))
-        -- tf <- maybe (crash "Failed to typecheck") pure maytf
-        Right unisonFile -> do
-          typecheckingEnv <-
-            Codebase.runTransaction codebase do
+      Codebase.runTransaction codebase do
+        Parsers.parseFile name (Text.unpack src) parsingEnv >>= \case
+          Left err -> pure (Left (crash ("Failed to parse: " ++ show err)))
+          -- tf <- maybe (crash "Failed to typecheck") pure maytf
+          Right unisonFile -> do
+            typecheckingEnv <-
               Typecheck.computeTypecheckingEnvironment
                 (FileParsers.ShouldUseTndr'Yes parsingEnv)
                 codebase
                 ambientAbilities
                 unisonFile
-          Result.runResultT (FileParsers.synthesizeFile typecheckingEnv unisonFile) <&> \case
-            (Nothing, notes) -> Left (crash ("Failed to typecheck: " ++ show (Foldable.toList @Seq notes)))
-            (Just typecheckedUnisonFile, _) -> Right (unisonFile, typecheckedUnisonFile)
+            Result.runResultT (FileParsers.synthesizeFile typecheckingEnv unisonFile) <&> \case
+              (Nothing, notes) -> Left (crash ("Failed to typecheck: " ++ show (Foldable.toList @Seq notes)))
+              (Just typecheckedUnisonFile, _) -> Right (unisonFile, typecheckedUnisonFile)
 
   case result of
     Left action -> action

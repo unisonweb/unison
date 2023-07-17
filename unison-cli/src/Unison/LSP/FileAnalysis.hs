@@ -79,16 +79,15 @@ checkFile doc = runMaybeT $ do
   uniqueName <- liftIO generateUniqueName
   let parsingEnv = Parser.ParsingEnv uniqueName parseNames
   (notes, parsedFile, typecheckedFile) <- do
-    parseResult <- Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv
-    case Result.fromParsing parseResult of
-      Result.Result parsingNotes Nothing -> pure (parsingNotes, Nothing, Nothing)
-      Result.Result _ (Just parsedFile) -> do
-        typecheckingEnv <-
-          liftIO do
-            Codebase.runTransaction cb do
-              computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
-        let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
-        pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
+    liftIO do
+      Codebase.runTransaction cb do
+        parseResult <- Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv
+        case Result.fromParsing parseResult of
+          Result.Result parsingNotes Nothing -> pure (parsingNotes, Nothing, Nothing)
+          Result.Result _ (Just parsedFile) -> do
+            typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
+            let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
+            pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
   (diagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
   let diagnosticRanges =
         diagnostics

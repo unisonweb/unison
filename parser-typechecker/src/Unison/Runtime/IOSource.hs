@@ -38,7 +38,7 @@ import Unison.Var qualified as Var
 debug :: Bool
 debug = False
 
-parsingEnv :: Parser.ParsingEnv
+parsingEnv :: Parser.ParsingEnv Identity
 parsingEnv =
   Parser.ParsingEnv mempty (Names.NamesWithHistory Builtin.names0 mempty)
 

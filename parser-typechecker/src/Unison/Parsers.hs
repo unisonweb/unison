@@ -25,21 +25,21 @@ parse ::
   (Monad m, Var v) =>
   Parser.P v m a ->
   String ->
-  Parser.ParsingEnv ->
+  Parser.ParsingEnv m ->
   m (Either (Parser.Err v) a)
 parse p = Parser.run (Parser.root p)
 
 parseTerm ::
   (Monad m, Var v) =>
   String ->
-  Parser.ParsingEnv ->
+  Parser.ParsingEnv m ->
   m (Either (Parser.Err v) (Term v Ann))
 parseTerm = parse TermParser.term
 
 parseType ::
   (Monad m, Var v) =>
   String ->
-  Parser.ParsingEnv ->
+  Parser.ParsingEnv m ->
   m (Either (Parser.Err v) (Type v Ann))
 parseType = Parser.run (Parser.root TypeParser.valueType)
 
@@ -47,13 +47,13 @@ parseFile ::
   (Monad m, Var v) =>
   FilePath ->
   String ->
-  Parser.ParsingEnv ->
+  Parser.ParsingEnv m ->
   m (Either (Parser.Err v) (UnisonFile v Ann))
 parseFile filename s = Parser.run' (Parser.rootFile FileParser.file) s filename
 
 readAndParseFile ::
   (MonadIO m, Var v) =>
-  Parser.ParsingEnv ->
+  Parser.ParsingEnv m ->
   FilePath ->
   m (Either (Parser.Err v) (UnisonFile v Ann))
 readAndParseFile penv fileName = do
@@ -61,12 +61,12 @@ readAndParseFile penv fileName = do
   let src = Text.unpack txt
   parseFile fileName src penv
 
-unsafeParseTerm :: (Monad m, Var v) => String -> Parser.ParsingEnv -> m (Term v Ann)
+unsafeParseTerm :: (Monad m, Var v) => String -> Parser.ParsingEnv m -> m (Term v Ann)
 unsafeParseTerm s env =
   unsafeGetRightFrom s <$> parseTerm s env
 
 unsafeReadAndParseFile ::
-  Parser.ParsingEnv -> FilePath -> IO (UnisonFile Symbol Ann)
+  Parser.ParsingEnv IO -> FilePath -> IO (UnisonFile Symbol Ann)
 unsafeReadAndParseFile penv fileName = do
   txt <- readUtf8 fileName
   let str = Text.unpack txt
@@ -80,5 +80,5 @@ unsafeParseFileBuiltinsOnly =
       mempty
       (Names.NamesWithHistory Builtin.names0 mempty)
 
-unsafeParseFile :: Monad m => String -> Parser.ParsingEnv -> m (UnisonFile Symbol Ann)
+unsafeParseFile :: Monad m => String -> Parser.ParsingEnv m -> m (UnisonFile Symbol Ann)
 unsafeParseFile s pEnv = unsafeGetRightFrom s <$> parseFile "" s pEnv

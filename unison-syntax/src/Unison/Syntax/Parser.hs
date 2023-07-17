@@ -89,15 +89,16 @@ import Unison.UnisonFile.Error qualified as UF
 import Unison.Util.Bytes (Bytes)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import Data.Kind (Type)
 
 debug :: Bool
 debug = False
 
-type P v m = P.ParsecT (Error v) Input (ReaderT ParsingEnv m)
+type P v m = P.ParsecT (Error v) Input (ReaderT (ParsingEnv m) m)
 
 type Err v = P.ParseError Input (Error v)
 
-data ParsingEnv = ParsingEnv
+data ParsingEnv (m :: Type -> Type) = ParsingEnv
   { uniqueNames :: UniqueName,
     names :: NamesWithHistory
   }
@@ -229,7 +230,7 @@ root p = (openBlock *> p) <* closeBlock <* P.eof
 rootFile :: (Ord v) => P v m a -> P v m a
 rootFile p = p <* P.eof
 
-run' :: (Monad m, Ord v) => P v m a -> String -> String -> ParsingEnv -> m (Either (Err v) a)
+run' :: (Monad m, Ord v) => P v m a -> String -> String -> ParsingEnv m -> m (Either (Err v) a)
 run' p s name env =
   let lex =
         if debug
@@ -240,7 +241,7 @@ run' p s name env =
         Left err -> Left (Nel.head (P.bundleErrors err))
         Right x -> Right x
 
-run :: (Monad m, Ord v) => P v m a -> String -> ParsingEnv -> m (Either (Err v) a)
+run :: (Monad m, Ord v) => P v m a -> String -> ParsingEnv m -> m (Either (Err v) a)
 run p s = run' p s ""
 
 -- Virtual pattern match on a lexeme.

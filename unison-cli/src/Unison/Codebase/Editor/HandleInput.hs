@@ -1457,7 +1457,7 @@ loadUnisonFile sourceName text = do
       uniqueName <- liftIO generateUniqueName
       let parsingEnv = Parser.ParsingEnv uniqueName parseNames
       unisonFile <-
-        Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv
+        Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
           & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
       -- set that the file at least parsed (but didn't typecheck)
       State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))

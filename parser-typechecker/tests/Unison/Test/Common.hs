@@ -8,7 +8,7 @@ module Unison.Test.Common
 where
 
 import Control.Monad.Writer (tell)
-import Data.Functor.Identity (runIdentity)
+import Data.Functor.Identity (Identity (..))
 import Data.Sequence (Seq)
 import Text.Megaparsec.Error qualified as MPE
 import Unison.ABT qualified as ABT
@@ -71,15 +71,16 @@ parseAndSynthesizeAsFile ::
     (Either (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann))
 parseAndSynthesizeAsFile ambient filename s = do
   file <- Result.fromParsing (runIdentity (Parsers.parseFile filename s parsingEnv))
-  typecheckingEnv <-
-    FP.computeTypecheckingEnvironment
-      (FP.ShouldUseTndr'Yes parsingEnv)
-      ambient
-      (\_deps -> pure B.typeLookup)
-      file
+  let typecheckingEnv =
+        runIdentity $
+          FP.computeTypecheckingEnvironment
+            (FP.ShouldUseTndr'Yes parsingEnv)
+            ambient
+            (\_deps -> pure B.typeLookup)
+            file
   case FP.synthesizeFile typecheckingEnv file of
     Result.Result notes Nothing -> tell notes >> pure (Left file)
     Result.Result _ (Just typecheckedFile) -> pure (Right typecheckedFile)
 
-parsingEnv :: Parser.ParsingEnv
+parsingEnv :: Parser.ParsingEnv Identity
 parsingEnv = Parser.ParsingEnv mempty B.names

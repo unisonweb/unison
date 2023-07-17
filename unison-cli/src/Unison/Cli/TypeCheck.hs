@@ -21,7 +21,7 @@ import Unison.UnisonFile qualified as UF
 import Unison.Var qualified as Var
 
 computeTypecheckingEnvironment ::
-  FileParsers.ShouldUseTndr ->
+  FileParsers.ShouldUseTndr Sqlite.Transaction ->
   Codebase IO Symbol Ann ->
   [Type Symbol Ann] ->
   UnisonFile Symbol Ann ->

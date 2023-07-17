@@ -61,9 +61,9 @@ convertNotes (Typechecker.Notes bugs es is) =
     f (i, _) = Left i
 
 -- | Should we use type-directed name resolution?
-data ShouldUseTndr
+data ShouldUseTndr m
   = ShouldUseTndr'No
-  | ShouldUseTndr'Yes Parser.ParsingEnv
+  | ShouldUseTndr'Yes (Parser.ParsingEnv m)
 
 -- | Compute a typechecking environment, given:
 --
@@ -74,7 +74,7 @@ data ShouldUseTndr
 --     * The parsed Unison file for which the typechecking environment is applicable.
 computeTypecheckingEnvironment ::
   (Var v, Monad m) =>
-  ShouldUseTndr ->
+  ShouldUseTndr m ->
   [Type v] ->
   (Set Reference -> m (TL.TypeLookup v Ann)) ->
   UnisonFile v ->
