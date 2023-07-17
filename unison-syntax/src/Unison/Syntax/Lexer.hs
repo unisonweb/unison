@@ -499,9 +499,12 @@ lexemes' eof =
                 stop' = maybe stop end (lastMay after)
 
         verbatim =
-          P.label "code (examples: ''**unformatted**'', '''_words_''')" $ do
+          P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
             (start, txt, stop) <- positioned $ do
-              quotes <- lit "''" <+> many (P.satisfy (== '\''))
+              -- a single backtick followed by a non-backtick is treated as monospaced
+              let tick = P.try (lit "`" <* P.lookAhead (P.satisfy (/= '`')))
+              -- also two or more ' followed by that number of closing '
+              quotes <- tick <|> (lit "''" <+> many (P.satisfy (== '\'')))
               P.someTill P.anySingle (lit quotes)
             if all isSpace $ takeWhile (/= '\n') txt
               then
