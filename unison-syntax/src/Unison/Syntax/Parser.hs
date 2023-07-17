@@ -1,8 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Unison.Syntax.Parser
-  (
-    Annotated (..),
+  ( Annotated (..),
     Err,
     Error (..),
     Input,
@@ -56,6 +55,7 @@ module Unison.Syntax.Parser
   )
 where
 
+import Control.Monad.Reader (ReaderT (..))
 import Control.Monad.Reader.Class (asks)
 import Crypto.Random qualified as Random
 import Data.Bytes.Put (runPutS)
@@ -93,7 +93,7 @@ import Unison.Var qualified as Var
 debug :: Bool
 debug = False
 
-type P v = P.ParsecT (Error v) Input ((->) ParsingEnv)
+type P v = P.ParsecT (Error v) Input (ReaderT ParsingEnv Identity)
 
 type Err v = P.ParseError Input (Error v)
 
@@ -236,7 +236,7 @@ run' p s name env =
           then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
           else L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-   in case runParserT pTraced name (Input lex) env of
+   in case runIdentity (runReaderT (runParserT pTraced name (Input lex)) env) of
         Left err -> Left (Nel.head (P.bundleErrors err))
         Right x -> Right x
 
