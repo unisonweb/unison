@@ -545,10 +545,19 @@ propagate patch b = case validatePatch patch of
                 UnisonFileId
                   mempty
                   mempty
-                  (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
+                  ( componentMap
+                      & Map.toList
+                      & fmap
+                        ( \(v, (_ref, tm, _)) ->
+                            (v, External, tm)
+                        )
+                  )
                   mempty
           typecheckResult <- Cli.typecheckFile codebase [] file
-          pure . fmap UF.hashTerms $ Result.result typecheckResult
+          runIdentity (Result.toMaybe typecheckResult)
+            & fmap UF.hashTerms
+            & (fmap . fmap) (\(_ann, ref, wk, tm, tp) -> (ref, wk, tm, tp))
+            & pure
 
 -- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
 unhashTypeComponent :: Reference -> Sqlite.Transaction (Map Symbol (Reference, Decl Symbol Ann))

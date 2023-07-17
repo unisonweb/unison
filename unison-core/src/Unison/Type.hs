@@ -144,6 +144,13 @@ pattern IntroOuterNamed' v body <- ABT.Tm' (IntroOuter (ABT.out -> ABT.Abs v bod
 pattern ForallsNamed' :: [v] -> Type v a -> Type v a
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 
+pattern ForallsNamedOpt' :: [v] -> Type v a -> Type v a
+pattern ForallsNamedOpt' vs body <- (unForallsOpt -> (vs, body))
+
+unForallsOpt :: Type v a -> ([v], Type v a)
+unForallsOpt (ForallsNamed' vs t) = (vs, t)
+unForallsOpt t = ([], t)
+
 pattern ForallNamed' :: v -> ABT.Term F v a -> ABT.Term F v a
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 

@@ -27,6 +27,9 @@
     builtin-Float.*
     builtin-Float.fromRepresentation
     builtin-Float.toRepresentation
+    builtin-Float.exp
+    builtin-Float.log
+    builtin-Float.logBase
     builtin-Int.+
     builtin-Int.-
     builtin-Int.increment
@@ -37,6 +40,7 @@
     builtin-Nat.increment
     builtin-Nat.toFloat
     builtin-Text.indexOf
+    builtin-Bytes.indexOf
     builtin-IO.randomBytes
 
     unison-FOp-internal.dataTag
@@ -58,6 +62,8 @@
     builtin-IO.getEcho.impl.v1
     builtin-IO.getArgs.impl.v1
     builtin-IO.getEnv.impl.v1
+    builtin-IO.getChar.impl.v1
+    builtin-IO.getCurrentDirectory.impl.v3
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
@@ -205,6 +211,7 @@
     unison-POp-ATN2
     unison-POp-ATNH
     unison-POp-CEIL
+    unison-POp-FLOR
     unison-POp-COSF
     unison-POp-COSH
     unison-POp-DIVF
@@ -229,12 +236,16 @@
     unison-POp-CONS
     unison-POp-DBTX
     unison-POp-DECI
+    unison-POp-INCI
+    unison-POp-DECN
+    unison-POp-INCN
     unison-POp-DIVN
     unison-POp-DRPB
     unison-POp-DRPS
     unison-POp-DRPT
     unison-POp-EQLN
     unison-POp-EQLT
+    unison-POp-EXPF
     unison-POp-LEQT
     unison-POp-EQLU
     unison-POp-EROR
@@ -282,6 +293,8 @@
     unison-POp-MULI
     unison-POp-MODI
     unison-POp-LEQI
+    unison-POp-LOGB
+    unison-POp-LOGF
     unison-POp-POWN
     unison-POp-VWRS
     unison-POp-SPLL
@@ -372,6 +385,7 @@
           (unison math)
           (unison chunked-seq)
           (unison chunked-bytes)
+          (unison string-search)
           (unison bytes-nat)
           (unison pattern)
           (unison crypto)
@@ -384,16 +398,6 @@
           (unison zlib)
           (unison concurrent)
           (racket random))
-
-  ; NOTE: this is just a temporary stopgap until the real function is
-  ; done. I accidentally pulled in too new a version of base in the
-  ; project version of the unison compiler and it broke the jit tests.
-  (define-unison (builtin-Text.indexOf s t)
-    (let ([ss (chunked-string->string s)]
-          [tt (chunked-string->string t)])
-      (match (regexp-match-positions ss tt)
-        [#f (data 'Optional 1)] ; none
-        [(cons (cons i j) r) (data 'Optional 0 i)]))) ; some
 
   (define-unison (builtin-IO.randomBytes n)
     (bytes->chunked-bytes (crypto-random-bytes n)))
@@ -408,6 +412,7 @@
   (define unison-POp-MODI mod)
   (define (unison-POp-LEQI a b) (bool (<= a b)))
   (define unison-POp-POWN expt)
+  (define unison-POp-LOGF log)
 
   (define (reify-exn thunk)
     (guard
@@ -428,6 +433,9 @@
   (define (unison-POp-COMN n) (fxnot n))
   (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
   (define (unison-POp-DECI n) (fx1- n))
+  (define (unison-POp-INCI n) (fx+ n 1))
+  (define (unison-POp-DECN n) (- n 1))
+  (define (unison-POp-INCN n) (+ n 1))
   (define (unison-POp-DIVN m n) (fxdiv m n))
   (define (unison-POp-DRPB n bs) (chunked-bytes-drop bs n))
   (define (unison-POp-DRPS n l) (chunked-list-drop l n))
@@ -478,6 +486,16 @@
   (define (unison-POp-TAKS n s) (chunked-list-take s n))
   (define (unison-POp-TAKT n t) (chunked-string-take t n))
   (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
+
+  (define (->optional v)
+    (if v
+        (data 'Optional 0 v)
+        (data 'Optional 1)))
+
+  (define-unison (builtin-Text.indexOf n h)
+    (->optional (chunked-string-index-of h n)))
+  (define-unison (builtin-Bytes.indexOf n h)
+    (->optional (chunked-bytes-index-of h n)))
 
   ;; TODO currently only runs in low-level tracing support
   (define (unison-POp-DBTX x)

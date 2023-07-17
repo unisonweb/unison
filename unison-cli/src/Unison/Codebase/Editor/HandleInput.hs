@@ -186,7 +186,7 @@ import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, unsafeFromString)
+import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, toVar, unsafeFromString)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromString, unsafeFromVar)
 import Unison.Syntax.Parser qualified as Parser
@@ -201,6 +201,7 @@ import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Alphabetical qualified as Alphabetical
 import Unison.Util.Find qualified as Find
 import Unison.Util.List (nubOrdOn, uniqueBy)
 import Unison.Util.Monoid qualified as Monoid
@@ -246,6 +247,8 @@ loop e = do
         MaybeT (WriterT (Identity (r, notes))) <- typecheck ambient parseNames sourceName lexed
         result <- r & onNothing (Cli.returnEarly (ParseErrors text [err | Result.Parsing err <- toList notes]))
         result & onLeft \uf -> do
+          -- set that the file at least parsed (but didn't typecheck)
+          State.modify' (& #latestTypecheckedFile .~ Just (Left uf))
           ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames uf)
           ppe <- suffixifiedPPE ns
           let tes = [err | Result.TypeError err <- toList notes]
@@ -276,7 +279,7 @@ loop e = do
             go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
         when (not (null e')) do
           Cli.respond $ Evaluated text ppe bindings e'
-        #latestTypecheckedFile .= Just unisonFile
+        #latestTypecheckedFile .= Just (Right unisonFile)
 
   case e of
     Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
@@ -1071,6 +1074,8 @@ loop e = do
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
+            StructuredFindI _fscope ws -> handleStructuredFindI ws
+            StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
             ResolveTypeNameI path' -> do
               description <- inputDescription input
               path <- Cli.resolveSplit' path'
@@ -1370,7 +1375,7 @@ loop e = do
               let datas, effects, terms :: [(Name, Reference.Id)]
                   datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
                   effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
-                  terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
+                  terms = [(Name.unsafeFromVar v, r) | (v, (_, r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugTabCompletionI inputs -> do
               Cli.Env {authHTTPClient, codebase} <- ask
@@ -1668,6 +1673,8 @@ inputDescription input =
     FindI {} -> wat
     FindPatchI {} -> wat
     FindShallowI {} -> wat
+    StructuredFindI {} -> wat
+    StructuredFindReplaceI {} -> wat
     GistI {} -> wat
     HistoryI {} -> wat
     LinksI {} -> wat
@@ -1724,6 +1731,90 @@ inputDescription input =
       That branch -> pure (into @Text branch)
       -- just trying to recover the syntax the user wrote
       These path _branch -> pure (Path.toText' path)
+
+handleStructuredFindI :: HQ.HashQualified Name -> Cli ()
+handleStructuredFindI rule = do
+  Cli.Env {codebase} <- ask
+  (ppe, names, rules0) <- lookupRewrite InvalidStructuredFind (\_ tm -> tm) rule
+  let rules = snd <$> rules0
+  let fqppe = PPED.unsuffixifiedPPE ppe
+  results :: [(HQ.HashQualified Name, Referent)] <- pure $ do
+    r <- Set.toList (Relation.ran $ Names.terms (NamesWithHistory.currentNames names))
+    Just hq <- [PPE.terms fqppe r]
+    fullName <- [HQ'.toName hq]
+    guard (not (Name.beginsWithSegment fullName Name.libSegment))
+    Referent.Ref _ <- pure r
+    Just shortName <- [PPE.terms (PPED.suffixifiedPPE ppe) r]
+    pure (HQ'.toHQ shortName, r)
+  let ok t@(_, Referent.Ref (Reference.DerivedId r)) = do
+        oe <- Cli.runTransaction (Codebase.getTerm codebase r)
+        pure $ (t, maybe False (\e -> any ($ e) rules) oe)
+      ok t = pure (t, False)
+  results0 <- traverse ok results
+  let results = Alphabetical.sortAlphabeticallyOn fst [(hq, r) | ((hq, r), True) <- results0]
+  let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
+  #numberedArgs .= map toNumArgs results
+  Cli.respond (ListStructuredFind (fst <$> results))
+
+lookupRewrite :: (HQ.HashQualified Name -> Output) -> ([Symbol] -> Term Symbol Ann -> Term Symbol Ann) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, [(Term Symbol Ann -> Maybe (Term Symbol Ann), Term Symbol Ann -> Bool)])
+lookupRewrite onErr prepare rule = do
+  Cli.Env {codebase} <- ask
+  currentBranch <- Cli.getCurrentBranch0
+  hqLength <- Cli.runTransaction Codebase.hashLength
+  fileNames <- Cli.getNamesFromLatestParsedFile
+  let currentNames = NamesWithHistory.fromCurrentNames (fileNames <> Branch.toNames currentBranch)
+  let ppe = PPED.fromNamesDecl hqLength currentNames
+  ot <- Cli.getTermFromLatestParsedFile rule
+  ot <- case ot of
+    Just _ -> pure ot
+    Nothing -> do
+      case NamesWithHistory.lookupHQTerm rule currentNames of
+        s
+          | Set.size s == 1,
+            Referent.Ref (Reference.DerivedId r) <- Set.findMin s ->
+              Cli.runTransaction (Codebase.getTerm codebase r)
+        s -> Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule s)
+  tm <- maybe (Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule mempty)) pure ot
+  let extract vs tm = case tm of
+        Term.Ann' tm _typ -> extract vs tm
+        (DD.RewriteTerm' lhs rhs) ->
+          pure
+            ( ABT.rewriteExpression lhs rhs,
+              ABT.containsExpression lhs
+            )
+        (DD.RewriteCase' lhs rhs) ->
+          pure
+            ( Term.rewriteCasesLHS lhs rhs,
+              fromMaybe False . Term.containsCaseTerm lhs
+            )
+        (DD.RewriteSignature' _vs lhs rhs) ->
+          pure (Term.rewriteSignatures lhs rhs, Term.containsSignature lhs)
+        _ -> Cli.returnEarly (onErr rule)
+      extractOuter vs0 tm = case tm of
+        Term.Ann' tm _typ -> extractOuter vs0 tm
+        Term.LamsNamed' vs tm -> extractOuter (vs0 ++ vs) tm
+        tm -> case prepare vs0 tm of
+          DD.Rewrites' rules -> traverse (extract vs0) rules
+          _ -> Cli.returnEarly (onErr rule)
+  rules <- extractOuter [] tm
+  pure (ppe, currentNames, rules)
+
+handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
+handleStructuredFindReplaceI rule = do
+  uf0 <- Cli.expectLatestParsedFile
+  let (prepare, uf, finish) = UF.prepareRewrite uf0
+  (ppe, _ns, rules) <- lookupRewrite InvalidStructuredFindReplace prepare rule
+  (dest, _) <- Cli.expectLatestFile
+  #latestFile ?= (dest, True)
+  let go n tm [] = if n == (0 :: Int) then Nothing else Just tm
+      go n tm ((r, _) : rules) = case r tm of
+        Nothing -> go n tm rules
+        Just tm -> go (n + 1) tm rules
+      (vs, uf0') = UF.rewrite (Set.singleton (HQ.toVar rule)) (\tm -> go 0 tm rules) uf
+      uf' = (vs, finish uf0')
+  #latestTypecheckedFile .= Just (Left . snd $ uf')
+  let msg = "| Rewrote using: "
+  Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) uf'
 
 handleFindI ::
   Bool ->
@@ -1971,7 +2062,7 @@ handleIOTest main = do
       -- First, look at the terms in the latest typechecked file for a name-match.
       whenJustM Cli.getLatestTypecheckedFile \typecheckedFile -> do
         whenJust (HQ.toName main) \mainName ->
-          whenJust (Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)) \(ref, _wk, _term, typ) ->
+          whenJust (Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)) \(_, ref, _wk, _term, typ) ->
             returnMatches [(Reference.fromId ref, typ)]
 
       -- Then, if we get here (because nothing in the scratch file matched), look at the terms in the codebase.
@@ -2145,8 +2236,8 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
               pure []
             Just tm -> do
               Cli.respond $ TestIncrementalOutputStart ppe (n, total) r tm
-              --                          v don't cache; test cache populated below
-              tm' <- evalUnisonTermE True ppe False tm
+              --                        v don't cache; test cache populated below
+              tm' <- evalPureUnison ppe False tm
               case tm' of
                 Left e -> do
                   Cli.respond (EvaluationFailure e)
@@ -2195,7 +2286,7 @@ doDisplay outputLoc names tm = do
   loopState <- State.get
 
   ppe <- prettyPrintEnvDecl names
-  let (tms, typs) = maybe mempty UF.indexByReference (loopState ^. #latestTypecheckedFile)
+  (tms, typs) <- maybe mempty UF.indexByReference <$> Cli.getLatestTypecheckedFile
   let loc = case outputLoc of
         ConsoleLocation -> Nothing
         FileLocation path -> Just path
@@ -2206,14 +2297,14 @@ doDisplay outputLoc names tm = do
           evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) $ Cli.runTransaction (Codebase.getTerm codebase r)
-        Just (tm, _) -> pure (Just $ Term.unannotate tm)
+        Just (_, tm, _) -> pure (Just $ Term.unannotate tm)
       loadTerm _ = pure Nothing
       loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
         Nothing -> fmap (fmap $ DD.amap (const ())) $ Cli.runTransaction $ Codebase.getTypeDeclaration codebase r
         Just decl -> pure (Just $ DD.amap (const ()) decl)
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
-        | Just (_, ty) <- Map.lookup r tms = pure $ Just (void ty)
+        | Just (_, _, ty) <- Map.lookup r tms = pure $ Just (void ty)
       loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . loadTypeOfTerm codebase $ r
   rendered <-
     DisplayValues.displayTerm
@@ -2769,14 +2860,14 @@ displayI prettyPrintNames outputLoc hq = do
     Nothing -> do
       let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
           results = NamesWithHistory.lookupHQTerm hq parseNames
+      pped <- prettyPrintEnvDecl parseNames
       ref <-
         Set.asSingleton results & onNothing do
           Cli.returnEarly
             if Set.null results
               then SearchTermsNotFound [hq]
-              else TermAmbiguous hq results
+              else TermAmbiguous (PPE.suffixifiedPPE pped) hq results
       let tm = Term.fromReferent External ref
-      pped <- prettyPrintEnvDecl parseNames
       tm <- evalUnisonTerm True (PPE.biasTo bias $ PPE.suffixifiedPPE pped) True tm
       doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
@@ -2807,8 +2898,7 @@ docsI srcLoc prettyPrintNames src =
 
     fileByName :: Cli ()
     fileByName = do
-      loopState <- State.get
-      let ns = maybe mempty UF.typecheckedToNames (loopState ^. #latestTypecheckedFile)
+      ns <- maybe mempty UF.typecheckedToNames <$> Cli.getLatestTypecheckedFile
       fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
       case NamesWithHistory.lookupHQTerm dotDoc fnames of
         s | Set.size s == 1 -> do
@@ -2937,7 +3027,7 @@ addWatch watchName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
   let mainComponent = filter ((\v -> Var.nameStr v == watchName) . view _1) components
   case mainComponent of
-    [(v, tm, ty)] ->
+    [(v, ann, tm, ty)] ->
       Just $
         let v2 = Var.freshIn (Set.fromList [v]) v
             a = ABT.annotation tm
@@ -2946,7 +3036,7 @@ addWatch watchName (Just uf) = do
                 (UF.dataDeclarationsId' uf)
                 (UF.effectDeclarationsId' uf)
                 (UF.topLevelComponents' uf)
-                (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, Term.var a v, ty)])])
+                (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, ann, Term.var a v, ty)])])
             )
     _ -> addWatch watchName Nothing
 
@@ -2964,7 +3054,7 @@ addSavedTermToUnisonFile resultName = do
     UF.typecheckedUnisonFile
       (UF.dataDeclarationsId' uf)
       (UF.effectDeclarationsId' uf)
-      ([(resultSymbol, trm, typ)] : UF.topLevelComponents' uf)
+      ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf)
       (UF.watchComponents uf)
 
 -- | Look up runnable term with the given name in the codebase or
@@ -3006,7 +3096,7 @@ getTerm' mainName =
         let components = join $ UF.topLevelComponents uf
         let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
         case mainComponent of
-          [(v, tm, ty)] ->
+          [(v, _, tm, ty)] ->
             checkType ty \otyp ->
               let runMain = DD.forceTerm a a (Term.var a v)
                   v2 = Var.freshIn (Set.fromList [v]) v
@@ -3028,7 +3118,7 @@ getTerm' mainName =
 createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli (TypecheckedUnisonFile Symbol Ann)
 createWatcherFile v tm typ =
   Cli.getLatestTypecheckedFile >>= \case
-    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, tm, typ)])])
+    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, External, tm, typ)])])
     Just uf ->
       let v2 = Var.freshIn (Set.fromList [v]) v
        in pure $
@@ -3037,7 +3127,7 @@ createWatcherFile v tm typ =
               (UF.effectDeclarationsId' uf)
               (UF.topLevelComponents' uf)
               -- what about main's component? we have dropped them if they existed.
-              [(magicMainWatcherString, [(v2, tm, typ)])]
+              [(magicMainWatcherString, [(v2, External, tm, typ)])]
 
 executePPE ::
   (Var v) =>
@@ -3121,7 +3211,13 @@ synthesizeForce typeOfFunc = do
             TypeLookup.dataDecls = Map.empty,
             TypeLookup.effectDecls = Map.empty
           }
-  case Result.runResultT (Typechecker.synthesize PPE.empty env (DD.forceTerm External External term)) of
+  case Result.runResultT
+    ( Typechecker.synthesize
+        PPE.empty
+        Typechecker.PatternMatchCoverageCheckSwitch'Enabled
+        env
+        (DD.forceTerm External External term)
+    ) of
     Identity (Nothing, notes) ->
       error
         ( unlines
@@ -3178,6 +3274,23 @@ evalUnisonFile sandbox ppe unisonFile args = do
         Cli.runTransaction (Codebase.putWatch kind hash value')
     pure rs
 
+evalPureUnison ::
+  PPE.PrettyPrintEnv ->
+  Bool ->
+  Term Symbol Ann ->
+  Cli (Either Runtime.Error (Term Symbol Ann))
+evalPureUnison ppe useCache tm = evalUnisonTermE False ppe useCache tm'
+  where
+    tm' =
+      Term.iff
+        a
+        (Term.apps' (Term.builtin a "validateSandboxed") [allow, Term.delay a tm])
+        tm
+        (Term.app a (Term.builtin a "bug") (Term.text a msg))
+    a = ABT.annotation tm
+    allow = Term.list a [Term.termLink a (Referent.Ref (Reference.Builtin "Debug.toText"))]
+    msg = "pure code can't perform I/O"
+
 -- | Evaluate a single closed definition.
 evalUnisonTermE ::
   Bool ->
@@ -3231,7 +3344,7 @@ evalUnisonTerm sandbox ppe useCache tm =
 stripUnisonFileReferences :: TypecheckedUnisonFile Symbol a -> Term Symbol () -> Term Symbol ()
 stripUnisonFileReferences unisonFile term =
   let refMap :: Map Reference.Id Symbol
-      refMap = Map.fromList . map (\(sym, (refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
+      refMap = Map.fromList . map (\(sym, (_, refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
       alg () = \case
         ABT.Var x -> ABT.var x
         ABT.Cycle x -> ABT.cycle x

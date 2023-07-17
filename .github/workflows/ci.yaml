@@ -31,7 +31,7 @@ jobs:
             **/*.hs
             **/*.hs-boot
           separator: "\n"
-      - uses: unisonweb/run-ormolu@8e1437595b4127e368c114cabd1aeedb3b873918
+      - uses: haskell-actions/run-ormolu@v14
         with:
           version: "0.5.0.1"
           mode: inplace
@@ -231,6 +231,8 @@ jobs:
           git diff --cached --ignore-cr-at-eol --exit-code
       - name: prettyprint-round-trip
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
+      - name: structured-find-replace
+        run: stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
       - name: cli-integration-tests
         run: stack --no-terminal exec cli-integration-tests
       - name: Cache Racket dependencies
