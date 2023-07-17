@@ -1,6 +1,16 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module Unison.Syntax.TermParser where
+module Unison.Syntax.TermParser
+  ( binding,
+    blockTerm,
+    doc2Block,
+    imports,
+    lam,
+    substImports,
+    term,
+    verifyRelativeVarName,
+  )
+where
 
 import Control.Monad.Reader (asks, local)
 import Data.Char qualified as Char
@@ -46,9 +56,6 @@ import Unison.Util.List (intercalateMapWith, quenchRuns)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Prelude hiding (and, or, seq)
-
-watch :: (Show a) => String -> a -> a
-watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
 
 {-
 Precedence of language constructs is identical to Haskell, except that all
@@ -951,9 +958,6 @@ bang = P.label "bang" do
   e <- termLeaf
   pure $ DD.forceTerm (ann start <> ann e) (ann start) e
 
-var :: (Var v) => L.Token v -> Term v Ann
-var t = Term.var (ann t) (L.payload t)
-
 seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =
   (Pattern.Snoc <$ matchToken (L.SymbolyId ":+" Nothing))
@@ -990,12 +994,6 @@ verifyRelativeVarName p = do
   v <- p
   verifyRelativeName' (Name.unsafeFromVar <$> v)
   pure v
-
-verifyRelativeName :: (Ord v) => P v m (L.Token Name) -> P v m (L.Token Name)
-verifyRelativeName name = do
-  name <- name
-  verifyRelativeName' name
-  pure name
 
 verifyRelativeName' :: (Ord v) => L.Token Name -> P v m ()
 verifyRelativeName' name = do
