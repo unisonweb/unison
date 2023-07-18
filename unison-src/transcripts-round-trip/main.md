@@ -590,18 +590,35 @@ d5 x = match x with
 Regression test for https://github.com/unisonweb/unison/issues/525
 
 ```unison:hide roundtrip.u
+-- Ex 1: 'quaffle' is a unique term suffix, but 'exampleTerm' binds 'quaffle'
+-- as a local name, so the pretty-printer should use the longer name
 Foo.bar.quaffle = 32
 
-example : Text -> Nat
-example quaffle = Foo.bar.quaffle + 1
+-- Notice this won't typecheck if we write 'quaffle' instead of 'Foo.bar.quaffle'
+-- because 'quaffle' (the local variable) has type `Text`
+exampleTerm : Text -> Nat
+exampleTerm quaffle = Foo.bar.quaffle + 1
+
+-- This demonstrates the same thing for types.
+-- exampleType's signature locally binds the 'qualifiedName' type parameter,
+-- so the pretty-printer should use the longer name 'Fully.qualifiedName' 
+structural type Fully.qualifiedName = Dontcare () Nat
+
+structural type Id a = Id a
+
+exampleType : forall qualifiedName . Id qualifiedName -> Id Fully.qualifiedName
+exampleType z = Id (Dontcare () 19)
 ```
 
-```ucm
+```ucm:hide
 .> add
-.> edit example
-.> undo
 ```
 
 ```ucm
+.> edit exampleTerm exampleType
 .> load roundtrip.u
+```
+
+```ucm:hide
+.> undo
 ```
