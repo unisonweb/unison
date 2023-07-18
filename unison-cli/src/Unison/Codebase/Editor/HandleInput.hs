@@ -1455,7 +1455,12 @@ loadUnisonFile sourceName text = do
           & #latestTypecheckedFile .~ Nothing
       Cli.Env {codebase, generateUniqueName} <- ask
       uniqueName <- liftIO generateUniqueName
-      let parsingEnv = Parser.ParsingEnv uniqueName parseNames
+      let parsingEnv =
+            Parser.ParsingEnv
+              { uniqueNames = uniqueName,
+                uniqueTypeGuid = wundefined,
+                names = parseNames
+              }
       unisonFile <-
         Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
           & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
@@ -2982,8 +2987,14 @@ parseType input src = do
         NamesWithHistory.push
           (NamesWithHistory.currentNames names0)
           (NamesWithHistory.NamesWithHistory parseNames (NamesWithHistory.oldNames names0))
+  let parsingEnv =
+        Parser.ParsingEnv
+          { uniqueNames = mempty,
+            uniqueTypeGuid = wundefined,
+            names
+          }
   typ <-
-    Parsers.parseType (Text.unpack (fst lexed)) (Parser.ParsingEnv mempty names) & onLeftM \err ->
+    Parsers.parseType (Text.unpack (fst lexed)) parsingEnv & onLeftM \err ->
       Cli.returnEarly (TypeParseError src err)
 
   Type.bindNames Name.unsafeFromVar mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->

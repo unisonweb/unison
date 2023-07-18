@@ -62,6 +62,7 @@ import Data.Bytes.Put (runPutS)
 import Data.Bytes.Serial (serialize)
 import Data.Bytes.VarInt (VarInt (..))
 import Data.Char qualified as Char
+import Data.Kind (Type)
 import Data.List.NonEmpty qualified as Nel
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -89,7 +90,6 @@ import Unison.UnisonFile.Error qualified as UF
 import Unison.Util.Bytes (Bytes)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import Data.Kind (Type)
 
 debug :: Bool
 debug = False
@@ -100,6 +100,13 @@ type Err v = P.ParseError Input (Error v)
 
 data ParsingEnv (m :: Type -> Type) = ParsingEnv
   { uniqueNames :: UniqueName,
+    -- | Return a GUID to reuse for a unique type of the given name, if any.
+    --
+    -- This callback is called for every `unique type` declaration that does not explicitly specify a GUID.
+    --
+    -- The name (e.g. `Foo` in `unique type Foo`) is passed in, and if the function returns a Just, that GUID is used;
+    -- otherwise, a random one is generated from `uniqueNames`.
+    uniqueTypeGuid :: Name -> m (Maybe Text),
     names :: NamesWithHistory
   }
 

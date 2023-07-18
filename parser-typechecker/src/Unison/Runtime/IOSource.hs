@@ -40,7 +40,11 @@ debug = False
 
 parsingEnv :: Parser.ParsingEnv Identity
 parsingEnv =
-  Parser.ParsingEnv mempty (Names.NamesWithHistory Builtin.names0 mempty)
+  Parser.ParsingEnv
+    { uniqueNames = mempty,
+      uniqueTypeGuid = \_ -> pure Nothing,
+      names = Names.NamesWithHistory Builtin.names0 mempty
+    }
 
 typecheckingEnv :: Typechecker.Env Symbol Ann
 typecheckingEnv =

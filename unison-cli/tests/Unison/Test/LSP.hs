@@ -330,7 +330,12 @@ typecheckSrc name src = do
       uniqueName <- Parser.uniqueBase32Namegen <$> Random.getSystemDRG
       let ambientAbilities = []
       let parseNames = mempty
-      let parsingEnv = Parser.ParsingEnv uniqueName parseNames
+      let parsingEnv =
+            Parser.ParsingEnv
+              { uniqueNames = uniqueName,
+                uniqueTypeGuid = wundefined,
+                names = parseNames
+              }
       Codebase.runTransaction codebase do
         Parsers.parseFile name (Text.unpack src) parsingEnv >>= \case
           Left err -> pure (Left (crash ("Failed to parse: " ++ show err)))

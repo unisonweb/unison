@@ -83,4 +83,9 @@ parseAndSynthesizeAsFile ambient filename s = do
     Result.Result _ (Just typecheckedFile) -> pure (Right typecheckedFile)
 
 parsingEnv :: Parser.ParsingEnv Identity
-parsingEnv = Parser.ParsingEnv mempty B.names
+parsingEnv =
+  Parser.ParsingEnv
+    { uniqueNames = mempty,
+      uniqueTypeGuid = \_ -> pure Nothing,
+      names = B.names
+    }

@@ -77,7 +77,12 @@ checkFile doc = runMaybeT $ do
   cb <- asks codebase
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
   uniqueName <- liftIO generateUniqueName
-  let parsingEnv = Parser.ParsingEnv uniqueName parseNames
+  let parsingEnv =
+        Parser.ParsingEnv
+          { uniqueNames = uniqueName,
+            uniqueTypeGuid = wundefined,
+            names = parseNames
+          }
   (notes, parsedFile, typecheckedFile) <- do
     liftIO do
       Codebase.runTransaction cb do
