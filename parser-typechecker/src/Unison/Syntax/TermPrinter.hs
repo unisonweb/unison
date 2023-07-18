@@ -68,20 +68,20 @@ type SyntaxText = S.SyntaxText' Reference
 
 pretty :: (Var v) => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty ppe tm =
-  PP.syntaxToColor . runPretty ppe $ pretty0 emptyAc $ printAnnotate ppe tm
+  PP.syntaxToColor . runPretty (avoidShadowing tm ppe) $ pretty0 emptyAc $ printAnnotate ppe tm
 
 prettyBlock :: (Var v) => Bool -> PrettyPrintEnv -> Term v a -> Pretty ColorText
 prettyBlock elideUnit ppe = PP.syntaxToColor . prettyBlock' elideUnit ppe
 
 prettyBlock' :: (Var v) => Bool -> PrettyPrintEnv -> Term v a -> Pretty SyntaxText
 prettyBlock' elideUnit ppe tm =
-  runPretty ppe . pretty0 (emptyBlockAc {elideUnit = elideUnit}) $ printAnnotate ppe tm
+  runPretty (avoidShadowing tm ppe) . pretty0 (emptyBlockAc {elideUnit = elideUnit}) $ printAnnotate ppe tm
 
 pretty' :: (Var v) => Maybe Width -> PrettyPrintEnv -> Term v a -> ColorText
 pretty' (Just width) n t =
-  PP.render width . PP.syntaxToColor . runPretty n $ pretty0 emptyAc (printAnnotate n t)
+  PP.render width . PP.syntaxToColor . runPretty (avoidShadowing t n) $ pretty0 emptyAc (printAnnotate n t)
 pretty' Nothing n t =
-  PP.renderUnbroken . PP.syntaxToColor . runPretty n $ pretty0 emptyAc (printAnnotate n t)
+  PP.renderUnbroken . PP.syntaxToColor . runPretty (avoidShadowing t n) $ pretty0 emptyAc (printAnnotate n t)
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -173,16 +173,13 @@ data DocLiteralContext
 
 -}
 
-pretty0 :: (MonadPretty v m) => AmbientContext -> Term3 v PrintAnnotation -> m (Pretty SyntaxText)
-pretty0 ac tm = modifyPPE (avoidShadowing tm) $ impl ac tm
-
-impl ::
+pretty0 ::
   forall v m.
   (MonadPretty v m) =>
   AmbientContext ->
   Term3 v PrintAnnotation ->
   m (Pretty SyntaxText)
-impl
+pretty0
   a@AmbientContext
     { precedence = p,
       blockContext = bc,
@@ -218,7 +215,7 @@ impl
         where
 
       Ann' tm t -> do
-        tm' <- impl (ac 10 Normal im doc) tm
+        tm' <- pretty0 (ac 10 Normal im doc) tm
         tp' <- TypePrinter.pretty0 im 0 t
         pure . paren (p >= 0) $ tm' <> PP.hang (fmt S.TypeAscriptionColon " :") tp'
       Int' i -> pure . fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> l (show i)
@@ -289,22 +286,22 @@ impl
         where
           pblock tm =
             let (im', uses) = calcImports im tm
-             in uses <$> sequence [impl (ac 0 Block im' doc) tm]
+             in uses <$> sequence [pretty0 (ac 0 Block im' doc) tm]
       App' x (Constructor' (ConstructorReference DD.UnitRef 0)) -> do
-        px <- impl (ac (if isBlock x then 0 else 10) Normal im doc) x
+        px <- pretty0 (ac (if isBlock x then 0 else 10) Normal im doc) x
         pure . paren (p >= 11 || isBlock x && p >= 3) $
           fmt S.DelayForceChar (l "!") <> px
       Delay' x
         | Lets' _ _ <- x -> do
-            px <- impl (ac 0 Block im doc) x
+            px <- pretty0 (ac 0 Block im doc) x
             pure . paren (p >= 3) $
               fmt S.ControlKeyword "do" `PP.hang` px
         | Match' _ _ <- x -> do
-            px <- impl (ac 0 Block im doc) x
+            px <- pretty0 (ac 0 Block im doc) x
             pure . paren (p >= 3) $
               fmt S.ControlKeyword "do" `PP.hang` px
         | otherwise -> do
-            px <- impl (ac 10 Normal im doc) x
+            px <- pretty0 (ac 10 Normal im doc) x
             pure . paren (p >= 11 || isBlock x && p >= 3) $
               fmt S.DelayForceChar (l "'")
                 -- Add indentation below since we're opening parens with '(
@@ -313,7 +310,7 @@ impl
                 <> PP.indentAfterNewline "  " px
       List' xs ->
         PP.group <$> do
-          xs' <- traverse (impl (ac 0 Normal im doc)) xs
+          xs' <- traverse (pretty0 (ac 0 Normal im doc)) xs
           pure $
             fmt S.DelimiterChar (l "[")
               <> optSpace
@@ -327,7 +324,7 @@ impl
           optSpace = PP.orElse "" " "
       If' cond t f ->
         do
-          pcond <- impl (ac 2 Block im doc) cond
+          pcond <- pretty0 (ac 2 Block im doc) cond
           pt <- branch t
           pf <- branch f
           pure . paren (p >= 2) $
@@ -353,7 +350,7 @@ impl
         where
           branch tm =
             let (im', uses) = calcImports im tm
-             in uses <$> sequence [impl (ac 0 Block im' doc) tm]
+             in uses <$> sequence [pretty0 (ac 0 Block im' doc) tm]
       LetBlock bs e ->
         let (im', uses) = calcImports im term
          in printLet elideUnit bc bs e im' uses
@@ -381,9 +378,9 @@ impl
             let eq = fmt S.BindingEquals "="
             rhs <- do
               let (im', uses) = calcImports im scrutinee
-              uses <$> sequence [impl (ac (-1) Block im' doc) scrutinee]
+              uses <$> sequence [pretty0 (ac (-1) Block im' doc) scrutinee]
             letIntro <$> do
-              prettyBody <- impl (ac (-1) Block im doc) body
+              prettyBody <- pretty0 (ac (-1) Block im doc) body
               pure $
                 PP.lines
                   [ (lhs <> eq) `PP.hang` rhs,
@@ -393,11 +390,11 @@ impl
           printGuard Nothing = pure mempty
           printGuard (Just g') = do
             let (_, g) = ABT.unabs g'
-            prettyg <- impl (ac 2 Normal im doc) g
+            prettyg <- pretty0 (ac 2 Normal im doc) g
             pure $ fmt S.DelimiterChar "| " <> prettyg
       Match' scrutinee branches ->
         do
-          ps <- impl (ac 2 Normal im doc) scrutinee
+          ps <- pretty0 (ac 2 Normal im doc) scrutinee
           pbs <- printCase im doc (arity1Branches branches) -- don't print with `cases` syntax
           pure . paren (p >= 2) $
             if PP.isMultiLine ps
@@ -409,7 +406,7 @@ impl
               else (fmt S.ControlKeyword "match " <> ps <> fmt S.ControlKeyword " with") `PP.hang` pbs
       t -> pure $ l "error: " <> l (show t)
     where
-      goNormal prec tm = impl (ac prec Normal im doc) tm
+      goNormal prec tm = pretty0 (ac prec Normal im doc) tm
       specialCases term go = do
         doc <- prettyDoc2 a term
         case doc of
@@ -431,12 +428,12 @@ impl
                 | doc == MaybeDoc ->
                     if isDocLiteral term
                       then applyPPE3 prettyDoc im term
-                      else impl (a {docContext = NoDoc}) term
+                      else pretty0 (a {docContext = NoDoc}) term
               (TupleTerm' [x], _) -> do
                 let conRef = DD.pairCtorRef
                 name <- elideFQN im <$> applyPPE2 PrettyPrintEnv.termName conRef
                 let pair = parenIfInfix name ic $ styleHashQualified'' (fmt (S.TermReference conRef)) name
-                x' <- impl (ac 10 Normal im doc) x
+                x' <- pretty0 (ac 10 Normal im doc) x
                 pure . paren (p >= 10) $
                   pair
                     `PP.hang` PP.spaced [x', fmt (S.TermReference DD.unitCtorRef) "()"]
@@ -494,7 +491,7 @@ impl
               (Bytes' bs, _) ->
                 pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
               BinaryAppsPred' apps lastArg -> do
-                prettyLast <- impl (ac 3 Normal im doc) lastArg
+                prettyLast <- pretty0 (ac 3 Normal im doc) lastArg
                 prettyApps <- binaryApps apps prettyLast
                 pure $ paren (p >= 3) prettyApps
               -- Note that && and || are at the same precedence, which can cause
@@ -504,33 +501,33 @@ impl
                 -- Old code, without monadic booleanOps:
                 -- paren (p >= 10)
                 --   . booleanOps (fmt S.ControlKeyword "&&") xs
-                --   <$> impl (ac 10 Normal im doc) lastArg
-                -- New code, where booleanOps is monadic like impl:
+                --   <$> pretty0 (ac 10 Normal im doc) lastArg
+                -- New code, where booleanOps is monadic like pretty0:
                 paren (p >= 10) <$> do
-                  lastArg' <- impl (ac 10 Normal im doc) lastArg
+                  lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
                   booleanOps (fmt S.ControlKeyword "&&") xs lastArg'
               (Ors' xs lastArg, _) ->
                 -- Old code:
                 -- paren (p >= 10)
                 --   . booleanOps (fmt S.ControlKeyword "||") xs
-                --   <$> impl (ac 10 Normal im doc) lastArg
+                --   <$> pretty0 (ac 10 Normal im doc) lastArg
                 -- New code:
                 paren (p >= 10) <$> do
-                  lastArg' <- impl (ac 10 Normal im doc) lastArg
+                  lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
                   booleanOps (fmt S.ControlKeyword "||") xs lastArg'
               _other -> case (term, nonForcePred) of
                 OverappliedBinaryAppPred' f a b r
                   | binaryOpsPred f ->
                       -- Special case for overapplied binary op
                       do
-                        prettyB <- impl (ac 3 Normal im doc) b
-                        prettyR <- PP.spacedTraverse (impl (ac 10 Normal im doc)) r
+                        prettyB <- pretty0 (ac 3 Normal im doc) b
+                        prettyR <- PP.spacedTraverse (pretty0 (ac 10 Normal im doc)) r
                         prettyA <- binaryApps [(f, a)] prettyB
                         pure $ paren True $ PP.hang prettyA prettyR
                 AppsPred' f args ->
                   paren (p >= 10) <$> do
-                    f' <- impl (ac 10 Normal im doc) f
-                    args' <- PP.spacedTraverse (impl (ac 10 Normal im doc)) args
+                    f' <- pretty0 (ac 10 Normal im doc) f
+                    args' <- PP.spacedTraverse (pretty0 (ac 10 Normal im doc)) args
                     pure $ f' `PP.hang` args'
                 _other -> case (term, \v -> nonUnitArgPred v && not (isDelay term)) of
                   (LamsNamedMatch' [] branches, _) -> do
@@ -538,7 +535,7 @@ impl
                     pure . paren (p >= 3) $
                       PP.group (fmt S.ControlKeyword "cases") `PP.hang` pbs
                   LamsNamedPred' vs body -> do
-                    prettyBody <- impl (ac 2 Normal im doc) body
+                    prettyBody <- pretty0 (ac 2 Normal im doc) body
                     let hang = case body of
                           Delay' (Lets' _ _) -> PP.softHang
                           Lets' _ _ -> PP.softHang
@@ -550,7 +547,7 @@ impl
 
       isDelay (Delay' _) = True
       isDelay _ = False
-      sepList = sepList' (impl (ac 0 Normal im doc))
+      sepList = sepList' (pretty0 (ac 0 Normal im doc))
       sepList' f sep xs = fold . intersperse sep <$> traverse f xs
       varList = runIdentity . sepList' (Identity . PP.text . Var.name) PP.softbreak
       commaList = sepList (fmt S.DelimiterChar (l ",") <> PP.softbreak)
@@ -570,10 +567,10 @@ impl
           <$> ((++) <$> traverse printBinding bs <*> body e)
         where
           body (Constructor' (ConstructorReference DD.UnitRef 0)) | elideUnit = pure []
-          body e = (: []) <$> impl (ac 0 Normal im doc) e
+          body e = (: []) <$> pretty0 (ac 0 Normal im doc) e
           printBinding (v, binding) =
             if Var.isAction v
-              then impl (ac (-1) Normal im doc) binding
+              then pretty0 (ac (-1) Normal im doc) binding
               else renderPrettyBinding <$> prettyBinding0 (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
           letIntro = case sc of
             Block -> id
@@ -611,8 +608,8 @@ impl
             _ -> undefined
           r a f =
             sequenceA
-              [ impl (ac (if isBlock a then 12 else 3) Normal im doc) a,
-                impl (AmbientContext 10 Normal Infix im doc False) f
+              [ pretty0 (ac (if isBlock a then 12 else 3) Normal im doc) a,
+                pretty0 (AmbientContext 10 Normal Infix im doc False) f
               ]
 
       -- Render sequence of infix &&s or ||s, like [x2, x1],
@@ -636,7 +633,7 @@ impl
             _ -> undefined
           r a =
             sequence
-              [ impl (ac (if isBlock a then 12 else 10) Normal im doc) a,
+              [ pretty0 (ac (if isBlock a then 12 else 10) Normal im doc) a,
                 pure op
               ]
 
@@ -819,7 +816,7 @@ printCase im doc ms0 =
             State.put rem
             pure p
     arrow = fmt S.ControlKeyword "->"
-    goBody im' uses body = uses <$> sequence [impl (ac 0 Block im' doc) body]
+    goBody im' uses body = uses <$> sequence [pretty0 (ac 0 Block im' doc) body]
     -- If there's multiple guarded cases for this pattern, prints as:
     -- MyPattern x y
     --   | guard 1        -> 1
@@ -839,7 +836,7 @@ printCase im doc ms0 =
           -- strip off any Abs-chain around the guard, guard variables are rendered
           -- like any other variable, ex: case Foo x y | x < y -> ...
           PP.spaceIfNeeded (fmt S.DelimiterChar "|")
-            <$> impl (ac 2 Normal im doc) g
+            <$> pretty0 (ac 2 Normal im doc) g
         printBody b = let (im', uses) = calcImports im b in goBody im' uses b
 
 -- A pretty term binding, split into the type signature (possibly empty) and the term.
@@ -958,12 +955,12 @@ prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
                       `PP.hang` branches'
               }
         LamsNamedOrDelay' vs body -> do
-          -- In the case where we're being called from inside `impl`, this
+          -- In the case where we're being called from inside `pretty0`, this
           -- call to printAnnotate is unfortunately repeating work we've already
           -- done.
           body' <- applyPPE2 printAnnotate body
           let (im', uses) = calcImports im body'
-          prettyBody <- impl (ac (-1) Block im' doc) body'
+          prettyBody <- pretty0 (ac (-1) Block im' doc) body'
           -- Special case for 'let being on the same line
           let hang = case body' of
                 Delay' (Lets' _ _) -> PP.softHang
@@ -1496,8 +1493,8 @@ allInSubBlock tm p s i =
     hit t = getUsages t == i
 
 -- Return any blockterms at or immediately under this term. Has to match the
--- places in the syntax that get a call to `calcImports` in `impl`.
--- AST nodes that do a calcImports in impl, in order to try and emit a `use`
+-- places in the syntax that get a call to `calcImports` in `pretty0`.
+-- AST nodes that do a calcImports in pretty0, in order to try and emit a `use`
 -- statement, need to be emitted also by this function, otherwise the `use`
 -- statement may come out at an enclosing scope instead.
 immediateChildBlockTerms ::
@@ -1709,7 +1706,7 @@ prettyDoc2 ac tm = do
           <> fmt
             S.DocDelimiter
             "}}"
-      bail tm = brace <$> impl ac tm
+      bail tm = brace <$> pretty0 ac tm
       -- Finds the longest run of a character and return one bigger than that
       longestRun c s =
         case filter (\s -> take 2 s == [c, c]) $
@@ -1776,20 +1773,20 @@ prettyDoc2 ac tm = do
           Right r -> "{" <> tmName r <> "}"
         (toDocEval ppe -> Just tm) ->
           do
-            inner <- impl ac tm
+            inner <- pretty0 ac tm
             let fence = makeFence inner
             pure $ PP.lines [fence, inner, fence]
         (toDocEvalInline ppe -> Just tm) ->
           do
-            inner <- impl ac tm
+            inner <- pretty0 ac tm
             pure $ "@eval{" <> inner <> "}"
         (toDocExample ppe -> Just tm) ->
           do
-            inner <- impl ac tm
+            inner <- pretty0 ac tm
             pure $ "``" <> inner <> "``"
         (toDocExampleBlock ppe -> Just tm) ->
           do
-            inner <- impl ac' tm
+            inner <- pretty0 ac' tm
             let fence = makeFence inner
             pure $ PP.lines ["@typecheck " <> fence, inner, fence]
           where
