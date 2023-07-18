@@ -4,6 +4,7 @@ module Unison.Syntax.DeclParser
 where
 
 import Control.Lens
+import Control.Monad.Reader (MonadReader (..))
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Text.Megaparsec qualified as P
@@ -74,12 +75,18 @@ data UnresolvedModifier
   | UnresolvedModifier'UniqueWithGuid !Text
   | UnresolvedModifier'UniqueWithoutGuid
 
-resolveUnresolvedModifier :: Monad m => L.Token UnresolvedModifier -> v -> P v m (L.Token DD.Modifier)
-resolveUnresolvedModifier unresolvedModifier _var =
+resolveUnresolvedModifier :: (Monad m, Var v) => L.Token UnresolvedModifier -> v -> P v m (L.Token DD.Modifier)
+resolveUnresolvedModifier unresolvedModifier var =
   case L.payload unresolvedModifier of
     UnresolvedModifier'Structural -> pure (DD.Structural <$ unresolvedModifier)
     UnresolvedModifier'UniqueWithGuid guid -> pure (DD.Unique guid <$ unresolvedModifier)
-    UnresolvedModifier'UniqueWithoutGuid -> wundefined
+    UnresolvedModifier'UniqueWithoutGuid -> do
+      ParsingEnv {uniqueTypeGuid} <- ask
+      guid <-
+        lift (lift (uniqueTypeGuid (Name.unsafeFromVar var))) >>= \case
+          Nothing -> uniqueName 32
+          Just guid -> pure guid
+      pure (DD.Unique guid <$ unresolvedModifier)
 
 -- unique[someguid] type Blah = ...
 modifier :: (Monad m, Var v) => P v m (Maybe (L.Token UnresolvedModifier))
