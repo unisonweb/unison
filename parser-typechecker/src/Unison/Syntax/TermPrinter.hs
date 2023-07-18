@@ -40,7 +40,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv(..))
+import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
 import Unison.PrettyPrintEnv.FQN (Imports, Prefix, Suffix, elideFQN)
 import Unison.PrettyPrintEnv.MonadPretty
@@ -50,7 +50,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.Lexer (showEscapeChar, symbolyId)
-import Unison.Syntax.Name qualified as Name (toString, toText, unsafeFromText, fromText)
+import Unison.Syntax.Name qualified as Name (fromText, toString, toText, unsafeFromText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term
@@ -895,7 +895,7 @@ prettyBinding_ ::
   HQ.HashQualified Name ->
   Term2 v at ap v a ->
   Pretty SyntaxText
-prettyBinding_ go ppe n tm = 
+prettyBinding_ go ppe n tm =
   runPretty (avoidShadowing tm ppe) . fmap go $ prettyBinding0 (ac (-1) Block Map.empty MaybeDoc) n tm
 
 prettyBinding' ::
@@ -2059,28 +2059,28 @@ nameEndsWith ppe suffix r = case PrettyPrintEnv.termName ppe (Referent.Ref r) of
 
 -- Modifies a PrettyPrintEnv to avoid picking a name for a term or type ref
 -- which is the same as a locally introduced variable. For example:
--- 
+--
 --   qux.quaffle = 23
---   
+--
 --   example : Text -> Nat
 --   example quaffle = qux.quaffle + 1
 --
 -- Here, we want the pretty-printer to use the name 'qux.quaffle' even though
 -- 'quaffle' would otherwise be a unique suffix.
--- 
+--
 -- Algorithm is the following:
---   1. Form the set of all local variables used anywhere in the term 
+--   1. Form the set of all local variables used anywhere in the term
 --   2. When picking a name for a term, see if it is contained in this set.
 --      If yes, use the qualified name for the term (which PPE conveniently provides)
 --      If no, use the suffixed name for the term
--- 
+--
 -- The algorithm does the same for type references in signatures.
--- 
+--
 -- This algorithm is conservative in the sense that it doesn't take into account
 -- the binding structure of the term. If the variable 'quaffle' is used as a local
 -- variable anywhere in the term, then 'quaffle' will not be considered a unique suffix
 -- even in places where the local 'quaffle' isn't in scope.
--- 
+--
 -- To do better this, you'd have to track bound variables in the pretty-printer and
 -- fold this logic into the core pretty-printing implementation. This conservative
 -- algorithm has the advantage of being purely a preprocessing step.
@@ -2090,12 +2090,11 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
   where
     terms' r = tweak usedTermNames <$> terms r
     types' r = tweak usedTypeNames <$> types r
-    usedTermNames = 
-      Set.fromList [ n | v <- ABT.allVars tm, n <- varToName v ]
-    usedTypeNames = 
-      Set.fromList [ n | Ann' _ ty <- ABT.subterms tm, v <- ABT.allVars ty, n <- varToName v ]
+    usedTermNames =
+      Set.fromList [n | v <- ABT.allVars tm, n <- varToName v]
+    usedTypeNames =
+      Set.fromList [n | Ann' _ ty <- ABT.subterms tm, v <- ABT.allVars ty, n <- varToName v]
     tweak used (fullName, HQ'.NameOnly suffixedName)
       | Set.member suffixedName used = (fullName, fullName)
     tweak _ p = p
     varToName v = toList (Name.fromText (Var.name v))
-
