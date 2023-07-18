@@ -254,7 +254,7 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
     pf <- maybe (crash (show ("Failed to parse" :: String, notes))) pure mayParsedFile
     let pfResult =
           UF.terms pf
-            & firstJust \(_v, trm) ->
+            & firstJust \(_v, _fileAnn, trm) ->
               LSPQ.findSmallestEnclosingNode pos trm
     expectEqual (Just expected) (void <$> pfResult)
 
@@ -264,7 +264,7 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
       let tfResult =
             UF.hashTermsId tf
               & toList
-              & firstJust \(_refId, _wk, trm, _typ) ->
+              & firstJust \(_fileAnn, _refId, _wk, trm, _typ) ->
                 LSPQ.findSmallestEnclosingNode pos trm
       expectEqual (Just expected) (void <$> tfResult)
 
@@ -302,7 +302,7 @@ annotationNestingTest (name, src) = scope name do
   tf <- maybe (crash "Failed to typecheck") pure maytf
   UF.hashTermsId tf
     & toList
-    & traverse_ \(_refId, _wk, trm, _typ) ->
+    & traverse_ \(_fileAnn, _refId, _wk, trm, _typ) ->
       assertAnnotationsAreNested trm
 
 -- | Asserts that for all nodes in the provided ABT, the annotations of all child nodes are

@@ -29,11 +29,7 @@ import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
-import System.Directory
-  ( canonicalizePath,
-    doesFileExist,
-    getHomeDirectory,
-  )
+import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
@@ -101,6 +97,7 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyTerminal
@@ -110,6 +107,7 @@ import Unison.PrettyTerminal
 import Unison.PrintError
   ( prettyParseError,
     prettyResolutionFailures,
+    prettyVar,
     printNoteWithSource,
     renderCompilerBug,
   )
@@ -149,6 +147,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -760,6 +759,7 @@ notifyUser dir = \case
               <> "to push the changes."
         ]
   DisplayDefinitions output -> displayDefinitions output
+  OutputRewrittenFile ppe dest msg uf -> displayOutputRewrittenFile ppe dest msg uf
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
@@ -940,6 +940,10 @@ notifyUser dir = \case
         "The file "
           <> P.blue (P.shown name)
           <> " does not exist or is not a valid source file."
+  InvalidStructuredFindReplace _sym ->
+    pure . P.callout "😶" $ IP.helpFor IP.sfindReplace
+  InvalidStructuredFind _sym ->
+    pure . P.callout "😶" $ IP.helpFor IP.sfind
   SourceLoadFailed name ->
     pure . P.callout "😶" $
       P.wrap $
@@ -1515,7 +1519,7 @@ notifyUser dir = \case
           HQ.HashOnly _ -> prettyReference hashLen
   DeleteNameAmbiguous hashLen p tms tys ->
     pure . P.callout "\129300" . P.lines $
-      [ P.wrap "That name is ambiguous. It could refer to any of the following definitions:",
+      [ P.wrap "I wasn't sure which of these you meant to delete:",
         "",
         P.indentN 2 (P.lines (map qualifyTerm (Set.toList tms) ++ map qualifyType (Set.toList tys))),
         "",
@@ -1533,7 +1537,17 @@ notifyUser dir = \case
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
       qualifyType :: Reference -> Pretty
       qualifyType = P.syntaxToColor . prettyNamedReference hashLen name
-  TermAmbiguous _ _ -> pure "That term is ambiguous."
+  TermAmbiguous _ _ tms | Set.null tms -> pure "I couldn't find any term by that name."
+  TermAmbiguous ppe _n tms ->
+    pure . P.callout "🤔" . P.lines $
+      [ P.wrap "I wasn't sure which of these you meant:",
+        "",
+        P.indentN 2 (P.lines (map (phq . PPE.termNameOrHashOnly ppe) (Set.toList tms))),
+        "",
+        tip "Try again, using one of the unambiguous choices above."
+      ]
+    where
+      phq = P.syntaxToColor . prettyHashQualified
   HashAmbiguous h rs ->
     pure . P.callout "\129300" . P.lines $
       [ P.wrap $
@@ -1700,6 +1714,8 @@ notifyUser dir = \case
     pure $ listDependentsOrDependencies ppe "Dependents" "dependents" lds types terms
   ListDependencies ppe lds types terms ->
     pure $ listDependentsOrDependencies ppe "Dependencies" "dependencies" lds types terms
+  ListStructuredFind terms ->
+    pure $ listStructuredFind terms
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       ( effects <&> \(n, r) ->
@@ -2124,11 +2140,11 @@ notifyUser dir = \case
       "I'll now fetch the latest version of the base Unison library..."
   FailedToFetchLatestReleaseOfBase ->
     pure . P.wrap $ "Sorry something went wrong while fetching the library."
-  HappyCoding ->
+  HappyCoding -> do
     pure $
       P.wrap "🎨 Type `ui` to explore this project's code in your browser."
         <> P.newline
-        <> P.wrap "🌏 Discover libraries at https://share.unison-lang.org"
+        <> P.wrap ("🔭 Discover libraries at https://share.unison-lang.org")
         <> P.newline
         <> P.wrap "📖 Use `help-topic projects` to learn more about projects."
         <> P.newline
@@ -2400,6 +2416,54 @@ formatMissingStuff terms types =
              <> P.column2 [(P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types]
        )
 
+displayOutputRewrittenFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> String -> ([v], UF.UnisonFile v a) -> IO Pretty
+displayOutputRewrittenFile _ppe _fp _ ([], _uf) =
+  pure "😶️ I couldn't find any matches in the file."
+displayOutputRewrittenFile ppe fp msg (vs, uf) = do
+  let modifiedDefs = P.sep " " (P.blue . prettyVar <$> vs)
+  let header = "-- " <> P.string msg <> "\n" <> "-- | Modified definition(s): " <> modifiedDefs
+  fp <- prependToFile (header <> "\n\n" <> prettyUnisonFile ppe uf <> foldLine) fp
+  pure $
+    P.callout "☝️" . P.lines $
+      [ P.wrap $ "I found and replaced matches in these definitions: " <> modifiedDefs,
+        "",
+        "The rewritten file has been added to the top of " <> fromString fp
+      ]
+
+foldLine :: IsString s => P.Pretty s
+foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
+
+prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
+prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
+  P.sep "\n\n" (map snd . sortOn fst $ pretty <$> things)
+  where
+    things =
+      map Left (map Left (Map.toList effects) <> map Right (Map.toList datas))
+        <> map (Right . (Nothing,)) terms
+        <> (Map.toList watches >>= \(wk, tms) -> map (\a -> Right (Just wk, a)) tms)
+    pretty (Left (Left (n, (r, et)))) =
+      (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et))
+    pretty (Left (Right (n, (r, dt)))) =
+      (DD.annotation dt, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Right dt))
+    pretty (Right (Nothing, (n, a, tm))) =
+      (a, pb (hqv n) tm)
+    pretty (Right (Just wk, (n, a, tm))) =
+      (a, go wk n tm)
+      where
+        go wk v tm = case wk of
+          WK.RegularWatch
+            | Var.UnnamedWatch _ _ <- Var.typeOf v ->
+                "> " <> P.indentNAfterNewline 2 (TermPrinter.pretty sppe tm)
+          WK.RegularWatch -> "> " <> pb (hqv v) tm
+          w -> P.string w <> "> " <> pb (hqv v) tm
+    st = P.syntaxToColor
+    sppe = PPED.suffixifiedPPE ppe
+    pb v tm = st $ TermPrinter.prettyBinding sppe v tm
+    ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
+    dppe = PPE.fromNames 8 (Names.NamesWithHistory (UF.toNames uf) mempty)
+    rd = Reference.DerivedId
+    hqv v = HQ.unsafeFromVar v
+
 displayDefinitions' ::
   (Var v) =>
   (Ord a1) =>
@@ -2450,18 +2514,9 @@ displayRendered outputLoc pp =
   maybe (pure pp) scratchAndDisplay outputLoc
   where
     scratchAndDisplay path = do
-      path' <- canonicalizePath path
-      prependToFile pp path'
+      path' <- prependToFile pp path
       pure (message pp path')
       where
-        prependToFile pp path = do
-          existingContents <- do
-            exists <- doesFileExist path
-            if exists
-              then readUtf8 path
-              else pure ""
-          writeUtf8 path . Text.pack . P.toPlain 80 $
-            P.lines [pp, "", P.text existingContents]
         message pp path =
           P.callout "☝️" $
             P.lines
@@ -2469,6 +2524,18 @@ displayRendered outputLoc pp =
                 "",
                 P.indentN 2 pp
               ]
+
+-- Prepends the rendered Pretty to the file, returning the canonicalized FilePath
+prependToFile :: Pretty -> FilePath -> IO FilePath
+prependToFile pp path0 = do
+  path <- canonicalizePath path0
+  existingContents <- do
+    exists <- doesFileExist path
+    if exists
+      then readUtf8 path
+      else pure ""
+  writeUtf8 path . Text.pack . P.toPlain 80 $ pp <> P.text existingContents
+  pure path
 
 displayDefinitions :: DisplayDefinitionsOutput -> IO Pretty
 displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv = ppe, terms, types} =
@@ -2492,9 +2559,7 @@ displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv 
           writeUtf8 path . Text.pack . P.toPlain 80 $
             P.lines
               [ code,
-                "",
-                "---- " <> "Anything below this line is ignored by Unison.",
-                "",
+                foldLine,
                 P.text existingContents
               ]
         message code path =
@@ -3597,6 +3662,26 @@ endangeredDependentsTable ppeDecl m =
         & fmap (\(n, dep) -> numArg n <> prettyLabeled fqnEnv dep)
         & P.lines
 
+listStructuredFind :: [HQ.HashQualified Name] -> Pretty
+listStructuredFind [] = "😶 I couldn't find any matches."
+listStructuredFind tms =
+  P.callout "🔎" . P.lines $
+    [ "These definitions from the current namespace (excluding `lib`) have matches:",
+      "",
+      P.indentN 2 $ P.numberedList (pnames tms),
+      "",
+      tip (msg (length tms))
+    ]
+  where
+    pnames hqs = P.syntaxToColor . prettyHashQualified <$> hqs
+    msg 1 = "Try " <> IP.makeExample IP.edit ["1"] <> " to bring this into your scratch file."
+    msg n =
+      "Try "
+        <> IP.makeExample IP.edit ["1"]
+        <> " or "
+        <> IP.makeExample IP.edit ["1-" <> P.shown n]
+        <> " to bring these into your scratch file."
+
 listDependentsOrDependencies ::
   PPE.PrettyPrintEnv ->
   Text ->
@@ -3604,7 +3689,7 @@ listDependentsOrDependencies ::
   Set LabeledDependency ->
   [HQ.HashQualified Name] ->
   [HQ.HashQualified Name] ->
-  P.Pretty P.ColorText
+  Pretty
 listDependentsOrDependencies ppe labelStart label lds types terms =
   if null (types <> terms)
     then prettyLabeledDependencies ppe lds <> " has no " <> P.text label <> "."
