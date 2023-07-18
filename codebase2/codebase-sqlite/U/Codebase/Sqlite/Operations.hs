@@ -7,6 +7,8 @@ module U.Codebase.Sqlite.Operations
     expectRootBranchHash,
     loadCausalHashAtPath,
     expectCausalHashAtPath,
+    loadCausalBranchAtPath,
+    loadBranchAtPath,
     saveBranch,
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
@@ -27,6 +29,7 @@ module U.Codebase.Sqlite.Operations
     Q.saveDeclComponent,
     loadDeclComponent,
     loadDeclByReference,
+    expectDeclByReference,
     expectDeclTypeById,
 
     -- * terms/decls
@@ -131,6 +134,7 @@ import Data.Tuple.Extra (uncurry3, (***))
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import U.Codebase.Branch.Type qualified as C.Branch
 import U.Codebase.Causal qualified as C
+import U.Codebase.Causal qualified as C.Causal
 import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
@@ -264,6 +268,18 @@ expectCausalHashAtPath =
    in \path -> do
         hashId <- Q.expectNamespaceRoot
         go hashId path
+
+loadCausalBranchAtPath :: Q.TextPathSegments -> Transaction (Maybe (C.Branch.CausalBranch Transaction))
+loadCausalBranchAtPath path =
+  loadCausalHashAtPath path >>= \case
+    Nothing -> pure Nothing
+    Just causalHash -> Just <$> expectCausalBranchByCausalHash causalHash
+
+loadBranchAtPath :: Q.TextPathSegments -> Transaction (Maybe (C.Branch.Branch Transaction))
+loadBranchAtPath path =
+  loadCausalBranchAtPath path >>= \case
+    Nothing -> pure Nothing
+    Just causal -> Just <$> C.Causal.value causal
 
 -- * Reference transformations
 

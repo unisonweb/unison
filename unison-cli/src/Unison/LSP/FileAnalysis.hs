@@ -64,10 +64,12 @@ import Unison.Util.Pretty qualified as Pretty
 import Unison.Var qualified as Var
 import Unison.WatchKind (pattern TestWatch)
 import UnliftIO.STM
+import qualified Unison.Cli.UniqueTypeGuidLookup as Cli
 
 -- | Lex, parse, and typecheck a file.
 checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
-checkFile doc = runMaybeT $ do
+checkFile doc = runMaybeT do
+  currentPath <- lift getCurrentPath
   let fileUri = doc ^. uri
   (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getParseNames
@@ -80,7 +82,7 @@ checkFile doc = runMaybeT $ do
   let parsingEnv =
         Parser.ParsingEnv
           { uniqueNames = uniqueName,
-            uniqueTypeGuid = wundefined,
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
             names = parseNames
           }
   (notes, parsedFile, typecheckedFile) <- do
@@ -105,7 +107,7 @@ checkFile doc = runMaybeT $ do
   let fileSummary = mkFileSummary parsedFile typecheckedFile
   let tokenMap = getTokenMap tokens
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, ..}
-  pure $ fileAnalysis
+  pure fileAnalysis
 
 -- | If a symbol is a 'User' symbol, return (Just sym), otherwise return Nothing.
 assertUserSym :: Symbol -> Maybe Symbol

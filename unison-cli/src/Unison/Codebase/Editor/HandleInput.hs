@@ -56,6 +56,7 @@ import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, 
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
+import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
@@ -1458,7 +1459,7 @@ loadUnisonFile sourceName text = do
       let parsingEnv =
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
-                uniqueTypeGuid = wundefined,
+                uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
                 names = parseNames
               }
       unisonFile <-
@@ -2990,7 +2991,7 @@ parseType input src = do
   let parsingEnv =
         Parser.ParsingEnv
           { uniqueNames = mempty,
-            uniqueTypeGuid = wundefined,
+            uniqueTypeGuid = \_ -> pure Nothing,
             names
           }
   typ <-

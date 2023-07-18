@@ -333,7 +333,7 @@ typecheckSrc name src = do
       let parsingEnv =
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
-                uniqueTypeGuid = wundefined,
+                uniqueTypeGuid = \_ -> pure Nothing,
                 names = parseNames
               }
       Codebase.runTransaction codebase do
