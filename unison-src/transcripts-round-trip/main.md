@@ -7,15 +7,14 @@ This transcript verifies that the pretty-printer produces code that can be succe
 
 ## How to use this transcript: checking round-trip for inline definitions
 
-```unison:hide
+```unison:hide roundtrip.u
 x = 1 + 1
 ```
 
 ```ucm
 .> add
 .> edit x
-.> reflog
-.> reset-root 2
+.> undo
 ```
 
 Resetting the namespace after each example ensures they don't interact at all, which is probably what you want.
@@ -23,7 +22,7 @@ Resetting the namespace after each example ensures they don't interact at all, w
 The `load` command which does parsing and typechecking of the `edit`'d definitions needs to be in a separate stanza from the `edit` command.
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 ## How to use this transcript: checking round-trip for definitions from a file
@@ -37,7 +36,7 @@ Examples can also be loaded from `.u` files:
 
 When loading definitions from a file, an empty stanza like this will ensure that this empty file is where the definitions being `edit`'d will get dumped.
 
-```unison:hide
+```unison:hide roundtrip.u
 -- empty scratch file, `edit` will target this
 ```
 
@@ -45,12 +44,11 @@ Without the above stanza, the `edit` will send the definition to the most recent
 
 ```ucm
 .> edit b
-.> reflog
-.> reset-root 2
+.> undo
 ```
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 No reason you can't load a bunch of definitions from a single `.u` file in one go, the only thing that's annoying is you'll have to `find` and then `edit 1-11` in the transcript to load all the definitions into the file.
@@ -59,7 +57,7 @@ No reason you can't load a bunch of definitions from a single `.u` file in one g
 
 Regression test for https://github.com/unisonweb/unison/issues/2337
 
-```unison:hide
+```unison:hide roundtrip.u
 unique type Blah = Blah Boolean Boolean
 
 f : Blah -> Boolean
@@ -71,19 +69,18 @@ f x = let
 ```ucm
 .> add
 .> edit Blah f
-.> reflog
-.> reset-root 2
+.> undo
 ```
 
 ``` ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 ## Parens around infix patterns
 
 Regression test for https://github.com/unisonweb/unison/issues/2224
 
-```unison:hide
+```unison:hide roundtrip.u
 f : [()] -> ()
 f xs = match xs with
   x +: (x' +: rest) -> x
@@ -103,19 +100,18 @@ h xs = match xs with
 ```ucm
 .> add
 .> edit f g
-.> reflog
-.> reset-root 2
+.> undo
 ```
 
 ``` ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 ## Type application inserts necessary parens
 
 Regression test for https://github.com/unisonweb/unison/issues/2392
 
-```unison:hide
+```unison:hide roundtrip.u
 unique ability Zonk where zonk : Nat
 unique type Foo x y =
 
@@ -126,19 +122,18 @@ foo n _ = n
 ```ucm
 .> add
 .> edit foo Zonk Foo
-.> reflog
-.> reset-root 2
+.> undo
 ```
 
 ``` ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 ## Long lines with repeated operators
 
 Regression test for https://github.com/unisonweb/unison/issues/1035
 
-```unison:hide
+```unison:hide roundtrip.u
 foo : Text
 foo =
   "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddddddddd"
@@ -147,19 +142,18 @@ foo =
 ```ucm
 .> add
 .> edit foo
-.> reflog
-.> reset-root 2
+.> undo
 ```
 
 ``` ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 ## Emphasis in docs inserts the right number of underscores
 
 Regression test for https://github.com/unisonweb/unison/issues/2408
 
-```unison:hide
+```unison:hide roundtrip.u
 myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
 ```
 
@@ -170,14 +164,14 @@ myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*T
 ```
 
 ``` ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 ## Parenthesized let-block with operator
 
 Regression test for https://github.com/unisonweb/unison/issues/1778
 
-```unison:hide
+```unison:hide roundtrip.u
 
 structural ability base.Abort where
   abort : a
@@ -213,14 +207,14 @@ x = '(let
 ```
 
 ``` ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 ## Line breaks before 'let
 
 Regression test for https://github.com/unisonweb/unison/issues/1536
 
-```unison:hide
+```unison:hide roundtrip.u
 r = 'let
  y = 0
  y
@@ -233,7 +227,7 @@ r = 'let
 ```
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 ## Raw codeblocks add indentation
@@ -245,7 +239,7 @@ Regression test for https://github.com/unisonweb/unison/issues/2271
 .> add
 ```
 
-```unison:hide
+```unison:hide roundtrip.u
 x = 2
 ```
 
@@ -254,7 +248,7 @@ x = 2
 ```
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 .> add
 ```
 
@@ -262,7 +256,7 @@ x = 2
 
 Regression tests for  https://github.com/unisonweb/unison/issues/2650
 
-```unison:hide
+```unison:hide roundtrip.u
 broken =
     addNumbers: 'Nat
     addNumbers = 'let
@@ -279,10 +273,10 @@ broken =
 ```
 
 ``` ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
-```unison:hide
+```unison:hide roundtrip.u
 tvarmodify tvar fun = ()
 
 broken tvar =
@@ -298,10 +292,10 @@ broken tvar =
 ```
 
 ``` ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
-```unison:hide
+```unison:hide roundtrip.u
 broken = cases
   Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
   _ -> ()
@@ -314,12 +308,12 @@ broken = cases
 ```
 
 ``` ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 ## Guard patterns on long lines
 
-```unison:hide
+```unison:hide roundtrip.u
 structural type SomethingUnusuallyLong = SomethingUnusuallyLong Text Text Text
 
 foo = let
@@ -340,7 +334,7 @@ foo = let
 ```
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 ## Nested fences
@@ -361,7 +355,7 @@ foo = let
 
 ## Multiline expressions in multiliine lists
 
-```unison:hide
+```unison:hide roundtrip.u
 foo a b c d e f g h i j = 42
 
 use Nat +
@@ -376,7 +370,7 @@ x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
 ```
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 ## Delayed computations passed to a function as the last argument
@@ -402,7 +396,7 @@ vs the not as pretty but still correct:
 
 Okay, here's the test, showing that we use the prettier version when possible:
 
-```unison:hide
+```unison:hide roundtrip.u
 (+) a b = ##Nat.+ a b
 
 foo a b = 42
@@ -444,7 +438,7 @@ bar3 x = do
 ```
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 # Lambda as the last argument where the bound var is not free in the body
@@ -454,7 +448,7 @@ a "delay" instead of a lambda. This test makes sure that detecting this
 condition lines up with the printing, so we don't detect a delay but then
 go ahead and print it as a normal lambda.
 
-```unison:hide
+```unison:hide roundtrip.u
 (+) a b = ##Nat.+ a b
 
 afun x f = f x
@@ -473,7 +467,7 @@ roundtripLastLam =
 ```
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 # Comment out builtins in the edit command
@@ -487,14 +481,14 @@ Regression test for https://github.com/unisonweb/unison/pull/3548
 ```
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 # Indent long pattern lists to avoid virtual semicolon
 
 Regression test for https://github.com/unisonweb/unison/issues/3627
 
-```unison:hide
+```unison:hide roundtrip.u
 (+) a b = ##Nat.+ a b
 
 foo = cases
@@ -510,15 +504,15 @@ foo = cases
 ```
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 # Multi-line lambda let
 
 Regression test for #3110 and #3801
 
-```unison:hide
-foreach x f = 
+```unison:hide roundtrip.u
+foreach x f =
   _ = List.map f x
   ()
 
@@ -530,7 +524,7 @@ test1 =
       y = Nat.increment x
       ()
 
-test2 = foreach [1, 2, 3] let x -> ignore (Nat.increment x) 
+test2 = foreach [1, 2, 3] let x -> ignore (Nat.increment x)
 
 test3 = foreach [1, 2, 3] do x -> do
   y = Nat.increment x
@@ -544,14 +538,14 @@ test3 = foreach [1, 2, 3] do x -> do
 ```
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 ```
 
 # Destructuring bind in delay or lambda
 
 Regression test for https://github.com/unisonweb/unison/issues/3710
 
-```unison:hide
+```unison:hide roundtrip.u
 d1 = do
   (a,b) = (1,2)
   (c,d) = (3,4)
@@ -588,5 +582,26 @@ d5 x = match x with
 ```
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
+```
+
+# Avoid capture of local variables when selecting names for references
+
+Regression test for https://github.com/unisonweb/unison/issues/525
+
+```unison:hide roundtrip.u
+Foo.bar.quaffle = 32
+
+example : Text -> Nat
+example quaffle = Foo.bar.quaffle + 1
+```
+
+```ucm
+.> add
+.> edit example
+.> undo
+```
+
+```ucm
+.> load roundtrip.u
 ```
