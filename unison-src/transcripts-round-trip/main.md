@@ -613,7 +613,7 @@ exampleType z = Id (Dontcare () 19)
 ```ucm:hide
 .> add
 ```
-
+We'd get a parse error here if `exampleTerm` or `exampleType` didn't round-trip, but it parses okay! 🎉 
 ```ucm
 .> edit exampleTerm exampleType
 .> load roundtrip.u
