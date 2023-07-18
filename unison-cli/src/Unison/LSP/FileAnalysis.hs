@@ -23,6 +23,7 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
 import Unison.ABT qualified as ABT
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
+import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as DD
@@ -64,7 +65,6 @@ import Unison.Util.Pretty qualified as Pretty
 import Unison.Var qualified as Var
 import Unison.WatchKind (pattern TestWatch)
 import UnliftIO.STM
-import qualified Unison.Cli.UniqueTypeGuidLookup as Cli
 
 -- | Lex, parse, and typecheck a file.
 checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
