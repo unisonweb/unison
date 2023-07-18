@@ -4,7 +4,6 @@
 module Unison.Test.LSP (test) where
 
 import Crypto.Random qualified as Random
-import Data.Foldable qualified as Foldable
 import Data.List.Extra (firstJust)
 import Data.String.Here.Uninterpolated (here)
 import Data.Text
@@ -252,7 +251,7 @@ extractCursor txt =
 makeNodeSelectionTest :: (String, Text, Bool, LSPQ.SourceNode ()) -> Test ()
 makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ do
   (pos, src) <- extractCursor testSrc
-  (pf, tf) <- typecheckSrc name src
+  (pf, mayTypecheckedFile) <- typecheckSrc name src
   scope "parsed file" $ do
     let pfResult =
           UF.terms pf
@@ -262,6 +261,7 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
 
   when testTypechecked $
     scope "typechecked file" $ do
+      tf <- either (\notes -> crash ("Failed to typecheck: " ++ show notes)) pure mayTypecheckedFile
       let tfResult =
             UF.hashTermsId tf
               & toList
@@ -299,7 +299,8 @@ term x y = x && y
 
 annotationNestingTest :: (String, Text) -> Test ()
 annotationNestingTest (name, src) = scope name do
-  (_, tf) <- typecheckSrc name src
+  (_, maytf) <- typecheckSrc name src
+  tf <- either (\notes -> crash ("Failed to typecheck: " ++ show notes)) pure maytf
   UF.hashTermsId tf
     & toList
     & traverse_ \(_fileAnn, _refId, _wk, trm, _typ) ->
@@ -323,7 +324,15 @@ assertAnnotationsAreNested term = do
           | isInFile -> pure ann
           | otherwise -> Left $ "Containment breach: children aren't contained with the parent:" <> show (ann, abt)
 
-typecheckSrc :: String -> Text -> Test (UF.UnisonFile Symbol Ann, UF.TypecheckedUnisonFile Symbol Ann)
+typecheckSrc ::
+  String ->
+  Text ->
+  Test
+    ( UF.UnisonFile Symbol Ann,
+      Either
+        (Seq (Result.Note Symbol Ann))
+        (UF.TypecheckedUnisonFile Symbol Ann)
+    )
 typecheckSrc name src = do
   result <-
     withTestCodebase \codebase -> do
@@ -338,8 +347,7 @@ typecheckSrc name src = do
               }
       Codebase.runTransaction codebase do
         Parsers.parseFile name (Text.unpack src) parsingEnv >>= \case
-          Left err -> pure (Left (crash ("Failed to parse: " ++ show err)))
-          -- tf <- maybe (crash "Failed to typecheck") pure maytf
+          Left err -> pure (Left ("Failed to parse: " ++ show err))
           Right unisonFile -> do
             typecheckingEnv <-
               Typecheck.computeTypecheckingEnvironment
@@ -347,13 +355,14 @@ typecheckSrc name src = do
                 codebase
                 ambientAbilities
                 unisonFile
-            Result.runResultT (FileParsers.synthesizeFile typecheckingEnv unisonFile) <&> \case
-              (Nothing, notes) -> Left (crash ("Failed to typecheck: " ++ show (Foldable.toList @Seq notes)))
-              (Just typecheckedUnisonFile, _) -> Right (unisonFile, typecheckedUnisonFile)
-
+            typecheckingResult <-
+              Result.runResultT (FileParsers.synthesizeFile typecheckingEnv unisonFile) <&> \case
+                (Nothing, notes) -> Left notes
+                (Just typecheckedUnisonFile, _) -> Right typecheckedUnisonFile
+            pure (Right (unisonFile, typecheckingResult))
   case result of
-    Left action -> action
-    Right result -> pure result
+    Left err -> crash err
+    Right val -> pure val
 
 withTestCodebase ::
   (Codebase IO Symbol Ann -> IO r) -> Test r
