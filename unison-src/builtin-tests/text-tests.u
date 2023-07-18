@@ -91,6 +91,11 @@ text.ops.tests = do
   checkEqual "Text.toLowercase (1)" (Text.toLowercase "") ""
   checkEqual "Text.toLowercase (2)" (Text.toLowercase "abcABC123{({})}.") "abcabc123{({})}."
 
+  checkEqual "Text.indexOf (1)" (Text.indexOf "" "hello") (Some 0)
+  checkEqual "Text.indexOf (2)" (Text.indexOf "l" "hello") (Some 2)
+  checkEqual "Text.indexOf (3)" (Text.indexOf "lo" "hello") (Some 3)
+  checkEqual "Text.indexOf (3)" (Text.indexOf "elo" "hello") None
+
 text.conversion.tests = do
   checkEqual "Nat.toText (1)" (Nat.toText 0) "0"
   checkEqual "Nat.toText (2)" (Nat.toText 10) "10"

@@ -45,9 +45,7 @@ Inline code:
 
 `` 1 + 2 ``
 
-`
-"doesn't typecheck" + 1
-`
+`"doesn't typecheck" + 1`
 
 [Link](https://unison-lang.org)
 

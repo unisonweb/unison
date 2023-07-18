@@ -5,8 +5,8 @@ import Data.Set qualified as Set
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import Unison.Hashing.V2 qualified as Hashing
 
-hashCausal :: Set CausalHash -> BranchHash -> CausalHash
-hashCausal ancestors branchHash =
+hashCausal :: BranchHash -> Set CausalHash -> CausalHash
+hashCausal branchHash ancestors =
   CausalHash . Hashing.contentHash $
     Hashing.Causal
       { Hashing.branchHash = unBranchHash branchHash,

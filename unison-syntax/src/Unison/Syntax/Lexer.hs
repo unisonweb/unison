@@ -499,9 +499,12 @@ lexemes' eof =
                 stop' = maybe stop end (lastMay after)
 
         verbatim =
-          P.label "code (examples: ''**unformatted**'', '''_words_''')" $ do
+          P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
             (start, txt, stop) <- positioned $ do
-              quotes <- lit "''" <+> many (P.satisfy (== '\''))
+              -- a single backtick followed by a non-backtick is treated as monospaced
+              let tick = P.try (lit "`" <* P.lookAhead (P.satisfy (/= '`')))
+              -- also two or more ' followed by that number of closing '
+              quotes <- tick <|> (lit "''" <+> many (P.satisfy (== '\'')))
               P.someTill P.anySingle (lit quotes)
             if all isSpace $ takeWhile (/= '\n') txt
               then
@@ -932,6 +935,7 @@ lexemes' eof =
       where
         keywords =
           symbolyKw ":"
+            <|> openKw "@rewrite"
             <|> symbolyKw "@"
             <|> symbolyKw "||"
             <|> symbolyKw "|"
@@ -958,6 +962,7 @@ lexemes' eof =
             <|> openKw "handle"
             <|> typ
             <|> arr
+            <|> rewriteArr
             <|> eq
             <|> openKw "cases"
             <|> openKw "where"
@@ -1011,6 +1016,11 @@ lexemes' eof =
                 Just t | t == "type" || Set.member t typeModifiers -> pure [Token (Reserved "=") start end]
                 Just _ -> S.put (env {opening = Just "="}) >> pure [Token (Open "=") start end]
                 _ -> err start LayoutError
+
+            rewriteArr = do
+              [Token _ start end] <- symbolyKw "==>"
+              env <- S.get
+              S.put (env {opening = Just "==>"}) >> pure [Token (Open "==>") start end]
 
             arr = do
               [Token _ start end] <- symbolyKw "->"
@@ -1321,7 +1331,8 @@ keywords =
       "let",
       "namespace",
       "match",
-      "cases"
+      "cases",
+      "@rewrite"
     ]
     <> typeModifiers
     <> typeOrAbility
@@ -1347,7 +1358,7 @@ isDelimiter :: Char -> Bool
 isDelimiter ch = Set.member ch delimiters
 
 reservedOperators :: Set String
-reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'"]
+reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'", "==>"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)

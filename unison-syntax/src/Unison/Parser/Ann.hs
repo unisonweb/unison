@@ -7,7 +7,8 @@ module Unison.Parser.Ann where
 import Unison.Lexer.Pos qualified as L
 
 data Ann
-  = Intrinsic -- { sig :: String, start :: L.Pos, end :: L.Pos }
+  = -- Used for things like Builtins which don't have a source position.
+    Intrinsic -- { sig :: String, start :: L.Pos, end :: L.Pos }
   | External
   | Ann {start :: L.Pos, end :: L.Pos}
   deriving (Eq, Ord, Show)
