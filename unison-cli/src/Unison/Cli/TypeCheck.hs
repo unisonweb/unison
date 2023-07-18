@@ -8,7 +8,6 @@ where
 
 import Control.Monad.Reader (ask)
 import Data.Text qualified as Text
-import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase (Codebase)
@@ -44,7 +43,7 @@ typecheck ambient names sourceName source =
     (Cli.runTransaction . Result.getResult) $
       parseAndSynthesizeFile
         ambient
-        (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+        (Codebase.typeLookupForDependencies codebase)
         (Parser.ParsingEnv uniqueName names)
         (Text.unpack sourceName)
         (fst source)
@@ -67,7 +66,7 @@ typecheckHelper codebase generateUniqueName ambient names sourceName source = do
   (liftIO . Codebase.runTransaction codebase . Result.getResult) $
     parseAndSynthesizeFile
       ambient
-      (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+      (Codebase.typeLookupForDependencies codebase)
       (Parser.ParsingEnv uniqueName names)
       (Text.unpack sourceName)
       (fst source)
@@ -91,7 +90,7 @@ typecheckTerm tm = do
       | otherwise = error "internal error: typecheckTerm"
 
 typecheckFile ::
-  Codebase m Symbol Ann ->
+  Codebase IO Symbol Ann ->
   [Type Symbol Ann] ->
   UF.UnisonFile Symbol Ann ->
   Sqlite.Transaction
@@ -100,7 +99,5 @@ typecheckFile ::
         (UF.TypecheckedUnisonFile Symbol Ann)
     )
 typecheckFile codebase ambient file = do
-  typeLookup <-
-    (<> Builtin.typeLookup)
-      <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
+  typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   pure $ synthesizeFile' ambient typeLookup file
