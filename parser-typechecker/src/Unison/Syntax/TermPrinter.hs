@@ -2057,6 +2057,33 @@ nameEndsWith ppe suffix r = case PrettyPrintEnv.termName ppe (Referent.Ref r) of
      in tn == Text.drop 1 suffix || Text.isSuffixOf suffix tn
   _ -> False
 
+-- Modifies a PrettyPrintEnv to avoid picking a name for a term or type ref
+-- which is the same as a locally introduced variable. For example:
+-- 
+--   qux.quaffle = 23
+--   
+--   example : Text -> Nat
+--   example quaffle = qux.quaffle + 1
+--
+-- Here, we want the pretty-printer to use the name 'qux.quaffle' even though
+-- 'quaffle' would otherwise be a unique suffix.
+-- 
+-- Algorithm is the following:
+--   1. Form the set of all local variables used anywhere in the term 
+--   2. When picking a name for a term, see if it is contained in this set.
+--      If yes, use the qualified name for the term (which PPE conveniently provides)
+--      If no, use the suffixed name for the term
+-- 
+-- The algorithm does the same for type references in signatures.
+-- 
+-- This algorithm is conservative in the sense that it doesn't take into account
+-- the binding structure of the term. If the variable 'quaffle' is used as a local
+-- variable anywhere in the term, then 'quaffle' will not be considered a unique suffix
+-- even in places where the local 'quaffle' isn't in scope.
+-- 
+-- To do better this, you'd have to track bound variables in the pretty-printer and
+-- fold this logic into the core pretty-printing implementation. This conservative
+-- algorithm has the advantage of being purely a preprocessing step.
 avoidShadowing :: (Var v, Var vt) => Term2 vt at ap v a -> PrettyPrintEnv -> PrettyPrintEnv
 avoidShadowing tm (PrettyPrintEnv terms types) =
   PrettyPrintEnv terms' types'
