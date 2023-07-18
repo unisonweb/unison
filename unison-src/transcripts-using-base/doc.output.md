@@ -114,7 +114,7 @@ and the rendered output using `display`:
       section elements.
       
       Text can be **bold**, __italicized__, ~~strikethrough~~,
-      or ''monospaced''.
+      or ''monospaced'' (or ''monospaced'').
       
       You can link to Unison terms, types, and external URLs:
       
@@ -141,7 +141,7 @@ and the rendered output using `display`:
     elements.
   
     Text can be bold, *italicized*, ~~strikethrough~~, or
-    `monospaced`.
+    `monospaced` (or `monospaced`).
   
     You can link to Unison terms, types, and external URLs:
   
@@ -581,7 +581,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       section elements.
     
       Text can be bold, *italicized*, ~~strikethrough~~, or
-      `monospaced`.
+      `monospaced` (or `monospaced`).
     
       You can link to Unison terms, types, and external URLs:
     
