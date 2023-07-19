@@ -625,23 +625,71 @@ We'd get a type error here if `exampleTerm` or `exampleType` didn't round-trip, 
 .> undo
 ```
 
+# Use clauses can't introduce shadowing 
+
+```unison:hide roundtrip.u
+
+example : Int -> Text -> Nat
+example oo quaffle = 
+  Foo.bar.quaffle + Foo.bar.quaffle + 1
+
+Foo.bar.quaffle = 32
+
+example2 : Int -> Nat
+example2 oo =
+  quaffle = "hi"
+  Foo.bar.quaffle + Foo.bar.quaffle + Foo.bar.quaffle + 1
+```
+
+Notice there's a local name 'quaffle' of type `Text``, but the function refers to 'Foo.bar.quaffle' of type `Nat`.
+
+```ucm
+.> add
+.> edit example example2
+```
+
+This just shows that we don't insert a `use Foo.bar quaffle`, even though it's referenced multiple times, since this would case shadowing.
+
+```ucm
+.> load roundtrip.u
+.> undo
+```
+
 # Use clauses aren't pushed down too far
 
-We push `use` clauses down as far as we can so they're close to where they're used, but only to 
+We push `use` clauses down to the nearest enclosing let or let rec block so they're close to where they're used:
 
 ```unison:hide roundtrip.u
 Foo.bar.qux1 = 42
-Foo'.bar.qux1 = 43
+Foo'.bar.qux1 = "43" -- ensures qux1 is not a unique suffix
 
 Foo.bar.qux2 = 44
-Foo'.bar.qux2 = 45
+Foo'.bar.qux2 = "45"
 
-Foo.bar.qux3 = 45
-Foo'.bar.qux3 = 46
+Foo.bar.qux3 = 46
+Foo'.bar.qux3 = "47"
 
 ex1 = 
-  a = Foo.bar.qux3
-  Foo.bar.qux1 + Foo.bar.qux2
+  a = Foo.bar.qux3 + Foo.bar.qux3
+  Foo.bar.qux1 + Foo.bar.qux1 + Foo.bar.qux2
+
+ex2 = 
+  a = 
+    -- use Foo.bar qux3 will get pushed in here since it's already a multiline block
+    z = 203993
+    Foo.bar.qux3 + Foo.bar.qux3
+  Foo.bar.qux1 + Foo.bar.qux1 + Foo.bar.qux2
+
+ex3 = 
+  a = do
+    -- use clause gets pushed in here
+    x = Foo.bar.qux3 + Foo.bar.qux3
+    x + x
+  ()
+
+ex3a = 
+  a = do Foo.bar.qux3 + Foo.bar.qux3 -- use clause will get pulled up to top level
+  ()
 ```
 
 ```ucm:hide
@@ -649,7 +697,7 @@ ex1 =
 ```
 
 ```ucm
-.> edit ex1
+.> edit ex1 ex2 ex3 ex3a
 .> load roundtrip.u
 ```
 

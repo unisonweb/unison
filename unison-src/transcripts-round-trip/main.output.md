@@ -3,8 +3,13 @@ This transcript verifies that the pretty-printer produces code that can be succe
 ## How to use this transcript: checking round-trip for inline definitions
 
 ```unison
+---
+title: roundtrip.u
+---
 x = 1 + 1
+
 ```
+
 
 ```ucm
 .> add
@@ -18,40 +23,21 @@ x = 1 + 1
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     x : Nat
-    x =
-      use Nat +
-      1 + 1
+    x = 1 Nat.+ 1
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
-.> reflog
+.> undo
 
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
+  Here are the changes I undid
   
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
+  Added definitions:
   
-       When         Root Hash     Action
-  1.   now          #88srvru2o0   add
-  2.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  3.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
+    1. x : Nat
 
 ```
 Resetting the namespace after each example ensures they don't interact at all, which is probably what you want.
@@ -59,10 +45,10 @@ Resetting the namespace after each example ensures they don't interact at all, w
 The `load` command which does parsing and typechecking of the `edit`'d definitions needs to be in a separate stanza from the `edit` command.
 
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -95,8 +81,13 @@ Examples can also be loaded from `.u` files:
 When loading definitions from a file, an empty stanza like this will ensure that this empty file is where the definitions being `edit`'d will get dumped.
 
 ```unison
+---
+title: roundtrip.u
+---
 -- empty scratch file, `edit` will target this
+
 ```
+
 
 Without the above stanza, the `edit` will send the definition to the most recently loaded file, which would be `ex2.u`, making the transcript not idempotent.
 
@@ -106,7 +97,7 @@ Without the above stanza, the `edit` will send the definition to the most recent
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     b : Nat
     b = 92384
@@ -114,39 +105,20 @@ Without the above stanza, the `edit` will send the definition to the most recent
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
-.> reflog
+.> undo
 
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
+  Here are the changes I undid
   
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
+  Added definitions:
   
-       When         Root Hash     Action
-  1.   now          #a16i2glj04   add
-  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.   now          #88srvru2o0   add
-  4.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  5.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
+    1. b : Nat
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -161,13 +133,18 @@ No reason you can't load a bunch of definitions from a single `.u` file in one g
 Regression test for https://github.com/unisonweb/unison/issues/2337
 
 ```unison
+---
+title: roundtrip.u
+---
 unique type Blah = Blah Boolean Boolean
 
 f : Blah -> Boolean
 f x = let
   (Blah.Blah a b) = x
   a
+
 ```
+
 
 ```ucm
 .> add
@@ -182,7 +159,7 @@ f x = let
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     unique type Blah
       = Blah Boolean Boolean
@@ -193,41 +170,22 @@ f x = let
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
-.> reflog
+.> undo
 
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
+  Here are the changes I undid
   
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
+  Added definitions:
   
-       When         Root Hash     Action
-  1.   now          #8pc9a0uci4   add
-  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.   now          #a16i2glj04   add
-  4.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.   now          #88srvru2o0   add
-  6.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  7.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
+    1. unique type Blah
+    2. Blah.Blah : Boolean -> Boolean -> #c9ct8a6u1t
+    3. f         : #c9ct8a6u1t -> Boolean
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -241,6 +199,9 @@ f x = let
 Regression test for https://github.com/unisonweb/unison/issues/2224
 
 ```unison
+---
+title: roundtrip.u
+---
 f : [()] -> ()
 f xs = match xs with
   x +: (x' +: rest) -> x
@@ -255,7 +216,9 @@ h : [[()]] -> ()
 h xs = match xs with
   (rest :+ (rest' :+ x)) -> x
   _ -> ()
+
 ```
+
 
 ```ucm
 .> add
@@ -271,7 +234,7 @@ h xs = match xs with
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     f : [()] -> ()
     f = cases
@@ -286,43 +249,22 @@ h xs = match xs with
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
-.> reflog
+.> undo
 
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
+  Here are the changes I undid
   
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
+  Added definitions:
   
-       When         Root Hash     Action
-  1.   now          #psi40d6du2   add
-  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.   now          #8pc9a0uci4   add
-  4.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.   now          #a16i2glj04   add
-  6.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  7.   now          #88srvru2o0   add
-  8.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  9.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
+    1. f : [()] -> ()
+    2. g : [()] -> ()
+    3. h : [[()]] -> ()
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -336,12 +278,17 @@ h xs = match xs with
 Regression test for https://github.com/unisonweb/unison/issues/2392
 
 ```unison
+---
+title: roundtrip.u
+---
 unique ability Zonk where zonk : Nat
 unique type Foo x y =
 
 foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
 foo n _ = n
+
 ```
+
 
 ```ucm
 .> add
@@ -357,7 +304,7 @@ foo n _ = n
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     unique type Foo x y
       = 
@@ -370,45 +317,26 @@ foo n _ = n
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
-.> reflog
+.> undo
 
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
+  Here are the changes I undid
   
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
+  Added definitions:
   
-        When         Root Hash     Action
-  1.    now          #9i8g6b1m8k   add
-  2.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.    now          #psi40d6du2   add
-  4.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.    now          #8pc9a0uci4   add
-  6.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  7.    now          #a16i2glj04   add
-  8.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  9.    now          #88srvru2o0   add
-  10.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  11.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
+    1. unique type Foo x y
+    2. unique ability Zonk
+    3. Zonk.zonk : {#54l2535tfc} Nat
+    4. foo       : Nat
+                 -> #udgqg0p7ql
+                   ('{#54l2535tfc} a) ('{#54l2535tfc} b)
+                 -> Nat
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -423,10 +351,15 @@ foo n _ = n
 Regression test for https://github.com/unisonweb/unison/issues/1035
 
 ```unison
+---
+title: roundtrip.u
+---
 foo : Text
 foo =
   "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddddddddd"
+
 ```
+
 
 ```ucm
 .> add
@@ -440,60 +373,32 @@ foo =
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     foo : Text
     foo =
-      use Text ++
       "aaaaaaaaaaaaaaaaaaaaaa"
-        ++ "bbbbbbbbbbbbbbbbbbbbbb"
-        ++ "cccccccccccccccccccccc"
-        ++ "dddddddddddddddddddddd"
+        Text.++ "bbbbbbbbbbbbbbbbbbbbbb"
+        Text.++ "cccccccccccccccccccccc"
+        Text.++ "dddddddddddddddddddddd"
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
-.> reflog
+.> undo
 
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
+  Here are the changes I undid
   
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
+  Added definitions:
   
-        When         Root Hash     Action
-  1.    now          #mqg8tqk7i6   add
-  2.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.    now          #9i8g6b1m8k   add
-  4.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.    now          #psi40d6du2   add
-  6.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  7.    now          #8pc9a0uci4   add
-  8.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  9.    now          #a16i2glj04   add
-  10.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  11.   now          #88srvru2o0   add
-  12.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  13.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
+    1. foo : Text
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -506,8 +411,13 @@ foo =
 Regression test for https://github.com/unisonweb/unison/issues/2408
 
 ```unison
+---
+title: roundtrip.u
+---
 myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
+
 ```
+
 
 ```ucm
 .> add
@@ -521,7 +431,7 @@ myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*T
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     myDoc : Doc2
     myDoc =
@@ -543,10 +453,10 @@ myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*T
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -559,6 +469,9 @@ myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*T
 Regression test for https://github.com/unisonweb/unison/issues/1778
 
 ```unison
+---
+title: roundtrip.u
+---
 structural ability base.Abort where
   abort : a
 
@@ -584,7 +497,9 @@ Abort.toDefault! default thunk =
 x = '(let
   abort
   0) |> Abort.toOptional
+
 ```
+
 
 ```ucm
 .> add
@@ -604,7 +519,7 @@ x = '(let
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     structural ability base.Abort where abort : {base.Abort} a
     
@@ -654,10 +569,10 @@ x = '(let
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -676,10 +591,15 @@ x = '(let
 Regression test for https://github.com/unisonweb/unison/issues/1536
 
 ```unison
+---
+title: roundtrip.u
+---
 r = 'let
  y = 0
  y
+
 ```
+
 
 ```ucm
 .> add
@@ -693,7 +613,7 @@ r = 'let
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     r : 'Nat
     r = do
@@ -713,10 +633,10 @@ r = 'let
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -747,8 +667,13 @@ Regression test for https://github.com/unisonweb/unison/issues/2271
 
 ```
 ```unison
+---
+title: roundtrip.u
+---
 x = 2
+
 ```
+
 
 ```ucm
 .> edit docTest2
@@ -756,7 +681,7 @@ x = 2
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     docTest2 : Doc2
     docTest2 =
@@ -780,9 +705,9 @@ x = 2
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked the definitions in scratch.u. This
+  I found and typechecked the definitions in roundtrip.u. This
   file has been previously added to the codebase.
 
 .> add
@@ -795,6 +720,9 @@ x = 2
 Regression tests for  https://github.com/unisonweb/unison/issues/2650
 
 ```unison
+---
+title: roundtrip.u
+---
 broken =
     addNumbers: 'Nat
     addNumbers = 'let
@@ -802,7 +730,9 @@ broken =
       y = 12
       13 + y
     !addNumbers
+
 ```
+
 
 ```ucm
 .> add
@@ -816,7 +746,7 @@ broken =
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     broken : Nat
     broken =
@@ -840,10 +770,10 @@ broken =
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -852,13 +782,18 @@ broken =
 
 ```
 ```unison
+---
+title: roundtrip.u
+---
 tvarmodify tvar fun = ()
 
 broken tvar =
   '(tvarmodify tvar (cases
      Some _ -> "oh boy isn't this a very very very very very very very long string?"
      None -> ""))
+
 ```
+
 
 ```ucm
 .> add
@@ -873,7 +808,7 @@ broken tvar =
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     broken : tvar -> () -> ()
     broken tvar =
@@ -901,10 +836,10 @@ broken tvar =
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -914,10 +849,15 @@ broken tvar =
 
 ```
 ```unison
+---
+title: roundtrip.u
+---
 broken = cases
   Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
   _ -> ()
+
 ```
+
 
 ```ucm
 .> add
@@ -931,7 +871,7 @@ broken = cases
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     broken : Optional Nat -> ()
     broken = cases
@@ -954,10 +894,10 @@ broken = cases
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -968,6 +908,9 @@ broken = cases
 ## Guard patterns on long lines
 
 ```unison
+---
+title: roundtrip.u
+---
 structural type SomethingUnusuallyLong = SomethingUnusuallyLong Text Text Text
 
 foo = let
@@ -979,7 +922,9 @@ foo = let
         lijaefliejalfijelfj == liaehjffeafijij -> 1
       _ -> 2
   go (SomethingUnusuallyLong "one" "two" "three")
+
 ```
+
 
 ```ucm
 .> add
@@ -994,7 +939,7 @@ foo = let
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     structural type SomethingUnusuallyLong
       = SomethingUnusuallyLong Text Text Text
@@ -1029,10 +974,10 @@ foo = let
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -1067,7 +1012,7 @@ foo = let
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/unison-src/transcripts-round-trip/nested.u
+  /Users/pchiusano/unison/unison-src/transcripts-round-trip/nested.u
   
     nested : Doc2
     nested =
@@ -1104,12 +1049,17 @@ foo = let
 ## Multiline expressions in multiliine lists
 
 ```unison
+---
+title: roundtrip.u
+---
 foo a b c d e f g h i j = 42
 
 use Nat +
 x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
     , foo 12939233 2102020 329292 429292 522020 62929292 72020202 820202 920202 1020202 ]
+
 ```
+
 
 ```ucm
 .> add
@@ -1124,33 +1074,32 @@ x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     foo : a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> Nat
     foo a b c d e f g h i j = 42
     
     x : [Nat]
     x =
-      use Nat +
       [ 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1,
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1
+          Nat.+ 1,
         foo
           12939233
           2102020
@@ -1187,10 +1136,10 @@ x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -1233,6 +1182,9 @@ vs the not as pretty but still correct:
 Okay, here's the test, showing that we use the prettier version when possible:
 
 ```unison
+---
+title: roundtrip.u
+---
 (+) a b = ##Nat.+ a b
 
 foo a b = 42
@@ -1265,7 +1217,9 @@ bar3 x = do
     c = 3
     a + b
   c
+
 ```
+
 
 ```ucm
 .> add
@@ -1284,7 +1238,7 @@ bar3 x = do
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     bar0 : x -> () -> Nat
     bar0 x = do
@@ -1358,10 +1312,10 @@ bar3 x = do
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -1381,6 +1335,9 @@ condition lines up with the printing, so we don't detect a delay but then
 go ahead and print it as a normal lambda.
 
 ```unison
+---
+title: roundtrip.u
+---
 (+) a b = ##Nat.+ a b
 
 afun x f = f x
@@ -1390,7 +1347,9 @@ roundtripLastLam =
     _ = 1 + 1
     3
   )
+
 ```
+
 
 ```ucm
 .> add
@@ -1406,7 +1365,7 @@ roundtripLastLam =
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     afun : x -> (x ->{g} t) ->{g} t
     afun x f = f x
@@ -1432,10 +1391,10 @@ roundtripLastLam =
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -1458,7 +1417,7 @@ Regression test for https://github.com/unisonweb/unison/pull/3548
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     -- builtin plus : builtin.Nat -> builtin.Nat -> builtin.Nat
   
@@ -1476,9 +1435,9 @@ Regression test for https://github.com/unisonweb/unison/pull/3548
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I loaded scratch.u and didn't find anything.
+  I loaded roundtrip.u and didn't find anything.
 
 ```
 # Indent long pattern lists to avoid virtual semicolon
@@ -1486,13 +1445,18 @@ Regression test for https://github.com/unisonweb/unison/pull/3548
 Regression test for https://github.com/unisonweb/unison/issues/3627
 
 ```unison
+---
+title: roundtrip.u
+---
 (+) a b = ##Nat.+ a b
 
 foo = cases
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
    bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
     -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
 ```
+
 
 ```ucm
 .> add
@@ -1507,7 +1471,7 @@ foo = cases
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     foo : Nat -> Nat -> Nat
     foo = cases
@@ -1530,10 +1494,10 @@ foo = cases
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -1546,7 +1510,10 @@ foo = cases
 Regression test for #3110 and #3801
 
 ```unison
-foreach x f = 
+---
+title: roundtrip.u
+---
+foreach x f =
   _ = List.map f x
   ()
 
@@ -1558,12 +1525,14 @@ test1 =
       y = Nat.increment x
       ()
 
-test2 = foreach [1, 2, 3] let x -> ignore (Nat.increment x) 
+test2 = foreach [1, 2, 3] let x -> ignore (Nat.increment x)
 
 test3 = foreach [1, 2, 3] do x -> do
   y = Nat.increment x
   ()
+
 ```
+
 
 ```ucm
 .> add
@@ -1581,7 +1550,7 @@ test3 = foreach [1, 2, 3] do x -> do
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     foreach : [a] -> (a ->{e} t) ->{e} ()
     foreach x f =
@@ -1625,10 +1594,10 @@ test3 = foreach [1, 2, 3] do x -> do
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -1645,6 +1614,9 @@ test3 = foreach [1, 2, 3] do x -> do
 Regression test for https://github.com/unisonweb/unison/issues/3710
 
 ```unison
+---
+title: roundtrip.u
+---
 d1 = do
   (a,b) = (1,2)
   (c,d) = (3,4)
@@ -1672,7 +1644,9 @@ d4 x = do
 d5 x = match x with
   Some x -> x
   None -> bug "oops"
+
 ```
+
 
 ```ucm
 .> add
@@ -1690,7 +1664,7 @@ d5 x = match x with
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /Users/pchiusano/unison/roundtrip.u
   
     d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
     d1 = do
@@ -1742,10 +1716,10 @@ d5 x = match x with
 
 ```
 ```ucm
-.> load scratch.u
+.> load roundtrip.u
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
@@ -1755,5 +1729,223 @@ d5 x = match x with
       d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
       d4 : x -> '(Nat, x, Nat, Nat, Nat, Nat)
       d5 : Optional a -> a
+
+```
+# Avoid capture of local variables when selecting names for references
+
+Regression test for https://github.com/unisonweb/unison/issues/525
+
+```unison
+---
+title: roundtrip.u
+---
+-- Ex 1: 'quaffle' is a unique term suffix, but 'exampleTerm' binds 'quaffle'
+-- as a local name, so the pretty-printer should use the longer name
+Foo.bar.quaffle = 32
+
+-- Notice this won't typecheck if we write 'quaffle' instead of 'Foo.bar.quaffle'
+-- because 'quaffle' (the local variable) has type `Text`
+exampleTerm : Text -> Nat
+exampleTerm quaffle = Foo.bar.quaffle + 1
+
+-- This demonstrates the same thing for types.
+-- exampleType's signature locally binds the 'qualifiedName' type parameter,
+-- so the pretty-printer should use the longer name 'Fully.qualifiedName' 
+structural type Fully.qualifiedName = Dontcare () Nat
+
+structural type Id a = Id a
+
+exampleType : forall qualifiedName . Id qualifiedName -> Id Fully.qualifiedName
+exampleType z = Id (Dontcare () 19)
+
+```
+
+
+We'd get a type error here if `exampleTerm` or `exampleType` didn't round-trip, but it typechecks okay! 🎉 
+
+```ucm
+.> edit exampleTerm exampleType
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/pchiusano/unison/roundtrip.u
+  
+    exampleTerm : Text -> Nat
+    exampleTerm quaffle = Foo.bar.quaffle Nat.+ 1
+    
+    exampleType : Id qualifiedName -> Id Fully.qualifiedName
+    exampleType z = Id (Dontcare () 19)
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> load roundtrip.u
+
+  I found and typechecked the definitions in roundtrip.u. This
+  file has been previously added to the codebase.
+
+```
+# Use clauses can't introduce shadowing 
+
+```unison
+---
+title: roundtrip.u
+---
+example : Int -> Text -> Nat
+example oo quaffle = 
+  Foo.bar.quaffle + Foo.bar.quaffle + 1
+
+Foo.bar.quaffle = 32
+
+example2 : Int -> Nat
+example2 oo =
+  quaffle = "hi"
+  Foo.bar.quaffle + Foo.bar.quaffle + Foo.bar.quaffle + 1
+
+```
+
+
+Notice there's a local name 'quaffle' of type `Text``, but the function refers to 'Foo.bar.quaffle' of type `Nat`.
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    Foo.bar.quaffle : Nat
+    example         : Int -> Text -> Nat
+    example2        : Int -> Nat
+
+.> edit example example2
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/pchiusano/unison/roundtrip.u
+  
+    example : Int -> Text -> Nat
+    example oo quaffle =
+      Foo.bar.quaffle Nat.+ Foo.bar.quaffle Nat.+ 1
+    
+    example2 : Int -> Nat
+    example2 oo =
+      use Nat +
+      quaffle = "hi"
+      Foo.bar.quaffle + Foo.bar.quaffle + Foo.bar.quaffle + 1
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+```
+This just shows that we don't insert a `use Foo.bar quaffle`, even though it's referenced multiple times, since this would case shadowing.
+
+```ucm
+.> load roundtrip.u
+
+  I found and typechecked the definitions in roundtrip.u. This
+  file has been previously added to the codebase.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. example         : Int -> Text -> Nat
+    2. example2        : Int -> Nat
+    3. Foo.bar.quaffle : Nat
+
+```
+# Use clauses aren't pushed down too far
+
+We push `use` clauses down to the nearest enclosing let or let rec block so they're close to where they're used:
+
+```unison
+---
+title: roundtrip.u
+---
+Foo.bar.qux1 = 42
+Foo'.bar.qux1 = "43" -- ensures qux1 is not a unique suffix
+
+Foo.bar.qux2 = 44
+Foo'.bar.qux2 = "45"
+
+Foo.bar.qux3 = 46
+Foo'.bar.qux3 = "47"
+
+ex1 = 
+  a = Foo.bar.qux3 + Foo.bar.qux3
+  Foo.bar.qux1 + Foo.bar.qux1 + Foo.bar.qux2
+
+ex2 = 
+  a = 
+    -- use Foo.bar qux3 will get pushed in here since it's already a multiline block
+    z = 203993
+    Foo.bar.qux3 + Foo.bar.qux3
+  Foo.bar.qux1 + Foo.bar.qux1 + Foo.bar.qux2
+
+ex3 = 
+  a = do
+    -- use clause gets pushed in here
+    x = Foo.bar.qux3 + Foo.bar.qux3
+    x + x
+  ()
+
+ex3a = 
+  a = do Foo.bar.qux3 + Foo.bar.qux3 -- use clause will get pulled up to top level
+  ()
+
+```
+
+
+```ucm
+.> edit ex1 ex2 ex3 ex3a
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/pchiusano/unison/roundtrip.u
+  
+    ex1 : Nat
+    ex1 =
+      use Foo.bar qux1 qux3
+      use Nat +
+      a = qux3 + qux3
+      qux1 + qux1 + Foo.bar.qux2
+    
+    ex2 : Nat
+    ex2 =
+      use Foo.bar qux1
+      use Nat +
+      a =
+        use Foo.bar qux3
+        z = 203993
+        qux3 + qux3
+      qux1 + qux1 + Foo.bar.qux2
+    
+    ex3 : ()
+    ex3 =
+      a = do
+        use Foo.bar qux3
+        use Nat +
+        x = qux3 + qux3
+        x + x
+      ()
+    
+    ex3a : ()
+    ex3a =
+      use Foo.bar qux3
+      use Nat +
+      a = '(qux3 + qux3)
+      ()
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> load roundtrip.u
+
+  I found and typechecked the definitions in roundtrip.u. This
+  file has been previously added to the codebase.
 
 ```

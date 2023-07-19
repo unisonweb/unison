@@ -266,8 +266,8 @@ pretty0
             conRef = Referent.Con ref CT.Effect
         pure $ styleHashQualified'' (fmt $ S.TermReference conRef) name
       Handle' h body -> do
-        pb <- pblock body
-        ph <- pblock h
+        pb <- pretty0 (ac 0 Block im doc) body
+        ph <- pretty0 (ac 0 Block im doc) h
         pure . paren (p >= 2) $
           if PP.isMultiLine pb || PP.isMultiLine ph
             then
@@ -283,19 +283,16 @@ pretty0
                     <> fmt S.ControlKeyword "with"
                     `PP.hang` ph
                 ]
-        where
-          pblock tm =
-            let (im', uses) = calcImports im tm
-             in uses <$> sequence [pretty0 (ac 0 Block im' doc) tm]
       App' x (Constructor' (ConstructorReference DD.UnitRef 0)) -> do
         px <- pretty0 (ac (if isBlock x then 0 else 10) Normal im doc) x
         pure . paren (p >= 11 || isBlock x && p >= 3) $
           fmt S.DelayForceChar (l "!") <> px
       Delay' x
-        | Lets' _ _ <- x -> do
-            px <- pretty0 (ac 0 Block im doc) x
+        | isLet x -> do
+            let (im', uses) = calcImports im x
+            px <- pretty0 (ac 0 Block im' doc) x
             pure . paren (p >= 3) $
-              fmt S.ControlKeyword "do" `PP.hang` px
+              fmt S.ControlKeyword "do" `PP.hang` PP.lines (uses <> [px])
         | Match' _ _ <- x -> do
             px <- pretty0 (ac 0 Block im doc) x
             pure . paren (p >= 3) $
@@ -325,8 +322,8 @@ pretty0
       If' cond t f ->
         do
           pcond <- pretty0 (ac 2 Block im doc) cond
-          pt <- branch t
-          pf <- branch f
+          pt <- pretty0 (ac 0 Block im doc) t
+          pf <- pretty0 (ac 0 Block im doc) f
           pure . paren (p >= 2) $
             if PP.isMultiLine pcond
               then
@@ -347,10 +344,6 @@ pretty0
                       [ (fmt S.ControlKeyword "if" `PP.hang` pcond) <> (fmt S.ControlKeyword " then" `PP.hang` pt),
                         fmt S.ControlKeyword "else" `PP.hang` pf
                       ]
-        where
-          branch tm =
-            let (im', uses) = calcImports im tm
-             in uses <$> sequence [pretty0 (ac 0 Block im' doc) tm]
       LetBlock bs e ->
         let (im', uses) = calcImports im term
          in printLet elideUnit bc bs e im' uses
@@ -365,20 +358,13 @@ pretty0
             n <- getPPE
             let letIntro = case bc of
                   Block -> id
-                  Normal -> \x ->
-                    -- We don't call calcImports here, because we can't easily do the
-                    -- corequisite step in immediateChildBlockTerms (because it doesn't
-                    -- know bc.)  So we'll fail to take advantage of any opportunity
-                    -- this let block provides to add a use statement.  Not so bad.
-                    fmt S.ControlKeyword "let" `PP.hang` x
+                  Normal -> \x -> fmt S.ControlKeyword "let" `PP.hang` x
             lhs <- do
               let (lhs, _) = prettyPattern n (ac 0 Block im doc) 10 vs pat
               guard' <- printGuard guard
               pure $ PP.group lhs `PP.hang` guard'
             let eq = fmt S.BindingEquals "="
-            rhs <- do
-              let (im', uses) = calcImports im scrutinee
-              uses <$> sequence [pretty0 (ac (-1) Block im' doc) scrutinee]
+            rhs <- pretty0 (ac (-1) Block im doc) scrutinee
             letIntro <$> do
               prettyBody <- pretty0 (ac (-1) Block im doc) body
               pure $
@@ -558,13 +544,12 @@ pretty0
         [(v, Term3 v PrintAnnotation)] ->
         Term3 v PrintAnnotation ->
         Imports ->
-        ([Pretty SyntaxText] -> Pretty SyntaxText) ->
+        [Pretty SyntaxText] ->
         m (Pretty SyntaxText)
-      printLet elideUnit sc bs e im uses =
-        paren (sc /= Block && p >= 12)
-          . letIntro
-          . uses
-          <$> ((++) <$> traverse printBinding bs <*> body e)
+      printLet elideUnit sc bs e im uses = do
+        bs <- traverse printBinding bs
+        body <- body e
+        pure . paren (sc /= Block && p >= 12) . letIntro $ PP.lines (uses <> bs <> body)
         where
           body (Constructor' (ConstructorReference DD.UnitRef 0)) | elideUnit = pure []
           body e = (: []) <$> pretty0 (ac 0 Normal im doc) e
@@ -816,7 +801,6 @@ printCase im doc ms0 =
             State.put rem
             pure p
     arrow = fmt S.ControlKeyword "->"
-    goBody im' uses body = uses <$> sequence [pretty0 (ac 0 Block im' doc) body]
     -- If there's multiple guarded cases for this pattern, prints as:
     -- MyPattern x y
     --   | guard 1        -> 1
@@ -837,7 +821,7 @@ printCase im doc ms0 =
           -- like any other variable, ex: case Foo x y | x < y -> ...
           PP.spaceIfNeeded (fmt S.DelimiterChar "|")
             <$> pretty0 (ac 2 Normal im doc) g
-        printBody b = let (im', uses) = calcImports im b in goBody im' uses b
+        printBody = pretty0 (ac 0 Block im doc)
 
 -- A pretty term binding, split into the type signature (possibly empty) and the term.
 data PrettyBinding = PrettyBinding
@@ -959,11 +943,10 @@ prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
           -- call to printAnnotate is unfortunately repeating work we've already
           -- done.
           body' <- applyPPE2 printAnnotate body
-          let (im', uses) = calcImports im body'
-          prettyBody <- pretty0 (ac (-1) Block im' doc) body'
+          prettyBody <- pretty0 (ac (-1) Block im doc) body'
           -- Special case for 'let being on the same line
           let hang = case body' of
-                Delay' (Lets' _ _) -> PP.softHang
+                Delay' x | isLet x -> PP.softHang
                 Delay' (Match' _ _) -> PP.softHang
                 _ -> PP.hang
           pure
@@ -972,7 +955,7 @@ prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
                 term =
                   PP.group $
                     PP.group (defnLhs v vs <> fmt S.BindingEquals " =")
-                      `hang` uses [prettyBody]
+                      `hang` prettyBody
               }
         t -> error ("prettyBinding0: unexpected term: " ++ show t)
       where
@@ -1226,37 +1209,45 @@ instance Semigroup PrintAnnotation where
 instance Monoid PrintAnnotation where
   mempty = PrintAnnotation {usages = Map.empty}
 
-suffixCounterTerm :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> PrintAnnotation
-suffixCounterTerm n = \case
-  Var' v -> countHQ $ HQ.unsafeFromVar v
-  Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
+suffixCounterTerm :: (Var v) => PrettyPrintEnv -> Set Name -> Set Name -> Term2 v at ap v a -> PrintAnnotation
+suffixCounterTerm n usedTm usedTy = \case
+  Var' v -> countHQ mempty $ HQ.unsafeFromVar v
+  Ref' r -> countHQ usedTm $ PrettyPrintEnv.termName n (Referent.Ref r)
   Constructor' r | noImportRefs (r ^. ConstructorReference.reference_) -> mempty
-  Constructor' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r CT.Data)
-  Request' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r CT.Effect)
-  Ann' _ t -> countTypeUsages n t
+  Constructor' r -> countHQ usedTm $ PrettyPrintEnv.termName n (Referent.Con r CT.Data)
+  Request' r -> countHQ usedTm $ PrettyPrintEnv.termName n (Referent.Con r CT.Effect)
+  Ann' _ t -> countTypeUsages n usedTy t
   Match' _ bs ->
     let pat (MatchCase p _ _) = p
-     in foldMap (countPatternUsages n . pat) bs
+     in foldMap (countPatternUsages n usedTm . pat) bs
   _ -> mempty
 
-suffixCounterType :: (Var v) => PrettyPrintEnv -> Type v a -> PrintAnnotation
-suffixCounterType n = \case
-  Type.Var' v -> countHQ $ HQ.unsafeFromVar v
+suffixCounterType :: (Var v) => PrettyPrintEnv -> Set Name -> Type v a -> PrintAnnotation
+suffixCounterType n used = \case
+  Type.Var' v -> countHQ used $ HQ.unsafeFromVar v
   Type.Ref' r | noImportRefs r || r == Type.listRef -> mempty
-  Type.Ref' r -> countHQ $ PrettyPrintEnv.typeName n r
+  Type.Ref' r -> countHQ used $ PrettyPrintEnv.typeName n r
   _ -> mempty
 
 printAnnotate :: (Var v, Ord v) => PrettyPrintEnv -> Term2 v at ap v a -> Term3 v PrintAnnotation
-printAnnotate n tm = fmap snd (go (reannotateUp (suffixCounterTerm n) tm))
+printAnnotate n tm = 
+  fmap snd (go (reannotateUp (suffixCounterTerm n usedTermNames usedTypeNames) tm))
   where
+    -- See `countHQ` to see how these are used to make sure that
+    -- a `use` clause doesn't introduce shadowing of a local variable
+    usedTermNames =
+      Set.fromList [n | v <- ABT.allVars tm, n <- varToName v]
+    usedTypeNames =
+      Set.fromList [n | Ann' _ ty <- ABT.subterms tm, v <- ABT.allVars ty, n <- varToName v]
+    varToName v = toList (Name.fromText (Var.name v))
     go :: (Ord v) => Term2 v at ap v b -> Term2 v () () v b
     go = extraMap' id (const ()) (const ())
 
-countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Type v a -> PrintAnnotation
-countTypeUsages n t = snd $ annotation $ reannotateUp (suffixCounterType n) t
+countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Set Name -> Type v a -> PrintAnnotation
+countTypeUsages n usedTy t = snd $ annotation $ reannotateUp (suffixCounterType n usedTy) t
 
-countPatternUsages :: PrettyPrintEnv -> Pattern loc -> PrintAnnotation
-countPatternUsages n = Pattern.foldMap' f
+countPatternUsages :: PrettyPrintEnv -> Set Name -> Pattern loc -> PrintAnnotation
+countPatternUsages n usedTm = Pattern.foldMap' f
   where
     f = \case
       Pattern.Unbound _ -> mempty
@@ -1271,14 +1262,19 @@ countPatternUsages n = Pattern.foldMap' f
       Pattern.SequenceLiteral _ _ -> mempty
       Pattern.SequenceOp {} -> mempty
       Pattern.EffectPure _ _ -> mempty
-      Pattern.EffectBind _ r _ _ -> countHQ $ PrettyPrintEnv.patternName n r
+      Pattern.EffectBind _ r _ _ -> countHQ usedTm $ PrettyPrintEnv.patternName n r
       Pattern.Constructor _ r _ ->
         if noImportRefs (r ^. ConstructorReference.reference_)
           then mempty
-          else countHQ $ PrettyPrintEnv.patternName n r
+          else countHQ usedTm $ PrettyPrintEnv.patternName n r
 
-countHQ :: HQ.HashQualified Name -> PrintAnnotation
-countHQ hq = foldMap countName (HQ.toName hq)
+countHQ :: Set Name -> HQ.HashQualified Name -> PrintAnnotation
+countHQ used (HQ.NameOnly n) 
+  -- Names that are marked 'used' aren't considered for `use` clause insertion
+  -- So if a variable 'foo' is used, then we won't insert a `use` clause for
+  -- the reference `Qux.quaffle.foo`.  
+  | Just n' <- Set.lookupLE n used, Name.endsWith n n' = mempty
+countHQ _ hq = foldMap countName (HQ.toName hq)
 
 countName :: Name -> PrintAnnotation
 countName n =
@@ -1329,7 +1325,7 @@ calcImports ::
   (Var v, Ord v) =>
   Imports ->
   Term3 v PrintAnnotation ->
-  (Imports, [Pretty SyntaxText] -> Pretty SyntaxText)
+  (Imports, [Pretty SyntaxText])
 calcImports im tm = (im', render $ getUses result)
   where
     -- The guts of this function is a pipeline of transformations and filters, starting from the
@@ -1424,20 +1420,17 @@ calcImports im tm = (im', render $ getUses result)
       Map.elems m
         |> map (\(p, s, _) -> (p, Set.singleton s))
         |> Map.fromListWith Set.union
-    render :: Map Prefix (Set Suffix) -> [Pretty SyntaxText] -> Pretty SyntaxText
-    render m rest =
-      let uses =
-            Map.mapWithKey
-              ( \p ss ->
-                  fmt S.UseKeyword (l "use ")
-                    <> fmt S.UsePrefix (intercalateMap (l ".") (l . unpack) p)
-                    <> l " "
-                    <> fmt S.UseSuffix (intercalateMap (l " ") (l . unpack) (Set.toList ss))
-              )
-              m
-              |> Map.toList
-              |> map snd
-       in PP.lines (uses ++ rest)
+    render m =
+      Map.mapWithKey
+        ( \p ss ->
+            fmt S.UseKeyword (l "use ")
+              <> fmt S.UsePrefix (intercalateMap (l ".") (l . unpack) p)
+              <> l " "
+              <> fmt S.UseSuffix (intercalateMap (l " ") (l . unpack) (Set.toList ss))
+        )
+        m
+        |> Map.toList
+        |> map snd
 
 -- Given a block term and a name (Prefix, Suffix) of interest, is there a
 -- strictly smaller blockterm within it, containing all usages of that name?
@@ -1515,9 +1508,11 @@ immediateChildBlockTerms = \case
     --    1 + 1
     doLet (v, LamsNamedOpt' _ body) = [body | not (Var.isAction v), isLet body]
     doLet t = error (show t) []
-    isLet (Let1Named' {}) = True
-    isLet (LetRecNamed' {}) = True
-    isLet _ = False
+
+isLet :: Term2 vt at ap v a -> Bool
+isLet (Let1Named' {}) = True
+isLet (LetRecNamed' {}) = True
+isLet _ = False
 
 -- Matches with a single case, no variable shadowing, and where the pattern
 -- has no literals are treated as destructuring bind, for instance:
