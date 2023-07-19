@@ -138,10 +138,10 @@ data FileSummary = FileSummary
     dataDeclsByReference :: Map Reference.Id (Map Symbol (DD.DataDeclaration Symbol Ann)),
     effectDeclsBySymbol :: Map Symbol (Reference.Id, DD.EffectDeclaration Symbol Ann),
     effectDeclsByReference :: Map Reference.Id (Map Symbol (DD.EffectDeclaration Symbol Ann)),
-    termsBySymbol :: Map Symbol (Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
-    termsByReference :: Map (Maybe Reference.Id) (Map Symbol (Term Symbol Ann, Maybe (Type Symbol Ann))),
-    testWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
-    exprWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
+    termsBySymbol :: Map Symbol (Ann, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
+    termsByReference :: Map (Maybe Reference.Id) (Map Symbol (Ann, Term Symbol Ann, Maybe (Type Symbol Ann))),
+    testWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
+    exprWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
     fileNames :: Names
   }
   deriving stock (Show)

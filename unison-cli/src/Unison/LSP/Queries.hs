@@ -88,7 +88,7 @@ getTypeOfReferent fileUri ref = do
       case ref of
         Referent.Ref (Reference.Builtin {}) -> empty
         Referent.Ref (Reference.DerivedId termRefId) -> do
-          MaybeT . pure $ (termsByReference ^? ix (Just termRefId) . folded . _2 . _Just)
+          MaybeT . pure $ (termsByReference ^? ix (Just termRefId) . folded . _3 . _Just)
         Referent.Con (ConstructorReference r0 cid) _type -> do
           case r0 of
             Reference.DerivedId r -> do
@@ -344,10 +344,10 @@ nodeAtPosition :: Uri -> Position -> MaybeT Lsp (SourceNode Ann)
 nodeAtPosition uri (lspToUPos -> pos) = do
   (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
 
-  let (trms, typs) = termsBySymbol & foldMap \(_ref, trm, mayTyp) -> ([trm], toList mayTyp)
+  let (trms, typs) = termsBySymbol & foldMap \(_ann, _ref, trm, mayTyp) -> ([trm], toList mayTyp)
   ( altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) trms
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (testWatchSummary ^.. folded . _3)
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _3)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (testWatchSummary ^.. folded . _4)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _4)
       <|> altMap (fmap TypeNode . hoistMaybe . findSmallestEnclosingType pos) typs
     )
   where
