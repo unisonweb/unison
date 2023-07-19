@@ -5,7 +5,6 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Path qualified as Path
 import Unison.Debug qualified as Debug
-import Unison.LSP.Completion
 import Unison.LSP.Completion.Helpers (namesToCompletionTree)
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
