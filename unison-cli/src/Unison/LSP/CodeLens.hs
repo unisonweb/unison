@@ -38,11 +38,11 @@ instance Aeson.FromJSON TypeSigInsertion where
   parseJSON = Aeson.withObject "TypeSigInsertion" $ \o ->
     TypeSigInsertion
       <$> o
-      Aeson..: "range"
+        Aeson..: "range"
       <*> o
-      Aeson..: "typeSignature"
+        Aeson..: "typeSignature"
       <*> o
-      Aeson..: "fileUri"
+        Aeson..: "fileUri"
 
 -- | Computes code actions for a document.
 codeLensHandler :: RequestMessage 'TextDocumentCodeLens -> (Either ResponseError (List CodeLens) -> Lsp ()) -> Lsp ()

@@ -6,12 +6,12 @@ module Unison.LSP.Commands where
 
 import Control.Lens hiding (List)
 import Control.Monad.Except
-import qualified Data.Aeson as Aeson
-import qualified Data.HashMap.Strict as HM
+import Data.Aeson qualified as Aeson
+import Data.HashMap.Strict qualified as HM
 import Language.LSP.Server (sendRequest)
 import Language.LSP.Types
 import Language.LSP.Types.Lens
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 import Unison.Prelude
 
@@ -44,7 +44,8 @@ instance Aeson.ToJSON TextReplacement where
 
 instance Aeson.FromJSON TextReplacement where
   parseJSON = Aeson.withObject "TextReplacement" $ \o ->
-    TextReplacement <$> o Aeson..: "range"
+    TextReplacement
+      <$> o Aeson..: "range"
       <*> o Aeson..: "description"
       <*> o Aeson..: "replacementText"
       <*> o Aeson..: "fileUri"
