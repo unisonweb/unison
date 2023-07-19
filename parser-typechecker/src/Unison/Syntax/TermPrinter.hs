@@ -1500,22 +1500,24 @@ allInSubBlock tm p s i =
 immediateChildBlockTerms ::
   (Var vt, Var v) => Term2 vt at ap v a -> [Term2 vt at ap v a]
 immediateChildBlockTerms = \case
-  Handle' handler body -> [handler, body]
-  If' _ t f -> [t, f]
   LetBlock bs e -> concatMap doLet bs ++ handleDelay e
-  Delay' b@(Lets' _ _) -> [b]
-  Match' scrute branches ->
-    if isDestructuringBind scrute branches
-      then [scrute]
-      else concatMap doCase branches
   _ -> []
   where
-    doCase (MatchCase _ _ (AbsN' _ body)) = [body]
-    handleDelay (Delay' b@(Lets' _ _)) = [b]
+    handleDelay (Delay' b) | isLet b = [b]
     handleDelay _ = []
     doLet (v, Ann' tm _) = doLet (v, tm)
-    doLet (v, LamsNamedOpt' _ body) = [body | not (Var.isAction v)]
+    -- we don't consider 'body' to be a place we can insert a `use`
+    -- clause unless it's already a let block. This avoids silliness like:
+    --   x = 1 + 1
+    -- turning into
+    --   x =
+    --    use Nat +
+    --    1 + 1
+    doLet (v, LamsNamedOpt' _ body) = [body | not (Var.isAction v), isLet body]
     doLet t = error (show t) []
+    isLet (Let1Named' {}) = True
+    isLet (LetRecNamed' {}) = True
+    isLet _ = False
 
 -- Matches with a single case, no variable shadowing, and where the pattern
 -- has no literals are treated as destructuring bind, for instance:

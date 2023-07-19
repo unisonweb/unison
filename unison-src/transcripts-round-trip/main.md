@@ -613,9 +613,43 @@ exampleType z = Id (Dontcare () 19)
 ```ucm:hide
 .> add
 ```
-We'd get a parse error here if `exampleTerm` or `exampleType` didn't round-trip, but it parses okay! 🎉 
+
+We'd get a type error here if `exampleTerm` or `exampleType` didn't round-trip, but it typechecks okay! 🎉 
+
 ```ucm
 .> edit exampleTerm exampleType
+.> load roundtrip.u
+```
+
+```ucm:hide
+.> undo
+```
+
+# Use clauses aren't pushed down too far
+
+We push `use` clauses down as far as we can so they're close to where they're used, but only to 
+
+```unison:hide roundtrip.u
+Foo.bar.qux1 = 42
+Foo'.bar.qux1 = 43
+
+Foo.bar.qux2 = 44
+Foo'.bar.qux2 = 45
+
+Foo.bar.qux3 = 45
+Foo'.bar.qux3 = 46
+
+ex1 = 
+  a = Foo.bar.qux3
+  Foo.bar.qux1 + Foo.bar.qux2
+```
+
+```ucm:hide
+.> add
+```
+
+```ucm
+.> edit ex1
 .> load roundtrip.u
 ```
 
