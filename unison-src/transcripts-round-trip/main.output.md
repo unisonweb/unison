@@ -1286,10 +1286,9 @@ bar3 x = do
     bar3 x = do
       a = 1
       b = 2
-      c =
-        foo do
-          c = 3
-          a + b
+      c = foo do
+        c = 3
+        a + b
       c
     
     foo : a -> b -> Nat
@@ -1372,10 +1371,9 @@ roundtripLastLam =
     afun x f = f x
     
     roundtripLastLam : Nat
-    roundtripLastLam =
-      afun "foo" do
-        _ = 1 + 1
-        3
+    roundtripLastLam = afun "foo" do
+      _ = 1 + 1
+      3
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -1572,11 +1570,10 @@ test3 = foreach [1, 2, 3] do x -> do
     test2 = foreach [1, 2, 3] (x -> ignore (Nat.increment x))
     
     test3 : ()
-    test3 =
-      foreach [1, 2, 3] do
-        x -> do
-          y = Nat.increment x
-          ()
+    test3 = foreach [1, 2, 3] do
+      x -> do
+        y = Nat.increment x
+        ()
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -2028,11 +2025,10 @@ ex7 somewhere = forkAt somewhere do
         { abort -> _ } -> 0
     
     ex2 : Nat
-    ex2 =
-      foreach [0, 1, 2, 3, 4, 5] cases
-        0 -> 0
-        1 -> 1
-        n -> n Nat.+ 100
+    ex2 = foreach [0, 1, 2, 3, 4, 5] cases
+      0 -> 0
+      1 -> 1
+      n -> n Nat.+ 100
     
     ex3 : 'Nat
     ex3 = do
@@ -2054,18 +2050,16 @@ ex7 somewhere = forkAt somewhere do
       n -> "oh no"
     
     ex6 : Nat
-    ex6 =
-      foreach [1, 2, 3, 4] cases
-        0 -> 1
-        n -> n Nat.+ 1
+    ex6 = foreach [1, 2, 3, 4] cases
+      0 -> 1
+      n -> n Nat.+ 1
     
     ex7 : somewhere -> ()
-    ex7 somewhere =
-      forkAt somewhere do
-        use Nat +
-        x = 1
-        y = 2
-        x + y
+    ex7 somewhere = forkAt somewhere do
+      use Nat +
+      x = 1
+      y = 2
+      x + y
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
