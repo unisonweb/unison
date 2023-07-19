@@ -268,7 +268,7 @@ pretty0
       Handle' h body -> do
         pb <- pretty0 (ac 0 Block im doc) body
         ph <- pretty0 (ac 0 Block im doc) h
-        let hangHandler = if isSoftHangable h then PP.softHang else PP.hang 
+        let hangHandler = if isSoftHangable h then PP.softHang else PP.hang
         pure . paren (p >= 2) $
           if PP.isMultiLine pb || PP.isMultiLine ph
             then
@@ -688,15 +688,15 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
         conRef = Referent.Con ref CT.Effect
      in ( PP.group
-             ( PP.sep " " . PP.nonEmpty $
-                    [ fmt S.DelimiterChar "{",
-                      styleHashQualified'' (fmt (S.TermReference conRef)) name,
-                      pats_printed,
-                      fmt S.ControlKeyword "->",
-                      k_pat_printed,
-                      fmt S.DelimiterChar "}"
-                    ]
-              ), 
+            ( PP.sep " " . PP.nonEmpty $
+                [ fmt S.DelimiterChar "{",
+                  styleHashQualified'' (fmt (S.TermReference conRef)) name,
+                  pats_printed,
+                  fmt S.ControlKeyword "->",
+                  k_pat_printed,
+                  fmt S.DelimiterChar "}"
+                ]
+            ),
           eventual_tail
         )
   Pattern.SequenceLiteral _ pats ->
@@ -1229,7 +1229,7 @@ suffixCounterType n used = \case
   _ -> mempty
 
 printAnnotate :: (Var v, Ord v) => PrettyPrintEnv -> Term2 v at ap v a -> Term3 v PrintAnnotation
-printAnnotate n tm = 
+printAnnotate n tm =
   fmap snd (go (reannotateUp (suffixCounterTerm n usedTermNames usedTypeNames) tm))
   where
     -- See `countHQ` to see how these are used to make sure that
@@ -1268,10 +1268,10 @@ countPatternUsages n usedTm = Pattern.foldMap' f
           else countHQ usedTm $ PrettyPrintEnv.patternName n r
 
 countHQ :: Set Name -> HQ.HashQualified Name -> PrintAnnotation
-countHQ used (HQ.NameOnly n) 
+countHQ used (HQ.NameOnly n)
   -- Names that are marked 'used' aren't considered for `use` clause insertion
   -- So if a variable 'foo' is used, then we won't insert a `use` clause for
-  -- the reference `Qux.quaffle.foo`.  
+  -- the reference `Qux.quaffle.foo`.
   | Just n' <- Set.lookupLE n used, Name.endsWith n n' = mempty
 countHQ _ hq = foldMap countName (HQ.toName hq)
 
