@@ -952,31 +952,36 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
               }
         LamsNamedOrDelay' vs body -> do
           prettyBody <- pretty0 (ac (-1) Block im doc) body
-          case body of 
+          case body of
             -- allow soft hangs when first line is a function application
             -- that ends in a delay or other soft-hangable element
             --   foo = fork loc do
             --     ...
-            --   foo = 
+            --   foo =
             --     fork loc do
             --       ...
-            Apps' _f args | Just (_, last) <- unsnoc args, isSoftHangable last -> pure $
-              PrettyBinding
-                { typeSignature = Nothing,
-                  term =
-                    PP.group $
-                      PP.group (defnLhs v vs <> fmt S.BindingEquals " = ") <> 
-                        prettyBody `PP.orElse` ("\n" <> PP.indentN 2 prettyBody)
-                }
-            _ -> pure $  
+            Apps' _f args
+              | Just (_, last) <- unsnoc args,
+                isSoftHangable last ->
+                  pure $
+                    PrettyBinding
+                      { typeSignature = Nothing,
+                        term =
+                          PP.group $
+                            PP.group (defnLhs v vs <> fmt S.BindingEquals " = ")
+                              <> prettyBody
+                              `PP.orElse` ("\n" <> PP.indentN 2 prettyBody)
+                      }
+            _ ->
+              pure $
                 -- Special case for 'let being on the same line
                 let hang = if isSoftHangable body then PP.softHang else PP.hang
-                in  PrettyBinding
-                    { typeSignature = Nothing,
-                      term =
-                        PP.group $
-                          PP.group (defnLhs v vs <> fmt S.BindingEquals " =") `hang` prettyBody
-                    }
+                 in PrettyBinding
+                      { typeSignature = Nothing,
+                        term =
+                          PP.group $
+                            PP.group (defnLhs v vs <> fmt S.BindingEquals " =") `hang` prettyBody
+                      }
         t -> error ("prettyBinding0: unexpected term: " ++ show t)
       where
         defnLhs v vs
