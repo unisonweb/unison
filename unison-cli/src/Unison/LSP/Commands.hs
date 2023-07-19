@@ -45,10 +45,14 @@ instance Aeson.ToJSON TextReplacement where
 instance Aeson.FromJSON TextReplacement where
   parseJSON = Aeson.withObject "TextReplacement" $ \o ->
     TextReplacement
-      <$> o Aeson..: "range"
-      <*> o Aeson..: "description"
-      <*> o Aeson..: "replacementText"
-      <*> o Aeson..: "fileUri"
+      <$> o
+        Aeson..: "range"
+      <*> o
+        Aeson..: "description"
+      <*> o
+        Aeson..: "replacementText"
+      <*> o
+        Aeson..: "fileUri"
 
 -- | Computes code actions for a document.
 executeCommandHandler :: RequestMessage 'WorkspaceExecuteCommand -> (Either ResponseError Aeson.Value -> Lsp ()) -> Lsp ()
@@ -69,9 +73,6 @@ executeCommandHandler m respond =
                 Left err -> Debug.debugM Debug.LSP "Error applying workspace edit" err
                 Right _ -> pure ()
             )
-        -- let edit = WorkspaceEdit (Just $ HM.singleton fileUri (List [TextEdit range replacementText])) Nothing
-        -- lift $ sendRequest SWorkspaceApplyEdit (ApplyWorkspaceEditParams Nothing edit) (\_ -> pure ())
-        -- pure $ CodeLens range Nothing Nothing
         _ -> invalidCmdErr
       _ -> invalidCmdErr
     pure Aeson.Null
