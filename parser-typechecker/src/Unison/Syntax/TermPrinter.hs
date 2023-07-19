@@ -1538,7 +1538,7 @@ isSoftHangable :: Var v => Term2 vt at ap v a -> Bool
 -- isSoftHangable (Delay' d) = isLet d || isSoftHangable d || case d of
 --    Match' scrute cases -> isDestructuringBind scrute cases
 --    _ -> False
-isSoftHangable (Delay' _) = True -- 
+isSoftHangable (Delay' _) = True --
 isSoftHangable (LamsNamedMatch' [] _) = True
 isSoftHangable (Match' scrute cases) = not (isDestructuringBind scrute cases)
 isSoftHangable _ = False
