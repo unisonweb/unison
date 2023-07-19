@@ -9,7 +9,7 @@ import Unison.ABT qualified as ABT
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
 import Unison.LSP.Conversions (annToRange)
-import Unison.LSP.FileAnalysis (getFileAnalysis)
+import Unison.LSP.FileAnalysis (getCurrentFileAnalysis)
 import Unison.LSP.Types
 import Unison.Prelude
 import Unison.UnisonFile (UnisonFile (..))
@@ -25,7 +25,7 @@ foldingRangesForFile :: Uri -> Lsp [FoldingRange]
 foldingRangesForFile fileUri =
   fromMaybe []
     <$> runMaybeT do
-      FileAnalysis {parsedFile} <- getFileAnalysis fileUri
+      FileAnalysis {parsedFile} <- lift $ getCurrentFileAnalysis fileUri
       UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms} <- MaybeT $ pure parsedFile
       let dataFolds = dataDeclarationsId ^.. folded . _2 . to dataDeclSpan
       let abilityFolds = effectDeclarationsId ^.. folded . _2 . to DD.toDataDecl . to dataDeclSpan

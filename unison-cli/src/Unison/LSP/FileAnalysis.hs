@@ -28,6 +28,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
+import Unison.LSP.Completion.Helpers (namesToCompletionTree)
 import Unison.LSP.Conversions
 import Unison.LSP.Conversions qualified as Cv
 import Unison.LSP.Diagnostics
@@ -97,6 +98,7 @@ checkFile doc = runMaybeT $ do
           & toRangeMap
   let fileSummary = mkFileSummary parsedFile typecheckedFile
   let tokenMap = getTokenMap tokens
+  let fileCompletions = fromMaybe mempty ((namesToCompletionTree . UF.typecheckedToNames <$> typecheckedFile) <|> (namesToCompletionTree . UF.toNames <$> parsedFile))
   conflictWarningDiagnostics <-
     fold <$> for fileSummary \fs ->
       lift $ computeConflictWarningDiagnostics fileUri fs
@@ -223,17 +225,45 @@ fileAnalysisWorker = forever do
       fileInfo <- MaybeT (checkFile $ TextDocumentIdentifier docUri)
       pure (docUri, fileInfo)
   Debug.debugM Debug.LSP "Freshly Typechecked " (Map.toList freshlyCheckedFiles)
-  -- Overwrite any files we successfully checked
   atomically $ do
     checkedFiles <- readTVar checkedFilesV
     let zipper = \case
-          These mvar new -> tryTakeTMVar mvar *> putTMVar mvar new *> pure mvar
-          This mvar -> pure mvar
-          That new -> newTMVar new
+          These mvar new -> do
+            next <-
+              tryTakeTMVar mvar <&> \case
+                Nothing -> updateAnalysisTriple (That new)
+                Just old -> updateAnalysisTriple (These old new)
+            putTMVar mvar next
+            pure mvar
+          This mvar -> do
+            tryTakeTMVar mvar >>= \case
+              Nothing -> pure mvar
+              Just old -> do
+                putTMVar mvar (updateAnalysisTriple (This old))
+                pure mvar
+          That new -> newTMVar (updateAnalysisTriple (That new))
     newCheckedFiles <- sequenceA $ alignWith zipper checkedFiles freshlyCheckedFiles
     writeTVar checkedFilesV newCheckedFiles
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
+  where
+    updateAnalysisTriple :: These FileAnalysisTriple FileAnalysis -> FileAnalysisTriple
+    updateAnalysisTriple = \case
+      This triple -> triple
+      That currentAnalysis@FileAnalysis {typecheckedFile, parsedFile} ->
+        FileAnalysisTriple
+          { currentAnalysis,
+            -- Must be 'Just' if this analysis typechecked, Nothing otherwise, so we take
+            -- advantage of Maybe's applicative instance here.
+            lastSuccessfulParse = if isJust parsedFile then Just currentAnalysis else Nothing,
+            lastSuccessfulTypecheck = if isJust typecheckedFile then Just currentAnalysis else Nothing
+          }
+      These (FileAnalysisTriple {lastSuccessfulParse, lastSuccessfulTypecheck}) currentAnalysis ->
+        FileAnalysisTriple
+          { currentAnalysis,
+            lastSuccessfulParse = if isJust (parsedFile currentAnalysis) then Just currentAnalysis else lastSuccessfulParse,
+            lastSuccessfulTypecheck = if isJust (typecheckedFile currentAnalysis) then Just currentAnalysis else lastSuccessfulTypecheck
+          }
 
 analyseFile :: (Foldable f) => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText notes = do
@@ -457,8 +487,8 @@ toRangeMap :: (Foldable f) => f (Range, a) -> IntervalMap Position [a]
 toRangeMap vs =
   IM.fromListWith (<>) (toList vs <&> \(r, a) -> (rangeToInterval r, [a]))
 
-getFileAnalysis :: Uri -> MaybeT Lsp FileAnalysis
-getFileAnalysis uri = do
+getFileAnalysisTriple :: Uri -> Lsp FileAnalysisTriple
+getFileAnalysisTriple uri = do
   checkedFilesV <- asks checkedFilesVar
   -- Try to get the file analysis, if there's a var, then read it, waiting if necessary
   -- If there's no var, add one and wait for it to be filled (all Uris should be analyzed
@@ -474,15 +504,39 @@ getFileAnalysis uri = do
       Just mvar -> pure mvar
   atomically (readTMVar tmvar)
 
+-- | Get the current file analysis, waiting if necessary
+getCurrentFileAnalysis :: Uri -> Lsp FileAnalysis
+getCurrentFileAnalysis uri =
+  currentAnalysis <$> getFileAnalysisTriple uri
+
+-- | Get the file analysis from the last successful parse.
+-- This may not represent the current state of the file.
+getLastSuccessfulParseAnalysis :: Uri -> MaybeT Lsp FileAnalysis
+getLastSuccessfulParseAnalysis uri = do
+  MaybeT (lastSuccessfulParse <$> getFileAnalysisTriple uri)
+
+-- | Get the file analysis from the last successful typecheck.
+-- This may not represent the current state of the file.
+getLastSuccessfulTypecheckAnalysis :: Uri -> MaybeT Lsp FileAnalysis
+getLastSuccessfulTypecheckAnalysis uri = do
+  MaybeT (lastSuccessfulTypecheck <$> getFileAnalysisTriple uri)
+
+-- | Get the file summary from the last successful typecheck.
+-- This may not represent the current state of the file.
+getLastSuccessfulTypecheckSummary :: Uri -> MaybeT Lsp FileSummary
+getLastSuccessfulTypecheckSummary uri = do
+  fileAnalysis <- getLastSuccessfulTypecheckAnalysis uri
+  MaybeT . pure $ fileSummary fileAnalysis
+
 getFileSummary :: Uri -> MaybeT Lsp FileSummary
 getFileSummary uri = do
-  FileAnalysis {fileSummary} <- getFileAnalysis uri
+  FileAnalysis {fileSummary} <- lift $ getCurrentFileAnalysis uri
   MaybeT . pure $ fileSummary
 
 -- TODO memoize per file
 ppedForFile :: Uri -> Lsp PPED.PrettyPrintEnvDecl
 ppedForFile fileUri = do
-  runMaybeT (getFileAnalysis fileUri) >>= \case
+  runMaybeT (getLastSuccessfulTypecheckAnalysis fileUri) >>= \case
     Just (FileAnalysis {typecheckedFile = tf, parsedFile = uf}) ->
       ppedForFileHelper uf tf
     _ -> ppedForFileHelper Nothing Nothing

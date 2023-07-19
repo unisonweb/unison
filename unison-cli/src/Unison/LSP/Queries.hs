@@ -30,7 +30,7 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.LSP.Conversions (lspToUPos)
-import Unison.LSP.FileAnalysis (getFileSummary, ppedForFile)
+import Unison.LSP.FileAnalysis (getLastSuccessfulTypecheckSummary, ppedForFile)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LabeledDependency
@@ -71,7 +71,7 @@ refAtPosition uri pos = do
     findInDecl =
       LD.TypeReference <$> do
         let uPos = lspToUPos pos
-        (FileSummary {dataDeclsBySymbol, effectDeclsBySymbol}) <- getFileSummary uri
+        (FileSummary {dataDeclsBySymbol, effectDeclsBySymbol}) <- getLastSuccessfulTypecheckSummary uri
         ( altMap (hoistMaybe . refInDecl uPos . Right . snd) dataDeclsBySymbol
             <|> altMap (hoistMaybe . refInDecl uPos . Left . snd) effectDeclsBySymbol
           )
@@ -84,7 +84,7 @@ getTypeOfReferent fileUri ref = do
   getFromFile <|> getFromCodebase
   where
     getFromFile = do
-      FileSummary {termsByReference} <- getFileSummary fileUri
+      FileSummary {termsByReference} <- getLastSuccessfulTypecheckSummary fileUri
       case ref of
         Referent.Ref (Reference.Builtin {}) -> empty
         Referent.Ref (Reference.DerivedId termRefId) -> do
@@ -106,7 +106,7 @@ getTypeDeclaration fileUri refId = do
   where
     getFromFile :: MaybeT Lsp (Decl Symbol Ann)
     getFromFile = do
-      FileSummary {dataDeclsByReference, effectDeclsByReference} <- getFileSummary fileUri
+      FileSummary {dataDeclsByReference, effectDeclsByReference} <- getLastSuccessfulTypecheckSummary fileUri
       let datas = dataDeclsByReference ^.. ix refId . folded
       let effects = effectDeclsByReference ^.. ix refId . folded
       MaybeT . pure . listToMaybe $ fmap Right datas <> fmap Left effects
@@ -342,7 +342,7 @@ refInDecl p (DD.asDataDecl -> dd) =
 -- Does not return Decl nodes.
 nodeAtPosition :: Uri -> Position -> MaybeT Lsp (SourceNode Ann)
 nodeAtPosition uri (lspToUPos -> pos) = do
-  (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
+  (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getLastSuccessfulTypecheckSummary uri
 
   let (trms, typs) = termsBySymbol & foldMap \(_ann, _ref, trm, mayTyp) -> ([trm], toList mayTyp)
   ( altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) trms
