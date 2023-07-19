@@ -725,6 +725,20 @@ ex2 = List.foreach [0,1,2,3,4,5] cases
   0 -> 0
   1 -> 1
   n -> n + 100
+
+catchAll x = 
+  99
+
+ex3 = do
+  catchAll do
+    x = 1
+    y = 2
+    x + y
+
+ex4 = do match 0 with
+  0 -> 0
+  1 -> 1
+  n -> n
 ```
 
 ```ucm:hide
@@ -732,7 +746,7 @@ ex2 = List.foreach [0,1,2,3,4,5] cases
 ```
 
 ```ucm
-.> edit ex1 ex2
+.> edit ex1 ex2 ex3 ex4
 .> load roundtrip.u
 ```
 

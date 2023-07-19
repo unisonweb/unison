@@ -289,15 +289,15 @@ pretty0
         pure . paren (p >= 11 || isBlock x && p >= 3) $
           fmt S.DelayForceChar (l "!") <> px
       Delay' x
-        | isLet x -> do
+        | isLet x || p <= 0 -> do
             let (im', uses) = calcImports im x
             px <- pretty0 (ac 0 Block im' doc) x
             pure . paren (p >= 3) $
-              fmt S.ControlKeyword "do" `PP.hang` PP.lines (uses <> [px])
+              fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [px])
         | Match' _ _ <- x -> do
             px <- pretty0 (ac 0 Block im doc) x
             pure . paren (p >= 3) $
-              fmt S.ControlKeyword "do" `PP.hang` px
+              fmt S.ControlKeyword "do" `hang` px
         | otherwise -> do
             px <- pretty0 (ac 10 Normal im doc) x
             pure . paren (p >= 11 || isBlock x && p >= 3) $
@@ -306,6 +306,8 @@ pretty0
                 -- This is in case the contents are a long function application
                 -- in which case the arguments should be indented.
                 <> PP.indentAfterNewline "  " px
+        where
+          hang = if isSoftHangable x then PP.softHang else PP.hang
       List' xs ->
         PP.group <$> do
           xs' <- traverse (pretty0 (ac 0 Normal im doc)) xs
@@ -945,10 +947,7 @@ prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
           body' <- applyPPE2 printAnnotate body
           prettyBody <- pretty0 (ac (-1) Block im doc) body'
           -- Special case for 'let being on the same line
-          let hang = case body' of
-                Delay' x | isLet x -> PP.softHang
-                Delay' (Match' _ _) -> PP.softHang
-                _ -> PP.hang
+          let hang = if isSoftHangable body' then PP.softHang else PP.hang
           pure
             PrettyBinding
               { typeSignature = Nothing,
@@ -1510,9 +1509,9 @@ immediateChildBlockTerms = \case
     doLet t = error (show t) []
 
 isSoftHangable :: Var v => Term2 vt at ap v a -> Bool
-isSoftHangable (Delay' l) = isLet l
+isSoftHangable (Delay' _) = True
 isSoftHangable (LamsNamedMatch' [] _) = True
-isSoftHangable (Match' {}) = True
+isSoftHangable (Match' scrute cases) = not (isDestructuringBind scrute cases)
 isSoftHangable _ = False
 
 isLet :: Term2 vt at ap v a -> Bool

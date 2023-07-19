@@ -529,10 +529,10 @@ x = '(let
       handle !thunk with h
     
     Abort.toOptional : '{g, Abort} a -> '{g} Optional a
-    Abort.toOptional thunk = '(toOptional! thunk)
+    Abort.toOptional thunk = do toOptional! thunk
     
     Abort.toOptional! : '{g, Abort} a ->{g} Optional a
-    Abort.toOptional! thunk = toDefault! None '(Some !thunk)
+    Abort.toOptional! thunk = toDefault! None do Some !thunk
     
     handler : a -> Request {Abort} a -> a
     handler default = cases
@@ -812,12 +812,13 @@ broken tvar =
   
     broken : tvar -> () -> ()
     broken tvar =
-      '(tvarmodify
+      do
+        tvarmodify
           tvar
-          (cases
+          cases
             Some _ ->
               "oh boy isn't this a very very very very very very very long string?"
-            None -> ""))
+            None -> ""
     
     tvarmodify : tvar -> fun -> ()
     tvarmodify tvar fun = ()
@@ -1277,9 +1278,9 @@ bar3 x = do
     bar2 x = do
       a = 1
       b = 2
-      1 + (foo a (do
+      1 + (foo a do
         c = 3
-        a + b))
+        a + b)
     
     bar3 : x -> () -> b -> Nat
     bar3 x = do
@@ -1572,10 +1573,10 @@ test3 = foreach [1, 2, 3] do x -> do
     
     test3 : ()
     test3 =
-      foreach
-        [1, 2, 3] '(x -> do
-            y = Nat.increment x
-            ())
+      foreach [1, 2, 3] do
+        x -> do
+          y = Nat.increment x
+          ()
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -1937,7 +1938,7 @@ ex3a =
     ex3a =
       use Foo.bar qux3
       use Nat +
-      a = '(qux3 + qux3)
+      a = do qux3 + qux3
       ()
   
   You can edit them there, then do `update` to replace the
@@ -1973,11 +1974,25 @@ ex2 = List.foreach [0,1,2,3,4,5] cases
   1 -> 1
   n -> n + 100
 
+catchAll x = 
+  99
+
+ex3 = do
+  catchAll do
+    x = 1
+    y = 2
+    x + y
+
+ex4 = do match 0 with
+  0 -> 0
+  1 -> 1
+  n -> n
+
 ```
 
 
 ```ucm
-.> edit ex1 ex2
+.> edit ex1 ex2 ex3 ex4
 
   ☝️
   
@@ -2001,13 +2016,36 @@ ex2 = List.foreach [0,1,2,3,4,5] cases
         0 -> 0
         1 -> 1
         n -> n Nat.+ 100
+    
+    ex3 : 'Nat
+    ex3 = do
+      use Nat +
+      catchAll do
+        x = 1
+        y = 2
+        x + y
+    
+    ex4 : 'Nat
+    ex4 = do match 0 with
+      0 -> 0
+      1 -> 1
+      n -> n
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
 .> load roundtrip.u
 
-  I found and typechecked the definitions in roundtrip.u. This
-  file has been previously added to the codebase.
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⊡ Previously added definitions will be ignored: ex1 ex2
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      ex3 : 'Nat
+      ex4 : 'Nat
 
 ```
