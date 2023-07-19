@@ -685,16 +685,15 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
         conRef = Referent.Con ref CT.Effect
      in ( PP.group
-            ( fmt S.DelimiterChar "{"
-                <> ( PP.sep " " . PP.nonEmpty $
-                       [ styleHashQualified'' (fmt (S.TermReference conRef)) name,
-                         pats_printed,
-                         fmt S.ControlKeyword "->",
-                         k_pat_printed
-                       ]
-                   )
-                <> fmt S.DelimiterChar "}"
-            ),
+             ( PP.sep " " . PP.nonEmpty $
+                    [ fmt S.DelimiterChar "{",
+                      styleHashQualified'' (fmt (S.TermReference conRef)) name,
+                      pats_printed,
+                      fmt S.ControlKeyword "->",
+                      k_pat_printed,
+                      fmt S.DelimiterChar "}"
+                    ]
+              ), 
           eventual_tail
         )
   Pattern.SequenceLiteral _ pats ->
