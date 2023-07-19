@@ -263,7 +263,7 @@ computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = 
           & foldMap \(name, locs) ->
             (mapMaybe Cv.annToRange . Set.toList $ locs)
               <&> \range ->
-                let msg = ("`" <> Name.toText name <> "` is conflicted in your codebase")
+                let msg = "There are multiple definitions of `" <> Name.toText name <> "` in your namespace; updating this definition will replace them."
                     newRangeEnd =
                       range ^. LSPTypes.start
                         & LSPTypes.character +~ fromIntegral (Text.length (Name.toText name))
@@ -271,7 +271,7 @@ computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = 
                  in mkDiagnostic
                       fileUri
                       newRange
-                      DsWarning
+                      DsInfo
                       msg
                       mempty
   pure $ toDiagnostics conflictedTermLocations <> toDiagnostics conflictedTypeLocations
