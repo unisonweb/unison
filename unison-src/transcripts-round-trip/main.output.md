@@ -532,7 +532,7 @@ x = '(let
     Abort.toOptional thunk = do toOptional! thunk
     
     Abort.toOptional! : '{g, Abort} a ->{g} Optional a
-    Abort.toOptional! thunk = toDefault! None do Some !thunk
+    Abort.toOptional! thunk = toDefault! None '(Some !thunk)
     
     handler : a -> Request {Abort} a -> a
     handler default = cases
@@ -1570,10 +1570,9 @@ test3 = foreach [1, 2, 3] do x -> do
     test2 = foreach [1, 2, 3] (x -> ignore (Nat.increment x))
     
     test3 : ()
-    test3 = foreach [1, 2, 3] do
-      x -> do
+    test3 = foreach [1, 2, 3] '(x -> do
         y = Nat.increment x
-        ()
+        ())
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.

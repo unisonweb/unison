@@ -289,13 +289,15 @@ pretty0
         pure . paren (p >= 11 || isBlock x && p >= 3) $
           fmt S.DelayForceChar (l "!") <> px
       Delay' x
-        | isLet x || p <= 0 -> do
+        | isLet x || p < 0 -> do
             let (im', uses) = calcImports im x
+            let hang = if isSoftHangable x then PP.softHang else PP.hang
             px <- pretty0 (ac 0 Block im' doc) x
             pure . paren (p >= 3) $
               fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [px])
         | Match' _ _ <- x -> do
             px <- pretty0 (ac 0 Block im doc) x
+            let hang = if isSoftHangable x then PP.softHang else PP.hang
             pure . paren (p >= 3) $
               fmt S.ControlKeyword "do" `hang` px
         | otherwise -> do
@@ -306,8 +308,6 @@ pretty0
                 -- This is in case the contents are a long function application
                 -- in which case the arguments should be indented.
                 <> PP.indentAfterNewline "  " px
-        where
-          hang = if isSoftHangable x then PP.softHang else PP.hang
       List' xs ->
         PP.group <$> do
           xs' <- traverse (pretty0 (ac 0 Normal im doc)) xs
@@ -1530,7 +1530,10 @@ immediateChildBlockTerms = \case
     doLet t = error (show t) []
 
 isSoftHangable :: Var v => Term2 vt at ap v a -> Bool
-isSoftHangable (Delay' _) = True
+-- isSoftHangable (Delay' d) = isLet d || isSoftHangable d || case d of
+--    Match' scrute cases -> isDestructuringBind scrute cases
+--    _ -> False
+isSoftHangable (Delay' _) = True -- 
 isSoftHangable (LamsNamedMatch' [] _) = True
 isSoftHangable (Match' scrute cases) = not (isDestructuringBind scrute cases)
 isSoftHangable _ = False
