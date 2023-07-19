@@ -1,14 +1,19 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
+    BranchSourceI (..),
     DiffNamespaceToPatchInput (..),
     GistInput (..),
+    PullSourceTarget (..),
     PushRemoteBranchInput (..),
+    PushSourceTarget (..),
+    PushSource (..),
     TestInput (..),
     Event (..),
     OutputLocation (..),
     PatchPath,
     BranchId,
     AbsBranchId,
+    LooseCodeOrProject,
     parseBranchId,
     parseShortCausalHash,
     HashOrHQSplit',
@@ -23,24 +28,26 @@ module Unison.Codebase.Editor.Input
   )
 where
 
-import qualified Data.Text as Text
+import Data.Text qualified as Text
+import Data.These (These)
 import U.Codebase.HashTags (CausalHash)
-import qualified Unison.Codebase.Branch.Merge as Branch
+import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Path (Path')
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SCH
+import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Verbosity
-import qualified Unison.HashQualified as HQ
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
+import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchName, ProjectName, Semver)
 import Unison.ShortHash (ShortHash)
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -56,6 +63,12 @@ data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
   deriving (Eq, Ord, Show)
 
 type BranchId = Either ShortCausalHash Path'
+
+-- | A lot of commands can take either a loose code path or a project branch in the same argument slot. Usually, those
+-- have distinct syntaxes, but sometimes it's ambiguous, in which case we'd parse a `These`. The command itself can
+-- decide what to do with the ambiguity.
+type LooseCodeOrProject =
+  These Path' (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
 
 type AbsBranchId = Either ShortCausalHash Path.Absolute
 
@@ -89,14 +102,18 @@ data Input
     -- clone w/o merge, error if would clobber
     ForkLocalBranchI (Either ShortCausalHash Path') Path'
   | -- merge first causal into destination
-    MergeLocalBranchI Path' Path' Branch.MergeMode
-  | PreviewMergeLocalBranchI Path' Path'
+    MergeLocalBranchI LooseCodeOrProject LooseCodeOrProject Branch.MergeMode
+  | PreviewMergeLocalBranchI LooseCodeOrProject LooseCodeOrProject
   | DiffNamespaceI BranchId BranchId -- old new
-  | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode PullMode Verbosity
+  | PullRemoteBranchI PullSourceTarget SyncMode PullMode Verbosity
   | PushRemoteBranchI PushRemoteBranchInput
-  | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
-  | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
   | ResetRootI (Either ShortCausalHash Path')
+  | ResetI
+      ( These
+          (Either ShortCausalHash Path')
+          (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+      )
+      (Maybe LooseCodeOrProject)
   | -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user
@@ -161,8 +178,8 @@ data Input
     CompileSchemeI String (HQ.HashQualified Name)
   | -- generate scheme libraries
     GenSchemeLibsI
-  | -- fetch scheme compiler
-    FetchSchemeCompilerI
+  | -- fetch scheme compiler from a given username and branch
+    FetchSchemeCompilerI String String
   | TestI TestInput
   | -- metadata
     -- `link metadata definitions` (adds metadata to all of `definitions`)
@@ -180,6 +197,8 @@ data Input
     FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
   | FindPatchI
+  | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
+  | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.
     ShowDefinitionI OutputLocation ShowDefinitionScope [HQ.HashQualified Name]
   | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
@@ -202,13 +221,33 @@ data Input
   | DebugNameDiffI ShortCausalHash ShortCausalHash
   | QuitI
   | ApiI
-  | UiI
+  | UiI Path'
+  | DocToMarkdownI Name
   | DocsToHtmlI Path' FilePath
   | GistI GistInput
   | AuthLoginI
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
+  | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
+  | ProjectRenameI ProjectName
+  | ProjectSwitchI ProjectAndBranchNames
+  | ProjectsI
+  | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | BranchRenameI ProjectBranchName
+  | BranchesI (Maybe ProjectName)
+  | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
+  | ReleaseDraftI Semver
   deriving (Eq, Show)
+
+-- | The source of a `branch` command: what to make the new branch from.
+data BranchSourceI
+  = -- | Create a branch from the current context
+    BranchSourceI'CurrentContext
+  | -- | Create an empty branch
+    BranchSourceI'Empty
+  | -- | Create a branch from this loose-code-or-project
+    BranchSourceI'LooseCodeOrProject LooseCodeOrProject
+  deriving stock (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
   { -- The first/earlier namespace.
@@ -226,12 +265,27 @@ data GistInput = GistInput
   }
   deriving stock (Eq, Show)
 
+-- | Pull source and target: either neither is specified, or only a source, or both.
+data PullSourceTarget
+  = PullSourceTarget0
+  | PullSourceTarget1 (ReadRemoteNamespace (These ProjectName ProjectBranchName))
+  | PullSourceTarget2 (ReadRemoteNamespace (These ProjectName ProjectBranchName)) LooseCodeOrProject
+  deriving stock (Eq, Show)
+
+data PushSource
+  = PathySource Path'
+  | ProjySource (These ProjectName ProjectBranchName)
+  deriving stock (Eq, Show)
+
+-- | Push source and target: either neither is specified, or only a target, or both.
+data PushSourceTarget
+  = PushSourceTarget0
+  | PushSourceTarget1 (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+  | PushSourceTarget2 PushSource (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+  deriving stock (Eq, Show)
+
 data PushRemoteBranchInput = PushRemoteBranchInput
-  { -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
-    localPath :: Path',
-    -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
-    maybeRemoteRepo :: Maybe WriteRemotePath,
-    -- | The push behavior (whether the remote branch is required to be empty or non-empty).
+  { sourceTarget :: PushSourceTarget,
     pushBehavior :: PushBehavior,
     syncMode :: SyncMode
   }
@@ -270,9 +324,11 @@ data DeleteOutput
   deriving stock (Eq, Show)
 
 data DeleteTarget
-  = DeleteTarget'TermOrType DeleteOutput Path.HQSplit'
-  | DeleteTarget'Term DeleteOutput Path.HQSplit'
-  | DeleteTarget'Type DeleteOutput Path.HQSplit'
-  | DeleteTarget'Branch Insistence (Maybe Path.Split')
+  = DeleteTarget'TermOrType DeleteOutput [Path.HQSplit']
+  | DeleteTarget'Term DeleteOutput [Path.HQSplit']
+  | DeleteTarget'Type DeleteOutput [Path.HQSplit']
+  | DeleteTarget'Namespace Insistence (Maybe Path.Split')
   | DeleteTarget'Patch Path.Split'
+  | DeleteTarget'ProjectBranch (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | DeleteTarget'Project ProjectName
   deriving stock (Eq, Show)

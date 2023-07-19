@@ -19,6 +19,7 @@ shuffle =
       | otherwise -> match gen seed (size l) with
         (k, seed) -> match (take k l, drop k l) with
           (pre, x +: post) -> pick (acc :+ x) seed (pre ++ post)
+          (pre, []) -> pick acc seed pre
   
   pick []
 

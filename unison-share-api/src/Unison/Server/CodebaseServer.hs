@@ -1,6 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -15,23 +13,24 @@ import Control.Lens ((.~))
 import Control.Monad.Reader
 import Control.Monad.Trans.Except
 import Data.Aeson ()
-import qualified Data.ByteString as Strict
+import Data.ByteString qualified as Strict
 import Data.ByteString.Char8 (unpack)
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.ByteString.Lazy.UTF8 as BLU
+import Data.ByteString.Char8 qualified as C8
+import Data.ByteString.Lazy qualified as Lazy
+import Data.ByteString.Lazy.UTF8 qualified as BLU
 import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Data.OpenApi (Info (..), License (..), OpenApi, URL (..))
-import qualified Data.OpenApi.Lens as OpenApi
+import Data.OpenApi.Lens qualified as OpenApi
 import Data.Proxy (Proxy (..))
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import GHC.Generics ()
 import Network.HTTP.Media ((//), (/:))
 import Network.HTTP.Types (HeaderName)
 import Network.HTTP.Types.Status (ok200)
-import qualified Network.URI.Encode as URI
-import Network.Wai (responseLBS)
+import Network.URI.Encode as UriEncode
+import Network.URI.Encode qualified as URI
+import Network.Wai (Middleware, responseLBS)
 import Network.Wai.Handler.Warp
   ( Port,
     defaultSettings,
@@ -41,6 +40,7 @@ import Network.Wai.Handler.Warp
     setPort,
     withApplicationSettings,
   )
+import Network.Wai.Middleware.Cors (cors, corsMethods, corsOrigins, simpleCorsResourcePolicy)
 import Servant
   ( Handler,
     HasServer,
@@ -81,24 +81,29 @@ import Servant.Server.StaticFiles (serveDirectoryWebApp)
 import System.Directory (canonicalizePath, doesFileExist)
 import System.Environment (getExecutablePath)
 import System.FilePath ((</>))
-import qualified System.FilePath as FilePath
+import System.FilePath qualified as FilePath
 import System.Random.MWC (createSystemRandom)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase.Runtime as Rt
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Rt
+import Unison.HashQualified
+import Unison.Name as Name (Name, segments)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend (Backend, BackendEnv, runBackend)
-import Unison.Server.Endpoints.DefinitionSummary (TermSummaryAPI, TypeSummaryAPI, serveTermSummary, serveTypeSummary)
-import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
-import Unison.Server.Endpoints.GetDefinitions
+import Unison.Server.Errors (backendError)
+import Unison.Server.Local.Endpoints.DefinitionSummary (TermSummaryAPI, TypeSummaryAPI, serveTermSummary, serveTypeSummary)
+import Unison.Server.Local.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
+import Unison.Server.Local.Endpoints.GetDefinitions
   ( DefinitionsAPI,
     serveDefinitions,
   )
-import qualified Unison.Server.Endpoints.NamespaceDetails as NamespaceDetails
-import qualified Unison.Server.Endpoints.NamespaceListing as NamespaceListing
-import qualified Unison.Server.Endpoints.Projects as Projects
-import Unison.Server.Errors (backendError)
+import Unison.Server.Local.Endpoints.NamespaceDetails qualified as NamespaceDetails
+import Unison.Server.Local.Endpoints.NamespaceListing qualified as NamespaceListing
+import Unison.Server.Local.Endpoints.Projects qualified as Projects
 import Unison.Server.Types (mungeString, setCacheControl)
+import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
 
 -- HTML content type
@@ -146,16 +151,88 @@ data BaseUrl = BaseUrl
     urlPort :: Port
   }
 
-data BaseUrlPath = UI | Api
+data DefinitionReference
+  = TermReference (HashQualified Name) -- /terms/...
+  | TypeReference (HashQualified Name) -- /types/...
+  | AbilityConstructorReference (HashQualified Name) -- /ability-constructors/...
+  | DataConstructorReference (HashQualified Name) -- /data-constructors/...
+
+data Service
+  = UI Path.Absolute (Maybe DefinitionReference)
+  | Api
 
 instance Show BaseUrl where
   show url = urlHost url <> ":" <> show (urlPort url) <> "/" <> (URI.encode . unpack . urlToken $ url)
 
-urlFor :: BaseUrlPath -> BaseUrl -> String
-urlFor path baseUrl =
-  case path of
-    UI -> show baseUrl <> "/ui"
+-- | Create a Service URL, either for the UI or the API
+--
+-- Examples:
+--
+-- >>> urlFor Api (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- "https://localhost:1234/asdf/api"
+--
+-- >>> import qualified Unison.Syntax.Name as Name
+-- >>> let service = UI (Path.absoluteEmpty) (Just (TermReference (NameOnly (Name.unsafeFromText "base.data.List.map"))))
+-- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> urlFor service baseUrl
+-- "https://localhost:1234/asdf/ui/latest/;/terms/base/data/List/map"
+--
+-- >>> import qualified Unison.Syntax.Name as Name
+-- >>> let service = UI (Path.Absolute (Path.fromText "base.data")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> urlFor service baseUrl
+-- "https://localhost:1234/asdf/ui/latest/namespaces/base/data/;/terms/List/map"
+urlFor :: Service -> BaseUrl -> String
+urlFor service baseUrl =
+  case service of
+    UI ns def ->
+      show baseUrl <> "/ui" <> Text.unpack (path ns def)
     Api -> show baseUrl <> "/api"
+  where
+    path :: Path.Absolute -> Maybe DefinitionReference -> Text
+    path ns def =
+      let nsPath = namespacePath ns
+       in case definitionPath def of
+            Just defPath -> "/latest" <> nsPath <> "/;" <> defPath
+            Nothing -> "/latest" <> nsPath
+
+    namespacePath :: Path.Absolute -> Text
+    namespacePath path =
+      if path == Path.absoluteEmpty
+        then ""
+        else "/namespaces/" <> toUrlPath (NameSegment.toText <$> Path.toList (Path.unabsolute path))
+
+    definitionPath :: Maybe DefinitionReference -> Maybe Text
+    definitionPath def =
+      toDefinitionPath <$> def
+
+    toUrlPath :: [Text] -> Text
+    toUrlPath parts =
+      parts
+        & fmap UriEncode.encodeText
+        & Text.intercalate "/"
+
+    refToUrlText :: HashQualified Name -> Text
+    refToUrlText r =
+      case r of
+        NameOnly n ->
+          n & Name.segments & fmap NameSegment.toText & toList & toUrlPath
+        HashOnly h ->
+          h & ShortHash.toText & UriEncode.encodeText
+        HashQualified n _ ->
+          n & Name.segments & fmap NameSegment.toText & toList & toUrlPath
+
+    toDefinitionPath :: DefinitionReference -> Text
+    toDefinitionPath d =
+      case d of
+        TermReference r ->
+          "/terms/" <> refToUrlText r
+        TypeReference r ->
+          "/types/" <> refToUrlText r
+        AbilityConstructorReference r ->
+          "/ability-constructors/" <> refToUrlText r
+        DataConstructorReference r ->
+          "/data-constructors/" <> refToUrlText r
 
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
@@ -207,9 +284,10 @@ app ::
   Codebase IO Symbol Ann ->
   FilePath ->
   Strict.ByteString ->
+  Maybe String ->
   Application
-app env rt codebase uiPath expectedToken =
-  serve appAPI $ server env rt codebase uiPath expectedToken
+app env rt codebase uiPath expectedToken allowCorsHost =
+  corsPolicy allowCorsHost $ serve appAPI $ server env rt codebase uiPath expectedToken
 
 -- | The Token is used to help prevent multiple users on a machine gain access to
 -- each others codebases.
@@ -242,6 +320,9 @@ ucmPortVar = "UCM_PORT"
 ucmHostVar :: String
 ucmHostVar = "UCM_HOST"
 
+ucmAllowCorsHost :: String
+ucmAllowCorsHost = "UCM_ALLOW_CORS_HOST"
+
 ucmTokenVar :: String
 ucmTokenVar = "UCM_TOKEN"
 
@@ -249,6 +330,7 @@ data CodebaseServerOpts = CodebaseServerOpts
   { token :: Maybe String,
     host :: Maybe String,
     port :: Maybe Int,
+    allowCorsHost :: Maybe String,
     codebaseUIPath :: Maybe FilePath
   }
   deriving (Show, Eq)
@@ -259,6 +341,7 @@ defaultCodebaseServerOpts =
     { token = Nothing,
       host = Nothing,
       port = Nothing,
+      allowCorsHost = Nothing,
       codebaseUIPath = Nothing
     }
 
@@ -277,12 +360,12 @@ startServer env opts rt codebase onStart = do
   token <- case token opts of
     Just t -> return $ C8.pack t
     _ -> genToken
-  let baseUrl = BaseUrl "http://127.0.0.1" token
+  let baseUrl = BaseUrl (fromMaybe "http://127.0.0.1" (host opts)) token
   let settings =
         defaultSettings
           & maybe id setPort (port opts)
           & maybe id (setHost . fromString) (host opts)
-  let a = app env rt codebase envUI token
+  let a = app env rt codebase envUI token (allowCorsHost opts)
   case port opts of
     Nothing -> withApplicationSettings settings (pure a) (onStart . baseUrl)
     Just p -> do
@@ -313,10 +396,22 @@ serveIndex path = do
                   <> " Set the "
                   <> ucmUIVar
                   <> " environment variable to the directory where the UI is installed."
+                  <> " If you're running a dev build of ucm, run `./dev-ui-install.sh`."
           }
 
 serveUI :: FilePath -> Server WebUI
 serveUI path _ = serveIndex path
+
+-- Apply cors if there is allow-cors-host defined
+corsPolicy :: Maybe String -> Middleware
+corsPolicy = maybe id \allowCorsHost ->
+  cors $
+    const $
+      Just
+        simpleCorsResourcePolicy
+          { corsMethods = ["GET", "OPTIONS"],
+            corsOrigins = Just ([C8.pack allowCorsHost], True)
+          }
 
 server ::
   BackendEnv ->
@@ -331,9 +426,8 @@ server backendEnv rt codebase uiPath expectedToken =
   where
     serveServer :: Server ServerAPI
     serveServer =
-      ( serveUI uiPath
-          :<|> serveUnisonAndDocs backendEnv rt codebase
-      )
+      serveUI uiPath
+        :<|> serveUnisonAndDocs backendEnv rt codebase
 
 serveUnisonAndDocs :: BackendEnv -> Rt.Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
 serveUnisonAndDocs env rt codebase = serveUnison env codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
@@ -347,7 +441,7 @@ serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
 serveOpenAPI :: Handler OpenApi
 serveOpenAPI = pure openAPI
 
-hoistWithAuth :: forall api. HasServer api '[] => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
+hoistWithAuth :: forall api. (HasServer api '[]) => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
 hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handler api (\h -> handleAuth expectedToken token *> h) server
 
 serveUnison ::
@@ -357,13 +451,13 @@ serveUnison ::
   Server UnisonAPI
 serveUnison env codebase rt =
   hoistServer (Proxy @UnisonAPI) (backendHandler env) $
-    (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase root rel name)
-      :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName mayRoot renderWidth)
-      :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase mayRoot mayOwner)
-      :<|> (\mayRoot relativePath rawHqns renderWidth suff -> setCacheControl <$> serveDefinitions rt codebase mayRoot relativePath rawHqns renderWidth suff)
-      :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase mayRoot relativePath limit renderWidth query)
-      :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase shortHash mayName mayRoot relativeTo renderWidth)
-      :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase shortHash mayName mayRoot relativeTo renderWidth)
+    (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase (Left <$> root) rel name)
+      :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Left <$> mayRoot) renderWidth)
+      :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase (Left <$> mayRoot) mayOwner)
+      :<|> (\mayRoot relativePath rawHqns renderWidth suff -> setCacheControl <$> serveDefinitions rt codebase (Left <$> mayRoot) relativePath rawHqns renderWidth suff)
+      :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase (Left <$> mayRoot) relativePath limit renderWidth query)
+      :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
+      :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
 
 backendHandler :: BackendEnv -> Backend IO a -> Handler a
 backendHandler env m =

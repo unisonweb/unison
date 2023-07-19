@@ -5,16 +5,16 @@ module Unison.Test.Codebase.Branch
 where
 
 import Data.Functor.Identity
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import EasyTest
 import Unison.Codebase.Branch (Branch (Branch), Branch0)
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Causal qualified as Causal
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Star3 as Star3
+import Unison.Reference qualified as Reference
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Star3 qualified as Star3
 
 test :: Test ()
 test =

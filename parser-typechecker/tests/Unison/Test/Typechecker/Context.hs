@@ -4,11 +4,12 @@ module Unison.Test.Typechecker.Context (test) where
 
 import Data.Foldable (for_)
 import EasyTest
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Symbol (Symbol)
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Context as Context
-import qualified Unison.Var as Var
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.Typechecker.Context qualified as Context
+import Unison.Var qualified as Var
 
 test :: Test ()
 test =
@@ -33,7 +34,7 @@ verifyClosedTermTest =
                 ()
                 (Term.ann () (Term.var () a) (Type.var () a'))
                 (Term.ann () (Term.var () b) (Type.var () b'))
-            res = Context.synthesizeClosed [] mempty t
+            res = Context.synthesizeClosed PPE.empty Context.PatternMatchCoverageCheckSwitch'Enabled [] mempty t
             errors = Context.typeErrors res
             expectUnknownSymbol (Context.ErrorNote cause _) = case cause of
               Context.UnknownSymbol _ _ -> ok

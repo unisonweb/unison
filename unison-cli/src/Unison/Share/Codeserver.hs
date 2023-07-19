@@ -2,10 +2,10 @@ module Unison.Share.Codeserver where
 
 import Network.URI (parseURI)
 import System.IO.Unsafe (unsafePerformIO)
-import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
+import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Prelude
 import Unison.Share.Types
-import qualified Unison.Share.Types as Share
+import Unison.Share.Types qualified as Share
 import UnliftIO.Environment (lookupEnv)
 
 -- | This is the URI where the share API is based.

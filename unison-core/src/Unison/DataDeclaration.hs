@@ -18,6 +18,7 @@ module Unison.DataDeclaration
     declConstructorReferents,
     declDependencies,
     labeledDeclDependencies,
+    labeledDeclDependenciesIncludingSelf,
     declFields,
     dependencies,
     labeledDependencies,
@@ -34,30 +35,29 @@ module Unison.DataDeclaration
   )
 where
 
-import Control.Lens (Iso', Lens', iso, lens, over, _3)
+import Control.Lens (Iso', Lens', imap, iso, lens, over, _3)
 import Control.Monad.State (evalState)
-import Data.Bifunctor (bimap, first, second)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import qualified Unison.LabeledDependency as LD
-import qualified Unison.Name as Name
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.Pattern as Pattern
+import Unison.LabeledDependency qualified as LD
+import Unison.Name qualified as Name
+import Unison.Names.ResolutionResult qualified as Names
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Referent' as Referent'
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Referent' qualified as Referent'
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import Prelude hiding (cycle)
 
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
@@ -70,11 +70,26 @@ data DeclOrBuiltin v a
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
 
-declDependencies :: Ord v => Decl v a -> Set Reference
+declDependencies :: (Ord v) => Decl v a -> Set Reference
 declDependencies = either (dependencies . toDataDecl) dependencies
 
-labeledDeclDependencies :: Ord v => Decl v a -> Set LD.LabeledDependency
+labeledDeclDependencies :: (Ord v) => Decl v a -> Set LD.LabeledDependency
 labeledDeclDependencies = Set.map LD.TypeReference . declDependencies
+
+-- | Compute the dependencies of a data declaration,
+-- including the type itself and references for each of its constructors.
+labeledDeclDependenciesIncludingSelf :: (Ord v) => Reference.TypeReference -> Decl v a -> Set LD.LabeledDependency
+labeledDeclDependenciesIncludingSelf selfRef decl =
+  labeledDeclDependencies decl <> (Set.singleton $ LD.TypeReference selfRef) <> labeledConstructorRefs
+  where
+    labeledConstructorRefs :: Set LD.LabeledDependency
+    labeledConstructorRefs =
+      case selfRef of
+        Reference.Builtin {} -> mempty
+        Reference.DerivedId selfRefId ->
+          declConstructorReferents selfRefId decl
+            & fmap (LD.TermReferent . fmap Reference.DerivedId)
+            & Set.fromList
 
 constructorType :: Decl v a -> CT.ConstructorType
 constructorType = \case
@@ -107,7 +122,7 @@ asDataDecl_ :: Iso' (EffectDeclaration v a) (DataDeclaration v a)
 asDataDecl_ = iso toDataDecl EffectDeclaration
 
 withEffectDeclM ::
-  Functor f =>
+  (Functor f) =>
   (DataDeclaration v a -> f (DataDeclaration v' a')) ->
   EffectDeclaration v a ->
   f (EffectDeclaration v' a')
@@ -119,15 +134,15 @@ generateRecordAccessors ::
   [(v, a)] ->
   v ->
   Reference ->
-  [(v, Term v a)]
+  [(v, a, Term v a)]
 generateRecordAccessors fields typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
   where
     argname = Var.uncapitalize typename
     tm (fname, ann) i =
-      [ (Var.namespaced [typename, fname], get),
-        (Var.namespaced [typename, fname, Var.named "set"], set),
-        (Var.namespaced [typename, fname, Var.named "modify"], modify)
+      [ (Var.namespaced [typename, fname], ann, get),
+        (Var.namespaced [typename, fname, Var.named "set"], ann, set),
+        (Var.namespaced [typename, fname, Var.named "modify"], ann, modify)
       ]
       where
         -- example: `point -> case point of Point x _ -> x`
@@ -200,7 +215,7 @@ constructorTypes :: DataDeclaration v a -> [Type v a]
 constructorTypes = (snd <$>) . constructors
 
 -- what is declFields? —AI
-declFields :: Var v => Decl v a -> Either [Int] [Int]
+declFields :: (Var v) => Decl v a -> Either [Int] [Int]
 declFields = bimap cf cf . first toDataDecl
   where
     cf = fmap fields . constructorTypes
@@ -217,7 +232,7 @@ constructors (DataDeclaration _ _ _ ctors) = [(v, t) | (_, v, t) <- ctors]
 constructorVars :: DataDeclaration v a -> [v]
 constructorVars dd = fst <$> constructors dd
 
-constructorNames :: Var v => DataDeclaration v a -> [Text]
+constructorNames :: (Var v) => DataDeclaration v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
 -- This function is unsound, since the `rid` and the `decl` have to match.
@@ -229,23 +244,25 @@ declConstructorReferents rid decl =
   where
     ct = constructorType decl
 
+-- | The constructor ids for the given data declaration.
 constructorIds :: DataDeclaration v a -> [ConstructorId]
-constructorIds dd = [0 .. fromIntegral $ length (constructors dd) - 1]
+constructorIds dd =
+  imap (\i _ -> fromIntegral i) (constructorTypes dd)
 
 -- | All variables mentioned in the given data declaration.
 -- Includes both term and type variables, both free and bound.
-allVars :: Ord v => DataDeclaration v a -> Set v
+allVars :: (Ord v) => DataDeclaration v a -> Set v
 allVars (DataDeclaration _ _ bound ctors) =
   Set.unions $
     Set.fromList bound : [Set.insert v (Set.fromList $ ABT.allVars tp) | (_, v, tp) <- ctors]
 
 -- | All variables mentioned in the given declaration.
 -- Includes both term and type variables, both free and bound.
-allVars' :: Ord v => Decl v a -> Set v
+allVars' :: (Ord v) => Decl v a -> Set v
 allVars' = allVars . either toDataDecl id
 
 bindReferences ::
-  Var v =>
+  (Var v) =>
   (v -> Name.Name) ->
   Set v ->
   Map Name.Name Reference ->
@@ -256,11 +273,11 @@ bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constru
     (a,v,) <$> Type.bindReferences unsafeVarToName keepFree names ty
   pure $ DataDeclaration m a bound constructors
 
-dependencies :: Ord v => DataDeclaration v a -> Set Reference
+dependencies :: (Ord v) => DataDeclaration v a -> Set Reference
 dependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 
-labeledDependencies :: Ord v => DataDeclaration v a -> Set LD.LabeledDependency
+labeledDependencies :: (Ord v) => DataDeclaration v a -> Set LD.LabeledDependency
 labeledDependencies = Set.map LD.TypeReference . dependencies
 
 mkEffectDecl' ::
@@ -278,7 +295,7 @@ data F a
   | Modified Modifier a
   deriving (Functor, Foldable, Show)
 
-updateDependencies :: Ord v => Map Reference Reference -> Decl v a -> Decl v a
+updateDependencies :: (Ord v) => Map Reference Reference -> Decl v a -> Decl v a
 updateDependencies typeUpdates decl =
   back $
     dataDecl
@@ -297,7 +314,7 @@ updateDependencies typeUpdates decl =
 -- have been replaced with the corresponding output `v`s in the output `Decl`s,
 -- which are fresh with respect to all input Decls.
 unhashComponent ::
-  forall v a. Var v => Map Reference.Id (Decl v a) -> Map Reference.Id (v, Decl v a)
+  forall v a. (Var v) => Map Reference.Id (Decl v a) -> Map Reference.Id (v, Decl v a)
 unhashComponent m =
   let usedVars :: Set v
       usedVars = foldMap allVars' m

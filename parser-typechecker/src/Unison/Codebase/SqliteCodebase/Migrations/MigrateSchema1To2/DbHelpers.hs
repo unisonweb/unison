@@ -5,32 +5,32 @@ module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
   )
 where
 
-import qualified Data.Set as Set
-import qualified Data.Vector as Vector
+import Data.Set qualified as Set
+import Data.Vector qualified as Vector
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
-import qualified U.Codebase.Reference as S hiding (Reference)
-import qualified U.Codebase.Reference as S.Reference
-import qualified U.Codebase.Referent as S.Referent
+import U.Codebase.Reference qualified as S hiding (Reference)
+import U.Codebase.Reference qualified as S.Reference
+import U.Codebase.Referent qualified as S.Referent
 import U.Codebase.Sqlite.Branch.Full (DbMetadataSet)
-import qualified U.Codebase.Sqlite.Branch.Full as S
-import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
-import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
-import qualified U.Codebase.Sqlite.Causal as S
-import qualified U.Codebase.Sqlite.DbId as Db
-import qualified U.Codebase.Sqlite.Patch.Full as S
-import qualified U.Codebase.Sqlite.Patch.TermEdit as S (TermEdit)
-import qualified U.Codebase.Sqlite.Patch.TermEdit as S.TermEdit
-import qualified U.Codebase.Sqlite.Patch.TypeEdit as S (TypeEdit)
-import qualified U.Codebase.Sqlite.Patch.TypeEdit as S.TypeEdit
-import qualified U.Codebase.Sqlite.Queries as Q
-import qualified U.Codebase.Sqlite.Reference as S
-import qualified U.Codebase.Sqlite.Referent as S
+import U.Codebase.Sqlite.Branch.Full qualified as S
+import U.Codebase.Sqlite.Branch.Full qualified as S.Branch.Full
+import U.Codebase.Sqlite.Branch.Full qualified as S.MetadataSet
+import U.Codebase.Sqlite.Causal qualified as S
+import U.Codebase.Sqlite.DbId qualified as Db
+import U.Codebase.Sqlite.Patch.Full qualified as S
+import U.Codebase.Sqlite.Patch.TermEdit qualified as S (TermEdit)
+import U.Codebase.Sqlite.Patch.TermEdit qualified as S.TermEdit
+import U.Codebase.Sqlite.Patch.TypeEdit qualified as S (TypeEdit)
+import U.Codebase.Sqlite.Patch.TypeEdit qualified as S.TypeEdit
+import U.Codebase.Sqlite.Queries qualified as Q
+import U.Codebase.Sqlite.Reference qualified as S
+import U.Codebase.Sqlite.Referent qualified as S
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2 as Hashing
+import Unison.Hashing.V2 qualified as Hashing
 import Unison.Prelude
 import Unison.Sqlite (Transaction)
-import qualified Unison.Util.Map as Map
-import qualified Unison.Util.Set as Set
+import Unison.Util.Map qualified as Map
+import Unison.Util.Set qualified as Set
 
 syncCausalHash :: S.SyncCausalFormat -> Transaction CausalHash
 syncCausalHash S.SyncCausalFormat {valueHash = valueHashId, parents = parentChIds} = do

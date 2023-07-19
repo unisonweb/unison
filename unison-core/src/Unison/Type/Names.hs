@@ -1,19 +1,19 @@
 module Unison.Type.Names where
 
-import qualified Data.Set as Set
-import qualified Data.Set.NonEmpty as NES
-import qualified Unison.ABT as ABT
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.NamesWithHistory as Names
+import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as NES
+import Unison.ABT qualified as ABT
+import Unison.Name qualified as Name
+import Unison.Names qualified as Names
+import Unison.Names.ResolutionResult qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 import Unison.Type
-import qualified Unison.Util.List as List
+import Unison.Util.List qualified as List
 import Unison.Var (Var)
 
 bindNames ::
-  Var v =>
+  (Var v) =>
   (v -> Name.Name) ->
   Set v ->
   Names.Names ->

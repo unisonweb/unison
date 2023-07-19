@@ -6,63 +6,66 @@ where
 
 import Control.Concurrent.MVar
 import Control.Monad.Reader
-import qualified Crypto.Hash as Crypto
+import Crypto.Hash qualified as Crypto
 import Crypto.Random (getRandomBytes)
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteArray.Encoding as BE
-import qualified Data.ByteString.Char8 as BSC
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Aeson qualified as Aeson
+import Data.ByteArray.Encoding qualified as BE
+import Data.ByteString.Char8 qualified as BSC
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Client (urlEncodedBody)
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.TLS as HTTP
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client.TLS qualified as HTTP
 import Network.HTTP.Types
 import Network.URI (URI (..), parseURI)
 import Network.Wai
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
+import Network.Wai qualified as Wai
+import Network.Wai.Handler.Warp qualified as Warp
 import Unison.Auth.CredentialManager (getCredentials, saveCredentials)
 import Unison.Auth.Discovery (discoveryURIForCodeserver, fetchDiscoveryDoc)
 import Unison.Auth.Types
   ( Code,
+    CodeserverCredentials (..),
     CredentialFailure (..),
     DiscoveryDoc (..),
     OAuthState,
     PKCEChallenge,
     PKCEVerifier,
-    Tokens,
+    Tokens (..),
+    UserInfo,
     codeserverCredentials,
   )
+import Unison.Auth.UserInfo (getUserInfo)
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Codebase.Editor.Output as Output
-import qualified Unison.Debug as Debug
+import Unison.Cli.Monad qualified as Cli
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Debug qualified as Debug
 import Unison.Prelude
 import Unison.Share.Types
-import qualified Web.Browser as Web
+import UnliftIO qualified
+import Web.Browser qualified as Web
 
 ucmOAuthClientID :: ByteString
 ucmOAuthClientID = "ucm"
 
 -- | Checks if the user has valid auth for the given codeserver,
 -- and runs through an authentication flow if not.
-ensureAuthenticatedWithCodeserver :: CodeserverURI -> Cli ()
+ensureAuthenticatedWithCodeserver :: CodeserverURI -> Cli UserInfo
 ensureAuthenticatedWithCodeserver codeserverURI = do
   Cli.Env {credentialManager} <- ask
   getCredentials credentialManager (codeserverIdFromCodeserverURI codeserverURI) >>= \case
-    Right _ -> pure ()
+    Right (CodeserverCredentials {userInfo}) -> pure userInfo
     Left _ -> authLogin codeserverURI
 
 -- | Direct the user through an authentication flow with the given server and store the credentials in the provided
 -- credential manager.
-authLogin :: CodeserverURI -> Cli ()
+authLogin :: CodeserverURI -> Cli UserInfo
 authLogin host = do
   Cli.Env {credentialManager} <- ask
   httpClient <- liftIO HTTP.getGlobalManager
   let discoveryURI = discoveryURIForCodeserver host
-  doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <-
-    Cli.ioE (fetchDiscoveryDoc discoveryURI) \err -> do
-      Cli.returnEarly (Output.CredentialFailureMsg err)
+  doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- bailOnFailure (fetchDiscoveryDoc discoveryURI)
   Debug.debugM Debug.Auth "Discovery Doc" doc
   authResultVar <- liftIO (newEmptyMVar @(Either CredentialFailure Tokens))
   -- The redirect_uri depends on the port, so we need to spin up the server first, but
@@ -92,19 +95,23 @@ authLogin host = do
         -- otherwise the server will shut down prematurely.
         putMVar authResultVar result
         pure respReceived
-  tokens <-
+  fetchTime <- liftIO getCurrentTime
+  tokens@(Tokens {accessToken}) <-
     Cli.with (Warp.withApplication (pure $ authTransferServer codeHandler)) \port -> do
       let redirectURI = "http://localhost:" <> show port <> "/redirect"
       liftIO (putMVar redirectURIVar redirectURI)
       let authorizationKickoff = authURI authorizationEndpoint redirectURI state challenge
-      void . liftIO $ Web.openBrowser (show authorizationKickoff)
       Cli.respond . Output.InitiateAuthFlow $ authorizationKickoff
-      Cli.ioE (readMVar authResultVar) \err -> do
-        Cli.returnEarly (Output.CredentialFailureMsg err)
+      bailOnFailure . liftIO $ UnliftIO.withAsync (Web.openBrowser (show authorizationKickoff)) \_ -> readMVar authResultVar
+  userInfo <- bailOnFailure (getUserInfo doc accessToken)
   let codeserverId = codeserverIdFromCodeserverURI host
-  let creds = codeserverCredentials discoveryURI tokens
+  let creds = codeserverCredentials discoveryURI tokens fetchTime userInfo
   liftIO (saveCredentials credentialManager codeserverId creds)
   Cli.respond Output.Success
+  pure userInfo
+  where
+    bailOnFailure action = Cli.ioE action \err -> do
+      Cli.returnEarly (Output.CredentialFailureMsg err)
 
 -- | A server in the format expected for a Wai Application
 -- This is a temporary server which is spun up only until we get a code back from the
@@ -141,7 +148,7 @@ addQueryParam key val uri =
       newParam = (key, Just val)
    in uri {uriQuery = BSC.unpack $ renderQuery True (existingQuery <> [newParam])}
 
-generateParams :: MonadIO m => m (PKCEVerifier, PKCEChallenge, OAuthState)
+generateParams :: (MonadIO m) => m (PKCEVerifier, PKCEChallenge, OAuthState)
 generateParams = liftIO $ do
   verifier <- BE.convertToBase @ByteString BE.Base64URLUnpadded <$> getRandomBytes 50
   let digest = Crypto.hashWith Crypto.SHA256 verifier
@@ -151,7 +158,7 @@ generateParams = liftIO $ do
 
 -- | Exchange an authorization code for tokens.
 exchangeCode ::
-  MonadIO m =>
+  (MonadIO m) =>
   HTTP.Manager ->
   URI ->
   Code ->

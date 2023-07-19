@@ -13,21 +13,22 @@ import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
 import Control.Exception
 import Data.Bits
-import qualified Data.Map.Strict as M
+import Data.Map.Strict qualified as M
 import Data.Ord (comparing)
-import qualified Data.Sequence as Sq
-import qualified Data.Set as S
-import qualified Data.Set as Set
-import qualified Data.Text as DTx
-import qualified Data.Text.IO as Tx
+import Data.Sequence qualified as Sq
+import Data.Set qualified as S
+import Data.Set qualified as Set
+import Data.Text qualified as DTx
+import Data.Text.IO qualified as Tx
 import Data.Traversable
 import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
-import qualified Unison.Builtin.Decls as Rf
+import Unison.Builtin.Decls qualified as Rf
+import Unison.ConstructorReference qualified as CR
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference (Builtin), toShortHash)
-import Unison.Referent (pattern Ref)
+import Unison.Referent (pattern Con, pattern Ref)
 import Unison.Runtime.ANF as ANF
   ( CompileExn (..),
     Mem (..),
@@ -37,7 +38,7 @@ import Unison.Runtime.ANF as ANF
     packTags,
     valueLinks,
   )
-import qualified Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception
@@ -45,16 +46,16 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
-import qualified Unison.Type as Rf
-import qualified Unison.Util.Bytes as By
+import Unison.Type qualified as Rf
+import Unison.Util.Bytes qualified as By
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty (toPlainUnbroken)
-import qualified Unison.Util.Text as Util.Text
+import Unison.Util.Text qualified as Util.Text
 import UnliftIO (IORef)
-import qualified UnliftIO
-import qualified UnliftIO.Concurrent as UnliftIO
+import UnliftIO qualified
+import UnliftIO.Concurrent qualified as UnliftIO
 
 -- | A ref storing every currently active thread.
 -- This is helpful for cleaning up orphaned threads when the main process
@@ -135,7 +136,7 @@ baseCCache sandboxed = do
         (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
         numberedTermLookup
 
-info :: Show a => String -> a -> IO ()
+info :: (Show a) => String -> a -> IO ()
 info ctx x = infos ctx (show x)
 
 infos :: String -> String -> IO ()
@@ -329,8 +330,10 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 LKUP i)
       pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim1 TLTT i) = do
   clink <- peekOff bstk i
-  let Ref link = unwrapForeign $ marshalToForeign clink
-  let sh = Util.Text.fromText . SH.toText $ toShortHash link
+  let shortHash = case unwrapForeign $ marshalToForeign clink of
+        Ref r -> toShortHash r
+        Con r _ -> CR.toShortHash r
+  let sh = Util.Text.fromText . SH.toText $ shortHash
   bstk <- bump bstk
   pokeBi bstk sh
   pure (denv, ustk, bstk, k)
@@ -344,7 +347,8 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 LOAD i)
         Left miss -> do
           poke ustk 0
           pokeS bstk $
-            Sq.fromList $ Foreign . Wrap Rf.termLinkRef . Ref <$> miss
+            Sq.fromList $
+              Foreign . Wrap Rf.termLinkRef . Ref <$> miss
         Right x -> do
           poke ustk 1
           poke bstk x
@@ -520,6 +524,8 @@ encodeExn ustk bstk (Left exn) = do
           (Rf.stmFailureRef, disp be, unitValue)
       | Just (be :: BlockedIndefinitelyOnMVar) <- fromException exn =
           (Rf.ioFailureRef, disp be, unitValue)
+      | Just (ie :: AsyncException) <- fromException exn =
+          (Rf.threadKilledFailureRef, disp ie, unitValue)
       | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
 
 eval ::
@@ -932,7 +938,8 @@ dumpData !_ !ustk !bstk (DataG _ t us bs) = do
   pure (ustk, bstk)
 dumpData !mr !_ !_ clo =
   die $
-    "dumpData: bad closure: " ++ show clo
+    "dumpData: bad closure: "
+      ++ show clo
       ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
 {-# INLINE dumpData #-}
 
@@ -949,7 +956,8 @@ closeArgs ::
   Args ->
   IO (Seg 'UN, Seg 'BX)
 closeArgs mode !ustk !bstk !useg !bseg args =
-  (,) <$> augSeg mode ustk useg uargs
+  (,)
+    <$> augSeg mode ustk useg uargs
     <*> augSeg mode bstk bseg bargs
   where
     (uargs, bargs) = case args of
@@ -1441,7 +1449,8 @@ bprim1 !ustk !bstk PAKT i = do
 bprim1 !ustk !bstk UPKT i = do
   t <- peekOffBi bstk i
   bstk <- bump bstk
-  pokeS bstk . Sq.fromList
+  pokeS bstk
+    . Sq.fromList
     . fmap (DataU1 Rf.charRef charTag . fromEnum)
     . Util.Text.unpack
     $ t
@@ -1494,6 +1503,32 @@ bprim2 !ustk !bstk EQLU i j = do
   ustk <- bump ustk
   poke ustk $ if universalEq (==) x y then 1 else 0
   pure (ustk, bstk)
+bprim2 !ustk !bstk IXOT i j = do
+  x <- peekOffBi bstk i
+  y <- peekOffBi bstk j
+  case Util.Text.indexOf x y of
+    Nothing -> do
+      ustk <- bump ustk
+      poke ustk 0
+      pure (ustk, bstk)
+    Just i -> do
+      ustk <- bumpn ustk 2
+      poke ustk 1
+      pokeOffN ustk 1 i
+      pure (ustk, bstk)
+bprim2 !ustk !bstk IXOB i j = do
+  x <- peekOffBi bstk i
+  y <- peekOffBi bstk j
+  case By.indexOf x y of
+    Nothing -> do
+      ustk <- bump ustk
+      poke ustk 0
+      pure (ustk, bstk)
+    Just i -> do
+      ustk <- bumpn ustk 2
+      poke ustk 1
+      pokeOffN ustk 1 i
+      pure (ustk, bstk)
 bprim2 !ustk !bstk DRPT i j = do
   n <- peekOff ustk i
   t <- peekOffBi bstk j
@@ -1768,18 +1803,24 @@ resolve env _ _ (Env n i) =
     Just r -> pure $ PAp (CIx r n i) unull bnull
     Nothing -> die $ "resolve: missing reference for comb: " ++ show n
 resolve _ _ bstk (Stk i) = peekOff bstk i
-resolve _ denv _ (Dyn i) = case EC.lookup i denv of
+resolve env denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
-  _ -> die $ "resolve: unhandled ability request: " ++ show i
+  Nothing -> readTVarIO (tagRefs env) >>= err
+    where
+      unhandled rs = case EC.lookup i rs of
+        Just r -> show r
+        Nothing -> show i
+      err rs = die $ "resolve: unhandled ability request: " ++ unhandled rs
 
-combSection :: HasCallStack => CCache -> CombIx -> IO Comb
+combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
 combSection env (CIx _ n i) =
   readTVarIO (combs env) >>= \cs -> case EC.lookup n cs of
     Just cmbs -> case EC.lookup i cmbs of
       Just cmb -> pure cmb
       Nothing ->
         die $
-          "unknown section `" ++ show i
+          "unknown section `"
+            ++ show i
             ++ "` of combinator `"
             ++ show n
             ++ "`."
@@ -1791,7 +1832,7 @@ dummyRef = Builtin (DTx.pack "dummy")
 reserveIds :: Word64 -> TVar Word64 -> IO Word64
 reserveIds n free = atomically . stateTVar free $ \i -> (i, i + n)
 
-updateMap :: Semigroup s => s -> TVar s -> STM s
+updateMap :: (Semigroup s) => s -> TVar s -> STM s
 updateMap new r = stateTVar r $ \old ->
   let total = new <> old in (total, total)
 
@@ -2043,7 +2084,8 @@ reifyValue0 (rty, rtm) = goV
 
     goK ANF.KE = pure KE
     goK (ANF.Mark ua ba ps de k) =
-      mrk <$> traverse refTy ps
+      mrk
+        <$> traverse refTy ps
         <*> traverse (\(k, v) -> (,) <$> refTy k <*> goV v) (M.toList de)
         <*> goK k
       where
@@ -2055,7 +2097,8 @@ reifyValue0 (rty, rtm) = goV
         (fromIntegral bf)
         (fromIntegral ua)
         (fromIntegral ba)
-        <$> (goIx gr) <*> goK k
+        <$> (goIx gr)
+        <*> goK k
 
     goL (ANF.Text t) = pure . Foreign $ Wrap Rf.textRef t
     goL (ANF.List l) = Foreign . Wrap Rf.listRef <$> traverse goV l

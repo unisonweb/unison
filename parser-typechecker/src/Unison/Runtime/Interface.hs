@@ -21,16 +21,15 @@ where
 
 import Control.Concurrent.STM as STM
 import Control.Monad
-import Data.Bifunctor (bimap, first)
 import Data.Binary.Get (runGetOrFail)
 -- import Data.Bits (shiftL)
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.Bytes.Get (MonadGet)
 import Data.Bytes.Put (MonadPut, runPutL)
 import Data.Bytes.Serial
 import Data.Foldable
 import Data.IORef
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Set as Set
   ( filter,
     fromList,
@@ -39,25 +38,25 @@ import Data.Set as Set
     singleton,
     (\\),
   )
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text (isPrefixOf)
-import qualified Unison.ABT as Tm (substs)
-import qualified Unison.Builtin.Decls as RF
+import Unison.ABT qualified as Tm (substs)
+import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinMain, builtinTest)
 import Unison.Codebase.Runtime (Error, Runtime (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorReference as RF
+import Unison.ConstructorReference qualified as RF
 import Unison.DataDeclaration (Decl, declDependencies, declFields)
-import qualified Unison.Hashing.V2.Convert as Hashing
-import qualified Unison.LabeledDependency as RF
+import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.LabeledDependency qualified as RF
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
 import Unison.PrettyPrintEnv
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
-import qualified Unison.Reference as RF
-import qualified Unison.Referent as RF (pattern Ref)
+import Unison.Reference qualified as RF
+import Unison.Referent qualified as RF (pattern Ref)
 import Unison.Runtime.ANF
 import Unison.Runtime.ANF.Serialize (getGroup, putGroup)
 import Unison.Runtime.Builtin
@@ -77,8 +76,8 @@ import Unison.Runtime.MCode
 import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
   ( ActiveThreads,
-    Tracer (..),
     CCache (..),
+    Tracer (..),
     apply0,
     baseCCache,
     cacheAdd,
@@ -94,14 +93,14 @@ import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.HashQualified as HQ (toString)
+import Unison.Syntax.HashQualified qualified as HQ (toString)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Syntax.TermPrinter
-import qualified Unison.Term as Tm
+import Unison.Term qualified as Tm
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty as P
-import qualified UnliftIO
-import qualified UnliftIO.Concurrent as UnliftIO
+import UnliftIO qualified
+import UnliftIO.Concurrent qualified as UnliftIO
 
 type Term v = Tm.Term v ()
 
@@ -151,6 +150,7 @@ recursiveDeclDeps ::
   Set RF.LabeledDependency ->
   CodeLookup Symbol IO () ->
   Decl Symbol () ->
+  -- (type deps, term deps)
   IO (Set Reference, Set Reference)
 recursiveDeclDeps seen0 cl d = do
   rec <- for (toList newDeps) $ \case
@@ -176,6 +176,7 @@ recursiveTermDeps ::
   Set RF.LabeledDependency ->
   CodeLookup Symbol IO () ->
   Term Symbol ->
+  -- (type deps, term deps)
   IO (Set Reference, Set Reference)
 recursiveTermDeps seen0 cl tm = do
   rec <- for (toList (deps \\ seen0)) $ \case
@@ -273,7 +274,7 @@ backrefLifted ref tm dcmp =
   Map.fromList . (fmap . fmap) (Map.singleton 0) $ (ref, tm) : dcmp
 
 intermediateTerms ::
-  HasCallStack =>
+  (HasCallStack) =>
   PrettyPrintEnv ->
   EvalCtx ->
   [(Reference, Term Symbol)] ->
@@ -284,7 +285,7 @@ intermediateTerms ppe ctx rtms =
   foldMap (\(ref, tm) -> intermediateTerm ppe ref ctx tm) rtms
 
 intermediateTerm ::
-  HasCallStack =>
+  (HasCallStack) =>
   PrettyPrintEnv ->
   Reference ->
   EvalCtx ->
@@ -311,7 +312,7 @@ intermediateTerm ppe ref ctx tm =
     tmName = HQ.toString . termName ppe $ RF.Ref ref
 
 prepareEvaluation ::
-  HasCallStack =>
+  (HasCallStack) =>
   PrettyPrintEnv ->
   Term Symbol ->
   EvalCtx ->
@@ -319,7 +320,8 @@ prepareEvaluation ::
 prepareEvaluation ppe tm ctx = do
   missing <- cacheAdd rgrp (ccache ctx)
   when (not . null $ missing) . fail $
-    reportBug "E029347" $ "Error in prepareEvaluation, cache is missing: " <> show missing
+    reportBug "E029347" $
+      "Error in prepareEvaluation, cache is missing: " <> show missing
   (,) (backrefAdd rbkr ctx) <$> refNumTm (ccache ctx) rmn
   where
     (rmn, rtms)
@@ -367,11 +369,8 @@ evalInContext ppe ctx activeThreads w = do
       prettyError (BU tr nm c) = either id (bugMsg ppe tr nm) $ decom c
 
       debugText fancy c = case decom c of
-        Right dv -> SimpleTrace . fmt $ pretty ppe dv
+        Right dv -> SimpleTrace . (debugTextFormat fancy) $ pretty ppe dv
         Left _ -> MsgTrace ("Couldn't decompile value") (show c)
-        where
-        fmt | fancy = toANSI 50
-            | otherwise = toPlain 50
 
   result <-
     traverse (const $ readIORef r)
@@ -410,7 +409,8 @@ bugMsg ppe tr name tm
   | name == "blank expression" =
       P.callout icon . P.lines $
         [ P.wrap
-            ( "I encountered a" <> P.red (P.text name)
+            ( "I encountered a"
+                <> P.red (P.text name)
                 <> "with the following name/message:"
             ),
           "",
@@ -421,7 +421,8 @@ bugMsg ppe tr name tm
   | "pattern match failure" `isPrefixOf` name =
       P.callout icon . P.lines $
         [ P.wrap
-            ( "I've encountered a" <> P.red (P.text name)
+            ( "I've encountered a"
+                <> P.red (P.text name)
                 <> "while scrutinizing:"
             ),
           "",
@@ -445,7 +446,8 @@ bugMsg ppe tr name tm
     "pattern match failure" `isPrefixOf` msg =
       P.callout icon . P.lines $
         [ P.wrap
-            ( "I've encountered a" <> P.red (P.text msg)
+            ( "I've encountered a"
+                <> P.red (P.text msg)
                 <> "while scrutinizing:"
             ),
           "",
@@ -459,7 +461,8 @@ bugMsg ppe tr name tm
 bugMsg ppe tr name tm =
   P.callout icon . P.lines $
     [ P.wrap
-        ( "I've encountered a call to" <> P.red (P.text name)
+        ( "I've encountered a call to"
+            <> P.red (P.text name)
             <> "with the following value:"
         ),
       "",
@@ -551,7 +554,7 @@ startRuntime sandboxed runtimeHost version = do
         ioTestType = builtinTest External
       }
 
-withRuntime :: MonadUnliftIO m => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
+withRuntime :: (MonadUnliftIO m) => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
 withRuntime sandboxed runtimeHost version action =
   UnliftIO.bracket (liftIO $ startRuntime sandboxed runtimeHost version) (liftIO . terminate) action
 
@@ -578,7 +581,7 @@ data StoredCache
       (Map Reference (Set Reference))
   deriving (Show)
 
-putStoredCache :: MonadPut m => StoredCache -> m ()
+putStoredCache :: (MonadPut m) => StoredCache -> m ()
 putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
   putEnumMap putNat (putEnumMap putNat putComb) cs
   putEnumMap putNat putReference crs
@@ -590,7 +593,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
   putMap putReference putNat rty
   putMap putReference (putFoldable putReference) sbs
 
-getStoredCache :: MonadGet m => m StoredCache
+getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =
   SCache
     <$> getEnumMap getNat (getEnumMap getNat getComb)
@@ -603,9 +606,15 @@ getStoredCache =
     <*> getMap getReference getNat
     <*> getMap getReference (fromList <$> getList getReference)
 
+debugTextFormat :: Bool -> Pretty ColorText -> String
+debugTextFormat fancy =
+  render 50
+  where
+    render = if fancy then toANSI else toPlain
+
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
-  CCache builtinForeigns False uglyTrace
+  CCache builtinForeigns False debugText
     <$> newTVarIO (cs <> combs)
     <*> newTVarIO (crs <> builtinTermBackref)
     <*> newTVarIO (trs <> builtinTypeBackref)
@@ -616,7 +625,10 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
     <*> newTVarIO (rty <> builtinTypeNumbering)
     <*> newTVarIO (sbs <> baseSandboxInfo)
   where
-    uglyTrace _ c = SimpleTrace $ show c
+    decom = decompile (backReferenceTm crs Map.empty)
+    debugText fancy c = case decom c of
+      Right dv -> SimpleTrace . (debugTextFormat fancy) $ pretty PPE.empty dv
+      Left _ -> MsgTrace ("Couldn't decompile value") (show c)
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     combs =

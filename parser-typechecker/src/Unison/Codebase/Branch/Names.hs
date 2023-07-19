@@ -13,22 +13,22 @@ module Unison.Codebase.Branch.Names
   )
 where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.Codebase.Branch
-import qualified Unison.Codebase.Causal.FoldHistory as Causal
+import Unison.Codebase.Causal.FoldHistory qualified as Causal
 import Unison.HashQualified (HashQualified)
-import qualified Unison.HashQualified as HQ
+import Unison.HashQualified qualified as HQ
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Names (Names (..))
-import qualified Unison.Names as Names
-import qualified Unison.NamesWithHistory as Names
+import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude hiding (empty)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Util.Relation as R
+import Unison.Referent qualified as Referent
+import Unison.Util.Relation qualified as R
 import Prelude hiding (head, read, subtract)
 
 toNames :: Branch0 m -> Names
@@ -40,7 +40,7 @@ toNames b =
 -- This stops searching for a given HashQualified once it encounters
 -- any term or type in any Branch0 that satisfies that HashQualified.
 findHistoricalHQs ::
-  Monad m =>
+  (Monad m) =>
   Set (HashQualified Name) ->
   Branch m ->
   m (Set (HashQualified Name), Names)
@@ -50,7 +50,7 @@ findHistoricalHQs =
     (\hq r n -> HQ.matchesNamedReference n r hq)
 
 findHistoricalRefs ::
-  Monad m =>
+  (Monad m) =>
   Set LabeledDependency ->
   Branch m ->
   m (Set LabeledDependency, Names)
@@ -60,7 +60,7 @@ findHistoricalRefs =
     (\query r _n -> LD.fold (== r) (const False) query)
 
 findHistoricalRefs' ::
-  Monad m =>
+  (Monad m) =>
   Set Reference ->
   Branch m ->
   m (Set Reference, Names)

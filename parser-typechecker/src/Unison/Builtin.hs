@@ -23,32 +23,31 @@ module Unison.Builtin
   )
 where
 
-import Data.Bifunctor (first, second)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Text.Regex.TDFA as RE
-import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Builtin.Terms as TD
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Text.Regex.TDFA qualified as RE
+import Unison.Builtin.Decls qualified as DD
+import Unison.Builtin.Terms qualified as TD
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
-import qualified Unison.DataDeclaration as DD
+import Unison.ConstructorType qualified as CT
+import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.Convert as H
+import Unison.Hashing.V2.Convert qualified as H
 import Unison.Name (Name)
 import Unison.Names (Names (Names))
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.Reference as R
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as R
+import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Name as Name (unsafeFromText, unsafeFromVar)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.Util.Relation as Rel
-import qualified Unison.Var as Var
+import Unison.Syntax.Name qualified as Name (unsafeFromText, unsafeFromVar)
+import Unison.Type qualified as Type
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Util.Relation qualified as Rel
+import Unison.Var qualified as Var
 
 type DataDeclaration = DD.DataDeclaration Symbol Ann
 
@@ -73,7 +72,7 @@ names0 = Names terms types
           ]
         <> Rel.fromList
           [ (Name.unsafeFromVar v, Referent.Ref (R.DerivedId i))
-            | (v, i) <- Map.toList $ TD.builtinTermsRef
+            | (v, i) <- Map.toList TD.builtinTermsRef
           ]
     types =
       Rel.fromList builtinTypes
@@ -95,8 +94,8 @@ typeLookup :: TL.TypeLookup Symbol Ann
 typeLookup =
   TL.TypeLookup
     (fmap (const Intrinsic) <$> termRefTypes)
-    (Map.fromList . map (first R.DerivedId) $ map snd builtinDataDecls)
-    (Map.fromList . map (first R.DerivedId) $ map snd builtinEffectDecls)
+    (Map.fromList $ map (first R.DerivedId . snd) builtinDataDecls)
+    (Map.fromList $ map (first R.DerivedId . snd) builtinEffectDecls)
 
 constructorType :: R.Reference -> Maybe CT.ConstructorType
 constructorType r =
@@ -110,7 +109,7 @@ builtinDataDecls =
 builtinEffectDecls :: [(Symbol, (R.Id, EffectDeclaration))]
 builtinEffectDecls = [(v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinEffectDecls]
 
-codeLookup :: Applicative m => CodeLookup Symbol m Ann
+codeLookup :: (Applicative m) => CodeLookup Symbol m Ann
 codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
   pure $
     lookup r [(r, Right x) | (r, x) <- snd <$> builtinDataDecls]
@@ -165,7 +164,11 @@ builtinTypes =
       Rename' r name -> case Map.lookup name m of
         Just _ ->
           error . Text.unpack $
-            "tried to rename `" <> r <> "` to `" <> name <> "`, "
+            "tried to rename `"
+              <> r
+              <> "` to `"
+              <> name
+              <> "`, "
               <> "which already exists."
         Nothing -> case Map.lookup r m of
           Nothing ->
@@ -175,7 +178,11 @@ builtinTypes =
       Alias' r name -> case Map.lookup name m of
         Just _ ->
           error . Text.unpack $
-            "tried to alias `" <> r <> "` to `" <> name <> "`, "
+            "tried to alias `"
+              <> r
+              <> "` to `"
+              <> name
+              <> "`, "
               <> "which already exists."
         Nothing -> case Map.lookup r m of
           Nothing ->
@@ -245,7 +252,8 @@ builtinTypesSrc =
     B' "ImmutableArray" CT.Data,
     B' "MutableArray" CT.Data,
     B' "ImmutableByteArray" CT.Data,
-    B' "MutableByteArray" CT.Data
+    B' "MutableByteArray" CT.Data,
+    B' "Char.Class" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -294,7 +302,11 @@ termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty (stripVersion 
       Rename r name -> case Map.lookup name m of
         Just _ ->
           error . Text.unpack $
-            "tried to rename `" <> r <> "` to `" <> name <> "`, "
+            "tried to rename `"
+              <> r
+              <> "` to `"
+              <> name
+              <> "`, "
               <> "which already exists."
         Nothing -> case Map.lookup r m of
           Nothing ->
@@ -304,7 +316,11 @@ termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty (stripVersion 
       Alias r name -> case Map.lookup name m of
         Just _ ->
           error . Text.unpack $
-            "tried to alias `" <> r <> "` to `" <> name <> "`, "
+            "tried to alias `"
+              <> r
+              <> "` to `"
+              <> name
+              <> "`, "
               <> "which already exists."
         Nothing -> case Map.lookup r m of
           Nothing ->
@@ -464,6 +480,7 @@ builtinsSrc =
     B "Text.++" $ text --> text --> text,
     B "Text.take" $ nat --> text --> text,
     B "Text.drop" $ nat --> text --> text,
+    B "Text.indexOf" $ text --> text --> optionalt nat,
     B "Text.size" $ text --> nat,
     B "Text.repeat" $ nat --> text --> text,
     B "Text.==" $ text --> text --> boolean,
@@ -513,6 +530,7 @@ builtinsSrc =
     B "Bytes.take" $ nat --> bytes --> bytes,
     B "Bytes.drop" $ nat --> bytes --> bytes,
     B "Bytes.at" $ nat --> bytes --> optionalt nat,
+    B "Bytes.indexOf" $ bytes --> bytes --> optionalt nat,
     B "Bytes.toList" $ bytes --> list nat,
     B "Bytes.size" $ bytes --> nat,
     B "Bytes.flatten" $ bytes --> bytes,
@@ -569,10 +587,18 @@ builtinsSrc =
     B "ImmutableArray.size" . forall1 "a" $ \a -> iarrayt a --> nat,
     B "ImmutableByteArray.size" $ ibytearrayt --> nat,
     B "MutableArray.copyTo!" . forall2 "g" "a" $ \g a ->
-      marrayt g a --> nat --> marrayt g a --> nat --> nat
+      marrayt g a
+        --> nat
+        --> marrayt g a
+        --> nat
+        --> nat
         --> Type.effect () [g, DD.exceptionType ()] unit,
     B "MutableByteArray.copyTo!" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> mbytearrayt g --> nat --> nat
+      mbytearrayt g
+        --> nat
+        --> mbytearrayt g
+        --> nat
+        --> nat
         --> Type.effect () [g, DD.exceptionType ()] unit,
     B "MutableArray.read" . forall2 "g" "a" $ \g a ->
       marrayt g a --> nat --> Type.effect () [g, DD.exceptionType ()] a,
@@ -599,10 +625,18 @@ builtinsSrc =
     B "MutableByteArray.write64be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
     B "ImmutableArray.copyTo!" . forall2 "g" "a" $ \g a ->
-      marrayt g a --> nat --> iarrayt a --> nat --> nat
+      marrayt g a
+        --> nat
+        --> iarrayt a
+        --> nat
+        --> nat
         --> Type.effect () [g, DD.exceptionType ()] unit,
     B "ImmutableByteArray.copyTo!" . forall1 "g" $ \g ->
-      mbytearrayt g --> nat --> ibytearrayt --> nat --> nat
+      mbytearrayt g
+        --> nat
+        --> ibytearrayt
+        --> nat
+        --> nat
         --> Type.effect () [g, DD.exceptionType ()] unit,
     B "ImmutableArray.read" . forall1 "a" $ \a ->
       iarrayt a --> nat --> Type.effect1 () (DD.exceptionType ()) a,
@@ -633,7 +667,32 @@ builtinsSrc =
     B "Scope.bytearray" . forall1 "s" $ \s ->
       nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
     B "Scope.bytearrayOf" . forall1 "s" $ \s ->
-      nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s))
+      nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
+    B "Char.Class.any" charClass,
+    B "Char.Class.not" $ charClass --> charClass,
+    B "Char.Class.and" $ charClass --> charClass --> charClass,
+    B "Char.Class.or" $ charClass --> charClass --> charClass,
+    B "Char.Class.range" $ char --> char --> charClass,
+    B "Char.Class.anyOf" $ list char --> charClass,
+    B "Char.Class.alphanumeric" charClass,
+    B "Char.Class.upper" charClass,
+    B "Char.Class.lower" charClass,
+    B "Char.Class.whitespace" charClass,
+    B "Char.Class.control" charClass,
+    B "Char.Class.printable" charClass,
+    B "Char.Class.mark" charClass,
+    B "Char.Class.number" charClass,
+    B "Char.Class.punctuation" charClass,
+    B "Char.Class.symbol" charClass,
+    B "Char.Class.separator" charClass,
+    B "Char.Class.letter" charClass,
+    B "Char.Class.is" $
+      charClass
+        --> char
+        --> boolean,
+    B
+      "Text.patterns.char"
+      $ charClass --> pat text
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -704,7 +763,7 @@ hashBuiltins =
     B "crypto.hmac" $ forall1 "a" (\a -> hashAlgo --> bytes --> a --> bytes),
     B "crypto.hmacBytes" $ hashAlgo --> bytes --> bytes --> bytes
   ]
-    ++ map h ["Sha3_512", "Sha3_256", "Sha2_512", "Sha2_256", "Sha1", "Blake2b_512", "Blake2b_256", "Blake2s_256"]
+    ++ map h ["Sha3_512", "Sha3_256", "Sha2_512", "Sha2_256", "Sha1", "Blake2b_512", "Blake2b_256", "Blake2s_256", "Md5"]
   where
     hashAlgo = Type.ref () Type.hashAlgorithmRef
     h name = B ("crypto.HashAlgorithm." <> name) hashAlgo
@@ -762,13 +821,15 @@ ioBuiltins =
       forall1 "a" $ \a ->
         a --> io (reft iot a)
     ),
-    ( "IO.process.call", text --> list text --> io nat),
+    ("IO.process.call", text --> list text --> io nat),
     ( "IO.process.start",
-      text --> list text -->
-        io (tuple [handle, handle, handle, phandle])),
-    ( "IO.process.kill", phandle --> io unit),
-    ( "IO.process.wait", phandle --> io nat),
-    ( "IO.process.exitCode", phandle --> io (optionalt nat)),
+      text
+        --> list text
+        --> io (tuple [handle, handle, handle, phandle])
+    ),
+    ("IO.process.kill", phandle --> io unit),
+    ("IO.process.wait", phandle --> io nat),
+    ("IO.process.exitCode", phandle --> io (optionalt nat)),
     ( "validateSandboxed",
       forall1 "a" $ \a -> list termLink --> a --> boolean
     ),
@@ -796,6 +857,7 @@ ioBuiltins =
     ("Clock.internals.realtime.v1", unit --> iof timeSpec),
     ("Clock.internals.sec.v1", timeSpec --> int),
     ("Clock.internals.nsec.v1", timeSpec --> nat),
+    ("Clock.internals.systemTimeZone.v1", int --> io (tuple [int, nat, text])),
     ( "IO.array",
       forall1 "a" $ \a ->
         nat --> io (marrayt iot a)
@@ -813,7 +875,8 @@ ioBuiltins =
     ( "IO.tryEval",
       forall1 "a" $ \a ->
         (unit --> io a) --> Type.effect () [Type.builtinIO (), DD.exceptionType ()] a
-    )
+    ),
+    ("IO.randomBytes", nat --> io bytes)
   ]
 
 mvarBuiltins :: [(Text, Type)]
@@ -868,7 +931,7 @@ stmBuiltins =
 refPromiseBuiltins :: [(Text, Type)]
 refPromiseBuiltins =
   [ ("Ref.Ticket.read", forall1 "a" $ \a -> ticket a --> a),
-    ("Ref.readForCas", forall1 "a" $ \a ->  reft iot a --> io (ticket a)),
+    ("Ref.readForCas", forall1 "a" $ \a -> reft iot a --> io (ticket a)),
     ("Ref.cas", forall1 "a" $ \a -> reft iot a --> ticket a --> a --> io boolean),
     ("Promise.new", forall1 "a" $ \a -> unit --> io (promise a)),
     ("Promise.read", forall1 "a" $ \a -> promise a --> io a),
@@ -937,6 +1000,7 @@ infixr 9 -->
 io, iof :: Type -> Type
 io = Type.effect1 () (Type.builtinIO ())
 iof = io . eithert failure
+
 iot :: Type
 iot = (Type.effects () [Type.builtinIO ()])
 
@@ -1005,6 +1069,9 @@ stm, tvar, pat :: Type -> Type
 stm = Type.effect1 () (Type.ref () Type.stmRef)
 tvar a = Type.ref () Type.tvarRef `app` a
 pat a = Type.ref () Type.patternRef `app` a
+
+charClass :: Type
+charClass = Type.ref () Type.charClassRef
 
 timeSpec :: Type
 timeSpec = Type.ref () Type.timeSpecRef

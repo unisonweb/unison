@@ -3,37 +3,48 @@ module Unison.Hashing.V2.Convert2
   ( v2ToH2Type,
     v2ToH2TypeD,
     h2ToV2Reference,
+    v2ToH2Branch,
   )
 where
 
-import qualified U.Codebase.Kind as V2
-import qualified U.Codebase.Reference as V2
-import qualified U.Codebase.Term as V2 (TypeRef)
-import qualified U.Codebase.Type as V2.Type
-import qualified U.Core.ABT as ABT
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import U.Codebase.Branch qualified as V2
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as Causal
+import U.Codebase.HashTags (CausalHash (..), PatchHash (..))
+import U.Codebase.Kind qualified as V2
+import U.Codebase.Reference qualified as V2
+import U.Codebase.Reference qualified as V2Reference
+import U.Codebase.Referent qualified as V2Referent
+import U.Codebase.Term qualified as V2 (TypeRef)
+import U.Codebase.Type qualified as V2.Type
+import U.Core.ABT qualified as ABT
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2 as H2
+import Unison.Hashing.V2 qualified as H2
+import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
+import Unison.Util.Map qualified as Map
 
-convertId :: Hash -> V2.Id' (Maybe Hash) -> H2.ReferenceId
+convertId :: Hash -> V2Reference.Id' (Maybe Hash) -> H2.ReferenceId
 convertId defaultHash = \case
   V2.Id m p -> H2.ReferenceId (fromMaybe defaultHash m) p
 
-convertReference :: V2.Reference -> H2.Reference
-convertReference = convertReference' (\(V2.Id a b) -> H2.ReferenceId a b)
+v2ToH2Reference :: V2.Reference -> H2.Reference
+v2ToH2Reference = convertReference' (\(V2.Id a b) -> H2.ReferenceId a b)
 
-convertReference' :: (V2.Id' hash -> H2.ReferenceId) -> V2.Reference' Text hash -> H2.Reference
+convertReference' :: (V2Reference.Id' hash -> H2.ReferenceId) -> V2.Reference' Text hash -> H2.Reference
 convertReference' idConv = \case
   V2.ReferenceBuiltin x -> H2.ReferenceBuiltin x
   V2.ReferenceDerived x -> H2.ReferenceDerivedId (idConv x)
 
-v2ToH2Type :: forall v. Ord v => V2.Type.TypeR V2.TypeRef v -> H2.Type v ()
-v2ToH2Type = v2ToH2Type' convertReference
+v2ToH2Type :: forall v. (Ord v) => V2.Type.TypeR V2.TypeRef v -> H2.Type v ()
+v2ToH2Type = v2ToH2Type' v2ToH2Reference
 
-v2ToH2TypeD :: forall v. Ord v => Hash -> V2.Type.TypeD v -> H2.Type v ()
+v2ToH2TypeD :: forall v. (Ord v) => Hash -> V2.Type.TypeD v -> H2.Type v ()
 v2ToH2TypeD defaultHash = v2ToH2Type' (convertReference' (convertId defaultHash))
 
-v2ToH2Type' :: forall r v. Ord v => (r -> H2.Reference) -> V2.Type.TypeR r v -> H2.Type v ()
+v2ToH2Type' :: forall r v. (Ord v) => (r -> H2.Reference) -> V2.Type.TypeR r v -> H2.Type v ()
 v2ToH2Type' mkReference = ABT.transform convertF
   where
     convertF :: forall a. V2.Type.F' r a -> H2.TypeF a
@@ -56,3 +67,29 @@ h2ToV2Reference :: H2.Reference -> V2.Reference
 h2ToV2Reference = \case
   H2.ReferenceBuiltin txt -> V2.ReferenceBuiltin txt
   H2.ReferenceDerivedId (H2.ReferenceId x y) -> V2.ReferenceDerived (V2.Id x y)
+
+v2ToH2Referent :: V2Referent.Referent -> H2.Referent
+v2ToH2Referent = \case
+  V2Referent.Ref r -> H2.ReferentRef (v2ToH2Reference r)
+  V2Referent.Con r cid -> H2.ReferentCon (v2ToH2Reference r) cid
+
+v2ToH2Branch :: Monad m => V2.Branch m -> m H2.Branch
+v2ToH2Branch V2.Branch {terms, types, patches, children} = do
+  hterms <-
+    traverse sequenceA terms
+      <&> Map.bimap coerce (Map.bimap v2ToH2Referent v2ToH2MdValues)
+  htypes <-
+    traverse sequenceA types
+      <&> Map.bimap coerce (Map.bimap v2ToH2Reference v2ToH2MdValues)
+  let hpatches =
+        patches
+          & Map.bimap coerce (unPatchHash . fst)
+  let hchildren = children & Map.bimap coerce (unCausalHash . Causal.causalHash)
+  pure $ H2.Branch {types = htypes, terms = hterms, patches = hpatches, children = hchildren}
+
+v2ToH2MdValues :: V2Branch.MdValues -> H2.MdValues
+v2ToH2MdValues (V2Branch.MdValues mdMap) =
+  mdMap
+    & Map.keysSet
+    & Set.map v2ToH2Reference
+    & H2.MdValues

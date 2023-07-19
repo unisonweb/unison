@@ -9,9 +9,9 @@ import Data.Text
 import EasyTest
 import Unison.Codebase.Path
 import Unison.Codebase.Path.Parse
-import qualified Unison.HashQualified' as HQ'
+import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 
 test :: Test ()
 test =
@@ -32,7 +32,8 @@ test =
               let s = "foo.bar.baz#abc" in scope s . expect $ isLeft $ parseSplit' wordyNameSegment s,
               let s = "foo.bar.+"
                in scope s . expect $
-                    isLeft $ parseSplit' wordyNameSegment s
+                    isLeft $
+                      parseSplit' wordyNameSegment s
             ],
           scope "definitionNameSegment" . tests $
             [ let s = "foo.bar.+"

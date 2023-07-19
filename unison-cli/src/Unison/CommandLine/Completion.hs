@@ -21,50 +21,50 @@ module Unison.CommandLine.Completion
 where
 
 import Control.Lens (ifoldMap)
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Control.Lens.Cons (unsnoc)
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.List (isPrefixOf)
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.Extra (nubOrdOn)
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as Map
 import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NESet
-import qualified Data.Text as Text
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.URI as URI
-import qualified System.Console.Haskeline as Line
+import Data.Set.NonEmpty qualified as NESet
+import Data.Text qualified as Text
+import Network.HTTP.Client qualified as HTTP
+import Network.URI qualified as URI
+import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.Completion (Completion)
-import qualified System.Console.Haskeline.Completion as Haskeline
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
-import qualified U.Codebase.Reference as Reference
-import qualified U.Codebase.Referent as Referent
+import System.Console.Haskeline.Completion qualified as Haskeline
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
+import U.Codebase.Reference qualified as Reference
+import U.Codebase.Referent qualified as Referent
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient (..))
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.CommandLine.InputPattern as IP
-import qualified Unison.HashQualified' as HQ'
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.CommandLine.InputPattern qualified as IP
+import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Server.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
-import qualified Unison.Server.Endpoints.NamespaceListing as Server
-import qualified Unison.Server.Types as Server
-import qualified Unison.Share.Codeserver as Codeserver
-import qualified Unison.Share.Types as Share
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Pretty as P
-import qualified UnliftIO
+import Unison.Server.Local.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
+import Unison.Server.Local.Endpoints.NamespaceListing qualified as Server
+import Unison.Server.Types qualified as Server
+import Unison.Share.Codeserver qualified as Codeserver
+import Unison.Share.Types qualified as Share
+import Unison.Sqlite qualified as Sqlite
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Pretty qualified as P
+import UnliftIO qualified
 import Prelude hiding (readFile, writeFile)
 
 -- | A completion func for use with Haskeline
 haskelineTabComplete ::
-  MonadIO m =>
+  (MonadIO m) =>
   Map String IP.InputPattern ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
@@ -92,7 +92,7 @@ data CompletionType
 
 -- | The empty completor.
 noCompletions ::
-  MonadIO m =>
+  (MonadIO m) =>
   String ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
@@ -339,14 +339,14 @@ fixupCompletion q cs@(h : t) =
         else cs
 
 sharePathCompletion ::
-  MonadIO m =>
+  (MonadIO m) =>
   AuthenticatedHttpClient ->
   String ->
   m [Completion]
 sharePathCompletion = shareCompletion (NESet.singleton NamespaceCompletion)
 
 shareCompletion ::
-  MonadIO m =>
+  (MonadIO m) =>
   NESet CompletionType ->
   AuthenticatedHttpClient ->
   String ->
@@ -391,7 +391,7 @@ shareCompletion completionTypes authHTTPClient str =
             )
           & pure
 
-fetchShareNamespaceInfo :: MonadIO m => AuthenticatedHttpClient -> Text -> Path.Path -> m (Maybe NamespaceListing)
+fetchShareNamespaceInfo :: (MonadIO m) => AuthenticatedHttpClient -> Text -> Path.Path -> m (Maybe NamespaceListing)
 fetchShareNamespaceInfo (AuthenticatedHttpClient httpManager) userHandle path = runMaybeT do
   let uri =
         (Share.codeserverToURI Codeserver.defaultCodeserver)
@@ -406,7 +406,7 @@ fetchShareNamespaceInfo (AuthenticatedHttpClient httpManager) userHandle path = 
   resp <- either (const empty) pure $ fullResp
   MaybeT . pure . Aeson.decode @Server.NamespaceListing $ HTTP.responseBody resp
 
-searchUsers :: MonadIO m => AuthenticatedHttpClient -> Text -> m [Text]
+searchUsers :: (MonadIO m) => AuthenticatedHttpClient -> Text -> m [Text]
 searchUsers _ "" = pure []
 searchUsers (AuthenticatedHttpClient httpManager) userHandlePrefix =
   fromMaybe [] <$> runMaybeT do

@@ -6,14 +6,14 @@ module Unison.Test.Syntax.TermParser where
 import Control.Applicative
 import Control.Monad (join)
 import EasyTest
-import qualified Text.Megaparsec as P
+import Text.Megaparsec qualified as P
 import Text.RawString.QQ
-import qualified Unison.Parsers as Ps
+import Unison.Parsers qualified as Ps
 import Unison.PrintError (renderParseErrorAsANSI)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser
-import qualified Unison.Syntax.TermParser as TP
-import qualified Unison.Test.Common as Common
+import Unison.Syntax.TermParser qualified as TP
+import Unison.Test.Common qualified as Common
 
 test1 :: Test ()
 test1 =

@@ -1,19 +1,20 @@
 module Unison.HashQualified' where
 
-import qualified Data.Text as Text
-import qualified Unison.HashQualified as HQ
+import Data.Text qualified as Text
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Convert, Name, Parse)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 import Prelude hiding (take)
 
+-- | Like Unison.HashQualified, but doesn't support a HashOnly variant
 data HashQualified n = NameOnly n | HashQualified n ShortHash
   deriving stock (Eq, Functor, Generic, Foldable, Ord, Show, Traversable)
 
@@ -78,12 +79,12 @@ fromNamedReference n r = HashQualified n (Reference.toShortHash r)
 fromName :: n -> HashQualified n
 fromName = NameOnly
 
-matchesNamedReferent :: Eq n => n -> Referent -> HashQualified n -> Bool
+matchesNamedReferent :: (Eq n) => n -> Referent -> HashQualified n -> Bool
 matchesNamedReferent n r = \case
   NameOnly n' -> n' == n
   HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Referent.toShortHash r
 
-matchesNamedReference :: Eq n => n -> Reference -> HashQualified n -> Bool
+matchesNamedReference :: (Eq n) => n -> Reference -> HashQualified n -> Bool
 matchesNamedReference n r = \case
   NameOnly n' -> n' == n
   HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Reference.toShortHash r
@@ -101,14 +102,14 @@ sortByLength =
     NameOnly name -> (length (Name.reverseSegments name), Nothing, Name.isAbsolute name)
     HashQualified name hash -> (length (Name.reverseSegments name), Just hash, Name.isAbsolute name)
 
-instance Name.Alphabetical n => Name.Alphabetical (HashQualified n) where
+instance (Name.Alphabetical n) => Name.Alphabetical (HashQualified n) where
   compareAlphabetical (NameOnly n) (NameOnly n2) = Name.compareAlphabetical n n2
   -- NameOnly comes first
   compareAlphabetical NameOnly {} HashQualified {} = LT
   compareAlphabetical HashQualified {} NameOnly {} = GT
   compareAlphabetical (HashQualified n sh) (HashQualified n2 sh2) = Name.compareAlphabetical n n2 <> compare sh sh2
 
-instance Convert n n2 => Parse (HashQualified n) n2 where
+instance (Convert n n2) => Parse (HashQualified n) n2 where
   parse = \case
     NameOnly n -> Just (Name.convert n)
     _ -> Nothing

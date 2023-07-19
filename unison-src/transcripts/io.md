@@ -392,3 +392,34 @@ Calling our examples with the wrong number of args will error.
 ```ucm:error
 .> run runMeWithTwoArgs
 ```
+
+### Get the time zone
+
+```unison:hide
+testTimeZone = do
+  (offset, summer, name) = Clock.internals.systemTimeZone +0
+  _ = (offset : Int, summer : Nat, name : Text)
+  ()
+```
+
+```ucm
+.> add
+.> run testTimeZone
+```
+
+### Get some random bytes
+
+```unison:hide
+testRandom : '{io2.IO} [Result]
+testRandom = do
+  test = do
+    bytes = IO.randomBytes 10
+    check "randomBytes returns the right number of bytes" (size bytes == 10)
+  runTest test
+```
+
+```ucm
+.> add
+.> io.test testGetEnv
+```
+

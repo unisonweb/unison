@@ -3,34 +3,34 @@
 
 module Unison.Test.LSP (test) where
 
-import qualified Crypto.Random as Random
-import Data.Bifunctor (bimap)
+import Crypto.Random qualified as Random
 import Data.List.Extra (firstJust)
 import Data.String.Here.Uninterpolated (here)
 import Data.Text
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import EasyTest
-import qualified System.IO.Temp as Temp
-import qualified Unison.ABT as ABT
-import qualified Unison.Cli.TypeCheck as Typecheck
+import System.IO.Temp qualified as Temp
+import Unison.ABT qualified as ABT
+import Unison.Builtin.Decls (unitRef)
+import Unison.Cli.TypeCheck qualified as Typecheck
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase.Init as Codebase.Init
-import qualified Unison.Codebase.SqliteCodebase as SC
-import qualified Unison.LSP.Queries as LSPQ
-import qualified Unison.Lexer.Pos as Lexer
+import Unison.Codebase.Init qualified as Codebase.Init
+import Unison.Codebase.SqliteCodebase qualified as SC
+import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.LSP.Queries qualified as LSPQ
+import Unison.Lexer.Pos qualified as Lexer
 import Unison.Parser.Ann (Ann (..))
-import qualified Unison.Parser.Ann as Ann
+import Unison.Parser.Ann qualified as Ann
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Result as Result
+import Unison.Reference qualified as Reference
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Parser as Parser
-import Unison.Term (Term)
-import qualified Unison.Term as Term
-import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.UnisonFile as UF
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (foldMapM)
 
 test :: Test ()
@@ -41,6 +41,15 @@ test = do
         annotationNesting
       ]
 
+trm :: Term.F Symbol () () (ABT.Term (Term.F Symbol () ()) Symbol ()) -> LSPQ.SourceNode ()
+trm = LSPQ.TermNode . ABT.tm
+
+typ :: Type.F (ABT.Term Type.F Symbol ()) -> LSPQ.SourceNode ()
+typ = LSPQ.TypeNode . ABT.tm
+
+pat :: Pattern.Pattern () -> LSPQ.SourceNode ()
+pat = LSPQ.PatternNode
+
 -- | Test that we can find the correct reference for a given cursor position.
 refFinding :: Test ()
 refFinding =
@@ -48,12 +57,12 @@ refFinding =
     [ ( "Binary Op lhs",
         [here|term = tr^ue && false|],
         True,
-        Left (Term.Boolean True)
+        trm (Term.Boolean True)
       ),
       ( "Binary Op rhs",
         [here|term = true && fa^lse|],
         True,
-        Left (Term.Boolean False)
+        trm (Term.Boolean False)
       ),
       ( "Custom Op lhs",
         [here|
@@ -61,7 +70,7 @@ a &&& b = a && b
 term = tr^ue &&& false
 |],
         True,
-        Left (Term.Boolean True)
+        trm (Term.Boolean True)
       ),
       ( "Simple type annotation on non-typechecking file",
         [here|
@@ -70,7 +79,7 @@ term : Thi^ng
 term = "this won't typecheck"
 |],
         False,
-        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
       ),
       ( "Simple type annotation on typechecking file",
         [here|
@@ -79,7 +88,7 @@ term : Thi^ng
 term = This
 |],
         True,
-        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
       ),
       ( "Test annotations within bindings for do-block elements",
         [here|
@@ -89,7 +98,7 @@ term = do
   first && second
         |],
         True,
-        Left (Term.Boolean True)
+        trm (Term.Boolean True)
       ),
       ( "Test annotations within bindings for let-block elements",
         [here|
@@ -99,7 +108,7 @@ term = let
   first && second
         |],
         True,
-        Left (Term.Boolean True)
+        trm (Term.Boolean True)
       ),
       ( "Test annotations within actions for let-block elements",
         [here|
@@ -108,7 +117,34 @@ term = let
   first && tr^ue
         |],
         True,
-        Left (Term.Boolean True)
+        trm (Term.Boolean True)
+      ),
+      ( "Test annotations for blocks with destructuring binds",
+        [here|
+structural type Identity a = Identity a
+term = let
+  (Identity a) = Identity tr^ue
+  a
+        |],
+        True,
+        trm (Term.Boolean True)
+      ),
+      ( "Test annotations for destructuring tuples (they have a special parser)",
+        [here|
+term = let
+  (true, fal^se)
+        |],
+        True,
+        trm (Term.Boolean False)
+      ),
+      ( "Test annotations within pattern binds",
+        [here|
+term = let
+  (third, (^)) = (false, ())
+  true
+  |],
+        True,
+        pat (Pattern.Constructor () (ConstructorReference unitRef 0) [])
       ),
       ( "Test annotations for types with arrows",
         [here|
@@ -118,7 +154,7 @@ term : Thing -> Thing -> Thi^ng
 term a b = This
         |],
         True,
-        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
       ),
       ( "Test annotations for types with effects",
         [here|
@@ -134,7 +170,7 @@ term : (Thing -> {Foo a, Bar b} Th^ing) -> {Foo a, Bar b} Thing
 term f = f This
         |],
         True,
-        Right (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
       ),
       ( "Test annotations for effects themselves",
         [here|
@@ -147,18 +183,47 @@ term : () -> {F^oo a} Thing
 term _ = This
         |],
         True,
-        Right (Type.Ref (Reference.unsafeFromText "#h4uhcub76va4tckj1iccnsb07rh0fhgpigqapb4jh5n07s0tugec4nm2vikuv973mab7oh4ne07o6armcnnl7mbfjtb4imphgrjgimg"))
+        typ (Type.Ref (Reference.unsafeFromText "#h4uhcub76va4tckj1iccnsb07rh0fhgpigqapb4jh5n07s0tugec4nm2vikuv973mab7oh4ne07o6armcnnl7mbfjtb4imphgrjgimg"))
       ),
-      -- ( "Test annotations for blocks with destructuring binds",
-      --   [here|
-      -- term = let
-      -- (first, second) = (false, true)
-      -- (third, fourth) = (false, tr^ue)
-      -- first && second && third && fourth
-      --   |],
-      --   True,
-      --   Left (Term.Boolean True)
-      -- ),
+      ( "Test annotations for types with arrows",
+        [here|
+structural type Thing = This | That
+
+term : Thing -> Thing -> Thi^ng
+term a b = This
+        |],
+        True,
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+      ),
+      ( "Test annotations for types with effects",
+        [here|
+unique ability Foo a where
+    foo : a
+
+unique ability Bar b where
+    bar : b
+
+structural type Thing = This | That
+
+term : (Thing -> {Foo a, Bar b} Th^ing) -> {Foo a, Bar b} Thing
+term f = f This
+        |],
+        True,
+        typ (Type.Ref (Reference.unsafeFromText "#6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0"))
+      ),
+      ( "Test annotations for effects themselves",
+        [here|
+structural ability Foo a where
+    foo : a
+
+structural type Thing = This | That
+
+term : () -> {F^oo a} Thing
+term _ = This
+        |],
+        True,
+        typ (Type.Ref (Reference.unsafeFromText "#h4uhcub76va4tckj1iccnsb07rh0fhgpigqapb4jh5n07s0tugec4nm2vikuv973mab7oh4ne07o6armcnnl7mbfjtb4imphgrjgimg"))
+      ),
       ( "Test annotations for blocks recursive binds",
         [here|
 term = let
@@ -167,7 +232,7 @@ term = let
   f true
         |],
         True,
-        Left (Term.Boolean False)
+        trm (Term.Boolean False)
       )
     ]
 
@@ -181,7 +246,7 @@ extractCursor txt =
        in pure $ (Lexer.Pos line col, before <> after)
     _ -> crash "expected exactly one cursor"
 
-makeNodeSelectionTest :: (String, Text, Bool, Either ((Term.F Symbol Ann Ann (Term Symbol Ann))) (Type.F (Type Symbol Ann))) -> Test ()
+makeNodeSelectionTest :: (String, Text, Bool, LSPQ.SourceNode ()) -> Test ()
 makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ do
   (pos, src) <- extractCursor testSrc
   (notes, mayParsedFile, mayTypecheckedFile) <- typecheckSrc name src
@@ -189,9 +254,9 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
     pf <- maybe (crash (show ("Failed to parse" :: String, notes))) pure mayParsedFile
     let pfResult =
           UF.terms pf
-            & firstJust \(_v, trm) ->
+            & firstJust \(_v, _fileAnn, trm) ->
               LSPQ.findSmallestEnclosingNode pos trm
-    expectEqual (Just $ bimap ABT.Tm ABT.Tm expected) (bimap ABT.out ABT.out <$> pfResult)
+    expectEqual (Just expected) (void <$> pfResult)
 
   when testTypechecked $
     scope "typechecked file" $ do
@@ -199,9 +264,9 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
       let tfResult =
             UF.hashTermsId tf
               & toList
-              & firstJust \(_refId, _wk, trm, _typ) ->
+              & firstJust \(_fileAnn, _refId, _wk, trm, _typ) ->
                 LSPQ.findSmallestEnclosingNode pos trm
-      expectEqual (Just $ bimap ABT.Tm ABT.Tm expected) (bimap ABT.out ABT.out <$> tfResult)
+      expectEqual (Just expected) (void <$> tfResult)
 
 -- | Tests which assert that the annotation for each ABT node spans at least the span of
 -- its children, i.e. all child annotations are contained within the annotation of their parent.
@@ -237,7 +302,7 @@ annotationNestingTest (name, src) = scope name do
   tf <- maybe (crash "Failed to typecheck") pure maytf
   UF.hashTermsId tf
     & toList
-    & traverse_ \(_refId, _wk, trm, _typ) ->
+    & traverse_ \(_fileAnn, _refId, _wk, trm, _typ) ->
       assertAnnotationsAreNested trm
 
 -- | Asserts that for all nodes in the provided ABT, the annotations of all child nodes are
@@ -265,7 +330,7 @@ typecheckSrc name src = do
     let ambientAbilities = []
     let parseNames = mempty
     let lexedSource = (src, L.lexer name (Text.unpack src))
-    r <- Typecheck.typecheckHelper codebase generateUniqueName ambientAbilities parseNames (Text.pack name) lexedSource
+    r <- Typecheck.typecheck codebase generateUniqueName ambientAbilities parseNames (Text.pack name) lexedSource
     let Result.Result notes mayResult = r
     let (parsedFile, typecheckedFile) = case mayResult of
           Nothing -> (Nothing, Nothing)

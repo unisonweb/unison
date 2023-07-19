@@ -5,7 +5,22 @@
 
 -- | This module is the primary interface to the Unison typechecker
 -- module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
-module Unison.Typechecker where
+module Unison.Typechecker
+  ( synthesize,
+    synthesizeAndResolve,
+    check,
+    wellTyped,
+    isEqual,
+    isSubtype,
+    fitsScheme,
+    Env (..),
+    Notes (..),
+    Resolution (..),
+    Name,
+    NamedReference (..),
+    Context.PatternMatchCoverageCheckSwitch (..),
+  )
+where
 
 import Control.Lens
 import Control.Monad.Fail (fail)
@@ -17,13 +32,14 @@ import Control.Monad.State
     modify,
   )
 import Control.Monad.Writer
-import qualified Data.Map as Map
-import qualified Data.Sequence.NonEmpty as NESeq (toSeq)
-import qualified Data.Text as Text
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as B
-import qualified Unison.Name as Name
+import Data.Map qualified as Map
+import Data.Sequence.NonEmpty qualified as NESeq (toSeq)
+import Data.Text qualified as Text
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as B
+import Unison.Name qualified as Name
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Referent (Referent)
 import Unison.Result
   ( Result,
@@ -31,17 +47,17 @@ import Unison.Result
     runResultT,
     pattern Result,
   )
-import qualified Unison.Result as Result
-import qualified Unison.Syntax.Name as Name (toText, unsafeFromText)
+import Unison.Result qualified as Result
+import Unison.Syntax.Name qualified as Name (toText, unsafeFromText)
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Typechecker.Context as Context
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.Typechecker.TypeVar as TypeVar
+import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Util.List (uniqueBy)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type Name = Text
 
@@ -90,25 +106,29 @@ makeLenses ''Env
 -- contained in that term.
 synthesize ::
   (Monad f, Var v, Ord loc) =>
+  PrettyPrintEnv ->
+  Context.PatternMatchCoverageCheckSwitch ->
   Env v loc ->
   Term v loc ->
   ResultT (Notes v loc) f (Type v loc)
-synthesize env t =
+synthesize ppe pmccSwitch env t =
   let result =
         convertResult $
           Context.synthesizeClosed
+            ppe
+            pmccSwitch
             (TypeVar.liftType <$> view ambientAbilities env)
             (view typeLookup env)
             (TypeVar.liftTerm t)
    in Result.hoist (pure . runIdentity) $ fmap TypeVar.lowerType result
 
-isSubtype :: Var v => Type v loc -> Type v loc -> Bool
+isSubtype :: (Var v) => Type v loc -> Type v loc -> Bool
 isSubtype t1 t2 =
   handleCompilerBug (Context.isSubtype (tvar $ void t1) (tvar $ void t2))
   where
     tvar = TypeVar.liftType
 
-handleCompilerBug :: Var v => Either (Context.CompilerBug v ()) a -> a
+handleCompilerBug :: (Var v) => Either (Context.CompilerBug v ()) a -> a
 handleCompilerBug = \case
   Left bug -> error $ "compiler bug encountered: " ++ show bug
   Right b -> b
@@ -129,12 +149,12 @@ handleCompilerBug = \case
 -- @
 -- exists x. '{IO, Exception} x
 -- @
-fitsScheme :: Var v => Type v loc -> Type v loc -> Bool
+fitsScheme :: (Var v) => Type v loc -> Type v loc -> Bool
 fitsScheme t1 t2 = handleCompilerBug (Context.fitsScheme (tvar $ void t1) (tvar $ void t2))
   where
     tvar = TypeVar.liftType
 
-isEqual :: Var v => Type v loc -> Type v loc -> Bool
+isEqual :: (Var v) => Type v loc -> Type v loc -> Bool
 isEqual t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
 
 type TDNR f v loc a =
@@ -150,11 +170,17 @@ data Resolution v loc = Resolution
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
 synthesizeAndResolve ::
-  (Monad f, Var v, Monoid loc, Ord loc) => Env v loc -> TDNR f v loc (Type v loc)
-synthesizeAndResolve env = do
+  (Monad f, Var v, Monoid loc, Ord loc) => PrettyPrintEnv -> Env v loc -> TDNR f v loc (Type v loc)
+synthesizeAndResolve ppe env = do
   tm <- get
-  (tp, notes) <- listen . lift $ synthesize env tm
-  typeDirectedNameResolution notes tp env
+  (tp, notes) <-
+    listen . lift $
+      synthesize
+        ppe
+        Context.PatternMatchCoverageCheckSwitch'Enabled
+        env
+        tm
+  typeDirectedNameResolution ppe notes tp env
 
 compilerBug :: Context.CompilerBug v loc -> Result (Notes v loc) ()
 compilerBug bug = do
@@ -166,10 +192,10 @@ typeError note = do
   tell $ Notes mempty [note] mempty
   Control.Monad.Fail.fail ""
 
-btw :: Monad f => Context.InfoNote v loc -> ResultT (Notes v loc) f ()
+btw :: (Monad f) => Context.InfoNote v loc -> ResultT (Notes v loc) f ()
 btw note = tell $ Notes mempty mempty [note]
 
-liftResult :: Monad f => Result (Notes v loc) a -> TDNR f v loc a
+liftResult :: (Monad f) => Result (Notes v loc) a -> TDNR f v loc a
 liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
 
 -- Resolve "solved blanks". If a solved blank's type and name matches the type
@@ -185,11 +211,12 @@ liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
 typeDirectedNameResolution ::
   forall v loc f.
   (Monad f, Var v, Ord loc, Monoid loc) =>
+  PrettyPrintEnv ->
   Notes v loc ->
   Type v loc ->
   Env v loc ->
   TDNR f v loc (Type v loc)
-typeDirectedNameResolution oldNotes oldType env = do
+typeDirectedNameResolution ppe oldNotes oldType env = do
   -- Add typed components (local definitions) to the TDNR environment.
   let tdnrEnv = execState (traverse_ addTypedComponent $ infos oldNotes) env
   -- Resolve blanks in the notes and generate some resolutions
@@ -205,7 +232,7 @@ typeDirectedNameResolution oldNotes oldType env = do
        in if goAgain
             then do
               traverse_ substSuggestion rs
-              synthesizeAndResolve tdnrEnv
+              synthesizeAndResolve ppe tdnrEnv
             else do
               -- The type hasn't changed
               liftResult $ suggest rs
@@ -299,11 +326,17 @@ typeDirectedNameResolution oldNotes oldType env = do
 -- and a note about typechecking failure otherwise.
 check ::
   (Monad f, Var v, Ord loc) =>
+  PrettyPrintEnv ->
   Env v loc ->
   Term v loc ->
   Type v loc ->
   ResultT (Notes v loc) f (Type v loc)
-check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
+check ppe env term typ =
+  synthesize
+    ppe
+    Context.PatternMatchCoverageCheckSwitch'Enabled
+    env
+    (Term.ann (ABT.annotation term) term typ)
 
 -- | `checkAdmissible' e t` tests that `(f : t -> r) e` is well-typed.
 -- If `t` has quantifiers, these are moved outside, so if `t : forall a . a`,
@@ -315,8 +348,8 @@ check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
 --     tweak (Type.ForallNamed' v body) = Type.forall() v (tweak body)
 --     tweak t = Type.arrow() t t
 -- | Returns `True` if the expression is well-typed, `False` otherwise
-wellTyped :: (Monad f, Var v, Ord loc) => Env v loc -> Term v loc -> f Bool
-wellTyped env term = go <$> runResultT (synthesize env term)
+wellTyped :: (Monad f, Var v, Ord loc) => PrettyPrintEnv -> Env v loc -> Term v loc -> f Bool
+wellTyped ppe env term = go <$> runResultT (synthesize ppe Context.PatternMatchCoverageCheckSwitch'Enabled env term)
   where
     go (may, _) = isJust may
 

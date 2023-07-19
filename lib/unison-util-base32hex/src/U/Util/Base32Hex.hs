@@ -8,10 +8,10 @@ module U.Util.Base32Hex
   )
 where
 
-import qualified Data.ByteString.Base32.Hex as Base32.Hex
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.ByteString.Base32.Hex qualified as Base32.Hex
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Unison.Prelude
 
 newtype Base32Hex = UnsafeFromText Text

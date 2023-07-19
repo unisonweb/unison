@@ -10,6 +10,8 @@ module Unison.Codebase.Init
     InitResult (..),
     SpecifiedCodebase (..),
     MigrationStrategy (..),
+    BackupStrategy (..),
+    VacuumStrategy (..),
     Pretty,
     createCodebase,
     initCodebaseAndExit,
@@ -21,16 +23,17 @@ where
 
 import System.Exit (exitFailure)
 import Unison.Codebase (Codebase, CodebasePath)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.FileCodebase as FCC
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.FileCodebase qualified as FCC
 import Unison.Codebase.Init.CreateCodebaseError
 import Unison.Codebase.Init.OpenCodebaseError
+import Unison.Codebase.Verbosity (Verbosity, isSilent)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.PrettyTerminal as PT
+import Unison.PrettyTerminal qualified as PT
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Pretty as P
-import qualified UnliftIO
+import Unison.Util.Pretty qualified as P
+import UnliftIO qualified
 import UnliftIO.Directory (canonicalizePath)
 
 -- CodebaseInitOptions is used to help pass around a Home directory that isn't the
@@ -47,11 +50,28 @@ data CodebaseLockOption
   = DoLock
   | DontLock
 
+data BackupStrategy
+  = -- Create a backup of the codebase in the same directory as the codebase,
+    -- see 'backupCodebasePath'.
+    Backup
+  | -- Don't create a backup when migrating, this might be used if the caller has
+    -- already created a copy of the codebase for instance.
+    NoBackup
+  deriving stock (Show, Eq, Ord)
+
+data VacuumStrategy
+  = -- Vacuum after migrating. Takes a bit longer but keeps the codebase clean and maybe reduces size.
+    Vacuum
+  | -- Don't vacuum after migrating. Vacuuming is time consuming on large codebases,
+    -- so we don't want to do it during server migrations.
+    NoVacuum
+  deriving stock (Show, Eq, Ord)
+
 data MigrationStrategy
   = -- | Perform a migration immediately if one is required.
-    MigrateAutomatically
+    MigrateAutomatically BackupStrategy VacuumStrategy
   | -- | Prompt the user that a migration is about to occur, continue after acknownledgment
-    MigrateAfterPrompt
+    MigrateAfterPrompt BackupStrategy VacuumStrategy
   | -- | Triggers an 'OpenCodebaseRequiresMigration' error instead of migrating
     DontMigrate
   deriving stock (Show, Eq, Ord)
@@ -86,7 +106,7 @@ data InitResult
   deriving (Show, Eq)
 
 createCodebaseWithResult ::
-  MonadIO m =>
+  (MonadIO m) =>
   Init m v a ->
   DebugName ->
   CodebasePath ->
@@ -98,7 +118,7 @@ createCodebaseWithResult cbInit debugName dir lockOption action =
     errorMessage -> (dir, (CouldntCreateCodebase errorMessage))
 
 withOpenOrCreateCodebase ::
-  MonadIO m =>
+  (MonadIO m) =>
   Init m v a ->
   DebugName ->
   CodebaseInitOptions ->
@@ -136,7 +156,7 @@ withOpenOrCreateCodebase cbInit debugName initOptions lockOption migrationStrate
       OpenCodebaseRequiresMigration {} -> pure (Left (resolvedPath, InitErrorOpen err))
       OpenCodebaseFileLockFailed {} -> pure (Left (resolvedPath, InitErrorOpen err))
 
-createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> CodebaseLockOption -> (Codebase m v a -> m r) -> m (Either Pretty r)
+createCodebase :: (MonadIO m) => Init m v a -> DebugName -> CodebasePath -> CodebaseLockOption -> (Codebase m v a -> m r) -> m (Either Pretty r)
 createCodebase cbInit debugName path lockOption action = do
   prettyDir <- P.string <$> canonicalizePath path
   withCreatedCodebase cbInit debugName path lockOption action <&> mapLeft \case
@@ -149,11 +169,11 @@ createCodebase cbInit debugName path lockOption action = do
 
 -- previously: initCodebaseOrExit :: CodebasePath -> m (m (), Codebase m v a)
 -- previously: FileCodebase.initCodebase :: CodebasePath -> m (m (), Codebase m v a)
-withNewUcmCodebaseOrExit :: MonadIO m => Init m Symbol Ann -> DebugName -> CodebasePath -> CodebaseLockOption -> (Codebase m Symbol Ann -> m r) -> m r
-withNewUcmCodebaseOrExit cbInit debugName path lockOption action = do
+withNewUcmCodebaseOrExit :: (MonadIO m) => Init m Symbol Ann -> Verbosity -> DebugName -> CodebasePath -> CodebaseLockOption -> (Codebase m Symbol Ann -> m r) -> m r
+withNewUcmCodebaseOrExit cbInit verbosity debugName path lockOption action = do
   prettyDir <- P.string <$> canonicalizePath path
   let codebaseSetup codebase = do
-        liftIO $ PT.putPrettyLn' . P.wrap $ "Initializing a new codebase in: " <> prettyDir
+        unless (isSilent verbosity) . liftIO $ PT.putPrettyLn' . P.wrap $ "Initializing a new codebase in: " <> prettyDir
         Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
   createCodebase cbInit debugName path lockOption (\cb -> codebaseSetup cb *> action cb)
     >>= \case
@@ -161,19 +181,20 @@ withNewUcmCodebaseOrExit cbInit debugName path lockOption action = do
       Right result -> pure result
 
 -- | try to init a codebase where none exists and then exit regardless (i.e. `ucm --codebase dir init`)
-initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> DebugName -> Maybe CodebasePath -> CodebaseLockOption -> m ()
-initCodebaseAndExit i debugName mdir lockOption = do
+initCodebaseAndExit :: (MonadIO m) => Init m Symbol Ann -> Verbosity -> DebugName -> Maybe CodebasePath -> CodebaseLockOption -> m ()
+initCodebaseAndExit i verbosity debugName mdir lockOption = do
   codebaseDir <- Codebase.getCodebaseDir mdir
-  withNewUcmCodebaseOrExit i debugName codebaseDir lockOption (const $ pure ())
+  withNewUcmCodebaseOrExit i verbosity debugName codebaseDir lockOption (const $ pure ())
 
 withTemporaryUcmCodebase ::
-  MonadUnliftIO m =>
+  (MonadUnliftIO m) =>
   Init m Symbol Ann ->
+  Verbosity ->
   DebugName ->
   CodebaseLockOption ->
   ((CodebasePath, Codebase m Symbol Ann) -> m r) ->
   m r
-withTemporaryUcmCodebase cbInit debugName lockOption action = do
+withTemporaryUcmCodebase cbInit verbosity debugName lockOption action = do
   UnliftIO.withSystemTempDirectory debugName $ \tempDir -> do
-    withNewUcmCodebaseOrExit cbInit debugName tempDir lockOption $ \codebase -> do
+    withNewUcmCodebaseOrExit cbInit verbosity debugName tempDir lockOption $ \codebase -> do
       action (tempDir, codebase)

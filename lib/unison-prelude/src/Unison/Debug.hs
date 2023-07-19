@@ -16,8 +16,8 @@ where
 import Control.Applicative (empty)
 import Control.Monad (when)
 import Data.Set (Set)
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Debug.Pretty.Simple (pTrace, pTraceM, pTraceShowId, pTraceShowM)
 import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO.Environment (lookupEnv)
@@ -39,6 +39,10 @@ data DebugFlag
     Temp
   | -- | Shows Annotations when printing terms
     Annotations
+  | -- | Debug endpoints of the local UI (or Share) server
+    Server
+  | PatternCoverage
+  | PatternCoverageConstraintSolver
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -61,6 +65,9 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "TIMING" -> pure Timing
       "TEMP" -> pure Temp
       "ANNOTATIONS" -> pure Annotations
+      "SERVER" -> pure Server
+      "PATTERN_COVERAGE" -> pure PatternCoverage
+      "PATTERN_COVERAGE_CONSTRAINT_SOLVER" -> pure PatternCoverageConstraintSolver
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -108,13 +115,25 @@ debugAnnotations :: Bool
 debugAnnotations = Annotations `Set.member` debugFlags
 {-# NOINLINE debugAnnotations #-}
 
+debugServer :: Bool
+debugServer = Server `Set.member` debugFlags
+{-# NOINLINE debugServer #-}
+
+debugPatternCoverage :: Bool
+debugPatternCoverage = PatternCoverage `Set.member` debugFlags
+{-# NOINLINE debugPatternCoverage #-}
+
+debugPatternCoverageConstraintSolver :: Bool
+debugPatternCoverageConstraintSolver = PatternCoverageConstraintSolver `Set.member` debugFlags
+{-# NOINLINE debugPatternCoverageConstraintSolver #-}
+
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
 --
 -- Or, use in pattern matching to view arguments.
 -- E.g.
 -- myFunc (debug Git "argA" -> argA) = ...
-debug :: Show a => DebugFlag -> String -> a -> a
+debug :: (Show a) => DebugFlag -> String -> a -> a
 debug flag msg a =
   if shouldDebug flag
     then pTraceShowId (pTrace (msg <> ":\n") a)
@@ -142,7 +161,7 @@ debugLogM flag msg =
   whenDebug flag $ pTraceM msg
 
 -- | A 'when' block which is triggered if the given flag is being debugged.
-whenDebug :: Monad m => DebugFlag -> m () -> m ()
+whenDebug :: (Monad m) => DebugFlag -> m () -> m ()
 whenDebug flag action = do
   when (shouldDebug flag) action
 
@@ -159,3 +178,6 @@ shouldDebug = \case
   Timing -> debugTiming
   Temp -> debugTemp
   Annotations -> debugAnnotations
+  Server -> debugServer
+  PatternCoverage -> debugPatternCoverage
+  PatternCoverageConstraintSolver -> debugPatternCoverageConstraintSolver

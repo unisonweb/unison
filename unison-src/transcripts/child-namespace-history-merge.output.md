@@ -138,6 +138,8 @@ For a squash merge, when I squash-merge back into parent, we expect `parent_fork
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .> history parent_squash_base
 
   Note: The most recent namespace hash is immediately below this
@@ -220,6 +222,8 @@ For a standard merge, if I merge back into parent, we expect `parent_fork.child.
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .> history parent_merge_base
 

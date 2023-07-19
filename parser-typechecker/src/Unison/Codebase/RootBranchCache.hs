@@ -12,7 +12,7 @@ import Control.Monad (join)
 import Control.Monad.IO.Class
 import Data.Coerce (coerce)
 import Unison.Codebase.Branch.Type (Branch)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import UnliftIO (MonadUnliftIO, mask, onException)
 import UnliftIO.STM
   ( STM,
@@ -36,7 +36,7 @@ data RootBranchCacheVal
 -- This is isomorphic to @TMVar (Maybe (Branch Sqlite.Transaction))@
 newtype RootBranchCache = RootBranchCache (TVar RootBranchCacheVal)
 
-newEmptyRootBranchCacheIO :: MonadIO m => m RootBranchCache
+newEmptyRootBranchCacheIO :: (MonadIO m) => m RootBranchCache
 newEmptyRootBranchCacheIO = liftIO (coerce $ newTVarIO Empty)
 
 newEmptyRootBranchCache :: STM RootBranchCache
@@ -57,7 +57,7 @@ readRootBranchCache v =
     ConcurrentModification -> retrySTM
     Full x -> pure (Just x)
 
-fetchRootBranch :: forall m. MonadUnliftIO m => RootBranchCache -> m (Branch Sqlite.Transaction) -> m (Branch Sqlite.Transaction)
+fetchRootBranch :: forall m. (MonadUnliftIO m) => RootBranchCache -> m (Branch Sqlite.Transaction) -> m (Branch Sqlite.Transaction)
 fetchRootBranch rbc getFromDb = mask \restore -> do
   join (atomically (fetch restore))
   where
@@ -78,7 +78,7 @@ fetchRootBranch rbc getFromDb = mask \restore -> do
 -- the cache to Empty or Full
 withLock ::
   forall m r.
-  MonadUnliftIO m =>
+  (MonadUnliftIO m) =>
   RootBranchCache ->
   -- | Perform an action with the cached value
   ( -- restore masking state

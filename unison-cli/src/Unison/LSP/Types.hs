@@ -8,28 +8,31 @@ module Unison.LSP.Types where
 
 import Colog.Core hiding (Lens')
 import Control.Comonad.Cofree (Cofree)
-import qualified Control.Comonad.Cofree as Cofree
+import Control.Comonad.Cofree qualified as Cofree
 import Control.Lens hiding (List, (:<))
 import Control.Monad.Except
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy.Char8 as BSC
-import qualified Data.HashMap.Strict as HM
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Key qualified as Aeson.Key
+import Data.Aeson.KeyMap qualified as Aeson.KeyMap
+import Data.ByteString.Lazy.Char8 qualified as BSC
+import Data.HashMap.Strict qualified as HM
 import Data.IntervalMap.Lazy (IntervalMap)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Ki
-import qualified Language.LSP.Logging as LSP
+import Data.IntervalMap.Lazy qualified as IM
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Ki qualified
+import Language.LSP.Logging qualified as LSP
 import Language.LSP.Server
-import qualified Language.LSP.Server as LSP
+import Language.LSP.Server qualified as LSP
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Language.LSP.VFS
 import Unison.Codebase
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.LSP.Orphans ()
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
@@ -39,15 +42,17 @@ import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Result (Note)
-import qualified Unison.Server.Backend as Backend
+import Unison.Server.Backend qualified as Backend
+import Unison.Server.NameSearch (NameSearch)
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol
-import qualified Unison.Syntax.Lexer as Lexer
+import Unison.Syntax.Lexer qualified as Lexer
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Unison.UnisonFile as UF
+import Unison.UnisonFile qualified as UF
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
@@ -74,12 +79,14 @@ data Env = Env
     codebase :: Codebase IO Symbol Ann,
     parseNamesCache :: IO NamesWithHistory,
     ppedCache :: IO PrettyPrintEnvDecl,
+    nameSearchCache :: IO (NameSearch Sqlite.Transaction),
     currentPathCache :: IO Path.Absolute,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
-    -- The information we have for each file, which may or may not have a valid parse or
-    -- typecheck.
-    checkedFilesVar :: TVar (Map Uri FileAnalysis),
+    -- The information we have for each file.
+    -- The MVar is filled when analysis finishes, and is emptied whenever
+    -- the file has changed (until it's checked again)
+    checkedFilesVar :: TVar (Map Uri (TMVar FileAnalysis)),
     dirtyFilesVar :: TVar (Set Uri),
     -- A map  of request IDs to an action which kills that request.
     cancellationMapVar :: TVar (Map SomeLspId (IO ())),
@@ -110,14 +117,16 @@ type LexedSource = (Text, [Lexer.Token Lexer.Lexeme])
 data TypeSignatureHint = TypeSignatureHint
   { name :: Name,
     referent :: Referent,
-    definitionPosition :: Position,
+    bindingLocation :: Range,
     signature :: Type Symbol Ann
   }
+  deriving (Show)
 
 data FileAnalysis = FileAnalysis
   { fileUri :: Uri,
     fileVersion :: FileVersion,
     lexedSource :: LexedSource,
+    tokenMap :: IM.IntervalMap Position Lexer.Lexeme,
     parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     notes :: Seq (Note Symbol Ann),
@@ -126,6 +135,7 @@ data FileAnalysis = FileAnalysis
     typeSignatureHints :: Map Symbol TypeSignatureHint,
     fileSummary :: Maybe FileSummary
   }
+  deriving stock (Show)
 
 -- | A file that parses might not always type-check, but often we just want to get as much
 -- information as we have available. This provides a type where we can summarize the
@@ -138,10 +148,10 @@ data FileSummary = FileSummary
     dataDeclsByReference :: Map Reference.Id (Map Symbol (DD.DataDeclaration Symbol Ann)),
     effectDeclsBySymbol :: Map Symbol (Reference.Id, DD.EffectDeclaration Symbol Ann),
     effectDeclsByReference :: Map Reference.Id (Map Symbol (DD.EffectDeclaration Symbol Ann)),
-    termsBySymbol :: Map Symbol (Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
-    termsByReference :: Map (Maybe Reference.Id) (Map Symbol (Term Symbol Ann, Maybe (Type Symbol Ann))),
-    testWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
-    exprWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
+    termsBySymbol :: Map Symbol (Ann, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
+    termsByReference :: Map (Maybe Reference.Id) (Map Symbol (Ann, Term Symbol Ann, Maybe (Type Symbol Ann))),
+    testWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
+    exprWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
     fileNames :: Names
   }
   deriving stock (Show)
@@ -154,6 +164,9 @@ getCodebaseCompletions = asks completionsVar >>= readTVarIO
 
 globalPPED :: Lsp PrettyPrintEnvDecl
 globalPPED = asks ppedCache >>= liftIO
+
+getNameSearch :: Lsp (NameSearch Sqlite.Transaction)
+getNameSearch = asks nameSearchCache >>= liftIO
 
 getParseNames :: Lsp NamesWithHistory
 getParseNames = asks parseNamesCache >>= liftIO
@@ -171,7 +184,7 @@ data Config = Config
 instance Aeson.FromJSON Config where
   parseJSON = Aeson.withObject "Config" \obj -> do
     maxCompletions <- obj Aeson..:! "maxCompletions" Aeson..!= maxCompletions defaultLSPConfig
-    let invalidKeys = Set.fromList (HM.keys obj) `Set.difference` validKeys
+    let invalidKeys = Set.fromList (map Aeson.Key.toText (Aeson.KeyMap.keys obj)) `Set.difference` validKeys
     when (not . null $ invalidKeys) do
       fail . Text.unpack $
         "Unrecognized configuration key(s): "

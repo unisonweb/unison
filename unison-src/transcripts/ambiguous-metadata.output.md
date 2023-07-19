@@ -24,6 +24,8 @@ x = 1
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .> link boo.doc x
 
   ⚠️

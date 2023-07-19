@@ -6,73 +6,73 @@ where
 
 import Control.Lens
 import Control.Monad.Reader (ask)
-import qualified Data.Foldable as Foldable
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Set.NonEmpty as NESet
-import qualified U.Codebase.Sqlite.Queries as Queries
-import qualified Unison.ABT as ABT
+import Data.Foldable qualified as Foldable
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as NESet
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.ABT qualified as ABT
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils (displayNames)
 import Unison.Cli.PrettyPrintUtils (prettyPrintEnvDecl)
 import Unison.Cli.TypeCheck (typecheckFile)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.BranchUtil as BranchUtil
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Propagate as Propagate
-import qualified Unison.Codebase.Editor.Slurp as Slurp
+import Unison.Codebase.Editor.Propagate qualified as Propagate
+import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
-import qualified Unison.Codebase.Editor.SlurpComponent as SC
+import Unison.Codebase.Editor.SlurpComponent qualified as SC
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
-import qualified Unison.Codebase.Editor.SlurpResult as Slurp
-import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Editor.SlurpResult qualified as Slurp
+import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch (..))
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.TermEdit as TermEdit
-import qualified Unison.Codebase.TypeEdit as TypeEdit
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.TermEdit qualified as TermEdit
+import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Name (Name)
 import Unison.Names (Names)
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
+import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
 import Unison.Reference (Reference (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Result as Result
-import qualified Unison.Runtime.IOSource as IOSource
-import qualified Unison.Sqlite as Sqlite
+import Unison.Referent qualified as Referent
+import Unison.Result qualified as Result
+import Unison.Runtime.IOSource qualified as IOSource
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Name as Name (toVar, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toVar, unsafeFromVar)
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker as Typechecker
+import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (UnisonFile (UnisonFileId))
-import qualified Unison.Util.Map as Map (remap, upsert)
+import Unison.Util.Map qualified as Map (remap, upsert)
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Set as Set
-import qualified Unison.Var as Var
+import Unison.Util.Relation qualified as R
+import Unison.Util.Set qualified as Set
+import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
 -- | Handle an @update@ command.
 handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli ()
@@ -105,7 +105,7 @@ handleUpdate input optionalPatch requestedNames = do
       hashTerms :: Map Reference (Type Symbol Ann)
       hashTerms = Map.fromList (toList hashTerms0)
         where
-          hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms (Slurp.originalFile sr)
+          hashTerms0 = (\(_ann, r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms (Slurp.originalFile sr)
       termEdits :: [(Name, Reference, Reference)]
       termEdits = do
         v <- Set.toList (SC.terms (updates sr))
@@ -171,7 +171,7 @@ handleUpdate input optionalPatch requestedNames = do
             step1 p (_, r, r') = Patch.updateType r (TypeEdit.Replace r') p
             step2 p (_, r, r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
         (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
-        updatePatches :: Monad m => Branch0 m -> m (Branch0 m)
+        updatePatches :: (Monad m) => Branch0 m -> m (Branch0 m)
         updatePatches = Branch.modifyPatches seg updatePatch
     pure (updatePatch ye'ol'Patch, updatePatches, p)
 
@@ -202,7 +202,8 @@ handleUpdate input optionalPatch requestedNames = do
   Cli.syncRoot case patchPath of
     Nothing -> "update.nopatch"
     Just p ->
-      p & Path.unsplit'
+      p
+        & Path.unsplit'
         & Path.resolve @_ @_ @Path.Absolute currentPath'
         & tShow
 
@@ -252,7 +253,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
     -- Running example:
     --
     --   "ping" => (#newping, Nothing, <#wham + 4>, <Nat>)
-    let nameToInterimInfo :: Map Symbol (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
+    let nameToInterimInfo :: Map Symbol (Ann, TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
         nameToInterimInfo =
           UF.hashTermsId (Slurp.originalFile slurp0)
 
@@ -277,7 +278,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
             ( \name ->
                 case Map.lookup name nameToInterimInfo of
                   Nothing -> error (reportBug "E798907" "no interim ref for name")
-                  Just (interimRef, _, _, _) -> (nameToTermRefs name, interimRef)
+                  Just (_, interimRef, _, _, _) -> (nameToTermRefs name, interimRef)
             )
             namesBeingUpdated
 
@@ -408,7 +409,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                       interimTermComponents =
                         nameToInterimInfo
                           & Map.elems
-                          & map (\(ref, _wk, term, typ) -> (ref, (term, typ)))
+                          & map (\(_ann, ref, _wk, term, typ) -> (ref, (term, typ)))
                           & componentize
                           & uncomponentize
 
@@ -478,7 +479,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                 --   #newping => <#wham + 4>
                 interimRefToTerm :: Map TermReferenceId (Term Symbol Ann)
                 interimRefToTerm =
-                  Map.remap (\(_var, (ref, _wk, term, _typ)) -> (ref, term)) nameToInterimInfo
+                  Map.remap (\(_var, (_ann, ref, _wk, term, _typ)) -> (ref, term)) nameToInterimInfo
                 -- Running example: apply the following reference mapping everwhere in a term:
                 --
                 --   #pingpong.ping -> #newping
@@ -503,14 +504,16 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                   --   fresh1 = fresh3 + 4
                   --   fresh2 = fresh1 + 2
                   --   fresh3 = fresh2 + 3
-                  terms = Map.elems refToGeneratedNameAndTerm,
+                  terms =
+                    Map.elems refToGeneratedNameAndTerm <&> \(v, term) ->
+                      (v, External, term),
                   -- In the context of this update, whatever watches were in the latest typechecked Unison file are
                   -- irrelevant, so we don't need to copy them over.
                   watches = Map.empty
                 }
         result <- liftIO (Codebase.runTransaction codebase (typecheckFile codebase [] unisonFile))
-        case runIdentity (Result.toMaybe result) of
-          Just (Right file0) -> do
+        case Result.result result of
+          Just file0 -> do
             -- Map each name generated by unhashing back to the name it should have in the Unison file we're going to
             -- typecheck.
             --
@@ -538,15 +541,16 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                     --   #newping => "ping"
                     interimRefToName :: Map TermReferenceId Symbol
                     interimRefToName =
-                      Map.remap (\(name, (ref, _wk, _term, _typ)) -> (ref, name)) nameToInterimInfo
+                      Map.remap (\(name, (_ann, ref, _wk, _term, _typ)) -> (ref, name)) nameToInterimInfo
 
             let renameTerm ::
-                  (Symbol, Term Symbol Ann, Type Symbol Ann) ->
-                  (Symbol, Term Symbol Ann, Type Symbol Ann)
-                renameTerm (generatedName, term, typ) =
+                  (Symbol, Ann, Term Symbol Ann, Type Symbol Ann) ->
+                  (Symbol, Ann, Term Symbol Ann, Type Symbol Ann)
+                renameTerm (generatedName, ann, term, typ) =
                   ( case Map.lookup generatedName generatedNameToName of
                       Just name -> name
                       Nothing -> error (reportBug "E440546" "no name for generated name"),
+                    ann,
                     ABT.renames generatedNameToName term,
                     typ
                   )
@@ -564,7 +568,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
 
   pure slurp1
 
-rewriteTermReferences :: Ord v => Map TermReference TermReferenceId -> Term v a -> Term v a
+rewriteTermReferences :: (Ord v) => Map TermReference TermReferenceId -> Term v a -> Term v a
 rewriteTermReferences mapping =
   ABT.rebuildUp \term ->
     case term of
@@ -577,7 +581,7 @@ rewriteTermReferences mapping =
 -- updates the namespace for adding `slurp`
 doSlurpAdds ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   SlurpComponent ->
   TypecheckedUnisonFile Symbol Ann ->
   (Branch0 m -> Branch0 m)
@@ -588,7 +592,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
       map doTerm . toList $
         SC.terms slurp <> UF.constructorsForDecls (SC.types slurp) uf
     names = UF.typecheckedToNames uf
-    tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
+    tests = Set.fromList $ view _1 <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
     (isTestType, isTestValue) = IOSource.isTest
     md v =
       if Set.member v tests
@@ -621,7 +625,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
     errorMissingVar v = error $ "expected to find " ++ show v ++ " in " ++ show uf
 
 doSlurpUpdates ::
-  Monad m =>
+  (Monad m) =>
   [(Name, TypeReference, TypeReference)] ->
   [(Name, TermReference, TermReference)] ->
   [(Name, Referent)] ->

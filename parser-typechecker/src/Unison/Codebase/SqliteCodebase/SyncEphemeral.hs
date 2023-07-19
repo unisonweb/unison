@@ -2,7 +2,7 @@ module Unison.Codebase.SqliteCodebase.SyncEphemeral where
 
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.DbId (SchemaVersion)
-import qualified U.Codebase.Sqlite.Sync22 as Sync22
+import U.Codebase.Sqlite.Sync22 qualified as Sync22
 import Unison.Hash (Hash)
 import Unison.Prelude
 

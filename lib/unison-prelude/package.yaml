@@ -23,6 +23,7 @@ dependencies:
   - transformers
   - unliftio
   - vector
+  - witch
   - witherable
 
 ghc-options:
@@ -38,6 +39,7 @@ default-extensions:
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - ScopedTypeVariables

@@ -31,31 +31,32 @@ module Unison.Syntax.Lexer
     wordyIdStartChar,
     wordyId,
     symbolyId,
+    symbolyIdChar,
     wordyId0,
     symbolyId0,
   )
 where
 
 import Control.Lens.TH (makePrisms)
-import qualified Control.Monad.State as S
+import Control.Monad.State qualified as S
 import Data.Char
 import Data.List
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.List.NonEmpty qualified as Nel
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import GHC.Exts (sortWith)
-import qualified Text.Megaparsec as P
+import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char (char)
-import qualified Text.Megaparsec.Char as CP
-import qualified Text.Megaparsec.Char.Lexer as LP
-import qualified Text.Megaparsec.Error as EP
-import qualified Text.Megaparsec.Internal as PI
+import Text.Megaparsec.Char qualified as CP
+import Text.Megaparsec.Char.Lexer qualified as LP
+import Text.Megaparsec.Error qualified as EP
+import Text.Megaparsec.Internal qualified as PI
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
-import qualified Unison.Util.Bytes as Bytes
+import Unison.ShortHash qualified as SH
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
 
 type BlockName = String
@@ -247,10 +248,11 @@ token'' tok p = do
     topHasClosePair ((name, _) : _) =
       name `elem` ["{", "(", "[", "handle", "match", "if", "then"]
 
-showErrorFancy :: P.ShowErrorComponent e => P.ErrorFancy e -> String
+showErrorFancy :: (P.ShowErrorComponent e) => P.ErrorFancy e -> String
 showErrorFancy (P.ErrorFail msg) = msg
 showErrorFancy (P.ErrorIndentation ord ref actual) =
-  "incorrect indentation (got " <> show (P.unPos actual)
+  "incorrect indentation (got "
+    <> show (P.unPos actual)
     <> ", should be "
     <> p
     <> show (P.unPos ref)
@@ -299,19 +301,19 @@ lexer0' scope rem =
     tweak (h@(payload -> Reserved _) : t) = h : tweak t
     tweak (t1 : t2@(payload -> Numeric num) : rem)
       | notLayout t1 && touches t1 t2 && isSigned num =
-          t1 :
-          Token
-            (SymbolyId (take 1 num) Nothing)
-            (start t2)
-            (inc $ start t2) :
-          Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
-          tweak rem
+          t1
+            : Token
+              (SymbolyId (take 1 num) Nothing)
+              (start t2)
+              (inc $ start t2)
+            : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
+            : tweak rem
     tweak (h : t) = h : tweak t
     isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
 
 infixl 2 <+>
 
-(<+>) :: Monoid a => P a -> P a -> P a
+(<+>) :: (Monoid a) => P a -> P a -> P a
 p1 <+> p2 = do a1 <- p1; a2 <- p2; pure (a1 <> a2)
 
 lexemes :: P [Token Lexeme]
@@ -348,7 +350,11 @@ lexemes' eof =
     pure $ hd <> tl
   where
     toks =
-      doc2 <|> doc <|> token numeric <|> token character <|> reserved
+      doc2
+        <|> doc
+        <|> token numeric
+        <|> token character
+        <|> reserved
         <|> token symbolyId
         <|> token blank
         <|> token wordyId
@@ -417,7 +423,10 @@ lexemes' eof =
         leafy closing = groupy closing gs
           where
             gs =
-              link <|> externalLink <|> exampleInline <|> expr
+              link
+                <|> externalLink
+                <|> exampleInline
+                <|> expr
                 <|> boldOrItalicOrStrikethrough closing
                 <|> verbatim
                 <|> atDoc
@@ -490,9 +499,12 @@ lexemes' eof =
                 stop' = maybe stop end (lastMay after)
 
         verbatim =
-          P.label "code (examples: ''**unformatted**'', '''_words_''')" $ do
+          P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
             (start, txt, stop) <- positioned $ do
-              quotes <- lit "''" <+> many (P.satisfy (== '\''))
+              -- a single backtick followed by a non-backtick is treated as monospaced
+              let tick = P.try (lit "`" <* P.lookAhead (P.satisfy (/= '`')))
+              -- also two or more ' followed by that number of closing '
+              quotes <- tick <|> (lit "''" <+> many (P.satisfy (== '\'')))
               P.someTill P.anySingle (lit quotes)
             if all isSpace $ takeWhile (/= '\n') txt
               then
@@ -527,7 +539,8 @@ lexemes' eof =
         link =
           P.label "link (examples: {type List}, {Nat.+})" $
             wrap "syntax.docLink" $
-              P.try $ lit "{" *> (typeLink <|> termLink) <* lit "}"
+              P.try $
+                lit "{" *> (typeLink <|> termLink) <* lit "}"
 
         expr =
           P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
@@ -586,7 +599,8 @@ lexemes' eof =
 
         boldOrItalicOrStrikethrough closing = do
           let start =
-                some (P.satisfy (== '*')) <|> some (P.satisfy (== '_'))
+                some (P.satisfy (== '*'))
+                  <|> some (P.satisfy (== '_'))
                   <|> some
                     (P.satisfy (== '~'))
               name s =
@@ -772,7 +786,24 @@ lexemes' eof =
 
     semi = char ';' $> Semi False
     textual = Textual <$> quoted
-    quoted = char '"' *> P.manyTill (LP.charLiteral <|> sp) (char '"')
+    quoted = quotedRaw <|> quotedSingleLine
+    quotedRaw = do
+      _ <- lit "\"\"\""
+      n <- many (char '"')
+      _ <- optional (char '\n') -- initial newline is skipped
+      s <- P.manyTill P.anySingle (lit (replicate (length n + 3) '"'))
+      col0 <- column <$> pos
+      let col = col0 - (length n) - 3
+      let leading = replicate (max 0 (col - 1)) ' '
+      -- lines "foo\n" will produce ["foo"]     (ignoring last newline),
+      -- lines' "foo\n" will produce ["foo",""] (preserving trailing newline)
+      let lines' s = lines s <> (if take 1 (reverse s) == "\n" then [""] else [])
+      pure $ case lines' s of
+        [] -> s
+        ls
+          | all (\l -> isPrefixOf leading l || all isSpace l) ls -> intercalate "\n" (drop (length leading) <$> ls)
+          | otherwise -> s
+    quotedSingleLine = char '"' *> P.manyTill (LP.charLiteral <|> sp) (char '"')
       where
         sp = lit "\\s" $> ' '
     character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
@@ -904,6 +935,7 @@ lexemes' eof =
       where
         keywords =
           symbolyKw ":"
+            <|> openKw "@rewrite"
             <|> symbolyKw "@"
             <|> symbolyKw "||"
             <|> symbolyKw "|"
@@ -924,14 +956,22 @@ lexemes' eof =
 
         layoutKeywords :: P [Token Lexeme]
         layoutKeywords =
-          ifElse <|> withKw <|> openKw "match" <|> openKw "handle" <|> typ <|> arr <|> eq
+          ifElse
+            <|> withKw
+            <|> openKw "match"
+            <|> openKw "handle"
+            <|> typ
+            <|> arr
+            <|> rewriteArr
+            <|> eq
             <|> openKw "cases"
             <|> openKw "where"
             <|> openKw "let"
             <|> openKw "do"
           where
             ifElse =
-              openKw "if" <|> closeKw' (Just "then") ["if"] (lit "then")
+              openKw "if"
+                <|> closeKw' (Just "then") ["if"] (lit "then")
                 <|> closeKw' (Just "else") ["then"] (lit "else")
             modKw = typeModifiersAlt (openKw1 wordySep)
             typeOrAbilityKw = typeOrAbilityAlt openTypeKw1
@@ -976,6 +1016,11 @@ lexemes' eof =
                 Just t | t == "type" || Set.member t typeModifiers -> pure [Token (Reserved "=") start end]
                 Just _ -> S.put (env {opening = Just "="}) >> pure [Token (Open "=") start end]
                 _ -> err start LayoutError
+
+            rewriteArr = do
+              [Token _ start end] <- symbolyKw "==>"
+              env <- S.get
+              S.put (env {opening = Just "==>"}) >> pure [Token (Open "==>") start end]
 
             arr = do
               [Token _ start end] <- symbolyKw "->"
@@ -1113,10 +1158,11 @@ headToken :: T a -> a
 headToken (T a _ _) = a
 headToken (L a) = a
 
-instance Show a => Show (T a) where
+instance (Show a) => Show (T a) where
   show (L a) = show a
   show (T open mid close) =
-    show open ++ "\n"
+    show open
+      ++ "\n"
       ++ indent "  " (intercalateMap "\n" show mid)
       ++ "\n"
       ++ intercalateMap "" show close
@@ -1285,7 +1331,8 @@ keywords =
       "let",
       "namespace",
       "match",
-      "cases"
+      "cases",
+      "@rewrite"
     ]
     <> typeModifiers
     <> typeOrAbility
@@ -1293,14 +1340,14 @@ keywords =
 typeOrAbility :: Set String
 typeOrAbility = Set.fromList ["type", "ability"]
 
-typeOrAbilityAlt :: Alternative f => (String -> f a) -> f a
+typeOrAbilityAlt :: (Alternative f) => (String -> f a) -> f a
 typeOrAbilityAlt f =
   asum $ map f (toList typeOrAbility)
 
 typeModifiers :: Set String
 typeModifiers = Set.fromList ["structural", "unique"]
 
-typeModifiersAlt :: Alternative f => (String -> f a) -> f a
+typeModifiersAlt :: (Alternative f) => (String -> f a) -> f a
 typeModifiersAlt f =
   asum $ map f (toList typeModifiers)
 
@@ -1311,7 +1358,7 @@ isDelimiter :: Char -> Bool
 isDelimiter ch = Set.member ch delimiters
 
 reservedOperators :: Set String
-reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'"]
+reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'", "==>"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)
@@ -1328,7 +1375,10 @@ debugLex'' [Token (Err (Opaque msg)) start end] =
   where
     msg1 = "Error on line " <> show (line start) <> ", column " <> show (column start)
     msg2 =
-      "Error on line " <> show (line start) <> ", column " <> show (column start)
+      "Error on line "
+        <> show (line start)
+        <> ", column "
+        <> show (column start)
         <> " - line "
         <> show (line end)
         <> ", column "

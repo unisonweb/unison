@@ -8,49 +8,50 @@ module Unison.LSP.Completion where
 import Control.Comonad.Cofree
 import Control.Lens hiding (List, (:<))
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
-import Data.Bifunctor (second)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.List.Extra (nubOrdOn)
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.Codebase.Path qualified as Path
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.LSP.FileAnalysis
-import qualified Unison.LSP.Queries as LSPQ
+import Unison.LSP.Queries qualified as LSPQ
 import Unison.LSP.Types
-import qualified Unison.LSP.VFS as VFS
+import Unison.LSP.VFS qualified as VFS
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Syntax.DeclPrinter as DeclPrinter
-import qualified Unison.Syntax.HashQualified' as HQ' (toText)
-import qualified Unison.Syntax.Name as Name (fromText, toText)
-import qualified Unison.Syntax.TypePrinter as TypePrinter
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Pretty as Pretty
-import qualified Unison.Util.Relation as Relation
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Runtime.IOSource qualified as IOSource
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.HashQualified' qualified as HQ' (toText)
+import Unison.Syntax.Name qualified as Name (fromText, toText)
+import Unison.Syntax.TypePrinter qualified as TypePrinter
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Relation qualified as Relation
+import UnliftIO qualified
 
 completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
 completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
     let fileUri = (m ^. params . textDocument . uri)
-    (range, prefix) <- VFS.completionPrefix (m ^. params)
+    (range, prefix) <- VFS.completionPrefix (m ^. params . textDocument . uri) (m ^. params . position)
     ppe <- PPED.suffixifiedPPE <$> lift globalPPED
     codebaseCompletions <- lift getCodebaseCompletions
     Config {maxCompletions} <- lift getConfig
@@ -262,26 +263,51 @@ completionItemResolveHandler message respond = do
     case Aeson.fromJSON <$> (completion ^. xdata) of
       Just (Aeson.Success (CompletionItemDetails {dep, fullyQualifiedName, relativeName, fileUri})) -> do
         pped <- lift $ ppedForFile fileUri
+
+        builtinsAsync <- liftIO . UnliftIO.async $ UnliftIO.evaluate IOSource.typecheckedFile
+        checkBuiltinsReady <- liftIO do
+          pure
+            ( UnliftIO.poll builtinsAsync
+                <&> ( \case
+                        Nothing -> False
+                        Just (Left {}) -> False
+                        Just (Right {}) -> True
+                    )
+            )
+        renderedDocs <-
+          -- We don't want to block the type signature hover info if the docs are taking a long time to render;
+          -- We know it's also possible to write docs that eval forever, so the timeout helps
+          -- protect against that.
+          lift (UnliftIO.timeout 2_000_000 (LSPQ.markdownDocsForFQN fileUri (HQ.NameOnly fullyQualifiedName)))
+            >>= ( \case
+                    Nothing ->
+                      checkBuiltinsReady >>= \case
+                        False -> pure ["\n---\n🔜 Doc renderer is initializing, try again in a few seconds."]
+                        True -> pure ["\n---\n⏳ Timeout evaluating docs"]
+                    Just [] -> pure []
+                    -- Add some space from the type signature
+                    Just xs@(_ : _) -> pure ("\n---\n" : xs)
+                )
         case dep of
           LD.TermReferent ref -> do
             typ <- LSPQ.getTypeOfReferent fileUri ref
             let renderedType = ": " <> (Text.pack $ TypePrinter.prettyStr (Just typeWidth) (PPED.suffixifiedPPE pped) typ)
-            let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+            let doc = CompletionDocMarkup $ toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
             pure $ (completion {_detail = Just renderedType, _documentation = Just doc} :: CompletionItem)
           LD.TypeReference ref ->
             case ref of
               Reference.Builtin {} -> do
                 let renderedBuiltin = ": <builtin>"
-                let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+                let doc = CompletionDocMarkup $ toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
                 pure $ (completion {_detail = Just renderedBuiltin, _documentation = Just doc} :: CompletionItem)
               Reference.DerivedId refId -> do
                 decl <- LSPQ.getTypeDeclaration fileUri refId
                 let renderedDecl = ": " <> (Text.pack . Pretty.toPlain typeWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly relativeName) decl)
-                let doc = CompletionDocMarkup (toUnisonMarkup (Name.toText fullyQualifiedName))
+                let doc = CompletionDocMarkup $ toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
                 pure $ (completion {_detail = Just renderedDecl, _documentation = Just doc} :: CompletionItem)
       _ -> empty
   where
-    toUnisonMarkup txt = MarkupContent {_kind = MkMarkdown, _value = Text.unlines ["```unison", txt, "```"]}
+    toMarkup txt = MarkupContent {_kind = MkMarkdown, _value = txt}
     -- Completion windows can be very small, so this seems like a good default
     typeWidth = Pretty.Width 20
 

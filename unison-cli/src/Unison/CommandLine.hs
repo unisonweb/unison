@@ -29,25 +29,25 @@ import Control.Concurrent (forkIO, killThread)
 import Control.Lens (ifor)
 import Control.Monad.Trans.Except
 import Data.Configurator (autoConfig, autoReload)
-import qualified Data.Configurator as Config
+import Data.Configurator qualified as Config
 import Data.Configurator.Types (Config, Worth (..))
 import Data.List (isPrefixOf, isSuffixOf)
 import Data.ListLike (ListLike)
-import qualified Data.Map as Map
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Text qualified as Text
 import System.FilePath (takeFileName)
 import Text.Regex.TDFA ((=~))
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Watch as Watch
-import qualified Unison.CommandLine.Globbing as Globbing
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Watch qualified as Watch
+import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (InputPattern (..))
-import qualified Unison.CommandLine.InputPattern as InputPattern
+import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.Prelude
-import qualified Unison.Util.ColorText as CT
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.TQueue as Q
+import Unison.Util.ColorText qualified as CT
+import Unison.Util.Pretty qualified as P
+import Unison.Util.TQueue qualified as Q
 import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
 
@@ -79,7 +79,7 @@ watchFileSystem q dir = do
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
 
-backtick :: IsString s => P.Pretty s -> P.Pretty s
+backtick :: (IsString s) => P.Pretty s -> P.Pretty s
 backtick s = P.group ("`" <> s <> "`")
 
 tip :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
@@ -173,11 +173,11 @@ prompt = "> "
 -- `plural [] "cat" "cats" = "cats"`
 -- `plural ["meow"] "cat" "cats" = "cat"`
 -- `plural ["meow", "meow"] "cat" "cats" = "cats"`
-plural :: Foldable f => f a -> b -> b -> b
+plural :: (Foldable f) => f a -> b -> b -> b
 plural items one other = case toList items of
   [_] -> one
   _ -> other
 
-plural' :: Integral a => a -> b -> b -> b
+plural' :: (Integral a) => a -> b -> b -> b
 plural' 1 one _other = one
 plural' _ _one other = other

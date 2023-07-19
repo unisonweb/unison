@@ -21,13 +21,16 @@ cradle:
     - path: "codebase2/util-term/./"
       component: "unison-util-term:lib"
 
+    - path: "lib/orphans/unison-core-orphans-sqlite/src"
+      component: "unison-core-orphans-sqlite:lib"
+
     - path: "lib/unison-hash/src"
       component: "unison-hash:lib"
 
-    - path: "lib/unison-hash-orphans-aeson/src"
+    - path: "lib/orphans/unison-hash-orphans-aeson/src"
       component: "unison-hash-orphans-aeson:lib"
 
-    - path: "lib/unison-hash-orphans-sqlite/src"
+    - path: "lib/orphans/unison-hash-orphans-sqlite/src"
       component: "unison-hash-orphans-sqlite:lib"
 
     - path: "lib/unison-hashing/src"
@@ -47,6 +50,9 @@ cradle:
 
     - path: "lib/unison-sqlite/src"
       component: "unison-sqlite:lib"
+
+    - path: "lib/unison-sqlite/test"
+      component: "unison-sqlite:test:tests"
 
     - path: "lib/unison-util-base32hex/src"
       component: "unison-util-base32hex:lib"
@@ -74,6 +80,9 @@ cradle:
 
     - path: "lib/unison-util-rope/src"
       component: "unison-util-rope:lib"
+
+    - path: "lib/orphans/uuid-orphans-sqlite/src"
+      component: "uuid-orphans-sqlite:lib"
 
     - path: "parser-typechecker/src"
       component: "unison-parser-typechecker:lib"
@@ -111,11 +120,17 @@ cradle:
     - path: "unison-core/src"
       component: "unison-core1:lib"
 
+    - path: "unison-core/test"
+      component: "unison-core1:test:tests"
+
     - path: "unison-hashing-v2/src"
       component: "unison-hashing-v2:lib"
 
     - path: "unison-share-api/src"
       component: "unison-share-api:lib"
+
+    - path: "unison-share-projects-api/src"
+      component: "unison-share-projects-api:lib"
 
     - path: "unison-syntax/src"
       component: "unison-syntax:lib"
