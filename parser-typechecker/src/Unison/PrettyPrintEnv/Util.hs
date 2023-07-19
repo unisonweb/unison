@@ -3,11 +3,11 @@
 module Unison.PrettyPrintEnv.Util (declarationPPE, declarationPPEDecl) where
 
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (suffixifiedPPE, unsuffixifiedPPE))
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 
 -- declarationPPE uses the full name for references that are
 -- part the same cycle as the input reference, used to ensures

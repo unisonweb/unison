@@ -5,10 +5,9 @@
 -}
 module Main (main) where
 
-import Data.Bifunctor (second)
 import Data.List
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import EasyTest
 import System.Directory
 import System.Environment (getArgs)
@@ -19,10 +18,13 @@ import System.FilePath
     (</>),
   )
 import System.IO.CodePage (withCP65001)
+import System.IO.Silently (silence)
 import Unison.Codebase.Init (withTemporaryUcmCodebase)
-import qualified Unison.Codebase.SqliteCodebase as SC
+import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.TranscriptParser (TranscriptError (..), withTranscriptRunner)
+import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Prelude
+import UnliftIO.STM qualified as STM
 
 data TestConfig = TestConfig
   { matchPrefix :: Maybe String
@@ -32,28 +34,36 @@ data TestConfig = TestConfig
 type TestBuilder = FilePath -> [String] -> String -> Test ()
 
 testBuilder ::
-  Bool -> FilePath -> [String] -> String -> Test ()
-testBuilder expectFailure dir prelude transcript = scope transcript $ do
-  outputs <- io . withTemporaryUcmCodebase SC.init "transcript" SC.DoLock $ \(codebasePath, codebase) -> do
-    withTranscriptRunner "TODO: pass version here" Nothing $ \runTranscript -> do
+  Bool -> ((FilePath, Text) -> IO ()) -> FilePath -> [String] -> String -> Test ()
+testBuilder expectFailure recordFailure dir prelude transcript = scope transcript $ do
+  outputs <- io . withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock $ \(codebasePath, codebase) -> do
+    withTranscriptRunner Verbosity.Silent "TODO: pass version here" Nothing $ \runTranscript -> do
       for files $ \filePath -> do
         transcriptSrc <- readUtf8 filePath
-        out <- runTranscript filePath transcriptSrc (codebasePath, codebase)
+        out <- silence $ runTranscript filePath transcriptSrc (codebasePath, codebase)
         pure (filePath, out)
   for_ outputs $ \case
     (filePath, Left err) -> do
       let outputFile = outputFileForTranscript filePath
       case err of
         TranscriptParseError msg -> do
-          when (not expectFailure) . crash $ "Error parsing " <> filePath <> ": " <> Text.unpack msg
+          when (not expectFailure) $ do
+            let errMsg = "Error parsing " <> filePath <> ": " <> Text.unpack msg
+            io $ recordFailure (filePath, Text.pack errMsg)
+            crash errMsg
         TranscriptRunFailure errOutput -> do
           io $ writeUtf8 outputFile errOutput
-          io $ Text.putStrLn errOutput
-          when (not expectFailure) . crash $ "Failure in " <> filePath
+          when (not expectFailure) $ do
+            io $ Text.putStrLn errOutput
+            io $ recordFailure (filePath, errOutput)
+            crash $ "Failure in " <> filePath
     (filePath, Right out) -> do
       let outputFile = outputFileForTranscript filePath
       io $ writeUtf8 outputFile out
-      when expectFailure $ crash "Expected a failure, but transcript was successful."
+      when expectFailure $ do
+        let errMsg = "Expected a failure, but transcript was successful."
+        io $ recordFailure (filePath, Text.pack errMsg)
+        crash errMsg
   ok
   where
     files = fmap (dir </>) (prelude ++ [transcript])
@@ -110,12 +120,23 @@ cleanup = do
 
 test :: TestConfig -> Test ()
 test config = do
-  buildTests config (testBuilder False) $
+  -- We manually aggregate and display failures at the end to it much easier to see
+  -- what went wrong in CI
+  failuresVar <- io $ STM.newTVarIO []
+  let recordFailure failure = STM.atomically $ STM.modifyTVar' failuresVar (failure :)
+  buildTests config (testBuilder False recordFailure) $
     "unison-src" </> "transcripts"
-  buildTests config (testBuilder False) $
+  buildTests config (testBuilder False recordFailure) $
     "unison-src" </> "transcripts-using-base"
-  buildTests config (testBuilder True) $
+  buildTests config (testBuilder True recordFailure) $
     "unison-src" </> "transcripts" </> "errors"
+  failures <- io $ STM.readTVarIO failuresVar
+  -- Print all aggregated failures
+  when (not $ null failures) . io $ Text.putStrLn $ "Failures:"
+  for failures $ \(filepath, msg) -> io $ do
+    Text.putStrLn $ Text.replicate 80 "="
+    Text.putStrLn $ "🚨 " <> Text.pack filepath <> ": "
+    Text.putStrLn msg
   cleanup
 
 handleArgs :: [String] -> TestConfig

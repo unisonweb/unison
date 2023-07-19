@@ -6,20 +6,20 @@ module Unison.Server.Types where
 -- Types common to endpoints --
 import Control.Lens hiding ((.=))
 import Data.Aeson
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
-import qualified Data.ByteString.Lazy as LZ
-import qualified Data.Map as Map
+import Data.ByteString.Lazy qualified as LZ
+import Data.Map qualified as Map
 import Data.OpenApi
   ( OpenApiType (..),
     ToParamSchema (..),
     ToSchema (..),
   )
-import qualified Data.OpenApi.Lens as OpenApi
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as Text.Lazy
-import qualified Data.Text.Lazy.Encoding as Text
+import Data.OpenApi.Lens qualified as OpenApi
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as Text.Lazy
+import Data.Text.Lazy.Encoding qualified as Text
 import Servant.API
   ( Capture,
     FromHttpApiData (..),
@@ -31,26 +31,27 @@ import Servant.API
     addHeader,
   )
 import Servant.Docs (DocCapture (..), DocQueryParam (..), ParamKind (..), ToParam)
-import qualified Servant.Docs as Docs
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import Servant.Docs qualified as Docs
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
   )
-import qualified Unison.Hash as Hash
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.Codebase.Path qualified as Path
+import Unison.Hash qualified as Hash
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
 import Unison.ShortHash (ShortHash)
-import qualified Unison.Syntax.HashQualified as HQ (fromText)
+import Unison.Syntax.HashQualified qualified as HQ (fromText)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -70,6 +71,34 @@ type Size = Int
 type UnisonName = Text
 
 type UnisonHash = Text
+
+data NamespaceDetails = NamespaceDetails
+  { fqn :: Path.Path,
+    hash :: UnisonHash,
+    readme :: Maybe Doc
+  }
+  deriving (Generic, Show)
+
+instance Docs.ToSample NamespaceDetails where
+  toSamples _ =
+    [ ( "When no value is provided for `namespace`, the root namespace `.` is "
+          <> "listed by default",
+        NamespaceDetails
+          Path.empty
+          "#gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
+          Nothing
+      )
+    ]
+
+instance ToJSON NamespaceDetails where
+  toJSON NamespaceDetails {..} =
+    object
+      [ "fqn" .= fqn,
+        "hash" .= hash,
+        "readme" .= readme
+      ]
+
+deriving instance ToSchema NamespaceDetails
 
 -- | A hash qualified name, unlike HashQualified, the hash is required
 data ExactName name ref = ExactName
@@ -130,17 +159,37 @@ deriving via Bool instance FromHttpApiData Suffixify
 deriving anyclass instance ToParamSchema Suffixify
 
 instance ToJSON TypeDefinition where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON TypeDefinition {..} =
+    object
+      [ "typeNames" .= typeNames,
+        "bestTypeName" .= bestTypeName,
+        "defnTypeTag" .= defnTypeTag,
+        "typeDefinition" .= typeDefinition,
+        "typeDocs" .= typeDocs
+      ]
 
 deriving instance ToSchema TypeDefinition
 
 instance ToJSON TermDefinition where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON TermDefinition {..} =
+    object
+      [ "termNames" .= termNames,
+        "bestTermName" .= bestTermName,
+        "defnTermTag" .= defnTermTag,
+        "termDefinition" .= termDefinition,
+        "signature" .= signature,
+        "termDocs" .= termDocs
+      ]
 
 deriving instance ToSchema TermDefinition
 
 instance ToJSON DefinitionDisplayResults where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON DefinitionDisplayResults {..} =
+    object
+      [ "termDefinitions" .= termDefinitions,
+        "typeDefinitions" .= typeDefinitions,
+        "missingDefinitions" .= missingDefinitions
+      ]
 
 deriving instance ToSchema DefinitionDisplayResults
 
@@ -191,16 +240,6 @@ data UnisonRef
   | TermRef UnisonHash
   deriving (Eq, Ord, Show, Generic)
 
-data FoundEntry
-  = FoundTerm NamedTerm
-  | FoundType NamedType
-  deriving (Eq, Show, Generic)
-
-instance ToJSON FoundEntry where
-  toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema FoundEntry
-
 unisonRefToText :: UnisonRef -> Text
 unisonRefToText = \case
   TypeRef r -> r
@@ -242,10 +281,19 @@ data NamedType = NamedType
   deriving (Eq, Generic, Show)
 
 instance ToJSON NamedType where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (NamedType n h tag) =
+    Aeson.object
+      [ "typeName" .= HQ'.toTextWith NameSegment.toText n,
+        "typeHash" .= h,
+        "typeTag" .= tag
+      ]
 
 instance FromJSON NamedType where
-  parseJSON = genericParseJSON defaultOptions
+  parseJSON = Aeson.withObject "NamedType" \obj -> do
+    typeName <- obj .: "typeName"
+    typeHash <- obj .: "typeHash"
+    typeTag <- obj .: "typeTag"
+    pure $ NamedType {..}
 
 deriving instance ToSchema NamedType
 

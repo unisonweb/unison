@@ -6,31 +6,31 @@ module Unison.Test.UnisonSources where
 import Control.Exception (throwIO)
 import Control.Lens (view)
 import Control.Lens.Tuple (_5)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Text (unpack)
 import EasyTest
 import System.Directory (doesFileExist)
 import System.FilePath (joinPath, replaceExtension, splitPath)
 import System.FilePath.Find (always, extension, find, (==?))
-import qualified Unison.Builtin as Builtin
-import qualified Unison.Codebase.Path as Path
+import Unison.Builtin qualified as Builtin
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime, evaluateWatches)
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parsers as Parsers
+import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.PrintError as PrintError
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrintError qualified as PrintError
 import Unison.Result (Result, pattern Result)
-import qualified Unison.Result as Result
-import qualified Unison.Runtime.Interface as RTI
+import Unison.Result qualified as Result
+import Unison.Runtime.Interface qualified as RTI
 import Unison.Symbol (Symbol)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Test.Common (parseAndSynthesizeAsFile, parsingEnv)
-import qualified Unison.Test.Common as Common
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
+import Unison.Test.Common qualified as Common
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty (toPlain)
 
@@ -148,7 +148,7 @@ resultTest rt uf filepath = do
         Right tm -> do
           -- compare the the watch expression from the .u with the expr in .ur
           let watchResult = head (view _5 <$> Map.elems watches)
-              tm' = Term.letRec' False bindings watchResult
+              tm' = Term.letRec' False (bindings <&> \(sym, tm) -> (sym, (), tm)) watchResult
           -- note . show $ tm'
           -- note . show $ Term.amap (const ()) tm
           expectEqual tm' (Term.amap (const ()) tm)

@@ -5,13 +5,13 @@
 module Unison.Test.CodebaseInit where
 
 import EasyTest
-import qualified System.IO.Temp as Temp
+import System.IO.Temp qualified as Temp
 import Unison.Codebase.Init
   ( CodebaseInitOptions (..),
     Init (..),
     SpecifiedCodebase (..),
   )
-import qualified Unison.Codebase.Init as CI
+import Unison.Codebase.Init qualified as CI
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 
 -- keep it off for CI, since the random temp dirs it generates show up in the

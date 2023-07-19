@@ -82,6 +82,7 @@ module Unison.Util.Pretty
     numberedColumn2Header,
     numberedColumnNHeader,
     numberedList,
+    numberedListFrom,
     orElse,
     orElses,
     paragraphyText,
@@ -95,6 +96,7 @@ module Unison.Util.Pretty
     sepNonEmpty,
     sepSpaced,
     shown,
+    pshown,
     singleQuoted,
     singleQuoted',
     softbreak,
@@ -146,19 +148,20 @@ module Unison.Util.Pretty
   )
 where
 
-import Data.Bifunctor (second)
 import Data.Char (isSpace)
 import Data.List (intersperse)
-import qualified Data.List as List
-import qualified Data.ListLike as LL
-import qualified Data.Sequence as Seq
-import qualified Data.Text as Text
+import Data.List qualified as List
+import Data.ListLike qualified as LL
+import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as Text.Lazy
+import Text.Pretty.Simple (pShow)
 import Unison.Prelude
 import Unison.Util.AnnotatedText (annotateMaybe)
-import qualified Unison.Util.AnnotatedText as AT
-import qualified Unison.Util.ColorText as CT
+import Unison.Util.AnnotatedText qualified as AT
+import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.SyntaxText as ST
+import Unison.Util.SyntaxText qualified as ST
 import Prelude hiding (lines, map)
 
 newtype Width = Width {widthToInt :: Int}
@@ -563,9 +566,12 @@ numberedColumnNHeader headers rows =
   let numbers = ([1 :: Int ..] <&> \n -> hiBlack (shown n <> "."))
    in columnNHeader ("" : headers) (zipWith (:) numbers rows)
 
--- Opinionated `numbered` that uses bold numbers in front
+-- Opinionated `numbered` that uses hiBlack numbers in front
 numberedList :: (Foldable f) => f (Pretty ColorText) -> Pretty ColorText
-numberedList = numbered (\i -> hiBlack . fromString $ show i <> ".")
+numberedList = numberedListFrom 0
+
+numberedListFrom :: (Foldable f) => Int -> f (Pretty ColorText) -> Pretty ColorText
+numberedListFrom n = numbered (\i -> hiBlack . fromString $ show (i + n) <> ".")
 
 leftPad, rightPad :: (IsString s) => Width -> Pretty s -> Pretty s
 leftPad n p =
@@ -782,6 +788,10 @@ string = fromString
 
 shown :: (Show a, IsString s) => a -> Pretty s
 shown = fromString . show
+
+-- | Like 'shown', but uses a pretty layout (so long as the Show instance is derived).
+pshown :: (Show a, IsString s) => a -> Pretty s
+pshown = text . Text.Lazy.toStrict . pShow
 
 -- `softHang foo bar` will attempt to put the first line of `bar` right after
 -- `foo` on the same line, but will behave like `hang foo bar` if there's not

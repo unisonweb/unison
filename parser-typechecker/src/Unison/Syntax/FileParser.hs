@@ -3,35 +3,35 @@ module Unison.Syntax.FileParser where
 import Control.Lens
 import Control.Monad.Reader (asks, local)
 import Data.List.Extra (nubOrd)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Text.Megaparsec as P
-import qualified Unison.ABT as ABT
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Text.Megaparsec qualified as P
+import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.DataDeclaration qualified as DD
+import Unison.Name qualified as Name
+import Unison.Names qualified as Names
+import Unison.Names.ResolutionResult qualified as Names
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Name as Name (toText, toVar, unsafeFromVar)
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeFromVar)
 import Unison.Syntax.Parser
-import qualified Unison.Syntax.TermParser as TermParser
-import qualified Unison.Syntax.TypeParser as TypeParser
+import Unison.Syntax.TermParser qualified as TermParser
+import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.UnisonFile (UnisonFile (..))
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Env as UF
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Env qualified as UF
 import Unison.UnisonFile.Names (environmentFor)
-import qualified Unison.Util.List as List
+import Unison.Util.List qualified as List
 import Unison.Var (Var)
-import qualified Unison.Var as Var
-import qualified Unison.WatchKind as UF
+import Unison.Var qualified as Var
+import Unison.WatchKind qualified as UF
 import Prelude hiding (readFile)
 
 resolutionFailures :: (Ord v) => [Names.ResolutionFailure v Ann] -> P v x
@@ -64,12 +64,12 @@ file = do
     _ <- closeBlock
     let (termsr, watchesr) = foldl' go ([], []) stanzas
         go (terms, watches) s = case s of
-          WatchBinding kind _ ((_, v), at) ->
-            (terms, (kind, (v, Term.generalizeTypeSignatures at)) : watches)
-          WatchExpression kind guid _ at ->
-            (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
-          Binding ((_, v), at) -> ((v, Term.generalizeTypeSignatures at) : terms, watches)
-          Bindings bs -> ([(v, Term.generalizeTypeSignatures at) | ((_, v), at) <- bs] ++ terms, watches)
+          WatchBinding kind spanningAnn ((_, v), at) ->
+            (terms, (kind, (v, spanningAnn, Term.generalizeTypeSignatures at)) : watches)
+          WatchExpression kind guid spanningAnn at ->
+            (terms, (kind, (Var.unnamedTest guid, spanningAnn, Term.generalizeTypeSignatures at)) : watches)
+          Binding ((spanningAnn, v), at) -> ((v, spanningAnn, Term.generalizeTypeSignatures at) : terms, watches)
+          Bindings bs -> ([(v, spanningAnn, Term.generalizeTypeSignatures at) | ((spanningAnn, v), at) <- bs] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
@@ -109,13 +109,14 @@ file = do
     let bindNames = Term.bindSomeNames Name.unsafeFromVar avoid curNames . resolveLocals
           where
             avoid = Set.fromList (stanzas0 >>= getVars)
-    terms <- case List.validate (traverse bindNames) terms of
+    terms <- case List.validate (traverseOf _3 bindNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
-    watches <- case List.validate (traverse . traverse $ bindNames) watches of
+    watches <- case List.validate (traverseOf (traversed . _3) bindNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
-    let toPair (tok, _) = (L.payload tok, ann tok)
+    let toPair (tok, typ) = (L.payload tok, ann tok <> ann typ)
+        accessors :: [[(v, Ann, Term v Ann)]]
         accessors =
           [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
             | (typ, fields) <- parsedAccessors,
@@ -164,7 +165,7 @@ checkForDuplicateTermsAndConstructors uf = do
     allTerms :: [(v, Ann)]
     allTerms =
       UF.terms uf
-        <&> (\(v, t) -> (v, ABT.annotation t))
+        <&> (\(v, bindingAnn, _t) -> (v, bindingAnn))
     mergedTerms :: Map v (Set Ann)
     mergedTerms =
       (allConstructors <> allTerms)
@@ -337,10 +338,13 @@ dataDeclaration mod = do
               Type.foralls ctorAnn typeArgVs ctorType
             )
       prefixVar = TermParser.verifyRelativeVarName prefixDefinitionName
+      dataConstructor :: P v (Ann, v, Type v Ann)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
+      record :: P v ([(Ann, v, Type v Ann)], [(L.Token v, [(L.Token v, Type v Ann)])])
       record = do
         _ <- openBlockWith "{"
-        let field = do
+        let field :: P v [(L.Token v, Type v Ann)]
+            field = do
               f <- liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
               optional (reserved ",")
                 >>= ( \case

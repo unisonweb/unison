@@ -3,13 +3,13 @@
 
 module Unison.Test.Codebase.Causal (test) where
 
-import qualified Data.Set as Set
-import qualified Data.Text.Encoding as Text
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as Text
 import EasyTest
 import Unison.Codebase.Causal (Causal, one)
-import qualified Unison.Codebase.Causal as Causal
-import qualified Unison.Hash as Hash
-import qualified Unison.Hashing.V2 as Hashing
+import Unison.Codebase.Causal qualified as Causal
+import Unison.Hash qualified as Hash
+import Unison.Hashing.V2 qualified as Hashing
 import Unison.Prelude
 
 -- Dummy instances for this test suite. Would probably be better if they weren't orphans.

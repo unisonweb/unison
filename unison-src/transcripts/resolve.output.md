@@ -155,6 +155,8 @@ Let's now merge these namespaces into `c`:
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 ```
 ```ucm
 .example.resolve> merge b c
@@ -176,6 +178,8 @@ Let's now merge these namespaces into `c`:
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
   I tried to auto-apply the patch, but couldn't because it
   contained contradictory entries.

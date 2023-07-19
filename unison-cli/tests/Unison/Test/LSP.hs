@@ -3,34 +3,34 @@
 
 module Unison.Test.LSP (test) where
 
-import qualified Crypto.Random as Random
+import Crypto.Random qualified as Random
 import Data.List.Extra (firstJust)
 import Data.String.Here.Uninterpolated (here)
 import Data.Text
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import EasyTest
-import qualified System.IO.Temp as Temp
-import qualified Unison.ABT as ABT
+import System.IO.Temp qualified as Temp
+import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef)
-import qualified Unison.Cli.TypeCheck as Typecheck
+import Unison.Cli.TypeCheck qualified as Typecheck
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase.Init as Codebase.Init
-import qualified Unison.Codebase.SqliteCodebase as SC
+import Unison.Codebase.Init qualified as Codebase.Init
+import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.LSP.Queries as LSPQ
-import qualified Unison.Lexer.Pos as Lexer
+import Unison.LSP.Queries qualified as LSPQ
+import Unison.Lexer.Pos qualified as Lexer
 import Unison.Parser.Ann (Ann (..))
-import qualified Unison.Parser.Ann as Ann
-import qualified Unison.Pattern as Pattern
+import Unison.Parser.Ann qualified as Ann
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Result as Result
+import Unison.Reference qualified as Reference
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.UnisonFile as UF
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (foldMapM)
 
 test :: Test ()
@@ -254,7 +254,7 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
     pf <- maybe (crash (show ("Failed to parse" :: String, notes))) pure mayParsedFile
     let pfResult =
           UF.terms pf
-            & firstJust \(_v, trm) ->
+            & firstJust \(_v, _fileAnn, trm) ->
               LSPQ.findSmallestEnclosingNode pos trm
     expectEqual (Just expected) (void <$> pfResult)
 
@@ -264,7 +264,7 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
       let tfResult =
             UF.hashTermsId tf
               & toList
-              & firstJust \(_refId, _wk, trm, _typ) ->
+              & firstJust \(_fileAnn, _refId, _wk, trm, _typ) ->
                 LSPQ.findSmallestEnclosingNode pos trm
       expectEqual (Just expected) (void <$> tfResult)
 
@@ -302,7 +302,7 @@ annotationNestingTest (name, src) = scope name do
   tf <- maybe (crash "Failed to typecheck") pure maytf
   UF.hashTermsId tf
     & toList
-    & traverse_ \(_refId, _wk, trm, _typ) ->
+    & traverse_ \(_fileAnn, _refId, _wk, trm, _typ) ->
       assertAnnotationsAreNested trm
 
 -- | Asserts that for all nodes in the provided ABT, the annotations of all child nodes are
@@ -330,7 +330,7 @@ typecheckSrc name src = do
     let ambientAbilities = []
     let parseNames = mempty
     let lexedSource = (src, L.lexer name (Text.unpack src))
-    r <- Typecheck.typecheckHelper codebase generateUniqueName ambientAbilities parseNames (Text.pack name) lexedSource
+    r <- Typecheck.typecheck codebase generateUniqueName ambientAbilities parseNames (Text.pack name) lexedSource
     let Result.Result notes mayResult = r
     let (parsedFile, typecheckedFile) = case mayResult of
           Nothing -> (Nothing, Nothing)

@@ -1,53 +1,55 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE UnicodeSyntax #-}
+module Unison.FileParsers
+  ( parseAndSynthesizeFile,
+    synthesizeFile',
+  )
+where
 
-module Unison.FileParsers where
-
-import Control.Lens (view, _3)
+import Control.Lens
 import Control.Monad.State (evalStateT)
 import Control.Monad.Writer (tell)
-import Data.Bifunctor (first)
-import qualified Data.Foldable as Foldable
+import Data.Foldable qualified as Foldable
 import Data.List (partition)
-import qualified Data.List.NonEmpty as List.NonEmpty
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.Text (unpack)
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as Blank
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as Blank
+import Unison.Builtin qualified as Builtin
+import Unison.Name qualified as Name
+import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parsers as Parsers
+import Unison.Parsers qualified as Parsers
 import Unison.Prelude
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (Reference)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), Result, ResultT, pattern Result)
-import qualified Unison.Result as Result
-import qualified Unison.Syntax.Name as Name (toText, unsafeFromVar)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker as Typechecker
-import qualified Unison.Typechecker.Context as Context
+import Unison.Result qualified as Result
+import Unison.Syntax.Name qualified as Name (toText, unsafeFromVar)
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.Extractor (RedundantTypeAnnotation)
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
-import qualified Unison.Util.List as List
-import qualified Unison.Util.Relation as Rel
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.UnisonFile (definitionLocation)
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.List qualified as List
+import Unison.Util.Relation qualified as Rel
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
+import Unison.WatchKind (WatchKind)
 
 type Term v = Term.Term v Ann
 
 type Type v = Type.Type v Ann
 
 type UnisonFile v = UF.UnisonFile v Ann
-
-type Result' v = Result (Seq (Note v Ann))
 
 debug :: Bool
 debug = False
@@ -155,8 +157,13 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
   let -- substitute Blanks for any remaining free vars in UF body
       tdnrTerm = Term.prepareTDNR term
       env0 = Typechecker.Env ambient tl fqnsByShortName
+      unisonFilePPE =
+        ( PPE.fromNames
+            10
+            (NamesWithHistory.shadowing (UF.toNames uf) Builtin.names)
+        )
       Result notes mayType =
-        evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
+        evalStateT (Typechecker.synthesizeAndResolve unisonFilePPE env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
   Result (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
@@ -184,14 +191,21 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
        in traverse (traverse addTypesToTopLevelBindings) tlcsFromTypechecker
     let doTdnr = applyTdnrDecisions infos
     let doTdnrInComponent (v, t, tp) = (v, doTdnr t, tp)
-    let tdnredTlcs = (fmap . fmap) doTdnrInComponent topLevelComponents
+    let tdnredTlcs =
+          topLevelComponents
+            & (fmap . fmap)
+              ( \vtt ->
+                  vtt
+                    & doTdnrInComponent
+                    & \(v, t, tp) -> (v, fromMaybe (error $ "Symbol from typechecked file not present in parsed file" <> show v) (definitionLocation v uf), t, tp)
+              )
     let (watches', terms') = partition isWatch tdnredTlcs
-        isWatch = all (\(v, _, _) -> Set.member v watchedVars)
-        watchedVars = Set.fromList [v | (v, _) <- UF.allWatches uf]
+        isWatch = all (\(v, _, _, _) -> Set.member v watchedVars)
+        watchedVars = Set.fromList [v | (v, _a, _) <- UF.allWatches uf]
         tlcKind [] = error "empty TLC, should never occur"
-        tlcKind tlc@((v, _, _) : _) =
-          let hasE k =
-                elem v . fmap fst $ Map.findWithDefault [] k (UF.watches uf)
+        tlcKind tlc@((v, _, _, _) : _) =
+          let hasE :: WatchKind -> Bool
+              hasE k = elem v . fmap (view _1) $ Map.findWithDefault [] k (UF.watches uf)
            in case Foldable.find hasE (Map.keys $ UF.watches uf) of
                 Nothing -> error "wat"
                 Just kind -> (kind, tlc)

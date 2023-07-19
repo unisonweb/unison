@@ -20,18 +20,18 @@ module Unison.Hashing.V2.Type
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
-import qualified Unison.Hashing.V2.ABT as ABT
-import qualified Unison.Hashing.V2.Kind as K
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
+import Unison.Hashing.V2.ABT qualified as ABT
+import Unison.Hashing.V2.Kind qualified as K
 import Unison.Hashing.V2.Reference (Reference (..), pattern ReferenceDerived)
 import Unison.Hashing.V2.Tokenizable (Hashable1)
-import qualified Unison.Hashing.V2.Tokenizable as Hashable
-import qualified Unison.Name as Name
-import qualified Unison.Names.ResolutionResult as Names
+import Unison.Hashing.V2.Tokenizable qualified as Hashable
+import Unison.Name qualified as Name
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-import qualified Unison.Util.List as List
+import Unison.Util.List qualified as List
 import Unison.Var (Var)
 
 -- | Base functor for types in the Unison language

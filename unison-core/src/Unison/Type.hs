@@ -3,24 +3,24 @@
 module Unison.Type where
 
 import Control.Lens (Prism')
-import qualified Control.Monad.Writer.Strict as Writer
+import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
 import Data.List.Extra (nubOrd)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Monoid (Any (..))
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
-import qualified Unison.Kind as K
-import qualified Unison.LabeledDependency as LD
-import qualified Unison.Name as Name
-import qualified Unison.Names.ResolutionResult as Names
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
+import Unison.Kind qualified as K
+import Unison.LabeledDependency qualified as LD
+import Unison.Name qualified as Name
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Settings as Settings
-import qualified Unison.Util.List as List
+import Unison.Reference qualified as Reference
+import Unison.Settings qualified as Settings
+import Unison.Util.List qualified as List
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 -- | Base functor for types in the Unison language
 data F a
@@ -112,6 +112,9 @@ pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Pure' :: (Ord v) => Type v a -> Type v a
 pattern Pure' t <- (unPure -> Just t)
 
+pattern Request' :: [Type v a] -> Type v a -> Type v a
+pattern Request' ets res <- Apps' (Ref' ((== effectRef) -> True)) [(flattenEffects -> ets), res]
+
 pattern Effects' :: [ABT.Term F v a] -> ABT.Term F v a
 pattern Effects' es <- ABT.Tm' (Effects es)
 
@@ -140,6 +143,13 @@ pattern IntroOuterNamed' v body <- ABT.Tm' (IntroOuter (ABT.out -> ABT.Abs v bod
 
 pattern ForallsNamed' :: [v] -> Type v a -> Type v a
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
+
+pattern ForallsNamedOpt' :: [v] -> Type v a -> Type v a
+pattern ForallsNamedOpt' vs body <- (unForallsOpt -> (vs, body))
+
+unForallsOpt :: Type v a -> ([v], Type v a)
+unForallsOpt (ForallsNamed' vs t) = (vs, t)
+unForallsOpt t = ([], t)
 
 pattern ForallNamed' :: v -> ABT.Term F v a -> ABT.Term F v a
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))

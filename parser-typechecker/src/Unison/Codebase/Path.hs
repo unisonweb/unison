@@ -79,22 +79,23 @@ module Unison.Codebase.Path
 where
 
 import Control.Lens hiding (cons, snoc, unsnoc, pattern Empty)
-import qualified Control.Lens as Lens
-import qualified Data.Foldable as Foldable
+import Control.Lens qualified as Lens
+import Data.Foldable qualified as Foldable
 import Data.List.Extra (dropPrefix)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as List.NonEmpty
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Sequence (Seq ((:<|), (:|>)))
-import qualified Data.Sequence as Seq
-import qualified Data.Text as Text
-import qualified GHC.Exts as GHC
-import qualified Unison.HashQualified' as HQ'
+import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
+import GHC.Exts qualified as GHC
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Convert (..), Name, Parse)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty, toList)
-import qualified Unison.Syntax.Name as Name (toString, unsafeFromText)
+import Unison.Syntax.Name qualified as Name (toString, unsafeFromText)
+import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
@@ -201,14 +202,8 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 -- (,,a.b.c)
 longestPathPrefix :: Path -> Path -> (Path, Path, Path)
 longestPathPrefix a b =
-  case (Lens.uncons a, Lens.uncons b) of
-    (Nothing, _) -> (empty, a, b)
-    (_, Nothing) -> (empty, a, b)
-    (Just (x, xs), Just (y, ys))
-      | x == y ->
-          let (prefix, ra, rb) = longestPathPrefix xs ys
-           in (x :< prefix, ra, rb)
-      | otherwise -> (empty, a, b)
+  List.splitOnLongestCommonPrefix (toList a) (toList b)
+    & \(a, b, c) -> (fromList a, fromList b, fromList c)
 
 toSplit' :: Path' -> Maybe (Path', NameSegment)
 toSplit' = Lens.unsnoc
@@ -263,7 +258,11 @@ splitFromName name =
   case Name.reverseSegments name of
     (seg :| pathSegments) -> (fromList $ reverse pathSegments, seg)
 
--- | what is this? —AI
+-- | Remove a path prefix from a name.
+-- Returns 'Nothing' if there are no remaining segments to construct the name from.
+--
+-- >>> unprefixName (Absolute $ fromList ["base", "List"]) (Name.unsafeFromText "base.List.map")
+-- Just (Name Relative (NameSegment {toText = "map"} :| []))
 unprefixName :: Absolute -> Name -> Maybe Name
 unprefixName prefix = toName . unprefix prefix . fromName'
 

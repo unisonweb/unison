@@ -7,16 +7,16 @@ module Unison.Cli.PrettyPrintUtils
 where
 
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
-import qualified Unison.Codebase as Codebase
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
-import qualified Unison.PrettyPrintEnvDecl.Names as PPE
-import qualified Unison.Server.Backend as Backend
+import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
+import Unison.PrettyPrintEnvDecl.Names qualified as PPE
+import Unison.Server.Backend qualified as Backend
 
 prettyPrintEnvDecl :: NamesWithHistory -> Cli PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns =

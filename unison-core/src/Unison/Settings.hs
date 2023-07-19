@@ -6,7 +6,7 @@ debugNoteSummary = False
 debugRevealForalls = False
 
 renderTermMaxLength :: Int
-renderTermMaxLength = 20
+renderTermMaxLength = 30
 
 demoHideVarNumber :: Bool
 demoHideVarNumber = False

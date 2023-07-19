@@ -1,9 +1,9 @@
 module Unison.Util.CycleTable where
 
 import Data.HashTable.IO (BasicHashTable)
-import qualified Data.HashTable.IO as HT
+import Data.HashTable.IO qualified as HT
 import Data.Hashable (Hashable)
-import qualified Data.Mutable as M
+import Data.Mutable qualified as M
 
 -- A hash table along with a unique number which gets incremented on
 -- each insert. This is used as an implementation detail by `CyclicEq`,

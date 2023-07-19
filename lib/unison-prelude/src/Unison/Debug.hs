@@ -16,8 +16,8 @@ where
 import Control.Applicative (empty)
 import Control.Monad (when)
 import Data.Set (Set)
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Debug.Pretty.Simple (pTrace, pTraceM, pTraceShowId, pTraceShowM)
 import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO.Environment (lookupEnv)
@@ -39,6 +39,8 @@ data DebugFlag
     Temp
   | -- | Shows Annotations when printing terms
     Annotations
+  | -- | Debug endpoints of the local UI (or Share) server
+    Server
   | PatternCoverage
   | PatternCoverageConstraintSolver
   deriving (Eq, Ord, Show, Bounded, Enum)
@@ -63,6 +65,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "TIMING" -> pure Timing
       "TEMP" -> pure Temp
       "ANNOTATIONS" -> pure Annotations
+      "SERVER" -> pure Server
       "PATTERN_COVERAGE" -> pure PatternCoverage
       "PATTERN_COVERAGE_CONSTRAINT_SOLVER" -> pure PatternCoverageConstraintSolver
       _ -> empty
@@ -111,6 +114,10 @@ debugTemp = Temp `Set.member` debugFlags
 debugAnnotations :: Bool
 debugAnnotations = Annotations `Set.member` debugFlags
 {-# NOINLINE debugAnnotations #-}
+
+debugServer :: Bool
+debugServer = Server `Set.member` debugFlags
+{-# NOINLINE debugServer #-}
 
 debugPatternCoverage :: Bool
 debugPatternCoverage = PatternCoverage `Set.member` debugFlags
@@ -171,5 +178,6 @@ shouldDebug = \case
   Timing -> debugTiming
   Temp -> debugTemp
   Annotations -> debugAnnotations
+  Server -> debugServer
   PatternCoverage -> debugPatternCoverage
   PatternCoverageConstraintSolver -> debugPatternCoverageConstraintSolver

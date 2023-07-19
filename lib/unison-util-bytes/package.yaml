@@ -12,6 +12,7 @@ dependencies:
   - deepseq
   - memory
   - primitive
+  - stringsearch
   - text
   - vector
   - unison-prelude
@@ -53,6 +54,7 @@ default-extensions:
   - FlexibleInstances
   - FunctionalDependencies
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns

@@ -3,22 +3,22 @@ module Unison.LSP.Completion.Helpers where
 import Control.Comonad.Cofree
 import Control.Lens hiding (List, (:<))
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.LSP.Types
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Prelude
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Relation as Relation
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Relation qualified as Relation
 
 -- | Generate a completion tree from a set of names.
 -- A completion tree is a suffix tree over the path segments of each name it contains.

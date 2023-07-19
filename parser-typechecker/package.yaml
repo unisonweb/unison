@@ -50,7 +50,6 @@ dependencies:
   - filelock
   - filepath
   - fingertree
-  - fsnotify
   - fuzzyfind
   - free
   - generic-lens
@@ -101,7 +100,7 @@ dependencies:
   - stm
   - tagged
   - temporary
-  - terminal-size
+  - terminal-size >= 0.3.3
   - text
   - text-short
   - these
@@ -175,6 +174,7 @@ default-extensions:
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns

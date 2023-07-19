@@ -3,24 +3,24 @@
 module Unison.NamesWithHistory where
 
 import Data.List.Extra (nubOrd)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference)
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.HashQualified (HashQualified)
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.Names (Names (..))
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.Reference as Reference
 import Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.Util.List as List
+import Unison.Util.List qualified as List
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 
 -- | NamesWithHistory contains two sets of 'Names',
 -- One represents names which are currently assigned,

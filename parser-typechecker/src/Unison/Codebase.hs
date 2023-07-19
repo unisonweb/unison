@@ -36,6 +36,7 @@ module Unison.Codebase
     -- * Branches
     SqliteCodebase.Operations.branchExists,
     getBranchForHash,
+    expectBranchForHash,
     putBranch,
     SqliteCodebase.Operations.causalHashesByPrefix,
     lca,
@@ -113,29 +114,29 @@ where
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Control.Monad.Trans.Except (throwE)
 import Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified U.Codebase.Branch as V2
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import U.Codebase.Branch qualified as V2
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
-import qualified U.Codebase.Referent as V2
-import qualified U.Codebase.Sqlite.Operations as Operations
-import qualified U.Codebase.Sqlite.Queries as Queries
-import qualified Unison.Builtin as Builtin
-import qualified Unison.Builtin.Terms as Builtin
+import U.Codebase.Referent qualified as V2
+import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Builtin qualified as Builtin
+import Unison.Builtin.Terms qualified as Builtin
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
-import qualified Unison.Codebase.CodeLookup as CL
+import Unison.Codebase.CodeLookup qualified as CL
 import Unison.Codebase.Editor.Git (withStatus)
-import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Editor.Git qualified as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace)
-import qualified Unison.Codebase.GitError as GitError
+import Unison.Codebase.GitError qualified as GitError
 import Unison.Codebase.Path
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.Codebase.SqliteCodebase.Operations as SqliteCodebase.Operations
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Operations
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
@@ -146,29 +147,30 @@ import Unison.Codebase.Type
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.Convert as Hashing
-import qualified Unison.NameSegment as NameSegment
-import qualified Unison.Parser.Ann as Parser
+import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.NameSegment qualified as NameSegment
+import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Runtime.IOSource as IOSource
-import qualified Unison.Sqlite as Sqlite
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Runtime.IOSource qualified as IOSource
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.Relation as Rel
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.UnisonFile qualified as UF
+import Unison.Util.Relation qualified as Rel
 import Unison.Util.Timing (time)
 import Unison.Var (Var)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
 -- | Run a transaction on a codebase.
 runTransaction :: (MonadIO m) => Codebase m v a -> Sqlite.Transaction b -> m b
@@ -250,6 +252,13 @@ getBranchForHash codebase h =
         rootBranch <- getRootBranch codebase
         maybe (getBranchForHashImpl codebase h) (pure . Just) (find rootBranch)
 
+-- | Like 'getBranchForHash', but for when the hash is known to be in the codebase.
+expectBranchForHash :: (Monad m) => Codebase m v a -> CausalHash -> m (Branch m)
+expectBranchForHash codebase hash =
+  getBranchForHash codebase hash >>= \case
+    Just branch -> pure branch
+    Nothing -> error $ reportBug "E412939" ("expectBranchForHash: " ++ show hash ++ " not found in codebase")
+
 -- | Get the metadata attached to the term at a given path and name relative to the given branch.
 termMetadata ::
   -- | The branch to search inside. Use the current root if 'Nothing'.
@@ -308,8 +317,8 @@ addDefsToCodebase c uf = do
   traverse_ goTerm (UF.hashTermsId uf)
   where
     goTerm t | debug && trace ("Codebase.addDefsToCodebase.goTerm " ++ show t) False = undefined
-    goTerm (r, Nothing, tm, tp) = putTerm c r tm tp
-    goTerm (r, Just WK.TestWatch, tm, tp) = putTerm c r tm tp
+    goTerm (_, r, Nothing, tm, tp) = putTerm c r tm tp
+    goTerm (_, r, Just WK.TestWatch, tm, tp) = putTerm c r tm tp
     goTerm _ = pure ()
     goType :: (Show t) => (t -> Decl v a) -> (Reference.Id, t) -> Sqlite.Transaction ()
     goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
@@ -338,17 +347,17 @@ lookupWatchCache codebase h = do
   m1 <- getWatch codebase WK.RegularWatch h
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
+-- | Make a @TypeLookup@ that is suitable for looking up information about all of the given type-or-term references,
+-- and all of their type dependencies, including builtins.
 typeLookupForDependencies ::
-  forall m a.
-  (BuiltinAnnotation a) =>
-  Codebase m Symbol a ->
+  Codebase IO Symbol Ann ->
   Set Reference ->
-  Sqlite.Transaction (TL.TypeLookup Symbol a)
+  Sqlite.Transaction (TL.TypeLookup Symbol Ann)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
-  depthFirstAccum mempty s
+  (<> Builtin.typeLookup) <$> depthFirstAccum mempty s
   where
-    depthFirstAccum :: TL.TypeLookup Symbol a -> Set Reference -> Sqlite.Transaction (TL.TypeLookup Symbol a)
+    depthFirstAccum :: TL.TypeLookup Symbol Ann -> Set Reference -> Sqlite.Transaction (TL.TypeLookup Symbol Ann)
     depthFirstAccum tl refs = foldM go tl (Set.filter (unseen tl) refs)
 
     -- We need the transitive dependencies of data decls

@@ -1,4 +1,3 @@
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -28,20 +27,21 @@ import Control.Concurrent as SYS
     threadDelay,
   )
 import Control.Concurrent.MVar as SYS
-import qualified Control.Concurrent.STM as STM
+import Control.Concurrent.STM qualified as STM
 import Control.DeepSeq (NFData)
 import Control.Exception (evaluate)
-import qualified Control.Exception.Safe as Exception
+import Control.Exception.Safe qualified as Exception
 import Control.Monad.Catch (MonadCatch)
-import qualified Control.Monad.Primitive as PA
+import Control.Monad.Primitive qualified as PA
 import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
-import qualified Crypto.Hash as Hash
-import qualified Crypto.MAC.HMAC as HMAC
+import Crypto.Hash qualified as Hash
+import Crypto.MAC.HMAC qualified as HMAC
+import Crypto.Random (getRandomBytes)
 import Data.Bits (shiftL, shiftR, (.|.))
-import qualified Data.ByteArray as BA
+import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
-import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy qualified as L
 import Data.Default (def)
 import Data.Digest.Murmur64 (asWord64, hash64)
 import Data.IORef as SYS
@@ -50,20 +50,22 @@ import Data.IORef as SYS
     readIORef,
     writeIORef,
   )
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
 import Data.Set (insert)
-import qualified Data.Set as Set
-import qualified Data.Text
-import qualified Data.Text.IO as Text.IO
+import Data.Set qualified as Set
+import Data.Text qualified
+import Data.Text.IO qualified as Text.IO
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime,
+    posixSecondsToUTCTime,
     utcTimeToPOSIXSeconds,
   )
-import qualified Data.X509 as X
-import qualified Data.X509.CertificateStore as X
-import qualified Data.X509.Memory as X
-import qualified GHC.Conc as STM
+import Data.Time.LocalTime (TimeZone (..), getTimeZone)
+import Data.X509 qualified as X
+import Data.X509.CertificateStore qualified as X
+import Data.X509.Memory qualified as X
+import GHC.Conc qualified as STM
 import GHC.IO (IO (IO))
 import Network.Simple.TCP as SYS
   ( HostPreference (..),
@@ -132,30 +134,30 @@ import System.Process as SYS
     waitForProcess,
     withCreateProcess,
   )
-import qualified System.X509 as X
+import System.X509 qualified as X
 import Unison.ABT.Normalized hiding (TTm)
-import qualified Unison.Builtin as Ty (builtinTypes)
-import qualified Unison.Builtin.Decls as Ty
+import Unison.Builtin qualified as Ty (builtinTypes)
+import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Serialize as ANF
-import qualified Unison.Runtime.Array as PA
+import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
   ( Foreign (Wrap),
     HashAlgorithm (..),
     pattern Failure,
   )
-import qualified Unison.Runtime.Foreign as F
+import Unison.Runtime.Foreign qualified as F
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.Stack (Closure)
-import qualified Unison.Runtime.Stack as Closure
+import Unison.Runtime.Stack qualified as Closure
 import Unison.Symbol
 import Unison.Type (charRef)
-import qualified Unison.Type as Ty
-import qualified Unison.Util.Bytes as Bytes
+import Unison.Type qualified as Ty
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
 import Unison.Util.RefPromise
   ( Promise,
@@ -169,8 +171,8 @@ import Unison.Util.RefPromise
     writePromise,
   )
 import Unison.Util.Text (Text)
-import qualified Unison.Util.Text as Util.Text
-import qualified Unison.Util.Text.Pattern as TPat
+import Unison.Util.Text qualified as Util.Text
+import Unison.Util.Text.Pattern qualified as TPat
 import Unison.Var
 
 type Failure = F.Failure Closure
@@ -533,7 +535,7 @@ dropn = binop0 4 $ \[x0, y0, x, y, b, r] ->
       )
     $ TCon Ty.natRef 0 [r]
 
-appendt, taket, dropt, sizet, unconst, unsnoct :: (Var v) => SuperNormal v
+appendt, taket, dropt, indext, indexb, sizet, unconst, unsnoct :: (Var v) => SuperNormal v
 appendt = binop0 0 $ \[x, y] -> TPrm CATT [x, y]
 taket = binop0 1 $ \[x0, y, x] ->
   unbox x0 Ty.natRef x $
@@ -541,9 +543,57 @@ taket = binop0 1 $ \[x0, y, x] ->
 dropt = binop0 1 $ \[x0, y, x] ->
   unbox x0 Ty.natRef x $
     TPrm DRPT [x, y]
+
+atb = binop0 4 $ \[n0, b, n, t, r0, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm IDXB [n, b])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], none)),
+        ( 1,
+          ( [UN],
+            TAbs r0
+              . TLetD r BX (TCon Ty.natRef 0 [r0])
+              $ some r
+          )
+        )
+      ]
+
+indext = binop0 3 $ \[x, y, t, r0, r] ->
+  TLetD t UN (TPrm IXOT [x, y])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], none)),
+        ( 1,
+          ( [UN],
+            TAbs r0
+              . TLetD r BX (TCon Ty.natRef 0 [r0])
+              $ some r
+          )
+        )
+      ]
+
+indexb = binop0 3 $ \[x, y, t, i, r] ->
+  TLetD t UN (TPrm IXOB [x, y])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], none)),
+        ( 1,
+          ( [UN],
+            TAbs i
+              . TLetD r BX (TCon Ty.natRef 0 [i])
+              $ some r
+          )
+        )
+      ]
+
 sizet = unop0 1 $ \[x, r] ->
   TLetD r UN (TPrm SIZT [x]) $
     TCon Ty.natRef 0 [r]
+
 unconst = unop0 7 $ \[x, t, c0, c, y, p, u, yp] ->
   TLetD t UN (TPrm UCNS [x])
     . TMatch t
@@ -561,6 +611,7 @@ unconst = unop0 7 $ \[x, t, c0, c, y, p, u, yp] ->
           )
         )
       ]
+
 unsnoct = unop0 7 $ \[x, t, c0, c, y, p, u, cp] ->
   TLetD t UN (TPrm USNC [x])
     . TMatch t
@@ -670,21 +721,6 @@ takeb = binop0 1 $ \[n0, b, n] ->
 dropb = binop0 1 $ \[n0, b, n] ->
   unbox n0 Ty.natRef n $
     TPrm DRPB [n, b]
-atb = binop0 4 $ \[n0, b, n, t, r0, r] ->
-  unbox n0 Ty.natRef n
-    . TLetD t UN (TPrm IDXB [n, b])
-    . TMatch t
-    . MatchSum
-    $ mapFromList
-      [ (0, ([], none)),
-        ( 1,
-          ( [UN],
-            TAbs r0
-              . TLetD r BX (TCon Ty.natRef 0 [r0])
-              $ some r
-          )
-        )
-      ]
 sizeb = unop0 1 $ \[b, n] ->
   TLetD n UN (TPrm SIZB [b]) $
     TCon Ty.natRef 0 [n]
@@ -1024,6 +1060,26 @@ infixr 0 -->
 
 (-->) :: a -> b -> (a, b)
 x --> y = (x, y)
+
+-- Box an unboxed value
+-- Takes the boxed variable, the unboxed variable, and the type of the value
+box :: (Var v) => v -> v -> Reference -> Term ANormalF v -> Term ANormalF v
+box b u ty = TLetD b BX (TCon ty 0 [u])
+
+time'zone :: ForeignOp
+time'zone instr =
+  ([BX],)
+    . TAbss [bsecs]
+    . unbox bsecs Ty.intRef secs
+    . TLets Direct [offset, summer, name] [UN, UN, BX] (TFOp instr [secs])
+    . box bsummer summer Ty.natRef
+    . box boffset offset Ty.intRef
+    . TLetD un BX (TCon Ty.unitRef 0 [])
+    . TLetD p2 BX (TCon Ty.pairRef 0 [name, un])
+    . TLetD p1 BX (TCon Ty.pairRef 0 [bsummer, p2])
+    $ TCon Ty.pairRef 0 [boffset, p1]
+  where
+    (secs, bsecs, offset, boffset, summer, bsummer, name, un, p2, p1) = fresh
 
 start'process :: ForeignOp
 start'process instr =
@@ -1416,8 +1472,7 @@ outIoFailUnit stack1 stack2 stack3 extra fail result =
     mapFromList
       [ failureCase stack1 stack2 stack3 extra fail,
         ( 1,
-          ([BX],)
-            . TAbss [stack3]
+          ([],)
             . TLetD extra BX (TCon Ty.unitRef 0 [])
             $ right extra
         )
@@ -1999,6 +2054,7 @@ builtinLookup =
         ("Text.++", (Untracked, appendt)),
         ("Text.take", (Untracked, taket)),
         ("Text.drop", (Untracked, dropt)),
+        ("Text.indexOf", (Untracked, indext)),
         ("Text.size", (Untracked, sizet)),
         ("Text.==", (Untracked, eqt)),
         ("Text.!=", (Untracked, neqt)),
@@ -2028,6 +2084,7 @@ builtinLookup =
         ("Bytes.take", (Untracked, takeb)),
         ("Bytes.drop", (Untracked, dropb)),
         ("Bytes.at", (Untracked, atb)),
+        ("Bytes.indexOf", (Untracked, indexb)),
         ("Bytes.size", (Untracked, sizeb)),
         ("Bytes.flatten", (Untracked, flattenb)),
         ("List.take", (Untracked, takes)),
@@ -2232,6 +2289,13 @@ declareForeigns = do
   declareForeign Tracked "Clock.internals.nsec.v1" boxToNat $
     mkForeign (\n -> pure (fromIntegral $ nsec n :: Word64))
 
+  declareForeign Tracked "Clock.internals.systemTimeZone.v1" time'zone $
+    mkForeign
+      ( \secs -> do
+          TimeZone offset summer name <- getTimeZone (posixSecondsToUTCTime (fromIntegral (secs :: Int)))
+          pure (offset :: Int, summer, name)
+      )
+
   let chop = reverse . dropWhile isPathSeparator . reverse
 
   declareForeign Tracked "IO.getTempDirectory.impl.v3" unitToEFBox $
@@ -2321,7 +2385,7 @@ declareForeigns = do
 
   declareForeign Tracked "IO.listen.impl.v3" boxToEF0
     . mkForeignIOF
-    $ \sk -> SYS.listenSock sk 2
+    $ \sk -> SYS.listenSock sk 2048
 
   declareForeign Tracked "IO.clientSocket.impl.v3" boxBoxToEFBox
     . mkForeignIOF
@@ -2586,7 +2650,7 @@ declareForeigns = do
     \(bytes :: Bytes.Bytes) -> pure $ X.readKeyFileFromMemory $ L.toStrict $ Bytes.toLazyByteString bytes
 
   declareForeign Tracked "Tls.encodePrivateKey" boxDirect . mkForeign $
-    \(privateKey :: X.PrivKey) -> pure $ Util.Text.pack $ show privateKey
+    \(privateKey :: X.PrivKey) -> pure $ Util.Text.toUtf8 $ Util.Text.pack $ show privateKey
 
   declareForeign Tracked "Tls.receive.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> do
@@ -2678,6 +2742,9 @@ declareForeigns = do
 
   declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
     pure . asWord64 . hash64 . serializeValueLazy
+
+  declareForeign Tracked "IO.randomBytes" natToBox . mkForeign $
+    \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
 
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
   declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress

@@ -8,21 +8,21 @@ module Unison.Hashing.V2.Term
   )
 where
 
-import qualified Data.Sequence as Sequence
-import qualified Data.Text as Text
-import qualified Data.Zip as Zip
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as B
+import Data.Sequence qualified as Sequence
+import Data.Text qualified as Text
+import Data.Zip qualified as Zip
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as B
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
-import qualified Unison.Hashing.V2.ABT as ABT
+import Unison.Hash qualified as Hash
+import Unison.Hashing.V2.ABT qualified as ABT
 import Unison.Hashing.V2.Pattern (Pattern)
 import Unison.Hashing.V2.Reference (Reference (..), ReferenceId (..), pattern ReferenceDerived)
-import qualified Unison.Hashing.V2.Reference.Util as ReferenceUtil
+import Unison.Hashing.V2.Reference.Util qualified as ReferenceUtil
 import Unison.Hashing.V2.Referent (Referent)
 import Unison.Hashing.V2.Tokenizable (Hashable1, accumulateToken)
-import qualified Unison.Hashing.V2.Tokenizable as Hashable
+import Unison.Hashing.V2.Tokenizable qualified as Hashable
 import Unison.Hashing.V2.Type (Type)
 import Unison.Prelude
 import Unison.Var (Var)
@@ -90,22 +90,22 @@ refId :: (Ord v) => a -> ReferenceId -> Term2 vt at ap v a
 refId a = ref a . ReferenceDerivedId
 
 hashTermComponents ::
-  forall v a.
+  forall v a extra.
   (Var v) =>
-  Map v (Term v a, Type v a) ->
-  Map v (ReferenceId, Term v a, Type v a)
+  Map v (Term v a, Type v a, extra) ->
+  Map v (ReferenceId, Term v a, Type v a, extra)
 hashTermComponents terms =
-  Zip.zipWith keepType terms (ReferenceUtil.hashComponents (refId ()) terms')
+  Zip.zipWith keepExtra terms (ReferenceUtil.hashComponents (refId ()) terms')
   where
     terms' :: Map v (Term v a)
-    terms' = uncurry incorporateType <$> terms
+    terms' = incorporateType <$> terms
 
-    keepType :: ((Term v a, Type v a) -> (ReferenceId, Term v a) -> (ReferenceId, Term v a, Type v a))
-    keepType (_oldTrm, typ) (refId, trm) = (refId, trm, typ)
+    keepExtra :: ((Term v a, Type v a, extra) -> (ReferenceId, Term v a) -> (ReferenceId, Term v a, Type v a, extra))
+    keepExtra (_oldTrm, typ, extra) (refId, trm) = (refId, trm, typ, extra)
 
-    incorporateType :: Term v a -> Type v a -> Term v a
-    incorporateType a@(ABT.out -> ABT.Tm (TermAnn e _tp)) typ = ABT.tm' (ABT.annotation a) (TermAnn e typ)
-    incorporateType e typ = ABT.tm' (ABT.annotation e) (TermAnn e typ)
+    incorporateType :: (Term v a, Type v a, extra) -> Term v a
+    incorporateType (a@(ABT.out -> ABT.Tm (TermAnn e _tp)), typ, _extra) = ABT.tm' (ABT.annotation a) (TermAnn e typ)
+    incorporateType (e, typ, _extra) = ABT.tm' (ABT.annotation e) (TermAnn e typ)
 
 -- keep these until we decide if we want to add the appropriate smart constructors back into this module
 -- incorporateType (Term.Ann' e _) typ = Term.ann () e typ
@@ -163,8 +163,6 @@ instance (Var v) => Hashable1 (TermF v a p) where
                       B.Recorded (B.Resolve _ s) ->
                         [tag 2, Hashable.Text (Text.pack s)]
                   TermRef (ReferenceBuiltin name) -> [tag 2, accumulateToken name]
-                  TermRef ReferenceDerived {} ->
-                    error "handled above, but GHC can't figure this out"
                   TermApp a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
                   TermAnn a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
                   TermList as ->

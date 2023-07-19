@@ -15,72 +15,73 @@ where
 
 import Control.Lens (unsnoc, (^.))
 import Control.Monad.State (evalState)
-import qualified Control.Monad.State as State
+import Control.Monad.State qualified as State
 import Data.Char (isPrint)
 import Data.List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Text (unpack)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Vector ()
-import qualified Text.Show.Unicode as U
+import Text.Show.Unicode qualified as U
 import Unison.ABT (annotation, reannotateUp, pattern AbsN')
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as Blank
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as Blank
 import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
-import qualified Unison.Builtin.Decls as DD
+import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorReference as ConstructorReference
-import qualified Unison.ConstructorType as CT
-import qualified Unison.HashQualified as HQ
+import Unison.ConstructorReference qualified as ConstructorReference
+import Unison.ConstructorType qualified as CT
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
-import qualified Unison.Name as Name
-import qualified Unison.NameSegment as NameSegment
+import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
+import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
 import Unison.PrettyPrintEnv.FQN (Imports, Prefix, Suffix, elideFQN)
 import Unison.PrettyPrintEnv.MonadPretty
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Syntax.HashQualified as HQ (unsafeFromVar)
+import Unison.Referent qualified as Referent
+import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.Lexer (showEscapeChar, symbolyId)
-import qualified Unison.Syntax.Name as Name (toString, toText, unsafeFromText)
+import Unison.Syntax.Name qualified as Name (fromText, toString, toText, unsafeFromText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
-import qualified Unison.Syntax.TypePrinter as TypePrinter
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
-import qualified Unison.Type as Type
-import qualified Unison.Util.Bytes as Bytes
+import Unison.Type qualified as Type
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (foldMapM, intercalateMap, intercalateMapM)
 import Unison.Util.Pretty (ColorText, Pretty, Width)
-import qualified Unison.Util.Pretty as PP
-import qualified Unison.Util.SyntaxText as S
+import Unison.Util.Pretty qualified as PP
+import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type SyntaxText = S.SyntaxText' Reference
 
 pretty :: (Var v) => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty ppe tm =
-  PP.syntaxToColor . runPretty ppe $ pretty0 emptyAc $ printAnnotate ppe tm
+  PP.syntaxToColor . runPretty (avoidShadowing tm ppe) $ pretty0 emptyAc $ printAnnotate ppe tm
 
 prettyBlock :: (Var v) => Bool -> PrettyPrintEnv -> Term v a -> Pretty ColorText
 prettyBlock elideUnit ppe = PP.syntaxToColor . prettyBlock' elideUnit ppe
 
 prettyBlock' :: (Var v) => Bool -> PrettyPrintEnv -> Term v a -> Pretty SyntaxText
 prettyBlock' elideUnit ppe tm =
-  runPretty ppe . pretty0 (emptyBlockAc {elideUnit = elideUnit}) $ printAnnotate ppe tm
+  runPretty (avoidShadowing tm ppe) . pretty0 (emptyBlockAc {elideUnit = elideUnit}) $ printAnnotate ppe tm
 
 pretty' :: (Var v) => Maybe Width -> PrettyPrintEnv -> Term v a -> ColorText
 pretty' (Just width) n t =
-  PP.render width . PP.syntaxToColor . runPretty n $ pretty0 emptyAc (printAnnotate n t)
+  PP.render width . PP.syntaxToColor . runPretty (avoidShadowing t n) $ pretty0 emptyAc (printAnnotate n t)
 pretty' Nothing n t =
-  PP.renderUnbroken . PP.syntaxToColor . runPretty n $ pretty0 emptyAc (printAnnotate n t)
+  PP.renderUnbroken . PP.syntaxToColor . runPretty (avoidShadowing t n) $ pretty0 emptyAc (printAnnotate n t)
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -276,9 +277,11 @@ pretty0
                 ]
             else
               PP.spaced
-                [ fmt S.ControlKeyword "handle" `PP.hang` pb
+                [ fmt S.ControlKeyword "handle"
+                    `PP.hang` pb
                     <> PP.softbreak
-                    <> fmt S.ControlKeyword "with" `PP.hang` ph
+                    <> fmt S.ControlKeyword "with"
+                    `PP.hang` ph
                 ]
         where
           pblock tm =
@@ -440,6 +443,24 @@ pretty0
                 pure $ PP.group (tupleLink "(" <> clist <> tupleLink ")")
               (App' f@(Builtin' "Any.Any") arg, _) ->
                 paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> goNormal 10 arg)
+              (DD.Rewrites' rs, _) -> do
+                let kw = fmt S.ControlKeyword "@rewrite"
+                    arr = fmt S.ControlKeyword "==>"
+                    control = fmt S.ControlKeyword
+                    sub kw lhs = PP.sep " " <$> sequence [pure $ control kw, goNormal 0 lhs, pure arr]
+                    go (DD.RewriteTerm' lhs rhs) = PP.hang <$> sub "term" lhs <*> goNormal 0 rhs
+                    go (DD.RewriteCase' lhs rhs) = PP.hang <$> sub "case" lhs <*> goNormal 0 rhs
+                    go (DD.RewriteSignature' vs lhs rhs) = do
+                      lhs <- TypePrinter.pretty0 im 0 lhs
+                      PP.hang (PP.sep " " (stuff lhs)) <$> TypePrinter.pretty0 im 0 rhs
+                      where
+                        stuff lhs =
+                          [control "signature"]
+                            <> [fmt S.Var (PP.text (Var.name v)) | v <- vs]
+                            <> (if null vs then [] else [fmt S.TypeOperator "."])
+                            <> [lhs, arr]
+                    go tm = goNormal 10 tm
+                PP.hang kw <$> fmap PP.lines (traverse go rs)
               (Apps' f@(Constructor' _) args, _) ->
                 paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> PP.spacedTraverse (goNormal 10) args)
               {-
@@ -874,7 +895,8 @@ prettyBinding_ ::
   HQ.HashQualified Name ->
   Term2 v at ap v a ->
   Pretty SyntaxText
-prettyBinding_ go ppe n = runPretty ppe . fmap go . prettyBinding0 (ac (-1) Block Map.empty MaybeDoc) n
+prettyBinding_ go ppe n tm =
+  runPretty (avoidShadowing tm ppe) . fmap go $ prettyBinding0 (ac (-1) Block Map.empty MaybeDoc) n tm
 
 prettyBinding' ::
   (Var v) =>
@@ -2034,3 +2056,45 @@ nameEndsWith ppe suffix r = case PrettyPrintEnv.termName ppe (Referent.Ref r) of
     let tn = Name.toText n
      in tn == Text.drop 1 suffix || Text.isSuffixOf suffix tn
   _ -> False
+
+-- Modifies a PrettyPrintEnv to avoid picking a name for a term or type ref
+-- which is the same as a locally introduced variable. For example:
+--
+--   qux.quaffle = 23
+--
+--   example : Text -> Nat
+--   example quaffle = qux.quaffle + 1
+--
+-- Here, we want the pretty-printer to use the name 'qux.quaffle' even though
+-- 'quaffle' would otherwise be a unique suffix.
+--
+-- Algorithm is the following:
+--   1. Form the set of all local variables used anywhere in the term
+--   2. When picking a name for a term, see if it is contained in this set.
+--      If yes, use the qualified name for the term (which PPE conveniently provides)
+--      If no, use the suffixed name for the term
+--
+-- The algorithm does the same for type references in signatures.
+--
+-- This algorithm is conservative in the sense that it doesn't take into account
+-- the binding structure of the term. If the variable 'quaffle' is used as a local
+-- variable anywhere in the term, then 'quaffle' will not be considered a unique suffix
+-- even in places where the local 'quaffle' isn't in scope.
+--
+-- To do better this, you'd have to track bound variables in the pretty-printer and
+-- fold this logic into the core pretty-printing implementation. This conservative
+-- algorithm has the advantage of being purely a preprocessing step.
+avoidShadowing :: (Var v, Var vt) => Term2 vt at ap v a -> PrettyPrintEnv -> PrettyPrintEnv
+avoidShadowing tm (PrettyPrintEnv terms types) =
+  PrettyPrintEnv terms' types'
+  where
+    terms' r = tweak usedTermNames <$> terms r
+    types' r = tweak usedTypeNames <$> types r
+    usedTermNames =
+      Set.fromList [n | v <- ABT.allVars tm, n <- varToName v]
+    usedTypeNames =
+      Set.fromList [n | Ann' _ ty <- ABT.subterms tm, v <- ABT.allVars ty, n <- varToName v]
+    tweak used (fullName, HQ'.NameOnly suffixedName)
+      | Set.member suffixedName used = (fullName, fullName)
+    tweak _ p = p
+    varToName v = toList (Name.fromText (Var.name v))

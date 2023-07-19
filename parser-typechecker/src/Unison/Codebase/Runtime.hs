@@ -3,26 +3,26 @@
 
 module Unison.Codebase.Runtime where
 
-import qualified Data.Map as Map
-import qualified Unison.ABT as ABT
+import Data.Map qualified as Map
+import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (tupleTerm, pattern TupleTerm')
-import qualified Unison.Codebase.CodeLookup as CL
-import qualified Unison.Codebase.CodeLookup.Util as CL
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Codebase.CodeLookup qualified as CL
+import Unison.Codebase.CodeLookup.Util qualified as CL
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Term as Term
+import Unison.Reference qualified as Reference
+import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile (TypecheckedUnisonFile)
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.Pretty as P
+import Unison.UnisonFile qualified as UF
+import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
 type Error = P.Pretty P.ColorText
 
@@ -80,12 +80,12 @@ evaluateWatches ::
 evaluateWatches code ppe evaluationCache rt tuf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference.Id, Term.Term v a)
-      m = fmap (\(id, _wk, tm, _tp) -> (id, tm)) (UF.hashTermsId tuf)
+      m = fmap (\(_a, id, _wk, tm, _tp) -> (id, tm)) (UF.hashTermsId tuf)
       watches :: Set v = Map.keysSet watchKinds
       watchKinds :: Map v WatchKind
       watchKinds =
         Map.fromList
-          [(v, k) | (k, ws) <- UF.watchComponents tuf, (v, _tm, _tp) <- ws]
+          [(v, k) | (k, ws) <- UF.watchComponents tuf, (v, _a, _tm, _tp) <- ws]
       unann = Term.amap (const ())
   -- 2. use the cache to lookup things already computed
   m' <- fmap Map.fromList . for (Map.toList m) $ \(v, (r, t)) -> do
@@ -96,8 +96,8 @@ evaluateWatches code ppe evaluationCache rt tuf = do
   -- 3. create a big ol' let rec whose body is a big tuple of all watches
   let rv :: Map Reference.Id v
       rv = Map.fromList [(r, v) | (v, (r, _)) <- Map.toList m]
-      bindings :: [(v, Term v)]
-      bindings = [(v, unref rv b) | (v, (_, _, b, _)) <- Map.toList m']
+      bindings :: [(v, (), Term v)]
+      bindings = [(v, (), unref rv b) | (v, (_, _, b, _)) <- Map.toList m']
       watchVars = [Term.var () v | v <- toList watches]
       bigOl'LetRec = Term.letRec' True bindings (tupleTerm watchVars)
       cl = void (CL.fromTypecheckedUnisonFile tuf) <> void code
@@ -153,7 +153,7 @@ evaluateTerm' codeLookup cache ppe rt tm = do
               mempty
               mempty
               mempty
-              [(WK.RegularWatch, [(Var.nameds "result", tm, mempty <$> mainType rt)])]
+              [(WK.RegularWatch, [(Var.nameds "result", mempty, tm, mempty <$> mainType rt)])]
       r <- evaluateWatches (void codeLookup) ppe cache rt (void tuf)
       pure $
         r <&> \(_, map) ->

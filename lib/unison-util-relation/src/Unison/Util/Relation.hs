@@ -106,18 +106,18 @@ module Unison.Util.Relation
 where
 
 import Control.DeepSeq
-import qualified Control.Monad as Monad
+import Control.Monad qualified as Monad
 import Data.Function (on)
-import qualified Data.List as List
-import qualified Data.Map as M
-import qualified Data.Map as Map
-import qualified Data.Map.Internal as Map
+import Data.List qualified as List
+import Data.Map qualified as M
+import Data.Map qualified as Map
+import Data.Map.Internal qualified as Map
 import Data.Ord (comparing)
-import qualified Data.Set as S
-import qualified Data.Set as Set
-import Unison.Prelude hiding (empty, toList)
-import qualified Unison.Util.Map as Map
-import qualified Unison.Util.Set as Set
+import Data.Set qualified as S
+import Data.Set qualified as Set
+import Unison.Prelude hiding (bimap, empty, toList)
+import Unison.Util.Map qualified as Map
+import Unison.Util.Set qualified as Set
 import Prelude hiding (filter, map, null)
 
 -- |

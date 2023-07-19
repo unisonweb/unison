@@ -21,10 +21,10 @@ import Data.Map.Strict
     insertWith,
     toList,
   )
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes, listToMaybe)
 import Data.Set (Set, member)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Word (Word64)
 import Unison.ABT
   ( absChain',
@@ -34,15 +34,15 @@ import Unison.ABT
   )
 import Unison.Builtin.Decls (builtinDataDecls, builtinEffectDecls)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorReference as ConstructorReference
+import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.DataDeclaration (declFields)
 import Unison.Pattern
-import qualified Unison.Pattern as P
+import Unison.Pattern qualified as P
 import Unison.Reference (Reference (..))
 import Unison.Runtime.ANF (internalBug)
 import Unison.Term hiding (Term, matchPattern)
-import qualified Unison.Term as Tm
-import qualified Unison.Type as Rf
+import Unison.Term qualified as Tm
+import Unison.Type qualified as Rf
 import Unison.Var (Type (Pattern), Var, freshIn, freshenId, typed)
 
 type Term v = Tm.Term v ()
