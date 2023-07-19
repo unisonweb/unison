@@ -268,12 +268,13 @@ pretty0
       Handle' h body -> do
         pb <- pretty0 (ac 0 Block im doc) body
         ph <- pretty0 (ac 0 Block im doc) h
+        let hangHandler = if isSoftHangable h then PP.softHang else PP.hang 
         pure . paren (p >= 2) $
           if PP.isMultiLine pb || PP.isMultiLine ph
             then
               PP.lines
                 [ fmt S.ControlKeyword "handle" `PP.hang` pb,
-                  fmt S.ControlKeyword "with" `PP.hang` ph
+                  fmt S.ControlKeyword "with" `hangHandler` ph
                 ]
             else
               PP.spaced
@@ -281,7 +282,7 @@ pretty0
                     `PP.hang` pb
                     <> PP.softbreak
                     <> fmt S.ControlKeyword "with"
-                    `PP.hang` ph
+                    `hangHandler` ph
                 ]
       App' x (Constructor' (ConstructorReference DD.UnitRef 0)) -> do
         px <- pretty0 (ac (if isBlock x then 0 else 10) Normal im doc) x
@@ -469,7 +470,7 @@ pretty0
                     y = thing2
                     ...)
               -}
-              (Apps' f (unsnoc -> Just (args, lastArg@(Delay' (Lets' _ _)))), _) -> do
+              (Apps' f (unsnoc -> Just (args, lastArg)), _) | isSoftHangable lastArg -> do
                 fun <- goNormal 9 f
                 args' <- traverse (goNormal 10) args
                 lastArg' <- goNormal 0 lastArg
@@ -1507,6 +1508,12 @@ immediateChildBlockTerms = \case
     --    1 + 1
     doLet (v, LamsNamedOpt' _ body) = [body | not (Var.isAction v), isLet body]
     doLet t = error (show t) []
+
+isSoftHangable :: Var v => Term2 vt at ap v a -> Bool
+isSoftHangable (Delay' l) = isLet l
+isSoftHangable (LamsNamedMatch' [] _) = True
+isSoftHangable (Match' {}) = True
+isSoftHangable _ = False
 
 isLet :: Term2 vt at ap v a -> Bool
 isLet (Let1Named' {}) = True
