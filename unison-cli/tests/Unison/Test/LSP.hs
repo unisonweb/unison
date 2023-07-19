@@ -330,7 +330,7 @@ typecheckSrc name src = do
     let ambientAbilities = []
     let parseNames = mempty
     let lexedSource = (src, L.lexer name (Text.unpack src))
-    r <- Typecheck.typecheckHelper codebase generateUniqueName ambientAbilities parseNames (Text.pack name) lexedSource
+    r <- Typecheck.typecheck codebase generateUniqueName ambientAbilities parseNames (Text.pack name) lexedSource
     let Result.Result notes mayResult = r
     let (parsedFile, typecheckedFile) = case mayResult of
           Nothing -> (Nothing, Nothing)
