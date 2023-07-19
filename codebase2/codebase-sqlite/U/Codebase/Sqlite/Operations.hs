@@ -235,7 +235,8 @@ loadRootCausalHash =
   runMaybeT $
     lift . Q.expectCausalHash =<< MaybeT Q.loadNamespaceRoot
 
--- | Load the causal hash at the given path from the root.
+-- | Load the causal hash at the given path from the provided root, if Nothing, use the
+-- codebase root.
 loadCausalHashAtPath :: Maybe CausalHash -> Q.TextPathSegments -> Transaction (Maybe CausalHash)
 loadCausalHashAtPath mayRootCausalHash =
   let go :: Db.CausalHashId -> [Text] -> MaybeT Transaction CausalHash
@@ -252,7 +253,8 @@ loadCausalHashAtPath mayRootCausalHash =
           Just rootCH -> Q.expectCausalHashIdByCausalHash rootCH
         runMaybeT (go hashId path)
 
--- | Expect the causal hash at the given path from the root.
+-- | Expect the causal hash at the given path from the provided root, if Nothing, use the
+-- codebase root.
 expectCausalHashAtPath :: Maybe CausalHash -> Q.TextPathSegments -> Transaction CausalHash
 expectCausalHashAtPath mayRootCausalHash =
   let go :: Db.CausalHashId -> [Text] -> Transaction CausalHash
