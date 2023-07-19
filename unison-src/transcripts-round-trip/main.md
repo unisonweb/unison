@@ -705,7 +705,7 @@ ex3a =
 .> undo
 ```
 
-# Use soft hangs after `with` and in last argument of function application
+# Use soft hangs after `with` and `=` and in last argument of function application
 
 ```unison:hide roundtrip.u
 structural ability Abort where
@@ -739,6 +739,23 @@ ex4 = do match 0 with
   0 -> 0
   1 -> 1
   n -> n
+
+ex5 = match Nat.increment 1 with
+  2 -> "yay"
+  n -> "oh no"
+
+ex6 = List.foreach [1,2,3,4] cases
+  0 -> 1
+  n -> n + 1
+
+forkAt loc c = 
+  x = 99
+  ()
+
+ex7 somewhere = forkAt somewhere do
+  x = 1
+  y = 2 
+  x + y
 ```
 
 ```ucm:hide
@@ -746,7 +763,7 @@ ex4 = do match 0 with
 ```
 
 ```ucm
-.> edit ex1 ex2 ex3 ex4
+.> edit ex1 ex2 ex3 ex4 ex5 ex6 ex7
 .> load roundtrip.u
 ```
 

@@ -559,7 +559,7 @@ pretty0
           printBinding (v, binding) =
             if Var.isAction v
               then pretty0 (ac (-1) Normal im doc) binding
-              else renderPrettyBinding <$> prettyBinding0 (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
+              else renderPrettyBinding <$> prettyBinding0' (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
           letIntro = case sc of
             Block -> id
             Normal -> \x -> fmt S.ControlKeyword "let" `PP.hang` x
@@ -900,7 +900,17 @@ prettyBinding0 ::
   HQ.HashQualified Name ->
   Term2 v at ap v a ->
   m PrettyBinding
-prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
+prettyBinding0 ac v tm = do
+  ppe <- getPPE
+  prettyBinding0' ac v (printAnnotate ppe tm)
+
+prettyBinding0' ::
+  (MonadPretty v m) =>
+  AmbientContext ->
+  HQ.HashQualified Name ->
+  Term3 v PrintAnnotation ->
+  m PrettyBinding
+prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
   go (symbolic && isBinary term) term
   where
     go infix' binding = do
@@ -917,7 +927,7 @@ prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
                 ForallsNamed' vs _ -> addTypeVars vs
                 _ -> id
           tp' <- TypePrinter.pretty0 im (-1) tp
-          tm' <- avoidCapture (prettyBinding0 a v tm)
+          tm' <- avoidCapture (prettyBinding0' a v tm)
           pure
             PrettyBinding
               { typeSignature = Just (PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") tp')),
@@ -941,20 +951,15 @@ prettyBinding0 a@AmbientContext {imports = im, docContext = doc} v term =
                       `PP.hang` branches'
               }
         LamsNamedOrDelay' vs body -> do
-          -- In the case where we're being called from inside `pretty0`, this
-          -- call to printAnnotate is unfortunately repeating work we've already
-          -- done.
-          body' <- applyPPE2 printAnnotate body
-          prettyBody <- pretty0 (ac (-1) Block im doc) body'
+          prettyBody <- pretty0 (ac (-1) Block im doc) body
           -- Special case for 'let being on the same line
-          let hang = if isSoftHangable body' then PP.softHang else PP.hang
+          let hang = if isSoftHangable body then PP.softHang else PP.hang
           pure
             PrettyBinding
               { typeSignature = Nothing,
                 term =
                   PP.group $
-                    PP.group (defnLhs v vs <> fmt S.BindingEquals " =")
-                      `hang` prettyBody
+                    PP.group (defnLhs v vs <> fmt S.BindingEquals " =") `hang` prettyBody
               }
         t -> error ("prettyBinding0: unexpected term: " ++ show t)
       where

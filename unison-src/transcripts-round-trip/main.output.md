@@ -1950,7 +1950,7 @@ ex3a =
   file has been previously added to the codebase.
 
 ```
-# Use soft hangs after `with` and in last argument of function application
+# Use soft hangs after `with` and `=` and in last argument of function application
 
 ```unison
 ---
@@ -1988,11 +1988,28 @@ ex4 = do match 0 with
   1 -> 1
   n -> n
 
+ex5 = match Nat.increment 1 with
+  2 -> "yay"
+  n -> "oh no"
+
+ex6 = List.foreach [1,2,3,4] cases
+  0 -> 1
+  n -> n + 1
+
+forkAt loc c = 
+  x = 99
+  ()
+
+ex7 somewhere = forkAt somewhere do
+  x = 1
+  y = 2 
+  x + y
+
 ```
 
 
 ```ucm
-.> edit ex1 ex2 ex3 ex4
+.> edit ex1 ex2 ex3 ex4 ex5 ex6 ex7
 
   ☝️
   
@@ -2030,6 +2047,25 @@ ex4 = do match 0 with
       0 -> 0
       1 -> 1
       n -> n
+    
+    ex5 : Text
+    ex5 = match Nat.increment 1 with
+      2 -> "yay"
+      n -> "oh no"
+    
+    ex6 : Nat
+    ex6 =
+      foreach [1, 2, 3, 4] cases
+        0 -> 1
+        n -> n Nat.+ 1
+    
+    ex7 : somewhere -> ()
+    ex7 somewhere =
+      forkAt somewhere do
+        use Nat +
+        x = 1
+        y = 2
+        x + y
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -2040,13 +2076,15 @@ ex4 = do match 0 with
   you do an `add` or `update`, here's how your codebase would
   change:
   
-    ⊡ Previously added definitions will be ignored: ex1 ex2
+    ⊡ Previously added definitions will be ignored: ex1 ex2 ex5
+      ex6
     
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
       ex3 : 'Nat
       ex4 : 'Nat
+      ex7 : somewhere -> ()
 
 ```
 # Make sure use clauses don't show up before a soft hang 
