@@ -241,6 +241,8 @@ analyseFile fileUri srcText notes = do
   (noteDiags, noteActions) <- analyseNotes fileUri pped (Text.unpack srcText) notes
   pure (noteDiags, noteActions)
 
+-- | Returns diagnostics which show a warning diagnostic when editing a term that's conflicted in the
+-- codebase.
 computeConflictWarningDiagnostics :: Uri -> FileSummary -> Lsp [Diagnostic]
 computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = do
   let defLocations = fileDefLocations fileSummary
