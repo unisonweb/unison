@@ -236,8 +236,8 @@ loadRootCausalHash =
     lift . Q.expectCausalHash =<< MaybeT Q.loadNamespaceRoot
 
 -- | Load the causal hash at the given path from the root.
-loadCausalHashAtPath :: Q.TextPathSegments -> Transaction (Maybe CausalHash)
-loadCausalHashAtPath =
+loadCausalHashAtPath :: Maybe CausalHash -> Q.TextPathSegments -> Transaction (Maybe CausalHash)
+loadCausalHashAtPath mayRootCausalHash =
   let go :: Db.CausalHashId -> [Text] -> MaybeT Transaction CausalHash
       go hashId = \case
         [] -> lift (Q.expectCausalHash hashId)
@@ -247,12 +247,14 @@ loadCausalHashAtPath =
           (_, hashId') <- MaybeT (pure (Map.lookup tid children))
           go hashId' ts
    in \path -> do
-        hashId <- Q.expectNamespaceRoot
+        hashId <- case mayRootCausalHash of
+          Nothing -> Q.expectNamespaceRoot
+          Just rootCH -> Q.expectCausalHashIdByCausalHash rootCH
         runMaybeT (go hashId path)
 
 -- | Expect the causal hash at the given path from the root.
-expectCausalHashAtPath :: Q.TextPathSegments -> Transaction CausalHash
-expectCausalHashAtPath =
+expectCausalHashAtPath :: Maybe CausalHash -> Q.TextPathSegments -> Transaction CausalHash
+expectCausalHashAtPath mayRootCausalHash =
   let go :: Db.CausalHashId -> [Text] -> Transaction CausalHash
       go hashId = \case
         [] -> Q.expectCausalHash hashId
@@ -262,7 +264,9 @@ expectCausalHashAtPath =
           let (_, hashId') = children Map.! tid
           go hashId' ts
    in \path -> do
-        hashId <- Q.expectNamespaceRoot
+        hashId <- case mayRootCausalHash of
+          Nothing -> Q.expectNamespaceRoot
+          Just rootCH -> Q.expectCausalHashIdByCausalHash rootCH
         go hashId path
 
 -- * Reference transformations
