@@ -2049,3 +2049,47 @@ ex4 = do match 0 with
       ex4 : 'Nat
 
 ```
+# Make sure use clauses don't show up before a soft hang 
+
+Regression test for https://github.com/unisonweb/unison/issues/3883
+
+```unison
+---
+title: roundtrip.u
+---
+unique type UUID = UUID Nat Nat
+
+UUID.random : 'UUID
+UUID.random = do UUID 0 0 
+
+UUID.randomUUIDBytes : 'Bytes
+UUID.randomUUIDBytes = do
+  (UUID a b) = !UUID.random
+  (encodeNat64be a) ++ (encodeNat64be b)
+
+```
+
+
+```ucm
+.> edit UUID.randomUUIDBytes 
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/pchiusano/unison/roundtrip.u
+  
+    UUID.randomUUIDBytes : 'Bytes
+    UUID.randomUUIDBytes = do
+      use Bytes ++
+      (UUID a b) = !random
+      encodeNat64be a ++ encodeNat64be b
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> load roundtrip.u
+
+  I found and typechecked the definitions in roundtrip.u. This
+  file has been previously added to the codebase.
+
+```

@@ -753,3 +753,33 @@ ex4 = do match 0 with
 ```ucm:hide
 .> undo
 ```
+
+# Make sure use clauses don't show up before a soft hang 
+
+Regression test for https://github.com/unisonweb/unison/issues/3883
+
+```unison:hide roundtrip.u
+unique type UUID = UUID Nat Nat
+
+UUID.random : 'UUID
+UUID.random = do UUID 0 0 
+
+UUID.randomUUIDBytes : 'Bytes
+UUID.randomUUIDBytes = do
+  (UUID a b) = !UUID.random
+  (encodeNat64be a) ++ (encodeNat64be b)
+```
+
+```ucm:hide
+.> add
+```
+
+```ucm
+.> edit UUID.randomUUIDBytes 
+.> load roundtrip.u
+```
+
+```ucm:hide
+.> undo
+```
+
