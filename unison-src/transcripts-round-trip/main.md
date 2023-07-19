@@ -704,3 +704,38 @@ ex3a =
 ```ucm:hide
 .> undo
 ```
+
+# Use soft hangs after `with` and in last argument of function application
+
+```unison:hide roundtrip.u
+structural ability Abort where
+  abort : x
+
+ex1 = handle
+  x = 1
+  y = abort
+  x + y
+  with cases
+    { a } -> a
+    { Abort.abort -> _ } -> 0
+
+List.foreach x f = 0 
+
+ex2 = List.foreach [0,1,2,3,4,5] cases
+  0 -> 0
+  1 -> 1
+  n -> n + 100
+```
+
+```ucm:hide
+.> add
+```
+
+```ucm
+.> edit ex1 ex2
+.> load roundtrip.u
+```
+
+```ucm:hide
+.> undo
+```

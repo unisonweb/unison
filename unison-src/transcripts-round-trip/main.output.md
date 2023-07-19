@@ -536,8 +536,8 @@ x = '(let
     
     handler : a -> Request {Abort} a -> a
     handler default = cases
-      { a }        -> a
-      {abort -> _} -> default
+      { a }          -> a
+      { abort -> _ } -> default
     
     x : 'Optional Nat
     x =
@@ -1277,9 +1277,9 @@ bar3 x = do
     bar2 x = do
       a = 1
       b = 2
-      1 + (foo a do
+      1 + (foo a (do
         c = 3
-        a + b)
+        a + b))
     
     bar3 : x -> () -> b -> Nat
     bar3 x = do
@@ -1939,6 +1939,68 @@ ex3a =
       use Nat +
       a = '(qux3 + qux3)
       ()
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> load roundtrip.u
+
+  I found and typechecked the definitions in roundtrip.u. This
+  file has been previously added to the codebase.
+
+```
+# Use soft hangs after `with` and in last argument of function application
+
+```unison
+---
+title: roundtrip.u
+---
+structural ability Abort where
+  abort : x
+
+ex1 = handle
+  x = 1
+  y = abort
+  x + y
+  with cases
+    { a } -> a
+    { Abort.abort -> _ } -> 0
+
+List.foreach x f = 0 
+
+ex2 = List.foreach [0,1,2,3,4,5] cases
+  0 -> 0
+  1 -> 1
+  n -> n + 100
+
+```
+
+
+```ucm
+.> edit ex1 ex2
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/pchiusano/unison/roundtrip.u
+  
+    ex1 : Nat
+    ex1 =
+      handle
+        use Nat +
+        x = 1
+        y = abort
+        x + y
+      with cases
+        { a }          -> a
+        { abort -> _ } -> 0
+    
+    ex2 : Nat
+    ex2 =
+      foreach [0, 1, 2, 3, 4, 5] cases
+        0 -> 0
+        1 -> 1
+        n -> n Nat.+ 100
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
