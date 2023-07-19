@@ -238,7 +238,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
   _ <- ensureAuthenticatedWithCodeserver codeserver
 
   localCausalHash <-
-    Cli.runTransaction (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))) & onNothingM do
+    Cli.runTransaction (Ops.loadCausalHashAtPath Nothing (pathToSegments (Path.unabsolute localPath))) & onNothingM do
       Cli.returnEarly (EmptyLooseCodePush (Path.absoluteToPath' localPath))
 
   let checkAndSetPush :: Maybe Hash32 -> Cli (Maybe Int)
@@ -802,7 +802,7 @@ expectProjectAndBranch (ProjectAndBranch projectId branchId) =
 -- Get the causal hash to push at the given path. Return Nothing if there's no history.
 loadCausalHashToPush :: Path.Absolute -> Sqlite.Transaction (Maybe Hash32)
 loadCausalHashToPush path =
-  Operations.loadCausalHashAtPath segments <&> \case
+  Operations.loadCausalHashAtPath Nothing segments <&> \case
     Nothing -> Nothing
     Just (CausalHash hash) -> Just (Hash32.fromHash hash)
   where
