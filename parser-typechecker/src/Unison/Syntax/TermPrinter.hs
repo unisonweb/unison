@@ -442,7 +442,7 @@ pretty0
                 let clist = PP.sep comma pelems
                 let tupleLink p = fmt (S.TypeReference DD.unitRef) p
                 let open = tupleLink "(" `PP.orElse` tupleLink "( "
-                let close = tupleLink ")" `PP.orElse` tupleLink " )"
+                let close = tupleLink ")" `PP.orElse` ("\n" <> tupleLink ")")
                 pure $ PP.group (open <> clist <> close)
               (App' f@(Builtin' "Any.Any") arg, _) ->
                 paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> goNormal 10 arg)

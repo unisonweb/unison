@@ -2194,7 +2194,8 @@ test2 =
     test2 =
       ( "adsf"
       , '(toUtf8
-            "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf") )
+            "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf")
+      )
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
