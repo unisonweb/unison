@@ -1050,7 +1050,7 @@ binding = label "binding" do
   let infixLhs = do
         (arg1, op) <-
           P.try $
-            (,) <$> prefixDefinitionName <*> infixDefinitionName
+            (,) <$> prefixDefinitionName <*> symbolyDefinitionName
         arg2 <- prefixDefinitionName
         pure (ann arg1, op, [arg1, arg2])
   let prefixLhs = do
