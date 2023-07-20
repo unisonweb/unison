@@ -459,6 +459,15 @@ pretty0
                 PP.hang kw <$> fmap PP.lines (traverse go rs)
               (Apps' f@(Constructor' _) args, _) ->
                 paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> PP.spacedTraverse (goNormal 10) args)
+              (Bytes' bs, _) ->
+                pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
+              BinaryAppsPred' apps lastArg -> do
+                prettyLast <- pretty0 (ac 3 Normal im doc) lastArg
+                prettyApps <- binaryApps apps prettyLast
+                pure $ paren (p >= 3) prettyApps
+              -- Note that && and || are at the same precedence, which can cause
+              -- confusion, so for clarity we do not want to elide the parentheses in a
+              -- case like `(x || y) && z`.
               {-
               When a delayed computation block is passed to a function as the last argument
               in a context where the ambient precedence is low enough, we can elide parentheses
@@ -486,15 +495,6 @@ pretty0
                 let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
                 pure . paren (p >= 3) $
                   PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
-              (Bytes' bs, _) ->
-                pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
-              BinaryAppsPred' apps lastArg -> do
-                prettyLast <- pretty0 (ac 3 Normal im doc) lastArg
-                prettyApps <- binaryApps apps prettyLast
-                pure $ paren (p >= 3) prettyApps
-              -- Note that && and || are at the same precedence, which can cause
-              -- confusion, so for clarity we do not want to elide the parentheses in a
-              -- case like `(x || y) && z`.
               (Ands' xs lastArg, _) ->
                 -- Old code, without monadic booleanOps:
                 -- paren (p >= 10)
