@@ -1,4 +1,4 @@
-<!-- it might be nice to have a gentle and concise introduction into why Unison does anything with Nix and what cachix is. -->
+(Todo: it might be nice to have a gentle and concise introduction into why Unison does anything with Nix and what cachix is.)
 
 We can push any nix store path into our cachix cache. This is typically done with `cachix push unison <STORE_PATH>`.
 
