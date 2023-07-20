@@ -477,7 +477,7 @@ pretty0
                 args' <- traverse (goNormal 10) args
                 lastArg' <- goNormal 0 lastArg
                 let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
-                pure . paren (p >= 3) $ 
+                pure . paren (p >= 3) $
                   PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
               (Bytes' bs, _) ->
                 pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
