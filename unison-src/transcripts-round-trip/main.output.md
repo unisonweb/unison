@@ -2167,11 +2167,16 @@ thunk x = do x
 test = do 
   blah !(thunk "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
 
+test2 =
+  ("adsf",
+    '(Text.toUtf8
+       "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf"))
+
 ```
 
 
 ```ucm
-.> edit test 
+.> edit test test2
 
   ☝️
   
@@ -2184,6 +2189,12 @@ test = do
         blah
           !(thunk
              "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
+    
+    test2 : (Text, '{g} Bytes)
+    test2 =
+      ( "adsf"
+      , '(toUtf8
+            "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf") )
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -2197,6 +2208,7 @@ test = do
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      test : 'Text
+      test  : 'Text
+      test2 : (Text, '{g} Bytes)
 
 ```

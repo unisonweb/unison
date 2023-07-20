@@ -814,6 +814,11 @@ blah x =
 thunk x = do x
 test = do 
   blah !(thunk "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
+
+test2 =
+  ("adsf",
+    '(Text.toUtf8
+       "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf"))
 ```
 
 ```ucm:hide
@@ -821,7 +826,7 @@ test = do
 ```
 
 ```ucm
-.> edit test 
+.> edit test test2
 .> load roundtrip.u
 ```
 

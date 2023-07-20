@@ -437,9 +437,13 @@ pretty0
                   pair
                     `PP.hang` PP.spaced [x', fmt (S.TermReference DD.unitCtorRef) "()"]
               (TupleTerm' xs, _) -> do
-                clist <- commaList xs
+                let comma = fmt S.DelimiterChar (l ", ") `PP.orElse` "\n, "
+                pelems <- traverse (fmap (PP.indentNAfterNewline 2) . goNormal 0) xs
+                let clist = PP.sep comma pelems
                 let tupleLink p = fmt (S.TypeReference DD.unitRef) p
-                pure $ PP.group (tupleLink "(" <> clist <> tupleLink ")")
+                let open = tupleLink "(" `PP.orElse` tupleLink "( "
+                let close = tupleLink ")" `PP.orElse` tupleLink " )"
+                pure $ PP.group (open <> clist <> close)
               (App' f@(Builtin' "Any.Any") arg, _) ->
                 paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> goNormal 10 arg)
               (DD.Rewrites' rs, _) -> do
@@ -548,10 +552,8 @@ pretty0
 
       isDelay (Delay' _) = True
       isDelay _ = False
-      sepList = sepList' (pretty0 (ac 0 Normal im doc))
       sepList' f sep xs = fold . intersperse sep <$> traverse f xs
       varList = runIdentity . sepList' (Identity . PP.text . Var.name) PP.softbreak
-      commaList = sepList (fmt S.DelimiterChar (l ",") <> PP.softbreak)
 
       printLet ::
         Bool -> -- elideUnit
