@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -76,8 +76,8 @@ library
       Unison.Codebase.Editor.TodoOutput
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
-      Unison.Codebase.Editor.VersionParser
       Unison.Codebase.TranscriptParser
+      Unison.Codebase.Watch
       Unison.CommandLine
       Unison.CommandLine.Completion
       Unison.CommandLine.DisplayValues
@@ -89,9 +89,12 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Types
       Unison.CommandLine.Welcome
+      Unison.JitInfo
       Unison.LSP
       Unison.LSP.CancelRequest
       Unison.LSP.CodeAction
+      Unison.LSP.CodeLens
+      Unison.LSP.Commands
       Unison.LSP.Completion
       Unison.LSP.Configuration
       Unison.LSP.Conversions
@@ -168,6 +171,7 @@ library
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -302,6 +306,7 @@ executable cli-integration-tests
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -430,6 +435,7 @@ executable transcripts
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -461,6 +467,7 @@ executable transcripts
     , servant
     , servant-client
     , shellmet
+    , silently
     , stm
     , text
     , text-builder
@@ -563,6 +570,7 @@ executable unison
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -643,7 +651,6 @@ test-suite cli-tests
       Unison.Test.LSP
       Unison.Test.Ucm
       Unison.Test.UriParser
-      Unison.Test.VersionParser
   hs-source-dirs:
       tests
   default-extensions:
@@ -704,6 +711,7 @@ test-suite cli-tests
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline

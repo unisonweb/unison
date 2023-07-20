@@ -79,7 +79,7 @@ If you `view` or `edit` it, it _should_ be treated as a record type, but it does
 .> view RecordWithUserType
 
   unique type RecordWithUserType
-    = RecordWithUserType Text Record4 UserType
+    = { a : Text, b : Record4, c : UserType }
 
 ```
 ## Syntax

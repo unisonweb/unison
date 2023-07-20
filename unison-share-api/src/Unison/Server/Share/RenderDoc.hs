@@ -11,55 +11,52 @@
 module Unison.Server.Share.RenderDoc where
 
 import Control.Monad.Except
+import Data.Set qualified as Set
 import Servant.OpenApi ()
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.NameLookups (PathSegments (..))
+import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt
-import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import Unison.NameSegment (NameSegment)
+import Unison.LabeledDependency qualified as LD
+import Unison.NameSegment (NameSegment (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl.Sqlite qualified as PPESqlite
 import Unison.Server.Backend
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Doc (Doc)
-import Unison.Server.Types
-  ( mayDefaultWidth,
-  )
+import Unison.Server.Doc qualified as Doc
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 
-renderDoc ::
+-- | Find, eval, and render the first doc we find with any of the provided names within the given namespace
+-- If no doc is found, return Nothing
+--
+-- Requires Name Lookups, currently only usable on Share.
+findAndRenderDoc ::
   Set NameSegment ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Path.Path ->
-  Maybe (Either ShortCausalHash CausalHash) ->
+  CausalHash ->
   Maybe Width ->
   Backend IO (Maybe Doc)
-renderDoc docNames runtime codebase namespacePath mayRoot mayWidth =
-  let width = mayDefaultWidth mayWidth
-   in do
-        (rootCausal, shallowBranch) <-
-          Backend.hoistBackend (Codebase.runTransaction codebase) do
-            rootCausalHash <-
-              case mayRoot of
-                Nothing -> Backend.resolveRootBranchHashV2 Nothing
-                Just (Left sch) -> Backend.resolveRootBranchHashV2 (Just sch)
-                Just (Right ch) -> lift $ Backend.resolveCausalHashV2 (Just ch)
-            -- lift (Backend.resolveCausalHashV2 rootCausalHash)
-            namespaceCausal <- lift $ Codebase.getShallowCausalAtPath namespacePath (Just rootCausalHash)
-            shallowBranch <- lift $ V2Causal.value namespaceCausal
-            pure (rootCausalHash, shallowBranch)
-        (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) namespacePath
-        renderedDoc <-
-          Backend.findDocInBranchAndRender
-            docNames
-            width
-            runtime
-            codebase
-            ppe
-            shallowBranch
-        pure renderedDoc
+findAndRenderDoc docNames runtime codebase namespacePath rootCausalHash _mayWidth = do
+  (shallowBranchAtNamespace, namesPerspective) <-
+    liftIO . (Codebase.runTransaction codebase) $ do
+      rootCausal <- Backend.resolveCausalHashV2 (Just rootCausalHash)
+      let rootBranchHash = V2Causal.valueHash rootCausal
+      namespaceCausal <- Codebase.getShallowCausalAtPath namespacePath (Just rootCausal)
+      shallowBranchAtNamespace <- V2Causal.value namespaceCausal
+      namesPerspective <- Ops.namesPerspectiveForRootAndPath rootBranchHash (coerce . Path.toList $ namespacePath)
+      pure (shallowBranchAtNamespace, namesPerspective)
+  let mayDocRef = Backend.findDocInBranch docNames shallowBranchAtNamespace
+  for mayDocRef \docRef -> do
+    eDoc <- liftIO $ evalDocRef runtime codebase docRef
+    let docDeps = Doc.dependencies eDoc <> Set.singleton (LD.TermReference docRef)
+    docPPE <- liftIO $ Codebase.runTransaction codebase $ PPESqlite.ppedForReferences namesPerspective docDeps
+    pure $ Doc.renderDoc docPPE eDoc

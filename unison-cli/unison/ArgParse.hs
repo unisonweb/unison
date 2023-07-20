@@ -80,11 +80,6 @@ data ShouldForkCodebase
   | DontFork
   deriving (Show, Eq)
 
-data ShouldDownloadBase
-  = ShouldDownloadBase
-  | ShouldNotDownloadBase
-  deriving (Show, Eq)
-
 data ShouldSaveCodebase
   = SaveCodebase (Maybe FilePath)
   | DontSaveCodebase
@@ -109,7 +104,6 @@ data Command
   = Launch
       IsHeadless
       CodebaseServerOpts
-      ShouldDownloadBase
       -- Starting path
       (Maybe Path.Absolute)
       ShouldWatchFiles
@@ -359,10 +353,9 @@ launchParser :: CodebaseServerOpts -> IsHeadless -> Parser Command
 launchParser envOpts isHeadless = do
   -- ApplicativeDo
   codebaseServerOpts <- codebaseServerOptsParser envOpts
-  downloadBase <- downloadBaseFlag
   startingPath <- startingPathOption
   shouldWatchFiles <- noFileWatchFlag
-  pure (Launch isHeadless codebaseServerOpts downloadBase startingPath shouldWatchFiles)
+  pure (Launch isHeadless codebaseServerOpts startingPath shouldWatchFiles)
 
 initParser :: Parser Command
 initParser = pure Init
@@ -420,18 +413,6 @@ saveCodebaseToFlag = do
         Just _ -> SaveCodebase path
         _ -> DontSaveCodebase
     )
-
-downloadBaseFlag :: Parser ShouldDownloadBase
-downloadBaseFlag =
-  flag
-    ShouldDownloadBase
-    ShouldNotDownloadBase
-    ( long "no-base"
-        <> help downloadBaseHelp
-        <> noGlobal
-    )
-  where
-    downloadBaseHelp = "if set, a new codebase will be created without downloading the base library, otherwise the new codebase will download base"
 
 startingPathOption :: Parser (Maybe Path.Absolute)
 startingPathOption =

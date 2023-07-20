@@ -13,7 +13,7 @@ We can display the guide before and after adding it to the codebase:
       section elements.
     
       Text can be bold, *italicized*, ~~strikethrough~~, or
-      `monospaced`.
+      `monospaced` (or `monospaced`).
     
       You can link to Unison terms, types, and external URLs:
     
@@ -225,7 +225,7 @@ We can display the guide before and after adding it to the codebase:
       section elements.
     
       Text can be bold, *italicized*, ~~strikethrough~~, or
-      `monospaced`.
+      `monospaced` (or `monospaced`).
     
       You can link to Unison terms, types, and external URLs:
     
@@ -443,7 +443,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       section elements.
     
       Text can be bold, *italicized*, ~~strikethrough~~, or
-      `monospaced`.
+      `monospaced` (or `monospaced`).
     
       You can link to Unison terms, types, and external URLs:
     
@@ -648,7 +648,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       section elements.
     
       Text can be bold, *italicized*, ~~strikethrough~~, or
-      `monospaced`.
+      `monospaced` (or `monospaced`).
     
       You can link to Unison terms, types, and external URLs:
     
@@ -1094,6 +1094,23 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         ()
                                         (Annotated.Append
                                           ()
+                                          [ Lit
+                                              ()
+                                              (Right (Plain "`")),
+                                            Lit
+                                              ()
+                                              (Right
+                                                (Plain
+                                                  "monospaced")),
+                                            Lit
+                                              ()
+                                              (Right (Plain "`")) ]),
+                                      Lit
+                                        () (Right (Plain "(or")),
+                                      Annotated.Group
+                                        ()
+                                        (Annotated.Append
+                                          ()
                                           [ Annotated.Group
                                               ()
                                               (Annotated.Append
@@ -1113,7 +1130,8 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       (Plain "`")) ]),
                                             Lit
                                               ()
-                                              (Right (Plain ".")) ]) ]))),
+                                              (Right
+                                                (Plain ").")) ]) ]))),
                             Lit () (Right (Plain "\n")),
                             Lit () (Right (Plain "\n")),
                             Indent

@@ -18,8 +18,6 @@ source-repository head
 library
   exposed-modules:
       Network.URI.Orphans.Sqlite
-  other-modules:
-      Paths_network_uri_orphans_sqlite
   hs-source-dirs:
       src
   default-extensions:
