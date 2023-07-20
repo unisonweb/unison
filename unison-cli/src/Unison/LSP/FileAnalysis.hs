@@ -13,6 +13,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These
+import Data.Zip qualified as Zip
 import Language.LSP.Types
   ( Diagnostic,
     Position,
@@ -51,6 +52,7 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.PrintError qualified as PrintError
+import Unison.Referent qualified as Referent
 import Unison.Result (Note)
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
@@ -72,6 +74,7 @@ import Unison.Util.Relation qualified as R1
 import Unison.Var qualified as Var
 import Unison.WatchKind (pattern TestWatch)
 import UnliftIO.STM
+import Witherable
 
 -- | Lex, parse, and typecheck a file.
 checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
@@ -95,6 +98,7 @@ checkFile doc = runMaybeT $ do
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
+  let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
   let fileSummary = mkFileSummary parsedFile typecheckedFile
   let tokenMap = getTokenMap tokens
   conflictWarningDiagnostics <-
@@ -104,7 +108,7 @@ checkFile doc = runMaybeT $ do
         (errDiagnostics <> conflictWarningDiagnostics)
           & fmap (\d -> (d ^. range, d))
           & toRangeMap
-  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, ..}
+  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, typeSignatureHints, ..}
   pure $ fileAnalysis
 
 -- | If a symbol is a 'User' symbol, return (Just sym), otherwise return Nothing.
@@ -501,3 +505,31 @@ ppedForFileHelper uf tf = do
       let fileNames = UF.toNames uf
           filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
        in filePPED `PPED.addFallback` codebasePPED
+
+mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
+mkTypeSignatureHints parsedFile typecheckedFile = do
+  let symbolsWithoutTypeSigs :: Map Symbol Ann
+      symbolsWithoutTypeSigs =
+        UF.terms parsedFile
+          & mapMaybe
+            ( \(v, ann, trm) -> do
+                -- We only want hints for terms without a user signature
+                guard (isNothing $ Term.getTypeAnnotation trm)
+                pure (v, ann)
+            )
+          & Map.fromList
+      typeHints =
+        typecheckedFile
+          & UF.hashTermsId
+          & Zip.zip symbolsWithoutTypeSigs
+          & imapMaybe
+            ( \v (ann, (_ann, ref, _wk, _trm, typ)) -> do
+                name <- Name.fromText (Var.name v)
+                range <- annToRange ann
+                let newRangeEnd =
+                      range ^. LSPTypes.start
+                        & LSPTypes.character +~ fromIntegral (Text.length (Name.toText name))
+                let newRange = range & LSPTypes.end .~ newRangeEnd
+                pure $ TypeSignatureHint name (Referent.fromTermReferenceId ref) newRange typ
+            )
+   in typeHints

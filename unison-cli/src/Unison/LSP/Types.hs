@@ -43,6 +43,7 @@ import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Reference qualified as Reference
+import Unison.Referent (Referent)
 import Unison.Result (Note)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch (NameSearch)
@@ -113,6 +114,14 @@ type FileVersion = Int32
 
 type LexedSource = (Text, [Lexer.Token Lexer.Lexeme])
 
+data TypeSignatureHint = TypeSignatureHint
+  { name :: Name,
+    referent :: Referent,
+    bindingLocation :: Range,
+    signature :: Type Symbol Ann
+  }
+  deriving (Show)
+
 data FileAnalysis = FileAnalysis
   { fileUri :: Uri,
     fileVersion :: FileVersion,
@@ -123,6 +132,7 @@ data FileAnalysis = FileAnalysis
     notes :: Seq (Note Symbol Ann),
     diagnostics :: IntervalMap Position [Diagnostic],
     codeActions :: IntervalMap Position [CodeAction],
+    typeSignatureHints :: Map Symbol TypeSignatureHint,
     fileSummary :: Maybe FileSummary
   }
   deriving stock (Show)
