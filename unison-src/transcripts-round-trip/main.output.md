@@ -2124,3 +2124,50 @@ UUID.randomUUIDBytes = do
   file has been previously added to the codebase.
 
 ```
+# Weirdness reported by Stew
+
+
+```unison
+---
+title: roundtrip.u
+---
+blah x = 
+  u = 92393
+  x
+thunk x = do x
+test = do 
+  blah !(thunk "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
+
+```
+
+
+```ucm
+.> edit test 
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/pchiusano/unison/roundtrip.u
+  
+    test : 'Text
+    test =
+      do
+        blah
+          !(thunk
+             "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> load roundtrip.u
+
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      test : 'Text
+
+```

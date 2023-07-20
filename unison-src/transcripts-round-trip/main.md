@@ -800,3 +800,26 @@ UUID.randomUUIDBytes = do
 .> undo
 ```
 
+# Weirdness reported by Stew with super long lines
+
+```unison:hide roundtrip.u
+blah x = 
+  u = 92393
+  x
+thunk x = do x
+test = do 
+  blah !(thunk "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
+```
+
+```ucm:hide
+.> add
+```
+
+```ucm
+.> edit test 
+.> load roundtrip.u
+```
+
+```ucm:hide
+.> undo
+```

@@ -287,7 +287,7 @@ pretty0
       App' x (Constructor' (ConstructorReference DD.UnitRef 0)) -> do
         px <- pretty0 (ac (if isBlock x then 0 else 10) Normal im doc) x
         pure . paren (p >= 11 || isBlock x && p >= 3) $
-          fmt S.DelayForceChar (l "!") <> px
+          fmt S.DelayForceChar (l "!") <> PP.indentNAfterNewline 1 px
       Delay' x
         | isLet x || p < 0 -> do
             let (im', uses) = calcImports im x
