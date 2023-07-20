@@ -750,12 +750,17 @@ ex6 = List.foreach [1,2,3,4] cases
 
 forkAt loc c = 
   x = 99
-  ()
+  390439034 
 
 ex7 somewhere = forkAt somewhere do
   x = 1
   y = 2 
   x + y
+
+ex8 = List.foreach [0,1,2,3,4,5] cases
+  0 -> 0
+  1 -> 1
+  n -> forkAt 0 (n + n + n + n + n + n + n + n + n + n + n)
 ```
 
 ```ucm:hide
@@ -763,7 +768,7 @@ ex7 somewhere = forkAt somewhere do
 ```
 
 ```ucm
-.> edit ex1 ex2 ex3 ex4 ex5 ex6 ex7
+.> edit ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8
 .> load roundtrip.u
 ```
 

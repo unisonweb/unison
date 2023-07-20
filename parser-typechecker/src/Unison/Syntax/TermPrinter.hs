@@ -476,7 +476,9 @@ pretty0
                 fun <- goNormal 9 f
                 args' <- traverse (goNormal 10) args
                 lastArg' <- goNormal 0 lastArg
-                pure . paren (p >= 3) $ PP.softHang fun (PP.spaced (args' <> [lastArg']))
+                let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
+                pure . paren (p >= 3) $ 
+                  PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
               (Bytes' bs, _) ->
                 pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
               BinaryAppsPred' apps lastArg -> do

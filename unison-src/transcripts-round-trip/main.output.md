@@ -813,12 +813,10 @@ broken tvar =
     broken : tvar -> () -> ()
     broken tvar =
       do
-        tvarmodify
-          tvar
-          cases
-            Some _ ->
-              "oh boy isn't this a very very very very very very very long string?"
-            None -> ""
+        tvarmodify tvar cases
+          Some _ ->
+            "oh boy isn't this a very very very very very very very long string?"
+          None -> ""
     
     tvarmodify : tvar -> fun -> ()
     tvarmodify tvar fun = ()
@@ -1256,23 +1254,23 @@ bar3 x = do
         b = 2
         foo
           (100
-            + 200
-            + 300
-            + 400
-            + 500
-            + 600
-            + 700
-            + 800
-            + 900
-            + 1000
-            + 1100
-            + 1200
-            + 1300
-            + 1400
-            + 1500)
+          + 200
+          + 300
+          + 400
+          + 500
+          + 600
+          + 700
+          + 800
+          + 900
+          + 1000
+          + 1100
+          + 1200
+          + 1300
+          + 1400
+          + 1500)
           do
-            c = 3
-            a + b
+          c = 3
+          a + b
     
     bar2 : x -> () -> Nat
     bar2 x = do
@@ -1994,18 +1992,23 @@ ex6 = List.foreach [1,2,3,4] cases
 
 forkAt loc c = 
   x = 99
-  ()
+  390439034 
 
 ex7 somewhere = forkAt somewhere do
   x = 1
   y = 2 
   x + y
 
+ex8 = List.foreach [0,1,2,3,4,5] cases
+  0 -> 0
+  1 -> 1
+  n -> forkAt 0 (n + n + n + n + n + n + n + n + n + n + n)
+
 ```
 
 
 ```ucm
-.> edit ex1 ex2 ex3 ex4 ex5 ex6 ex7
+.> edit ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8
 
   ☝️
   
@@ -2053,12 +2056,32 @@ ex7 somewhere = forkAt somewhere do
       0 -> 1
       n -> n Nat.+ 1
     
-    ex7 : somewhere -> ()
+    ex7 : somewhere -> Nat
     ex7 somewhere = forkAt somewhere do
       use Nat +
       x = 1
       y = 2
       x + y
+    
+    ex8 : Nat
+    ex8 = 
+      foreach [0, 1, 2, 3, 4, 5] cases
+        0 -> 0
+        1 -> 1
+        n ->
+          forkAt
+            0
+            (n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n)
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -2070,14 +2093,14 @@ ex7 somewhere = forkAt somewhere do
   change:
   
     ⊡ Previously added definitions will be ignored: ex1 ex2 ex5
-      ex6
+      ex6 ex8
     
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
       ex3 : 'Nat
       ex4 : 'Nat
-      ex7 : somewhere -> ()
+      ex7 : somewhere -> Nat
 
 ```
 # Make sure use clauses don't show up before a soft hang 
@@ -2124,8 +2147,7 @@ UUID.randomUUIDBytes = do
   file has been previously added to the codebase.
 
 ```
-# Weirdness reported by Stew
-
+# Weirdness reported by Stew with super long lines
 
 ```unison
 ---
