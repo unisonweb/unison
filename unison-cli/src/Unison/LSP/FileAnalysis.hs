@@ -24,18 +24,17 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
 import Language.LSP.Types.Lens qualified as LSPTypes
 import Unison.ABT qualified as ABT
-import Unison.Cli.TypeCheck (typecheck)
+import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
+import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
+import Unison.FileParsers (ShouldUseTndr (..))
+import Unison.FileParsers qualified as FileParsers
 import Unison.LSP.Conversions
 import Unison.LSP.Conversions qualified as Cv
-import Unison.LSP.Diagnostics
-  ( DiagnosticSeverity (..),
-    mkDiagnostic,
-    reportDiagnostics,
-  )
+import Unison.LSP.Diagnostics (DiagnosticSeverity (..), mkDiagnostic, reportDiagnostics)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.Types qualified as LSP
@@ -45,6 +44,7 @@ import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
+import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -78,7 +78,8 @@ import Witherable
 
 -- | Lex, parse, and typecheck a file.
 checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
-checkFile doc = runMaybeT $ do
+checkFile doc = runMaybeT do
+  currentPath <- lift getCurrentPath
   let fileUri = doc ^. uri
   (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getParseNames
@@ -87,12 +88,23 @@ checkFile doc = runMaybeT $ do
   let ambientAbilities = []
   cb <- asks codebase
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
-  r <- typecheck cb generateUniqueName ambientAbilities parseNames sourceName lexedSource
-  let Result.Result notes mayResult = r
-  let (parsedFile, typecheckedFile) = case mayResult of
-        Nothing -> (Nothing, Nothing)
-        Just (Left uf) -> (Just uf, Nothing)
-        Just (Right tf) -> (Just $ UF.discardTypes tf, Just tf)
+  uniqueName <- liftIO generateUniqueName
+  let parsingEnv =
+        Parser.ParsingEnv
+          { uniqueNames = uniqueName,
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+            names = parseNames
+          }
+  (notes, parsedFile, typecheckedFile) <- do
+    liftIO do
+      Codebase.runTransaction cb do
+        parseResult <- Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv
+        case Result.fromParsing parseResult of
+          Result.Result parsingNotes Nothing -> pure (parsingNotes, Nothing, Nothing)
+          Result.Result _ (Just parsedFile) -> do
+            typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
+            let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
+            pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
   (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
   let codeActionRanges =
         codeActions
@@ -109,7 +121,7 @@ checkFile doc = runMaybeT $ do
           & fmap (\d -> (d ^. range, d))
           & toRangeMap
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, typeSignatureHints, ..}
-  pure $ fileAnalysis
+  pure fileAnalysis
 
 -- | If a symbol is a 'User' symbol, return (Just sym), otherwise return Nothing.
 assertUserSym :: Symbol -> Maybe Symbol

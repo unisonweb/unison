@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -41,6 +41,7 @@ library
       Unison.Cli.Share.Projects
       Unison.Cli.Share.Projects.Types
       Unison.Cli.TypeCheck
+      Unison.Cli.UniqueTypeGuidLookup
       Unison.Cli.UnisonConfigUtils
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput

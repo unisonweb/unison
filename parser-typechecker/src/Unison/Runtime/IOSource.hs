@@ -16,10 +16,10 @@ import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId qualified as DD
-import Unison.FileParsers (parseAndSynthesizeFile)
+import Unison.FileParsers (ShouldUseTndr (..), computeTypecheckingEnvironment, synthesizeFile)
 import Unison.NamesWithHistory qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
+import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -29,14 +29,37 @@ import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
-import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile qualified as UF
-import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid (intercalateMap)
+import Unison.Util.Pretty qualified as Pretty
 import Unison.Var qualified as Var
 
 debug :: Bool
 debug = False
+
+parsingEnv :: Parser.ParsingEnv Identity
+parsingEnv =
+  Parser.ParsingEnv
+    { uniqueNames = mempty,
+      uniqueTypeGuid = \_ -> pure Nothing,
+      names = Names.NamesWithHistory Builtin.names0 mempty
+    }
+
+typecheckingEnv :: Typechecker.Env Symbol Ann
+typecheckingEnv =
+  runIdentity do
+    computeTypecheckingEnvironment
+      (ShouldUseTndr'Yes parsingEnv)
+      []
+      (\_ -> pure (External <$ Builtin.typeLookup))
+      parsedFile
+
+parsedFile :: UF.UnisonFile Symbol Ann
+parsedFile =
+  case runIdentity (Parsers.parseFile "<IO.u builtin>" sourceString parsingEnv) of
+    Left err -> error (Pretty.toAnsiUnbroken (PrintError.prettyParseError sourceString err))
+    Right file -> file
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile =
@@ -45,13 +68,9 @@ typecheckedFile =
 
 typecheckedFile' :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile' =
-  let tl :: a -> Identity (TL.TypeLookup Symbol Ann)
-      tl = const $ pure (External <$ Builtin.typeLookup)
-      env = Parser.ParsingEnv mempty (Names.NamesWithHistory Builtin.names0 mempty)
-      r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
-   in case decodeResult (Text.unpack source) r of
-        Left str -> error str
-        Right file -> file
+  case synthesizeFile typecheckingEnv parsedFile of
+    Result.Result notes Nothing -> error (showNotes sourceString ppEnv notes)
+    Result.Result _ (Just file) -> file
 
 typecheckedFileTerms :: Map.Map Symbol R.Reference
 typecheckedFileTerms = view _2 <$> UF.hashTerms typecheckedFile
@@ -499,6 +518,10 @@ constructorName ref cid =
     Just decl -> genericIndex (DD.constructorNames $ DD.asDataDecl decl) cid
 
 -- .. todo - fill in the rest of these
+
+sourceString :: String
+sourceString =
+  Text.unpack source
 
 source :: Text
 source =
@@ -981,23 +1004,6 @@ type EitherResult = Either String TFile
 showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
 showNotes source env =
   intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
-
-decodeResult ::
-  String -> SynthResult -> EitherResult
-decodeResult source (Result.Result notes Nothing) =
-  Left $ showNotes source ppEnv notes
-decodeResult source (Result.Result notes (Just (Left uf))) =
-  let errNames = UF.toNames uf
-   in Left $
-        showNotes
-          source
-          ( PPE.fromNames
-              10
-              (NamesWithHistory.shadowing errNames Builtin.names)
-          )
-          notes
-decodeResult _source (Result.Result _notes (Just (Right uf))) =
-  Right uf
 
 ppEnv :: PPE.PrettyPrintEnv
 ppEnv = PPE.fromNames 10 Builtin.names
