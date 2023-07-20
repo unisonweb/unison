@@ -1,8 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Unison.Syntax.Parser
-  (
-    Annotated (..),
+  ( Annotated (..),
     Err,
     Error (..),
     Input,
