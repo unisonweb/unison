@@ -1,7 +1,59 @@
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
-module Unison.Syntax.Parser where
+module Unison.Syntax.Parser
+  ( Annotated (..),
+    Err,
+    Error (..),
+    Input,
+    P,
+    ParsingEnv (..),
+    UniqueName,
+    anyToken,
+    blank,
+    bytesToken,
+    chainl1,
+    chainr1,
+    character,
+    closeBlock,
+    failCommitted,
+    failureIf,
+    hqInfixId,
+    hqPrefixId,
+    importDotId,
+    importSymbolyId,
+    importWordyId,
+    label,
+    matchToken,
+    mkAnn,
+    numeric,
+    openBlock,
+    openBlockWith,
+    peekAny,
+    positionalVar,
+    prefixDefinitionName,
+    queryToken,
+    reserved,
+    root,
+    rootFile,
+    run',
+    run,
+    semi,
+    Unison.Syntax.Parser.seq,
+    sepBy,
+    sepBy1,
+    string,
+    symbolyDefinitionName,
+    symbolyIdString,
+    tok,
+    tokenToPair,
+    tupleOrParenthesized,
+    uniqueBase32Namegen,
+    uniqueName,
+    wordyDefinitionName,
+    wordyIdString,
+    wordyPatternName,
+  )
+where
 
 import Control.Monad.Reader.Class (asks)
 import Crypto.Random qualified as Random
@@ -12,7 +64,6 @@ import Data.Char qualified as Char
 import Data.List.NonEmpty qualified as Nel
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.Typeable (Proxy (..))
 import Text.Megaparsec (runParserT)
 import Text.Megaparsec qualified as P
 import U.Util.Base32Hex qualified as Base32Hex
@@ -28,18 +79,6 @@ import Unison.Parser.Ann (Ann (..))
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-  ( Alternative (many, (<|>)),
-    Set,
-    Text,
-    encodeUtf8,
-    foldl',
-    fromMaybe,
-    isJust,
-    optional,
-    trace,
-    void,
-    when,
-  )
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Syntax.Lexer qualified as L
@@ -54,8 +93,6 @@ debug :: Bool
 debug = False
 
 type P v = P.ParsecT (Error v) Input ((->) ParsingEnv)
-
-type Token s = P.Token s
 
 type Err v = P.ParseError Input (Error v)
 
@@ -131,10 +168,6 @@ newtype Input = Input {inputStream :: [L.Token L.Lexeme]}
   deriving stock (Eq, Ord, Show)
   deriving newtype (P.Stream, P.VisualStream)
 
-setPos :: P.SourcePos -> L.Pos -> P.SourcePos
-setPos sp lp =
-  P.SourcePos (P.sourceName sp) (P.mkPos $ L.line lp) (P.mkPos $ L.column lp)
-
 class Annotated a where
   ann :: a -> Ann
 
@@ -188,9 +221,6 @@ failCommitted :: (Ord v) => Error v -> P v x
 failCommitted e = do
   void anyToken <|> void P.eof
   P.customFailure e
-
-proxy :: Proxy Input
-proxy = Proxy
 
 root :: (Ord v) => P v a -> P v a
 root p = (openBlock *> p) <* closeBlock <* P.eof
@@ -285,11 +315,7 @@ symbolyIdString = queryToken $ \case
   L.SymbolyId s Nothing -> Just s
   _ -> Nothing
 
--- Parse an infix id e.g. + or Docs.++, discarding any hash
-infixDefinitionName :: (Var v) => P v (L.Token v)
-infixDefinitionName = symbolyDefinitionName
-
--- Parse a symboly ID like >>= or &&, discarding any hash
+-- Parse a symboly ID like >>= or Docs.&&, discarding any hash
 symbolyDefinitionName :: (Var v) => P v (L.Token v)
 symbolyDefinitionName = queryToken $ \case
   L.SymbolyId s _ -> Just $ Var.nameds s

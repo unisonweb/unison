@@ -29,6 +29,8 @@ import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
+import Unison.LSP.CodeLens (codeLensHandler)
+import Unison.LSP.Commands (executeCommandHandler, supportedCommands)
 import Unison.LSP.Completion (completionHandler, completionItemResolveHandler)
 import Unison.LSP.Configuration qualified as Config
 import Unison.LSP.FileAnalysis qualified as Analysis
@@ -158,6 +160,8 @@ lspRequestHandlers =
   mempty
     & SMM.insert STextDocumentHover (mkHandler hoverHandler)
     & SMM.insert STextDocumentCodeAction (mkHandler codeActionHandler)
+    & SMM.insert STextDocumentCodeLens (mkHandler codeLensHandler)
+    & SMM.insert SWorkspaceExecuteCommand (mkHandler executeCommandHandler)
     & SMM.insert STextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert STextDocumentCompletion (mkHandler completionHandler)
     & SMM.insert SCompletionItemResolve (mkHandler completionItemResolveHandler)
@@ -199,7 +203,11 @@ lspInterpretHandler env@(Env {lspContext}) =
     fromIO m = liftIO m
 
 lspOptions :: Options
-lspOptions = defaultOptions {textDocumentSync = Just $ textDocSyncOptions}
+lspOptions =
+  defaultOptions
+    { textDocumentSync = Just $ textDocSyncOptions,
+      executeCommandCommands = Just supportedCommands
+    }
   where
     textDocSyncOptions =
       TextDocumentSyncOptions

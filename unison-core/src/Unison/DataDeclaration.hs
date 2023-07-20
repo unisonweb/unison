@@ -65,7 +65,7 @@ type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 data DeclOrBuiltin v a
   = Builtin CT.ConstructorType
   | Decl (Decl v a)
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
