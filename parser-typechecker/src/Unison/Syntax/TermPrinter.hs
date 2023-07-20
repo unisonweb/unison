@@ -89,7 +89,7 @@ data AmbientContext = AmbientContext
   { -- The operator precedence of the enclosing context (a number from 0 to 11,
     -- or -1 to render without outer parentheses unconditionally).
     -- Function application has precedence 10.
-    precedence :: !Int,
+    precedence :: !Int, -- -2 indicates top level binding, this is occasionally useful
     blockContext :: !BlockContext,
     infixContext :: !InfixContext,
     imports :: !Imports,
@@ -204,16 +204,12 @@ pretty0
         pure . paren (p >= 10) $
           fmt S.LinkKeyword "termLink "
             <> parenIfInfix name ic (styleHashQualified'' (fmt $ S.TermReference r) name)
-        where
-
       TypeLink' r -> do
         n <- getPPE
         let name = elideFQN im $ PrettyPrintEnv.typeName n r
         pure . paren (p >= 10) $
           fmt S.LinkKeyword "typeLink "
             <> parenIfInfix name ic (styleHashQualified'' (fmt $ S.TypeReference r) name)
-        where
-
       Ann' tm t -> do
         tm' <- pretty0 (ac 10 Normal im doc) tm
         tp' <- TypePrinter.pretty0 im 0 t
@@ -884,7 +880,7 @@ prettyBinding_ ::
   Term2 v at ap v a ->
   Pretty SyntaxText
 prettyBinding_ go ppe n tm =
-  runPretty (avoidShadowing tm ppe) . fmap go $ prettyBinding0 (ac (-1) Block Map.empty MaybeDoc) n tm
+  runPretty (avoidShadowing tm ppe) . fmap go $ prettyBinding0 (ac (-2) Block Map.empty MaybeDoc) n tm
 
 prettyBinding' ::
   (Var v) =>
@@ -915,8 +911,7 @@ prettyBinding0' ::
 prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
   go (symbolic && isBinary term) term
   where
-    go infix' binding = do
-      env <- getPPE
+    go infix' binding =
       case binding of
         Ann' tm tp -> do
           -- If the term is an annotated function,
@@ -935,7 +930,7 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
               { typeSignature = Just (PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") tp')),
                 term = PP.group (renderPrettyBinding tm')
               }
-        (printAnnotate env -> LamsNamedMatch' vs branches) -> do
+        LamsNamedMatch' vs branches -> do
           branches' <- printCase im doc branches
           pure
             PrettyBinding
