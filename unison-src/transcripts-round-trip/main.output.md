@@ -26,7 +26,9 @@ x = 1 + 1
   /Users/pchiusano/unison/roundtrip.u
   
     x : Nat
-    x = 1 Nat.+ 1
+    x =
+      use Nat +
+      1 + 1
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -377,10 +379,11 @@ foo =
   
     foo : Text
     foo =
+      use Text ++
       "aaaaaaaaaaaaaaaaaaaaaa"
-        Text.++ "bbbbbbbbbbbbbbbbbbbbbb"
-        Text.++ "cccccccccccccccccccccc"
-        Text.++ "dddddddddddddddddddddd"
+        ++ "bbbbbbbbbbbbbbbbbbbbbb"
+        ++ "cccccccccccccccccccccc"
+        ++ "dddddddddddddddddddddd"
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -1080,25 +1083,26 @@ x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
     
     x : [Nat]
     x =
+      use Nat +
       [ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1
-          Nat.+ 1,
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1,
         foo
           12939233
           2102020
@@ -1767,7 +1771,9 @@ We'd get a type error here if `exampleTerm` or `exampleType` didn't round-trip, 
   /Users/pchiusano/unison/roundtrip.u
   
     exampleTerm : Text -> Nat
-    exampleTerm quaffle = Foo.bar.quaffle Nat.+ 1
+    exampleTerm quaffle =
+      use Nat +
+      Foo.bar.quaffle + 1
     
     exampleType : Id qualifiedName -> Id Fully.qualifiedName
     exampleType z = Id (Dontcare () 19)
@@ -1821,7 +1827,8 @@ Notice there's a local name 'quaffle' of type `Text``, but the function refers t
   
     example : Int -> Text -> Nat
     example oo quaffle =
-      Foo.bar.quaffle Nat.+ Foo.bar.quaffle Nat.+ 1
+      use Nat +
+      Foo.bar.quaffle + Foo.bar.quaffle + 1
     
     example2 : Int -> Nat
     example2 oo =
@@ -2017,8 +2024,8 @@ ex8 = List.foreach [0,1,2,3,4,5] cases
   
     ex1 : Nat
     ex1 =
+      use Nat +
       handle
-        use Nat +
         x = 1
         y = abort
         x + y

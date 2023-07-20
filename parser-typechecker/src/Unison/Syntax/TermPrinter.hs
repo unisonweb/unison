@@ -173,12 +173,26 @@ data DocLiteralContext
 
 -}
 
+isBindingSoftHangable :: (Var v) =>  Term2 v at ap v a -> Bool
+isBindingSoftHangable (isSoftHangable -> True) = True 
+isBindingSoftHangable (Apps' _ (unsnoc -> Just (_, last))) = isSoftHangable last
+isBindingSoftHangable _ = False
+
 pretty0 ::
   forall v m.
   (MonadPretty v m) =>
   AmbientContext ->
   Term3 v PrintAnnotation ->
   m (Pretty SyntaxText)
+pretty0 a tm | precedence a == -2 && not (isBindingSoftHangable tm) = do
+  -- precedence = -2 means this is a top level binding, and we allow 
+  -- use clause insertion here even when it otherwise wouldn't be
+  -- (as long as the tm isn't soft hangable, if it gets soft hung then
+  -- adding use clauses beforehand will mess things up)
+  tmp <- pretty0 (a { imports = im, precedence = -1 }) tm  
+  pure $ PP.lines (uses <> [tmp])
+  where
+  (im, uses) = calcImports (imports a) tm 
 pretty0
   a@AmbientContext
     { precedence = p,
@@ -948,7 +962,7 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
                       `PP.hang` branches'
               }
         LamsNamedOrDelay' vs body -> do
-          prettyBody <- pretty0 (ac (-1) Block im doc) body
+          prettyBody <- pretty0 (ac (precedence a) Block im doc) body
           case body of
             -- allow soft hangs when first line is a function application
             -- that ends in a delay or other soft-hangable element
