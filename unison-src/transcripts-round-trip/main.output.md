@@ -1102,8 +1102,8 @@ x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
           + 1
           + 1
           + 1
-          + 1,
-        foo
+          + 1
+      , foo
           12939233
           2102020
           329292
@@ -1113,7 +1113,8 @@ x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
           72020202
           820202
           920202
-          1020202 ]
+          1020202
+      ]
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.

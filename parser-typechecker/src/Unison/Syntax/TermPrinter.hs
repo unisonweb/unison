@@ -318,20 +318,13 @@ pretty0
                 -- This is in case the contents are a long function application
                 -- in which case the arguments should be indented.
                 <> PP.indentAfterNewline "  " px
-      List' xs ->
-        PP.group <$> do
-          xs' <- traverse (pretty0 (ac 0 Normal im doc)) xs
-          pure $
-            fmt S.DelimiterChar (l "[")
-              <> optSpace
-              <> intercalateMap
-                (fmt S.DelimiterChar (l ",") <> PP.softbreak <> optSpace <> optSpace)
-                (PP.indentNAfterNewline 2)
-                xs'
-              <> optSpace
-              <> fmt S.DelimiterChar (l "]")
-        where
-          optSpace = PP.orElse "" " "
+      List' xs -> do
+        let listLink p = fmt (S.TypeReference Type.listRef) p
+        let comma = listLink ", " `PP.orElse` ("\n" <> listLink ", ")
+        pelems <- traverse (fmap (PP.indentNAfterNewline 2) . pretty0 (ac 0 Normal im doc)) xs
+        let open = listLink "[" `PP.orElse` listLink "[ "
+        let close = listLink "]" `PP.orElse` ("\n" <> listLink "]")
+        pure $ PP.group (open <> PP.sep comma pelems <> close)
       If' cond t f ->
         do
           pcond <- pretty0 (ac 2 Block im doc) cond
@@ -437,10 +430,10 @@ pretty0
                   pair
                     `PP.hang` PP.spaced [x', fmt (S.TermReference DD.unitCtorRef) "()"]
               (TupleTerm' xs, _) -> do
-                let comma = fmt S.DelimiterChar (l ", ") `PP.orElse` "\n, "
+                let tupleLink p = fmt (S.TypeReference DD.pairRef) p
+                let comma = tupleLink ", " `PP.orElse` ("\n" <> tupleLink ", ")
                 pelems <- traverse (fmap (PP.indentNAfterNewline 2) . goNormal 0) xs
                 let clist = PP.sep comma pelems
-                let tupleLink p = fmt (S.TypeReference DD.unitRef) p
                 let open = tupleLink "(" `PP.orElse` tupleLink "( "
                 let close = tupleLink ")" `PP.orElse` ("\n" <> tupleLink ")")
                 pure $ PP.group (open <> clist <> close)
