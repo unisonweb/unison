@@ -245,7 +245,7 @@ pretty0
         where
           -- we only use this syntax if we're not wrapped in something else,
           -- to avoid possible round trip issues if the text ends at an odd column
-          useRaw _ | p > 0 = Nothing
+          useRaw _ | p >= 0 = Nothing
           useRaw s | Text.find (== '\n') s == Just '\n' && Text.all ok s = n 3
           useRaw _ = Nothing
           ok ch = isPrint ch || ch == '\n' || ch == '\r'
