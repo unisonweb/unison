@@ -1,5 +1,5 @@
 # Basics
-## non-exhaustive patterns 
+## non-exhaustive patterns
 ```unison
 unique type T = A | B | C
 
@@ -550,7 +550,7 @@ test = cases
 This is another similar example. The first pattern matches lists of
 length 5 or greater. The second matches lists of length 4 or greater where the
 first and third element are true. The third matches lists of length 4
-or greater where the final 4 elements are `true, false, true, false`. 
+or greater where the final 4 elements are `true, false, true, false`.
 The list must be exactly of length 4 to arrive at the second or third
 clause, so the third pattern is redundant.
 ```unison
@@ -600,8 +600,8 @@ unit2t = cases
     unit2t : 'T
 
 ```
-Pattern coverage checking needs the data decl map to contain all 
-transitive type dependencies of the scrutinee type. We do this 
+Pattern coverage checking needs the data decl map to contain all
+transitive type dependencies of the scrutinee type. We do this
 before typechecking begins in a roundabout way: fetching all
 transitive type dependencies of references that appear in the expression.
 
@@ -786,10 +786,8 @@ result f = handle !f with cases
 structural ability Abort where
   abort : {Abort} a
 
-unique type V =
-
 result : '{e, Abort} V -> {e} V
-result f = 
+result f =
   impl : Request {Abort} V -> V
   impl = cases
        { abort -> _ } -> bug "aborted"
@@ -806,20 +804,15 @@ result f =
     
       structural ability Abort
       result : '{e, Abort} V ->{e} V
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      unique type V
 
 ```
 ```unison
 structural ability Abort where
   abort : {Abort} a
-  
+
 structural ability Stream a where
   emit : a -> {Stream a} Unit
-  
+
 handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
 handleMulti c =
   impl xs = cases
@@ -919,10 +912,10 @@ result f = handle !f with cases
 ```unison
 structural ability Abort where
   abort : {Abort} a
-  
+
 structural ability Stream a where
   emit : a -> {Stream a} Unit
-  
+
 handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
 handleMulti c =
   impl : [a] -> Request {Stream a, Abort} r -> (Optional r, [a])
@@ -998,10 +991,8 @@ structural ability Abort a where
   abort : {Abort a} r
   abortWithMessage : a -> {Abort a} r
 
-unique type V =
-
 result : '{e, Abort V} a -> {e, Abort V} a
-result f = 
+result f =
   impl : Request {Abort V} r -> {Abort V} r
   impl = cases
        { x } -> x
@@ -1019,11 +1010,6 @@ result f =
     
       structural ability Abort a
       result : '{e, Abort V} a ->{e, Abort V} a
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      unique type V
 
 ```
 ## Non-exhaustive ability reinterpretations are rejected
@@ -1070,10 +1056,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -1083,8 +1067,8 @@ result f =
 ```ucm
 
   Pattern match doesn't cover all possible cases:
-       10 |   impl = cases
-       11 |        { x } -> x
+        8 |   impl = cases
+        9 |        { x } -> x
     
   
   Patterns not matched:
@@ -1098,10 +1082,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -1119,11 +1101,6 @@ result f =
     
       unique ability Give a
       result : '{e, Give V} r ->{e} r
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      unique type V
 
 ```
 ```unison
@@ -1131,10 +1108,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -1152,11 +1127,6 @@ result f =
     
       unique ability Give a
       result : '{e, Give V} r ->{e} r
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      unique type V
 
 ```
 ```unison
@@ -1164,10 +1134,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -1179,7 +1147,7 @@ result f =
 ```ucm
 
   This case would be ignored because it's already covered by the preceding case(s):
-       13 |        { give2 _ -> resume } -> bug "impossible"
+       11 |        { give2 _ -> resume } -> bug "impossible"
     
 
 ```
@@ -1192,10 +1160,8 @@ unique ability GiveB a where
   giveB : a -> {GiveB a} Unit
   giveB2 : a -> {GiveB a} Unit
 
-unique type V =
-
 result : '{e, GiveA V, GiveB V} r -> {e} r
-result f = 
+result f =
   impl : Request {GiveA V, GiveB V} r -> {} r
   impl = cases
        { x } -> x
@@ -1209,7 +1175,7 @@ result f =
 ```ucm
 
   This case would be ignored because it's already covered by the preceding case(s):
-       17 |        { giveA2 _ -> _ } -> bug "impossible"
+       15 |        { giveA2 _ -> _ } -> bug "impossible"
     
 
 ```
@@ -1222,10 +1188,8 @@ unique ability GiveB a where
   giveB : a -> {GiveB a} Unit
   giveB2 : a -> {GiveB a} Unit
 
-unique type V =
-
 result : '{e, GiveA V, GiveB V} r -> {e} r
-result f = 
+result f =
   impl : Request {GiveA V, GiveB V} r -> {} r
   impl = cases
        { x } -> x
@@ -1245,10 +1209,5 @@ result f =
       unique ability GiveA a
       unique ability GiveB a
       result : '{e, GiveA V, GiveB V} r ->{e} r
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      unique type V
 
 ```

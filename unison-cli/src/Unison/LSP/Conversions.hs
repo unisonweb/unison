@@ -1,11 +1,11 @@
 module Unison.LSP.Conversions where
 
+import Control.Lens
 import Data.IntervalMap.Interval qualified as Interval
 import Language.LSP.Types
 import Unison.LSP.Orphans ()
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
-import Unison.Prelude
 import Unison.Syntax.Lexer qualified as Lex
 import Unison.Util.Range qualified as Range
 

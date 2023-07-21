@@ -10,34 +10,41 @@ import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import Data.IntervalMap.Lazy qualified as IM
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These
+import Data.Zip qualified as Zip
 import Language.LSP.Types
   ( Diagnostic,
-    DiagnosticSeverity (DsError),
     Position,
     Range,
     TextDocumentIdentifier (TextDocumentIdentifier),
     Uri (getUri),
   )
 import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
+import Language.LSP.Types.Lens qualified as LSPTypes
 import Unison.ABT qualified as ABT
-import Unison.Cli.TypeCheck (typecheckHelper)
+import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
+import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
+import Unison.FileParsers (ShouldUseTndr (..))
+import Unison.FileParsers qualified as FileParsers
 import Unison.LSP.Conversions
-import Unison.LSP.Diagnostics
-  ( mkDiagnostic,
-    reportDiagnostics,
-  )
+import Unison.LSP.Conversions qualified as Cv
+import Unison.LSP.Diagnostics (DiagnosticSeverity (..), mkDiagnostic, reportDiagnostics)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.Types qualified as LSP
 import Unison.LSP.VFS qualified as VFS
+import Unison.Name (Name)
+import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
+import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -45,12 +52,14 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.PrintError qualified as PrintError
+import Unison.Referent qualified as Referent
 import Unison.Result (Note)
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
 import Unison.Symbol qualified as Symbol
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
 import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
@@ -61,13 +70,16 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Relation qualified as R1
 import Unison.Var qualified as Var
 import Unison.WatchKind (pattern TestWatch)
 import UnliftIO.STM
+import Witherable
 
 -- | Lex, parse, and typecheck a file.
 checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
-checkFile doc = runMaybeT $ do
+checkFile doc = runMaybeT do
+  currentPath <- lift getCurrentPath
   let fileUri = doc ^. uri
   (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getParseNames
@@ -76,25 +88,40 @@ checkFile doc = runMaybeT $ do
   let ambientAbilities = []
   cb <- asks codebase
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
-  r <- (liftIO $ typecheckHelper cb generateUniqueName ambientAbilities parseNames sourceName lexedSource)
-  let Result.Result notes mayResult = r
-  let (parsedFile, typecheckedFile) = case mayResult of
-        Nothing -> (Nothing, Nothing)
-        Just (Left uf) -> (Just uf, Nothing)
-        Just (Right tf) -> (Just $ UF.discardTypes tf, Just tf)
-  (diagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
-  let diagnosticRanges =
-        diagnostics
-          & fmap (\d -> (d ^. range, d))
-          & toRangeMap
+  uniqueName <- liftIO generateUniqueName
+  let parsingEnv =
+        Parser.ParsingEnv
+          { uniqueNames = uniqueName,
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+            names = parseNames
+          }
+  (notes, parsedFile, typecheckedFile) <- do
+    liftIO do
+      Codebase.runTransaction cb do
+        parseResult <- Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv
+        case Result.fromParsing parseResult of
+          Result.Result parsingNotes Nothing -> pure (parsingNotes, Nothing, Nothing)
+          Result.Result _ (Just parsedFile) -> do
+            typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
+            let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
+            pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
+  (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
   let codeActionRanges =
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
+  let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
   let fileSummary = mkFileSummary parsedFile typecheckedFile
   let tokenMap = getTokenMap tokens
-  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, ..}
-  pure $ fileAnalysis
+  conflictWarningDiagnostics <-
+    fold <$> for fileSummary \fs ->
+      lift $ computeConflictWarningDiagnostics fileUri fs
+  let diagnosticRanges =
+        (errDiagnostics <> conflictWarningDiagnostics)
+          & fmap (\d -> (d ^. range, d))
+          & toRangeMap
+  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, typeSignatureHints, ..}
+  pure fileAnalysis
 
 -- | If a symbol is a 'User' symbol, return (Just sym), otherwise return Nothing.
 assertUserSym :: Symbol -> Maybe Symbol
@@ -109,11 +136,11 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
   (Nothing, Nothing) -> Nothing
   (_, Just tf@(UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId})) ->
     let (trms, testWatches, exprWatches) =
-          hashTermsId & ifoldMap \sym (_ann, ref, wk, trm, typ) ->
+          hashTermsId & ifoldMap \sym (ann, ref, wk, trm, typ) ->
             case wk of
-              Nothing -> (Map.singleton sym (Just ref, trm, getUserTypeAnnotation sym <|> Just typ), mempty, mempty)
-              Just TestWatch -> (mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)], mempty)
-              Just _ -> (mempty, mempty, [(assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)])
+              Nothing -> (Map.singleton sym (ann, Just ref, trm, getUserTypeAnnotation sym <|> Just typ), mempty, mempty)
+              Just TestWatch -> (mempty, [(ann, assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)], mempty)
+              Just _ -> (mempty, mempty, [(ann, assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)])
      in Just $
           FileSummary
             { dataDeclsBySymbol = dataDeclarationsId',
@@ -128,14 +155,14 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
             }
   (Just uf@(UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches}), _) ->
     let trms =
-          terms & foldMap \(sym, _ann, trm) ->
-            (Map.singleton sym (Nothing, trm, Nothing))
+          terms & foldMap \(sym, ann, trm) ->
+            (Map.singleton sym (ann, Nothing, trm, Nothing))
         (testWatches, exprWatches) =
           watches & ifoldMap \wk tms ->
-            tms & foldMap \(v, _ann, trm) ->
+            tms & foldMap \(v, ann, trm) ->
               case wk of
-                TestWatch -> ([(assertUserSym v, Nothing, trm, Nothing)], mempty)
-                _ -> (mempty, [(assertUserSym v, Nothing, trm, Nothing)])
+                TestWatch -> ([(ann, assertUserSym v, Nothing, trm, Nothing)], mempty)
+                _ -> (mempty, [(ann, assertUserSym v, Nothing, trm, Nothing)])
      in Just $
           FileSummary
             { dataDeclsBySymbol = dataDeclarationsId,
@@ -155,11 +182,11 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
         & Map.toList
         & fmap (\(v, (r, a)) -> (r, Map.singleton v a))
         & Map.fromListWith (<>)
-    termsRefMap :: (Ord v, Ord r) => Map v (r, a, b) -> Map r (Map v (a, b))
+    termsRefMap :: (Ord v, Ord r) => Map v (ann, r, a, b) -> Map r (Map v (ann, a, b))
     termsRefMap m =
       m
         & Map.toList
-        & fmap (\(v, (r, a, b)) -> (r, Map.singleton v (a, b)))
+        & fmap (\(v, (ann, r, a, b)) -> (r, Map.singleton v (ann, a, b)))
         & Map.fromListWith (<>)
     -- Gets the user provided type annotation for a term if there is one.
     -- This type sig will have Ann's within the file if it exists.
@@ -169,6 +196,32 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
       trm <- (terms <> fold watches) ^? folded . filteredBy (_1 . only v) . _3
       typ <- Term.getTypeAnnotation trm
       pure typ
+
+-- | Get the location of user defined definitions within the file
+getFileDefLocations :: Uri -> MaybeT Lsp (Map Symbol (Set Ann))
+getFileDefLocations uri = do
+  fileDefLocations <$> getFileSummary uri
+
+-- | Compute the location of user defined definitions within the file
+fileDefLocations :: FileSummary -> Map Symbol (Set Ann)
+fileDefLocations FileSummary {dataDeclsBySymbol, effectDeclsBySymbol, testWatchSummary, exprWatchSummary, termsBySymbol} =
+  fold
+    [ dataDeclsBySymbol <&> \(_, decl) ->
+        decl
+          & DD.annotation
+          & Set.singleton,
+      effectDeclsBySymbol <&> \(_, decl) ->
+        decl
+          & DD.toDataDecl
+          & DD.annotation
+          & Set.singleton,
+      (testWatchSummary <> exprWatchSummary)
+        & foldMap \(ann, maySym, _id, _trm, _typ) ->
+          case maySym of
+            Nothing -> mempty
+            Just sym -> Map.singleton sym (Set.singleton ann),
+      termsBySymbol <&> \(ann, _id, _trm, _typ) -> Set.singleton ann
+    ]
 
 fileAnalysisWorker :: Lsp ()
 fileAnalysisWorker = forever do
@@ -201,7 +254,43 @@ fileAnalysisWorker = forever do
 analyseFile :: (Foldable f) => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText notes = do
   pped <- PPED.suffixifiedPPE <$> LSP.globalPPED
-  analyseNotes fileUri pped (Text.unpack srcText) notes
+  (noteDiags, noteActions) <- analyseNotes fileUri pped (Text.unpack srcText) notes
+  pure (noteDiags, noteActions)
+
+-- | Returns diagnostics which show a warning diagnostic when editing a term that's conflicted in the
+-- codebase.
+computeConflictWarningDiagnostics :: Uri -> FileSummary -> Lsp [Diagnostic]
+computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = do
+  let defLocations = fileDefLocations fileSummary
+  conflictedNames <- Names.conflicts . Names.currentNames <$> getParseNames
+  let locationForName :: Name -> Set Ann
+      locationForName name = fold $ Map.lookup (Name.toVar name) defLocations
+  let conflictedTermLocations =
+        let fileTerms = R1.toMultimap (Names.terms fileNames)
+            conflictedTerms = R1.toMultimap (Names.terms conflictedNames)
+         in Map.intersectionWithKey (\name _ _ -> locationForName name) fileTerms conflictedTerms
+  let conflictedTypeLocations =
+        let fileTypes = R1.toMultimap (Names.types fileNames)
+            conflictedTypes = R1.toMultimap (Names.types conflictedNames)
+         in Map.intersectionWithKey (\name _ _ -> locationForName name) fileTypes conflictedTypes
+  let toDiagnostics annMap =
+        annMap
+          & Map.toList
+          & foldMap \(name, locs) ->
+            (mapMaybe Cv.annToRange . Set.toList $ locs)
+              <&> \range ->
+                let msg = "There are multiple definitions of `" <> Name.toText name <> "` in your namespace; updating this definition will replace them."
+                    newRangeEnd =
+                      range ^. LSPTypes.start
+                        & LSPTypes.character +~ fromIntegral (Text.length (Name.toText name))
+                    newRange = range & LSPTypes.end .~ newRangeEnd
+                 in mkDiagnostic
+                      fileUri
+                      newRange
+                      DsInfo
+                      msg
+                      mempty
+  pure $ toDiagnostics conflictedTermLocations <> toDiagnostics conflictedTypeLocations
 
 getTokenMap :: [L.Token L.Lexeme] -> IM.IntervalMap Position L.Lexeme
 getTokenMap tokens =
@@ -428,3 +517,31 @@ ppedForFileHelper uf tf = do
       let fileNames = UF.toNames uf
           filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
        in filePPED `PPED.addFallback` codebasePPED
+
+mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
+mkTypeSignatureHints parsedFile typecheckedFile = do
+  let symbolsWithoutTypeSigs :: Map Symbol Ann
+      symbolsWithoutTypeSigs =
+        UF.terms parsedFile
+          & mapMaybe
+            ( \(v, ann, trm) -> do
+                -- We only want hints for terms without a user signature
+                guard (isNothing $ Term.getTypeAnnotation trm)
+                pure (v, ann)
+            )
+          & Map.fromList
+      typeHints =
+        typecheckedFile
+          & UF.hashTermsId
+          & Zip.zip symbolsWithoutTypeSigs
+          & imapMaybe
+            ( \v (ann, (_ann, ref, _wk, _trm, typ)) -> do
+                name <- Name.fromText (Var.name v)
+                range <- annToRange ann
+                let newRangeEnd =
+                      range ^. LSPTypes.start
+                        & LSPTypes.character +~ fromIntegral (Text.length (Name.toText name))
+                let newRange = range & LSPTypes.end .~ newRangeEnd
+                pure $ TypeSignatureHint name (Referent.fromTermReferenceId ref) newRange typ
+            )
+   in typeHints
