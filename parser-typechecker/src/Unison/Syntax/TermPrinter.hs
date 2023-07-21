@@ -1939,7 +1939,7 @@ _oldDocEval, _oldDocEvalInline :: Reference
 _oldDocEval = Reference.unsafeFromText "#m2bmkdos2669tt46sh2gf6cmb4td5le8lcqnmsl9nfaqiv7s816q8bdtjdbt98tkk11ejlesepe7p7u8p0asu9758gdseffh0t78m2o"
 _oldDocEvalInline = Reference.unsafeFromText "#7pjlvdu42gmfvfntja265dmi08afk08l54kpsuu55l9hq4l32fco2jlrm8mf2jbn61esfsi972b6e66d9on4i5bkmfchjdare1v5npg"
 
--- for docs, we consider a delay to be any function that ignores its arg  
+-- for docs, we consider a delay to be any function that ignores its arg
 pattern DDelay' :: (Var v) => Term2 vt at ap v a -> Term2 vt at ap v a
 pattern DDelay' body <- (unDDelay -> Just body)
 
