@@ -719,6 +719,14 @@ ex1 = handle
     { a } -> a
     { Abort.abort -> _ } -> 0
 
+ex1a = handle
+  x = 1
+  y = abort
+  x + y
+  with cases
+    { a } -> "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
+    { Abort.abort -> _ } -> "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
+
 List.foreach x f = 0 
 
 ex2 = List.foreach [0,1,2,3,4,5] cases
@@ -768,7 +776,7 @@ ex8 = List.foreach [0,1,2,3,4,5] cases
 ```
 
 ```ucm
-.> edit ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8
+.> edit ex1 ex1a ex2 ex3 ex4 ex5 ex6 ex7 ex8
 .> load roundtrip.u
 ```
 
