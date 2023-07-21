@@ -167,7 +167,9 @@
     [(unison-data r 1 (list (unison-data s 0 (list bs ix))))
      (describe-derived bs ix)]
     [(unison-typelink-builtin name) (string-append "##" name)]
-    [(unison-typelink-derived hash i) (describe-derived hash i)]))
+    [(unison-typelink-derived hash i) (describe-derived hash i)]
+    [(unison-termlink-builtin name) (string-append "##" name)]
+    [(unison-termlink-derived hash i) (describe-derived hash i)]))
 
 (define (describe-bytes bs)
   (let* ([s (bytevector->base32-string b32h bs)]
@@ -196,10 +198,7 @@
     [(unison-termlink-derived hash i) (describe-derived hash i)]
     [(unison-typelink-builtin nm)
      (string-append "##" nm)]
-    [(unison-typelink-derived rf i)
-     (let ([rt (describe-ref rf)]
-           [it (if (= i 0) "" (number->string i))])
-       (string-append "#" rt it))]
+    [(unison-typelink-derived hs i) (describe-derived hs i)]
     [(unison-quote v)
      (string-append "{Value " (describe-value v) "}")]
     [(unison-code v)
