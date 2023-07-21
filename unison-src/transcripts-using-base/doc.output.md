@@ -243,7 +243,7 @@ and the rendered output using `display`:
 
   evaluation : Doc2
   evaluation =
-    use Nat +
+    use Nat * +
     {{
     # Evaluation
     
@@ -269,7 +269,6 @@ and the rendered output using `display`:
       evaluating it, you can do:
       
       @typecheck ```
-      use Nat *
       cube : Nat -> Nat
       cube x = x * x * x
       ```
@@ -495,16 +494,18 @@ and the rendered output using `display`:
     docTable
       [ [ {{
           a
-          }},
-          {{
+          }}
+        , {{
           b
-          }},
-          {{
+          }}
+        , {{
           A longer paragraph that will split onto multiple
           lines, such that this row occupies multiple lines in
           the rendered table.
-          }} ],
-        [{{ Some text }}, {{ More text }}, {{ Zounds! }}] ] }}
+          }}
+        ]
+      , [{{ Some text }}, {{ More text }}, {{ Zounds! }}]
+      ] }}
     }}
 
 .> display otherElements

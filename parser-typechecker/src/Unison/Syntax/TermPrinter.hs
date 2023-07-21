@@ -1939,8 +1939,18 @@ _oldDocEval, _oldDocEvalInline :: Reference
 _oldDocEval = Reference.unsafeFromText "#m2bmkdos2669tt46sh2gf6cmb4td5le8lcqnmsl9nfaqiv7s816q8bdtjdbt98tkk11ejlesepe7p7u8p0asu9758gdseffh0t78m2o"
 _oldDocEvalInline = Reference.unsafeFromText "#7pjlvdu42gmfvfntja265dmi08afk08l54kpsuu55l9hq4l32fco2jlrm8mf2jbn61esfsi972b6e66d9on4i5bkmfchjdare1v5npg"
 
+-- for docs, we consider a delay to be any function that ignores its arg  
+pattern DDelay' :: (Var v) => Term2 vt at ap v a -> Term2 vt at ap v a
+pattern DDelay' body <- (unDDelay -> Just body)
+
+unDDelay :: (Var v) => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
+unDDelay tm = case ABT.out tm of
+  ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body)))
+    | Set.notMember v (ABT.freeVars body) -> Just body
+  _ -> Nothing
+
 toDocEvalInline :: (Var v) => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocEvalInline ppe (App' (Ref' r) (Delay' tm))
+toDocEvalInline ppe (App' (Ref' r) (DDelay' tm))
   | nameEndsWith ppe ".docEvalInline" r = Just tm
   | r == _oldDocEvalInline = Just tm
 toDocEvalInline _ _ = Nothing
@@ -1994,7 +2004,7 @@ toDocParagraph ppe (App' (Ref' r) (List' tms))
 toDocParagraph _ _ = Nothing
 
 toDocEmbedTermLink :: (Var v) => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Referent
-toDocEmbedTermLink ppe (App' (Ref' r) (Delay' (Referent' tm)))
+toDocEmbedTermLink ppe (App' (Ref' r) (DDelay' (Referent' tm)))
   | nameEndsWith ppe ".docEmbedTermLink" r = Just tm
 toDocEmbedTermLink _ _ = Nothing
 
@@ -2044,7 +2054,7 @@ toDocSignatureInline ppe (App' (Ref' r) (toDocEmbedSignatureLink ppe -> Just tm)
 toDocSignatureInline _ _ = Nothing
 
 toDocEmbedSignatureLink :: (Var v) => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Referent
-toDocEmbedSignatureLink ppe (App' (Ref' r) (Delay' (Referent' tm)))
+toDocEmbedSignatureLink ppe (App' (Ref' r) (DDelay' (Referent' tm)))
   | nameEndsWith ppe ".docEmbedSignatureLink" r = Just tm
 toDocEmbedSignatureLink _ _ = Nothing
 

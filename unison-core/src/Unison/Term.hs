@@ -867,7 +867,7 @@ lam a v body = ABT.tm' a (Lam (ABT.abs' a v body))
 
 delay :: (Var v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a
 delay a body =
-  ABT.tm' a (Lam (ABT.abs' a (ABT.freshIn (ABT.freeVars body) (Var.named "_")) body))
+  ABT.tm' a (Lam (ABT.abs' a (ABT.freshIn (ABT.freeVars body) (Var.typed Var.Delay)) body))
 
 lam' :: (Ord v) => a -> [v] -> Term2 vt at ap v a -> Term2 vt at ap v a
 lam' a vs body = foldr (lam a) body vs
