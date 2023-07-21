@@ -2326,3 +2326,81 @@ d = """
   file has been previously added to the codebase.
 
 ```
+# Fix for wonky treatment of 
+
+Regression test for https://github.com/unisonweb/unison/issues/3239
+
+```unison
+---
+title: roundtrip.u
+---
+structural ability Zoink where
+  yay.there : Nat -> Nat
+  nay : Nat -> Nat
+
+```
+
+
+```ucm
+.z> edit Zoink
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/pchiusano/unison/roundtrip.u
+  
+    structural ability Zoink where
+      there : Nat ->{Zoink} Nat
+      nay : Nat ->{Zoink} Nat
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.z2> load roundtrip.u
+
+  I found and typechecked these definitions in roundtrip.u. If
+  you do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability Zoink
+
+.z2> add
+
+  ⍟ I've added these definitions:
+  
+    structural ability Zoink
+
+.z2> find Zoink.yay.there
+
+  ☝️
+  
+  I couldn't find matches in this namespace, searching in
+  'lib'...
+
+  😶
+  
+  No results. Check your spelling, or try using tab completion
+  to supply command arguments.
+  
+  `find.global` can be used to search outside the current
+  namespace.
+
+```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  😶
+  
+  No results. Check your spelling, or try using tab completion
+  to supply command arguments.
+  
+  `find.global` can be used to search outside the current
+  namespace.
+

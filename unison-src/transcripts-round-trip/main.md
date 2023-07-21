@@ -888,3 +888,36 @@ d = """
 ```ucm:hide
 .> undo
 ```
+
+# Fix for wonky treatment of abilities with multi-segment constructor names 
+
+Regression test for https://github.com/unisonweb/unison/issues/3239
+
+```ucm:hide
+.z> builtins.merge
+.z2> builtins.merge
+```
+
+```unison:hide roundtrip.u
+structural ability Zoink where
+  yay.there : Nat -> Nat
+  nay : Nat -> Nat
+```
+
+```ucm:hide
+.z> add
+```
+
+```ucm
+.z> edit Zoink
+.z2> load roundtrip.u
+.z2> add
+.z2> find Zoink.yay.there
+```
+
+```ucm:hide
+.> undo
+.> undo
+.> undo
+.> undo
+```
