@@ -1249,7 +1249,7 @@ synthesizeWanted e
           et = existential' l B.Blank e
       appendContext $
         [existential i, existential e, existential o, Ann arg it]
-      when (Var.typeOf i == Var.Delay) $ do 
+      when (Var.typeOf i == Var.Delay) $ do
         -- '(1 + 1) turns into a lambda with an arg variable of type Var.Delay
         -- here's where the typechecker assumes this must be of type 'thunkArgType'
         subtype it (DDB.thunkArgType l)

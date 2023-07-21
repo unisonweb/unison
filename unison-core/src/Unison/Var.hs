@@ -175,7 +175,7 @@ data Type
   | -- A variable for situations where we need to make up one that
     -- definitely won't be used.
     Irrelevant
-  | -- A variable used to represent the ignored argument to a thunk, as in '(1 + 1) 
+  | -- A variable used to represent the ignored argument to a thunk, as in '(1 + 1)
     Delay
   deriving (Eq, Ord, Show)
 

@@ -630,8 +630,8 @@ pattern Delay' body <- (unDelay -> Just body)
 unDelay :: (Var v) => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
 unDelay tm = case ABT.out tm of
   ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body)))
-    | Var.typeOf v == Var.Delay || Var.typeOf v == Var.User "()"
-    -> Just body
+    | Var.typeOf v == Var.Delay || Var.typeOf v == Var.User "()" ->
+        Just body
   _ -> Nothing
 
 pattern LamNamed' ::
