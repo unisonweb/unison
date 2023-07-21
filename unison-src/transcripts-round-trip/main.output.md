@@ -2326,7 +2326,7 @@ d = """
   file has been previously added to the codebase.
 
 ```
-# Fix for wonky treatment of 
+# Fix for wonky treatment of abilities with multi-segment constructor names 
 
 Regression test for https://github.com/unisonweb/unison/issues/3239
 
@@ -2350,7 +2350,7 @@ structural ability Zoink where
   /Users/pchiusano/unison/roundtrip.u
   
     structural ability Zoink where
-      there : Nat ->{Zoink} Nat
+      yay.there : Nat ->{Zoink} Nat
       nay : Nat ->{Zoink} Nat
   
   You can edit them there, then do `update` to replace the
@@ -2374,33 +2374,7 @@ structural ability Zoink where
 
 .z2> find Zoink.yay.there
 
-  ☝️
+  1. Zoink.yay.there : Nat ->{Zoink} Nat
   
-  I couldn't find matches in this namespace, searching in
-  'lib'...
-
-  😶
-  
-  No results. Check your spelling, or try using tab completion
-  to supply command arguments.
-  
-  `find.global` can be used to search outside the current
-  namespace.
 
 ```
-
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  😶
-  
-  No results. Check your spelling, or try using tab completion
-  to supply command arguments.
-  
-  `find.global` can be used to search outside the current
-  namespace.
-
