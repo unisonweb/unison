@@ -20,6 +20,15 @@
   data
   data-case
 
+  (struct-out unison-termlink)
+  (struct-out unison-termlink-con)
+  (struct-out unison-termlink-builtin)
+  (struct-out unison-termlink-derived)
+  (struct-out unison-typelink)
+  (struct-out unison-typelink-builtin)
+  (struct-out unison-typelink-derived)
+  declare-function-link
+
   request
   request-case
   sum
