@@ -5,6 +5,8 @@
   declare-unison-data-hash
   data-hash->number
   data-number->hash
+  declare-function-link
+  lookup-function-link
 
   (struct-out unison-data)
   (struct-out unison-sum)
@@ -241,6 +243,14 @@
 
 (define (data-number->hash n)
   (hash-ref data-number-hashes n))
+
+(define function-associations (make-hash))
+
+(define (declare-function-link f ln)
+  (hash-set! function-associations f ln))
+
+(define (lookup-function-link f)
+  (hash-ref function-associations f))
 
 (define (unison-tuple->list t)
   (let ([fs (unison-data-fields t)])
