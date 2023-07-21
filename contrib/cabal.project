@@ -48,7 +48,7 @@ constraints:
   crypton-x509-store <= 1.6.8,
   lsp < 2.0.0.0,
   servant <= 0.19.1,
-  optparse-applicative <= 0.17.0.0
+  optparse-applicative <= 0.17.1.0
 
 -- For now there is no way to apply ghc-options for all local packages
 -- See https://cabal.readthedocs.io/en/latest/cabal-project.html#package-configuration-options
