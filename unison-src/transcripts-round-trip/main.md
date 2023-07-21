@@ -851,3 +851,40 @@ test3 = do
 ```ucm:hide
 .> undo
 ```
+
+# Raw string round trip
+
+Regression test for https://github.com/unisonweb/unison/issues/3973
+
+```unison:hide roundtrip.u
+a = "a\nb"
+b = """
+  a
+  b
+  c -- note blank line
+
+  """
+c = """
+ignored (wonky case)
+Use an extra blank line if you'd like a trailing newline. Like so:
+
+"""
+d = """
+  ignored (works great)
+  Use an extra blank line if you'd like a trailing newline. Like so:
+
+  """
+```
+
+```ucm:hide
+.> add
+```
+
+```ucm
+.> edit a b c d
+.> load roundtrip.u
+```
+
+```ucm:hide
+.> undo
+```

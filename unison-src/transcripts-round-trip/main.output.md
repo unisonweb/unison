@@ -2248,3 +2248,81 @@ test3 = do
   file has been previously added to the codebase.
 
 ```
+# Raw string round trip
+
+Regression test for https://github.com/unisonweb/unison/issues/3973
+
+```unison
+---
+title: roundtrip.u
+---
+a = "a\nb"
+b = """
+  a
+  b
+  c -- note blank line
+
+  """
+c = """
+ignored (wonky case)
+Use an extra blank line if you'd like a trailing newline. Like so:
+
+"""
+d = """
+  ignored (works great)
+  Use an extra blank line if you'd like a trailing newline. Like so:
+
+  """
+
+```
+
+
+```ucm
+.> edit a b c d
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/pchiusano/unison/roundtrip.u
+  
+    a : Text
+    a =
+      """
+      a
+      b
+      """
+    
+    b : Text
+    b =
+      """
+      a
+      b
+      c -- note blank line
+      
+      """
+    
+    c : Text
+    c =
+      """
+      ignored (wonky case)
+      Use an extra blank line if you'd like a trailing newline. Like so:
+      
+      """
+    
+    d : Text
+    d =
+      """
+      ignored (works great)
+      Use an extra blank line if you'd like a trailing newline. Like so:
+      
+      """
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> load roundtrip.u
+
+  I found and typechecked the definitions in roundtrip.u. This
+  file has been previously added to the codebase.
+
+```

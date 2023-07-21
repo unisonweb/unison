@@ -241,7 +241,7 @@ pretty0
       Boolean' b -> pure . fmt S.BooleanLiteral $ if b then l "true" else l "false"
       Text' s
         | Just quotes <- useRaw s ->
-            pure . fmt S.TextLiteral $ PP.text quotes <> "\n" <> PP.text s <> PP.text quotes
+            pure . fmt S.TextLiteral $ PP.text quotes <> "\n" <> PP.text s <> "\n" <> PP.text quotes
         where
           -- we only use this syntax if we're not wrapped in something else,
           -- to avoid possible round trip issues if the text ends at an odd column
