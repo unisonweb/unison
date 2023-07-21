@@ -278,7 +278,7 @@ pretty0
       Handle' h body -> do
         pb <- pretty0 (ac 0 Block im doc) body
         ph <- pretty0 (ac 0 Block im doc) h
-        let hangHandler = case h of 
+        let hangHandler = case h of
               -- handle ... with cases
               LamsNamedMatch' [] _ -> \a b -> a <> " " <> b
               _ -> PP.hang
