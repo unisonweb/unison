@@ -23,6 +23,7 @@ import Crypto.Random qualified as Random
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Lazy.Char8 qualified as BL
+import Data.Char (isSpace)
 import Data.Char qualified as Char
 import Data.Configurator qualified as Configurator
 import Data.Configurator.Types (Config)
@@ -350,14 +351,14 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
                     atomically $ Q.undequeue cmdQueue (Just p)
                     pure (Right switchCommand)
                   Nothing -> do
-                    case words . Text.unpack $ lineTxt of
-                      [] -> awaitInput
-                      args -> do
+                    case break isSpace $ dropWhile isSpace . Text.unpack $ lineTxt of
+                      ("", _) -> awaitInput
+                      (command, argsString) -> do
                         liftIO (output ("\n" <> show p <> "\n"))
                         rootVar <- use #root
                         numberedArgs <- use #numberedArgs
                         let getRoot = fmap Branch.head . atomically $ readTMVar rootVar
-                        liftIO (parseInput getRoot curPath numberedArgs patternMap args) >>= \case
+                        liftIO (parseInput getRoot curPath numberedArgs patternMap command argsString) >>= \case
                           -- invalid command is treated as a failure
                           Left msg -> liftIO (dieWithMsg $ Pretty.toPlain terminalWidth msg)
                           Right input -> pure $ Right input

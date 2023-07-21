@@ -9,6 +9,7 @@ import Control.Exception (catch, finally, mask)
 import Control.Lens (preview, (?~), (^.))
 import Control.Monad.Catch (MonadMask)
 import Crypto.Random qualified as Random
+import Data.Char (isSpace)
 import Data.Configurator.Types (Config)
 import Data.IORef
 import Data.Text qualified as Text
@@ -100,10 +101,10 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
       line <- Line.getInputLine (P.toANSI 80 (promptString <> fromString prompt))
       case line of
         Nothing -> pure QuitI
-        Just l -> case words l of
-          [] -> go
-          ws -> do
-            liftIO (parseInput (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
+        Just l -> case break isSpace $ dropWhile isSpace l of
+          ("", _) -> go
+          (command, argsString) -> do
+            liftIO (parseInput (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap command argsString) >>= \case
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
