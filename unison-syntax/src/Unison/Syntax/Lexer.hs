@@ -798,9 +798,10 @@ lexemes' eof =
       -- a last line that's equal to `leading` is ignored, since leading
       -- spaces up to `col` are not considered part of the string
       let tweak l = case reverse l of
-            last : rest | col > 1 && last == leading -> reverse rest 
-                        | otherwise -> l
-            [] -> [] 
+            last : rest
+              | col > 1 && last == leading -> reverse rest
+              | otherwise -> l
+            [] -> []
       pure $ case tweak (lines s) of
         [] -> s
         ls
