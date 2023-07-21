@@ -87,6 +87,7 @@ rawName typ = case typ of
   Irrelevant -> "_irrelevant"
   UnnamedReference ref -> Reference.idToText ref
   UnnamedWatch k guid -> fromString k <> "." <> guid
+  Delay -> "()"
 
 name :: (Var v) => v -> Text
 name v = rawName (typeOf v) <> showid v
@@ -174,6 +175,8 @@ data Type
   | -- A variable for situations where we need to make up one that
     -- definitely won't be used.
     Irrelevant
+  | -- A variable used to represent the ignored argument to a thunk, as in '(1 + 1) 
+    Delay
   deriving (Eq, Ord, Show)
 
 data InferenceType

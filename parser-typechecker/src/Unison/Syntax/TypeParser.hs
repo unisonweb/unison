@@ -55,12 +55,15 @@ type2a = delayed <|> type2
 delayed :: (Var v) => TypeP v
 delayed = do
   q <- reserved "'"
-  t <- effect <|> type2a
+  t <- effect <|> (pt <$> type2a)
   pure $
     Type.arrow
       (Ann (L.start q) (end $ ann t))
-      (DD.unitType (ann q))
+      (DD.thunkArgType (ann q))
       t
+  where
+    -- if no abilities listed on 't, assume '{} t
+    pt t = Type.effect (ann t) [] t
 
 type2 :: (Var v) => TypeP v
 type2 = do

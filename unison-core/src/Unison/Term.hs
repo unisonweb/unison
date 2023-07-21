@@ -624,14 +624,14 @@ pattern Lam' ::
   ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 
-pattern Delay' :: (Ord v) => Term2 vt at ap v a -> Term2 vt at ap v a
+pattern Delay' :: (Var v) => Term2 vt at ap v a -> Term2 vt at ap v a
 pattern Delay' body <- (unDelay -> Just body)
 
-unDelay :: (Ord v) => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
+unDelay :: (Var v) => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
 unDelay tm = case ABT.out tm of
   ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body)))
-    | Set.notMember v (ABT.freeVars body) ->
-        Just body
+    | Var.typeOf v == Var.Delay || Var.typeOf v == Var.User "()"
+    -> Just body
   _ -> Nothing
 
 pattern LamNamed' ::

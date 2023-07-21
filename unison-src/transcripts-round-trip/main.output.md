@@ -803,7 +803,7 @@ broken tvar =
 
   ⍟ I've added these definitions:
   
-    broken     : tvar -> () -> ()
+    broken     : tvar -> '()
     tvarmodify : tvar -> fun -> ()
 
 .> edit tvarmodify broken
@@ -813,7 +813,7 @@ broken tvar =
   I added these definitions to the top of
   /Users/pchiusano/unison/roundtrip.u
   
-    broken : tvar -> () -> ()
+    broken : tvar -> '()
     broken tvar =
       do
         tvarmodify tvar cases
@@ -833,7 +833,7 @@ broken tvar =
   
   Added definitions:
   
-    1. broken     : tvar -> () -> ()
+    1. broken     : tvar -> '()
     2. tvarmodify : tvar -> fun -> ()
 
 ```
@@ -1231,10 +1231,10 @@ bar3 x = do
   ⍟ I've added these definitions:
   
     +    : Nat -> Nat -> Nat
-    bar0 : x -> () -> Nat
-    bar1 : x -> () -> Nat
-    bar2 : x -> () -> Nat
-    bar3 : x -> () -> b -> Nat
+    bar0 : x -> 'Nat
+    bar1 : x -> 'Nat
+    bar2 : x -> 'Nat
+    bar3 : x -> '(b -> Nat)
     foo  : a -> b -> Nat
 
 .> edit foo bar0 bar1 bar2 bar3
@@ -1244,7 +1244,7 @@ bar3 x = do
   I added these definitions to the top of
   /Users/pchiusano/unison/roundtrip.u
   
-    bar0 : x -> () -> Nat
+    bar0 : x -> 'Nat
     bar0 x = do
       a = 1
       b = 2
@@ -1252,7 +1252,7 @@ bar3 x = do
         c = 3
         a + b
     
-    bar1 : x -> () -> Nat
+    bar1 : x -> 'Nat
     bar1 x =
       do
         a = 1
@@ -1277,7 +1277,7 @@ bar3 x = do
           c = 3
           a + b
     
-    bar2 : x -> () -> Nat
+    bar2 : x -> 'Nat
     bar2 x = do
       a = 1
       b = 2
@@ -1285,7 +1285,7 @@ bar3 x = do
         c = 3
         a + b)
     
-    bar3 : x -> () -> b -> Nat
+    bar3 : x -> '(b -> Nat)
     bar3 x = do
       a = 1
       b = 2
@@ -1307,10 +1307,10 @@ bar3 x = do
   Added definitions:
   
     1. +    : Nat -> Nat -> Nat
-    2. bar0 : x -> () -> Nat
-    3. bar1 : x -> () -> Nat
-    4. bar2 : x -> () -> Nat
-    5. bar3 : x -> () -> b -> Nat
+    2. bar0 : x -> 'Nat
+    3. bar1 : x -> 'Nat
+    4. bar2 : x -> 'Nat
+    5. bar3 : x -> '(b -> Nat)
     6. foo  : a -> b -> Nat
 
 ```
@@ -1374,9 +1374,11 @@ roundtripLastLam =
     afun x f = f x
     
     roundtripLastLam : Nat
-    roundtripLastLam = afun "foo" do
-      _ = 1 + 1
-      3
+    roundtripLastLam =
+      afun
+        "foo" (n -> let
+          _ = 1 + 1
+          3)
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -1656,7 +1658,7 @@ d5 x = match x with
     d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
     d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
     d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
-    d4 : x -> () -> (Nat, x, Nat, Nat, Nat, Nat)
+    d4 : x -> '(Nat, x, Nat, Nat, Nat, Nat)
     d5 : Optional a -> a
 
 .> edit d1 d2 d3 d4 d5
@@ -1687,7 +1689,7 @@ d5 x = match x with
       (e, f) = (5, 6)
       (a, b, c, d, e, f)
     
-    d4 : x -> () -> (Nat, x, Nat, Nat, Nat, Nat)
+    d4 : x -> '(Nat, x, Nat, Nat, Nat, Nat)
     d4 x = do
       (a, b) = (1, x)
       (c, d) = (3, 4)
@@ -1711,7 +1713,7 @@ d5 x = match x with
     1. d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
     2. d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
     3. d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
-    4. d4 : x -> () -> (Nat, x, Nat, Nat, Nat, Nat)
+    4. d4 : x -> '(Nat, x, Nat, Nat, Nat, Nat)
     5. d5 : Optional a -> a
 
 ```
@@ -2100,14 +2102,12 @@ ex8 = List.foreach [0,1,2,3,4,5] cases
   you do an `add` or `update`, here's how your codebase would
   change:
   
-    ⊡ Previously added definitions will be ignored: ex1 ex2 ex5
-      ex6 ex8
+    ⊡ Previously added definitions will be ignored: ex1 ex2 ex3
+      ex4 ex5 ex6 ex8
     
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      ex3 : 'Nat
-      ex4 : 'Nat
       ex7 : somewhere -> Nat
 
 ```
@@ -2164,8 +2164,10 @@ title: roundtrip.u
 blah x = 
   u = 92393
   x
+
 thunk x = do x
-test = do 
+
+test1 = do 
   blah !(thunk "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
 
 test2 =
@@ -2173,19 +2175,27 @@ test2 =
     '(Text.toUtf8
        "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf"))
 
+test3 = do
+  run : forall a . Nat -> a
+  run x = bug x
+  runrun = 42
+  a = "asldkfj"
+  b = "asdflkjasdf"
+  do do run runrun do do runrun
+
 ```
 
 
 ```ucm
-.> edit test test2
+.> edit test1 test2 test3
 
   ☝️
   
   I added these definitions to the top of
   /Users/pchiusano/unison/roundtrip.u
   
-    test : 'Text
-    test =
+    test1 : 'Text
+    test1 =
       do
         blah
           !(thunk
@@ -2197,20 +2207,22 @@ test2 =
       , '(toUtf8
             "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf")
       )
+    
+    test3 : '('('r))
+    test3 = do
+      run : Nat -> a
+      run x = bug x
+      runrun = 42
+      a = "asldkfj"
+      b = "asdflkjasdf"
+      ''(run runrun ''runrun)
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
 .> load roundtrip.u
 
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      test  : 'Text
-      test2 : (Text, '{g} Bytes)
+  I found and typechecked the definitions in roundtrip.u. This
+  file has been previously added to the codebase.
 
 ```

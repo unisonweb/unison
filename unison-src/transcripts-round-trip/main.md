@@ -811,14 +811,24 @@ UUID.randomUUIDBytes = do
 blah x = 
   u = 92393
   x
+
 thunk x = do x
-test = do 
+
+test1 = do 
   blah !(thunk "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
 
 test2 =
   ("adsf",
     '(Text.toUtf8
        "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf"))
+
+test3 = do
+  run : forall a . Nat -> a
+  run x = bug x
+  runrun = 42
+  a = "asldkfj"
+  b = "asdflkjasdf"
+  do do run runrun do do runrun
 ```
 
 ```ucm:hide
@@ -826,7 +836,7 @@ test2 =
 ```
 
 ```ucm
-.> edit test test2
+.> edit test1 test2 test3
 .> load roundtrip.u
 ```
 
