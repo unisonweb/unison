@@ -133,7 +133,7 @@ resultTest rt uf filepath = do
   if rFileExists
     then scope "result" $ do
       values <- io $ unpack <$> readUtf8 valueFile
-      let term = Parsers.parseTerm values parsingEnv
+      let term = runIdentity (Parsers.parseTerm values parsingEnv)
       let report e = throwIO (userError $ toPlain 10000 e)
       (bindings, watches) <-
         io $
@@ -148,7 +148,7 @@ resultTest rt uf filepath = do
         Right tm -> do
           -- compare the the watch expression from the .u with the expr in .ur
           let watchResult = head (view _5 <$> Map.elems watches)
-              tm' = Term.letRec' False bindings watchResult
+              tm' = Term.letRec' False (bindings <&> \(sym, tm) -> (sym, (), tm)) watchResult
           -- note . show $ tm'
           -- note . show $ Term.amap (const ()) tm
           expectEqual tm' (Term.amap (const ()) tm)

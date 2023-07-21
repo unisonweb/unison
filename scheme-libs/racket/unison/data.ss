@@ -55,6 +55,12 @@
   unison-any-any:tag
   unison-any-any
 
+  unison-boolean:typelink
+  unison-boolean-true:tag
+  unison-boolean-false:tag
+  unison-boolean-true
+  unison-boolean-false
+
   unison-tuple->list)
 
 (require
@@ -208,6 +214,14 @@
 (define unison-any-any:tag 0)
 (define (unison-any-any x)
   (data unison-any:typelink unison-any-any:tag x))
+
+(define unison-boolean:typelink (unison-typelink-builtin "Boolean"))
+(define unison-boolean-true:tag 1)
+(define unison-boolean-false:tag 0)
+(define unison-boolean-true
+  (data unison-boolean:typelink unison-boolean-true:tag))
+(define unison-boolean-false
+  (data unison-boolean:typelink unison-boolean-false:tag))
 
 ; Type -> Text -> Any -> Failure
 (define (failure typeLink msg any)

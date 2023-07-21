@@ -50,7 +50,6 @@ dependencies:
   - filelock
   - filepath
   - fingertree
-  - fsnotify
   - fuzzyfind
   - free
   - generic-lens
@@ -133,6 +132,7 @@ dependencies:
   - vector
   - wai
   - warp
+  - witherable
   - x509
   - x509-store
   - x509-system

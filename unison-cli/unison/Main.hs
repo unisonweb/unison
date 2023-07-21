@@ -64,6 +64,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.TranscriptParser qualified as TR
+import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine (plural', watchConfig)
 import Unison.CommandLine.Main qualified as CommandLine
 import Unison.CommandLine.Types qualified as CommandLine
@@ -236,7 +237,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                           \that matches your version of Unison."
                       ]
         Transcript shouldFork shouldSaveCodebase mrtsStatsFp transcriptFiles -> do
-          let action = runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
+          let action = runTranscripts Verbosity.Verbose renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
           case mrtsStatsFp of
             Nothing -> action
             Just fp -> recordRtsStats fp action
@@ -337,8 +338,8 @@ initHTTPClient = do
   manager <- HTTP.newTlsManagerWith managerSettings
   HTTP.setGlobalManager manager
 
-prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> ShouldSaveCodebase -> IO FilePath
-prepareTranscriptDir shouldFork mCodePathOption shouldSaveCodebase = do
+prepareTranscriptDir :: Verbosity.Verbosity -> ShouldForkCodebase -> Maybe CodebasePathOption -> ShouldSaveCodebase -> IO FilePath
+prepareTranscriptDir verbosity shouldFork mCodePathOption shouldSaveCodebase = do
   tmp <- case shouldSaveCodebase of
     SaveCodebase (Just path) -> pure path
     _ -> Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
@@ -348,7 +349,7 @@ prepareTranscriptDir shouldFork mCodePathOption shouldSaveCodebase = do
       -- A forked codebase does not need to Create a codebase, because it already exists
       getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) $ const (pure ())
       path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
-      PT.putPrettyLn $
+      unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
         P.lines
           [ P.wrap "Transcript will be run on a copy of the codebase at: ",
             "",
@@ -357,7 +358,7 @@ prepareTranscriptDir shouldFork mCodePathOption shouldSaveCodebase = do
       Path.copyDir (CodebaseInit.codebasePath cbInit path) (CodebaseInit.codebasePath cbInit tmp)
     DontFork -> do
       PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-      CodebaseInit.withNewUcmCodebaseOrExit cbInit "main.transcript" tmp SC.DoLock (const $ pure ())
+      CodebaseInit.withNewUcmCodebaseOrExit cbInit verbosity "main.transcript" tmp SC.DoLock (const $ pure ())
   pure tmp
 
 runTranscripts' ::
@@ -371,7 +372,7 @@ runTranscripts' progName mcodepath transcriptDir markdownFiles = do
   configFilePath <- getConfigFilePath mcodepath
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
   and <$> getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, codebasePath, theCodebase) -> do
-    TR.withTranscriptRunner Version.gitDescribeWithDate (Just configFilePath) $ \runTranscript -> do
+    TR.withTranscriptRunner Verbosity.Verbose Version.gitDescribeWithDate (Just configFilePath) $ \runTranscript -> do
       for markdownFiles $ \(MarkdownFile fileName) -> do
         transcriptSrc <- readUtf8 fileName
         result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
@@ -414,13 +415,14 @@ runTranscripts' progName mcodepath transcriptDir markdownFiles = do
         pure succeeded
 
 runTranscripts ::
+  Verbosity.Verbosity ->
   UsageRenderer ->
   ShouldForkCodebase ->
   ShouldSaveCodebase ->
   Maybe CodebasePathOption ->
   NonEmpty String ->
   IO ()
-runTranscripts renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption args = do
+runTranscripts verbosity renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption args = do
   markdownFiles <- case traverse (first (pure @[]) . markdownFile) args of
     Failure invalidArgs -> do
       PT.putPrettyLn $
@@ -436,7 +438,7 @@ runTranscripts renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption
       Exit.exitWith (Exit.ExitFailure 1)
     Success markdownFiles -> pure markdownFiles
   progName <- getProgName
-  transcriptDir <- prepareTranscriptDir shouldFork mCodePathOption shouldSaveTempCodebase
+  transcriptDir <- prepareTranscriptDir verbosity shouldFork mCodePathOption shouldSaveTempCodebase
   completed <-
     runTranscripts' progName (Just transcriptDir) transcriptDir markdownFiles
   case shouldSaveTempCodebase of

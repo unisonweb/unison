@@ -151,6 +151,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.NameSegment qualified as NameSegment
+import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -316,8 +317,8 @@ addDefsToCodebase c uf = do
   traverse_ goTerm (UF.hashTermsId uf)
   where
     goTerm t | debug && trace ("Codebase.addDefsToCodebase.goTerm " ++ show t) False = undefined
-    goTerm (r, Nothing, tm, tp) = putTerm c r tm tp
-    goTerm (r, Just WK.TestWatch, tm, tp) = putTerm c r tm tp
+    goTerm (_, r, Nothing, tm, tp) = putTerm c r tm tp
+    goTerm (_, r, Just WK.TestWatch, tm, tp) = putTerm c r tm tp
     goTerm _ = pure ()
     goType :: (Show t) => (t -> Decl v a) -> (Reference.Id, t) -> Sqlite.Transaction ()
     goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
@@ -346,17 +347,17 @@ lookupWatchCache codebase h = do
   m1 <- getWatch codebase WK.RegularWatch h
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
+-- | Make a @TypeLookup@ that is suitable for looking up information about all of the given type-or-term references,
+-- and all of their type dependencies, including builtins.
 typeLookupForDependencies ::
-  forall m a.
-  (BuiltinAnnotation a) =>
-  Codebase m Symbol a ->
+  Codebase IO Symbol Ann ->
   Set Reference ->
-  Sqlite.Transaction (TL.TypeLookup Symbol a)
+  Sqlite.Transaction (TL.TypeLookup Symbol Ann)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
-  depthFirstAccum mempty s
+  (<> Builtin.typeLookup) <$> depthFirstAccum mempty s
   where
-    depthFirstAccum :: TL.TypeLookup Symbol a -> Set Reference -> Sqlite.Transaction (TL.TypeLookup Symbol a)
+    depthFirstAccum :: TL.TypeLookup Symbol Ann -> Set Reference -> Sqlite.Transaction (TL.TypeLookup Symbol Ann)
     depthFirstAccum tl refs = foldM go tl (Set.filter (unseen tl) refs)
 
     -- We need the transitive dependencies of data decls

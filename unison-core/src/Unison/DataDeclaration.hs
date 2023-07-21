@@ -65,7 +65,7 @@ type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 data DeclOrBuiltin v a
   = Builtin CT.ConstructorType
   | Decl (Decl v a)
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
@@ -134,15 +134,15 @@ generateRecordAccessors ::
   [(v, a)] ->
   v ->
   Reference ->
-  [(v, Term v a)]
+  [(v, a, Term v a)]
 generateRecordAccessors fields typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
   where
     argname = Var.uncapitalize typename
     tm (fname, ann) i =
-      [ (Var.namespaced [typename, fname], get),
-        (Var.namespaced [typename, fname, Var.named "set"], set),
-        (Var.namespaced [typename, fname, Var.named "modify"], modify)
+      [ (Var.namespaced [typename, fname], ann, get),
+        (Var.namespaced [typename, fname, Var.named "set"], ann, set),
+        (Var.namespaced [typename, fname, Var.named "modify"], ann, modify)
       ]
       where
         -- example: `point -> case point of Point x _ -> x`

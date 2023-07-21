@@ -3,7 +3,7 @@
 ```
 
 # Basics
-## non-exhaustive patterns 
+## non-exhaustive patterns
 ```unison:error
 unique type T = A | B | C
 
@@ -269,7 +269,7 @@ test = cases
 This is another similar example. The first pattern matches lists of
 length 5 or greater. The second matches lists of length 4 or greater where the
 first and third element are true. The third matches lists of length 4
-or greater where the final 4 elements are `true, false, true, false`. 
+or greater where the final 4 elements are `true, false, true, false`.
 The list must be exactly of length 4 to arrive at the second or third
 clause, so the third pattern is redundant.
 ```unison:error
@@ -295,8 +295,8 @@ unit2t = cases
 .> add
 ```
 
-Pattern coverage checking needs the data decl map to contain all 
-transitive type dependencies of the scrutinee type. We do this 
+Pattern coverage checking needs the data decl map to contain all
+transitive type dependencies of the scrutinee type. We do this
 before typechecking begins in a roundabout way: fetching all
 transitive type dependencies of references that appear in the expression.
 
@@ -376,10 +376,8 @@ result f = handle !f with cases
 structural ability Abort where
   abort : {Abort} a
 
-unique type V =
-
 result : '{e, Abort} V -> {e} V
-result f = 
+result f =
   impl : Request {Abort} V -> V
   impl = cases
        { abort -> _ } -> bug "aborted"
@@ -389,10 +387,10 @@ result f =
 ```unison
 structural ability Abort where
   abort : {Abort} a
-  
+
 structural ability Stream a where
   emit : a -> {Stream a} Unit
-  
+
 handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
 handleMulti c =
   impl xs = cases
@@ -442,10 +440,10 @@ result f = handle !f with cases
 ```unison:error
 structural ability Abort where
   abort : {Abort} a
-  
+
 structural ability Stream a where
   emit : a -> {Stream a} Unit
-  
+
 handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
 handleMulti c =
   impl : [a] -> Request {Stream a, Abort} r -> (Optional r, [a])
@@ -490,10 +488,8 @@ structural ability Abort a where
   abort : {Abort a} r
   abortWithMessage : a -> {Abort a} r
 
-unique type V =
-
 result : '{e, Abort V} a -> {e, Abort V} a
-result f = 
+result f =
   impl : Request {Abort V} r -> {Abort V} r
   impl = cases
        { x } -> x
@@ -533,10 +529,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -548,10 +542,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -564,10 +556,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -580,10 +570,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -601,10 +589,8 @@ unique ability GiveB a where
   giveB : a -> {GiveB a} Unit
   giveB2 : a -> {GiveB a} Unit
 
-unique type V =
-
 result : '{e, GiveA V, GiveB V} r -> {e} r
-result f = 
+result f =
   impl : Request {GiveA V, GiveB V} r -> {} r
   impl = cases
        { x } -> x
@@ -624,10 +610,8 @@ unique ability GiveB a where
   giveB : a -> {GiveB a} Unit
   giveB2 : a -> {GiveB a} Unit
 
-unique type V =
-
 result : '{e, GiveA V, GiveB V} r -> {e} r
-result f = 
+result f =
   impl : Request {GiveA V, GiveB V} r -> {} r
   impl = cases
        { x } -> x

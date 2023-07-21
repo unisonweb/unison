@@ -75,3 +75,4 @@ The format for this list: name, GitHub handle
 * Andrii Uvarov (@unorsk)
 * Mario Bašić (@mabasic)
 * Chris Krycho (@chriskrycho)
+* Hatim Khambati (@hatimkhambati26)

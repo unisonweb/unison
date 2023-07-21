@@ -41,7 +41,7 @@ test =
 
 file :: UnisonFile Symbol Ann
 file =
-  flip unsafeParseFile Common.parsingEnv $
+  runIdentity . flip unsafeParseFile Common.parsingEnv $
     [r|
 
 structural type Bool = True | False

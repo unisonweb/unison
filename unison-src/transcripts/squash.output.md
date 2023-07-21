@@ -13,7 +13,7 @@ Let's look at some examples. We'll start with a namespace with just the builtins
   
   
   
-  □ 1. #lcn24e0a6c (start of history)
+  □ 1. #5nd39ebhk9 (start of history)
 
 .> fork builtin builtin2
 
@@ -42,21 +42,21 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #ps6sgdb6eb
+  ⊙ 1. #73ohao25ot
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ 2. #pmj762mtub
+  ⊙ 2. #mrd0kk9f6v
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ 3. #lcn24e0a6c (start of history)
+  □ 3. #5nd39ebhk9 (start of history)
 
 ```
 If we merge that back into `builtin`, we get that same chain of history:
@@ -73,21 +73,21 @@ If we merge that back into `builtin`, we get that same chain of history:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #ps6sgdb6eb
+  ⊙ 1. #73ohao25ot
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ 2. #pmj762mtub
+  ⊙ 2. #mrd0kk9f6v
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ 3. #lcn24e0a6c (start of history)
+  □ 3. #5nd39ebhk9 (start of history)
 
 ```
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
@@ -108,7 +108,7 @@ Let's try again, but using a `merge.squash` (or just `squash`) instead. The hist
   
   
   
-  □ 1. #lcn24e0a6c (start of history)
+  □ 1. #5nd39ebhk9 (start of history)
 
 ```
 The churn that happened in `mybuiltin` namespace ended up back in the same spot, so the squash merge of that namespace with our original namespace had no effect.
@@ -499,13 +499,13 @@ This checks to see that squashing correctly preserves deletions:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #9hnba2qr13
+  ⊙ 1. #go5ls0mr4j
   
     - Deletes:
     
       Nat.* Nat.+
   
-  □ 2. #lcn24e0a6c (start of history)
+  □ 2. #5nd39ebhk9 (start of history)
 
 ```
 Notice that `Nat.+` and `Nat.*` are deleted by the squash, and we see them deleted in one atomic step in the history.

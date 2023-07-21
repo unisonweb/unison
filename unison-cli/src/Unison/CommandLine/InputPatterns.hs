@@ -20,7 +20,7 @@ import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
-import Unison.Cli.Pretty (prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
+import Unison.Cli.Pretty (prettyProjectName, prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -66,7 +66,7 @@ showPatternHelp i =
               then " (or " <> intercalate ", " (I.aliases i) <> ")"
               else ""
           ),
-      P.wrap $ I.help i
+      I.help i
     ]
 
 patternName :: InputPattern -> P.Pretty P.ColorText
@@ -87,8 +87,8 @@ makeExampleEOS p args =
   P.group $
     backtick (intercalateMap " " id (P.nonEmpty $ fromString (I.patternName p) : args)) <> "."
 
-helpFor :: InputPattern -> Either (P.Pretty CT.ColorText) Input
-helpFor p = I.parse help [I.patternName p]
+helpFor :: InputPattern -> P.Pretty CT.ColorText
+helpFor p = I.help p
 
 mergeBuiltins :: InputPattern
 mergeBuiltins =
@@ -484,6 +484,67 @@ viewByPrefix =
         . traverse parseHashQualifiedName
     )
 
+sfind :: InputPattern
+sfind =
+  InputPattern "rewrite.find" ["sfind"] I.Visible [(Required, definitionQueryArg)] msg parse
+  where
+    parse [q] = Input.StructuredFindI Input.FindLocal <$> parseHashQualifiedName q
+    parse _ = Left "expected exactly one argument"
+    msg =
+      P.lines
+        [ P.wrap $
+            makeExample sfind ["rule1"]
+              <> " finds definitions that match any of the left side(s) of `rule`"
+              <> "in the current namespace.",
+          "",
+          P.wrap $
+            "The argument `rule1` must refer to a `@rewrite` block or a function that immediately returns"
+              <> "a `@rewrite` block."
+              <> "It can be in the codebase or scratch file. An example:",
+          "",
+          "    -- right of ==> is ignored by this command",
+          "    rule1 x = @rewrite term x + 1 ==> ()",
+          "",
+          P.wrap $
+            "Here, `x` will stand in for any expression,"
+              <> "so this rule will match "
+              <> P.backticked' "(42+10+11) + 1" ".",
+          "",
+          "See https://unison-lang.org/learn/structured-find to learn more.",
+          "",
+          P.wrap ("Also see the related command" <> makeExample sfindReplace [])
+        ]
+
+sfindReplace :: InputPattern
+sfindReplace =
+  InputPattern "rewrite" ["sfind.replace"] I.Visible [(Required, definitionQueryArg)] msg parse
+  where
+    parse [q] = Input.StructuredFindReplaceI <$> parseHashQualifiedName q
+    parse _ = Left "expected exactly one argument"
+    msg :: P.Pretty CT.ColorText
+    msg =
+      P.lines
+        [ makeExample sfindReplace ["rule1"] <> " rewrites definitions in the latest scratch file.",
+          "",
+          P.wrap $
+            "The argument `rule1` must refer to a `@rewrite` block or a function that immediately returns"
+              <> "a `@rewrite` block."
+              <> "It can be in the codebase or scratch file. An example:",
+          "",
+          "    rule1 x = @rewrite term x + 1 ==> Nat.increment x",
+          "",
+          P.wrap $
+            "Here, `x` will stand in for any expression wherever this rewrite is applied,"
+              <> "so this rule will match "
+              <> P.backticked "(42+10+11) + 1"
+              <> "and replace it with"
+              <> P.backticked' "Nat.increment (42+10+11)" ".",
+          "",
+          "See https://unison-lang.org/learn/structured-find to learn more.",
+          "",
+          P.wrap ("Also see the related command" <> makeExample sfind [])
+        ]
+
 find :: InputPattern
 find = find' "find" Input.FindLocal
 
@@ -744,7 +805,7 @@ deleteBranch =
     { patternName = "delete.branch",
       aliases = ["branch.delete"],
       visibility = I.Visible,
-      argTypes = [(Required, projectBranchNameWithOptionalProjectNameArg)],
+      argTypes = [(Required, projectAndBranchNamesArg True)],
       help =
         P.wrapColumn2
           [ ("`delete.branch foo/bar`", "deletes the branch `bar` in the project `foo`"),
@@ -2765,6 +2826,8 @@ validInputs =
       findShallow,
       findVerbose,
       findVerboseAll,
+      sfind,
+      sfindReplace,
       forkLocal,
       gist,
       help,
@@ -3162,9 +3225,21 @@ projectNameArg :: ArgumentType
 projectNameArg =
   ArgumentType
     { typeName = "project-name",
-      suggestions = \_ _ _ _ -> pure [],
+      suggestions = \(Text.strip . Text.pack -> input) codebase _httpClient _path -> do
+        projects <-
+          Codebase.runTransaction codebase do
+            Queries.loadAllProjectsBeginningWith input
+        pure $ map projectToCompletion projects,
       globTargets = Set.empty
     }
+  where
+    projectToCompletion :: Sqlite.Project -> Completion
+    projectToCompletion project =
+      Completion
+        { replacement = Text.unpack (into @Text (project ^. #name)),
+          display = P.toAnsiUnbroken (prettyProjectName (project ^. #name)),
+          isFinished = False
+        }
 
 -- | Parse a 'Input.PushSource'.
 parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource

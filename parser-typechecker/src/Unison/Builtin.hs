@@ -875,7 +875,8 @@ ioBuiltins =
     ( "IO.tryEval",
       forall1 "a" $ \a ->
         (unit --> io a) --> Type.effect () [Type.builtinIO (), DD.exceptionType ()] a
-    )
+    ),
+    ("IO.randomBytes", nat --> io bytes)
   ]
 
 mvarBuiltins :: [(Text, Type)]

@@ -1,4 +1,12 @@
-module Unison.LSP.Diagnostics where
+module Unison.LSP.Diagnostics
+  ( annToRange,
+    uToLspPos,
+    uToLspRange,
+    reportDiagnostics,
+    mkDiagnostic,
+    DiagnosticSeverity (..),
+  )
+where
 
 import Language.LSP.Types
 import Unison.LSP.Types

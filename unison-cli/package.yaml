@@ -30,6 +30,7 @@ dependencies:
   - extra
   - filepath
   - free
+  - fsnotify
   - fuzzyfind
   - friendly-time
   - generic-lens
@@ -147,6 +148,7 @@ executables:
       - process
       - shellmet
       - unison-cli
+      - silently
 
   cli-integration-tests:
     when:

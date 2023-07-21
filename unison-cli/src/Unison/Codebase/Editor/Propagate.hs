@@ -14,7 +14,7 @@ import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.TypeCheck qualified as Cli (typecheckFile')
+import Unison.Cli.TypeCheck qualified as Cli (computeTypecheckingEnvironment)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
@@ -32,6 +32,7 @@ import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
+import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
@@ -520,7 +521,7 @@ propagate patch b = case validatePatch patch of
                 [(v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m']
 
     verifyTermComponent ::
-      Codebase m Symbol Ann ->
+      Codebase IO Symbol Ann ->
       Map Symbol (Reference, Term Symbol Ann, a) ->
       Edits Symbol ->
       Sqlite.Transaction (Maybe (Map Symbol (Reference, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)))
@@ -545,10 +546,20 @@ propagate patch b = case validatePatch patch of
                 UnisonFileId
                   mempty
                   mempty
-                  (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
+                  ( componentMap
+                      & Map.toList
+                      & fmap
+                        ( \(v, (_ref, tm, _)) ->
+                            (v, External, tm)
+                        )
+                  )
                   mempty
-          typecheckResult <- Cli.typecheckFile' codebase [] file
-          pure . fmap UF.hashTerms $ Result.result typecheckResult
+          typecheckingEnv <- Cli.computeTypecheckingEnvironment FileParsers.ShouldUseTndr'No codebase [] file
+          let typecheckResult = FileParsers.synthesizeFile typecheckingEnv file
+          Result.result typecheckResult
+            & fmap UF.hashTerms
+            & (fmap . fmap) (\(_ann, ref, wk, tm, tp) -> (ref, wk, tm, tp))
+            & pure
 
 -- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
 unhashTypeComponent :: Reference -> Sqlite.Transaction (Map Symbol (Reference, Decl Symbol Ann))

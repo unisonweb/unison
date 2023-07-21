@@ -27,6 +27,9 @@
     builtin-Float.*
     builtin-Float.fromRepresentation
     builtin-Float.toRepresentation
+    builtin-Float.exp
+    builtin-Float.log
+    builtin-Float.logBase
     builtin-Int.+
     builtin-Int.-
     builtin-Int.increment
@@ -37,6 +40,8 @@
     builtin-Nat.increment
     builtin-Nat.toFloat
     builtin-Text.indexOf
+    builtin-Bytes.indexOf
+    builtin-IO.randomBytes
 
     builtin-Value.toBuiltin
     builtin-Value.fromBuiltin
@@ -54,8 +59,16 @@
     unison-FOp-IO.getBytes.impl.v3
     builtin-IO.seekHandle.impl.v3
     builtin-IO.getLine.impl.v1
+    builtin-IO.getSomeBytes.impl.v1
     builtin-IO.setBuffering.impl.v3
     builtin-IO.getBuffering.impl.v3
+    builtin-IO.setEcho.impl.v1
+    builtin-IO.process.call
+    builtin-IO.getEcho.impl.v1
+    builtin-IO.getArgs.impl.v1
+    builtin-IO.getEnv.impl.v1
+    builtin-IO.getChar.impl.v1
+    builtin-IO.getCurrentDirectory.impl.v3
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
@@ -203,6 +216,7 @@
     unison-POp-ATN2
     unison-POp-ATNH
     unison-POp-CEIL
+    unison-POp-FLOR
     unison-POp-COSF
     unison-POp-COSH
     unison-POp-DIVF
@@ -227,12 +241,16 @@
     unison-POp-CONS
     unison-POp-DBTX
     unison-POp-DECI
+    unison-POp-INCI
+    unison-POp-DECN
+    unison-POp-INCN
     unison-POp-DIVN
     unison-POp-DRPB
     unison-POp-DRPS
     unison-POp-DRPT
     unison-POp-EQLN
     unison-POp-EQLT
+    unison-POp-EXPF
     unison-POp-LEQT
     unison-POp-EQLU
     unison-POp-EROR
@@ -280,6 +298,8 @@
     unison-POp-MULI
     unison-POp-MODI
     unison-POp-LEQI
+    unison-POp-LOGB
+    unison-POp-LOGF
     unison-POp-POWN
     unison-POp-VWRS
     unison-POp-SPLL
@@ -370,6 +390,7 @@
           (unison math)
           (unison chunked-seq)
           (unison chunked-bytes)
+          (unison string-search)
           (unison bytes-nat)
           (unison pattern)
           (unison crypto)
@@ -380,7 +401,8 @@
           (unison tcp)
           (unison gzip)
           (unison zlib)
-          (unison concurrent))
+          (unison concurrent)
+          (racket random))
 
   (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
   (define-unison (builtin-Value.fromBuiltin v)
@@ -389,15 +411,8 @@
   (define-unison (builtin-Code.toGroup co)
     (unison-code-rep co))
 
-  ; NOTE: this is just a temporary stopgap until the real function is
-  ; done. I accidentally pulled in too new a version of base in the
-  ; project version of the unison compiler and it broke the jit tests.
-  (define-unison (builtin-Text.indexOf s t)
-    (let ([ss (chunked-string->string s)]
-          [tt (chunked-string->string t)])
-      (match (regexp-match-positions ss tt)
-        [#f (data 'Optional 1)] ; none
-        [(cons (cons i j) r) (data 'Optional 0 i)]))) ; some
+  (define-unison (builtin-IO.randomBytes n)
+    (bytes->chunked-bytes (crypto-random-bytes n)))
 
   (define (unison-POp-UPKB bs)
     (build-chunked-list
@@ -409,6 +424,7 @@
   (define unison-POp-MODI mod)
   (define (unison-POp-LEQI a b) (bool (<= a b)))
   (define unison-POp-POWN expt)
+  (define unison-POp-LOGF log)
 
   (define (reify-exn thunk)
     (guard
@@ -429,6 +445,9 @@
   (define (unison-POp-COMN n) (fxnot n))
   (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
   (define (unison-POp-DECI n) (fx1- n))
+  (define (unison-POp-INCI n) (fx+ n 1))
+  (define (unison-POp-DECN n) (- n 1))
+  (define (unison-POp-INCN n) (+ n 1))
   (define (unison-POp-DIVN m n) (fxdiv m n))
   (define (unison-POp-DRPB n bs) (chunked-bytes-drop bs n))
   (define (unison-POp-DRPS n l) (chunked-list-drop l n))
@@ -479,6 +498,16 @@
   (define (unison-POp-TAKS n s) (chunked-list-take s n))
   (define (unison-POp-TAKT n t) (chunked-string-take t n))
   (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
+
+  (define (->optional v)
+    (if v
+        (data 'Optional 0 v)
+        (data 'Optional 1)))
+
+  (define-unison (builtin-Text.indexOf n h)
+    (->optional (chunked-string-index-of h n)))
+  (define-unison (builtin-Bytes.indexOf n h)
+    (->optional (chunked-bytes-index-of h n)))
 
   ;; TODO currently only runs in low-level tracing support
   (define (unison-POp-DBTX x)
@@ -604,20 +633,6 @@
       (sum 1 #f)))
 
   (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
-
-  (define (with-buffer-mode port mode)
-    (file-stream-buffer-mode port mode)
-    port)
-
-  (define stdin (with-buffer-mode (standard-input-port) 'none))
-  (define stdout (with-buffer-mode (standard-output-port) 'line))
-  (define stderr (with-buffer-mode (standard-error-port) 'line))
-
-  (define (unison-FOp-IO.stdHandle n)
-    (case n
-      [(0) stdin]
-      [(1) stdout]
-      [(2) stderr]))
 
   (define (unison-FOp-IO.getArgs.impl.v1)
     (sum 1 (cdr (command-line))))
