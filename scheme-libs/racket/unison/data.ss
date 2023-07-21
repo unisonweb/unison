@@ -44,13 +44,16 @@
   bool
   char
   ord
-  any
   failure
   exception
   exn:bug
   make-exn:bug
   exn:bug?
   exn:bug->exception
+
+  unison-any:typelink
+  unison-any-any:tag
+  unison-any-any
 
   unison-tuple->list)
 
@@ -201,7 +204,10 @@
 (define (either-get either) (car (unison-sum-fields either)))
 
 ; a -> Any
-(define (any a) (data 'Any 0 a))
+(define unison-any:typelink (unison-typelink-builtin "Any"))
+(define unison-any-any:tag 0)
+(define (unison-any-any x)
+  (data unison-any:typelink unison-any-any:tag x))
 
 ; Type -> Text -> Any -> Failure
 (define (failure typeLink msg any)
@@ -209,7 +215,7 @@
 
 ; Type -> Text -> a ->{Exception} b
 (define (exception typeLink msg a)
-  (failure typeLink msg (any a)))
+  (failure typeLink msg (unison-any-any a)))
 
 ; TODO needs better pretty printing for when it isn't caught
 (struct exn:bug (msg a)
